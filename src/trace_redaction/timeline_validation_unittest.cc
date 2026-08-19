@@ -53,8 +53,7 @@ TEST(TimelineValidationTest, NonEmptyTimelineReturnsOk) {
   TimelineValidation validator;
   Context context;
   context.timeline = std::make_unique<ProcessThreadTimeline>();
-  context.timeline->Append(
-      ProcessThreadTimeline::Event::Open(100, 1, 0, 1000));
+  context.timeline->Append(ProcessThreadTimeline::Event::Open(100, 1, 0, 1000));
   context.timeline->Sort();
 
   ASSERT_FALSE(context.timeline->empty());

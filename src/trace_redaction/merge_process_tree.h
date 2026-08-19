@@ -31,10 +31,10 @@ using ProcessTreeProcess = Context::ProcessTreeProcess;
 using ProcessTreeThread = Context::ProcessTreeThread;
 
 // During redaction multiple process trees with redundant information are
-// generated due to merge of all other processes when merging every other process and
-// thread into a synthetic process called, so we end up with multiple
-// process_tree packets with the same information. A canonical example of the 
-// issue looks like the following:
+// generated due to merge of all other processes when merging every other
+// process and thread into a synthetic process called, so we end up with
+// multiple process_tree packets with the same information. A canonical example
+// of the issue looks like the following:
 //
 // process_tree {
 //   collection_end_timestamp: 1210106257304
@@ -67,9 +67,9 @@ using ProcessTreeThread = Context::ProcessTreeThread;
 //   ... (the rest of the threads, one for each CPU)
 // }
 //
-// The goal of the primitives in this file is to deduplicate the processtree packets
-// so that only a single process tree packet is emitted containing all the
-// threads and processes.
+// The goal of the primitives in this file is to deduplicate the processtree
+// packets so that only a single process tree packet is emitted containing all
+// the threads and processes.
 
 // Collects unique thread/process information from the trace
 class CollectProcessTrees : public CollectPrimitive {

@@ -58,7 +58,7 @@ base::Status CollectProcessTrees::Collect(const TracePacket::Decoder& packet,
     }
 
     for (auto cmdline_it = process_decoder.cmdline(); cmdline_it;
-          ++cmdline_it) {
+         ++cmdline_it) {
       process.cmdline.push_back(cmdline_it->as_std_string());
     }
 

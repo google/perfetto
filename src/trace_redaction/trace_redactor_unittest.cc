@@ -107,8 +107,8 @@ TEST(TraceRedactorPassTest, DirectPassExecution) {
   }
 
   std::string serialized = trace.SerializeAsString();
-  auto blob =
-      trace_processor::TraceBlob::CopyFrom(serialized.data(), serialized.size());
+  auto blob = trace_processor::TraceBlob::CopyFrom(serialized.data(),
+                                                   serialized.size());
   trace_processor::TraceBlobView view(std::move(blob));
 
   TraceRedactorPass pass;
@@ -141,8 +141,8 @@ TEST(TraceRedactorPassTest, ValidatorErrorHaltsExecution) {
   packet->set_timestamp(100);
 
   std::string serialized = trace.SerializeAsString();
-  auto blob =
-      trace_processor::TraceBlob::CopyFrom(serialized.data(), serialized.size());
+  auto blob = trace_processor::TraceBlob::CopyFrom(serialized.data(),
+                                                   serialized.size());
   trace_processor::TraceBlobView view(std::move(blob));
 
   TraceRedactorPass pass;
@@ -162,8 +162,8 @@ TEST(TraceRedactorPassTest, EmptyTimelineWithTimelineValidationReturnsError) {
   packet->set_timestamp(100);
 
   std::string serialized = trace.SerializeAsString();
-  auto blob =
-      trace_processor::TraceBlob::CopyFrom(serialized.data(), serialized.size());
+  auto blob = trace_processor::TraceBlob::CopyFrom(serialized.data(),
+                                                   serialized.size());
   trace_processor::TraceBlobView view(std::move(blob));
 
   TraceRedactorPass pass;

@@ -224,7 +224,8 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
     current_buffer = std::move(next_buffer);
 
     // Only wrap the output in a TraceBlobView if there is a subsequent pass
-    // that needs to read it. The final pass writes directly from current_buffer.
+    // that needs to read it. The final pass writes directly from
+    // current_buffer.
     if (i + 1 < passes_.size()) {
       auto pass_blob = trace_processor::TraceBlob::CopyFrom(
           current_buffer.data(), current_buffer.size());
