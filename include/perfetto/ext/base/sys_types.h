@@ -44,7 +44,7 @@ using pid_t = int;
 #if defined(_WIN64)
 using ssize_t = int64_t;
 #else
-using ssize_t = long;
+using ssize_t = int;
 #endif  // _WIN64
 
 #endif  // __MINGW32__
