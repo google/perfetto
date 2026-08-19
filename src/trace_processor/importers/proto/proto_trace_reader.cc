@@ -374,6 +374,19 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   if (decoder.has_service_event()) {
     PERFETTO_DCHECK(decoder.has_timestamp());
     int64_t ts = static_cast<int64_t>(decoder.timestamp());
+    // TracingServiceImpl always stamps lifecycle events with GetBootTimeNs(),
+    // so these timestamps are BOOTTIME regardless of primary_trace_clock.
+    // Convert explicitly: this path bypasses the generic timestamp conversion.
+    // If the conversion fails (e.g. clock snapshotting was disabled), keep
+    // the raw value, which is trace time in that case.
+    uint32_t timestamp_clock_id = decoder.has_timestamp_clock_id()
+                                      ? decoder.timestamp_clock_id()
+                                      : protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+    if (auto trace_ts = context_->clock_tracker->ToTraceTime(
+            ClockId::Machine(timestamp_clock_id), ts, packet.offset(),
+            /*suppress_errors=*/true)) {
+      ts = *trace_ts;
+    }
     return ParseServiceEvent(ts, decoder.service_event());
   }
 
