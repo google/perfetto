@@ -30,8 +30,48 @@ namespace perfetto::trace_redaction {
 using ProcessTreeProcess = Context::ProcessTreeProcess;
 using ProcessTreeThread = Context::ProcessTreeThread;
 
-// Collects unique thread/process information from the trace and saves it
-// into Context::merged_process_tree.
+// During redaction multiple process trees with redundant information are
+// generated due to merge of all other processes when merging every other process and
+// thread into a synthetic process called, so we end up with multiple
+// process_tree packets with the same information. A canonical example of the 
+// issue looks like the following:
+//
+// process_tree {
+//   collection_end_timestamp: 1210106257304
+//   processes {
+//     uid: 1000
+//     ppid: 1
+//     pid: 4194305
+//     cmdline: "Other-Processes"
+//   }
+//   threads {
+//     tgid: 4194305
+//     tid: 4194306
+//     name: "cpu-4194306"
+//   }
+//   ... (the rest of the threads, one for each CPU)
+// }
+// process_tree { <-- Duplicated packet
+//   collection_end_timestamp: 1210202165914
+//   processes {
+//     uid: 1000
+//     ppid: 1
+//     pid: 4194305
+//     cmdline: "Other-Processes"
+//   }
+//   threads {
+//     tgid: 4194305
+//     tid: 4194306
+//     name: "cpu-4194306"
+//   }
+//   ... (the rest of the threads, one for each CPU)
+// }
+//
+// The goal of the primitives in this file is to deduplicate the processtree packets
+// so that only a single process tree packet is emitted containing all the
+// threads and processes.
+
+// Collects unique thread/process information from the trace
 class CollectProcessTrees : public CollectPrimitive {
  public:
   ~CollectProcessTrees() override = default;
@@ -40,8 +80,8 @@ class CollectProcessTrees : public CollectPrimitive {
                        Context* context) const override;
 };
 
-// Removes process tree packets from the trace (since they will be replaced
-// by the merged process tree in the augment phase).
+// Removes all existing process tree packets from the trace (since they will be
+// replaced by the merged process tree in the augment phase).
 class ReduceProcessTrees : public TransformPrimitive {
  public:
   ~ReduceProcessTrees() override = default;
@@ -50,8 +90,7 @@ class ReduceProcessTrees : public TransformPrimitive {
                          std::string* packet) const override;
 };
 
-// Outputs a single trace packet containing all unique thread/process data
-// collected in Context::merged_process_tree.
+// Inserts a single trace packet containing all unique thread/process data
 class AugmentProcessTrees : public AugmentPrimitive {
  public:
   ~AugmentProcessTrees() override = default;

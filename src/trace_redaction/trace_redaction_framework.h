@@ -383,6 +383,8 @@ class Context {
     bool collected_global_packet_fields = false;
   };
 
+  // Deduplicated representation of all processes and threads in the trace.
+  // Used to produce the final process tree packets.
   std::optional<MergedProcessTree> merged_process_tree;
 };
 

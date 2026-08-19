@@ -29,48 +29,59 @@ using protos::pbzero::TracePacket;
 
 base::Status CollectProcessTrees::Collect(const TracePacket::Decoder& packet,
                                           Context* context) const {
-  if (packet.has_process_tree()) {
-    if (!context->merged_process_tree.has_value()) {
-      context->merged_process_tree = Context::MergedProcessTree();
-    }
-    auto& merged_tree = context->merged_process_tree.value();
-
-    ProcessTree::Decoder process_tree_decoder(packet.process_tree());
-    for (auto it = process_tree_decoder.processes(); it; ++it) {
-      if (PERFETTO_UNLIKELY(!merged_tree.collected_global_packet_fields)) {
-        merged_tree.collected_global_packet_fields = true;
-        merged_tree.timestamp = packet.timestamp();
-        merged_tree.trusted_uid = packet.trusted_uid();
-      }
-      ProcessTree::Process::Decoder process_decoder(*it);
-      Context::ProcessTreeProcess process;
-      process.pid = process_decoder.pid();
-      if (merged_tree.processes_by_pid.find(process.pid) !=
-          merged_tree.processes_by_pid.end()) {
-        continue;
-      }
-      for (auto cmdline_it = process_decoder.cmdline(); cmdline_it;
-           ++cmdline_it) {
-        process.cmdline.push_back(cmdline_it->as_std_string());
-      }
-      process.is_kthread = process_decoder.is_kthread();
-      process.ppid = process_decoder.ppid();
-      process.uid = process_decoder.uid();
-      merged_tree.processes_by_pid[process.pid] = process;
-    }
-    for (auto it = process_tree_decoder.threads(); it; ++it) {
-      ProcessTree::Thread::Decoder thread_decoder(*it);
-      if (merged_tree.threads_by_tid.find(thread_decoder.tid()) !=
-          merged_tree.threads_by_tid.end()) {
-        continue;
-      }
-      Context::ProcessTreeThread thread;
-      thread.tgid = thread_decoder.tgid();
-      thread.tid = thread_decoder.tid();
-      thread.name = thread_decoder.name().ToStdString();
-      merged_tree.threads_by_tid[thread.tid] = thread;
-    }
+  if (!packet.has_process_tree()) {
+    return base::OkStatus();
   }
+
+  if (!context->merged_process_tree.has_value()) {
+    context->merged_process_tree = Context::MergedProcessTree();
+  }
+  auto& merged_tree = context->merged_process_tree.value();
+
+  // Collect unique processes
+  ProcessTree::Decoder process_tree_decoder(packet.process_tree());
+  for (auto it = process_tree_decoder.processes(); it; ++it) {
+    if (PERFETTO_UNLIKELY(!merged_tree.collected_global_packet_fields)) {
+      // Collect global packet fields only from the first process_tree packet.
+      merged_tree.collected_global_packet_fields = true;
+      merged_tree.timestamp = packet.timestamp();
+      merged_tree.trusted_uid = packet.trusted_uid();
+    }
+
+    ProcessTree::Process::Decoder process_decoder(*it);
+    Context::ProcessTreeProcess process;
+    process.pid = process_decoder.pid();
+
+    if (merged_tree.processes_by_pid.find(process.pid) !=
+        merged_tree.processes_by_pid.end()) {
+      continue;
+    }
+
+    for (auto cmdline_it = process_decoder.cmdline(); cmdline_it;
+          ++cmdline_it) {
+      process.cmdline.push_back(cmdline_it->as_std_string());
+    }
+
+    process.is_kthread = process_decoder.is_kthread();
+    process.ppid = process_decoder.ppid();
+    process.uid = process_decoder.uid();
+    merged_tree.processes_by_pid[process.pid] = process;
+  }
+
+  // Collect unique threads
+  for (auto it = process_tree_decoder.threads(); it; ++it) {
+    ProcessTree::Thread::Decoder thread_decoder(*it);
+    if (merged_tree.threads_by_tid.find(thread_decoder.tid()) !=
+        merged_tree.threads_by_tid.end()) {
+      continue;
+    }
+    Context::ProcessTreeThread thread;
+    thread.tgid = thread_decoder.tgid();
+    thread.tid = thread_decoder.tid();
+    thread.name = thread_decoder.name().ToStdString();
+    merged_tree.threads_by_tid[thread.tid] = thread;
+  }
+
   return base::OkStatus();
 }
 
@@ -78,6 +89,7 @@ base::Status ReduceProcessTrees::Transform(const Context&,
                                            std::string* packet) const {
   TracePacket::Decoder packet_decoder(*packet);
   if (packet_decoder.has_process_tree()) {
+    // Drop every process tree, it will be added back during Augment phase.
     packet->clear();
   }
   return base::OkStatus();
