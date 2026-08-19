@@ -1885,4 +1885,50 @@ TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfZero) {
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 0u);
 }
 
+TEST(DataframeTest, SortOnNullableStringDoesNotShrinkRowEstimate) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"str_a", "str_b"},
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()),
+      CreateTypedColumnSpec(String(), SparseNull(), Unsorted()));
+
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  for (uint32_t i = 0; i < 64; ++i) {
+    df.InsertUnchecked(kSpec, std::make_optional(pool.InternString("a")),
+                       std::make_optional(pool.InternString("b")));
+  }
+  df.Finalize();
+
+  // Sorting collects string ranks through a scratch copy which has its nulls
+  // pruned. That prunes no result rows, so the estimate must not move.
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kAscending},
+                                 {1, SortDirection::kAscending}};
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df.PlanQuery(filters, {}, sorts, {}, 0b11));
+  EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 64u);
+  EXPECT_EQ(plan.GetImplForTesting().params.max_row_count, 64u);
+}
+
+TEST(DataframeTest, ScanInFilterUsesInSelectivity) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"unsorted_col"},
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted(), HasDuplicates{}));
+
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  for (uint32_t i = 0; i < 1024; ++i) {
+    df.InsertUnchecked(kSpec, i % 128);
+  }
+  df.Finalize();
+
+  // An IN is a union of equalities over the list values, so with 128 distinct
+  // values it keeps 25 assumed values x 8 rows each. Without that model it
+  // would get the plain halving a generic inequality gets, i.e. 512.
+  std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df.PlanQuery(filters, {}, {}, {}, 1u));
+  EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 200u);
+}
+
 }  // namespace perfetto::trace_processor::core::dataframe
