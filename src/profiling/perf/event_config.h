@@ -89,6 +89,10 @@ struct PerfCounter {
   bool attr_exclude_kernel = false;
   bool attr_exclude_hv = false;
 
+  // period/frequency
+  std::optional<uint64_t> period;
+  std::optional<uint64_t> frequency;
+
   Type event_type() const { return type; }
 
   static PerfCounter BuiltinCounter(std::string name,
