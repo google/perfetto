@@ -16,7 +16,7 @@ import './styles.scss';
 import m from 'mithril';
 import {z} from 'zod';
 import type {App} from '../../public/app';
-import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
+import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
@@ -29,7 +29,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
   static readonly description =
     'Live memory profiler for Android/Linux devices';
-  static readonly status: PluginStatus = 'experimental';
   static readonly dependencies = [RecordPageV2];
 
   static onActivate(app: App) {
@@ -41,6 +40,7 @@ export default class implements PerfettoPlugin {
       href: '#!/memscope',
       icon: 'memory',
       sortOrder: 2.5,
+      badge: 'preview',
     });
 
     app.pages.registerPage({
@@ -57,6 +57,7 @@ export default class implements PerfettoPlugin {
           });
         } else {
           return m(ConnectionPage, {
+            app,
             onConnected: (result) => {
               session = new LiveSession(app, result);
               session.onSnapshot(() => m.redraw());
@@ -107,13 +108,16 @@ export default class implements PerfettoPlugin {
         }),
     });
 
-    trace.sidebar.addMenuItem({
-      section: 'current_trace',
-      sortOrder: 25,
-      text: 'Memory Overview',
-      href: `#!${pageRoot}`,
-      icon: 'memory',
-    });
+    if (availability.hasSmapsSnapshots || availability.hasHeapDumps) {
+      trace.sidebar.addMenuItem({
+        section: 'current_trace',
+        sortOrder: 25,
+        text: 'Memory Overview',
+        href: `#!${pageRoot}`,
+        icon: 'memory',
+        badge: 'preview',
+      });
+    }
 
     if (autoNavigated) {
       // Make this page appear before the heap dump explorer page.

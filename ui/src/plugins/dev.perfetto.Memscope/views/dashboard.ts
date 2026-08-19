@@ -26,6 +26,7 @@ import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
 import {PopupPosition} from '../../../widgets/popup';
 import {RadioGroup} from '../../../widgets/radio_group';
 import {Page} from '../components/page';
+import {PreviewBanner} from '../components/preview_banner';
 import type {
   LiveSession,
   ProfileView,
@@ -125,6 +126,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
         // Title bar with status and actions (always shown).
         this.renderTitleBar(attrs),
+        m(PreviewBanner, {app: attrs.app}),
 
         // Profile page or dashboard content.
         session.profile !== undefined
