@@ -27,6 +27,7 @@
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/timeline_validation.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_redaction {
@@ -40,6 +41,13 @@ class DummyCollect : public CollectPrimitive {
       context->package_uid = static_cast<uint64_t>(packet.trusted_uid());
     }
     return base::OkStatus();
+  }
+};
+
+class DummyValidator : public ValidatorPrimitive {
+ public:
+  base::Status Validate(const Context&) const override {
+    return base::ErrStatus("DummyValidator: validation failed");
   }
 };
 
@@ -127,7 +135,7 @@ TEST(TraceRedactorPassTest, DirectPassExecution) {
   EXPECT_EQ(timestamps[2], 999u);
 }
 
-TEST(TraceRedactorPassTest, EmptyTimelineWithBuildersReturnsError) {
+TEST(TraceRedactorPassTest, ValidatorErrorHaltsExecution) {
   protos::gen::Trace trace;
   auto* packet = trace.add_packet();
   packet->set_timestamp(100);
@@ -138,7 +146,28 @@ TEST(TraceRedactorPassTest, EmptyTimelineWithBuildersReturnsError) {
   trace_processor::TraceBlobView view(std::move(blob));
 
   TraceRedactorPass pass;
-  pass.emplace_build<DummyBuild>();
+  pass.emplace_validator<DummyValidator>();
+
+  Context context;
+  std::string output_buffer;
+  auto status = pass.Redact(view, &context, &output_buffer);
+
+  ASSERT_FALSE(status.ok());
+  ASSERT_EQ(status.message(), "DummyValidator: validation failed");
+}
+
+TEST(TraceRedactorPassTest, EmptyTimelineWithTimelineValidationReturnsError) {
+  protos::gen::Trace trace;
+  auto* packet = trace.add_packet();
+  packet->set_timestamp(100);
+
+  std::string serialized = trace.SerializeAsString();
+  auto blob =
+      trace_processor::TraceBlob::CopyFrom(serialized.data(), serialized.size());
+  trace_processor::TraceBlobView view(std::move(blob));
+
+  TraceRedactorPass pass;
+  pass.emplace_validator<TimelineValidation>();
 
   Context context;  // timeline is null / empty
   std::string output_buffer;

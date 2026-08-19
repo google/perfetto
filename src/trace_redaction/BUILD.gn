@@ -74,6 +74,8 @@ source_set("trace_redaction") {
     "reduce_threads_in_process_trees.h",
     "scrub_process_stats.cc",
     "scrub_process_stats.h",
+    "timeline_validation.cc",
+    "timeline_validation.h",
     "trace_redaction_framework.cc",
     "trace_redaction_framework.h",
     "trace_redactor.cc",
@@ -153,6 +155,7 @@ perfetto_unittest_source_set("unittests") {
     "prune_package_list_unittest.cc",
     "redact_process_events_unittest.cc",
     "redact_sched_events_unittest.cc",
+    "timeline_validation_unittest.cc",
     "trace_redactor_unittest.cc",
     "verify_integrity_unittest.cc",
   ]

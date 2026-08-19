@@ -47,6 +47,7 @@
 #include "src/trace_redaction/redact_process_events.h"
 #include "src/trace_redaction/reduce_threads_in_process_trees.h"
 #include "src/trace_redaction/scrub_process_stats.h"
+#include "src/trace_redaction/timeline_validation.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/verify_integrity.h"
 
@@ -101,15 +102,7 @@ base::Status TraceRedactorPass::Redact(
     Context* context,
     std::string* output_buffer) const {
   RETURN_IF_ERROR(Collect(context, view));
-
-  if (!builders_.empty()) {
-    if (!context->timeline || context->timeline->empty()) {
-      return base::ErrStatus(
-          "TraceRedactor: No process timeline found. Are sched_free or process "
-          "stats data sources missing");
-    }
-  }
-
+  RETURN_IF_ERROR(Validate(*context));
   RETURN_IF_ERROR(Build(context));
   RETURN_IF_ERROR(Transform(*context, view, output_buffer));
   RETURN_IF_ERROR(Augment(*context, output_buffer));
@@ -138,6 +131,13 @@ base::Status TraceRedactorPass::Collect(
     RETURN_IF_ERROR(collector->End(context));
   }
 
+  return base::OkStatus();
+}
+
+base::Status TraceRedactorPass::Validate(const Context& context) const {
+  for (const auto& validator : validators_) {
+    RETURN_IF_ERROR(validator->Validate(context));
+  }
   return base::OkStatus();
 }
 
@@ -256,6 +256,9 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   pass1->emplace_collect<CollectFrameCookies>();
   pass1->emplace_collect<CollectSystemInfo>();
   pass1->emplace_collect<CollectClocks>();
+
+  // Add all validators.
+  pass1->emplace_validator<TimelineValidation>();
 
   // Add all builders.
   pass1->emplace_build<ReduceFrameCookies>();

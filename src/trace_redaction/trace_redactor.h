@@ -44,6 +44,15 @@ class TraceRedactorPass {
     return ptr;
   }
 
+  // T must be derived from trace_redaction::ValidatorPrimitive.
+  template <typename T>
+  T* emplace_validator() {
+    auto uptr = std::make_unique<T>();
+    auto* ptr = uptr.get();
+    validators_.push_back(std::move(uptr));
+    return ptr;
+  }
+
   // T must be derived from trace_redaction::BuildPrimitive.
   template <typename T>
   T* emplace_build() {
@@ -71,7 +80,7 @@ class TraceRedactorPass {
     return ptr;
   }
 
-  // Executes the pass: Collect -> Build -> Transform -> Augment.
+  // Executes the pass: Collect -> Validate -> Build -> Transform -> Augment.
   // Transformed and augmented packets are appended to `output_buffer`.
   base::Status Redact(const trace_processor::TraceBlobView& view,
                       Context* context,
@@ -81,6 +90,9 @@ class TraceRedactorPass {
   // Run all collectors on a packet before moving to the next packet.
   base::Status Collect(Context* context,
                        const trace_processor::TraceBlobView& view) const;
+
+  // Runs all validators once on the context.
+  base::Status Validate(const Context& context) const;
 
   // Runs builders once.
   base::Status Build(Context* context) const;
@@ -96,6 +108,7 @@ class TraceRedactorPass {
                        std::string* output_buffer) const;
 
   std::vector<std::unique_ptr<CollectPrimitive>> collectors_;
+  std::vector<std::unique_ptr<ValidatorPrimitive>> validators_;
   std::vector<std::unique_ptr<BuildPrimitive>> builders_;
   std::vector<std::unique_ptr<TransformPrimitive>> transformers_;
   std::vector<std::unique_ptr<AugmentPrimitive>> augmenters_;
@@ -125,6 +138,14 @@ class TraceRedactor {
       add_pass();
     }
     return passes_.back()->emplace_collect<T>();
+  }
+
+  template <typename T>
+  T* emplace_validator() {
+    if (passes_.empty()) {
+      add_pass();
+    }
+    return passes_.back()->emplace_validator<T>();
   }
 
   template <typename T>

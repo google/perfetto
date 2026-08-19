@@ -445,6 +445,16 @@ class AugmentPrimitive {
   virtual std::string Augment(const Context& context) = 0;
 };
 
+// Responsible for validating data from the context, returning an error if
+// validation fails.
+class ValidatorPrimitive {
+ public:
+  virtual ~ValidatorPrimitive();
+
+  // Checks the context and returns an error status if validation fails.
+  virtual base::Status Validate(const Context& context) const = 0;
+};
+
 }  // namespace perfetto::trace_redaction
 
 #endif  // SRC_TRACE_REDACTION_TRACE_REDACTION_FRAMEWORK_H_
