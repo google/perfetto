@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
@@ -41,163 +42,24 @@
 
 namespace perfetto::trace_processor::core::dataframe {
 
-// Turns access-path decisions made by QueryPlanBuilder into bytecode.
+// Turns a LogicalPlan into bytecode for the interpreter.
 //
-// This class owns everything mechanical about emission: register allocation
-// and caching, scratch lifetimes, materializing a range into an index list,
-// pruning nulls, translating sparse-null indices, row layout buffers, and the
-// running row-count and cost estimates.
+// This class owns everything the logical plan deliberately says nothing about:
+// register allocation and caching, scratch lifetimes, materializing a range
+// into an index list, pruning nulls, translating sparse-null indices, row
+// layout buffers, and the cost estimate.
 //
-// It makes no access-path decisions of its own. Each Emit* method corresponds
-// to one strategy the planner has already chosen, and expands it into however
-// many bytecodes that strategy needs.
+// It makes no access-path decisions of its own. Each operation arrives with
+// the strategy the planner chose and the row counts it expects, and lowering
+// expands that into however many bytecodes the strategy needs.
 class BytecodeLowering {
  public:
-  BytecodeLowering(uint32_t row_count,
-                   const std::vector<std::shared_ptr<Column>>& columns,
-                   const std::vector<Index>& indexes);
-
-  // === State the planner needs to make decisions ===
-
-  // Whether the set of matching rows is still a contiguous range, as opposed
-  // to a materialized list of indices. Some strategies are only available
-  // while this holds.
-  bool IsIndicesRange() const {
-    return std::holds_alternative<interpreter::RwHandle<Range>>(indices_reg_);
-  }
-
-  uint32_t max_row_count() const { return plan_.params.max_row_count; }
-  uint32_t estimated_row_count() const {
-    return plan_.params.estimated_row_count;
-  }
-
-  // === Filter values ===
-
-  // Reserves the next filter value slot and records it on `spec`. Emits
-  // nothing; used by strategies which need SQLite to pass a value they do not
-  // themselves read.
-  uint32_t ReserveFilterValueSlot(FilterSpec& spec);
-
-  // Emits the cast of a scalar filter value, recording the slot on `spec`.
-  interpreter::ReadHandle<interpreter::CastFilterValueResult>
-  EmitCastFilterValue(FilterSpec& spec, const StorageType& type, NonNullOp op);
-
-  // Emits the cast of an IN list filter value, recording the slot on `spec`.
-  interpreter::RwHandle<std::unique_ptr<interpreter::CastFilterValueListResult>>
-  EmitCastFilterValueList(FilterSpec& spec, const StorageType& type);
-
-  // === Filter strategies ===
-
-  // Binary search over a sorted column, narrowing the range in place.
-  void EmitSortedFilter(
-      const FilterSpec& spec,
-      const StorageType& type,
-      const RangeOp& op,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>& value);
-
-  // Equality on a SetId-sorted uint32 column.
-  void EmitSetIdSortedEq(
-      const FilterSpec& spec,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>& value);
-
-  // Equality served by a column's SmallValueEq specialized storage.
-  void EmitSmallValueEq(
-      const FilterSpec& spec,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>& value);
-
-  // Equality scan over a range, materializing the matches into an index list.
-  void EmitLinearFilterEq(
-      const FilterSpec& spec,
-      const NonIdStorageType& type,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>& value);
-
-  // Scan filter over an index list for a non-string column.
-  void EmitNonStringFilter(
-      const FilterSpec& spec,
-      const NonStringType& type,
-      const NonStringOp& op,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>& value);
-
-  // Scan filter over an index list for a string column.
-  void EmitStringFilter(
-      const FilterSpec& spec,
-      const StringOp& op,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>& value);
-
-  // IS NULL / IS NOT NULL over an index list.
-  void EmitNullFilter(const FilterSpec& spec, const NullOp& op);
-
-  // IN over an index list, without an index to accelerate it.
-  void EmitScanFilterIn(
-      const FilterSpec& spec,
-      interpreter::RwHandle<
-          std::unique_ptr<interpreter::CastFilterValueListResult>> values);
-
-  // Applies a whole group of Eq/In filters through `index_idx`, chaining them
-  // so each reads the previous one's output. `spec_idxs` indexes into `specs`
-  // and is ordered by the index's own column order.
-  void EmitIndexedFilters(std::vector<FilterSpec>& specs,
-                          uint32_t index_idx,
-                          const std::vector<uint32_t>& spec_idxs);
-
-  // Replaces the row set with the empty set. Used when a filter cannot match.
-  void EmitGuaranteedEmpty();
-
-  // === Post-filter stages ===
-
-  void EmitDistinct(const std::vector<DistinctSpec>& specs);
-
-  // Reverses the row set. Used when the data is already sorted, but opposite
-  // to the requested direction.
-  void EmitReverse();
-
-  void EmitSort(const std::vector<SortSpec>& specs);
-
-  void EmitMinMax(const SortSpec& spec);
-
-  void EmitOutput(const LimitSpec& limit, uint64_t cols_used);
-
-  // Finalizes and returns the plan.
-  QueryPlanImpl Build() &&;
+  static QueryPlanImpl Lower(
+      const LogicalPlan& plan,
+      const std::vector<std::shared_ptr<Column>>& columns,
+      const std::vector<Index>& indexes);
 
  private:
-  // How a bytecode changes the row-count estimate. See AddRawOpcode.
-  struct UnchangedRowCount {};
-  struct NonEqualityFilterRowCount {};
-
-  // An equality filter with the given duplicate state and estimated
-  // distinct-value count (0 = unknown).
-  struct EqualityFilterRowCount {
-    DuplicateState duplicate_state;
-    uint32_t estimated_distinct = 0;
-  };
-
-  // An IN filter over a value list. Unlike a scalar equality, an IN matches
-  // multiple distinct values; since the list size is not known at plan time
-  // (the RHS may be a subquery), we assume it selects a fixed number of
-  // distinct values. `estimated_distinct` is the per-column distinct-value
-  // count (0 = unknown).
-  struct InFilterRowCount {
-    DuplicateState duplicate_state;
-    uint32_t estimated_distinct = 0;
-  };
-
-  struct OneRowCount {};
-  struct ZeroRowCount {};
-
-  // Produces `limit` rows starting at `offset`.
-  struct LimitOffsetRowCount {
-    uint32_t limit;
-    uint32_t offset;
-  };
-  using RowCountModifier = std::variant<UnchangedRowCount,
-                                        NonEqualityFilterRowCount,
-                                        InFilterRowCount,
-                                        EqualityFilterRowCount,
-                                        OneRowCount,
-                                        ZeroRowCount,
-                                        LimitOffsetRowCount>;
-
   // Register holding the set of matching rows, either as a contiguous range
   // or as a materialized list of indices.
   using IndicesReg = std::variant<interpreter::RwHandle<Range>,
@@ -223,6 +85,57 @@ class BytecodeLowering {
   // temporary copy of them.
   enum class NullPruneScope { kResultRows, kScratchOnly };
 
+  BytecodeLowering(const std::vector<std::shared_ptr<Column>>& columns,
+                   const std::vector<Index>& indexes);
+
+  // === One method per logical operation ===
+
+  void LowerOperation(const logical::Operation& op);
+  void LowerScan(const logical::Scan&);
+  void LowerFilter(const logical::Filter&);
+  void LowerIndexFilter(const logical::IndexFilter&);
+  void LowerEmpty();
+  void LowerDistinct(const logical::Distinct&);
+  void LowerReverse();
+  void LowerSort(const logical::Sort&);
+  void LowerMinMax(const logical::MinMax&);
+  void LowerLimit(const logical::Limit&);
+  void LowerOutput(const logical::Output&);
+
+  // === One method per filter strategy ===
+
+  void LowerBinarySearchFilter(const logical::Filter&);
+  void LowerSetIdSortedFilter(const logical::Filter&);
+  void LowerSmallValueFilter(const logical::Filter&);
+  void LowerRangeScanFilter(const logical::Filter&);
+  void LowerIndexListScanFilter(const logical::Filter&);
+
+  // === Filter values ===
+
+  interpreter::ReadHandle<interpreter::CastFilterValueResult>
+  EmitCastFilterValue(uint32_t value_index,
+                      const StorageType& type,
+                      const NonNullOp& op);
+
+  interpreter::RwHandle<std::unique_ptr<interpreter::CastFilterValueListResult>>
+  EmitCastFilterValueList(uint32_t value_index, const StorageType& type);
+
+  // === Row counts ===
+  //
+  // Buffer sizes and the cost of each bytecode are derived from how many rows
+  // the plan has at that point. The numbers themselves are decided by the
+  // planner and carried on the operation; lowering only tracks them.
+
+  void SetRows(const logical::RowEstimate& rows) {
+    plan_.params.max_row_count = rows.max;
+    plan_.params.estimated_row_count = rows.estimated;
+  }
+  void SetEstimatedRows(uint32_t estimated) {
+    plan_.params.estimated_row_count = estimated;
+  }
+
+  // === Emission plumbing ===
+
   // Given a list of indices, prunes any indices that point to null rows
   // in the given column. The indices are pruned in-place.
   void PruneNullIndices(uint32_t col,
@@ -246,22 +159,23 @@ class BytecodeLowering {
 
   // Adds a new bytecode instruction of type T to the plan.
   template <typename T>
-  T& AddOpcode(RowCountModifier rc);
+  T& AddOpcode();
 
   // Adds a new bytecode instruction of type T with the given option value.
   template <typename T>
-  T& AddOpcode(uint32_t option, RowCountModifier rc) {
-    return static_cast<T&>(AddRawOpcode(option, rc, T::kCost));
+  T& AddOpcode(uint32_t option) {
+    return static_cast<T&>(AddRawOpcode(option, T::kCost));
   }
 
   // Adds a new bytecode instruction of type T with the given option value.
   template <typename T>
-  T& AddOpcode(uint32_t option, RowCountModifier rc, interpreter::Cost cost) {
-    return static_cast<T&>(AddRawOpcode(option, rc, cost));
+  T& AddOpcode(uint32_t option, interpreter::Cost cost) {
+    return static_cast<T&>(AddRawOpcode(option, cost));
   }
 
-  PERFETTO_NO_INLINE interpreter::Bytecode&
-  AddRawOpcode(uint32_t option, RowCountModifier rc, interpreter::Cost cost);
+  PERFETTO_NO_INLINE interpreter::Bytecode& AddRawOpcode(
+      uint32_t option,
+      interpreter::Cost cost);
 
   // Allocates a register for column data pointer and adds RegisterInit entry.
   interpreter::RwHandle<interpreter::StoragePtr> StorageRegisterFor(
@@ -330,11 +244,6 @@ class BytecodeLowering {
 
   // Last scratch registers returned by GetOrCreateScratchSpanRegister.
   std::optional<Scratch> scratch_;
-
-  // Row count before the first selective (equality/IN) filter was applied. Used
-  // to avoid compounding the selectivity of multiple such filters: only the
-  // most selective one determines the estimate.
-  std::optional<uint32_t> selective_filter_base_row_count_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

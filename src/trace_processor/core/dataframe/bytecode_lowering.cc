@@ -31,6 +31,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
@@ -49,22 +50,6 @@ namespace perfetto::trace_processor::core::dataframe {
 namespace {
 
 namespace i = interpreter;
-
-// Assumed number of distinct values matched by an IN filter when the list size
-// is not known at plan time. Scales the single-value equality estimate. Matches
-// SQLite's own tuning constant for "x IN (SELECT ...)" (see whereLoopAddBtree).
-constexpr double kAssumedInListSize = 25;
-
-// Rows surviving a scalar equality filter on a HasDuplicates column with
-// `estimated_distinct` distinct values (0 = unknown). With a known count, a
-// uniform column keeps ~1/estimated_distinct of the rows; otherwise fall back
-// to the data-blind heuristic.
-double EqualityFilterRows(uint32_t row_count, uint32_t estimated_distinct) {
-  if (estimated_distinct > 0) {
-    return static_cast<double>(row_count) / estimated_distinct;
-  }
-  return row_count / (2 * log2(row_count));
-}
 
 // Register type identifiers for cache key encoding.
 // Used with DataframeRegisterCache::GetOrAllocate(reg_type, ptr)
@@ -139,167 +124,171 @@ i::SparseNullCollapsedNullability NullabilityToSparseNullCollapsedNullability(
 }  // namespace
 
 BytecodeLowering::BytecodeLowering(
-    uint32_t row_count,
     const std::vector<std::shared_ptr<Column>>& columns,
     const std::vector<Index>& indexes)
     : columns_(columns),
       indexes_(indexes),
       cache_(builder_),
-      indices_reg_(builder_.AllocateRegister<Range>()) {
-  // Setup the maximum and estimated row counts.
-  plan_.params.max_row_count = row_count;
-  plan_.params.estimated_row_count = row_count;
+      indices_reg_(builder_.AllocateRegister<Range>()) {}
 
-  // Initialize with a range covering all rows.
+QueryPlanImpl BytecodeLowering::Lower(
+    const LogicalPlan& plan,
+    const std::vector<std::shared_ptr<Column>>& columns,
+    const std::vector<Index>& indexes) {
+  BytecodeLowering lowering(columns, indexes);
+  lowering.plan_.params.filter_value_count = plan.filter_value_count;
+  for (const auto& op : plan.ops) {
+    lowering.LowerOperation(op);
+  }
+  lowering.plan_.bytecode = std::move(lowering.builder_.bytecode());
+  lowering.plan_.params.register_count = lowering.builder_.register_count();
+  return std::move(lowering.plan_);
+}
+
+void BytecodeLowering::LowerOperation(const logical::Operation& op) {
+  switch (op.index()) {
+    case base::variant_index<logical::Operation, logical::Scan>():
+      LowerScan(base::unchecked_get<logical::Scan>(op));
+      break;
+    case base::variant_index<logical::Operation, logical::Filter>():
+      LowerFilter(base::unchecked_get<logical::Filter>(op));
+      break;
+    case base::variant_index<logical::Operation, logical::IndexFilter>():
+      LowerIndexFilter(base::unchecked_get<logical::IndexFilter>(op));
+      break;
+    case base::variant_index<logical::Operation, logical::Empty>():
+      LowerEmpty();
+      break;
+    case base::variant_index<logical::Operation, logical::Distinct>():
+      LowerDistinct(base::unchecked_get<logical::Distinct>(op));
+      break;
+    case base::variant_index<logical::Operation, logical::Reverse>():
+      LowerReverse();
+      break;
+    case base::variant_index<logical::Operation, logical::Sort>():
+      LowerSort(base::unchecked_get<logical::Sort>(op));
+      break;
+    case base::variant_index<logical::Operation, logical::MinMax>():
+      LowerMinMax(base::unchecked_get<logical::MinMax>(op));
+      break;
+    case base::variant_index<logical::Operation, logical::Limit>():
+      LowerLimit(base::unchecked_get<logical::Limit>(op));
+      break;
+    case base::variant_index<logical::Operation, logical::Output>():
+      LowerOutput(base::unchecked_get<logical::Output>(op));
+      break;
+    default:
+      PERFETTO_FATAL("Unhandled logical operation");
+  }
+}
+
+void BytecodeLowering::LowerScan(const logical::Scan& scan) {
+  SetRows(scan.rows);
   using B = i::InitRange;
   auto& ir = builder_.AddOpcode<B>(i::Index<B>());
-  ir.arg<B::size>() = row_count;
+  ir.arg<B::size>() = scan.rows.max;
   ir.arg<B::dest_register>() =
       base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
 }
 
-QueryPlanImpl BytecodeLowering::Build() && {
-  plan_.bytecode = std::move(builder_.bytecode());
-  plan_.params.register_count = builder_.register_count();
-  return std::move(plan_);
-}
-
-uint32_t BytecodeLowering::ReserveFilterValueSlot(FilterSpec& spec) {
-  uint32_t slot = plan_.params.filter_value_count++;
-  spec.value_index = slot;
-  return slot;
-}
-
-i::ReadHandle<i::CastFilterValueResult> BytecodeLowering::EmitCastFilterValue(
-    FilterSpec& spec,
-    const StorageType& type,
-    NonNullOp op) {
-  i::RwHandle<i::CastFilterValueResult> value_reg =
-      builder_.AllocateRegister<i::CastFilterValueResult>();
-  {
-    using B = i::CastFilterValueBase;
-    auto& bc =
-        AddOpcode<B>(i::Index<i::CastFilterValue>(type), UnchangedRowCount{});
-    bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
-    bc.arg<B::write_register>() = value_reg;
-    bc.arg<B::op>() = op;
-    spec.value_index = plan_.params.filter_value_count++;
+void BytecodeLowering::LowerFilter(const logical::Filter& f) {
+  switch (f.strategy.index()) {
+    case base::variant_index<logical::FilterStrategy, logical::BinarySearch>():
+      LowerBinarySearchFilter(f);
+      break;
+    case base::variant_index<logical::FilterStrategy,
+                             logical::SetIdSortedSearch>():
+      LowerSetIdSortedFilter(f);
+      break;
+    case base::variant_index<logical::FilterStrategy,
+                             logical::SmallValueLookup>():
+      LowerSmallValueFilter(f);
+      break;
+    case base::variant_index<logical::FilterStrategy, logical::RangeScan>():
+      LowerRangeScanFilter(f);
+      break;
+    case base::variant_index<logical::FilterStrategy, logical::IndexListScan>():
+      LowerIndexListScanFilter(f);
+      break;
+    default:
+      PERFETTO_FATAL("Unhandled filter strategy");
   }
-  return value_reg;
+  SetRows(f.rows_out);
 }
 
-i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>>
-BytecodeLowering::EmitCastFilterValueList(FilterSpec& spec,
-                                          const StorageType& type) {
-  i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>> value =
-      builder_
-          .AllocateRegister<std::unique_ptr<i::CastFilterValueListResult>>();
-  {
-    using B = i::CastFilterValueListBase;
-    auto& bc = AddOpcode<B>(i::Index<i::CastFilterValueList>(type),
-                            UnchangedRowCount{});
-    bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
-    bc.arg<B::write_register>() = value;
-    bc.arg<B::op>() = Eq{};
-    spec.value_index = plan_.params.filter_value_count++;
-  }
-  return value;
-}
+void BytecodeLowering::LowerBinarySearchFilter(const logical::Filter& f) {
+  auto non_null_op = f.op.TryDowncast<NonNullOp>();
+  PERFETTO_CHECK(non_null_op);
+  auto range_op = non_null_op->TryDowncast<RangeOp>();
+  PERFETTO_CHECK(range_op);
 
-void BytecodeLowering::EmitSortedFilter(
-    const FilterSpec& spec,
-    const StorageType& type,
-    const RangeOp& op,
-    const i::ReadHandle<i::CastFilterValueResult>& value) {
-  const auto& col = GetColumn(spec.col);
-
-  // We should have ordered the constraints such that we only reach this
-  // point with range indices.
-  PERFETTO_CHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
+  auto value = EmitCastFilterValue(*f.value_index, f.storage, *non_null_op);
   const auto& reg = base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
-
-  const auto& [bound, erlbub] = GetSortedFilterArgs(op);
-  RowCountModifier modifier;
-  if (op.Is<Eq>()) {
-    modifier =
-        EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct};
-  } else {
-    modifier = NonEqualityFilterRowCount{};
-  }
+  const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
   {
     using B = i::SortedFilterBase;
-    auto& bc = AddOpcode<B>(i::Index<i::SortedFilter>(type, erlbub), modifier,
-                            i::SortedFilterBase::EstimateCost(type));
-    bc.arg<B::storage_register>() = StorageRegisterFor(spec.col, type);
+    auto& bc = AddOpcode<B>(i::Index<i::SortedFilter>(f.storage, erlbub),
+                            i::SortedFilterBase::EstimateCost(f.storage));
+    bc.arg<B::storage_register>() = StorageRegisterFor(f.col, f.storage);
     bc.arg<B::val_register>() = value;
     bc.arg<B::update_register>() = reg;
     bc.arg<B::write_result_to>() = bound;
   }
 }
 
-void BytecodeLowering::EmitSetIdSortedEq(
-    const FilterSpec& spec,
-    const i::ReadHandle<i::CastFilterValueResult>& value) {
-  const auto& col = GetColumn(spec.col);
-  PERFETTO_CHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
+void BytecodeLowering::LowerSetIdSortedFilter(const logical::Filter& f) {
+  auto non_null_op = f.op.TryDowncast<NonNullOp>();
+  PERFETTO_CHECK(non_null_op);
+  auto value = EmitCastFilterValue(*f.value_index, f.storage, *non_null_op);
   const auto& reg = base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
 
   using B = i::Uint32SetIdSortedEq;
-  auto& bc = AddOpcode<B>(RowCountModifier{
-      EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}});
-  bc.arg<B::storage_register>() =
-      StorageRegisterFor(spec.col, col.storage.type());
+  auto& bc = AddOpcode<B>();
+  bc.arg<B::storage_register>() = StorageRegisterFor(f.col, f.storage);
   bc.arg<B::val_register>() = value;
   bc.arg<B::update_register>() = reg;
 }
 
-void BytecodeLowering::EmitSmallValueEq(
-    const FilterSpec& spec,
-    const i::ReadHandle<i::CastFilterValueResult>& value) {
-  const auto& col = GetColumn(spec.col);
-  PERFETTO_CHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
+void BytecodeLowering::LowerSmallValueFilter(const logical::Filter& f) {
+  auto non_null_op = f.op.TryDowncast<NonNullOp>();
+  PERFETTO_CHECK(non_null_op);
+  auto value = EmitCastFilterValue(*f.value_index, f.storage, *non_null_op);
   const auto& reg = base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
 
   using B = i::SpecializedStorageSmallValueEq;
-  auto& bc = AddOpcode<B>(RowCountModifier{
-      EqualityFilterRowCount{col.duplicate_state, col.estimated_distinct}});
-  bc.arg<B::small_value_bv_register>() = SmallValueEqBvRegisterFor(spec.col);
+  auto& bc = AddOpcode<B>();
+  bc.arg<B::small_value_bv_register>() = SmallValueEqBvRegisterFor(f.col);
   bc.arg<B::small_value_popcount_register>() =
-      SmallValueEqPopcountRegisterFor(spec.col);
+      SmallValueEqPopcountRegisterFor(f.col);
   bc.arg<B::val_register>() = value;
   bc.arg<B::update_register>() = reg;
 }
 
-void BytecodeLowering::EmitLinearFilterEq(
-    const FilterSpec& spec,
-    const NonIdStorageType& type,
-    const i::ReadHandle<i::CastFilterValueResult>& value) {
-  const auto& col = GetColumn(spec.col);
+void BytecodeLowering::LowerRangeScanFilter(const logical::Filter& f) {
   PERFETTO_DCHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
-  PERFETTO_DCHECK(col.null_storage.nullability().Is<NonNull>());
-  PERFETTO_DCHECK(spec.op.Is<Eq>());
+  PERFETTO_DCHECK(f.nullability.Is<NonNull>());
+  PERFETTO_DCHECK(f.op.Is<Eq>());
 
-  using SpanReg = i::RwHandle<Span<uint32_t>>;
-  using SlabReg = i::RwHandle<Slab<uint32_t>>;
-  using RegRange = i::RwHandle<Range>;
+  auto non_null_op = f.op.TryDowncast<NonNullOp>();
+  PERFETTO_CHECK(non_null_op);
+  auto non_id = f.storage.TryDowncast<NonIdStorageType>();
+  PERFETTO_CHECK(non_id);
 
-  auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
-  SlabReg slab_reg = builder_.AllocateRegister<Slab<uint32_t>>();
-  SpanReg span_reg = builder_.AllocateRegister<Span<uint32_t>>();
+  auto value = EmitCastFilterValue(*f.value_index, f.storage, *non_null_op);
+  auto range_reg = base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
+  auto slab_reg = builder_.AllocateRegister<Slab<uint32_t>>();
+  auto span_reg = builder_.AllocateRegister<Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = plan_.params.max_row_count;
     bc.arg<B::dest_slab_register>() = slab_reg;
     bc.arg<B::dest_span_register>() = span_reg;
   }
   {
     using B = i::LinearFilterEqBase;
-    B& bc = AddOpcode<B>(i::Index<i::LinearFilterEq>(type),
-                         RowCountModifier{EqualityFilterRowCount{
-                             col.duplicate_state, col.estimated_distinct}});
-    bc.arg<B::storage_register>() =
-        StorageRegisterFor(spec.col, type.Upcast<StorageType>());
+    B& bc = AddOpcode<B>(i::Index<i::LinearFilterEq>(*non_id));
+    bc.arg<B::storage_register>() = StorageRegisterFor(f.col, f.storage);
     bc.arg<B::filter_value_reg>() = value;
     bc.arg<B::source_register>() = range_reg;
     bc.arg<B::update_register>() = span_reg;
@@ -307,47 +296,64 @@ void BytecodeLowering::EmitLinearFilterEq(
   indices_reg_ = span_reg;
 }
 
-void BytecodeLowering::EmitNonStringFilter(
-    const FilterSpec& spec,
-    const NonStringType& type,
-    const NonStringOp& op,
-    const i::ReadHandle<i::CastFilterValueResult>& value) {
-  const auto& col = GetColumn(spec.col);
+void BytecodeLowering::LowerIndexListScanFilter(const logical::Filter& f) {
+  // IS NULL / IS NOT NULL needs no value comparison, only the bitvector.
+  if (auto null_op = f.op.TryDowncast<NullOp>(); null_op) {
+    auto indices = EnsureIndicesAreInSlab();
+    using B = i::NullFilterBase;
+    B& bc = AddOpcode<B>(i::Index<i::NullFilter>(*null_op));
+    bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(f.col);
+    bc.arg<B::update_register>() = indices;
+    return;
+  }
+
+  if (f.op.Is<In>()) {
+    auto values = EmitCastFilterValueList(*f.value_index, f.storage);
+    auto update = EnsureIndicesAreInSlab();
+    PruneNullIndices(f.col, update, NullPruneScope::kResultRows);
+    SetEstimatedRows(f.estimated_rows_after_null_prune);
+    auto source = TranslateNonNullIndices(f.col, update, false);
+    {
+      using B = i::FilterInBase;
+      B& bc = AddOpcode<B>(i::Index<i::FilterIn>(
+          f.storage, i::SparseNullCollapsedNullability{NonNull{}}));
+      bc.arg<B::storage_register>() = StorageRegisterFor(f.col, f.storage);
+      bc.arg<B::null_bv_register>() = {};
+      bc.arg<B::value_list_register>() = values;
+      bc.arg<B::index_register>() = {};
+      bc.arg<B::source_range_register>() = {};
+      bc.arg<B::source_register>() = source;
+      bc.arg<B::dest_register>() = update;
+    }
+    MaybeReleaseScratchSpanRegister();
+    return;
+  }
+
+  auto non_null_op = f.op.TryDowncast<NonNullOp>();
+  PERFETTO_CHECK(non_null_op);
+  auto value = EmitCastFilterValue(*f.value_index, f.storage, *non_null_op);
   auto update = EnsureIndicesAreInSlab();
-  PruneNullIndices(spec.col, update, NullPruneScope::kResultRows);
-  auto source = TranslateNonNullIndices(spec.col, update, false);
-  {
+  PruneNullIndices(f.col, update, NullPruneScope::kResultRows);
+  SetEstimatedRows(f.estimated_rows_after_null_prune);
+  auto source = TranslateNonNullIndices(f.col, update, false);
+
+  if (auto non_string_type = f.storage.TryDowncast<NonStringType>();
+      non_string_type) {
+    auto op = non_null_op->TryDowncast<NonStringOp>();
+    PERFETTO_CHECK(op);
     using B = i::NonStringFilterBase;
-    B& bc = AddOpcode<B>(i::Index<i::NonStringFilter>(type, op),
-                         op.Is<Eq>()
-                             ? RowCountModifier{EqualityFilterRowCount{
-                                   col.duplicate_state, col.estimated_distinct}}
-                             : RowCountModifier{NonEqualityFilterRowCount{}});
-    bc.arg<B::storage_register>() =
-        StorageRegisterFor(spec.col, type.Upcast<StorageType>());
+    B& bc = AddOpcode<B>(i::Index<i::NonStringFilter>(*non_string_type, *op));
+    bc.arg<B::storage_register>() = StorageRegisterFor(f.col, f.storage);
     bc.arg<B::val_register>() = value;
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = update;
-  }
-  MaybeReleaseScratchSpanRegister();
-}
-
-void BytecodeLowering::EmitStringFilter(
-    const FilterSpec& spec,
-    const StringOp& op,
-    const i::ReadHandle<i::CastFilterValueResult>& value) {
-  const auto& col = GetColumn(spec.col);
-  auto update = EnsureIndicesAreInSlab();
-  PruneNullIndices(spec.col, update, NullPruneScope::kResultRows);
-  auto source = TranslateNonNullIndices(spec.col, update, false);
-  {
+  } else {
+    PERFETTO_CHECK(f.storage.Is<String>());
+    auto op = non_null_op->TryDowncast<StringOp>();
+    PERFETTO_CHECK(op);
     using B = i::StringFilterBase;
-    B& bc = AddOpcode<B>(i::Index<i::StringFilter>(op),
-                         op.Is<Eq>()
-                             ? RowCountModifier{EqualityFilterRowCount{
-                                   col.duplicate_state, col.estimated_distinct}}
-                             : RowCountModifier{NonEqualityFilterRowCount{}});
-    bc.arg<B::storage_register>() = StorageRegisterFor(spec.col, String{});
+    B& bc = AddOpcode<B>(i::Index<i::StringFilter>(*op));
+    bc.arg<B::storage_register>() = StorageRegisterFor(f.col, String{});
     bc.arg<B::val_register>() = value;
     bc.arg<B::source_register>() = source;
     bc.arg<B::update_register>() = update;
@@ -355,47 +361,8 @@ void BytecodeLowering::EmitStringFilter(
   MaybeReleaseScratchSpanRegister();
 }
 
-void BytecodeLowering::EmitNullFilter(const FilterSpec& spec,
-                                      const NullOp& op) {
-  auto indices = EnsureIndicesAreInSlab();
-  using B = i::NullFilterBase;
-  B& bc =
-      AddOpcode<B>(i::Index<i::NullFilter>(op), NonEqualityFilterRowCount{});
-  bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(spec.col);
-  bc.arg<B::update_register>() = indices;
-}
-
-void BytecodeLowering::EmitScanFilterIn(
-    const FilterSpec& spec,
-    i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>> values) {
-  const auto& col = GetColumn(spec.col);
-  auto update = EnsureIndicesAreInSlab();
-  PruneNullIndices(spec.col, update, NullPruneScope::kResultRows);
-  auto source = TranslateNonNullIndices(spec.col, update, false);
-  {
-    using B = i::FilterInBase;
-    B& bc = AddOpcode<B>(
-        i::Index<i::FilterIn>(col.storage.type(),
-                              i::SparseNullCollapsedNullability{NonNull{}}),
-        RowCountModifier{
-            InFilterRowCount{col.duplicate_state, col.estimated_distinct}});
-    bc.arg<B::storage_register>() =
-        StorageRegisterFor(spec.col, col.storage.type());
-    bc.arg<B::null_bv_register>() = {};
-    bc.arg<B::value_list_register>() = values;
-    bc.arg<B::index_register>() = {};
-    bc.arg<B::source_range_register>() = {};
-    bc.arg<B::source_register>() = source;
-    bc.arg<B::dest_register>() = update;
-  }
-  MaybeReleaseScratchSpanRegister();
-}
-
-void BytecodeLowering::EmitIndexedFilters(
-    std::vector<FilterSpec>& specs,
-    uint32_t index_idx,
-    const std::vector<uint32_t>& spec_idxs) {
-  i::RwHandle<Span<uint32_t>> source_reg = IndexRegisterFor(index_idx);
+void BytecodeLowering::LowerIndexFilter(const logical::IndexFilter& idx) {
+  i::RwHandle<Span<uint32_t>> source_reg = IndexRegisterFor(idx.index);
   i::RwHandle<Span<uint32_t>> dest_reg =
       builder_.AllocateRegister<Span<uint32_t>>();
 
@@ -415,37 +382,32 @@ void BytecodeLowering::EmitIndexedFilters(
       builder_.AllocateRegister<Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = plan_.params.max_row_count;
     bc.arg<B::dest_slab_register>() = output_slab_reg;
     bc.arg<B::dest_span_register>() = output_span_reg;
   }
 
-  for (uint32_t spec_idx : spec_idxs) {
-    FilterSpec& fs = specs[spec_idx];
-    const Column& column = GetColumn(fs.col);
-    auto non_id = column.storage.type().TryDowncast<NonIdStorageType>();
+  for (const auto& p : idx.predicates) {
+    auto non_id = p.storage.TryDowncast<NonIdStorageType>();
     PERFETTO_CHECK(non_id);
 
-    if (fs.op.Is<In>()) {
+    if (p.op.Is<In>()) {
       // Emit IndexedFilterIn for In filters.
-      auto value_list_reg = EmitCastFilterValueList(fs, column.storage.type());
+      auto value_list_reg = EmitCastFilterValueList(*p.value_index, p.storage);
       // IndexedFilterIn gathers results from non-contiguous ranges, so it
       // cannot write into the source (which points to the persistent index
       // permutation vector). Write directly into the output span allocated
       // upfront; CopySpanIntersectingRange will then run in-place on it.
       {
         using B = i::FilterInBase;
-        auto null_bv_reg = EnsurePrefixPopcountFor(fs.col);
+        auto null_bv_reg = EnsurePrefixPopcountFor(p.col);
         auto& bc = AddOpcode<B>(
-            i::Index<i::FilterIn>(non_id->Upcast<StorageType>(),
-                                  NullabilityToSparseNullCollapsedNullability(
-                                      column.null_storage.nullability())),
-            RowCountModifier{InFilterRowCount{column.duplicate_state,
-                                              column.estimated_distinct}},
+            i::Index<i::FilterIn>(
+                p.storage,
+                NullabilityToSparseNullCollapsedNullability(p.nullability)),
             i::LogPerRowCost{10});
-        bc.arg<B::storage_register>() =
-            StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
+        bc.arg<B::storage_register>() = StorageRegisterFor(p.col, p.storage);
         bc.arg<B::null_bv_register>() = null_bv_reg;
         bc.arg<B::value_list_register>() = value_list_reg;
         bc.arg<B::index_register>() = source_reg;
@@ -457,19 +419,17 @@ void BytecodeLowering::EmitIndexedFilters(
       dest_reg = output_span_reg;
     } else {
       // Emit IndexedFilterEq for Eq filters.
-      auto value_reg = EmitCastFilterValue(fs, column.storage.type(),
-                                           *fs.op.TryDowncast<NonNullOp>());
+      auto non_null_op = p.op.TryDowncast<NonNullOp>();
+      PERFETTO_CHECK(non_null_op);
+      auto value_reg =
+          EmitCastFilterValue(*p.value_index, p.storage, *non_null_op);
       {
         using B = i::IndexedFilterEqBase;
-        auto null_bv_reg = EnsurePrefixPopcountFor(fs.col);
-        auto& bc = AddOpcode<B>(
-            i::Index<i::IndexedFilterEq>(
-                *non_id, NullabilityToSparseNullCollapsedNullability(
-                             column.null_storage.nullability())),
-            RowCountModifier{EqualityFilterRowCount{
-                column.duplicate_state, column.estimated_distinct}});
-        bc.arg<B::storage_register>() =
-            StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
+        auto null_bv_reg = EnsurePrefixPopcountFor(p.col);
+        auto& bc = AddOpcode<B>(i::Index<i::IndexedFilterEq>(
+            *non_id,
+            NullabilityToSparseNullCollapsedNullability(p.nullability)));
+        bc.arg<B::storage_register>() = StorageRegisterFor(p.col, p.storage);
         bc.arg<B::null_bv_register>() = null_bv_reg;
         bc.arg<B::filter_value_reg>() = value_reg;
         bc.arg<B::source_register>() = source_reg;
@@ -479,15 +439,14 @@ void BytecodeLowering::EmitIndexedFilters(
     // After first filter, subsequent filters read from dest and write back to
     // dest.
     source_reg = dest_reg;
+    SetRows(p.rows_out);
   }
 
-  PERFETTO_CHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
   const auto& indices_reg =
       base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
-
   {
     using B = i::CopySpanIntersectingRange;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::source_register>() = dest_reg;
     bc.arg<B::source_range_register>() = indices_reg;
     bc.arg<B::update_register>() = output_span_reg;
@@ -495,26 +454,27 @@ void BytecodeLowering::EmitIndexedFilters(
   indices_reg_ = output_span_reg;
 }
 
-void BytecodeLowering::EmitGuaranteedEmpty() {
+void BytecodeLowering::LowerEmpty() {
   i::RwHandle<Slab<uint32_t>> slab_reg =
       builder_.AllocateRegister<Slab<uint32_t>>();
   i::RwHandle<Span<uint32_t>> span_reg =
       builder_.AllocateRegister<Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
-    auto& bc = AddOpcode<B>(ZeroRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = 0;
     bc.arg<B::dest_slab_register>() = slab_reg;
     bc.arg<B::dest_span_register>() = span_reg;
   }
   indices_reg_ = span_reg;
+  SetRows(logical::RowEstimate{0, 0});
 }
 
-void BytecodeLowering::EmitDistinct(const std::vector<DistinctSpec>& specs) {
+void BytecodeLowering::LowerDistinct(const logical::Distinct& d) {
   std::vector<RowLayoutParams> row_layout_params;
-  row_layout_params.reserve(specs.size());
-  for (const auto& spec : specs) {
-    row_layout_params.push_back({spec.col, false});
+  row_layout_params.reserve(d.cols.size());
+  for (uint32_t col : d.cols) {
+    row_layout_params.push_back({col, false});
   }
   uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
   i::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
@@ -522,21 +482,24 @@ void BytecodeLowering::EmitDistinct(const std::vector<DistinctSpec>& specs) {
       CopyToRowLayout(total_row_stride, indices, {}, row_layout_params);
   {
     using B = i::Distinct;
-    auto& bc = AddOpcode<B>(NonEqualityFilterRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::buffer_register>() = buffer_reg;
     bc.arg<B::total_row_stride>() = total_row_stride;
     bc.arg<B::indices_register>() = indices;
   }
+  SetRows(d.rows_out);
 }
 
-void BytecodeLowering::EmitReverse() {
+void BytecodeLowering::LowerReverse() {
   auto indices = EnsureIndicesAreInSlab();
   using B = i::Reverse;
-  auto& op = AddOpcode<B>(UnchangedRowCount{});
+  auto& op = AddOpcode<B>();
   op.arg<B::update_register>() = indices;
 }
 
-void BytecodeLowering::EmitSort(const std::vector<SortSpec>& sort_specs) {
+void BytecodeLowering::LowerSort(const logical::Sort& sort) {
+  const std::vector<SortSpec>& sort_specs = sort.keys;
+
   // main_indices_span will be modified by the final sort operation.
   // EnsureIndicesAreInSlab makes it an RwHandle.
   i::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
@@ -555,7 +518,7 @@ void BytecodeLowering::EmitSort(const std::vector<SortSpec>& sort_specs) {
     string_rank_map = builder_.AllocateRegister<Map>();
     {
       using B = i::InitRankMap;
-      auto& op = AddOpcode<B>(UnchangedRowCount{});
+      auto& op = AddOpcode<B>();
       op.arg<B::dest_register>() = string_rank_map;
     }
 
@@ -582,7 +545,7 @@ void BytecodeLowering::EmitSort(const std::vector<SortSpec>& sort_specs) {
 
         // 1. Copy the current indices to our temporary scratch span.
         {
-          auto& op = AddOpcode<i::StrideCopy>(UnchangedRowCount{});
+          auto& op = AddOpcode<i::StrideCopy>();
           op.arg<i::StrideCopy::source_register>() = indices;
           op.arg<i::StrideCopy::update_register>() = scratch;
           op.arg<i::StrideCopy::stride>() = 1;
@@ -600,7 +563,7 @@ void BytecodeLowering::EmitSort(const std::vector<SortSpec>& sort_specs) {
       // Collect IDs using the prepared (non-null, translated) indices.
       {
         using B = i::CollectIdIntoRankMap;
-        auto& op = AddOpcode<B>(UnchangedRowCount{});
+        auto& op = AddOpcode<B>();
         op.arg<B::storage_register>() =
             StorageRegisterFor(spec.col, col.storage.type());
         op.arg<B::source_register>() = translated;
@@ -614,7 +577,7 @@ void BytecodeLowering::EmitSort(const std::vector<SortSpec>& sort_specs) {
     // Finalize ranks in the map (sorts keys, updates map values to ranks).
     {
       using B = i::FinalizeRanksInMap;
-      auto& op = AddOpcode<B>(UnchangedRowCount{});
+      auto& op = AddOpcode<B>();
       op.arg<B::update_register>() = string_rank_map;
     }
   }
@@ -631,31 +594,45 @@ void BytecodeLowering::EmitSort(const std::vector<SortSpec>& sort_specs) {
                                     row_layout_params);
   {
     using B = i::SortRowLayout;
-    auto& op = AddOpcode<B>(UnchangedRowCount{});
+    auto& op = AddOpcode<B>();
     op.arg<B::buffer_register>() = buffer_reg;
     op.arg<B::total_row_stride>() = total_row_stride;
     op.arg<B::indices_register>() = indices;
   }
 }
 
-void BytecodeLowering::EmitMinMax(const SortSpec& sort_spec) {
-  uint32_t col_idx = sort_spec.col;
-  const auto& col = GetColumn(col_idx);
+void BytecodeLowering::LowerMinMax(const logical::MinMax& m) {
+  const auto& col = GetColumn(m.col);
   StorageType storage_type = col.storage.type();
 
-  i::MinMaxOp mmop = sort_spec.direction == SortDirection::kAscending
+  i::MinMaxOp mmop = m.direction == SortDirection::kAscending
                          ? i::MinMaxOp(i::MinOp{})
                          : i::MinMaxOp(i::MaxOp{});
 
   auto indices = EnsureIndicesAreInSlab();
-  using B = i::FindMinMaxIndexBase;
-  auto& op = AddOpcode<B>(i::Index<i::FindMinMaxIndex>(storage_type, mmop),
-                          OneRowCount{});
-  op.arg<B::update_register>() = indices;
-  op.arg<B::storage_register>() = StorageRegisterFor(col_idx, storage_type);
+  {
+    using B = i::FindMinMaxIndexBase;
+    auto& op = AddOpcode<B>(i::Index<i::FindMinMaxIndex>(storage_type, mmop));
+    op.arg<B::update_register>() = indices;
+    op.arg<B::storage_register>() = StorageRegisterFor(m.col, storage_type);
+  }
+  SetRows(m.rows_out);
 }
 
-void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
+void BytecodeLowering::LowerLimit(const logical::Limit& l) {
+  auto in_memory_indices = EnsureIndicesAreInSlab();
+  {
+    using B = i::LimitOffsetIndices;
+    auto& bc = AddOpcode<B>();
+    bc.arg<B::offset_value>() = l.offset.value_or(0);
+    bc.arg<B::limit_value>() =
+        l.limit.value_or(std::numeric_limits<uint32_t>::max());
+    bc.arg<B::update_register>() = in_memory_indices;
+  }
+  SetRows(l.rows_out);
+}
+
+void BytecodeLowering::LowerOutput(const logical::Output& out) {
   // Structure to track column and offset pairs
   struct ColAndOffset {
     uint32_t col;
@@ -672,7 +649,7 @@ void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
   for (uint32_t i = 0; i < columns_.size(); ++i) {
     // Any column with index >= 64 uses the 64th bit in cols_used.
     uint64_t mask = 1ULL << std::min(i, 63u);
-    if ((cols_used & mask) == 0) {
+    if ((out.cols_used & mask) == 0) {
       continue;
     }
     const auto& col = GetColumn(i);
@@ -696,16 +673,6 @@ void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
   }
 
   auto in_memory_indices = EnsureIndicesAreInSlab();
-  if (limit.limit || limit.offset) {
-    auto o = limit.offset.value_or(0);
-    auto l = limit.limit.value_or(std::numeric_limits<uint32_t>::max());
-    using B = i::LimitOffsetIndices;
-    auto& bc = AddOpcode<B>(LimitOffsetRowCount{l, o});
-    bc.arg<B::offset_value>() = o;
-    bc.arg<B::limit_value>() = l;
-    bc.arg<B::update_register>() = in_memory_indices;
-  }
-
   i::RwHandle<Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
     i::RwHandle<Slab<uint32_t>> slab_register =
@@ -713,7 +680,7 @@ void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
     storage_update_register = builder_.AllocateRegister<Span<uint32_t>>();
     {
       using B = i::AllocateIndices;
-      auto& bc = AddOpcode<B>(UnchangedRowCount{});
+      auto& bc = AddOpcode<B>();
       bc.arg<B::size>() =
           plan_.params.max_row_count * plan_.params.output_per_row;
       bc.arg<B::dest_slab_register>() = slab_register;
@@ -721,7 +688,7 @@ void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
     }
     {
       using B = i::StrideCopy;
-      auto& bc = AddOpcode<B>(UnchangedRowCount{});
+      auto& bc = AddOpcode<B>();
       bc.arg<B::source_register>() = in_memory_indices;
       bc.arg<B::update_register>() = storage_update_register;
       bc.arg<B::stride>() = plan_.params.output_per_row;
@@ -735,7 +702,7 @@ void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
             SparseNullWithPopcountUntilFinalization>(): {
           using B = i::StrideTranslateAndCopySparseNullIndices;
           auto null_bv_reg = EnsurePrefixPopcountFor(col);
-          auto& bc = AddOpcode<B>(UnchangedRowCount{});
+          auto& bc = AddOpcode<B>();
           bc.arg<B::update_register>() = storage_update_register;
           bc.arg<B::null_bv_register>() = null_bv_reg;
           bc.arg<B::offset>() = offset;
@@ -744,7 +711,7 @@ void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
         }
         case Nullability::GetTypeIndex<DenseNull>(): {
           using B = i::StrideCopyDenseNullIndices;
-          auto& bc = AddOpcode<B>(UnchangedRowCount{});
+          auto& bc = AddOpcode<B>();
           bc.arg<B::update_register>() = storage_update_register;
           bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
           bc.arg<B::offset>() = offset;
@@ -763,19 +730,51 @@ void BytecodeLowering::EmitOutput(const LimitSpec& limit, uint64_t cols_used) {
   plan_.params.output_register = storage_update_register;
 }
 
+i::ReadHandle<i::CastFilterValueResult> BytecodeLowering::EmitCastFilterValue(
+    uint32_t value_index,
+    const StorageType& type,
+    const NonNullOp& op) {
+  i::RwHandle<i::CastFilterValueResult> value_reg =
+      builder_.AllocateRegister<i::CastFilterValueResult>();
+  {
+    using B = i::CastFilterValueBase;
+    auto& bc = AddOpcode<B>(i::Index<i::CastFilterValue>(type));
+    bc.arg<B::fval_handle>() = {value_index};
+    bc.arg<B::write_register>() = value_reg;
+    bc.arg<B::op>() = op;
+  }
+  return value_reg;
+}
+
+i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>>
+BytecodeLowering::EmitCastFilterValueList(uint32_t value_index,
+                                          const StorageType& type) {
+  i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>> value =
+      builder_
+          .AllocateRegister<std::unique_ptr<i::CastFilterValueListResult>>();
+  {
+    using B = i::CastFilterValueListBase;
+    auto& bc = AddOpcode<B>(i::Index<i::CastFilterValueList>(type));
+    bc.arg<B::fval_handle>() = {value_index};
+    bc.arg<B::write_register>() = value;
+    bc.arg<B::op>() = Eq{};
+  }
+  return value;
+}
+
 void BytecodeLowering::PruneNullIndices(uint32_t col,
                                         i::RwHandle<Span<uint32_t>> indices,
                                         NullPruneScope scope) {
+  // The scope only records whether this prune narrows the result; the row
+  // counts themselves come from the plan.
+  base::ignore_result(scope);
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
     case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
     case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = i::NullFilter<IsNotNull>;
-      RowCountModifier rc = scope == NullPruneScope::kResultRows
-                                ? RowCountModifier{NonEqualityFilterRowCount{}}
-                                : RowCountModifier{UnchangedRowCount{}};
-      i::NullFilterBase& bc = AddOpcode<B>(rc);
+      i::NullFilterBase& bc = AddOpcode<B>();
       bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
       bc.arg<B::update_register>() = indices;
       break;
@@ -801,7 +800,7 @@ i::RwHandle<Span<uint32_t>> BytecodeLowering::TranslateNonNullIndices(
       {
         auto null_bv_reg = EnsurePrefixPopcountFor(col);
         using B = i::TranslateSparseNullIndices;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{});
+        auto& bc = AddOpcode<B>();
         bc.arg<B::null_bv_register>() = null_bv_reg;
         bc.arg<B::source_register>() = table_indices_register;
         bc.arg<B::update_register>() = update;
@@ -833,14 +832,14 @@ BytecodeLowering::EnsureIndicesAreInSlab() {
   SpanReg span_reg = builder_.AllocateRegister<Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = plan_.params.max_row_count;
     bc.arg<B::dest_slab_register>() = slab_reg;
     bc.arg<B::dest_span_register>() = span_reg;
   }
   {
     using B = i::Iota;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::source_register>() = range_reg;
     bc.arg<B::update_register>() = span_reg;
   }
@@ -848,10 +847,8 @@ BytecodeLowering::EnsureIndicesAreInSlab() {
   return span_reg;
 }
 
-PERFETTO_NO_INLINE i::Bytecode& BytecodeLowering::AddRawOpcode(
-    uint32_t option,
-    RowCountModifier rc,
-    i::Cost cost) {
+PERFETTO_NO_INLINE i::Bytecode& BytecodeLowering::AddRawOpcode(uint32_t option,
+                                                               i::Cost cost) {
   static constexpr uint32_t kFixedBytecodeCost = 5;
   switch (cost.index()) {
     case base::variant_index<i::Cost, i::FixedCost>(): {
@@ -884,104 +881,14 @@ PERFETTO_NO_INLINE i::Bytecode& BytecodeLowering::AddRawOpcode(
                     log2(plan_.params.estimated_row_count);
       break;
     }
-    case base::variant_index<i::Cost, i::PostOperationLinearPerRowCost>():
+    case base::variant_index<i::Cost, i::PostOperationLinearPerRowCost>(): {
+      const auto& c =
+          base::unchecked_get<i::PostOperationLinearPerRowCost>(cost);
+      plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost;
       break;
+    }
     default:
       PERFETTO_FATAL("Unknown cost type");
-  }
-  switch (rc.index()) {
-    case base::variant_index<RowCountModifier, UnchangedRowCount>():
-      break;
-    case base::variant_index<RowCountModifier, NonEqualityFilterRowCount>():
-      if (plan_.params.estimated_row_count > 1) {
-        plan_.params.estimated_row_count = plan_.params.estimated_row_count / 2;
-      } else {
-        // Leave the estimated row count as is if it is already 1 or less.
-      }
-      break;
-    case base::variant_index<RowCountModifier, EqualityFilterRowCount>(): {
-      const auto& eq = base::unchecked_get<EqualityFilterRowCount>(rc);
-      if (eq.duplicate_state.Is<HasDuplicates>()) {
-        if (plan_.params.estimated_row_count > 1) {
-          if (!selective_filter_base_row_count_) {
-            selective_filter_base_row_count_ = plan_.params.estimated_row_count;
-          }
-          // Estimate against the pre-selective-filter row count and keep the
-          // most selective result: correlated filters on one scan shouldn't
-          // compound and collapse the estimate toward 1.
-          plan_.params.estimated_row_count =
-              std::min(plan_.params.estimated_row_count,
-                       std::max(1u, static_cast<uint32_t>(EqualityFilterRows(
-                                        *selective_filter_base_row_count_,
-                                        eq.estimated_distinct))));
-        } else {
-          // Leave the estimated row count as is if it is already 1 or less.
-        }
-      } else {
-        PERFETTO_CHECK(eq.duplicate_state.Is<NoDuplicates>());
-        plan_.params.estimated_row_count =
-            std::min(1u, plan_.params.estimated_row_count);
-        plan_.params.max_row_count = std::min(1u, plan_.params.max_row_count);
-      }
-      break;
-    }
-    case base::variant_index<RowCountModifier, InFilterRowCount>(): {
-      const auto& in = base::unchecked_get<InFilterRowCount>(rc);
-      if (in.duplicate_state.Is<HasDuplicates>() &&
-          plan_.params.estimated_row_count > 1) {
-        if (!selective_filter_base_row_count_) {
-          selective_filter_base_row_count_ = plan_.params.estimated_row_count;
-        }
-        // An IN is a union of equalities over the list values. The list size
-        // is unknown at plan time, so scale the single-value estimate by an
-        // assumed distinct-value count. As with equality, estimate against the
-        // pre-selective-filter row count and keep the most selective result.
-        double per_value = EqualityFilterRows(*selective_filter_base_row_count_,
-                                              in.estimated_distinct);
-        double new_count =
-            std::min(static_cast<double>(*selective_filter_base_row_count_),
-                     per_value * kAssumedInListSize);
-        plan_.params.estimated_row_count =
-            std::min(plan_.params.estimated_row_count,
-                     std::max(1u, static_cast<uint32_t>(new_count)));
-      }
-      break;
-    }
-    case base::variant_index<RowCountModifier, OneRowCount>():
-      plan_.params.estimated_row_count =
-          std::min(1u, plan_.params.estimated_row_count);
-      plan_.params.max_row_count = std::min(1u, plan_.params.max_row_count);
-      break;
-    case base::variant_index<RowCountModifier, ZeroRowCount>():
-      plan_.params.estimated_row_count = 0;
-      plan_.params.max_row_count = 0;
-      break;
-    case base::variant_index<RowCountModifier, LimitOffsetRowCount>(): {
-      const auto& lc = base::unchecked_get<LimitOffsetRowCount>(rc);
-
-      // Offset will cut out `offset` rows from the start of indices.
-      uint32_t remove_from_start =
-          std::min(plan_.params.max_row_count, lc.offset);
-      plan_.params.max_row_count -= remove_from_start;
-
-      // Limit will only preserve at most `limit` rows.
-      plan_.params.max_row_count =
-          std::min(lc.limit, plan_.params.max_row_count);
-
-      // The max row count is also the best possible estimate we can make for
-      // the row count.
-      plan_.params.estimated_row_count = plan_.params.max_row_count;
-      break;
-    }
-    default:
-      PERFETTO_FATAL("Unknown row count modifier type");
-  }
-  // Handle all the cost types which need to be calculated *post* the row
-  // estimate update.
-  if (cost.index() ==
-      base::variant_index<i::Cost, i::PostOperationLinearPerRowCost>()) {
-    const auto& c = base::unchecked_get<i::PostOperationLinearPerRowCost>(cost);
-    plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost;
   }
   return builder_.AddRawOpcode(option);
 }
@@ -1022,7 +929,7 @@ i::ReadHandle<i::NullBitvector> BytecodeLowering::EnsurePrefixPopcountFor(
   auto [it, inserted] = prefix_popcount_emitted_.Insert(col, true);
   if (inserted) {
     using B = i::PrefixPopcount;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::null_bv_register>() =
         i::RwHandle<i::NullBitvector>(nbv_reg.index);
   }
@@ -1068,7 +975,7 @@ i::RwHandle<Span<uint32_t>> BytecodeLowering::GetOrCreateScratchSpanRegister(
   auto scratch = builder_.GetOrCreateScratchRegisters(size);
   {
     using B = i::AllocateIndices;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    auto& bc = AddOpcode<B>();
     bc.arg<B::size>() = size;
     bc.arg<B::dest_slab_register>() = scratch.slab;
     bc.arg<B::dest_span_register>() = scratch.span;
@@ -1108,7 +1015,7 @@ i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
       builder_.AllocateRegister<Slab<uint8_t>>();
   {
     using B = i::AllocateRowLayoutBuffer;
-    auto& op = AddOpcode<B>(UnchangedRowCount{});
+    auto& op = AddOpcode<B>();
     op.arg<B::buffer_size>() = buffer_size;
     op.arg<B::dest_buffer_register>() = new_buffer_reg;
   }
@@ -1122,7 +1029,7 @@ i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
       auto index = i::Index<i::CopyToRowLayout>(
           col.storage.type(),
           NullabilityToSparseNullCollapsedNullability(nullability));
-      auto& op = AddOpcode<B>(index, UnchangedRowCount{});
+      auto& op = AddOpcode<B>(index);
       op.arg<B::storage_register>() =
           StorageRegisterFor(param.column, col.storage.type());
       op.arg<B::null_bv_register>() = null_bv_reg;
@@ -1141,8 +1048,8 @@ i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
 }
 
 template <typename T>
-T& BytecodeLowering::AddOpcode(RowCountModifier rc) {
-  return AddOpcode<T>(i::Index<T>(), rc, T::kCost);
+T& BytecodeLowering::AddOpcode() {
+  return AddOpcode<T>(i::Index<T>(), T::kCost);
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe
