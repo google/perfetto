@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -56,12 +57,24 @@ PullPipeline::~PullPipeline() = default;
 
 void PullPipeline::Reset() {
   source_.Reset();
+  finished_ = false;
+}
+
+bool PullPipeline::Open(ValueFetcher& values) {
+  bool armed = true;
   for (const std::unique_ptr<Operator>& op : operators_) {
-    op->Open();
+    // Every operator is armed even once one has declined, so none is left
+    // holding state from the previous execution.
+    armed = op->Open(values) && armed;
   }
+  finished_ = !armed;
+  return armed;
 }
 
 RowBatch* PullPipeline::Next() {
+  if (finished_) {
+    return nullptr;
+  }
   for (RowBatch* chunk = source_.Next(); chunk; chunk = source_.Next()) {
     if (ExecuteOperators(*chunk, operators_)) {
       return chunk;

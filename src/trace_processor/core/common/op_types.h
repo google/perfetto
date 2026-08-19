@@ -82,6 +82,26 @@ using InequalityOp = core::TypeSet<Lt, Le, Gt, Ge>;
 // Set of null operations (IsNotNull, IsNull).
 using NullOp = core::TypeSet<IsNotNull, IsNull>;
 
+// The standard comparator implementing `Op` over `T`.
+template <typename T, typename Op>
+auto ComparatorFor() {
+  if constexpr (std::is_same_v<Op, Eq>) {
+    return std::equal_to<T>();
+  } else if constexpr (std::is_same_v<Op, Ne>) {
+    return std::not_equal_to<T>();
+  } else if constexpr (std::is_same_v<Op, Lt>) {
+    return std::less<T>();
+  } else if constexpr (std::is_same_v<Op, Le>) {
+    return std::less_equal<T>();
+  } else if constexpr (std::is_same_v<Op, Gt>) {
+    return std::greater<T>();
+  } else if constexpr (std::is_same_v<Op, Ge>) {
+    return std::greater_equal<T>();
+  } else {
+    static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
+  }
+}
+
 }  // namespace perfetto::trace_processor::core
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_OP_TYPES_H_

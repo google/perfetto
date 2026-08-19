@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -26,6 +27,54 @@
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::ops {
+
+// Keeps the rows of |indices| whose value satisfies |comparator| against
+// |value|, writing the corresponding entry of |emit| for each.
+//
+// |indices| addresses |data| while |emit| carries what the caller wants back,
+// and the two differ whenever a row is not its own value's position, as it is
+// not for a column whose nulls reserve no storage. Passing the same array for
+// both compacts it in place.
+//
+// Branchy on purpose: on real data the predictor handles the runs of matching
+// and non-matching rows better than an unconditional store handles the rows
+// that do not match.
+template <typename Comparator, typename ValueType, typename DataType>
+[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* FilterIndices(
+    const DataType* data,
+    const uint32_t* indices,
+    const uint32_t* indices_end,
+    const uint32_t* emit,
+    uint32_t* output,
+    const ValueType& value,
+    const Comparator& comparator) {
+  uint32_t* write = output;
+  for (const uint32_t* it = indices; it != indices_end; ++it, ++emit) {
+    if (comparator(data[*it], value)) {
+      *write++ = *emit;
+    }
+  }
+  return write;
+}
+
+// The same over a contiguous run of rows starting at |base|, which needs no
+// index array to walk.
+template <typename Comparator, typename ValueType, typename DataType>
+[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* FilterRange(
+    const DataType* data,
+    uint32_t rows,
+    uint32_t base,
+    uint32_t* output,
+    const ValueType& value,
+    const Comparator& comparator) {
+  uint32_t* write = output;
+  for (const DataType *it = data, *end = data + rows; it != end; ++it) {
+    if (comparator(*it, value)) {
+      *write++ = base + static_cast<uint32_t>(it - data);
+    }
+  }
+  return write;
+}
 
 // Copies rows selected by |source_rows| into a dense output. Exact in-place
 // operation is supported when source_rows[i] >= i. Partial overlap is not

@@ -38,6 +38,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -48,6 +49,7 @@
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
@@ -57,24 +59,6 @@ namespace comparators {
 
 // Returns an appropriate comparator functor for the given integer/double type
 // and operation. Currently only supports equality comparison.
-template <typename T, typename Op>
-auto IntegerOrDoubleComparator() {
-  if constexpr (std::is_same_v<Op, Eq>) {
-    return std::equal_to<T>();
-  } else if constexpr (std::is_same_v<Op, Ne>) {
-    return std::not_equal_to<T>();
-  } else if constexpr (std::is_same_v<Op, Lt>) {
-    return std::less<T>();
-  } else if constexpr (std::is_same_v<Op, Le>) {
-    return std::less_equal<T>();
-  } else if constexpr (std::is_same_v<Op, Gt>) {
-    return std::greater<T>();
-  } else if constexpr (std::is_same_v<Op, Ge>) {
-    return std::greater_equal<T>();
-  } else {
-    static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
-  }
-}
 
 template <typename T>
 struct StringComparator {
@@ -187,27 +171,6 @@ PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
 //
 // Returns:
 //   A pointer one past the last index written to the destination buffer.
-template <typename Comparator, typename ValueType, typename DataType>
-[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* Filter(
-    const DataType* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const ValueType& value,
-    const Comparator& comparator) {
-  const uint32_t* o_read = output;
-  uint32_t* o_write = output;
-  for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-    // The choice of a branchy implemntation is intentional: this seems faster
-    // than trying to do something branchless, likely because the compiler is
-    // helping us with branch prediction.
-    if (comparator(data[*it], value)) {
-      *o_write++ = *o_read;
-    }
-  }
-  return o_write;
-}
-
 // Similar to Filter but operates directly on the identity values
 // (indices) rather than dereferencing through a data array.
 template <typename Comparator, typename ValueType>
@@ -390,225 +353,19 @@ inline PERFETTO_ALWAYS_INLINE void NullFilter(InterpreterState& state,
   update.e = nbv.bv->template PackLeft<kInvert>(update.b, update.e, update.b);
 }
 
-// Handles conversion of strings or nulls to integer or double types for
-// filtering operations.
-inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastStringOrNullFilterValueToIntegerOrDouble(
-    ValueFetcher::Type filter_value_type,
-    NonStringOp op) {
-  if (filter_value_type == ValueFetcher::Type::kString) {
-    if (op.index() == NonStringOp::GetTypeIndex<Eq>() ||
-        op.index() == NonStringOp::GetTypeIndex<Ge>() ||
-        op.index() == NonStringOp::GetTypeIndex<Gt>()) {
-      return CastFilterValueResult::kNoneMatch;
-    }
-    PERFETTO_DCHECK(op.index() == NonStringOp::GetTypeIndex<Ne>() ||
-                    op.index() == NonStringOp::GetTypeIndex<Le>() ||
-                    op.index() == NonStringOp::GetTypeIndex<Lt>());
-    return CastFilterValueResult::kAllMatch;
-  }
-
-  PERFETTO_DCHECK(filter_value_type == ValueFetcher::Type::kNull);
-
-  // Nulls always compare false to any value (including other nulls),
-  // regardless of the operator.
-  return CastFilterValueResult::kNoneMatch;
-}
-
-// Converts a double to an integer type using the specified function
-// (e.g., trunc, floor). Used as a helper for various casting operations.
-template <typename T, double (*fn)(double)>
-inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastDoubleToIntHelper(bool no_data, bool all_data, double d, T& out) {
-  if (no_data) {
-    return CastFilterValueResult::kNoneMatch;
-  }
-  if (all_data) {
-    return CastFilterValueResult::kAllMatch;
-  }
-  out = static_cast<T>(fn(d));
-  return CastFilterValueResult::kValid;
-}
-
-// Attempts to cast a filter value to an integer type, handling various
-// edge cases such as out-of-range values and non-integer inputs.
-template <typename T>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastFilterValueToInteger(FilterValueHandle handle,
-                         ValueFetcher::Type filter_value_type,
-                         ValueFetcher& fetcher,
-                         NonStringOp op,
-                         T& out) {
-  static_assert(std::is_integral_v<T>, "Unsupported type");
-
-  if (PERFETTO_LIKELY(filter_value_type == ValueFetcher::Type::kInt64)) {
-    int64_t res = fetcher.GetInt64Value(handle.index);
-    bool is_small = res < std::numeric_limits<T>::min();
-    bool is_big = res > std::numeric_limits<T>::max();
-    if (PERFETTO_UNLIKELY(is_small || is_big)) {
-      switch (op.index()) {
-        case NonStringOp::GetTypeIndex<Lt>():
-        case NonStringOp::GetTypeIndex<Le>():
-          if (is_small) {
-            return CastFilterValueResult::kNoneMatch;
-          }
-          break;
-        case NonStringOp::GetTypeIndex<Gt>():
-        case NonStringOp::GetTypeIndex<Ge>():
-          if (is_big) {
-            return CastFilterValueResult::kNoneMatch;
-          }
-          break;
-        case NonStringOp::GetTypeIndex<Eq>():
-          return CastFilterValueResult::kNoneMatch;
-        case NonStringOp::GetTypeIndex<Ne>():
-          // Do nothing.
-          break;
-        default:
-          PERFETTO_FATAL("Invalid numeric filter op");
-      }
+// The shared narrowing rules report their own outcome; this is the same three
+// answers in the interpreter's spelling.
+inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity ToValidity(
+    core::ops::CastResult result) {
+  switch (result) {
+    case core::ops::CastResult::kValid:
+      return CastFilterValueResult::kValid;
+    case core::ops::CastResult::kAllMatch:
       return CastFilterValueResult::kAllMatch;
-    }
-    out = static_cast<T>(res);
-    return CastFilterValueResult::kValid;
-  }
-  if (PERFETTO_LIKELY(filter_value_type == ValueFetcher::Type::kDouble)) {
-    double d = fetcher.GetDoubleValue(handle.index);
-
-    // We use the constants directly instead of using numeric_limits for
-    // int64_t as the casts introduces rounding in the doubles as a double
-    // cannot exactly represent int64::max().
-    constexpr double kMin =
-        std::is_same_v<T, int64_t>
-            ? -9223372036854775808.0
-            : static_cast<double>(std::numeric_limits<T>::min());
-    constexpr double kMax =
-        std::is_same_v<T, int64_t>
-            ? 9223372036854775808.0
-            : static_cast<double>(std::numeric_limits<T>::max());
-
-    // NaNs always compare false to any value (including other NaNs),
-    // regardless of the operator.
-    if (PERFETTO_UNLIKELY(std::isnan(d))) {
+    case core::ops::CastResult::kNoneMatch:
       return CastFilterValueResult::kNoneMatch;
-    }
-
-    // The greater than or equal is intentional to account for the fact
-    // that twos-complement integers are not symmetric around zero (i.e.
-    // -9223372036854775808 can be represented but 9223372036854775808
-    // cannot).
-    bool is_big = d >= kMax;
-    bool is_small = d < kMin;
-    if (PERFETTO_LIKELY(d == trunc(d) && !is_small && !is_big)) {
-      out = static_cast<T>(d);
-      return CastFilterValueResult::kValid;
-    }
-    switch (op.index()) {
-      case NonStringOp::GetTypeIndex<Lt>():
-        return CastDoubleToIntHelper<T, std::ceil>(is_small, is_big, d, out);
-      case NonStringOp::GetTypeIndex<Le>():
-        return CastDoubleToIntHelper<T, std::floor>(is_small, is_big, d, out);
-      case NonStringOp::GetTypeIndex<Gt>():
-        return CastDoubleToIntHelper<T, std::floor>(is_big, is_small, d, out);
-      case NonStringOp::GetTypeIndex<Ge>():
-        return CastDoubleToIntHelper<T, std::ceil>(is_big, is_small, d, out);
-      case NonStringOp::GetTypeIndex<Eq>():
-        return CastFilterValueResult::kNoneMatch;
-      case NonStringOp::GetTypeIndex<Ne>():
-        // Do nothing.
-        return CastFilterValueResult::kAllMatch;
-      default:
-        PERFETTO_FATAL("Invalid numeric filter op");
-    }
   }
-  return CastStringOrNullFilterValueToIntegerOrDouble(filter_value_type, op);
-}
-
-// Attempts to cast a filter value to a double, handling integer inputs
-// and various edge cases.
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastFilterValueToDouble(FilterValueHandle filter_value_handle,
-                        ValueFetcher::Type filter_value_type,
-                        ValueFetcher& fetcher,
-                        NonStringOp op,
-                        double& out) {
-  if (PERFETTO_LIKELY(filter_value_type == ValueFetcher::Type::kDouble)) {
-    out = fetcher.GetDoubleValue(filter_value_handle.index);
-    return CastFilterValueResult::kValid;
-  }
-  if (PERFETTO_LIKELY(filter_value_type == ValueFetcher::Type::kInt64)) {
-    int64_t i = fetcher.GetInt64Value(filter_value_handle.index);
-    auto iad = static_cast<double>(i);
-    auto iad_int = static_cast<int64_t>(iad);
-
-    // If the integer value can be converted to a double while preserving
-    // the exact integer value, then we can use the double value for
-    // comparison.
-    if (PERFETTO_LIKELY(i == iad_int)) {
-      out = iad;
-      return CastFilterValueResult::kValid;
-    }
-
-    // This can happen in cases where we round `i` up above
-    // numeric_limits::max(). In that case, still consider the double
-    // larger.
-    bool overflow_positive_to_negative = i > 0 && iad_int < 0;
-    bool iad_greater_than_i = iad_int > i || overflow_positive_to_negative;
-    bool iad_less_than_i = iad_int < i && !overflow_positive_to_negative;
-    switch (op.index()) {
-      case NonStringOp::GetTypeIndex<Lt>():
-        out =
-            iad_greater_than_i
-                ? iad
-                : std::nextafter(iad, std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Le>():
-        out =
-            iad_less_than_i
-                ? iad
-                : std::nextafter(iad, -std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Gt>():
-        out =
-            iad_less_than_i
-                ? iad
-                : std::nextafter(iad, -std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Ge>():
-        out =
-            iad_greater_than_i
-                ? iad
-                : std::nextafter(iad, std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Eq>():
-        return CastFilterValueResult::kNoneMatch;
-      case NonStringOp::GetTypeIndex<Ne>():
-        // Do nothing.
-        return CastFilterValueResult::kAllMatch;
-      default:
-        PERFETTO_FATAL("Invalid numeric filter op");
-    }
-  }
-  return CastStringOrNullFilterValueToIntegerOrDouble(filter_value_type, op);
-}
-
-// Attempts to cast a filter value to a numeric type, dispatching to the
-// appropriate type-specific conversion function.
-template <typename T>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastFilterValueToIntegerOrDouble(FilterValueHandle handle,
-                                 ValueFetcher::Type filter_value_type,
-                                 ValueFetcher& fetcher,
-                                 NonStringOp op,
-                                 T& out) {
-  if constexpr (std::is_same_v<T, double>) {
-    return CastFilterValueToDouble(handle, filter_value_type, fetcher, op, out);
-  } else if constexpr (std::is_integral_v<T>) {
-    return CastFilterValueToInteger<T>(handle, filter_value_type, fetcher, op,
-                                       out);
-  } else {
-    static_assert(std::is_same_v<T, double>, "Unsupported type");
-  }
+  PERFETTO_FATAL("Unknown cast result");
 }
 
 inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
@@ -663,16 +420,17 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
   if constexpr (std::is_same_v<T, Id>) {
     auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
     uint32_t result_value;
-    result.validity = CastFilterValueToInteger<uint32_t>(
-        handle, filter_value_type, fetcher, op, result_value);
+    result.validity = ToValidity(core::ops::CastFilterValueToInteger<uint32_t>(
+        handle.index, filter_value_type, fetcher, op, result_value));
     if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
       result.value = CastFilterValueResult::Id{result_value};
     }
   } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
     auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
     ValueType result_value;
-    result.validity = CastFilterValueToIntegerOrDouble<ValueType>(
-        handle, filter_value_type, fetcher, op, result_value);
+    result.validity =
+        ToValidity(core::ops::CastFilterValueToIntegerOrDouble<ValueType>(
+            handle.index, filter_value_type, fetcher, op, result_value));
     if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
       result.value = result_value;
     }
@@ -709,15 +467,15 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
       state.ReadFromRegister(nf.template arg<B::source_register>());
   using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
   if constexpr (std::is_same_v<T, Id>) {
-    update.e = IdentityFilter(
-        source.b, source.e, update.b, base::unchecked_get<M>(value.value).value,
-        comparators::IntegerOrDoubleComparator<uint32_t, Op>());
+    update.e = IdentityFilter(source.b, source.e, update.b,
+                              base::unchecked_get<M>(value.value).value,
+                              ComparatorFor<uint32_t, Op>());
   } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
     const auto* data = state.ReadStorageFromRegister<T>(
         nf.template arg<B::storage_register>());
-    update.e = Filter(data, source.b, source.e, update.b,
-                      base::unchecked_get<M>(value.value),
-                      comparators::IntegerOrDoubleComparator<M, Op>());
+    update.e = core::ops::FilterIndices(
+        data, source.b, source.e, update.b, update.b,
+        base::unchecked_get<M>(value.value), ComparatorFor<M, Op>());
   } else {
     static_assert(std::is_same_v<T, Id>, "Unsupported type");
   }
@@ -736,8 +494,9 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterEq(
     return output;
   }
   static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::equal_to<>());
+  return core::ops::FilterIndices(reinterpret_cast<const uint32_t*>(data),
+                                  begin, end, output, output, id->raw_id(),
+                                  std::equal_to<>());
 }
 
 inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
@@ -753,8 +512,9 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
     return output + (end - begin);
   }
   static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::not_equal_to<>());
+  return core::ops::FilterIndices(reinterpret_cast<const uint32_t*>(data),
+                                  begin, end, output, output, id->raw_id(),
+                                  std::not_equal_to<>());
 }
 
 template <typename Op>
@@ -776,8 +536,9 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(
     return StringFilterRegexImpl(state.string_pool, data, val, begin, end,
                                  output);
   } else {
-    return Filter(data, begin, end, output, NullTermStringView(val),
-                  comparators::StringComparator<Op>{state.string_pool});
+    return core::ops::FilterIndices(
+        data, begin, end, output, output, NullTermStringView(val),
+        comparators::StringComparator<Op>{state.string_pool});
   }
 }
 
@@ -1187,8 +948,8 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
     if constexpr (std::is_same_v<T, Id>) {
       auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
       uint32_t result_value;
-      auto validity = CastFilterValueToInteger<uint32_t>(
-          handle, filter_value_type, fetcher, op, result_value);
+      auto validity = ToValidity(core::ops::CastFilterValueToInteger<uint32_t>(
+          handle.index, filter_value_type, fetcher, op, result_value));
       if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
         hm.Insert(CastFilterValueResult::Id{result_value}, true);
       } else if (validity == CastFilterValueResult::kAllMatch) {
@@ -1198,8 +959,9 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
     } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
       auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
       ValueType result_value;
-      auto validity = CastFilterValueToIntegerOrDouble<ValueType>(
-          handle, filter_value_type, fetcher, op, result_value);
+      auto validity =
+          ToValidity(core::ops::CastFilterValueToIntegerOrDouble<ValueType>(
+              handle.index, filter_value_type, fetcher, op, result_value));
       if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
         hm.Insert(result_value, true);
       } else if (validity == CastFilterValueResult::kAllMatch) {
@@ -1256,7 +1018,8 @@ template <typename T, typename DataType>
     base::ignore_result(data);
     return IdentityFilter(source_begin, source_end, dest, bv, Cmp());
   } else {
-    return Filter(data, source_begin, source_end, dest, bv, Cmp());
+    return core::ops::FilterIndices(data, source_begin, source_end, dest, dest,
+                                    bv, Cmp());
   }
 }
 
@@ -1297,7 +1060,8 @@ template <typename T, typename DataType, typename VL>
         return false;
       }
     };
-    return Filter(data, source_begin, source_end, dest, vl, Cmp());
+    return core::ops::FilterIndices(data, source_begin, source_end, dest, dest,
+                                    vl, Cmp());
   }
 }
 
@@ -1323,7 +1087,8 @@ template <typename T, typename DataType, typename HM>
         return h.Find(lhs) != nullptr;
       }
     };
-    return Filter(data, source_begin, source_end, dest, hm, Cmp());
+    return core::ops::FilterIndices(data, source_begin, source_end, dest, dest,
+                                    hm, Cmp());
   }
 }
 

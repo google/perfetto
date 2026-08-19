@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -34,6 +35,9 @@ class PullPipeline : public Source {
 
   void Reset() override;
 
+  // Arms the operators for one execution. False if one of them declined.
+  bool Open(ValueFetcher&);
+
   RowBatch* Next() override;
 
   // Whatever the source it reads had to say.
@@ -42,6 +46,9 @@ class PullPipeline : public Source {
  private:
   Source& source_;
   std::vector<std::unique_ptr<Operator>> operators_;
+  // Set when an operator declined at Open, which is as final as running out
+  // of chunks.
+  bool finished_ = false;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

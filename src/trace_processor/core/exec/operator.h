@@ -20,6 +20,7 @@
 #include <cstdint>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -40,9 +41,13 @@ class Operator {
   Operator(const Operator&) = delete;
   Operator& operator=(const Operator&) = delete;
 
-  // Called once before the first chunk of each execution. Lets a tree built
-  // once per query plan pick up values that change between executions.
-  virtual void Open() {}
+  // Arms the operator for one execution, handing it that execution's filter
+  // values. A tree is built once per query plan and reused, so anything that
+  // changes between runs is picked up here rather than held.
+  //
+  // Returns false if what it picked up rules out every row, so that a query
+  // that cannot match anything is answered without reading a chunk.
+  virtual bool Open(ValueFetcher&) { return true; }
 
   virtual OpResult Execute(RowBatch& chunk) = 0;
 

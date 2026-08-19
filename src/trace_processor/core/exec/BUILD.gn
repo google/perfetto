@@ -16,6 +16,9 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
+    "dispatch.h",
+    "filter.cc",
+    "filter.h",
     "from.cc",
     "from.h",
     "operator.h",

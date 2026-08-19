@@ -64,6 +64,8 @@ class TransientColumn {
   Kind kind() const { return kind_; }
   StorageType type() const { return type_; }
   RowSelection selection() const { return selection_; }
+  // The values this column reads from, before its row view is applied.
+  const void* data() const { return data_; }
 
   // Composes `selection` with the current logical-to-physical row view.
   void Slice(RowSelection selection, uint32_t count);

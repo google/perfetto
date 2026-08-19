@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
+#include "src/trace_processor/core/dataframe/operator_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
@@ -108,12 +109,27 @@ struct QueryPlanImpl {
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.
+  // The fixed-size part of the operator plan, so it serializes like `params`.
+  struct OperatorPlanHeader {
+    bool supported;
+    bool empty;
+    uint32_t row_count;
+  };
+  static_assert(std::is_trivially_copyable_v<OperatorPlanHeader>);
+
+  OperatorPlanHeader OperatorHeader() const {
+    return OperatorPlanHeader{operator_plan.supported, operator_plan.empty,
+                              operator_plan.row_count};
+  }
+
   std::string Serialize() const {
     size_t size =
-        sizeof(params) + sizeof(size_t) +
-        (bytecode.size() * sizeof(interpreter::Bytecode)) + sizeof(size_t) +
-        (col_to_output_offset.size() * sizeof(uint32_t)) + sizeof(size_t) +
-        (register_inits.size() * sizeof(RegisterInit));
+        sizeof(params) + sizeof(OperatorPlanHeader) + 2 * sizeof(size_t) +
+        (operator_plan.batch_columns.size() * sizeof(uint32_t)) +
+        (operator_plan.filters.size() * sizeof(OperatorPlan::Filter)) +
+        sizeof(size_t) + (bytecode.size() * sizeof(interpreter::Bytecode)) +
+        sizeof(size_t) + (col_to_output_offset.size() * sizeof(uint32_t)) +
+        sizeof(size_t) + (register_inits.size() * sizeof(RegisterInit));
     std::string res(size, '\0');
     char* p = res.data();
     {
@@ -150,6 +166,13 @@ struct QueryPlanImpl {
              register_inits.size() * sizeof(RegisterInit));
       p += register_inits.size() * sizeof(RegisterInit);
     }
+    {
+      OperatorPlanHeader header = OperatorHeader();
+      memcpy(p, &header, sizeof(header));
+      p += sizeof(header);
+    }
+    p = SerializeVector(p, operator_plan.batch_columns);
+    p = SerializeVector(p, operator_plan.filters);
     PERFETTO_CHECK(p == res.data() + res.size());
     return base::Base64Encode(base::StringView(res));
   }
@@ -205,6 +228,16 @@ struct QueryPlanImpl {
              register_inits_size * sizeof(RegisterInit));
       p += register_inits_size * sizeof(RegisterInit);
     }
+    {
+      OperatorPlanHeader header;
+      memcpy(&header, p, sizeof(header));
+      p += sizeof(header);
+      res.operator_plan.supported = header.supported;
+      res.operator_plan.empty = header.empty;
+      res.operator_plan.row_count = header.row_count;
+    }
+    p = DeserializeVector(p, &res.operator_plan.batch_columns);
+    p = DeserializeVector(p, &res.operator_plan.filters);
     PERFETTO_CHECK(p == raw_data->data() + raw_data->size());
     return res;
   }
@@ -217,8 +250,32 @@ struct QueryPlanImpl {
       const Column* const* columns,
       const Index* indexes);
 
+  template <typename T, size_t N>
+  static char* SerializeVector(char* p, const base::SmallVector<T, N>& vec) {
+    size_t count = vec.size();
+    memcpy(p, &count, sizeof(count));
+    p += sizeof(count);
+    memcpy(p, vec.data(), count * sizeof(T));
+    return p + count * sizeof(T);
+  }
+
+  template <typename T, size_t N>
+  static const char* DeserializeVector(const char* p,
+                                       base::SmallVector<T, N>* vec) {
+    size_t count;
+    memcpy(&count, p, sizeof(count));
+    p += sizeof(count);
+    for (size_t i = 0; i < count; ++i) {
+      vec->emplace_back();
+    }
+    memcpy(vec->data(), p, count * sizeof(T));
+    return p + count * sizeof(T);
+  }
+
   ExecutionParams params;
   interpreter::BytecodeVector bytecode;
+  // The same query lowered for the operator executor, when it can run it.
+  OperatorPlan operator_plan;
   base::SmallVector<uint32_t, 24> col_to_output_offset;
 
   // Register initialization specifications.

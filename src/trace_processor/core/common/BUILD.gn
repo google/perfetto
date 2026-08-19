@@ -17,6 +17,7 @@ import("../../../../gn/test.gni")
 source_set("common") {
   sources = [
     "duplicate_types.h",
+    "filter_value_cast.h",
     "null_types.h",
     "op_types.h",
     "sort_types.h",

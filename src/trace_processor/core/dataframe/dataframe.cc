@@ -31,6 +31,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/bytecode_lowering.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
+#include "src/trace_processor/core/dataframe/operator_lowering.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -115,7 +116,14 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
       LogicalPlan logical,
       LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
                            distinct_specs, sort_specs, limit_spec, cols_used));
-  return QueryPlan(BytecodeLowering::Lower(logical, columns_, indexes_));
+  QueryPlanImpl impl = BytecodeLowering::Lower(logical, columns_, indexes_);
+  impl.operator_plan = OperatorLowering::Lower(logical);
+  // A wider stride carries sparse-null translation, which the operator
+  // executor does not model.
+  if (impl.params.output_per_row != 1) {
+    impl.operator_plan.supported = false;
+  }
+  return QueryPlan(std::move(impl));
 }
 
 base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogicalForTesting(
