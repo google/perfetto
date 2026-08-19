@@ -23,6 +23,8 @@ source_set("dataframe") {
     "arrow_internal.h",
     "arrow_serializer.cc",
     "arrow_serializer.h",
+    "bytecode_lowering.cc",
+    "bytecode_lowering.h",
     "cursor.h",
     "cursor_impl.h",
     "dataframe.cc",

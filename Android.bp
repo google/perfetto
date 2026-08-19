@@ -17575,6 +17575,7 @@ filegroup {
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/core/dataframe/arrow_deserializer.cc",
         "src/trace_processor/core/dataframe/arrow_serializer.cc",
+        "src/trace_processor/core/dataframe/bytecode_lowering.cc",
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/query_plan.cc",
         "src/trace_processor/core/dataframe/typed_cursor.cc",
