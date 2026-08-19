@@ -2474,6 +2474,8 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/dataframe.h",
         "src/trace_processor/core/dataframe/dataframe_register_cache.h",
+        "src/trace_processor/core/dataframe/logical_plan.cc",
+        "src/trace_processor/core/dataframe/logical_plan.h",
         "src/trace_processor/core/dataframe/query_plan.cc",
         "src/trace_processor/core/dataframe/query_plan.h",
         "src/trace_processor/core/dataframe/runtime_dataframe_builder.h",

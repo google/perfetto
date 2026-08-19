@@ -29,10 +29,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
@@ -51,7 +49,6 @@
 namespace perfetto::trace_processor::core::dataframe {
 
 class Dataframe;
-class BytecodeLowering;
 
 // Specification for initializing a register before bytecode execution.
 // The plan contains abstract references (column indices, index IDs), and
@@ -227,95 +224,6 @@ struct QueryPlanImpl {
   // Register initialization specifications.
   // The cursor processes these to set up registers before bytecode execution.
   base::SmallVector<RegisterInit, 16> register_inits;
-};
-
-// Chooses the access path for a query.
-//
-// This class makes all the decisions a query plan involves: the order filters
-// are applied in, which strategy serves each one, whether an index is worth
-// using, and whether a sort can be skipped. It makes no bytecode of its own;
-// each decision is handed to BytecodeLowering, which knows how to emit it.
-class QueryPlanBuilder {
- public:
-  static base::StatusOr<QueryPlanImpl> Build(
-      uint32_t row_count,
-      const std::vector<std::shared_ptr<Column>>& columns,
-      const std::vector<Index>& indexes,
-      std::vector<FilterSpec>& specs,
-      const std::vector<DistinctSpec>& distinct,
-      const std::vector<SortSpec>& sort_specs,
-      const LimitSpec& limit_spec,
-      uint64_t cols_used);
-
- private:
-  QueryPlanBuilder(BytecodeLowering& lowering,
-                   const std::vector<std::shared_ptr<Column>>& columns,
-                   const std::vector<Index>& indexes);
-
-  // Adds filter operations to the query plan based on filter specifications.
-  // Optimizes the order of filters for efficiency.
-  base::Status Filter(std::vector<FilterSpec>& specs);
-
-  // Adds distinct operations to the query plan based on distinct
-  // specifications. Distinct are applied after filters, in reverse order of
-  // specification.
-  void Distinct(const std::vector<DistinctSpec>& distinct_specs);
-
-  // Adds min/max operations to the query plan given a single column which
-  // should be sorted on.
-  void MinMax(const SortSpec& spec);
-
-  // Adds sort operations to the query plan based on sort specifications.
-  // Sorts are applied after filters and disinct.
-  void Sort(const std::vector<SortSpec>& sort_specs);
-
-  // Configures output handling for the filtered rows.
-  // |cols_used_bitmap| is a bitmap with bits set for columns that will be
-  // accessed.
-  void Output(const LimitSpec&, uint64_t cols_used_bitmap);
-
-  // Processes non-string filter constraints.
-  void NonStringConstraint(
-      const FilterSpec& c,
-      const NonStringType& type,
-      const NonStringOp& op,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>&
-          result);
-
-  // Processes string filter constraints.
-  base::Status StringConstraint(
-      const FilterSpec& c,
-      const StringOp& op,
-      const interpreter::ReadHandle<interpreter::CastFilterValueResult>&
-          result);
-
-  // Processes null filter constraints.
-  void NullConstraint(const NullOp&, FilterSpec&);
-
-  // Processes constraints which can be handled with an index.
-  void IndexConstraints(std::vector<FilterSpec>&,
-                        std::vector<uint8_t>& specs_handled,
-                        uint32_t,
-                        const std::vector<uint32_t>&);
-
-  // Attempts to apply optimized filtering on sorted data.
-  // Returns true if the optimization was applied.
-  bool TrySortedConstraint(FilterSpec& fs,
-                           const StorageType& ct,
-                           const NonNullOp& op);
-
-  bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
-
-  const Column& GetColumn(uint32_t idx) { return *columns_[idx]; }
-
-  // Reference to the columns being queried.
-  const std::vector<std::shared_ptr<Column>>& columns_;
-
-  // Reference to the indexes available.
-  const std::vector<Index>& indexes_;
-
-  // Turns the decisions made here into bytecode.
-  BytecodeLowering& lowering_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe
