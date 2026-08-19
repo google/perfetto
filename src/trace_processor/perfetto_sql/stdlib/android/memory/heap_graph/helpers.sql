@@ -100,7 +100,7 @@ AS (
         o.upid,
         path_hash,
         parent_path_hash,
-        coalesce(c.deobfuscated_name, c.name) AS name,
+        coalesce(c.deobfuscated_name, c.name, '') AS name,
         o.root_type,
         o.heap_type,
         count() AS self_count,
