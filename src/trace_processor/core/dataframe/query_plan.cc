@@ -421,14 +421,15 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
         c.value_index = plan_.params.filter_value_count++;
       }
       auto update = EnsureIndicesAreInSlab();
-      PruneNullIndices(c.col, update);
+      PruneNullIndices(c.col, update, NullPruneScope::kResultRows);
       auto source = TranslateNonNullIndices(c.col, update, false);
       {
         using B = i::FilterInBase;
         B& bc = AddOpcode<B>(
             i::Index<i::FilterIn>(col.storage.type(),
                                   i::SparseNullCollapsedNullability{NonNull{}}),
-            RowCountModifier{NonEqualityFilterRowCount{}});
+            RowCountModifier{
+                InFilterRowCount{col.duplicate_state, col.estimated_distinct}});
         bc.arg<B::storage_register>() =
             StorageRegisterFor(c.col, col.storage.type());
         bc.arg<B::null_bv_register>() = {};
@@ -574,7 +575,7 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
         }
 
         // 2. Prune nulls from this temporary span in-place.
-        PruneNullIndices(spec.col, scratch);
+        PruneNullIndices(spec.col, scratch, NullPruneScope::kScratchOnly);
 
         // 3. Translate these non-null table indices to storage indices if
         // necessary.
@@ -772,7 +773,7 @@ void QueryPlanBuilder::NonStringConstraint(
     return;
   }
   auto update = EnsureIndicesAreInSlab();
-  PruneNullIndices(c.col, update);
+  PruneNullIndices(c.col, update, NullPruneScope::kResultRows);
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = i::NonStringFilterBase;
@@ -801,7 +802,7 @@ base::Status QueryPlanBuilder::StringConstraint(
     return base::OkStatus();
   }
   auto update = EnsureIndicesAreInSlab();
-  PruneNullIndices(c.col, update);
+  PruneNullIndices(c.col, update, NullPruneScope::kResultRows);
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = i::StringFilterBase;
@@ -1036,14 +1037,18 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
 }
 
 void QueryPlanBuilder::PruneNullIndices(uint32_t col,
-                                        i::RwHandle<Span<uint32_t>> indices) {
+                                        i::RwHandle<Span<uint32_t>> indices,
+                                        NullPruneScope scope) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
     case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
     case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = i::NullFilter<IsNotNull>;
-      i::NullFilterBase& bc = AddOpcode<B>(NonEqualityFilterRowCount{});
+      RowCountModifier rc = scope == NullPruneScope::kResultRows
+                                ? RowCountModifier{NonEqualityFilterRowCount{}}
+                                : RowCountModifier{UnchangedRowCount{}};
+      i::NullFilterBase& bc = AddOpcode<B>(rc);
       bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
       bc.arg<B::update_register>() = indices;
       break;

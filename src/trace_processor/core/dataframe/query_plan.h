@@ -358,11 +358,16 @@ class QueryPlanBuilder {
                            const StorageType& ct,
                            const interpreter::NonNullOp& op);
 
+  // Whether the span being pruned holds the query's result rows, or only a
+  // temporary copy of them.
+  enum class NullPruneScope { kResultRows, kScratchOnly };
+
   // Given a list of indices, prunes any indices that point to null rows
   // in the given column. The indices are pruned in-place, and the
   // `indices_register` is updated to contain only non-null indices.
   void PruneNullIndices(uint32_t col,
-                        interpreter::RwHandle<Span<uint32_t>> indices);
+                        interpreter::RwHandle<Span<uint32_t>> indices,
+                        NullPruneScope scope);
 
   // Given a list of table indices pointing to *only* non-null rows,
   // if necessary, translates them to the storage indices for the given column.
