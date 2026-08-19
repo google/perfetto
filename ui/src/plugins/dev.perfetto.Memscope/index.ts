@@ -108,14 +108,16 @@ export default class implements PerfettoPlugin {
         }),
     });
 
-    trace.sidebar.addMenuItem({
-      section: 'current_trace',
-      sortOrder: 25,
-      text: 'Memory Overview',
-      href: `#!${pageRoot}`,
-      icon: 'memory',
-      badge: 'preview',
-    });
+    if (availability.hasSmapsSnapshots || availability.hasHeapDumps) {
+      trace.sidebar.addMenuItem({
+        section: 'current_trace',
+        sortOrder: 25,
+        text: 'Memory Overview',
+        href: `#!${pageRoot}`,
+        icon: 'memory',
+        badge: 'preview',
+      });
+    }
 
     if (autoNavigated) {
       // Make this page appear before the heap dump explorer page.
