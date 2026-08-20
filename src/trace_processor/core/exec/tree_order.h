@@ -46,9 +46,9 @@ enum class TreeRowOrder : uint8_t {
 
 // Puts a stream of rows into a tree order and says where each row's parent is.
 //
-// Streams when the rows already arrive in the order asked for and inverts
-// when they arrive in the other. Which of the two it does is the whole cost
-// of the operator, so it says which, and
+// Streams when the rows already arrive in the order asked for, inverts when
+// they arrive in the other, and sorts when they arrive in neither. Which of
+// the three it does is the whole cost of the operator, so it says which, and
 // takes what the planner knows rather than guessing: an operator cannot start
 // emitting and change its mind, so `input` is the difference between passing
 // rows through and holding all of them.
@@ -109,12 +109,16 @@ class TreeOrder : public Source {
   RowBatch* NextStreaming();
   RowBatch* NextBuffered();
 
+  // Works out an order in which every parent precedes its children. False,
+  // with `status_` set, if the rows are not a tree but a cycle.
+  bool Sort();
+
   // The node number for `id`, assigning one if this is the first sighting.
   uint32_t Number(int64_t id);
 
-  // Marks `node` as having had a row, and checks that row's place against
-  // what both orders require.
-  void Note(uint32_t node, int64_t parent);
+  // Marks `node` as having its row at `row`, and checks that row's place
+  // against what both orders require.
+  void Note(uint32_t node, int64_t parent, uint32_t row);
 
   Source& input_;
   Spec spec_;
@@ -127,9 +131,10 @@ class TreeOrder : public Source {
   uint32_t numbered_ = 0;
   base::FlatHashMap<int64_t, uint32_t> numbers_;
 
-  // Which nodes have had a row, by node number, and whether each order still
-  // holds for every row seen so far.
+  // Which nodes have had a row and where it was, by node number, and whether
+  // each order still holds for every row seen so far.
   BitVector has_row_;
+  std::vector<uint32_t> row_of_node_;
   bool parent_first_ = true;
   bool child_first_ = true;
 

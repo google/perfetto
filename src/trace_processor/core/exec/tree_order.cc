@@ -122,9 +122,10 @@ uint32_t TreeOrder::Number(int64_t id) {
   return assigned;
 }
 
-void TreeOrder::Note(uint32_t node, int64_t parent) {
+void TreeOrder::Note(uint32_t node, int64_t parent, uint32_t row) {
   if (has_row_.size() < numbered_) {
     has_row_.resize(numbered_);
+    row_of_node_.resize(numbered_);
   }
   if (parent >= 0) {
     // A parent already seen means children follow parents here; a parent not
@@ -137,6 +138,7 @@ void TreeOrder::Note(uint32_t node, int64_t parent) {
     }
   }
   has_row_.set(node);
+  row_of_node_[node] = row;
 }
 
 bool TreeOrder::Consume(RowBatch& batch, bool retain) {
@@ -163,7 +165,7 @@ bool TreeOrder::Consume(RowBatch& batch, bool retain) {
     if (!parent_null || !parent_null[i]) {
       parent = static_cast<int64_t>(Number(parents[i]));
     }
-    Note(node, parent);
+    Note(node, parent, static_cast<uint32_t>(base) + i);
     nodes_[base + i] = node;
     parents_[base + i] = parent;
   }
@@ -183,6 +185,58 @@ bool TreeOrder::Consume(RowBatch& batch, bool retain) {
   return true;
 }
 
+bool TreeOrder::Sort() {
+  // One list of children per node, laid out end to end rather than as a list
+  // of lists: a tree has exactly as many child entries as it has non-roots.
+  uint32_t nodes = numbered_;
+  std::vector<uint32_t> begin(nodes + 1, 0);
+  for (uint32_t row = 0; row < total_; ++row) {
+    int64_t parent = parents_[row];
+    if (parent >= 0) {
+      ++begin[static_cast<uint32_t>(parent) + 1];
+    }
+  }
+  for (uint32_t node = 0; node < nodes; ++node) {
+    begin[node + 1] += begin[node];
+  }
+  std::vector<uint32_t> next = begin;
+  std::vector<uint32_t> children(begin[nodes]);
+  for (uint32_t row = 0; row < total_; ++row) {
+    int64_t parent = parents_[row];
+    if (parent >= 0) {
+      children[next[static_cast<uint32_t>(parent)]++] =
+          static_cast<uint32_t>(nodes_[row]);
+    }
+  }
+
+  // Every root, then everything reachable from one, which is a parent-first
+  // order by construction: a node is only reached through its parent.
+  order_.clear();
+  order_.reserve(total_);
+  std::vector<uint32_t> pending;
+  for (uint32_t row = 0; row < total_; ++row) {
+    if (parents_[row] < 0) {
+      pending.push_back(static_cast<uint32_t>(nodes_[row]));
+    }
+  }
+  while (!pending.empty()) {
+    uint32_t node = pending.back();
+    pending.pop_back();
+    order_.push_back(row_of_node_[node]);
+    for (uint32_t i = begin[node]; i < begin[node + 1]; ++i) {
+      pending.push_back(children[i]);
+    }
+  }
+  if (order_.size() != total_) {
+    status_ = base::ErrStatus(
+        "%s: the rows are not a tree, because %u of them are in a cycle",
+        Name(spec_.want), total_ - static_cast<uint32_t>(order_.size()));
+    order_.clear();
+    return false;
+  }
+  return true;
+}
+
 bool TreeOrder::Fill() {
   while (RowBatch* batch = input_.Next()) {
     if (!Consume(*batch, /*retain=*/true)) {
@@ -195,6 +249,7 @@ bool TreeOrder::Fill() {
   }
   if (has_row_.size() < numbered_) {
     has_row_.resize(numbered_);
+    row_of_node_.resize(numbered_);
   }
   if (has_row_.CountSetBits() != numbered_) {
     status_ = base::ErrStatus(
@@ -218,10 +273,12 @@ bool TreeOrder::Fill() {
       order_[row] = total_ - 1 - row;
     }
   } else {
-    status_ = base::ErrStatus(
-        "%s: the rows arrive in neither tree order, which needs a sort",
-        Name(spec_.want));
-    return false;
+    if (!Sort()) {
+      return false;
+    }
+    if (spec_.want == TreeRowOrder::kChildFirst) {
+      std::reverse(order_.begin(), order_.end());
+    }
   }
 
   for (const std::unique_ptr<OwnedColumn>& column : store_) {

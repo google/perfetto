@@ -229,16 +229,82 @@ TEST(TreeOrderTest, AParentWhichIsNotARowIsReported) {
   EXPECT_THAT(order.status().message(), testing::HasSubstr("not itself a row"));
 }
 
-TEST(TreeOrderTest, RowsInNeitherOrderAreReported) {
-  // 1 before its parent 0, then 3 after its parent 2: neither order holds.
+// Every parent appears before all of its children.
+void ExpectParentFirst(const Output& out) {
+  std::vector<int64_t> seen;
+  for (uint32_t i = 0; i < out.node.size(); ++i) {
+    if (out.parent[i] >= 0) {
+      EXPECT_NE(std::find(seen.begin(), seen.end(), out.parent[i]), seen.end())
+          << "row " << i << " came before its parent";
+    }
+    seen.push_back(out.node[i]);
+  }
+}
+
+// Rows in neither order are neither passed through nor turned round: they
+// have to be put in an order which did not exist in the input.
+TEST(TreeOrderTest, RowsInNeitherOrderAreSorted) {
+  // 1 before its parent 0, then 3 after its parent 2.
   std::vector<Row> rows = {
       {1, 0, 101}, {0, std::nullopt, 100}, {2, 0, 102}, {3, 2, 103}};
   RowSource source(rows, 4);
   TreeParentFirst order(source, 0, 1, 3);
 
+  Output out = Drain(order);
+  ASSERT_TRUE(order.status().ok()) << order.status().message();
+  ExpectParentFirst(out);
+  std::vector<int64_t> payload = out.payload;
+  std::sort(payload.begin(), payload.end());
+  EXPECT_THAT(payload, ElementsAre(100, 101, 102, 103));
+}
+
+TEST(TreeOrderTest, ASortedStreamCanBeAskedForTheOtherWayRound) {
+  std::vector<Row> rows = {
+      {1, 0, 101}, {0, std::nullopt, 100}, {2, 0, 102}, {3, 2, 103}};
+  RowSource source(rows, 4);
+  TreeChildFirst order(source, 0, 1, 3);
+
+  Output out = Drain(order);
+  ASSERT_TRUE(order.status().ok()) << order.status().message();
+  std::reverse(out.node.begin(), out.node.end());
+  std::reverse(out.parent.begin(), out.parent.end());
+  ExpectParentFirst(out);
+}
+
+TEST(TreeOrderTest, ACycleIsReported) {
+  std::vector<Row> rows = {{0, 1, 100}, {1, 0, 101}};
+  RowSource source(rows, 2);
+  TreeParentFirst order(source, 0, 1, 3);
+
   Drain(order);
   EXPECT_FALSE(order.status().ok());
-  EXPECT_THAT(order.status().message(), testing::HasSubstr("needs a sort"));
+  EXPECT_THAT(order.status().message(), testing::HasSubstr("cycle"));
+}
+
+// A tree big enough to span batches, with its rows shuffled into no order at
+// all.
+TEST(TreeOrderTest, SortsATreeWhoseRowsAreShuffled) {
+  std::mt19937 rng(11);
+  std::vector<Row> rows;
+  rows.push_back({0, std::nullopt, 1000});
+  for (int64_t id = 1; id < 5000; ++id) {
+    int64_t parent = std::uniform_int_distribution<int64_t>(0, id - 1)(rng);
+    rows.push_back({id, parent, 1000 + id});
+  }
+  std::shuffle(rows.begin(), rows.end(), rng);
+
+  RowSource source(rows, 512);
+  TreeParentFirst order(source, 0, 1, 3);
+  Output out = Drain(order);
+  ASSERT_TRUE(order.status().ok()) << order.status().message();
+  ASSERT_EQ(out.node.size(), 5000u);
+  ExpectParentFirst(out);
+
+  std::vector<int64_t> payload = out.payload;
+  std::sort(payload.begin(), payload.end());
+  for (uint32_t i = 0; i < payload.size(); ++i) {
+    ASSERT_EQ(payload[i], 1000 + int64_t{i});
+  }
 }
 
 TEST(TreeOrderTest, TheChunkSizeDoesNotChangeTheAnswer) {
@@ -253,7 +319,7 @@ TEST(TreeOrderTest, TheChunkSizeDoesNotChangeTheAnswer) {
 }
 
 // The point of the operator: a fold up the tree reads what this hands it,
-// whichever way round the rows arrived.
+// whether the rows arrived in that order, the other one, or none.
 TEST(TreeOrderTest, WhatComesOutCanBeFoldedUp) {
   std::mt19937 rng(3);
   std::vector<Row> rows;
@@ -275,10 +341,12 @@ TEST(TreeOrderTest, WhatComesOutCanBeFoldedUp) {
     }
   }
 
-  for (bool backwards : {false, true}) {
+  for (int arrival = 0; arrival < 3; ++arrival) {
     std::vector<Row> input = rows;
-    if (backwards) {
+    if (arrival == 1) {
       std::reverse(input.begin(), input.end());
+    } else if (arrival == 2) {
+      std::shuffle(input.begin(), input.end(), rng);
     }
     RowSource source(input, 64);
     TreeParentFirst order(source, 0, 1, 3);
@@ -294,7 +362,7 @@ TEST(TreeOrderTest, WhatComesOutCanBeFoldedUp) {
       }
     }
     ASSERT_TRUE(fold.status().ok()) << fold.status().message();
-    EXPECT_EQ(got, want) << "backwards: " << backwards;
+    EXPECT_EQ(got, want) << "arrival: " << arrival;
   }
 }
 
