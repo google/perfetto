@@ -184,9 +184,15 @@ base::Status TraceRedactorPass::Transform(
 
 base::Status TraceRedactorPass::Augment(const Context& context,
                                         std::string* output_buffer) const {
+  std::string packet;
   for (const auto& augmenter : augmenters_) {
-    for (std::string packet = augmenter->Augment(context); !packet.empty();
-         packet = augmenter->Augment(context)) {
+    // Keep augmenting until the augmenter returns an empty packet.
+    while (true) {
+      packet.clear();
+      RETURN_IF_ERROR(augmenter->Augment(context, &packet));
+      if (packet.empty()) {
+        break;
+      }
       protozero::HeapBuffered<protos::pbzero::Trace> serializer;
       serializer->add_packet()->AppendRawProtoBytes(packet.data(),
                                                     packet.size());

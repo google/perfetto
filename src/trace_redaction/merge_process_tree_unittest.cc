@@ -98,14 +98,18 @@ class MergeProcessTreeTest : public testing::Test {
 };
 
 TEST_F(MergeProcessTreeTest, NoopWhenNoProcessTreeCollected) {
-  ASSERT_TRUE(augment_.Augment(context_).empty());
+  std::string augmented_str;
+  ASSERT_OK(augment_.Augment(context_, &augmented_str));
+  ASSERT_TRUE(augmented_str.empty());
 
   TracePacket packet;
   packet.set_timestamp(100);
   packet.set_trusted_uid(10);
   CollectPacket(packet);
 
-  ASSERT_TRUE(augment_.Augment(context_).empty());
+  augmented_str.clear();
+  ASSERT_OK(augment_.Augment(context_, &augmented_str));
+  ASSERT_TRUE(augmented_str.empty());
 }
 
 TEST_F(MergeProcessTreeTest, CollectsAndAugmentsProcessesAndThreads) {
@@ -123,7 +127,8 @@ TEST_F(MergeProcessTreeTest, CollectsAndAugmentsProcessesAndThreads) {
 
   CollectPacket(packet);
 
-  std::string augmented_str = augment_.Augment(context_);
+  std::string augmented_str;
+  ASSERT_OK(augment_.Augment(context_, &augmented_str));
   ASSERT_FALSE(augmented_str.empty());
 
   TracePacket augmented;
@@ -179,9 +184,11 @@ TEST_F(MergeProcessTreeTest, CollectsAndAugmentsProcessesAndThreads) {
   ASSERT_FALSE(t31->has_name());
   ASSERT_TRUE(t31->name().empty());
 
-  // A second call to Augment() should return an empty string since all
+  // A second call to Augment() should leave packet empty since all
   // collected processes and threads have been emitted.
-  ASSERT_TRUE(augment_.Augment(context_).empty());
+  std::string second_str;
+  ASSERT_OK(augment_.Augment(context_, &second_str));
+  ASSERT_TRUE(second_str.empty());
 }
 
 TEST_F(MergeProcessTreeTest, DeduplicatesProcessesByPid) {
@@ -205,11 +212,14 @@ TEST_F(MergeProcessTreeTest, DeduplicatesProcessesByPid) {
   AddThread(tree2, tid2, pid1, "thread_2");
   CollectPacket(packet2);
 
-  std::string augmented_str = augment_.Augment(context_);
+  std::string augmented_str;
+  ASSERT_OK(augment_.Augment(context_, &augmented_str));
 
-  // Make sure any subsequent call to Augment() returns an empty string since
+  // Make sure any subsequent call to Augment() leaves packet empty since
   // we should only emit a single merged process tree.
-  ASSERT_TRUE(augment_.Augment(context_).empty());
+  std::string second_str;
+  ASSERT_OK(augment_.Augment(context_, &second_str));
+  ASSERT_TRUE(second_str.empty());
 
   // Verify that we generated a merged process tree given
   // that we collected 2 process tree packets.
@@ -253,15 +263,18 @@ TEST_F(MergeProcessTreeTest, DeduplicatesThreadsByTid) {
   AddThread(tree2, tid1, pid1, "first_name");
   CollectPacket(packet2);
 
-  std::string augmented_str = augment_.Augment(context_);
+  std::string augmented_str;
+  ASSERT_OK(augment_.Augment(context_, &augmented_str));
 
   // Verify that we generated a merged process tree given
   // that we collected 2 process tree packets.
   ASSERT_FALSE(augmented_str.empty());
 
-  // Make sure any subsequent call to Augment() returns an empty string since
+  // Make sure any subsequent call to Augment() leaves packet empty since
   // we should only emit a single merged process tree.
-  ASSERT_TRUE(augment_.Augment(context_).empty());
+  std::string second_str;
+  ASSERT_OK(augment_.Augment(context_, &second_str));
+  ASSERT_TRUE(second_str.empty());
 
   TracePacket augmented;
   ASSERT_TRUE(augmented.ParseFromString(augmented_str));

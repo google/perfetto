@@ -95,7 +95,7 @@ class AugmentProcessTrees : public AugmentPrimitive {
  public:
   ~AugmentProcessTrees() override = default;
 
-  std::string Augment(const Context& context) override;
+  base::Status Augment(const Context& context, std::string* packet) override;
 
  private:
   bool emitted_ = false;

@@ -441,10 +441,11 @@ class AugmentPrimitive {
  public:
   virtual ~AugmentPrimitive();
 
-  // Generates a trace packet using data from the context. Called repeatedly
-  // once per trace until an empty string is returned. Each non-empty string
-  // returned should be a serialized TracePacket to be appended to the trace.
-  virtual std::string Augment(const Context& context) = 0;
+  // Generates a trace packet using data from the context and writes it into
+  // `packet`. Returns base::OkStatus() on success.
+  // When no more packets are available to generate, `packet` is left empty.
+  virtual base::Status Augment(const Context& context,
+                               std::string* packet) = 0;
 };
 
 // Responsible for validating data from the context, returning an error if

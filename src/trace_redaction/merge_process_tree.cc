@@ -95,14 +95,16 @@ base::Status ReduceProcessTrees::Transform(const Context&,
   return base::OkStatus();
 }
 
-std::string AugmentProcessTrees::Augment(const Context& context) {
+base::Status AugmentProcessTrees::Augment(const Context& context,
+                                          std::string* packet) {
+  PERFETTO_DCHECK(packet);
   if (emitted_ || !context.merged_process_tree.has_value()) {
-    return "";
+    return base::OkStatus();
   }
   const auto& merged_tree = context.merged_process_tree.value();
   if (merged_tree.processes_by_pid.empty() &&
       merged_tree.threads_by_tid.empty()) {
-    return "";
+    return base::OkStatus();
   }
 
   emitted_ = true;
@@ -133,7 +135,8 @@ std::string AugmentProcessTrees::Augment(const Context& context) {
       thread_field->set_name(thread.name);
     }
   }
-  return message.SerializeAsString();
+  packet->assign(message.SerializeAsString());
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_redaction

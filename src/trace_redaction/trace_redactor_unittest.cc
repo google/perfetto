@@ -71,15 +71,17 @@ class DummyTransform : public TransformPrimitive {
 
 class DummyAugment : public AugmentPrimitive {
  public:
-  std::string Augment(const Context& context) override {
+  base::Status Augment(const Context& context,
+                       std::string* packet) override {
     if (emitted_ || !context.package_uid.has_value()) {
-      return "";
+      return base::OkStatus();
     }
     emitted_ = true;
-    protos::gen::TracePacket packet;
-    packet.set_timestamp(999);
-    packet.set_trusted_uid(static_cast<int32_t>(*context.package_uid));
-    return packet.SerializeAsString();
+    protos::gen::TracePacket gen_packet;
+    gen_packet.set_timestamp(999);
+    gen_packet.set_trusted_uid(static_cast<int32_t>(*context.package_uid));
+    packet->assign(gen_packet.SerializeAsString());
+    return base::OkStatus();
   }
 
  private:
