@@ -62,7 +62,7 @@ std::vector<uint32_t> Drain(PullPipeline& pipeline) {
   pipeline.Reset();
   RowCursor cursor(pipeline);
   for (cursor.Open(); !cursor.eof(); cursor.Next()) {
-    rows.push_back(cursor.row());
+    rows.push_back(cursor.row(0));
   }
   return rows;
 }
@@ -210,6 +210,56 @@ TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   EXPECT_EQ(rows.front(), 0u);
   EXPECT_EQ(rows[kMaxBatchRows], kMaxBatchRows);
   EXPECT_EQ(rows.back(), kMaxBatchRows * 2u + 6u);
+}
+
+// An operator which adds a computed column cannot put it in the index space
+// its input arrived in, so it adds it in its own. A cursor has to follow each
+// column's own view to read either of them.
+TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
+  std::vector<int64_t> payload = {10, 11, 12, 13};
+  std::vector<int64_t> computed = {90, 91};
+
+  class TwoViewSource final : public Source {
+   public:
+    TwoViewSource(const std::vector<int64_t>* payload,
+                  const std::vector<int64_t>* computed)
+        : payload_(payload), computed_(computed) {}
+
+    RowBatch* Next() override {
+      if (done_) {
+        return nullptr;
+      }
+      done_ = true;
+      batch_.AddColumn(
+          ColumnView::Reference(StorageType{Int64{}}, payload_->data()));
+      // The payload is read from half way in; the computed column is its own
+      // array read from the start.
+      batch_.Compose(RowSelection::Range(2), 2);
+      batch_.AddColumn(
+          ColumnView::Reference(StorageType{Int64{}}, computed_->data()));
+      batch_.SetCardinality(2);
+      return &batch_;
+    }
+
+   private:
+    const std::vector<int64_t>* payload_;
+    const std::vector<int64_t>* computed_;
+    RowBatch batch_;
+    bool done_ = false;
+  };
+
+  TwoViewSource source(&payload, &computed);
+  RowCursor cursor(source);
+  std::vector<int64_t> read_payload;
+  std::vector<int64_t> read_computed;
+  for (cursor.Open(); !cursor.eof(); cursor.Next()) {
+    read_payload.push_back(static_cast<const int64_t*>(
+        cursor.batch().column(0).data())[cursor.row(0)]);
+    read_computed.push_back(static_cast<const int64_t*>(
+        cursor.batch().column(1).data())[cursor.row(1)]);
+  }
+  EXPECT_THAT(read_payload, ElementsAre(12, 13));
+  EXPECT_THAT(read_computed, ElementsAre(90, 91));
 }
 
 TEST(SinkTest, ReportsEofWithoutOpen) {

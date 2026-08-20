@@ -77,6 +77,9 @@ class ColumnView {
     block_ = other.block_;
   }
 
+  // The values this column reads from, before its row view is applied.
+  const void* data() const { return data_; }
+
  private:
   Kind kind_ = Kind::kFlat;
   StorageType type_{Id{}};

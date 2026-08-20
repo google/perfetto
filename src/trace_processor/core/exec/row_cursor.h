@@ -22,6 +22,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -49,11 +50,21 @@ class RowCursor {
 
   bool eof() const { return index_ == size_; }
 
-  // The row being read. Every column of a batch shares one row view, so which
-  // column it is read from does not matter.
-  PERFETTO_ALWAYS_INLINE uint32_t row() const {
+  // The physical row `column` is read at.
+  //
+  // Resolved per column rather than once for the batch: an operator which adds
+  // a computed column has nowhere to put it in the index space its input
+  // arrived in, so it adds the column in its own. Columns of one batch
+  // therefore agree on how many rows there are and need agree on nothing else.
+  PERFETTO_ALWAYS_INLINE uint32_t row(uint32_t column) const {
     PERFETTO_DCHECK(index_ < size_);
-    return rows_ ? rows_[index_] : offset_ + index_;
+    return batch_->column(column).selection().GetIndex(index_);
+  }
+
+  // The batch being read, for a consumer which wants the columns themselves.
+  const RowBatch& batch() const {
+    PERFETTO_DCHECK(batch_);
+    return *batch_;
   }
 
  private:
@@ -61,9 +72,7 @@ class RowCursor {
   bool Pull();
 
   Source& source_;
-  // The batch's rows, or null when they are the contiguous run from `offset_`.
-  const uint32_t* rows_ = nullptr;
-  uint32_t offset_ = 0;
+  RowBatch* batch_ = nullptr;
   uint32_t index_ = 0;
   uint32_t size_ = 0;
 };
