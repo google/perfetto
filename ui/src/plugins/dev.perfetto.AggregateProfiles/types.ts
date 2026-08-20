@@ -30,3 +30,34 @@ export interface AggregateProfile {
   readonly displayName: string;
   readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
 }
+
+// One (profile, sample-type) total. `aggId` is the __intrinsic_aggregate_profile
+// row the flamegraph merge query filters on.
+export interface MergeProfileMetric {
+  readonly aggId: number;
+  readonly total: number;
+  readonly count: number;
+}
+
+// One source pprof, keyed by its file scope.
+export interface MergeProfile {
+  readonly scope: string;
+  readonly sampleTypes: ReadonlyMap<string, MergeProfileMetric>;
+}
+
+// A pprof sample-type present across the loaded profiles.
+export interface SampleType {
+  readonly key: string; // "cpu (nanoseconds)"
+  readonly type: string;
+  readonly unit: string;
+}
+
+// A FlamegraphCollection column plus the sample type it totals, used to fill
+// each profile's row values.
+export interface MergeColumn {
+  readonly field: string; // positional grid field id ("c0", "c1", ...)
+  readonly title: string;
+  readonly kind: 'id' | 'numeric' | 'categorical';
+  readonly unit?: string;
+  readonly sampleKey?: string; // for sample-type columns: the SampleType.key
+}
