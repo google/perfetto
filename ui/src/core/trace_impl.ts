@@ -32,7 +32,6 @@ import type {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
 import type {Selection, SelectionOpts} from '../public/selection';
 import type {SearchResult} from '../public/search';
-import {FlowManager} from './flow_manager';
 import type {AppImpl, OpenTraceArrayBufArgs} from './app_impl';
 import type {PluginManagerImpl} from './plugin_manager';
 import type {RouteArgs} from '../public/route_schema';
@@ -76,7 +75,6 @@ export class TraceImpl implements Trace, Disposable {
   readonly tracks = new TrackManagerImpl();
   readonly workspaces = new WorkspaceManagerImpl();
   readonly notes = new NoteManagerImpl();
-  readonly flows: FlowManager;
   readonly scrollHelper: ScrollHelper;
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
@@ -125,12 +123,6 @@ export class TraceImpl implements Trace, Disposable {
         this.selection.clearSelection();
       }
     };
-
-    this.flows = new FlowManager(
-      engine.getProxy('FlowManager'),
-      this.tracks,
-      this.selection,
-    );
 
     this.search = new SearchManagerImpl({
       timeline: this.timeline,
@@ -209,8 +201,6 @@ export class TraceImpl implements Trace, Disposable {
     if (switchToCurrentSelectionTab && selection.kind !== 'empty') {
       this.tabs.showCurrentSelectionTab();
     }
-
-    this.flows.updateFlows(selection);
   }
 
   private onResultStep(searchResult: SearchResult) {
