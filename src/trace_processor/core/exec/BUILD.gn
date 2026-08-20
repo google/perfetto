@@ -16,6 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
+    "breaker.cc",
+    "breaker.h",
     "column_view.cc",
     "column_view.h",
     "from.cc",
@@ -31,6 +33,10 @@ source_set("exec") {
     "row_selection.h",
     "row_store.cc",
     "row_store.h",
+    "sink.cc",
+    "sink.h",
+    "tree_accumulate.cc",
+    "tree_accumulate.h",
     "variant.h",
   ]
   deps = [
@@ -47,6 +53,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "operator_unittest.cc",
     "row_store_unittest.cc",
+    "tree_accumulate_unittest.cc",
   ]
   deps = [
     ":exec",
