@@ -1008,6 +1008,102 @@ TEST(ProtoFileSerializerTest, ExtensionsInliningNestedDifferentPackage) {
   EXPECT_THAT(out, HasSubstr("message MyParent"));
 }
 
+TEST(ProtoFileSerializerTest, ExtensionsInliningWithEnumAndAllowlist) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string input_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+    }
+  )";
+
+  std::string upstream_base_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message BaseMessage {
+      optional string name = 1;
+      extensions 1000 to 9999;
+    }
+  )";
+
+  std::string upstream_ext_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    import "upstream_base.proto";
+
+    enum MyExtEnum {
+      VAL_UNKNOWN = 0;
+      VAL_ACTIVE = 1;
+    }
+
+    extend BaseMessage {
+      optional MyExtEnum ext_enum = 1000;
+    }
+  )";
+
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", input_content);
+  TempProtoFile temp_upstream_base(temp_dir.path(), "upstream_base.proto",
+                                   upstream_base_content);
+  TempProtoFile temp_upstream_ext(temp_dir.path(), "upstream_ext.proto",
+                                  upstream_ext_content);
+
+  protozero::MultiFileErrorCollectorImpl mfe_in;
+  google::protobuf::compiler::DiskSourceTree dst_in;
+  dst_in.MapPath("", temp_dir.path());
+  dst_in.MapPath("", ".");
+  dst_in.MapPath("", "buildtools/protobuf/src");
+  google::protobuf::compiler::Importer importer_input(&dst_in, &mfe_in);
+  const auto* input_desc = importer_input.Import("input.proto");
+
+  protozero::MultiFileErrorCollectorImpl mfe_up;
+  google::protobuf::compiler::DiskSourceTree dst_up;
+  dst_up.MapPath("", temp_dir.path());
+  dst_up.MapPath("", ".");
+  dst_up.MapPath("", "buildtools/protobuf/src");
+  google::protobuf::compiler::Importer importer_upstream(&dst_up, &mfe_up);
+  const auto* upstream_base_desc =
+      importer_upstream.Import("upstream_base.proto");
+
+  protozero::MultiFileErrorCollectorImpl mfe_ext;
+  google::protobuf::compiler::DiskSourceTree dst_ext;
+  dst_ext.MapPath("", temp_dir.path());
+  dst_ext.MapPath("", ".");
+  dst_ext.MapPath("", "buildtools/protobuf/src");
+  google::protobuf::compiler::Importer importer_ext(&dst_ext, &mfe_ext);
+  const auto* upstream_ext_desc = importer_ext.Import("upstream_ext.proto");
+
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(upstream_base_desc, nullptr);
+  ASSERT_NE(upstream_ext_desc, nullptr);
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  ProtoFile upstream_base_file =
+      ProtoFileFromDescriptor("", *upstream_base_desc, {upstream_ext_desc});
+
+  const auto* root_desc =
+      importer_upstream.pool()->FindMessageTypeByName("perfetto.protos.BaseMessage");
+  ASSERT_NE(root_desc, nullptr);
+
+  Allowlist allowed;
+  ASSERT_TRUE(AllowlistFromFieldList(*root_desc, {"ext_enum"}, allowed,
+                                     {upstream_ext_desc})
+                  .ok());
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input_file, upstream_base_file, allowed, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("message BaseMessage"));
+  EXPECT_THAT(out, HasSubstr("MyExtEnum ext_enum = 1000;"));
+  EXPECT_THAT(out, HasSubstr("enum MyExtEnum {"));
+  EXPECT_THAT(out, HasSubstr("VAL_UNKNOWN = 0;"));
+  EXPECT_THAT(out, HasSubstr("VAL_ACTIVE = 1;"));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto

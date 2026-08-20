@@ -47,17 +47,21 @@ struct Allowlist {
   std::set<std::string> enums;
 };
 
-// Creates a Allowlist struct from a list of allowed fields rooted at the given
+// Creates an Allowlist struct from a list of allowed fields rooted at the given
 // descriptor.
 base::Status AllowlistFromFieldList(
     const google::protobuf::Descriptor&,
     const std::vector<std::string>& allowed_fields,
-    Allowlist& allowlist);
+    Allowlist& allowlist,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files = {});
 
 base::Status AllowlistFromPassthrough(
     const google::protobuf::FileDescriptor& input_file,
     const google::protobuf::FileDescriptor& upstream_file,
-    Allowlist& allowlist);
+    Allowlist& allowlist,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files = {});
 
 }  // namespace proto_merger
 }  // namespace perfetto

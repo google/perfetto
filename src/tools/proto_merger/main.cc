@@ -240,13 +240,30 @@ int Main(int argc, char** argv) {
           : input_contents.substr(0, input_premable_idx + strlen(kPremable));
 
   ImportResult input_proto = ImportProto(input, input_include);
+  if (!input_proto.file_descriptor) {
+    PERFETTO_ELOG("Failed to import input proto: %s", input.c_str());
+    return 1;
+  }
   ProtoFile input_file = ProtoFileFromDescriptor(std::move(input_preamble),
                                                  *input_proto.file_descriptor);
 
   ImportResult upstream_proto = ImportProto(upstream, upstream_include);
+  if (!upstream_proto.file_descriptor) {
+    PERFETTO_ELOG("Failed to import upstream proto: %s", upstream.c_str());
+    return 1;
+  }
+  std::unique_ptr<google::protobuf::compiler::DiskSourceTree> ext_dst =
+      std::make_unique<google::protobuf::compiler::DiskSourceTree>();
+  ext_dst->MapPath("", upstream_include);
+  ext_dst->MapPath("", ".");
+  ext_dst->MapPath("", "buildtools/protobuf/src");
+
+  protozero::MultiFileErrorCollectorImpl ext_mfe;
+  google::protobuf::compiler::Importer ext_importer(ext_dst.get(), &ext_mfe);
+
   std::vector<const google::protobuf::FileDescriptor*> extension_descs;
   for (const auto& ext_path : extension_files) {
-    const auto* ext_desc = upstream_proto.importer->Import(ext_path);
+    const auto* ext_desc = ext_importer.Import(ext_path);
     if (!ext_desc) {
       PERFETTO_ELOG("Failed to import extension proto: %s", ext_path.c_str());
       return 1;
@@ -274,7 +291,8 @@ int Main(int argc, char** argv) {
     }
 
     auto field_list = base::SplitString(allowlist_contents, "\n");
-    base::Status status = AllowlistFromFieldList(*desc, field_list, allowed);
+    base::Status status =
+        AllowlistFromFieldList(*desc, field_list, allowed, extension_descs);
     if (!status.ok()) {
       PERFETTO_ELOG("Failed creating allowlist: %s", status.c_message());
       return 1;
@@ -282,7 +300,8 @@ int Main(int argc, char** argv) {
   }
 
   base::Status status = AllowlistFromPassthrough(
-      *input_proto.file_descriptor, *upstream_proto.file_descriptor, allowed);
+      *input_proto.file_descriptor, *upstream_proto.file_descriptor, allowed,
+      extension_descs);
   if (!status.ok()) {
     PERFETTO_ELOG("Failed adding passthrough fields to allowlist: %s",
                   status.c_message());

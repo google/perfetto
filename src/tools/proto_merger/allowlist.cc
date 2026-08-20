@@ -108,7 +108,9 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
 void ProcessMessagePassthrough(
     const google::protobuf::Descriptor& input_desc,
     const google::protobuf::Descriptor& upstream_desc,
-    Allowlist& allowlist) {
+    Allowlist& allowlist,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
   for (int i = 0; i < input_desc.field_count(); ++i) {
     const auto* input_field = input_desc.field(i);
     if (IsPassthrough(input_field->options())) {
@@ -117,6 +119,19 @@ void ProcessMessagePassthrough(
       if (!upstream_field) {
         upstream_field = upstream_desc.file()->pool()->FindExtensionByNumber(
             &upstream_desc, input_field->number());
+      }
+      if (!upstream_field) {
+        for (const auto* ext_file : extension_files) {
+          const auto* ext_pool = ext_file->pool();
+          const auto* ext_containing =
+              ext_pool->FindMessageTypeByName(upstream_desc.full_name());
+          if (ext_containing) {
+            upstream_field = ext_pool->FindExtensionByNumber(
+                ext_containing, input_field->number());
+            if (upstream_field)
+              break;
+          }
+        }
       }
       if (upstream_field) {
         AllowlistField(*upstream_field, allowlist);
@@ -129,7 +144,8 @@ void ProcessMessagePassthrough(
     const auto* upstream_nested =
         upstream_desc.FindNestedTypeByName(input_nested->name());
     if (upstream_nested) {
-      ProcessMessagePassthrough(*input_nested, *upstream_nested, allowlist);
+      ProcessMessagePassthrough(*input_nested, *upstream_nested, allowlist,
+                                extension_files);
     }
   }
 }
@@ -139,7 +155,9 @@ void ProcessMessagePassthrough(
 base::Status AllowlistFromFieldList(
     const google::protobuf::Descriptor& desc,
     const std::vector<std::string>& allowed_fields,
-    Allowlist& allowlist) {
+    Allowlist& allowlist,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
   for (const auto& field_path : allowed_fields) {
     std::vector<std::string> pieces = SplitFieldPath(field_path);
     const auto* current = &desc;
@@ -153,6 +171,26 @@ base::Status AllowlistFromFieldList(
             field = ext;
             break;
           }
+        }
+      }
+      if (!field) {
+        for (const auto* ext_file : extension_files) {
+          const auto* ext_pool = ext_file->pool();
+          const auto* ext_containing =
+              ext_pool->FindMessageTypeByName(current->full_name());
+          if (ext_containing) {
+            std::vector<const google::protobuf::FieldDescriptor*>
+                ext_pool_extensions;
+            ext_pool->FindAllExtensions(ext_containing, &ext_pool_extensions);
+            for (const auto* ext : ext_pool_extensions) {
+              if (ext->file() == ext_file && ext->name() == pieces[i]) {
+                field = ext;
+                break;
+              }
+            }
+          }
+          if (field)
+            break;
         }
       }
       if (!field) {
@@ -182,13 +220,16 @@ base::Status AllowlistFromFieldList(
 base::Status AllowlistFromPassthrough(
     const google::protobuf::FileDescriptor& input_file,
     const google::protobuf::FileDescriptor& upstream_file,
-    Allowlist& allowlist) {
+    Allowlist& allowlist,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
   for (int i = 0; i < input_file.message_type_count(); ++i) {
     const auto* input_msg = input_file.message_type(i);
     const auto* upstream_msg =
         upstream_file.FindMessageTypeByName(input_msg->name());
     if (upstream_msg) {
-      ProcessMessagePassthrough(*input_msg, *upstream_msg, allowlist);
+      ProcessMessagePassthrough(*input_msg, *upstream_msg, allowlist,
+                                extension_files);
     }
   }
   return base::OkStatus();
