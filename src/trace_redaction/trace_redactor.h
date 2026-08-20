@@ -87,8 +87,8 @@ class TraceRedactorPass {
                       std::string* output_buffer) const;
 
  private:
-  // Runs all collectors on a packet before moving to the next packet. Collectors
-  // add low level information to the context.
+  // Runs all collectors on a packet before moving to the next packet.
+  // Collectors add low level information to the context.
   //
   // ```
   //  with context:

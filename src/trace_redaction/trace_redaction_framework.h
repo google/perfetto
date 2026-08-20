@@ -444,8 +444,7 @@ class AugmentPrimitive {
   // Generates a trace packet using data from the context and writes it into
   // `packet`. Returns base::OkStatus() on success.
   // When no more packets are available to generate, `packet` is left empty.
-  virtual base::Status Augment(const Context& context,
-                               std::string* packet) = 0;
+  virtual base::Status Augment(const Context& context, std::string* packet) = 0;
 };
 
 // Responsible for validating data from the context, returning an error if

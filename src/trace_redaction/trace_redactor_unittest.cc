@@ -71,8 +71,7 @@ class DummyTransform : public TransformPrimitive {
 
 class DummyAugment : public AugmentPrimitive {
  public:
-  base::Status Augment(const Context& context,
-                       std::string* packet) override {
+  base::Status Augment(const Context& context, std::string* packet) override {
     if (emitted_ || !context.package_uid.has_value()) {
       return base::OkStatus();
     }
