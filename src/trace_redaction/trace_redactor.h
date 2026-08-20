@@ -87,23 +87,60 @@ class TraceRedactorPass {
                       std::string* output_buffer) const;
 
  private:
-  // Run all collectors on a packet before moving to the next packet.
+  // Runs all collectors on a packet before moving to the next packet. Collectors
+  // add low level information to the context.
+  //
+  // ```
+  //  with context:
+  //   for packet in packets:
+  //     for collector in collectors:
+  //       collector(context, packet)
+  // ```
   base::Status Collect(Context* context,
                        const trace_processor::TraceBlobView& view) const;
 
-  // Runs all validators once on the context.
+  // Runs all validators once on the context. Validators verify invariants
+  // across the entire trace after all the data has been collected. If any
+  // validator fails, the pass fails and the redactor bails out.
+  //
+  // ```
+  //  with context:
+  //   for validator in validators:
+  //     validator(context)
+  // ```
   base::Status Validate(const Context& context) const;
 
-  // Runs builders once.
+  // Runs builders once. Builders synthesize high-level information
+  // based on low level data collected during `Collect`.
+  //
+  // ```
+  //  with context:
+  //   for builder in builders:
+  //      builder(context)
+  // ```
   base::Status Build(Context* context) const;
 
   // Runs all transformers on each packet, appending surviving packets to
-  // `output_buffer`.
+  // `output_buffer`. Transformers can modify packets in place or drop them.
+  //
+  // ```
+  //  with context:
+  //   for packet in packets:
+  //     for transform in transformers:
+  //       transform(context, packet)
+  // ```
   base::Status Transform(const Context& context,
                          const trace_processor::TraceBlobView& view,
                          std::string* output_buffer) const;
 
-  // Runs all augmenters, appending generated packets to `output_buffer`.
+  // Runs all augmenters, appending generated packets to `output_buffer`
+  // Augmenters inject new packets into the trace based on the context.
+  //
+  // ```
+  //  with context:
+  //    for augmenter in augmenters:
+  //      augmenter(context, output_buffer)
+  // ```
   base::Status Augment(const Context& context,
                        std::string* output_buffer) const;
 
