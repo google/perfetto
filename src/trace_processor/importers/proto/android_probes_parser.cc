@@ -782,14 +782,21 @@ StringId AndroidProbesParser::ToFlagTypeId(int32_t type) {
 }
 
 void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
+  auto sanitize_and_intern = [&](base::StringView sv) {
+    if (!base::CheckAsciiAndRemoveInvalidUTF8(sv, temp_string_utf8_)) {
+      sv = base::StringView(temp_string_utf8_);
+    }
+    return context_->storage->InternString(sv);
+  };
+
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
     context_->import_logs_tracker->RecordCollectionLog(
         stats::android_aflags_errors, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("error"),
-                          Variadic::String(context_->storage->InternString(
-                              decoder.error())));
+          inserter.AddArg(
+              context_->storage->InternString("error"),
+              Variadic::String(sanitize_and_intern(decoder.error())));
         });
     return;
   }
@@ -799,13 +806,13 @@ void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
 
     tables::AndroidAflagsTable::Row row;
     row.ts = ts;
-    row.package = context_->storage->InternString(flag.pkg());
-    row.name = context_->storage->InternString(flag.name());
-    row.flag_namespace = context_->storage->InternString(flag.flag_namespace());
-    row.container = context_->storage->InternString(flag.container());
-    row.value = context_->storage->InternString(flag.value());
+    row.package = sanitize_and_intern(flag.pkg());
+    row.name = sanitize_and_intern(flag.name());
+    row.flag_namespace = sanitize_and_intern(flag.flag_namespace());
+    row.container = sanitize_and_intern(flag.container());
+    row.value = sanitize_and_intern(flag.value());
     if (flag.has_staged_value()) {
-      row.staged_value = context_->storage->InternString(flag.staged_value());
+      row.staged_value = sanitize_and_intern(flag.staged_value());
     }
     row.permission = ToPermissionId(flag.permission());
     row.value_picked_from = ToValuePickedFromId(flag.value_picked_from());

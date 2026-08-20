@@ -256,6 +256,10 @@ reference linked above.
   FROM slice
   WHERE slice.name GLOB '*{name_pattern}*';
   ```
+- **CPU Cluster & Frequency Analysis:**
+  - Classify CPU core clusters (big, mid, little) with `INCLUDE PERFETTO MODULE android.cpu.cluster_type;` (`android_cpu_cluster_mapping`) and calculate time-weighted frequency via `INCLUDE PERFETTO MODULE linux.cpu.frequency;`.
+- **Binder Transaction Analysis:**
+  - Query cross-process Binder calls using stdlib views like `android_binder_txns` or `android_binder_metrics_by_process` (`INCLUDE PERFETTO MODULE android.binder;`), grouping by process names (`client_process`, `server_process`, `process_name`).
 
 ## Analytical Workflow (Standard Operating Procedure)
 

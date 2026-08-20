@@ -645,8 +645,9 @@ TEST(ProtoFileSerializerTest, ReservedUpstreamFieldIsMarkedDeprecated) {
   {
     ProtoFile::Message message{};
     message.name = "Container";
-    message.fields.push_back(MakeField("int32", "active_field", 1));
+    message.fields.push_back(MakeField("int32", "active_field_ten", 10));
     message.fields.push_back(MakeField("string", "reserved_field", 2));
+    message.fields.push_back(MakeField("int32", "active_field_five", 5));
     message.fields.push_back(MakeField("bool", "truly_deleted_field", 3));
     input.messages.push_back(message);
   }
@@ -655,7 +656,8 @@ TEST(ProtoFileSerializerTest, ReservedUpstreamFieldIsMarkedDeprecated) {
   {
     ProtoFile::Message message{};
     message.name = "Container";
-    message.fields.push_back(MakeField("int32", "active_field", 1));
+    message.fields.push_back(MakeField("int32", "active_field_ten", 10));
+    message.fields.push_back(MakeField("int32", "active_field_five", 5));
 
     // Field 2 is marked reserved upstream (not in fields list)
     message.reserved_numbers.insert(2);
@@ -669,8 +671,12 @@ TEST(ProtoFileSerializerTest, ReservedUpstreamFieldIsMarkedDeprecated) {
 
   std::string out = ProtoFileToDotProto(merged);
 
-  // 1. active_field is present as normal
-  EXPECT_THAT(out, HasSubstr("int32 active_field = 1;"));
+  // 1. Active fields preserve upstream declaration order (10 before 5)
+  size_t pos_10 = out.find("int32 active_field_ten = 10;");
+  size_t pos_5 = out.find("int32 active_field_five = 5;");
+  EXPECT_NE(pos_10, std::string::npos);
+  EXPECT_NE(pos_5, std::string::npos);
+  EXPECT_LT(pos_10, pos_5);
 
   // 2. reserved_field is kept in active fields with [deprecated = true]
   EXPECT_THAT(out, HasSubstr("string reserved_field = 2 [deprecated = true];"));

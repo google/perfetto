@@ -1554,6 +1554,43 @@ class Parsing(TestSuite):
         "all_data_source_flushed_ns",12345
         """))
 
+  def test_service_event_timestamp_converted_to_trace_time(self):
+    # TracingServiceImpl stamps service events with GetBootTimeNs() and, when
+    # primary_trace_clock is not BOOTTIME, Trace Processor must convert the
+    # event timestamp to the trace-time domain
+    # (https://github.com/google/perfetto/discussions/7112). BOOTTIME 1050 maps to
+    # MONOTONIC_RAW 150 via the snapshot below.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          clock_snapshot {
+            primary_trace_clock: 5  # BUILTIN_CLOCK_MONOTONIC_RAW
+            clocks {
+              clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+              timestamp: 1000
+            }
+            clocks {
+              clock_id: 5  # BUILTIN_CLOCK_MONOTONIC_RAW
+              timestamp: 100
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1050
+          service_event {
+            tracing_started: true
+          }
+        }
+        """),
+        query="""
+        SELECT name, int_value FROM metadata WHERE name = 'tracing_started_ns'""",
+        out=Csv("""
+        "name","int_value"
+        "tracing_started_ns",150
+        """))
+
   def test_slow_starting_data_sources(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
