@@ -13,10 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DetailsShell} from '../../widgets/details_shell';
+import {AsyncLimiter} from '../../base/async_limiter';
+import {NUM} from '../../trace_processor/query_result';
 import {DurationWidget} from '../../components/widgets/duration';
 import type {Trace} from '../../public/trace';
-import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {
+  ContentWithLoadingFlag,
+  TrackEventSelection,
+  TrackEventSelectionTab,
+} from '../../public/selection';
 import {
   AndroidLockContentionEventSource,
   type LockContentionDetails,
@@ -38,82 +43,155 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Tooltip} from '../../widgets/tooltip';
 
-import {Section} from '../../widgets/section';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Card, CardStack} from '../../widgets/card';
+import {Section} from '../../widgets/section';
 
-export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
-  private mergedDetails?: LockContentionDetails[];
-  private monitorThreadStates = new Map<
-    number,
-    ReadonlyArray<ContentionState>
-  >();
-  private monitorBlockedFunctions = new Map<
+interface ContentionBreakdownData {
+  readonly rows: LockContentionDetails[];
+  readonly threadStates: Map<number, ReadonlyArray<ContentionState>>;
+  readonly blockedFunctions: Map<
     number,
     ReadonlyArray<ContentionBlockedFunction>
-  >();
+  >;
+}
+
+export class LockContentionDetailsTab implements TrackEventSelectionTab {
+  readonly id = 'android_lock_contention';
+  readonly name = 'Lock Contention';
+  readonly priority = 10;
+
+  private currentSelection?: TrackEventSelection;
+  private data?: ContentionBreakdownData | null;
+  private readonly limiter = new AsyncLimiter();
 
   constructor(
     private readonly trace: Trace,
-    private readonly eventId: number,
     private readonly plugin: AndroidLockContentionPlugin,
   ) {}
 
-  async load() {
-    const source = new AndroidLockContentionEventSource(this.trace);
-    this.mergedDetails = await source.fetchMergedDetails(this.eventId);
+  render(selection: TrackEventSelection): ContentWithLoadingFlag | undefined {
+    if (this.currentSelection?.eventId !== selection.eventId) {
+      this.currentSelection = selection;
+      this.data = undefined;
+      this.limiter.schedule(async () => {
+        this.data = await this.loadData(selection);
+      });
+    }
 
-    const selectedRow = this.mergedDetails.find((r) => r.id === this.eventId);
-    if (selectedRow) {
-      this.plugin.highlightedTargetIds.add(this.eventId);
-      this.plugin.currentBlockedSlice = {
-        id: selectedRow.id,
-        trackUri: selectedRow.trackUri,
+    if (!this.data || this.data.rows.length === 0) {
+      return undefined;
+    }
+
+    return {
+      isLoading: false,
+      content: m(LockContentionBreakdown, {
+        trace: this.trace,
+        plugin: this.plugin,
+        rows: this.data.rows,
+        monitorThreadStates: this.data.threadStates,
+        monitorBlockedFunctions: this.data.blockedFunctions,
+      }),
+    };
+  }
+
+  private async loadData(
+    selection: TrackEventSelection,
+  ): Promise<ContentionBreakdownData | null> {
+    const source = new AndroidLockContentionEventSource(this.trace);
+
+    // Check if this is an owner event or a slice matching an owner event
+    const query = await this.trace.engine.query(`
+      SELECT id FROM __android_lock_contention_owner_events WHERE id = ${selection.eventId}
+      UNION ALL
+      SELECT oe.id
+      FROM android_all_lock_contentions c
+      JOIN __android_lock_contention_owner_events oe
+        ON oe.owner_tid = c.owner_tid
+        AND oe.ts <= c.ts
+        AND oe.ts + oe.dur >= c.ts
+      WHERE c.id = ${selection.eventId}
+      LIMIT 1
+    `);
+
+    if (query.numRows() > 0) {
+      const ownerEventId = query.firstRow({id: NUM}).id;
+      const res = await source.fetchAllDetails(ownerEventId);
+      return {
+        rows: res.details,
+        threadStates: res.threadStates,
+        blockedFunctions: res.blockedFunctions,
       };
     }
 
-    for (const row of this.mergedDetails) {
-      if (row.isMonitor) {
-        const states = await source.fetchThreadStates(row.id);
-        const funcs = await source.fetchBlockedFunctions(row.id);
-        this.monitorThreadStates.set(row.id, states);
-        this.monitorBlockedFunctions.set(row.id, funcs);
+    // If it is a contention slice without an owner event in this window:
+    const singleDetails = await source.fetchDetails(
+      selection.eventId,
+      selection.trackUri,
+    );
+    if (singleDetails !== null) {
+      const threadStates = new Map<number, ReadonlyArray<ContentionState>>();
+      const blockedFunctions = new Map<
+        number,
+        ReadonlyArray<ContentionBlockedFunction>
+      >();
+      if (singleDetails.isMonitor) {
+        threadStates.set(
+          singleDetails.id,
+          await source.fetchThreadStates(singleDetails.id),
+        );
+        blockedFunctions.set(
+          singleDetails.id,
+          await source.fetchBlockedFunctions(singleDetails.id),
+        );
       }
+      return {
+        rows: [singleDetails],
+        threadStates,
+        blockedFunctions,
+      };
     }
+
+    return null;
   }
+}
 
-  render() {
-    if (this.mergedDetails === undefined) {
-      return m(DetailsShell, {title: 'Lock Owner', description: 'Loading...'});
-    }
+export interface LockContentionBreakdownAttrs {
+  readonly trace: Trace;
+  readonly plugin: AndroidLockContentionPlugin;
+  readonly rows: LockContentionDetails[];
+  readonly monitorThreadStates: Map<number, ReadonlyArray<ContentionState>>;
+  readonly monitorBlockedFunctions: Map<
+    number,
+    ReadonlyArray<ContentionBlockedFunction>
+  >;
+}
 
-    const rows = this.mergedDetails;
+export class LockContentionBreakdown implements m.ClassComponent<LockContentionBreakdownAttrs> {
+  view({attrs}: m.Vnode<LockContentionBreakdownAttrs>) {
+    const {trace, plugin, rows, monitorThreadStates, monitorBlockedFunctions} =
+      attrs;
+
     const ownerTid = rows.length > 0 ? rows[0].blockingThreadTid : undefined;
     const customTrackUri =
       ownerTid !== undefined && ownerTid !== null
         ? `com.android.AndroidLockContention#OwnerEvents_${ownerTid}`
         : undefined;
     const isCustomPinned = customTrackUri
-      ? this.plugin.pinningManager.isTrackPinned(customTrackUri)
+      ? plugin.pinningManager.isTrackPinned(customTrackUri)
       : false;
 
     const threadTrackUri = rows.length > 0 ? rows[0].ownerTrackUri : undefined;
     const isThreadPinned = threadTrackUri
-      ? this.plugin.pinningManager.isTrackPinned(threadTrackUri)
+      ? plugin.pinningManager.isTrackPinned(threadTrackUri)
       : false;
 
     const artRows = rows.filter((r) => !r.isMonitor);
     const monitorRows = rows.filter((r) => r.isMonitor);
 
-    const uniqueBlockedThreads = new Set(
-      rows.map((r) => r.blockedThreadTid ?? r.blockedThreadName),
-    );
     return m(
-      DetailsShell,
-      {
-        title: 'Lock Owner Contention Breakdown',
-        description: `Owner is blocking ${uniqueBlockedThreads.size} threads`,
-      },
+      'div',
+      {className: 'pf-lock-owner-panel'},
       m(
         'div',
         {className: 'pf-lock-owner-panel__note'},
@@ -131,9 +209,9 @@ export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
             onchange: () => {
               if (customTrackUri) {
                 if (isCustomPinned) {
-                  this.plugin.pinningManager.unpinTracks([customTrackUri]);
+                  plugin.pinningManager.unpinTracks([customTrackUri]);
                 } else {
-                  this.plugin.pinningManager.pinTracks([customTrackUri]);
+                  plugin.pinningManager.pinTracks([customTrackUri]);
                 }
               }
             },
@@ -148,9 +226,9 @@ export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
             onchange: () => {
               if (threadTrackUri) {
                 if (isThreadPinned) {
-                  this.plugin.pinningManager.unpinTracks([threadTrackUri]);
+                  plugin.pinningManager.unpinTracks([threadTrackUri]);
                 } else {
-                  this.plugin.pinningManager.pinTracks([threadTrackUri]);
+                  plugin.pinningManager.pinTracks([threadTrackUri]);
                 }
               }
             },
@@ -166,8 +244,8 @@ export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
           {className: 'pf-lock-owner-panel__section'},
           m('h3', 'ART Lock Contentions'),
           m(ArtContentionsGrid, {
-            trace: this.trace,
-            plugin: this.plugin,
+            trace,
+            plugin,
             rows: artRows,
           }),
         ),
@@ -186,12 +264,11 @@ export class LockOwnerDetailsPanel implements TrackEventDetailsPanel {
             {className: 'pf-lock-owner-panel__card-stack'},
             monitorRows.map((row) =>
               m(MonitorContentionCard, {
-                trace: this.trace,
-                plugin: this.plugin,
+                trace,
+                plugin,
                 row,
-                threadStates: this.monitorThreadStates.get(row.id) ?? [],
-                blockedFunctions:
-                  this.monitorBlockedFunctions.get(row.id) ?? [],
+                threadStates: monitorThreadStates.get(row.id) ?? [],
+                blockedFunctions: monitorBlockedFunctions.get(row.id) ?? [],
               }),
             ),
           ),
