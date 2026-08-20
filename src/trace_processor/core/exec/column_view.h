@@ -69,6 +69,12 @@ class ColumnView {
     block_ = nullptr;
   }
 
+  // Points this column at the run of physical rows starting at `offset`.
+  void SetRange(uint32_t offset) {
+    selection_ = RowSelection::Range(offset);
+    block_ = nullptr;
+  }
+
   // Takes over the row view `other` just computed. Columns of one batch that
   // shared a view before slicing still share it afterwards, so only the first
   // of them has to compose it.

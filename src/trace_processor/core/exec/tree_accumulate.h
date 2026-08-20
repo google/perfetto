@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_ACCUMULATE_H_
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -37,16 +38,22 @@ namespace perfetto::trace_processor::core::exec {
 // on the next pull, so a view is only good until the pull after the one that
 // produced it. The rows come back out with one column added.
 //
-// The parent column holds each row's parent as an ordinal into the stream, or
-// a negative value for a root, and every parent precedes its children. That
-// is what a tree looks like once it is rows; establishing it is the job of
-// whatever comes before this.
+// The parent column holds each row's parent as a node number, or a negative
+// value for a root, and every parent precedes its children. That is what a
+// tree looks like once it is rows; establishing it is the job of whatever
+// comes before this.
+//
+// Node numbers need not be stream positions, and are not whenever the rows
+// were put in this order rather than arriving in it. Without a node column
+// they are taken to be stream positions, which is what a source that was
+// already in order gives for free.
 class TreeAccumulateUp : public Breaker {
  public:
   TreeAccumulateUp(Source& source,
                    RowBatchPool* pool,
                    uint32_t parent_column,
-                   uint32_t value_column);
+                   uint32_t value_column,
+                   std::optional<uint32_t> node_column = std::nullopt);
   ~TreeAccumulateUp() override;
 
  public:
@@ -61,11 +68,14 @@ class TreeAccumulateUp : public Breaker {
   RowBatchPool* pool_;
   uint32_t parent_column_;
   uint32_t value_column_;
+  std::optional<uint32_t> node_column_;
 
-  // The two columns the fold reads, pulled out flat as the chunks go by.
+  // The columns the fold reads, pulled out flat as the chunks go by.
   std::vector<int64_t> parents_;
   std::vector<int64_t> values_;
+  std::vector<int64_t> nodes_;
   std::vector<uint32_t> sizes_;
+  uint32_t node_count_ = 0;
 
   std::vector<PooledRowBatch> retained_;
   // One per retained chunk, in the same order: the totals that chunk's rows

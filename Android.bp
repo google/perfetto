@@ -17608,6 +17608,7 @@ filegroup {
         "src/trace_processor/core/exec/row_cursor.cc",
         "src/trace_processor/core/exec/sink.cc",
         "src/trace_processor/core/exec/tree_accumulate.cc",
+        "src/trace_processor/core/exec/tree_order.cc",
     ],
 }
 
@@ -17619,6 +17620,7 @@ filegroup {
         "src/trace_processor/core/exec/owned_column_unittest.cc",
         "src/trace_processor/core/exec/row_batch_pool_unittest.cc",
         "src/trace_processor/core/exec/tree_accumulate_unittest.cc",
+        "src/trace_processor/core/exec/tree_order_unittest.cc",
     ],
 }
 
