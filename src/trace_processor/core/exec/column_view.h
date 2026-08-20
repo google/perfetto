@@ -69,6 +69,12 @@ class ColumnView {
     block_ = nullptr;
   }
 
+  // Points this column at the run of physical rows starting at `offset`.
+  void SetRange(uint32_t offset) {
+    selection_ = RowSelection::Range(offset);
+    block_ = nullptr;
+  }
+
   // Takes over the row view `other` just computed. Columns of one batch that
   // shared a view before slicing still share it afterwards, so only the first
   // of them has to compose it.
@@ -79,6 +85,9 @@ class ColumnView {
 
   // The values this column reads from, before its row view is applied.
   const void* data() const { return data_; }
+
+  // Which physical rows hold a value, or null when every row does.
+  const BitVector* validity() const { return validity_; }
 
  private:
   Kind kind_ = Kind::kFlat;

@@ -29,6 +29,8 @@ source_set("exec") {
     "row_cursor.cc",
     "row_cursor.h",
     "row_selection.h",
+    "row_store.cc",
+    "row_store.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -41,7 +43,10 @@ source_set("exec") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "operator_unittest.cc" ]
+  sources = [
+    "operator_unittest.cc",
+    "row_store_unittest.cc",
+  ]
   deps = [
     ":exec",
     "../../../../gn:default_deps",
