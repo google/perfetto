@@ -80,6 +80,9 @@ class ColumnView {
   // The values this column reads from, before its row view is applied.
   const void* data() const { return data_; }
 
+  // Which physical rows hold a value, or null when every row does.
+  const BitVector* validity() const { return validity_; }
+
  private:
   Kind kind_ = Kind::kFlat;
   StorageType type_{Id{}};

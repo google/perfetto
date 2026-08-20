@@ -18,11 +18,13 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_BATCH_H_
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/owned_column.h"
 #include "src/trace_processor/core/exec/row_selection.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -46,6 +48,15 @@ class RowBatch {
   const ColumnView& column(uint32_t column) const { return columns_[column]; }
   ColumnView& mutable_column(uint32_t column) { return columns_[column]; }
   void AddColumn(ColumnView column) { columns_.push_back(std::move(column)); }
+
+  // Copies `column`'s `count` values into storage this batch owns and adds a
+  // column reading them, dense from row zero.
+  //
+  // Optional, and the caller's call: a view costs nothing to add and is right
+  // whenever the storage behind it outlives the batch. This is for when it
+  // does not, which is any source that materialises into buffers it refills,
+  // and for an operator holding batches past the pull that produced them.
+  void AddOwnedColumn(const ColumnView& column, uint32_t count);
 
   // Points every column at `rows`, which the caller continues to own. Only
   // valid while the columns still share the source's contiguous view, and
@@ -73,11 +84,16 @@ class RowBatch {
     cardinality_ = 0;
     columns_.clear();
     selections_.Reset();
+    // The buffers stay: a pooled batch refills the ones it filled last time.
+    owned_used_ = 0;
   }
 
   uint32_t cardinality_ = 0;
   std::vector<ColumnView> columns_;
   SelectionPool selections_;
+  // Held by pointer so a column's view of one survives the vector growing.
+  std::vector<std::unique_ptr<OwnedColumn>> owned_;
+  uint32_t owned_used_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -21,6 +21,8 @@ source_set("exec") {
     "from.cc",
     "from.h",
     "operator.h",
+    "owned_column.cc",
+    "owned_column.h",
     "pipeline.cc",
     "pipeline.h",
     "row_batch.cc",
@@ -43,6 +45,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "operator_unittest.cc",
+    "owned_column_unittest.cc",
     "row_batch_pool_unittest.cc",
   ]
   deps = [

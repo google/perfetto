@@ -17,9 +17,11 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 
 #include <cstdint>
+#include <memory>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/owned_column.h"
 #include "src/trace_processor/core/exec/row_selection.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -36,6 +38,15 @@ bool RowBatch::AdoptPhysicalRows(Span<const uint32_t> rows) {
   }
   cardinality_ = count;
   return true;
+}
+
+void RowBatch::AddOwnedColumn(const ColumnView& column, uint32_t count) {
+  if (owned_used_ == owned_.size()) {
+    owned_.push_back(std::make_unique<OwnedColumn>());
+  }
+  OwnedColumn& owned = *owned_[owned_used_++];
+  owned.Fill(column, count);
+  AddColumn(owned.View());
 }
 
 void RowBatch::Compose(RowSelection selection, uint32_t count) {
