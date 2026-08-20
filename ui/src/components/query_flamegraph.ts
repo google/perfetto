@@ -275,9 +275,27 @@ export class QueryFlamegraph implements AsyncDisposable {
         }
         trash.use(dependency.clone());
       }
+      await this.evictStaleTables(metrics);
       const flamegraph = await this.getFlamegraphTable(metric);
       this.data = await computeFlamegraphTree(engine, flamegraph, state);
     });
+  }
+
+  // Drops cached tables whose metric object is no longer reachable from the
+  // current metrics array, so callers cycling through many metric sets (e.g.
+  // stepping through profiles) stay bounded at |metrics| materialized tables.
+  // Runs inside the query limiter, so it is serialized against every task
+  // that creates or reads these tables.
+  private async evictStaleTables(
+    metrics: ReadonlyArray<QueryFlamegraphMetric>,
+  ): Promise<void> {
+    for (let i = this.flamegraphTables.length - 1; i >= 0; i--) {
+      const entry = this.flamegraphTables[i];
+      if (!metrics.includes(entry.metric)) {
+        this.flamegraphTables.splice(i, 1);
+        await entry.table[Symbol.asyncDispose]();
+      }
+    }
   }
 
   private async getFlamegraphTable(
