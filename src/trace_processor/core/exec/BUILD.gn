@@ -16,6 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
+    "breaker.cc",
+    "breaker.h",
     "column_view.cc",
     "column_view.h",
     "from.cc",
@@ -31,6 +33,10 @@ source_set("exec") {
     "row_cursor.cc",
     "row_cursor.h",
     "row_selection.h",
+    "sink.cc",
+    "sink.h",
+    "tree_accumulate.cc",
+    "tree_accumulate.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -47,6 +53,7 @@ perfetto_unittest_source_set("unittests") {
     "operator_unittest.cc",
     "owned_column_unittest.cc",
     "row_batch_pool_unittest.cc",
+    "tree_accumulate_unittest.cc",
   ]
   deps = [
     ":exec",
