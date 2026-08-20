@@ -13,10 +13,12 @@
 // limitations under the License.
 
 import './styles.scss';
+import m from 'mithril';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {time} from '../../base/time';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import type {Row} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
 import {
@@ -25,7 +27,16 @@ import {
 } from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import type {Track} from '../../public/track';
+import {AsyncLimiter} from '../../base/async_limiter';
+import {
+  FlamegraphCollection,
+  FLAMEGRAPH_COLLECTION_STATE_SCHEMA,
+} from '../../components/flamegraph_collection';
+import type {FlamegraphCollectionColumn} from '../../components/flamegraph_collection';
+import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {DetailsShell} from '../../widgets/details_shell';
+import {Spinner} from '../../widgets/spinner';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
@@ -40,7 +51,13 @@ import {
   areaSelectionsEqual,
   type AreaSelectionTab,
 } from '../../public/selection';
-import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
+import {
+  flamegraphMetricsForHeapProfiles,
+  heapProfileAllocMetricNames,
+  heapProfileProcessTotalsSql,
+  HeapProfileTitleHelp,
+  profileHelp,
+} from './heap_profile_details_panel';
 import {isHeapGraphIncomplete} from './incomplete_flamegraph';
 import {EvtSource} from '../../base/events';
 import type {App} from '../../public/app';
@@ -52,7 +69,10 @@ const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.record(
   z.enum(ProfileType),
   z.object({
     trackFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    // Superseded by areaSelectionCollectionState; still parsed so state
+    // persisted before the collection view migrates rather than resets.
     areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    areaSelectionCollectionState: FLAMEGRAPH_COLLECTION_STATE_SCHEMA.optional(),
   }),
 );
 
@@ -107,15 +127,40 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return (
-      result.data ?? {
+    if (result.data === undefined) {
+      return {
         [ProfileType.NATIVE_HEAP_PROFILE]: {},
         [ProfileType.GENERIC_HEAP_PROFILE]: {},
         [ProfileType.JAVA_HEAP_SAMPLES]: {},
         [ProfileType.JAVA_HEAP_GRAPH]: {},
         [ProfileType.OOME_CALLSTACK]: {},
+      };
+    }
+    // Seed the collection state from the flamegraph state persisted before
+    // the collection view existed.
+    const migrated = {...result.data};
+    for (const type of [
+      ProfileType.NATIVE_HEAP_PROFILE,
+      ProfileType.GENERIC_HEAP_PROFILE,
+      ProfileType.JAVA_HEAP_SAMPLES,
+      ProfileType.JAVA_HEAP_GRAPH,
+      ProfileType.OOME_CALLSTACK,
+    ]) {
+      const state = migrated[type];
+      if (
+        state.areaSelectionCollectionState === undefined &&
+        state.areaSelectionFlamegraphState !== undefined
+      ) {
+        migrated[type] = {
+          ...state,
+          areaSelectionCollectionState:
+            FLAMEGRAPH_COLLECTION_STATE_SCHEMA.parse({
+              flamegraphState: state.areaSelectionFlamegraphState,
+            }),
+        };
       }
-    );
+    }
+    return migrated;
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
@@ -383,7 +428,25 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     priority: number,
   ): AreaSelectionTab {
     let previousSelection: AreaSelection | undefined;
-    let flamegraphPanel: HeapProfileFlamegraphDetailsPanel | undefined;
+    let upids: number[] = [];
+    let loaded: HeapProfileRows | undefined;
+    const limiter = new AsyncLimiter();
+
+    // Metrics for a subset of the selected processes over the current
+    // selection's window. The collection rebuilds whenever the rows identity
+    // changes, which happens exactly when the selection changes.
+    const metricsForKeys = (keys: ReadonlyArray<string>) => {
+      const selection = previousSelection;
+      if (selection === undefined || keys.length === 0) return [];
+      return flamegraphMetricsForHeapProfiles(
+        selection.start,
+        selection.end,
+        keys.map(Number),
+        descriptor.heapName!,
+        heapProfileAllocMetricNames(descriptor.type),
+      );
+    };
+
     return {
       id: `heap_profiler_flamegraph_selection_${descriptor.heapName}`,
       name: `${descriptor.label} flamegraph`,
@@ -395,40 +458,130 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         const selectionChanged =
           previousSelection === undefined ||
           !areaSelectionsEqual(previousSelection, selection);
-        previousSelection = selection;
         if (selectionChanged) {
-          const upids = matchingTracks(selection, descriptor.type).map(
-            (track) => track.tags!.upid,
-          );
-          // For the time being support selecting exactly one process.
-          flamegraphPanel =
-            upids.length !== 1
-              ? undefined
-              : new HeapProfileFlamegraphDetailsPanel(
-                  trace,
-                  false,
-                  upids[0]!,
-                  descriptor,
-                  selection.start,
-                  selection.end,
-                  store.state[descriptor.type].areaSelectionFlamegraphState,
-                  (state) => {
-                    store.edit((draft) => {
-                      draft[descriptor.type].areaSelectionFlamegraphState =
-                        state;
-                    });
-                  },
-                );
+          previousSelection = selection;
+          upids = [
+            ...new Set(
+              matchingTracks(selection, descriptor.type).map((track) =>
+                Number(track.tags!.upid),
+              ),
+            ),
+          ];
+          loaded = undefined;
+          if (upids.length > 0) {
+            const loadedFor = upids;
+            limiter.schedule(async () => {
+              const result = await loadHeapProfileRows(
+                trace,
+                descriptor,
+                selection,
+                loadedFor,
+              );
+              // The selection may have moved on while the rows loaded.
+              if (previousSelection === selection) {
+                loaded = result;
+              }
+            });
+          }
         }
         // Hide the tab entirely when this selection has no flamegraph for this
         // heap type, rather than showing a tab handle with empty content.
-        if (flamegraphPanel === undefined) {
+        if (upids.length === 0) {
           return undefined;
         }
-        return {isLoading: false, content: flamegraphPanel.render()};
+        if (loaded === undefined) {
+          return {isLoading: true, content: m(Spinner)};
+        }
+        return {
+          isLoading: false,
+          content: m(
+            FlamegraphProfile,
+            m(
+              DetailsShell,
+              {
+                fillHeight: true,
+                title: m(HeapProfileTitleHelp, {
+                  label: descriptor.label,
+                  help: profileHelp(descriptor),
+                }),
+              },
+              m(FlamegraphCollection, {
+                trace,
+                rows: loaded.rows,
+                columns: loaded.columns,
+                entryKey: (row: Row) => String(row['key']),
+                metricsForKeys,
+                entityName: 'processes',
+                state:
+                  store.state[descriptor.type]?.areaSelectionCollectionState ??
+                  DEFAULT_COLLECTION_STATE,
+                onStateChange: (state) => {
+                  store.edit((draft) => {
+                    (draft[descriptor.type] ??=
+                      {}).areaSelectionCollectionState = state;
+                  });
+                },
+                initialGridHeightPx: 140,
+              }),
+            ),
+          ),
+        };
       },
     };
   }
+}
+
+const DEFAULT_COLLECTION_STATE = FLAMEGRAPH_COLLECTION_STATE_SCHEMA.parse({});
+
+interface HeapProfileRows {
+  readonly rows: Row[];
+  readonly columns: FlamegraphCollectionColumn[];
+}
+
+// One grid row per selected process: its dump count and total allocation
+// size/count over the same bounded window the flamegraph metrics read.
+async function loadHeapProfileRows(
+  trace: Trace,
+  descriptor: ProfileDescriptor,
+  selection: AreaSelection,
+  upids: ReadonlyArray<number>,
+): Promise<HeapProfileRows> {
+  const result = await trace.engine.query(
+    heapProfileProcessTotalsSql(
+      selection.start,
+      selection.end,
+      upids,
+      descriptor.heapName!,
+    ),
+  );
+  const rows: Row[] = [];
+  for (
+    const it = result.iter({
+      upid: NUM,
+      processName: STR_NULL,
+      pid: LONG,
+      dumps: NUM,
+      allocSize: NUM,
+      allocCount: NUM,
+    });
+    it.valid();
+    it.next()
+  ) {
+    rows.push({
+      key: String(it.upid),
+      c0: `${it.processName ?? 'Process'} ${it.pid}`,
+      c1: it.dumps,
+      c2: it.allocSize,
+      c3: it.allocCount,
+    });
+  }
+  const columns: FlamegraphCollectionColumn[] = [
+    {field: 'c0', title: 'process', kind: 'id'},
+    {field: 'c1', title: 'Dumps', kind: 'numeric', unit: ''},
+    {field: 'c2', title: 'Total Size', kind: 'numeric', unit: 'B'},
+    {field: 'c3', title: 'Total Count', kind: 'numeric', unit: ''},
+  ];
+  return {rows, columns};
 }
 
 function matchingTracks(

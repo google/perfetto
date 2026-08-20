@@ -15,12 +15,20 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
+import {AsyncLimiter} from '../../base/async_limiter';
 import type {Store} from '../../base/store';
+import {
+  FlamegraphCollection,
+  FLAMEGRAPH_COLLECTION_STATE_SCHEMA,
+} from '../../components/flamegraph_collection';
+import type {
+  FlamegraphCollectionColumn,
+  FlamegraphCollectionState,
+} from '../../components/flamegraph_collection';
 import {
   metricsFromTableOrSubquery,
   type QueryFlamegraphMetric,
 } from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {
   type AreaSelection,
@@ -39,29 +47,48 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
+import type {Row} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {sqlValueToSqliteString} from '../../trace_processor/sql_utils';
-import {
-  Flamegraph,
-  FLAMEGRAPH_STATE_SCHEMA,
-  type FlamegraphState,
-} from '../../widgets/flamegraph';
+import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import type {FlamegraphState} from '../../widgets/flamegraph';
+import {Spinner} from '../../widgets/spinner';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import {
+  bucketMatchesContext,
+  contextEntriesForSelection,
+  contextFilterForKeys,
+  contextKey,
+  contextSqlCondition,
+  counterNamesForKeys,
+  STACK_SAMPLE_TRACK_KIND,
+} from './area_selection_contexts';
+import type {ContextEntry, SessionSpec} from './area_selection_contexts';
 import {createProfilingTrack} from './profiling_track';
 import {
   getStackSampleSourceSchema,
   type StackSampleSourceSchema,
 } from './stack_sample_sources';
 
-export const STACK_SAMPLE_TRACK_KIND = 'StackSampleTrack';
+export {STACK_SAMPLE_TRACK_KIND} from './area_selection_contexts';
 const LINUX_PERF_SOURCE = 'linux.perf';
 
 const STACK_SAMPLES_PLUGIN_STATE_SCHEMA = z
   .object({
-    areaSelectionFlamegraphStates: z
-      .record(z.string(), FLAMEGRAPH_STATE_SCHEMA)
+    areaSelectionCollectionStates: z
+      .record(z.string(), FLAMEGRAPH_COLLECTION_STATE_SCHEMA)
       .optional(),
     detailsPanelFlamegraphStates: z
+      .record(z.string(), FLAMEGRAPH_STATE_SCHEMA)
+      .optional(),
+  })
+  .readonly();
+
+// State persisted before the collection view: one FlamegraphState per
+// source. Migrated into the collection state on load.
+const LEGACY_AREA_STATES_SCHEMA = z
+  .object({
+    areaSelectionFlamegraphStates: z
       .record(z.string(), FLAMEGRAPH_STATE_SCHEMA)
       .optional(),
   })
@@ -70,6 +97,29 @@ const STACK_SAMPLES_PLUGIN_STATE_SCHEMA = z
 type StackSamplesPluginState = z.infer<
   typeof STACK_SAMPLES_PLUGIN_STATE_SCHEMA
 >;
+
+function migratePluginState(init: unknown): StackSamplesPluginState {
+  const result = STACK_SAMPLES_PLUGIN_STATE_SCHEMA.safeParse(init);
+  const state = result.data ?? {};
+  if (state.areaSelectionCollectionStates !== undefined) {
+    return state;
+  }
+  const legacy =
+    LEGACY_AREA_STATES_SCHEMA.safeParse(init).data
+      ?.areaSelectionFlamegraphStates;
+  if (legacy === undefined) {
+    return state;
+  }
+  return {
+    ...state,
+    areaSelectionCollectionStates: Object.fromEntries(
+      Object.entries(legacy).map(([source, flamegraphState]) => [
+        source,
+        FLAMEGRAPH_COLLECTION_STATE_SCHEMA.parse({flamegraphState}),
+      ]),
+    ),
+  };
+}
 
 type SessionId = number | null;
 
@@ -95,8 +145,8 @@ export interface StackSampleAreaSelectionTabConfig {
   readonly title: string;
   readonly counterNames: readonly string[];
   readonly counterNamesBySession: ReadonlyMap<number, readonly string[]>;
-  readonly getState: () => FlamegraphState | undefined;
-  readonly setState: (state: FlamegraphState) => void;
+  readonly getState: () => FlamegraphCollectionState | undefined;
+  readonly setState: (state: FlamegraphCollectionState) => void;
 }
 
 export function processStackSampleTrackUri(
@@ -195,12 +245,36 @@ export function createStackSampleTrack(
   };
 }
 
+const DEFAULT_COLLECTION_STATE = FLAMEGRAPH_COLLECTION_STATE_SCHEMA.parse({});
+
+interface ContextRows {
+  readonly rows: Row[];
+  readonly columns: FlamegraphCollectionColumn[];
+}
+
+// An area-selection tab showing the source's samples as a
+// FlamegraphCollection: one grid row per selected execution context
+// (thread/process, optionally per profiler session), merged into one
+// flamegraph by default or stepped through one context at a time.
 export function createStackSampleAreaSelectionTab(
   trace: Trace,
   config: StackSampleAreaSelectionTabConfig,
 ): AreaSelectionTab {
   let previousSelection: AreaSelection | undefined;
-  let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
+  let entries: ContextEntry[] = [];
+  let loaded: ContextRows | undefined;
+  const limiter = new AsyncLimiter();
+
+  // Builds the metrics for a subset of contexts over the current selection's
+  // time window. The collection rebuilds whenever the rows identity changes,
+  // which happens exactly when the selection changes.
+  const metricsForKeys = (
+    keys: ReadonlyArray<string>,
+  ): QueryFlamegraphMetric[] => {
+    const selection = previousSelection;
+    if (selection === undefined || keys.length === 0) return [];
+    return computeFlamegraphMetrics(selection, config, keys);
+  };
 
   return {
     id: `stack_sample_flamegraph_${encodeURIComponent(config.source)}`,
@@ -211,16 +285,40 @@ export function createStackSampleAreaSelectionTab(
         !areaSelectionsEqual(previousSelection, selection);
       if (changed) {
         previousSelection = selection;
-        flamegraphMetrics = computeFlamegraphMetrics(selection, config);
+        entries = contextEntriesForSelection(selection, config.source);
+        loaded = undefined;
+        if (entries.length > 0) {
+          const loadedFor = entries;
+          limiter.schedule(async () => {
+            const result = await loadContextRows(
+              trace,
+              config,
+              selection,
+              loadedFor,
+            );
+            // The selection may have moved on while the rows loaded.
+            if (previousSelection === selection) {
+              loaded = result;
+            }
+          });
+        }
       }
-      if (flamegraphMetrics === undefined) return undefined;
+      if (entries.length === 0) return undefined;
+      if (loaded === undefined) {
+        return {isLoading: true, content: m(Spinner)};
+      }
       return {
         isLoading: false,
-        content: m(FlamegraphPanel, {
+        content: m(FlamegraphCollection, {
           trace,
-          metrics: flamegraphMetrics,
-          state: config.getState(),
+          rows: loaded.rows,
+          columns: loaded.columns,
+          entryKey: (row: Row) => String(row['key']),
+          metricsForKeys,
+          entityName: 'contexts',
+          state: config.getState() ?? DEFAULT_COLLECTION_STATE,
           onStateChange: config.setState,
+          initialGridHeightPx: 140,
         }),
       };
     },
@@ -230,40 +328,9 @@ export function createStackSampleAreaSelectionTab(
 function computeFlamegraphMetrics(
   selection: AreaSelection,
   config: StackSampleAreaSelectionTabConfig,
-): ReadonlyArray<QueryFlamegraphMetric> | undefined {
-  const constraints: string[] = [];
-  const sessionIds = new Set<number>();
-  let includesAllSessions = false;
-  for (const trackInfo of selection.tracks) {
-    const tags = trackInfo?.tags;
-    if (
-      !tags?.kinds?.includes(STACK_SAMPLE_TRACK_KIND) ||
-      tags.stackSampleSource !== config.source
-    ) {
-      continue;
-    }
-    const parts = [`p.source = ${sqlValueToSqliteString(config.source)}`];
-    if (tags.utid !== undefined) {
-      parts.push(`tc.utid = ${tags.utid}`);
-    } else if (tags.upid !== undefined) {
-      parts.push(`coalesce(tc.upid, t.upid) = ${tags.upid}`);
-    } else {
-      continue;
-    }
-    if (tags.stackSampleSessionId !== undefined) {
-      const sessionId = Number(tags.stackSampleSessionId);
-      parts.push(`p.session_id = ${sessionId}`);
-      sessionIds.add(sessionId);
-    } else if (tags.stackSampleNullSession === true) {
-      parts.push('p.session_id is null');
-    } else {
-      includesAllSessions = true;
-    }
-    constraints.push(`(${parts.join(' and ')})`);
-  }
-  if (constraints.length === 0) return undefined;
-
-  const contextFilter = constraints.join(' or ');
+  keys: ReadonlyArray<string>,
+): QueryFlamegraphMetric[] {
+  const contextFilter = contextFilterForKeys(config.source, keys);
   const timeFilter = `p.ts >= ${selection.start} and p.ts <= ${selection.end}`;
   const flamegraphProperties = {
     unaggregatableProperties: [{name: 'mapping_name', displayName: 'Mapping'}],
@@ -276,15 +343,15 @@ function computeFlamegraphMetrics(
     ],
   };
 
-  const names =
-    includesAllSessions || sessionIds.size === 0
-      ? config.counterNames
-      : [...sessionIds].flatMap(
-          (sessionId) => config.counterNamesBySession.get(sessionId) ?? [],
-        );
+  const names = counterNamesForKeys(
+    keys,
+    config.counterNames,
+    config.counterNamesBySession,
+  );
   const metrics: QueryFlamegraphMetric[] = [];
-  for (const counterName of new Set(names)) {
+  for (const counterName of names) {
     metrics.push({
+      id: `counter:${counterName}`,
       name: `${config.title} Samples (${counterName})`,
       unit: '',
       nameColumnLabel: 'Symbol',
@@ -335,6 +402,7 @@ function computeFlamegraphMetrics(
       `,
       tableMetrics: [
         {
+          id: 'sample_count',
           name: `${config.title} Samples (Sample Count)`,
           unit: '',
           columnName: 'self_count',
@@ -346,8 +414,177 @@ function computeFlamegraphMetrics(
     }),
   );
 
-  config.setState(Flamegraph.updateState(config.getState(), metrics));
   return metrics;
+}
+
+function sessionLabel(session: SessionSpec): string {
+  if (session === 'all') return '';
+  return session === 'null' ? ' (no session)' : ` (session ${session})`;
+}
+
+// Loads one grid row per context: its display label, sample count and
+// per-counter totals over the selection window. Two grouped scans over
+// stack_sample; the callstack tables are not touched here.
+async function loadContextRows(
+  trace: Trace,
+  config: StackSampleAreaSelectionTabConfig,
+  selection: AreaSelection,
+  entries: ReadonlyArray<ContextEntry>,
+): Promise<ContextRows> {
+  const timeFilter = `p.ts >= ${selection.start} and p.ts <= ${selection.end}`;
+  const contextFilter = entries
+    .map((e) => contextSqlCondition(config.source, e))
+    .join(' or ');
+
+  interface SampleBucket {
+    readonly utid: number | null;
+    readonly upid: number | null;
+    readonly sessionId: number | null;
+    readonly n: number;
+  }
+  const countBuckets: SampleBucket[] = [];
+  const counts = await trace.engine.query(`
+    select
+      tc.utid as utid,
+      coalesce(tc.upid, t.upid) as upid,
+      p.session_id as sessionId,
+      count() as n
+    from stack_sample p
+    left join stack_sample_task_context tc on tc.id = p.task_context_id
+    left join thread t on t.utid = tc.utid
+    where ${timeFilter} and (${contextFilter})
+    group by 1, 2, 3
+  `);
+  for (
+    const it = counts.iter({
+      utid: NUM_NULL,
+      upid: NUM_NULL,
+      sessionId: NUM_NULL,
+      n: NUM,
+    });
+    it.valid();
+    it.next()
+  ) {
+    countBuckets.push({
+      utid: it.utid,
+      upid: it.upid,
+      sessionId: it.sessionId,
+      n: it.n,
+    });
+  }
+
+  interface CounterBucket {
+    readonly utid: number | null;
+    readonly upid: number | null;
+    readonly sessionId: number | null;
+    readonly counterName: string;
+    readonly total: number;
+  }
+  const counterBuckets: CounterBucket[] = [];
+  const counters = await trace.engine.query(`
+    select
+      tc.utid as utid,
+      coalesce(tc.upid, t.upid) as upid,
+      p.session_id as sessionId,
+      ct.name as counterName,
+      sum(c.value) as total
+    from stack_sample p
+    join stack_sample_counter c on c.stack_sample_id = p.id
+    join stack_sample_counter_track ct on c.track_id = ct.id
+    left join stack_sample_task_context tc on tc.id = p.task_context_id
+    left join thread t on t.utid = tc.utid
+    where ${timeFilter} and (${contextFilter}) and ct.name is not null
+    group by 1, 2, 3, 4
+  `);
+  for (
+    const it = counters.iter({
+      utid: NUM_NULL,
+      upid: NUM_NULL,
+      sessionId: NUM_NULL,
+      counterName: STR,
+      total: NUM,
+    });
+    it.valid();
+    it.next()
+  ) {
+    counterBuckets.push({
+      utid: it.utid,
+      upid: it.upid,
+      sessionId: it.sessionId,
+      counterName: it.counterName,
+      total: it.total,
+    });
+  }
+
+  // Display labels for the contexts' threads and processes.
+  const threadLabels = new Map<number, string>();
+  const utids = entries.filter((e) => e.scope === 'utid').map((e) => e.id);
+  if (utids.length > 0) {
+    const result = await trace.engine.query(`
+      select utid, tid, name from thread where utid in (${utids.join(',')})
+    `);
+    for (
+      const it = result.iter({utid: NUM, tid: LONG, name: STR_NULL});
+      it.valid();
+      it.next()
+    ) {
+      threadLabels.set(it.utid, `${it.name ?? 'Thread'} ${it.tid}`);
+    }
+  }
+  const processLabels = new Map<number, string>();
+  const upids = entries.filter((e) => e.scope === 'upid').map((e) => e.id);
+  if (upids.length > 0) {
+    const result = await trace.engine.query(`
+      select upid, pid, name from process where upid in (${upids.join(',')})
+    `);
+    for (
+      const it = result.iter({upid: NUM, pid: LONG, name: STR_NULL});
+      it.valid();
+      it.next()
+    ) {
+      processLabels.set(it.upid, `${it.name ?? 'Process'} ${it.pid}`);
+    }
+  }
+
+  const counterNames = counterNamesForKeys(
+    entries.map(contextKey),
+    config.counterNames,
+    config.counterNamesBySession,
+  );
+  const columns: FlamegraphCollectionColumn[] = [
+    {field: 'c0', title: 'context', kind: 'id'},
+    {field: 'c1', title: 'Samples', kind: 'numeric', unit: ''},
+    ...counterNames.map((name, i) => ({
+      field: `c${i + 2}`,
+      title: name,
+      kind: 'numeric' as const,
+      unit: '',
+    })),
+  ];
+
+  const rows: Row[] = entries.map((entry) => {
+    const label =
+      entry.scope === 'utid'
+        ? (threadLabels.get(entry.id) ?? `Thread ${entry.id}`)
+        : (processLabels.get(entry.id) ?? `Process ${entry.id}`);
+    const row: Row = {
+      key: contextKey(entry),
+      c0: label + sessionLabel(entry.session),
+      c1: countBuckets
+        .filter((b) => bucketMatchesContext(entry, b))
+        .reduce((sum, b) => sum + b.n, 0),
+    };
+    counterNames.forEach((name, i) => {
+      const total = counterBuckets
+        .filter((b) => b.counterName === name)
+        .filter((b) => bucketMatchesContext(entry, b))
+        .reduce((sum, b) => sum + b.total, 0);
+      row[`c${i + 2}`] = total > 0 ? total : null;
+    });
+    return row;
+  });
+
+  return {rows, columns};
 }
 
 function getScopedTrackUris(
@@ -384,10 +621,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
   private readonly counterNamesBySource = new Map<string, string[]>();
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(StackSamplesPlugin.id, (init) => {
-      const result = STACK_SAMPLES_PLUGIN_STATE_SCHEMA.safeParse(init);
-      return result.data ?? {};
-    });
+    this.store = trace.mountStore(StackSamplesPlugin.id, migratePluginState);
     await this.cacheCounterNames(trace);
 
     const result = await trace.engine.query(`
@@ -413,11 +647,11 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
           counterNames: this.counterNamesBySource.get(config.source) ?? [],
           counterNamesBySession: this.counterNamesBySession,
           getState: () =>
-            store.state.areaSelectionFlamegraphStates?.[config.source],
+            store.state.areaSelectionCollectionStates?.[config.source],
           setState: (state) => {
             store.edit((draft) => {
-              draft.areaSelectionFlamegraphStates ??= {};
-              draft.areaSelectionFlamegraphStates[config.source] = state;
+              draft.areaSelectionCollectionStates ??= {};
+              draft.areaSelectionCollectionStates[config.source] = state;
             });
           },
         }),

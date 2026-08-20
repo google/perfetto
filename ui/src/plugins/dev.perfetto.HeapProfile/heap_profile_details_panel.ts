@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {extensions} from '../../components/extensions';
+import {sqliteString} from '../../base/string_utils';
 import type {time} from '../../base/time';
 import {
   type QueryFlamegraphMetric,
@@ -62,7 +63,7 @@ const DOCS_JAVA_HEAP_PROFILER =
 
 // Short "what is this / how do I use it" help shown by the header help icon,
 // with a link to the relevant data-source documentation.
-function profileHelp(descriptor: ProfileDescriptor): m.Children {
+export function profileHelp(descriptor: ProfileDescriptor): m.Children {
   let what: string;
   let how: string;
   let docs: string;
@@ -126,7 +127,7 @@ function profileHelp(descriptor: ProfileDescriptor): m.Children {
 // you cannot reach the docs link). Clicking the icon pins the popup open, so it
 // persists and its link becomes clickable, until dismissed by clicking away or
 // clicking the icon again.
-function HeapProfileTitleHelp(): m.Component<{
+export function HeapProfileTitleHelp(): m.Component<{
   label: string;
   help: m.Children;
 }> {
@@ -326,81 +327,14 @@ function flamegraphMetrics(
 ): ReadonlyArray<QueryFlamegraphMetric> {
   switch (descriptor.type) {
     case ProfileType.NATIVE_HEAP_PROFILE:
-      return flamegraphMetricsForHeapProfile(
-        ts,
-        tsEnd,
-        upid,
-        descriptor.heapName!,
-        [
-          {
-            name: 'Unreleased Malloc Size',
-            unit: 'B',
-            columnName: 'self_size',
-          },
-          {
-            name: 'Unreleased Malloc Count',
-            unit: '',
-            columnName: 'self_count',
-          },
-          {
-            name: 'Total Malloc Size',
-            unit: 'B',
-            columnName: 'self_alloc_size',
-          },
-          {
-            name: 'Total Malloc Count',
-            unit: '',
-            columnName: 'self_alloc_count',
-          },
-        ],
-      );
     case ProfileType.GENERIC_HEAP_PROFILE:
-      return flamegraphMetricsForHeapProfile(
-        ts,
-        tsEnd,
-        upid,
-        descriptor.heapName!,
-        [
-          {
-            name: 'Unreleased Size',
-            unit: 'B',
-            columnName: 'self_size',
-          },
-          {
-            name: 'Unreleased Count',
-            unit: '',
-            columnName: 'self_count',
-          },
-          {
-            name: 'Total Size',
-            unit: 'B',
-            columnName: 'self_alloc_size',
-          },
-          {
-            name: 'Total Count',
-            unit: '',
-            columnName: 'self_alloc_count',
-          },
-        ],
-      );
     case ProfileType.JAVA_HEAP_SAMPLES:
-      return flamegraphMetricsForHeapProfile(
+      return flamegraphMetricsForHeapProfiles(
         ts,
         tsEnd,
-        upid,
+        [upid],
         descriptor.heapName!,
-        [
-          {
-            name: 'Total Allocation Size',
-            unit: 'B',
-            columnName: 'self_size',
-          },
-          {
-            name: 'Total Allocation Count',
-            unit: '',
-            columnName: 'self_count',
-          },
-        ],
+        heapProfileAllocMetricNames(descriptor.type),
       );
     case ProfileType.JAVA_HEAP_GRAPH:
       return [
@@ -568,40 +502,96 @@ function flamegraphMetrics(
   }
 }
 
-function flamegraphMetricsForHeapProfile(
+export interface HeapProfileTableMetric {
+  readonly name: string;
+  readonly unit: string;
+  readonly columnName: string;
+}
+
+// The flamegraph measures each allocation-based profile type exposes.
+export function heapProfileAllocMetricNames(
+  type: ProfileType,
+): HeapProfileTableMetric[] {
+  switch (type) {
+    case ProfileType.NATIVE_HEAP_PROFILE:
+      return [
+        {name: 'Unreleased Malloc Size', unit: 'B', columnName: 'self_size'},
+        {name: 'Unreleased Malloc Count', unit: '', columnName: 'self_count'},
+        {name: 'Total Malloc Size', unit: 'B', columnName: 'self_alloc_size'},
+        {
+          name: 'Total Malloc Count',
+          unit: '',
+          columnName: 'self_alloc_count',
+        },
+      ];
+    case ProfileType.GENERIC_HEAP_PROFILE:
+      return [
+        {name: 'Unreleased Size', unit: 'B', columnName: 'self_size'},
+        {name: 'Unreleased Count', unit: '', columnName: 'self_count'},
+        {name: 'Total Size', unit: 'B', columnName: 'self_alloc_size'},
+        {name: 'Total Count', unit: '', columnName: 'self_alloc_count'},
+      ];
+    case ProfileType.JAVA_HEAP_SAMPLES:
+      return [
+        {name: 'Total Allocation Size', unit: 'B', columnName: 'self_size'},
+        {name: 'Total Allocation Count', unit: '', columnName: 'self_count'},
+      ];
+    default:
+      throw new Error(`${type} is not an allocation-based heap profile`);
+  }
+}
+
+// The window each process's allocations are read over: any selection overlap
+// with an allocation slice includes the slice, so the right-side boundary is
+// extended to that process's next dump past tsEnd (if any).
+function heapProfileWindowCtes(
   ts: time,
   tsEnd: bigint,
-  upid: number,
+  upids: ReadonlyArray<number>,
   heapName: string,
-  metrics: {name: string; unit: string; columnName: string}[],
+): string {
+  const heap = sqliteString(heapName);
+  const upidList = upids.join(',');
+  return `
+        alloc_bound as (
+          select upid, min(ts) as bound_ts
+          from heap_profile_allocation
+          where ts >= ${tsEnd}
+            and upid in (${upidList}) and heap_name = ${heap}
+          group by upid
+        ),
+        win as (
+          select a.*
+          from heap_profile_allocation a
+          left join alloc_bound b using (upid)
+          where a.ts >= ${ts} and a.ts <= ifnull(b.bound_ts, ${tsEnd})
+            and a.upid in (${upidList}) and a.heap_name = ${heap}
+        )`;
+}
+
+export function flamegraphMetricsForHeapProfiles(
+  ts: time,
+  tsEnd: bigint,
+  upids: ReadonlyArray<number>,
+  heapName: string,
+  metrics: ReadonlyArray<HeapProfileTableMetric>,
 ) {
   return metricsFromTableOrSubquery({
     tableOrSubquery: `
       (
-        -- Any selection overlap with an allocation slice includes the
-        -- slice in the result. Practically this means that we might need to
-        -- extend the right-side boundary.
-        with alloc_bound as (
-          select ts
-          from heap_profile_allocation
-          where ts >= ${tsEnd}
-            and upid = ${upid} and heap_name = '${heapName}'
-          order by ts asc
-          limit 1
-        ),
+        with ${heapProfileWindowCtes(ts, tsEnd, upids, heapName)},
         -- The native heap profiler data model is delta-encoded.
         -- Unreleased allocations will be recorded across continuous dumps
         -- and trace processor is responsible for deduplicating them.
         -- If an allocation at ts1 is released in ts2, this will
         -- be represented as an unmatched memory released in ts2 (negative size).
         -- For the purposes of looking at ts2+ slices, we need to ignore
-        -- the negative sized data points.
+        -- the negative sized data points. Classified per process, so merging
+        -- several processes never mixes their release accounting.
         alloc_class as (
-          select callsite_id, if(sum(count) > 0, 1, 0) as positive_alloc
-          from heap_profile_allocation
-          where ts >= ${ts} and ts <= ifnull((SELECT ts FROM alloc_bound), ${tsEnd})
-            and upid = ${upid} and heap_name = '${heapName}'
-          group by callsite_id
+          select upid, callsite_id, if(sum(count) > 0, 1, 0) as positive_alloc
+          from win
+          group by upid, callsite_id
         )
         select
           id,
@@ -615,19 +605,17 @@ function flamegraphMetricsForHeapProfile(
           self_alloc_count
         from _android_heap_profile_callstacks_for_allocations!((
           select
-            callsite_id,
-            iif(positive_alloc, size, 0) as size,
-            iif(positive_alloc, count, 0) as count,
-            max(size, 0) as alloc_size,
-            max(count, 0) as alloc_count
-          from heap_profile_allocation a
-          join alloc_class using (callsite_id)
-          where a.ts >= ${ts} and a.ts <= ifnull((SELECT ts FROM alloc_bound), ${tsEnd})
-            and a.upid = ${upid} and a.heap_name = '${heapName}'
+            a.callsite_id,
+            iif(positive_alloc, a.size, 0) as size,
+            iif(positive_alloc, a.count, 0) as count,
+            max(a.size, 0) as alloc_size,
+            max(a.count, 0) as alloc_count
+          from win a
+          join alloc_class using (upid, callsite_id)
         ))
       )
     `,
-    tableMetrics: metrics,
+    tableMetrics: metrics.slice(),
     dependencySql:
       'include perfetto module android.memory.heap_profile.callstacks',
     unaggregatableProperties: [{name: 'mapping_name', displayName: 'Mapping'}],
@@ -640,6 +628,30 @@ function flamegraphMetricsForHeapProfile(
     ],
     nameColumnLabel: 'Symbol',
   });
+}
+
+// Per-process totals over the same bounded windows the flamegraph metrics
+// read, for the area-selection collection's grid rows.
+export function heapProfileProcessTotalsSql(
+  ts: time,
+  tsEnd: bigint,
+  upids: ReadonlyArray<number>,
+  heapName: string,
+): string {
+  return `
+    with ${heapProfileWindowCtes(ts, tsEnd, upids, heapName)}
+    select
+      w.upid as upid,
+      p.name as processName,
+      p.pid as pid,
+      count(distinct w.ts) as dumps,
+      sum(max(w.size, 0)) as allocSize,
+      sum(max(w.count, 0)) as allocCount
+    from win w
+    join process p using (upid)
+    group by w.upid
+    order by allocSize desc
+  `;
 }
 
 async function downloadPprof(trace: Trace, upid: number, ts: time) {
