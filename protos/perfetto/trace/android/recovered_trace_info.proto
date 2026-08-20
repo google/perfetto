@@ -18,12 +18,19 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Injected into TracePacket by perfetto --upload-after-reboot to record
-// post-reboot recovery metadata.
-message AfterRebootTraceEvent {
+// Injected into TracePacket by perfetto post-reboot recovery to record
+// recovered trace metadata.
+message RecoveredTraceInfo {
+  enum Reason {
+    UNSPECIFIED = 0;
+    UNEXPECTED_REBOOT = 1;
+  }
+
+  optional Reason reason = 1;
+
   // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
-  optional uint64 original_file_size_bytes = 1;
+  optional uint64 original_file_size_bytes = 2;
 
   // Amount of trailing corrupted/incomplete bytes truncated during recovery.
-  optional uint64 bytes_truncated = 2;
+  optional uint64 bytes_truncated = 3;
 }

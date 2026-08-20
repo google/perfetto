@@ -18,7 +18,6 @@ perfetto_proto_library("@TYPE@") {
   deps = [ "../../common:@TYPE@" ]
 
   sources = [
-    "after_reboot_trace_event.proto",
     "android_aflags.proto",
     "android_game_intervention_list.proto",
     "android_log.proto",
@@ -29,6 +28,7 @@ perfetto_proto_library("@TYPE@") {
     "kernel_wakelock_data.proto",
     "packages_list.proto",
     "pixel_modem_events.proto",
+    "recovered_trace_info.proto",
     "user_list.proto",
   ]
 }

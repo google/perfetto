@@ -25,7 +25,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
-#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
+#include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
 #endif
 
 #include "perfetto/protozero/proto_decoder.h"
@@ -317,7 +317,7 @@ TEST_F(PerfettoCmdlineUnitTest,
   base::ScopedMmap updated_mmaped = base::ReadMmapWholeFile(trace_file.path());
   ASSERT_TRUE(updated_mmaped.IsValid());
 
-  bool found_after_reboot_evt = false;
+  bool found_recovered_trace_info = false;
   protozero::ProtoDecoder updated_decoder(updated_mmaped.data(),
                                           updated_mmaped.length());
   for (auto p = updated_decoder.ReadField(); p;
@@ -325,18 +325,20 @@ TEST_F(PerfettoCmdlineUnitTest,
     if (p.id() == protos::pbzero::Trace::kPacketFieldNumber) {
       protozero::ProtoDecoder packet_decoder(p.as_bytes());
       auto evt_field = packet_decoder.FindField(
-          protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber);
+          protos::pbzero::TracePacket::kRecoveredTraceInfoFieldNumber);
       if (evt_field) {
-        found_after_reboot_evt = true;
-        protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(
+        found_recovered_trace_info = true;
+        protos::pbzero::RecoveredTraceInfo::Decoder evt_decoder(
             evt_field.data(), evt_field.size());
+        EXPECT_EQ(evt_decoder.reason(),
+                  protos::pbzero::RecoveredTraceInfo::UNEXPECTED_REBOOT);
         EXPECT_EQ(evt_decoder.original_file_size_bytes(),
                   file_with_garbage_size);
         EXPECT_EQ(evt_decoder.bytes_truncated(), sizeof(garbage));
       }
     }
   }
-  EXPECT_TRUE(found_after_reboot_evt);
+  EXPECT_TRUE(found_recovered_trace_info);
 }
 
 TEST_F(PerfettoCmdlineUnitTest,
@@ -367,7 +369,7 @@ TEST_F(PerfettoCmdlineUnitTest,
   base::ScopedMmap updated_mmaped = base::ReadMmapWholeFile(trace_file.path());
   ASSERT_TRUE(updated_mmaped.IsValid());
 
-  bool found_after_reboot_evt = false;
+  bool found_recovered_trace_info = false;
   protozero::ProtoDecoder updated_decoder(updated_mmaped.data(),
                                           updated_mmaped.length());
   for (auto p = updated_decoder.ReadField(); p;
@@ -375,17 +377,19 @@ TEST_F(PerfettoCmdlineUnitTest,
     if (p.id() == protos::pbzero::Trace::kPacketFieldNumber) {
       protozero::ProtoDecoder packet_decoder(p.as_bytes());
       auto evt_field = packet_decoder.FindField(
-          protos::pbzero::TracePacket::kAfterRebootTraceEventFieldNumber);
+          protos::pbzero::TracePacket::kRecoveredTraceInfoFieldNumber);
       if (evt_field) {
-        found_after_reboot_evt = true;
-        protos::pbzero::AfterRebootTraceEvent::Decoder evt_decoder(
+        found_recovered_trace_info = true;
+        protos::pbzero::RecoveredTraceInfo::Decoder evt_decoder(
             evt_field.data(), evt_field.size());
+        EXPECT_EQ(evt_decoder.reason(),
+                  protos::pbzero::RecoveredTraceInfo::UNEXPECTED_REBOOT);
         EXPECT_EQ(evt_decoder.original_file_size_bytes(), *orig_size);
         EXPECT_EQ(evt_decoder.bytes_truncated(), 0u);
       }
     }
   }
-  EXPECT_TRUE(found_after_reboot_evt);
+  EXPECT_TRUE(found_recovered_trace_info);
 }
 
 TEST_F(PerfettoCmdlineUnitTest,

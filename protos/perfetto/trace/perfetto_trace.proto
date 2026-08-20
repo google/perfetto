@@ -6378,20 +6378,6 @@ message TraceStats {
 
 // End of protos/perfetto/common/trace_stats.proto
 
-// Begin of protos/perfetto/trace/android/after_reboot_trace_event.proto
-
-// Injected into TracePacket by perfetto --upload-after-reboot to record
-// post-reboot recovery metadata.
-message AfterRebootTraceEvent {
-  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
-  optional uint64 original_file_size_bytes = 1;
-
-  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
-  optional uint64 bytes_truncated = 2;
-}
-
-// End of protos/perfetto/trace/android/after_reboot_trace_event.proto
-
 // Begin of protos/perfetto/trace/android/android_aflags.proto
 
 // Android aconfig flags (aflags).
@@ -6721,6 +6707,27 @@ message PixelModemTokenDatabase {
 }
 
 // End of protos/perfetto/trace/android/pixel_modem_events.proto
+
+// Begin of protos/perfetto/trace/android/recovered_trace_info.proto
+
+// Injected into TracePacket by perfetto post-reboot recovery to record
+// recovered trace metadata.
+message RecoveredTraceInfo {
+  enum Reason {
+    UNSPECIFIED = 0;
+    UNEXPECTED_REBOOT = 1;
+  }
+
+  optional Reason reason = 1;
+
+  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
+  optional uint64 original_file_size_bytes = 2;
+
+  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
+  optional uint64 bytes_truncated = 3;
+}
+
+// End of protos/perfetto/trace/android/recovered_trace_info.proto
 
 // Begin of protos/perfetto/trace/android/user_list.proto
 
@@ -18416,9 +18423,9 @@ message TracePacket {
 
     SystemdJournaldEvent journald_event = 132;
 
-    // Injected into TracePacket by perfetto --upload-after-reboot to record
-    // post-reboot recovery lifecycle events and timestamps.
-    AfterRebootTraceEvent after_reboot_trace_event = 136;
+    // Injected into TracePacket by perfetto post-reboot recovery to record
+    // recovered trace metadata.
+    RecoveredTraceInfo recovered_trace_info = 136;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

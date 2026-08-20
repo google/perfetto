@@ -153,7 +153,7 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
-  static base::ScopedFile CreatePersistentTmpFile(
+  static base::ScopedFile WaitForUploadCompleteAndCreatePersistentTmpFile(
       const std::string& session_name,
       std::string* out_file_path);
   static int UploadPersistentTracesAfterReboot();

@@ -8970,7 +8970,6 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
-        "protos/perfetto/trace/android/after_reboot_trace_event.proto",
         "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
@@ -8981,6 +8980,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
     ],
     visibility = [

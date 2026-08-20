@@ -877,11 +877,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
              (trace_config_->write_into_file() &&
               !trace_config_->output_path().empty())) {
     open_out_file = false;
-  } else if (trace_out_path_.empty() && !upload_flag_ &&
-             !trace_config_->persist_trace_across_reboots()) {
+  } else if (trace_out_path_.empty() && !upload_flag_) {
+    PERFETTO_ELOG("Either --out or --upload is required");
+    return 1;
+  } else if (trace_config_->persist_trace_across_reboots() && !upload_flag_) {
     PERFETTO_ELOG(
-        "Either --out, --upload, or persist_trace_across_reboots in trace "
-        "config is required");
+        "persist_trace_across_reboots is only supported with --upload");
     return 1;
   } else if (trace_config_->persist_trace_across_reboots() &&
              !trace_config_->write_into_file()) {
@@ -1353,8 +1354,8 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     if (trace_config_ && trace_config_->persist_trace_across_reboots() &&
         !is_clone()) {
-      fd = CreatePersistentTmpFile(trace_config_->unique_session_name(),
-                                   &persistent_file_path_);
+      fd = WaitForUploadCompleteAndCreatePersistentTmpFile(
+          trace_config_->unique_session_name(), &persistent_file_path_);
     } else {
       fd = CreateUnlinkedTmpFile();
     }

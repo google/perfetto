@@ -42,7 +42,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 
-#include "protos/perfetto/trace/android/after_reboot_trace_event.pbzero.h"
+#include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -79,6 +79,18 @@ void SetRebootTraceStatusProp(RebootTraceUploadState status) {
 
 // Directory for local state and temporary files. This is automatically
 // created by the system by setting setprop persist.traced.enable=1.
+std::string SanitizeSessionName(const std::string& session_name) {
+  std::string sanitized_name;
+  sanitized_name.reserve(session_name.size());
+  for (char c : session_name) {
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+        (c >= '0' && c <= '9') || c == '_' || c == '-') {
+      sanitized_name.push_back(c);
+    }
+  }
+  return sanitized_name.empty() ? "default" : sanitized_name;
+}
+
 const char* kStateDir = "/data/misc/perfetto-traces";
 
 constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
@@ -194,7 +206,7 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
   if (!persistent_file_path_.empty()) {
     PERFETTO_LOG("Unlinking persistent trace file %s after framework handoff",
                  persistent_file_path_.c_str());
-    unlink(persistent_file_path_.c_str());
+    PERFETTO_CHECK(!unlink(persistent_file_path_.c_str()));
   }
 }
 
@@ -288,48 +300,20 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
   // If the file exists on disk and property is empty, wait up to 5 minutes
   // for property to be set.
   auto start_time = base::GetBootTimeNs();
-#if __ANDROID_API__ >= 26
-  uint32_t serial = 0;
-#endif
   while (cur_prop.empty()) {
     auto elapsed_ns =
         static_cast<uint64_t>((base::GetBootTimeNs() - start_time).count());
     if (elapsed_ns >= kBootTraceCleanupTimeoutNs) {
       break;
     }
-#if __ANDROID_API__ >= 26
-    const prop_info* pi = __system_property_find(kRebootTraceStatusProp);
-    if (pi) {
-      uint64_t remaining_ns = kBootTraceCleanupTimeoutNs - elapsed_ns;
-      struct timespec ts;
-      ts.tv_sec = static_cast<time_t>(remaining_ns / 1000000000ULL);
-      ts.tv_nsec = static_cast<long>(remaining_ns % 1000000000ULL);
-      __system_property_wait(pi, serial, &serial, &ts);
-    } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-#else
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-#endif
+    base::SleepMicroseconds(200 * 1000);
     cur_prop = base::GetAndroidProp(kRebootTraceStatusProp);
   }
 
-  auto extract_trace_uuid = [](const std::string& path) -> base::Uuid {
-    auto mmap = base::ReadMmapWholeFile(path.c_str());
-    if (mmap.IsValid()) {
-      auto config = ParseTraceConfigFromMmapedTrace(mmap);
-      if (config.has_value()) {
-        return base::Uuid(config->trace_uuid_lsb(), config->trace_uuid_msb());
-      }
-    }
-    return base::Uuid();
-  };
-
   if (cur_prop.empty()) {
-    base::Uuid uuid = extract_trace_uuid(target_file_path);
     android_stats::MaybeLogUploadEvent(
-        PerfettoStatsdAtom::kRebootTraceUploadTimeout, uuid.lsb(), uuid.msb(),
-        session_name);
+        PerfettoStatsdAtom::kRebootTraceUploadTimeout, /*uuid_lsb=*/0,
+        /*uuid_msb=*/0, session_name);
     remove(target_file_path.c_str());
     PERFETTO_ELOG(
         "Timed out waiting for uploader to set property status for session "
@@ -341,10 +325,9 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
   // If property is set, but the persistent trace file STILL exists on disk,
   // log error and unlink file.
   if (base::FileExists(target_file_path)) {
-    base::Uuid uuid = extract_trace_uuid(target_file_path);
     android_stats::MaybeLogUploadEvent(
-        PerfettoStatsdAtom::kRebootTraceUploadLeftover, uuid.lsb(), uuid.msb(),
-        session_name);
+        PerfettoStatsdAtom::kRebootTraceUploadLeftover, /*uuid_lsb=*/0,
+        /*uuid_msb=*/0, session_name);
     remove(target_file_path.c_str());
     PERFETTO_ELOG(
         "Persistent trace file '%s' still exists on disk even though property "
@@ -354,24 +337,26 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
 }
 
 // static
-base::ScopedFile PerfettoCmd::CreatePersistentTmpFile(
+base::ScopedFile PerfettoCmd::WaitForUploadCompleteAndCreatePersistentTmpFile(
     const std::string& session_name,
     std::string* out_file_path) {
+  std::string sanitized_name = SanitizeSessionName(session_name);
   base::StackString<256> dir_path("%s/persistent", kStateDir);
-  base::Mkdir(dir_path.c_str());
-
-  std::string clean_name = session_name.empty() ? "default" : session_name;
   base::StackString<256> file_path("%s/%s.tmp", dir_path.c_str(),
-                                   clean_name.c_str());
+                                   sanitized_name.c_str());
 
   // Wait for any previous pending reboot trace upload for this session name to
   // complete if the persistent trace file exists on disk.
-  WaitForPreviousRebootTraceUpload(clean_name, file_path.c_str());
+  WaitForPreviousRebootTraceUpload(sanitized_name, file_path.c_str());
 
-  // Use O_TRUNC to atomically truncate and overwrite any pre-existing file on
-  // disk rather than performing a separate unlink() + open().
+  // Unconditionally unlink any pre-existing file on disk before creating a new
+  // one. If another process (e.g. background uploader) is currently reading the
+  // previous file, unlinking preserves its open inode so the upload is not
+  // corrupted while allowing us to create a fresh file for the new session.
+  remove(file_path.c_str());
+
   auto fd = base::OpenFile(file_path.c_str(),
-                           O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, 0600);
+                           O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
   if (!fd) {
     PERFETTO_PLOG("Could not create persistent trace file %s",
                   file_path.c_str());
@@ -406,13 +391,15 @@ size_t PerfettoCmd::SanitizeAndAnnotatePersistentTrace(
     }
   }
 
-  // Inject AfterRebootTraceEvent packet into trace stream with recovery info.
+  // Inject RecoveredTraceInfo packet into trace stream with recovery info.
   protozero::HeapBuffered<protos::pbzero::Trace> trace;
   auto* packet = trace->add_packet();
-  auto* after_reboot_evt = packet->set_after_reboot_trace_event();
-  after_reboot_evt->set_original_file_size_bytes(
+  auto* recovered_info = packet->set_recovered_trace_info();
+  recovered_info->set_reason(
+      protos::pbzero::RecoveredTraceInfo::UNEXPECTED_REBOOT);
+  recovered_info->set_original_file_size_bytes(
       static_cast<uint64_t>(mmap.length()));
-  after_reboot_evt->set_bytes_truncated(bytes_truncated);
+  recovered_info->set_bytes_truncated(bytes_truncated);
 
   std::vector<uint8_t> packet_bytes = trace.SerializeAsArray();
   if (lseek(fd, static_cast<off_t>(valid_offset), SEEK_SET) == -1) {
@@ -432,10 +419,6 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
   auto on_exit = base::OnScopeExit([] {
     SetRebootTraceStatusProp(RebootTraceUploadState::kTraceUploadFinished);
   });
-
-  if (!base::FileExists(persistent_dir.c_str())) {
-    return 0;
-  }
 
   std::vector<std::string> files;
   base::Status status = base::ListFilesRecursive(persistent_dir.c_str(), files);
@@ -474,7 +457,7 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
     unlink(full_path.c_str());
 
     if (fd) {
-      pending_traces.push_back({std::move(fd), file_name});
+      pending_traces.emplace_back(PendingTrace{std::move(fd), file_name});
     }
   }
 
@@ -496,9 +479,8 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
       continue;
     }
 
-    base::ScopedFile dup_fd(dup(fd));
     base::ScopedMmap mmap = base::ScopedMmap::FromHandle(
-        std::move(dup_fd), static_cast<size_t>(*file_size));
+        base::ScopedFile(dup(fd)), static_cast<size_t>(*file_size));
     if (!mmap.IsValid()) {
       PERFETTO_PLOG("reboot-trace: Failed to mmap persistent trace %s",
                     pending.file_name.c_str());

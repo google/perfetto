@@ -350,9 +350,7 @@ TEST_F(PerfettoCmdlineTest, InvalidCases) {
   EXPECT_EQ(1, missing_dropbox.Run(&stderr_));
 
   EXPECT_EQ(1, either_out_or_dropbox.Run(&stderr_));
-  EXPECT_THAT(
-      stderr_,
-      HasSubstr("Either --out, --upload, or persist_trace_across_reboots"));
+  EXPECT_THAT(stderr_, HasSubstr("Either --out or --upload is required"));
 
   // Disallow mixing simple and file config.
   EXPECT_EQ(1, simple_and_file_1.Run(&stderr_));
@@ -381,9 +379,7 @@ TEST_F(PerfettoCmdlineTest, InvalidCases) {
   EXPECT_THAT(stderr_, ContainsRegex("option.*--detach.*requires an argument"));
 
   EXPECT_EQ(1, detach_without_out_or_dropbox.Run(&stderr_));
-  EXPECT_THAT(
-      stderr_,
-      HasSubstr("Either --out, --upload, or persist_trace_across_reboots"));
+  EXPECT_THAT(stderr_, HasSubstr("Either --out or --upload is required"));
 
   // Cannot trace and use --query.
   EXPECT_EQ(1, trace_and_query_1.Run(&stderr_));
@@ -842,6 +838,7 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
   ds->mutable_config()->set_name("android.perfetto.test");
   trace_config.set_write_into_file(true);
   trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_skip_report(true);
   trace_config.set_unique_session_name("test_reboot_session");
   trace_config.set_duration_ms(200);
 
@@ -849,6 +846,7 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
       {
           "-c",
           "-",
+          "--upload",
       },
       trace_config.SerializeAsString());
 
@@ -862,12 +860,41 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
 }
 
 TEST_F(PerfettoCmdlineTest,
+       AndroidOnly(PersistTraceAcrossRebootsRequiresUploadFlag)) {
+  protos::gen::TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds = trace_config.add_data_sources();
+  ds->mutable_config()->set_name("android.perfetto.test");
+  trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_skip_report(true);
+  trace_config.set_write_into_file(true);
+  trace_config.set_unique_session_name("test_reboot_session");
+
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-c",
+          "-",
+          "--out",
+          "/data/local/tmp/trace.pftrace",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(1, perfetto_proc.Run(&stderr_));
+  EXPECT_THAT(
+      stderr_,
+      testing::HasSubstr(
+          "persist_trace_across_reboots is only supported with --upload"));
+}
+
+TEST_F(PerfettoCmdlineTest,
        AndroidOnly(PersistTraceAcrossRebootsRequiresWriteIntoFile)) {
   protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
   auto* ds = trace_config.add_data_sources();
   ds->mutable_config()->set_name("android.perfetto.test");
   trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_skip_report(true);
   trace_config.set_write_into_file(false);
   trace_config.set_unique_session_name("test_reboot_session");
 
@@ -875,6 +902,7 @@ TEST_F(PerfettoCmdlineTest,
       {
           "-c",
           "-",
+          "--upload",
       },
       trace_config.SerializeAsString());
 
@@ -894,12 +922,14 @@ TEST_F(PerfettoCmdlineTest, PersistTraceAcrossRebootsNotSupportedOnNonAndroid) {
   ds->mutable_config()->set_name("test");
   trace_config.set_write_into_file(true);
   trace_config.set_persist_trace_across_reboots(true);
+  trace_config.mutable_android_report_config()->set_skip_report(true);
   trace_config.set_unique_session_name("test_reboot_session");
 
   auto perfetto_proc = ExecPerfetto(
       {
           "-c",
           "-",
+          "--upload",
       },
       trace_config.SerializeAsString());
 

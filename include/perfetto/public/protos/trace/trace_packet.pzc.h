@@ -25,7 +25,6 @@
 
 #include "perfetto/public/pb_macros.h"
 
-PERFETTO_PB_MSG_DECL(perfetto_protos_AfterRebootTraceEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflags);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
@@ -76,6 +75,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfilePacket);
+PERFETTO_PB_MSG_DECL(perfetto_protos_RecoveredTraceInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_RemoteClockSync);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SmapsPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StackSample);
@@ -574,8 +574,8 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   132);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
-                  perfetto_protos_AfterRebootTraceEvent,
-                  after_reboot_trace_event,
+                  perfetto_protos_RecoveredTraceInfo,
+                  recovered_trace_info,
                   136);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
