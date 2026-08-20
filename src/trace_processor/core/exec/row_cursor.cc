@@ -18,7 +18,6 @@
 
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -27,17 +26,14 @@ RowCursor::RowCursor(Source& source) : source_(source) {}
 RowCursor::~RowCursor() = default;
 
 bool RowCursor::Pull() {
-  RowBatch* batch = source_.Next();
-  if (!batch) {
+  batch_ = source_.Next();
+  if (!batch_) {
     index_ = 0;
     size_ = 0;
     return false;
   }
-  RowSelection selection = batch->column(0).selection();
-  rows_ = selection.is_range() ? nullptr : selection.data();
-  offset_ = selection.offset();
   index_ = 0;
-  size_ = batch->size();
+  size_ = batch_->size();
   return true;
 }
 

@@ -27,9 +27,22 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-class RowBatchPool;
-
 // A rectangular batch of columns with one shared cardinality.
+//
+// A batch owns nothing. Its columns are views over values belonging to the
+// operator that produced it, which fixes both halves of the question:
+//
+//   Who owns these values?   Whatever handed you the batch.
+//   How long are they good?  Until you ask it for the next batch, and never
+//                            past its lifetime.
+//
+// So a batch is a borrow with the same terms everywhere, and an operator that
+// needs rows for longer than that copies them into a RowStore of its own.
+// Everything an operator hands out is read from something it holds, which is
+// why a batch does not outlive it: nothing here is shared, reference counted,
+// or kept alive behind the reader's back, and a reader that wants values to
+// survive the operator that made them copies them, as it would from any other
+// view.
 class RowBatch {
  public:
   RowBatch() = default;
@@ -66,15 +79,14 @@ class RowBatch {
   // false when no rows remain.
   bool Slice(RowSelection selection, uint32_t count);
 
- private:
-  friend class RowBatchPool;
-
+  // Drops the columns, so the batch can be pointed at something else.
   void Reset() {
     cardinality_ = 0;
     columns_.clear();
     selections_.Reset();
   }
 
+ private:
   uint32_t cardinality_ = 0;
   std::vector<ColumnView> columns_;
   SelectionPool selections_;
