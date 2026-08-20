@@ -1,0 +1,89 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_BATCH_H_
+#define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_BATCH_H_
+
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/row_selection.h"
+
+namespace perfetto::trace_processor::core::exec {
+
+// A rectangular batch of columns with one shared cardinality.
+//
+// The values belong to whatever handed the batch over and are good until it
+// is asked for the next one. A batch keeps alive any column it was given
+// ownership of, so it does not dangle when its producer goes away.
+class RowBatch {
+ public:
+  RowBatch() = default;
+
+  uint32_t size() const { return cardinality_; }
+  void SetCardinality(uint32_t count) {
+    PERFETTO_DCHECK(count <= kMaxBatchRows);
+    cardinality_ = count;
+  }
+
+  uint32_t column_count() const {
+    return static_cast<uint32_t>(columns_.size());
+  }
+  const ColumnView& column(uint32_t column) const { return columns_[column]; }
+  ColumnView& mutable_column(uint32_t column) { return columns_[column]; }
+  // Adds a column. `owner` keeps the values alive for as long as the batch
+  // does; columns pointing at storage which outlives the batch pass none.
+  void AddColumn(ColumnView column,
+                 std::shared_ptr<const void> owner = nullptr) {
+    columns_.push_back(std::move(column));
+    owners_.push_back(std::move(owner));
+  }
+
+  // Points every column at `rows`, which the caller continues to own.
+  bool AdoptPhysicalRows(Span<const uint32_t> rows);
+
+  // Called before refilling; the previous contents stop being valid.
+  void PrepareForFill() { selections_.Reset(); }
+
+  // Points every column at the `count` rows `selection` picks out.
+  void Compose(RowSelection selection, uint32_t count);
+
+  // Narrows to strictly increasing row ordinals. False when none remain.
+  bool Slice(RowSelection selection, uint32_t count);
+
+  // Drops the columns, so the batch can be pointed at something else.
+  void Reset() {
+    cardinality_ = 0;
+    columns_.clear();
+    owners_.clear();
+    selections_.Reset();
+  }
+
+ private:
+  uint32_t cardinality_ = 0;
+  std::vector<ColumnView> columns_;
+  // One per column; null for columns the batch does not own.
+  std::vector<std::shared_ptr<const void>> owners_;
+  SelectionPool selections_;
+};
+
+}  // namespace perfetto::trace_processor::core::exec
+
+#endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_BATCH_H_

@@ -281,6 +281,11 @@ struct BitVector {
 
   // Resizes the vector to the specified size. If shrinking, bits past the new
   // size are cleared. If growing, new bits are set to the given value.
+  // Makes room for `new_size` bits without changing the size. Growth here is
+  // geometric where resize allocates exactly what was asked for, so anything
+  // filling a bit vector a chunk at a time has to come through here first.
+  void reserve(uint64_t new_size) { words_.reserve((new_size + 63) / 64); }
+
   void resize(uint64_t new_size, bool value = false) {
     uint64_t new_words = (new_size + 63) / 64;
     words_.resize(new_words);
