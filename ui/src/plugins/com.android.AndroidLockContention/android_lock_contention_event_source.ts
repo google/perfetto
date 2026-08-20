@@ -371,7 +371,8 @@ export class AndroidLockContentionEventSource {
     trackUri: string,
   ): Promise<number> {
     const debugMatch = trackUri.match(/^debug\.track(\d+)(?:_\d+)?$/);
-    const ownerTrackPrefix = 'com.android.AndroidLockContention#OwnerEvents';
+    const ownerTrackPrefix =
+      'com.android.AndroidLockContention#OwnerEvents_Slice';
 
     if (trackUri.startsWith(ownerTrackPrefix)) {
       return eventId;
@@ -418,7 +419,7 @@ export class AndroidLockContentionEventSource {
 
     const blockingTrackUri =
       monitorRow.owner_tid !== null
-        ? `com.android.AndroidLockContention#OwnerEvents_${monitorRow.owner_tid}`
+        ? `com.android.AndroidLockContention#OwnerEvents_Counter_${monitorRow.owner_tid}`
         : undefined;
 
     return {
@@ -486,7 +487,7 @@ export class AndroidLockContentionEventSource {
 
     const blockingTrackUri =
       row.owner_tid !== null
-        ? `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`
+        ? `com.android.AndroidLockContention#OwnerEvents_Counter_${row.owner_tid}`
         : undefined;
 
     return {
