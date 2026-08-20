@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Duration} from '../../base/time';
 import {
   type Aggregation,
   type Aggregator,
@@ -24,6 +23,10 @@ import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
+// Aggregates counter samples in the selected area. Rows are per-sample so the
+// datagrid can pivot/group by name or by any arg (e.g. a `utid`), the way the
+// slice aggregator pivots on `dur`. `delta` (increase since the previous
+// sample on that track) is the SUM-able metric.
 export class CounterSelectionAggregator implements Aggregator {
   readonly id = 'counter_aggregation';
 
@@ -39,89 +42,33 @@ export class CounterSelectionAggregator implements Aggregator {
     return {
       getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
-        const duration = area.end - area.start;
-        const durationSec = Duration.toSeconds(duration);
-
-        await engine.query(`include perfetto module counters.intervals`);
-
-        // TODO(lalitm): Rewrite this query in a way that is both simpler and faster
-        let query;
-        if (trackIds.length === 1) {
-          // Optimized query for the special case where there is only 1 track id.
-          query = `
-            WITH
-              res AS (
-                select c.*
-                from counter_leading_intervals!((
-                  SELECT counter.*
-                  FROM counter
-                  WHERE counter.track_id = ${trackIds[0]}
-                    AND counter.ts <= ${area.end}
-                )) c
-                WHERE c.ts + c.dur >= ${area.start}
-              ),
-              aggregated AS (
-                SELECT
-                  COUNT(1) AS count,
-                  ROUND(SUM(
-                    (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
-                    2
-                  ) AS avg_value,
-                  value_at_max_ts(ts, value) AS last_value,
-                  value_at_max_ts(-ts, value) AS first_value,
-                  MIN(value) AS min_value,
-                  MAX(value) AS max_value
-                FROM res
-              )
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            WITH samples AS (
+              SELECT
+                c.ts,
+                c.value,
+                c.track_id,
+                c.arg_set_id,
+                c.value - LAG(c.value) OVER (
+                  PARTITION BY c.track_id ORDER BY c.ts
+                ) AS delta
+              FROM counter c
+              WHERE c.track_id IN (${trackIds})
+                AND c.ts <= ${area.end}
+            )
             SELECT
-              (SELECT name FROM counter_track WHERE id = ${trackIds[0]}) AS name,
-              *,
-              MAX(last_value) - MIN(first_value) AS delta_value,
-              ROUND((MAX(last_value) - MIN(first_value))/${durationSec}, 2) AS rate
-            FROM aggregated`;
-        } else {
-          // Slower, but general purspose query that can aggregate multiple tracks
-          query = `
-            WITH
-              res AS (
-                select c.*
-                from counter_leading_intervals!((
-                  SELECT counter.*
-                  FROM counter
-                  WHERE counter.track_id in (${trackIds})
-                    AND counter.ts <= ${area.end}
-                )) c
-                where c.ts + c.dur >= ${area.start}
-              ),
-              aggregated AS (
-                SELECT track_id,
-                  COUNT(1) AS count,
-                  ROUND(SUM(
-                    (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
-                    2
-                  ) AS avg_value,
-                  value_at_max_ts(-ts, value) AS first,
-                  value_at_max_ts(ts, value) AS last,
-                  MIN(value) AS min_value,
-                  MAX(value) AS max_value
-                FROM res
-                GROUP BY track_id
-              )
-            SELECT
-              name,
-              count,
-              avg_value,
-              last AS last_value,
-              first AS first_value,
-              last - first AS delta_value,
-              ROUND((last - first)/${durationSec}, 2) AS rate,
-              min_value,
-              max_value
-            FROM aggregated JOIN counter_track ON
-              track_id = counter_track.id
-            GROUP BY track_id`;
-        }
-        const table = await createPerfettoTable({engine, as: query});
+              ct.name AS name,
+              s.ts AS ts,
+              s.value AS value,
+              s.delta AS delta,
+              s.arg_set_id AS arg_set_id
+            FROM samples s
+            JOIN counter_track ct ON ct.id = s.track_id
+            WHERE s.ts >= ${area.start}
+          `,
+        });
         return createAggregationData(table);
       },
     };
@@ -131,26 +78,44 @@ export class CounterSelectionAggregator implements Aggregator {
     return {
       schema: {
         name: {title: 'Name', columnType: 'text'},
-        delta_value: {title: 'Delta value', columnType: 'quantitative'},
-        rate: {title: 'Rate /s', columnType: 'quantitative'},
-        avg_value: {title: 'Weighted avg value', columnType: 'quantitative'},
-        count: {title: 'Count', columnType: 'quantitative'},
-        first_value: {title: 'First value', columnType: 'quantitative'},
-        last_value: {title: 'Last value', columnType: 'quantitative'},
-        min_value: {title: 'Min value', columnType: 'quantitative'},
-        max_value: {title: 'Max value', columnType: 'quantitative'},
+        ts: {title: 'Timestamp', columnType: 'quantitative'},
+        value: {title: 'Value', columnType: 'quantitative'},
+        delta: {title: 'Increase', columnType: 'quantitative'},
+        args: {title: 'Args', parameterized: true},
       },
+      // The table has an `arg_set_id` column, so expose a parameterized
+      // `args.*` column, letting the datagrid group/pivot by any counter arg.
+      sqlConfig: ({sqlTable}) => ({
+        tableOrSubquery: sqlTable.get().name,
+        columns: {
+          args: {
+            expression: (alias, key) =>
+              `extract_arg(${alias}.arg_set_id, '${key}')`,
+            parameterized: true,
+            parameterKeysQuery: (tableOrSubquery, alias) => `
+              SELECT DISTINCT args.key
+              FROM (${tableOrSubquery}) AS ${alias}
+              JOIN args ON args.arg_set_id = ${alias}.arg_set_id
+              WHERE args.key IS NOT NULL
+              ORDER BY args.key
+              LIMIT 1000
+            `,
+          },
+        },
+      }),
       initialColumns: [
-        {id: 'name', field: 'name', sort: 'DESC'},
-        {id: 'delta_value', field: 'delta_value'},
-        {id: 'rate', field: 'rate'},
-        {id: 'avg_value', field: 'avg_value'},
-        {id: 'count', field: 'count', aggregate: 'SUM'},
-        {id: 'first_value', field: 'first_value'},
-        {id: 'last_value', field: 'last_value'},
-        {id: 'min_value', field: 'min_value'},
-        {id: 'max_value', field: 'max_value'},
+        {id: 'name', field: 'name'},
+        {id: 'ts', field: 'ts'},
+        {id: 'value', field: 'value'},
+        {id: 'delta', field: 'delta'},
       ],
+      initialPivot: {
+        groupBy: [{id: 'name', field: 'name'}],
+        aggregates: [
+          {id: 'count', function: 'COUNT'},
+          {id: 'delta_sum', field: 'delta', function: 'SUM', sort: 'DESC'},
+        ],
+      },
     };
   }
 
