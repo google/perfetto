@@ -1,4 +1,3 @@
---
 -- Copyright 2024 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -156,3 +155,65 @@ FROM starts
 WHERE
   starts.type = 'freeze'
   AND upid IS NOT NULL;
+
+-- Provides unified access to Android App Freeze events from StatsD.
+--
+-- Suggested minimal config:
+--
+-- data_sources: {
+--     config: {
+--         name: "android.statsd"
+--         statsd_config: {
+--             push_atom_id: ATOM_APP_FREEZE_CHANGED
+--         }
+--     }
+-- }
+
+-- View to get app freezer state intervals from StatsD
+CREATE PERFETTO VIEW android_freezer_state_statsd(
+  -- Timestamp of app freeze state change.
+  ts TIMESTAMP,
+  -- Duration of app freeze state.
+  dur DURATION,
+  -- PID of process.
+  pid LONG,
+  -- Process name.
+  process_name STRING,
+  -- Freezer state.
+  freezer_state STRING,
+  -- Time unfrozen in millis.
+  time_unfrozen_millis LONG,
+  -- Reason for unfreezing.
+  unfreeze_reason STRING
+)
+AS
+WITH
+  app_freeze_changes AS (
+    SELECT
+      s.ts,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.pid') AS pid,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.action') AS action,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.process_name') AS process_name,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.time_unfrozen_millis') AS time_unfrozen_millis,
+      extract_arg(s.arg_set_id, 'app_freeze_changed.unfreeze_reason_v2') AS unfreeze_reason
+    FROM slice AS s
+    JOIN track AS t
+      ON s.track_id = t.id
+    WHERE
+      t.name = 'Statsd Atoms'
+      AND s.name = 'app_freeze_changed'
+  )
+SELECT
+  ts,
+  lead(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER (
+    PARTITION BY
+      pid
+    ORDER BY ts
+  )
+  - ts AS dur,
+  pid,
+  process_name,
+  action AS freezer_state,
+  time_unfrozen_millis,
+  unfreeze_reason
+FROM app_freeze_changes;
