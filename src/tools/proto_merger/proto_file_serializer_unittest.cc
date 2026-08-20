@@ -1083,8 +1083,8 @@ TEST(ProtoFileSerializerTest, ExtensionsInliningWithEnumAndAllowlist) {
   ProtoFile upstream_base_file =
       ProtoFileFromDescriptor("", *upstream_base_desc, {upstream_ext_desc});
 
-  const auto* root_desc =
-      importer_upstream.pool()->FindMessageTypeByName("perfetto.protos.BaseMessage");
+  const auto* root_desc = importer_upstream.pool()->FindMessageTypeByName(
+      "perfetto.protos.BaseMessage");
   ASSERT_NE(root_desc, nullptr);
 
   Allowlist allowed;

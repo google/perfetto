@@ -255,8 +255,6 @@ int Main(int argc, char** argv) {
   std::unique_ptr<google::protobuf::compiler::DiskSourceTree> ext_dst =
       std::make_unique<google::protobuf::compiler::DiskSourceTree>();
   ext_dst->MapPath("", upstream_include);
-  ext_dst->MapPath("", ".");
-  ext_dst->MapPath("", "buildtools/protobuf/src");
 
   protozero::MultiFileErrorCollectorImpl ext_mfe;
   google::protobuf::compiler::Importer ext_importer(ext_dst.get(), &ext_mfe);
