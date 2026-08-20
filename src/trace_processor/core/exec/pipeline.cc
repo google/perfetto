@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/core/exec/pipeline.h"
 
-#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -26,48 +26,47 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
-namespace {
 
-// Whether the batch still has rows for the consumer once every operator has
-// seen it.
-bool ExecuteOperators(RowBatch& batch,
-                      const std::vector<std::unique_ptr<Operator>>& operators) {
-  if (batch.size() == 0) {
-    return false;
-  }
-  for (const std::unique_ptr<Operator>& op : operators) {
-    if (op->Execute(batch) == OpResult::kDrop || batch.size() == 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-}  // namespace
-
-Operator::~Operator() = default;
-Source::~Source() = default;
-
-PullPipeline::PullPipeline(Source& source,
+PullPipeline::PullPipeline(const Source& source,
                            std::vector<std::unique_ptr<Operator>> operators)
     : source_(source), operators_(std::move(operators)) {}
 
 PullPipeline::~PullPipeline() = default;
+PullPipeline::State::~State() = default;
 
-void PullPipeline::Reset() {
-  source_.Reset();
+std::unique_ptr<OperatorState> PullPipeline::MakeState() const {
+  auto state = std::make_unique<State>();
+  state->source = source_.MakeState();
+  state->operators.reserve(operators_.size());
   for (const std::unique_ptr<Operator>& op : operators_) {
-    op->Open();
+    state->operators.push_back(op->MakeState());
   }
+  return state;
 }
 
-RowBatch* PullPipeline::Next() {
-  for (RowBatch* batch = source_.Next(); batch; batch = source_.Next()) {
-    if (ExecuteOperators(*batch, operators_)) {
-      return batch;
+void PullPipeline::Rewind(OperatorState& state) const {
+  source_.Rewind(*state.Cast<State>().source);
+}
+
+base::Status PullPipeline::status(const OperatorState& state) const {
+  return source_.status(*state.Cast<const State>().source);
+}
+
+bool PullPipeline::GetData(RowBatch& out, OperatorState& state) const {
+  State& s = state.Cast<State>();
+  while (source_.GetData(out, *s.source)) {
+    bool dropped = false;
+    for (uint32_t i = 0; i < operators_.size(); ++i) {
+      if (operators_[i]->Execute(out, *s.operators[i]) == OpResult::kDrop) {
+        dropped = true;
+        break;
+      }
+    }
+    if (!dropped) {
+      return true;
     }
   }
-  return nullptr;
+  return false;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

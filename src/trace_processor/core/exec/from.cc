@@ -18,10 +18,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <vector>
 
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/util/span.h"
@@ -29,33 +31,39 @@
 namespace perfetto::trace_processor::core::exec {
 
 From::From(std::vector<ColumnView> columns, RowSelection rows, uint32_t count)
-    : columns_(std::move(columns)), rows_(rows), count_(count) {
-  for (const ColumnView& column : columns_) {
-    batch_.AddColumn(column);
-  }
+    : columns_(std::move(columns)), rows_(rows), count_(count) {}
+
+From::~From() = default;
+From::State::~State() = default;
+
+std::unique_ptr<OperatorState> From::MakeState() const {
+  return std::make_unique<State>();
 }
 
-RowBatch* From::Next() {
-  if (emitted_ == count_) {
-    return nullptr;
+void From::Rewind(OperatorState& state) const {
+  state.Cast<State>().emitted = 0;
+}
+
+bool From::GetData(RowBatch& out, OperatorState& state) const {
+  State& s = state.Cast<State>();
+  if (s.emitted == count_) {
+    return false;
   }
-  uint32_t count = std::min(kMaxBatchRows, count_ - emitted_);
-  RowSelection selection = RowSelection::Range(rows_.GetIndex(emitted_));
+  uint32_t count = std::min(kMaxBatchRows, count_ - s.emitted);
+  RowSelection selection = RowSelection::Range(rows_.GetIndex(s.emitted));
   if (!rows_.is_range()) {
-    const uint32_t* begin = rows_.data() + emitted_;
+    const uint32_t* begin = rows_.data() + s.emitted;
     selection =
         RowSelection::Indices(Span<const uint32_t>(begin, begin + count));
   }
-  batch_.PrepareForFill();
-  for (uint32_t i = 0; i < columns_.size(); ++i) {
-    // Operators only replace a column's row view, so restoring the views is
-    // all a reused batch needs before being filled again.
-    batch_.mutable_column(i).AdoptSelection(columns_[i]);
+  out.Reset();
+  for (const ColumnView& column : columns_) {
+    out.AddColumn(column);
   }
-  batch_.Compose(selection, count);
-  batch_.SetCardinality(count);
-  emitted_ += count;
-  return &batch_;
+  out.Compose(selection, count);
+  out.SetCardinality(count);
+  s.emitted += count;
+  return true;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_FROM_H_
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "src/trace_processor/core/exec/column_view.h"
@@ -28,21 +29,27 @@
 namespace perfetto::trace_processor::core::exec {
 
 // Implements FROM by referencing the selected source rows, one batch at a
-// time.
+// time. The rows it references stand still, so there is nothing to keep and
+// the state is a count of how far through them the execution is.
 class From : public Source {
  public:
   From(std::vector<ColumnView> columns, RowSelection rows, uint32_t count);
+  ~From() override;
 
-  void Reset() override { emitted_ = 0; }
-  RowBatch* Next() override;
+  std::unique_ptr<OperatorState> MakeState() const override;
+  bool GetData(RowBatch& out, OperatorState& state) const override;
+  void Rewind(OperatorState& state) const override;
 
  private:
+  struct State : OperatorState {
+    ~State() override;
+    uint32_t emitted = 0;
+  };
+
   // The columns as constructed, each holding the row view a batch starts from.
   std::vector<ColumnView> columns_;
-  RowBatch batch_;
   RowSelection rows_;
   uint32_t count_;
-  uint32_t emitted_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

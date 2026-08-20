@@ -17601,6 +17601,7 @@ filegroup {
     srcs: [
         "src/trace_processor/core/exec/column_view.cc",
         "src/trace_processor/core/exec/from.cc",
+        "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/pipeline.cc",
         "src/trace_processor/core/exec/row_batch.cc",
         "src/trace_processor/core/exec/row_cursor.cc",

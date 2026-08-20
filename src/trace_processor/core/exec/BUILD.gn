@@ -20,6 +20,7 @@ source_set("exec") {
     "column_view.h",
     "from.cc",
     "from.h",
+    "operator.cc",
     "operator.h",
     "pipeline.cc",
     "pipeline.h",

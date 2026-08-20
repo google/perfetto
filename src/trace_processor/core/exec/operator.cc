@@ -14,26 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/exec/row_cursor.h"
-
 #include "src/trace_processor/core/exec/operator.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-RowCursor::RowCursor(const Source& source)
-    : source_(source), state_(source.MakeState()) {}
-
-RowCursor::~RowCursor() = default;
-
-bool RowCursor::Pull() {
-  if (!source_.GetData(batch_, *state_)) {
-    index_ = 0;
-    size_ = 0;
-    return false;
-  }
-  index_ = 0;
-  size_ = batch_.size();
-  return true;
-}
+OperatorState::~OperatorState() = default;
+Operator::~Operator() = default;
+Source::~Source() = default;
 
 }  // namespace perfetto::trace_processor::core::exec

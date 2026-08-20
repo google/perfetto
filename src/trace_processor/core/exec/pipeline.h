@@ -27,20 +27,28 @@
 namespace perfetto::trace_processor::core::exec {
 
 // A source and a straight line of streaming operators, exposed as a Source.
+//
+// Its state holds the states of everything in it, so making one state builds
+// the whole line and dropping it takes the whole line down. That is what an
+// executor owns: the plan is separately owned and outlives any run of it.
 class PullPipeline : public Source {
  public:
-  PullPipeline(Source& source, std::vector<std::unique_ptr<Operator>>);
+  PullPipeline(const Source&, std::vector<std::unique_ptr<Operator>>);
   ~PullPipeline() override;
 
-  void Reset() override;
-
-  RowBatch* Next() override;
-
-  // The status of the underlying source.
-  base::Status status() const override { return source_.status(); }
+  std::unique_ptr<OperatorState> MakeState() const override;
+  bool GetData(RowBatch& out, OperatorState& state) const override;
+  void Rewind(OperatorState& state) const override;
+  base::Status status(const OperatorState& state) const override;
 
  private:
-  Source& source_;
+  struct State : OperatorState {
+    ~State() override;
+    std::unique_ptr<OperatorState> source;
+    std::vector<std::unique_ptr<OperatorState>> operators;
+  };
+
+  const Source& source_;
   std::vector<std::unique_ptr<Operator>> operators_;
 };
 

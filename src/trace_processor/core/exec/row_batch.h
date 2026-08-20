@@ -27,8 +27,6 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-class RowBatchPool;
-
 // A rectangular batch of columns with one shared cardinality.
 class RowBatch {
  public:
@@ -66,15 +64,16 @@ class RowBatch {
   // false when no rows remain.
   bool Slice(RowSelection selection, uint32_t count);
 
- private:
-  friend class RowBatchPool;
-
+  // Drops the columns, so the batch can be pointed at something else. The
+  // executor owns the batch and hands it to a source to be filled, so
+  // emptying it is the caller's to do.
   void Reset() {
     cardinality_ = 0;
     columns_.clear();
     selections_.Reset();
   }
 
+ private:
   uint32_t cardinality_ = 0;
   std::vector<ColumnView> columns_;
   SelectionPool selections_;

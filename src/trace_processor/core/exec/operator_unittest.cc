@@ -57,12 +57,11 @@ class TestSource {
 };
 
 // Reads a pipeline the way a consumer would, a row at a time.
-std::vector<uint32_t> Drain(PullPipeline& pipeline) {
+std::vector<uint32_t> Drain(const PullPipeline& pipeline) {
   std::vector<uint32_t> rows;
-  pipeline.Reset();
   RowCursor cursor(pipeline);
   for (cursor.Open(); !cursor.eof(); cursor.Next()) {
-    rows.push_back(cursor.row());
+    rows.push_back(cursor.row(0));
   }
   return rows;
 }
@@ -75,23 +74,52 @@ std::vector<int64_t> Sequence(uint32_t count) {
   return values;
 }
 
-// Keeps every second row, standing in for a real operator.
+// Keeps every second row, standing in for a real operator. The rows it picks
+// are scratch for one execution, so they live in its state and not in it.
 class DropOddRows final : public Operator {
  public:
-  OpResult Execute(RowBatch& batch) override {
+  std::unique_ptr<OperatorState> MakeState() const override {
+    return std::make_unique<State>();
+  }
+
+  OpResult Execute(RowBatch& batch, OperatorState& state) const override {
+    uint32_t* selected = state.Cast<State>().selected;
     uint32_t count = 0;
     for (uint32_t row = 0; row < batch.size(); row += 2) {
-      selected_[count++] = row;
+      selected[count++] = row;
     }
     return batch.Slice(RowSelection::Indices(
-                           Span<const uint32_t>(selected_, selected_ + count)),
+                           Span<const uint32_t>(selected, selected + count)),
                        count)
                ? OpResult::kContinue
                : OpResult::kDrop;
   }
 
  private:
-  uint32_t selected_[kMaxBatchRows];
+  struct State : OperatorState {
+    ~State() override;
+    uint32_t selected[kMaxBatchRows];
+  };
+};
+
+DropOddRows::State::~State() = default;
+
+// Drives a plan the way an executor does: it makes the state and owns the
+// batch, and the plan stays const throughout.
+class Execution {
+ public:
+  explicit Execution(const Source& source)
+      : source_(source), state_(source.MakeState()) {}
+
+  RowBatch* Next() {
+    return source_.GetData(batch_, *state_) ? &batch_ : nullptr;
+  }
+  void Rewind() { source_.Rewind(*state_); }
+
+ private:
+  const Source& source_;
+  std::unique_ptr<OperatorState> state_;
+  RowBatch batch_;
 };
 
 TEST(OperatorTest, SourceEmitsEveryRow) {
@@ -129,12 +157,14 @@ TEST(OperatorTest, SourceReusesOneBatch) {
   std::unique_ptr<From> from = source.Create();
   PullPipeline pipeline(*from, {});
 
-  pipeline.Reset();
-  RowBatch* first = pipeline.Next();
+  Execution run(pipeline);
+  RowBatch* first = run.Next();
   ASSERT_NE(first, nullptr);
+  const void* values = first->column(1).data();
   uint32_t batches = 1;
-  while (RowBatch* batch = pipeline.Next()) {
-    EXPECT_EQ(batch, first) << "source handed out a different batch";
+  while (RowBatch* batch = run.Next()) {
+    EXPECT_EQ(batch, first) << "the executor's batch was replaced";
+    EXPECT_EQ(batch->column(1).data(), values) << "the source copied values";
     ++batches;
   }
   EXPECT_EQ(batches, 20u);
@@ -187,13 +217,13 @@ TEST(OperatorTest, ComposedViewsReuseTheBatchesStorage) {
   ops.push_back(std::make_unique<DropOddRows>());
   PullPipeline pipeline(*from, std::move(ops));
 
-  pipeline.Reset();
-  RowBatch* batch = pipeline.Next();
+  Execution run(pipeline);
+  RowBatch* batch = run.Next();
   ASSERT_NE(batch, nullptr);
   const uint32_t* block = batch->column(0).selection().data();
   ASSERT_NE(block, nullptr) << "expected a composed view";
   uint32_t batches = 1;
-  while ((batch = pipeline.Next()) != nullptr) {
+  while ((batch = run.Next()) != nullptr) {
     EXPECT_EQ(batch->column(0).selection().data(), block);
     ++batches;
   }
@@ -210,6 +240,65 @@ TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   EXPECT_EQ(rows.front(), 0u);
   EXPECT_EQ(rows[kMaxBatchRows], kMaxBatchRows);
   EXPECT_EQ(rows.back(), kMaxBatchRows * 2u + 6u);
+}
+
+// An operator which adds a computed column cannot put it in the index space
+// its input arrived in, so it adds it in its own. A cursor has to follow each
+// column's own view to read either of them.
+TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
+  std::vector<int64_t> payload = {10, 11, 12, 13};
+  std::vector<int64_t> computed = {90, 91};
+
+  class TwoViewSource final : public Source {
+   public:
+    TwoViewSource(const std::vector<int64_t>* payload,
+                  const std::vector<int64_t>* computed)
+        : payload_(payload), computed_(computed) {}
+
+    std::unique_ptr<OperatorState> MakeState() const override {
+      return std::make_unique<State>();
+    }
+    void Rewind(OperatorState& state) const override {
+      state.Cast<State>().done = false;
+    }
+    bool GetData(RowBatch& batch_, OperatorState& state) const override {
+      State& s = state.Cast<State>();
+      if (s.done) {
+        return false;
+      }
+      s.done = true;
+      batch_.Reset();
+      batch_.AddColumn(
+          ColumnView::Reference(StorageType{Int64{}}, payload_->data()));
+      // The payload is read from half way in; the computed column is its own
+      // array read from the start.
+      batch_.Compose(RowSelection::Range(2), 2);
+      batch_.AddColumn(
+          ColumnView::Reference(StorageType{Int64{}}, computed_->data()));
+      batch_.SetCardinality(2);
+      return true;
+    }
+
+   private:
+    struct State : OperatorState {
+      bool done = false;
+    };
+    const std::vector<int64_t>* payload_;
+    const std::vector<int64_t>* computed_;
+  };
+
+  TwoViewSource source(&payload, &computed);
+  RowCursor cursor(source);
+  std::vector<int64_t> read_payload;
+  std::vector<int64_t> read_computed;
+  for (cursor.Open(); !cursor.eof(); cursor.Next()) {
+    read_payload.push_back(static_cast<const int64_t*>(
+        cursor.batch().column(0).data())[cursor.row(0)]);
+    read_computed.push_back(static_cast<const int64_t*>(
+        cursor.batch().column(1).data())[cursor.row(1)]);
+  }
+  EXPECT_THAT(read_payload, ElementsAre(12, 13));
+  EXPECT_THAT(read_computed, ElementsAre(90, 91));
 }
 
 TEST(SinkTest, ReportsEofWithoutOpen) {
