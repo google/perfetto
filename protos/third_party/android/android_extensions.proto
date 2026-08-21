@@ -18,6 +18,9 @@ syntax = "proto2";
 
 package com.android.internal;
 
+// Common definitions.
+import public "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.proto";
+
 // TrackEvent extensions.
 import public "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.proto";
 import public "protos/third_party/android/frameworks/native/tracing/frameworks_native_track_event.proto";
