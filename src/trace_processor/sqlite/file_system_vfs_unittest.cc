@@ -63,9 +63,10 @@ TEST(SqliteFileSystemVfsTest, CreatesReadableDatabase) {
   ASSERT_GE(contents.size(), 16u);
   EXPECT_EQ(contents.substr(0, 16), std::string("SQLite format 3\0", 16));
 
+  ASSERT_OK_AND_ASSIGN(vfs, SqliteFileSystemVfs::Create(file_system));
   raw_db = nullptr;
   ASSERT_EQ(
-      sqlite3_open_v2(path.c_str(), &raw_db, SQLITE_OPEN_READONLY, nullptr),
+      sqlite3_open_v2(path.c_str(), &raw_db, SQLITE_OPEN_READONLY, vfs->name()),
       SQLITE_OK);
   db.reset(raw_db);
   sqlite3_stmt* raw_stmt = nullptr;
