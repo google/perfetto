@@ -12,6 +12,10 @@ Unreleased:
   SDK:
    *
 
+v58.2 - 2026-08-21:
+  Misc:
+    * Fixed additional Windows build and test failures.
+
 v58.1 - 2026-08-21:
   Misc:
     * Fixed builds on Windows.
