@@ -29,9 +29,14 @@
 #include <sys/timerfd.h>
 #include <unistd.h>
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include "perfetto/ext/base/android_utils.h"
+#endif
+
 #include <algorithm>
 #include <cinttypes>
 #include <fstream>
+#include <limits>
 #include <thread>
 
 #include "perfetto/base/build_config.h"
@@ -60,6 +65,25 @@ base::CrashKey g_crash_key_timeout("wdog_timeout");
 base::CrashKey g_crash_key_actual_mono("wdog_actual_mono");
 base::CrashKey g_crash_key_actual_boot("wdog_actual_boot");
 base::CrashKey g_crash_key_actual_cpu("wdog_actual_cpu");
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// This system property is already used for all sorts of Android watchdogs.
+// Bringing the Perfetto watchdog behavior closer to that on Android reduces
+// surprise.
+uint32_t GetHwTimeoutMultiplier() {
+  static uint32_t multiplier = []() {
+    std::string multiplier_prop = GetAndroidProp("ro.hw_timeout_multiplier");
+    if (!multiplier_prop.empty()) {
+      auto multiplier_opt = StringToUInt32(multiplier_prop);
+      if (multiplier_opt.has_value() && *multiplier_opt > 0) {
+        return *multiplier_opt;
+      }
+    }
+    return 1u;
+  }();
+  return multiplier;
+}
+#endif
 
 bool IsMultipleOf(uint32_t number, uint32_t divisor) {
   return number >= divisor && number % divisor == 0;
@@ -133,6 +157,18 @@ Watchdog::Timer Watchdog::CreateFatalTimer(uint32_t ms,
                                            WatchdogCrashReason crash_reason) {
   if (!enabled_.load(std::memory_order_relaxed))
     return Watchdog::Timer(this, 0, crash_reason);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  uint32_t multiplier = GetHwTimeoutMultiplier();
+  if (ms > 0 && multiplier > 1) {
+    uint64_t scaled_ms = static_cast<uint64_t>(ms) * multiplier;
+    if (scaled_ms > std::numeric_limits<uint32_t>::max()) {
+      ms = std::numeric_limits<uint32_t>::max();
+    } else {
+      ms = static_cast<uint32_t>(scaled_ms);
+    }
+  }
+#endif
 
   return Watchdog::Timer(this, ms, crash_reason);
 }
