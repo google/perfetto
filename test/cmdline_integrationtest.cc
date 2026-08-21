@@ -832,6 +832,10 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
 }
 
 TEST_F(PerfettoCmdlineTest, AndroidOnly(PersistTraceAcrossRebootsConfig)) {
+  // until the device is flashed with the updated perfetto.rc file,
+  // we have to manually create the directory for the test session
+  base::Mkdir("/data/misc/perfetto-traces/persistent");
+
   protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
   auto* ds = trace_config.add_data_sources();
