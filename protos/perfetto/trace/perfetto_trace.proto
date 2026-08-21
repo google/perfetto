@@ -6714,8 +6714,8 @@ message PixelModemTokenDatabase {
 // recovered trace metadata.
 message RecoveredTraceInfo {
   enum Reason {
-    UNSPECIFIED = 0;
-    UNEXPECTED_REBOOT = 1;
+    REASON_UNSPECIFIED = 0;
+    REASON_UNEXPECTED_REBOOT = 1;
   }
 
   optional Reason reason = 1;

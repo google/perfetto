@@ -65,11 +65,11 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
     return PerfettoCmd::ParseTraceConfigFromMmapedTrace(mmapped_trace);
   }
 
-  static size_t SanitizeAndAnnotatePersistentTrace(
+  static size_t TruncateAndAnnotatePersistentTrace(
       int fd,
       const base::ScopedMmap& mmap,
       const std::string& file_name) {
-    return PerfettoCmd::SanitizeAndAnnotatePersistentTrace(fd, mmap, file_name);
+    return PerfettoCmd::TruncateAndAnnotatePersistentTrace(fd, mmap, file_name);
   }
 
   static void WaitForPreviousRebootTraceUpload(
@@ -283,11 +283,19 @@ TEST_F(PerfettoCmdlineUnitTest,
   base::TempFile trace_file = base::TempFile::Create();
   {
     std::vector<perfetto::TracePacket> packets;
+    // Packet A: Config
     packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
       msg->set_trusted_uid(9999);
-      auto config = msg->mutable_trace_config();
-      config->set_trace_uuid_lsb(555);
-      config->set_trace_uuid_msb(888);
+      auto* config = msg->mutable_trace_config();
+      config->set_unique_session_name("session_A");
+    }));
+    // Packet B: Payload 1
+    packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+      msg->mutable_for_testing()->set_str("packet_B");
+    }));
+    // Packet C: Payload 2
+    packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+      msg->mutable_for_testing()->set_str("packet_C");
     }));
     WritePacketsToFile(packets, trace_file.path());
   }
@@ -296,7 +304,7 @@ TEST_F(PerfettoCmdlineUnitTest,
   ASSERT_TRUE(orig_size.has_value());
   uint64_t valid_bytes = *orig_size;
 
-  // Append 5 garbage bytes to simulate an incomplete trailing packet
+  // Append incomplete trailing garbage bytes (simulating partial packet D)
   const char garbage[] = {0x7f, 0x7f, 0x7f, 0x7f, 0x7f};
   lseek(trace_file.fd(), 0, SEEK_END);
   base::WriteAll(trace_file.fd(), garbage, sizeof(garbage));
@@ -308,22 +316,46 @@ TEST_F(PerfettoCmdlineUnitTest,
 
   // Call the production static helper function
   size_t final_offset =
-      SanitizeAndAnnotatePersistentTrace(trace_file.fd(), mmaped, "test.tmp");
+      TruncateAndAnnotatePersistentTrace(trace_file.fd(), mmaped, "test.tmp");
 
   EXPECT_GT(final_offset, valid_bytes);
 
   // Verify resulting trace file can be re-mmapped and contains
-  // AfterRebootTraceEvent
+  // all prior packets (A, B, C) followed by RecoveredTraceInfo.
   base::ScopedMmap updated_mmaped = base::ReadMmapWholeFile(trace_file.path());
   ASSERT_TRUE(updated_mmaped.IsValid());
 
+  std::vector<std::string> test_payloads;
+  std::string session_name;
   bool found_recovered_trace_info = false;
+
   protozero::ProtoDecoder updated_decoder(updated_mmaped.data(),
                                           updated_mmaped.length());
   for (auto p = updated_decoder.ReadField(); p;
        p = updated_decoder.ReadField()) {
     if (p.id() == protos::pbzero::Trace::kPacketFieldNumber) {
       protozero::ProtoDecoder packet_decoder(p.as_bytes());
+
+      auto config_field = packet_decoder.FindField(
+          protos::pbzero::TracePacket::kTraceConfigFieldNumber);
+      if (config_field) {
+        protos::gen::TraceConfig config_gen;
+        if (config_gen.ParseFromArray(config_field.data(),
+                                      config_field.size())) {
+          session_name = config_gen.unique_session_name();
+        }
+      }
+
+      auto for_testing_field = packet_decoder.FindField(
+          protos::pbzero::TracePacket::kForTestingFieldNumber);
+      if (for_testing_field) {
+        protos::gen::TestEvent test_event;
+        if (test_event.ParseFromArray(for_testing_field.data(),
+                                      for_testing_field.size())) {
+          test_payloads.push_back(test_event.str());
+        }
+      }
+
       auto evt_field = packet_decoder.FindField(
           protos::pbzero::TracePacket::kRecoveredTraceInfoFieldNumber);
       if (evt_field) {
@@ -331,18 +363,24 @@ TEST_F(PerfettoCmdlineUnitTest,
         protos::pbzero::RecoveredTraceInfo::Decoder evt_decoder(
             evt_field.data(), evt_field.size());
         EXPECT_EQ(evt_decoder.reason(),
-                  protos::pbzero::RecoveredTraceInfo::UNEXPECTED_REBOOT);
+                  protos::pbzero::RecoveredTraceInfo::REASON_UNEXPECTED_REBOOT);
         EXPECT_EQ(evt_decoder.original_file_size_bytes(),
                   file_with_garbage_size);
         EXPECT_EQ(evt_decoder.bytes_truncated(), sizeof(garbage));
       }
     }
   }
+
+  // Verify that all prior packets (A, B, C) are intact and present!
+  EXPECT_EQ(session_name, "session_A");
+  ASSERT_EQ(test_payloads.size(), 2u);
+  EXPECT_EQ(test_payloads[0], "packet_B");
+  EXPECT_EQ(test_payloads[1], "packet_C");
   EXPECT_TRUE(found_recovered_trace_info);
 }
 
 TEST_F(PerfettoCmdlineUnitTest,
-       SanitizeAndAnnotatePersistentTraceCleanFileHasZeroTruncatedBytes) {
+       TruncateAndAnnotatePersistentTraceCleanFileHasZeroTruncatedBytes) {
   base::TempFile trace_file = base::TempFile::Create();
   {
     std::vector<perfetto::TracePacket> packets;
@@ -361,7 +399,7 @@ TEST_F(PerfettoCmdlineUnitTest,
   base::ScopedMmap mmaped = base::ReadMmapWholeFile(trace_file.path());
   ASSERT_TRUE(mmaped.IsValid());
 
-  size_t final_offset = SanitizeAndAnnotatePersistentTrace(
+  size_t final_offset = TruncateAndAnnotatePersistentTrace(
       trace_file.fd(), mmaped, "clean_test.tmp");
 
   EXPECT_GT(final_offset, *orig_size);
@@ -383,7 +421,7 @@ TEST_F(PerfettoCmdlineUnitTest,
         protos::pbzero::RecoveredTraceInfo::Decoder evt_decoder(
             evt_field.data(), evt_field.size());
         EXPECT_EQ(evt_decoder.reason(),
-                  protos::pbzero::RecoveredTraceInfo::UNEXPECTED_REBOOT);
+                  protos::pbzero::RecoveredTraceInfo::REASON_UNEXPECTED_REBOOT);
         EXPECT_EQ(evt_decoder.original_file_size_bytes(), *orig_size);
         EXPECT_EQ(evt_decoder.bytes_truncated(), 0u);
       }

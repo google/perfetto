@@ -157,7 +157,7 @@ class PerfettoCmd : public Consumer {
       const std::string& session_name,
       std::string* out_file_path);
   static int UploadPersistentTracesAfterReboot();
-  static size_t SanitizeAndAnnotatePersistentTrace(
+  static size_t TruncateAndAnnotatePersistentTrace(
       int fd,
       const base::ScopedMmap& mmap,
       const std::string& file_name);

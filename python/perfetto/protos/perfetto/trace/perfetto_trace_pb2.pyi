@@ -5713,10 +5713,10 @@ class RecoveredTraceInfo(_message.Message):
     __slots__ = ("reason", "original_file_size_bytes", "bytes_truncated")
     class Reason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
-        UNSPECIFIED: _ClassVar[RecoveredTraceInfo.Reason]
-        UNEXPECTED_REBOOT: _ClassVar[RecoveredTraceInfo.Reason]
-    UNSPECIFIED: RecoveredTraceInfo.Reason
-    UNEXPECTED_REBOOT: RecoveredTraceInfo.Reason
+        REASON_UNSPECIFIED: _ClassVar[RecoveredTraceInfo.Reason]
+        REASON_UNEXPECTED_REBOOT: _ClassVar[RecoveredTraceInfo.Reason]
+    REASON_UNSPECIFIED: RecoveredTraceInfo.Reason
+    REASON_UNEXPECTED_REBOOT: RecoveredTraceInfo.Reason
     REASON_FIELD_NUMBER: _ClassVar[int]
     ORIGINAL_FILE_SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
     BYTES_TRUNCATED_FIELD_NUMBER: _ClassVar[int]
