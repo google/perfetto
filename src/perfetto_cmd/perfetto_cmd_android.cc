@@ -58,7 +58,7 @@ static constexpr int32_t kTrustedUid = 9999;
 // Empty : Not started yet
 // 1:ts  : Started but not finished yet
 // 2:ts  : Finished
-const char* kRebootTraceStatusProp = "traced.reboot_trace_status";
+const char* kRebootTraceStatusProp = "traced.reboot_trace.status";
 // Maximum duration to wait for the boot recovery service to start up
 // and unlink pre-existing trace files from disk. Sized to 5 minutes to
 // accommodate worst-case full device boot and service scheduling.

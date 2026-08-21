@@ -417,7 +417,7 @@ TEST_F(PerfettoCmdlineUnitTest,
   EXPECT_TRUE(base::FileExists(path));
 
   // Set property indicating previous upload has started or finished
-  __system_property_set("traced.reboot_trace_status", "1:100000000");
+  __system_property_set("traced.reboot_trace.status", "1:100000000");
 
   WaitForPreviousRebootTraceUpload("finished_session_test", path);
   EXPECT_FALSE(base::FileExists(path));
