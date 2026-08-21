@@ -567,6 +567,5 @@ base::Status MergeProtoFiles(const ProtoFile& input,
   return MergeRecursive(input.messages, upstream.messages, allowlist.messages,
                         known_enums, allowlisted_options, out.messages);
 }
-
 }  // namespace proto_merger
 }  // namespace perfetto
