@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -25,20 +24,14 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {assertExists, assertTrue} from '../../base/assert';
+import {ensureExists, assertTrue} from '../../base/assert';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import {
-  metricsFromTableOrSubquery,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
@@ -50,6 +43,7 @@ import {
   SLICE_TRACK_SUMMARY_KIND,
   GroupSummaryTrack,
 } from '../dev.perfetto.ProcessSummary/group_summary_track';
+import {TrackEventCallstackFlamegraphTab} from './track_event_callstack_flamegraph';
 
 function createTrackEventDetailsPanel(trace: Trace) {
   return () =>
@@ -335,137 +329,18 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       trackIdToTrackNode.set(trackIds[0], node);
     }
 
-    // Register area selection tab for callstack flamegraph
+    const store = ensureExists(this.store);
     ctx.selection.registerAreaSelectionTab(
-      this.createTrackEventCallstackFlamegraphTab(ctx),
+      new TrackEventCallstackFlamegraphTab(
+        ctx,
+        () => store.state.areaSelectionFlamegraphState,
+        (state) => {
+          store.edit((draft) => {
+            draft.areaSelectionFlamegraphState = state;
+          });
+        },
+      ),
     );
-  }
-
-  private createTrackEventCallstackFlamegraphTab(trace: Trace) {
-    let previousSelection: AreaSelection | undefined;
-    let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
-    return {
-      id: 'track_event_callstack_flamegraph',
-      name: 'Track Event Callstacks',
-      render: (selection: AreaSelection) => {
-        const changed =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        if (changed) {
-          flamegraphMetrics =
-            this.computeTrackEventCallstackFlamegraph(selection);
-          previousSelection = selection;
-        }
-        if (flamegraphMetrics === undefined) {
-          return undefined;
-        }
-        const store = assertExists(this.store);
-        return {
-          isLoading: false,
-          content: m(FlamegraphPanel, {
-            trace,
-            metrics: flamegraphMetrics,
-            state: store.state.areaSelectionFlamegraphState,
-            onStateChange: (state) => {
-              store.edit((draft) => {
-                draft.areaSelectionFlamegraphState = state;
-              });
-            },
-          }),
-        };
-      },
-    };
-  }
-
-  private computeTrackEventCallstackFlamegraph(
-    selection: AreaSelection,
-  ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
-    const trackIds = [];
-    for (const trackInfo of selection.tracks) {
-      const tids = trackInfo?.tags?.trackIds;
-      if (tids && trackInfo.tags.hasCallstacks === true) {
-        trackIds.push(...tids);
-      }
-    }
-    if (trackIds.length === 0) {
-      return undefined;
-    }
-    const metrics = metricsFromTableOrSubquery({
-      tableOrSubquery: `
-      (
-        with relevant_slices as (
-          select id
-          from _interval_intersect_single!(
-            ${selection.start},
-            ${selection.end},
-            (
-              select
-                id,
-                ts,
-                max(dur, 0) as dur
-              from slice
-              where track_id in (${trackIds.join()})
-            )
-          )
-        )
-        select
-          id,
-          parent_id as parentId,
-          name,
-          mapping_name,
-          source_file || ':' || line_number as source_location,
-          self_count
-        from _callstacks_for_callsites!((
-          select callsite_id
-          from relevant_slices
-          join slice using (id)
-          join __intrinsic_track_event_callstacks using (slice_id)
-          where ts >= ${selection.start}
-            and ts <= ${selection.end}
-            and callsite_id is not null
-          union all
-          select end_callsite_id as callsite_id
-          from relevant_slices
-          join slice using (id)
-          join __intrinsic_track_event_callstacks using (slice_id)
-          where ts + dur >= ${selection.start}
-            and ts + dur <= ${selection.end}
-            and dur > 0
-            and end_callsite_id is not null
-        ))
-      )
-    `,
-      tableMetrics: [
-        {
-          name: 'Samples',
-          unit: '',
-          columnName: 'self_count',
-        },
-      ],
-      dependencySql: `
-     include perfetto module callstacks.stack_profile;
-     include perfetto module intervals.intersect;
-    `,
-      unaggregatableProperties: [
-        {name: 'mapping_name', displayName: 'Mapping'},
-      ],
-      aggregatableProperties: [
-        {
-          name: 'source_location',
-          displayName: 'Source Location',
-          mergeAggregation: 'ONE_OR_SUMMARY',
-        },
-      ],
-      nameColumnLabel: 'Symbol',
-    });
-    const store = assertExists(this.store);
-    store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
-        draft.areaSelectionFlamegraphState,
-        metrics,
-      );
-    });
-    return metrics;
   }
 
   private findParentTrackNode(
@@ -478,13 +353,13 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     hasChildren: number,
   ): TrackNode {
     if (parentId !== undefined) {
-      return assertExists(trackIdToTrackNode.get(parentId));
+      return ensureExists(trackIdToTrackNode.get(parentId));
     }
     if (utid !== undefined) {
-      return assertExists(processGroupsPlugin.getGroupForThread(utid));
+      return ensureExists(processGroupsPlugin.getGroupForThread(utid));
     }
     if (upid !== undefined) {
-      return assertExists(processGroupsPlugin.getGroupForProcess(upid));
+      return ensureExists(processGroupsPlugin.getGroupForProcess(upid));
     }
     if (hasChildren) {
       return ctx.defaultWorkspace.tracks;

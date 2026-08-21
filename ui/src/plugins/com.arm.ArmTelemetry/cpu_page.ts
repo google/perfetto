@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {assertIsInstance} from '../../base/assert';
+import {ensureIsInstance} from '../../base/assert';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {getCpuId} from './arm_telemetry_spec';
@@ -81,7 +81,7 @@ export class CpuPage implements m.ClassComponent<CpuPageAttrs> {
       m('input.cpu_file[type=file]', {
         style: 'display:none',
         onchange: (e: Event) => {
-          const input = assertIsInstance(e.target, HTMLInputElement);
+          const input = ensureIsInstance(e.target, HTMLInputElement);
           if (!input.files) return;
           const file = input.files[0];
           // Forward CPU files to the CPU Info Manager

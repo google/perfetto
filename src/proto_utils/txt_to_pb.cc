@@ -35,10 +35,11 @@ constexpr char kTraceSummarySpecProtoName[] =
 
 base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
     const std::string& input,
-    const std::string& file_name) {
+    const std::string& file_name,
+    bool allow_unknown_fields) {
   return protozero::TextToProto(kConfigDescriptor.data(),
                                 kConfigDescriptor.size(), kConfigProtoName,
-                                file_name, input);
+                                file_name, input, allow_unknown_fields);
 }
 
 base::StatusOr<std::vector<uint8_t>> TraceSummarySpecTxtToPb(

@@ -27,7 +27,7 @@ export interface SidePanelManager {
    *
    * The tab becomes available in the side panel's tab list, keyed by its
    * `uri`. Registering a tab does not make the side panel visible, nor does
-   * it switch to the new tab - use {@link showTab} for that. Disposing the
+   * it switch to the new tab - use {@link SidePanelManager.showTab} for that. Disposing the
    * returned `Disposable` unregisters the tab; if it was the currently
    * displayed tab, the side panel clears its current selection (but stays
    * open).

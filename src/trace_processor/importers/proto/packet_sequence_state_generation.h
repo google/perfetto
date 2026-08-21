@@ -22,8 +22,10 @@
 #include <type_traits>
 #include <utility>
 
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/incremental_state.h"
 #include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/util/interned_message_view.h"
@@ -81,6 +83,37 @@ class PacketSequenceStateGeneration : public RefCounted {
     return incremental_state_->GetInternedMessageView(field_id, iid);
   }
 
+  // Resolves a "string-like" interned message - one whose iid is field 1 and
+  // whose string value is field 2 (i.e. InternedString, and the EventName /
+  // EventCategory / DebugAnnotationName / LogMessageBody / ... family) - to the
+  // StringId of its value. The resolved StringId is memoized on the interned
+  // entry, so repeated lookups of the same iid (the common case: a few distinct
+  // names referenced by very many events) are O(1) and avoid re-decoding and
+  // re-interning. Returns nullopt if no entry with |iid| exists for |field_id|.
+  //
+  // The hot path (cache hit) is kept inline; only the first-time decode and
+  // intern is out of line.
+  std::optional<StringPool::Id> InternedStringId(uint32_t field_id,
+                                                 uint64_t iid) {
+    InternedMessageView* view = GetInternedMessageView(field_id, iid);
+    if (!view) {
+      return std::nullopt;
+    }
+    if (std::optional<uint32_t> cached = view->cached_value()) {
+      return StringPool::Id::Raw(*cached);
+    }
+    return InternAndCacheStringValue(view);
+  }
+
+  // Like InternedStringId, but returns the value of the string-like interned
+  // message as a view over the interned message bytes (no interning). Use this
+  // when the raw string is needed - e.g. to compare it, concatenate it or hand
+  // it to something that interns itself - rather than its StringId. The view is
+  // valid for as long as the interned entry (this generation). Returns nullopt
+  // if no entry with |iid| exists for |field_id|.
+  std::optional<base::StringView> InternedStringView(uint32_t field_id,
+                                                     uint64_t iid);
+
   // Returns |nullptr| if no defaults were set.
   InternedMessageView* GetTracePacketDefaultsView() {
     if (!trace_packet_defaults_.has_value()) {
@@ -128,6 +161,11 @@ class PacketSequenceStateGeneration : public RefCounted {
 
  private:
   friend class PacketSequenceStateBuilder;
+
+  // Slow path of InternedStringId: decodes the value field of |view|, interns
+  // it and memoizes the result on |view|. Out of line to keep the common cache
+  // hit small.
+  StringPool::Id InternAndCacheStringValue(InternedMessageView* view);
 
   PacketSequenceStateGeneration(
       RefPtr<IncrementalState> incremental_state,

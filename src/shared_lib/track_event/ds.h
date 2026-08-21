@@ -86,7 +86,7 @@ struct TrackEventTlsState {
     }
     if (disable_incremental_timestamps) {
       if (timestamp_unit_multiplier == 1) {
-        default_clock_id = PERFETTO_I_CLOCK_INCREMENTAL_UNDERNEATH;
+        default_clock_id = PerfettoDsGetDefaultClockId();
       } else {
         default_clock_id = PERFETTO_TE_TIMESTAMP_TYPE_ABSOLUTE;
       }

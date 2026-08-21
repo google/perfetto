@@ -46,7 +46,9 @@ namespace perfetto::trace_processor::winscope {
 
 SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(WinscopeContext* context)
     : context_{context},
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{
+          *context->trace_processor_context_->descriptor_pool_,
+          *context->trace_processor_context_->storage->mutable_string_pool()} {}
 
 void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                        protozero::ConstBytes blob,
@@ -136,7 +138,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
 
   ArgsTracker args_tracker(context_->trace_processor_context_);
   auto inserter = args_tracker.AddArgsTo(snapshot_id);
-  ArgsParser writer(timestamp, inserter, *storage);
+  ArgsParser writer(timestamp, inserter, *storage,
+                    *context_->trace_processor_context_->process_tracker);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
@@ -163,7 +166,8 @@ void SurfaceFlingerLayersParser::ParseLayer(
   auto row_id =
       InsertLayerRow(blob, snapshot_id, visibility, layers_by_id, rects);
   auto inserter = tracker.AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *storage);
+  ArgsParser writer(timestamp, inserter, *storage,
+                    *context_->trace_processor_context_->process_tracker);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
@@ -180,11 +184,11 @@ void SurfaceFlingerLayersParser::ParseLayer(
   if (visibility->visibility_reasons.size() > 0) {
     auto i = 0;
     auto pool = storage->mutable_string_pool();
+    auto flat_key = writer.InternString(base::StringView("visibility_reason"));
     for (const auto& reason : visibility->visibility_reasons) {
-      util::ProtoToArgsParser::Key key;
-      key.key = "visibility_reason[" + std::to_string(i) + ']';
-      key.flat_key = "visibility_reason";
-      writer.AddString(key, pool->Get(reason).c_str());
+      auto key = writer.InternString(
+          base::StringView("visibility_reason[" + std::to_string(i) + ']'));
+      writer.AddString(flat_key, key, pool->Get(reason).c_str());
       i++;
     }
   }
@@ -260,11 +264,11 @@ void SurfaceFlingerLayersParser::TryAddBlockingLayerArgs(
     return;
   }
   auto i = 0;
+  auto flat_key = writer.InternString(base::StringView(key_prefix));
   for (auto blocking_layer : blocking_layers) {
-    util::ProtoToArgsParser::Key key;
-    key.key = key_prefix + "[" + std::to_string(i) + ']';
-    key.flat_key = key_prefix;
-    writer.AddInteger(key, blocking_layer);
+    auto key = writer.InternString(
+        base::StringView(key_prefix + "[" + std::to_string(i) + ']'));
+    writer.AddInteger(flat_key, key, blocking_layer);
     i++;
   }
 }

@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {assertTrue} from '../base/assert';
 import {type RouteArgs, ROUTE_SCHEMA} from '../public/route_schema';
+import type {Route} from '../public/app';
 
 export const ROUTE_PREFIX = '#!';
 
@@ -37,16 +38,6 @@ export const ROUTE_PREFIX = '#!';
 function safeParseRoute(rawRoute: unknown): RouteArgs {
   const res = ROUTE_SCHEMA.safeParse(rawRoute);
   return res.success ? res.data : {};
-}
-
-// A broken down representation of a route.
-// For instance: #!/record/gpu?local_cache_key=a0b1
-// becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
-export interface Route {
-  page: string;
-  subpage: string;
-  fragment: string;
-  args: RouteArgs;
 }
 
 // This router does two things:

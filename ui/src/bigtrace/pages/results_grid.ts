@@ -19,10 +19,7 @@ import {linkify} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import type {DataSource} from '../../components/widgets/datagrid/data_source';
-import type {
-  ColumnSchema,
-  SchemaRegistry,
-} from '../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 import type {
   Column,
   SortDirection,
@@ -155,7 +152,6 @@ function renderDataGrid(
       columnSchema[column] = {cellRenderer: undefined};
     }
   }
-  const schema: SchemaRegistry = {data: columnSchema};
 
   // Per-tab visible subset (empty/unset → defaults); shipped as the
   // `:fetch_results` `columns` projection.
@@ -165,8 +161,7 @@ function renderDataGrid(
   const sortState = resultsSortByTab.get(tab);
 
   return m(DataGrid, {
-    schema,
-    rootSchema: 'data',
+    schema: columnSchema,
     disablePivotControls: true,
     // Splice per-tab sort onto its column so a header click survives redraws.
     columns: visible.map((col) => {

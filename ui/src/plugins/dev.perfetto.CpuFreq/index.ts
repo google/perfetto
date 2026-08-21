@@ -21,12 +21,14 @@ import {CpuFreqTrack} from './cpu_freq_track';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {Cpu} from '../../components/cpu';
+import {getMachineCount} from '../../public/utils';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuFreq';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
+    const numMachines = await getMachineCount(engine);
 
     // Find the list of CPU frequency track ids and their corresponding CPU idle
     // track ids if they exist
@@ -37,6 +39,7 @@ export default class implements PerfettoPlugin {
         cpu.ucpu AS ucpu,
         track.machine_id AS machineId,
         machine.name AS machineName,
+        machine.label_index AS machineLabelIndex,
         track.cpu AS cpu
       FROM cpu_counter_track track
       JOIN cpu
@@ -76,6 +79,7 @@ export default class implements PerfettoPlugin {
         freqTrackId: NUM,
         machineId: NUM,
         machineName: STR_NULL,
+        machineLabelIndex: NUM_NULL,
         cpu: NUM,
         ucpu: NUM,
         idleTrackId: NUM_NULL,
@@ -83,7 +87,15 @@ export default class implements PerfettoPlugin {
       it.valid();
       it.next()
     ) {
-      const {freqTrackId, idleTrackId, machineId, machineName, cpu, ucpu} = it;
+      const {
+        freqTrackId,
+        idleTrackId,
+        machineId,
+        machineName,
+        machineLabelIndex,
+        cpu,
+        ucpu,
+      } = it;
       const uri = `/cpu_freq_cpu${ucpu}`;
 
       ctx.tracks.registerTrack({
@@ -120,7 +132,7 @@ export default class implements PerfettoPlugin {
 
       const trackNode = new TrackNode({
         uri,
-        name: `CPU ${new Cpu(ucpu, cpu, machineId, machineName ?? undefined).toString()} Frequency`,
+        name: `CPU ${new Cpu(ucpu, cpu, machineId, machineName ?? undefined, machineLabelIndex ?? undefined, numMachines).toString()} Frequency`,
       });
 
       group.addChildInOrder(trackNode);

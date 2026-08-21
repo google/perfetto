@@ -302,6 +302,21 @@ unsafe extern "C" {
 }
 pub type PerfettoDsTracerOnFlushCb =
     ::std::option::Option<unsafe extern "C" fn(user_arg: *mut ::std::os::raw::c_void)>;
+pub const PerfettoDsClockId_PERFETTO_DS_CLOCK_MONOTONIC: PerfettoDsClockId = 3;
+pub const PerfettoDsClockId_PERFETTO_DS_CLOCK_BOOTTIME: PerfettoDsClockId = 6;
+pub type PerfettoDsClockId = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn PerfettoDsGetDefaultClockId() -> u32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PerfettoDsTimestamp {
+    pub clock_id: u32,
+    pub value: u64,
+}
+unsafe extern "C" {
+    pub fn PerfettoDsGetTimestamp() -> PerfettoDsTimestamp;
+}
 unsafe extern "C" {
     pub fn PerfettoDsTracerImplFlush(
         tracer: *mut PerfettoDsTracerImpl,
@@ -574,6 +589,7 @@ pub const PerfettoTeType_PERFETTO_TE_TYPE_SLICE_BEGIN: PerfettoTeType = 1;
 pub const PerfettoTeType_PERFETTO_TE_TYPE_SLICE_END: PerfettoTeType = 2;
 pub const PerfettoTeType_PERFETTO_TE_TYPE_INSTANT: PerfettoTeType = 3;
 pub const PerfettoTeType_PERFETTO_TE_TYPE_COUNTER: PerfettoTeType = 4;
+pub const PerfettoTeType_PERFETTO_TE_TYPE_STATE: PerfettoTeType = 5;
 pub type PerfettoTeType = ::std::os::raw::c_uint;
 pub const PerfettoTeHlProtoFieldType_PERFETTO_TE_HL_PROTO_TYPE_CSTR: PerfettoTeHlProtoFieldType = 0;
 pub const PerfettoTeHlProtoFieldType_PERFETTO_TE_HL_PROTO_TYPE_BYTES: PerfettoTeHlProtoFieldType =

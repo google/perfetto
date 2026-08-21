@@ -170,6 +170,18 @@ jobs:
           echo "Perfetto UI build for this CL"
           echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html"
 
+          {
+            echo "### UI test artifacts"
+            echo ""
+            echo "- [UI integration test report with screenshots](https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/index.html)"
+            echo "- [Perfetto UI build for this CL](https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html)"
+            echo ""
+            echo "To download locally the changed screenshots run:"
+            echo '```'
+            echo "tools/download_changed_screenshots.py $PERFETTO_CI_JOB_ID"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save

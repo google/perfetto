@@ -72,6 +72,8 @@ base::Status PERFETTO_EXPORT_COMPONENT ReadTrace(
     bool call_notify_end_of_file = true,
     const ReadTraceArgs& args = {});
 
+// Decompresses a gzip/zstd trace, or a proto trace containing
+// compressed_packets, into `output` as a plain proto trace.
 base::Status PERFETTO_EXPORT_COMPONENT
 DecompressTrace(const uint8_t* data, size_t size, std::vector<uint8_t>* output);
 

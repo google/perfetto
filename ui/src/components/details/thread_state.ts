@@ -156,9 +156,7 @@ interface BreakdownByThreadStateTreeNodeAttrs {
 }
 
 // A tree node that displays a nested breakdown a time interval by thread state.
-export class BreakdownByThreadStateTreeNode
-  implements m.ClassComponent<BreakdownByThreadStateTreeNodeAttrs>
-{
+export class BreakdownByThreadStateTreeNode implements m.ClassComponent<BreakdownByThreadStateTreeNodeAttrs> {
   view({attrs}: m.Vnode<BreakdownByThreadStateTreeNodeAttrs>): m.Child[] {
     return renderChildren(attrs.trace, attrs.data.root, attrs.dur);
   }

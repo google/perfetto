@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
+@use "../../assets/theme" as *;
 
 .pf-sidebar {
   --sidebar-timing: 0.15s;
@@ -140,6 +140,21 @@ li.pf-sidebar__item {
 .pf-sidebar__button-icon {
   font-size: 18px;
   flex-shrink: 0;
+}
+
+.pf-sidebar__badge {
+  font-size: var(--pf-font-size-xs);
+  font-family: var(--pf-font-compact);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: $border-radius;
+  background: var(--pf-sidebar-surface-secondary);
+  color: var(--pf-sidebar-on-surface-muted);
+  border: 1px solid var(--pf-sidebar-border);
+  user-select: none;
 }
 
 .pf-sidebar__external-link-icon {

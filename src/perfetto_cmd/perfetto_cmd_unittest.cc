@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
+#include "protos/perfetto/common/trace_attributes.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -33,13 +34,15 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
  protected:
   static std::optional<int> ParseCmdline(PerfettoCmd* cmd,
                                          std::vector<std::string> args) {
+    // getopt() expects a null-terminated argv (argv[argc] == nullptr).
     std::vector<char*> argv;
-    argv.reserve(args.size());
+    argv.reserve(args.size() + 1);
     for (auto& arg : args)
       argv.push_back(arg.data());
+    argv.push_back(nullptr);
 
     std::optional<int> res = cmd->ParseCmdlineAndMaybeDaemonize(
-        static_cast<int>(argv.size()), argv.data());
+        static_cast<int>(argv.size()) - 1, argv.data());
     return res;
   }
 
@@ -58,62 +61,65 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
 
 namespace {
 
-TEST_F(PerfettoCmdlineUnitTest, AddNoteParsesAndStoresNotes) {
+TEST_F(PerfettoCmdlineUnitTest, AddAttributeParsesAndStoresAttributes) {
   base::TempFile out_file = base::TempFile::Create();
   PerfettoCmd cmd;
 
   std::optional<int> res = ParseCmdline(
-      &cmd, {"perfetto", "--out", out_file.path(), "--time", "1s", "--add-note",
-             "a=b", "--add-note", "k=foo=bar", "--add-note",
-             "empty=", "--add-note", "empty2=", "--add-note", "novalue"});
+      &cmd,
+      {"perfetto", "--out", out_file.path(), "--time", "1s", "--add-attribute",
+       "a=b", "--add-attribute", "k=foo=bar", "--add-attribute",
+       "empty=", "--add-attribute", "empty2=", "--add-attribute", "novalue"});
   EXPECT_FALSE(res.has_value());
 
   const TraceConfig* cfg = GetTraceConfig(cmd);
   ASSERT_NE(cfg, nullptr);
-  ASSERT_EQ(cfg->notes_size(), 5);
-  EXPECT_EQ(cfg->notes()[0].key(), "a");
-  EXPECT_EQ(cfg->notes()[0].value(), "b");
-  EXPECT_EQ(cfg->notes()[1].key(), "k");
-  EXPECT_EQ(cfg->notes()[1].value(), "foo=bar");
-  EXPECT_EQ(cfg->notes()[2].key(), "empty");
-  EXPECT_EQ(cfg->notes()[2].value(), "");
-  EXPECT_EQ(cfg->notes()[3].key(), "empty2");
-  EXPECT_EQ(cfg->notes()[3].value(), "");
-  EXPECT_EQ(cfg->notes()[4].key(), "novalue");
-  EXPECT_EQ(cfg->notes()[4].value(), "");
+  const auto& attrs = cfg->trace_attributes().attribute();
+  ASSERT_EQ(attrs.size(), 5u);
+  EXPECT_EQ(attrs[0].key(), "a");
+  EXPECT_EQ(attrs[0].string_value(), "b");
+  EXPECT_EQ(attrs[1].key(), "k");
+  EXPECT_EQ(attrs[1].string_value(), "foo=bar");
+  EXPECT_EQ(attrs[2].key(), "empty");
+  EXPECT_EQ(attrs[2].string_value(), "");
+  EXPECT_EQ(attrs[3].key(), "empty2");
+  EXPECT_EQ(attrs[3].string_value(), "");
+  EXPECT_EQ(attrs[4].key(), "novalue");
+  EXPECT_EQ(attrs[4].string_value(), "");
 }
 
-TEST_F(PerfettoCmdlineUnitTest, AddNoteAllowsMissingEquals) {
+TEST_F(PerfettoCmdlineUnitTest, AddAttributeAllowsMissingEquals) {
   base::TempFile out_file = base::TempFile::Create();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
-                          "--add-note", "novalue"});
+                          "--add-attribute", "novalue"});
   EXPECT_FALSE(res.has_value());
 
   const TraceConfig* cfg = GetTraceConfig(cmd);
   ASSERT_NE(cfg, nullptr);
-  ASSERT_EQ(cfg->notes_size(), 1);
-  EXPECT_EQ(cfg->notes()[0].key(), "novalue");
-  EXPECT_EQ(cfg->notes()[0].value(), "");
+  const auto& attrs = cfg->trace_attributes().attribute();
+  ASSERT_EQ(attrs.size(), 1u);
+  EXPECT_EQ(attrs[0].key(), "novalue");
+  EXPECT_EQ(attrs[0].string_value(), "");
 }
 
-TEST_F(PerfettoCmdlineUnitTest, AddNoteRejectsEmptyKey) {
+TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyKey) {
   base::TempFile out_file = base::TempFile::Create();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
-                          "--add-note", "=value"});
+                          "--add-attribute", "=value"});
   ASSERT_TRUE(res.has_value());
   EXPECT_EQ(*res, 1);
 }
 
-TEST_F(PerfettoCmdlineUnitTest, AddNoteRejectsEmptyArgument) {
+TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyArgument) {
   base::TempFile out_file = base::TempFile::Create();
   PerfettoCmd cmd;
-  std::optional<int> res = ParseCmdline(
-      &cmd,
-      {"perfetto", "--out", out_file.path(), "--time", "1s", "--add-note", ""});
+  std::optional<int> res =
+      ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
+                          "--add-attribute", ""});
   ASSERT_TRUE(res.has_value());
   EXPECT_EQ(*res, 1);
 }

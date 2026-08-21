@@ -1168,18 +1168,28 @@ public class PerfettoTraceTest {
         TrackEvent event = packet.getTrackEvent();
         if (event.hasCallstack()) {
           hasCallstack = true;
-          TrackEvent.Callstack callstack = event.getCallstack();
-          assertThat(callstack.getFramesCount()).isEqualTo(2); // 4 - 2 = 2
+          TrackEvent.InlineCallstack callstack = event.getCallstack();
+          assertThat(callstack.getFramesCount()).isEqualTo(4);
 
-          TrackEvent.Callstack.Frame frame0 = callstack.getFrames(0);
+          TrackEvent.InlineCallstack.Frame frame0 = callstack.getFrames(0);
           assertThat(frame0.getFunctionName()).isEqualTo("ClassD.methodD");
           assertThat(frame0.getSourceFile()).isEqualTo("FileD.java");
           assertThat(frame0.getLineNumber()).isEqualTo(40);
 
-          TrackEvent.Callstack.Frame frame1 = callstack.getFrames(1);
+          TrackEvent.InlineCallstack.Frame frame1 = callstack.getFrames(1);
           assertThat(frame1.getFunctionName()).isEqualTo("ClassC.methodC");
           assertThat(frame1.getSourceFile()).isEqualTo("FileC.java");
           assertThat(frame1.getLineNumber()).isEqualTo(30);
+
+          TrackEvent.InlineCallstack.Frame frame2 = callstack.getFrames(2);
+          assertThat(frame2.getFunctionName()).isEqualTo("ClassB.methodB");
+          assertThat(frame2.getSourceFile()).isEqualTo("FileB.java");
+          assertThat(frame2.getLineNumber()).isEqualTo(20);
+
+          TrackEvent.InlineCallstack.Frame frame3 = callstack.getFrames(3);
+          assertThat(frame3.getFunctionName()).isEqualTo("ClassA.methodA");
+          assertThat(frame3.getSourceFile()).isEqualTo("FileA.java");
+          assertThat(frame3.getLineNumber()).isEqualTo(10);
         }
       }
       collectInternedData(packet);
@@ -1190,7 +1200,7 @@ public class PerfettoTraceTest {
   }
 
   @Test
-  public void testExpensiveDebugCallStackWithSkip() throws Exception {
+  public void testExpensiveDebugCallStackWithWeight() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
@@ -1198,48 +1208,32 @@ public class PerfettoTraceTest {
     StackTraceElement[] stackTrace =
         new StackTraceElement[] {
           new StackTraceElement("ClassA", "methodA", "FileA.java", 10),
-          new StackTraceElement("ClassB", "methodB", "FileB.java", 20),
-          new StackTraceElement("ClassC", "methodC", "FileC.java", 30),
-          new StackTraceElement("ClassD", "methodD", "FileD.java", 40)
+          new StackTraceElement("ClassB", "methodB", "FileB.java", 20)
         };
 
-    // Test with skipFrames = 0 (should keep all 4 frames)
-    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_skip_0", stackTrace, 0)
-        .emit();
-
-    // Test with skipFrames = 1 (should keep 3 frames: D, C, B)
-    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_skip_1", stackTrace, 1)
+    PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack", stackTrace, 1234.0)
         .emit();
 
     byte[] traceBytes = session.close();
 
     Trace trace = Trace.parseFrom(traceBytes);
 
-    int eventCount = 0;
+    boolean hasWeightedCallstack = false;
+
     for (TracePacket packet : trace.getPacketList()) {
       if (packet.hasTrackEvent()) {
         TrackEvent event = packet.getTrackEvent();
         if (event.hasCallstack()) {
-          eventCount++;
-          TrackEvent.Callstack callstack = event.getCallstack();
-          if (eventCount == 1) {
-            // skip_0
-            assertThat(callstack.getFramesCount()).isEqualTo(4);
-            assertThat(callstack.getFrames(0).getFunctionName()).isEqualTo("ClassD.methodD");
-            assertThat(callstack.getFrames(1).getFunctionName()).isEqualTo("ClassC.methodC");
-            assertThat(callstack.getFrames(2).getFunctionName()).isEqualTo("ClassB.methodB");
-            assertThat(callstack.getFrames(3).getFunctionName()).isEqualTo("ClassA.methodA");
-          } else if (eventCount == 2) {
-            // skip_1
-            assertThat(callstack.getFramesCount()).isEqualTo(3);
-            assertThat(callstack.getFrames(0).getFunctionName()).isEqualTo("ClassD.methodD");
-            assertThat(callstack.getFrames(1).getFunctionName()).isEqualTo("ClassC.methodC");
-            assertThat(callstack.getFrames(2).getFunctionName()).isEqualTo("ClassB.methodB");
-          }
+          hasWeightedCallstack = true;
+          assertThat(event.getCallstack().getFramesCount()).isEqualTo(2);
+          assertThat(event.hasCallstackWeight()).isTrue();
+          assertThat(event.getCallstackWeight()).isEqualTo(1234.0);
         }
       }
+      collectInternedData(packet);
     }
-    assertThat(eventCount).isEqualTo(2);
+
+    assertThat(hasWeightedCallstack).isTrue();
   }
 
   @Test
@@ -1400,7 +1394,7 @@ public class PerfettoTraceTest {
       for (StackTraceElement ste : traces[i]) {
         Log.i(TAG, "  " + ste.toString());
       }
-      PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_" + i, traces[i], 0).emit();
+      PerfettoTrace.expensiveDebugCallStack(FOO_CATEGORY, "event_callstack_" + i, traces[i]).emit();
     }
 
     byte[] traceBytes = session.close();

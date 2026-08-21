@@ -103,6 +103,7 @@ protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_de
 default_targets += [
     '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
+    '//src/protovm/compiler:protovm_compiler(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
     protozero_c_plugin,
     ipc_plugin,
@@ -151,7 +152,9 @@ target_product_available = [
 # Proto target groups which will be made public.
 proto_groups = {
     'trace': {
-        'types': ['lite'],
+        # 'python' emits perfetto_trace_python_protos: per-file trace protos
+        # that OOT extension libs depend on to `extend TracePacket`.
+        'types': ['lite', 'python'],
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',
             '//protos/perfetto/trace:minimal_source_set',
@@ -359,15 +362,23 @@ additional_args = {
         # SDK is minimal, so std::regex is an acceptable tradeoff.
         # See b/498785154 for the binary-size regression that motivated this.
         #
-        # Same idea for zlib: the compressor would otherwise pull in libz, and
-        # consumers that don't link it fail with undefined deflate* symbols.
-        ('cflags',
-         {'-DPERFETTO_REGEX_FORCE_STD', '-DPERFETTO_FORCE_DISABLE_ZLIB'}),
+        # Same idea for the compressors: they would otherwise pull in
+        # libz/libzstd, and consumers that don't link them fail with undefined
+        # symbols.
+        ('cflags', {
+            '-DPERFETTO_REGEX_FORCE_STD', '-DPERFETTO_FORCE_DISABLE_ZLIB',
+            '-DPERFETTO_FORCE_DISABLE_ZSTD'
+        }),
     ],
     'libperfetto_c': [
         ('min_sdk_version', '30'),
         ('export_include_dirs', {'include'}),
-        ('cflags', {'-DPERFETTO_SHLIB_SDK_IMPLEMENTATION'}),
+        # Exports the SDK ABI symbols from the .so (see
+        # include/perfetto/public/abi/export.h). Consumers of the .so compile
+        # with no macros and rely on the static-linking default, which is
+        # sufficient on ELF (import annotations are only needed on Windows).
+        # Soong cannot propagate cflags to consumers.
+        ('cflags', {'-DPERFETTO_SDK_SHLIB_IMPLEMENTATION'}),
         ('windows', {
             'enabled': True,
             'cflags': [
@@ -383,10 +394,13 @@ additional_args = {
         # SDK is minimal, so std::regex is an acceptable tradeoff.
         # See b/498785154 for the binary-size regression that motivated this.
         #
-        # Same idea for zlib: the compressor would otherwise pull in libz, and
-        # consumers that don't link it fail with undefined deflate* symbols.
-        ('cflags',
-         {'-DPERFETTO_REGEX_FORCE_STD', '-DPERFETTO_FORCE_DISABLE_ZLIB'}),
+        # Same idea for the compressors: they would otherwise pull in
+        # libz/libzstd, and consumers that don't link them fail with undefined
+        # symbols.
+        ('cflags', {
+            '-DPERFETTO_REGEX_FORCE_STD', '-DPERFETTO_FORCE_DISABLE_ZLIB',
+            '-DPERFETTO_FORCE_DISABLE_ZSTD'
+        }),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
@@ -497,6 +511,20 @@ def enable_pcre2(module):
     module.shared_libs.add('libpcre2')
 
 
+def enable_zstd(module):
+  # Modules built with PERFETTO_FORCE_DISABLE_ZSTD compile out the compressor
+  # and don't reference any zstd symbols, so skip the libzstd dep for them.
+  if '-DPERFETTO_FORCE_DISABLE_ZSTD' in module.cflags:
+    return
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libzstd')
+  elif module.host_supported:
+    module.android.shared_libs.add('libzstd')
+    module.host.static_libs.add('libzstd')
+  else:
+    module.shared_libs.add('libzstd')
+
+
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite_static_noicu')
@@ -590,6 +618,8 @@ builtin_deps = {
         enable_sqlite,
     '//gn:zlib':
         enable_zlib,
+    '//gn:zstd':
+        enable_zstd,
     '//gn:expat':
         enable_expat,
     '//gn:bionic_kernel_uapi_headers':

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,10 +33,12 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
+#include "perfetto/trace_processor/metatrace_config.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/rpc/query_result_deserializer.h"
 #include "src/trace_processor/rpc/rpc_transport.h"
 
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 
@@ -76,17 +79,36 @@ base::Status ResultError(const Decoder& result) {
 
 }  // namespace
 
-// Streams a TPM_QUERY_STREAMING response, pulling one message off the socket
-// per refill. Lazy reads let the server's blocking Send() apply backpressure
-// instead of buffering the whole result.
+// Streams a TPM_QUERY_STREAMING or TPM_STATEMENT_STREAMING response, pulling
+// one message off the socket per refill. Lazy reads let the server's blocking
+// Send() apply backpressure instead of buffering the whole result.
 class RemoteIteratorImpl : public IteratorImpl {
  public:
+  // Which streaming endpoint the response comes from: kStatement responses
+  // wrap each QueryResult in a StatementResult carrying the cursor metadata.
+  enum class Mode { kQuery, kStatement };
+
   // |rtp| must outlive the iterator; the request is already sent.
-  explicit RemoteIteratorImpl(RemoteTraceProcessor* rtp) : rtp_(rtp) {}
+  explicit RemoteIteratorImpl(RemoteTraceProcessor* rtp,
+                              Mode mode = Mode::kQuery)
+      : rtp_(rtp), mode_(mode) {}
   // Fails immediately with |status|; nothing was sent (rtp_ stays null).
   explicit RemoteIteratorImpl(base::Status status)
       : status_(std::move(status)), stream_done_(true) {}
   ~RemoteIteratorImpl() override;  // Out-of-line: anchors the vtable.
+
+  // kStatement only: eagerly reads the first response message, which carries
+  // the statement-cursor metadata (tail_offset, statement_executed). Any
+  // rows it contains stay queued for Next(). Returns the iterator's status;
+  // on failure the iterator carries the same error.
+  base::Status PrimeStatementStream() {
+    PERFETTO_DCHECK(mode_ == Mode::kStatement);
+    if (base::Status s = ReadNextMessage(); !s.ok())
+      status_ = std::move(s);
+    return status_;
+  }
+  uint32_t tail_offset() const { return tail_offset_; }
+  bool statement_executed() const { return statement_executed_; }
 
   bool Next() override {
     if (!status_.ok())
@@ -133,12 +155,34 @@ class RemoteIteratorImpl : public IteratorImpl {
   using Cell = QueryResultDeserializer::Cell;
 
   // Reads one response message and appends its completed rows to |pending_|.
+  // On failure the stream is marked done: after a transport failure or an
+  // envelope error (fatal_error, or invalid_request from a server that
+  // doesn't support the method) the server sends nothing further for this
+  // request, so the destructor's drain loop must not block waiting for
+  // messages that will never arrive.
   base::Status ReadNextMessage() {
+    base::Status s = ReadNextMessageImpl();
+    if (!s.ok())
+      stream_done_ = true;
+    return s;
+  }
+
+  base::Status ReadNextMessageImpl() {
     RETURN_IF_ERROR(rtp_->ReadResponse(&msg_buf_));
     RpcProto::Decoder d(msg_buf_.data(), msg_buf_.size());
     RETURN_IF_ERROR(CheckRpcEnvelope(d));
 
-    protozero::ConstBytes qr = d.query_result();
+    protozero::ConstBytes qr;
+    if (mode_ == Mode::kStatement) {
+      protos::pbzero::StatementResult::Decoder stmt_res(d.statement_result());
+      if (stmt_res.has_statement_executed()) {
+        statement_executed_ = stmt_res.statement_executed();
+        tail_offset_ = stmt_res.tail_offset();
+      }
+      qr = stmt_res.result();
+    } else {
+      qr = d.query_result();
+    }
     std::vector<Cell> cells;
     RETURN_IF_ERROR(deser_.AddMessage(qr.data, qr.size, &cells));
 
@@ -162,6 +206,7 @@ class RemoteIteratorImpl : public IteratorImpl {
   }
 
   RemoteTraceProcessor* rtp_ = nullptr;
+  Mode mode_ = Mode::kQuery;
   QueryResultDeserializer deser_;
   std::vector<uint8_t> msg_buf_;           // Current response bytes.
   std::vector<Cell> cur_row_;              // Partial row spanning messages.
@@ -169,6 +214,9 @@ class RemoteIteratorImpl : public IteratorImpl {
   std::vector<Cell> current_;              // The row Get() reads from.
   base::Status status_;
   bool stream_done_ = false;
+  // kStatement only: cursor metadata from the first response message.
+  uint32_t tail_offset_ = 0;
+  bool statement_executed_ = false;
 };
 
 RemoteIteratorImpl::~RemoteIteratorImpl() {
@@ -215,6 +263,10 @@ class RemoteSummarizer : public Summarizer {
   RemoteTraceProcessor* rtp_;
   std::string id_;
 };
+
+base::Status RemoteTraceProcessor::Export(ExportFormat, ExportOutput*) {
+  return base::ErrStatus("Export is not supported over remote connections");
+}
 
 base::StatusOr<std::unique_ptr<RemoteTraceProcessor>>
 RemoteTraceProcessor::Connect(const std::string& addr) {
@@ -278,6 +330,34 @@ Iterator RemoteTraceProcessor::ExecuteQuery(const std::string& sql) {
     return ErrorIterator(s);
   stream_in_flight_ = true;
   return Iterator(std::make_unique<RemoteIteratorImpl>(this));
+}
+
+std::optional<Iterator> RemoteTraceProcessor::ExecuteNextStatement(
+    const std::string& sql,
+    uint32_t* offset) {
+  auto req = BuildStream(RpcProto::TPM_STATEMENT_STREAMING, [&](RpcProto* rpc) {
+    auto* args = rpc->set_statement_args();
+    args->set_sql(sql);
+    args->set_start_offset(*offset);
+  });
+  if (base::Status s = SendStream(req); !s.ok())
+    return ErrorIterator(std::move(s));
+  stream_in_flight_ = true;
+  auto impl = std::make_unique<RemoteIteratorImpl>(
+      this, RemoteIteratorImpl::Mode::kStatement);
+  // The first message carries the cursor metadata, so read it eagerly; any
+  // rows it contains stay queued for Next(). On failure the returned
+  // iterator carries the error (|*offset| stays unchanged, matching the
+  // local implementation).
+  if (base::Status s = impl->PrimeStatementStream(); !s.ok())
+    return Iterator(std::move(impl));
+  *offset = impl->tail_offset();
+  if (!impl->statement_executed()) {
+    // The stream ended with the first message; the impl's destructor leaves
+    // the transport at a message boundary.
+    return std::nullopt;
+  }
+  return Iterator(std::move(impl));
 }
 
 base::Status RemoteTraceProcessor::RegisterSqlPackage(SqlPackage package) {
@@ -401,10 +481,25 @@ base::Status RemoteTraceProcessor::Summarize(
       });
 }
 
-void RemoteTraceProcessor::EnableMetatrace(MetatraceConfig) {
+void RemoteTraceProcessor::EnableMetatrace(MetatraceConfig config) {
+  using ProtoEnum = protos::pbzero::MetatraceCategories;
+  int32_t proto_categories = 0;
+  if (config.categories & metatrace::MetatraceCategories::QUERY_TIMELINE)
+    proto_categories |= ProtoEnum::QUERY_TIMELINE;
+  if (config.categories & metatrace::MetatraceCategories::QUERY_DETAILED)
+    proto_categories |= ProtoEnum::QUERY_DETAILED;
+  if (config.categories & metatrace::MetatraceCategories::FUNCTION_CALL)
+    proto_categories |= ProtoEnum::FUNCTION_CALL;
+  if (config.categories & metatrace::MetatraceCategories::DB)
+    proto_categories |= ProtoEnum::DB;
+  if (config.categories & metatrace::MetatraceCategories::API_TIMELINE)
+    proto_categories |= ProtoEnum::API_TIMELINE;
   base::ignore_result(RoundTrip(
       RpcProto::TPM_ENABLE_METATRACE,
-      [](RpcProto* rpc) { rpc->set_enable_metatrace_args(); },
+      [&](RpcProto* rpc) {
+        rpc->set_enable_metatrace_args()->set_categories(
+            static_cast<ProtoEnum>(proto_categories));
+      },
       [](RpcProto::Decoder&) { return base::OkStatus(); }));
 }
 

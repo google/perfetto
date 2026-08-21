@@ -29,6 +29,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -752,11 +753,19 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
     bool from_startup = data_source->signaled_pids.find(pid) ==
                         data_source->signaled_pids.cend();
 
-    auto new_heapsamples = [pid, from_startup, process_state, data_source,
-                            &heap_info](
+    // This dump covers the interval from the previous dump's end (or the
+    // process profiling start, for the first dump) to this dump's timestamp.
+    uint64_t window_end = heap_info.heap_tracker.dump_timestamp();
+    uint64_t window_start = heap_info.last_window_end != 0
+                                ? heap_info.last_window_end
+                                : process_state->profiling_start_timestamp;
+
+    auto new_heapsamples = [pid, from_startup, window_start, window_end,
+                            process_state, data_source, &heap_info](
                                ProfilePacket::ProcessHeapSamples* proto) {
       proto->set_pid(static_cast<uint64_t>(pid));
-      proto->set_timestamp(heap_info.heap_tracker.dump_timestamp());
+      proto->set_timestamp(window_end);
+      proto->set_start_timestamp(window_start);
       proto->set_from_startup(from_startup);
       proto->set_disconnected(process_state->disconnected);
       proto->set_buffer_overran(process_state->error_state ==
@@ -782,6 +791,8 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
           dump_state.WriteAllocation(alloc, data_source->config.dump_at_max());
         });
     dump_state.DumpCallstacks(&callsites_);
+
+    heap_info.last_window_end = window_end;
   }
 }
 
@@ -919,10 +930,17 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
       return;
     }
 
-    data_source.process_states.emplace(
-        std::piecewise_construct, std::forward_as_tuple(self->peer_pid_linux()),
-        std::forward_as_tuple(&producer_->callsites_,
-                              data_source.config.dump_at_max()));
+    auto process_state_it =
+        data_source.process_states
+            .emplace(std::piecewise_construct,
+                     std::forward_as_tuple(self->peer_pid_linux()),
+                     std::forward_as_tuple(&producer_->callsites_,
+                                           data_source.config.dump_at_max()))
+            .first;
+    // Start of the first dump's window. MONOTONIC_COARSE to match the
+    // allocation timestamps (see client.cc).
+    process_state_it->second.profiling_start_timestamp = static_cast<uint64_t>(
+        base::GetTimeInternalNs(CLOCK_MONOTONIC_COARSE).count());
 
     PERFETTO_DLOG("%d: Received FDs.", self->peer_pid_linux());
     int raw_fd = pending_process.shmem.fd();

@@ -35,6 +35,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -146,8 +147,8 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
 base::StatusOr<std::vector<TimestampedAndroidLogEvent>>
 AndroidBugreportReader::ParseDumpstateTxt(const BugReportFile& bug_report) {
   BufferingAndroidLogReader log_reader(context_, bug_report.year, true);
-  context_->trace_file_tracker->StartParsing(bug_report.id,
-                                             kAndroidDumpstateTraceType);
+  context_->trace_file_tracker->StartParsing(
+      bug_report.id, CreateAndroidDumpstateImporter()->id());
   base::Status status = bug_report.file.DecompressLines(
       [&](const std::vector<base::StringView>& lines) {
         for (const base::StringView& line : lines) {
@@ -173,8 +174,8 @@ base::Status AndroidBugreportReader::ParsePersistentLogcat(
   // Push all events into the AndroidLogParser. It will take care of string
   // interning into the pool. Appends entries into `log_events`.
   for (const auto& log_file : ordered_log_files) {
-    context_->trace_file_tracker->StartParsing(log_file.id,
-                                               kAndroidLogcatTraceType);
+    context_->trace_file_tracker->StartParsing(
+        log_file.id, CreateAndroidLogcatImporter()->id());
     RETURN_IF_ERROR(log_file.file.DecompressLines(
         [&](const std::vector<base::StringView>& lines) {
           for (const auto& line : lines) {

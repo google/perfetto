@@ -398,9 +398,7 @@ export class AddExtensionServerModal {
           disabled: this.isEmbedderManaged,
           onchange: (e: Event) => {
             const keyType = (e.target as HTMLSelectElement).value as
-              | 'bearer'
-              | 'x_api_key'
-              | 'custom';
+              'bearer' | 'x_api_key' | 'custom';
             input.auth = {
               ...auth,
               keyType,

@@ -138,7 +138,7 @@ SELECT
         'name', (SELECT STR_SPLIT(s.slice_name, ':', 1)),
         'method', (SELECT STR_SPLIT(s.slice_name, ':', 0)),
         'ts_method_start', s.slice_ts
-        ))
+        ) ORDER BY s.slice_ts)
       FROM thread_slices_for_all_launches s
       WHERE
         s.startup_id =launches.startup_id

@@ -14,7 +14,7 @@
 
 import './video_frames.scss';
 import m from 'mithril';
-import {QuerySlot} from '../../base/query_slot';
+import {AsyncMemo} from '../../base/async_memo';
 import {materialColorScheme} from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
@@ -29,24 +29,29 @@ export function createVideoFramesTrack(
   displayId: number,
   player: VideoFramePlayer,
 ) {
-  // dur = -1, depth = 0 renders each frame as an incomplete slice spanning
-  // to the next frame and fading out (same as the Screenshots track).
-  // is_config rows are decoder setup, not displayable, so excluded. The
-  // name doubles as the colorization seed.
+  // dur spans each frame to the next (last frame: 0). is_config rows are
+  // decoder setup, not displayable, so excluded. Frames before the first key
+  // frame can't be decoded (no key frame to seed the decoder, e.g. a ring
+  // buffer whose GOP start was overwritten), so start the track at the first
+  // key frame.
   const src = `
     SELECT
       id,
       ts,
-      -1 AS dur,
+      COALESCE(LEAD(ts) OVER (ORDER BY ts) - ts, 0) AS dur,
       0 AS depth,
       'Frame ' || frame_number AS name
     FROM __intrinsic_video_frames
     WHERE display_id = ${displayId}
       AND COALESCE(is_config, 0) = 0
+      AND ts >= (
+        SELECT MIN(ts) FROM __intrinsic_video_frames
+        WHERE display_id = ${displayId} AND is_key_frame = 1
+      )
   `;
 
   // QuerySlot caches the decoded hover image per frame id.
-  const imageSlot = new QuerySlot<string | undefined>();
+  const imageSlot = new AsyncMemo<string | undefined>();
 
   // Singleton panel so mithril patches in place instead of remounting the
   // canvas on every selection (a remount would detach the canvas and stop
@@ -68,7 +73,7 @@ export function createVideoFramesTrack(
         // Keep the previous frame on screen while the next decodes, so
         // sweeping the cursor doesn't blink back to 'Loading...'.
         retainOn: ['id'],
-        queryFn: () => player.decodeFrameImage(data.id),
+        compute: () => player.decodeFrameImage(data.id),
       });
       if (image.data) {
         return [m('img.pf-video-frame-tooltip__img', {src: image.data})];

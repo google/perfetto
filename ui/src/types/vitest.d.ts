@@ -17,4 +17,5 @@
 // importing from 'vitest' in every *_unittest.ts file. Note: type aliases
 // like `Mock` and `Mocked` are NOT injected as globals — those must be
 // imported explicitly: `import type {Mock, Mocked} from 'vitest';`
+// eslint-disable-next-line spaced-comment
 /// <reference types="vitest/globals" />

@@ -18,11 +18,8 @@
 #define SRC_TRACE_PROCESSOR_TRACE_READER_REGISTRY_H_
 
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <utility>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -31,54 +28,35 @@ namespace perfetto::trace_processor {
 class ChunkedTraceReader;
 class TraceProcessorContext;
 
-// Maps `TraceType` values to `ChunkedTraceReader` subclasses.
-// This class is used to create `ChunkedTraceReader` instances for a given
-// `TraceType`.
+// Owns the trace importer registry and creates readers from it. A thin layer
+// over TraceImporterRegistry that lives above the util layer so it can build
+// the (incomplete-in-util) ChunkedTraceReader.
 class TraceReaderRegistry {
  public:
   TraceReaderRegistry() = default;
 
-  // Registers a mapping from `TraceType` value to `ChunkedTraceReader`
-  // subclass. Only one such mapping can be registered per `TraceType` value.
-  template <typename Reader>
-  void RegisterTraceReader(TraceType trace_type) {
-    RegisterFactory(trace_type, [](TraceProcessorContext* ctxt, uint32_t) {
-      return std::make_unique<Reader>(ctxt);
-    });
+  // Registers an importer (builtin or plugin) keyed by its identity. A trace
+  // reader and its importer are 1:1, so this is the sole registration point.
+  // Returns the assigned id (rarely needed).
+  TraceImporterId Register(std::unique_ptr<TraceImporterBase> importer) {
+    return importers_.Register(std::move(importer));
   }
 
-  // Like RegisterTraceReader, but for readers whose constructor also takes the
-  // trace_file_table id of the file being read (e.g. to use as a clock owner).
-  template <typename Reader>
-  void RegisterTraceReaderWithFileId(TraceType trace_type) {
-    RegisterFactory(trace_type,
-                    [](TraceProcessorContext* ctxt, uint32_t file_id) {
-                      return std::make_unique<Reader>(ctxt, file_id);
-                    });
-  }
+  // The registry of trace importers, owned here. Exposed as a pointer so
+  // TraceProcessorContext can publish it to low-layer code that needs per-type
+  // metadata without depending on this header.
+  TraceImporterRegistry* importer_registry() { return &importers_; }
 
-  // Registers a trace reader factory that captures its own state (e.g. a
-  // plugin's `this` pointer). The TraceProcessorContext* passed at creation
-  // time is ignored by the wrapper.
-  void RegisterPluginTraceReader(
-      TraceType trace_type,
-      std::function<std::unique_ptr<ChunkedTraceReader>()> factory);
-
-  // Creates a new `ChunkedTraceReader` instance for the given `type`,
-  // `file_id` being the trace_file_table id of the file being read. Returns
-  // an error if no mapping has been previously registered.
+  // Creates a new `ChunkedTraceReader` for `id`, `file_id` being the
+  // trace_file_table id of the file being read. Returns an error if `id` is
+  // not registered.
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateTraceReader(
-      TraceType type,
+      TraceImporterId id,
       TraceProcessorContext* context,
       uint32_t file_id);
 
  private:
-  using Factory =
-      std::function<std::unique_ptr<ChunkedTraceReader>(TraceProcessorContext*,
-                                                        uint32_t)>;
-  void RegisterFactory(TraceType trace_type, Factory factory);
-
-  base::FlatHashMap<TraceType, Factory> factories_;
+  TraceImporterRegistry importers_;
 };
 
 }  // namespace perfetto::trace_processor

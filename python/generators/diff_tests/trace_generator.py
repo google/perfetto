@@ -111,14 +111,44 @@ class TraceGenerator:
   def serialize_tar_trace(self, blueprint: Any, archive: Tar,
                           out_stream: IO[bytes]):
     buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode='w') as t:
+    tar_format = tarfile.PAX_FORMAT if archive.macos_style else (
+        tarfile.DEFAULT_FORMAT)
+    with tarfile.open(fileobj=buf, mode='w', format=tar_format) as t:
       for name, member in archive.members.items():
         data = self.serialize_member(blueprint, member)
         info = tarfile.TarInfo(name)
         info.size = len(data)
+        if archive.macos_style:
+          # Force emission of a PAX extended header ('x' typeflag) block, as
+          # macOS/BSD tar does for every member.
+          info.pax_headers = {'comment': 'perfetto-test'}
         t.addfile(info, io.BytesIO(data))
-    out_stream.write(buf.getvalue())
+    raw = buf.getvalue()
+    if archive.macos_style:
+      raw = self._space_terminate_tar_numeric_fields(raw)
+    out_stream.write(raw)
     out_stream.flush()
+
+  @staticmethod
+  def _space_terminate_tar_numeric_fields(raw: bytes) -> bytes:
+    """Rewrites the size field of every tar header from NUL- to space-
+    termination, matching what macOS/BSD tar emits (11 octal digits followed by
+    a space). Only 512-byte blocks that are ustar headers are touched; the
+    parser ignores the header checksum so it is left unchanged."""
+    ba = bytearray(raw)
+    for off in range(0, len(ba) - 512 + 1, 512):
+      if bytes(ba[off + 257:off + 262]) != b'ustar':
+        continue
+      field = bytes(ba[off + 124:off + 136])
+      digits = field.split(b'\x00')[0].split(b' ')[0]
+      if not digits:
+        continue
+      try:
+        value = int(digits, 8)
+      except ValueError:
+        continue
+      ba[off + 124:off + 136] = b'%011o ' % value
+    return bytes(ba)
 
   def serialize_simpleperf_proto_trace(self, simpleperf_trace: SimpleperfProto,
                                        out_stream: IO[bytes]):

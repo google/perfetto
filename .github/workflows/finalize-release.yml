@@ -13,7 +13,9 @@
 # limitations under the License.
 
 # One manual step that finalizes a release. It:
-#   1. Attaches the LUCI-built binaries + SDK source zips to the draft release.
+#   1. Attaches the LUCI-built binaries + SDK source zips, plus a self-hostable
+#      UI zip (the exact ui.perfetto.dev build for this tag), to the draft
+#      release.
 #   2. Rolls the prebuilt manifests to this version (tools/release/roll-prebuilts)
 #      and opens a PR to main. roll-prebuilts also stamps the agent-skills
 #      version, so the prebuilts and the bundle move together.
@@ -114,6 +116,12 @@ jobs:
         run: |
           tools/release/package-github-release-artifacts --yes "$VERSION"
 
+      - name: Package UI artifact
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          tools/release/package-ui-github-release-artifact "$VERSION"
+
       - name: Upload assets to draft release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -191,6 +199,14 @@ jobs:
           tools/release/build_ai_agents.py --output /tmp/ai-agents-tree \
             --skills-src "$SKILLS_SRC"
           git worktree remove --force /tmp/release-tag-tree
+
+          # Attach a copy-paste installable skill zip to the release for
+          # offline installs (#6515). Unzipping yields a `perfetto/` skill
+          # directory to drop into any agent's skills directory.
+          (cd /tmp/ai-agents-tree/plugins/perfetto/skills && \
+            zip -qr /tmp/perfetto-ai-skill.zip perfetto)
+          gh release upload "$VERSION" /tmp/perfetto-ai-skill.zip \
+            --repo "$REPO" --clobber
 
           BRANCH="dev/github-bot/ai-agents-bundle"
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"

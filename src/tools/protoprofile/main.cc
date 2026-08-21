@@ -19,7 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -34,9 +34,10 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/importers/proto/android_extension.descriptor.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/proto_profiler.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
 
@@ -205,27 +206,36 @@ int Main(int argc, const char** argv) {
   std::string s;
   base::ReadFileDescriptor(proto_fd.get(), &s);
 
-  // Transparently handle gzip-compressed traces. Detect them by the gzip
-  // magic bytes (0x1f 0x8b) and decompress using the existing zlib-backed
-  // GzipDecompressor utility.
-  const uint8_t kGzipMagic[] = {0x1f, 0x8b};
-  if (s.size() >= sizeof(kGzipMagic) &&
-      memcmp(s.data(), kGzipMagic, sizeof(kGzipMagic)) == 0) {
-    if (!trace_processor::util::IsGzipSupported()) {
+  // Transparently handle compressed traces: detect the codec from the file's
+  // magic bytes and decompress it whole.
+  namespace util = trace_processor::util;
+  const auto* bytes = reinterpret_cast<const uint8_t*>(s.data());
+  trace_processor::CompressedTraceType sniff =
+      trace_processor::SniffCompressedTraceType(bytes, s.size());
+  util::CompressionType codec =
+      sniff == trace_processor::CompressedTraceType::kGzip
+          ? util::CompressionType::kGzip
+      : sniff == trace_processor::CompressedTraceType::kZstd
+          ? util::CompressionType::kZstd
+          : util::CompressionType::kNone;
+  if (codec != util::CompressionType::kNone) {
+    if (!util::IsCompressionSupported(codec)) {
+      auto info = util::GetCompressionCodecInfo(codec);
       PERFETTO_ELOG(
-          "Input (%s) is gzip-compressed but this build lacks zlib support",
-          input_path);
+          "Input (%s) is %s-compressed but this build lacks %s support. "
+          "Rebuild with %s=true, or decompress the input first (e.g. "
+          "`%s -d %s`).",
+          input_path, info.name, info.name, info.gn_arg, info.name, input_path);
       return 1;
     }
-    std::vector<uint8_t> decompressed =
-        trace_processor::util::GzipDecompressor::DecompressFully(
-            reinterpret_cast<const uint8_t*>(s.data()), s.size());
-    if (decompressed.empty()) {
-      PERFETTO_ELOG("Could not decompress gzip input path (%s)", input_path);
+    std::optional<util::DecompressedBuffer> decompressed =
+        util::DecompressToBuffer(codec, bytes, s.size());
+    if (!decompressed || decompressed->size == 0) {
+      PERFETTO_ELOG("Could not decompress input path (%s)", input_path);
       return 1;
     }
-    s.assign(reinterpret_cast<const char*>(decompressed.data()),
-             decompressed.size());
+    s.assign(reinterpret_cast<const char*>(decompressed->data.get()),
+             decompressed->size);
   }
 
   trace_processor::DescriptorPool pool;

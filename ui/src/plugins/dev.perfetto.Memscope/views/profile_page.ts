@@ -23,7 +23,8 @@ import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Billboard} from '../components/billboard';
 import {ProgressBar} from '../components/progress_bar';
-import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../utils';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../utils';
+import {formatBytesIec} from '../../../base/bytes_format';
 import {Icons} from '../../../base/semantic_icons';
 import {Stack} from '../../../widgets/stack';
 
@@ -36,6 +37,7 @@ export interface ProfilePageAttrs {
   readonly chartData?: LineChartData;
   readonly baseline?: {anonSwap: number; file: number; dmabuf: number};
   readonly onStop: () => void;
+  readonly onStopAndDownload: () => void;
   readonly onCancel: () => void;
 }
 
@@ -122,6 +124,13 @@ export class ProfilePage implements m.ClassComponent<ProfilePageAttrs> {
                 onclick: () => attrs.onCancel(),
               }),
               m(Button, {
+                label: 'Stop & Download',
+                icon: 'download',
+                variant: ButtonVariant.Filled,
+                intent: Intent.Primary,
+                onclick: () => attrs.onStopAndDownload(),
+              }),
+              m(Button, {
                 label: 'Stop & Open Trace',
                 icon: Icons.ExternalLink,
                 variant: ButtonVariant.Filled,
@@ -162,10 +171,10 @@ function renderBillboards(
     const delta = baselineVal !== undefined ? current - baselineVal : undefined;
     const deltaStr =
       delta !== undefined
-        ? `${delta >= 0 ? '+' : ''}${formatKb(delta)}`
+        ? `${delta >= 0 ? '+' : ''}${formatBytesIec(delta * 1024)}`
         : undefined;
     return m(Billboard, {
-      ...billboardKb(current),
+      ...billboardBytes(current * 1024),
       label,
       desc,
       delta: deltaStr,
@@ -217,7 +226,7 @@ function renderBreakdownChart(attrs: ProfilePageAttrs): m.Children {
           xAxisMin: xMin,
           xAxisMax: xMax,
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
-          formatYValue: (v: number) => formatKb(v),
+          formatYValue: (v: number) => formatBytesIec(v * 1024),
           yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
         });
       })()

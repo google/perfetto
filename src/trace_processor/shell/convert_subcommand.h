@@ -44,10 +44,6 @@ class ConvertSubcommand : public Subcommand {
   bool java_heap_ = false;
   bool no_annotations_ = false;
   std::string output_dir_;
-  std::string symbol_paths_;
-  bool no_auto_symbol_paths_ = false;
-  std::vector<std::string> proguard_maps_;
-  bool no_auto_proguard_maps_ = false;
   bool verbose_ = false;
   bool skip_unknown_ = false;
 };

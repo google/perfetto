@@ -145,7 +145,7 @@ export class SelectionManagerImpl implements SelectionManager {
             trackUris: serialized.trackUris,
           });
       }
-    } catch (ex) {
+    } catch {
       showModal({
         title: 'Failed to restore the selected event',
         content: m(

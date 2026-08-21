@@ -49,14 +49,13 @@ class StateTracker {
 
  private:
   struct ActiveState {
-    ActiveState(tables::StateTable::RowNumber r,
-                StringId v,
-                TraceProcessorContext* context)
-        : row(r), value(v), args_tracker(context) {}
+    ActiveState(tables::StateTable::RowNumber r, StringId v)
+        : row(r), value(v) {}
 
     tables::StateTable::RowNumber row;
     StringId value;
-    ArgsTracker args_tracker;
+    // Args for this state's row, committed when the ActiveState is destroyed.
+    std::optional<ArgsInserter> args_inserter;
   };
 
   TraceProcessorContext* const context_;

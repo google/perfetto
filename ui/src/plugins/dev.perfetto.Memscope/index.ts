@@ -14,12 +14,16 @@
 
 import './styles.scss';
 import m from 'mithril';
+import {z} from 'zod';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
 import {LiveSession} from './sessions/live_session';
+import {MemoryOverviewPage} from './views/landing_page/landing_page';
+import {NUM} from '../../trace_processor/query_result';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
@@ -36,6 +40,7 @@ export default class implements PerfettoPlugin {
       href: '#!/memscope',
       icon: 'memory',
       sortOrder: 2.5,
+      badge: 'preview',
     });
 
     app.pages.registerPage({
@@ -52,6 +57,7 @@ export default class implements PerfettoPlugin {
           });
         } else {
           return m(ConnectionPage, {
+            app,
             onConnected: (result) => {
               session = new LiveSession(app, result);
               session.onSnapshot(() => m.redraw());
@@ -60,5 +66,81 @@ export default class implements PerfettoPlugin {
         }
       },
     });
+  }
+
+  async onTraceLoad(trace: Trace): Promise<void> {
+    const pageRoot = '/memoryoverview';
+    const openByDefault = trace.settings.register({
+      id: 'dev.perfetto.OpenMemoryOverviewByDefault',
+      name: 'Open Memory Overview by default',
+      description:
+        'Open traces containing smaps snapshots in Memory Overview instead ' +
+        'of the timeline.',
+      schema: z.boolean(),
+      defaultValue: true,
+    });
+    const hideDefaultChangedHint = trace.settings.register({
+      id: 'dev.perfetto.HideMemoryOverviewDefaultChangedHint',
+      name: 'Hide Memory Overview default-page explanation',
+      description:
+        'Do not show the explanation that Memory Overview is the default ' +
+        'page for traces containing smaps snapshots.',
+      schema: z.boolean(),
+      defaultValue: false,
+      headless: true,
+    });
+    const availability = await this.getMemoryOverviewAvailability(trace);
+    const autoNavigated = openByDefault.get() && availability.hasSmapsSnapshots;
+
+    trace.pages.registerPage({
+      route: pageRoot,
+      render: (subpage) =>
+        m(MemoryOverviewPage, {
+          trace,
+          subpage,
+          autoNavigated,
+          hdeAvailable: availability.hasHeapDumps,
+          openByDefault,
+          hideDefaultChangedHint,
+          onSubpageChange: (subpage) => {
+            trace.navigate(`#!${pageRoot}/${subpage}`);
+          },
+        }),
+    });
+
+    if (availability.hasSmapsSnapshots || availability.hasHeapDumps) {
+      trace.sidebar.addMenuItem({
+        section: 'current_trace',
+        sortOrder: 25,
+        text: 'Memory Overview',
+        href: `#!${pageRoot}`,
+        icon: 'memory',
+        badge: 'preview',
+      });
+    }
+
+    if (autoNavigated) {
+      // Make this page appear before the heap dump explorer page.
+      trace.initialPage.suggest(pageRoot, 500);
+    }
+  }
+
+  private async getMemoryOverviewAvailability(trace: Trace): Promise<{
+    readonly hasSmapsSnapshots: boolean;
+    readonly hasHeapDumps: boolean;
+  }> {
+    const result = await trace.engine.query(`
+      SELECT
+        EXISTS(SELECT 1 FROM profiler_smaps) AS hasSmapsSnapshots,
+        EXISTS(SELECT 1 FROM heap_graph_object) AS hasHeapDumps
+    `);
+    const row = result.firstRow({
+      hasSmapsSnapshots: NUM,
+      hasHeapDumps: NUM,
+    });
+    return {
+      hasSmapsSnapshots: row.hasSmapsSnapshots !== 0,
+      hasHeapDumps: row.hasHeapDumps !== 0,
+    };
   }
 }

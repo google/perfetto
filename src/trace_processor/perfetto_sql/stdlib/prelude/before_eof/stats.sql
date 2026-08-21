@@ -24,7 +24,7 @@ CREATE PERFETTO VIEW stats(
   key LONG,
   -- Per-stat index for kIndexed stats; NULL for kSingle.
   idx LONG,
-  -- "info" | "data_loss" | "error".
+  -- "info" | "notice" | "data_loss" | "error".
   severity STRING,
   -- "trace" (recorded on-device) or "analysis" (TP).
   source STRING,

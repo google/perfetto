@@ -33,7 +33,9 @@ namespace trace_processor {
 
 SurfaceFlingerTransactionsParser::SurfaceFlingerTransactionsParser(
     TraceProcessorContext* context)
-    : context_{context}, args_parser_{*context->descriptor_pool_} {}
+    : context_{context},
+      args_parser_{*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()} {}
 
 void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
                                              protozero::ConstBytes blob) {
@@ -55,7 +57,8 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
 
   ArgsTracker args_tracker(context_);
   auto inserter = args_tracker.AddArgsTo(snapshot_id);
-  ArgsParser writer(timestamp, inserter, *context_->storage);
+  ArgsParser writer(timestamp, inserter, *context_->storage,
+                    *context_->process_tracker);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
@@ -397,7 +400,8 @@ void SurfaceFlingerTransactionsParser::AddArgs(
     std::optional<protozero::ConstBytes> transaction) {
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(row_id);
-  ArgsParser writer(timestamp, inserter, *context_->storage);
+  ArgsParser writer(timestamp, inserter, *context_->storage,
+                    *context_->process_tracker);
   base::Status status = args_parser_.ParseMessage(
       blob, message_type, nullptr /* parse all fields */, writer);
   if (!status.ok()) {

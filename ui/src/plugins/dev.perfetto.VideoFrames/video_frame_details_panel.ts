@@ -14,7 +14,7 @@
 
 import './video_frames.scss';
 import m from 'mithril';
-import {assertIsInstance} from '../../base/assert';
+import {ensureIsInstance} from '../../base/assert';
 import {Time} from '../../base/time';
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -45,7 +45,10 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
     if (this.player.playing) return;
     await this.player.ensureFramesLoaded();
     if (this.player.frames[this.player.currentIdx]?.id === sel.eventId) return;
-    await this.player.seek(sel.eventId);
+    // Don't await: while load() is pending the panel sits in its loading
+    // state, which remounts and blanks the <canvas>. seek() cancels stale
+    // decodes itself.
+    this.player.seek(sel.eventId);
   }
 
   render() {
@@ -81,7 +84,7 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
           p.webCodecsAvailable
             ? m('canvas.pf-video-frame-preview', {
                 oncreate: ({dom}) =>
-                  p.attachCanvas(assertIsInstance(dom, HTMLCanvasElement)),
+                  p.attachCanvas(ensureIsInstance(dom, HTMLCanvasElement)),
                 onremove: () => p.detachCanvas(),
               })
             : m(

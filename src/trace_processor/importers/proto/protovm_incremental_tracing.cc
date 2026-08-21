@@ -62,7 +62,7 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
          ++producer_id) {
       auto* sequence_ids = producer_id_to_sequence_ids_.Find(*producer_id);
       if (!sequence_ids) {
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::protovm_registration_error, packet.offset());
         continue;
       }
@@ -91,8 +91,8 @@ std::optional<TraceBlobView> ProtoVmIncrementalTracing::TryProcessPatch(
       return SerializeIncrementalState(*vm, patch);
     }
     if (status.IsAbort()) {
-      context_->import_logs_tracker->RecordTokenizationError(
-          stats::protovm_abort, packet.offset());
+      context_->import_logs_tracker->RecordTokenizationLog(stats::protovm_abort,
+                                                           packet.offset());
     }
   }
   return std::nullopt;

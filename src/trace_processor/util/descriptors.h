@@ -23,6 +23,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -50,6 +51,11 @@ class FieldDescriptor {
   uint32_t type() const { return type_; }
   const std::string& raw_type_name() const { return raw_type_name_; }
   const std::string& resolved_type_name() const { return resolved_type_name_; }
+  std::optional<uint32_t> flags_enum_descriptor_idx() const {
+    return flags_enum_descriptor_idx_;
+  }
+  bool is_pid() const { return is_pid_; }
+  bool is_tid() const { return is_tid_; }
   bool is_repeated() const { return is_repeated_; }
   bool is_packed() const { return is_packed_; }
   bool is_extension() const { return is_extension_; }
@@ -67,6 +73,13 @@ class FieldDescriptor {
     resolved_type_name_ = resolved_type_name;
   }
 
+  void set_flags_enum_descriptor_idx(uint32_t idx) {
+    flags_enum_descriptor_idx_ = idx;
+  }
+
+  void set_is_pid(bool is_pid) { is_pid_ = is_pid; }
+  void set_is_tid(bool is_tid) { is_tid_ = is_tid; }
+
   void set_extension_full_name(const std::string& extension_full_name) {
     extension_full_name_ = extension_full_name;
   }
@@ -77,6 +90,9 @@ class FieldDescriptor {
   uint32_t type_;
   std::string raw_type_name_;
   std::string resolved_type_name_;
+  std::optional<uint32_t> flags_enum_descriptor_idx_;
+  bool is_pid_ = false;
+  bool is_tid_ = false;
   std::vector<uint8_t> options_;
   std::optional<std::string> default_value_;
   bool is_repeated_;
@@ -238,6 +254,30 @@ class DescriptorPool {
     return descriptors_;
   }
 
+  // Opaque memo of a resolved descriptor, reused across FindEnumString calls.
+  class CachedDescriptor {
+   public:
+    CachedDescriptor() = default;
+
+   private:
+    friend class DescriptorPool;
+    std::optional<uint32_t> descriptor_idx_;
+  };
+
+  // Returns the name of enum value |value| within enum |enum_name|, or nullopt
+  // if the enum or the value is unknown. |cache| stores the resolved descriptor
+  // so later calls skip the by-name lookup.
+  std::optional<std::string> FindEnumString(CachedDescriptor& cache,
+                                            std::string_view enum_name,
+                                            int32_t value) const;
+
+  // Appends the name of each single-bit flag set in |mask| to |*out| (views
+  // into the pool's storage), for the flags enum at |enum_descriptor_idx|.
+  // Returns the set bits that matched no flag.
+  int64_t FlagSetToViews(uint32_t enum_descriptor_idx,
+                         int64_t mask,
+                         std::vector<std::string_view>* out) const;
+
  private:
   base::Status AddNestedProtoDescriptors(
       const std::string& file_name,
@@ -265,6 +305,21 @@ class DescriptorPool {
   base::Status ResolveUninterpretedOption(const ProtoDescriptor&,
                                           const FieldDescriptor&,
                                           std::vector<uint8_t>&);
+
+  void ResolveFlagsEnumOption(const ProtoDescriptor& descriptor,
+                              uint32_t option_number,
+                              FieldDescriptor* field);
+
+  // The field numbers of Perfetto's custom field options, looked up once.
+  struct CustomOptionNumbers {
+    std::optional<uint32_t> flags_enum;
+    std::optional<uint32_t> pid;
+    std::optional<uint32_t> tid;
+  };
+  CustomOptionNumbers FindCustomOptionNumbers() const;
+  void ResolveCustomFieldOptions(const ProtoDescriptor& descriptor,
+                                 const CustomOptionNumbers& numbers,
+                                 FieldDescriptor* field);
 
   // Adds a new descriptor to the pool and returns its index. There must not be
   // already a descriptor with the same full_name in the pool.

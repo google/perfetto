@@ -753,6 +753,31 @@ class HeapprofdEndToEnd
     }
   }
 
+  // Checks that every dump carries a profiling window [start_timestamp,
+  // timestamp] that is never inverted, and that consecutive dumps for the heap
+  // chain (each window starts where the previous one ended).
+  void ValidateProfilingWindow(TraceProcessorTestHelper* helper, uint64_t pid) {
+    const auto& packets = helper->trace();
+    // The dump header repeats across continued packets, so collapse runs of the
+    // same (start, end) window. Distinct dumps have distinct end timestamps.
+    std::vector<std::pair<uint64_t, uint64_t>> windows;
+    for (const protos::gen::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        if (dump.pid() != pid || dump.heap_name() != allocator_name())
+          continue;
+        ASSERT_TRUE(dump.has_start_timestamp());
+        EXPECT_LE(dump.start_timestamp(), dump.timestamp());
+        std::pair<uint64_t, uint64_t> w(dump.start_timestamp(),
+                                        dump.timestamp());
+        if (windows.empty() || windows.back() != w)
+          windows.push_back(w);
+      }
+    }
+    ASSERT_FALSE(windows.empty());
+    for (size_t i = 1; i < windows.size(); i++)
+      EXPECT_EQ(windows[i].first, windows[i - 1].second);
+  }
+
   void ValidateFromStartup(TraceProcessorTestHelper* helper,
                            uint64_t pid,
                            bool from_startup) {
@@ -886,6 +911,7 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
+  ValidateProfilingWindow(helper.get(), pid);
 }
 
 TEST_P(HeapprofdEndToEnd, TwoAllocators) {

@@ -17,6 +17,7 @@ import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TraceInfoPage} from './trace_info_page';
+import {maybeDisplayTraceDoctorTab} from './diagnostics';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceInfoPage';
@@ -33,5 +34,7 @@ export default class implements PerfettoPlugin {
       icon: 'info',
       sortOrder: 15,
     });
+
+    await maybeDisplayTraceDoctorTab(trace);
   }
 }

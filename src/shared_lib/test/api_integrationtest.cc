@@ -1051,12 +1051,6 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
 }
 
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
-  if constexpr (
-      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
-    GTEST_SKIP()
-        << "Test requires flag to be set:"
-           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
-  }
   bool ignored = false;
   void* const kIncrPtr = &ignored;
   WaitableEvent clear_notification;
@@ -1122,12 +1116,6 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
 }
 
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
-  if constexpr (
-      !PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
-    GTEST_SKIP()
-        << "Test requires flag to be set:"
-           "PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY";
-  }
   bool ignored1 = false;
   bool ignored2 = false;
   void* const kIncrPtr1 = &ignored1;
@@ -1329,6 +1317,20 @@ TEST_F(SharedLibDataSourceTest, GetInstanceLockedStopBeforeRelease) {
   fully_stopped.Notify();
   tracing_session.WaitForStopped();
   t.join();
+}
+
+TEST_F(SharedLibDataSourceTest, GetTimestamp) {
+  struct PerfettoDsTimestamp ts = PerfettoDsGetTimestamp();
+  EXPECT_TRUE(ts.clock_id == PERFETTO_DS_CLOCK_MONOTONIC ||
+              ts.clock_id == PERFETTO_DS_CLOCK_BOOTTIME);
+  EXPECT_GT(ts.value, 0u);
+
+  struct PerfettoTeTimestamp te_ts = PerfettoTeGetTimestamp();
+  EXPECT_EQ(te_ts.clock_id, ts.clock_id);
+  // Values should be very close (within 1ms) as they are taken in quick
+  // succession from the same underlying clock.
+  EXPECT_NEAR(static_cast<double>(te_ts.value), static_cast<double>(ts.value),
+              1e6);
 }
 
 TEST_F(SharedLibDataSourceTest, ProtoVm) {
@@ -2052,6 +2054,63 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
                       AllFieldsWithId(
                           perfetto_protos_TrackEvent_counter_value_field_number,
                           ElementsAre(VarIntField(42))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_track_uuid_field_number,
+                          ElementsAre(VarIntField(kExpectedUuid))))))))));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredState) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PerfettoTeRegisteredTrack my_state_track;
+  PerfettoTeStateTrackRegister(&my_state_track, "MyState",
+                               PerfettoTeProcessTrackUuid(), true);
+
+  PERFETTO_TE(cat1, PERFETTO_TE_STATE("RUNNING"),
+              PERFETTO_TE_REGISTERED_TRACK(&my_state_track),
+              PERFETTO_TE_NO_INTERN());
+
+  PerfettoTeRegisteredTrackUnregister(&my_state_track);
+
+  uint64_t kExpectedUuid =
+      PerfettoTeStateTrackUuid("MyState", PerfettoTeProcessTrackUuid());
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      AllOf(
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_descriptor_field_number,
+                  ElementsAre(MsgField(UnorderedElementsAre(
+                      PbField(perfetto_protos_TrackDescriptor_uuid_field_number,
+                              VarIntField(kExpectedUuid)),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_static_name_field_number,
+                          StringField("MyState")),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_parent_uuid_field_number,
+                          VarIntField(PerfettoTeProcessTrackUuid())),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_state_field_number,
+                          MsgField(_)))))))),
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_STATE))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_name_field_number,
+                          ElementsAre(StringField("RUNNING"))),
                       AllFieldsWithId(
                           perfetto_protos_TrackEvent_track_uuid_field_number,
                           ElementsAre(VarIntField(kExpectedUuid))))))))));

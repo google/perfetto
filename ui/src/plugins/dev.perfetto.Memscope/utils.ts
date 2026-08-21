@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {formatBytesIec} from '../../base/bytes_format';
 import type {TsValue} from './sessions/live_session';
 
 /** Maps counter samples to chart points with x in seconds since `t0` (ns). */
@@ -24,23 +25,22 @@ export function counterPoints(
 }
 
 /**
- * Returns a Y-axis tick interval (in KB) that produces clean KB/MB/GB labels.
- * Targets ~5 ticks by picking the smallest interval from the sequence
- * 1, 2, 5, 10, 20, 50, 100, 200, 500 × {KB, MB, GB} that keeps tick count ≤ 6.
- *
- * Uses SI units (1 MB = 1000 KB, 1 GB = 1000 MB) to match `formatKb`.
+ * Returns a Y-axis tick interval (in KB) that lands on power-of-2 (IEC)
+ * boundaries, so labels rendered with `formatBytesIec` read as clean
+ * KiB/MiB/GiB values. Targets ~5 ticks by picking the smallest interval from
+ * 1, 2, 4, 8 … 512 × {KiB, MiB, GiB} (1 MiB = 1024 KiB) that keeps ticks ≤ 6.
  */
 export function niceKbInterval(maxKb: number): number {
   if (maxKb <= 0) return 1;
   const rawInterval = maxKb / 5;
-  const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500];
-  for (const unit of [1, 1000, 1000 * 1000]) {
+  const steps = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512];
+  for (const unit of [1, 1024, 1024 * 1024]) {
     for (const step of steps) {
       const candidate = unit * step;
       if (candidate >= rawInterval) return candidate;
     }
   }
-  return 1000 * 1000 * 500; // fallback: 500 GB
+  return 1024 * 1024 * 512; // fallback: 512 GiB
 }
 
 /** Returns the maximum y value across all series in a chart dataset. */
@@ -56,25 +56,8 @@ export function maxSeriesKb(
   return max;
 }
 
-export function formatKb(kb: number): string {
-  if (kb < 1000) return `${kb.toLocaleString()} KB`;
-  if (kb < 1000 * 1000) return `${(kb / 1000).toFixed(1)} MB`;
-  return `${(kb / (1000 * 1000)).toFixed(1)} GB`;
-}
-
-/** Renders a KB value for a billboard with the unit in a smaller span. */
-export function billboardKb(kb: number) {
-  let value: string;
-  let unit: string;
-  if (kb < 1000) {
-    value = kb.toLocaleString();
-    unit = 'KB';
-  } else if (kb < 1000 * 1000) {
-    value = (kb / 1000).toFixed(1);
-    unit = 'MB';
-  } else {
-    value = (kb / (1000 * 1000)).toFixed(1);
-    unit = 'GB';
-  }
+/** Renders a byte value for a billboard with the unit in a smaller span. */
+export function billboardBytes(bytes: number) {
+  const [value, unit] = formatBytesIec(bytes).split(' ');
   return {value, unit};
 }

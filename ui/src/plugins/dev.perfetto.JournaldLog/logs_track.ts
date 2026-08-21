@@ -21,7 +21,6 @@ import {
   LONG,
   NUM,
   NUM_NULL,
-  STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {SliceTrack} from '../../components/tracks/slice_track';
@@ -31,7 +30,6 @@ import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {Spinner} from '../../widgets/spinner';
 
 // Journald priority: 0=EMERG … 7=DEBUG (lower number = increased severity).
 const DEPTH_TO_COLOR = [
@@ -94,16 +92,6 @@ export function createJournaldLogTrack(trace: Trace, uri: string) {
     },
     sliceLayout: {padding: 2, sliceHeight: 7},
     detailsPanel: (row) => {
-      let msg: string | undefined;
-
-      trace.engine
-        .query(
-          `select msg from linux_systemd_journald_logs where id = ${row.id}`,
-        )
-        .then((result) => {
-          msg = result.maybeFirstRow({msg: STR})?.msg;
-        });
-
       return {
         render() {
           return m(
@@ -126,10 +114,7 @@ export function createJournaldLogTrack(trace: Trace, uri: string) {
                     m(TreeNode, {left: 'Priority', right: row.prio}),
                     m(TreeNode, {left: 'Tag', right: row.tag}),
                     m(TreeNode, {left: 'Utid', right: row.utid}),
-                    m(TreeNode, {
-                      left: 'Message',
-                      right: msg ? msg : m(Spinner),
-                    }),
+                    m(TreeNode, {left: 'Message', right: row.msg}),
                   ),
                 ),
               ),

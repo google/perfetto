@@ -301,7 +301,7 @@ class TrackEventTracker {
       std::optional<uint32_t> packet_sequence_id) {
     State* s =
         EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
-    if (!s) {
+    if (!s || !s->resolved || !s->resolved->is_state()) {
       return std::nullopt;
     }
     if (std::holds_alternative<TrackId>(*s->track_id_or_factory)) {

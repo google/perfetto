@@ -34,6 +34,17 @@ git clone https://github.com/google/perfetto
 tools/install-build-deps [--android] [--ui] [--linux-arm] [--rust]
 ```
 
+On a fresh Debian/Ubuntu install (including WSL 2), install these system
+packages first. `install-build-deps` uses `curl` and `python3 -m venv`, and the
+hermetic clang toolchain compiles against the system libc headers provided by
+`build-essential` (without them the build fails with
+`fatal error: 'features.h' file not found`, see
+[#405](https://github.com/google/perfetto/issues/405)):
+
+```bash
+sudo apt install curl python3-venv build-essential
+```
+
 `--android` will pull the Android NDK, emulator and other deps required
 to build for `target_os = "android"`.
 
@@ -89,8 +100,7 @@ tools/ninja -C out/android \
   traced \                 # Tracing service.
   traced_probes \          # Ftrace interop and /proc poller.
   perfetto \               # Cmdline client.
-  trace_processor_shell \  # Trace parsing.
-  traceconv                # Trace conversion.
+  trace_processor_shell    # Trace parsing and conversion.
 ...
 ```
 
@@ -167,8 +177,8 @@ chrome://tracing). The MSVC build is maintained best-effort.
 
 The following targets are supported on Windows:
 
-- `trace_processor_shell`: the trace importer and SQL query engine.
-- `traceconv`: the trace conversion tool.
+- `trace_processor_shell`: the trace importer, SQL query engine and trace
+  conversion tool.
 - `traced` and `perfetto`: the tracing service and cmdline client. They use an
   alternative implementation of the [inter-process tracing protocol](/docs/design-docs/api-and-abi.md#tracing-protocol-abi)
   based on a TCP socket and named shared memory. This configuration is only for
@@ -177,7 +187,9 @@ The following targets are supported on Windows:
 - `perfetto_unittests` / `perfetto_integrationtests`: although they support only
   the subset of code that is supported on Windows (e.g. no ftrace).
 
-It is NOT possible to build the Perfetto UI from Windows.
+It is NOT possible to build the Perfetto UI natively from Windows. You can,
+however, build it from Windows using [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/about)
+by following the Linux instructions inside the WSL environment.
 
 #### Prerequisites
 
@@ -362,7 +374,7 @@ cxx="${CXX}"
 In case of cross-compilation, the GN variables have the following semantic:
 `ar`, `cc`, `cxx`, `linker` refer to the _host_ toolchain (sometimes also called
 _build_ toolchain). This toolchain is used to build: (i) auxiliary tools
-(e.g. the `traceconv` conversion util) and (ii) executable artifacts that are
+(e.g. the `trace_processor` conversion util) and (ii) executable artifacts that are
 used during the rest of the build process for the target (e.g., the `protoc`
 compiler or the `protozero_plugin` protoc compiler plugin).
 

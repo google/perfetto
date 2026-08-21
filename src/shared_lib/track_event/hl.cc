@@ -41,6 +41,8 @@ protos::pbzero::TrackEvent::Type EventType(int32_t type) {
       return Type::TYPE_INSTANT;
     case PERFETTO_TE_TYPE_COUNTER:
       return Type::TYPE_COUNTER;
+    case PERFETTO_TE_TYPE_STATE:
+      return Type::TYPE_STATE;
   }
   return Type::TYPE_UNSPECIFIED;
 }

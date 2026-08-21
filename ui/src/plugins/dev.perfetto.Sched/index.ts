@@ -25,7 +25,11 @@ import {
   CPU_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../../public/track_kinds';
-import {getThreadUriPrefix, getTrackName} from '../../public/utils';
+import {
+  getMachineCount,
+  getThreadUriPrefix,
+  getTrackName,
+} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import type {Engine} from '../../trace_processor/engine';
 import {
@@ -42,7 +46,6 @@ import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {uriForSchedTrack} from './common';
-import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
 import {createCpuSliceTrack} from './cpu_slice_track';
 import {
@@ -53,9 +56,9 @@ import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregato
 import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
 import {Cpu} from '../../components/cpu';
-import {ThreadStateByCpuAggregator} from './thread_state_by_cpu_aggregator';
 import type {App} from '../../public/app';
-import type {Flag} from '../../public/feature_flag';
+import type {Setting} from '../../public/settings';
+import {z} from 'zod';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -73,15 +76,27 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
 export default class SchedPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sched';
   static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
-  static threadStateByCpuFlag: Flag;
+  static taskColorModeSetting: Setting<'process' | 'priority'>;
 
   static onActivate(app: App) {
-    SchedPlugin.threadStateByCpuFlag = app.featureFlags.register({
-      id: 'threadStateByCpu',
-      name: 'Thread State by CPU Aggregation',
+    SchedPlugin.taskColorModeSetting = app.settings.register({
+      id: 'dev.perfetto.Sched#taskColorMode',
+      name: 'Task slice color mode',
       description:
-        'Add a new area selection aggregation tab showing thread states broken down by CPU.',
-      defaultValue: true,
+        'Color scheme used for task (CPU scheduling) slices: by process/thread or by priority (realtime & niceness).',
+      schema: z.enum(['process', 'priority']),
+      defaultValue: 'process',
+    });
+
+    app.commands.registerCommand({
+      id: 'dev.perfetto.Sched#toggleTaskColorMode',
+      name: 'Toggle task slice color mode (Process vs Priority)',
+      defaultHotkey: 'Shift+C',
+      callback: () => {
+        const current = SchedPlugin.taskColorModeSetting.get();
+        const next = current === 'process' ? 'priority' : 'process';
+        SchedPlugin.taskColorModeSetting.set(next);
+      },
     });
   }
 
@@ -92,7 +107,8 @@ export default class SchedPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const cpus = await getSchedCpus(ctx);
+    const numMachines = await getMachineCount(ctx.engine);
+    const cpus = await getSchedCpus(ctx, numMachines);
     this._schedCpus = cpus;
 
     const hasSched = await this.hasSched(ctx.engine);
@@ -156,9 +172,6 @@ export default class SchedPlugin implements PerfettoPlugin {
   async addCpuSliceTracks(ctx: Trace, cpus: ReadonlyArray<Cpu>): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new CpuSliceSelectionAggregator(ctx)),
-    );
-    ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator(ctx)),
     );
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
@@ -276,12 +289,6 @@ export default class SchedPlugin implements PerfettoPlugin {
       createAggregationTab(ctx, new ThreadStateSelectionAggregator(ctx)),
     );
 
-    if (SchedPlugin.threadStateByCpuFlag.get()) {
-      ctx.selection.registerAreaSelectionTab(
-        createAggregationTab(ctx, new ThreadStateByCpuAggregator()),
-      );
-    }
-
     const result = await engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.summary.threads;
@@ -338,6 +345,7 @@ export default class SchedPlugin implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
+          ...(isMainThread === 1 && {isMainThread: true}),
         },
         renderer: createThreadStateTrack(ctx, uri, utid),
       });
@@ -532,13 +540,14 @@ export default class SchedPlugin implements PerfettoPlugin {
 /**
  * Get the list of unique cpus in the sched table.
  */
-async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
+async function getSchedCpus(ctx: Trace, numMachines: number): Promise<Cpu[]> {
   const queryRes = await ctx.engine.query(`
     SELECT DISTINCT
       ucpu,
       cpu.machine_id AS machine_id,
       cpu.cpu AS cpu,
-      machine.name AS machine_name
+      machine.name AS machine_name,
+      machine.label_index AS machine_label_index
     FROM sched
     JOIN cpu USING (ucpu)
     LEFT JOIN machine ON machine.id = cpu.machine_id
@@ -552,12 +561,20 @@ async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
       machine_id: NUM,
       cpu: NUM,
       machine_name: STR_NULL,
+      machine_label_index: NUM_NULL,
     });
     it.valid();
     it.next()
   ) {
     ucpus.push(
-      new Cpu(it.ucpu, it.cpu, it.machine_id, it.machine_name ?? undefined),
+      new Cpu(
+        it.ucpu,
+        it.cpu,
+        it.machine_id,
+        it.machine_name ?? undefined,
+        it.machine_label_index ?? undefined,
+        numMachines,
+      ),
     );
   }
 

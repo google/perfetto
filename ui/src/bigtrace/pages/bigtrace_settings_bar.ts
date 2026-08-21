@@ -33,9 +33,7 @@ export interface BigtraceSettingsBarAttrs {
 // trace filters) plus an "+ Add" chip opening the Settings modal. Trace-metadata
 // columns aren't shown here — they live only in the modal's Query Result Columns
 // card.
-export class BigtraceSettingsBar
-  implements m.ClassComponent<BigtraceSettingsBarAttrs>
-{
+export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBarAttrs> {
   view({attrs}: m.Vnode<BigtraceSettingsBarAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
     return m(
@@ -70,8 +68,7 @@ export class BigtraceSettingsBar
 function renderSettingChips(bindings: SettingsBindings): m.Children {
   return bindings.getEffectiveSettings().map((entry) => {
     const setting = bigTraceSettingsStorage.get(entry.settingId) as
-      | BigTraceSetting<unknown>
-      | undefined;
+      BigTraceSetting<unknown> | undefined;
     if (setting === undefined) return null;
     return renderSettingChip(setting, entry.values);
   });

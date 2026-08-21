@@ -35,7 +35,11 @@ heap_graph_sample_protos AS (
       'reachable_obj_count', reachable_obj_count,
       'oom_score_adj', oom_score_adj,
       'anon_rss_and_swap_size', anon_rss_and_swap_size,
-      'dmabuf_rss_size', dmabuf_rss_size
+      'dmabuf_rss_size', dmabuf_rss_size,
+      'art_bytes_allocated', art_bytes_allocated,
+      'is_out_of_memory_error', is_out_of_memory_error,
+      'oome_failing_allocation_size', oome_failing_allocation_size,
+      'oome_remaining_art_free_bytes', oome_remaining_art_free_bytes
     )) AS sample_protos
   FROM android_heap_graph_stats
   GROUP BY 1

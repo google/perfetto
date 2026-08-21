@@ -26,9 +26,7 @@ export interface UiLoadingErrorsTabAttrs {
   data: UiLoadingErrorsData;
 }
 
-export class UiLoadingErrorsTab
-  implements m.ClassComponent<UiLoadingErrorsTabAttrs>
-{
+export class UiLoadingErrorsTab implements m.ClassComponent<UiLoadingErrorsTabAttrs> {
   view({attrs}: m.CVnode<UiLoadingErrorsTabAttrs>) {
     const errors = attrs.data.errors;
 

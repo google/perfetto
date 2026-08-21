@@ -22,7 +22,7 @@ good, not working, or inconclusive.
     the query result as CSV.
 
     ```bash
-    trace_processor query --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql TRACE_FILE
+    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql
     ```
 
 2.  Parse the returned string CSV to identify the columns and extract the values
