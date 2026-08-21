@@ -3589,6 +3589,7 @@ filegroup {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
@@ -7973,6 +7974,7 @@ filegroup {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
     ],
 }
@@ -8001,6 +8003,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/kernel_wakelock_data.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/packages_list.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.gen.cc",
+        "external/perfetto/protos/perfetto/trace/android/recovered_trace_info.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/user_list.gen.cc",
     ],
 }
@@ -8029,6 +8032,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/kernel_wakelock_data.gen.h",
         "external/perfetto/protos/perfetto/trace/android/packages_list.gen.h",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.gen.h",
+        "external/perfetto/protos/perfetto/trace/android/recovered_trace_info.gen.h",
         "external/perfetto/protos/perfetto/trace/android/user_list.gen.h",
     ],
     export_include_dirs: [
@@ -8051,6 +8055,7 @@ filegroup {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
     ],
 }
@@ -8078,6 +8083,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/kernel_wakelock_data.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/packages_list.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pb.cc",
+        "external/perfetto/protos/perfetto/trace/android/recovered_trace_info.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/user_list.pb.cc",
     ],
 }
@@ -8105,6 +8111,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/kernel_wakelock_data.pb.h",
         "external/perfetto/protos/perfetto/trace/android/packages_list.pb.h",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pb.h",
+        "external/perfetto/protos/perfetto/trace/android/recovered_trace_info.pb.h",
         "external/perfetto/protos/perfetto/trace/android/user_list.pb.h",
     ],
     export_include_dirs: [
@@ -8127,6 +8134,7 @@ filegroup {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
     ],
 }
@@ -8155,6 +8163,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/kernel_wakelock_data.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/packages_list.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/android/recovered_trace_info.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/user_list.pbzero.cc",
     ],
 }
@@ -8183,6 +8192,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/kernel_wakelock_data.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/packages_list.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/android/recovered_trace_info.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/user_list.pbzero.h",
     ],
     export_include_dirs: [
@@ -8446,6 +8456,7 @@ genrule {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
@@ -10079,6 +10090,7 @@ genrule {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
@@ -11372,6 +11384,7 @@ filegroup {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
@@ -13767,6 +13780,7 @@ genrule {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
@@ -23048,6 +23062,7 @@ java_library {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
@@ -23525,6 +23540,7 @@ python_library_host {
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
+        "protos/perfetto/trace/android/recovered_trace_info.proto",
         "protos/perfetto/trace/android/user_list.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
