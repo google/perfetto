@@ -19,6 +19,9 @@
 #include <string>
 #include <utility>
 
+#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::profiling {
@@ -254,6 +257,219 @@ Example$$Class -> C:
   EXPECT_THAT(cls.deobfuscated_fields(),
               ElementsAre(Pair("o", "second"), Pair("q", "first")));
   EXPECT_THAT(cls.deobfuscated_methods(), testing::IsEmpty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonComment) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.Merged -> z:
+# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": "com.example.ClassA" }, { "name": "com.example.ClassB" }] }
+)";
+
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("z", _)));
+  const auto& cls = mapping.find("z")->second;
+  EXPECT_EQ(cls.deobfuscated_name(), "com.example.Merged");
+
+  const auto& mcs = cls.merged_classes();
+  EXPECT_TRUE(mcs.class_id_field_name.empty());
+  ASSERT_EQ(mcs.merged_classes.size(), 2u);
+
+  EXPECT_EQ(mcs.merged_classes[0].name, "com.example.ClassA");
+  EXPECT_FALSE(mcs.merged_classes[0].class_id.has_value());
+  EXPECT_TRUE(
+      mcs.merged_classes[0].nested_merged_classes.merged_classes.empty());
+
+  EXPECT_EQ(mcs.merged_classes[1].name, "com.example.ClassB");
+  EXPECT_FALSE(mcs.merged_classes[1].class_id.has_value());
+  EXPECT_TRUE(
+      mcs.merged_classes[1].nested_merged_classes.merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentClassIdTypes) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.Merged -> z:
+# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": "$cid", "merged_classes": [{ "name": "ClassPos", "class_id": 100 }, { "name": "ClassNeg", "class_id": -10 }, { "name": "ClassZero", "class_id": 0 }, { "name": "ClassMax", "class_id": 2147483647 }, { "name": "ClassMin", "class_id": -2147483648 }, { "name": "ClassNoId" }] }
+)";
+
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("z", _)));
+  const auto& cls = mapping.find("z")->second;
+  EXPECT_EQ(cls.deobfuscated_name(), "com.example.Merged");
+
+  const auto& mcs = cls.merged_classes();
+  EXPECT_EQ(mcs.class_id_field_name, "$cid");
+  ASSERT_EQ(mcs.merged_classes.size(), 6u);
+
+  EXPECT_EQ(mcs.merged_classes[0].name, "ClassPos");
+  EXPECT_EQ(mcs.merged_classes[0].class_id, 100);
+
+  EXPECT_EQ(mcs.merged_classes[1].name, "ClassNeg");
+  EXPECT_EQ(mcs.merged_classes[1].class_id, -10);
+
+  EXPECT_EQ(mcs.merged_classes[2].name, "ClassZero");
+  EXPECT_EQ(mcs.merged_classes[2].class_id, 0);
+
+  EXPECT_EQ(mcs.merged_classes[3].name, "ClassMax");
+  EXPECT_EQ(mcs.merged_classes[3].class_id, 2147483647);
+
+  EXPECT_EQ(mcs.merged_classes[4].name, "ClassMin");
+  EXPECT_EQ(mcs.merged_classes[4].class_id, -2147483648);
+
+  EXPECT_EQ(mcs.merged_classes[5].name, "ClassNoId");
+  EXPECT_FALSE(mcs.merged_classes[5].class_id.has_value());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentWithKindAndClassId) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.ClassA -> a:
+# {"id":"unrelated"}
+# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": "$cid", "kind": "horizontal", "merged_classes": [{ "name": "com.example.ClassA", "class_id": "0" }, { "name": "com.example.ClassB", "class_id": "1" }] }
+)";
+
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("a", _)));
+  const auto& cls = mapping.find("a")->second;
+  EXPECT_EQ(cls.deobfuscated_name(), "com.example.ClassA");
+
+  const auto& mcs = cls.merged_classes();
+  EXPECT_EQ(mcs.class_id_field_name, "$cid");
+  ASSERT_EQ(mcs.merged_classes.size(), 2u);
+
+  EXPECT_EQ(mcs.merged_classes[0].name, "com.example.ClassA");
+  EXPECT_EQ(mcs.merged_classes[0].class_id, 0);
+  EXPECT_TRUE(
+      mcs.merged_classes[0].nested_merged_classes.merged_classes.empty());
+
+  EXPECT_EQ(mcs.merged_classes[1].name, "com.example.ClassB");
+  EXPECT_EQ(mcs.merged_classes[1].class_id, 1);
+  EXPECT_TRUE(
+      mcs.merged_classes[1].nested_merged_classes.merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentNested) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.Merged -> z:
+# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": "$cid$1", "kind": "horizontal", "merged_classes": [{ "class_id": "0", "class_id_field": "$cid", "merged_classes": [{ "name": "com.example.ClassA", "class_id": "0" }, { "name": "com.example.ClassB", "class_id": "1" }] }, { "name": "com.example.ClassC", "class_id": "1" }] }
+)";
+
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("z", _)));
+  const auto& cls = mapping.find("z")->second;
+  EXPECT_EQ(cls.deobfuscated_name(), "com.example.Merged");
+
+  const auto& mcs = cls.merged_classes();
+  EXPECT_EQ(mcs.class_id_field_name, "$cid$1");
+  ASSERT_EQ(mcs.merged_classes.size(), 2u);
+
+  const auto& mc0 = mcs.merged_classes[0];
+  EXPECT_TRUE(mc0.name.empty());
+  EXPECT_EQ(mc0.class_id, 0);
+  EXPECT_EQ(mc0.nested_merged_classes.class_id_field_name, "$cid");
+  ASSERT_EQ(mc0.nested_merged_classes.merged_classes.size(), 2u);
+
+  EXPECT_EQ(mc0.nested_merged_classes.merged_classes[0].name,
+            "com.example.ClassA");
+  EXPECT_EQ(mc0.nested_merged_classes.merged_classes[0].class_id, 0);
+  EXPECT_TRUE(mc0.nested_merged_classes.merged_classes[0]
+                  .nested_merged_classes.merged_classes.empty());
+
+  EXPECT_EQ(mc0.nested_merged_classes.merged_classes[1].name,
+            "com.example.ClassB");
+  EXPECT_EQ(mc0.nested_merged_classes.merged_classes[1].class_id, 1);
+  EXPECT_TRUE(mc0.nested_merged_classes.merged_classes[1]
+                  .nested_merged_classes.merged_classes.empty());
+
+  const auto& mc1 = mcs.merged_classes[1];
+  EXPECT_EQ(mc1.name, "com.example.ClassC");
+  EXPECT_EQ(mc1.class_id, 1);
+  EXPECT_TRUE(mc1.nested_merged_classes.merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentUnrelatedId) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.Class -> a:
+# {"id":"com.android.tools.r8.synthesized", "merged_classes": [{ "name": "com.example.Other", "class_id": "0" }] }
+)";
+
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("a", _)));
+  const auto& cls = mapping.find("a")->second;
+  EXPECT_TRUE(cls.merged_classes().merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentSyntaxError) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.ClassA -> a:
+# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": }
+)";
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("a", _)));
+  EXPECT_TRUE(
+      mapping.find("a")->second.merged_classes().merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentNonNumericClassId) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.ClassB -> b:
+# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": "com.example.Sub", "class_id": "not_a_number" }] }
+)";
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("b", _)));
+  EXPECT_TRUE(
+      mapping.find("b")->second.merged_classes().merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentClassIdOutOfRange) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.ClassC -> c:
+# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": "com.example.Sub", "class_id": 999999999999999999 }]}
+)";
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("c", _)));
+  EXPECT_TRUE(
+      mapping.find("c")->second.merged_classes().merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentInvalidClassName) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.ClassD -> d:
+# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": 12345, "class_id": 1 }]}
+)";
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("d", _)));
+  EXPECT_TRUE(
+      mapping.find("d")->second.merged_classes().merged_classes.empty());
+}
+
+TEST(ProguardParserTest, MergedClassesJsonCommentNonArrayMergedClasses) {
+  ProguardParser p;
+  const char input[] = R"(
+com.example.ClassE -> e:
+# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": "not_an_array"}
+)";
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("e", _)));
+  EXPECT_TRUE(
+      mapping.find("e")->second.merged_classes().merged_classes.empty());
 }
 
 // =============================================================================
