@@ -30,7 +30,8 @@
 namespace perfetto::trace_processor {
 
 EventTracker::EventTracker(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      thread_arg_key_(context->storage->InternString("utid")) {}
 
 EventTracker::~EventTracker() = default;
 
@@ -39,7 +40,11 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
                                                double value,
                                                UniqueTid utid) {
   const auto& counter = context_->storage->counter_table();
-  auto opt_id = PushCounter(timestamp, value, kInvalidTrackId);
+  auto opt_id = PushCounter(timestamp, value, kInvalidTrackId,
+                            [this, utid](ArgsTracker::BoundInserter* inserter) {
+                              inserter->AddArg(thread_arg_key_,
+                                               Variadic::UnsignedInteger(utid));
+                            });
   if (opt_id) {
     PendingUpidResolutionCounter pending;
     pending.row = counter[*opt_id].ToRowNumber().row_number();
