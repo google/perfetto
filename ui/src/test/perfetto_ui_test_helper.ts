@@ -68,6 +68,27 @@ export class PerfettoTestHelper {
     await this.page.mouse.move(0, 0);
   }
 
+  // Like openTraceFile() but for a trace assembled in the test itself (e.g.
+  // an archive bundling checked-in traces), so tests don't need a dedicated
+  // GCS-hosted file for every combination.
+  async openTraceBuffer(name: string, buffer: Buffer): Promise<void> {
+    await this.page.goto('/?testing=1');
+    const file = await this.page.waitForSelector('input.trace_file', {
+      state: 'attached',
+    });
+    await this.page.evaluate(() =>
+      localStorage.setItem('dismissedPanningHint', 'true'),
+    );
+    await ensureExists(file).setInputFiles({
+      name,
+      mimeType: 'application/octet-stream',
+      buffer,
+    });
+    await this.waitForPerfettoIdle();
+    await this.applyTestingStyles();
+    await this.page.mouse.move(0, 0);
+  }
+
   /**
    * Applies styles to minimize rendering differences between Mac and Linux.
    */

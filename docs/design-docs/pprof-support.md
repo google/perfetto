@@ -99,6 +99,17 @@ CREATE TABLE aggregate_profile (
   sample_type_type TEXT,   -- pprof ValueType.type (e.g., "cpu")
   sample_type_unit TEXT    -- pprof ValueType.unit (e.g., "nanoseconds")
 );
+```
+
+The `scope` of a profile imported from an archive (zip/tar) is the archive
+member's file name, found by walking the trace-file parse chain past unnamed
+layers (e.g. gzip decompression) to the nearest named ancestor. A directly
+opened pprof has an unnamed root file and keeps the generic `pprof_file`
+scope. Frames, mappings (including the `[unknown]` fallback for locations
+without one) and symbols are interned across all profiles of an archive, so
+identical stacks are stored once however many profiles reference them.
+
+```sql
 
 -- Sample values aggregated by callsite
 CREATE TABLE aggregate_sample (
@@ -245,6 +256,20 @@ For pprof files containing multiple value types (e.g., CPU samples + heap alloca
 1. **Single import**: All metrics from one file imported together under same scope
 2. **Metric switching**: UI dropdown allows switching between metrics instantly
 3. **Independent analysis**: Each metric displays as separate flame graph
+
+#### Merging Archives
+
+An archive (zip/tar) containing many pprof files opens on a collection view
+instead of a single flamegraph: a filterable grid with one row per profile
+(columns are the per-sample-type totals) above the flamegraph. The grid's
+filters select the working set; with "Merge" on, one query sums the selected
+profiles into a single flamegraph (callsites are interned globally, so
+same-stack samples combine across profiles), and with it off, the profiles
+are stepped through one at a time in the grid's order. The view is the
+shared `FlamegraphCollection` component (`ui/src/components`), which also
+powers the stack-sample and heap-profile area-selection tabs — pprof is one
+consumer of it, not the owner. User documentation:
+[Flamegraph Collections](/docs/visualization/flamegraph-collections.md).
 
 ## Design Principles
 

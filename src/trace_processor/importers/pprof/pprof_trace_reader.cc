@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -73,6 +74,13 @@ PprofTraceReader::PprofTraceReader(TraceProcessorContext* context)
 PprofTraceReader::~PprofTraceReader() = default;
 
 base::Status PprofTraceReader::Parse(TraceBlobView blob) {
+  // Capture the source file now: during Parse() this reader's file is the
+  // top of the parsing stack. By the time ParseProfile() runs (at an
+  // arbitrary push-to-sorter point, possibly after the end-of-file
+  // notifications popped the stack) it may no longer be.
+  if (!file_id_.has_value()) {
+    file_id_ = context_->trace_file_tracker->CurrentFile();
+  }
   buffer_.insert(buffer_.end(), blob.data(), blob.data() + blob.size());
   parsed_any_data_ = true;
   return base::OkStatus();
@@ -182,7 +190,11 @@ base::Status PprofTraceReader::ParseProfile() {
       }
     }
     if (!mapping) {
-      mapping = &context_->mapping_tracker->CreateDummyMapping("[unknown]");
+      // Intern the fallback so all profiles in an archive share one mapping
+      // and identical frames dedupe across them.
+      CreateMappingParams params;
+      params.name = "[unknown]";
+      mapping = &context_->mapping_tracker->InternMemoryMapping(params);
     }
 
     // Extract function information from the first line for frame name
@@ -213,6 +225,16 @@ base::Status PprofTraceReader::ParseProfile() {
     FrameId frame_id =
         mapping->InternFrame(rel_pc, storage->GetString(frame_name_id));
     location_to_frame[loc_decoder.id()] = frame_id;
+
+    // Frames interned by a previous profile in the archive already carry
+    // their symbols; only newly created frames need them.
+    {
+      auto frame_row =
+          (*storage->mutable_stack_profile_frame_table())[frame_id];
+      if (frame_row.symbol_set_id().has_value()) {
+        continue;
+      }
+    }
 
     // Create symbol table entries for all line entries (inlined functions)
     uint32_t symbol_set_id = storage->symbol_table().row_count();
@@ -283,6 +305,25 @@ base::Status PprofTraceReader::ParseProfile() {
     }
   }
 
+  // Scope each profile by its source file (captured at Parse() time) so
+  // multiple pprofs from an archive stay distinguishable instead of
+  // collapsing onto one "pprof_file" scope. Gzipped members parse under an
+  // unnamed decompression file, so walk up to the nearest named ancestor;
+  // fall back to "pprof_file" if there's no usable name.
+  StringId scope_id = pprof_file_string_id_;
+  const auto& trace_files = context_->storage->trace_file_table();
+  auto cur = file_id_;
+  while (cur.has_value()) {
+    auto row = trace_files[*cur];
+    std::optional<StringId> name = row.name();
+    if (name.has_value() && !name->is_null() &&
+        storage->GetString(*name).size() > 0) {
+      scope_id = *name;
+      break;
+    }
+    cur = row.parent_id();
+  }
+
   // Parse sample types and create aggregate_profile entries
   std::vector<tables::AggregateProfileTable::Id> profile_ids;
   for (auto it = profile.sample_type(); it; ++it) {
@@ -298,7 +339,7 @@ base::Status PprofTraceReader::ParseProfile() {
     std::string type_str = storage->GetString(type_str_id).ToStdString();
     auto profile_id =
         storage->mutable_aggregate_profile_table()
-            ->Insert({pprof_file_string_id_,
+            ->Insert({scope_id,
                       storage->InternString(("pprof " + type_str).c_str()),
                       type_str_id, unit_str_id})
             .id;

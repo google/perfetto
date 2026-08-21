@@ -1137,6 +1137,11 @@ format is for:
 
   ![](/docs/images/pprof-in-ui.png)
 
+  A zip or tar archive containing many `pprof` files opens as a filterable
+  collection: pick a subset of profiles and either merge them into one
+  combined flamegraph or step through them one at a time. See
+  [Flamegraph Collections](/docs/visualization/flamegraph-collections.md).
+
 **How to Generate:** The most relevant generation path for Perfetto users
 involves collecting CPU profiles from Go programs or converting `perf.data` files.
 

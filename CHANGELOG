@@ -7,8 +7,16 @@ Unreleased:
      is not BOOTTIME. They were previously stored unconverted, which could
      also cause ftrace events to be dropped when preserve_ftrace_buffer is
      disabled.
+   * pprof profiles imported from an archive are now scoped by their source
+     file name instead of all collapsing onto one "pprof_file" scope, and
+     identical frames are interned across the archive's profiles, so large
+     multi-pprof archives no longer exhaust memory.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
+    * Flamegraph surfaces gained a merge/step collection view: pprof archives
+      get a filterable per-profile grid over the flamegraph, stack-sample
+      area selections a per-thread/process picker, and heap-profile area
+      selections now support selecting multiple processes.
   SDK:
    *
 
