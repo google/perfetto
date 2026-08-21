@@ -14,26 +14,18 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/trace_redaction_framework.h"
+#include "src/trace_redaction/timeline_validation.h"
 
 namespace perfetto::trace_redaction {
 
-CollectPrimitive::~CollectPrimitive() = default;
+base::Status TimelineValidation::Validate(const Context& context) const {
+  if (!context.timeline || context.timeline->empty()) {
+    return base::ErrStatus(
+        "TraceRedactor: No process timeline found. Are sched_free or process "
+        "stats data sources missing");
+  }
 
-base::Status CollectPrimitive::Begin(Context*) const {
   return base::OkStatus();
 }
-
-base::Status CollectPrimitive::End(Context*) const {
-  return base::OkStatus();
-}
-
-BuildPrimitive::~BuildPrimitive() = default;
-
-TransformPrimitive::~TransformPrimitive() = default;
-
-AugmentPrimitive::~AugmentPrimitive() = default;
-
-ValidatorPrimitive::~ValidatorPrimitive() = default;
 
 }  // namespace perfetto::trace_redaction

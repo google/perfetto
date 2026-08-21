@@ -14,26 +14,19 @@
  * limitations under the License.
  */
 
+#ifndef SRC_TRACE_REDACTION_TIMELINE_VALIDATION_H_
+#define SRC_TRACE_REDACTION_TIMELINE_VALIDATION_H_
+
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-CollectPrimitive::~CollectPrimitive() = default;
-
-base::Status CollectPrimitive::Begin(Context*) const {
-  return base::OkStatus();
-}
-
-base::Status CollectPrimitive::End(Context*) const {
-  return base::OkStatus();
-}
-
-BuildPrimitive::~BuildPrimitive() = default;
-
-TransformPrimitive::~TransformPrimitive() = default;
-
-AugmentPrimitive::~AugmentPrimitive() = default;
-
-ValidatorPrimitive::~ValidatorPrimitive() = default;
+// Validates that the context contains a populated process timeline.
+class TimelineValidation : public ValidatorPrimitive {
+ public:
+  base::Status Validate(const Context& context) const override;
+};
 
 }  // namespace perfetto::trace_redaction
+
+#endif  // SRC_TRACE_REDACTION_TIMELINE_VALIDATION_H_
