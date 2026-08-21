@@ -25,6 +25,13 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <direct.h>  // _getcwd()
+#else
+#include <unistd.h>  // getcwd()
+#endif
+
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -158,6 +165,20 @@ base::Status ValidateAfUnixPathLength(const std::string& path) {
         path.size(), kMaxAfUnixPath - 1, path.c_str());
   }
   return base::OkStatus();
+}
+
+std::string MakeAbsolutePath(const std::string& path) {
+  if (path.empty() || IsAbsolutePath(path))
+    return path;
+  char cwd[4096];
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (!_getcwd(cwd, sizeof(cwd)))
+    return path;
+#else
+  if (!getcwd(cwd, sizeof(cwd)))
+    return path;
+#endif
+  return std::string(cwd) + kPathSep + path;
 }
 
 base::StatusOr<uint32_t> ParseDurationMs(const std::string& s) {

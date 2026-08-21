@@ -237,7 +237,8 @@ class RegisteredTrack {
                   uint64_t parent_uuid,
                   const std::string& name,
                   bool is_counter,
-                  bool is_name_static_);
+                  bool is_name_static_,
+                  bool is_state);
 
   ~RegisteredTrack();
 
@@ -256,6 +257,7 @@ class RegisteredTrack {
   const uint64_t parent_uuid_;
   const bool is_counter_;
   const bool is_name_static_;
+  const bool is_state_;
 };
 
 /**

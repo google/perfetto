@@ -211,7 +211,8 @@ RegisteredTrack::RegisteredTrack(uint64_t id,
                                  uint64_t parent_uuid,
                                  const std::string& name,
                                  bool is_counter,
-                                 bool is_name_static)
+                                 bool is_name_static,
+                                 bool is_state)
     : registered_track_{},
       track_{{PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK},
              &registered_track_.impl},
@@ -219,7 +220,8 @@ RegisteredTrack::RegisteredTrack(uint64_t id,
       id_(id),
       parent_uuid_(parent_uuid),
       is_counter_(is_counter),
-      is_name_static_(is_name_static) {
+      is_name_static_(is_name_static),
+      is_state_(is_state) {
   register_track();
 }
 
@@ -234,6 +236,9 @@ void RegisteredTrack::register_track() {
   if (is_counter_) {
     PerfettoTeCounterTrackRegister(&registered_track_, name_.data(),
                                    parent_uuid_, is_name_static_);
+  } else if (is_state_) {
+    PerfettoTeStateTrackRegister(&registered_track_, name_.data(), parent_uuid_,
+                                 is_name_static_);
   } else {
     PerfettoTeNamedTrackRegister(&registered_track_, name_.data(), id_,
                                  parent_uuid_, is_name_static_);

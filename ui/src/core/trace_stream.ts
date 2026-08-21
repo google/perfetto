@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, type Deferred} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {exists} from '../base/utils';
 import type {TraceChunk, TraceStream} from '../public/stream';
 
@@ -44,13 +44,13 @@ export class TraceFileStream implements TraceStream {
   }
 
   private onLoad() {
-    const pendingRead = assertExists(this.pendingRead);
+    const pendingRead = ensureExists(this.pendingRead);
     this.pendingRead = undefined;
     if (this.reader.error) {
       pendingRead.reject(this.reader.error);
       return;
     }
-    const res = assertExists(this.reader.result) as ArrayBuffer;
+    const res = ensureExists(this.reader.result) as ArrayBuffer;
     this.bytesRead += res.byteLength;
     pendingRead.resolve({
       data: new Uint8Array(res),
@@ -115,9 +115,15 @@ export class TraceHttpStream implements TraceStream {
   async readChunk(): Promise<TraceChunk> {
     // Initialize the fetch() job on the first read request.
     if (this.httpStream === undefined) {
-      const response = await fetch(this.uri);
+      const response = await fetch(this.uri).catch((e) => {
+        throw new Error(this.fetchErrorMessage(`${e}`));
+      });
       if (response.status !== 200) {
-        throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+        throw new Error(
+          this.fetchErrorMessage(
+            `HTTP ${response.status} ${response.statusText}`,
+          ),
+        );
       }
       const len = response.headers.get('Content-Length');
       this.bytesTotal = exists(len) ? Number.parseInt(len, 10) : 0;
@@ -132,7 +138,9 @@ export class TraceHttpStream implements TraceStream {
     // TraceProcessor. Here we accumulate chunks until we get at least 32mb
     // or hit EOF.
     while (!eof && bytesRead < 32 * 1024 * 1024) {
-      const res = await this.httpStream.read();
+      const res = await this.httpStream.read().catch((e) => {
+        throw new Error(this.fetchErrorMessage(`${e}`));
+      });
       if (res.value) {
         chunks.push(res.value);
         bytesRead += res.value.length;
@@ -161,6 +169,15 @@ export class TraceHttpStream implements TraceStream {
       bytesRead: this.bytesRead,
       bytesTotal: this.bytesTotal,
     };
+  }
+
+  // The (ERR:trace_fetch) marker makes the UI show a friendly dialog instead
+  // of a crash report dialog (see ui/src/frontend/error_dialog.ts).
+  private fetchErrorMessage(cause: string): string {
+    return (
+      `Could not fetch the trace at ${this.uri}: ` +
+      `${cause} (ERR:trace_fetch)`
+    );
   }
 }
 
@@ -307,4 +324,20 @@ export class TraceMultipleFilesStream implements TraceStream {
         };
     }
   }
+}
+
+// Materializes the on-the-fly TAR (manifest + traces) of a multi-file set into a
+// single in-memory blob, for the "download the merged trace" sinks. Reopening
+// this blob reproduces the merge. Revisit for very large sets.
+export async function tarFileListToBlob(
+  files: ReadonlyArray<File>,
+): Promise<Blob> {
+  const stream = new TraceMultipleFilesStream(files);
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const chunk = await stream.readChunk();
+    chunks.push(chunk.data);
+    if (chunk.eof) break;
+  }
+  return new Blob(chunks as BlobPart[], {type: 'application/x-tar'});
 }

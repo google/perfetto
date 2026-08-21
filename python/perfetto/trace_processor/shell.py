@@ -43,10 +43,11 @@ def load_shell(
     ingest_ftrace_in_raw: bool,
     enable_dev_features: bool,
     platform_delegate: PlatformDelegate,
-    load_timeout: int = 2,
+    load_timeout: int = 30,
     extra_flags: Optional[List[str]] = None,
     add_sql_packages: Optional[List[Union[str, 'SqlPackage']]] = None,
     fetch_latest_trace_processor: bool = False,
+    enable_sql_file_access: bool = False,
 ):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
@@ -66,12 +67,20 @@ def load_shell(
   else:
     tp_exec = [shell_path]
 
+  if fetch_latest_trace_processor and bin_path is None:
+    # The wrapper script downloads the real binary on first run. Do this
+    # here so it does not race the startup timeout below.
+    subprocess.check_call(tp_exec + ['--version'], stdout=subprocess.DEVNULL)
+
   args = ['-D', '--http-port', str(port)]
   if not ingest_ftrace_in_raw:
     args.append('--no-ftrace-raw')
 
   if enable_dev_features:
     args.append('--dev')
+
+  if enable_sql_file_access:
+    args.append('--allow-sql-file-access')
 
   if add_sql_packages:
     for package in add_sql_packages:
@@ -125,6 +134,8 @@ def load_shell(
     temp_stdout.close()
     temp_stderr.close()
     raise PerfettoException("Trace processor failed to start.\n"
-                            f"stdout: {stdout}\nstderr: {stderr}\n")
+                            f"stdout: {stdout}\nstderr: {stderr}\n"
+                            "If this is a slow machine or network, try "
+                            "increasing load_timeout in TraceProcessorConfig.")
 
   return url, p, temp_stdout, temp_stderr, job_handle

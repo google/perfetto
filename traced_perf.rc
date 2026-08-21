@@ -33,15 +33,14 @@ service traced_perf /system/bin/traced_perf
 # Daemon run state:
 # * initially off
 # * |persist.traced_perf.enable| forces daemon to run unconditionally
-# * if kernel doesn't have perf_event_open LSM hooks, daemon is stopped
 # * otherwise, follow |traced.lazy.traced_perf| as an on-demand service
 on property:persist.traced_perf.enable=1
     start traced_perf
-on property:persist.traced_perf.enable="" && property:sys.init.perf_lsm_hooks=""
+on property:persist.traced_perf.enable=""
     stop traced_perf
-on property:persist.traced_perf.enable="" && property:sys.init.perf_lsm_hooks=1 && property:traced.lazy.traced_perf=1
+on property:persist.traced_perf.enable="" && property:traced.lazy.traced_perf=1
     start traced_perf
-on property:persist.traced_perf.enable="" && property:sys.init.perf_lsm_hooks=1 && property:traced.lazy.traced_perf=""
+on property:persist.traced_perf.enable="" && property:traced.lazy.traced_perf=""
     stop traced_perf
 
 on property:persist.traced_perf.enable=0

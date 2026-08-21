@@ -2,6 +2,18 @@
 
 This document provides essential instructions and best practices for developing in the Perfetto codebase. Adhere to these guidelines to ensure consistency and quality.
 
+## Where to Land Changes
+
+All Perfetto changes must be landed in the upstream repository at
+https://github.com/google/perfetto.
+
+**Note for Google folks:** Pull requests or changelists raised against
+`third_party/perfetto/` in google3, or against `external/perfetto` in the
+internal Android repository, will NOT be accepted. To upstream your changes,
+follow the instructions at
+[go/perfetto-github-instructions](http://go/perfetto-github-instructions), or contact
+perfetto-team@google.com for help.
+
 ## Overview
 
 The perfetto repo contains several projects. These are the major ones
@@ -245,12 +257,12 @@ creating and managing pull requests, follow that and skip this section.
 When creating a pull request, follow these steps:
 
 1.  **Create a new branch:**
-    Use the command `git new-branch dev/$USER$/<name-of-branch>` to create a new branch for your pull request.
+    Use the command `git checkout -b dev/$USER/<name-of-branch>` to create a new branch for your pull request.
 
 2.  **Create a stacked/dependent pull request:**
-    To create a pull request that depends on another, use the command `git new-branch --parent <name-of-parent-branch> dev/lalitm/<name-of-branch>`.
+    To create a pull request that depends on another, use the command `git checkout -b dev/$USER/<name-of-branch> <name-of-parent-branch>`.
 
-**Note:** The `git new-branch` command only creates and switches to a new branch. The normal `git add` and `git commit` workflow should be used to add changes to the branch.
+**Note:** The `git checkout` command only creates and switches to a new branch. The normal `git add` and `git commit` workflow should be used to add changes to the branch.
 
 ## Commit Messages
 

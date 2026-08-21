@@ -19,6 +19,7 @@
 
 #include <fcntl.h>  // For mode_t & O_RDONLY/RDWR. Exists also on Windows.
 #include <stddef.h>
+#include <stdint.h>
 
 #include <functional>
 #include <memory>
@@ -100,6 +101,16 @@ int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);
 
 bool FlushFile(int fd);
 
+// Moves the file offset to |offset| bytes from the beginning of the file.
+// Returns false if |offset| cannot be represented by the platform or the seek
+// fails.
+bool SeekFile(int fd, uint64_t offset);
+
+// Changes the size of an open file to |size| bytes.
+// Returns false if |size| cannot be represented by the platform or truncation
+// fails.
+bool TruncateFile(int fd, uint64_t size);
+
 // Returns true if mkdir succeeds, false if it fails (see errno in that case).
 // `mode` is the permission bits for the new directory; it is ignored on
 // Windows.
@@ -114,6 +125,9 @@ bool Unlink(const char* path);
 
 // Wrapper around access(path, F_OK).
 bool FileExists(const std::string& path);
+
+// Returns true if the path exists and is a directory.
+bool DirectoryExists(const std::string& path);
 
 // Gets the extension for a filename. If the file has two extensions, returns
 // only the last one (foo.pb.gz => .gz). Returns empty string if there is no

@@ -17,20 +17,27 @@
 #include "src/trace_processor/plugins/video_frame_importer/video_frame_module.h"
 
 #include <cstdint>
+#include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/plugins/video_frame_importer/tables_py.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 
@@ -54,6 +61,33 @@ VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
 }
 
 VideoFrameModule::~VideoFrameModule() = default;
+
+ModuleResult VideoFrameModule::TokenizePacket(const TokenizePacketArgs& args) {
+  // A video frame belongs on the timeline at its presentation time, not the
+  // packet's encode-drain timestamp. pts_us is that presentation time, on
+  // CLOCK_MONOTONIC for SurfaceFlinger surface input. Translate it and push the
+  // packet through the sorter at that time here, during tokenization, so the
+  // table timestamp is one the sorter ordered. Anything without a convertible
+  // pts keeps the packet timestamp via the default path.
+  if (args.field.id() != FrameworksBaseTracePacket::kVideoFrameFieldNumber) {
+    return ModuleResult::Ignored();
+  }
+  VideoFrame::Decoder frame(
+      args.field.Cast<FrameworksBaseTracePacket::kVideoFrame>());
+  if (!frame.has_pts_us()) {
+    return ModuleResult::Ignored();
+  }
+  std::optional<int64_t> present = context_->clock_tracker->ToTraceTime(
+      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      static_cast<int64_t>(frame.pts_us()) * 1000);
+  if (!present.has_value()) {
+    return ModuleResult::Ignored();
+  }
+  module_context_->trace_packet_stream->Push(
+      *present,
+      TracePacketData{std::move(*args.packet), std::move(args.state)});
+  return ModuleResult::Handled();
+}
 
 void VideoFrameModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
@@ -129,7 +163,7 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
       max_stream_size_bytes_) {
     if (!info.size_cap_hit) {
       info.size_cap_hit = true;
-      context_->import_logs_tracker->RecordParserError(
+      context_->import_logs_tracker->RecordParserLog(
           stats::android_video_parse_size_cap_hit, ts,
           [this, display_id](ArgsTracker::BoundInserter& inserter) {
             inserter.AddArg(context_->storage->InternString("display_id"),
@@ -141,6 +175,8 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   info.emitted_bytes += static_cast<int64_t>(payload.size);
 
   auto id = table_->Insert(row).id.value;
+  // Signal frame output to trace doctor (see TraceStorage).
+  context_->storage->set_has_android_video_frames();
   // au_data is parallel to the table, indexed by row id.
   PERFETTO_DCHECK(id == au_data_->size());
   const TraceBlobView& packet = data.packet;
@@ -185,7 +221,7 @@ void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
   }
   // Producer-reported failure: record to the import logs (which also bumps the
   // reason's stat), with the affected display as a queryable arg.
-  context_->import_logs_tracker->RecordCollectionError(
+  context_->import_logs_tracker->RecordCollectionLog(
       stat, ts, [this, display_id](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("display_id"),
                         Variadic::UnsignedInteger(display_id));

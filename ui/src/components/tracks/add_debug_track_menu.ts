@@ -67,9 +67,7 @@ interface ConfigurationOptions {
   color: string;
 }
 
-export class AddDebugTrackMenu
-  implements m.ClassComponent<AddDebugTrackMenuAttrs>
-{
+export class AddDebugTrackMenu implements m.ClassComponent<AddDebugTrackMenuAttrs> {
   private trackName = '';
   private trackType: TrackType = 'slice';
   private readonly options: Partial<ConfigurationOptions>;

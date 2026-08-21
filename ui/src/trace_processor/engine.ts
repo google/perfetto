@@ -14,7 +14,7 @@
 
 import protos from '../protos';
 import {defer, type Deferred} from '../base/deferred';
-import {assertExists, assertTrue, assertUnreachable} from '../base/assert';
+import {ensureExists, assertTrue, assertUnreachable} from '../base/assert';
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
@@ -263,8 +263,8 @@ export abstract class EngineBase implements Engine, Disposable {
 
     switch (rpc.response) {
       case TPM.TPM_APPEND_TRACE_DATA: {
-        const appendResult = assertExists(rpc.appendResult);
-        const pendingPromise = assertExists(this.pendingParses.shift());
+        const appendResult = ensureExists(rpc.appendResult);
+        const pendingPromise = ensureExists(this.pendingParses.shift());
         if (exists(appendResult.error) && appendResult.error.length > 0) {
           pendingPromise.reject(appendResult.error);
         } else {
@@ -273,8 +273,8 @@ export abstract class EngineBase implements Engine, Disposable {
         break;
       }
       case TPM.TPM_FINALIZE_TRACE_DATA: {
-        const finalizeResult = assertExists(rpc.finalizeDataResult);
-        const pendingPromise = assertExists(this.pendingEOFs.shift());
+        const finalizeResult = ensureExists(rpc.finalizeDataResult);
+        const pendingPromise = ensureExists(this.pendingEOFs.shift());
         if (exists(finalizeResult.error) && finalizeResult.error.length > 0) {
           pendingPromise.reject(finalizeResult.error);
         } else {
@@ -283,14 +283,14 @@ export abstract class EngineBase implements Engine, Disposable {
         break;
       }
       case TPM.TPM_RESET_TRACE_PROCESSOR:
-        assertExists(this.pendingResetTraceProcessors.shift()).resolve();
+        ensureExists(this.pendingResetTraceProcessors.shift()).resolve();
         break;
       case TPM.TPM_RESTORE_INITIAL_TABLES:
-        assertExists(this.pendingRestoreTables.shift()).resolve();
+        ensureExists(this.pendingRestoreTables.shift()).resolve();
         break;
       case TPM.TPM_QUERY_STREAMING:
-        const qRes = assertExists(rpc.queryResult) as {} as QueryResultBypass;
-        const pendingQuery = assertExists(this.pendingQueries[0]);
+        const qRes = ensureExists(rpc.queryResult) as {} as QueryResultBypass;
+        const pendingQuery = ensureExists(this.pendingQueries[0]);
         pendingQuery.appendResultBatch(qRes.rawQueryResult);
         if (pendingQuery.isComplete()) {
           this.pendingQueries.shift();
@@ -299,10 +299,10 @@ export abstract class EngineBase implements Engine, Disposable {
         }
         break;
       case TPM.TPM_COMPUTE_METRIC:
-        const metricRes = assertExists(
+        const metricRes = ensureExists(
           rpc.metricResult,
         ) as protos.ComputeMetricResult;
-        const pendingComputeMetric = assertExists(
+        const pendingComputeMetric = ensureExists(
           this.pendingComputeMetrics.shift(),
         );
         if (exists(metricRes.error) && metricRes.error.length > 0) {
@@ -323,15 +323,15 @@ export abstract class EngineBase implements Engine, Disposable {
         }
         break;
       case TPM.TPM_DISABLE_AND_READ_METATRACE:
-        const metatraceRes = assertExists(
+        const metatraceRes = ensureExists(
           rpc.metatrace,
         ) as protos.DisableAndReadMetatraceResult;
-        assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
+        ensureExists(this.pendingReadMetatrace).resolve(metatraceRes);
         this.pendingReadMetatrace = undefined;
         break;
       case TPM.TPM_REGISTER_SQL_PACKAGE:
-        const registerResult = assertExists(rpc.registerSqlPackageResult);
-        const res = assertExists(this.pendingRegisterSqlPackage);
+        const registerResult = ensureExists(rpc.registerSqlPackageResult);
+        const res = ensureExists(this.pendingRegisterSqlPackage);
         if (exists(registerResult.error) && registerResult.error.length > 0) {
           res.reject(registerResult.error);
         } else {
@@ -340,40 +340,40 @@ export abstract class EngineBase implements Engine, Disposable {
         this.pendingRegisterSqlPackage = undefined;
         break;
       case TPM.TPM_SUMMARIZE_TRACE:
-        const summaryRes = assertExists(
+        const summaryRes = ensureExists(
           rpc.traceSummaryResult,
         ) as protos.TraceSummaryResult;
-        assertExists(this.pendingTraceSummary).resolve(summaryRes);
+        ensureExists(this.pendingTraceSummary).resolve(summaryRes);
         this.pendingTraceSummary = undefined;
         break;
       case TPM.TPM_CREATE_SUMMARIZER:
-        const createSummarizerRes = assertExists(
+        const createSummarizerRes = ensureExists(
           rpc.createSummarizerResult,
         ) as protos.CreateSummarizerResult;
-        assertExists(this.pendingCreateSummarizer).resolve(createSummarizerRes);
+        ensureExists(this.pendingCreateSummarizer).resolve(createSummarizerRes);
         this.pendingCreateSummarizer = undefined;
         break;
       case TPM.TPM_UPDATE_SUMMARIZER_SPEC:
-        const updateSummarizerSpecRes = assertExists(
+        const updateSummarizerSpecRes = ensureExists(
           rpc.updateSummarizerSpecResult,
         ) as protos.UpdateSummarizerSpecResult;
-        assertExists(this.pendingUpdateSummarizerSpec).resolve(
+        ensureExists(this.pendingUpdateSummarizerSpec).resolve(
           updateSummarizerSpecRes,
         );
         this.pendingUpdateSummarizerSpec = undefined;
         break;
       case TPM.TPM_QUERY_SUMMARIZER:
-        const querySummarizerRes = assertExists(
+        const querySummarizerRes = ensureExists(
           rpc.querySummarizerResult,
         ) as protos.QuerySummarizerResult;
-        assertExists(this.pendingQuerySummarizer).resolve(querySummarizerRes);
+        ensureExists(this.pendingQuerySummarizer).resolve(querySummarizerRes);
         this.pendingQuerySummarizer = undefined;
         break;
       case TPM.TPM_DESTROY_SUMMARIZER:
-        const destroySummarizerRes = assertExists(
+        const destroySummarizerRes = ensureExists(
           rpc.destroySummarizerResult,
         ) as protos.DestroySummarizerResult;
-        assertExists(this.pendingDestroySummarizer).resolve(
+        ensureExists(this.pendingDestroySummarizer).resolve(
           destroySummarizerRes,
         );
         this.pendingDestroySummarizer = undefined;

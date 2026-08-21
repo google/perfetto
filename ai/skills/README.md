@@ -90,8 +90,8 @@ bare `infra-references/querying.md` either. Likewise a helper script is
 `trace_processor` invocation spells the full path:
 
 ```sh
-trace_processor query --query-file \
-  $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql TRACE_FILE
+trace_processor query --remote SESSION --query-file \
+  $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql
 ```
 
 `$SKILL_ROOT` is the one anchor that makes this unambiguous. The skill

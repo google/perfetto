@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {
   TraceProcessor32,
   TraceProcessor64,
@@ -87,7 +87,7 @@ export class WasmBridge {
     if (this.aborted) {
       throw new Error('Wasm module crashed');
     }
-    const connection = assertExists(this.connection);
+    const connection = ensureExists(this.connection);
     assertTrue(msg.data instanceof Uint8Array);
     const data = msg.data as Uint8Array;
     let wrSize = 0;
@@ -122,11 +122,11 @@ export class WasmBridge {
   // code while in the ccall(trace_processor_on_rpc_request).
   private onReply(heapPtrArg: bigint | number, size: number) {
     const heapPtr = this.wasmPtrCast(heapPtrArg);
-    const data = assertExists(this.connection).HEAPU8.slice(
+    const data = ensureExists(this.connection).HEAPU8.slice(
       heapPtr,
       heapPtr + size,
     );
-    assertExists(this.messagePort).postMessage(data, [data.buffer]);
+    ensureExists(this.messagePort).postMessage(data, [data.buffer]);
   }
 
   private appendAndLogErr(line: string) {

@@ -68,6 +68,8 @@ class PerfettoSqlDatabase {
   const sql_modules::RegisteredPackage* FindPackage(
       const std::string& name) const;
   sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key);
+  const sql_modules::RegisteredPackage* FindPackageForModule(
+      const std::string& key) const;
   std::vector<std::pair<std::string, std::string>> GetModules() const;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage>& packages() {
     return packages_;

@@ -47,7 +47,7 @@ function hotkey(combo: Hotkey): m.Children {
 function getNodeCreationEntries(): HelpEntry[] {
   return nodeRegistry
     .list()
-    .filter(([_, desc]) => desc.type === 'source' && desc.hotkey)
+    .filter(([_, desc]) => desc.type === 'source' && desc.hotkey !== undefined)
     .sort((a, b) => a[1].name.localeCompare(b[1].name))
     .flatMap(([_, desc]) => {
       const hk = desc.hotkey;

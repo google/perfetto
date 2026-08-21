@@ -47,7 +47,6 @@ namespace metadata {
   F(all_data_source_flushed_ns,        KeyType::kMulti,   Variadic::kInt,    Scope::kMachineAndTrace), \
   F(all_data_source_started_ns,        KeyType::kSingle,  Variadic::kInt,    Scope::kMachineAndTrace), \
   F(ftrace_latest_data_start_ns,       KeyType::kSingle,  Variadic::kInt,    Scope::kMachineAndTrace), \
-  F(ftrace_setup_errors,               KeyType::kMulti,   Variadic::kString, Scope::kMachineAndTrace), \
   F(slow_start_data_source,            KeyType::kMulti,   Variadic::kString, Scope::kMachineAndTrace), \
   F(tracing_disabled_ns,               KeyType::kSingle,  Variadic::kInt,    Scope::kMachineAndTrace), \
   F(tracing_started_ns,                KeyType::kSingle,  Variadic::kInt,    Scope::kMachineAndTrace), \

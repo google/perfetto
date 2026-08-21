@@ -18,7 +18,7 @@ If the user has not yet loaded a trace into `trace_processor`, follow
 ## Enumerate the GPUs
 
 ```bash
-trace_processor query --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_info.sql TRACE_FILE
+trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_info.sql
 ```
 
 Columns: `machine_id`, `is_host`, `ugpu`, `gpu_index`, `vendor`, `name`,

@@ -45,6 +45,9 @@ export default class implements PerfettoPlugin {
         const uri = `/android_process_dmabuf_upid_${it.upid}`;
         ctx.tracks.registerTrack({
           uri,
+          tags: {
+            upid: it.upid,
+          },
           renderer: CounterTrack.create({
             trace: ctx,
             uri,
@@ -63,6 +66,9 @@ export default class implements PerfettoPlugin {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
         ctx.tracks.registerTrack({
           uri,
+          tags: {
+            utid: it.utid,
+          },
           renderer: CounterTrack.create({
             trace: ctx,
             uri,

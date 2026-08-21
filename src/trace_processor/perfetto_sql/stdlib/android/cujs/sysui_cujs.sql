@@ -174,7 +174,7 @@ CREATE PERFETTO TABLE android_sysui_latency_cujs(
 )
 AS
 SELECT
-  row_number() OVER (ORDER BY ts) AS cuj_id,
+  row_number() OVER (ORDER BY ts, slice.id) AS cuj_id,
   process.upid AS upid,
   process.name AS process_name,
   slice.name AS cuj_slice_name,

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 
 #include <cstdint>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -31,6 +32,8 @@
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
+
+class ArgsInserter;
 
 // Interns args into the storage from all ArgsTrackers across trace processor.
 // Note: most users will want to use ArgsTracker to push args to the strorage
@@ -78,8 +81,42 @@ class GlobalArgsTracker {
     return AddArgSet(args + begin, args + end, sizeof(CompactArg));
   }
 
+  // Reusable accumulation buffer for one ArgsInserter, recycled via the pool
+  // below so short-lived inserters don't churn allocations.
+  struct ArgsBuffer {
+    std::vector<CompactArg> args;
+    // key -> index in `args`; empty below a threshold, where a linear scan over
+    // `args` is cheaper than a hash lookup.
+    base::FlatHashMap<StringId, uint32_t> key_index;
+    base::FlatHashMap<StringId, size_t> array_indexes;
+
+    void Reset() {
+      args.clear();
+      key_index.Clear();
+      array_indexes.Clear();
+    }
+  };
+
  private:
+  friend class ArgsInserter;
+
   using ArgSetHash = uint64_t;
+
+  // Buffers keep stable addresses while checked out (unique_ptr storage).
+  ArgsBuffer* AcquireArgsBuffer() {
+    if (!free_buffers_.empty()) {
+      ArgsBuffer* buffer = free_buffers_.back();
+      free_buffers_.pop_back();
+      return buffer;
+    }
+    buffer_storage_.push_back(std::make_unique<ArgsBuffer>());
+    return buffer_storage_.back().get();
+  }
+
+  void ReleaseArgsBuffer(ArgsBuffer* buffer) {
+    buffer->Reset();
+    free_buffers_.push_back(buffer);
+  }
 
   // Assumes that the interval [begin, end) of |args| has args with the same key
   // grouped together.
@@ -187,6 +224,11 @@ class GlobalArgsTracker {
 
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
       arg_row_for_hash_;
+
+  // Pool of ArgsInserter buffers: `buffer_storage_` owns them, `free_buffers_`
+  // lists those available for reuse.
+  std::vector<std::unique_ptr<ArgsBuffer>> buffer_storage_;
+  std::vector<ArgsBuffer*> free_buffers_;
 
   TraceStorage* storage_;
 };

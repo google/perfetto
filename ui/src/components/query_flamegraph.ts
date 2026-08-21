@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
 import {AsyncDisposableStack} from '../base/disposable_stack';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {uuidv4Sql} from '../base/uuid';
 import type {Engine} from '../trace_processor/engine';
 import {
@@ -31,6 +31,7 @@ import {
 } from '../trace_processor/query_result';
 import {
   Flamegraph,
+  type FlamegraphAddableMetric,
   type FlamegraphPropertyDefinition,
   type FlamegraphQueryData,
   type FlamegraphState,
@@ -40,6 +41,7 @@ import {
 } from '../widgets/flamegraph';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
+import {parseUserFilterRegex} from '../widgets/flamegraph_regex';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
 import {Monitor} from '../base/monitor';
 
@@ -61,6 +63,9 @@ export interface AggQueryFlamegraphColumn extends QueryFlamegraphColumn {
 }
 
 export interface QueryFlamegraphMetric {
+  // Stable identity used in persisted state. Defaults to `name`.
+  readonly id?: string;
+
   // The human readable name of the metric: will be shown to the user to change
   // between metrics.
   readonly name: string;
@@ -68,6 +73,9 @@ export interface QueryFlamegraphMetric {
   // The human readable SI-style unit of `selfValue`. Values will be shown to
   // the user suffixed with this.
   readonly unit: string;
+
+  // Where the measure came from. Undefined is treated as ADDED.
+  readonly provenance?: 'DEFAULT' | 'ADDED';
 
   // Label for the name column in copy stack table and tooltip.
   // Examples: "Symbol", "Slice", "Class". Defaults to "Name".
@@ -123,9 +131,11 @@ export interface QueryFlamegraphMetric {
 export interface MetricsFromTableOrSubqueryOptions {
   readonly tableOrSubquery: string;
   readonly tableMetrics: ReadonlyArray<{
+    id?: string;
     name: string;
     unit: string;
     columnName: string;
+    provenance?: 'DEFAULT' | 'ADDED';
   }>;
   readonly dependencySql?: string;
   readonly unaggregatableProperties?: ReadonlyArray<QueryFlamegraphColumn>;
@@ -145,10 +155,12 @@ export function metricsFromTableOrSubquery(
   opts: MetricsFromTableOrSubqueryOptions,
 ): QueryFlamegraphMetric[] {
   const metrics = [];
-  for (const {name, unit, columnName} of opts.tableMetrics) {
+  for (const {id, name, unit, columnName, provenance} of opts.tableMetrics) {
     metrics.push({
+      id,
       name,
       unit,
+      provenance,
       nameColumnLabel: opts.nameColumnLabel,
       dependencySql: opts.dependencySql,
       statement: `
@@ -170,6 +182,9 @@ interface QueryFlamegraphAttrs {
 
   // The current state of the flamegraph (filters, view, selected metric, etc).
   readonly state?: FlamegraphState;
+
+  readonly addableMetrics?: ReadonlyArray<FlamegraphAddableMetric>;
+  readonly onAddMetric?: (metric: FlamegraphAddableMetric) => void;
 
   // Callback invoked when the flamegraph state changes (e.g., user changes
   // filters, selects a different metric, etc).
@@ -204,7 +219,7 @@ export class QueryFlamegraph implements AsyncDisposable {
   }
 
   render(attrs: QueryFlamegraphAttrs) {
-    const {metrics, state, onStateChange} = attrs;
+    const {metrics, state, addableMetrics, onAddMetric, onStateChange} = attrs;
     this.lastAttrs = attrs;
     if (this.monitor.ifStateChanged()) {
       this.data = undefined;
@@ -217,9 +232,12 @@ export class QueryFlamegraph implements AsyncDisposable {
       data: this.data,
       state: state ?? {
         view: {kind: 'TOP_DOWN'},
-        selectedMetricName: '',
+        selectedMetricId: '',
+        addedMetricIds: [],
         filters: [],
       },
+      addableMetrics,
+      onAddMetric,
       onStateChange,
     });
   }
@@ -228,8 +246,8 @@ export class QueryFlamegraph implements AsyncDisposable {
     metrics: ReadonlyArray<QueryFlamegraphMetric>,
     state: FlamegraphState,
   ) {
-    const metric = assertExists(
-      metrics.find((x) => state.selectedMetricName === x.name),
+    const metric = ensureExists(
+      metrics.find((x) => state.selectedMetricId === (x.id ?? x.name)),
     );
     const engine = this.trace.engine;
     this.queryLimiter.schedule(async () => {
@@ -272,9 +290,6 @@ async function computeFlamegraphTree(
   const hideStack = filters
     .filter((x) => x.kind === 'HIDE_STACK')
     .map((x) => x.filter);
-  const showFromFrame = filters
-    .filter((x) => x.kind === 'SHOW_FROM_FRAME')
-    .map((x) => x.filter);
   const hideFrame = filters
     .filter((x) => x.kind === 'HIDE_FRAME')
     .map((x) => x.filter);
@@ -291,11 +306,15 @@ async function computeFlamegraphTree(
   const unaggCols = unagg.map((x) => x.name);
 
   const matchingColumns = ['name', ...unaggCols];
-  const matchExpr = (x: string) =>
-    matchingColumns.map(
-      (c) =>
-        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
+  // Bare filters are case-insensitive literals. `/…/` is a case-sensitive
+  // regex and `/…/i` is a case-insensitive regex.
+  const matchExpr = (filter: string) => {
+    const regex = parseUserFilterRegex(filter);
+    return matchingColumns.map(
+      (column) =>
+        `regexp(${sqliteString(regex.pattern)}, IFNULL(${column}, ''), ${sqliteString(regex.flags)})`,
     );
+  };
 
   const showStackFilter =
     showStackAndPivot.length === 0
@@ -314,12 +333,8 @@ async function computeFlamegraphTree(
           .join(' OR ');
 
   const showFromFrameFilter =
-    showFromFrame.length === 0
-      ? '0'
-      : showFromFrame
-          .map((x, i) => `((${matchExpr(x).join(' OR ')}) << ${i})`)
-          .join(' | ');
-  const showFromFrameBits = (1 << showFromFrame.length) - 1;
+    view.kind === 'FROM_FRAME' ? matchExpr(view.pattern).join(' OR ') : 'false';
+  const showFromFrameBits = view.kind === 'FROM_FRAME' ? 1 : 0;
 
   const hideFrameFilter =
     hideFrame.length === 0
@@ -536,7 +551,8 @@ async function computeFlamegraphTree(
     for (const a of agg) {
       const r = it.get(a.name);
       if (r !== null) {
-        const value = r as string;
+        // UNKNOWN-typed aggregations (e.g. SUM) can yield number/bigint.
+        const value = String(r);
         properties.set(a.name, {
           displayName: a.displayName,
           value,
@@ -592,22 +608,6 @@ async function computeFlamegraphTree(
     nodeActions,
     rootActions,
   };
-}
-
-function makeSqlFilter(x: string) {
-  const hasStart = x.startsWith('^');
-  const hasEnd = x.endsWith('$');
-  const pattern = x.slice(hasStart ? 1 : 0, hasEnd ? -1 : undefined);
-
-  if (hasStart && hasEnd) {
-    return pattern; // Exact match
-  } else if (hasStart) {
-    return `${pattern}%`; // Starts with
-  } else if (hasEnd) {
-    return `%${pattern}`; // Ends with
-  } else {
-    return `%${pattern}%`; // Contains
-  }
 }
 
 function getPivotFilter(

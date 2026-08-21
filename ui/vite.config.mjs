@@ -39,6 +39,21 @@ const ENABLE_OPEN_PERFETTO_TRACE =
   process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
 const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
 
+// Unlike Rollup, Rolldown does not polyfill import.meta.url in IIFE bundles.
+// Some dependencies use it at module initialization time, so provide the
+// browser equivalent explicitly. This works both in documents and workers.
+const IMPORT_META_URL = '__perfetto_import_meta_url__';
+const IMPORT_META_URL_INTRO = `
+var _documentCurrentScript =
+  typeof document !== 'undefined' ? document.currentScript : null;
+var ${IMPORT_META_URL} =
+  typeof document === 'undefined'
+    ? location.href
+    : (_documentCurrentScript &&
+       _documentCurrentScript.tagName.toUpperCase() === 'SCRIPT' &&
+       _documentCurrentScript.src) || document.baseURI;
+`;
+
 // IIFE bundles go to dist_version (the symlink to dist/v1.2.3). The service
 // worker and chrome extension go elsewhere; for the minimum migration we keep
 // them on the old rollup path until needed. (build.mjs still runs rollup for
@@ -146,91 +161,9 @@ function makeSynthModulePlugin({name, modules}) {
   };
 }
 
-// Synthesises ui/src/virtual/plugins — a single barrel that imports every
-// sub-directory under ui/src/plugins and ui/src/core_plugins and exposes them
-// as two named arrays:
-//
-//   export const plugins:     PerfettoPluginStatic<PerfettoPlugin>[];
-//   export const corePlugins: PerfettoPluginStatic<PerfettoPlugin>[];
-//
-// Types live alongside at ui/src/virtual/plugins.d.ts.
-export function pluginPerfettoPluginBarrels() {
-  const SOURCES = [
-    {exportName: 'plugins', dir: path.join(SRC, 'plugins'), prefix: ''},
-    {
-      exportName: 'corePlugins',
-      dir: path.join(SRC, 'core_plugins'),
-      prefix: 'core_',
-    },
-  ];
-  const PLUGIN_DIRS = SOURCES.map((s) => s.dir);
-  const VIRTUAL_MODULE = path.join(SRC, 'virtual', 'plugins');
-  const toCamelCase = (s) => {
-    const [first, ...rest] = s.split(/[._]/);
-    return (
-      first + rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('')
-    );
-  };
-  const listEntries = (dir) =>
-    fs
-      .readdirSync(dir)
-      .map((name) => ({name, full: path.join(dir, name)}))
-      .filter(({full}) => {
-        try {
-          return (
-            fs.statSync(full).isDirectory() &&
-            fs.existsSync(path.join(full, 'index.ts'))
-          );
-        } catch (_) {
-          return false;
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  const generate = (ctx) => {
-    const importLines = [];
-    const exportLines = [];
-    for (const {exportName, dir, prefix} of SOURCES) {
-      const entries = listEntries(dir);
-      for (const {full} of entries) {
-        ctx.addWatchFile(path.join(full, 'index.ts'));
-      }
-      for (const {name, full} of entries) {
-        importLines.push(
-          `import ${toCamelCase(prefix + name)} from '${full}';`,
-        );
-      }
-      const arr = entries
-        .map(({name}) => `  ${toCamelCase(prefix + name)},`)
-        .join('\n');
-      exportLines.push(`export const ${exportName} = [\n${arr}\n];`);
-    }
-    return `${importLines.join('\n')}\n\n${exportLines.join('\n\n')}\n`;
-  };
-  const base = makeSynthModulePlugin({
-    name: 'perfetto:plugin-barrels',
-    modules: {[VIRTUAL_MODULE]: generate},
-  });
-  let server = null;
-  return {
-    ...base,
-    configureServer(s) {
-      server = s;
-      // Watch the parent dirs so adding/removing a plugin dir invalidates
-      // the barrel even before any file inside it changes.
-      for (const dir of PLUGIN_DIRS) s.watcher.add(dir);
-    },
-    handleHotUpdate(ctx) {
-      if (!server) return;
-      for (const dir of PLUGIN_DIRS) {
-        if (!ctx.file.startsWith(dir + path.sep)) continue;
-        const id = '\0perfetto:plugin-barrels:' + VIRTUAL_MODULE;
-        const mod = server.moduleGraph.getModuleById(id);
-        if (mod) server.moduleGraph.invalidateModule(mod);
-        return;
-      }
-    },
-  };
-}
+// The plugin barrels (ui/src/virtual/plugins.ts) are no longer synthesised
+// here: that module now uses Vite's import.meta.glob directly, which discovers
+// plugin dirs and re-evaluates on add/remove without manual file-watching.
 
 // Exposes VERSION and SCM_REVISION via ui/src/virtual/version (typed by
 // version.d.ts). Replaces the on-disk ui/src/gen/perfetto_version.ts that
@@ -348,7 +281,6 @@ export default defineConfig(({command}) => {
     // magic "publicDir" handling so it doesn't try to serve it at /.
     publicDir: false,
     plugins: [
-      pluginPerfettoPluginBarrels(),
       pluginPerfettoVersion(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
@@ -417,13 +349,17 @@ export default defineConfig(({command}) => {
             MINIFY_JS === 'preserve_comments'
               ? {format: {comments: 'all'}}
               : undefined,
-          rollupOptions: {
+          rolldownOptions: {
             input: {[BUNDLE]: inputPath},
             treeshake: NO_TREESHAKE ? false : undefined,
+            transform: {
+              define: {'import.meta.url': IMPORT_META_URL},
+            },
             output: {
               format: 'iife',
               name: BUNDLE,
               entryFileNames,
+              intro: IMPORT_META_URL_INTRO,
               // With cssCodeSplit:false Vite emits the CSS as "style.css" by
               // default. Rename it to <bundle>.css so that index.html's preload
               // and the assetSrc('frontend.css') call match.
@@ -432,13 +368,17 @@ export default defineConfig(({command}) => {
                 if (name.endsWith('.css')) return `${BUNDLE}.css`;
                 return '[name][extname]';
               },
-              inlineDynamicImports: true,
             },
             onwarn(warning, warn) {
               if (warning.code === 'CIRCULAR_DEPENDENCY') {
                 if ((warning.message || '').includes('node_modules')) return;
+                // Rollup >=4 reports the cycle in `warning.ids` (older versions
+                // used `warning.importer`/`warning.cycle`, which are now
+                // undefined). `warning.message` already contains a formatted
+                // "a -> b -> a" chain, so prefer it and fall back to `ids`.
+                const cycle = warning.ids ?? warning.cycle ?? [];
                 throw new Error(
-                  `Circular dependency: ${warning.importer}\n  ${(warning.cycle || []).join('\n  ')}`,
+                  `${warning.message ?? 'Circular dependency'}\n  ${cycle.join('\n  ')}`,
                 );
               }
               warn(warning);

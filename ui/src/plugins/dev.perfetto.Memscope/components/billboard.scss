@@ -15,8 +15,35 @@
 .pf-memscope-billboard {
   padding: 14px 16px;
   border-radius: 8px;
-  border: 1px solid var(--pf-color-border-secondary);
-  background: var(--pf-color-background-secondary);
+  border: 0.5px solid var(--pf-col-border);
+  background: var(--pf-col-surface);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+// A card holding Billboard.Sections lays them out as equal-width columns.
+.pf-memscope-billboard:has(> .pf-memscope-billboard__section) {
+  display: flex;
+  gap: 24px;
+}
+
+.pf-memscope-billboard__section {
+  flex: 1 1 0;
+  min-width: 0;
+
+  // Thin divider between adjacent sections.
+  & + & {
+    border-left: 1px solid var(--pf-col-border);
+    padding-left: 24px;
+  }
+}
+
+// Muted caption beneath a section's value.
+.pf-memscope-billboard__sub {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  margin-top: 2px;
 }
 
 .pf-memscope-billboard__value {
@@ -58,5 +85,23 @@
   }
   &--down {
     color: var(--pf-color-success);
+  }
+}
+
+.pf-billboard-strip {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+
+  & > * {
+    flex-grow: 1;
+  }
+}
+
+// Style billboards inside a panel differently
+.pf-memscope-panel {
+  .pf-memscope-billboard {
+    background: var(--pf-col-inset);
+    box-shadow: none;
   }
 }

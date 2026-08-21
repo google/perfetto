@@ -89,6 +89,13 @@ describe('checkHotkey', () => {
     expect(checkHotkey('X', {key: 'x', target: el})).toBe(false);
     expect(checkHotkey('!X', {key: 'x', target: el})).toBe(true);
   });
+
+  // Quick sanity check on function keys parsing.
+  test('function keys', () => {
+    expect(checkHotkey('F1', {key: 'F1'})).toBe(true);
+    expect(checkHotkey('!F1', {key: 'F1'})).toBe(true);
+    expect(checkHotkey('!F1', {key: 'F'})).toBe(false);
+  });
 });
 
 test('formatHotkey', () => {

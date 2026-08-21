@@ -114,12 +114,16 @@ tables::JitCodeTable::Id JitCache::MoveCode(int64_t timestamp,
   auto* jit_code_table = context_->storage->mutable_jit_code_table();
 
   auto it = functions_.Find(from_code_start);
+  if (it == functions_.end()) {
+    return {};
+  }
   AddressRange old_code_range = it->first;
   JittedFunction func = std::move(it->second);
   functions_.erase(it);
 
   auto code_id = func.jit_code_id();
-  AddressRange new_code_range(to_code_start, old_code_range.size());
+  AddressRange new_code_range =
+      AddressRange::FromStartAndSize(to_code_start, old_code_range.size());
 
   functions_.DeleteOverlapsAndEmplace(
       [&](std::pair<const AddressRange, JittedFunction>& entry) {

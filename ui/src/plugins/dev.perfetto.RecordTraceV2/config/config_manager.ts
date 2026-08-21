@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type protos from '../../../protos';
-import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
+import {ensureExists, assertFalse, assertTrue} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
 import type {ProbesSchema} from '../serialization_schema';
 import type {TargetPlatformId} from '../interfaces/target_platform';
@@ -39,13 +39,8 @@ export class ConfigManager {
   private _traceConfig = new TraceConfigBuilder();
   private enabledProbes = new Map<string, boolean>();
   private indirectlyEnabledProbes = new Map<string, Set<string>>();
-  private _generation = 0;
 
   constructor() {}
-
-  get generation() {
-    return this._generation;
-  }
 
   get traceConfig() {
     return this._traceConfig;
@@ -59,7 +54,7 @@ export class ConfigManager {
   }
 
   setProbeEnabled(probeId: string, enabled: boolean) {
-    const probe = assertExists(this.probesById.get(probeId));
+    const probe = ensureExists(this.probesById.get(probeId));
     this.enabledProbes.set(probeId, enabled);
     for (const depProbeId of probe.dependencies ?? []) {
       assertTrue(this.probesById.has(depProbeId));
@@ -74,8 +69,6 @@ export class ConfigManager {
         depSet.delete(probeId);
       }
     }
-    // Notify that probe settings changed
-    this._generation++;
   }
 
   isProbeEnabled(probeId: string): boolean {
@@ -102,7 +95,7 @@ export class ConfigManager {
    */
   getProbeEnableDependants(probeId: string): string[] {
     return Array.from(this.indirectlyEnabledProbes.get(probeId) ?? []).map(
-      (id) => assertExists(this.probesById.get(id)).title,
+      (id) => ensureExists(this.probesById.get(id)).title,
     );
   }
 
@@ -179,7 +172,7 @@ export class ConfigManager {
     const seenIds = new Set<string>();
     const queueProbe = (probeId: string) => {
       if (enabledOnly && !this.isProbeEnabled(probeId)) return;
-      const probe = assertExists(this.probesById.get(probeId));
+      const probe = ensureExists(this.probesById.get(probeId));
       if (orderedProbes.includes(probe)) return; // Already added.
       if (seenIds.has(probeId)) {
         throw new Error('Cycle detected in probe ' + probeId);

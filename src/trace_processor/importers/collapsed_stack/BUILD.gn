@@ -24,5 +24,6 @@ source_set("collapsed_stack") {
     "../../tables:tables_python",
     "../../types:types",
     "../../util:trace_blob_view_reader",
+    "../../util:trace_type",
   ]
 }

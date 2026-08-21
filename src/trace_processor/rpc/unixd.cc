@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/rpc/rpc.h"
@@ -42,10 +43,7 @@
     PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_TP_UNIXD_POSIX() 1
-#include <fcntl.h>
 #include <unistd.h>
-#include "perfetto/ext/base/pipe.h"
-#include "perfetto/ext/base/scoped_file.h"
 #else
 #define PERFETTO_TP_UNIXD_POSIX() 0
 #endif
@@ -165,36 +163,6 @@ const char* g_pid_path_for_signal = nullptr;
 }
 #endif  // PERFETTO_TP_UNIXD_CTRL_C()
 
-#if PERFETTO_TP_UNIXD_POSIX()
-// Forks into the background. The parent prints the startup record (it knows the
-// child pid) and exits; the child detaches (setsid + redirect std fds) and
-// returns to keep serving. The socket is already bound before this is called,
-// so the record the parent prints is accurate.
-void DaemonizeAndPrintRecord(const UnixServerArgs& args) {
-  base::Pipe pipe = base::Pipe::Create(base::Pipe::kBothBlock);
-  pid_t pid = fork();
-  PERFETTO_CHECK(pid != -1);
-  if (pid > 0) {
-    // Parent: wait for the child to detach, print the record, exit.
-    pipe.wr.reset();
-    char c = '\0';
-    base::ignore_result(base::Read(*pipe.rd, &c, 1));
-    PrintStartupRecord(stdout, pid, args.session_name, args.socket_path,
-                       args.idle_timeout_ms);
-    _exit(0);
-  }
-  // Child: detach from the controlling terminal and silence std fds.
-  PERFETTO_CHECK(setsid() != -1);
-  base::ScopedFile null = base::OpenFile("/dev/null", O_RDWR);
-  if (null) {
-    base::ignore_result(dup2(*null, STDIN_FILENO));
-    base::ignore_result(dup2(*null, STDOUT_FILENO));
-    base::ignore_result(dup2(*null, STDERR_FILENO));
-  }
-  base::ignore_result(base::WriteAll(*pipe.wr, "1", 1));
-}
-#endif  // PERFETTO_TP_UNIXD_POSIX()
-
 base::Status UnixRpcServer::Run() {
   if (args_.daemonize && !PERFETTO_TP_UNIXD_POSIX()) {
     return base::ErrStatus("--daemonize is not supported on this platform yet");
@@ -203,7 +171,8 @@ base::Status UnixRpcServer::Run() {
 #if PERFETTO_TP_UNIXD_CTRL_C()
   // Install *before* binding: a SIGTERM/SIGINT in the window after the socket
   // exists would otherwise terminate us without unlinking it, leaking the file.
-  // Unlinking a not-yet-bound path is harmless; the pid path is wired up later.
+  // Unlinking a not-yet-bound path is harmless; the pid path is registered the
+  // same way below.
   g_socket_path_for_signal = args_.socket_path.c_str();
   base::InstallCtrlCHandler(&HandleTermSignal);
 #endif
@@ -235,7 +204,15 @@ base::Status UnixRpcServer::Run() {
   bool printed_record = false;
 #if PERFETTO_TP_UNIXD_POSIX()
   if (args_.daemonize) {
-    DaemonizeAndPrintRecord(args_);  // Parent exits inside; child returns.
+    // base::Daemonize forks: the parent prints the record via the callback and
+    // exits; the child detaches and keeps serving. The socket is already bound,
+    // so the printed record is accurate.
+    const UnixServerArgs& args = args_;
+    base::Daemonize([&args](pid_t pid) -> int {
+      PrintStartupRecord(stdout, pid, args.session_name, args.socket_path,
+                         args.idle_timeout_ms);
+      return 0;
+    });
     printed_record = true;
   }
 #endif
@@ -256,6 +233,11 @@ base::Status UnixRpcServer::Run() {
   // runs in the serving process (the child, when daemonized), so the pid
   // matches the one printed in the startup record.
   pid_path_ = args_.socket_path + session::kPidFileSuffix;
+#if PERFETTO_TP_UNIXD_CTRL_C()
+  // Register the pid path before creating the file, like the socket above, so
+  // a SIGTERM in the gap still unlinks it instead of leaking it.
+  g_pid_path_for_signal = pid_path_.c_str();
+#endif
   WritePidFile(pid_path_, static_cast<int>(base::GetProcessId()));
 
   listen_sock_ = base::UnixSocket::Listen(raw.ReleaseFd(), this, &task_runner_,
@@ -270,11 +252,6 @@ base::Status UnixRpcServer::Run() {
       std::make_unique<IdleReaper>(&task_runner_, args_.idle_timeout_ms,
                                    args_.idle_start, [this] { Shutdown(); });
   reaper_->Start();
-
-#if PERFETTO_TP_UNIXD_CTRL_C()
-  // Now that the pid-file path is known, let the handler unlink it too.
-  g_pid_path_for_signal = pid_path_.c_str();
-#endif
 
   task_runner_.Run();
   remove(args_.socket_path.c_str());

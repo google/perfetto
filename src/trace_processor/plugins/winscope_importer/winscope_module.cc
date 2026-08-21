@@ -52,7 +52,8 @@ WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
                                TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_{context},
-      args_parser_{*context->descriptor_pool_},
+      args_parser_{*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()},
       surfaceflinger_layers_parser_(&context_),
       surfaceflinger_transactions_parser_(context),
       shell_transitions_parser_(&context_),
@@ -199,7 +200,8 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
+                    *trace_processor_context->process_tracker);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
@@ -228,7 +230,8 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
+                    *trace_processor_context->process_tracker);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
@@ -256,7 +259,8 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
+                    *trace_processor_context->process_tracker);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(

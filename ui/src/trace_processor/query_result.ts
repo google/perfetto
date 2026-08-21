@@ -51,16 +51,12 @@
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
 import {defer, type Deferred} from '../base/deferred';
-import {assertExists, assertFalse, assertTrue} from '../base/assert';
+import {ensureExists, assertFalse, assertTrue} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, type duration, Time, type time} from '../base/time';
 
 export type SqlValue =
-  | string
-  | number
-  | bigint
-  | null
-  | Uint8Array<ArrayBuffer>;
+  string | number | bigint | null | Uint8Array<ArrayBuffer>;
 
 export const UNKNOWN: SqlValue = null;
 export const NUM = 0;
@@ -400,6 +396,24 @@ export interface QueryResult {
   elapsedTimeMs(): number;
 }
 
+// Drains a QueryResult into an array of typed rows described by `spec`. This is
+// the array-materializing counterpart to iter(): use it when you want every row
+// up front rather than streaming through them.
+// Example: const rows = materializeRows(result, {id: NUM, name: STR});
+export function materializeRows<T extends Row>(
+  result: QueryResult,
+  spec: T,
+): T[] {
+  const rows: T[] = [];
+  const cols = Object.keys(spec);
+  for (const it = result.iter(spec); it.valid(); it.next()) {
+    const row: Record<string, SqlValue> = {};
+    for (const col of cols) row[col] = it.get(col);
+    rows.push(row as T);
+  }
+  return rows;
+}
+
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
 export interface WritableQueryResult {
   // |resBytes| is a proto-encoded trace_processor.QueryResult message.
@@ -629,7 +643,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this.allRowsPromise === undefined) {
       this.waitAllRows(); // Will populate |this.allRowsPromise|.
     }
-    return assertExists(this.allRowsPromise);
+    return ensureExists(this.allRowsPromise);
   }
 
   get errorInfo(): QueryErrorInfo {
@@ -921,7 +935,7 @@ class RowIteratorImpl implements RowIteratorBase {
     this.numColumns = this.columnNames.length;
 
     this.batchIdx = nextBatchIdx;
-    const batch = assertExists(this.resultObj.batches[nextBatchIdx]);
+    const batch = ensureExists(this.resultObj.batches[nextBatchIdx]);
     this.batchBytes = batch.batchBytes;
     this.nextCellTypeOff = batch.cellTypesOff;
     this.cellTypesEnd = batch.cellTypesOff + batch.cellTypesLen;

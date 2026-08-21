@@ -27,4 +27,4 @@ TOOLS_PATH="$ROOT_DIR/tools"
 PATH=$TOOLS_PATH:$PATH
 
 cd "$ROOT_DIR/ui"
-exec "$ESLINT_PATH" "$@"
+exec "$ESLINT_PATH" --no-warn-ignored "$@"

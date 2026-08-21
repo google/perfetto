@@ -104,19 +104,13 @@ void DataSourceType::ClearIncrementalState(
     internal::DataSourceInstanceThreadLocalState* tls_inst,
     uint32_t instance_index,
     uint32_t actual_generation) {
-  if constexpr (
-      PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
-    // Try to clear the existing state if we have a clear function and the
-    // state exists. This allows reusing allocated memory instead of
-    // destroying and recreating the state object.
-    void* incremental_state = tls_inst->incremental_state.get();
-    if (clear_incremental_state_fn_ && incremental_state &&
-        clear_incremental_state_fn_(incremental_state, user_arg_)) {
-      tls_inst->incremental_state_generation = actual_generation;
-    } else {
-      tls_inst->incremental_state.reset();
-      CreateIncrementalState(tls_inst, instance_index);
-    }
+  // Try to clear the existing state if we have a clear function and the
+  // state exists. This allows reusing allocated memory instead of
+  // destroying and recreating the state object.
+  void* incremental_state = tls_inst->incremental_state.get();
+  if (clear_incremental_state_fn_ && incremental_state &&
+      clear_incremental_state_fn_(incremental_state, user_arg_)) {
+    tls_inst->incremental_state_generation = actual_generation;
   } else {
     tls_inst->incremental_state.reset();
     CreateIncrementalState(tls_inst, instance_index);

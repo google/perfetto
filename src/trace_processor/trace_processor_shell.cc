@@ -49,9 +49,11 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/local_file_system.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/shell/bundle_subcommand.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/convert_subcommand.h"
 #include "src/trace_processor/shell/export_subcommand.h"
@@ -62,6 +64,8 @@
 #include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
+#include "src/trace_processor/shell/traceconv_compat.h"
+#include "src/trace_processor/shell/util_subcommand.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -134,6 +138,7 @@ struct CommandLineOptions {
   bool wide = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
+  bool allow_sql_file_access = false;
   std::string register_files_dir;
   std::string override_stdlib_path;
 
@@ -155,11 +160,13 @@ trace_file can be a local path, an http(s):// URL, or a Perfetto UI share link
 Commands:
   query         Load a trace and run a SQL query.
   interactive   Interactive SQL shell (default if no command is given).
-  server        Start an RPC server (http or stdio).
+  convert       Convert trace format.
   summarize     Compute a trace summary from specs and/or built-in metrics.
+  bundle        Bundle a trace with symbols and deobfuscation data.
+  util          Low-level trace utilities (symbolize, deobfuscate).
+  server        Start an RPC server (http or stdio).
   export        Export a trace to a database file.
   metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
-  convert       Convert trace format.
 
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
@@ -309,11 +316,15 @@ Metatracing:
                                       categories to enable.
 
 Advanced:
+ --allow-sql-file-access              Allows SQL functions to access files
+                                      visible to the shell process. Do not
+                                      enable this for untrusted SQL. Disabled
+                                      by default.
  --dev                                Enables features which are reserved for
-                                      local development use only and
-                                      *should not* be enabled on production
-                                      builds. The features behind this flag can
-                                      break at any time without any warning.
+                                      local development use only and *should
+                                      not* be enabled on production builds. The
+                                      features behind this flag can break at
+                                      any time without any warning.
  --dev-flag KEY=VALUE                 Set a development flag to the given value.
                                       Does not have any affect unless --dev is
                                       specified.
@@ -424,6 +435,7 @@ enum LongOption {
   OPT_EXTRA_CHECKS,
   OPT_ANALYZE_TRACE_PROTO_CONTENT,
   OPT_CROP_TRACK_EVENTS,
+  OPT_ALLOW_SQL_FILE_ACCESS,
   OPT_REGISTER_FILES_DIR,
   OPT_OVERRIDE_STDLIB,
 
@@ -481,6 +493,7 @@ const option kLongOptions[] = {
     {"analyze-trace-proto-content", no_argument, nullptr,
      OPT_ANALYZE_TRACE_PROTO_CONTENT},
     {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
+    {"allow-sql-file-access", no_argument, nullptr, OPT_ALLOW_SQL_FILE_ACCESS},
     {"register-files-dir", required_argument, nullptr, OPT_REGISTER_FILES_DIR},
     {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
 
@@ -602,6 +615,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_CROP_TRACK_EVENTS) {
       command_line_options.crop_track_events = true;
+      continue;
+    }
+
+    if (option == OPT_ALLOW_SQL_FILE_ACCESS) {
+      command_line_options.allow_sql_file_access = true;
       continue;
     }
 
@@ -737,6 +755,13 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
 
   Config DefaultConfig() const override { return {}; }
 
+  io::FileSystem* GetFileSystem() override {
+    if (!file_system_) {
+      file_system_ = io::CreateLocalFileSystem();
+    }
+    return file_system_;
+  }
+
   base::Status OnTraceProcessorCreated(TraceProcessor*) override {
     return base::OkStatus();
   }
@@ -756,6 +781,9 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
     return ReadTraceUnfinalized(trace_processor, path.c_str(),
                                 progress_callback, args);
   }
+
+ private:
+  io::FileSystem* file_system_ = nullptr;
 };
 
 DefaultPlatformInterface::~DefaultPlatformInterface() = default;
@@ -779,6 +807,25 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 }
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
+  // traceconv compatibility shim: when invoked under the legacy "traceconv"
+  // name, the first positional is a traceconv MODE. Map it onto the new
+  // subcommands (e.g. `traceconv json a b` -> `convert json a b`,
+  // `traceconv symbolize ...` -> `util symbolize ...`, `traceconv bundle ...`
+  // stays `bundle ...`). The rewritten argv is owned by these vectors for the
+  // rest of Run and flows through the normal dispatch below.
+  std::vector<std::string> traceconv_storage;
+  std::vector<char*> traceconv_ptrs;
+  if (shell::InvokedAsTraceconv(argv[0])) {
+    traceconv_storage = shell::RewriteTraceconvArgs(argc, argv);
+    if (!traceconv_storage.empty()) {
+      for (auto& s : traceconv_storage)
+        traceconv_ptrs.push_back(s.data());
+      traceconv_ptrs.push_back(nullptr);
+      argc = static_cast<int>(traceconv_storage.size());
+      argv = traceconv_ptrs.data();
+    }
+  }
+
   // Subcommand dispatch: if a positional argument matches a known subcommand
   // name, route to it. Otherwise fall through to classic path.
   {
@@ -789,10 +836,12 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::ExportSubcommand export_subcommand;
     shell::MetricsSubcommand metrics_subcommand;
     shell::ConvertSubcommand convert_subcommand;
+    shell::BundleSubcommand bundle_subcommand;
+    shell::UtilSubcommand util_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
-        &query_subcommand,     &interactive_subcommand, &server_subcommand,
-        &summarize_subcommand, &export_subcommand,      &metrics_subcommand,
-        &convert_subcommand,
+        &query_subcommand,     &interactive_subcommand, &convert_subcommand,
+        &summarize_subcommand, &bundle_subcommand,      &util_subcommand,
+        &server_subcommand,    &export_subcommand,      &metrics_subcommand,
     };
 
     // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.
@@ -929,6 +978,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       args.emplace_back("--analyze-trace-proto-content");
     if (options.crop_track_events)
       args.emplace_back("--crop-track-events");
+    if (options.allow_sql_file_access)
+      args.emplace_back("--allow-sql-file-access");
     if (options.dev)
       args.emplace_back("--dev");
     for (const auto& f : options.dev_flags) {
@@ -1103,9 +1154,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     new_argv.emplace_back(a.data());
   return Run(static_cast<int>(new_argv.size()), new_argv.data());
 }
-
-TraceProcessorShell_PlatformInterface::
-    ~TraceProcessorShell_PlatformInterface() = default;
 
 int PERFETTO_EXPORT_ENTRYPOINT TraceProcessorShellMain(int argc, char** argv) {
   auto shell = TraceProcessorShell::CreateWithDefaultPlatform();

@@ -24,11 +24,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/primes/primes_trace_parser.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/third_party/primes/primes_tracing.pbzero.h"
 
@@ -38,7 +40,6 @@ namespace perfetto::trace_processor::primes {
 
 PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)),
       stream_(
           ctx->sorter->CreateStream(std::make_unique<PrimesTraceParser>(ctx))) {
 }
@@ -87,7 +88,7 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
     primespb::TraceEdge::Decoder edge_decoder(*edge);
     if (!edge_decoder.has_trace_start_offset()) {
       PERFETTO_ELOG("Edge missing trace_start_offset.");
-      context_->import_logs_tracker->RecordTokenizationError(
+      context_->import_logs_tracker->RecordTokenizationLog(
           stats::primes_malformed_timestamp, ts_decoder.read_offset());
       continue;
     }
@@ -100,7 +101,7 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
     TraceBlobView edge_slice = slice->slice_off(
         static_cast<size_t>((*edge).data - slice->data()), (*edge).size);
     auto trace_ts =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, edge_timestamp);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(edge_timestamp);
     if (trace_ts) {
       stream_->Push(*trace_ts, std::move(edge_slice));
     }
@@ -109,3 +110,43 @@ base::Status PrimesTraceTokenizer::OnPushDataToSorter() {
 }
 
 }  // namespace perfetto::trace_processor::primes
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Primes trace format.
+class PrimesImporter : public TraceImporter<PrimesImporter> {
+ public:
+  PrimesImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PrimesImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    return size > 0 && data[0] == 0x09;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<primes::PrimesTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "primes";
+    d.clock_policy = TraceClockPolicy::kTraceFile;
+    d.detection_priority = 240;
+    return d;
+  }
+};
+
+PrimesImporter::~PrimesImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePrimesImporter() {
+  return std::make_unique<PrimesImporter>();
+}
+
+}  // namespace perfetto::trace_processor

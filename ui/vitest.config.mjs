@@ -21,10 +21,7 @@ import {defineConfig} from 'vitest/config';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {lezer} from '@lezer/generator/rollup';
-import {
-  pluginPerfettoPluginBarrels,
-  pluginPerfettoVersion,
-} from './vite.config.mjs';
+import {pluginPerfettoVersion} from './vite.config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,9 +33,8 @@ export default defineConfig({
   plugins: [
     // *.grammar imports used by codemirror plugins.
     lezer(),
-    // Synthesised modules under ui/src/virtual (version, plugin barrels).
+    // Synthesised modules under ui/src/virtual.
     pluginPerfettoVersion(),
-    pluginPerfettoPluginBarrels(),
   ],
   define: {
     'process.env.NODE_ENV': JSON.stringify('test'),

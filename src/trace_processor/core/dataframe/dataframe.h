@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -38,9 +39,9 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
-namespace perfetto::trace_processor::core::tree {
-class TreeTransformer;
-}  // namespace perfetto::trace_processor::core::tree
+namespace perfetto::trace_processor::util {
+class TraceBlobViewReader;
+}  // namespace perfetto::trace_processor::util
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -111,28 +112,6 @@ class Dataframe {
     return Dataframe(pool, S::kColumnCount, spec.column_names.data(),
                      spec.column_specs.data());
   }
-
-  // Concatenates two dataframes horizontally by combining their columns.
-  //
-  // Both dataframes must have the same row count. The resulting dataframe
-  // contains all columns from `left` followed by all columns from `right`,
-  // excluding the `_auto_id` column from both (a new `_auto_id` is created).
-  //
-  // Args:
-  //   left: The first dataframe. Ownership is taken via move.
-  //   right: The second dataframe. Ownership is taken via move.
-  //
-  // Returns:
-  //   A new dataframe containing columns from both inputs, or an error if
-  //   row counts don't match.
-  static base::StatusOr<Dataframe> HorizontalConcat(Dataframe&& left,
-                                                    Dataframe&& right);
-
-  // Selects rows at the given indices from this dataframe.
-  //
-  // Returns a new dataframe containing only the rows at the specified indices.
-  // The indices must be valid (less than row_count()).
-  Dataframe SelectRows(const uint32_t* indices, uint32_t count) &&;
 
   // Movable
   Dataframe(Dataframe&&) = default;
@@ -425,7 +404,11 @@ class Dataframe {
   friend class TypedCursor;
   friend class QueryPlanBuilder;
   friend struct QueryPlanImpl;
-  friend class tree::TreeTransformer;
+  friend class ArrowSerializer;
+  friend base::StatusOr<Dataframe> DeserializeFromArrow(
+      const util::TraceBlobViewReader&,
+      StringPool*,
+      const DataframeSpec&);
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.

@@ -26,9 +26,7 @@ import "protos/perfetto/trace/android/android_aflags.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
-import "protos/perfetto/trace/android/camera_event.proto";
 import "protos/perfetto/trace/android/cpu_per_uid_data.proto";
-import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/gpu/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
@@ -57,6 +55,7 @@ import "protos/perfetto/trace/gpu/vulkan_memory_event.proto";
 import "protos/perfetto/trace/gpu/vulkan_api_event.proto";
 import "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/memory_graph.proto";
+import "protos/perfetto/trace/perfetto/concurrent_session_event.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "protos/perfetto/trace/perfetto/trace_provenance.proto";
 import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
@@ -70,6 +69,7 @@ import "protos/perfetto/trace/profiling/deobfuscation.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
 import "protos/perfetto/trace/profiling/profile_packet.proto";
 import "protos/perfetto/trace/profiling/smaps.proto";
+import "protos/perfetto/trace/profiling/stack_sample.proto";
 import "protos/perfetto/trace/ps/process_stats.proto";
 import "protos/perfetto/trace/ps/process_tree.proto";
 import "protos/perfetto/trace/remote_clock_sync.proto";
@@ -111,7 +111,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 133.
+// Next id: 136.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -209,14 +209,17 @@ message TracePacket {
     CpuInfo cpu_info = 67;
     SmapsPacket smaps_packet = 68;
     TracingServiceEvent service_event = 69;
+    ConcurrentSessionEvent concurrent_session_event = 134;
+
+    // Transport-neutral stack sampling (see profiling/stack_sample.proto).
+    // Independent of PerfSample.
+    StackSample stack_sample = 135;
+
     InitialDisplayState initial_display_state = 70;
     GpuMemTotalEvent gpu_mem_total_event = 71;
     MemoryTrackerSnapshot memory_tracker_snapshot = 73;
-    FrameTimelineEvent frame_timeline_event = 76;
     AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
     UiState ui_state = 78;
-    AndroidCameraFrameEvent android_camera_frame_event = 80;
-    AndroidCameraSessionStats android_camera_session_stats = 81;
     TranslationTable translation_table = 82;
     AndroidGameInterventionList android_game_intervention_list = 83;
     StatsdAtom statsd_atom = 84;
@@ -252,6 +255,9 @@ message TracePacket {
     // Each compressed_packets TracePacket (including the two field ids and
     // sizes) should be less than 512KB.
     bytes compressed_packets = 50;
+
+    // The zstd counterpart of |compressed_packets|.
+    bytes zstd_compressed_packets = 133;
 
     // Data sources can extend the trace proto with custom extension protos (see
     // docs/instrumentation/extensions.md). When they do that, the descriptor of
@@ -299,6 +305,10 @@ message TracePacket {
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 55;
 
+  // removed AndroidCameraFrameEvent android_camera_frame_event
+  // removed AndroidCameraSessionStats android_camera_session_stats
+  reserved 80, 81;
+
   // Android out-of-tree extensions. These payloads are defined in the Android
   // tree and mirrored under protos/third_party/android/; each hole keeps its
   // original field number for wire compatibility. Per schema:
@@ -310,6 +320,7 @@ message TracePacket {
   //   88: NetworkPacketEvent network_packet
   //   92: NetworkPacketBundle network_packet_bundle
   //
+  // Winscope payloads, now defined out-of-tree as extensions. Schema:
   // protos/third_party/android/frameworks/native/tracing/winscope/frameworks_native_winscope.proto
   //   93: LayersSnapshotProto surfaceflinger_layers_snapshot
   //   94: TransactionTraceEntry surfaceflinger_transactions
@@ -328,8 +339,9 @@ message TracePacket {
   //   116: AppWakelockBundle app_wakelock_bundle
   //
   // protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.proto
+  //   76: FrameTimelineEvent frame_timeline_event
   //   121: EvdevEvent evdev_event
-  extensions 56, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
+  extensions 56, 76, 88, 92, 93, 94, 96, 97, 104, 105, 112, 114, 116, 121;
 
   // Reserved for future OOT extensions. New allocations are carved out of this
   // range and registered in protos/perfetto/trace/extensions.json.

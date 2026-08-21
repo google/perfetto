@@ -36,12 +36,13 @@ import {
   METRIC_DOMINATED_OBJECT_SIZE,
   METRIC_OBJECT_SIZE,
 } from './views/flamegraph_view';
+import type {time} from '../../base/time';
 
 interface FlamegraphSelection {
   readonly pathHashes: string;
   readonly isDominator: boolean;
   readonly upid: number;
-  readonly ts: bigint;
+  readonly ts: time;
 }
 
 // A flamegraph drill-down tab: identity plus the title's object count (null
@@ -124,6 +125,7 @@ export class HeapDumpExplorerSession {
         s.flamegraphTabs = undefined;
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
+        s.callstackPanelState = undefined;
       });
     }
     return restored;
@@ -147,6 +149,7 @@ export class HeapDumpExplorerSession {
       s.flamegraphTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
+      s.callstackPanelState = undefined;
     });
     void this.loadOverview();
   }
@@ -188,14 +191,18 @@ export class HeapDumpExplorerSession {
   };
 
   readonly clearNavParam = (key: string): void => {
-    // A consumed nav param (e.g. ?cls=Foo) becomes a one-shot grid filter, so
-    // drop it from the nav. Otherwise it would re-apply on restore and clobber
-    // the user's later manual filter edits to the same grid.
+    // A consumed nav param becomes a one-shot grid filter, so drop it from the
+    // nav — from both the store and the URL. Otherwise it re-applies on the next
+    // sync and clobbers the user's later manual filter edits. Query params are
+    // already gone (the router strips them), but path-encoded ones (e.g.
+    // objects_<class>) survive in the URL, so we must rewrite it here.
+    const nav = subpageToState(this.store.state.nav);
+    delete (nav.params as Record<string, unknown>)[key];
+    const sub = stateToSubpage(nav);
     this.store.edit((s) => {
-      const nav = subpageToState(s.nav);
-      delete (nav.params as Record<string, unknown>)[key];
-      s.nav = stateToSubpage(nav);
+      s.nav = sub;
     });
+    this._navigateCallback?.(sub);
   };
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
@@ -359,6 +366,16 @@ export class HeapDumpExplorerSession {
     });
   };
 
+  get callstackPanelState(): FlamegraphState | undefined {
+    return this.store.state.callstackPanelState;
+  }
+
+  readonly setCallstackPanelState = (state: FlamegraphState): void => {
+    this.store.edit((s) => {
+      s.callstackPanelState = state;
+    });
+  };
+
   // Open the flamegraph pivoted at `pathHash`. The metric matches the tree the
   // hash came from. The chip shows `<label> (this instance)` since the raw hash
   // regex is unreadable.
@@ -368,13 +385,14 @@ export class HeapDumpExplorerSession {
     isDominator: boolean,
   ): void => {
     this.setFlamegraphPanelState({
-      selectedMetricName: isDominator
+      selectedMetricId: isDominator
         ? METRIC_DOMINATED_OBJECT_SIZE
         : METRIC_OBJECT_SIZE,
+      addedMetricIds: [],
       filters: [],
       view: {
         kind: 'PIVOT',
-        pivot: `^${pathHash}$`,
+        pivot: `/^${pathHash}$/`,
         displayLabel: `${label} (this instance)`,
       },
     });
@@ -393,7 +411,9 @@ export class HeapDumpExplorerSession {
     if (dump === null) return;
     try {
       const data = await queries.getOverview(this.engine, dump);
-      if (this.activeDump === dump) this._overview = data;
+      if (this.activeDump === dump) {
+        this._overview = data;
+      }
     } catch (err) {
       console.error('Failed to load overview:', err);
     } finally {

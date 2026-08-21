@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -43,6 +44,34 @@ namespace perfetto::trace_processor {
 namespace {
 uint64_t MakeKey(uint32_t uid, uint32_t cluster) {
   return ((uint64_t(uid)) << 32) | cluster;
+}
+
+std::pair<uint32_t, uint32_t> SplitKey(uint64_t key) {
+  uint32_t uid = key >> 32;
+  uint32_t cluster = key & 0xffffffff;
+  return std::make_pair(uid, cluster);
+}
+
+// Returns the package ID for a uid (the uid minus the user portion).
+uint32_t PkgId(uint32_t uid) {
+  return uid % 100000;
+}
+
+// Returns whether the UID is part of an anonymous UID range, such as the shared
+// uid range, or isolated UID range.
+bool IsGroupedUid(uint32_t uid) {
+  uint32_t pkgid = PkgId(uid);
+  return (50000 <= pkgid && pkgid < 60000) ||
+         (90000 <= pkgid && pkgid < 100000);
+}
+
+// Returns the canonical grouped UID for UIDs within anonymous ranges. For
+// example 1090123 is mapped to 1090000.
+uint32_t GetGroupedUid(uint32_t uid) {
+  if (IsGroupedUid(uid)) {
+    return uid - (uid % 10000);
+  }
+  return uid;
 }
 
 constexpr auto kCpuPerUidBlueprint = tracks::CounterBlueprint(
@@ -80,13 +109,13 @@ AndroidCpuPerUidModule::AndroidCpuPerUidModule(
 
 AndroidCpuPerUidModule::~AndroidCpuPerUidModule() = default;
 
-void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
+ModuleResult AndroidCpuPerUidModule::TokenizePacket(
+    const TokenizePacketArgs& args) {
   if (args.field.id() != TracePacket::kCpuPerUidDataFieldNumber) {
-    return;
+    return ModuleResult::Ignored();
   }
 
-  auto* state =
-      args.data.sequence_state->GetCustomState<AndroidCpuPerUidState>();
+  auto* state = args.state->GetCustomState<AndroidCpuPerUidState>();
   protos::pbzero::CpuPerUidData::Decoder evt(
       args.field.Cast<TracePacket::kCpuPerUidData>());
 
@@ -94,27 +123,20 @@ void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
     state->cluster_count = evt.cluster_count();
   }
 
-  std::unordered_set<uint32_t> uid_with_value_this_packet;
-
   bool parse_error = false;
   uint32_t cluster = 0;
   auto uid_it = evt.uid(&parse_error);
   for (auto time_it = evt.total_time_ms(&parse_error); uid_it && time_it;
        ++time_it) {
-    uid_with_value_this_packet.insert(*uid_it);
-    uint64_t key = MakeKey(*uid_it, cluster);
-    uint64_t* previous = state->last_values.Find(key);
-    uint64_t time_ms;
-    if (previous) {
-      time_ms = *time_it + *previous;
-      *previous = time_ms;
-    } else {
-      time_ms = *time_it;
-      state->last_values.Insert(key, time_ms);
-    }
+    auto [time_ms, delta_ms] =
+        IncrementalStateUpdate(*uid_it, cluster, *time_it, state);
 
-    ComputeTotals(*uid_it, cluster, time_ms);
-    UpdateCounter(args.ts, *uid_it, cluster, time_ms);
+    // Totals are computed using grouped IDs, because totals correspond 1:1 with
+    // real tracks. Grouped UIDs (such as isolated UIDs) are consolidated onto
+    // a single track for the group.
+    uint32_t grouped_uid = GetGroupedUid(*uid_it);
+    ComputeTotals(grouped_uid, cluster, delta_ms);
+
     cluster++;
     if (cluster >= state->cluster_count) {
       cluster = 0;
@@ -128,18 +150,20 @@ void AndroidCpuPerUidModule::ParseField(const ParseFieldArgs& args) {
   for (auto it = app_totals_.GetIterator(); it; ++it) {
     UpdateTotals(args.ts, "Apps", it.key(), it.value());
   }
-
-  // Anything we knew about but didn't see in this packet must not have
-  // incremented.
-  for (auto it = state->last_values.GetIterator(); it; ++it) {
-    uint32_t uid = it.key() >> 32;
-    if (uid_with_value_this_packet.count(uid)) {
-      continue;
+  for (auto it = cumulative_.GetIterator(); it; ++it) {
+    auto [uid, cluster_id] = SplitKey(it.key());
+    if (IsGroupedUid(uid)) {
+      UpdateCounter(args.ts, uid, cluster_id, it.value());
     }
-    uint32_t cluster_id = it.key() & 0xffffffff;
-
-    UpdateCounter(args.ts, uid, cluster_id, it.value());
   }
+  for (auto it = state->last_values.GetIterator(); it; ++it) {
+    auto [uid, cluster_id] = SplitKey(it.key());
+    if (!IsGroupedUid(uid)) {
+      UpdateCounter(args.ts, uid, cluster_id, it.value());
+    }
+  }
+
+  return ModuleResult::Handled();
 }
 
 void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
@@ -165,20 +189,10 @@ void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
 
 void AndroidCpuPerUidModule::ComputeTotals(uint32_t uid,
                                            uint32_t cluster,
-                                           uint64_t time_ms) {
-  // Note: in ParseField, previous is computed per intern sequence,
-  // whereas here it's computed globally post-interning.
+                                           uint64_t delta_ms) {
   uint64_t key = MakeKey(uid, cluster);
-  auto [previous, inserted] = last_value_.Insert(key, time_ms);
-
-  uint64_t delta_ms = 0;
-  if (time_ms > *previous && !inserted) {
-    delta_ms = time_ms - *previous;
-  }
-  *previous = time_ms;
-
   cumulative_[key] += delta_ms;
-  if ((uid % 100000) < 10000) {
+  if (PkgId(uid) < 10000) {
     system_totals_[cluster] += delta_ms;
   } else {
     app_totals_[cluster] += delta_ms;
@@ -191,7 +205,7 @@ void AndroidCpuPerUidModule::UpdateCounter(int64_t ts,
                                            uint64_t value) {
   TrackId track = context_->track_tracker->InternTrack(
       kCpuPerUidBlueprint, tracks::Dimensions(uid, cluster));
-  context_->event_tracker->PushCounter(ts, double(value), track);
+  context_->sparse_counter_tracker->PushCounter(ts, track, double(value));
 }
 
 void AndroidCpuPerUidModule::UpdateTotals(int64_t ts,
@@ -200,7 +214,34 @@ void AndroidCpuPerUidModule::UpdateTotals(int64_t ts,
                                           uint64_t value) {
   TrackId track = context_->track_tracker->InternTrack(
       kCpuTotalsBlueprint, tracks::Dimensions(name, cluster));
-  context_->event_tracker->PushCounter(ts, double(value), track);
+  context_->sparse_counter_tracker->PushCounter(ts, track, double(value));
+}
+
+std::pair<uint64_t, uint64_t> AndroidCpuPerUidModule::IncrementalStateUpdate(
+    uint32_t uid,
+    uint32_t cluster,
+    uint64_t raw_time,
+    AndroidCpuPerUidState* state) {
+  uint64_t key = MakeKey(uid, cluster);
+  uint64_t delta_ms = 0;
+
+  // The meaning of the raw_time depends on incremental state. The first time
+  // we see a key, it's the absolute value of the counter since boot. For all
+  // subsequent times, it's the difference from the last.
+  auto [incr_value, incr_inserted] = state->last_values.Insert(key, raw_time);
+  if (!incr_inserted) {
+    *incr_value += raw_time;
+  }
+
+  // The last value irregardless of incremental state is stored on the importer.
+  // We use this to compute the non-negative delta since the last value.
+  auto [global_value, _] = last_value_.Insert(key, *incr_value);
+  if (*incr_value > *global_value) {
+    delta_ms = *incr_value - *global_value;
+  }
+
+  *global_value = *incr_value;
+  return std::make_pair(*incr_value, delta_ms);
 }
 
 }  // namespace perfetto::trace_processor

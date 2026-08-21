@@ -43,10 +43,11 @@ tables::TraceFileTable::Id TraceFileTracker::AddFileImpl(StringId name) {
       parsing_stack_.empty() ? std::nullopt
                              : std::make_optional(parsing_stack_.back());
   return context_->storage->mutable_trace_file_table()
-      ->Insert({parent, name, /*size=*/0,
-                context_->storage->InternString(
-                    TraceTypeToString(kUnknownTraceType)),
-                /*processing_order=*/std::nullopt, /*is_container=*/0})
+      ->Insert(
+          {parent, name, /*size=*/0,
+           context_->storage->InternString(
+               context_->trace_importer_registry->ToString(TraceImporterId())),
+           /*processing_order=*/std::nullopt, /*is_container=*/0})
       .id;
 }
 
@@ -56,14 +57,15 @@ void TraceFileTracker::SetSize(tables::TraceFileTable::Id id, uint64_t size) {
 }
 
 void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
-                                    TraceType trace_type) {
+                                    TraceImporterId trace_type) {
   parsing_stack_.push_back(id);
+  const auto& importers = *context_->trace_importer_registry;
   auto row = (*context_->storage->mutable_trace_file_table())[id];
   row.set_trace_type(
-      context_->storage->InternString(TraceTypeToString(trace_type)));
+      context_->storage->InternString(importers.ToString(trace_type)));
   row.set_processing_order(static_cast<int64_t>(processing_order_++));
 
-  bool is_container = IsContainerTraceType(trace_type);
+  bool is_container = importers.IsContainer(trace_type);
   row.set_is_container(is_container);
 
   // We log metadata only for "actual" traces and not for containers (e.g. zip

@@ -40,6 +40,7 @@ public final class PerfettoTrace {
   private static final int PERFETTO_TE_TYPE_SLICE_END = 2;
   private static final int PERFETTO_TE_TYPE_INSTANT = 3;
   private static final int PERFETTO_TE_TYPE_COUNTER = 4;
+  private static final int PERFETTO_TE_TYPE_STATE = 5;
 
   private static boolean sIsDebug = false;
   private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
@@ -281,6 +282,29 @@ public final class PerfettoTrace {
     return counter(category, value).usingProcessCounterTrackWithDynamicName(trackName);
   }
 
+  /**
+   * Updates a state track to a new value. A state track is like a counter whose value is a label
+   * rather than a number; the value persists until the next update and an empty value is "idle".
+   *
+   * @param category The perfetto category.
+   * @param value The state value (carried as the event name); empty/null is idle.
+   * @param trackName The process-scoped state track to update.
+   */
+  public static PerfettoTrackEventBuilder state(
+      Category category, String value, @CompileTimeConstant String trackName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_STATE, category, sIsDebug)
+        .setEventName(value)
+        .usingProcessStateTrack(trackName);
+  }
+
+  /** Like {@link #state} but with a dynamically computed track name. */
+  public static PerfettoTrackEventBuilder stateWithDynamicName(
+      Category category, String value, String trackName) {
+    return PerfettoTrackEventBuilder.newEvent(PERFETTO_TE_TYPE_STATE, category, sIsDebug)
+        .setEventName(value)
+        .usingProcessStateTrackWithDynamicName(trackName);
+  }
+
   /** Returns the next flow id to be used. */
   public static int getFlowId() {
     return sFlowEventId.incrementAndGet();
@@ -325,36 +349,44 @@ public final class PerfettoTrace {
    * A stack can be captured with Thread.getStackTrace() but note that it is expensive
    * and should only be used for local debugging or low-frequency diagnostic events.
    */
-  public static PerfettoTrackEventBuilder expensiveDebugCallStack(Category category,
-    String eventName, StackTraceElement[] stackTrace) {
-    return expensiveDebugCallStack(category, eventName, stackTrace, 2);
-  }
-
-  /**
-   * Writes a provided call stack to the Perfetto trace, skipping a specified number of frames from
-   * the top of the stack.
-   * A stack can be captured with Thread.getStackTrace() but note that it is expensive
-   * and should only be used for local debugging or low-frequency diagnostic events.
-   */
   public static PerfettoTrackEventBuilder expensiveDebugCallStack(
-      Category category, String eventName, StackTraceElement[] stackTrace, int skipFrames) {
+      Category category, String eventName, StackTraceElement[] stackTrace) {
     if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
         return PerfettoTrace.instant(category, eventName);
     }
+    return writeCallStack(PerfettoTrace.instant(category, eventName).beginProto(), stackTrace)
+        .endProto();
+  }
 
+  /**
+   * Like {@link #expensiveDebugCallStack(Category, String, StackTraceElement[])}, but also
+   * attaches {@code callstackWeight} as an additive measure on the call stack (for example the
+   * number of bytes allocated), used for weighted flamegraph aggregation. Weighted and unweighted
+   * samples are never mixed, so set the weight on every event of a track or on none of them.
+   */
+  public static PerfettoTrackEventBuilder expensiveDebugCallStack(
+      Category category, String eventName, StackTraceElement[] stackTrace, double callstackWeight) {
+    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+        return PerfettoTrace.instant(category, eventName);
+    }
+    final long FIELD_TRACK_EVENT_CALLSTACK_WEIGHT = 57L;
+    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
+        .beginProto().addField(FIELD_TRACK_EVENT_CALLSTACK_WEIGHT, callstackWeight);
+    return writeCallStack(builder, stackTrace).endProto();
+  }
+
+  /** Writes the call stack as a nested TrackEvent.callstack; caller owns beginProto/endProto. */
+  private static PerfettoTrackEventBuilder writeCallStack(
+      PerfettoTrackEventBuilder builder, StackTraceElement[] stackTrace) {
     final long FIELD_TRACK_EVENT_CALLSTACK = 55L;
     final long FIELD_CALLSTACK_FRAMES = 1L;
     final long FIELD_FRAME_FUNCTION_NAME = 1L;
     final long FIELD_FRAME_SOURCE_FILE = 2L;
     final long FIELD_FRAME_LINE_NUMBER = 3L;
 
-    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
-        .beginProto().beginNested(FIELD_TRACK_EVENT_CALLSTACK);
+    builder = builder.beginNested(FIELD_TRACK_EVENT_CALLSTACK);
 
-    // Iterate from the bottom of the stack (main) up to the caller
-    // We start at the end and stop before reaching these internal methods
-    int limit = Math.max(0, Math.min(stackTrace.length, skipFrames));
-    for (int i = stackTrace.length - 1; i >= limit; i--) {
+    for (int i = stackTrace.length - 1; i >= 0; i--) {
         StackTraceElement element = stackTrace[i];
 
         builder =
@@ -374,7 +406,7 @@ public final class PerfettoTrace {
         builder = builder.endNested();
     }
 
-    return builder.endNested().endProto();
+    return builder.endNested();
   }
 
   /**

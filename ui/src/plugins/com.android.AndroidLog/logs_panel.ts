@@ -45,7 +45,7 @@ import type {Store} from '../../base/store';
 import type {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {MenuItem} from '../../widgets/menu';
-import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
+import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
 
 const ROW_H = 24;
 
@@ -90,9 +90,9 @@ interface LogEntries {
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
-  private readonly executor = new SerialTaskQueue();
-  private readonly viewQuery = new QuerySlot<AsyncDisposable>(this.executor);
-  private readonly entriesQuery = new QuerySlot<LogEntries>(this.executor);
+  private readonly executor = new AtomicTaskQueue();
+  private readonly viewQuery = new AsyncMemo<AsyncDisposable>(this.executor);
+  private readonly entriesQuery = new AsyncMemo<LogEntries>(this.executor);
   private pagination: Pagination = {
     offset: 0,
     count: 0,
@@ -116,7 +116,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
     const viewResult = this.viewQuery.use({
       key: {filters},
-      queryFn: () => updateLogView(engine, filters),
+      compute: () => updateLogView(engine, filters),
     });
 
     // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
@@ -127,7 +127,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         pagination,
       },
       retainOn: ['pagination', 'viewport'],
-      queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
+      compute: () => updateLogEntries(engine, visibleSpan, pagination),
       enabled: !!viewResult.data,
     });
 

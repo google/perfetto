@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists, assertUnreachable} from '../../base/assert';
+import {ensureExists, assertUnreachable} from '../../base/assert';
 import {findRef} from '../../base/dom_utils';
 import type {Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
@@ -22,6 +22,7 @@ import {Time, type time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {colorForCpu} from '../../components/colorizer';
 import type {TraceImpl} from '../../core/trace_impl';
+import {GUTTER_FRACTION} from '../../core/timeline';
 import {
   COLOR_BORDER,
   COLOR_TEXT_MUTED,
@@ -65,10 +66,14 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
   }
 
   private renderBrushes(trace: TraceImpl, element: Element) {
-    const timeline = assertExists(findRef(element, MINIMAP_REF));
+    const timeline = ensureExists(findRef(element, MINIMAP_REF));
     const timelineWidth = timeline.getBoundingClientRect().width;
     const traceTime = trace.traceInfo;
-    const pxBounds = {left: 0, right: timelineWidth};
+    // Inset the trace bounds by a gutter at each end so the viewport box and
+    // brush handles can be dragged slightly past the trace start/end, matching
+    // the main timeline.
+    const gutter = timelineWidth * GUTTER_FRACTION;
+    const pxBounds = {left: gutter, right: timelineWidth - gutter};
     const hpTraceTime = HighPrecisionTimeSpan.fromTime(
       traceTime.start,
       traceTime.end,
@@ -130,7 +135,8 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
     if (size.width <= 0) return;
 
     const traceTime = trace.traceInfo;
-    const pxBounds = {left: 0, right: size.width};
+    const gutter = size.width * GUTTER_FRACTION;
+    const pxBounds = {left: gutter, right: size.width - gutter};
     const hpTraceTime = HighPrecisionTimeSpan.fromTime(
       traceTime.start,
       traceTime.end,

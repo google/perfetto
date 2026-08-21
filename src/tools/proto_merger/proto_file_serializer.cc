@@ -26,9 +26,7 @@ std::string DeletedComment(const std::string& prefix) {
   std::string output;
   output += "\n";
   output += prefix + "  //\n";
-  output += prefix;
-  output +=
-      "  // The following enums/messages/fields are not present upstream\n";
+  output += prefix + "  // " + kDeletedCommentWarning + "\n";
   output += prefix + "  //\n";
   return output;
 }

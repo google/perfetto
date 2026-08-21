@@ -50,9 +50,14 @@ class TrackEventModule : public ProtoImporterModule {
 
   void OnEventsFullyExtracted() override;
 
+  TrackEventExtensionParserContext* mutable_extension_parser_context() {
+    return &extension_parser_context_;
+  }
+
  private:
   std::unique_ptr<TrackEventTracker> track_event_tracker_;
   TrackEventTokenizer tokenizer_;
+  TrackEventExtensionParserContext extension_parser_context_;
   TrackEventParser parser_;
 };
 

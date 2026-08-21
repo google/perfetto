@@ -184,7 +184,7 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       }
 
       StringId name_id = storage->InternString(metadata.name());
-      args.AddArgsTo(id).AddArg(name_id, value);
+      inserter.AddArg(name_id, value);
 
       // metadata.name() comes from the trace and is untrusted/unbounded,
       // so we build the key on the heap rather than a fixed stack buffer.
@@ -198,7 +198,8 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       key.append(metadata.name().data, metadata.name().size);
 
       auto metadata_id = storage->InternString(base::StringView(key));
-      context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
+      context_->metadata_tracker->AppendDynamicMetadataLegacy(metadata_id,
+                                                              value);
     }
   }
 

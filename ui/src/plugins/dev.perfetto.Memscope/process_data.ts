@@ -85,20 +85,33 @@ export const OOM_SCORE_BUCKETS: readonly OomScoreBucket[] = [
   },
 ];
 
+// The OOM bucket an oom_score_adj value falls into, or undefined if it's out of
+// every range.
+export function oomScoreBucket(score: number): OomScoreBucket | undefined {
+  return OOM_SCORE_BUCKETS.find(
+    (b) => score >= b.minScore && score <= b.maxScore,
+  );
+}
+
+// The bucket name without its trailing "(range)" suffix, e.g. "Foreground".
+export function oomBucketLabel(bucket: OomScoreBucket): string {
+  return bucket.name.replace(/ \(.*\)$/, '');
+}
+
 // Per-process memory row (latest value only, for the table).
 export interface ProcessMemoryRow {
-  processName: string;
-  pid: number;
-  rssKb: number;
-  anonKb: number;
-  fileKb: number;
-  shmemKb: number;
-  swapKb: number;
-  dmabufKb: number;
-  oomScore: number;
-  debuggable: boolean;
-  ageSeconds: number | null;
+  readonly processName: string;
+  readonly pid: number;
+  readonly rssKb: number;
+  readonly anonKb: number;
+  readonly fileKb: number;
+  readonly shmemKb: number;
+  readonly swapKb: number;
+  readonly dmabufKb: number;
+  readonly oomScore: number;
+  readonly debuggable: boolean;
+  readonly ageSeconds: number | null;
   // RSS time series in KB, sorted ascending by ts (nanoseconds). Used to
   // render a per-row sparkline.
-  rssTrendKb: ReadonlyArray<number>;
+  readonly rssTrendKb: readonly number[];
 }

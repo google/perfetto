@@ -172,9 +172,20 @@ struct NodeAgg : public sqlite::AggregateFunction<NodeAgg> {
     PERFETTO_DCHECK(argc == kArgCount);
 
     auto source_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+    auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
+
+    // A NULL target means the source node has no edge (e.g. a root in a tree
+    // whose parent_id is NULL). Without this check, Int64() would coerce the
+    // NULL to 0 and create a spurious edge to node 0.
+    if (sqlite::value::IsNull(argv[1])) {
+      if (source_id >= agg_ctx.graph.size()) {
+        agg_ctx.graph.resize(source_id + 1);
+      }
+      return;
+    }
+
     auto target_id = static_cast<uint32_t>(sqlite::value::Int64(argv[1]));
     uint32_t max_id = std::max(source_id, target_id);
-    auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
     if (max_id >= agg_ctx.graph.size()) {
       agg_ctx.graph.resize(max_id + 1);
     }

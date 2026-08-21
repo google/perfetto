@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {addErrorHandler, type ErrorDetails, reportError} from '../base/logging';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import type {time} from '../base/time';
 import traceconv from '../gen/traceconv';
 
@@ -65,7 +65,7 @@ function forwardError(error: ErrorDetails) {
 }
 
 function fsNodeToBuffer(fsNode: traceconv.FileSystemNode): Uint8Array {
-  const fileSize = assertExists(fsNode.usedBytes);
+  const fileSize = ensureExists(fsNode.usedBytes);
   return new Uint8Array(fsNode.contents.buffer, 0, fileSize);
 }
 
@@ -77,9 +77,11 @@ async function runTraceconv(trace: Blob, args: string[]) {
     printErr: updateStatus,
     onRuntimeInitialized: () => {},
   });
-  module.FS.mkdir('/fs');
-  module.FS.mount(
-    assertExists(module.FS.filesystems.WORKERFS),
+  // Use the explicitly exported functions rather than methods on module.FS.
+  // Closure Compiler can rename the latter, making e.g. FS.mkdir undefined.
+  module.FS_mkdir('/fs');
+  module.FS_mount(
+    module.WORKERFS,
     {blobs: [{name: 'trace.proto', data: trace}]},
     '/fs',
   );
@@ -124,9 +126,9 @@ async function ConvertTraceAndDownload(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS.lookupPath(outPath).node;
+    const fsNode = module.FS_lookupPath(outPath).node;
     downloadFile(fsNodeToBuffer(fsNode), `trace.${format}`);
-    module.FS.unlink(outPath);
+    module.FS_unlink(outPath);
   } finally {
     notifyJobCompleted();
   }
@@ -159,20 +161,23 @@ async function ConvertTraceAndOpenInLegacy(
   args.push('/fs/trace.proto', outPath);
   try {
     const module = await runTraceconv(trace, args);
-    const fsNode = module.FS.lookupPath(outPath).node;
+    const fsNode = module.FS_lookupPath(outPath).node;
     const data = fsNode.contents.buffer;
     const size = fsNode.usedBytes;
     const buffer = new Uint8Array(data, 0, size);
     openTraceInLegacy(buffer);
-    module.FS.unlink(outPath);
+    module.FS_unlink(outPath);
   } finally {
     notifyJobCompleted();
   }
 }
 
+type PprofProfileType = 'alloc' | 'perf' | 'java-heap';
+
 interface ConvertTraceToPprofArgs {
   kind: 'ConvertTraceToPprof';
   trace: Blob;
+  profileType: PprofProfileType;
   pid: number;
   ts: time;
 }
@@ -184,9 +189,15 @@ function isConvertTraceToPprof(msg: Args): msg is ConvertTraceToPprofArgs {
   return true;
 }
 
-async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
+async function ConvertTraceToPprof(
+  trace: Blob,
+  profileType: PprofProfileType,
+  pid: number,
+  ts: time,
+) {
   const args = [
     'profile',
+    `--${profileType}`,
     `--pid`,
     `${pid}`,
     `--timestamps`,
@@ -197,14 +208,20 @@ async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
   try {
     const module = await runTraceconv(trace, args);
     const heapDirName = Object.keys(
-      module.FS.lookupPath('/tmp/').node.contents,
+      module.FS_lookupPath('/tmp/').node.contents,
     )[0];
-    const heapDirContents = module.FS.lookupPath(`/tmp/${heapDirName}`).node
+    if (heapDirName === undefined) {
+      throw new Error(
+        'No profiles generated; the trace has no profile matching ' +
+          `type=${profileType} pid=${pid} ts=${ts}`,
+      );
+    }
+    const heapDirContents = module.FS_lookupPath(`/tmp/${heapDirName}`).node
       .contents;
     const heapDumpFiles = Object.keys(heapDirContents);
     for (let i = 0; i < heapDumpFiles.length; ++i) {
       const heapDump = heapDumpFiles[i];
-      const fileNode = module.FS.lookupPath(
+      const fileNode = module.FS_lookupPath(
         `/tmp/${heapDirName}/${heapDump}`,
       ).node;
       const fileName = `/heap_dump.${i}.${pid}.pb`;
@@ -225,7 +242,7 @@ selfWorker.onmessage = (msg: MessageEvent) => {
   } else if (isConvertTraceAndOpenInLegacy(args)) {
     ConvertTraceAndOpenInLegacy(args.trace, args.truncate);
   } else if (isConvertTraceToPprof(args)) {
-    ConvertTraceToPprof(args.trace, args.pid, args.ts);
+    ConvertTraceToPprof(args.trace, args.profileType, args.pid, args.ts);
   } else {
     throw new Error(`Unknown method call ${JSON.stringify(args)}`);
   }

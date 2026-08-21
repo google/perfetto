@@ -76,19 +76,21 @@ int main(int argc, char** argv) {
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"proto_path", required_argument, nullptr, 'I'},
+      {"descriptor", required_argument, nullptr, 'd'},
       {nullptr, 0, nullptr, 0}};
 
   std::vector<std::string> proto_paths;
   std::vector<std::string> proto_files;
+  std::vector<std::string> descriptor_files;
 
   for (;;) {
-    int option = getopt_long(argc, argv, "hI:", long_options, nullptr);
+    int option = getopt_long(argc, argv, "hI:d:", long_options, nullptr);
     if (option == -1)
       break;
 
     if (option == 'h') {
       std::printf(
-          "Usage: %s [-I <proto_path>] <file1.proto> ...\n"
+          "Usage: %s [-I <proto_path>] [-d <descriptor>] <file1.proto> ...\n"
           "Reads ProtoVM CompileConfig textproto from stdin, compiles it and "
           "outputs a VmProgram binary on stdout.\n",
           argv[0]);
@@ -98,6 +100,10 @@ int main(int argc, char** argv) {
       proto_paths.emplace_back(optarg);
       continue;
     }
+    if (option == 'd') {
+      descriptor_files.emplace_back(optarg);
+      continue;
+    }
     return 1;
   }
 
@@ -105,14 +111,27 @@ int main(int argc, char** argv) {
     proto_files.emplace_back(argv[i]);
   }
 
-  if (proto_files.empty()) {
-    PERFETTO_ELOG("At least one .proto file is required");
-    return 1;
+  std::string descriptors;
+  for (const auto& file : descriptor_files) {
+    std::string content;
+    if (!perfetto::base::ReadFile(file, &content)) {
+      PERFETTO_ELOG("Failed to read descriptor file %s", file.c_str());
+      return 1;
+    }
+    descriptors += content;
   }
 
-  auto status_or_descriptors = LoadDescriptors(proto_paths, proto_files);
-  if (!status_or_descriptors.ok()) {
-    PERFETTO_ELOG("%s", status_or_descriptors.status().c_message());
+  if (!proto_files.empty()) {
+    auto status_or_descriptors = LoadDescriptors(proto_paths, proto_files);
+    if (!status_or_descriptors.ok()) {
+      PERFETTO_ELOG("%s", status_or_descriptors.status().c_message());
+      return 1;
+    }
+    descriptors += *status_or_descriptors;
+  }
+
+  if (descriptors.empty()) {
+    PERFETTO_ELOG("At least one .proto file or -d/--descriptor is required");
     return 1;
   }
 
@@ -123,7 +142,7 @@ int main(int argc, char** argv) {
   }
 
   auto compiler = perfetto::protovm::Compiler{};
-  auto status_or_program = compiler.Compile(textproto, *status_or_descriptors);
+  auto status_or_program = compiler.Compile(textproto, descriptors);
   if (!status_or_program.ok()) {
     PERFETTO_ELOG("Error: %s", status_or_program.status().c_message());
     return 1;

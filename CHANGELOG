@@ -2,13 +2,132 @@ Unreleased:
   Tracing service and probes:
    *
   Trace Processor:
-    * Added a client-server mode to `trace_processor_shell`: start a server
-      over a unix socket (`server unix`) or WebSocket (`server http`) and
-      connect a thin client with `--remote`.
+   *
   UI:
    *
   SDK:
    *
+
+v58.0 - 2026-08-06:
+  Tracing service and probes:
+    * Added optional recording of the state changes of other concurrent
+      tracing sessions, as ConcurrentSessionEvent packets. Opt-in via
+      TraceConfig.BuiltinDataSource.enable_concurrent_session_events. Trace
+      Processor and the UI show them as one state track per session.
+    * Added Zstd as a trace compression option alongside deflate, selected via
+      the new TraceConfig.compression field (which supersedes compression_type).
+    * The procfs scraper (process_stats data source) now writes an explicit
+      Thread message for a process' main thread, instead of leaving it implied
+      by the process entry. This fixes missing main thread names when a trace
+      is recorded using procfs alone.
+    * Replaced TraceConfig.notes and `perfetto --add-note` with
+      TraceConfig.trace_attributes and `--add-attribute`.
+  Trace Processor:
+    * Added trace merging: a ZIP or TAR archive containing several traces
+      imports as one merged trace on a single timeline, with per-machine
+      attribution. An optional `perfetto_manifest` JSON file in the archive
+      configures the merge (machine names, clock relations, fixed offsets).
+      See https://perfetto.dev/docs/analysis/merging-traces.
+    * Added `trace_processor_shell util merge`: packs traces and an optional
+      manifest into a merged-trace archive and sanity-checks the result.
+    * Added a client-server mode to `trace_processor_shell`: start a server
+      over a unix socket (`server unix`) or WebSocket (`server http`) and
+      connect a thin client with `--remote`.
+    * Added a common stack sampling format that any profiler can emit: the
+      new TracePacket.stack_sample attributes a callstack to a thread,
+      process or async context (goroutine, fiber, ...), measured against an
+      explicit counter timebase (wall-time, cycles, bytes, ...) with
+      optional follower counters. Callstacks can be interned or fully
+      inline; per-sequence StackSampleDefaults declare the profiler source
+      and common counters. Samples are parsed into the stack sample tables
+      and share the existing stack_profile_* callstack tables.
+    * Introduced common stack_sample, stack_sample_session,
+      stack_sample_task_context, stack_sample_execution_context,
+      stack_sample_async_context, stack_sample_counter_track and
+      stack_sample_counter tables shared by all callstack profiler sources.
+      Async contexts keep their parent relationships. The Linux perf-specific
+      perf_sample, perf_session and perf_counter_track tables continue to
+      expose all perf data, including counter-only samples.
+    * Added `trace_processor_shell export arrow_tar`, which writes the
+      built-in tables as a tar of Arrow files for other tools to read. The
+      format is stable across versions, but the archive cannot be loaded
+      back into Trace Processor.
+    * Added `trace_processor_shell export perfetto`, which writes an archive
+      that another Trace Processor of the same version can load, so a large
+      trace only has to be parsed once.
+    * Added an embedder-provided filesystem interface. The interface is
+      disabled by default; trace_processor_shell allows SQL file access only
+      with --allow-sql-file-access. SQL file writes no longer require --dev,
+      and the integer file descriptor form of EXPORT_JSON has been removed.
+    * Breaking change: the inline callstack message `TrackEvent.Callstack`
+      moved to the top-level `InlineCallstack` message in
+      trace/profiling/inline_callstack.proto, so track events and stack
+      samples share one inline callstack definition.
+      The wire format is unchanged; code referencing the generated
+      `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
+      `InlineCallstack`.
+    * `regexp()` now takes an optional third argument for matching flags:
+      `i` for case-insensitive matching, `c` for case-sensitive.
+    * Fixed negative timestamps wrapping around to large positive values and
+      crashing the UI, a crash on empty CpuInfo packets, a hang when
+      skipping an oversized proto field, and Apple Instruments Xcode 27
+      traces losing their call stacks.
+  UI:
+    * Improved flamegraphs with clearer direction and filter controls, frame
+      highlighting, and case-insensitive regular expression filtering.
+    * Callstack sample tracks and flamegraphs now share one implementation
+      over the stack_sample table. Tracks and area-selection flamegraph tabs
+      remain separate per profiler source, while every source with recorded
+      counters supports counter-weighted flamegraphs.
+    * Opening multiple trace files is now supported by default: the "Open
+      multiple trace files" sidebar item (or multi-selecting / dropping
+      several files) opens a dialog to configure how the traces merge onto
+      a shared timeline, warns if any events would be dropped, and can
+      export the merged set as a self-contained .tar archive.
+    * Add list of recently opened traces to the homepage.
+    * Remap OpenCommandPalette command hotkey to F1 on Firefox.
+    * Ftrace plugin: now handles area selections and multi-machine traces.
+    * Update node to v22.23.1 and pnpm to 10.34.5.
+    * Allow pivoting on arg values in slice aggregation table.
+    * Bump to vite v8.1.5 and typescript v7.0.2, vastly improving build times.
+    * Add memory tooling:
+      * Memscope: a live memory profiler that guides you through connecting
+        an Android/Linux device and recording memory traces.
+      * Memory overview: opens by default on traces containing smaps dumps
+        and shows a high-level breakdown of where memory is being used,
+        drawing on smaps, ART, and native memory data recorded in the trace.
+  SDK:
+    * Reworked the C SDK shared library export macros: static linking (the
+      default) no longer needs any macros. Define
+      PERFETTO_SDK_SHLIB_IMPLEMENTATION (renamed from
+      PERFETTO_SHLIB_SDK_IMPLEMENTATION) when building the SDK into a shared
+      library, and PERFETTO_SDK_SHLIB when consuming it as one. This applies
+      to the amalgamated SDK too. PERFETTO_SDK_DISABLE_SHLIB_EXPORT is
+      removed.
+    * Added PerfettoDsGetTimestamp() and PerfettoDsGetDefaultClockId() to
+      the C data source ABI. These return the current timestamp in the
+      preferred trace clock, so callers no longer need to pick the OS
+      specific clock themselves. Also added DataSourceTimestamp::now() in
+      the Rust SDK.
+    * `dev.perfetto.clock_sync` signpost events now fire on iOS as well as
+      macOS, so Instruments traces from iOS can be synchronized with
+      Perfetto traces.
+  Tools:
+    * Deprecated `traceconv`. Please use `trace_processor_shell`, which does
+      the same conversions as subcommands. The `traceconv` wrapper script
+      now fetches `trace_processor_shell` and runs it under the `traceconv`
+      name, so existing invocations keep working unchanged. The standalone
+      binary still ships for now.
+  AI:
+    * Much faster repeated queries with skills: the skill now loads a trace
+      once into a `trace_processor` session and reuses it, instead of
+      reparsing on every call.
+    * Added a `TraceConfig` reference and exemplar configs an agent can start
+      from when it needs a custom recording setup.
+    * Every analysis now ends by saving a markdown report with the question,
+      the findings and the queries that worked.
+    * Releases now include a skill zip for machines that cannot reach
+      github.com at install time.
 
 v57.2 - 2026-07-07:
   Trace Processor:

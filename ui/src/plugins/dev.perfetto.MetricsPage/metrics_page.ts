@@ -18,7 +18,7 @@ import type {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
-import {assertExists, assertUnreachable} from '../../base/assert';
+import {ensureExists, assertUnreachable} from '../../base/assert';
 import type {Trace} from '../../public/trace';
 import {RadioGroup} from '../../widgets/radio_group';
 import {Editor} from '../../widgets/editor';
@@ -29,7 +29,7 @@ import {Callout} from '../../widgets/callout';
 import {TextInput} from '../../widgets/text_input';
 import {Tabs} from '../../widgets/tabs';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 import type {Row} from '../../trace_processor/query_result';
 import protos from '../../protos';
 
@@ -39,7 +39,7 @@ const FORMATS: Format[] = ['json', 'prototext', 'proto'];
 // Parsed metric bundle for table display
 interface MetricBundle {
   metricId: string;
-  schema: SchemaRegistry;
+  schema: ColumnSchema;
   rows: Row[];
 }
 
@@ -255,20 +255,13 @@ function parseTraceSummary(data: Uint8Array): MetricBundle[] {
     }
 
     // Build schema for this metric
-    const schemaColumns: Record<
-      string,
-      {title: string; columnType: 'text' | 'quantitative'}
-    > = {};
+    const schema: ColumnSchema = {};
     for (const dimName of dimensionNames) {
-      schemaColumns[dimName] = {title: dimName, columnType: 'text'};
+      schema[dimName] = {title: dimName, columnType: 'text'};
     }
     for (const valueName of valueNames) {
-      schemaColumns[valueName] = {title: valueName, columnType: 'quantitative'};
+      schema[valueName] = {title: valueName, columnType: 'quantitative'};
     }
-
-    const schema: SchemaRegistry = {
-      [metricId]: schemaColumns,
-    };
 
     // Convert rows to DataGrid format
     const rows: Row[] = [];
@@ -506,7 +499,6 @@ function renderV2Result(
               m(DataGrid, {
                 data: bundle.rows,
                 schema: bundle.schema,
-                rootSchema: bundle.metricId,
               }),
             ),
           })),
@@ -675,7 +667,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
   }
 
   view({attrs}: m.Vnode<MetricsPageAttrs>) {
-    const v1Controller = assertExists(this.v1Controller);
+    const v1Controller = ensureExists(this.v1Controller);
     return m(
       '.pf-metrics-page',
       m(

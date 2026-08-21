@@ -124,8 +124,8 @@ class GraphicsGpuTrace(TestSuite):
         """,
         out=Csv("""
         "gpu","machine_id"
-        0,1
-        1,1
+        0,0
+        1,0
         """))
 
   def test_gpu_counter_specs(self):

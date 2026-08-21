@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
+#include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
@@ -49,7 +50,9 @@ class DummyMemoryMapping;
 
 class TrackEventParser {
  public:
-  TrackEventParser(TraceProcessorContext*, TrackEventTracker*);
+  TrackEventParser(TrackEventExtensionParserContext*,
+                   TraceProcessorContext*,
+                   TrackEventTracker*);
 
   void ParseTrackDescriptor(int64_t packet_timestamp,
                             protozero::ConstBytes,
@@ -68,6 +71,15 @@ class TrackEventParser {
  private:
   friend class TrackEventEventImporter;
 
+  bool has_parsers() const {
+    return !extension_parser_context_->parsers.empty();
+  }
+
+  TrackEventExtensionParser* ParserForField(uint32_t field_id) const {
+    auto* it = extension_parser_context_->parsers_by_field.Find(field_id);
+    return it ? *it : nullptr;
+  }
+
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
   void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
@@ -85,6 +97,7 @@ class TrackEventParser {
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
   const StringId task_line_number_args_key_id_;
+  const StringId job_scheduler_job_name_args_key_id_;
   const StringId log_message_body_key_id_;
   const StringId log_message_source_location_function_name_key_id_;
   const StringId log_message_source_location_file_name_key_id_;
@@ -128,6 +141,7 @@ class TrackEventParser {
   const StringId callsite_id_key_id_;
   const StringId end_callsite_id_key_id_;
 
+  TrackEventExtensionParserContext* extension_parser_context_;
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;

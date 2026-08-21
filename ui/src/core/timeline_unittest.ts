@@ -111,13 +111,16 @@ describe('TimelineImpl', () => {
       // Try to pan before the start
       timeline.pan(-20000);
 
-      expect(timeline).toHaveViewport(1000, 1200);
+      // Clamps to the trace start plus the 1% gutter (2 ticks for a 200-wide
+      // viewport).
+      expect(timeline).toHaveViewport(998, 1198);
     });
 
     test('should clamp pan to trace bounds at end', () => {
       // Try to pan beyond the end
       timeline.pan(20000);
-      expect(timeline).toHaveViewport(1800, 2000);
+      // Clamps to the trace end plus the 1% gutter.
+      expect(timeline).toHaveViewport(1802, 2002);
     });
 
     test('supports fractional panning', () => {
@@ -177,7 +180,9 @@ describe('TimelineImpl', () => {
       // Zoom out beyond trace bounds
       timeline.zoom(100000);
 
-      expect(timeline).toHaveViewport(1000, 2000);
+      // Clamps to the trace bounds plus the 1% gutter, capped at the trace
+      // duration (10 ticks each side for a 1000-wide trace).
+      expect(timeline).toHaveViewport(990, 2010);
     });
   });
 
@@ -285,8 +290,9 @@ describe('TimelineImpl', () => {
           animation: 'step',
         });
 
-        // Should clamp to trace start [1000, 1200] without changing duration
-        expect(timeline).toHaveViewport(1000, 1200);
+        // Should clamp to trace start plus the 1% gutter without changing
+        // duration.
+        expect(timeline).toHaveViewport(998, 1198);
         expect(timeline.visibleWindow.duration).toBe(initialDuration);
       });
 
@@ -300,8 +306,9 @@ describe('TimelineImpl', () => {
           animation: 'step',
         });
 
-        // Should clamp to trace end [1800, 2000] without changing duration
-        expect(timeline).toHaveViewport(1800, 2000);
+        // Should clamp to trace end plus the 1% gutter without changing
+        // duration.
+        expect(timeline).toHaveViewport(1802, 2002);
         expect(timeline.visibleWindow.duration).toBe(initialDuration);
       });
 
@@ -373,9 +380,10 @@ describe('TimelineImpl', () => {
           animation: 'step',
         });
 
-        // Centering 1050 with width 800 would give [650, 1450]
-        // Should clamp to [1000, 1800]
-        expect(timeline).toHaveViewport(1000, 1800);
+        // Centering 1050 with width 800 would give [650, 1450].
+        // Should clamp to the trace start plus the 1% gutter (8 ticks for an
+        // 800-wide viewport).
+        expect(timeline).toHaveViewport(992, 1792);
       });
 
       test('should respect margin parameter', () => {
@@ -986,7 +994,8 @@ describe('TimelineImpl', () => {
         animation: 'step',
       });
 
-      expect(timeline).toHaveViewport(1000, 2000);
+      // Clamps to the trace bounds plus the 1% gutter (10 ticks each side).
+      expect(timeline).toHaveViewport(990, 2010);
     });
   });
 
@@ -1015,11 +1024,14 @@ describe('TimelineImpl', () => {
         timeline.visibleWindow.translate(-2000).scale(3, 0.5, 10),
       );
 
+      // The window may extend up to the 1% gutter past the trace bounds, which
+      // is capped at the trace duration (10 ticks each side for a 1000-wide
+      // trace).
       expect(timeline.visibleWindow.start.integral).toBeGreaterThanOrEqual(
-        mockTraceInfo.start,
+        mockTraceInfo.start - 10n,
       );
       expect(timeline.visibleWindow.end.integral).toBeLessThanOrEqual(
-        mockTraceInfo.end,
+        mockTraceInfo.end + 10n,
       );
     });
   });
@@ -1028,13 +1040,16 @@ describe('TimelineImpl', () => {
     test('should handle instant at trace start', () => {
       timeline.panIntoView(t(1000), {align: 'center', animation: 'step'});
 
-      expect(timeline).toHaveViewport(1000, 1200);
+      // Clamps to the trace start plus the 1% gutter (2 ticks for a 200-wide
+      // viewport).
+      expect(timeline).toHaveViewport(998, 1198);
     });
 
     test('should handle instant at trace end', () => {
       timeline.panIntoView(t(2000), {align: 'center', animation: 'step'});
 
-      expect(timeline).toHaveViewport(1800, 2000);
+      // Clamps to the trace end plus the 1% gutter.
+      expect(timeline).toHaveViewport(1802, 2002);
     });
 
     test('should handle zoom at trace start', () => {
@@ -1044,7 +1059,9 @@ describe('TimelineImpl', () => {
         animation: 'step',
       });
 
-      expect(timeline).toHaveViewport(1000, 1100);
+      // Clamps to the trace start plus the 1% gutter (1 tick for a 100-wide
+      // viewport).
+      expect(timeline).toHaveViewport(999, 1099);
     });
 
     test('should handle zoom at trace end', () => {
@@ -1054,7 +1071,8 @@ describe('TimelineImpl', () => {
         animation: 'step',
       });
 
-      expect(timeline).toHaveViewport(1900, 2000);
+      // Clamps to the trace end plus the 1% gutter.
+      expect(timeline).toHaveViewport(1901, 2001);
     });
   });
 
@@ -1123,8 +1141,9 @@ describe('TimelineImpl', () => {
 
       timeline.pan(1000);
 
-      // Should not pan when already at full span
-      expect(timeline).toHaveViewport(1000, 2000);
+      // The viewport starts flush with the trace span, so panning can only move
+      // it by the 1% gutter (10 ticks) before clamping.
+      expect(timeline).toHaveViewport(1010, 2010);
     });
 
     test('should handle panIntoView with margin larger than viewport', () => {

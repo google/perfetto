@@ -26,6 +26,7 @@ import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {Gpu} from '../../components/gpu';
+import {getMachineCount} from '../../public/utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 function getProcessDisplayName(
@@ -49,6 +50,55 @@ interface PathPart {
   key: string;
 }
 
+type GpuSliceDataset = SourceDataset<{
+  id: number;
+  name: string;
+  ts: bigint;
+  dur: bigint;
+  depth: number;
+}>;
+
+// A GPU-by-process leaf can combine slices from multiple global GPU hardware
+// queue tracks. Slice depths are local to each global track, so using them
+// directly allows unrelated slices at the same depth to overlap in the merged
+// leaf. Relayout all source tracks together and use the resulting shared depth.
+//
+// experimental_slice_layout currently accepts track IDs rather than an
+// arbitrary slice query. It can therefore reserve rows for slices on source
+// tracks that the leaf filters out, but the result is always collision-free.
+// Keeping that conservative whitespace is preferable to rendering overlapping
+// slices.
+function createGpuSliceDataset(whereClause: string): GpuSliceDataset {
+  return new SourceDataset({
+    src: `(
+      WITH filtered AS (
+        SELECT id, name, ts, dur, track_id
+        FROM gpu_slice
+        WHERE ${whereClause}
+      ), relayout AS (
+        SELECT id, layout_depth AS depth
+        FROM experimental_slice_layout(COALESCE(
+          (SELECT group_concat(track_id) FROM (
+            SELECT DISTINCT track_id FROM filtered ORDER BY track_id
+          )),
+          ''
+        ))
+      )
+      SELECT id, name, ts, dur, depth
+      FROM filtered
+      JOIN relayout USING (id)
+      ORDER BY ts
+    )`,
+    schema: {
+      id: NUM,
+      name: STR,
+      ts: LONG,
+      dur: LONG,
+      depth: NUM,
+    },
+  });
+}
+
 interface LeafTrack {
   // The owning process.
   upid: number;
@@ -63,18 +113,8 @@ interface LeafTrack {
   leafSortOrder: number;
   // Stable URI suffix appended after the per-process URI prefix.
   uriSuffix: string;
-  // The dataset that drives the SliceTrack. Discoverers prefer
-  // src='gpu_slice' + a structured `filter` (so aggregation across tracks
-  // can merge them). When the constraint can't be expressed by the dataset
-  // Filter API (e.g. predicates on extract_arg() values), a custom
-  // subquery src is used instead.
-  dataset: SourceDataset<{
-    id: number;
-    name: string;
-    ts: bigint;
-    dur: bigint;
-    depth: number;
-  }>;
+  // The relaid-out dataset that drives the SliceTrack.
+  dataset: GpuSliceDataset;
 }
 
 // CUDA / HIP: events that carry both a "device" and "stream" launch arg get
@@ -204,16 +244,7 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
       leafName: `Stream #${r.stream}`,
       leafSortOrder: r.stream,
       uriSuffix: `${apiKey}_d${r.device}_c${r.context}_s${r.stream}`,
-      dataset: new SourceDataset({
-        src: `(SELECT id, name, ts, dur, depth FROM gpu_slice WHERE ${whereClause} ORDER BY ts)`,
-        schema: {
-          id: NUM,
-          name: STR,
-          ts: LONG,
-          dur: LONG,
-          depth: NUM,
-        },
-      }),
+      dataset: createGpuSliceDataset(whereClause),
     };
   });
 }
@@ -223,7 +254,10 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
 // (process, hw_queue_id) tuple gets one leaf track named after the global
 // hw queue track ("Channel #1", "Channel #2", ...). When a process spans
 // multiple GPUs, those leaves are nested under per-GPU sub-groups.
-async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
+async function discoverFallbackTracks(
+  ctx: Trace,
+  numMachines: number,
+): Promise<LeafTrack[]> {
   const result = await ctx.engine.query(`
     SELECT
       s.upid AS upid,
@@ -234,6 +268,7 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
       t.machine_id AS machine_id,
       g.name AS gpu_name,
       m.name AS machine_name,
+      m.label_index AS machine_label_index,
       p.pid AS pid,
       p.name AS process_name
     FROM gpu_slice s
@@ -257,6 +292,7 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
     machine_id: NUM,
     gpu_name: STR_NULL,
     machine_name: STR_NULL,
+    machine_label_index: NUM_NULL,
     pid: NUM_NULL,
     process_name: STR_NULL,
   });
@@ -281,6 +317,8 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
             it.machine_id,
             it.gpu_name ?? undefined,
             it.machine_name ?? undefined,
+            it.machine_label_index ?? undefined,
+            numMachines,
           )
         : null;
     rows.push({
@@ -331,16 +369,7 @@ async function discoverFallbackTracks(ctx: Trace): Promise<LeafTrack[]> {
       leafName: row.trackName,
       leafSortOrder: row.hwqId,
       uriSuffix: `hwq_${row.hwqId}`,
-      dataset: new SourceDataset({
-        src: `(SELECT id, name, ts, dur, depth FROM gpu_slice WHERE ${whereClause} ORDER BY ts)`,
-        schema: {
-          id: NUM,
-          name: STR,
-          ts: LONG,
-          dur: LONG,
-          depth: NUM,
-        },
-      }),
+      dataset: createGpuSliceDataset(whereClause),
     };
   });
 }
@@ -360,8 +389,9 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const numMachines = await getMachineCount(ctx.engine);
     const apiTracks = await discoverApiTracks(ctx);
-    const fallbackTracks = await discoverFallbackTracks(ctx);
+    const fallbackTracks = await discoverFallbackTracks(ctx, numMachines);
     const allTracks = [...apiTracks, ...fallbackTracks];
 
     const processGroups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);

@@ -98,6 +98,18 @@ sql_modules::RegisteredPackage* PerfettoSqlDatabase::FindPackageForModule(
   return nullptr;
 }
 
+const sql_modules::RegisteredPackage* PerfettoSqlDatabase::FindPackageForModule(
+    const std::string& key) const {
+  // Find the package whose name is a prefix of the key. Due to prefix clash
+  // checking during registration, at most one package can match any given key.
+  for (auto pkg = packages_.GetIterator(); pkg; ++pkg) {
+    if (sql_modules::IsPackagePrefixOf(pkg.key(), key)) {
+      return &pkg.value();
+    }
+  }
+  return nullptr;
+}
+
 std::vector<std::pair<std::string, std::string>>
 PerfettoSqlDatabase::GetModules() const {
   std::vector<std::pair<std::string, std::string>> result;

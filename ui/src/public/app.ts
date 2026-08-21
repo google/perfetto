@@ -27,6 +27,16 @@ import type {TraceStream} from './stream';
 import type {TaskTracker} from './task_tracker';
 import type {Trace} from './trace';
 
+// A broken down representation of a route.
+// For instance: #!/record/gpu?local_cache_key=a0b1
+// becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
+export interface Route {
+  page: string;
+  subpage: string;
+  fragment: string;
+  args: RouteArgs;
+}
+
 /**
  * The API endpoint to interact programmatically with the UI before a trace has
  * been loaded. This is passed to plugins' OnActivate().
@@ -81,6 +91,11 @@ export interface App {
    * Navigate to a new page.
    */
   navigate(newHash: string): void;
+
+  /**
+   * Returns the route/page we're on.
+   */
+  getCurrentRoute(): Route;
 
   openTraceFromFile(file: File): Promise<Trace>;
   openTraceFromUrl(url: string): Promise<Trace>;

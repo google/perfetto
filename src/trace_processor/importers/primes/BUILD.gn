@@ -35,5 +35,6 @@ source_set("primes") {
     "../../storage",
     "../../types",
     "../../util:trace_blob_view_reader",
+    "../../util:trace_type",
   ]
 }

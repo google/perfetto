@@ -53,14 +53,16 @@
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
-#include "src/trace_processor/importers/archive/gzip_trace_parser.h"
+#include "src/trace_processor/importers/archive/decompressing_trace_reader.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/art_method/art_method_v2_tokenizer.h"
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
@@ -69,12 +71,12 @@
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
-#include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/pprof/pprof_trace_reader.h"
 #include "src/trace_processor/importers/primes/primes_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
@@ -85,6 +87,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
+#include "src/trace_processor/plugins/android_framework_track_event/android_framework_track_event.h"
 #include "src/trace_processor/plugins/args/args.h"
 #include "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h"
 #include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h"
@@ -116,14 +119,17 @@
 #include "src/trace_processor/plugins/metadata/metadata.h"
 #include "src/trace_processor/plugins/package_lookup/package_lookup.h"
 #include "src/trace_processor/plugins/perf_counter/perf_counter.h"
+#include "src/trace_processor/plugins/perf_text/perf_text.h"
 #include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest.h"
 #include "src/trace_processor/plugins/pprof_functions/pprof_functions.h"
 #include "src/trace_processor/plugins/slice_mipmap_operator/slice_mipmap_operator.h"
 #include "src/trace_processor/plugins/span_join_operator/span_join_operator.h"
 #include "src/trace_processor/plugins/sql_stats_table/sql_stats_table.h"
 #include "src/trace_processor/plugins/stack_functions/stack_functions.h"
+#include "src/trace_processor/plugins/stack_sample_importer/plugin.h"
 #include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 #include "src/trace_processor/plugins/storage_tables/storage_tables.h"
+#include "src/trace_processor/plugins/strace/strace.h"
 #include "src/trace_processor/plugins/string_functions/string_functions.h"
 #include "src/trace_processor/plugins/structural_tree_partition/structural_tree_partition.h"
 #include "src/trace_processor/plugins/symbolize/symbolize.h"
@@ -131,6 +137,7 @@
 #include "src/trace_processor/plugins/table_pointer_module/table_pointer_module.h"
 #include "src/trace_processor/plugins/time_functions/time_functions.h"
 #include "src/trace_processor/plugins/to_ftrace/to_ftrace.h"
+#include "src/trace_processor/plugins/trace_export/trace_export.h"
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
@@ -151,12 +158,13 @@
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/sql_bundle.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
+#include "src/trace_processor/util/zstd_decompressor.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
@@ -178,6 +186,7 @@
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/plugins/winscope_surfaceflinger_hierarchy_paths/winscope_surfaceflinger_hierarchy_paths.h"
+#include "src/trace_processor/plugins/zstd_functions/zstd_functions.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -307,16 +316,26 @@ std::pair<int64_t, int64_t> AggregatePluginTimestampBounds(
   return {start_ns, end_ns};
 }
 
+// Normalization shared by ExecuteQuery and ExecuteNextStatement. The two must
+// never diverge: statement-cursor offsets (trace_processor.h) are defined
+// against this normalized form and are documented to match ExecuteQuery's.
+std::string NormalizeExecuteQuerySql(const std::string& sql) {
+  return base::ReplaceAll(sql, "\u00A0", " ");
+}
+
 }  // namespace
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg), config_(cfg) {
+TraceProcessorImpl::TraceProcessorImpl(
+    const Config& cfg,
+    TraceProcessor::PlatformInterface* platform)
+    : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that
   // we call here before GetPluginSet() builds its cached set. Remove these
   // explicit calls once the static-init based registration is restored.
   ancestor::RegisterPlugin();
+  android_framework_track_event::RegisterPlugin();
   args::RegisterPlugin();
   art_heap_graph_functions::RegisterPlugin();
   art_process_metadata_importer::RegisterPlugin();
@@ -348,15 +367,19 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   metadata::RegisterPlugin();
   package_lookup::RegisterPlugin();
   perf_counter::RegisterPlugin();
+  perf_text_importer::RegisterPlugin();
   perfetto_manifest::RegisterPlugin();
   pprof_functions::RegisterPlugin();
   slice_mipmap_operator::RegisterPlugin();
   span_join_operator::RegisterPlugin();
   sql_stats_table::RegisterPlugin();
   stack_functions::RegisterPlugin();
+  stack_sample_importer::RegisterPlugin();
   stdlib_docs::RegisterPlugin();
   storage_tables::RegisterPlugin();
+  strace_importer::RegisterPlugin();
   string_functions::RegisterPlugin();
+  trace_export::RegisterPlugin();
   structural_tree_partition::RegisterPlugin();
   symbolize::RegisterPlugin();
   table_info::RegisterPlugin();
@@ -373,6 +396,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   winscope_importer::RegisterPlugin();
   winscope_proto_to_args_with_defaults::RegisterPlugin();
   winscope_surfaceflinger_hierarchy_paths::RegisterPlugin();
+  zstd_functions::RegisterPlugin();
 #endif
 
   // Initialize plugins using the statically pre-computed PluginSet.
@@ -397,12 +421,23 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     for (auto& p : plugins_) {
       p->RegisterDataframes(plugin_dataframes_);
     }
+    for (auto& p : plugins_) {
+      p->OnDataframesRegistered(plugin_dataframes_);
+    }
   }
   context()->register_additional_proto_modules =
       [this](ProtoImporterModuleContext* mctx, TraceProcessorContext* tctx) {
         RegisterAdditionalModules(mctx, tctx);
         for (auto& p : plugins_) {
           p->RegisterProtoImporterModules(mctx, tctx);
+        }
+        // track_module is published by RegisterAdditionalModules above.
+        if (mctx->track_module) {
+          auto* ext_ctx =
+              mctx->track_module->mutable_extension_parser_context();
+          for (auto& p : plugins_) {
+            p->RegisterTrackEventExtensions(ext_ctx, tctx);
+          }
         }
       };
 
@@ -413,62 +448,33 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                  etm::CreateEtmV4StreamDemultiplexer);
       });
 #endif
-  context()->reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
-      kAndroidDumpstateTraceType);
-  context()->reader_registry->RegisterTraceReader<AndroidLogReader>(
-      kAndroidLogcatTraceType);
-  context()->reader_registry->RegisterTraceReader<FuchsiaTraceTokenizer>(
-      kFuchsiaTraceType);
-  context()->reader_registry->RegisterTraceReader<SystraceTraceParser>(
-      kSystraceTraceType);
-  context()->reader_registry->RegisterTraceReader<NinjaLogParser>(
-      kNinjaLogTraceType);
-  context()->reader_registry->RegisterTraceReader<PprofTraceReader>(
-      kPprofTraceType);
-  context()->reader_registry->RegisterTraceReader<CollapsedStackTraceReader>(
-      kCollapsedStackTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<perf_importer::PerfDataTokenizer>(
-          kPerfDataTraceType);
+  // Identity, detection, metadata and reader creation all live on the importer;
+  // gzip/zip/ctrace register unconditionally and report the disabled-zlib error
+  // from their CreateReader.
+  auto& reg = *context()->reader_registry;
+  reg.Register(CreateAndroidDumpstateImporter());
+  reg.Register(CreateAndroidLogcatImporter());
+  reg.Register(CreateFuchsiaImporter());
+  reg.Register(CreateSystraceImporter());
+  reg.Register(CreateNinjaLogImporter());
+  reg.Register(CreatePprofImporter());
+  reg.Register(CreateCollapsedStackImporter());
+  reg.Register(CreatePerfDataImporter());
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
-  context()
-      ->reader_registry
-      ->RegisterTraceReader<instruments_importer::InstrumentsXmlTokenizer>(
-          kInstrumentsXmlTraceType);
+  reg.Register(CreateInstrumentsXmlImporter());
 #endif
-  if constexpr (util::IsGzipSupported()) {
-    context()->reader_registry->RegisterTraceReader<GzipTraceParser>(
-        kGzipTraceType);
-    context()->reader_registry->RegisterTraceReader<GzipTraceParser>(
-        kCtraceTraceType);
-    context()->reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
-  }
-  context()->reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
-      kJsonTraceType);
-  context()
-      ->reader_registry
-      ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
-          kGeckoTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
-          kArtMethodTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<art_method::ArtMethodV2Tokenizer>(
-          kArtMethodV2TraceType);
-  context()->reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
-      kArtHprofTraceType);
-  context()
-      ->reader_registry
-      ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(
-          kPerfTextTraceType);
-  context()
-      ->reader_registry->RegisterTraceReader<
-          simpleperf_proto_importer::SimpleperfProtoTokenizer>(
-          kSimpleperfProtoTraceType);
-  context()->reader_registry->RegisterTraceReader<TarTraceReader>(
-      kTarTraceType);
-  context()->reader_registry->RegisterTraceReader<primes::PrimesTraceTokenizer>(
-      kPrimesTraceType);
+  reg.Register(CreateGzipImporter());
+  reg.Register(CreateZstdImporter());
+  reg.Register(CreateCtraceImporter());
+  reg.Register(CreateZipImporter());
+  reg.Register(CreateJsonImporter());
+  reg.Register(CreateGeckoImporter());
+  reg.Register(CreateArtMethodImporter());
+  reg.Register(CreateArtMethodV2Importer());
+  reg.Register(CreateArtHprofImporter());
+  reg.Register(CreateSimpleperfProtoImporter());
+  reg.Register(CreateTarImporter());
+  reg.Register(CreatePrimesImporter());
 
   // Force initialization of heap graph tracker.
   //
@@ -589,6 +595,17 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
   CacheBoundsAndBuildTable();
 
+  // Run trace-config diagnostics before the parser context is destroyed (rules
+  // may read metadata/clocks off the context). Rules are per-(trace, machine),
+  // so loop the fork map like OnEventsFullyExtracted does.
+  auto& diag_contexts =
+      context()->forked_context_state->trace_and_machine_to_context;
+  for (auto it = diag_contexts.GetIterator(); it; ++it) {
+    if (it.value()->trace_diagnostics_tracker) {
+      it.value()->trace_diagnostics_tracker->RunRules();
+    }
+  }
+
   // Stage 3: reduce memory usage by both destroying parser context *and*
   // finalizing dataframes; once finalized, attach any indexes that were
   // declared at registration time.
@@ -640,12 +657,64 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   uint32_t sql_stats_row =
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
-  std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result =
       engine_->ExecuteUntilLastStatement(
           SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
   return Iterator(std::make_unique<SqliteIteratorImpl>(this, std::move(result),
                                                        sql_stats_row));
+}
+
+std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
+    const std::string& sql,
+    uint32_t* offset) {
+  PERFETTO_CHECK(offset);
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
+                    [&](metatrace::Record* r) { r->AddArg("query", sql); });
+
+  // Offsets are relative to the normalized SQL: since the normalization is
+  // deterministic, an offset returned by one call stays valid when the same
+  // |sql| is passed back.
+  std::string non_breaking_sql = NormalizeExecuteQuerySql(sql);
+  auto size = static_cast<uint32_t>(non_breaking_sql.size());
+  uint32_t start = *offset;
+
+  uint32_t sql_stats_row =
+      context()->storage->mutable_sql_stats()->RecordQueryBegin(
+          non_breaking_sql.substr(std::min(start, size)),
+          base::GetWallTimeNs().count());
+  // A soft error rather than a CHECK: over the RPC protocol the offset comes
+  // from an untrusted client, which must not be able to crash the server.
+  if (start > size) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(
+        this,
+        base::ErrStatus(
+            "ExecuteNextStatement: offset %u out of range (SQL size %u)", start,
+            size),
+        sql_stats_row));
+  }
+  SqlSource source = SqlSource::FromExecuteQuery(std::move(non_breaking_sql));
+
+  uint32_t end_offset = 0;
+  base::StatusOr<std::optional<PerfettoSqlConnection::ExecutionResult>> result =
+      engine_->ExecuteNextStatement(source.Substr(start, size - start),
+                                    &end_offset);
+  if (!result.ok()) {
+    return Iterator(std::make_unique<SqliteIteratorImpl>(this, result.status(),
+                                                         sql_stats_row));
+  }
+  if (!result->has_value()) {
+    // No iterator will be created to close the sql_stats entry; do it here.
+    int64_t now = base::GetWallTimeNs().count();
+    auto* sql_stats = context()->storage->mutable_sql_stats();
+    sql_stats->RecordQueryFirstNext(sql_stats_row, now);
+    sql_stats->RecordQueryEnd(sql_stats_row, now);
+    *offset = size;
+    return std::nullopt;
+  }
+  *offset = start + end_offset;
+  return Iterator(std::make_unique<SqliteIteratorImpl>(
+      this, std::move(**result), sql_stats_row));
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
@@ -1136,6 +1205,12 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   *out = std::make_unique<summary::SummarizerImpl>(
       this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::Export(ExportFormat format,
+                                        ExportOutput* output) {
+  return trace_export::WriteExport(
+      plugin_dataframes_, context()->storage->string_pool(), format, output);
 }
 
 }  // namespace perfetto::trace_processor

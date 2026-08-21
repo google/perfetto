@@ -34,9 +34,11 @@
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
 
+using com::android::internal::pbzero::FrameworksNativeTracePacket;
 using perfetto::protos::pbzero::GpuCounterDescriptor;
 using perfetto::protos::pbzero::GpuCounterEvent;
 using perfetto::protos::pbzero::InternedData;
@@ -53,7 +55,7 @@ GraphicsEventModule::GraphicsEventModule(
       frame_timeline_parser_(context),
       counter_id_key_id_(context->storage->InternString("counter_id")),
       counter_name_key_id_(context->storage->InternString("counter_name")) {
-  RegisterForField(TracePacket::kFrameTimelineEventFieldNumber);
+  RegisterForField(FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber);
   RegisterForField(TracePacket::kGpuCounterEventFieldNumber);
   RegisterForField(TracePacket::kGpuRenderStageEventFieldNumber);
   RegisterForField(TracePacket::kGpuLogFieldNumber);
@@ -87,7 +89,7 @@ ModuleResult GraphicsEventModule::TokenizePacket(
   // only flag/drop the packet when it actually carries samples. Returning a
   // non-Ignored result stops it from reaching the sorter.
   if (event.counters() && !args.decoder.has_timestamp()) {
-    context_->import_logs_tracker->RecordTokenizationError(
+    context_->import_logs_tracker->RecordTokenizationLog(
         stats::gpu_counters_missing_timestamp, args.packet->offset());
     return ModuleResult::Handled();
   }
@@ -159,19 +161,19 @@ void GraphicsEventModule::TokenizeGpuCounterEvent(
     for (auto it = descriptor.specs(); it; ++it) {
       GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
       if (!spec.has_counter_id()) {
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::gpu_counters_invalid_spec, packet_offset);
         continue;
       }
       if (!spec.has_name()) {
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::gpu_counters_invalid_spec, packet_offset);
         continue;
       }
 
       auto counter_id = spec.counter_id();
       if (legacy_gpu_counters_.Find(counter_id)) {
-        context_->import_logs_tracker->RecordTokenizationError(
+        context_->import_logs_tracker->RecordTokenizationLog(
             stats::gpu_counters_invalid_spec, packet_offset,
             [this, counter_id, &spec](ArgsTracker::BoundInserter& inserter) {
               inserter.AddArg(counter_id_key_id_,
@@ -222,9 +224,10 @@ void GraphicsEventModule::ParseGpuCounterEvent(
 
 void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
-    case TracePacket::kFrameTimelineEventFieldNumber:
+    case FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber:
       frame_timeline_parser_.ParseFrameTimelineEvent(
-          args.ts, args.field.Cast<TracePacket::kFrameTimelineEvent>());
+          args.ts,
+          args.field.Cast<FrameworksNativeTracePacket::kFrameTimelineEvent>());
       return;
     case TracePacket::kGpuCounterEventFieldNumber:
       ParseGpuCounterEvent(args.ts, args.data.sequence_state.get(),

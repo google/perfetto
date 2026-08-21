@@ -13,10 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-  from shlex import quote
-except ImportError:
-  from pipes import quote
+from shlex import quote
 
 try:
   from urllib.request import urlretrieve
