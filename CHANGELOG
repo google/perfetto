@@ -8,6 +8,10 @@ Unreleased:
   SDK:
    *
 
+v58.1 - 2026-08-21:
+  Misc:
+    * Fixed builds on Windows.
+
 v58.0 - 2026-08-06:
   Tracing service and probes:
     * Added optional recording of the state changes of other concurrent
