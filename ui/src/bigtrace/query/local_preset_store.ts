@@ -22,7 +22,7 @@ import {
 
 // A preset the user saved in this browser. Same shape as a backend preset so
 // both apply through one code path; `isLocal` only drives the launcher's
-// rename / delete affordances.
+// edit / delete affordances.
 export interface LocalPreset extends TracePreset {
   readonly isLocal: true;
 }
@@ -34,6 +34,25 @@ const LOCAL_ID_PREFIX = 'local:';
 // Category local presets land in when the user doesn't pick one. Groups them
 // together in the launcher, away from the backend catalog's CUJs.
 export const DEFAULT_LOCAL_CATEGORY = 'My presets';
+
+// What a preset shows in the gallery, as opposed to what it runs. Edited by the
+// save and edit dialogs; the configuration is captured separately.
+export interface PresetDetails {
+  readonly name: string;
+  readonly category: string;
+  readonly description: string;
+}
+
+// Case-insensitive, whitespace-trimmed name lookup, so "Jank" and " jank "
+// count as the same preset. Shared by the local store and the launcher's
+// catalog check.
+export function presetNamed<T extends TracePreset>(
+  name: string,
+  presets: ReadonlyArray<T>,
+): T | undefined {
+  const wanted = name.trim().toLowerCase();
+  return presets.find((p) => p.name.trim().toLowerCase() === wanted);
+}
 
 export function isLocalPresetId(id: string): boolean {
   return id.startsWith(LOCAL_ID_PREFIX);
@@ -69,11 +88,10 @@ class LocalPresetStore {
     return this.list().find((p) => p.id === id);
   }
 
-  // Case-insensitive so "Jank" doesn't sit next to "jank"; the launcher uses
-  // this to offer an overwrite instead of silently creating a twin.
+  // The launcher uses this to offer an overwrite instead of silently creating
+  // a twin.
   findByName(name: string): LocalPreset | undefined {
-    const wanted = name.trim().toLowerCase();
-    return this.list().find((p) => p.name.trim().toLowerCase() === wanted);
+    return presetNamed(name, this.list());
   }
 
   // Insert, or replace in place when the id already exists (overwrite keeps
@@ -92,11 +110,12 @@ class LocalPresetStore {
     return stored;
   }
 
-  rename(id: string, name: string): void {
+  // Change what a preset shows in the gallery; what it runs is untouched.
+  update(id: string, details: PresetDetails): void {
     const presets = this.list();
     const idx = presets.findIndex((p) => p.id === id);
     if (idx < 0) return;
-    presets[idx] = {...presets[idx], name};
+    presets[idx] = {...presets[idx], ...details};
     this.write(presets);
   }
 

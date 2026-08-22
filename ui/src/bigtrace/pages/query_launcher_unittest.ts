@@ -20,6 +20,7 @@ import {
   launcherPresets,
   matchingPresetId,
   preselectedPresetId,
+  presetNameConflict,
 } from './query_launcher';
 import {
   applyPresetToTab,
@@ -377,5 +378,52 @@ describe('canReturnToQuery', () => {
 
   test('whitespace-only SQL does not count', () => {
     expect(canReturnToQuery(fakeTab({editorText: '   \n  '}))).toBe(false);
+  });
+});
+
+describe('presetNameConflict', () => {
+  const catalog = [preset({id: 'jank', name: 'Jank by device'})];
+  const mine = local({id: 'local:1', name: 'My sweep'});
+  const other = local({id: 'local:2', name: 'Other'});
+
+  test('a catalog name is reserved, whatever the case or spacing', () => {
+    const c = presetNameConflict('  jank BY device ', catalog, [mine]);
+    expect(c?.kind).toBe('catalog');
+    expect(c?.preset.id).toBe('jank');
+  });
+
+  test('a local name is reported as local, for the caller to decide', () => {
+    const c = presetNameConflict('my sweep', catalog, [mine]);
+    expect(c?.kind).toBe('local');
+    expect(c?.preset.id).toBe('local:1');
+  });
+
+  test('a preset keeps its own name while being edited', () => {
+    expect(
+      presetNameConflict('My sweep', catalog, [mine], mine),
+    ).toBeUndefined();
+    expect(
+      presetNameConflict('MY SWEEP', catalog, [mine], mine),
+    ).toBeUndefined();
+  });
+
+  test("editing into another preset's name still conflicts", () => {
+    expect(
+      presetNameConflict('Other', catalog, [mine, other], mine)?.kind,
+    ).toBe('local');
+    expect(
+      presetNameConflict('Jank by device', catalog, [mine], mine)?.kind,
+    ).toBe('catalog');
+  });
+
+  test('a preset whose name already shadows the catalog can keep it', () => {
+    const twin = local({id: 'local:3', name: 'Jank by device'});
+    expect(
+      presetNameConflict('Jank by device', catalog, [twin], twin),
+    ).toBeUndefined();
+  });
+
+  test('a fresh name is free', () => {
+    expect(presetNameConflict('Brand new', catalog, [mine])).toBeUndefined();
   });
 });

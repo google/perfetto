@@ -255,7 +255,7 @@
   }
 }
 
-// Name + group fields in the save-preset modal.
+// Name / group / description fields in the save-preset and edit-preset modals.
 .pf-bt-save-preset {
   display: flex;
   flex-direction: column;
@@ -266,6 +266,12 @@
     color: var(--pf-color-text-muted);
     font-size: var(--pf-font-size-s);
     margin-top: 8px;
+  }
+
+  // Why the name can't be saved as typed; sits right under the Name field.
+  &__message {
+    color: var(--pf-color-danger);
+    font-size: var(--pf-font-size-s);
   }
 }
 
