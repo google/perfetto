@@ -183,12 +183,6 @@
   flex-direction: column;
   overflow: hidden;
 
-  // A tab with a query but no configuration flag (older persisted state): the
-  // way back sits first in reading order.
-  &__back {
-    margin: 0 0 8px -8px;
-  }
-
   &__head {
     display: flex;
     flex-direction: column;

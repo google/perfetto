@@ -72,16 +72,6 @@ export function preselectedPresetId(
   return presets.some((p) => p.id === lastId) ? lastId : undefined;
 }
 
-// Whether this tab has something to return to — a query, a run, or results.
-// A brand-new tab doesn't, so it gets no way "back" to an empty editor.
-export function canReturnToQuery(tab: BigTraceEditorTab): boolean {
-  return (
-    tab.editorText.trim() !== '' ||
-    tab.queryUuid !== undefined ||
-    tab.queryResult !== undefined
-  );
-}
-
 // One page for a tab that has no query yet and for the Settings of one that
 // does: a Presets section and the settings form, and only which of the two is
 // folded differs. Cards fill the page, buttons commit — everywhere. Starting a
@@ -143,20 +133,6 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     selectedId: string | undefined,
   ): m.Children {
     return [
-      // A tab with a query but no configuration flag (state persisted by an
-      // older build): the way out that changes nothing.
-      canReturnToQuery(tab) &&
-        m(
-          '.pf-bt-launcher__back',
-          m(Button, {
-            label: 'Back to query',
-            icon: 'arrow_back',
-            onclick: () => {
-              closeSettings(tab, {keep: false});
-              tabsState.markDirty();
-            },
-          }),
-        ),
       m('.pf-bt-launcher__head', [
         m('.pf-bt-launcher__title', 'Start a query'),
         m(

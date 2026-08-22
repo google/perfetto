@@ -15,7 +15,6 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
-  canReturnToQuery,
   launcherPresets,
   matchingSetupPresetId,
   preselectedPresetId,
@@ -482,24 +481,6 @@ describe('matchingSetupPresetId', () => {
     // ...until the setup stops being that setup.
     applyPresetSetup(tab, sweep);
     expect(matchingSetupPresetId(tab, [lmk, oom, sweep], 'oom')).toBe('sweep');
-  });
-});
-
-describe('canReturnToQuery', () => {
-  test('a brand-new tab has nothing to go back to', () => {
-    expect(canReturnToQuery(fakeTab())).toBe(false);
-  });
-
-  test('a tab with a query, a run or results does', () => {
-    expect(canReturnToQuery(fakeTab({editorText: 'select 1'}))).toBe(true);
-    expect(canReturnToQuery(fakeTab({queryUuid: 'uuid'}))).toBe(true);
-    expect(
-      canReturnToQuery(fakeTab({queryResult: {rows: []} as unknown as never})),
-    ).toBe(true);
-  });
-
-  test('whitespace-only SQL does not count', () => {
-    expect(canReturnToQuery(fakeTab({editorText: '   \n  '}))).toBe(false);
   });
 });
 
