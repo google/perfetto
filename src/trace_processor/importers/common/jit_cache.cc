@@ -135,6 +135,14 @@ tables::JitCodeTable::Id JitCache::MoveCode(int64_t timestamp,
   return code_id;
 }
 
+std::optional<tables::JitCodeTable::Id> JitCache::FindJitCodeId(
+    uint64_t pc) const {
+  if (auto it = functions_.Find(pc); it != functions_.end()) {
+    return it->second.jit_code_id();
+  }
+  return std::nullopt;
+}
+
 std::pair<FrameId, bool> JitCache::InternFrame(VirtualMemoryMapping* mapping,
                                                uint64_t rel_pc,
                                                base::StringView function_name) {
