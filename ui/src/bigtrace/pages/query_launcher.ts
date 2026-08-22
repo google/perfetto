@@ -284,9 +284,10 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     tabsState: QueryTabsState,
   ): m.Children {
     return m('.pf-bt-launcher__footer', [
-      // Hidden mid-run: applying a preset would rewrite the tab under a query
-      // that's still executing. Editing settings for the next run is fine.
-      !tab.isLoading &&
+      // Presets belong to starting a query, not to configuring one that
+      // exists: from a tab with a query, applying one would replace its SQL
+      // and settings wholesale. New tab → the gallery is where you came from.
+      !canReturnToQuery(tab) &&
         m(Button, {
           label: 'Back to presets',
           icon: 'arrow_back',
