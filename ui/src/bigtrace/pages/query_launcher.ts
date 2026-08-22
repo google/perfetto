@@ -69,6 +69,16 @@ export function preselectedPresetId(
   return presets.some((p) => p.id === lastId) ? lastId : undefined;
 }
 
+// Whether this tab has something to return to — a query, a run, or results.
+// A brand-new tab doesn't, so it gets no way "back" to an empty editor.
+export function canReturnToQuery(tab: BigTraceEditorTab): boolean {
+  return (
+    tab.editorText.trim() !== '' ||
+    tab.queryUuid !== undefined ||
+    tab.queryResult !== undefined
+  );
+}
+
 export function isLocalPreset(p: TracePreset): p is LocalPreset {
   return (p as LocalPreset).isLocal === true;
 }
@@ -101,6 +111,20 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     return m(
       '.pf-bt-launcher',
       m('.pf-bt-launcher__inner', [
+        // Reached from "Change setup" on a tab that already has a query: this
+        // is the way out that changes nothing.
+        canReturnToQuery(tab) &&
+          m(
+            '.pf-bt-launcher__back',
+            m(Button, {
+              label: 'Back to query',
+              icon: 'arrow_back',
+              onclick: () => {
+                tab.configured = true;
+                tabsState.markDirty();
+              },
+            }),
+          ),
         m('.pf-bt-launcher__title', 'Start a query'),
         m(
           '.pf-bt-launcher__subtitle',

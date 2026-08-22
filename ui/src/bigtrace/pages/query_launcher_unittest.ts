@@ -15,6 +15,7 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
+  canReturnToQuery,
   isLocalPreset,
   launcherPresets,
   matchingPresetId,
@@ -358,5 +359,23 @@ describe('matchingPresetId', () => {
     applyPresetToTab(tab, p);
     tab.editorText = 'select * from slice limit 5';
     expect(matchingPresetId(tab, [p])).toBeUndefined();
+  });
+});
+
+describe('canReturnToQuery', () => {
+  test('a brand-new tab has nothing to go back to', () => {
+    expect(canReturnToQuery(fakeTab())).toBe(false);
+  });
+
+  test('a tab with a query, a run or results does', () => {
+    expect(canReturnToQuery(fakeTab({editorText: 'select 1'}))).toBe(true);
+    expect(canReturnToQuery(fakeTab({queryUuid: 'uuid'}))).toBe(true);
+    expect(
+      canReturnToQuery(fakeTab({queryResult: {rows: []} as unknown as never})),
+    ).toBe(true);
+  });
+
+  test('whitespace-only SQL does not count', () => {
+    expect(canReturnToQuery(fakeTab({editorText: '   \n  '}))).toBe(false);
   });
 });

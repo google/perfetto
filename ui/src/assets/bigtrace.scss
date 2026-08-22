@@ -197,6 +197,13 @@
     padding: 48px 0 32px;
   }
 
+  // Sits above the title, aligned with the content column, so the way back is
+  // the first thing in reading order.
+  &__back {
+    margin-bottom: -8px;
+    margin-left: -8px;
+  }
+
   &__title {
     font-size: 28px;
     font-weight: 400;
