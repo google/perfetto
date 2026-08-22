@@ -267,8 +267,8 @@ function registerCommands() {
   });
 
   app.commands.registerCommand({
-    id: 'bigtrace.ToggleQueryRightSidebar',
-    name: 'Toggle query right sidebar (History / Stdlib Schemas)',
+    id: 'bigtrace.ToggleHistorySidebar',
+    name: 'Toggle history sidebar',
     callback: () => {
       queryRightSidebarToggleFn?.();
     },
