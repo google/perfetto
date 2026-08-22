@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -43,6 +44,15 @@ class TraceFileTracker {
   void SetSize(tables::TraceFileTable::Id id, uint64_t size);
   void StartParsing(tables::TraceFileTable::Id id, TraceImporterId trace_type);
   void DoneParsing(tables::TraceFileTable::Id id, size_t size);
+
+  // The file currently being parsed (top of the parsing stack), if any. Lets
+  // importers attribute the rows they emit to their source file.
+  std::optional<tables::TraceFileTable::Id> CurrentFile() const {
+    if (parsing_stack_.empty()) {
+      return std::nullopt;
+    }
+    return parsing_stack_.back();
+  }
 
  private:
   tables::TraceFileTable::Id AddFileImpl(StringId name);
