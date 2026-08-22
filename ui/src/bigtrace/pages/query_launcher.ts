@@ -228,8 +228,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
       },
       m(
         '.pf-bt-settings-presets__hint',
-        'Pick one to take its setup — settings, trace selection, result ' +
-          'columns and caps. The query is not changed.',
+        'Pick a preset to use its settings here. The query is not changed.',
       ),
       m(PresetGallery, {
         presets,
