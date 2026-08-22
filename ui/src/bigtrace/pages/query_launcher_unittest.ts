@@ -212,7 +212,7 @@ describe('applyPresetToTab', () => {
     expect(tab.disabledSettings).toEqual(['other_filter']);
   });
 
-  test('the trace source survives applying a preset that omits it', () => {
+  test('a preset describes the whole run: what it omits is turned off', () => {
     regString('trace_directory');
     const tab = fakeTab({
       querySettings: [
@@ -223,13 +223,9 @@ describe('applyPresetToTab', () => {
         },
       ],
     });
-    // A shared catalog can't know where this user's traces live, so a preset
-    // that doesn't name the source must not clear or disable it.
+    // Nothing carries over from what the tab happened to hold before.
     applyPresetToTab(tab, preset({settings: []}));
-    expect(
-      tab.querySettings.find((s) => s.settingId === 'trace_directory')?.values,
-    ).toEqual(['/my/traces']);
-    expect(tab.disabledSettings).not.toContain('trace_directory');
+    expect(tab.disabledSettings).toContain('trace_directory');
   });
 
   test('a preset that does name the source overrides it', () => {

@@ -25,7 +25,6 @@ import {
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {lastSetupState} from '../settings/query_setup_state';
 
 function reg(
   id: string,
@@ -260,37 +259,5 @@ describe('per-mode row and trace limits', () => {
     setTraceLimit(tab, 500);
     expect(tab.querySettings).toEqual([]);
     expect(effectiveTabSettings(tab)).toEqual([]);
-  });
-});
-
-describe('a new tab inherits the trace source from the last query', () => {
-  beforeEach(() => {
-    localStorage.clear();
-    bigTraceSettingsStorage.clear();
-  });
-
-  test('source settings carry over, the trace cap does not', () => {
-    reg('trace_directory', '', 'string');
-    reg('trace_limit', 100, 'number');
-    lastSetupState.set({
-      settings: [
-        {
-          settingId: 'trace_directory',
-          values: ['/my/traces'],
-          category: 'TRACE_ADDRESS',
-        },
-        {settingId: 'trace_limit', values: ['7'], category: 'TRACE_ADDRESS'},
-      ],
-      traceFilters: [],
-      traceMetadataColumns: null,
-      traceOrderBy: '',
-    });
-    const tabs = new QueryTabsState();
-    const tab = tabs.addNewTab(undefined, '', undefined, undefined, false);
-    expect(
-      tab.querySettings.find((s) => s.settingId === 'trace_directory')?.values,
-    ).toEqual(['/my/traces']);
-    // The cap follows the execution mode, not the last query.
-    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
   });
 });

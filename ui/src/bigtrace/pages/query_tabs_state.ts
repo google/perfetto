@@ -24,11 +24,6 @@ import type {
 import {queryStore, type QueryExecution} from '../query/query_store';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {
-  lastSetupState,
-  traceSourceSettings,
-  TRACE_SOURCE_CATEGORY,
-} from '../settings/query_setup_state';
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
@@ -215,13 +210,6 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
   for (const raw of bigTraceSettingsStorage.getAllSettings()) {
     if (raw.category === undefined) continue;
     if (presetIds.has(raw.id)) continue;
-    // WHERE the traces come from isn't the preset's business — a catalog
-    // shared across users can't know it. Keep whatever this tab already has.
-    if (raw.category === TRACE_SOURCE_CATEGORY) {
-      const existing = tab.querySettings.find((s) => s.settingId === raw.id);
-      if (existing !== undefined) querySettings.push(existing);
-      continue;
-    }
     if (raw.type === 'boolean') {
       querySettings.push({
         settingId: raw.id,
@@ -392,19 +380,6 @@ export class QueryTabsState {
       : isFromHistory
         ? []
         : [...bigTraceSettingsStorage.buildSettingFilters()];
-    // A fresh tab starts from the backend defaults, which carry no trace
-    // source — inherit the one the last query used so it doesn't have to be
-    // configured again for every query.
-    if (!isFromStorage && !isFromHistory) {
-      for (const s of traceSourceSettings(lastSetupState.get(), [
-        TRACE_LIMIT_SETTING_ID,
-      ])) {
-        const idx = querySettings.findIndex((e) => e.settingId === s.settingId);
-        const entry = {...s, values: [...s.values]};
-        if (idx >= 0) querySettings[idx] = entry;
-        else querySettings.push(entry);
-      }
-    }
     // A fresh tab copies the current global defaults, which include the
     // backend's own trace cap; replace it with the one for this tab's mode.
     if (!isFromStorage && !isFromHistory) {

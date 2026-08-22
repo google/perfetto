@@ -56,19 +56,3 @@ export const lastPresetIdState = new SingleFieldStorage<string>(
   (raw) => (typeof raw === 'string' ? raw : ''),
   '',
 );
-
-// Settings describing WHERE the traces come from, as opposed to what to run
-// over them. These stick across queries (and survive applying a preset); a
-// preset only overrides them when it names them explicitly.
-export const TRACE_SOURCE_CATEGORY = 'TRACE_ADDRESS';
-
-export function traceSourceSettings(
-  setup: QuerySetup | null,
-  exclude: ReadonlyArray<string> = [],
-): ReadonlyArray<SettingFilter> {
-  if (setup === null) return [];
-  return setup.settings.filter(
-    (s) =>
-      s.category === TRACE_SOURCE_CATEGORY && !exclude.includes(s.settingId),
-  );
-}
