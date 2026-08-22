@@ -263,7 +263,11 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
     t.limit != null && t.limit > 0
       ? t.limit
       : modeDefaults(materialized).rowLimit;
+  // A preset leaves the launcher for the editor, whichever half it was on and
+  // whatever Settings session was open: the tab is now the preset's run.
   tab.configured = true;
+  tab.setupMode = undefined;
+  tab.settingsSession = undefined;
 }
 
 // The run configuration Settings edits, as it stood when the form opened —

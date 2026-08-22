@@ -275,7 +275,6 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   ): void {
     applyPresetToTab(tab, preset);
     lastPresetIdState.set(preset.id);
-    tab.setupMode = undefined;
     tabsState.markDirty();
     m.redraw();
   }
@@ -284,12 +283,14 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
   ): m.Children {
-    const hasQuery = canReturnToQuery(tab);
+    // Opened from Settings on a configured tab (a session is open), or reached
+    // from the gallery on a new tab. Presets belong to starting a query, not
+    // to configuring one that exists — even an empty one: applying a preset
+    // there would replace the tab wholesale. So only the new-tab form offers
+    // the way back to the gallery.
+    const editing = tab.settingsSession !== undefined;
     return m('.pf-bt-launcher__footer', [
-      // Presets belong to starting a query, not to configuring one that
-      // exists: from a tab with a query, applying one would replace its SQL
-      // and settings wholesale. New tab → the gallery is where you came from.
-      !hasQuery &&
+      !editing &&
         m(Button, {
           label: 'Back to presets',
           icon: 'arrow_back',
@@ -300,7 +301,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         }),
       // Edits take effect as they're made, so leaving is where the choice is:
       // Cancel puts the configuration back to what it was, Apply keeps it.
-      hasQuery &&
+      editing &&
         m(Button, {
           label: 'Cancel',
           title: 'Drop the changes made here and return to the query.',
@@ -316,11 +317,11 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         onclick: () => void this.saveAsPreset(tab),
       }),
       m(Button, {
-        label: hasQuery ? 'Apply' : 'Start query',
-        icon: hasQuery ? 'check' : 'arrow_forward',
+        label: editing ? 'Apply' : 'Start query',
+        icon: editing ? 'check' : 'arrow_forward',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
-        title: hasQuery
+        title: editing
           ? 'Use these settings for this query from its next run.'
           : undefined,
         onclick: () => {
@@ -329,7 +330,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           // preselects it; otherwise there's no preset to remember. Editing
           // an existing query says nothing about what the next one starts
           // from, so Apply leaves the last-used preset alone.
-          if (!hasQuery) {
+          if (!editing) {
             lastPresetIdState.set(
               matchingPresetId(
                 tab,

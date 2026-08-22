@@ -27,6 +27,7 @@ import {
   effectiveTabSettings,
   effectiveTraceLimit,
   MODE_DEFAULTS,
+  openSettings,
   setTraceLimit,
   traceLimitDisabled,
   type BigTraceEditorTab,
@@ -144,6 +145,16 @@ describe('applyPresetToTab', () => {
     expect(tab.traceOrderBy).toBe('size_bytes desc');
     expect(tab.limit).toBe(42);
     expect(tab.materialize).toBe(true);
+  });
+
+  test('applying a preset leaves the launcher, ending any Settings session', () => {
+    const tab = fakeTab({configured: true, editorText: ''});
+    openSettings(tab);
+    tab.setupMode = 'presets';
+    applyPresetToTab(tab, preset({perfettoSql: 'select 1'}));
+    expect(tab.configured).toBe(true);
+    expect(tab.setupMode).toBeUndefined();
+    expect(tab.settingsSession).toBeUndefined();
   });
 
   test('a preset without a row cap takes the default for its mode', () => {
