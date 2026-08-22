@@ -27,6 +27,7 @@ _cpu_1d_csvs = [
   "data/Tensor/cpu_1d.csv",
   "data/Tensor_G4/cpu_1d.csv",
   "data/Tensor_G5/cpu_1d.csv",
+  "data/UMS9360/cpu_1d.csv",
   "data/monaco/cpu_1d.csv",
   "data/neo/cpu_1d.csv",
 ]
@@ -38,6 +39,7 @@ _cpu_2d_csvs = [
   "data/Tensor/cpu_2d.csv",
   "data/Tensor_G4/cpu_2d.csv",
   "data/Tensor_G5/cpu_2d.csv",
+  "data/UMS9360/cpu_2d.csv",
 ]
 
 _gpu_csvs = [
