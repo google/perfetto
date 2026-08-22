@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Chip} from '../../widgets/chip';
 import {Stack} from '../../widgets/stack';
 import type {Filter} from '../../components/widgets/datagrid/model';
@@ -32,10 +33,11 @@ export interface BigtraceSettingsBarAttrs {
   readonly bindings: SettingsBindings;
 }
 
-// Chip strip atop each editor tab: a Settings chip that opens the tab's
+// Chip strip atop each editor tab: a Settings button that opens the tab's
 // settings form in place, one read-only chip per active setting, one removable
-// chip per trace filter, and Clone. Trace-metadata columns aren't shown here —
-// they live only in the form's Query Result Columns card.
+// chip per trace filter, and Clone. The two actions are buttons, not chips, so
+// they look pressable and answer to hover. Trace-metadata columns aren't shown
+// here — they live only in the form's Query Result Columns card.
 export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBarAttrs> {
   view({attrs}: m.Vnode<BigtraceSettingsBarAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
@@ -49,10 +51,11 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           spacing: 'small',
           className: 'pf-bt-settings-bar__chips',
         },
-        m(Chip, {
+        m(Button, {
           label: 'Settings',
           icon: 'tune',
-          className: 'pf-bt-settings-bar__add',
+          compact: true,
+          variant: ButtonVariant.Filled,
           title:
             'Edit the traces and options this query runs with. Apply keeps ' +
             'the changes; Cancel drops them.',
@@ -63,9 +66,11 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
       ),
       // Pinned to the right edge: this one acts on the tab as a whole, not on
       // what it runs with, so it sits apart from the configuration chips.
-      m(Chip, {
+      m(Button, {
         label: 'Clone',
         icon: 'content_copy',
+        compact: true,
+        variant: ButtonVariant.Filled,
         className: 'pf-bt-settings-bar__end',
         title:
           'Open a clone of this query in a new tab — same SQL and settings, ' +

@@ -257,6 +257,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         m(Button, {
           label: 'Back to presets',
           icon: 'arrow_back',
+          variant: ButtonVariant.Filled,
           onclick: () => {
             tab.setupMode = 'presets';
             tabsState.markDirty();
@@ -264,9 +265,11 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         }),
       // Edits take effect as they're made, so leaving is where the choice is:
       // Cancel puts the configuration back to what it was, Apply keeps it.
+      // Filled like a dialog's Cancel, so the way out is as visible as Apply.
       editing &&
         m(Button, {
           label: 'Cancel',
+          variant: ButtonVariant.Filled,
           title: 'Drop the changes made here and return to the query.',
           onclick: () => {
             closeSettings(tab, {keep: false});
