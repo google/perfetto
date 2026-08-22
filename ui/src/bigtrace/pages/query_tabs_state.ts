@@ -32,11 +32,87 @@ import {
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
-const DEFAULT_LIMIT = 100;
-// Presets default to a higher row cap than a bare tab — they're meant to
-// surface a meaningful result set, not a 100-row teaser.
-const PRESET_DEFAULT_LIMIT = 1000;
 const TAB_TITLE_MAX_CHARS = 32;
+
+// Row cap on the query and cap on how many traces it fans out to, defaulted per
+// execution mode: an ephemeral run is a quick look, a persistent one is a full
+// sweep whose results are saved.
+export const MODE_DEFAULTS = {
+  ephemeral: {rowLimit: 1_000, traceLimit: 10_000},
+  persistent: {rowLimit: 10_000, traceLimit: 100_000},
+} as const;
+
+// The backend setting carrying the trace fan-out cap. The UI has to name it to
+// seed the per-mode default; a backend that doesn't declare it simply gets no
+// cap, and the toolbar hides the control.
+export const TRACE_LIMIT_SETTING_ID = 'trace_limit';
+
+export function modeDefaults(materialize: boolean): {
+  readonly rowLimit: number;
+  readonly traceLimit: number;
+} {
+  return materialize ? MODE_DEFAULTS.persistent : MODE_DEFAULTS.ephemeral;
+}
+
+// Clamp to the bounds the backend declared, so a default we seed ourselves
+// can't exceed what this deployment accepts.
+export function clampTraceLimit(value: number): number {
+  const setting = bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID);
+  if (setting === undefined) return value;
+  const {min, max} = setting;
+  let out = value;
+  if (typeof min === 'number' && out < min) out = min;
+  if (typeof max === 'number' && max > 0 && out > max) out = max;
+  return out;
+}
+
+// The cap the user (or a preset) set explicitly on this tab, if any.
+export function explicitTraceLimit(tab: BigTraceEditorTab): number | undefined {
+  const entry = tab.querySettings.find(
+    (s) => s.settingId === TRACE_LIMIT_SETTING_ID,
+  );
+  if (entry === undefined) return undefined;
+  const n = Number(entry.values[0]);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+// The cap the next run will use: the explicit value, else the mode default.
+export function effectiveTraceLimit(tab: BigTraceEditorTab): number {
+  return (
+    explicitTraceLimit(tab) ??
+    clampTraceLimit(modeDefaults(tab.materialize).traceLimit)
+  );
+}
+
+export function setTraceLimit(tab: BigTraceEditorTab, value: number): void {
+  const setting = bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID);
+  if (setting === undefined) return;
+  tab.querySettings = [
+    ...tab.querySettings.filter((s) => s.settingId !== TRACE_LIMIT_SETTING_ID),
+    {
+      settingId: TRACE_LIMIT_SETTING_ID,
+      values: [String(clampTraceLimit(value))],
+      category: (setting.category ?? 'TRACE_ADDRESS') as SettingCategory,
+    },
+  ];
+}
+
+// Switch a tab's execution mode, moving both limits to the new mode's defaults
+// — but only where they still hold the old mode's default, so a value the user
+// typed (or a preset set) survives the flip.
+export function applyModeDefaults(
+  tab: BigTraceEditorTab,
+  materialize: boolean,
+): void {
+  const from = modeDefaults(tab.materialize);
+  const to = modeDefaults(materialize);
+  if (tab.limit === from.rowLimit) tab.limit = to.rowLimit;
+  const explicit = explicitTraceLimit(tab);
+  if (explicit !== undefined && explicit === clampTraceLimit(from.traceLimit)) {
+    setTraceLimit(tab, to.traceLimit);
+  }
+  tab.materialize = materialize;
+}
 
 // First non-empty `--`-stripped line, clipped. `/* */` blocks not handled.
 export function deriveTitleFromQuery(sql: string): string | undefined {
@@ -99,6 +175,15 @@ export function effectiveTabSettings(tab: BigTraceEditorTab): SettingFilter[] {
   }
   for (const s of tab.querySettings) byId.set(s.settingId, s);
   for (const id of tab.disabledSettings) byId.delete(id);
+  // With no explicit per-tab cap, fall back to this tab's mode default rather
+  // than the backend's global one, so an ephemeral run stays a quick look.
+  const traceLimit = byId.get(TRACE_LIMIT_SETTING_ID);
+  if (traceLimit !== undefined && explicitTraceLimit(tab) === undefined) {
+    byId.set(TRACE_LIMIT_SETTING_ID, {
+      ...traceLimit,
+      values: [String(effectiveTraceLimit(tab))],
+    });
+  }
   return [...byId.values()];
 }
 
@@ -240,11 +325,28 @@ export class QueryTabsState {
     // globals.
     const isFromStorage = stored !== undefined;
     const isFromHistory = queryUuid !== undefined && !isFromStorage;
+    // Default to persistent; ?? (not ||) keeps an explicit/restored ephemeral.
+    const isPersistent = materialize ?? true;
     const querySettings: SettingFilter[] = isFromStorage
       ? [...(stored?.querySettings ?? [])]
       : isFromHistory
         ? []
         : [...bigTraceSettingsStorage.buildSettingFilters()];
+    // A fresh tab copies the current global defaults, which include the
+    // backend's own trace cap; replace it with the one for this tab's mode.
+    if (!isFromStorage && !isFromHistory) {
+      const idx = querySettings.findIndex(
+        (s) => s.settingId === TRACE_LIMIT_SETTING_ID,
+      );
+      if (idx >= 0) {
+        querySettings[idx] = {
+          ...querySettings[idx],
+          values: [
+            String(clampTraceLimit(modeDefaults(isPersistent).traceLimit)),
+          ],
+        };
+      }
+    }
     const traceFilters: Filter[] = isFromStorage
       ? [...(stored?.traceFilters ?? [])]
       : isFromHistory
@@ -279,7 +381,8 @@ export class QueryTabsState {
       id: shortUuid(),
       title: derivedTitle || this.nextTabName(),
       editorText: initialQuery ?? '',
-      limit: limit ?? DEFAULT_LIMIT,
+      // No caller-supplied cap: take the one that fits the execution mode.
+      limit: limit ?? modeDefaults(isPersistent).rowLimit,
       queryResult: undefined,
       isLoading: false,
       dataSource: undefined,
@@ -291,8 +394,7 @@ export class QueryTabsState {
       disabledSettings,
       lifecycle: new AbortController(),
       activeRequest: undefined,
-      // Default to persistent; ?? (not ||) keeps an explicit/restored ephemeral.
-      materialize: materialize ?? true,
+      materialize: isPersistent,
       lastProcessedRows: 0,
       queryUuid,
       pollGeneration: 0,
@@ -331,14 +433,17 @@ export class QueryTabsState {
       }
     }
     const metadataColumns = t.traceMetadataColumns ?? [];
+    const materialized = t.materialized ?? true;
     return this.addNewTab(
       t.name || undefined,
       t.perfettoSql,
-      // Optional in the contract; a preset with no explicit limit defaults to
-      // 1000 rows (not the bare-tab default).
-      t.limit != null && t.limit > 0 ? t.limit : PRESET_DEFAULT_LIMIT,
+      // Optional in the contract; a preset that doesn't state a cap uses the
+      // default for the mode it runs in.
+      t.limit != null && t.limit > 0
+        ? t.limit
+        : modeDefaults(materialized).rowLimit,
       undefined, // queryUuid — a preset is a fresh run, not a reopened one
-      t.materialized ?? true,
+      materialized,
       true, // forceNew
       {
         querySettings,

@@ -69,6 +69,8 @@ export class TabBoundSetting<T> implements BigTraceSetting<T> {
   readonly schema: BigTraceSetting<T>['schema'];
   readonly defaultValue: T;
   readonly category?: string;
+  readonly min?: number;
+  readonly max?: number;
   readonly requiresReload?: boolean;
   readonly options?: readonly (string | EnumOption)[];
   readonly placeholder?: string;
@@ -86,6 +88,8 @@ export class TabBoundSetting<T> implements BigTraceSetting<T> {
     this.schema = base.schema;
     this.defaultValue = base.defaultValue;
     this.category = base.category;
+    this.min = base.min;
+    this.max = base.max;
     this.requiresReload = base.requiresReload;
     this.options = base.options;
     this.placeholder = base.placeholder;
