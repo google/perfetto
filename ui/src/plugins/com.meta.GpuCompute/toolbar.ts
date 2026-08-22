@@ -27,6 +27,7 @@ import {Icons} from '../../base/semantic_icons';
 import {Switch} from '../../widgets/switch';
 import type {GpuComputeContext} from './index';
 import {Select} from '../../widgets/select';
+import {assertIsInstance} from '../../base/assert';
 
 // Memoized kernel selector that skips vdom diffing when the options
 // list and selected value haven't changed. Without this, mithril
@@ -34,7 +35,7 @@ import {Select} from '../../widgets/select';
 interface KernelSelectAttrs {
   readonly options: readonly KernelLaunchOption[];
   readonly value: string;
-  onChange: (id: number | undefined) => void;
+  onChange(id: number): void;
 }
 
 class KernelSelect implements m.ClassComponent<KernelSelectAttrs> {
@@ -54,12 +55,14 @@ class KernelSelect implements m.ClassComponent<KernelSelectAttrs> {
         value: attrs.value,
         className: 'pf-gpu-compute__toolbar-kernel-select',
         onchange: (e: Event) => {
-          const v = (e.target as HTMLSelectElement).value;
-          attrs.onChange(v === '' ? undefined : Number(v));
+          assertIsInstance(e.currentTarget, HTMLSelectElement);
+          const rawValue = e.currentTarget.value;
+          const parsedValue = parseInt(rawValue);
+          attrs.onChange(parsedValue);
         },
       },
       attrs.options.map((o, i) =>
-        m('option', {value: String(o.id)}, `${i} - ${trunc(o.label)}`),
+        m('option', {value: o.id}, `${i} - ${trunc(o.label)}`),
       ),
     );
   }
@@ -116,11 +119,11 @@ class TabStrip implements m.ClassComponent<TabStripAttrs> {
 export function renderToolbar(opts: {
   ctx: GpuComputeContext;
   // Kernel launch entries for the Results dropdown.
-  options: KernelLaunchOption[];
+  options: readonly KernelLaunchOption[];
   // Currently selected kernel slice ID.
   sliceId?: number;
   // Called when the user picks a different kernel.
-  onChange: (id: number | undefined, suppressAutoDetails?: boolean) => void;
+  onChange: (id: number, suppressAutoDetails?: boolean) => void;
   // Metric summary for the selected kernel.
   toolbarInfo?: ToolbarInfo;
   // Slice ID of the baseline kernel (if active).
@@ -131,10 +134,6 @@ export function renderToolbar(opts: {
   baselineEnabled?: boolean;
   // Toggle baseline mode on/off.
   onToggleBaseline?: (enabled: boolean) => void;
-  // Called when the humanize-metrics toggle changes.
-  onHumanizeChanged?: () => void;
-  // Called when the terminology dropdown changes.
-  onTerminologyChanged?: () => void;
 }): m.Children {
   const ctx = opts.ctx;
   const firstId = opts.options[0]?.id;
@@ -277,7 +276,6 @@ export function renderToolbar(opts: {
               checked: ctx.humanizeMetrics,
               onchange: (e: Event) => {
                 ctx.humanizeMetrics = (e.target as HTMLInputElement).checked;
-                opts.onHumanizeChanged?.();
               },
             }),
           ),
@@ -292,7 +290,6 @@ export function renderToolbar(opts: {
                 value: ctx.terminologyId,
                 onchange: (e: Event) => {
                   ctx.terminologyId = (e.target as HTMLSelectElement).value;
-                  opts.onTerminologyChanged?.();
                 },
                 className: 'pf-gpu-compute__toolbar-terminology-select',
               },
