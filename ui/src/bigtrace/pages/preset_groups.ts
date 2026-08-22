@@ -17,7 +17,8 @@ import type {TracePreset} from '../query/bigtrace_query_client';
 import {renderSegmented} from '../widgets/segmented';
 
 // Group presets by CUJ (their `category`), preserving first-seen order.
-// Shared by the home page (cards) and the settings page (chips).
+// `''` buckets as "Other"; the launcher relies on that when preselecting the
+// group of the last-used preset.
 export function groupPresetsByCuj(presets: ReadonlyArray<TracePreset>): {
   groups: Array<[string, TracePreset[]]>;
   byCuj: Map<string, TracePreset[]>;

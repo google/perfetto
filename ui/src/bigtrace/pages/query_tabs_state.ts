@@ -42,7 +42,7 @@ export const MODE_DEFAULTS = {
 // cap, and the toolbar hides the control.
 export const TRACE_LIMIT_SETTING_ID = 'trace_limit';
 
-export function modeDefaults(materialize: boolean): {
+function modeDefaults(materialize: boolean): {
   readonly rowLimit: number;
   readonly traceLimit: number;
 } {
@@ -51,7 +51,7 @@ export function modeDefaults(materialize: boolean): {
 
 // Clamp to the bounds the backend declared, so a default we seed ourselves
 // can't exceed what this deployment accepts.
-export function clampTraceLimit(value: number): number {
+function clampTraceLimit(value: number): number {
   const setting = bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID);
   if (setting === undefined) return value;
   const {min, max} = setting;
@@ -67,7 +67,7 @@ export function traceLimitDisabled(tab: BigTraceEditorTab): boolean {
   return tab.disabledSettings.includes(TRACE_LIMIT_SETTING_ID);
 }
 
-export function explicitTraceLimit(tab: BigTraceEditorTab): number | undefined {
+function explicitTraceLimit(tab: BigTraceEditorTab): number | undefined {
   const entry = tab.querySettings.find(
     (s) => s.settingId === TRACE_LIMIT_SETTING_ID,
   );
@@ -390,10 +390,9 @@ export class QueryTabsState {
     // labels instead of "Query N". maybeAutoNameTab refines on first run.
     const derivedTitle =
       title ?? (initialQuery && deriveTitleFromQuery(initialQuery));
-    // Seed the per-tab trace-selection snapshot. Restored tabs use the
-    // persisted snapshot; history-reopen tabs start empty (runner rehydrates
-    // from /query_executions/{uuid}); fresh tabs copy the current /settings
-    // globals.
+    // Seed the per-tab settings snapshot. Restored tabs use the persisted
+    // one; history-reopen tabs start empty (the runner rehydrates from
+    // /query_executions/{uuid}); fresh tabs start from the backend defaults.
     const isFromStorage = stored !== undefined;
     const isFromHistory = queryUuid !== undefined && !isFromStorage;
     // Default to persistent; ?? (not ||) keeps an explicit/restored ephemeral.
@@ -434,8 +433,8 @@ export class QueryTabsState {
     const resultColumns: readonly string[] | null = isFromStorage
       ? (stored?.resultColumns ?? null)
       : null;
-    // Per-tab enable/disable. Fresh tabs mirror the current global state, then
-    // diverge independently; restored tabs use their persisted set.
+    // Per-tab enable/disable. Fresh tabs mirror what the backend declares
+    // disabled, then diverge; restored tabs use their persisted set.
     const disabledSettings: string[] = isFromStorage
       ? [...(stored?.disabledSettings ?? [])]
       : isFromHistory

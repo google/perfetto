@@ -228,9 +228,9 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   // Sort state for the trace grid. The DataGrid carries sort on the `Column`
   // object, so controlled-mode `columns` splices it back onto the matching
   // column every render, else the click that set it is discarded on the next
-  // redraw. Persisted to `traceOrderByState` because the sort is functionally
-  // significant (under `trace_limit > 0` it picks which traces run first);
-  // seeding on oninit survives a reload.
+  // redraw. Written through to the tab because the sort is functionally
+  // significant (under a trace cap it picks which traces run first); seeding
+  // on oninit restores it when the form is reopened.
   private traceListSortField: string | undefined;
   private traceListSortDirection: SortDirection | undefined;
   // /trace_metadata_schema response. undefined = not yet requested; 'loading' =
@@ -541,9 +541,8 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
             onColumnsChanged: (cols: ReadonlyArray<Column>) => {
               // Extract sort (it lives on the Column object) before collapsing
               // cols to string[] so the next render can splice it back, else
-              // the header click reverts each redraw. Persisted to
-              // traceOrderByState so a reload keeps it; a Run ships it as
-              // `trace_order_by` on /execute_*.
+              // the header click reverts each redraw. Stored on the tab; a Run
+              // ships it as `trace_order_by` on /execute_*.
               const sorted = cols.find((c) => c.sort);
               this.traceListSortField = sorted?.field;
               this.traceListSortDirection = sorted?.sort;

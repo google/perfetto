@@ -40,12 +40,6 @@
   margin-left: auto;
 }
 
-.pf-bt-settings-category-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
 .pf-bt-textarea {
   width: 100%;
   min-height: 60px;
@@ -67,34 +61,6 @@
     outline: none;
     border-color: var(--pf-color-primary);
   }
-}
-
-.pf-bt-settings-toggle {
-  margin-right: 8px;
-}
-
-.pf-bt-settings-warning {
-  color: var(--pf-color-danger);
-  margin-top: 4px;
-}
-
-.pf-bt-settings-warning-icon {
-  font-size: 14px;
-  vertical-align: middle;
-}
-
-.pf-bt-settings-hint {
-  opacity: 0.7;
-  font-style: italic;
-}
-
-.pf-bt-endpoint-row {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.pf-bt-endpoint-input {
-  width: min(300px, 30vw);
 }
 
 // ---------- Layout ----------
@@ -398,51 +364,6 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--pf-color-primary);
-  }
-}
-
-// ---------- Analysis preset chips (settings form) ----------
-// Apply-only tags: clicking applies the preset's trace-selection + option
-// settings (no SQL). `--active` marks the last-applied chip.
-
-.pf-bt-preset-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-// In the settings picker the selector follows the description; give it room.
-.pf-bt-preset-picker .pf-bt-cuj-selector {
-  margin-top: 8px;
-}
-
-.pf-bt-preset-chip {
-  font: inherit;
-  padding: 3px 10px;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 4px;
-  background: none;
-  color: var(--pf-color-text);
-  cursor: pointer;
-
-  &:hover {
-    background: color_hover(transparent);
-  }
-
-  &:active {
-    background: color_active(transparent);
-  }
-
-  // The preset last applied on the settings surface.
-  &--active {
-    border-color: var(--pf-color-primary);
-    background: rgba(var(--pf-color-primary-rgb), 0.1);
-    color: var(--pf-color-primary);
-
-    &:hover {
-      background: rgba(var(--pf-color-primary-rgb), 0.16);
-    }
   }
 }
 
@@ -922,155 +843,7 @@ pre.pf-bt-history-item-query--standalone {
   min-height: 0;
 }
 
-// ---------- Stdlib table list ----------
-
-.pf-bt-simple-table-list {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-
-  &__search {
-    margin: 8px;
-  }
-
-  &__items {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  &__item-name {
-    font-family: var(--pf-font-monospace);
-    font-size: 12px;
-  }
-
-  &__highlight {
-    background-color: var(--pf-color-accent);
-    color: var(--pf-color-text-on-accent);
-    border-radius: 2px;
-  }
-
-  &__description {
-    font-size: 12px;
-    color: var(--pf-color-text-muted);
-    line-height: 1.5;
-    margin-bottom: 12px;
-  }
-
-  &__detail-row {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 8px;
-
-    .pf-show-on-hover {
-      visibility: hidden;
-    }
-
-    &:hover .pf-show-on-hover {
-      visibility: visible;
-    }
-  }
-
-  &__detail-label {
-    font-size: 11px;
-    color: var(--pf-color-text-muted);
-    text-transform: uppercase;
-    min-width: 50px;
-  }
-
-  &__detail-value {
-    font-size: 12px;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__columns {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  &__column-list {
-    display: flex;
-    flex-direction: column;
-    margin-top: 4px;
-    border: 1px solid var(--pf-color-border-secondary);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  &__column {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--pf-color-border-secondary);
-
-    &:last-child {
-      border-bottom: none;
-    }
-
-    &:hover {
-      background: var(--pf-color-background-hover);
-    }
-  }
-
-  &__column-icon {
-    font-size: 14px;
-    color: var(--pf-color-text-muted);
-    width: 16px;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  &__column-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  &__column-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  &__column-name {
-    font-size: 12px;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__column-copy {
-    visibility: hidden;
-  }
-
-  &__column:hover &__column-copy {
-    visibility: visible;
-  }
-
-  &__column-type {
-    font-size: 11px;
-    color: var(--pf-color-text-muted);
-    margin-left: auto;
-    flex-shrink: 0;
-  }
-
-  &__column-desc {
-    font-size: 11px;
-    color: var(--pf-color-text-muted);
-    line-height: 1.4;
-  }
-}
-
-// ---------- Settings page ----------
+// ---------- Query settings form ----------
 
 .pf-bt-settings-page {
   &__plugin-section {
@@ -1155,8 +928,7 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// "Traces" card header — title with the refresh icon directly to its
-// right. Used by both /settings and the embedded SettingsPage (+Add modal).
+// "Traces" card header — title with the refresh icon directly to its right.
 .pf-bt-trace-card__title-row {
   display: flex;
   align-items: center;
@@ -1165,46 +937,10 @@ pre.pf-bt-history-item-query--standalone {
   .pf-settings-card__title {
     margin: 0;
   }
-
-  // The "Query" CTA sits at the far right of the Traces header.
-  .pf-bt-trace-card__query {
-    margin-left: auto;
-  }
 }
 
-// Per-chip edit modal — narrow, content stacked vertically. The +Add modal
-// hosts the full SettingsPage embedded view (.pf-bt-settings-embedded below).
-.pf-bt-settings-chip-modal__body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 320px;
-  padding: 4px 0;
-}
-
-.pf-bt-settings-chip-modal__description {
-  font-size: 12px;
-  color: var(--pf-color-text-muted);
-  line-height: 1.4;
-}
-
-.pf-bt-settings-chip-modal__control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-// Vertical column of checkboxes for the "Show with results" picker.
-.pf-bt-settings-chip-modal__checklist {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-// Settings sub-tab embedded SettingsPage — scrollable container, no
-// SettingsShell chrome.
+// The per-query settings form — scrollable container, no SettingsShell
+// chrome (it isn't a page).
 .pf-bt-settings-embedded {
   overflow: auto;
   height: 100%;

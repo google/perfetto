@@ -158,8 +158,8 @@ function formatFilterChipLabel(f: Filter): string {
 // Modal opener
 // ---------------------------------------------------------------------------
 
-// Hosts the SettingsPage in embedded (per-tab) mode — the one place editing
-// (settings, trace-grid selection, metadata columns) happens.
+// Hosts the per-query settings form — where editing (settings, trace-grid
+// selection, metadata columns) happens for this tab.
 function openAddSettingsModal(bindings: SettingsBindings): void {
   void showModal({
     title: 'Bigtrace settings',

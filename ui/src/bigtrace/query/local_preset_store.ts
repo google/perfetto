@@ -116,7 +116,7 @@ class LocalPresetStore {
 
 export const localPresetStore = new LocalPresetStore();
 
-export function newLocalPresetId(): string {
+function newLocalPresetId(): string {
   return `${LOCAL_ID_PREFIX}${shortUuid()}`;
 }
 
