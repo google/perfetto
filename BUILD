@@ -461,6 +461,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -775,6 +777,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -4445,6 +4449,35 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/android_framework_track_event/all_tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_process_state:android_process_state
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_android_process_state_android_process_state",
+    srcs = [
+        "src/trace_processor/plugins/android_process_state/android_process_state.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_state.h",
+        "src/trace_processor/plugins/android_process_state/android_process_state_module.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_state_module.h",
+        "src/trace_processor/plugins/android_process_state/android_process_state_tracker.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_process_state:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_android_process_state_tables",
+    srcs = [
+        "src/trace_processor/plugins/android_process_state/tables.py",
+    ],
+    deps = [
+        ":src_trace_processor_tables_tables_python",
+    ],
+    outs = [
+        "src/trace_processor/plugins/android_process_state/all_tables_fwd.h",
+        "src/trace_processor/plugins/android_process_state/tables_fwd.h",
+        "src/trace_processor/plugins/android_process_state/tables_py.h",
     ],
 )
 
@@ -11631,6 +11664,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -11976,6 +12011,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_process_state_android_process_state",
+        ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",

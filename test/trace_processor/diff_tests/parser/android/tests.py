@@ -366,3 +366,57 @@ class AndroidParser(TestSuite):
           "trigger_type","hosting_type"
           "TRIGGER_TYPE_JOB","HOSTING_TYPE_SERVICE"
         """))
+
+  def test_android_process_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          p.uid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.reason,
+          t.seq_id,
+          t.is_initial
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.seq_id;
+        """,
+        out=Csv("""
+          "ts","pid","uid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
+          "[NULL]",100,10001,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          "[NULL]",200,10002,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          2000,200,10002,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",10,0
+          4000,200,10002,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"OOM_ADJ_REASON_BIND_SERVICE",11,0
+          "[NULL]",300,10003,"PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]","[NULL]",1
+          "[NULL]",400,10004,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]","[NULL]",1
+          "[NULL]",500,"[NULL]","PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          2000,500,"[NULL]","PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"OOM_ADJ_REASON_START_RECEIVER",20,0
+          2000,500,"[NULL]","PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"OOM_ADJ_REASON_BIND_SERVICE",21,0
+        """))
+
+  def test_android_freezer_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          p.uid,
+          t.unfrozen_dur_ms,
+          t.frozen_dur_ms,
+          t.unfreeze_reason,
+          t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","uid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","is_initial"
+          "[NULL]",100,10001,"[NULL]","[NULL]","[NULL]",1
+          3000,200,10002,100,300,"UFR_BIND_SERVICE",0
+          "[NULL]",600,"[NULL]","[NULL]","[NULL]","[NULL]",1
+        """))
