@@ -129,7 +129,10 @@ describe('presetMatches', () => {
       false,
     );
     expect(
-      presetMatches(preset({traceOrderBy: 'a asc'}), current({traceOrderBy: 'a asc'})),
+      presetMatches(
+        preset({traceOrderBy: 'a asc'}),
+        current({traceOrderBy: 'a asc'}),
+      ),
     ).toBe(true);
   });
 });
