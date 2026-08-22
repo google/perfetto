@@ -324,15 +324,19 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         variant: ButtonVariant.Filled,
         title: hasQuery ? 'Keep these settings for the next run.' : undefined,
         onclick: () => {
-          // If this setup happens to be one of the presets on offer (e.g. it
-          // was just saved as one), the next tab preselects it; otherwise
-          // there's no preset to remember.
-          lastPresetIdState.set(
-            matchingPresetId(
-              tab,
-              launcherPresets(presetStore.presets, localPresetStore.list()),
-            ) ?? '',
-          );
+          // Starting a query by hand: if this setup happens to be one of the
+          // presets on offer (e.g. it was just saved as one), the next tab
+          // preselects it; otherwise there's no preset to remember. Editing
+          // an existing query says nothing about what the next one starts
+          // from, so Done leaves the last-used preset alone.
+          if (!hasQuery) {
+            lastPresetIdState.set(
+              matchingPresetId(
+                tab,
+                launcherPresets(presetStore.presets, localPresetStore.list()),
+              ) ?? '',
+            );
+          }
           closeSettings(tab, {keep: true});
           tabsState.markDirty();
         },
