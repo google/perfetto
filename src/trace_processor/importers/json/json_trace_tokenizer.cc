@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstddef>
@@ -40,8 +41,11 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/v8_profile_parser.h"
@@ -50,8 +54,10 @@
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/json_parser.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -295,6 +301,44 @@ inline std::string_view GetObjectValue(const json::JsonValue& value) {
   return {};
 }
 
+// Converts a JSON metadata value into a Variadic suitable for the metadata
+// table, which only has integer and string columns. Returns nullopt for null
+// values, which are dropped.
+std::optional<Variadic> MetadataValueFromJson(TraceStorage* storage,
+                                              const json::JsonValue& value) {
+  switch (value.index()) {
+    case base::variant_index<json::JsonValue, bool>():
+      return Variadic::Integer(base::unchecked_get<bool>(value) ? 1 : 0);
+    case base::variant_index<json::JsonValue, int64_t>():
+      return Variadic::Integer(base::unchecked_get<int64_t>(value));
+    case base::variant_index<json::JsonValue, double>(): {
+      double d = base::unchecked_get<double>(value);
+      if (d == std::trunc(d) && std::abs(d) < 9.2e18) {
+        return Variadic::Integer(static_cast<int64_t>(d));
+      }
+      base::StackString<32> str("%g", d);
+      return Variadic::String(storage->InternString(str.string_view()));
+    }
+    case base::variant_index<json::JsonValue, std::string_view>(): {
+      auto sv = base::unchecked_get<std::string_view>(value);
+      return Variadic::String(
+          storage->InternString(base::StringView(sv.data(), sv.size())));
+    }
+    case base::variant_index<json::JsonValue, json::Object>(): {
+      auto sv = base::unchecked_get<json::Object>(value).contents;
+      return Variadic::String(
+          storage->InternString(base::StringView(sv.data(), sv.size())));
+    }
+    case base::variant_index<json::JsonValue, json::Array>(): {
+      auto sv = base::unchecked_get<json::Array>(value).contents;
+      return Variadic::String(
+          storage->InternString(base::StringView(sv.data(), sv.size())));
+    }
+    default:  // json::Null
+      return std::nullopt;
+  }
+}
+
 struct IdResult {
   JsonEvent::IdStrOrUint64 id;
   JsonEvent::IdType type;
@@ -323,15 +367,16 @@ std::optional<IdResult> ExtractId(StringPool* pool,
   }
 }
 
-void ParseId2(json::Iterator& inner_it,
+// Returns false (without recording any error) if the id2 object is malformed;
+// the caller is responsible for recording the error with full event context.
+bool ParseId2(json::Iterator& inner_it,
               TraceProcessorContext* context,
               std::string_view id2,
               std::optional<IdResult>& id2_local,
               std::optional<IdResult>& id2_global) {
   inner_it.Reset(id2.data(), id2.data() + id2.size());
   if (!inner_it.ParseStart()) {
-    context->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
-    return;
+    return false;
   }
   for (;;) {
     switch (inner_it.ParseObjectFieldWithoutRecursing()) {
@@ -339,8 +384,7 @@ void ParseId2(json::Iterator& inner_it,
       case State::kEndOfScope:
         break;
       case State::kError:
-        context->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
-        return;
+        return false;
       case State::kIncompleteInput:
         PERFETTO_FATAL("Unexpected incomplete input in JSON object for id2");
     }
@@ -355,6 +399,7 @@ void ParseId2(json::Iterator& inner_it,
           ExtractId(context->storage->mutable_string_pool(), inner_it.value());
     }
   }
+  return true;
 }
 
 class JsonSink : public TraceSorter::Sink<JsonEvent, JsonSink> {
@@ -491,9 +536,35 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
       systrace_stream_(context_->sorter->CreateStream(
           std::make_unique<SystraceSink>(&parser_))),
       v8_stream_(context_->sorter->CreateStream(
-          std::make_unique<V8Sink>(v8_tracker_.get()))),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)) {}
+          std::make_unique<V8Sink>(v8_tracker_.get()))) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
+
+int64_t JsonTraceTokenizer::CurrentByteOffset() const {
+  return static_cast<int64_t>(offset_) + (it_.cur() - buffer_.data());
+}
+
+void JsonTraceTokenizer::RecordEventError(size_t stat_key,
+                                          const base::Status& status) {
+  std::string_view raw(event_start_,
+                       static_cast<size_t>(it_.cur() - event_start_));
+  StringId raw_key = context_->storage->InternString("raw_event");
+  StringId raw_id =
+      context_->storage->InternString(base::StringView(raw.data(), raw.size()));
+  std::optional<StringId> error_id;
+  if (!status.ok()) {
+    error_id = context_->storage->InternString(status.c_message());
+  }
+  StringId error_key = context_->storage->InternString("error");
+  context_->import_logs_tracker->RecordTokenizationLog(
+      stat_key, CurrentByteOffset(),
+      [raw_key, raw_id, error_key,
+       error_id](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(raw_key, Variadic::String(raw_id));
+        if (error_id) {
+          inserter.AddArg(error_key, Variadic::String(*error_id));
+        }
+      });
+}
 
 base::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {
   buffer_.insert(buffer_.end(), blob.data(), blob.data() + blob.size());
@@ -586,6 +657,7 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
       position_ = TracePosition::kDictionaryKey;
       return ParseInternal(cur + 1, end, out);
     }
+    event_start_ = cur;
     it_.Reset(cur, end);
     if (!it_.ParseStart() || !ParseTraceEventContents()) {
       if (!it_.status().ok()) {
@@ -604,6 +676,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   int64_t ts = std::numeric_limits<int64_t>::max();
   std::optional<IdResult> id2_local;
   std::optional<IdResult> id2_global;
+  bool saw_field = false;
   for (;;) {
     switch (it_.ParseObjectFieldWithoutRecursing()) {
       case State::kOk:
@@ -616,6 +689,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     if (it_.eof()) {
       break;
     }
+    saw_field = true;
     if (it_.key() == "ph") {
       std::string_view ph = GetStringValue(it_.value());
       event.phase = ph.size() >= 1 ? ph[0] : '\0';
@@ -624,8 +698,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
       CoerceToTs(it_.value(), ts, status);
     } else if (it_.key() == "dur") {
       if (!CoerceToTs(it_.value(), event.dur, status)) {
-        PERFETTO_DLOG("%s", status.c_message());
-        context_->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
+        RecordEventError(stats::json_tokenizer_failure, status);
         return false;
       }
     } else if (it_.key() == "pid") {
@@ -727,14 +800,12 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
       event.bind_enclosing_slice = GetStringValue(it_.value()) == "e";
     } else if (it_.key() == "tts") {
       if (!CoerceToTs(it_.value(), event.tts, status)) {
-        PERFETTO_DLOG("%s", status.c_message());
-        context_->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
+        RecordEventError(stats::json_tokenizer_failure, status);
         return false;
       }
     } else if (it_.key() == "tdur") {
       if (!CoerceToTs(it_.value(), event.tdur, status)) {
-        PERFETTO_DLOG("%s", status.c_message());
-        context_->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
+        RecordEventError(stats::json_tokenizer_failure, status);
         return false;
       }
     } else if (it_.key() == "args") {
@@ -746,20 +817,26 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
       }
     } else if (it_.key() == "id2") {
       std::string_view id2 = GetObjectValue(it_.value());
-      if (!id2.empty()) {
-        ParseId2(inner_it_, context_, id2, id2_local, id2_global);
+      if (!id2.empty() &&
+          !ParseId2(inner_it_, context_, id2, id2_local, id2_global)) {
+        RecordEventError(stats::json_tokenizer_failure, inner_it_.status());
       }
     }
   }
   if (!event.phase) {
-    context_->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
+    // A completely empty event object ("{}") is a benign and common idiom
+    // (e.g. a trailing element to avoid trailing-comma issues), so skip it
+    // silently. Only a non-empty event that is genuinely missing "ph" is an
+    // error worth recording.
+    if (saw_field) {
+      RecordEventError(stats::json_tokenizer_failure);
+    }
     return true;
   }
   // Don't check ts for metadata events. In all other cases error.
   if (ts == std::numeric_limits<int64_t>::max()) {
     if (event.phase != 'M') {
-      PERFETTO_DLOG("%s", status.c_message());
-      context_->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
+      RecordEventError(stats::json_tokenizer_failure, status);
       return true;
     }
     // If the event is a metadata event, we can set ts to 0.
@@ -798,12 +875,12 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   }
   if (PERFETTO_UNLIKELY(event.phase == 'P')) {
     if (status = ParseV8SampleEvent(event); !status.ok()) {
-      context_->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
+      RecordEventError(stats::json_tokenizer_failure, status);
       return true;
     }
     return true;
   }
-  auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+  auto trace_ts = context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
   if (trace_ts) {
     json_stream_->Push(*trace_ts, std::move(event));
   }
@@ -816,7 +893,7 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
     std::optional<uint64_t> id_opt = base::StringToUInt64(
         context_->storage->GetString(event.id.id_str).c_str(), 16);
     if (!id_opt) {
-      context_->stats_tracker->IncrementStats(stats::json_tokenizer_failure);
+      RecordEventError(stats::json_tokenizer_failure);
       return base::OkStatus();
     }
     id = *id_opt;
@@ -848,8 +925,7 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
     base::Status status = v8_tracker_->AddCallsite(
         id, event.pid, node.id, node.parent, url, function_name, node.children);
     if (!status.ok()) {
-      context_->stats_tracker->IncrementStats(
-          stats::legacy_v8_cpu_profile_invalid_callsite);
+      RecordEventError(stats::legacy_v8_cpu_profile_invalid_callsite, status);
       continue;
     }
   }
@@ -862,7 +938,7 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
     ASSIGN_OR_RETURN(int64_t ts,
                      v8_tracker_->AddDeltaAndGetTs(
                          id, event.pid, profile.time_deltas[i] * 1000));
-    auto trace_ts = context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+    auto trace_ts = context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (trace_ts) {
       v8_stream_->Push(*trace_ts,
                        LegacyV8CpuProfileEvent{id, event.pid, event.tid,
@@ -934,6 +1010,23 @@ base::Status JsonTraceTokenizer::HandleDictionaryKey(const char* start,
     return ParseInternal(next, end, out);
   }
 
+  if (key == "metadata") {
+    const char* value_end = next;
+    switch (SkipOneJsonValue(next, end, &value_end)) {
+      case SkipValueRes::kFatalError:
+        return base::ErrStatus(
+            "Failure parsing JSON: error while parsing metadata");
+      case SkipValueRes::kNeedsMoreData:
+        // Rewind to the key start (*not* |next|) and wait for the whole object
+        // to be available before parsing it in one shot.
+        return SetOutAndReturn(start, out);
+      case SkipValueRes::kEndOfValue:
+        break;
+    }
+    RETURN_IF_ERROR(ParseMetadataDictionary(next, value_end));
+    return ParseInternal(value_end, end, out);
+  }
+
   // If we don't know the key for this JSON value just skip it_.
   switch (SkipOneJsonValue(next, end, &next)) {
     case SkipValueRes::kFatalError:
@@ -982,12 +1075,54 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
     SystraceLine line;
     RETURN_IF_ERROR(systrace_line_tokenizer_.Tokenize(raw_line, &line));
     auto trace_ts =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, line.ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(line.ts);
     if (trace_ts) {
+      // SystraceLineParser populates tables from line.ts, so the conversion
+      // must be written back, not just used as the sorting key.
+      line.ts = *trace_ts;
       systrace_stream_->Push(*trace_ts, std::move(line));
     }
   }
   return SetOutAndReturn(next, out);
+}
+
+base::Status JsonTraceTokenizer::ParseMetadataDictionary(const char* start,
+                                                         const char* end) {
+  // Only a top-level object is expected here; anything else (e.g. null) has no
+  // fields to expose so silently ignore it.
+  if (start >= end || *start != '{') {
+    return base::OkStatus();
+  }
+  inner_it_.Reset(start, end);
+  if (!inner_it_.ParseStart()) {
+    return base::OkStatus();
+  }
+  TraceStorage* storage = context_->storage.get();
+  for (;;) {
+    switch (inner_it_.ParseObjectFieldWithoutRecursing()) {
+      case State::kOk:
+      case State::kEndOfScope:
+        break;
+      case State::kError:
+        // Best-effort: stop at the first malformed field but keep what we have.
+        return base::OkStatus();
+      case State::kIncompleteInput:
+        PERFETTO_FATAL("Unexpected incomplete input in JSON metadata object");
+    }
+    if (inner_it_.eof()) {
+      break;
+    }
+    std::optional<Variadic> value =
+        MetadataValueFromJson(storage, inner_it_.value());
+    if (!value) {
+      continue;
+    }
+    std::string_view field = inner_it_.key();
+    std::string metadata_key = "json_metadata." + std::string(field);
+    StringId key_id = storage->InternString(base::StringView(metadata_key));
+    context_->metadata_tracker->SetDynamicMetadata(key_id, *value);
+  }
+  return base::OkStatus();
 }
 
 base::Status JsonTraceTokenizer::OnPushDataToSorter() {
@@ -996,7 +1131,49 @@ base::Status JsonTraceTokenizer::OnPushDataToSorter() {
                  (position_ == TracePosition::kInsideTraceEventsArray &&
                   format_ == TraceFormat::kOnlyTraceEvents)
              ? base::OkStatus()
-             : base::ErrStatus("JSON trace file is incomplete");
+             : base::ErrStatus(
+                   "JSON trace file is incomplete (ERR:tp-corrupt)");
+}
+
+namespace {
+
+// Chrome JSON trace format.
+class JsonImporter : public TraceImporter<JsonImporter> {
+ public:
+  JsonImporter() : TraceImporter(MakeDescriptor()) {}
+  ~JsonImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
+                start.end());
+    return base::StartsWith(start, "{\"") || base::StartsWith(start, "[{\"");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<JsonTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "json";
+    d.clock_policy = TraceClockPolicy::kTraceFile;
+    d.detection_priority = 110;
+    return d;
+  }
+};
+
+JsonImporter::~JsonImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateJsonImporter() {
+  return std::make_unique<JsonImporter>();
 }
 
 }  // namespace perfetto::trace_processor

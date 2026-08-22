@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './middle_ellipsis.scss';
 import m from 'mithril';
 
 export interface MiddleEllipsisAttrs {

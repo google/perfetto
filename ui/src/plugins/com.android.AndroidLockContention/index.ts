@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
+import './styles.scss';
+import {AsyncMemo, AtomicTaskQueue} from '../../base/async_memo';
 import {LockOwnerDetailsPanel} from './lock_owner_details_panel';
 import {LOCK_CONTENTION_SQL} from './lock_contention_sql';
 import type {Selection} from '../../public/selection';
@@ -44,8 +45,8 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
   static readonly description =
     'Visualise lock contention events in the trace. You can navigate between contention events using ] and [';
 
-  private readonly connectionsTaskQueue = new SerialTaskQueue();
-  private readonly connectionsSlot = new QuerySlot<ArrowConnection[]>(
+  private readonly connectionsTaskQueue = new AtomicTaskQueue();
+  private readonly connectionsSlot = new AsyncMemo<ArrowConnection[]>(
     this.connectionsTaskQueue,
   );
   public highlightedTargetIds = new Set<number>();
@@ -250,7 +251,7 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
           .sort()
           .join(','),
       },
-      queryFn: () => this.fetchConnections(trace, selection),
+      compute: () => this.fetchConnections(trace, selection),
     });
 
     return result.data ?? [];

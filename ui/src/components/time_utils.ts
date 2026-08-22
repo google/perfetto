@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './time_utils.scss';
 import m from 'mithril';
 import {Duration, type duration, type time, Time} from '../base/time';
 import type {Trace} from '../public/trace';

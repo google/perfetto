@@ -180,7 +180,7 @@ describe('SettingsManagerImpl', () => {
 
   test('get() returns cached value without re-parsing', () => {
     const setting = settingsManager.register(stringSettingDesc);
-    const spy = jest.spyOn(stringSettingDesc.schema, 'safeParse');
+    const spy = vi.spyOn(stringSettingDesc.schema, 'safeParse');
 
     setting.get(); // First call - should parse
     setting.get(); // Second call - should use cache
@@ -192,7 +192,7 @@ describe('SettingsManagerImpl', () => {
 
   test('cache invalidates after set()', () => {
     const setting = settingsManager.register(stringSettingDesc);
-    const spy = jest.spyOn(stringSettingDesc.schema, 'safeParse');
+    const spy = vi.spyOn(stringSettingDesc.schema, 'safeParse');
 
     setting.get(); // Parse 1
     setting.set('new value');

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './task_status.scss';
 import m from 'mithril';
 import type {TaskInfo} from '../public/task_tracker';
 import {Tooltip} from '../widgets/tooltip';

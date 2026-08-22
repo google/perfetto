@@ -28,6 +28,8 @@ source_set("engine") {
     "perfetto_sql_database.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
+    "sqlite_dataframe_builder.cc",
+    "sqlite_dataframe_builder.h",
     "static_table_function_module.cc",
     "static_table_function_module.h",
   ]
@@ -41,10 +43,10 @@ source_set("engine") {
     "../../core/dataframe",
     "../../core/plugin",
     "../../types",
+    "../../util:owned_sql_value",
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
-    "../preprocessor",
     "../tokenizer",
   ]
 
@@ -68,4 +70,19 @@ perfetto_unittest_source_set("unittests") {
     "../../sqlite",
     "../../util:stdlib",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":engine",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../base",
+      "../../containers",
+      "../../sqlite",
+    ]
+    sources = [ "perfetto_sql_connection_benchmark.cc" ]
+  }
 }

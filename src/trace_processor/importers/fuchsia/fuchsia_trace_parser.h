@@ -22,6 +22,8 @@
 #include <optional>
 #include <unordered_map>
 #include <vector>
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
@@ -87,7 +89,8 @@ class FuchsiaTraceParser
   void Wake(Thread* thread,
             int64_t ts,
             uint32_t cpu,
-            std::optional<UniqueTid> waker_utid = std::nullopt);
+            std::optional<UniqueTid> waker_utid = std::nullopt,
+            std::optional<uint64_t> waker_tid = std::nullopt);
 
   StringId IdForOutgoingThreadState(uint32_t state);
 
@@ -110,6 +113,53 @@ class FuchsiaTraceParser
 
   // Map from tid to Thread.
   std::unordered_map<uint64_t, Thread> threads_;
+
+  // Fuchsia flow correlation IDs are scoped to the process (PID) that created
+  // them. A FuchsiaScopedFlowId represents this process-scoped identifier.
+  struct FuchsiaScopedFlowId {
+    uint32_t pid;
+    uint64_t correlation_id;
+
+    bool operator==(const FuchsiaScopedFlowId& o) const {
+      return pid == o.pid && correlation_id == o.correlation_id;
+    }
+  };
+
+  struct FuchsiaScopedFlowIdHasher {
+    size_t operator()(const FuchsiaScopedFlowId& c) const {
+      return base::MurmurHashCombine(c.pid, c.correlation_id);
+    }
+  };
+
+  struct ResolvedFlow {
+    uint64_t global_id;
+    FuchsiaScopedFlowId matched_scoped;
+  };
+
+  struct GlobalFlowInfo {
+    uint32_t pid;
+    bool is_ambiguous = false;
+  };
+
+  // Resolves a process-scoped correlation ID to a globally unique flow ID.
+  // If no flow with the matching (pid, correlation_id) exists and we are
+  // processing a step or end event, it falls back to checking if the
+  // correlation_id exists in another process (assuming the ID is globally
+  // unique).
+  std::optional<ResolvedFlow> GetGlobalFlowId(uint32_t pid,
+                                              uint64_t correlation_id,
+                                              bool step_or_end);
+
+  // Counter used to generate globally unique flow IDs.
+  uint64_t fuchsia_global_flow_id_counter_ = 1;
+
+  // Maps a process-scoped Fuchsia flow identifier to its globally unique ID.
+  base::FlatHashMap<FuchsiaScopedFlowId, uint64_t, FuchsiaScopedFlowIdHasher>
+      fuchsia_active_flows_;
+
+  // Maps a correlation ID to its global flow info.
+  // Used for cross-process flow resolution.
+  base::FlatHashMap<uint64_t, GlobalFlowInfo> fuchsia_global_flows_;
 };
 
 }  // namespace perfetto::trace_processor

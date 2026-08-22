@@ -47,6 +47,7 @@ export class SettingImpl<T> implements Setting<T> {
     public readonly schema: z.ZodType<T>,
     public readonly requiresReload: boolean = false,
     public readonly render?: SettingRenderer<T>,
+    public readonly headless: boolean = false,
   ) {
     this.bootRawValue = this.manager.getStore()[this.id];
   }
@@ -117,6 +118,7 @@ export class SettingsManagerImpl implements SettingsManager {
       setting.schema,
       setting.requiresReload,
       setting.render,
+      setting.headless,
     );
 
     this.registry.set(setting.id, settingImpl as SettingImpl<unknown>);

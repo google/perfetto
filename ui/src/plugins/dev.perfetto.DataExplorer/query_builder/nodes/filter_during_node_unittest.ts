@@ -440,7 +440,7 @@ describe('FilterDuringNode', () => {
 
   describe('onPrevNodesUpdated', () => {
     it('should trigger onchange callback when called', () => {
-      const onchange = jest.fn();
+      const onchange = vi.fn();
       const node = new FilterDuringNode({}, {onchange});
 
       node.onPrevNodesUpdated();

@@ -15,6 +15,33 @@
 
 -- sqlformat file off
 
+-- Returns whether a regular expression partially matches an input string.
+-- This two-argument overload is also used by the `input REGEXP pattern`
+-- operator and performs case-sensitive matching.
+CREATE PERFETTO FUNCTION regexp(
+  -- The regular expression pattern.
+  pattern STRING,
+  -- The input string to match against.
+  input STRING
+)
+-- Whether the pattern matches the input.
+RETURNS BOOL
+DELEGATES TO __intrinsic_regexp;
+
+-- Returns whether a regular expression partially matches an input string.
+CREATE PERFETTO FUNCTION regexp(
+  -- The regular expression pattern.
+  pattern STRING,
+  -- The input string to match against.
+  input STRING,
+  -- Matching flags. `i` enables case-insensitive matching and `c` enables
+  -- case-sensitive matching. If both are present, the last one takes effect.
+  flags STRING
+)
+-- Whether the pattern matches the input.
+RETURNS BOOL
+DELEGATES TO __intrinsic_regexp_with_flags;
+
 -- Replaces all occurrences of a regular expression with a constant
 -- replacement string.
 -- Note that there is no way to substitute matching groups into the
@@ -79,18 +106,18 @@ RETURNS STRING
 DELEGATES TO __intrinsic_regexp_extract;
 
 -- Converts a hex string (with optional 0x prefix) to an integer.
-CREATE PERFETTO FUNCTION UNHEX(
+CREATE PERFETTO FUNCTION unhex(
   -- The hex string to convert.
   input STRING
 )
 -- The integer value.
-RETURNS INT
+RETURNS LONG
 DELEGATES TO __intrinsic_unhex;
 
 -- Converts a trace timestamp to an absolute ISO 8601 time string.
 CREATE PERFETTO FUNCTION abs_time_str(
   -- The trace timestamp (in nanoseconds).
-  ts INT
+  ts LONG
 )
 -- The ISO 8601 formatted time string, or NULL if conversion fails.
 RETURNS STRING
@@ -99,26 +126,26 @@ DELEGATES TO __intrinsic_abs_time_str;
 -- Converts a trace timestamp to monotonic clock time.
 CREATE PERFETTO FUNCTION to_monotonic(
   -- The trace timestamp (in nanoseconds).
-  ts INT
+  ts LONG
 )
 -- The monotonic clock timestamp, or NULL if conversion fails.
-RETURNS INT
+RETURNS LONG
 DELEGATES TO __intrinsic_to_monotonic;
 
 -- Converts a trace timestamp to realtime clock time.
 CREATE PERFETTO FUNCTION to_realtime(
   -- The trace timestamp (in nanoseconds).
-  ts INT
+  ts LONG
 )
 -- The realtime clock timestamp, or NULL if conversion fails.
-RETURNS INT
+RETURNS LONG
 DELEGATES TO __intrinsic_to_realtime;
 
 -- Converts a trace timestamp to a human-readable timecode
 -- (HH:MM:SS mmm uuu nnn).
 CREATE PERFETTO FUNCTION to_timecode(
   -- The trace timestamp (in nanoseconds).
-  ts INT
+  ts LONG
 )
 -- The formatted timecode string.
 RETURNS STRING

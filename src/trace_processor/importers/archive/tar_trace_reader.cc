@@ -36,6 +36,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/archive/archive_entry.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_type.h"
@@ -50,6 +51,11 @@ constexpr char TYPE_FLAG_REGULAR = '0';
 constexpr char TYPE_FLAG_AREGULAR = '\0';
 constexpr char TYPE_FLAG_GNU_LONG_NAME = 'L';
 constexpr char TYPE_FLAG_DIR = '5';
+// PAX extended headers ('x' applies to the next entry, 'g' to the whole
+// archive). Emitted by e.g. macOS/BSD tar. We rely on the plain ustar header
+// fields, so the PAX payload is consumed and ignored.
+constexpr char TYPE_FLAG_PAX_EXTENDED = 'x';
+constexpr char TYPE_FLAG_PAX_GLOBAL = 'g';
 
 template <size_t Size>
 base::StatusOr<uint64_t> ParseBase256(const char (&ptr)[Size]) {
@@ -81,8 +87,15 @@ base::StatusOr<uint64_t> ParseBase256(const char (&ptr)[Size]) {
 
 template <size_t Size>
 base::StatusOr<uint64_t> ParseOctal(const char (&ptr)[Size]) {
+  // POSIX allows numeric fields to be padded with leading spaces and to be
+  // terminated by either a NUL or a space. GNU tar NUL-terminates, but
+  // macOS/BSD tar terminates with a trailing space, so both must be tolerated.
+  size_t i = 0;
+  while (i < Size && ptr[i] == ' ') {
+    ++i;
+  }
   uint64_t value = 0;
-  for (size_t i = 0; i < Size && ptr[i] != 0; ++i) {
+  for (; i < Size && ptr[i] != 0 && ptr[i] != ' '; ++i) {
     if (ptr[i] > '7' || ptr[i] < '0') {
       return base::ErrStatus("Invalid octal digit in size field.");
     }
@@ -197,7 +210,7 @@ base::Status TarTraceReader::OnPushDataToSorter() {
   }
 
   if (state_ != State::kDone) {
-    return base::ErrStatus("Premature end of TAR file");
+    return base::ErrStatus("Premature end of TAR file (ERR:tp-corrupt)");
   }
 
   for (auto& file : ordered_files_) {
@@ -299,6 +312,8 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
     case TYPE_FLAG_REGULAR:
     case TYPE_FLAG_AREGULAR:
     case TYPE_FLAG_GNU_LONG_NAME:
+    case TYPE_FLAG_PAX_EXTENDED:
+    case TYPE_FLAG_PAX_GLOBAL:
       state_ = State::kContent;
       break;
 
@@ -322,11 +337,21 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseContent() {
     return ParseResult::kNeedsMoreData;
   }
 
-  if (metadata_->type_flag == TYPE_FLAG_GNU_LONG_NAME) {
+  if (metadata_->type_flag == TYPE_FLAG_PAX_EXTENDED ||
+      metadata_->type_flag == TYPE_FLAG_PAX_GLOBAL) {
+    // PAX extended headers carry metadata (long names, large sizes, ...) for
+    // the following entry, or the whole archive for the global variant. We
+    // read names and sizes from the plain ustar header of each entry, so the
+    // PAX payload is skipped by falling through to the PopFrontBytes below.
+  } else if (metadata_->type_flag == TYPE_FLAG_GNU_LONG_NAME) {
     TraceBlobView data =
         *buffer_.SliceOff(buffer_.start_offset(), metadata_->size);
     long_name_ = std::string(reinterpret_cast<const char*>(data.data()),
                              metadata_->size);
+  } else if (IsHiddenArchivePath(metadata_->name)) {
+    // Ignore hidden files/directories (e.g. macOS "._" resource forks and
+    // ".DS_Store"). The content bytes are still consumed via PopFrontBytes
+    // below so parsing stays aligned to the next header.
   } else {
     AddFile(*metadata_,
             *buffer_.SliceOff(
@@ -347,10 +372,57 @@ void TarTraceReader::AddFile(const Metadata& metadata,
                              std::vector<TraceBlobView> data) {
   auto file_id = context_->trace_file_tracker->AddFile(metadata.name);
   context_->trace_file_tracker->SetSize(file_id, metadata.size);
+  const auto& importers = *context_->trace_importer_registry;
+  TraceImporterId type = importers.Guess(header.data(), header.size());
   ordered_files_.emplace(
-      ArchiveEntry{metadata.name, ordered_files_.size(),
-                   GuessTraceType(header.data(), header.size())},
+      ArchiveEntry{metadata.name, ordered_files_.size(), type,
+                   ArchiveEntry::ComputePriority(type, importers)},
       File{file_id, std::move(data)});
+}
+
+namespace {
+
+// POSIX/GNU tar archive.
+class TarImporter : public TraceImporter<TarImporter> {
+ public:
+  TarImporter() : TraceImporter(MakeDescriptor()) {}
+  ~TarImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr size_t kOffset = 257;
+    static constexpr char kPosix[] = {'u', 's', 't', 'a', 'r', '\0'};
+    static constexpr char kGnu[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
+    return (size >= sizeof(kPosix) + kOffset &&
+            memcmp(data + kOffset, kPosix, sizeof(kPosix)) == 0) ||
+           (size >= sizeof(kGnu) + kOffset &&
+            memcmp(data + kOffset, kGnu, sizeof(kGnu)) == 0);
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<TarTraceReader>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "tar";
+    d.is_container = true;
+    d.archive_priority = 1;
+    d.forks_context = false;
+    d.detection_priority = 10;
+    return d;
+  }
+};
+
+TarImporter::~TarImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateTarImporter() {
+  return std::make_unique<TarImporter>();
 }
 
 }  // namespace perfetto::trace_processor

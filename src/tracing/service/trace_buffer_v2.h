@@ -193,9 +193,9 @@ struct SequenceState {
   };
   std::optional<ConsumedChunkInfo> last_chunk_consumed;
 
-  // This is set whenever a data loss is detected and cleared when reading the
-  // next packet for the sequence (which will report previous_packet_dropped).
-  bool data_loss = false;
+  // Pending DataLossReason bitmask for this sequence, OR-ed until the next read
+  // copies it into previous_packet_dropped and resets it. Zero means no loss.
+  uint32_t data_loss_reasons = 0;
 
   // An ordered list of chunk offsets, sorted by their ChunkID. Each member
   // corresponsds to the offset within buf_ for the chunk.
@@ -353,8 +353,15 @@ class ChunkSeqReader {
   ChunkSeqReader& operator=(ChunkSeqReader&&) = delete;
 
   enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
-  FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
-                                                  Frag* initial_frag);
+
+  // Return type of ReassembleFragmentedPacket(). |reason| is a
+  // DataLossReason value, only valid when |result| == kDataLoss.
+  struct FragReassemblyOutcome {
+    FragReassemblyResult result = FragReassemblyResult::kNotEnoughData;
+    uint32_t reason = 0;
+  };
+  FragReassemblyOutcome ReassembleFragmentedPacket(TracePacket* out_packet,
+                                                   Frag* initial_frag);
   void ConsumeFragment(TBChunk*, Frag*);
 
   TraceBufferV2* const buf_ = nullptr;
@@ -500,9 +507,10 @@ class TraceBufferV2 : public TraceBuffer {
   //   P1, P4, P7, P2, P3, P5, P8, P9, P6
   // But the following is guaranteed to NOT happen:
   //   P1, P5, P7, P4 (P4 cannot come after P5)
-  bool ReadNextTracePacket(TracePacket*,
-                           PacketSequenceProperties* sequence_properties,
-                           bool* previous_packet_on_sequence_dropped) override;
+  bool ReadNextTracePacket(
+      TracePacket*,
+      PacketSequenceProperties* sequence_properties,
+      uint32_t* previous_packet_on_sequence_dropped) override;
 
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset, as if no Read() had been called. Calls to

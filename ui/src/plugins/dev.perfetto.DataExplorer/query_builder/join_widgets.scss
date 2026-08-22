@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "./common";
+@use "./common" as *;
 
 // Join condition selector - two-card layout
 .pf-join-condition-selector {

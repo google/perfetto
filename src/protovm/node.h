@@ -29,7 +29,6 @@ namespace protovm {
 
 struct Node;
 
-namespace internal {
 struct MapNode {
   struct Traits {
     using KeyType = uint64_t;
@@ -47,14 +46,9 @@ struct MapNode {
   OwnedPtr<Node> value;
 };
 
-}  // namespace internal
-
-using IntrusiveMap =
-    base::IntrusiveTree<internal::MapNode, internal::MapNode::Traits>;
+using IntrusiveMap = base::IntrusiveTree<MapNode, MapNode::Traits>;
 
 struct Node {
-  using MapNode = internal::MapNode;
-
   struct Bytes {
     OwnedPtr<void> data;
     size_t size;
@@ -89,7 +83,6 @@ struct Node {
   std::variant<Bytes,
                Empty,
                IndexedRepeatedField,
-               MapNode,
                MappedRepeatedField,
                Message,
                Scalar>
@@ -99,8 +92,6 @@ struct Node {
   // (see implementation of Merge operation in RW proto)
   bool has_been_merged = false;
 };
-
-Node& GetOuterNode(Node::MapNode& map_node);
 
 }  // namespace protovm
 }  // namespace perfetto

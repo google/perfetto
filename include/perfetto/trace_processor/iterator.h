@@ -22,13 +22,14 @@
 #include <memory>
 
 #include "perfetto/base/export.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 class IteratorImpl;
+class SqliteIteratorImpl;
 
 // Iterator returning SQL rows satisfied by a query.
 //
@@ -94,15 +95,25 @@ class PERFETTO_EXPORT_COMPONENT Iterator {
   friend class QueryResultSerializer;
 
   // This is to allow QueryResultSerializer, which is very perf sensitive, to
-  // access direct the impl_ and avoid one extra function call for each cell.
+  // access the impl directly and avoid one extra function call for each cell.
+  // It downcasts to the concrete |T| (the serializer is only ever fed local
+  // SqliteIteratorImpl iterators) so the per-cell calls devirtualize.
   template <typename T = IteratorImpl>
   std::unique_ptr<T> take_impl() {
-    return std::move(iterator_);
+    sqlite_fast_path_ = nullptr;
+    return std::unique_ptr<T>(static_cast<T*>(iterator_.release()));
   }
 
   // A PIMPL pattern is used to avoid leaking the dependencies on sqlite3.h and
   // other internal classes.
   std::unique_ptr<IteratorImpl> iterator_;
+
+  // Non-owning alias of |iterator_| set if backing impl is
+  // the local SqliteIteratorImpl. All methods should
+  // above call through this when set, so the the fast path is fast.
+  //
+  // Null for other iterator types.
+  SqliteIteratorImpl* sqlite_fast_path_ = nullptr;
 };
 
 }  // namespace trace_processor

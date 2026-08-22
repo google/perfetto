@@ -46,18 +46,12 @@ def main():
   for clang in candidate_clangs():
     if shutil.which(clang) is None:
       continue
-    res = subprocess.check_output([clang, '-print-search-dirs']).decode("utf-8")
-    for line in res.splitlines():
-      if not line.startswith('libraries:'):
-        continue
-      libs = line.split('=', 1)[1].split(':')
-      for lib in libs:
-        if '/clang/' not in lib or not os.path.isdir(lib + '/lib'):
-          continue
-        print(os.path.abspath(lib))
-        print(clang)
-        print(clang.replace('clang', 'clang++'))
-        return 0
+    res = subprocess.check_output([clang,
+                                   '-print-resource-dir']).decode("utf-8")
+    print(os.path.abspath(res.splitlines()[0]))
+    print(clang)
+    print(clang.replace('clang', 'clang++'))
+    return 0
   print('Could not find the LLVM lib dir')
   return 1
 

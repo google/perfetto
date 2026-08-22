@@ -54,6 +54,12 @@ export interface SettingDescriptor<T> {
   // settings page. Required for settings that are move complex than a primitive
   // type, such as objects or arrays.
   readonly render?: SettingRenderer<T>;
+  // If true, the setting is hidden from the settings page and can only be
+  // changed programmatically. Use this for internal UI state that's persisted
+  // through the settings machinery but isn't meant for users to edit directly,
+  // such as panel positions or sidebar visibility, to avoid cluttering the
+  // settings page.
+  readonly headless?: boolean;
 }
 
 /**

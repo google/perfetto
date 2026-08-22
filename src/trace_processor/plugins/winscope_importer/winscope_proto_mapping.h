@@ -77,46 +77,46 @@ std::optional<const base::StringView> inline GetWindowContainerType(
 inline base::StatusOr<const char* const> GetProtoName(
     const std::string& table_name) {
   if (table_name == tables::SurfaceFlingerLayerTable::Name()) {
-    return ".perfetto.protos.LayerProto";
+    return ".com.android.internal.LayerProto";
   }
   if (table_name == tables::SurfaceFlingerLayersSnapshotTable::Name()) {
-    return ".perfetto.protos.LayersSnapshotProto";
+    return ".com.android.internal.LayersSnapshotProto";
   }
   if (table_name == tables::SurfaceFlingerTransactionsTable::Name()) {
-    return ".perfetto.protos.TransactionTraceEntry";
+    return ".com.android.internal.TransactionTraceEntry";
   }
   if (table_name == tables::WindowManagerShellTransitionProtosTable::Name()) {
-    return ".perfetto.protos.ShellTransition";
+    return ".com.android.internal.ShellTransition";
   }
   if (table_name == tables::InputMethodClientsTable::Name()) {
-    return ".perfetto.protos.InputMethodClientsTraceProto";
+    return ".com.android.internal.InputMethodClientsTraceProto";
   }
   if (table_name == tables::InputMethodManagerServiceTable::Name()) {
-    return ".perfetto.protos.InputMethodManagerServiceTraceProto";
+    return ".com.android.internal.InputMethodManagerServiceTraceProto";
   }
   if (table_name == tables::InputMethodServiceTable::Name()) {
-    return ".perfetto.protos.InputMethodServiceTraceProto";
+    return ".com.android.internal.InputMethodServiceTraceProto";
   }
   if (table_name == tables::ViewCaptureTable::Name()) {
-    return ".perfetto.protos.ViewCapture";
+    return ".com.android.internal.ViewCapture";
   }
   if (table_name == tables::ViewCaptureViewTable::Name()) {
-    return ".perfetto.protos.ViewCapture.View";
+    return ".com.android.internal.ViewCapture.View";
   }
   if (table_name == tables::WindowManagerTable::Name()) {
-    return ".perfetto.protos.WindowManagerTraceEntry";
+    return ".com.android.internal.WindowManagerTraceEntry";
   }
   if (table_name == tables::WindowManagerWindowContainerTable::Name()) {
-    return ".perfetto.protos.WindowContainerChildProto";
+    return ".com.android.internal.WindowContainerChildProto";
   }
   if (table_name == tables::AndroidKeyEventsTable::Name()) {
-    return ".perfetto.protos.AndroidKeyEvent";
+    return ".com.android.internal.AndroidKeyEvent";
   }
   if (table_name == tables::AndroidMotionEventsTable::Name()) {
-    return ".perfetto.protos.AndroidMotionEvent";
+    return ".com.android.internal.AndroidMotionEvent";
   }
   if (table_name == tables::AndroidInputEventDispatchTable::Name()) {
-    return ".perfetto.protos.AndroidWindowInputDispatchEvent";
+    return ".com.android.internal.AndroidWindowInputDispatchEvent";
   }
   return base::ErrStatus("%s table does not have proto descriptor.",
                          table_name.c_str());

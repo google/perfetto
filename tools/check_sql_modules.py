@@ -75,6 +75,55 @@ ALLOWED_TOPLEVEL_PUBLIC_PACKAGES = frozenset({
     "wattson",
 })
 
+# Packages that are OS, platform, product, or engine specific. Generic packages
+# (see GENERIC_PACKAGES) must never depend on these: doing so is a layering
+# violation because it drags platform-specific concepts into building blocks
+# that are meant to work on any trace.
+PLATFORM_SPECIFIC_PACKAGES = frozenset({
+    "android",
+    "appleos",
+    "chrome",
+    "linux",
+    "pixel",
+    "pkvm",
+    "traced",
+    "v8",
+    "wattson",
+})
+
+# Generic, platform-agnostic packages. These are the core building blocks that
+# operate over the base trace_processor tables and must not reach "up" into any
+# platform-specific package.
+GENERIC_PACKAGES = frozenset({
+    "callstacks",
+    "counters",
+    "graphs",
+    "intervals",
+    "sched",
+    "slices",
+    "stacks",
+    "std",
+    "time",
+})
+
+# Sanctioned exceptions to the layering rule: specific generic ->
+# platform-specific dependencies that we intentionally accept for now.
+#
+# These are not the end state. Each is a place where a generic building block is
+# coupled to a platform-specific module and we would like to do better in the
+# future (e.g. by moving the shared logic somewhere neutral). Listing them
+# explicitly keeps the check green while still catching any NEW violation, and
+# makes the debt we want to pay down visible.
+#
+# Each entry is (module_name, included_module_name).
+ALLOWED_LAYERING_EXCEPTIONS = frozenset({
+    # callstacks.stack_profile annotates frames with V8 JIT information.
+    ("callstacks.stack_profile", "v8.jit"),
+    # slices.cpu_time.thread_slice_cpu_cycles is a thin wrapper over
+    # linux.cpu.utilization.slice.cpu_cycles_per_thread_slice.
+    ("slices.cpu_time", "linux.cpu.utilization.slice"),
+})
+
 
 @dataclass
 class ModuleInfo:
@@ -658,6 +707,57 @@ def check_new_packages(modules: List[Tuple], quiet: bool = False) -> int:
   return len(disallowed_packages)
 
 
+def check_layering(modules: List[Tuple], quiet: bool = False) -> int:
+  """Check that generic packages do not depend on platform-specific ones.
+
+  A generic package (e.g. intervals, graphs, slices) is a building block meant
+  to work on any trace. Depending on a platform-specific package (e.g. android,
+  linux, chrome) is a layering violation: it drags platform concepts into code
+  that should be platform-agnostic and creates surprising, unwanted dependency
+  chains.
+
+  Args:
+    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    quiet: If True, suppress detailed output
+
+  Returns:
+    Number of layering violations found.
+  """
+  entities_data = format_entities(modules)
+
+  violations = []
+  for module_name, module_data in entities_data['modules'].items():
+    src_pkg = module_name.split('.')[0]
+    if src_pkg not in GENERIC_PACKAGES:
+      continue
+    for included in module_data['includes']:
+      dst_pkg = included.split('.')[0]
+      if dst_pkg not in PLATFORM_SPECIFIC_PACKAGES:
+        continue
+      if (module_name, included) in ALLOWED_LAYERING_EXCEPTIONS:
+        continue
+      violations.append((module_name, included))
+
+  if not quiet:
+    if violations:
+      print(f"\nFound {len(violations)} layering violation(s):\n")
+      for module_name, included in sorted(violations):
+        src_pkg = module_name.split('.')[0]
+        dst_pkg = included.split('.')[0]
+        print(f"  {module_name} (generic '{src_pkg}') depends on "
+              f"{included} (platform-specific '{dst_pkg}')")
+      print(
+          f"\nGeneric packages must not depend on platform-specific packages. "
+          f"Remove the INCLUDE if it is unused, or move the code into the "
+          f"platform-specific package. If the dependency is genuinely "
+          f"intentional, add it to ALLOWED_LAYERING_EXCEPTIONS in "
+          f"{os.path.basename(__file__)}.")
+    else:
+      print(f"\nNo layering violations found!")
+
+  return len(violations)
+
+
 def main() -> int:
   parser = argparse.ArgumentParser(
       description="Check stdlib modules for banned patterns and documentation")
@@ -696,6 +796,12 @@ def main() -> int:
       action='store_true',
       default=False,
       help='Check that no new top-level public packages have been added')
+  parser.add_argument(
+      '--check-layering',
+      action='store_true',
+      default=False,
+      help='Check that generic packages do not depend on platform-specific ones'
+  )
 
   args = parser.parse_args()
 
@@ -762,7 +868,12 @@ def main() -> int:
   if args.check_new_packages:
     new_package_errors = check_new_packages(modules, quiet=not args.verbose)
 
-  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors + new_package_errors
+  # Check package layering if requested
+  layering_errors = 0
+  if args.check_layering:
+    layering_errors = check_layering(modules, quiet=not args.verbose)
+
+  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors + new_package_errors + layering_errors
   return 0 if not total_errors else 1
 
 

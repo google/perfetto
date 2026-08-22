@@ -22,7 +22,9 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -35,7 +37,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/core/plugin/plugin.h"
-#include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -45,12 +46,14 @@
 
 namespace perfetto::trace_processor {
 
+class SqliteIteratorImpl;
+
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
 class TraceProcessorImpl : public TraceProcessor,
                            public TraceProcessorStorageImpl {
  public:
-  explicit TraceProcessorImpl(const Config&);
+  TraceProcessorImpl(const Config&, TraceProcessor::PlatformInterface*);
 
   TraceProcessorImpl(const TraceProcessorImpl&) = delete;
   TraceProcessorImpl& operator=(const TraceProcessorImpl&) = delete;
@@ -73,6 +76,9 @@ class TraceProcessorImpl : public TraceProcessor,
   // =================================================================
 
   Iterator ExecuteQuery(const std::string& sql) override;
+
+  std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
+                                               uint32_t* offset) override;
 
   base::Status RegisterSqlPackage(SqlPackage) override;
 
@@ -129,6 +135,12 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::vector<uint8_t> GetMetricDescriptors() override;
 
+  // ================
+  // |    Export    |
+  // ================
+
+  base::Status Export(ExportFormat format, ExportOutput* output) override;
+
   // ===================
   // |   Summarizer    |
   // ===================
@@ -137,7 +149,13 @@ class TraceProcessorImpl : public TraceProcessor,
 
  private:
   // Needed for iterators to be able to access the context.
-  friend class IteratorImpl;
+  friend class SqliteIteratorImpl;
+
+  // By-value RegisterMetric body. External callers go through the
+  // |RegisterMetric| override (which copies its const-ref args into our
+  // parameters); the constructor's amalgamated-metrics loop calls this
+  // directly so it can move the temporaries through without extra copies.
+  base::Status RegisterMetricImpl(std::string path, std::string sql);
 
   bool IsRootMetricField(const std::string& metric_name);
 
@@ -147,7 +165,7 @@ class TraceProcessorImpl : public TraceProcessor,
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
-    const std::vector<SqlPackage>& packages;
+    const std::list<SqlPackage>& packages;
     std::vector<metrics::SqlMetricFile>& sql_metrics;
     const DescriptorPool* metrics_descriptor_pool;
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path;
@@ -178,7 +196,9 @@ class TraceProcessorImpl : public TraceProcessor,
   DescriptorPool metrics_descriptor_pool_;
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
-  std::vector<SqlPackage> registered_sql_packages_;
+  // list (not vector) for stable element addresses: RegisteredPackage holds
+  // string_views into these std::strings.
+  std::list<SqlPackage> registered_sql_packages_;
 
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;

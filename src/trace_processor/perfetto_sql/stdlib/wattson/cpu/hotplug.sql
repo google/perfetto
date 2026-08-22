@@ -98,9 +98,7 @@ WITH
   )
 SELECT ts, dur, cpu, offline FROM filled_gaps ORDER BY cpu, ts;
 
--- Copies suspend state to each CPU defined, so that the suspend state can be
--- partitioned by cpu during interval_intersect()
+-- Nominal suspend table with gapless suspended state.
 CREATE PERFETTO TABLE _gapless_suspend_slices AS
-SELECT cpu, ts, dur, iif(power_state = 'suspended', TRUE, FALSE) AS suspended
-FROM _dev_cpu_policy_map
-CROSS JOIN android_suspend_state;
+SELECT ts, dur, iif(power_state = 'suspended', TRUE, FALSE) AS suspended
+FROM android_suspend_state;

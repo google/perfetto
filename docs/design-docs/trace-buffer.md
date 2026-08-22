@@ -64,7 +64,8 @@ Readback gives the following guarantees:
   protobuf-encoded TracePacket messages. Packets that are missing fragments, are
   missing patches or are invalid are dropped.
 * Data drops are always tracked and reported through the
-  `TracePacket.previous_packet_dropped` flag.
+  `TracePacket.previous_packet_dropped` field (a `DataLossReason` bitmask:
+  nonzero means dropped, and TraceBufferV2 sets bits identifying the cause).
 * TraceBuffer tries very hard to avoid _hiding_ valid data: a missing fragment
   or other similar protocol violations should not invalidate the rest of the
   data for the sequence.

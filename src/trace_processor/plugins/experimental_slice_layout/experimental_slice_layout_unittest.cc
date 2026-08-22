@@ -43,9 +43,9 @@ std::string ToVis(const tables::SliceTable& slice,
   std::vector<std::string> lines;
   for (uint32_t i = 0; i < table.row_count(); ++i) {
     auto layout_depth = table.GetCellUnchecked<CI::layout_depth>(kSpec, i);
-    auto rr = slice.FindById(SliceId(table.GetCellUnchecked<CI::id>(kSpec, i)));
-    int64_t ts = rr->ts();
-    int64_t dur = rr->dur();
+    auto rr = slice[SliceId(table.GetCellUnchecked<CI::id>(kSpec, i))];
+    int64_t ts = rr.ts();
+    int64_t dur = rr.dur();
     for (int64_t j = 0; j < dur; ++j) {
       auto y = static_cast<size_t>(layout_depth);
       auto x = static_cast<size_t>(ts + j);
@@ -236,8 +236,9 @@ TEST(ExperimentalSliceLayoutTest, PreviousGroupFullyNested) {
   // This test ensures that our bounding box logic works when the bounding box
   // of an earlier group is nested inside bounding box of a later group.
   // In that case, we should still layout in a way which avoids overlaps.
+  // Because groups are placed tallest first, group 3 claims the top rows and
+  // the shorter group 2 settles below it.
 
-  // Group 1 exists just to create push group 2 down one row.
   auto a = Insert(&slice_table, 0 /*ts*/, 1 /*dur*/, 1 /*track_id*/, name,
                   std::nullopt);
   base::ignore_result(a);
@@ -264,13 +265,47 @@ TEST(ExperimentalSliceLayoutTest, PreviousGroupFullyNested) {
   bool res = cursor->Run({SqlValue::String("1,2,3")});
   EXPECT_TRUE(res);
   ExpectOutput(slice_table, *cursor->dataframe(), R"(
-#
-##########
-#########
-   ####
+#  ####
    ###
    ##
    #
+##########
+#########
+)");
+}
+
+TEST(ExperimentalSliceLayoutTest, WideShallowGroupDoesNotWedgeTree) {
+  StringPool pool;
+  tables::SliceTable slice_table(&pool);
+  StringId name = pool.InternString("Slice");
+
+  // Regression test for a wide, shallow overflow slice (e.g. a PyTorch
+  // 'ProfilerStep') that spans a deep call tree. It must not be wedged between
+  // the tree's root and its children (which would push the whole tree down);
+  // tallest-first placement keeps the tree at its natural depth and drops the
+  // wide slice below it.
+  auto wide = Insert(&slice_table, 0 /*ts*/, 20 /*dur*/, 1 /*track_id*/, name,
+                     std::nullopt);
+  base::ignore_result(wide);
+
+  auto t0 = Insert(&slice_table, 2 /*ts*/, 10 /*dur*/, 2 /*track_id*/, name,
+                   std::nullopt);
+  auto t1 = Insert(&slice_table, 2 /*ts*/, 8 /*dur*/, 2 /*track_id*/, name, t0);
+  auto t2 = Insert(&slice_table, 2 /*ts*/, 6 /*dur*/, 2 /*track_id*/, name, t1);
+  auto t3 = Insert(&slice_table, 2 /*ts*/, 4 /*dur*/, 2 /*track_id*/, name, t2);
+  base::ignore_result(t3);
+
+  ExperimentalSliceLayout gen(&pool, &slice_table);
+
+  auto cursor = gen.MakeCursor();
+  bool res = cursor->Run({SqlValue::String("1,2")});
+  EXPECT_TRUE(res);
+  ExpectOutput(slice_table, *cursor->dataframe(), R"(
+  ##########
+  ########
+  ######
+  ####
+####################
 )");
 }
 

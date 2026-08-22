@@ -92,6 +92,10 @@ struct WindowFunctionRegistration {
 struct PluginDataframe {
   core::dataframe::Dataframe* dataframe;
   std::string name;
+
+  // Indexes to attach to `dataframe` once it has been finalized. Each
+  // entry is the list of column names that form one index.
+  std::vector<std::vector<std::string>> indexes;
 };
 
 namespace sqlite {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './tag_input.scss';
 import m from 'mithril';
 import {type HTMLFocusableAttrs, Intent} from './common';
 import {findRef} from '../base/dom_utils';

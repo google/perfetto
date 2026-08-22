@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './multiselect.scss';
 import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
-import {Button} from './button';
+import {Button, type ButtonVariant} from './button';
 import {Checkbox} from './checkbox';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
@@ -50,11 +51,12 @@ export interface MultiSelectAttrs {
 }
 
 export type PopupMultiSelectAttrs = MultiSelectAttrs & {
-  intent?: Intent;
-  compact?: boolean;
-  icon?: string;
-  label: string;
-  position?: PopupPosition;
+  readonly intent?: Intent;
+  readonly compact?: boolean;
+  readonly icon?: string;
+  readonly label: string;
+  readonly variant?: ButtonVariant;
+  readonly position?: PopupPosition;
 };
 
 // A component which shows a list of items with checkboxes, allowing the user to
@@ -236,11 +238,15 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
 
 // The same multi-select component that functions as a drop-down instead of
 // a list.
-export class PopupMultiSelect
-  implements m.ClassComponent<PopupMultiSelectAttrs>
-{
+export class PopupMultiSelect implements m.ClassComponent<PopupMultiSelectAttrs> {
   view({attrs}: m.CVnode<PopupMultiSelectAttrs>) {
-    const {icon, position = PopupPosition.Auto, intent, compact} = attrs;
+    const {
+      icon,
+      position = PopupPosition.Auto,
+      intent,
+      compact,
+      variant,
+    } = attrs;
 
     return m(
       Popup,
@@ -250,6 +256,7 @@ export class PopupMultiSelect
           icon,
           intent,
           compact,
+          variant,
         }),
         position,
       },

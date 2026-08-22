@@ -433,15 +433,21 @@ class GeneratorJob {
     std::sort(imports.begin(), imports.end());
 
     for (const std::string& imp : imports) {
+      // Try primary first; fall through to external for imports under a
+      // different source root. Order matters because the external prefix is
+      // typically broader (e.g. "protos") than the primary ("protos/perfetto");
+      // checking external first would steal matches that the primary should
+      // win.
       std::string include_path;
-      if (!path_strip_prefix_external_.empty() &&
-          StartsWith(imp, path_strip_prefix_external_)) {
+      if (!path_strip_prefix_.empty() && StartsWith(imp, path_strip_prefix_)) {
+        include_path = path_add_prefix_ + StripPrefix(imp, path_strip_prefix_);
+      } else if (!path_strip_prefix_external_.empty() &&
+                 StartsWith(imp, path_strip_prefix_external_)) {
         include_path = path_add_prefix_external_ +
                        StripPrefix(imp, path_strip_prefix_external_);
-      } else if (!path_strip_prefix_.empty() &&
-                 StartsWith(imp, path_strip_prefix_)) {
-        include_path = path_add_prefix_ + StripPrefix(imp, path_strip_prefix_);
       } else {
+        // Pass-through for imports outside any configured strip prefix (e.g.
+        // google/protobuf/*); preserves the pre-multi-root silent behavior.
         include_path = path_add_prefix_ + imp;
       }
       stub_h_->Print("#include \"$name$.h\"\n", "name", include_path);

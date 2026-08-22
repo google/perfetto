@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,65 +16,37 @@ import type {TableColumn} from '../../components/widgets/sql/table/table_column'
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
-// Handles the access to all of the Perfetto SQL modules accessible to Trace
-//  Processor.
+// All Perfetto SQL modules accessible to Trace Processor.
 export interface SqlModules {
-  // Returns all tables/views between all loaded Perfetto SQL modules.
   listTables(): SqlTable[];
-
-  // Returns all loaded Perfetto SQL modules.
   listModules(): SqlModule[];
-
-  // Returns names of all tables/views between all loaded Perfetto SQL modules.
   listTablesNames(): string[];
-
-  // Returns Perfetto SQL table/view if it was loaded in one of the Perfetto
-  // SQL module.
   getTable(tableName: string): SqlTable | undefined;
-
-  // Returns module that contains Perfetto SQL table/view if it was loaded in one of the Perfetto
-  // SQL module.
   getModuleForTable(tableName: string): SqlModule | undefined;
-
-  // Returns true if the module is disabled due to missing data in the trace.
   isModuleDisabled(moduleName: string): boolean;
 
-  // Returns whether a specific table passed its own data availability check.
-  // Returns undefined if no per-table check exists for this table.
-  // When undefined, callers fall back to isModuleDisabled.
+  // undefined if no per-table check exists; callers fall back to isModuleDisabled.
   tablePassedDataCheck?(tableName: string): boolean | undefined;
 
-  // Returns the set of all disabled module names.
   getDisabledModules(): ReadonlySet<string>;
 
-  // Triggers the data availability checks if not already started.
-  // Safe to call multiple times - subsequent calls are no-ops.
-  // Returns a promise that resolves when initialization is complete.
+  // Idempotent; resolves once availability checks complete.
   ensureInitialized(): Promise<void>;
 }
 
-// Handles the access to a specific Perfetto SQL Package. Package consists of
-// Perfetto SQL modules.
+// A Perfetto SQL package (a set of modules).
 export interface SqlPackage {
   readonly name: string;
   readonly modules: SqlModule[];
 
-  // Returns all tables/views in this package.
   listTables(): SqlTable[];
-
-  // Returns names of all tables/views in this package.
   listTablesNames(): string[];
-
   getTable(tableName: string): SqlTable | undefined;
-
-  // Returns sqlModule containing table with provided name.
   getModuleForTable(tableName: string): SqlModule | undefined;
-
-  // Returns sqlTableDefinition of the table with provided name.
   getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined;
 }
 
-// Handles the access to a specific Perfetto SQL module.
+// A single Perfetto SQL module.
 export interface SqlModule {
   readonly includeKey: string;
   readonly tags: string[];
@@ -83,14 +55,10 @@ export interface SqlModule {
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
 
-  // Returns sqlTable with provided name.
   getTable(tableName: string): SqlTable | undefined;
-
-  // Returns sqlTableDefinition of the table with provided name.
   getSqlTableDefinition(tableName: string): SqlTableDefinition | undefined;
 }
 
-// The definition of Perfetto SQL table/view.
 export interface SqlTable {
   readonly name: string;
   readonly includeKey?: string;
@@ -100,11 +68,9 @@ export interface SqlTable {
   readonly dataCheckSql?: string;
   readonly columns: SqlColumn[];
 
-  // Returns all columns as TableColumns.
   getTableColumns(): TableColumn[];
 }
 
-// The definition of Perfetto SQL function.
 export interface SqlFunction {
   readonly name: string;
   readonly description: string;
@@ -113,7 +79,6 @@ export interface SqlFunction {
   readonly returnDesc: string;
 }
 
-// The definition of Perfetto SQL table function.
 export interface SqlTableFunction {
   readonly name: string;
   readonly description: string;
@@ -121,7 +86,6 @@ export interface SqlTableFunction {
   readonly returnCols: SqlColumn[];
 }
 
-// The definition of Perfetto SQL macro.
 export interface SqlMacro {
   readonly name: string;
   readonly description: string;
@@ -129,15 +93,12 @@ export interface SqlMacro {
   readonly returnType: string;
 }
 
-// The definition of Perfetto SQL column.
 export interface SqlColumn {
   readonly name: string;
   readonly description?: string;
   readonly type?: PerfettoSqlType;
 }
 
-// The definition of Perfetto SQL argument. Can be used for functions, table
-// functions or macros.
 export interface SqlArgument {
   readonly name: string;
   readonly description: string;
@@ -151,8 +112,7 @@ export interface TableAndColumn {
   isEqual(o: TableAndColumn): boolean;
 }
 
-// Returns true if a table should be considered disabled (no data).
-// Uses table-level availability when known, falls back to module-level.
+// Per-table availability if known; else falls back to module-level.
 export function isTableEffectivelyDisabled(
   sqlModules: SqlModules,
   tableName: string,

@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {TracePreset} from './bigtrace_query_client';
+
 export const queryState = {
   initialQuery: undefined as string | undefined,
+  // Set by a home-page preset card; consumed once by QueryPage to seed a tab.
+  initialPreset: undefined as TracePreset | undefined,
+  // Set by the settings-page "Query" button; consumed once by QueryPage to open
+  // a fresh tab seeded from the current /settings globals (no SQL).
+  seedTabFromSettings: false,
 };

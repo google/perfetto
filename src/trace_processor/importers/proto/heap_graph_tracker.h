@@ -28,7 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -36,7 +35,7 @@
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "protos/third_party/android/art/heap_graph.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -47,21 +46,6 @@ struct NormalizedType {
   base::StringView name;
   bool is_static_class;
   size_t number_of_arrays;
-};
-
-struct PathFromRoot {
-  static constexpr size_t kRoot = 0;
-  struct Node {
-    uint32_t depth = 0;
-    // Invariant: parent_id < id of this node.
-    size_t parent_id = 0;
-    int64_t size = 0;
-    int64_t count = 0;
-    StringId class_name_id = {};
-    std::map<StringId, size_t> children;
-  };
-  std::vector<Node> nodes{Node{}};
-  std::set<tables::HeapGraphObjectTable::Id> visited;
 };
 
 std::optional<base::StringView> GetStaticClassTypeName(base::StringView type);
@@ -79,8 +63,9 @@ class HeapGraphTracker : public Destructible {
     uint64_t object_id = 0;
     uint64_t self_size = 0;
     uint64_t type_id = 0;
-    protos::pbzero::HeapGraphObject::HeapType heap_type =
-        protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN;
+    ::com::android::art::tracing::pbzero::HeapGraphObject::HeapType heap_type =
+        ::com::android::art::tracing::pbzero::HeapGraphObject::
+            HEAP_TYPE_UNKNOWN;
 
     std::vector<uint64_t> field_name_ids;
     std::vector<uint64_t> referred_objects;
@@ -98,7 +83,7 @@ class HeapGraphTracker : public Destructible {
   };
 
   struct SourceRoot {
-    protos::pbzero::HeapGraphRoot::Type root_type;
+    ::com::android::art::tracing::pbzero::HeapGraphRoot::Type root_type;
     std::vector<uint64_t> object_ids;
   };
 
@@ -110,16 +95,17 @@ class HeapGraphTracker : public Destructible {
 
   void AddRoot(uint32_t seq_id, UniquePid upid, int64_t ts, SourceRoot root);
   void AddObject(uint32_t seq_id, UniquePid upid, int64_t ts, SourceObject obj);
-  void AddInternedType(uint32_t seq_id,
-                       uint64_t intern_id,
-                       StringId strid,
-                       std::optional<uint64_t> location_id,
-                       uint64_t object_size,
-                       std::vector<uint64_t> field_name_ids,
-                       uint64_t superclass_id,
-                       uint64_t classloader_id,
-                       bool no_fields,
-                       protos::pbzero::HeapGraphType::Kind kind);
+  void AddInternedType(
+      uint32_t seq_id,
+      uint64_t intern_id,
+      StringId strid,
+      std::optional<uint64_t> location_id,
+      uint64_t object_size,
+      std::vector<uint64_t> field_name_ids,
+      uint64_t superclass_id,
+      uint64_t classloader_id,
+      bool no_fields,
+      ::com::android::art::tracing::pbzero::HeapGraphType::Kind kind);
   void AddInternedFieldName(uint32_t seq_id,
                             uint64_t intern_id,
                             base::StringView str);
@@ -129,6 +115,7 @@ class HeapGraphTracker : public Destructible {
   void FinalizeProfile(uint32_t seq);
   void FinalizeAllProfiles();
   void SetPacketIndex(uint32_t seq_id, uint64_t index);
+  void SetHeapSize(uint32_t seq_id, int64_t heap_size);
 
   ~HeapGraphTracker() override;
 
@@ -146,16 +133,12 @@ class HeapGraphTracker : public Destructible {
     return field_to_rows_.Find(field_name);
   }
 
-  std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildFlamegraph(
-      int64_t current_ts,
-      UniquePid current_upid);
-
   uint64_t GetLastObjectId(uint32_t seq_id) {
     return GetOrCreateSequence(seq_id).last_object_id;
   }
 
-  perfetto::protos::pbzero::HeapGraphObject::HeapType GetLastObjectHeapType(
-      uint32_t seq_id) {
+  ::com::android::art::tracing::pbzero::HeapGraphObject::HeapType
+  GetLastObjectHeapType(uint32_t seq_id) {
     return GetOrCreateSequence(seq_id).last_heap_type;
   }
 
@@ -172,14 +155,15 @@ class HeapGraphTracker : public Destructible {
     uint64_t superclass_id;
     bool no_fields;
     uint64_t classloader_id;
-    protos::pbzero::HeapGraphType::Kind kind;
+    ::com::android::art::tracing::pbzero::HeapGraphType::Kind kind;
   };
   struct SequenceState {
     UniquePid current_upid = 0;
     int64_t current_ts = 0;
     uint64_t last_object_id = 0;
-    protos::pbzero::HeapGraphObject::HeapType last_heap_type =
-        protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN;
+    ::com::android::art::tracing::pbzero::HeapGraphObject::HeapType
+        last_heap_type = ::com::android::art::tracing::pbzero::HeapGraphObject::
+            HEAP_TYPE_UNKNOWN;
     std::vector<SourceRoot> current_roots;
     std::vector<uint64_t> internal_vm_roots;
 
@@ -217,6 +201,7 @@ class HeapGraphTracker : public Destructible {
     // "libcore.util.NativeAllocationRegistry" object.
     std::map<tables::HeapGraphObjectTable::Id, int64_t> nar_size_by_obj_id;
     bool truncated = false;
+    std::optional<int64_t> heap_size;
   };
 
   SequenceState& GetOrCreateSequence(uint32_t seq_id);
@@ -230,9 +215,10 @@ class HeapGraphTracker : public Destructible {
   void PopulateSuperClasses(const SequenceState& seq);
   InternedType* GetSuperClass(SequenceState* sequence_state,
                               const InternedType* current_type);
-  bool IsTruncated(UniquePid upid, int64_t ts);
-  StringId InternRootTypeString(protos::pbzero::HeapGraphRoot::Type);
-  StringId InternTypeKindString(protos::pbzero::HeapGraphType::Kind);
+  StringId InternRootTypeString(
+      ::com::android::art::tracing::pbzero::HeapGraphRoot::Type);
+  StringId InternTypeKindString(
+      ::com::android::art::tracing::pbzero::HeapGraphType::Kind);
 
   // Returns the object pointed to by `field` in `obj`.
   std::optional<tables::HeapGraphObjectTable::Id> GetReferenceByFieldName(
@@ -250,12 +236,6 @@ class HeapGraphTracker : public Destructible {
                    std::vector<tables::HeapGraphObjectTable::Id>&);
   void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
   size_t RankRoot(StringId type);
-  void UpdateShortestPaths(
-      base::CircularQueue<
-          std::pair<int32_t, tables::HeapGraphObjectTable::RowReference>>&,
-      tables::HeapGraphObjectTable::RowReference row_ref);
-  void FindPathFromRoot(tables::HeapGraphObjectTable::RowReference,
-                        PathFromRoot* path);
 
   TraceStorage* const storage_;
   GlobalStatsTracker* const global_stats_tracker_;
@@ -266,6 +246,7 @@ class HeapGraphTracker : public Destructible {
   tables::HeapGraphObjectTable::Cursor superclass_cursor_;
   tables::HeapGraphReferenceTable::Cursor reference_cursor_;
   tables::HeapGraphReferenceTable::Cursor referred_cursor_;
+  tables::HeapGraphTable::Cursor heap_graph_cursor_;
 
   std::map<std::pair<std::optional<StringId>, StringId>,
            std::vector<tables::HeapGraphClassTable::RowNumber>>
@@ -274,11 +255,6 @@ class HeapGraphTracker : public Destructible {
                     std::vector<tables::HeapGraphReferenceTable::RowNumber>>
       field_to_rows_;
 
-  std::map<std::pair<UniquePid, int64_t>,
-           std::set<tables::HeapGraphObjectTable::RowNumber>>
-      roots_;
-  std::set<std::pair<UniquePid, int64_t>> truncated_graphs_;
-
   StringId cleaner_thunk_str_id_;
   StringId referent_str_id_;
   StringId cleaner_thunk_this0_str_id_;
@@ -286,13 +262,17 @@ class HeapGraphTracker : public Destructible {
   StringId cleaner_next_str_id_;
 
   std::array<StringId, 15> root_type_string_ids_ = {};
-  static_assert(protos::pbzero::HeapGraphRoot_Type_MIN == 0);
-  static_assert(protos::pbzero::HeapGraphRoot_Type_MAX + 1 ==
+  static_assert(::com::android::art::tracing::pbzero::HeapGraphRoot_Type_MIN ==
+                0);
+  static_assert(::com::android::art::tracing::pbzero::HeapGraphRoot_Type_MAX +
+                    1 ==
                 std::tuple_size<decltype(root_type_string_ids_)>{});
 
   std::array<StringId, 12> type_kind_string_ids_ = {};
-  static_assert(protos::pbzero::HeapGraphType_Kind_MIN == 0);
-  static_assert(protos::pbzero::HeapGraphType_Kind_MAX + 1 ==
+  static_assert(::com::android::art::tracing::pbzero::HeapGraphType_Kind_MIN ==
+                0);
+  static_assert(::com::android::art::tracing::pbzero::HeapGraphType_Kind_MAX +
+                    1 ==
                 std::tuple_size<decltype(type_kind_string_ids_)>{});
 };
 

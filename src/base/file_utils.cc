@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -265,11 +266,58 @@ bool FlushFile(int fd) {
 #endif
 }
 
-bool Mkdir(const std::string& path) {
+bool SeekFile(int fd, uint64_t offset) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd < 0) {
+    errno = EBADF;
+    return false;
+  }
+  if (offset > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  return _lseeki64(fd, static_cast<int64_t>(offset), SEEK_SET) != -1;
+#else
+  if (offset > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  return lseek(fd, static_cast<off_t>(offset), SEEK_SET) !=
+         static_cast<off_t>(-1);
+#endif
+}
+
+bool TruncateFile(int fd, uint64_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd < 0) {
+    errno = EBADF;
+    return false;
+  }
+  if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  int result = _chsize_s(fd, static_cast<int64_t>(size));
+  if (result != 0) {
+    errno = result;
+    return false;
+  }
+  return true;
+#else
+  if (size > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+    errno = EOVERFLOW;
+    return false;
+  }
+  return PERFETTO_EINTR(ftruncate(fd, static_cast<off_t>(size))) == 0;
+#endif
+}
+
+bool Mkdir(const std::string& path, uint32_t mode) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  base::ignore_result(mode);
   return _mkdir(path.c_str()) == 0;
 #else
-  return mkdir(path.c_str(), 0755) == 0;
+  return mkdir(path.c_str(), mode) == 0;
 #endif
 }
 
@@ -278,6 +326,14 @@ bool Rmdir(const std::string& path) {
   return _rmdir(path.c_str()) == 0;
 #else
   return rmdir(path.c_str()) == 0;
+#endif
+}
+
+bool Unlink(const char* path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return _unlink(path) == 0;
+#else
+  return unlink(path) == 0;
 #endif
 }
 
@@ -335,6 +391,22 @@ bool FileExists(const std::string& path) {
   return _access(path.c_str(), 0) == 0;
 #else
   return access(path.c_str(), F_OK) == 0;
+#endif
+}
+
+bool DirectoryExists(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  DWORD attrs = GetFileAttributesA(path.c_str());
+  return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY);
+#else
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0) {
+    return false;
+  }
+  // MSan's stat() interceptor on glibc 2.35+ does not mark the output buffer
+  // as initialized (the syscall goes through statx).
+  PERFETTO_MSAN_UNPOISON(&st, sizeof(st));
+  return S_ISDIR(st.st_mode);
 #endif
 }
 
@@ -555,6 +627,27 @@ std::string Dirname(const std::string& path) {
   return p.substr(0, last_sep);
 }
 
+size_t PathRootPrefixLength(const std::string& path) {
+  size_t pos = 0;
+  // Skip over a leading drive letter, e.g. "C:\foo".
+  bool has_drive_letter = path.size() >= 2 && path[1] == ':' &&
+                          ((path[0] >= 'a' && path[0] <= 'z') ||
+                           (path[0] >= 'A' && path[0] <= 'Z'));
+  if (has_drive_letter)
+    pos = 2;
+
+  size_t end = path.find_first_not_of("/\\", pos);
+  end = end == std::string::npos ? path.size() : end;
+
+  // A drive letter not followed by a separator ("C:foo") is relative to the
+  // current directory of that drive, not absolute.
+  return end > pos ? end : 0;
+}
+
+bool IsAbsolutePath(const std::string& path) {
+  return PathRootPrefixLength(path) != 0;
+}
+
 base::Status SetFilePermissions(const std::string& file_path,
                                 const std::string& group_name_or_id,
                                 const std::string& mode_bits) {
@@ -637,6 +730,12 @@ std::optional<uint64_t> GetFileSize(PlatformHandle fd) {
   return static_cast<uint64_t>(buf.st_size);
 #endif
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+std::optional<uint64_t> GetFileSize(int fd) {
+  return GetFileSize(reinterpret_cast<PlatformHandle>(_get_osfhandle(fd)));
+}
+#endif
 
 // LinuxFileWatch
 

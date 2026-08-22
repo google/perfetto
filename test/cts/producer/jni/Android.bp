@@ -17,11 +17,13 @@ cc_library_shared {
     "perfetto_cts_jni_deps",
     "perfetto_flags_c_lib",
     "libperfetto_client_experimental",
+    "libzstd",
   ],
   shared_libs: [
     "libandroid",
     "liblog",
     "libpcre2",
+    "libz",
   ],
   compile_multilib: "both",
   stl: "libc++_static",

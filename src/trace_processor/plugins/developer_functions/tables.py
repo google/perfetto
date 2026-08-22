@@ -14,22 +14,18 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppString
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 DATAFRAME_QUERY_PLAN_DECODER_TABLE_TABLE = Table(
     python_module=__file__,
     class_name="DataframeQueryPlanDecoderTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="not_exposed_to_sql",
     columns=[
-        C("bytecode_str",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("serialized_bc",
-          CppString(),
-          flags=ColumnFlag.HIDDEN,
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("bytecode_str", CppString()),
+        C("serialized_bc", CppString(), flags=ColumnFlag.HIDDEN),
     ],
 )
 

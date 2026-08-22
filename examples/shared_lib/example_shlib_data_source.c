@@ -90,7 +90,6 @@ int main(void) {
 #include "perfetto/public/protos/config/data_source_config.pzc.h"
 #include "perfetto/public/protos/config/trace_config.pzc.h"
 #include "perfetto/public/protos/config/track_event/track_event_config.pzc.h"
-#include "perfetto/public/protos/trace/android/android_track_event.pzc.h"
 #include "perfetto/public/protos/trace/clock_snapshot.pzc.h"
 #include "perfetto/public/protos/trace/interned_data/interned_data.pzc.h"
 #include "perfetto/public/protos/trace/test_event.pzc.h"

@@ -75,6 +75,10 @@ class PERFETTO_EXPORT_COMPONENT TracingProducerBackend {
     uint32_t shmem_size_hint_bytes = 0;
     uint32_t shmem_page_size_hint_bytes = 0;
 
+    // Machine id propagated from TracingInitArgs; honored by the in-process
+    // backend only.
+    uint32_t machine_id = 0;
+
     // If true, the backend should allocate a shared memory buffer and provide
     // it to the service when connecting.
     // It's used in startup tracing.

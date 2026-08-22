@@ -22,6 +22,18 @@ namespace protovm {
 Allocator::Allocator(size_t memory_limit_bytes)
     : memory_limit_bytes_{memory_limit_bytes}, used_memory_bytes_{0} {}
 
+StatusOr<OwnedPtr<MapNode>> Allocator::CreateMapNode(uint64_t key,
+                                                     OwnedPtr<Node> value) {
+  PERFETTO_DCHECK(value);
+  auto p = Allocate();
+  if (!p.IsOk()) {
+    Delete(value.release());
+    PROTOVM_RETURN(p);
+  }
+  new (*p) MapNode{key, std::move(value)};
+  return OwnedPtr<MapNode>(static_cast<MapNode*>(*p));
+}
+
 StatusOr<Node::Bytes> Allocator::AllocateAndCopyBytes(
     protozero::ConstBytes data) {
   if (used_memory_bytes_ + data.size > memory_limit_bytes_) {
@@ -49,7 +61,14 @@ void Allocator::Delete(Node* node) {
   DeleteReferencedData(node);
   node->~Node();
   slab_allocator_.Free(node);
-  used_memory_bytes_ -= sizeof(Node);
+  used_memory_bytes_ -= kNodeSize;
+}
+
+void Allocator::Delete(MapNode* node) {
+  Delete(node->value.release());
+  node->~MapNode();
+  slab_allocator_.Free(node);
+  used_memory_bytes_ -= kNodeSize;
 }
 
 void Allocator::DeleteReferencedData(Node* node) {
@@ -59,16 +78,14 @@ void Allocator::DeleteReferencedData(Node* node) {
     for (auto it = indexed_fields->index_to_node.begin(); it;) {
       auto& map_node = *it;
       it = indexed_fields->index_to_node.Remove(it);
-      Delete(&GetOuterNode(map_node));
+      Delete(&map_node);
     }
   } else if (auto* mapped_fields = node->GetIf<Node::MappedRepeatedField>()) {
     for (auto it = mapped_fields->key_to_node.begin(); it;) {
       auto& map_node = *it;
       it = mapped_fields->key_to_node.Remove(it);
-      Delete(&GetOuterNode(map_node));
+      Delete(&map_node);
     }
-  } else if (auto* map_node = node->GetIf<Node::MapNode>()) {
-    Delete(map_node->value.release());
   } else if (auto* bytes = node->GetIf<Node::Bytes>()) {
     DeleteReferencedData(bytes);
   }
@@ -78,7 +95,7 @@ void Allocator::DeleteReferencedData(Node::Message* message) {
   for (auto it = message->field_id_to_node.begin(); it;) {
     auto& map_node = *it;
     it = message->field_id_to_node.Remove(it);
-    Delete(&GetOuterNode(map_node));
+    Delete(&map_node);
   }
 }
 
@@ -89,6 +106,22 @@ void Allocator::DeleteReferencedData(Node::Bytes* bytes) {
 void Allocator::DeallocateBytes(OwnedPtr<void> p, size_t size) {
   free(p.release());
   used_memory_bytes_ -= size;
+}
+
+StatusOr<void*> Allocator::Allocate() {
+  if (used_memory_bytes_ + kNodeSize > memory_limit_bytes_) {
+    PROTOVM_ABORT(
+        "Failed to allocate element (%zu bytes). Memory limit: %zu [bytes]. "
+        "Used: %zu "
+        "[bytes].)",
+        kNodeSize, memory_limit_bytes_, used_memory_bytes_);
+  }
+  auto* p = slab_allocator_.Allocate();
+  if (!p) {
+    PROTOVM_ABORT("Failed to allocate node");
+  }
+  used_memory_bytes_ += kNodeSize;
+  return p;
 }
 
 }  // namespace protovm

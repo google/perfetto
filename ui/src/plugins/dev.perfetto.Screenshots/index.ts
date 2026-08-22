@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';

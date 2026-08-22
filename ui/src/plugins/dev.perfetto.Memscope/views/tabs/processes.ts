@@ -42,9 +42,10 @@ import {
   CATEGORIES,
   type CategoryId,
 } from '../../process_categories';
-import {Billboard} from '../../components/billboard';
+import {Billboard, BillboardStrip} from '../../components/billboard';
 import {ColorChip, chipColor} from '../../components/color_chip';
-import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../../utils';
+import {formatBytesIec} from '../../../../base/bytes_format';
 import {
   type ProcessGrouping,
   type ProcessMetric,
@@ -52,7 +53,6 @@ import {
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
 } from '../../process_data';
-import {Stack} from '../../../../widgets/stack';
 
 export type {ProcessGrouping, ProcessMetric, ProcessMemoryRow};
 export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};
@@ -511,23 +511,22 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
     const totalFileKb = latestProcesses.reduce((s, p) => s + p.fileKb, 0);
     const totalDmabufKb = latestProcesses.reduce((s, p) => s + p.dmabufKb, 0);
 
-    return m(Stack, {spacing: 'large'}, [
+    return m.fragment({}, [
       latestProcesses.length > 0 &&
         m(
-          Stack,
-          {orientation: 'horizontal', spacing: 'large'},
+          BillboardStrip,
           m(Billboard, {
-            ...billboardKb(totalAnonSwapKb),
-            label: 'Anon + Swap',
+            ...billboardBytes(totalAnonSwapKb * 1024),
+            label: 'RSS Anon + Swap',
             desc: 'Sum of anonymous RSS + swap across all processes',
           }),
           m(Billboard, {
-            ...billboardKb(totalFileKb),
+            ...billboardBytes(totalFileKb * 1024),
             label: 'File',
             desc: 'Sum of file-backed RSS across all processes',
           }),
           m(Billboard, {
-            ...billboardKb(totalDmabufKb),
+            ...billboardBytes(totalDmabufKb * 1024),
             label: 'DMA-BUF',
             desc: 'Sum of DMA-BUF heap RSS across all processes',
           }),
@@ -607,7 +606,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 xAxisMin: chartXMin,
                 xAxisMax: chartXMax,
                 formatXValue: (v: number) => `${v.toFixed(0)}s`,
-                formatYValue: (v: number) => formatKb(v),
+                formatYValue: (v: number) => formatBytesIec(v * 1024),
                 yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
                 onSeriesClick: isDrilledDown
                   ? undefined
@@ -652,7 +651,7 @@ interface ProcessTableAttrs {
 }
 
 class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
-  private sortKey: string = 'rss_kb';
+  private sortKey: string = 'anon_swap_kb';
   private sortDir: SortDirection = 'DESC';
   private showDebuggableOnly: boolean = false;
   private oomBucketFilter: Set<number> = new Set();
@@ -665,7 +664,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
   ): m.Children {
     const current = this.sortKey === key ? this.sortDir : undefined;
     const onSort = (dir: SortDirection | undefined) => {
-      this.sortKey = dir !== undefined ? key : 'rss_kb';
+      this.sortKey = dir !== undefined ? key : 'anon_swap_kb';
       this.sortDir = dir ?? 'DESC';
     };
     return m(
@@ -681,7 +680,8 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
   }
 
   view({attrs}: m.CVnode<ProcessTableAttrs>): m.Children {
-    const {processes, isUserDebug, searchQuery, onSearchChange} = attrs;
+    const {processes, isUserDebug, session, searchQuery, onSearchChange} =
+      attrs;
 
     const visible = processes.filter((p) => {
       if (this.showDebuggableOnly && !p.debuggable && !isUserDebug) {
@@ -753,7 +753,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       {key: 'trend', header: m(GridCell, 'RSS trend')},
       {
         key: 'anon_swap_kb',
-        header: this.headerCell('anon_swap_kb', 'Anon + Swap'),
+        header: this.headerCell('anon_swap_kb', 'RSS Anon + Swap'),
       },
       {key: 'file_kb', header: this.headerCell('file_kb', 'File')},
       {key: 'shmem_kb', header: this.headerCell('shmem_kb', 'Shmem')},
@@ -780,35 +780,105 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
         if (mn > 0) return `${mn}m ${s}s`;
         return `${s}s`;
       })();
+      const canProfile = p.debuggable || isUserDebug;
+      const profileButton = m(Button, {
+        label: 'Profile',
+        rightIcon: 'arrow_forward',
+        rounded: true,
+        variant: ButtonVariant.Filled,
+        intent: Intent.Primary,
+        disabled: !canProfile,
+        tooltip: canProfile
+          ? undefined
+          : 'Process is not debuggable. A userdebug or eng build is required to heap profile.',
+        onclick: () =>
+          session.startProfile(p.pid, p.processName).then(() => m.redraw()),
+      });
+      const mutedStyle = canProfile
+        ? undefined
+        : {color: 'var(--pf-color-text-muted)', opacity: '0.7'};
+      // Chip cells skip opacity so the colored tags remain crisp.
+      const mutedTextOnly = canProfile
+        ? undefined
+        : {color: 'var(--pf-color-text-muted)'};
       return [
-        m(GridCell, p.processName),
-        m(GridCell, m(ColorChip, {color}, cat.name)),
-        m(GridCell, {align: 'right'}, `${p.pid}`),
         m(
           GridCell,
-          {align: 'right'},
+          {actionButtons: profileButton, style: mutedStyle},
+          p.processName,
+        ),
+        m(GridCell, {style: mutedTextOnly}, m(ColorChip, {color}, cat.name)),
+        m(GridCell, {align: 'right', style: mutedStyle}, `${p.pid}`),
+        m(
+          GridCell,
+          {align: 'right', style: mutedTextOnly},
           oomBucket
             ? m(ColorChip, {color: oomBucket.color}, oomLabel)
             : oomLabel,
         ),
-        m(GridCell, {align: 'right'}, ageStr),
-        m(GridCell, {align: 'right'}, formatKb(p.rssKb)),
-        m(GridCell, sparkline(p.rssTrendKb)),
+        m(GridCell, {align: 'right', style: mutedStyle}, ageStr),
         m(
           GridCell,
-          {align: 'right'},
-          p.anonKb + p.swapKb > 0 ? formatKb(p.anonKb + p.swapKb) : '-',
+          {align: 'right', style: mutedStyle},
+          formatBytesIec(p.rssKb * 1024),
         ),
-        m(GridCell, {align: 'right'}, p.fileKb > 0 ? formatKb(p.fileKb) : '-'),
+        m(GridCell, {style: mutedStyle}, sparkline(p.rssTrendKb)),
         m(
           GridCell,
-          {align: 'right'},
-          p.shmemKb > 0 ? formatKb(p.shmemKb) : '-',
+          {align: 'right', style: mutedStyle},
+          p.anonKb + p.swapKb > 0
+            ? formatBytesIec((p.anonKb + p.swapKb) * 1024)
+            : '-',
+        ),
+        m(
+          GridCell,
+          {align: 'right', style: mutedStyle},
+          p.fileKb > 0 ? formatBytesIec(p.fileKb * 1024) : '-',
+        ),
+        m(
+          GridCell,
+          {align: 'right', style: mutedStyle},
+          p.shmemKb > 0 ? formatBytesIec(p.shmemKb * 1024) : '-',
         ),
       ];
     });
 
+    const profile = session.profile;
+    const isStopping = profile?.state === 'stopping';
+
     return [
+      profile !== undefined &&
+        m(
+          '.pf-memscope-status-bar',
+          m('.pf-memscope-status-bar__dot'),
+          isStopping
+            ? `Stopping and reading trace for ${profile.processName}\u2026`
+            : `Recording heap profile for ${profile.processName} (PID ${profile.pid})`,
+          !isStopping && [
+            m(Button, {
+              label: 'Stop & Download',
+              icon: 'download',
+              minimal: true,
+              intent: Intent.Danger,
+              onclick: () =>
+                session.stopAndDownloadProfile().then(() => m.redraw()),
+            }),
+            m(Button, {
+              label: 'Stop & Open',
+              icon: 'stop',
+              minimal: true,
+              intent: Intent.Danger,
+              onclick: () =>
+                session.stopAndOpenProfile().then(() => m.redraw()),
+            }),
+            m(Button, {
+              label: 'Cancel',
+              icon: 'close',
+              minimal: true,
+              onclick: () => session.cancelProfile().then(() => m.redraw()),
+            }),
+          ],
+        ),
       m(
         '.pf-memscope-panel__header.pf-memscope-search-row',
         m(TextInput, {

@@ -250,6 +250,12 @@ Stylesheets live in `ui/src/assets/` and component-specific `.scss` files alongs
 
 The following patterns are consistently enforced during code review. Adhering to these will significantly speed up the review process.
 
+> **See also: [UI Review Antipatterns](ui-review-antipatterns.md)** — a deeper,
+> categorized catalogue of antipatterns mined from real maintainer review
+> feedback on contributor PRs (Mithril/rendering, state, layering, plugin/API
+> design, widgets, CSS, types, error handling, performance, PR scope). Consult it
+> when authoring or reviewing UI changes to pre-empt recurring mistakes.
+
 ### TypeScript/JavaScript Style
 
 **Prefer `undefined` over `null`:**
@@ -261,13 +267,13 @@ function getValue(): string | null { return null; }
 function getValue(): string | undefined { return undefined; }
 ```
 
-**Use `ReadonlyArray<T>` for arrays that shouldn't be modified:**
+**Use `readonly T[]` for arrays that shouldn't be modified:**
 ```typescript
 // Bad
 function process(items: string[]): void { ... }
 
 // Good
-function process(items: ReadonlyArray<string>): void { ... }
+function process(items: readonly string[]): void { ... }
 ```
 
 **Use `classNames()` utility for building CSS class strings:**

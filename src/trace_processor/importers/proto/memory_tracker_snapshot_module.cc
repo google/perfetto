@@ -36,14 +36,11 @@ MemoryTrackerSnapshotModule::MemoryTrackerSnapshotModule(
 
 MemoryTrackerSnapshotModule::~MemoryTrackerSnapshotModule() = default;
 
-void MemoryTrackerSnapshotModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void MemoryTrackerSnapshotModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kMemoryTrackerSnapshotFieldNumber:
-      parser_.ParseMemoryTrackerSnapshot(ts, decoder.memory_tracker_snapshot());
+      parser_.ParseMemoryTrackerSnapshot(
+          args.ts, args.field.Cast<TracePacket::kMemoryTrackerSnapshot>());
       return;
   }
 }

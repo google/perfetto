@@ -1,0 +1,63 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Tooltip shown when hovering a heap-profile interval slice.
+.pf-heap-profile-interval-tooltip {
+  // The enclosing .pf-track__tooltip forces font-weight: 300, and <strong>
+  // resolves the relative `bolder` against that to normal, so pin an absolute
+  // weight for the heading and metric labels.
+  &__heading,
+  &__metric-label {
+    font-weight: 700;
+  }
+
+  &__metric {
+    margin-top: 6px;
+    max-width: 340px;
+    white-space: normal;
+  }
+
+  &__metric-description {
+    opacity: 0.7;
+    font-size: 11px;
+  }
+}
+
+// Details-panel title with a click-to-open help icon beside it.
+.pf-heap-profile-title-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  &__icon {
+    color: var(--pf-color-foreground-muted);
+    cursor: pointer;
+    font-size: var(--pf-font-size-m);
+  }
+}
+
+// Help content shown by the header help icon in the details panel.
+.pf-heap-profile-help {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 340px;
+  white-space: normal;
+}
+
+// Secondary OOME error line under the details panel title.
+.pf-heap-profile-oome-error {
+  font-size: 12px;
+  color: var(--pf-color-error, #ff4081);
+}

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './error.scss';
 import m from 'mithril';
 
 export function renderError(children: m.Children): m.Child {

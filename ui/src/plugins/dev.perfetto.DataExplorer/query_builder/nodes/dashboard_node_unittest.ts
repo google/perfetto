@@ -283,8 +283,8 @@ describe('DashboardNode', () => {
     });
 
     test('resolves tableName via requestExecution', async () => {
-      const mockGetTable = jest.fn().mockResolvedValue('table_42');
-      const mockRequest = jest.fn().mockResolvedValue(undefined);
+      const mockGetTable = vi.fn().mockResolvedValue('table_42');
+      const mockRequest = vi.fn().mockResolvedValue(undefined);
       const source = createMockSourceNode('src-1');
       const node = new DashboardNode(
         {},
@@ -308,7 +308,7 @@ describe('DashboardNode', () => {
     });
 
     test('published source includes requestExecution callback', () => {
-      const mockRequest = jest.fn().mockResolvedValue(undefined);
+      const mockRequest = vi.fn().mockResolvedValue(undefined);
       const source = createMockSourceNode('src-1');
       const node = new DashboardNode(
         {},

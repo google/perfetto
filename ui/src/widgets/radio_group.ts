@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './radio_group.scss';
 import m from 'mithril';
 import {classForIntent, type HTMLAttrs, Intent} from './common';
 import {createContext} from '../base/mithril_utils';

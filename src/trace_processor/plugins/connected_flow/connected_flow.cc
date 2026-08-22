@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/plugins/connected_flow/connected_flow.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -230,10 +231,12 @@ bool ConnectedFlow::Cursor::Run(const std::vector<SqlValue>& arguments) {
   if (arguments[0].type != SqlValue::Type::kLong) {
     return OnFailure(base::ErrStatus("start id should be an integer."));
   }
-  SliceId start_id{static_cast<uint32_t>(arguments[0].AsLong())};
-  if (!slice.FindById(start_id)) {
-    return OnFailure(base::ErrStatus("invalid slice id %u", start_id.value));
+  auto maybe_start_id = slice.TryCastId(arguments[0].AsLong());
+  if (!maybe_start_id) {
+    return OnFailure(
+        base::ErrStatus("invalid slice id %" PRId64, arguments[0].AsLong()));
   }
+  SliceId start_id = *maybe_start_id;
 
   // Use cached graph if available, otherwise build a new one.
   FlowGraph graph = cached_flow_graph_.has_value()
@@ -308,10 +311,9 @@ uint32_t ConnectedFlow::GetArgumentCount() const {
 namespace connected_flow {
 namespace {
 
-class ConnectedFlowPlugin
-    : public Plugin<ConnectedFlowPlugin,
-                    ancestor::AncestorPlugin,
-                    descendant::DescendantPlugin> {
+class ConnectedFlowPlugin : public Plugin<ConnectedFlowPlugin,
+                                          ancestor::AncestorPlugin,
+                                          descendant::DescendantPlugin> {
  public:
   ~ConnectedFlowPlugin() override;
 

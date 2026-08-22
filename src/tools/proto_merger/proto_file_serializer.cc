@@ -26,9 +26,7 @@ std::string DeletedComment(const std::string& prefix) {
   std::string output;
   output += "\n";
   output += prefix + "  //\n";
-  output += prefix;
-  output +=
-      "  // The following enums/messages/fields are not present upstream\n";
+  output += prefix + "  // " + kDeletedCommentWarning + "\n";
   output += prefix + "  //\n";
   return output;
 }
@@ -106,6 +104,12 @@ std::string SerializeEnum(size_t indent, const ProtoFile::Enum& en) {
   for (const auto& value : en.values) {
     output += SerializeEnumValue(indent, value);
   }
+  if (!en.deleted_values.empty()) {
+    output += DeletedComment(prefix);
+    for (const auto& value : en.deleted_values) {
+      output += SerializeEnumValue(indent, value);
+    }
+  }
   output += prefix + "}\n";
 
   output += SerializeTrailingComments(prefix, en);
@@ -143,6 +147,12 @@ std::string SerializeOneof(size_t indent, const ProtoFile::Oneof& oneof) {
   output += prefix + "oneof " + oneof.name + " {\n";
   for (const auto& field : oneof.fields) {
     output += SerializeField(indent, field, false);
+  }
+  if (!oneof.deleted_fields.empty()) {
+    output += DeletedComment(prefix);
+    for (const auto& field : oneof.deleted_fields) {
+      output += SerializeField(indent, field, false);
+    }
   }
   output += prefix + "}\n";
 

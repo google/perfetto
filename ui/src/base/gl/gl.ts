@@ -12,30 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Various WebGL helper functions that throw on error instead of returning null
-// or -1.
-
-export function createShader(
-  gl: WebGL2RenderingContext,
-  type: number,
-): WebGLShader {
-  const shader = gl.createShader(type);
-  if (!shader) throw new Error(`Failed to create shader`);
-  return shader;
-}
-
-export function createBuffer(gl: WebGL2RenderingContext): WebGLBuffer {
-  const buffer = gl.createBuffer();
-  if (!buffer) throw new Error(`Failed to create buffer`);
-  return buffer;
-}
-
-export function createTexture(gl: WebGL2RenderingContext): WebGLTexture {
-  const texture = gl.createTexture();
-  if (!texture) throw new Error(`Failed to create texture`);
-  return texture;
-}
-
 export function getUniformLocation(
   gl: WebGL2RenderingContext,
   program: WebGLProgram,
@@ -88,7 +64,6 @@ export function linkProgram(
   fragmentShader: WebGLShader,
 ): WebGLProgram {
   const program = gl.createProgram();
-  if (!program) throw new Error('Failed to create program');
 
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);

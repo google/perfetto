@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './pivot_table.scss';
 import m from 'mithril';
 import type {PivotTableState} from './pivot_table_state';
 import {Spinner} from '../../../../widgets/spinner';

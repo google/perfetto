@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, type Deferred} from '../../../base/deferred';
-import {assertExists, assertTrue} from '../../../base/assert';
+import {ensureExists, assertTrue} from '../../../base/assert';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 import {utf8Decode, utf8Encode} from '../../../base/string_utils';
 
@@ -47,7 +47,7 @@ export class AsyncWebsocket {
     // 2. The connection failure happens in the near future. In this case we
     //    infer a connection failure by observing on onclose().
     const readyState = sock.readyState;
-    if (readyState === WebSocket.CLOSED || readyState === WebSocket.CLOSED) {
+    if (readyState === WebSocket.CLOSING || readyState === WebSocket.CLOSED) {
       return undefined; // Case 1.
     }
     const connectPromise = defer<AsyncWebsocket | undefined>();
@@ -72,7 +72,7 @@ export class AsyncWebsocket {
 
   /** Turns this back into a standard WebSocket. */
   release(): WebSocket {
-    const sock = assertExists(this.sock);
+    const sock = ensureExists(this.sock);
     this.sock = undefined;
     sock.onmessage = null;
     sock.onopen = null;
@@ -81,8 +81,8 @@ export class AsyncWebsocket {
     return sock;
   }
 
-  send(data: string | ArrayBufferLike) {
-    assertExists(this.sock).send(data);
+  send(data: string | ArrayBuffer) {
+    ensureExists(this.sock).send(data);
   }
 
   waitForData(numBytes: number = ANY_SIZE): Promise<Uint8Array> {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './track_shell.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {currentTargetOffset} from '../base/dom_utils';
@@ -83,6 +84,10 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // Whether to highlight the track or not.
   readonly highlight?: boolean;
 
+  // Whether this track is part of the current selection - tints the shell
+  // subtly.
+  readonly selected?: boolean;
+
   // Whether the shell should be draggable and emit drag/drop events.
   readonly reorderable?: boolean;
 
@@ -110,6 +115,7 @@ export interface TrackShellAttrs extends HTMLAttrs {
   onTrackContentMouseMove?(pos: Point2D, contentSize: Bounds2D): void;
   onTrackContentMouseOut?(): void;
   onTrackContentClick?(pos: Point2D, contentSize: Bounds2D): boolean;
+  onTrackContentDoubleClick?(pos: Point2D, contentSize: Bounds2D): boolean;
 
   // If reorderable, these functions will be called when track shells are
   // dragged and dropped.
@@ -193,6 +199,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onMoveInside = () => {},
       buttons,
       highlight,
+      selected,
       lite,
       summary,
     } = attrs;
@@ -218,6 +225,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         className: classNames(
           collapsible && 'pf-track__shell--clickable',
           highlight && 'pf-track__shell--highlight',
+          selected && 'pf-track__shell--selected',
           lite && 'pf-track__shell--lite',
         ),
         onclick: () => {
@@ -360,6 +368,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onTrackContentMouseMove,
       onTrackContentMouseOut,
       onTrackContentClick,
+      onTrackContentDoubleClick,
       error,
     } = attrs;
 
@@ -401,6 +410,16 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           // Returns true if something was selected, so stop propagation.
           if (
             onTrackContentClick?.(
+              currentTargetOffset(e),
+              getTargetContainerSize(e),
+            )
+          ) {
+            e.stopPropagation();
+          }
+        },
+        ondblclick: (e: MouseEvent) => {
+          if (
+            onTrackContentDoubleClick?.(
               currentTargetOffset(e),
               getTargetContainerSize(e),
             )

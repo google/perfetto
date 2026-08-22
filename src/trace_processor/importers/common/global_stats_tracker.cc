@@ -33,6 +33,7 @@ GlobalStatsTracker::GlobalStatsTracker(TraceStorage* storage)
     description_ids_[i] = storage->InternString(stats::kDescriptions[i]);
   }
   severity_ids_[stats::kInfo] = storage->InternString("info");
+  severity_ids_[stats::kNotice] = storage->InternString("notice");
   severity_ids_[stats::kDataLoss] = storage->InternString("data_loss");
   severity_ids_[stats::kError] = storage->InternString("error");
   source_ids_[stats::kTrace] = storage->InternString("trace");
@@ -97,7 +98,7 @@ int64_t GlobalStatsTracker::GetStats(std::optional<MachineId> machine_id,
   auto ctx = GetContextIds(key, machine_id, trace_id);
   StatsEntry entry{key, std::nullopt, ctx.machine_id, ctx.trace_id};
   if (const auto* id_ptr = id_by_entry_.Find(entry)) {
-    return storage_->stats_table().FindById(*id_ptr)->value();
+    return storage_->stats_table()[*id_ptr].value();
   }
   return 0;
 }
@@ -112,7 +113,7 @@ std::optional<int64_t> GlobalStatsTracker::GetIndexedStats(
   auto ctx = GetContextIds(key, machine_id, trace_id);
   StatsEntry entry{key, index, ctx.machine_id, ctx.trace_id};
   if (const auto* id_ptr = id_by_entry_.Find(entry)) {
-    return storage_->stats_table().FindById(*id_ptr)->value();
+    return storage_->stats_table()[*id_ptr].value();
   }
   return std::nullopt;
 }
@@ -183,7 +184,7 @@ tables::StatsTable::RowReference GlobalStatsTracker::FindOrInsertRow(
   auto& table = *storage_->mutable_stats_table();
   StatsEntry entry{key, index, ctx.machine_id, ctx.trace_id};
   if (auto* id_ptr = id_by_entry_.Find(entry)) {
-    return *table.FindById(*id_ptr);
+    return table[*id_ptr];
   }
   tables::StatsTable::Row row;
   row.name = name_ids_[key];

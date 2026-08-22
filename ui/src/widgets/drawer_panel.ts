@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './drawer_panel.scss';
 import m from 'mithril';
 import {assertUnreachable} from '../base/assert';
 import {Gate, type MithrilEvent} from '../base/mithril_utils';
@@ -201,7 +202,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = isTabsMode
-      ? activeTabKey ?? this.internalActiveTab ?? tabs[0].key
+      ? (activeTabKey ?? this.internalActiveTab ?? tabs[0].key)
       : undefined;
 
     // Render tabs UI and drawer content based on mode

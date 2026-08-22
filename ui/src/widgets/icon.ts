@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './icon.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {classForIntent, type HTMLAttrs, Intent} from './common';

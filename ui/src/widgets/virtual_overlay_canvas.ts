@@ -29,11 +29,12 @@
  * - Calls a callback whenever the canvas needs to be redrawn.
  */
 
+import './virtual_overlay_canvas.scss';
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import type {Rect2D, Size2D} from '../base/geom';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
@@ -70,6 +71,17 @@ export interface VirtualOverlayCanvasDrawContext {
 
 export type Overflow = 'hidden' | 'visible' | 'auto';
 
+// Imperative handle for controlling a VirtualOverlayCanvas. Handed to the
+// parent via the `onMount` callback.
+export interface VirtualOverlayCanvasApi {
+  // Redraw the canvas synchronously.
+  redrawCanvas(): void;
+
+  // Set the scroll position of the scrolling container. Either axis may be
+  // omitted to leave it unchanged. The browser clamps to the valid range.
+  scrollTo(opts: {x?: number; y?: number}): void;
+}
+
 export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Additional class names applied to the root element.
   readonly className?: string;
@@ -90,10 +102,10 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Default: false.
   readonly disableCanvasRedrawOnMithrilUpdates?: boolean;
 
-  // Called when the canvas is mounted. The passed redrawCanvas() function can
-  // be called to redraw the canvas synchronously at any time. Any returned
-  // disposable will be disposed of when the component is removed.
-  onMount?(redrawCanvas: () => void): Disposable | void;
+  // Called when the canvas is mounted. The passed api object exposes
+  // imperative methods for controlling the canvas. Any returned disposable
+  // will be disposed of when the component is removed.
+  onMount?(api: VirtualOverlayCanvasApi): Disposable | void;
 
   // Override styles from base interface, only allowing object type styles
   // rather than strings.
@@ -121,9 +133,7 @@ function getScrollAxesFromOverflow(x: Overflow, y: Overflow) {
 // This mithril component acts as scrolling container for tall and/or wide
 // content. Adds a virtually scrolling canvas over the top of any child elements
 // rendered inside it.
-export class VirtualOverlayCanvas
-  implements m.ClassComponent<VirtualOverlayCanvasAttrs>
-{
+export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanvasAttrs> {
   readonly trash = new DisposableStack();
   private ctx?: CanvasRenderingContext2D;
   private virtualCanvas?: VirtualCanvas;
@@ -168,7 +178,7 @@ export class VirtualOverlayCanvas
   oncreate({attrs, dom}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
     this.dom = dom;
     const canvasContainerElement = toHTMLElement(
-      assertExists(findRef(dom, CANVAS_CONTAINER_REF)),
+      ensureExists(findRef(dom, CANVAS_CONTAINER_REF)),
     );
     const {overflowX = 'visible', overflowY = 'visible'} = attrs;
 
@@ -184,7 +194,7 @@ export class VirtualOverlayCanvas
     this.virtualCanvas = virtualCanvas;
 
     // Create the canvas rendering context
-    this.ctx = assertExists(virtualCanvas.canvasElement.getContext('2d'));
+    this.ctx = ensureExists(virtualCanvas.canvasElement.getContext('2d'));
 
     // Create WebGL canvas if enabled
     if (attrs.enableWebGL) {
@@ -209,6 +219,19 @@ export class VirtualOverlayCanvas
       });
       if (webglCtx) {
         this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
+        // Fail loudly if we lose context
+        const onContextLost = (e: Event) => {
+          const statusMessage =
+            (e as WebGLContextEvent).statusMessage || 'no status message';
+          throw new Error(`WebGL context lost: ${statusMessage}`);
+        };
+        this.webglCanvas.addEventListener('webglcontextlost', onContextLost);
+        this.trash.defer(() => {
+          this.webglCanvas?.removeEventListener(
+            'webglcontextlost',
+            onContextLost,
+          );
+        });
       }
     }
 
@@ -259,7 +282,15 @@ export class VirtualOverlayCanvas
       this.redrawCanvas();
     });
 
-    const disposable = attrs.onMount?.(this.redrawCanvas.bind(this));
+    const scrollEl = toHTMLElement(dom);
+    const api: VirtualOverlayCanvasApi = {
+      redrawCanvas: this.redrawCanvas.bind(this),
+      scrollTo: ({x, y}) => {
+        if (x !== undefined) scrollEl.scrollLeft = x;
+        if (y !== undefined) scrollEl.scrollTop = y;
+      },
+    };
+    const disposable = attrs.onMount?.(api);
     disposable && this.trash.use(disposable);
 
     !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
@@ -274,10 +305,18 @@ export class VirtualOverlayCanvas
   }
 
   private redrawCanvas() {
-    const ctx = assertExists(this.ctx);
-    const virtualCanvas = assertExists(this.virtualCanvas);
-    const attrs = assertExists(this.attrs);
-    const containerElement = assertExists(this.dom);
+    const ctx = ensureExists(this.ctx);
+    const virtualCanvas = ensureExists(this.virtualCanvas);
+    const attrs = ensureExists(this.attrs);
+    const containerElement = ensureExists(this.dom);
+    const canvasSize = virtualCanvas.size;
+
+    // If the canavs size is 0, just don't render anything. This either means
+    // the canavs element is hidden (has no layout) or it genuinely is 0. Either
+    // way - there's nothing to be gained from rendering to it.
+    if (canvasSize.height <= 0 || canvasSize.width <= 0) {
+      return;
+    }
 
     // Create the appropriate renderer: WebGLRenderer if available, otherwise
     // Canvas2DRenderer as fallback.

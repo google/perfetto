@@ -928,6 +928,35 @@ TEST_F(RwProtoTest, Merge_DelIfSrcEmpty_RepeatedField) {
   ASSERT_EQ(entry.elements_size(), 0);
 }
 
+TEST_F(RwProtoTest, Merge_DelIfSrcEmptyAndSkipSubmessages) {
+  auto root = data_empty_.GetRoot();
+
+  // root = { single_element { id: 10 } }
+  {
+    auto cursor = root;
+    ASSERT_TRUE(cursor.EnterField(protos::TraceEntry::kSingleElementFieldNumber)
+                    .IsOk());
+    auto id_cursor = cursor;
+    ASSERT_TRUE(id_cursor.EnterField(protos::Element::kIdFieldNumber).IsOk());
+    ASSERT_TRUE(id_cursor.SetScalar(Scalar::VarInt(10)).IsOk());
+  }
+
+  // patch = { single_element {} }
+  protos::TraceEntry patch;
+  patch.mutable_single_element();
+
+  // Merge with both kDelIfSrcEmpty and kSkipSubmessages
+  ASSERT_TRUE(root.Merge(AsConstBytes(patch.SerializeAsString()),
+                         RwProto::Cursor::kDelIfSrcEmpty |
+                             RwProto::Cursor::kSkipSubmessages)
+                  .IsOk());
+
+  // Check root = {} (i.e. single_element is deleted, not skipped)
+  protos::TraceEntry entry;
+  entry.ParseFromString(SerializeAsString(data_empty_));
+  ASSERT_FALSE(entry.has_single_element());
+}
+
 TEST_F(RwProtoTest, SetBytes_IncompatibleWireType) {
   auto cursor = data_trace_entry_with_two_elements_.GetRoot();
   cursor.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0);

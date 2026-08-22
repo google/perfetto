@@ -64,16 +64,14 @@ std::string CreateElfWithBuildId(const std::string& build_id) {
   struct SimpleElf {
     Elf64::Ehdr ehdr;
     Elf64::Shdr shdr;
+    Elf64::Phdr phdr;
     Elf64::Nhdr nhdr;
     char note_name[4];
     char note_desc[20];
   } e;
   memset(&e, 0, sizeof e);
 
-  e.ehdr.e_ident[EI_MAG0] = ELFMAG0;
-  e.ehdr.e_ident[EI_MAG1] = ELFMAG1;
-  e.ehdr.e_ident[EI_MAG2] = ELFMAG2;
-  e.ehdr.e_ident[EI_MAG3] = ELFMAG3;
+  memcpy(e.ehdr.e_ident, kElfMagic, sizeof(kElfMagic) - 1);
   e.ehdr.e_ident[EI_CLASS] = ELFCLASS64;
   e.ehdr.e_ident[EI_DATA] = ELFDATA2LSB;
   e.ehdr.e_ident[EI_VERSION] = EV_CURRENT;
@@ -82,9 +80,15 @@ std::string CreateElfWithBuildId(const std::string& build_id) {
   e.ehdr.e_shnum = 1;
   e.ehdr.e_ehsize = sizeof e.ehdr;
   e.ehdr.e_shoff = offsetof(SimpleElf, shdr);
+  e.ehdr.e_phnum = 2;
+  e.ehdr.e_phoff = offsetof(SimpleElf, phdr);
+  e.ehdr.e_phentsize = sizeof(Elf64::Phdr);
 
   e.shdr.sh_type = SHT_NOTE;
   e.shdr.sh_offset = offsetof(SimpleElf, nhdr);
+
+  e.phdr.p_type = PT_LOAD;
+  e.phdr.p_flags = PF_X;
 
   e.nhdr.n_type = NT_GNU_BUILD_ID;
   e.nhdr.n_namesz = sizeof e.note_name;
@@ -97,6 +101,99 @@ std::string CreateElfWithBuildId(const std::string& build_id) {
                    offsetof(SimpleElf, nhdr);
 
   return std::string(reinterpret_cast<const char*>(&e), sizeof e);
+}
+
+// A valid ELF64 whose build-id lives in a PT_NOTE program segment (as GNU
+// ld/lld emit it for executables and shared libraries) rather than in a
+// section: exercises the fast build-id path.
+std::string CreateElfWithNoteSegmentBuildId(const std::string& build_id) {
+  struct PtnoteElf {
+    Elf64::Ehdr ehdr;
+    Elf64::Phdr phdrs[2];  // PT_LOAD (exec) + PT_NOTE
+    Elf64::Nhdr nhdr;
+    char note_name[4];
+    char note_desc[20];
+  } e;
+  memset(&e, 0, sizeof e);
+
+  memcpy(e.ehdr.e_ident, kElfMagic, sizeof(kElfMagic) - 1);
+  e.ehdr.e_ident[EI_CLASS] = ELFCLASS64;
+  e.ehdr.e_ident[EI_DATA] = ELFDATA2LSB;
+  e.ehdr.e_ident[EI_VERSION] = EV_CURRENT;
+  e.ehdr.e_version = EV_CURRENT;
+  e.ehdr.e_ehsize = sizeof e.ehdr;
+  e.ehdr.e_phoff = offsetof(PtnoteElf, phdrs);
+  e.ehdr.e_phnum = 2;
+  e.ehdr.e_phentsize = sizeof(Elf64::Phdr);
+
+  e.phdrs[0].p_type = PT_LOAD;
+  e.phdrs[0].p_flags = PF_X;
+
+  e.phdrs[1].p_type = PT_NOTE;
+  e.phdrs[1].p_offset = offsetof(PtnoteElf, nhdr);
+  e.phdrs[1].p_filesz =
+      sizeof(Elf64::Nhdr) + sizeof e.note_name + sizeof e.note_desc;
+
+  e.nhdr.n_type = NT_GNU_BUILD_ID;
+  e.nhdr.n_namesz = sizeof e.note_name;
+  e.nhdr.n_descsz = sizeof e.note_desc;
+  strcpy(e.note_name, "GNU");
+  memcpy(e.note_desc, build_id.c_str(),
+         std::min(build_id.size(), sizeof(e.note_desc)));
+
+  return std::string(reinterpret_cast<const char*>(&e), sizeof e);
+}
+
+std::string CreateMachOWithBuildId(const std::string& build_id) {
+  struct MachHeader {
+    uint32_t magic;
+    int32_t cputype;
+    int32_t cpusubtype;
+    uint32_t filetype;
+    uint32_t ncmds;
+    uint32_t sizeofcmds;
+    uint32_t flags;
+    uint32_t reserved;
+  };
+  struct LoadCommand {
+    uint32_t cmd;
+    uint32_t cmdsize;
+  };
+  struct SegmentCommand {
+    uint32_t cmd;
+    uint32_t cmdsize;
+    char segname[16];
+    uint64_t vmaddr;
+    uint64_t vmsize;
+    uint64_t fileoff;
+    uint64_t filesize;
+    uint32_t maxprot;
+    uint32_t initprot;
+    uint32_t nsects;
+    uint32_t flags;
+  };
+  struct UuidCommand {
+    LoadCommand header;
+    char uuid[16];
+  };
+  struct MachO {
+    MachHeader header;
+    SegmentCommand segment;
+    UuidCommand uuid;
+  } macho{};
+
+  macho.header.magic = 0xfeedfacf;
+  macho.header.ncmds = 2;
+  macho.header.sizeofcmds = sizeof(macho.segment) + sizeof(macho.uuid);
+  macho.segment.cmd = 0x19;  // LC_SEGMENT_64.
+  macho.segment.cmdsize = sizeof(macho.segment);
+  strcpy(macho.segment.segname, "__TEXT");
+  macho.segment.vmaddr = 0x1234;
+  macho.uuid.header.cmd = 0x1b;  // LC_UUID.
+  macho.uuid.header.cmdsize = sizeof(macho.uuid);
+  memcpy(macho.uuid.uuid, build_id.data(),
+         std::min(build_id.size(), sizeof(macho.uuid.uuid)));
+  return std::string(reinterpret_cast<const char*>(&macho), sizeof(macho));
 }
 
 #if defined(MEMORY_SANITIZER)
@@ -130,6 +227,58 @@ TEST(LocalBinaryIndexerTest, NOMSAN_SimpleTree) {
 #else
   EXPECT_EQ(result2.binary->file_name, tmp.path() + "/dir2/elf1");
 #endif
+}
+
+// The fast build-id path: the note lives in a PT_NOTE program segment.
+TEST(LocalBinaryIndexerTest, BuildIdFromNoteSegment) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddFile("root/elf1",
+              CreateElfWithNoteSegmentBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryIndexer indexer({tmp.path() + "/root"}, {});
+
+  BinaryLookupResult result = indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(result.ok());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  EXPECT_EQ(result.binary->file_name, tmp.path() + "/root\\elf1");
+#else
+  EXPECT_EQ(result.binary->file_name, tmp.path() + "/root/elf1");
+#endif
+}
+
+TEST(LocalBinaryIndexerTest, MachOBuildIdFromLoadCommands) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  const std::string build_id = "ABCDEFGHIJKLMNOP";
+  tmp.AddFile("root/macho", CreateMachOWithBuildId(build_id));
+
+  LocalBinaryIndexer indexer({tmp.path() + "/root"}, {});
+
+  BinaryLookupResult result = indexer.FindBinary("", build_id);
+  ASSERT_TRUE(result.ok());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  EXPECT_EQ(result.binary->file_name, tmp.path() + "/root\\macho");
+#else
+  EXPECT_EQ(result.binary->file_name, tmp.path() + "/root/macho");
+#endif
+  EXPECT_EQ(result.binary->load_info.p_vaddr, 0x1234u);
+}
+
+// A valid ELF passed as an individual file (rather than discovered via a
+// directory walk) must be indexed. Previously the size passed for such files
+// was 0, which made GetBinaryInfo bail out and silently dropped them (and,
+// after the corrupt-file aggregation, miscounted them as corrupt).
+TEST(LocalBinaryIndexerTest, IndividualFilesAreIndexed) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddFile("root/elf1", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryIndexer indexer({}, {tmp.AbsolutePath("root/elf1")});
+
+  BinaryLookupResult result = indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(result.binary->file_name, tmp.AbsolutePath("root/elf1"));
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -213,6 +362,20 @@ TEST(LocalBinaryFinderTest, AbsolutePath) {
       finder.FindBinary("/dir/elf1.so", "AAAAAAAAAAAAAAAAAAAA");
   ASSERT_TRUE(result.ok());
   EXPECT_EQ(result.binary->file_name, tmp.path() + "/root/dir/elf1.so");
+}
+
+TEST(LocalBinaryFinderTest, InvalidBinaryReportsParseError) {
+  base::TmpDirTree tmp;
+  tmp.AddFile("invalid.so", "not an ELF");
+
+  LocalBinaryFinder finder({});
+  BinaryLookupResult result =
+      finder.FindBinary(tmp.AbsolutePath("invalid.so"), "AAAAAAAAAAAAAAAAAAAA");
+
+  ASSERT_FALSE(result.ok());
+  ASSERT_EQ(result.attempts.size(), 1u);
+  EXPECT_EQ(result.attempts[0].path, tmp.AbsolutePath("invalid.so"));
+  EXPECT_EQ(result.attempts[0].error, BinaryPathError::kParseError);
 }
 
 TEST(LocalBinaryFinderTest, AbsolutePathWithoutBaseApk) {

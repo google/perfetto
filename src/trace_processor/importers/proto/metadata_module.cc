@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/trace_diagnostics_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -75,15 +76,10 @@ MetadataModule::MetadataModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kTraceUuidFieldNumber);
 }
 
-ModuleResult MetadataModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t,
-    RefPtr<PacketSequenceStateGeneration>,
-    uint32_t field_id) {
-  switch (field_id) {
+ModuleResult MetadataModule::TokenizePacket(const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kUiStateFieldNumber: {
-      auto ui_state = decoder.ui_state();
+      auto ui_state = args.field.Cast<TracePacket::kUiState>();
       std::string base64 = base::Base64Encode(ui_state.data, ui_state.size);
       StringId id = context_->storage->InternString(base::StringView(base64));
       context_->metadata_tracker->SetMetadata(metadata::ui_state,
@@ -97,7 +93,8 @@ ModuleResult MetadataModule::TokenizePacket(
       // session if gap-less snapshots are used. Each trace file has at most one
       // TraceUuid packet (i has if it comes from an older version of the
       // tracing service < v32)
-      protos::pbzero::TraceUuid::Decoder uuid_packet(decoder.trace_uuid());
+      protos::pbzero::TraceUuid::Decoder uuid_packet(
+          args.field.Cast<TracePacket::kTraceUuid>());
       if (uuid_packet.msb() != 0 || uuid_packet.lsb() != 0) {
         base::Uuid uuid(uuid_packet.lsb(), uuid_packet.msb());
         std::string str = uuid.ToPrettyString();
@@ -112,21 +109,18 @@ ModuleResult MetadataModule::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void MetadataModule::ParseTracePacketData(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
+void MetadataModule::ParseField(const ParseFieldArgs& args) {
   // We handle triggers at parse time rather at tokenization because
   // we add slices to tables which need to happen post-sorting.
-  if (field_id == TracePacket::kTriggerFieldNumber) {
-    ParseTrigger(ts, decoder.trigger(), TraceTriggerPacketType::kTraceTrigger);
+  if (args.field.id() == TracePacket::kTriggerFieldNumber) {
+    ParseTrigger(args.ts, args.field.Cast<TracePacket::kTrigger>(),
+                 TraceTriggerPacketType::kTraceTrigger);
   }
-  if (field_id == TracePacket::kChromeTriggerFieldNumber) {
-    ParseChromeTrigger(ts, decoder.chrome_trigger());
+  if (args.field.id() == TracePacket::kChromeTriggerFieldNumber) {
+    ParseChromeTrigger(args.ts, args.field.Cast<TracePacket::kChromeTrigger>());
   }
-  if (field_id == TracePacket::kCloneSnapshotTriggerFieldNumber) {
-    ParseTrigger(ts, decoder.clone_snapshot_trigger(),
+  if (args.field.id() == TracePacket::kCloneSnapshotTriggerFieldNumber) {
+    ParseTrigger(args.ts, args.field.Cast<TracePacket::kCloneSnapshotTrigger>(),
                  TraceTriggerPacketType::kCloneSnapshot);
   }
 }
@@ -199,7 +193,7 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   }
 
   MetadataTracker* metadata = context_->metadata_tracker.get();
-  metadata->SetDynamicMetadata(
+  metadata->AppendDynamicMetadataLegacy(
       context_->storage->InternString("cr-triggered_rule_name_hash"),
       Variadic::Integer(trigger.trigger_name_hash()));
 }
@@ -251,6 +245,11 @@ void MetadataModule::ParseTraceConfig(
   StringId id = context_->storage->InternString(base::StringView(text));
   context_->metadata_tracker->SetMetadata(metadata::trace_config_pbtxt,
                                           Variadic::String(id));
+
+  // Stash the raw config for the diagnostics rules, which run at finalization
+  // (once trace bounds are known).
+  context_->trace_diagnostics_tracker->SetTraceConfig(trace_config.begin(),
+                                                      trace_config.end());
 }
 
 }  // namespace perfetto::trace_processor

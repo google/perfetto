@@ -38,8 +38,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/scoped_mmap.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/util/symbolizer/elf.h"
@@ -76,80 +74,76 @@ std::string GetLine(const std::function<int64_t(char*, size_t)>& fn_read) {
   return line;
 }
 
-bool InRange(const void* base,
-             size_t total_size,
-             const void* ptr,
-             size_t size) {
-  return ptr >= base && static_cast<const char*>(ptr) + size <=
-                            static_cast<const char*>(base) + total_size;
+constexpr size_t kMaxNoteSize = 1u << 20;
+
+// Reads up to |len| bytes at |offset| from |fd| into |buf|. Returns the
+// number of bytes actually read (0 on error or EOF); a short read means the
+// file is smaller than |len| (e.g. a truncated header).
+size_t ReadFileAt(int fd, size_t offset, void* buf, size_t len) {
+  if (len == 0)
+    return 0;
+  if (!base::SeekFile(fd, offset))
+    return 0;
+  ssize_t rd = base::Read(fd, buf, len);
+  return rd > 0 ? static_cast<size_t>(rd) : 0;
 }
 
+// Scans the note data at |data| (a PT_NOTE segment or a SHT_NOTE section)
+// for the GNU build-id (an NT_GNU_BUILD_ID note named "GNU").
 template <typename E>
-std::optional<std::pair<uint64_t, uint64_t>> GetElfPVAddrPOffset(void* mem,
-                                                                 size_t size) {
-  const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
-  if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
-    return std::nullopt;
-  }
-  for (size_t i = 0; i < ehdr->e_phnum; ++i) {
-    typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
-    if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
-      return std::nullopt;
+std::optional<std::string> GetBuildIdFromNotes(const char* data, size_t size) {
+  size_t offset = 0;
+  while (offset + sizeof(typename E::Nhdr) <= size) {
+    typename E::Nhdr nhdr;
+    memcpy(&nhdr, data + offset, sizeof(nhdr));
+    const size_t name_size = base::AlignUp<4>(nhdr.n_namesz);
+    const size_t desc_size = base::AlignUp<4>(nhdr.n_descsz);
+    if (offset + sizeof(nhdr) + name_size + desc_size > size)
+      return std::nullopt;  // Truncated note.
+    if (nhdr.n_type == NT_GNU_BUILD_ID && nhdr.n_namesz == 4 &&
+        memcmp(data + offset + sizeof(nhdr), "GNU", 3) == 0) {
+      return std::string(data + offset + sizeof(nhdr) + name_size,
+                         nhdr.n_descsz);
     }
-    if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
-      return std::make_pair(phdr->p_vaddr, phdr->p_offset);
-    }
+    offset += sizeof(nhdr) + name_size + desc_size;
   }
-  return std::make_pair(0, 0);
+  return std::nullopt;
 }
 
+// Fallback build-id extraction: walks the section header table (read at
+// e_shoff) looking for SHT_NOTE sections. Used only when the fast PT_NOTE
+// path found nothing, e.g. files whose build-id note is section-only (some
+// ET_REL objects and older linkers).
 template <typename E>
-std::optional<std::string> GetElfBuildId(void* mem, size_t size) {
-  const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
-  if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
+std::optional<std::string> GetBuildIdFromShdrs(int fd,
+                                               const typename E::Ehdr& ehdr) {
+  if (ehdr.e_shnum == 0 || ehdr.e_shoff == 0)
     return std::nullopt;
-  }
-  for (size_t i = 0; i < ehdr->e_shnum; ++i) {
-    typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
-    if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
-      return std::nullopt;
-    }
-
-    if (shdr->sh_type != SHT_NOTE)
+  const size_t shdr_table_size =
+      static_cast<size_t>(ehdr.e_shnum) * sizeof(typename E::Shdr);
+  std::string shdrs;
+  shdrs.resize(shdr_table_size);
+  // Tolerate a truncated section header table (declared e_shnum larger than
+  // the actual table): process only the complete entries.
+  const size_t num_shdrs = ReadFileAt(fd, static_cast<size_t>(ehdr.e_shoff),
+                                      shdrs.data(), shdr_table_size) /
+                           sizeof(typename E::Shdr);
+  for (size_t i = 0; i < num_shdrs; i++) {
+    typename E::Shdr shdr;
+    memcpy(&shdr, shdrs.data() + i * sizeof(shdr), sizeof(shdr));
+    if (shdr.sh_type != SHT_NOTE)
       continue;
-
-    auto offset = shdr->sh_offset;
-    while (offset < shdr->sh_offset + shdr->sh_size) {
-      auto* nhdr =
-          reinterpret_cast<typename E::Nhdr*>(static_cast<char*>(mem) + offset);
-
-      if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
-        PERFETTO_ELOG("Corrupted ELF.");
-        return std::nullopt;
-      }
-      if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
-        char* name = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr);
-        if (!InRange(mem, size, name, 4)) {
-          PERFETTO_ELOG("Corrupted ELF.");
-          return std::nullopt;
-        }
-        if (memcmp(name, "GNU", 3) == 0) {
-          const char* value = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr) +
-                              base::AlignUp<4>(nhdr->n_namesz);
-
-          if (!InRange(mem, size, value, nhdr->n_descsz)) {
-            PERFETTO_ELOG("Corrupted ELF.");
-            return std::nullopt;
-          }
-          return std::string(value, nhdr->n_descsz);
-        }
-      }
-      offset += sizeof(*nhdr) + base::AlignUp<4>(nhdr->n_namesz) +
-                base::AlignUp<4>(nhdr->n_descsz);
+    // Build-id notes are tiny; cap the read to avoid huge allocations from
+    // corrupt headers.
+    const size_t note_size = static_cast<size_t>(shdr.sh_size);
+    if (note_size == 0 || note_size > kMaxNoteSize)
+      continue;
+    std::string note;
+    note.resize(note_size);
+    if (ReadFileAt(fd, static_cast<size_t>(shdr.sh_offset), note.data(),
+                   note_size) == note_size) {
+      if (auto build_id = GetBuildIdFromNotes<E>(note.data(), note.size()))
+        return build_id;
     }
   }
   return std::nullopt;
@@ -166,10 +160,8 @@ std::string SplitBuildID(const std::string& hex_build_id) {
 }
 
 bool IsElf(const char* mem, size_t size) {
-  if (size <= EI_MAG3)
-    return false;
-  return (mem[EI_MAG0] == ELFMAG0 && mem[EI_MAG1] == ELFMAG1 &&
-          mem[EI_MAG2] == ELFMAG2 && mem[EI_MAG3] == ELFMAG3);
+  constexpr size_t kElfMagicSize = sizeof(kElfMagic) - 1;
+  return size >= kElfMagicSize && memcmp(mem, kElfMagic, kElfMagicSize) == 0;
 }
 
 constexpr uint32_t kMachO64Magic = 0xfeedfacf;
@@ -211,144 +203,219 @@ struct segment_64_command {
 };
 
 struct BinaryInfo {
-  std::string build_id;
-  uint64_t p_vaddr;
-  uint64_t p_offset;
+  std::optional<std::string> build_id;
+  std::optional<LoadInfo> load_info;
   BinaryType type;
 };
 
-std::optional<BinaryInfo> GetMachOBinaryInfo(char* mem, size_t size) {
-  if (size < sizeof(mach_header_64))
-    return {};
+std::optional<BinaryInfo> GetMachOBinaryInfo(int fd,
+                                             size_t size,
+                                             const mach_header_64& header) {
+  if (size < sizeof(header) || header.sizeofcmds > size - sizeof(header))
+    return std::nullopt;
 
-  mach_header_64 header;
-  memcpy(&header, mem, sizeof(mach_header_64));
-
-  if (size < sizeof(mach_header_64) + header.sizeofcmds)
-    return {};
+  std::string commands;
+  commands.resize(header.sizeofcmds);
+  if (ReadFileAt(fd, sizeof(header), commands.data(), commands.size()) !=
+      commands.size()) {
+    return std::nullopt;
+  }
 
   std::optional<std::string> build_id;
   uint64_t vaddr = 0;
-
-  char* pcmd = mem + sizeof(mach_header_64);
-  char* pcmds_end = pcmd + header.sizeofcmds;
-  while (pcmd < pcmds_end) {
-    load_command cmd_header;
-    memcpy(&cmd_header, pcmd, sizeof(load_command));
+  size_t offset = 0;
+  while (offset < commands.size()) {
+    if (commands.size() - offset < sizeof(load_command))
+      return std::nullopt;
+    load_command command;
+    memcpy(&command, commands.data() + offset, sizeof(command));
+    if (command.cmdsize < sizeof(command) ||
+        command.cmdsize > commands.size() - offset) {
+      return std::nullopt;
+    }
 
     constexpr uint32_t LC_SEGMENT_64 = 0x19;
     constexpr uint32_t LC_UUID = 0x1b;
-
-    switch (cmd_header.cmd) {
-      case LC_UUID: {
-        build_id = std::string(pcmd + sizeof(load_command),
-                               cmd_header.cmdsize - sizeof(load_command));
+    switch (command.cmd) {
+      case LC_UUID:
+        build_id = std::string(commands.data() + offset + sizeof(command),
+                               command.cmdsize - sizeof(command));
         break;
-      }
       case LC_SEGMENT_64: {
-        segment_64_command seg_cmd;
-        memcpy(&seg_cmd, pcmd, sizeof(segment_64_command));
-        if (strcmp(seg_cmd.segname, "__TEXT") == 0) {
-          vaddr = seg_cmd.vmaddr;
-        }
+        if (command.cmdsize < sizeof(segment_64_command))
+          return std::nullopt;
+        segment_64_command segment;
+        memcpy(&segment, commands.data() + offset, sizeof(segment));
+        constexpr char kTextSegment[] = "__TEXT";
+        if (memcmp(segment.segname, kTextSegment, sizeof(kTextSegment)) == 0)
+          vaddr = segment.vmaddr;
         break;
       }
       default:
         break;
     }
-
-    pcmd += cmd_header.cmdsize;
+    offset += command.cmdsize;
   }
 
-  if (build_id) {
-    constexpr uint32_t MH_DSYM = 0xa;
-    BinaryType type = header.filetype == MH_DSYM ? BinaryType::kMachODsym
-                                                 : BinaryType::kMachO;
-    return BinaryInfo{*build_id, vaddr, 0, type};
-  }
-  return {};
+  if (!build_id)
+    return std::nullopt;
+  constexpr uint32_t MH_DSYM = 0xa;
+  BinaryType type =
+      header.filetype == MH_DSYM ? BinaryType::kMachODsym : BinaryType::kMachO;
+  return BinaryInfo{build_id, LoadInfo{vaddr, 0, 0}, type};
 }
 
-std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
-  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (size <= EI_CLASS) {
+// Parses the ELF at |fd| (position 0) and extracts build-id and load info by
+// reading only the ELF header, the program header table and the build-id note
+// (PT_NOTE). The section header table at the end of large binaries is only
+// read as a fallback when the note is not in a program segment.
+template <typename E>
+std::optional<BinaryInfo> GetElfBinaryInfo(int fd,
+                                           const char* header,
+                                           size_t header_size) {
+  if (header_size < sizeof(typename E::Ehdr))
     return std::nullopt;
-  }
-  base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
-  if (!map.IsValid()) {
-    return std::nullopt;
-  }
-  char* mem = static_cast<char*>(map.data());
+  typename E::Ehdr ehdr;
+  memcpy(&ehdr, header, sizeof(ehdr));
 
   std::optional<std::string> build_id;
-  std::optional<std::pair<uint64_t, uint64_t>> vaddr_and_offset;
-  if (IsElf(mem, size)) {
-    switch (mem[EI_CLASS]) {
+  std::optional<LoadInfo> load_info;
+
+  // Program header table (e_phnum is 16-bit, so the table is at most a few
+  // hundred KB). A short read (truncated table) is tolerated: only the
+  // complete entries are processed, and the build-id section fallback still
+  // runs.
+  const size_t phdr_table_size =
+      static_cast<size_t>(ehdr.e_phnum) * sizeof(typename E::Phdr);
+  if (phdr_table_size > 0 && ehdr.e_phoff != 0) {
+    std::string phdrs;
+    phdrs.resize(phdr_table_size);
+    const size_t num_phdrs = ReadFileAt(fd, static_cast<size_t>(ehdr.e_phoff),
+                                        phdrs.data(), phdr_table_size) /
+                             sizeof(typename E::Phdr);
+    for (size_t i = 0; i < num_phdrs; i++) {
+      typename E::Phdr phdr;
+      memcpy(&phdr, phdrs.data() + i * sizeof(phdr), sizeof(phdr));
+      if (phdr.p_type == PT_LOAD && phdr.p_flags & PF_X) {
+        // p_align can only be 0, 1 (no alignment requirement) or a power of
+        // two.
+        if (phdr.p_align != 0 && !base::IsPowerOfTwo(phdr.p_align)) {
+          PERFETTO_DLOG("Invalid p_align value: %" PRIu64,
+                        static_cast<uint64_t>(phdr.p_align));
+          return std::nullopt;
+        }
+        if (!load_info.has_value()) {
+          load_info = LoadInfo{phdr.p_vaddr, phdr.p_offset, phdr.p_align};
+        }
+      } else if (phdr.p_type == PT_NOTE && !build_id.has_value()) {
+        // Build-id notes are tiny; cap the read to avoid huge allocations
+        // from corrupt headers.
+        const size_t note_size = static_cast<size_t>(phdr.p_filesz);
+        if (note_size > 0 && note_size <= kMaxNoteSize) {
+          std::string note;
+          note.resize(note_size);
+          if (ReadFileAt(fd, static_cast<size_t>(phdr.p_offset), note.data(),
+                         note_size) == note_size) {
+            build_id = GetBuildIdFromNotes<E>(note.data(), note.size());
+          }
+        }
+      }
+    }
+  }
+
+  if (!build_id.has_value())
+    build_id = GetBuildIdFromShdrs<E>(fd, ehdr);
+
+  return BinaryInfo{build_id, load_info, BinaryType::kElf};
+}
+
+// Parses an already-open file whose format has not yet been detected. Reads
+// the initial header once and dispatches to the ELF (32/64) or Mach-O parser.
+// |is_binary| distinguishes non-binary files from malformed binaries.
+std::optional<BinaryInfo> GetBinaryInfoFromFd(int fd,
+                                              size_t size,
+                                              bool* is_binary = nullptr) {
+  static_assert(sizeof(mach_header_64) <= sizeof(Elf64::Ehdr));
+  char header[sizeof(Elf64::Ehdr)];
+  const size_t header_size = ReadFileAt(fd, 0, header, sizeof(header));
+  const bool is_elf = IsElf(header, header_size);
+  const bool is_macho = IsMachO64(header, header_size);
+  if (is_binary)
+    *is_binary = is_elf || is_macho;
+
+  if (is_elf) {
+    if (header_size <= EI_CLASS)
+      return std::nullopt;
+    switch (header[EI_CLASS]) {
       case ELFCLASS32:
-        build_id = GetElfBuildId<Elf32>(mem, size);
-        vaddr_and_offset = GetElfPVAddrPOffset<Elf32>(mem, size);
-        break;
+        return GetElfBinaryInfo<Elf32>(fd, header, header_size);
       case ELFCLASS64:
-        build_id = GetElfBuildId<Elf64>(mem, size);
-        vaddr_and_offset = GetElfPVAddrPOffset<Elf64>(mem, size);
-        break;
+        return GetElfBinaryInfo<Elf64>(fd, header, header_size);
       default:
         return std::nullopt;
     }
-    if (build_id && vaddr_and_offset) {
-      return BinaryInfo{
-          *build_id,
-          vaddr_and_offset->first,
-          vaddr_and_offset->second,
-          BinaryType::kElf,
-      };
-    }
-  } else if (IsMachO64(mem, size)) {
-    return GetMachOBinaryInfo(mem, size);
+  }
+  if (is_macho) {
+    if (header_size < sizeof(mach_header_64))
+      return std::nullopt;
+    mach_header_64 mach_header;
+    memcpy(&mach_header, header, sizeof(mach_header));
+    return GetMachOBinaryInfo(fd, size, mach_header);
   }
   return std::nullopt;
 }
 
-// Helper function to process a single binary file and add it to the index
+std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
+  base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+  if (!fd) {
+    return std::nullopt;
+  }
+  return GetBinaryInfoFromFd(fd.get(), size);
+}
+
+// Helper function to process a single binary file and add it to the index.
+// Increments *corrupt_file_count when a file looks like ELF/Mach-O but cannot
+// be parsed (corrupt or truncated): callers aggregate this into a single log
+// line instead of spamming one message per file.
 void ProcessBinaryFile(const char* fname,
                        size_t size,
-                       std::map<std::string, FoundBinary>& result) {
-  static_assert(EI_MAG3 + 1 == sizeof(kMachO64Magic));
-  char magic[EI_MAG3 + 1];
-  // Scope file access. On windows OpenFile opens an exclusive lock.
-  // This lock needs to be released before mapping the file.
-  // Check if file exists first to avoid noisy errors for speculative paths.
-  if (!base::FileExists(fname)) {
+                       std::map<std::string, FoundBinary>& result,
+                       uint32_t* corrupt_file_count) {
+  base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+  if (!fd) {
+    // Missing/unreadable file: skip silently (e.g. speculative paths).
     return;
   }
-  {
-    base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
-    if (!fd) {
-      return;
-    }
-    auto rd = base::Read(*fd, &magic, sizeof(magic));
-    if (rd != sizeof(magic) || (!IsElf(magic, static_cast<size_t>(rd)) &&
-                                !IsMachO64(magic, static_cast<size_t>(rd)))) {
-      PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
-      return;
-    }
+  bool is_binary = false;
+  std::optional<BinaryInfo> binary_info =
+      GetBinaryInfoFromFd(fd.get(), size, &is_binary);
+  if (!is_binary) {
+    PERFETTO_DLOG("%s not an ELF or Mach-O 64.", fname);
+    return;
   }
-  std::optional<BinaryInfo> binary_info = GetBinaryInfo(fname, size);
   if (!binary_info) {
+    // Passed the magic check but failed to parse: corrupt or truncated.
+    ++(*corrupt_file_count);
+    return;
+  }
+  if (!binary_info->build_id) {
     PERFETTO_DLOG("Failed to extract build id from %s.", fname);
     return;
   }
+  if (!binary_info->load_info) {
+    PERFETTO_DLOG("Failed to extract load info from %s.", fname);
+    return;
+  }
   auto [it, inserted] =
-      result.emplace(binary_info->build_id, FoundBinary{
-                                                fname,
-                                                binary_info->p_vaddr,
-                                                binary_info->p_offset,
-                                                binary_info->type,
-                                            });
+      result.emplace(*binary_info->build_id, FoundBinary{
+                                                 fname,
+                                                 *binary_info->load_info,
+                                                 binary_info->type,
+                                             });
 
   if (inserted) {
     PERFETTO_DLOG("Indexed: %s (%s)", fname,
-                  base::ToHex(binary_info->build_id).c_str());
+                  base::ToHex(*binary_info->build_id).c_str());
     return;
   }
 
@@ -358,12 +425,11 @@ void ProcessBinaryFile(const char* fname,
   if (it->second.type == BinaryType::kMachO &&
       binary_info->type == BinaryType::kMachODsym) {
     PERFETTO_LOG("Overwriting index entry for %s to %s.",
-                 base::ToHex(binary_info->build_id).c_str(), fname);
-    it->second = FoundBinary{fname, binary_info->p_vaddr, binary_info->p_offset,
-                             binary_info->type};
+                 base::ToHex(*binary_info->build_id).c_str(), fname);
+    it->second = FoundBinary{fname, *binary_info->load_info, binary_info->type};
   } else {
     PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
-                  base::ToHex(binary_info->build_id).c_str());
+                  base::ToHex(*binary_info->build_id).c_str());
   }
 }
 
@@ -371,17 +437,35 @@ std::map<std::string, FoundBinary> BuildIdIndex(
     std::vector<std::string> dirs,
     std::vector<std::string> files) {
   std::map<std::string, FoundBinary> result;
+  uint32_t corrupt_file_count = 0;
 
   // Process directories
   if (!dirs.empty()) {
-    WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
-      ProcessBinaryFile(fname, size, result);
+    WalkDirectories(std::move(dirs), [&result, &corrupt_file_count](
+                                         const char* fname, size_t size) {
+      ProcessBinaryFile(fname, size, result, &corrupt_file_count);
     });
   }
 
   // Process individual files
   for (const std::string& file_path : files) {
-    ProcessBinaryFile(file_path.c_str(), 0, result);
+    std::optional<uint64_t> file_size = base::GetFileSize(file_path);
+    if (!file_size.has_value()) {
+      continue;
+    }
+    // Unlike WalkDirectories we don't have the size on hand here; pass the
+    // real size so GetBinaryInfo can actually parse the file. A size of 0
+    // would make it bail out early and miscount every valid file as corrupt.
+    size_t size = static_cast<size_t>(
+        std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
+    ProcessBinaryFile(file_path.c_str(), size, result, &corrupt_file_count);
+  }
+
+  if (corrupt_file_count > 0) {
+    PERFETTO_LOG(
+        "Skipped %u file(s) that look like ELF/Mach-O but could not be "
+        "parsed (corrupt or truncated) while indexing symbol paths.",
+        corrupt_file_count);
   }
 
   return result;
@@ -567,10 +651,13 @@ bool SkipJsonValue(const char*& it, const char* end) {
 
 std::optional<FoundBinary> IsCorrectFile(
     const std::string& symbol_file,
-    std::optional<std::string_view> build_id) {
+    std::optional<std::string_view> build_id,
+    BinaryPathError* error) {
   if (!base::FileExists(symbol_file)) {
+    *error = BinaryPathError::kFileNotFound;
     return std::nullopt;
   }
+  *error = BinaryPathError::kParseError;
   // Openfile opens the file with an exclusive lock on windows.
   std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
   if (!file_size.has_value()) {
@@ -589,11 +676,14 @@ std::optional<FoundBinary> IsCorrectFile(
       GetBinaryInfo(symbol_file.c_str(), size);
   if (!binary_info)
     return std::nullopt;
+  if (!binary_info->load_info)
+    return std::nullopt;
   if (build_id && binary_info->build_id != *build_id) {
+    *error = BinaryPathError::kBuildIdMismatch;
     return std::nullopt;
   }
-  return FoundBinary{symbol_file, binary_info->p_vaddr, binary_info->p_offset,
-                     binary_info->type};
+  *error = BinaryPathError::kOk;
+  return FoundBinary{symbol_file, *binary_info->load_info, binary_info->type};
 }
 
 // Try a path and record the attempt.
@@ -606,13 +696,14 @@ bool TryPath(const std::string& path,
     attempts.push_back({path, BinaryPathError::kFileNotFound});
     return false;
   }
-  std::optional<FoundBinary> found = IsCorrectFile(path, build_id);
+  BinaryPathError error;
+  std::optional<FoundBinary> found = IsCorrectFile(path, build_id, &error);
   if (found) {
     out_binary = std::move(found);
     attempts.push_back({path, BinaryPathError::kOk});
     return true;
   }
-  attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+  attempts.push_back({path, error});
   return false;
 }
 
@@ -623,16 +714,20 @@ std::optional<FoundBinary> FindBinaryInRoot(
     std::vector<BinaryPathAttempt>& attempts) {
   constexpr char kApkPrefix[] = "base.apk!";
 
-  std::string filename;
-  std::string dirname;
+  std::optional<FoundBinary> result;
+  // Try a path relative to the symbol root and record the attempt.
+  auto try_path_in_root = [&](const std::string& rel_path) {
+    return TryPath(root_str + "/" + rel_path, build_id, result, attempts);
+  };
 
-  for (base::StringSplitter sp(abspath, '/'); sp.Next();) {
-    if (!dirname.empty()) {
-      dirname += "/";
-    }
-    dirname += filename;
-    filename = sp.cur_token();
-  }
+  // Strip the leading root (e.g. "/" or "C:\") before searching for the
+  // mapping under `root_str`. Treat both '/' and '\' as path separators.
+  std::string_view rel = abspath;
+  rel.remove_prefix(base::PathRootPrefixLength(abspath));
+  size_t last_sep = rel.find_last_of("/\\");
+  size_t file_pos = last_sep == std::string_view::npos ? 0 : last_sep + 1;
+
+  std::string filename(rel.substr(file_pos));
 
   // Return the first match for the following options:
   // * absolute path of library file relative to root.
@@ -654,42 +749,35 @@ std::optional<FoundBinary> FindBinaryInRoot(
   // * $ROOT/foo.so
   // * $ROOT/.build-id/ab/cd1234.debug
 
-  std::optional<FoundBinary> result;
-  std::string symbol_file;
+  // Directory of the mapping relative to the root, including the trailing '/'
+  // (empty if the mapping has no directory component). Native separators are
+  // normalized to '/', which is accepted on all platforms.
+  std::string dir(rel.substr(0, file_pos));
+  std::replace(dir.begin(), dir.end(), '\\', '/');
 
-  symbol_file = root_str + "/" + dirname + "/" + filename;
-  if (TryPath(symbol_file, build_id, result, attempts)) {
+  bool has_apk_prefix = base::StartsWith(filename, kApkPrefix);
+  std::string filename_without_apk_prefix =
+      has_apk_prefix ? filename.substr(sizeof(kApkPrefix) - 1) : std::string();
+
+  if (!dir.empty() && try_path_in_root(dir + filename)) {
     return result;
   }
-
-  if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file = root_str + "/" + dirname + "/" +
-                  filename.substr(sizeof(kApkPrefix) - 1);
-    if (TryPath(symbol_file, build_id, result, attempts)) {
-      return result;
-    }
-  }
-
-  symbol_file = root_str + "/" + filename;
-  if (TryPath(symbol_file, build_id, result, attempts)) {
+  if (!dir.empty() && has_apk_prefix &&
+      try_path_in_root(dir + filename_without_apk_prefix)) {
     return result;
   }
-
-  if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix) - 1);
-    if (TryPath(symbol_file, build_id, result, attempts)) {
-      return result;
-    }
+  if (try_path_in_root(filename)) {
+    return result;
+  }
+  if (has_apk_prefix && try_path_in_root(filename_without_apk_prefix)) {
+    return result;
   }
 
   std::string hex_build_id = base::ToHex(build_id.c_str(), build_id.size());
-  std::string split_hex_build_id = SplitBuildID(hex_build_id);
-  if (!split_hex_build_id.empty()) {
-    symbol_file =
-        root_str + "/" + ".build-id" + "/" + split_hex_build_id + ".debug";
-    if (TryPath(symbol_file, build_id, result, attempts)) {
-      return result;
-    }
+  if (std::string build_id_path = SplitBuildID(hex_build_id);
+      !build_id_path.empty() &&
+      try_path_in_root(".build-id/" + build_id_path + ".debug")) {
+    return result;
   }
 
   return std::nullopt;
@@ -709,13 +797,14 @@ std::optional<FoundBinary> FindKernelBinary(
       attempts.push_back({path, BinaryPathError::kFileNotFound});
       return std::nullopt;
     }
-    std::optional<FoundBinary> found = IsCorrectFile(path, std::nullopt);
+    BinaryPathError error;
+    std::optional<FoundBinary> found =
+        IsCorrectFile(path, std::nullopt, &error);
     if (found) {
       attempts.push_back({path, BinaryPathError::kOk});
       return found;
     }
-    // File exists but isn't a valid binary.
-    attempts.push_back({path, BinaryPathError::kBuildIdMismatch});
+    attempts.push_back({path, error});
     return std::nullopt;
   };
 
@@ -855,7 +944,7 @@ BinaryLookupResult LocalBinaryFinder::FindBinary(const std::string& abspath,
   BinaryLookupResult& result = p.first->second;
 
   // Try the absolute path first.
-  if (base::StartsWith(abspath, "/")) {
+  if (base::IsAbsolutePath(abspath)) {
     if (TryPath(abspath, build_id, result.binary, result.attempts)) {
       return result;
     }
@@ -915,6 +1004,8 @@ SymbolPathError ToSymbolPathError(BinaryPathError error) {
       return SymbolPathError::kFileNotFound;
     case BinaryPathError::kBuildIdMismatch:
       return SymbolPathError::kBuildIdMismatch;
+    case BinaryPathError::kParseError:
+      return SymbolPathError::kParseError;
     case BinaryPathError::kBuildIdNotInIndex:
       return SymbolPathError::kBuildIdNotInIndex;
   }
@@ -930,15 +1021,64 @@ std::vector<SymbolPathAttempt> ToSymbolPathAttempts(
   }
   return result;
 }
+
+// `llvm-symbolizer` expects us to provide vaddr values (also called in this
+// code base relative pc). These are addresses relative to the preferred load
+// address passed to the linker in the ELF program header. The `rel_pc` values
+// in the `__intrinsic_stack_profile_frame` table have been converted from
+// absolute addresses (the acutal address in the program counter address of the
+// CPU) using the `start`, `exact_offset`, `start_offset` and `load_bias` values
+// in `__intrinsic_stack_profile_mapping`. But there are multiple situations
+// were this conversion is wrong and we need to adjust it:
+//   - On Android 10, there was a bug in libunwindstack that would incorrectly
+//     calculate the load_bias, and thus the relative PC. This would end up in
+//     frames that made no sense. We can fix this up after the fact if we
+//     detect this situation (comparing the stored load_bias vs the computed one
+//     from the binary).
+//   - When reading perf (or simpleperf) files we do not get `load_bias`
+//     information so we set the value to zero in
+//     `__intrinsic_stack_profile_mapping`. This gives us an incorrect value for
+//     `rel_pc`.
+//
+uint64_t ComputeUserSpaceAddressCorrection(
+    const UnsymbolizedMapping& runtime_mapping,
+    const FoundBinary& binary) {
+  if (binary.type != BinaryType::kElf) {
+    return 0;
+  }
+
+  const LoadInfo& load_info = binary.load_info;
+
+  // We need the relative offset to the start of the ELF. For perf and
+  // simpleperf `start_offset` is 0, but libunwindstack in traced_perf might set
+  // it to non zero e.g. for shared libraries in APKs
+  uint64_t offset = runtime_mapping.exact_offset - runtime_mapping.start_offset;
+
+  // We need to redo the runtime loaders work here to figure out the load bias.
+  // Note we can not trust the p_offset value in `load_info` as
+  // debug-symbol-only binaries have "invalid" (as in not the same as binaries
+  // with the executable code) values. So we use the runtime offset instead.
+  // p_vaddr and p_offset must have congruent values, modulo `p_align`.
+  // Attention: p_align can be 0 (means no aligment required)
+  uint64_t align_to = load_info.p_align == 0 ? 1 : load_info.p_align;
+  uint64_t adj_vaddr = base::AlignDown(load_info.p_vaddr, align_to);
+  uint64_t adj_offset = base::AlignDown(offset, align_to);
+  uint64_t real_load_bias = adj_vaddr - adj_offset;
+
+  if (real_load_bias > runtime_mapping.load_bias) {
+    return real_load_bias - runtime_mapping.load_bias;
+  }
+
+  return 0;
+}
+
 }  // namespace
 
 SymbolizeResult LocalSymbolizer::Symbolize(
     const Environment& env,
-    const std::string& mapping_name,
-    const std::string& build_id,
-    uint64_t load_bias,
+    const UnsymbolizedMapping& mapping,
     const std::vector<uint64_t>& addresses) {
-  bool is_kernel = base::StartsWith(mapping_name, "[kernel.kallsyms]");
+  bool is_kernel = base::StartsWith(mapping.name, "[kernel.kallsyms]");
   std::optional<FoundBinary> binary;
   std::vector<BinaryPathAttempt> binary_attempts;
   if (is_kernel) {
@@ -946,7 +1086,8 @@ SymbolizeResult LocalSymbolizer::Symbolize(
       binary = FindKernelBinary(*env.os_release, binary_attempts);
     }
   } else {
-    BinaryLookupResult lookup = finder_->FindBinary(mapping_name, build_id);
+    BinaryLookupResult lookup =
+        finder_->FindBinary(mapping.name, mapping.build_id);
     binary = std::move(lookup.binary);
     binary_attempts = std::move(lookup.attempts);
   }
@@ -955,30 +1096,20 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   if (!binary) {
     return {{}, std::move(attempts)};
   }
-  uint64_t binary_load_bias = binary->p_vaddr - binary->p_offset;
-  uint64_t addr_correction = 0;
-  if (is_kernel) {
-    // We expect this branch to be hit when symbolizing kernel frames with Linux
-    // perf (*not* simpleperf). In that case, we need to add the vaddr
-    // because llvm-symbolizer expects that we provide absolute addresses unlike
-    // all other files where it expects relative addresses.
-    addr_correction = binary->p_vaddr;
-  } else if (binary->p_offset > 0 && binary_load_bias > load_bias) {
-    // On Android 10, there was a bug in libunwindstack that would incorrectly
-    // calculate the load_bias, and thus the relative PC. This would end up in
-    // frames that made no sense. We can fix this up after the fact if we
-    // detect this situation.
-    //
-    // Note that the `binary->p_offset > 0` check above accounts for perf.data
-    // files: in those, load_bias from the trace is always zero but we should
-    // *not* enter this codepath. Thankfully, in those cases `p_offset` is zero:
-    // symbol elfs always seem to have the text segment's `p_offset` zeroed out.
-    // Whereas with libunwindstack, `p_offset` should always be greater than
-    // zero.
-    addr_correction = (binary->p_vaddr - binary->p_offset) - load_bias;
+
+  const LoadInfo& load_info = binary->load_info;
+  uint64_t addr_correction =
+      // When symbolizing kernel frames from Linux perf (*not* simpleperf) we
+      // need to add the vaddr because llvm-symbolizer expects that we provide
+      // absolute addresses unlike all other files where it expects relative
+      // addresses.
+      is_kernel ? load_info.p_vaddr
+                : ComputeUserSpaceAddressCorrection(mapping, *binary);
+  if (addr_correction != 0) {
     PERFETTO_DLOG("Correcting load bias by %" PRIu64 " for %s", addr_correction,
-                  mapping_name.c_str());
+                  mapping.name.c_str());
   }
+
   SymbolizeResult result;
   result.frames.reserve(addresses.size());
   for (uint64_t address : addresses) {

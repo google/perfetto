@@ -26,6 +26,8 @@ namespace profiling {
 namespace {
 
 using ::testing::Contains;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::Not;
 
 std::string NormalizeToString(char* cmdline, size_t size) {
@@ -99,6 +101,32 @@ TEST(ProcUtilsTest, NormalizeNoNullTerminated) {
 TEST(ProcUtilsTest, NormalizeZeroLength) {
   char* cmdline = nullptr;
   EXPECT_EQ(NormalizeCmdLine(&cmdline, 0), -1);
+}
+
+TEST(ProcUtilsTest, NormalizeCmdlinesExactOnly) {
+  auto patterns = NormalizeCmdlines(
+      {"/system/bin/surfaceflinger@1.0", "com.android.phone"});
+  ASSERT_TRUE(patterns.has_value());
+  EXPECT_THAT(patterns->exact_patterns,
+              ElementsAre("surfaceflinger", "com.android.phone"));
+  EXPECT_THAT(patterns->glob_patterns, IsEmpty());
+}
+
+TEST(ProcUtilsTest, NormalizeCmdlinesSplitsExactAndGlob) {
+  auto patterns = NormalizeCmdlines(
+      {"/system/bin/surfaceflinger@1.0", "com.android.*", "system_server"});
+  ASSERT_TRUE(patterns.has_value());
+  EXPECT_THAT(patterns->exact_patterns,
+              ElementsAre("surfaceflinger", "system_server"));
+  // Glob patterns are kept verbatim (not normalized).
+  EXPECT_THAT(patterns->glob_patterns, ElementsAre("com.android.*"));
+}
+
+TEST(ProcUtilsTest, NormalizeCmdlinesGlobKeptVerbatim) {
+  auto patterns = NormalizeCmdlines({"/system/bin/*", "*@2.0"});
+  ASSERT_TRUE(patterns.has_value());
+  EXPECT_THAT(patterns->exact_patterns, IsEmpty());
+  EXPECT_THAT(patterns->glob_patterns, ElementsAre("/system/bin/*", "*@2.0"));
 }
 
 TEST(ProcUtilsTest, FindProfilablePids) {

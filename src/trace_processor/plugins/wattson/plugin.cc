@@ -92,7 +92,8 @@ class WattsonPlugin : public Plugin<WattsonPlugin> {
                   {"static", kDouble},
                   {"active", kDouble},
                   {"idle0", kDouble},
-                  {"idle1", kDouble}}),
+                  {"idle1", kDouble},
+                  {"interconnect", kDouble}}),
         kCpu2DCurvesData.data(), kCpu2DCurvesData.size()));
     fns.emplace_back(std::make_unique<WattsonCurvesTableFunction>(
         pool, "__intrinsic_wattson_curves_gpu",

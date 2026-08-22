@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -38,13 +39,14 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
-namespace perfetto::trace_processor::core::tree {
-class TreeTransformer;
-}  // namespace perfetto::trace_processor::core::tree
+namespace perfetto::trace_processor::util {
+class TraceBlobViewReader;
+}  // namespace perfetto::trace_processor::util
 
 namespace perfetto::trace_processor::core::dataframe {
 
 struct QueryPlanImpl;
+struct LogicalPlan;
 
 // Dataframe is a columnar data structure for efficient querying and filtering
 // of tabular data. It provides:
@@ -112,28 +114,6 @@ class Dataframe {
                      spec.column_specs.data());
   }
 
-  // Concatenates two dataframes horizontally by combining their columns.
-  //
-  // Both dataframes must have the same row count. The resulting dataframe
-  // contains all columns from `left` followed by all columns from `right`,
-  // excluding the `_auto_id` column from both (a new `_auto_id` is created).
-  //
-  // Args:
-  //   left: The first dataframe. Ownership is taken via move.
-  //   right: The second dataframe. Ownership is taken via move.
-  //
-  // Returns:
-  //   A new dataframe containing columns from both inputs, or an error if
-  //   row counts don't match.
-  static base::StatusOr<Dataframe> HorizontalConcat(Dataframe&& left,
-                                                    Dataframe&& right);
-
-  // Selects rows at the given indices from this dataframe.
-  //
-  // Returns a new dataframe containing only the rows at the specified indices.
-  // The indices must be valid (less than row_count()).
-  Dataframe SelectRows(const uint32_t* indices, uint32_t count) &&;
-
   // Movable
   Dataframe(Dataframe&&) = default;
   Dataframe& operator=(Dataframe&&) = default;
@@ -173,6 +153,15 @@ class Dataframe {
   // Returns:
   //   A StatusOr containing the QueryPlan or an error status.
   base::StatusOr<QueryPlan> PlanQuery(
+      std::vector<FilterSpec>& filter_specs,
+      const std::vector<DistinctSpec>& distinct_specs,
+      const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
+      uint64_t cols_used_bitmap) const;
+
+  // Returns the logical plan PlanQuery would lower, for tests which assert on
+  // the planner's choices rather than on the bytecode they produce.
+  base::StatusOr<LogicalPlan> PlanQueryLogicalForTesting(
       std::vector<FilterSpec>& filter_specs,
       const std::vector<DistinctSpec>& distinct_specs,
       const std::vector<SortSpec>& sort_specs,
@@ -241,17 +230,27 @@ class Dataframe {
   base::StatusOr<Index> BuildIndex(const uint32_t* columns_start,
                                    const uint32_t* columns_end) const;
 
-  // Adds an index to the dataframe.
+  // Returns a new dataframe identical to this one but with `index` appended
+  // to its list of indexes.
   //
-  // Note: indexes can only be added to a finalized dataframe; it's
-  // undefined behavior to call this on a non-finalized dataframe.
-  void AddIndex(Index index);
+  // The original dataframe is unchanged. The returned dataframe shares
+  // column storage and existing indexes with the original (via shared_ptr),
+  // so the operation is cheap regardless of dataframe size.
+  //
+  // Note: indexes can only be added to a finalized dataframe; calling this
+  // on a non-finalized dataframe will fail.
+  [[nodiscard]] Dataframe AddIndex(Index index) const;
 
-  // Removes the index at the specified position.
+  // Returns a new dataframe identical to this one but with the index at
+  // `pos` removed.
   //
-  // Note: indexes can only be removed from a finalized dataframe;it's
-  // undefined behavior to call this on a non-finalized dataframe.
-  void RemoveIndexAt(uint32_t);
+  // The original dataframe is unchanged. The returned dataframe shares
+  // column storage and remaining indexes with the original (via shared_ptr),
+  // so the operation is cheap regardless of dataframe size.
+  //
+  // Note: indexes can only be removed from a finalized dataframe; calling
+  // this on a non-finalized dataframe will fail.
+  [[nodiscard]] Dataframe RemoveIndexAt(uint32_t pos) const;
 
   // Marks the dataframe as "finalized": a finalized dataframe cannot have any
   // more rows added to it (note this is different from being immutable as
@@ -415,7 +414,11 @@ class Dataframe {
   friend class TypedCursor;
   friend class QueryPlanBuilder;
   friend struct QueryPlanImpl;
-  friend class tree::TreeTransformer;
+  friend class ArrowSerializer;
+  friend base::StatusOr<Dataframe> DeserializeFromArrow(
+      const util::TraceBlobViewReader&,
+      StringPool*,
+      const DataframeSpec&);
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.

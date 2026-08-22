@@ -66,6 +66,7 @@ export async function addWattsonThreadTrack(
       estimated_mw AS value
     FROM gapless
     WHERE dur > 0
+    ORDER BY ts
   `;
 
   const renderer = await CounterTrack.createMaterialized({

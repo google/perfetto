@@ -13,21 +13,20 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 DFS_WEIGHT_BOUNDED_TABLE = Table(
     python_module=__file__,
     class_name="DfsWeightBoundedTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="__intrinsic_dfs_weight_bounded",
     columns=[
         C("root_node_id", CppUint32()),
         C("node_id", CppUint32()),
-        C("parent_node_id",
-          CppOptional(CppUint32()),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("parent_node_id", CppOptional(CppUint32())),
     ],
 )
 

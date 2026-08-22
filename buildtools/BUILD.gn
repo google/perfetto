@@ -1683,6 +1683,7 @@ config("sqlite_config") {
     "-DSQLITE_ENABLE_JSON1",
     "-DSQLITE_ENABLE_MATH_FUNCTIONS",
   ]
+  cflags += [ "-Wno-incompatible-pointer-types-discards-qualifiers" ]
   if (is_clang && is_win) {
     # SQLite uses __int64 which clang complains about unless
     # we specify this flag.
@@ -1882,6 +1883,8 @@ source_set("zstd") {
     "zstd/lib/compress/zstd_ldm_geartab.h",
     "zstd/lib/compress/zstd_opt.c",
     "zstd/lib/compress/zstd_opt.h",
+    "zstd/lib/compress/zstd_preSplit.c",
+    "zstd/lib/compress/zstd_preSplit.h",
     "zstd/lib/compress/zstdmt_compress.c",
     "zstd/lib/compress/zstdmt_compress.h",
     "zstd/lib/decompress/huf_decompress.c",
@@ -1914,7 +1917,7 @@ config("zstd_config") {
   visibility = _buildtools_visibility
   cflags = [
     perfetto_isystem_cflag,
-    rebase_path("zstd", root_build_dir),
+    rebase_path("zstd/lib", root_build_dir),
   ]
   if (current_cpu == "x64") {
     defines = [ "ZSTD_DISABLE_ASM" ]
@@ -1974,7 +1977,6 @@ source_set("libunwindstack") {
   ]
   if (!is_android) {
     sources += [
-      "android-libbase/liblog_symbols.cpp",
       "android-libbase/logging.cpp",
       "android-libbase/threads.cpp",
       "android-logging/liblog/logger_write.cpp",
@@ -1994,7 +1996,17 @@ source_set("libunwindstack") {
     "//gn/standalone:extra_warnings",
     "//gn/standalone:visibility_hidden",
   ]
-  cflags = [ "-DFAKE_LOG_DEVICE=1" ]
+  cflags = [
+    "-DFAKE_LOG_DEVICE=1",
+
+    # android-unwinding/libunwindstack/Memory.cpp uses the macro
+    # TEMP_FAILURE_RETRY which is only defined in bionic and glibc.
+    # To fix the musl build, force include libbase's polyfill header.
+    # Android's musl build succeeds because of a separate polyfill:
+    # https://cs.android.com/android/platform/superproject/+/android-latest-release:external/musl/android/include/unistd.h;bpv=1
+    "-include",
+    "android-base/macros.h",
+  ]
   if (!is_win) {
     cflags += [
       "-Wno-deprecated-declarations",
@@ -2315,9 +2327,14 @@ if (enable_perfetto_re2) {
     defines = [ "RE2_USE_ABSL" ]
 
     # On Windows, NULL expands to 0 (not nullptr), which triggers this
-    # warning in re2 headers included from our code.
-    if (is_win && is_clang) {
-      cflags = [ "-Wno-zero-as-null-pointer-constant" ]
+    # warning in re2 headers included from our code. The MS ABI bit-field
+    # packing warning fires on the intentional bit-fields in re2/re2/re2.h
+    # and is a false positive on non-Windows targets.
+    if (is_clang) {
+      cflags = [ "-Wno-ms-bitfield-padding" ]
+      if (is_win) {
+        cflags += [ "-Wno-zero-as-null-pointer-constant" ]
+      }
     }
   }
 

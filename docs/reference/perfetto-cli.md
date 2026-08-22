@@ -63,9 +63,11 @@ mode.
 :    Can only be used with `--clone` or `--clone-by-name`. Disables
      `trace_filter` on the cloned session.
 
-`--add-note` _key[=value]_
-:    Adds a user note to the trace config. If `=value` is omitted, value is an
-     empty string.
+`--add-attribute` _key[=value]_
+:    Adds a [trace attribute](/protos/perfetto/common/trace_attributes.proto),
+     a key/value pair describing the trace. If `=value` is omitted, the value
+     is an empty string. Attributes appear in Trace Processor's `metadata`
+     table as `trace_attribute.<key>` rows.
 
 `--version`
 :    Prints the `perfetto` version string and exits.

@@ -51,6 +51,7 @@ namespace perfetto {
 namespace base {
 
 std::string GetTestDataPath(const std::string& path);
+std::string GetGenDataPath(const std::string& path);
 
 }  // namespace base
 }  // namespace perfetto

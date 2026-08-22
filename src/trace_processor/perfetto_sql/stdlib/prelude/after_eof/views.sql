@@ -31,6 +31,27 @@ CREATE PERFETTO VIEW counter(
 AS
 SELECT id, ts, track_id, value, arg_set_id FROM __intrinsic_counter;
 
+-- Contains state from userspace which reads like a symbolic counter with
+-- literals rather than numbers.
+CREATE PERFETTO VIEW state(
+  -- Unique id of a state slice
+  id ID,
+  -- The start timestamp of the state slice in nanoseconds.
+  ts TIMESTAMP,
+  -- The duration of the state slice in nanoseconds.
+  dur DURATION,
+  -- The track this state slice belongs to.
+  track_id JOINID(track.id),
+  -- The category of the state.
+  category STRING,
+  -- The string value/name of the state.
+  value STRING,
+  -- Additional information about the state.
+  arg_set_id ARGSETID
+)
+AS
+SELECT id, ts, dur, track_id, category, value, arg_set_id FROM __intrinsic_state;
+
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.
 CREATE PERFETTO VIEW slice(
@@ -249,7 +270,8 @@ SELECT
   END AS display_value
 FROM __intrinsic_args;
 
--- Contains the Linux perf sessions in the trace.
+-- Contains all Linux perf sessions in the trace, including sessions which
+-- only recorded counters and did not capture any callstacks.
 CREATE PERFETTO VIEW perf_session(
   -- The id of the perf session. Prefer using `perf_session_id` instead.
   id LONG,
@@ -259,27 +281,58 @@ CREATE PERFETTO VIEW perf_session(
   cmdline STRING
 )
 AS
-SELECT *, id AS perf_session_id FROM __intrinsic_perf_session;
+SELECT id, id AS perf_session_id, cmdline
+FROM __intrinsic_profiler_session
+WHERE
+  source = 'linux.perf';
 
--- Log entries from Android logcat.
+-- Log entries from all sources (Android logcat, systemd_journald, etc.).
+--
+-- NOTE: this table is not sorted by timestamp.
+CREATE PERFETTO VIEW logs(
+  -- Which row in the table the log corresponds to.
+  id ID,
+  -- Timestamp of the log entry.
+  ts TIMESTAMP,
+  -- Thread writing the log entry (nullable).
+  utid JOINID(thread.id),
+  -- Priority. Android: 3=DEBUG..6=ERROR. Journald/syslog: 0=EMERG..7=DEBUG.
+  prio LONG,
+  -- Source of the log entry: 'android_logcat' or 'systemd_journald'.
+  log_source STRING,
+  -- Tag / SYSLOG_IDENTIFIER of the log entry.
+  tag STRING,
+  -- Content of the log entry.
+  msg STRING,
+  -- Args for source-specific metadata.
+  arg_set_id ARGSETID
+)
+AS
+SELECT id, ts, utid, prio, log_source, tag, msg, arg_set_id
+FROM __intrinsic_logs;
+
+-- Android log entries from logcat or bugreport.
 --
 -- NOTE: this table is not sorted by timestamp.
 CREATE PERFETTO VIEW android_logs(
   -- Which row in the table the log corresponds to.
   id ID,
-  -- Timestamp of log entry.
+  -- Timestamp in nanoseconds.
   ts TIMESTAMP,
-  -- Thread writing the log entry.
+  -- Thread id in the trace (nullable).
   utid JOINID(thread.id),
-  -- Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.
+  -- Android log priority (3=DEBUG, 4=INFO, 5=WARN, 6=ERROR, 7=FATAL).
   prio LONG,
-  -- Tag of the log entry.
+  -- Log tag.
   tag STRING,
-  -- Content of the log entry
+  -- Log message text.
   msg STRING
 )
 AS
-SELECT id, ts, utid, prio, tag, msg FROM __intrinsic_android_logs;
+SELECT id, ts, utid, prio, tag, msg
+FROM __intrinsic_logs
+WHERE
+  log_source = 'android_logcat';
 
 -- Contains flow events linking slices.
 CREATE PERFETTO VIEW flow(
@@ -350,7 +403,7 @@ CREATE PERFETTO VIEW android_dumpstate(
 AS
 SELECT * FROM __intrinsic_android_dumpstate;
 
--- The profiler smaps contains the memory stats for virtual memory ranges.
+-- Per-VMA memory mapping stats. For linux traces, prefer the process_memory_mappings view.
 CREATE PERFETTO VIEW profiler_smaps(
   -- The id of the row.
   id ID,
@@ -360,6 +413,12 @@ CREATE PERFETTO VIEW profiler_smaps(
   ts TIMESTAMP,
   -- The mmaped file, as per /proc/pid/smaps.
   path STRING,
+  -- Same as path but with any trailing " (deleted)" suffix removed.
+  path_trimmed STRING,
+  -- Number of original mappings aggregated into this row.
+  aggregate_count LONG,
+  -- True if this is a file-backed mapping, and the file was deleted.
+  is_deleted LONG,
   -- Total size of the mapping.
   size_kb LONG,
   -- KB of this mapping that are private dirty RSS.
@@ -386,11 +445,80 @@ CREATE PERFETTO VIEW profiler_smaps(
   shared_clean_resident_kb LONG,
   -- Locked KB.
   locked_kb LONG,
-  -- Proportional resident KB.
-  proportional_resident_kb LONG
+  -- Proportional set size (PSS) KB.
+  proportional_resident_kb LONG,
+  -- Resident set size (RSS) KB.
+  rss_kb LONG,
+  -- Anonymous (non-file-backed) KB.
+  anonymous_kb LONG,
+  -- Dirty portion of the proportional set size (PSS) KB.
+  pss_dirty_kb LONG,
+  -- Proportional share of swap KB.
+  swap_pss_kb LONG
 )
 AS
 SELECT * FROM __intrinsic_profiler_smaps;
+
+-- Per-VMA memory mapping stats.
+CREATE PERFETTO VIEW process_memory_mappings(
+  -- The id of the row.
+  id ID,
+  -- Unique pid of the process.
+  upid LONG,
+  -- Timestamp of the snapshot.
+  ts TIMESTAMP,
+  -- The mapping name. Any (deleted) suffix is removed for file-backed mappings.
+  path STRING,
+  -- Number of original mappings aggregated into this row.
+  aggregate_count LONG,
+  -- True if this is a file-backed mapping, and the file was deleted. In other words, the kernel reported the mapping with a "(deleted)" suffix.
+  is_deleted LONG,
+  -- Total size of the mapping.
+  size_kb LONG,
+  -- Resident set size (RSS) of the mapping.
+  rss_kb LONG,
+  -- Anonymous (non-file-backed) portion of the mapping.
+  anonymous_kb LONG,
+  -- Portion of the mapping in swap.
+  swap_kb LONG,
+  -- Shared clean RSS of the mapping.
+  shared_clean_kb LONG,
+  -- Shared dirty RSS of the mapping.
+  shared_dirty_kb LONG,
+  -- Private clean RSS of the mapping.
+  private_clean_kb LONG,
+  -- Private dirty RSS of the mapping.
+  private_dirty_kb LONG,
+  -- Locked KB.
+  locked_kb LONG,
+  -- Proportional set size (PSS).
+  pss_kb LONG,
+  -- Dirty portion of the proportional set size (PSS).
+  pss_dirty_kb LONG,
+  -- Proportional share of swap.
+  swap_pss_kb LONG
+)
+AS
+SELECT
+  id,
+  upid,
+  ts,
+  path_trimmed AS path,
+  aggregate_count,
+  is_deleted,
+  size_kb,
+  rss_kb,
+  anonymous_kb,
+  swap_kb,
+  shared_clean_resident_kb AS shared_clean_kb,
+  shared_dirty_resident_kb AS shared_dirty_kb,
+  private_clean_resident_kb AS private_clean_kb,
+  private_dirty_kb,
+  locked_kb,
+  proportional_resident_kb AS pss_kb,
+  pss_dirty_kb,
+  swap_pss_kb
+FROM __intrinsic_profiler_smaps;
 
 -- Metadata about packages installed on the system.
 CREATE PERFETTO VIEW package_list(
@@ -445,7 +573,10 @@ CREATE PERFETTO VIEW stack_profile_frame(
   -- If the profile was offline symbolized, the offline symbol information.
   symbol_set_id LONG,
   -- Deobfuscated name of the function this location is in.
-  deobfuscated_name STRING
+  deobfuscated_name STRING,
+  -- The kind of frame (e.g. "native", "kernel", "interpreted", "jit", "gc",
+  -- "runtime") if reported by the producer, else NULL.
+  type STRING
 )
 AS
 SELECT * FROM __intrinsic_stack_profile_frame;
@@ -466,7 +597,7 @@ SELECT * FROM __intrinsic_stack_profile_callsite;
 
 -- Table containing stack samples from CPU profiling.
 CREATE PERFETTO VIEW cpu_profile_stack_sample(
-  -- The id of the row.
+  -- The id of the row. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -478,11 +609,23 @@ CREATE PERFETTO VIEW cpu_profile_stack_sample(
   process_priority LONG
 )
 AS
-SELECT * FROM __intrinsic_cpu_profile_stack_sample;
+SELECT
+  ps.id,
+  ps.ts,
+  ps.callsite_id,
+  tc.utid,
+  coalesce(x.process_priority, 0) AS process_priority
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
+  ON x.profiler_sample_id = ps.id
+WHERE
+  ps.source IN ('chrome', 'legacy_v8', 'gecko', 'simpleperf', 'perf_text');
 
 -- Samples from MacOS Instruments.
 CREATE PERFETTO VIEW instruments_sample(
-  -- The id of the row.
+  -- The id of the row. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -494,7 +637,16 @@ CREATE PERFETTO VIEW instruments_sample(
   cpu LONG
 )
 AS
-SELECT * FROM __intrinsic_instruments_sample;
+SELECT ps.id, ps.ts, tc.utid, ps.callsite_id, c.cpu
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_execution_context AS ec
+  ON ec.id = ps.execution_context_id
+LEFT JOIN __intrinsic_cpu AS c
+  ON c.id = ec.ucpu
+WHERE
+  ps.source = 'instruments';
 
 -- Symbolization data for a frame.
 CREATE PERFETTO VIEW stack_profile_symbol(
@@ -610,6 +762,9 @@ CREATE PERFETTO VIEW machine(
   id ID,
   -- Raw machine identifier in the trace packet.
   raw_id LONG,
+  -- Human-readable name of the machine (e.g. from a perfetto_manifest
+  -- override), used as its label in the UI.
+  name STRING,
   -- The name of the operating system.
   sysname STRING,
   -- The current release of the operating system.
@@ -629,10 +784,21 @@ CREATE PERFETTO VIEW machine(
   -- Total system RAM in bytes.
   system_ram_bytes LONG,
   -- Total system RAM in gigabytes (rounded).
-  system_ram_gb LONG
+  system_ram_gb LONG,
+  -- 1-based index of this machine among the non-host machines, used by the UI
+  -- to label tracks (e.g. "(machine 1)"). The host machine (raw_id 0) gets 0,
+  -- so it is never labelled.
+  label_index LONG
 )
 AS
-SELECT * FROM __intrinsic_machine;
+SELECT
+  *,
+  -- A dense 1-based rank among the non-host machines, ordered by id. We rank by
+  -- position rather than arithmetic on id because the host does not always take
+  -- the lowest id: the perfetto_manifest reader pre-allocates named machine rows
+  -- before the host row is created lazily, so a named machine can precede it.
+  iif(raw_id = 0, 0, sum(iif(raw_id = 0, 0, 1)) OVER (ORDER BY id)) AS label_index
+FROM __intrinsic_machine;
 
 -- Contains information of filedescriptors collected during the trace.
 CREATE PERFETTO VIEW filedescriptor(
@@ -850,7 +1016,7 @@ CREATE PERFETTO VIEW _trace_import_logs(
   ts TIMESTAMP,
   -- The byte offset in the trace file where the error occurred (if available).
   byte_offset LONG,
-  -- The severity of the log entry ('info', 'data_loss', or 'error').
+  -- The severity of the log entry ('info', 'notice', 'data_loss', or 'error').
   severity STRING,
   -- The name of the stat/error type.
   name STRING,

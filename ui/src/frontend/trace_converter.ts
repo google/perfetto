@@ -39,7 +39,7 @@ interface JobCompletedArgs {
 
 interface DownloadFileArgs {
   kind: 'downloadFile';
-  buffer: Uint8Array;
+  buffer: Uint8Array<ArrayBuffer>;
   name: string;
 }
 
@@ -123,14 +123,21 @@ export function convertToJson(
   );
 }
 
+// Maps to traceconv's --alloc/--perf/--java-heap disambiguation flags:
+// traces can contain more than one profile type and traceconv refuses to
+// guess in that case.
+export type PprofProfileType = 'alloc' | 'perf' | 'java-heap';
+
 export function convertTraceToPprofAndDownload(
   trace: Blob,
+  profileType: PprofProfileType,
   pid: number,
   ts: time,
 ): Promise<void> {
   return makeWorkerAndPost({
     kind: 'ConvertTraceToPprof',
     trace,
+    profileType,
     pid,
     ts,
   });

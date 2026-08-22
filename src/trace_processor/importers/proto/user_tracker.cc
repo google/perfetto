@@ -29,8 +29,8 @@ UserTracker::UserTracker(TraceProcessorContext* context) : context_(context) {}
 void UserTracker::AddOrUpdateUser(int64_t android_user_id, StringId user_type) {
   auto* it = user_rows_.Find(android_user_id);
   if (it) {
-    auto row = context_->storage->mutable_user_list_table()->FindById(*it);
-    row->set_type(user_type);
+    auto row = (*context_->storage->mutable_user_list_table())[*it];
+    row.set_type(user_type);
     return;
   }
   auto id = context_->storage->mutable_user_list_table()->Insert(

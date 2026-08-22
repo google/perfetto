@@ -35,7 +35,12 @@ IdPtr<Thread> RowDataTracker::NewThread() {
   return {id + 1, ptr};
 }
 Thread* RowDataTracker::GetThread(ThreadId id) {
-  PERFETTO_DCHECK(id != kNullId);
+  // Ids are 1-based and come (transitively) from the parsed trace, so a
+  // malformed file can supply kNullId or an out-of-range id. Fail closed rather
+  // than indexing out of bounds (see GetBinary for the same pattern).
+  if (id == kNullId || id > threads_.size()) {
+    return nullptr;
+  }
   return &threads_[id - 1];
 }
 
@@ -46,7 +51,12 @@ IdPtr<Process> RowDataTracker::NewProcess() {
   return {id + 1, ptr};
 }
 Process* RowDataTracker::GetProcess(ProcessId id) {
-  PERFETTO_DCHECK(id != kNullId);
+  // Ids are 1-based and come (transitively) from the parsed trace, so a
+  // malformed file can supply kNullId or an out-of-range id. Fail closed rather
+  // than indexing out of bounds (see GetBinary for the same pattern).
+  if (id == kNullId || id > processes_.size()) {
+    return nullptr;
+  }
   return &processes_[id - 1];
 }
 
@@ -57,7 +67,12 @@ IdPtr<Frame> RowDataTracker::NewFrame() {
   return {id + 1, ptr};
 }
 Frame* RowDataTracker::GetFrame(BacktraceFrameId id) {
-  PERFETTO_DCHECK(id != kNullId);
+  // Ids are 1-based and come (transitively) from the parsed trace, so a
+  // malformed file can supply kNullId or an out-of-range id. Fail closed rather
+  // than indexing out of bounds (see GetBinary for the same pattern).
+  if (id == kNullId || id > frames_.size()) {
+    return nullptr;
+  }
   return &frames_[id - 1];
 }
 
@@ -68,7 +83,12 @@ IdPtr<Backtrace> RowDataTracker::NewBacktrace() {
   return {id + 1, ptr};
 }
 Backtrace* RowDataTracker::GetBacktrace(BacktraceId id) {
-  PERFETTO_DCHECK(id != kNullId);
+  // Ids are 1-based and come (transitively) from the parsed trace, so a
+  // malformed file can supply kNullId or an out-of-range id. Fail closed rather
+  // than indexing out of bounds (see GetBinary for the same pattern).
+  if (id == kNullId || id > backtraces_.size()) {
+    return nullptr;
+  }
   return &backtraces_[id - 1];
 }
 
@@ -79,8 +99,9 @@ IdPtr<Binary> RowDataTracker::NewBinary() {
   return {id + 1, ptr};
 }
 Binary* RowDataTracker::GetBinary(BinaryId id) {
-  // Frames are allowed to have null binaries.
-  if (id == kNullId)
+  // Frames are allowed to have null binaries; an out-of-range id comes from a
+  // malformed trace, so fail closed rather than indexing out of bounds.
+  if (id == kNullId || id > binaries_.size())
     return nullptr;
   return &binaries_[id - 1];
 }

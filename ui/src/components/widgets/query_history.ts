@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './query_history.scss';
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {assertTrue} from '../../base/assert';
@@ -29,9 +30,7 @@ export interface QueryHistoryComponentAttrs {
   setQuery: (query: string) => void;
 }
 
-export class QueryHistoryComponent
-  implements m.ClassComponent<QueryHistoryComponentAttrs>
-{
+export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryComponentAttrs> {
   view({attrs}: m.CVnode<QueryHistoryComponentAttrs>) {
     const {trace, runQuery, setQuery, ...rest} = attrs;
     const unstarred: HistoryItemComponentAttrs[] = [];
@@ -66,9 +65,7 @@ export interface HistoryItemComponentAttrs {
   setQuery: (query: string) => void;
 }
 
-export class HistoryItemComponent
-  implements m.ClassComponent<HistoryItemComponentAttrs>
-{
+export class HistoryItemComponent implements m.ClassComponent<HistoryItemComponentAttrs> {
   view(vnode: m.Vnode<HistoryItemComponentAttrs>): m.Child {
     const query = vnode.attrs.entry.query;
     return m(

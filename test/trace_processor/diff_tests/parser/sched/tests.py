@@ -110,7 +110,7 @@ class SchedParser(TestSuite):
           ON c.track_id = t.id
         JOIN machine as m on t.machine_id = m.id
         WHERE
-          name GLOB "Cpu ? Cap" OR name GLOB "Cpu ? Util" OR name GLOB "Cpu ? Nr Running"
+          t.name GLOB "Cpu ? Cap" OR t.name GLOB "Cpu ? Util" OR t.name GLOB "Cpu ? Nr Running"
         ORDER BY ts;
         """,
         out=Csv("""

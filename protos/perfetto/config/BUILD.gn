@@ -27,6 +27,7 @@ perfetto_proto_library("@TYPE@") {
     "gpu:@TYPE@",
     "inode_file:@TYPE@",
     "interceptors:@TYPE@",
+    "linux:@TYPE@",
     "power:@TYPE@",
     "priority_boost:@TYPE@",
     "process_stats:@TYPE@",
@@ -42,7 +43,9 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "chrome/chrome_config.proto",
     "chrome/histogram_samples.proto",
+    "chrome/sampling_heap_profiler.proto",
     "chrome/scenario_config.proto",
+    "chrome/stack_sampling_profiler.proto",
     "chrome/system_metrics.proto",
     "chrome/v8_config.proto",
     "data_source_config.proto",

@@ -51,11 +51,11 @@ bool IsAncestor(const tables::SliceTable& slices,
     if (*id == ancestor_id) {
       return true;
     }
-    auto ref = slices.FindById(*id);
-    if (!ref || ref->depth() <= ancestor_depth) {
+    auto ref = slices[*id];
+    if (ref.depth() <= ancestor_depth) {
       return false;
     }
-    id = ref->parent_id();
+    id = ref.parent_id();
   }
   return false;
 }
@@ -65,24 +65,19 @@ bool GetDescendantsInternal(
     tables::SliceTable::ConstCursor& cursor,
     SliceId starting_id,
     std::vector<tables::SliceTable::RowNumber>& row_numbers_accumulator,
-    base::Status& out_status) {
-  auto start_ref = slices.FindById(starting_id);
-  if (!start_ref) {
-    out_status =
-        base::ErrStatus("no row with id %" PRIu32 "", starting_id.value);
-    return false;
-  }
-  cursor.SetFilterValueUnchecked(0, start_ref->ts());
-  cursor.SetFilterValueUnchecked(1, start_ref->track_id().value);
-  cursor.SetFilterValueUnchecked(2, start_ref->depth());
+    base::Status&) {
+  auto start_ref = slices[starting_id];
+  cursor.SetFilterValueUnchecked(0, start_ref.ts());
+  cursor.SetFilterValueUnchecked(1, start_ref.track_id().value);
+  cursor.SetFilterValueUnchecked(2, start_ref.depth());
   // Use Le for the upper bound so that slices starting exactly at the end
   // boundary are included as candidates; we verify those with a parent chain
   // walk below. This is necessary because an instant child emitted while its
   // parent is still open gets parent_id set to that parent, even though its
   // ts equals parent.ts + parent.dur (the open-right boundary).
   int64_t ts_end;
-  if (start_ref->dur() >= 0) {
-    ts_end = start_ref->ts() + start_ref->dur();
+  if (start_ref.dur() >= 0) {
+    ts_end = start_ref.ts() + start_ref.dur();
   } else {
     ts_end = std::numeric_limits<int64_t>::max();
   }
@@ -93,12 +88,12 @@ bool GetDescendantsInternal(
   // different subtree. For such candidates, walk the parent chain to verify
   // ancestry. For candidates strictly inside the interval, same-depth
   // non-overlapping guarantees they are true descendants.
-  int64_t start_ts = start_ref->ts();
+  int64_t start_ts = start_ref.ts();
   for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
     auto row_num = cursor.ToRowNumber();
     auto ref = row_num.ToRowReference(slices);
     if ((ref.ts() == start_ts || ref.ts() == ts_end) &&
-        !IsAncestor(slices, ref, starting_id, start_ref->depth())) {
+        !IsAncestor(slices, ref, starting_id, start_ref.depth())) {
       continue;
     }
     row_numbers_accumulator.emplace_back(row_num);
@@ -130,8 +125,11 @@ bool Descendant::Cursor::Run(const std::vector<SqlValue>& arguments) {
   int64_t start_val = arguments[0].long_value;
   switch (type_) {
     case Type::kSlice: {
-      SliceId start_id(static_cast<uint32_t>(start_val));
-      if (!GetDescendantsInternal(slice_table, slice_cursor_, start_id,
+      auto start_id = slice_table.TryCastId(start_val);
+      if (!start_id) {
+        return OnFailure(base::ErrStatus("no row with id %" PRId64, start_val));
+      }
+      if (!GetDescendantsInternal(slice_table, slice_cursor_, *start_id,
                                   descendants_, status_)) {
         return false;
       }

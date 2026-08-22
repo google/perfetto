@@ -17,6 +17,10 @@
 
 -- Returns the package name associated with the provided uid. If more than one
 -- package matches the uid, a scoring system will pick the best one.
-CREATE PERFETTO FUNCTION android_package_lookup(uid LONG)
+CREATE PERFETTO FUNCTION android_package_lookup(
+  -- The uid to look up.
+  uid LONG
+)
+-- The best-matching package name, or NULL if no package matches.
 RETURNS STRING
-DELEGATES TO package_lookup;
+DELEGATES TO _intrinsic_package_lookup;

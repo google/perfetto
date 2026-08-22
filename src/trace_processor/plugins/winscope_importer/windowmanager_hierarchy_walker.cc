@@ -21,10 +21,10 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_decoder.h"
-#include "protos/perfetto/trace/android/graphics/rect.pbzero.h"
-#include "protos/perfetto/trace/android/view/displayinfo.pbzero.h"
-#include "protos/perfetto/trace/android/view/windowlayoutparams.pbzero.h"
-#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/view/displayinfo.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/view/windowlayoutparams.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/windowmanager.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_proto_clone.h"
 
@@ -49,10 +49,11 @@ WindowManagerHierarchyWalker::WindowManagerHierarchyWalker(StringPool* pool)
 
 WindowManagerHierarchyWalker::ExtractResult
 WindowManagerHierarchyWalker::ExtractWindowContainers(
-    const protos::pbzero::WindowManagerTraceEntry::Decoder& entry) {
-  protos::pbzero::WindowManagerServiceDumpProto::Decoder service(
-      entry.window_manager_service());
-  protos::pbzero::RootWindowContainerProto::Decoder root(
+    const com::android::internal::pbzero::WindowManagerTraceEntry::Decoder&
+        entry) {
+  com::android::internal::pbzero::WindowManagerServiceDumpProto::Decoder
+      service(entry.window_manager_service());
+  com::android::internal::pbzero::RootWindowContainerProto::Decoder root(
       service.root_window_container());
 
   std::vector<ExtractedWindowContainer> result;
@@ -62,15 +63,16 @@ WindowManagerHierarchyWalker::ExtractWindowContainers(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseRootWindowContainer(
-    const protos::pbzero::RootWindowContainerProto::Decoder& root,
+    const com::android::internal::pbzero::RootWindowContainerProto::Decoder&
+        root,
     std::vector<ExtractedWindowContainer>* result) {
   if (!root.has_window_container()) {
     return base::ErrStatus(kErrorMessageMissingField);
   }
 
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      root.window_container());
-  protos::pbzero::IdentifierProto::Decoder identifier(
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(root.window_container());
+  com::android::internal::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
   auto tokenAndTitle = ParseIdentifierProto(identifier);
@@ -90,13 +92,15 @@ base::Status WindowManagerHierarchyWalker::ParseRootWindowContainer(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseWindowContainerChildren(
-    const protos::pbzero::WindowContainerProto::Decoder& window_container,
+    const com::android::internal::pbzero::WindowContainerProto::Decoder&
+        window_container,
     int32_t parent_token,
     std::vector<ExtractedWindowContainer>* result) {
   bool has_parse_error = false;
   uint32_t index = 0;
   for (auto it = window_container.children(); it; ++it) {
-    protos::pbzero::WindowContainerChildProto::Decoder child(*it);
+    com::android::internal::pbzero::WindowContainerChildProto::Decoder child(
+        *it);
     auto status =
         ParseWindowContainerChildProto(child, parent_token, index, result);
     if (!status.ok()) {
@@ -111,7 +115,8 @@ base::Status WindowManagerHierarchyWalker::ParseWindowContainerChildren(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseWindowContainerChildProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
@@ -143,13 +148,14 @@ base::Status WindowManagerHierarchyWalker::ParseWindowContainerChildProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseWindowContainerProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      child.window_container());
-  protos::pbzero::IdentifierProto::Decoder identifier(
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(child.window_container());
+  com::android::internal::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
   auto tokenAndTitle = ParseIdentifierProto(identifier);
@@ -168,19 +174,20 @@ base::Status WindowManagerHierarchyWalker::ParseWindowContainerProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseDisplayContentProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::DisplayContentProto::Decoder display_content(
+  com::android::internal::pbzero::DisplayContentProto::Decoder display_content(
       child.display_content());
-  protos::pbzero::DisplayAreaProto::Decoder display_area(
+  com::android::internal::pbzero::DisplayAreaProto::Decoder display_area(
       display_content.root_display_area());
-  protos::pbzero::DisplayInfoProto::Decoder display_info(
+  com::android::internal::pbzero::DisplayInfoProto::Decoder display_info(
       display_content.display_info());
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      display_area.window_container());
-  protos::pbzero::IdentifierProto::Decoder identifier(
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(display_area.window_container());
+  com::android::internal::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
   if (!identifier.has_hash_code()) {
@@ -215,14 +222,16 @@ base::Status WindowManagerHierarchyWalker::ParseDisplayContentProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseDisplayAreaProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::DisplayAreaProto::Decoder display_area(child.display_area());
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      display_area.window_container());
-  protos::pbzero::IdentifierProto::Decoder identifier(
+  com::android::internal::pbzero::DisplayAreaProto::Decoder display_area(
+      child.display_area());
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(display_area.window_container());
+  com::android::internal::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
   if (!identifier.has_hash_code()) {
@@ -247,25 +256,27 @@ base::Status WindowManagerHierarchyWalker::ParseDisplayAreaProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseTaskProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::TaskProto::Decoder task(child.task());
-  protos::pbzero::WindowContainerProto::Decoder task_window_container(
-      task.window_container());
+  com::android::internal::pbzero::TaskProto::Decoder task(child.task());
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      task_window_container(task.window_container());
 
-  protos::pbzero::TaskFragmentProto::Decoder task_fragment(
+  com::android::internal::pbzero::TaskFragmentProto::Decoder task_fragment(
       task.task_fragment());
-  protos::pbzero::WindowContainerProto::Decoder task_fragment_window_container(
-      task_fragment.window_container());
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      task_fragment_window_container(task_fragment.window_container());
 
-  protos::pbzero::WindowContainerProto::Decoder& window_container =
-      task.has_task_fragment() && task_fragment.has_window_container()
-          ? task_fragment_window_container
-          : task_window_container;
+  com::android::internal::pbzero::WindowContainerProto::Decoder&
+      window_container =
+          task.has_task_fragment() && task_fragment.has_window_container()
+              ? task_fragment_window_container
+              : task_window_container;
 
-  protos::pbzero::IdentifierProto::Decoder identifier(
+  com::android::internal::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
   auto tokenAndTitle = ParseIdentifierProto(identifier);
@@ -288,7 +299,7 @@ base::Status WindowManagerHierarchyWalker::ParseTaskProto(
       window_container.visible(), std::nullopt, name_override,
       std::move(pruned_proto), kTaskId});
 
-  protos::pbzero::WindowContainerProto::Decoder&
+  com::android::internal::pbzero::WindowContainerProto::Decoder&
       window_container_with_children =
           task_fragment_window_container.has_children()
               ? task_fragment_window_container
@@ -299,15 +310,17 @@ base::Status WindowManagerHierarchyWalker::ParseTaskProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseActivityRecordProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::ActivityRecordProto::Decoder activity(child.activity());
-  protos::pbzero::WindowTokenProto::Decoder window_token(
+  com::android::internal::pbzero::ActivityRecordProto::Decoder activity(
+      child.activity());
+  com::android::internal::pbzero::WindowTokenProto::Decoder window_token(
       activity.window_token());
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      window_token.window_container());
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(window_token.window_container());
 
   if (!window_token.has_hash_code()) {
     return base::ErrStatus(kErrorMessageMissingField);
@@ -330,13 +343,15 @@ base::Status WindowManagerHierarchyWalker::ParseActivityRecordProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseWindowTokenProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::WindowTokenProto::Decoder window_token(child.window_token());
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      window_token.window_container());
+  com::android::internal::pbzero::WindowTokenProto::Decoder window_token(
+      child.window_token());
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(window_token.window_container());
 
   if (!window_token.has_hash_code()) {
     return base::ErrStatus(kErrorMessageMissingField);
@@ -357,20 +372,23 @@ base::Status WindowManagerHierarchyWalker::ParseWindowTokenProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseWindowStateProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::WindowStateProto::Decoder window_state(child.window());
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      window_state.window_container());
-  protos::pbzero::IdentifierProto::Decoder identifier(
+  com::android::internal::pbzero::WindowStateProto::Decoder window_state(
+      child.window());
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(window_state.window_container());
+  com::android::internal::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
-  protos::pbzero::WindowLayoutParamsProto::Decoder attributes(
+  com::android::internal::pbzero::WindowLayoutParamsProto::Decoder attributes(
       window_state.attributes());
-  protos::pbzero::WindowFramesProto::Decoder window_frames(
+  com::android::internal::pbzero::WindowFramesProto::Decoder window_frames(
       window_state.window_frames());
-  protos::pbzero::RectProto::Decoder frame(window_frames.frame());
+  com::android::internal::pbzero::RectProto::Decoder frame(
+      window_frames.frame());
 
   auto tokenAndTitle = ParseIdentifierProto(identifier);
   RETURN_IF_ERROR(tokenAndTitle.status());
@@ -406,15 +424,16 @@ base::Status WindowManagerHierarchyWalker::ParseWindowStateProto(
 }
 
 base::Status WindowManagerHierarchyWalker::ParseTaskFragmentProto(
-    const protos::pbzero::WindowContainerChildProto::Decoder& child,
+    const com::android::internal::pbzero::WindowContainerChildProto::Decoder&
+        child,
     int32_t parent_token,
     uint32_t child_index,
     std::vector<ExtractedWindowContainer>* result) {
-  protos::pbzero::TaskFragmentProto::Decoder task_fragment(
+  com::android::internal::pbzero::TaskFragmentProto::Decoder task_fragment(
       child.task_fragment());
-  protos::pbzero::WindowContainerProto::Decoder window_container(
-      task_fragment.window_container());
-  protos::pbzero::IdentifierProto::Decoder identifier(
+  com::android::internal::pbzero::WindowContainerProto::Decoder
+      window_container(task_fragment.window_container());
+  com::android::internal::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
   auto tokenAndTitle = ParseIdentifierProto(identifier);
@@ -434,7 +453,8 @@ base::Status WindowManagerHierarchyWalker::ParseTaskFragmentProto(
 
 base::StatusOr<WindowManagerHierarchyWalker::TokenAndTitle>
 WindowManagerHierarchyWalker::ParseIdentifierProto(
-    const protos::pbzero::IdentifierProto::Decoder& identifier) {
+    const com::android::internal::pbzero::IdentifierProto::Decoder&
+        identifier) {
   if (!identifier.has_title() || !identifier.has_hash_code()) {
     return base::ErrStatus(kErrorMessageMissingField);
   }

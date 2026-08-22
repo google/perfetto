@@ -22,6 +22,7 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
@@ -33,10 +34,6 @@ using ::testing::UnorderedElementsAreArray;
 namespace perfetto {
 namespace profiling {
 namespace {
-
-bool IsPowerOfTwo(size_t v) {
-  return (v != 0 && ((v & (v - 1)) == 0));
-}
 
 std::optional<EventConfig> CreateEventConfig(
     const protos::gen::PerfEventConfig& perf_cfg,
@@ -64,7 +61,7 @@ TEST(EventConfigTest, RingBufferPagesValidated) {
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_GT(event_config->ring_buffer_pages(), 0u);
-    ASSERT_TRUE(IsPowerOfTwo(event_config->ring_buffer_pages()));
+    ASSERT_TRUE(base::IsPowerOfTwo(event_config->ring_buffer_pages()));
   }
   {  // power of two pages accepted
     uint32_t num_pages = 128;

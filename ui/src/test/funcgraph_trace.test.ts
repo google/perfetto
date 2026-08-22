@@ -22,7 +22,7 @@ let page: Page;
 
 test.beforeAll(async ({browser}, _testInfo) => {
   // This trace is quite large, bump the timeout up a little
-  test.setTimeout(120_000);
+  test.slow();
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
   await pth.openTraceFile('ui-funcgraph.pftrace');

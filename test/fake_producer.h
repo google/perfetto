@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
@@ -41,6 +42,14 @@ class FakeProducer : public Producer {
  public:
   explicit FakeProducer(const std::string& name, base::TaskRunner* task_runner);
   ~FakeProducer() override;
+
+  // Controls the BufferExhaustedPolicy used when creating the trace writer in
+  // StartDataSource(). Defaults to kStall. Tests that need to surface producer-
+  // side drops (e.g. simulating an SDK with the default kDrop policy) can set
+  // this to kDrop before the data source starts.
+  void set_buffer_exhausted_policy(BufferExhaustedPolicy policy) {
+    buffer_exhausted_policy_ = policy;
+  }
 
   void Connect(const char* socket_name,
                std::function<void()> on_connect,
@@ -100,6 +109,8 @@ class FakeProducer : public Producer {
   uint32_t message_size_ = 0;
   uint32_t message_count_ = 0;
   uint32_t max_messages_per_second_ = 0;
+  BufferExhaustedPolicy buffer_exhausted_policy_ =
+      BufferExhaustedPolicy::kStall;
   std::function<void()> on_connect_;
   std::function<void()> on_setup_data_source_instance_;
   std::function<void()> on_create_data_source_instance_;

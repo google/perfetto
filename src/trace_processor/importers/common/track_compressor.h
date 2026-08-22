@@ -156,6 +156,24 @@ class TrackCompressor {
     return Scoped(CreateTrackFactory(bp, dims, name, args), ts, dur);
   }
 
+  // Legacy: only for Chrome JSON overlapping complete ('X') events. Like
+  // |InternScoped|, but a slice contained within an already-open slice nests on
+  // the same track; only partially-overlapping slices spill. Assumes
+  // non-decreasing |ts|.
+  //
+  // WARNING: do not use without discussing with a trace processor maintainer.
+  template <typename BlueprintT>
+  TrackId InternLegacyOverlappingScoped(
+      BlueprintT bp,
+      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
+      int64_t ts,
+      int64_t dur,
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {}) {
+    return LegacyOverlappingScoped(CreateTrackFactory(bp, dims, name, args), ts,
+                                   dur);
+  }
+
   // Wrapper function for `InternTrack` for legacy "async" style tracks which
   // is supported by the Chrome JSON format and other derivative formats
   // (e.g. Fuchsia).
@@ -254,9 +272,8 @@ class TrackCompressor {
           if (on_new_track) {
             on_new_track(track_id);
           }
-          auto rr =
-              context_->storage->mutable_track_table()->FindById(track_id);
-          rr->set_track_group_id(state.set_id);
+          auto rr = (*context_->storage->mutable_track_table())[track_id];
+          rr.set_track_group_id(state.set_id);
           return track_id;
         },
     };
@@ -308,6 +325,20 @@ class TrackCompressor {
     return *track_id_ptr;
   }
 
+  // Advanced variant of |InternLegacyOverlappingScoped| for hot paths with a
+  // cached |hash|.
+  PERFETTO_ALWAYS_INLINE TrackId
+  LegacyOverlappingScoped(const TrackFactory& factory,
+                          int64_t ts,
+                          int64_t dur) {
+    TrackSet& set = GetOrCreateTrackSet(factory.hash);
+    auto [track_id_ptr, idx] = LegacyOverlappingScopedInternal(set, ts, dur);
+    if (*track_id_ptr == kInvalidTrackId) {
+      *track_id_ptr = factory.factory(set, idx);
+    }
+    return *track_id_ptr;
+  }
+
   // Returns the track with index 0 for the given factory, creating it if it
   // doesn't exist.
   //
@@ -328,7 +359,7 @@ class TrackCompressor {
   friend class TrackCompressorUnittest;
 
   struct TrackState {
-    enum class SliceType { kCookie, kTimestamp };
+    enum class SliceType { kCookie, kTimestamp, kNestableTimestamp };
     SliceType slice_type;
 
     union {
@@ -341,6 +372,10 @@ class TrackCompressor {
 
     // Only used for |slice_type| == |SliceType::kCookie|.
     uint32_t nest_count;
+
+    // Open slices' end timestamps (outermost..innermost). Only used for
+    // |SliceType::kNestableTimestamp|.
+    std::vector<int64_t> open_ends;
 
     // The track id for this state. This is cached because it is expensive to
     // compute.
@@ -361,6 +396,10 @@ class TrackCompressor {
   std::pair<TrackId*, uint32_t> ScopedInternal(TrackSet&,
                                                int64_t ts,
                                                int64_t dur);
+
+  std::pair<TrackId*, uint32_t> LegacyOverlappingScopedInternal(TrackSet&,
+                                                                int64_t ts,
+                                                                int64_t dur);
 
   static constexpr NestingBehaviour TypeToNestingBehaviour(
       std::string_view type) {

@@ -74,8 +74,7 @@ export function isMetatracingEnabled(): boolean {
 }
 
 export function getEnabledMetatracingCategories():
-  | protos.MetatraceCategories
-  | undefined {
+  protos.MetatraceCategories | undefined {
   return enabledCategories;
 }
 

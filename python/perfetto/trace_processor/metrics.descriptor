@@ -252,8 +252,8 @@ Rprotos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.pr
 name (	Rname
 dur_ms (RdurMs
 dur_ns (RdurNs
-Ñ
-Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"À
+‡
+Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ö
 AndroidFrameTimelineMetric!
 total_frames (RtotalFrames*
 missed_app_frames (RmissedAppFrames%
@@ -270,13 +270,14 @@ totalCount:
 present_late_count (RpresentLateCount.
 present_early_count (RpresentEarlyCount2
 present_dropped_count (RpresentDroppedCount2
-present_unknown_count (RpresentUnknownCountõ
+present_unknown_count (RpresentUnknownCount«
 ProcessBreakdownA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess!
 total_frames (RtotalFrames#
 missed_frames (RmissedFrames*
 missed_app_frames (RmissedAppFrames(
-missed_sf_frames (RmissedSfFrames;
+missed_sf_frames (RmissedSfFrames4
+weighted_missed_frames (RweightedMissedFrames;
 weighted_missed_app_frames (RweightedMissedAppFrames9
 weighted_missed_sf_frames (RweightedMissedSfFrames"
 frame_dur_max (RframeDurMax"
@@ -889,10 +890,10 @@ type_count (2-.perfetto.protos.JavaHeapClassStats.TypeCountR	typeCount¬
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessD
 samples (2*.perfetto.protos.JavaHeapClassStats.SampleRsamples
-ß
-5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ü
+Æ
+5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ã
 JavaHeapStatsS
-instance_stats (2,.perfetto.protos.JavaHeapStats.InstanceStatsRinstanceStatsÅ
+instance_stats (2,.perfetto.protos.JavaHeapStats.InstanceStatsRinstanceStats¬
 Sample
 ts (Rts
 	heap_size (RheapSize(
@@ -905,7 +906,11 @@ type_count (2-.perfetto.protos.JavaHeapClassStats.TypeCountR	typeCount¬
 dmabuf_rss_size (RdmabufRssSize"
 oom_score_adj
  (RoomScoreAdj*
-process_uptime_ms (RprocessUptimeMs§
+process_uptime_ms (RprocessUptimeMs.
+art_bytes_allocated (RartBytesAllocated2
+is_out_of_memory_error (RisOutOfMemoryError?
+oome_failing_allocation_size (RoomeFailingAllocationSize@
+oome_remaining_art_free_bytes (RoomeRemainingArtFreeBytes§
 InstanceStats
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess?

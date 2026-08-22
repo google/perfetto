@@ -119,6 +119,40 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
   });
 
+  test('does not crash when serializeState is called with circular references in trace', () => {
+    // Create a mock Trace object with circular references resembling the actual TraceImpl structure.
+    const circularTrace: Record<string, unknown> = {};
+    const searchManager: Record<string, unknown> = {_trackManager: {}};
+    const trackManager: Record<string, unknown> = {_overlays: []};
+    const overlay: Record<string, unknown> = {trace: circularTrace};
+
+    (trackManager._overlays as unknown[]).push(overlay);
+    searchManager._trackManager = trackManager;
+    circularTrace.search = searchManager;
+
+    // Create a node with attrs referencing the trace.
+    const node = new SlicesSourceNode({}, {});
+    (node.attrs as Record<string, unknown>).trace = circularTrace;
+
+    const initialState: DataExplorerState = {
+      rootNodes: [node],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    // This should not throw 'TypeError: Converting circular structure to JSON'.
+    let json: string | undefined;
+    expect(() => {
+      json = serializeState(initialState);
+    }).not.toThrow();
+
+    // Verify that the serialized JSON doesn't contain the trace object
+    expect(json).toBeDefined();
+    const parsed = JSON.parse(json!);
+    expect(parsed.nodes[0].state.trace).toBeUndefined();
+  });
+
   test('handles multiple nodes and connections', () => {
     const tableNode = new TableSourceNode(
       {sqlTable: 'slice'},
@@ -488,7 +522,7 @@ describe('JSON serialization/deserialization', () => {
     if (filter !== undefined && 'value' in filter) {
       expect(filter.value).toBe('test');
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -536,7 +570,7 @@ describe('JSON serialization/deserialization', () => {
       expect(typeof filter.value).toBe('number');
       expect(filter.value).toBe(1000);
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -621,7 +655,7 @@ describe('JSON serialization/deserialization', () => {
       expect(typeof filter.value).toBe('number');
       expect(filter.value).toBe(Number('12345678901234567890'));
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -1034,8 +1068,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
 
     const deserializedModifyNode = deserializedTableNode.nextNodes[0] as
-      | ModifyColumnsNode
-      | undefined;
+      ModifyColumnsNode | undefined;
     expect(deserializedModifyNode).toBeDefined();
     expect(deserializedModifyNode?.type).toBe(NodeType.kModifyColumns);
 
@@ -1053,8 +1086,7 @@ describe('JSON serialization/deserialization', () => {
     // Verify the aggregation node still sees the aliased column
     expect(deserializedModifyNode?.nextNodes.length).toBe(1);
     const deserializedAggNode = deserializedModifyNode?.nextNodes[0] as
-      | AggregationNode
-      | undefined;
+      AggregationNode | undefined;
     expect(deserializedAggNode).toBeDefined();
     expect(deserializedAggNode?.type).toBe(NodeType.kAggregation);
     expect(deserializedAggNode?.attrs.groupByColumns.length).toBe(1);

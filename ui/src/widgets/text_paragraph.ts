@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './text_paragraph.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 
@@ -41,9 +42,7 @@ interface MultiParagraphTextAttrs {
   className?: string;
 }
 
-export class MultiParagraphText
-  implements m.ClassComponent<MultiParagraphTextAttrs>
-{
+export class MultiParagraphText implements m.ClassComponent<MultiParagraphTextAttrs> {
   view({attrs, children}: m.Vnode<MultiParagraphTextAttrs>): m.Children {
     const {className = ''} = attrs;
 

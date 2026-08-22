@@ -177,6 +177,9 @@ bool TestHelper::AttachConsumer(const std::string& key) {
   };
   endpoint_->Attach(key);
   RunUntilCheckpoint("attach." + key);
+  // The lambda above captures |success| by reference: drop it before returning
+  // so that the dangling reference cannot be used if OnAttach fires again.
+  on_attach_callback_ = nullptr;
   return success;
 }
 

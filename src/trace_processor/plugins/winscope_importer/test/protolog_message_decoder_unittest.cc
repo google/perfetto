@@ -15,8 +15,11 @@
  */
 
 #include "src/trace_processor/plugins/winscope_importer/protolog_message_decoder.h"
+
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -48,12 +51,12 @@ class ProtologMessageDecoderTest : public ::testing::Test {
 
 TEST_F(ProtologMessageDecoderTest, DecodeSingleMessage) {
   uint64_t msg_id = 100;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
-                         "Test %d %s", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                         default_group_id, "Test %d %s", "Some Location");
 
   auto decoded = decoder_->Decode(msg_id, {42}, {}, {}, {"hello"});
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->log_level, ProtoLogLevel::INFO);
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::PROTOLOG_LEVEL_INFO);
   EXPECT_EQ(decoded->group_tag, default_tag);
   EXPECT_EQ(decoded->message, "Test 42 hello");
   EXPECT_EQ(decoded->location, "Some Location");
@@ -68,14 +71,14 @@ TEST_F(ProtologMessageDecoderTest, DecodeSingleMessage) {
 TEST_F(ProtologMessageDecoderTest,
        DecodeCollidingMessagesWithDifferentParameters) {
   uint64_t msg_id = 100;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
-                         "Value: %d", "Some Location");
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::WARN, default_group_id,
-                         "Name: %s", "Other Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                         default_group_id, "Value: %d", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_WARN,
+                         default_group_id, "Name: %s", "Other Location");
 
   auto decoded = decoder_->Decode(msg_id, {123}, {}, {}, {});
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->log_level, ProtoLogLevel::INFO);
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::PROTOLOG_LEVEL_INFO);
   EXPECT_EQ(decoded->group_tag, default_tag);
   EXPECT_THAT(decoded->message, "Value: 123");
   EXPECT_EQ(decoded->location, "Some Location");
@@ -89,14 +92,14 @@ TEST_F(ProtologMessageDecoderTest,
 
 TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessagesWithSameParameters) {
   uint64_t msg_id = 100;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
-                         "Value: %d", "Some Location");
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::WARN, default_group_id,
-                         "Other Value: %d", "Other Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                         default_group_id, "Value: %d", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_WARN,
+                         default_group_id, "Other Value: %d", "Other Location");
 
   auto decoded = decoder_->Decode(msg_id, {123}, {}, {}, {});
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->log_level, ProtoLogLevel::WARN);
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::PROTOLOG_LEVEL_WARN);
   EXPECT_EQ(decoded->group_tag, kCollisionGroupTag);
   EXPECT_THAT(decoded->message,
               testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
@@ -115,14 +118,14 @@ TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessagesWithSameParameters) {
 
 TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessagesWithNoMatch) {
   uint64_t msg_id = 100;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
-                         "Value: %d", "Some Location");
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::WARN, default_group_id,
-                         "Other Value: %d", "Other Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                         default_group_id, "Value: %d", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_WARN,
+                         default_group_id, "Other Value: %d", "Other Location");
 
   auto decoded = decoder_->Decode(msg_id, {}, {}, {true}, {});
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->log_level, ProtoLogLevel::WARN);
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::PROTOLOG_LEVEL_WARN);
   EXPECT_EQ(decoded->group_tag, kCollisionGroupTag);
   EXPECT_THAT(decoded->message,
               testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
@@ -140,12 +143,12 @@ TEST_F(ProtologMessageDecoderTest, GroupTagCollision) {
   uint64_t msg_id = 100;
   std::string_view other_group_tag = "OTHER_GROUP";
   decoder_->TrackGroup(default_group_id, other_group_tag);
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
-                         "Test %d %s", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                         default_group_id, "Test %d %s", "Some Location");
 
   auto decoded = decoder_->Decode(msg_id, {42}, {}, {}, {"hello"});
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->log_level, ProtoLogLevel::INFO);
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::PROTOLOG_LEVEL_INFO);
   EXPECT_EQ(decoded->group_tag, kCollisionGroupTag);
   EXPECT_EQ(decoded->message, "Test 42 hello");
   EXPECT_EQ(decoded->location, "Some Location");
@@ -157,12 +160,12 @@ TEST_F(ProtologMessageDecoderTest, GroupTagCollision) {
 TEST_F(ProtologMessageDecoderTest, GroupTagMissing) {
   uint64_t msg_id = 100;
   uint32_t other_group_id = 2;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, other_group_id,
-                         "Test %d %s", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                         other_group_id, "Test %d %s", "Some Location");
 
   auto decoded = decoder_->Decode(msg_id, {42}, {}, {}, {"hello"});
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->log_level, ProtoLogLevel::INFO);
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::PROTOLOG_LEVEL_INFO);
   EXPECT_EQ(decoded->group_tag, kUnknownGroupTag);
   EXPECT_EQ(decoded->message, "Test 42 hello");
   EXPECT_EQ(decoded->location, "Some Location");
@@ -173,12 +176,12 @@ TEST_F(ProtologMessageDecoderTest, GroupTagMissing) {
 
 TEST_F(ProtologMessageDecoderTest, MessageParameterMismatch) {
   uint64_t msg_id = 100;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
-                         "Value: %d", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                         default_group_id, "Value: %d", "Some Location");
 
   auto decoded = decoder_->Decode(msg_id, {}, {}, {}, {});
   ASSERT_TRUE(decoded.has_value());
-  EXPECT_EQ(decoded->log_level, ProtoLogLevel::INFO);
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::PROTOLOG_LEVEL_INFO);
   EXPECT_EQ(decoded->group_tag, default_tag);
   EXPECT_THAT(decoded->message, "Value: [MISSING_PARAM]");
   EXPECT_EQ(decoded->location, "Some Location");

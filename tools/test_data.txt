@@ -3,6 +3,7 @@
 # The trailing /. at the end of a directory is to avoid creating a nesting
 # directory when pushing a 2nd-time. adb push has a slightly different behavior
 # than `cp` on directoriesm, trailing slash is not enough.
+protos/perfetto/common/.
 protos/perfetto/trace/.
 protos/third_party/android/.
 src/profiling/memory/test/data/.

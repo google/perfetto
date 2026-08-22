@@ -437,10 +437,9 @@ void V8Tracker::AddJsCode(int64_t timestamp,
     return;
   }
 
-  auto function =
-      *context_->storage->v8_js_function_table().FindById(function_id);
-  auto script = *context_->storage->v8_js_script_table().FindById(
-      function.v8_js_script_id());
+  auto function = context_->storage->v8_js_function_table()[function_id];
+  auto script =
+      context_->storage->v8_js_script_table()[function.v8_js_script_id()];
   const auto jit_code_id = jit_cache->LoadCode(
       timestamp, utid, code_range, function.name(),
       JitCache::SourceLocation{script.name(), function.line().value_or(0)},

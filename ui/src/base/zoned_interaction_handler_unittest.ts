@@ -72,7 +72,7 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('click', () => {
-    const handleMouseClick = jest.fn(() => {});
+    const handleMouseClick = vi.fn(() => {});
 
     zih.update([
       {
@@ -98,8 +98,8 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('drag', () => {
-    const handleDrag = jest.fn(() => {});
-    const handleDragEnd = jest.fn(() => {});
+    const handleDrag = vi.fn(() => {});
+    const handleDragEnd = vi.fn(() => {});
 
     zih.update([
       {
@@ -128,8 +128,8 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('drag with minimum distance', () => {
-    const handleDrag = jest.fn();
-    const handleDragEnd = jest.fn();
+    const handleDrag = vi.fn();
+    const handleDragEnd = vi.fn();
 
     zih.update([
       {
@@ -160,7 +160,7 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('onWheel', () => {
-    const handleWheel = jest.fn();
+    const handleWheel = vi.fn();
 
     zih.update([
       {
@@ -190,7 +190,7 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('key modifiers', () => {
-    const handleMouseClick = jest.fn();
+    const handleMouseClick = vi.fn();
 
     zih.update([
       {
@@ -220,8 +220,8 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('move zone during drag', () => {
-    const handleDrag = jest.fn();
-    const handleDragEnd = jest.fn();
+    const handleDrag = vi.fn();
+    const handleDragEnd = vi.fn();
 
     zih.update([
       {
@@ -260,7 +260,7 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('click and move but stay in zone', () => {
-    const handleMouseClick = jest.fn(() => {});
+    const handleMouseClick = vi.fn(() => {});
 
     zih.update([
       {
@@ -279,7 +279,7 @@ describe('ZonedInteractionHandler', () => {
   });
 
   test('click and move out of zone', () => {
-    const handleMouseClick = jest.fn(() => {});
+    const handleMouseClick = vi.fn(() => {});
 
     zih.update([
       {

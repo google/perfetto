@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -34,6 +35,20 @@
 
 namespace perfetto::trace_processor {
 
+namespace io {
+class FileSystem;
+}  // namespace io
+
+class PERFETTO_EXPORT_COMPONENT TraceProcessor_PlatformInterface {
+ public:
+  virtual ~TraceProcessor_PlatformInterface();
+
+  // Returns the filesystem exposed to Trace Processor. The returned object
+  // must outlive the TraceProcessor instance. Supplying a filesystem does not
+  // enable SQL file access unless Config::enable_sql_file_access is also set.
+  virtual io::FileSystem* GetFileSystem() { return nullptr; }
+};
+
 // Extends TraceProcessorStorage to support execution of SQL queries on loaded
 // traces. See TraceProcessorStorage for parsing of trace files.
 class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
@@ -41,9 +56,14 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // For legacy API clients. Iterator used to be a nested class here. Many API
   // clients depends on it at this point.
   using Iterator = ::perfetto::trace_processor::Iterator;
+  using PlatformInterface = TraceProcessor_PlatformInterface;
 
-  // Creates a new instance of TraceProcessor.
+  // Creates a new instance of TraceProcessor. |platform| is optional and, when
+  // provided, must outlive the returned instance.
   static std::unique_ptr<TraceProcessor> CreateInstance(const Config&);
+  static std::unique_ptr<TraceProcessor> CreateInstance(
+      const Config&,
+      PlatformInterface* platform);
 
   ~TraceProcessor() override;
 
@@ -80,6 +100,9 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
 
   // Executes the SQL on the loaded portion of the trace.
   //
+  // Terminology: a *query* is a string of one or more semicolon-separated
+  // *statements*.
+  //
   // More than one SQL statement can be passed to this function; all but the
   // last will be fully executed by this function before retuning. The last
   // statement will be executed and will yield rows as the caller calls Next()
@@ -88,6 +111,30 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // See documentation of the Iterator class for an example on how to use
   // the returned iterator.
   virtual Iterator ExecuteQuery(const std::string& sql) = 0;
+
+  // ADVANCED: most users should use ExecuteQuery instead, which executes a
+  // whole query in one call. This function is only useful for the rare
+  // clients which need the result set of *every* statement in a query
+  // rather than just the last one (e.g. shells printing each result).
+  //
+  // Executes the next statement of |sql| starting at |*offset|, mirroring
+  // sqlite3_prepare_v2's pzTail model: callers loop, passing the same |sql|
+  // each time with |offset| carried over between calls. On success,
+  // |*offset| is advanced just past the executed statement and the returned
+  // Iterator yields the statement's rows. Returns std::nullopt once only
+  // whitespace/comments remain.
+  //
+  // |*offset| should be initialized to 0 and otherwise treated as an opaque
+  // cursor: pass values back unchanged rather than computing them. They are
+  // byte offsets into |sql| after the same normalization ExecuteQuery
+  // applies (e.g. non-breaking spaces replaced with spaces), so they may
+  // not correspond exactly to offsets into |sql| as passed.
+  //
+  // Errors are reported via the returned Iterator's Status(), with
+  // tracebacks referencing the full |sql| source; |*offset| is unchanged on
+  // error.
+  virtual std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
+                                                       uint32_t* offset) = 0;
 
   // Registers SQL files with the associated path under the package named
   // |sql_package.name|.
@@ -238,6 +285,52 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // loaded by trace processor shell at runtime. The message is encoded as
   // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
+
+  // =================================================================
+  // |          EXPERIMENTAL: Export functionality starts here       |
+  // =================================================================
+  //
+  // WARNING: This API is under active development and may change without
+  // notice. Do not depend on this interface in production code.
+
+  enum class ExportFormat {
+    // A standard SQLite database containing all SQL-visible Perfetto tables
+    // and views, including objects created at runtime. This format requires an
+    // ExportOutput which provides a file path.
+    kSqlite,
+
+    // A Perfetto-internal archive that can be loaded as input by a fresh Trace
+    // Processor instance from the same version. Loading it in a different
+    // version may work but is not guaranteed.
+    kPerfetto,
+
+    // A tar archive containing one standard Arrow file per statically
+    // registered table. Its representation has cross-version compatibility
+    // guarantees and is intended for external consumers, which should ignore
+    // unrecognized members. It cannot be loaded back into Trace Processor; use
+    // kPerfetto for that.
+    kArrowTar,
+  };
+
+  class PERFETTO_EXPORT_COMPONENT ExportOutput {
+   public:
+    ExportOutput();
+    virtual ~ExportOutput();
+
+    // Receives consecutive output chunks synchronously. A non-ok return aborts
+    // the export and is returned from Export().
+    virtual base::Status Write(const void* data, size_t size) = 0;
+
+    // An optional alternative to Write(). A format which needs random-access
+    // output may create or overwrite this file directly, in which case Write()
+    // is not called. Streaming formats may ignore this alternative.
+    virtual std::optional<std::string> GetFilePath() const;
+  };
+
+  // EXPERIMENTAL: Exports the contents of Trace Processor without
+  // materializing the complete output in memory. The exact contents exported
+  // are defined by |format|.
+  virtual base::Status Export(ExportFormat format, ExportOutput* output) = 0;
 
   // =================================================================
   // |  EXPERIMENTAL: Summarizer related functionality starts here   |

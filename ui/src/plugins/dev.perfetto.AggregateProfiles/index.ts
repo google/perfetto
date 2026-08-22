@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 
 import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
@@ -24,7 +25,7 @@ import {
   AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
 } from './types';
 import type {Store} from '../../base/store';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';
@@ -43,7 +44,7 @@ export default class implements PerfettoPlugin {
     if (profiles.length === 0) {
       return;
     }
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     trace.pages.registerPage({
       route: '/aggregateprofiles',
       render: () =>

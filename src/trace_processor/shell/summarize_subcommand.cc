@@ -103,22 +103,22 @@ std::vector<FlagSpec> SummarizeSubcommand::GetFlags() {
 }
 
 base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
-  if (ctx.positional_args.empty()) {
-    return base::ErrStatus("summarize: trace file is required");
-  }
-  std::string trace_file = ctx.positional_args[0];
+  // With --remote the trace is already loaded server-side, so the first
+  // positional is a spec path, not a trace file.
+  std::string trace_file;
+  size_t spec_base = 0;
+  RETURN_IF_ERROR(
+      ResolveTraceFileArg(ctx, "summarize", &trace_file, &spec_base));
 
   // Collect spec paths from remaining positional args (if any).
   std::vector<std::string> spec_paths;
-  for (size_t i = 1; i < ctx.positional_args.size(); ++i) {
+  for (size_t i = spec_base; i < ctx.positional_args.size(); ++i) {
     spec_paths.push_back(ctx.positional_args[i]);
   }
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
-  ASSIGN_OR_RETURN(auto tp,
-                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  ASSIGN_OR_RETURN(auto t_load,
-                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  base::TimeNanos t_load{};
+  ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
+                                                 trace_file, &t_load));
 
   // Load spec files.
   std::vector<std::string> spec_content;

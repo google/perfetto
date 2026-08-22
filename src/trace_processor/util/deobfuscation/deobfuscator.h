@@ -107,7 +107,7 @@ void MakeDeobfuscationPackets(
 
 std::vector<ProguardMap> GetPerfettoProguardMapPath();
 
-bool ReadProguardMapsToDeobfuscationPackets(
+base::Status ReadProguardMapsToDeobfuscationPackets(
     const std::vector<ProguardMap>& maps,
     std::function<void(std::string)> fn);
 

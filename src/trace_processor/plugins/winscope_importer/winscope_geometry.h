@@ -17,8 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_WINSCOPE_GEOMETRY_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_WINSCOPE_GEOMETRY_H_
 
-#include "protos/perfetto/trace/android/graphics/rect.pbzero.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::geometry {
 
@@ -51,8 +51,9 @@ struct CornerRadii {
 class Rect {
  public:
   explicit Rect();
-  explicit Rect(const protos::pbzero::RectProto::Decoder& rect);
-  explicit Rect(const protos::pbzero::FloatRectProto::Decoder& rect);
+  explicit Rect(const com::android::internal::pbzero::RectProto::Decoder& rect);
+  explicit Rect(
+      const com::android::internal::pbzero::FloatRectProto::Decoder& rect);
   Rect(double left, double top, double right, double bottom);
 
   bool operator==(const Rect& other) const;

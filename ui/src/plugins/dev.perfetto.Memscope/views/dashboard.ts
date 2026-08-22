@@ -13,21 +13,95 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {GateDetector} from '../../../base/mithril_utils';
+import type {
+  LineChartData,
+  LineChartSeries,
+} from '../../../components/widgets/charts/line_chart';
 import type {App} from '../../../public/app';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
+import {Chip} from '../../../widgets/chip';
 import {Intent} from '../../../widgets/common';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
+import {PopupPosition} from '../../../widgets/popup';
 import {RadioGroup} from '../../../widgets/radio_group';
-import {GateDetector} from '../../../base/mithril_utils';
-import type {LiveSession} from '../sessions/live_session';
-import {ProcessesTab} from './tabs/processes';
-import {renderSystemTab} from './tabs/system';
+import {Page} from '../components/page';
+import {PreviewBanner} from '../components/preview_banner';
+import type {
+  LiveSession,
+  ProfileView,
+  SnapshotData,
+} from '../sessions/live_session';
+import './dashboard.scss';
+import {ProfilePage} from './profile_page';
 import {renderPageCacheTab} from './tabs/page_cache';
 import {renderPressureSwapTab} from './tabs/pressure_swap';
-import {Chip} from '../../../widgets/chip';
-import {PopupPosition} from '../../../widgets/popup';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
+import {ProcessesTab} from './tabs/processes';
+import {renderSystemTab} from './tabs/system';
 
 type Tab = 'processes' | 'system' | 'file_cache' | 'pressure_swap';
+
+function buildProcessMemoryBreakdown(
+  data: SnapshotData,
+  pid: number,
+  t0: number,
+): LineChartData | undefined {
+  // SnapshotData keys process counters by upid; resolve from pid.
+  let upid: number | undefined;
+  for (const info of data.processInfo.values()) {
+    if (info.pid === pid) {
+      upid = info.upid;
+      break;
+    }
+  }
+  if (upid === undefined) return undefined;
+  const pidCounters = data.processCountersByUpid.get(upid);
+  if (pidCounters === undefined) return undefined;
+  const SERIES_NAMES = ['RSS Anon + Swap', 'File', 'DMA-BUF'] as const;
+  const counterMapping: Record<string, string> = {
+    'mem.rss.anon': 'RSS Anon + Swap',
+    'mem.swap': 'RSS Anon + Swap',
+    'mem.rss.file': 'File',
+    'mem.dmabuf_rss': 'DMA-BUF',
+  };
+  const tsSet = new Set<number>();
+  const bySeriesTs = new Map<number, Map<string, number>>();
+  for (const [counterName, samples] of pidCounters) {
+    const seriesName = counterMapping[counterName];
+    if (seriesName === undefined) continue;
+    for (const {ts, value} of samples) {
+      tsSet.add(ts);
+      let seriesMap = bySeriesTs.get(ts);
+      if (seriesMap === undefined) {
+        seriesMap = new Map();
+        bySeriesTs.set(ts, seriesMap);
+      }
+      seriesMap.set(
+        seriesName,
+        (seriesMap.get(seriesName) ?? 0) + Math.round(value / 1024),
+      );
+    }
+  }
+  const timestamps = [...tsSet].sort((a, b) => a - b);
+  if (timestamps.length < 2) return undefined;
+  const colors: Record<string, string> = {
+    'RSS Anon + Swap': 'var(--pf-color-warning)',
+    'File': 'var(--pf-color-success)',
+    'DMA-BUF': 'var(--pf-color-primary)',
+  };
+  const series: LineChartSeries[] = [];
+  for (const name of SERIES_NAMES) {
+    const points = timestamps.map((ts) => ({
+      x: (ts - t0) / 1e9,
+      y: bySeriesTs.get(ts)?.get(name) ?? 0,
+    }));
+    if (points.some((p) => p.y > 0)) {
+      series.push({name, points, color: colors[name]});
+    }
+  }
+  if (series.length === 0) return undefined;
+  return {series};
+}
 
 interface DashboardAttrs {
   readonly app: App;
@@ -37,6 +111,7 @@ interface DashboardAttrs {
 
 export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private activeTab: Tab = 'processes';
+  private profileBaseline?: {anonSwap: number; file: number; dmabuf: number};
 
   view({attrs}: m.CVnode<DashboardAttrs>) {
     const {session} = attrs;
@@ -47,12 +122,16 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           visible ? session.resume() : session.pause(),
       },
       m(
-        '.pf-memscope-page__container',
-        m(
-          '.pf-memscope-page',
-          this.renderTitleBar(attrs),
-          this.renderDashboard(attrs),
-        ),
+        Page,
+
+        // Title bar with status and actions (always shown).
+        this.renderTitleBar(attrs),
+        m(PreviewBanner, {app: attrs.app}),
+
+        // Profile page or dashboard content.
+        session.profile !== undefined
+          ? this.renderProfilePage(attrs, session.profile)
+          : this.renderDashboard(attrs),
       ),
     );
   }
@@ -60,10 +139,11 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private renderTitleBar(attrs: DashboardAttrs): m.Children {
     return m(
       '.pf-memscope-title-bar',
+      // Left: title + session pill (device + snapshot counter + pause/play).
       m(
         '.pf-memscope-title-bar__left',
         m('h1', 'Memscope'),
-        this.renderTabStrip(),
+        attrs.session.profile === undefined && this.renderTabStrip(),
       ),
       this.renderSessionPill(attrs),
     );
@@ -86,6 +166,8 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         {value: 'file_cache', icon: 'file_copy'},
         'Page Cache',
       ),
+
+      // Right: action buttons.
       m(
         RadioGroup.Button,
         {value: 'pressure_swap', icon: 'speed'},
@@ -239,6 +321,61 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           'Exceeds interval — increase snapshot rate',
         ),
     );
+  }
+
+  private renderProfilePage(
+    attrs: DashboardAttrs,
+    profile: ProfileView,
+  ): m.Children {
+    const {session} = attrs;
+    const data = session.data;
+    const t0 = data?.ts0 ?? 0;
+    const chartData = data
+      ? buildProcessMemoryBreakdown(data, profile.pid, t0)
+      : undefined;
+
+    // Capture baseline from first chart data.
+    if (this.profileBaseline === undefined && chartData !== undefined) {
+      const first = (name: string): number => {
+        const s = chartData.series.find(
+          (sr: LineChartSeries) => sr.name === name,
+        );
+        return s !== undefined && s.points.length > 0 ? s.points[0].y : 0;
+      };
+      this.profileBaseline = {
+        anonSwap: first('RSS Anon + Swap'),
+        file: first('File'),
+        dmabuf: first('DMA-BUF'),
+      };
+    }
+
+    return m(ProfilePage, {
+      state: profile.state as 'recording' | 'stopping' | 'finished',
+      bufferUsagePct: profile.bufferUsagePct,
+      processName: profile.processName,
+      pid: profile.pid,
+      startMs: profile.startMs,
+      chartData,
+      baseline: this.profileBaseline,
+      onStop: () => {
+        session.stopAndOpenProfile().then(() => {
+          this.profileBaseline = undefined;
+          m.redraw();
+        });
+      },
+      onStopAndDownload: () => {
+        session.stopAndDownloadProfile().then(() => {
+          this.profileBaseline = undefined;
+          m.redraw();
+        });
+      },
+      onCancel: () => {
+        session.cancelProfile().then(() => {
+          this.profileBaseline = undefined;
+          m.redraw();
+        });
+      },
+    });
   }
 
   private async stopAndOpenTrace(attrs: DashboardAttrs) {

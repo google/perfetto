@@ -75,8 +75,8 @@ static_library("libpprofbuilder") {
 source_set("lib") {
   public_deps = [ ":pprofbuilder" ]
   deps = [
+    ":gen_cc_android_extension_descriptor",
     ":gen_cc_trace_descriptor",
-    ":gen_cc_winscope_descriptor",
     ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
@@ -84,10 +84,11 @@ source_set("lib") {
     "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:zero",
     "../protozero:proto_ring_buffer",
+    "../trace_processor:export_json",
     "../trace_processor:lib",
     "../trace_processor:storage_minimal",
+    "../trace_processor/util:decompressor",
     "../trace_processor/util:descriptors",
-    "../trace_processor/util:gzip",
     "../trace_processor/util:protozero_to_text",
     "../trace_processor/util:tar_writer",
     "../trace_processor/util:trace_type",
@@ -128,6 +129,7 @@ source_set("main") {
 
 source_set("traceconv_lib") {
   deps = [
+    ":gen_cc_android_extension_descriptor",
     ":gen_cc_trace_descriptor",
     ":lib",
     "../../gn:default_deps",
@@ -142,6 +144,10 @@ source_set("traceconv_lib") {
 if (enable_perfetto_ui) {
   wasm_lib("traceconv_wasm") {
     name = "traceconv"
+
+    # Loaded from main thread; uses MEMFS + WORKERFS to ingest trace files.
+    enable_web_environment = true
+    enable_filesystem = true
     deps = [
       ":main",
       "../../gn:default_deps",
@@ -154,9 +160,9 @@ perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
   descriptor_target = "../../protos/perfetto/trace:descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_winscope_descriptor") {
-  descriptor_name = "winscope.descriptor"
-  descriptor_target = "../../protos/perfetto/trace/android:winscope_descriptor"
+perfetto_cc_proto_descriptor("gen_cc_android_extension_descriptor") {
+  descriptor_name = "android_extension.descriptor"
+  descriptor_target = "../../protos/third_party/android:extension_descriptor"
 }
 
 if (enable_perfetto_integration_tests) {

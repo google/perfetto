@@ -49,18 +49,16 @@ MetadataMinimalModule::MetadataMinimalModule(
 }
 
 ModuleResult MetadataMinimalModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t,
-    RefPtr<PacketSequenceStateGeneration>,
-    uint32_t field_id) {
-  switch (field_id) {
+    const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kChromeMetadataFieldNumber: {
-      ParseChromeMetadataPacket(decoder.chrome_metadata());
+      ParseChromeMetadataPacket(
+          args.field.Cast<TracePacket::kChromeMetadata>());
       return ModuleResult::Handled();
     }
     case TracePacket::kChromeBenchmarkMetadataFieldNumber: {
-      ParseChromeBenchmarkMetadata(decoder.chrome_benchmark_metadata());
+      ParseChromeBenchmarkMetadata(
+          args.field.Cast<TracePacket::kChromeBenchmarkMetadata>());
       return ModuleResult::Handled();
     }
   }
@@ -135,21 +133,21 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
                                                                blob.size);
 
   if (packet_decoder.has_chrome_version_code()) {
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString(base::StringView(metadata_prefix.ToStdString() +
                                                "playstore_version_code")),
         Variadic::Integer(packet_decoder.chrome_version_code()));
   }
   if (packet_decoder.has_app_version()) {
     auto app_version_id = storage->InternString(packet_decoder.app_version());
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString(base::StringView(metadata_prefix.ToStdString() +
                                                "product-version")),
         Variadic::String(app_version_id));
   }
   if (packet_decoder.has_os_name()) {
     auto os_name_id = storage->InternString(packet_decoder.os_name());
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString(
             base::StringView(metadata_prefix.ToStdString() + "os-name")),
         Variadic::String(os_name_id));
@@ -157,13 +155,13 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
   if (packet_decoder.has_app_package_name()) {
     auto app_package_name_id =
         storage->InternString(packet_decoder.app_package_name());
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString(
             base::StringView(metadata_prefix.ToStdString() + "package-name")),
         Variadic::String(app_package_name_id));
   }
   if (packet_decoder.has_channel()) {
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString(
             base::StringView(metadata_prefix.ToStdString() + "channel")),
         Variadic::Integer(packet_decoder.channel()));
@@ -171,7 +169,7 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
   if (packet_decoder.has_enabled_categories()) {
     auto categories_id =
         storage->InternString(packet_decoder.enabled_categories());
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString(base::StringView(metadata_prefix.ToStdString() +
                                                "enabled_categories")),
         Variadic::String(categories_id));
@@ -202,7 +200,7 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
 
     StringId field_trials_string =
         context_->storage->InternString(base::StringView(field_trials));
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString(base::StringView(metadata_prefix.ToStdString() +
                                                "field_trial_hashes")),
         Variadic::String(field_trials_string));
@@ -214,14 +212,14 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
 
     std::string base64 = base::Base64Encode(background_tracing_metadata.data,
                                             background_tracing_metadata.size);
-    metadata->SetDynamicMetadata(
+    metadata->AppendDynamicMetadataLegacy(
         storage->InternString("cr-background_tracing_metadata"),
         Variadic::String(storage->InternString(base::StringView(base64))));
 
     protos::pbzero::BackgroundTracingMetadata::Decoder metadata_decoder(
         background_tracing_metadata.data, background_tracing_metadata.size);
     if (metadata_decoder.has_scenario_name_hash()) {
-      metadata->SetDynamicMetadata(
+      metadata->AppendDynamicMetadataLegacy(
           storage->InternString("cr-scenario_name_hash"),
           Variadic::Integer(metadata_decoder.scenario_name_hash()));
     }

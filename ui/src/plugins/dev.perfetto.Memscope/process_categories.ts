@@ -33,26 +33,21 @@ const CATEGORY_NAMES = {
   GOOGLE_ANDROID_JAVA: 'Google/Android Java',
   AI_CORE: 'AI Core',
   THREE_P_APPS: '3P Applications',
+  APPS: 'Apps',
   CAMERA: 'Camera',
   GOOGLE_SERVICES: 'Google Services',
   FRAMEWORK: 'Framework',
   GRAPHICS: 'Graphics',
-  NATIVE_DAEMON: 'Native Daemon',
+  NATIVE_SERVICE: 'Native Service',
   INPUT: 'Input',
   SECURITY: 'Security',
   TELEPHONY: 'Telephony',
   MEDIA: 'Media',
   HAL: 'HAL',
   CONNECTIVITY: 'Connectivity',
-  SYSTEM_SERVICE: 'System Service',
-  BLUETOOTH: 'Bluetooth',
-  WIFI: 'WiFi',
-  AUDIO: 'Audio',
   SENSORS: 'Sensors',
   SYSTEM_UI: 'System UI',
   LOCATION: 'Location',
-  INIT: 'Init',
-  NFC: 'NFC',
   UNKNOWN: 'Unknown',
 } as const;
 
@@ -75,9 +70,12 @@ export const CATEGORIES = buildCategories();
 
 export type CategoryId = keyof typeof CATEGORY_NAMES;
 
-// Lookup table: process name (or prefix/pattern) -> category.
+// Lookup table: process name matcher -> category.
+// Matcher is either a string (prefix match) or a RegExp (full match via .test).
 // Order matters — first match wins, so put more specific entries first.
-const PROCESS_TO_CATEGORY: ReadonlyArray<readonly [string, CategoryId]> = [
+const PROCESS_TO_CATEGORY: ReadonlyArray<
+  readonly [string | RegExp, CategoryId]
+> = [
   // ---- AI Core ----
   ['com.google.android.aicore', 'AI_CORE'],
   ['com.google.android.as', 'AI_CORE'], // App Intelligence / Smart
@@ -128,19 +126,16 @@ const PROCESS_TO_CATEGORY: ReadonlyArray<readonly [string, CategoryId]> = [
   ['android.hardware.media', 'MEDIA'],
   ['android.hardware.drm', 'MEDIA'],
   ['com.android.providers.media', 'MEDIA'],
+  ['audioserver', 'MEDIA'],
+  ['android.hardware.audio', 'MEDIA'],
+  ['vendor.audio', 'MEDIA'],
+  ['audio_policy', 'MEDIA'],
 
-  // ---- Audio ----
-  ['audioserver', 'AUDIO'],
-  ['android.hardware.audio', 'AUDIO'],
-  ['vendor.audio', 'AUDIO'],
-  ['audio_policy', 'AUDIO'],
+  // ---- Connectivity (Bluetooth, WiFi, NFC, networking) ----
+  ['com.android.bluetooth', 'CONNECTIVITY'],
+  ['android.hardware.bluetooth', 'CONNECTIVITY'],
+  ['bt_stack', 'CONNECTIVITY'],
 
-  // ---- Bluetooth ----
-  ['com.android.bluetooth', 'BLUETOOTH'],
-  ['android.hardware.bluetooth', 'BLUETOOTH'],
-  ['bt_stack', 'BLUETOOTH'],
-
-  // ---- Connectivity ----
   ['netd', 'CONNECTIVITY'],
   ['mdnsd', 'CONNECTIVITY'],
   ['com.android.networkstack', 'CONNECTIVITY'],
@@ -149,13 +144,13 @@ const PROCESS_TO_CATEGORY: ReadonlyArray<readonly [string, CategoryId]> = [
   ['com.android.vpndialogs', 'CONNECTIVITY'],
   ['com.android.hotspot2', 'CONNECTIVITY'],
   ['com.android.tethering', 'CONNECTIVITY'],
-
-  // ---- WiFi ----
-  ['wificond', 'WIFI'],
-  ['wpa_supplicant', 'WIFI'],
-  ['android.hardware.wifi', 'WIFI'],
-  ['com.android.wifi', 'WIFI'],
-  ['com.android.server.wifi', 'WIFI'],
+  ['wificond', 'CONNECTIVITY'],
+  ['wpa_supplicant', 'CONNECTIVITY'],
+  ['android.hardware.wifi', 'CONNECTIVITY'],
+  ['com.android.wifi', 'CONNECTIVITY'],
+  ['com.android.server.wifi', 'CONNECTIVITY'],
+  ['com.android.nfc', 'CONNECTIVITY'],
+  ['android.hardware.nfc', 'CONNECTIVITY'],
 
   // ---- Telephony ----
   ['com.android.phone', 'TELEPHONY'],
@@ -177,25 +172,53 @@ const PROCESS_TO_CATEGORY: ReadonlyArray<readonly [string, CategoryId]> = [
   ['android.hardware.gnss', 'LOCATION'],
   ['gpsd', 'LOCATION'],
 
-  // ---- NFC ----
-  ['com.android.nfc', 'NFC'],
-  ['android.hardware.nfc', 'NFC'],
-
   // ---- System UI ----
   ['com.android.systemui', 'SYSTEM_UI'],
   ['com.android.launcher', 'SYSTEM_UI'],
   ['com.google.android.apps.nexuslauncher', 'SYSTEM_UI'],
+  // Samsung (One UI / TouchWiz)
+  ['com.sec.android.app.launcher', 'SYSTEM_UI'],
+  ['com.samsung.android.app.aodservice', 'SYSTEM_UI'],
+  ['com.samsung.android.lool', 'SYSTEM_UI'],
+  ['com.samsung.android.themestore', 'SYSTEM_UI'],
+  ['com.samsung.android.app.cocktailbarservice', 'SYSTEM_UI'],
+  // Xiaomi (MIUI / HyperOS)
+  ['com.miui.home', 'SYSTEM_UI'],
+  ['com.miui.systemui', 'SYSTEM_UI'],
+  ['com.android.systemui.miui', 'SYSTEM_UI'],
+  ['com.mi.android.globallauncher', 'SYSTEM_UI'],
+  // Huawei / Honor (EMUI / MagicUI)
+  ['com.huawei.android.launcher', 'SYSTEM_UI'],
+  ['com.hihonor.android.launcher', 'SYSTEM_UI'],
+  // Oppo / Realme / OnePlus (ColorOS / OxygenOS)
+  ['com.oppo.launcher', 'SYSTEM_UI'],
+  ['com.coloros.launcher', 'SYSTEM_UI'],
+  ['com.realme.launcher', 'SYSTEM_UI'],
+  ['com.oneplus.launcher', 'SYSTEM_UI'],
+  // Vivo (Funtouch OS / OriginOS)
+  ['com.vivo.launcher', 'SYSTEM_UI'],
+  ['com.bbk.launcher2', 'SYSTEM_UI'],
+  // Sony
+  ['com.sonyericsson.home', 'SYSTEM_UI'],
+  // LG
+  ['com.lge.launcher3', 'SYSTEM_UI'],
+  // Motorola
+  ['com.motorola.launcher3', 'SYSTEM_UI'],
+  // Asus (ZenUI)
+  ['com.asus.launcher', 'SYSTEM_UI'],
+  // Nothing
+  ['com.nothing.launcher', 'SYSTEM_UI'],
 
-  // ---- System Service ----
-  ['statsd', 'SYSTEM_SERVICE'],
-  ['incidentd', 'SYSTEM_SERVICE'],
-  ['storaged', 'SYSTEM_SERVICE'],
-  ['healthd', 'SYSTEM_SERVICE'],
-  ['installd', 'SYSTEM_SERVICE'],
-  ['dumpstate', 'SYSTEM_SERVICE'],
-  ['servicemanager', 'SYSTEM_SERVICE'],
-  ['hwservicemanager', 'SYSTEM_SERVICE'],
-  ['vndservicemanager', 'SYSTEM_SERVICE'],
+  // ---- Native Service (system services, init, native daemons) ----
+  ['statsd', 'NATIVE_SERVICE'],
+  ['incidentd', 'NATIVE_SERVICE'],
+  ['storaged', 'NATIVE_SERVICE'],
+  ['healthd', 'NATIVE_SERVICE'],
+  ['installd', 'NATIVE_SERVICE'],
+  ['dumpstate', 'NATIVE_SERVICE'],
+  ['servicemanager', 'NATIVE_SERVICE'],
+  ['hwservicemanager', 'NATIVE_SERVICE'],
+  ['vndservicemanager', 'NATIVE_SERVICE'],
 
   // ---- HAL (Hardware Abstraction Layer) ----
   ['android.hardware.', 'HAL'],
@@ -238,28 +261,14 @@ const PROCESS_TO_CATEGORY: ReadonlyArray<readonly [string, CategoryId]> = [
   ['webview_zygote', 'FRAMEWORK'],
   ['app_process', 'FRAMEWORK'],
 
-  // ---- Init ----
-  ['init', 'INIT'],
-  ['ueventd', 'INIT'],
+  // ---- Apps (catch-all for xxx.yyy.zzz-style package names) ----
+  // Matches at least 3 dot-separated segments, optionally followed by a `:trailer`
+  // such as `:sandboxed_process_0`. Anything more specific should have been
+  // matched by an earlier entry.
+  [/^[\w-]+(?:\.[\w-]+){2,}(?::[\w-]+)?$/, 'APPS'],
 
-  // ---- Native Daemon ----
-  ['logd', 'NATIVE_DAEMON'],
-  ['lmkd', 'NATIVE_DAEMON'],
-  ['tombstoned', 'NATIVE_DAEMON'],
-  ['traced', 'NATIVE_DAEMON'],
-  ['traced_probes', 'NATIVE_DAEMON'],
-  ['traced_perf', 'NATIVE_DAEMON'],
-  ['heapprofd', 'NATIVE_DAEMON'],
-  ['perfetto', 'NATIVE_DAEMON'],
-  ['adbd', 'NATIVE_DAEMON'],
-  ['debuggerd', 'NATIVE_DAEMON'],
-  ['llkd', 'NATIVE_DAEMON'],
-  ['apexd', 'NATIVE_DAEMON'],
-  ['linkerconfig', 'NATIVE_DAEMON'],
-  ['otapreopt_chroot', 'NATIVE_DAEMON'],
-  ['update_engine', 'NATIVE_DAEMON'],
-  ['/system/bin/', 'NATIVE_DAEMON'],
-  ['/vendor/bin/', 'NATIVE_DAEMON'],
+  // Catch-all for native binaries: bare name or /system/bin/, /vendor/bin/ paths.
+  [/^(?:\/system\/bin\/|\/vendor\/bin\/)?[\w-]+$/, 'NATIVE_SERVICE'],
 ];
 
 /**
@@ -268,9 +277,13 @@ const PROCESS_TO_CATEGORY: ReadonlyArray<readonly [string, CategoryId]> = [
  * Falls back to heuristics for common patterns, then to OTHER.
  */
 export function categorizeProcess(processName: string): ProcessCategory {
-  // Exact/prefix match from the LUT.
-  for (const [prefix, catId] of PROCESS_TO_CATEGORY) {
-    if (processName.startsWith(prefix)) {
+  // Match against the LUT: strings are prefix-matched, RegExps via .test.
+  for (const [matcher, catId] of PROCESS_TO_CATEGORY) {
+    const matches =
+      typeof matcher === 'string'
+        ? processName.startsWith(matcher)
+        : matcher.test(processName);
+    if (matches) {
       return CATEGORIES[catId];
     }
   }

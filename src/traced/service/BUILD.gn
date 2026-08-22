@@ -55,9 +55,6 @@ source_set("service") {
     "../../tracing/ipc/service",
     "../../tracing/service:service",
   ]
-  if (enable_perfetto_zlib) {
-    deps += [ "../../tracing/service:zlib_compressor" ]
-  }
 
   sources = [ "service.cc" ]
 

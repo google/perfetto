@@ -158,6 +158,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
     memory: 40,
     android: 50,
     network: 60,
+    linux: 65,
     chrome: 70,
     stack_sampling: 80,
     perfetto_sdk: 90,
@@ -326,7 +327,7 @@ class RecordingCtl implements m.ClassComponent<RecCtlAttrs> {
         '.record-target',
         recordingInProgress
           ? `Recording${eta ? ', ETA ' + eta : ''}`
-          : target?.name ?? 'No target selected',
+          : (target?.name ?? 'No target selected'),
       ),
       recordingInProgress
         ? m(Button, {

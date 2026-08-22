@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {VERSION} from '../gen/perfetto_version';
+import {VERSION} from '../virtual/version';
 import {exists} from './utils';
 
 export type ErrorType = 'ERROR' | 'PROMISE_REJ' | 'OTHER';

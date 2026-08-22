@@ -50,6 +50,12 @@ SELECT track_id AS id, min(ts) AS min_ts
 FROM slice
 JOIN _track_event_tracks_unordered AS t ON slice.track_id = t.id
 GROUP BY
+  track_id
+UNION ALL
+SELECT track_id AS id, min(ts) AS min_ts
+FROM state
+JOIN _track_event_tracks_unordered AS t ON state.track_id = t.id
+GROUP BY
   track_id;
 
 CREATE PERFETTO TABLE _track_event_has_children AS
@@ -99,6 +105,7 @@ SELECT
   extract_arg(track.dimension_arg_set_id, 'utid') AS utid,
   track.parent_id,
   track.type GLOB '*counter*' AS is_counter,
+  track.type GLOB '*state*' AS is_state,
   track.name,
   min(extract_arg(track.source_arg_set_id, 'description')) AS description,
   min(counter_track.unit) AS unit,

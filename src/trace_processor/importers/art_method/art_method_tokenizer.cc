@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -38,14 +39,14 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/art_method/art_method_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
-
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::art_method {
 namespace {
@@ -57,6 +58,12 @@ constexpr uint32_t kTraceHeaderLength = 32;
 constexpr uint32_t kMethodsCode = 1;
 constexpr uint32_t kThreadsCode = 2;
 constexpr uint32_t kSummaryCode = 3;
+
+// Minimum record size for version 3 traces. Must hold 2 bytes of tid plus
+// 4 bytes of method_id/action plus a 4-byte wall ts_delta plus a 4-byte
+// thread ts_delta (the dual-clock case). Validated at header-parse time so
+// later fixed-offset reads in ParseRecord cannot read past the record.
+constexpr uint16_t kMinV3RecordSize = 14;
 
 std::string_view ToStringView(const TraceBlobView& tbv) {
   return {reinterpret_cast<const char*>(tbv.data()), tbv.size()};
@@ -116,6 +123,12 @@ base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
 
 base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
   auto tokens = base::SplitString(base::TrimWhitespace(std::string(l)), "\t");
+  if (tokens.size() < 2) {
+    return base::ErrStatus(
+        "ART method trace: method line must have at least an id and class "
+        "name (got %zu tokens)",
+        tokens.size());
+  }
   auto id = base::StringToUInt32(tokens[0], 16);
   if (!id) {
     return base::ErrStatus(
@@ -139,7 +152,7 @@ base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
     pathname = context_->storage->InternString(
         base::StringView(ConstructPathname(class_name, tokens[4])));
     line_number = base::StringToUInt32(tokens[5]);
-  } else if (tokens.size() > 2) {
+  } else if (tokens.size() >= 4) {
     if (base::StartsWith(tokens[3], "(")) {
       method_name = tokens[2];
       signature = tokens[3];
@@ -150,6 +163,11 @@ base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
       pathname = context_->storage->InternString(base::StringView(tokens[2]));
       line_number = base::StringToUInt32(tokens[3]);
     }
+  } else if (tokens.size() == 3) {
+    return base::ErrStatus(
+        "ART method trace: method line with 3 tokens is malformed (id, class, "
+        "%s)",
+        tokens[2].c_str());
   }
   base::StackString<2048> slice_name("%s.%s: %s", class_name.c_str(),
                                      method_name.c_str(), signature.c_str());
@@ -214,9 +232,9 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
       evt.action = ArtMethodEvent::kExit;
       break;
   }
-  std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-      (ts_ + ts_delta) * 1000);
+  std::optional<int64_t> ts =
+      context_->clock_tracker->ConvertDefaultClockToTraceTime((ts_ + ts_delta) *
+                                                              1000);
   if (ts) {
     stream_->Push(*ts, evt);
   }
@@ -280,9 +298,16 @@ base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseHeaderStart(
     case 2:
       tokenizer_->record_size_ = 10;
       break;
-    case 3:
-      tokenizer_->record_size_ = ToShort(header->slice_off(16, 2));
+    case 3: {
+      uint16_t size = ToShort(header->slice_off(16, 2));
+      if (size < kMinV3RecordSize) {
+        return base::ErrStatus(
+            "ART method trace: record size %u below minimum %u for v3", size,
+            kMinV3RecordSize);
+      }
+      tokenizer_->record_size_ = size;
       break;
+    }
     default:
       return base::ErrStatus("Illegal version %u", tokenizer_->version_);
   }
@@ -384,7 +409,8 @@ base::Status ArtMethodTokenizer::Streaming::ParseSummary(
 
 base::Status ArtMethodTokenizer::Streaming::OnPushDataToSorter() const {
   if (mode_ != kDone) {
-    return base::ErrStatus("ART Method trace: trace is incomplete");
+    return base::ErrStatus(
+        "ART Method trace: trace is incomplete (ERR:tp-corrupt)");
   }
 
   auto it = tokenizer_->reader_.GetIterator();
@@ -473,7 +499,8 @@ base::Status ArtMethodTokenizer::NonStreaming::OnPushDataToSorter() const {
   if (mode_ == NonStreaming::kData && tokenizer_->reader_.empty()) {
     return base::OkStatus();
   }
-  return base::ErrStatus("ART Method trace: trace is incomplete");
+  return base::ErrStatus(
+      "ART Method trace: trace is incomplete (ERR:tp-corrupt)");
 }
 
 base::StatusOr<bool> ArtMethodTokenizer::NonStreaming::ParseHeaderStart(
@@ -579,9 +606,16 @@ base::StatusOr<bool> ArtMethodTokenizer::NonStreaming::ParseDataHeader(
     case 2:
       tokenizer_->record_size_ = 10;
       break;
-    case 3:
-      tokenizer_->record_size_ = ToShort(header->slice_off(16, 2));
+    case 3: {
+      uint16_t size = ToShort(header->slice_off(16, 2));
+      if (size < kMinV3RecordSize) {
+        return base::ErrStatus(
+            "ART method trace: record size %u below minimum %u for v3", size,
+            kMinV3RecordSize);
+      }
+      tokenizer_->record_size_ = size;
       break;
+    }
     default:
       PERFETTO_FATAL("Illegal version %u", tokenizer_->version_);
   }
@@ -616,7 +650,8 @@ base::Status ArtMethodTokenizer::NonStreaming::ParseHeaderSectionLine(
 base::Status ArtMethodTokenizer::OnPushDataToSorter() {
   switch (sub_parser_.index()) {
     case base::variant_index<SubParser, Detect>():
-      return base::ErrStatus("ART Method trace: trace is incomplete");
+      return base::ErrStatus(
+          "ART Method trace: trace is incomplete (ERR:tp-corrupt)");
     case base::variant_index<SubParser, Streaming>():
       return std::get<Streaming>(sub_parser_).OnPushDataToSorter();
     case base::variant_index<SubParser, NonStreaming>():
@@ -626,3 +661,56 @@ base::Status ArtMethodTokenizer::OnPushDataToSorter() {
 }
 
 }  // namespace perfetto::trace_processor::art_method
+
+namespace perfetto::trace_processor {
+namespace {
+
+// ART method trace (streaming v1 and non-streaming "*version" formats).
+class ArtMethodImporter : public TraceImporter<ArtMethodImporter> {
+ public:
+  ArtMethodImporter() : TraceImporter(MakeDescriptor()) {}
+  ~ArtMethodImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'S', 'L', 'O', 'W'};
+    if (size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0) {
+      if (size >= 6) {
+        uint16_t version = data[4] | static_cast<uint16_t>(data[5] << 8);
+        if (version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
+            version == 0x00f5) {
+          return false;  // Streaming v2, handled by ArtMethodV2Importer.
+        }
+      }
+      return true;
+    }
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    return base::StartsWith(start, "*version\n");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<art_method::ArtMethodTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "art_method";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.detection_priority = 75;
+    return d;
+  }
+};
+
+ArtMethodImporter::~ArtMethodImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateArtMethodImporter() {
+  return std::make_unique<ArtMethodImporter>();
+}
+
+}  // namespace perfetto::trace_processor

@@ -49,13 +49,14 @@ def compute_breakdown(tp: TraceProcessor,
 
   tp.query("""
     INCLUDE PERFETTO MODULE android.slices;
+    INCLUDE PERFETTO MODULE slices.stack;
     CREATE VIEW modded_names AS
     SELECT
       slice.id,
       slice.depth,
       slice.stack_id,
       ANDROID_STANDARDIZE_SLICE_NAME(slice.name) AS modded_name
-    FROM slice
+    FROM slice_with_stack_id slice
   """)
 
   tp.query("""

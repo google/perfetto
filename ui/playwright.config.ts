@@ -20,12 +20,12 @@ const outDir = process.env.OUT_DIR ?? '../out/ui';
 const isRebaseline = process.argv.includes('--update-snapshots');
 
 export default defineConfig({
-  timeout: 30_000,
+  timeout: 60_000,
   testDir: './src',
   snapshotDir: '../test/data/ui-screenshots',
   snapshotPathTemplate: '{snapshotDir}/{testFileName}/{testName}/{arg}{ext}',
   outputDir: `${outDir}/ui-test-results`,
-  fullyParallel: true,
+  fullyParallel: false,
   retries: isCi ? 2 : 0, // Retry only in CI
   reporter: [
     [
@@ -92,7 +92,7 @@ export default defineConfig({
   webServer: {
     // Just run the server without building
     command:
-      './run-dev-server --no-build --no-depscheck ' +
+      './build --serve --no-build --no-depscheck ' +
       (process.env.DEV_SERVER_ARGS ?? ''),
     url: 'http://127.0.0.1:10000',
     reuseExistingServer: true,

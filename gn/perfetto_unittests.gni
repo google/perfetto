@@ -52,6 +52,10 @@ if (enable_perfetto_tools) {
   _misc_unittests_targets += [ "src/tools:unittests" ]
 }
 
+if (enable_perfetto_protovm_compiler) {
+  _misc_unittests_targets += [ "src/protovm/compiler:unittests" ]
+}
+
 if (enable_perfetto_ipc) {
   _base_unittests_targets += [ "src/ipc:unittests" ]
   _tracing_unittests_targets += [ "src/tracing/ipc:unittests" ]

@@ -43,10 +43,17 @@ namespace perfetto::trace_processor::shell {
 struct GlobalOptions {
   std::string trace_file;
 
+  // If non-empty, trace-consuming subcommands run against a remote warm session
+  // (see `tp server unix`) instead of loading a local trace. Resolved by
+  // RemoteTraceProcessor::Connect: a session name, *.sock / absolute path, or
+  // (unsupported yet) host:port.
+  std::string remote_addr;
+
   bool force_full_sort = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
+  bool allow_sql_file_access = false;
 
   bool dev = false;
   std::vector<std::string> dev_flags;
@@ -91,8 +98,9 @@ base::Status ParseFlags(Subcommand* cmd,
                         char** argv);
 
 // Builds a TraceProcessor Config from the global options.
-Config BuildConfig(const GlobalOptions& opts,
-                   TraceProcessorShell_PlatformInterface* platform);
+base::StatusOr<Config> BuildConfig(
+    const GlobalOptions& opts,
+    TraceProcessorShell_PlatformInterface* platform);
 
 // Creates and configures a TraceProcessor instance.
 base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
@@ -106,6 +114,29 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
     const std::string& trace_file);
+
+// Resolves the trace-file positional argument for a trace-consuming subcommand,
+// accounting for --remote. In --remote mode the trace is already loaded
+// server-side, so no positional is consumed: |*trace_file| is cleared and
+// |*first_extra_arg| is 0. Otherwise positional_args[0] is the trace file and
+// |*first_extra_arg| is 1; a "<subcommand>: trace file is required" error is
+// returned if it is missing. |first_extra_arg| is the index of the first
+// remaining positional (e.g. SQL or a spec path) and may be null.
+base::Status ResolveTraceFileArg(const SubcommandContext& ctx,
+                                 const char* subcommand,
+                                 std::string* trace_file,
+                                 size_t* first_extra_arg);
+
+// Creates the TraceProcessor a trace-consuming subcommand should run against:
+// a RemoteTraceProcessor connected to opts.remote_addr if --remote was given
+// (in which case |trace_file| must be empty and the trace is already loaded
+// server-side), otherwise a local instance with |trace_file| loaded. The
+// wall-clock load time (zero for remote) is returned via |t_load_out| if set.
+base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
+    const GlobalOptions& opts,
+    TraceProcessorShell_PlatformInterface* platform,
+    const std::string& trace_file,
+    base::TimeNanos* t_load_out);
 
 }  // namespace perfetto::trace_processor::shell
 

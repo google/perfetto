@@ -21,6 +21,7 @@ from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 
@@ -29,6 +30,7 @@ from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
     python_module=__file__,
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     class_name='ExperimentalFlatSliceTable',
     sql_name='experimental_flat_slice',
     columns=[

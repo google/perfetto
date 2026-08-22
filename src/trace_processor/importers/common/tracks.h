@@ -59,6 +59,31 @@ constexpr auto SliceBlueprint(const char type[],
   };
 }
 
+// Creates a blueprint for a state track.
+template <typename NB = NameBlueprintT::Auto,
+          typename DeB = DescriptionBlueprintT::None,
+          typename... D>
+constexpr auto StateBlueprint(const char type[],
+                              DimensionBlueprintsT<D...> dimensions = {},
+                              NB name = NB{},
+                              DeB description = DeB{}) {
+  static_assert(sizeof...(D) < 8, "At most 8 dimensions are supported");
+  auto dims_array = std::apply(
+      [](auto&&... x) { return std::array<DimensionBlueprintBase, 8>{x...}; },
+      dimensions);
+  return BlueprintT<NB, UnitBlueprintT::Unknown, DeB, D...>{
+      {
+          "state",
+          type,
+          base::FnvHasher::CreatePartial(type),
+          dims_array,
+      },
+      name,
+      UnitBlueprintT::Unknown{},
+      description,
+  };
+}
+
 // Creates a blueprint for a counter track.
 // See TrackTracker::InternTrack for usage on this function.
 template <typename NB = NameBlueprintT::Auto,

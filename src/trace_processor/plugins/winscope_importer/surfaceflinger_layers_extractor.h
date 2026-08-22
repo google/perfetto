@@ -19,13 +19,13 @@
 
 #include <unordered_map>
 #include <vector>
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
 namespace {
-using LayersDecoder = protos::pbzero::LayersProto::Decoder;
-using LayerDecoder = protos::pbzero::LayerProto::Decoder;
+using LayersDecoder = com::android::internal::pbzero::LayersProto::Decoder;
+using LayerDecoder = com::android::internal::pbzero::LayerProto::Decoder;
 }  // namespace
 
 std::unordered_map<int32_t, LayerDecoder> ExtractLayersById(

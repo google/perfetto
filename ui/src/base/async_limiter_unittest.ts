@@ -17,11 +17,11 @@ import {AsyncLimiter} from './async_limiter';
 test('no concurrent callbacks', async () => {
   const limiter = new AsyncLimiter();
 
-  const mock1 = jest.fn();
+  const mock1 = vi.fn();
   limiter.schedule(async () => mock1());
   expect(mock1).toHaveBeenCalled();
 
-  const mock2 = jest.fn();
+  const mock2 = vi.fn();
   limiter.schedule(async () => mock2());
   expect(mock2).not.toHaveBeenCalled();
 });
@@ -29,10 +29,10 @@ test('no concurrent callbacks', async () => {
 test('queueing', async () => {
   const limiter = new AsyncLimiter();
 
-  const mock1 = jest.fn();
+  const mock1 = vi.fn();
   limiter.schedule(async () => mock1());
 
-  const mock2 = jest.fn();
+  const mock2 = vi.fn();
   await limiter.schedule(async () => mock2());
 
   expect(mock1).toHaveBeenCalled();
@@ -42,13 +42,13 @@ test('queueing', async () => {
 test('multiple queuing', async () => {
   const limiter = new AsyncLimiter();
 
-  const mock1 = jest.fn();
+  const mock1 = vi.fn();
   limiter.schedule(async () => mock1());
 
-  const mock2 = jest.fn();
+  const mock2 = vi.fn();
   limiter.schedule(async () => mock2());
 
-  const mock3 = jest.fn();
+  const mock3 = vi.fn();
   await limiter.schedule(async () => mock3());
 
   expect(mock1).toHaveBeenCalled();
@@ -73,7 +73,7 @@ test('chain continues even when one callback fails', async () => {
   };
   limiter.schedule(failingCallback).catch(() => {});
 
-  const mock = jest.fn();
+  const mock = vi.fn();
   await limiter.schedule(async () => mock());
 
   expect(mock).toHaveBeenCalled();
