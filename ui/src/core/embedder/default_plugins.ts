@@ -68,6 +68,7 @@ export const defaultPlugins = [
   'dev.perfetto.Frames',
   'dev.perfetto.Ftrace',
   'dev.perfetto.GlobalGroups',
+  'dev.perfetto.GoogleDrive',
   'dev.perfetto.Gpu',
   'dev.perfetto.JournaldLog',
   'dev.perfetto.HeapProfile',
