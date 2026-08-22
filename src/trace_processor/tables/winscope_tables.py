@@ -117,7 +117,7 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
     class_name='InputMethodClientsTable',
     sql_name='__intrinsic_inputmethod_clients',
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('ts', CppInt64(), ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),
@@ -144,7 +144,7 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
     class_name='InputMethodManagerServiceTable',
     sql_name='__intrinsic_inputmethod_manager_service',
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('ts', CppInt64(), ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),
@@ -171,7 +171,7 @@ INPUTMETHOD_SERVICE_TABLE = Table(
     class_name='InputMethodServiceTable',
     sql_name='__intrinsic_inputmethod_service',
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('ts', CppInt64(), ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),
@@ -199,7 +199,7 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     sql_name='__intrinsic_surfaceflinger_layers_snapshot',
     wrapping_sql_view=WrappingSqlView('surfaceflinger_layers_snapshot'),
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('ts', CppInt64(), ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),
@@ -360,7 +360,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     sql_name='__intrinsic_surfaceflinger_transactions',
     wrapping_sql_view=WrappingSqlView('surfaceflinger_transactions'),
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('ts', CppInt64(), ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),
@@ -459,7 +459,7 @@ VIEWCAPTURE_TABLE = Table(
     class_name='ViewCaptureTable',
     sql_name='__intrinsic_viewcapture',
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('ts', CppInt64(), ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),
@@ -804,7 +804,7 @@ WINDOW_MANAGER_TABLE = Table(
     class_name='WindowManagerTable',
     sql_name='__intrinsic_windowmanager',
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
+        C('ts', CppInt64(), ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),
