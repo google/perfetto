@@ -27,17 +27,15 @@ import {
   DEFAULT_LOCAL_CATEGORY,
   localPresetStore,
   presetFromTab,
-  setupFromTab,
   type LocalPreset,
 } from '../query/local_preset_store';
-import {lastPresetIdState, lastSetupState} from '../settings/query_setup_state';
+import {lastPresetIdState} from '../settings/last_preset_state';
 import {presetMatches} from '../query/preset_match';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
   applyPresetToTab,
   effectiveTabSettings,
-  TRACE_LIMIT_SETTING_ID,
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
@@ -84,8 +82,6 @@ function presetIcon(icon?: string): string {
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   private mode: 'presets' | 'custom' = 'presets';
   private activeCuj?: string;
-  // The custom form seeds from the last setup once per visit, not every redraw.
-  private seededFromLastSetup = false;
 
   oninit() {
     void presetStore.load();
@@ -114,7 +110,9 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           m(Button, {
             label: 'Configure custom settings',
             icon: 'tune',
-            onclick: () => this.enterCustom(bindings),
+            onclick: () => {
+              this.mode = 'custom';
+            },
           }),
         ),
       ]),
@@ -233,28 +231,8 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   ): void {
     applyPresetToTab(tab, preset);
     lastPresetIdState.set(preset.id);
-    lastSetupState.set(setupFromTab(tab));
     tabsState.markDirty();
     m.redraw();
-  }
-
-  // Entering the custom path on a fresh tab: start from the selection the last
-  // query ran with, so the trace source doesn't have to be retyped every time.
-  private enterCustom(bindings: SettingsBindings): void {
-    const setup = lastSetupState.get();
-    if (setup !== null && !this.seededFromLastSetup) {
-      for (const s of setup.settings) {
-        // The trace cap follows the execution mode; seeding the last one would
-        // freeze it (see MODE_DEFAULTS).
-        if (s.settingId === TRACE_LIMIT_SETTING_ID) continue;
-        bindings.setSettingValue(s.settingId, s.values, s.category);
-      }
-      bindings.setTraceFilters(setup.traceFilters);
-      bindings.setTraceMetadataColumns(setup.traceMetadataColumns);
-      bindings.setTraceOrderBy(setup.traceOrderBy);
-    }
-    this.seededFromLastSetup = true;
-    this.mode = 'custom';
   }
 
   private renderCustomFooter(
@@ -281,7 +259,6 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
         onclick: () => {
-          lastSetupState.set(setupFromTab(tab));
           // If this setup happens to be one of the presets on offer (e.g. it
           // was just saved as one), the next tab preselects it; otherwise
           // there's no preset to remember.

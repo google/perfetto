@@ -14,7 +14,6 @@
 
 import {shortUuid} from '../../base/uuid';
 import {LocalStorage} from '../../core/local_storage';
-import type {QuerySetup} from '../settings/query_setup_state';
 import type {TracePreset} from './bigtrace_query_client';
 import {
   effectiveTabSettings,
@@ -155,15 +154,5 @@ export function presetFromTab(
     traceOrderBy: tab.traceOrderBy,
     limit: tab.limit,
     materialized: tab.materialize,
-  };
-}
-
-export function setupFromTab(tab: BigTraceEditorTab): QuerySetup {
-  return {
-    settings: effectiveTabSettings(tab),
-    traceFilters: [...tab.traceFilters],
-    traceMetadataColumns:
-      tab.traceMetadataColumns === null ? null : [...tab.traceMetadataColumns],
-    traceOrderBy: tab.traceOrderBy,
   };
 }

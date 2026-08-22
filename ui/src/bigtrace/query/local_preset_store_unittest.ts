@@ -19,10 +19,9 @@ import {
   isLocalPresetId,
   localPresetStore,
   presetFromTab,
-  setupFromTab,
   type LocalPreset,
 } from './local_preset_store';
-import {lastPresetIdState, lastSetupState} from '../settings/query_setup_state';
+import {lastPresetIdState} from '../settings/last_preset_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
 
@@ -199,7 +198,7 @@ describe('presetFromTab', () => {
   });
 });
 
-describe('lastPresetIdState / lastSetupState', () => {
+describe('lastPresetIdState', () => {
   beforeEach(() => localStorage.clear());
 
   test('last preset id round-trips, defaulting to empty', () => {
@@ -208,29 +207,8 @@ describe('lastPresetIdState / lastSetupState', () => {
     expect(lastPresetIdState.get()).toBe('local:abc');
   });
 
-  test('last setup round-trips', () => {
-    const setup = setupFromTab(
-      fakeTab({
-        traceOrderBy: 'file_name asc',
-        traceMetadataColumns: ['device_name'],
-        querySettings: [
-          {
-            settingId: 'trace_directory',
-            values: ['/d'],
-            category: 'TRACE_ADDRESS',
-          },
-        ],
-      }),
-    );
-    lastSetupState.set(setup);
-    const back = lastSetupState.get();
-    expect(back?.traceOrderBy).toBe('file_name asc');
-    expect(back?.traceMetadataColumns).toEqual(['device_name']);
-    expect(back?.settings.map((s) => s.settingId)).toEqual(['trace_directory']);
-  });
-
-  test('malformed setup reads back as null', () => {
-    localStorage.setItem('bigtraceLastSetup', JSON.stringify({setup: 42}));
-    expect(lastSetupState.get()).toBeNull();
+  test('a non-string reads back as empty', () => {
+    localStorage.setItem('bigtraceLastPreset', JSON.stringify({id: 42}));
+    expect(lastPresetIdState.get()).toBe('');
   });
 });
