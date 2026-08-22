@@ -796,17 +796,6 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// "Traces" card header — title with the refresh icon directly to its right.
-.pf-bt-trace-card__title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-
-  .pf-settings-card__title {
-    margin: 0;
-  }
-}
-
 // The per-query settings form — scrollable container, no SettingsShell
 // chrome (it isn't a page).
 .pf-bt-settings-embedded {
@@ -817,6 +806,24 @@ pre.pf-bt-history-item-query--standalone {
 
   .pf-bt-settings-page {
     margin: 0;
+  }
+}
+
+// Page heading of the launcher / Trace Selection page.
+.pf-bt-corpus-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 20px;
+
+  &__title {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
   }
 }
 

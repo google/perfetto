@@ -13,10 +13,7 @@
 // limitations under the License.
 
 import {beforeEach, describe, expect, test} from 'vitest';
-import {
-  traceColumnsState,
-  effectiveQueryColumns,
-} from './trace_selection_state';
+import {effectiveQueryColumns} from './trace_selection_state';
 import {
   linkColumnFirst,
   linkNameFirst,
@@ -26,59 +23,6 @@ import {
 
 beforeEach(() => {
   localStorage.clear();
-});
-
-describe('traceColumnsState', () => {
-  const schema = [
-    {name: 'file_name', defaultVisible: true},
-    {name: 'size_bytes', defaultVisible: true},
-    {name: 'device_name', defaultVisible: false},
-  ];
-
-  test('defaults to null (use schema defaults)', () => {
-    expect(traceColumnsState.get()).toBeNull();
-  });
-
-  test('round-trips an explicit selection', () => {
-    traceColumnsState.set(['file_name', 'device_name']);
-    expect(traceColumnsState.get()).toEqual(['file_name', 'device_name']);
-  });
-
-  test('an empty selection collapses to the null default', () => {
-    traceColumnsState.set([]);
-    expect(traceColumnsState.get()).toBeNull();
-  });
-
-  test('clear() reverts to the null default', () => {
-    traceColumnsState.set(['file_name']);
-    traceColumnsState.clear();
-    expect(traceColumnsState.get()).toBeNull();
-  });
-
-  test('effective() returns the defaultVisible columns when unset', () => {
-    expect(traceColumnsState.effective(schema)).toEqual([
-      'file_name',
-      'size_bytes',
-    ]);
-  });
-
-  test('effective() intersects an explicit selection with the live schema', () => {
-    // 'gone' is stale (not in schema) and drops; order follows the selection.
-    traceColumnsState.set(['device_name', 'gone', 'file_name']);
-    expect(traceColumnsState.effective(schema)).toEqual([
-      'device_name',
-      'file_name',
-    ]);
-  });
-
-  test('effective() hoists a link column to the front', () => {
-    expect(
-      traceColumnsState.effective([
-        {name: 'file_name', defaultVisible: true},
-        {name: 'link', defaultVisible: true},
-      ]),
-    ).toEqual(['link', 'file_name']);
-  });
 });
 
 describe('effectiveQueryColumns', () => {

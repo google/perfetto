@@ -114,9 +114,9 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     ]);
   }
 
-  // The Presets section, headed like the form's own sections. What picking
-  // does depends on the page: filling a new tab in wholesale, or lending an
-  // existing query its setup.
+  // The page heading and the preset picker. What picking does depends on the
+  // page: filling a new tab in wholesale, or lending an existing query its
+  // setup.
   private renderPresetsSection(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
@@ -127,15 +127,21 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
       localPresetStore.list(),
     );
     return [
-      // With no presets to offer, an existing query's page goes straight to
-      // the trace selection; only a new tab explains where presets come from.
-      (presets.length > 0 || !editing) &&
-        m('.pf-bt-settings-page__plugin-section', [
-          m('h2.pf-bt-settings-page__plugin-title', 'Presets'),
-          presets.length === 0
-            ? this.renderNoPresets()
-            : this.renderPresetPicker(tab, tabsState, presets, editing),
-        ]),
+      // One heading for the whole page: presets, grid and source settings are
+      // all one activity.
+      m('.pf-bt-corpus-head', [
+        m('.pf-bt-corpus-head__title', 'Select a trace corpus'),
+        m(
+          '.pf-bt-corpus-head__subtitle',
+          'Start from a preset for your vertical, then filter the table ' +
+            'down to the traces of interest.',
+        ),
+      ]),
+      presets.length > 0
+        ? this.renderPresetPicker(tab, tabsState, presets, editing)
+        : // Only a new tab explains where presets come from; an existing
+          // query's page goes straight to the trace selection.
+          !editing && this.renderNoPresets(),
     ];
   }
 
