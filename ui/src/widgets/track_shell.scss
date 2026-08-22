@@ -35,6 +35,7 @@
       )
       1fr;
     grid-template-areas: "indent shell canvas";
+    background: var(--pf-color-background);
 
     &::before {
       content: "";
@@ -46,25 +47,18 @@
       background-color: var(--pf-color-track-summary-collapsed);
     }
 
-    &--expanded--summary {
-      position: sticky;
-      top: calc(var(--sticky-top) * 1px);
-      z-index: calc(16 - var(--depth));
-      background-color: var(--pf-color-track-summary-expanded);
-      color: var(--pf-color-track-summary-expanded-text);
-      border-color: var(--pf-color-track-summary-expanded);
+    position: sticky;
+    top: calc(var(--sticky-top) * 1px);
+    z-index: calc(16 - var(--depth));
 
-      .pf-track__shell {
-        border-color: var(--pf-color-track-summary-expanded);
-
-        &--highlight {
-          border-color: var(--pf-color-highlight);
-        }
+    .pf-track__shell {
+      &--highlight {
+        border-color: var(--pf-color-highlight);
       }
+    }
 
-      .pf-track__canvas {
-        border-color: var(--pf-color-track-summary-expanded);
-      }
+    .pf-track__canvas {
+      background: transparent;
     }
   }
 

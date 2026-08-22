@@ -32,7 +32,7 @@
 import './virtual_overlay_canvas.scss';
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
-import {findRef, toHTMLElement} from '../base/dom_utils';
+import {bindEventListener, findRef, toHTMLElement} from '../base/dom_utils';
 import type {Rect2D, Size2D} from '../base/geom';
 import {ensureExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
@@ -40,6 +40,8 @@ import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
 import type {Renderer} from '../base/renderer';
 import type {HTMLAttrs} from './common';
+import type {MithrilEvent} from '../base/mithril_utils';
+import {clamp} from '../base/math_utils';
 
 const CANVAS_CONTAINER_REF = 'canvas-container';
 const CANVAS_OVERDRAW_PX = 300;
@@ -102,6 +104,11 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Default: false.
   readonly disableCanvasRedrawOnMithrilUpdates?: boolean;
 
+  // Apply vertical wheel scrolling synchronously rather than leaving it to the
+  // browser. This ensures DOM layout and canvas rendering are updated together.
+  // Default: false.
+  readonly controlledVerticalScrolling?: boolean;
+
   // Called when the canvas is mounted. The passed api object exposes
   // imperative methods for controlling the canvas. Any returned disposable
   // will be disposed of when the component is removed.
@@ -141,6 +148,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
   private webglCanvas?: HTMLCanvasElement;
   private webglRenderer?: WebGLRenderer;
   private dom?: Element;
+  private scrollTop = 0;
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
@@ -159,6 +167,22 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
           ...style,
           overflowX,
           overflowY,
+        },
+        onscroll: (e: MithrilEvent<Event>) => {
+          e.redraw = false;
+          const target = toHTMLElement(e.currentTarget as Element);
+          const scrollTop = target.scrollTop;
+
+          // A controlled wheel event already redrew synchronously after setting
+          // scrollTop. Other sources of scrolling (e.g. the scrollbar) still
+          // need to redraw here.
+          if (
+            !attrs.controlledVerticalScrolling ||
+            scrollTop !== this.scrollTop
+          ) {
+            this.scrollTop = scrollTop;
+            this.redrawCanvas();
+          }
         },
         ...rest,
       },
@@ -283,6 +307,18 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
     });
 
     const scrollEl = toHTMLElement(dom);
+    this.scrollTop = scrollEl.scrollTop;
+    if (attrs.controlledVerticalScrolling) {
+      this.trash.use(
+        bindEventListener(
+          scrollEl,
+          'wheel',
+          (e) => this.handleWheel(e, scrollEl),
+          {passive: false},
+        ),
+      );
+    }
+
     const api: VirtualOverlayCanvasApi = {
       redrawCanvas: this.redrawCanvas.bind(this),
       scrollTo: ({x, y}) => {
@@ -302,6 +338,42 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
 
   onremove() {
     this.trash.dispose();
+  }
+
+  private handleWheel(e: WheelEvent, scrollEl: HTMLElement): void {
+    if (
+      !this.attrs?.controlledVerticalScrolling ||
+      e.defaultPrevented ||
+      !e.cancelable
+    ) {
+      return;
+    }
+
+    let deltaY = e.deltaY;
+    if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      deltaY *= 16;
+    } else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      deltaY *= scrollEl.clientHeight;
+    }
+
+    const maxScrollTop = Math.max(
+      0,
+      scrollEl.scrollHeight - scrollEl.clientHeight,
+    );
+    const currentScrollTop = clamp(this.scrollTop, 0, maxScrollTop);
+    const nextScrollTop = clamp(currentScrollTop + deltaY, 0, maxScrollTop);
+    if (nextScrollTop === currentScrollTop) return;
+
+    e.preventDefault();
+    this.scrollTop = nextScrollTop;
+    scrollEl.scrollTop = nextScrollTop;
+
+    // Updating scrollTop does not synchronously dispatch a scroll event. Sync
+    // the floating canvas ourselves, then redraw before the browser can paint.
+    const virtualCanvas = ensureExists(this.virtualCanvas);
+    if (!virtualCanvas.update()) {
+      this.redrawCanvas();
+    }
   }
 
   private redrawCanvas() {
