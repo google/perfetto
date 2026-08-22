@@ -48,6 +48,13 @@ enum class ProtoWireType : uint32_t {
   kFixed32 = 5,
 };
 
+// Proto groups delimit an embedded message with start and end tags carrying
+// the same field id. Keep these out of ProtoWireType: the general protozero
+// decoder deliberately rejects groups, while the tracing v2 relay consumes
+// them before bytes leave the producer.
+constexpr uint32_t kWireTypeStartGroup = 3;
+constexpr uint32_t kWireTypeEndGroup = 4;
+
 // This is the type defined in the proto for each field. This information
 // is used to decide the translation strategy when writing the trace.
 enum class ProtoSchemaType {
@@ -198,6 +205,14 @@ constexpr uint32_t MakeTagFixed(uint32_t field_id) {
 constexpr uint32_t MakeTagLengthDelimited(uint32_t field_id) {
   return (field_id << 3) |
          static_cast<uint32_t>(ProtoWireType::kLengthDelimited);
+}
+
+constexpr uint32_t MakeTagStartGroup(uint32_t field_id) {
+  return (field_id << 3) | kWireTypeStartGroup;
+}
+
+constexpr uint32_t MakeTagEndGroup(uint32_t field_id) {
+  return (field_id << 3) | kWireTypeEndGroup;
 }
 
 // Proto types: sint64, sint32.

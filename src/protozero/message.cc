@@ -125,11 +125,18 @@ uint32_t Message::Finalize() {
   if (nested_message_)
     EndNestedMessage();
 
-  // Write the length of the nested message a posteriori, using a leading-zero
-  // redundant varint encoding. This can be nullptr for the root message, among
-  // many reasons, because the TraceWriterImpl delegate is keeping track of the
-  // root fragment size independently.
-  if (size_field_) {
+  if (PERFETTO_UNLIKELY(nested_messages_are_groups())) {
+    if (group_field_id_ != 0) {
+      uint8_t data[proto_utils::kMaxTagEncodedSize];
+      uint8_t* data_end = proto_utils::WriteVarInt(
+          proto_utils::MakeTagEndGroup(group_field_id_), data);
+      WriteToStream(data, data_end);
+    }
+    message_state_ = MessageState::kFinalizedWithGroupEncoding;
+  } else if (size_field_) {
+    // Write the length of the nested message a posteriori, using a leading-zero
+    // redundant varint encoding. This can be nullptr for the root message,
+    // because the TraceWriter delegate tracks root fragments independently.
     PERFETTO_DCHECK(!is_finalized());
     PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);
     //
@@ -190,18 +197,26 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
 
   // Write the proto preamble for the nested message.
   uint8_t data[proto_utils::kMaxTagEncodedSize];
-  uint8_t* data_end = proto_utils::WriteVarInt(
-      proto_utils::MakeTagLengthDelimited(field_id), data);
+  const bool use_group_encoding = nested_messages_are_groups();
+  const uint32_t tag = use_group_encoding
+                           ? proto_utils::MakeTagStartGroup(field_id)
+                           : proto_utils::MakeTagLengthDelimited(field_id);
+  uint8_t* data_end = proto_utils::WriteVarInt(tag, data);
   WriteToStream(data, data_end);
 
   Message* message = arena_->NewMessage();
   message->Reset(stream_writer_, arena_);
 
-  // The length of the nested message cannot be known upfront. So right now
-  // just reserve the bytes to encode the size after the nested message is done.
-  message->set_size_field(
-      stream_writer_->ReserveBytes(proto_utils::kMessageLengthFieldSize));
-  size_ += proto_utils::kMessageLengthFieldSize;
+  if (PERFETTO_UNLIKELY(use_group_encoding)) {
+    message->group_field_id_ = field_id;
+    message->message_state_ = MessageState::kNotFinalizedWithGroupEncoding;
+  } else {
+    // The length of the nested message cannot be known upfront. Reserve the
+    // bytes that Finalize() will fill after the nested message is complete.
+    message->set_size_field(
+        stream_writer_->ReserveBytes(proto_utils::kMessageLengthFieldSize));
+    size_ += proto_utils::kMessageLengthFieldSize;
+  }
 
   nested_message_ = message;
   return message;

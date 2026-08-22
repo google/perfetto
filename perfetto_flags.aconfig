@@ -56,3 +56,10 @@ flag {
   bug: "503864690"
   is_fixed_read_only: true
 }
+flag {
+  name: "tracing_v2_in_process"
+  namespace: "perfetto"
+  description: "Global outer gate for routing SDK trace writers onto the producer-local tracing v2 ring buffer (RFC-0014). It initially relays packets back through v1 writers and has no routing ids. Before Android rollout, add an explicit process/backend opt-in. Off by default and removed after migration."
+  bug: "536851377"
+  is_fixed_read_only: true
+}

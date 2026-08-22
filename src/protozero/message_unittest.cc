@@ -233,6 +233,46 @@ TEST_F(MessageTest, NestedMessagesSimple) {
   ASSERT_EQ("2803", GetNextSerializedBytes(2));
 }
 
+TEST_F(MessageTest, NestedMessagesAsGroups) {
+  Message* root_msg = NewMessage();
+  root_msg->set_nested_messages_as_groups();
+  root_msg->AppendVarInt(/*field_id=*/1, 1);
+
+  FakeChildMessage* nested_msg =
+      root_msg->BeginNestedMessage<FakeChildMessage>(/*field_id=*/128);
+  EXPECT_TRUE(nested_msg->nested_messages_are_groups());
+  nested_msg->AppendVarInt(/*field_id=*/2, 2);
+
+  nested_msg = root_msg->BeginNestedMessage<FakeChildMessage>(/*field_id=*/129);
+  nested_msg->AppendVarInt(/*field_id=*/4, 2);
+  root_msg->AppendVarInt(/*field_id=*/5, 3);
+
+  EXPECT_EQ(16u, root_msg->Finalize());
+  EXPECT_EQ(16u, root_msg->Finalize());
+  ASSERT_EQ("0801", GetNextSerializedBytes(2));
+  ASSERT_EQ("8308", GetNextSerializedBytes(2));
+  ASSERT_EQ("1002", GetNextSerializedBytes(2));
+  ASSERT_EQ("8408", GetNextSerializedBytes(2));
+  ASSERT_EQ("8B08", GetNextSerializedBytes(2));
+  ASSERT_EQ("2002", GetNextSerializedBytes(2));
+  ASSERT_EQ("8C08", GetNextSerializedBytes(2));
+  ASSERT_EQ("2803", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, GroupEncodingSupportsMaximumFieldId) {
+  Message* root_msg = NewMessage();
+  root_msg->set_nested_messages_as_groups();
+  constexpr uint32_t kMaxFieldId = (1u << 29) - 1;
+  FakeChildMessage* nested_msg =
+      root_msg->BeginNestedMessage<FakeChildMessage>(kMaxFieldId);
+  nested_msg->AppendVarInt(/*field_id=*/1, 1);
+
+  EXPECT_EQ(12u, root_msg->Finalize());
+  ASSERT_EQ("FBFFFFFF0F", GetNextSerializedBytes(5));
+  ASSERT_EQ("0801", GetNextSerializedBytes(2));
+  ASSERT_EQ("FCFFFFFF0F", GetNextSerializedBytes(5));
+}
+
 // Tests using a AppendScatteredBytes to append raw bytes to
 // a message using multiple individual buffers.
 TEST_F(MessageTest, AppendScatteredBytes) {

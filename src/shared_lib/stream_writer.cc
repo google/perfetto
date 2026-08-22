@@ -45,6 +45,15 @@ uint8_t* PerfettoStreamWriterAnnotatePatch(struct PerfettoStreamWriter* w,
   return sw->AnnotatePatch(patch_addr);
 }
 
+uint32_t PerfettoStreamWriterGetSerializationFlags(
+    const struct PerfettoStreamWriter* w) {
+  auto* sw = reinterpret_cast<const protozero::ScatteredStreamWriter*>(w->impl);
+  static_assert(PERFETTO_STREAM_WRITER_NESTED_MESSAGES_AS_GROUPS ==
+                    protozero::ScatteredStreamWriter::kNestedMessagesAsGroups,
+                "Serialization flag mismatch");
+  return sw->serialization_flags();
+}
+
 void PerfettoStreamWriterAppendBytesSlowpath(struct PerfettoStreamWriter* w,
                                              const uint8_t* src,
                                              size_t size) {

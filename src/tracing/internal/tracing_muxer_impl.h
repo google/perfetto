@@ -541,8 +541,25 @@ class TracingMuxerImpl : public TracingMuxer {
   // thread and on the muxer thread.
   void AppendResetForTestingCallback(std::function<void()> cb);
 
+  // The sequence that drains the tracing v2 in-process rings, shared by every
+  // producer endpoint. Created on first use, so a process that never enables
+  // v2 pays no thread for it. Muxer sequence only.
+  base::TaskRunner* GetOrCreateTracingV2RelayTaskRunner();
+
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
+  // Deliberately declared here, before everything that can post to it: members
+  // are destroyed in reverse order, so the producer backends below - which own
+  // the endpoints, and through them the v2 bridges - are gone by the time this
+  // runner is destroyed and its thread joined. Like |task_runner_| it survives
+  // ResetForTesting(), because dead backends can still hold a bridge.
+  std::unique_ptr<base::TaskRunner> tracing_v2_relay_task_runner_;
+  // Non-owning observer of the runner above, for Shutdown()'s self-join check.
+  // Shutdown() runs on an arbitrary thread and cannot read the unique_ptr,
+  // whose lazy initialization happens on the muxer sequence. Survives
+  // ResetForTesting() with its owner.
+  std::atomic<base::TaskRunner*> tracing_v2_relay_task_runner_observer_{
+      nullptr};
   std::vector<RegisteredDataSource> data_sources_;
   // These lists can only have one backend per BackendType. The elements are
   // sorted by BackendType priority (see BackendTypePriority). They always

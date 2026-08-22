@@ -28,6 +28,12 @@ enum PerfettoPbWireType {
   PERFETTO_PB_WIRE_TYPE_VARINT = 0,
   PERFETTO_PB_WIRE_TYPE_FIXED64 = 1,
   PERFETTO_PB_WIRE_TYPE_DELIMITED = 2,
+  // Groups delimit an embedded message with a start and an end tag carrying
+  // the same field id, and no length prefix. Emitted only when a writer opts
+  // into group encoding, so that nested message sizes never have to be
+  // backfilled. The decoder does not accept them.
+  PERFETTO_PB_WIRE_TYPE_START_GROUP = 3,
+  PERFETTO_PB_WIRE_TYPE_END_GROUP = 4,
   PERFETTO_PB_WIRE_TYPE_FIXED32 = 5,
 };
 

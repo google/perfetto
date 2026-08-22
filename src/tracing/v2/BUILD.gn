@@ -1,0 +1,84 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
+
+source_set("v2") {
+  public_deps = [
+    # Public v2 headers include base task-runner/container headers.
+    "../../../include/perfetto/ext/base",
+
+    # Public v2 headers include ProducerEndpoint, TraceWriter and basic types.
+    "../../../include/perfetto/ext/tracing/core",
+
+    # TraceWriterV2 includes buffer_exhausted_policy.h.
+    "../../../include/perfetto/tracing",
+
+    # TraceWriterV2 exposes protozero stream types.
+    "../../protozero",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/trace:zero",
+    "../../base",
+    "../core",
+  ]
+  sources = [
+    "chunk_reader.cc",
+    "chunk_reader.h",
+    "in_process_tracing_v2_bridge.cc",
+    "in_process_tracing_v2_bridge.h",
+    "proto_ungrouper.cc",
+    "proto_ungrouper.h",
+    "shared_ring_buffer.cc",
+    "shared_ring_buffer.h",
+    "trace_writer_v2.cc",
+    "trace_writer_v2.h",
+    "tracing_v2_abi.h",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":v2",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+
+    # The C writer test builds a packet with the C SDK codegen and checks that
+    # it lands on the same group encoding as the C++ one.
+    "../../../include/perfetto/public",
+    "../../../include/perfetto/public/protos",
+    "../../../protos/perfetto/trace:cpp",
+    "../../../protos/perfetto/trace:zero",
+    "../../base",
+    "../../shared_lib:shared_lib",
+  ]
+  sources = [
+    "chunk_reader_unittest.cc",
+    "proto_ungrouper_unittest.cc",
+    "shared_ring_buffer_unittest.cc",
+    "trace_writer_v2_unittest.cc",
+  ]
+
+  # TestTaskRunner does not have a Windows implementation.
+  if (!is_win) {
+    deps += [
+      "../../base:test_support",
+      "../core:test_support",
+    ]
+    sources += [ "in_process_tracing_v2_bridge_unittest.cc" ]
+  }
+}

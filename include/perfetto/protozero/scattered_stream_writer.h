@@ -46,6 +46,11 @@ namespace protozero {
 // ContiguousMemoryRange and defers the chunk-chaining logic to the Delegate.
 class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
  public:
+  enum SerializationFlags : uint32_t {
+    kNoSerializationFlags = 0,
+    kNestedMessagesAsGroups = 1 << 0,
+  };
+
   class PERFETTO_EXPORT_COMPONENT Delegate {
    public:
     static constexpr size_t kPatchSize = 4;
@@ -160,6 +165,11 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
 
   uint64_t written_previously() const { return written_previously_; }
 
+  uint32_t serialization_flags() const { return serialization_flags_; }
+  void set_serialization_flags(uint32_t serialization_flags) {
+    serialization_flags_ = serialization_flags;
+  }
+
   uint8_t* AnnotatePatch(uint8_t* patch_addr) {
     return delegate_->AnnotatePatch(patch_addr);
   }
@@ -172,6 +182,7 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
   ContiguousMemoryRange cur_range_;
   uint8_t* write_ptr_;
   uint64_t written_previously_ = 0;
+  uint32_t serialization_flags_ = kNoSerializationFlags;
 };
 
 }  // namespace protozero

@@ -7,13 +7,31 @@
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/backend_type.h"
+#include "perfetto/tracing/data_source.h"
+#include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/trace/test_event.gen.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trigger.gen.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/tmp_dir_tree.h"
+#include "src/tracing/internal/tracing_v2_producer_endpoint.h"
+#include "src/tracing/v2/shared_ring_buffer.h"
 #include "test/gtest_and_gmock.h"
+
+namespace perfetto {
+namespace internal {
+
+class TracingV2TestDataSource
+    : public perfetto::DataSource<TracingV2TestDataSource> {};
+
+}  // namespace internal
+}  // namespace perfetto
+
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(
+    perfetto::internal::TracingV2TestDataSource);
 
 namespace perfetto {
 namespace internal {
@@ -45,6 +63,7 @@ class TracingMuxerImplIntegrationTest : public testing::Test {
   }
 
   ~TracingMuxerImplIntegrationTest() override {
+    SetTracingV2InProcessForTesting(false);
     perfetto::Tracing::ResetForTesting();
     while (!prev_state_.empty()) {
       const EnvVar& var = prev_state_.top();
@@ -67,6 +86,61 @@ class TracingMuxerImplIntegrationTest : public testing::Test {
   // PERFETTO_CONSUMER_SOCK_NAME to be set to their original value.
   std::stack<EnvVar> prev_state_;
 };
+
+TEST_F(TracingMuxerImplIntegrationTest,
+       InProcessV2ForwardsFragmentedNestedPacket) {
+  if (!tracing_v2::kHasFutex)
+    GTEST_SKIP() << "Tracing v2 needs the Linux/Android futex";
+  SetTracingV2InProcessForTesting(true);
+  // Load-bearing: without it a gate change would leave this test quietly
+  // exercising v1 and still passing.
+  ASSERT_TRUE(UseTracingV2InProcess());
+
+  TracingInitArgs args;
+  args.backends = perfetto::kInProcessBackend;
+  perfetto::Tracing::Initialize(args);
+
+  perfetto::DataSourceDescriptor descriptor;
+  descriptor.set_name("tracing_v2_test_data_source");
+  ASSERT_TRUE(TracingV2TestDataSource::Register(descriptor));
+
+  perfetto::TraceConfig config;
+  config.add_buffers()->set_size_kb(1024);
+  config.add_data_sources()->mutable_config()->set_name(
+      "tracing_v2_test_data_source");
+
+  std::unique_ptr<TracingSession> session =
+      perfetto::Tracing::NewTrace(perfetto::kInProcessBackend);
+  session->Setup(config);
+  session->StartBlocking();
+
+  const std::string payload(4096, 'v');
+  TracingV2TestDataSource::Trace(
+      [&payload](TracingV2TestDataSource::TraceContext context) {
+        {
+          auto packet = context.NewTracePacket();
+          packet->set_timestamp(42);
+          packet->set_for_testing()->set_str(payload);
+        }
+        context.Flush();
+      });
+
+  session->StopBlocking();
+  const std::vector<char> bytes = session->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(bytes.data(), bytes.size()));
+
+  bool packet_found = false;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_for_testing())
+      continue;
+    ASSERT_FALSE(packet_found);
+    packet_found = true;
+    EXPECT_EQ(packet.timestamp(), 42u);
+    EXPECT_EQ(packet.for_testing().str(), payload);
+  }
+  EXPECT_TRUE(packet_found);
+}
 
 class TracingServiceThread {
  public:
@@ -176,3 +250,6 @@ TEST_F(TracingMuxerImplIntegrationTest, ActivateTriggers) {
 }  // namespace
 }  // namespace internal
 }  // namespace perfetto
+
+PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(
+    perfetto::internal::TracingV2TestDataSource);

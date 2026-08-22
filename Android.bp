@@ -985,6 +985,7 @@ cc_library {
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
+        ":perfetto_src_tracing_v2_v2",
     ],
     host_supported: true,
     vendor_available: true,
@@ -1216,6 +1217,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
+        ":perfetto_src_tracing_v2_v2",
     ],
     shared_libs: [
         "liblog",
@@ -3263,6 +3265,7 @@ cc_test {
         ":perfetto_src_tracing_test_client_api_integrationtests",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_test_tracing_integration_test",
+        ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_integrationtest_initializer",
         ":perfetto_test_integrationtest_main",
         ":perfetto_test_test_helper",
@@ -22661,6 +22664,7 @@ filegroup {
         "src/tracing/internal/tracing_backend_fake.cc",
         "src/tracing/internal/tracing_muxer_fake.cc",
         "src/tracing/internal/tracing_muxer_impl.cc",
+        "src/tracing/internal/tracing_v2_producer_endpoint.cc",
         "src/tracing/internal/track_event_internal.cc",
         "src/tracing/internal/track_event_interned_fields.cc",
         "src/tracing/platform.cc",
@@ -22904,8 +22908,33 @@ filegroup {
     name: "perfetto_src_tracing_unittests",
     srcs: [
         "src/tracing/internal/interceptor_trace_writer_unittest.cc",
+        "src/tracing/internal/tracing_v2_producer_endpoint_unittest.cc",
         "src/tracing/traced_proto_unittest.cc",
         "src/tracing/traced_value_unittest.cc",
+    ],
+}
+
+// GN: //src/tracing/v2:unittests
+filegroup {
+    name: "perfetto_src_tracing_v2_unittests",
+    srcs: [
+        "src/tracing/v2/chunk_reader_unittest.cc",
+        "src/tracing/v2/in_process_tracing_v2_bridge_unittest.cc",
+        "src/tracing/v2/proto_ungrouper_unittest.cc",
+        "src/tracing/v2/shared_ring_buffer_unittest.cc",
+        "src/tracing/v2/trace_writer_v2_unittest.cc",
+    ],
+}
+
+// GN: //src/tracing/v2:v2
+filegroup {
+    name: "perfetto_src_tracing_v2_v2",
+    srcs: [
+        "src/tracing/v2/chunk_reader.cc",
+        "src/tracing/v2/in_process_tracing_v2_bridge.cc",
+        "src/tracing/v2/proto_ungrouper.cc",
+        "src/tracing/v2/shared_ring_buffer.cc",
+        "src/tracing/v2/trace_writer_v2.cc",
     ],
 }
 
@@ -24307,6 +24336,8 @@ cc_test {
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_unittests",
+        ":perfetto_src_tracing_v2_unittests",
+        ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_sanitizers_unittests",
     ],
     shared_libs: [
