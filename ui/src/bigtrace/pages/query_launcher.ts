@@ -33,14 +33,20 @@ import {
   type PresetDetails,
 } from '../query/local_preset_store';
 import {lastPresetIdState} from '../settings/last_preset_state';
-import {presetMatches} from '../query/preset_match';
+import {
+  presetMatches,
+  setupEquals,
+  type SettingKinds,
+} from '../query/preset_match';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
+  applyPresetSetup,
   applyPresetToTab,
   closeSettings,
   effectiveTabSettings,
+  TRACE_LIMIT_SETTING_ID,
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
@@ -96,6 +102,10 @@ function presetIcon(icon?: string): string {
 // trace selection and options by hand.
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   private activeCuj?: string;
+  // The preset last picked in the form, so that among presets with identical
+  // setups (the catalog's query-only ones) the picker reads back the one that
+  // was chosen, for as long as the setup still is that setup.
+  private pickedSetupPresetId?: string;
 
   oninit() {
     void presetStore.load();
@@ -104,9 +114,33 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   view({attrs}: m.Vnode<QueryLauncherAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
     if (tab.setupMode === 'custom') {
+      const presets = launcherPresets(
+        presetStore.presets,
+        localPresetStore.list(),
+      );
       return m(
         '.pf-bt-launcher.pf-bt-launcher--custom',
-        m('.pf-bt-launcher__custom-body', m(QuerySettingsForm, {bindings})),
+        m(
+          '.pf-bt-launcher__custom-body',
+          m(QuerySettingsForm, {
+            bindings,
+            // From the form a preset lends its setup only; the query is the
+            // user's. Provisional like any other edit here: Cancel undoes it.
+            presetPicker: {
+              presets,
+              selectedId: matchingSetupPresetId(
+                tab,
+                presets,
+                this.pickedSetupPresetId,
+              ),
+              onSelect: (preset) => {
+                applyPresetSetup(tab, preset);
+                this.pickedSetupPresetId = preset.id;
+                tabsState.markDirty();
+              },
+            },
+          }),
+        ),
         this.renderCustomFooter(tab, tabsState),
       );
     }
@@ -242,6 +276,10 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
       m(
         '.pf-bt-preset-card__body',
         m('.pf-bt-preset-card__title', preset.name),
+        // A preset without a query configures the run and leaves the editor
+        // empty; say so, since the other cards hand you SQL.
+        preset.perfettoSql.trim() === '' &&
+          m('.pf-bt-preset-card__kind', 'Setup only'),
         preset.description && m('.pf-bt-preset-card__desc', preset.description),
       ),
       local &&
@@ -548,17 +586,53 @@ export async function promptForPreset(
   );
 }
 
-// Whether the tab, as configured, is exactly one of the presets on offer.
-export function matchingPresetId(
-  tab: BigTraceEditorTab,
-  presets: ReadonlyArray<TracePreset>,
-): string | undefined {
-  const current = {
+function comparable(tab: BigTraceEditorTab) {
+  return {
     sql: tab.editorText,
     traceFilters: tab.traceFilters,
     traceMetadataColumns: tab.traceMetadataColumns,
     traceOrderBy: tab.traceOrderBy,
     settings: effectiveTabSettings(tab),
   };
+}
+
+// Whether the tab, as configured, is exactly one of the presets on offer.
+export function matchingPresetId(
+  tab: BigTraceEditorTab,
+  presets: ReadonlyArray<TracePreset>,
+): string | undefined {
+  const current = comparable(tab);
   return presets.find((p) => presetMatches(p, current))?.id;
+}
+
+// Which registered settings are booleans, and which are run controls a setup
+// comparison ignores (the trace cap is defaulted per mode, not configured).
+function settingKinds(): SettingKinds {
+  return {
+    booleanIds: new Set(
+      bigTraceSettingsStorage
+        .getAllSettings()
+        .filter((s) => s.type === 'boolean')
+        .map((s) => s.id),
+    ),
+    ignoredIds: new Set([TRACE_LIMIT_SETTING_ID]),
+  };
+}
+
+// The preset whose setup — everything but the query — the tab runs with right
+// now, for the Settings form's picker to read back; undefined reads as
+// "Custom". Several presets can share one setup (query-only catalog entries),
+// so `preferId`, the one last picked, wins while it still fits.
+export function matchingSetupPresetId(
+  tab: BigTraceEditorTab,
+  presets: ReadonlyArray<TracePreset>,
+  preferId?: string,
+): string | undefined {
+  const current = comparable(tab);
+  const kinds = settingKinds();
+  const preferred = presets.find((p) => p.id === preferId);
+  if (preferred !== undefined && setupEquals(preferred, current, kinds)) {
+    return preferred.id;
+  }
+  return presets.find((p) => setupEquals(p, current, kinds))?.id;
 }

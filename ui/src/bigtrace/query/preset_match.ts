@@ -29,13 +29,27 @@ export interface PresetComparable {
 }
 
 // Whether `current` is exactly what the preset describes, so the launcher can
-// highlight the preset a tab came from. `materialized` and `limit` are run-time
-// controls rather than configuration, so they're deliberately not compared.
+// tell which preset a tab came from: the setup, and the query if the preset
+// carries one — a setup-only preset says nothing about the query.
 export function presetMatches(
   preset: TracePreset,
   current: PresetComparable,
 ): boolean {
-  if (current.sql.trim() !== preset.perfettoSql.trim()) return false;
+  const sql = preset.perfettoSql.trim();
+  if (sql !== '' && current.sql.trim() !== sql) return false;
+  return setupMatches(preset, current);
+}
+
+// Whether the setup — everything but the query — is consistent with what the
+// preset describes: its selection, and every setting it names at that value.
+// Settings it doesn't name are free, so a preset still matches after the user
+// adds what it left out (a trace source, say). `materialized` and `limit` are
+// run-time controls rather than configuration, so they're deliberately not
+// compared.
+export function setupMatches(
+  preset: TracePreset,
+  current: Omit<PresetComparable, 'sql'>,
+): boolean {
   if (current.traceOrderBy !== (preset.traceOrderBy ?? '')) return false;
   // Compared by canonical key-sorted encoding, so a different key order in an
   // otherwise identical filter still matches.
@@ -60,6 +74,35 @@ export function presetMatches(
     if (cur === undefined || !arrayEquals(cur.values, [...s.values])) {
       return false;
     }
+  }
+  return true;
+}
+
+// Which settings read as booleans (off = "false") and which are run controls
+// left out of the comparison, so a strict check can tell "off" from "on".
+export interface SettingKinds {
+  readonly booleanIds: ReadonlySet<string>;
+  readonly ignoredIds: ReadonlySet<string>;
+}
+
+// Whether the current setup is exactly what applying the preset's setup would
+// leave: its named settings at their values, and every other setting off —
+// booleans false, the rest disabled — run controls aside. Strict where
+// setupMatches is permissive, because the Settings form reads this back as
+// "this tab runs with X's setup", which a setup with extras is not.
+export function setupEquals(
+  preset: TracePreset,
+  current: Omit<PresetComparable, 'sql'>,
+  kinds: SettingKinds,
+): boolean {
+  if (!setupMatches(preset, current)) return false;
+  const named = new Set((preset.settings ?? []).map((s) => s.settingId));
+  for (const entry of current.settings) {
+    if (named.has(entry.settingId) || kinds.ignoredIds.has(entry.settingId)) {
+      continue;
+    }
+    if (!kinds.booleanIds.has(entry.settingId)) return false;
+    if (entry.values.length !== 1 || entry.values[0] !== 'false') return false;
   }
   return true;
 }

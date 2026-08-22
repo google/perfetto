@@ -13,8 +13,14 @@
 // limitations under the License.
 
 import {describe, expect, test} from 'vitest';
-import {presetMatches, type PresetComparable} from './preset_match';
+import {
+  presetMatches,
+  setupEquals,
+  setupMatches,
+  type PresetComparable,
+} from './preset_match';
 import type {TracePreset} from './bigtrace_query_client';
+import type {SettingFilter} from '../settings/settings_types';
 
 function preset(over: Partial<TracePreset> = {}): TracePreset {
   return {
@@ -45,6 +51,27 @@ describe('presetMatches', () => {
 
   test('ignores surrounding whitespace in the SQL', () => {
     expect(presetMatches(preset(), current({sql: '  select 1\n'}))).toBe(true);
+  });
+
+  test('a setup-only preset says nothing about the query', () => {
+    const p = preset({perfettoSql: ''});
+    expect(presetMatches(p, current({sql: 'select 42'}))).toBe(true);
+    expect(presetMatches(p, current({sql: ''}))).toBe(true);
+    expect(presetMatches(p, current({traceOrderBy: 'x asc'}))).toBe(false);
+  });
+
+  test('setupMatches ignores the query entirely', () => {
+    const p = preset({
+      perfettoSql: 'select 1',
+      traceOrderBy: 'size_bytes desc',
+    });
+    expect(setupMatches(p, current({traceOrderBy: 'size_bytes desc'}))).toBe(
+      true,
+    );
+    expect(
+      setupMatches(p, current({sql: 'other', traceOrderBy: 'size_bytes desc'})),
+    ).toBe(true);
+    expect(setupMatches(p, current())).toBe(false);
   });
 
   test('different SQL does not match', () => {
@@ -134,5 +161,45 @@ describe('presetMatches', () => {
         current({traceOrderBy: 'a asc'}),
       ),
     ).toBe(true);
+  });
+});
+
+describe('setupEquals', () => {
+  const kinds = {
+    booleanIds: new Set(['warn']),
+    ignoredIds: new Set(['trace_limit']),
+  };
+  const sf = (
+    settingId: string,
+    value: string,
+    category: SettingFilter['category'],
+  ): SettingFilter => ({settingId, values: [value], category});
+  const dir = sf('trace_directory', '/t', 'TRACE_ADDRESS');
+  const warnOff = sf('warn', 'false', 'BIGTRACE_QUERY_OPTIONS');
+  const warnOn = sf('warn', 'true', 'BIGTRACE_QUERY_OPTIONS');
+  const cap = sf('trace_limit', '500', 'TRACE_ADDRESS');
+
+  test('named settings at their values, everything else off', () => {
+    const p = preset({settings: [dir]});
+    expect(
+      setupEquals(p, current({settings: [dir, warnOff, cap]}), kinds),
+    ).toBe(true);
+  });
+
+  test('an unnamed setting that is on is not that setup', () => {
+    const p = preset({settings: []});
+    expect(setupEquals(p, current({settings: [warnOff]}), kinds)).toBe(true);
+    expect(setupEquals(p, current({settings: [warnOn]}), kinds)).toBe(false);
+    expect(setupEquals(p, current({settings: [dir]}), kinds)).toBe(false);
+  });
+
+  test('the trace cap never counts', () => {
+    const p = preset({settings: []});
+    expect(setupEquals(p, current({settings: [cap]}), kinds)).toBe(true);
+  });
+
+  test('the loose match must hold too', () => {
+    const p = preset({traceOrderBy: 'x asc'});
+    expect(setupEquals(p, current(), kinds)).toBe(false);
   });
 });

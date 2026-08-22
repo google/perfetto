@@ -76,6 +76,8 @@ export interface TracePreset {
   readonly category: string;
   readonly name: string;
   readonly description: string;
+  // Empty for a setup-only preset: it configures the run and leaves the query
+  // alone (an empty editor when starting from it).
   readonly perfettoSql: string;
   // Optional; the UI fills defaults when a minimal backend omits them
   // (generic icon; empty settings/filters/columns; limit 1000; materialized).

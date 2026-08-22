@@ -378,6 +378,14 @@
     letter-spacing: 0.04em;
     color: var(--pf-color-primary);
   }
+
+  // A preset that carries no query: it configures the run, nothing more.
+  &__kind {
+    font-size: var(--pf-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pf-color-text-muted);
+  }
 }
 
 // ---------- Editor tabs & toolbar ----------
@@ -968,5 +976,27 @@ pre.pf-bt-history-item-query--standalone {
 
   .pf-bt-settings-page {
     margin: 0;
+  }
+}
+
+// "Settings from preset" picker atop the settings form.
+.pf-bt-settings-preset {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 24px;
+
+  &__label {
+    font-weight: 600;
+  }
+
+  .pf-select {
+    min-width: 240px;
+  }
+
+  &__hint {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
   }
 }

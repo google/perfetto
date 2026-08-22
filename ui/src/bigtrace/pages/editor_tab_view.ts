@@ -106,7 +106,7 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
 }
 
 // ---------------------------------------------------------------------------
-// Per-tab bindings shared between the chip strip and any modal it opens.
+// Per-tab bindings shared between the chip strip and the settings form.
 // Getters read live; setters mutate in place and mark dirty.
 // getEffectiveSettings layers per-tab overrides over global defaults so
 // /trace_metadata sees a complete settings array even before the user edits.
@@ -165,13 +165,17 @@ function buildTabBindings(
       tab.disabledSettings = [...set];
       tabsState.markDirty();
     },
-    getSql: () => tab.editorText,
-    setQueryAndTitle: (perfettoSql, title) => {
-      tab.editorText = perfettoSql;
-      // A title other than "Query N" sticks — maybeAutoNameTab won't replace it.
-      if (title) tab.title = title;
+    getRowLimit: () => tab.limit,
+    setRowLimit: (limit) => {
+      tab.limit = limit;
       tabsState.markDirty();
-      m.redraw();
+    },
+    getMaterialize: () => tab.materialize,
+    setMaterialize: (materialize) => {
+      // Same path as the toolbar switch: caps the user never touched follow
+      // the mode.
+      applyModeDefaults(tab, materialize);
+      tabsState.markDirty();
     },
   };
 }

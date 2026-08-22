@@ -20,7 +20,9 @@ import {Callout} from '../../widgets/callout';
 import {linkify} from '../../widgets/anchor';
 import {Intent} from '../../widgets/common';
 import m from 'mithril';
+import {Select} from '../../widgets/select';
 import {Switch} from '../../widgets/switch';
+import {TextInput} from '../../widgets/text_input';
 import {
   type MultiSelectDiff,
   type MultiSelectOption,
@@ -54,8 +56,10 @@ import type {
 import {
   BigtraceQueryClient,
   type TraceColumnDescriptor,
+  type TracePreset,
   type TracesSchemaResponse,
 } from '../query/bigtrace_query_client';
+import {groupPresetsByCuj} from './preset_groups';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
 import {formatCompact} from '../query/query_store';
 import {
@@ -185,10 +189,22 @@ interface SchemaError {
 }
 type SchemaState = undefined | 'loading' | SchemaError | TracesSchemaResponse;
 
+// The picker at the top of the form: choose a preset to take its setup —
+// settings, trace selection, result columns, order, caps and mode — leaving
+// the query alone. It doubles as an indicator: it reads the preset the current
+// setup matches, and "Custom" once nothing does.
+export interface PresetPickerAttrs {
+  // Presets on offer, catalog first; grouped by category in the control.
+  readonly presets: ReadonlyArray<TracePreset>;
+  readonly selectedId: string | undefined;
+  readonly onSelect: (preset: TracePreset) => void;
+}
+
 export interface QuerySettingsFormAttrs {
   // Every read and write routes through these, so the form always edits one
   // tab's configuration — there is no global settings state behind it.
   readonly bindings: SettingsBindings;
+  readonly presetPicker?: PresetPickerAttrs;
 }
 
 // AIP-132 single-field order_by helpers. The DataGrid supports only one active
@@ -245,11 +261,17 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   private schemaFetching = false;
   oninit({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     this.bindings = attrs.bindings;
+    this.syncFromBindings();
+    bigTraceSettingsStorage.loadSettings();
+  }
+
+  // Pull the grid's filter and sort state from the tab. On open, and again
+  // whenever something other than the grid rewrites them (a preset's setup).
+  private syncFromBindings(): void {
     this.traceFilterss = this.readTraceFilters();
     const parsed = parseSingleFieldOrderBy(this.readTraceOrderBy());
     this.traceListSortField = parsed?.field;
     this.traceListSortDirection = parsed?.direction;
-    bigTraceSettingsStorage.loadSettings();
   }
 
   // Binding-aware accessors (fall back to globals).
@@ -815,12 +837,14 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
 
     return m('.pf-bt-settings-embedded', [
       m('.pf-bt-settings-page', [
+        attrs.presetPicker && this.renderPresetPicker(attrs.presetPicker),
         bigTraceSettingsStorage.isExecConfigLoading &&
           m(EmptyState, {
             title: 'Loading settings...',
             icon: 'hourglass_empty',
             fillHeight: true,
           }),
+        this.renderRunSection(),
         sections,
         bigTraceSettingsStorage.execConfigLoadError !== undefined &&
           m(
@@ -832,6 +856,80 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
             },
             bigTraceSettingsStorage.execConfigLoadError,
           ),
+      ]),
+    ]);
+  }
+
+  // Grouped like the launcher gallery. "Custom" is the reading when the setup
+  // matches no preset; it can't be picked — there is nothing to apply.
+  private renderPresetPicker(picker: PresetPickerAttrs): m.Children {
+    if (picker.presets.length === 0) return null;
+    const {groups} = groupPresetsByCuj(picker.presets);
+    return m('.pf-bt-settings-preset', [
+      m('span.pf-bt-settings-preset__label', 'Settings from preset'),
+      m(
+        Select,
+        {
+          value: picker.selectedId ?? '',
+          onchange: (e: Event) => {
+            const id = (e.target as HTMLSelectElement).value;
+            const preset = picker.presets.find((p) => p.id === id);
+            if (preset === undefined) return;
+            picker.onSelect(preset);
+            this.syncFromBindings();
+          },
+        },
+        [
+          m('option', {value: '', disabled: true}, 'Custom'),
+          groups.map(([cuj, presets]) =>
+            m(
+              'optgroup',
+              {label: cuj},
+              presets.map((p) => m('option', {value: p.id}, p.name)),
+            ),
+          ),
+        ],
+      ),
+      m(
+        'span.pf-bt-settings-preset__hint',
+        'Takes the preset’s settings, trace selection, result columns and ' +
+          'caps. The query is not changed.',
+      ),
+    ]);
+  }
+
+  // Mode and row cap: toolbar controls, mirrored here so a preset's setup is
+  // visible in full where it's applied.
+  private renderRunSection(): m.Children {
+    return m('.pf-bt-settings-page__plugin-section', [
+      m('h2.pf-bt-settings-page__plugin-title', 'Run'),
+      m(CardStack, [
+        m(BigTraceSettingsCard, {
+          title: 'Persistent',
+          description:
+            'Save the results to History so they can be reopened later. ' +
+            'Off, results are shown inline and dropped when the tab closes.',
+          controls: m(Switch, {
+            checked: this.bindings.getMaterialize(),
+            onchange: (e: Event) => {
+              this.bindings.setMaterialize(
+                (e.target as HTMLInputElement).checked,
+              );
+            },
+          }),
+        }),
+        m(BigTraceSettingsCard, {
+          title: 'Row limit',
+          description: 'Maximum rows this query returns.',
+          controls: m(TextInput, {
+            type: 'number',
+            value: String(this.bindings.getRowLimit()),
+            onInput: (value: string) => {
+              const n = parseInt(value, 10);
+              if (!isNaN(n) && n > 0) this.bindings.setRowLimit(n);
+            },
+          }),
+        }),
       ]),
     ]);
   }

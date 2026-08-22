@@ -207,11 +207,13 @@ export function disabledSettingsFromSnapshot(
   return allCategoriedSettingIds.filter((id) => !active.has(id));
 }
 
-// Configure a tab from a preset: its query, trace selection, caps and mode.
-// The preset's own settings are applied and every other registered setting is
-// turned off — togglable ones disabled, booleans set to false (they have no
-// disable concept) — so a preset describes the whole run, not a diff.
-export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
+// Configure a tab's setup from a preset — everything but the query: settings,
+// trace selection, result columns, order, caps and mode. The preset's own
+// settings are applied and every other registered setting is turned off —
+// togglable ones disabled, booleans set to false (they have no disable
+// concept) — so a preset describes the whole run, not a diff. Used on its own
+// from Settings, where the query stays the user's.
+export function applyPresetSetup(tab: BigTraceEditorTab, t: TracePreset): void {
   const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
   const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
     settingId: s.settingId,
@@ -246,8 +248,6 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
     }
   }
 
-  tab.editorText = t.perfettoSql;
-  if (t.name) tab.title = t.name;
   tab.querySettings = querySettings;
   tab.disabledSettings = disabledSettings;
   tab.traceFilters = [...(t.traceFilters ?? [])];
@@ -263,8 +263,15 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
     t.limit != null && t.limit > 0
       ? t.limit
       : modeDefaults(materialized).rowLimit;
-  // A preset leaves the launcher for the editor, whichever half it was on and
-  // whatever Settings session was open: the tab is now the preset's run.
+}
+
+// Start a query from a preset: its setup plus its query and title. A preset
+// leaves the launcher for the editor, whichever half it was on and whatever
+// Settings session was open: the tab is now the preset's run.
+export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
+  applyPresetSetup(tab, t);
+  tab.editorText = t.perfettoSql;
+  if (t.name) tab.title = t.name;
   tab.configured = true;
   tab.setupMode = undefined;
   tab.settingsSession = undefined;
