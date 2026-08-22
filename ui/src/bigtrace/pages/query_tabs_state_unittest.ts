@@ -262,7 +262,7 @@ describe('per-mode row and trace limits', () => {
   });
 });
 
-describe('duplicateTab', () => {
+describe('cloneTab', () => {
   beforeEach(() => {
     localStorage.clear();
     bigTraceSettingsStorage.clear();
@@ -291,45 +291,45 @@ describe('duplicateTab', () => {
   test('copies the query and its configuration', () => {
     const tabs = new QueryTabsState();
     const src = configuredTab(tabs);
-    const copy = tabs.duplicateTab(src.id)!;
+    const clone = tabs.cloneTab(src.id)!;
 
-    expect(copy.id).not.toBe(src.id);
-    expect(copy.editorText).toBe('select * from slice');
-    expect(copy.limit).toBe(src.limit);
-    expect(copy.materialize).toBe(true);
-    expect(copy.configured).toBe(true);
-    expect(copy.traceFilters).toEqual(src.traceFilters);
-    expect(copy.traceMetadataColumns).toEqual(['device_name']);
-    expect(copy.traceOrderBy).toBe('size_bytes desc');
-    expect(copy.querySettings).toEqual(src.querySettings);
-    expect(copy.disabledSettings).toEqual(['some_filter']);
+    expect(clone.id).not.toBe(src.id);
+    expect(clone.editorText).toBe('select * from slice');
+    expect(clone.limit).toBe(src.limit);
+    expect(clone.materialize).toBe(true);
+    expect(clone.configured).toBe(true);
+    expect(clone.traceFilters).toEqual(src.traceFilters);
+    expect(clone.traceMetadataColumns).toEqual(['device_name']);
+    expect(clone.traceOrderBy).toBe('size_bytes desc');
+    expect(clone.querySettings).toEqual(src.querySettings);
+    expect(clone.disabledSettings).toEqual(['some_filter']);
   });
 
-  test('the copy is unrun: no queryUuid, no results', () => {
+  test('the clone is unrun: no queryUuid, no results', () => {
     const tabs = new QueryTabsState();
     const src = configuredTab(tabs);
-    const copy = tabs.duplicateTab(src.id)!;
-    // Sharing the uuid would make the copy adopt the original's execution and
+    const clone = tabs.cloneTab(src.id)!;
+    // Sharing the uuid would make the clone adopt the original's execution and
     // reactivate its tab from History.
-    expect(copy.queryUuid).toBeUndefined();
-    expect(copy.queryResult).toBeUndefined();
-    expect(copy.dataSource).toBeUndefined();
-    expect(copy.isLoading).toBe(false);
+    expect(clone.queryUuid).toBeUndefined();
+    expect(clone.queryResult).toBeUndefined();
+    expect(clone.dataSource).toBeUndefined();
+    expect(clone.isLoading).toBe(false);
   });
 
-  test('titles stay distinguishable across repeated forks', () => {
+  test('titles stay distinguishable across repeated clones', () => {
     const tabs = new QueryTabsState();
     const src = configuredTab(tabs);
-    expect(tabs.duplicateTab(src.id)?.title).toBe('Jank by device copy');
-    expect(tabs.duplicateTab(src.id)?.title).toBe('Jank by device copy 2');
+    expect(tabs.cloneTab(src.id)?.title).toBe('Jank by device clone');
+    expect(tabs.cloneTab(src.id)?.title).toBe('Jank by device clone 2');
   });
 
-  test('editing the copy leaves the original alone', () => {
+  test('editing the clone leaves the original alone', () => {
     const tabs = new QueryTabsState();
     const src = configuredTab(tabs);
-    const copy = tabs.duplicateTab(src.id)!;
-    copy.traceFilters = [...copy.traceFilters, {field: 'x', op: 'is null'}];
-    copy.querySettings = [
+    const clone = tabs.cloneTab(src.id)!;
+    clone.traceFilters = [...clone.traceFilters, {field: 'x', op: 'is null'}];
+    clone.querySettings = [
       {
         settingId: 'trace_directory',
         values: ['/other'],
@@ -343,7 +343,7 @@ describe('duplicateTab', () => {
   test('an unknown id is a no-op', () => {
     const tabs = new QueryTabsState();
     const before = tabs.tabs.length;
-    expect(tabs.duplicateTab('nope')).toBeUndefined();
+    expect(tabs.cloneTab('nope')).toBeUndefined();
     expect(tabs.tabs).toHaveLength(before);
   });
 });

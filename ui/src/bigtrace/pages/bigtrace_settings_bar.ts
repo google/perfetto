@@ -81,14 +81,14 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
       // Pinned to the right edge: this one acts on the tab as a whole, not on
       // what it runs with, so it sits apart from the configuration chips.
       m(Chip, {
-        label: 'Duplicate',
+        label: 'Clone',
         icon: 'content_copy',
         className: 'pf-bt-settings-bar__end',
         title:
-          'Open a copy of this query in a new tab — same SQL and settings, ' +
+          'Open a clone of this query in a new tab — same SQL and settings, ' +
           'its own run.',
         onclick: () => {
-          tabsState.duplicateTab(tab.id);
+          tabsState.cloneTab(tab.id);
           m.redraw();
         },
       }),

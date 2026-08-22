@@ -497,14 +497,14 @@ export class QueryTabsState {
     return tab;
   }
 
-  // Fork a tab: same query and configuration, no results and no queryUuid, so
-  // running it creates its own execution instead of colliding with the
+  // Clone a tab: same query and configuration, no results and no queryUuid,
+  // so running it creates its own execution instead of colliding with the
   // original's in History.
-  duplicateTab(tabId: string): BigTraceEditorTab | undefined {
+  cloneTab(tabId: string): BigTraceEditorTab | undefined {
     const src = this.tabs.find((t) => t.id === tabId);
     if (src === undefined) return undefined;
-    const copy = this.addNewTab(
-      this.copyTitle(src.title),
+    const clone = this.addNewTab(
+      this.cloneTitle(src.title),
       src.editorText,
       src.limit,
       undefined,
@@ -524,15 +524,15 @@ export class QueryTabsState {
       },
     );
     this.markDirty();
-    return copy;
+    return clone;
   }
 
-  // "<name> copy", then "copy 2", … so repeated forks stay distinguishable.
-  private copyTitle(base: string): string {
+  // "<name> clone", then "clone 2", … so repeated clones stay apart.
+  private cloneTitle(base: string): string {
     const taken = new Set(this.tabs.map((t) => t.title));
-    let title = `${base} copy`;
+    let title = `${base} clone`;
     for (let n = 2; taken.has(title); n++) {
-      title = `${base} copy ${n}`;
+      title = `${base} clone ${n}`;
     }
     return title;
   }
