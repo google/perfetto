@@ -54,8 +54,8 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           icon: 'tune',
           className: 'pf-bt-settings-bar__add',
           title:
-            'Edit the traces and options this query runs with. Done keeps ' +
-            'the changes; Back to query drops them.',
+            'Edit the traces and options this query runs with. Apply keeps ' +
+            'the changes; Cancel drops them.',
           onclick: () => openSettings(tab),
         }),
         renderSettingChips(bindings),

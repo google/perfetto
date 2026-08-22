@@ -352,7 +352,7 @@ describe('cloneTab', () => {
   });
 });
 
-describe('Settings session (Back restores, Done keeps)', () => {
+describe('Settings session (Cancel restores, Apply keeps)', () => {
   beforeEach(() => {
     localStorage.clear();
     bigTraceSettingsStorage.clear();
@@ -402,7 +402,7 @@ describe('Settings session (Back restores, Done keeps)', () => {
     expect(tab.settingsSession).toBeDefined();
   });
 
-  test('Back puts every edited field back', () => {
+  test('Cancel puts every edited field back', () => {
     const tab = workingTab();
     const before = snapshotTabConfig(tab);
     openSettings(tab);
@@ -414,7 +414,7 @@ describe('Settings session (Back restores, Done keeps)', () => {
     expect(tab.configured).toBe(true);
   });
 
-  test('Done keeps the edits', () => {
+  test('Apply keeps the edits', () => {
     const tab = workingTab();
     openSettings(tab);
     edit(tab);

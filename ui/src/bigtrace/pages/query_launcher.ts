@@ -298,14 +298,12 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
             tabsState.markDirty();
           },
         }),
-      // Edits apply as they're made, so leaving is where the choice is: Back
-      // puts the configuration back to what it was, Done keeps it.
+      // Edits take effect as they're made, so leaving is where the choice is:
+      // Cancel puts the configuration back to what it was, Apply keeps it.
       hasQuery &&
         m(Button, {
-          label: 'Back to query',
-          icon: 'arrow_back',
-          title:
-            'Return to the query as it was; changes made here are dropped.',
+          label: 'Cancel',
+          title: 'Drop the changes made here and return to the query.',
           onclick: () => {
             closeSettings(tab, {keep: false});
             tabsState.markDirty();
@@ -318,17 +316,19 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         onclick: () => void this.saveAsPreset(tab),
       }),
       m(Button, {
-        label: hasQuery ? 'Done' : 'Start query',
-        icon: 'arrow_forward',
+        label: hasQuery ? 'Apply' : 'Start query',
+        icon: hasQuery ? 'check' : 'arrow_forward',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
-        title: hasQuery ? 'Keep these settings for the next run.' : undefined,
+        title: hasQuery
+          ? 'Use these settings for this query from its next run.'
+          : undefined,
         onclick: () => {
           // Starting a query by hand: if this setup happens to be one of the
           // presets on offer (e.g. it was just saved as one), the next tab
           // preselects it; otherwise there's no preset to remember. Editing
           // an existing query says nothing about what the next one starts
-          // from, so Done leaves the last-used preset alone.
+          // from, so Apply leaves the last-used preset alone.
           if (!hasQuery) {
             lastPresetIdState.set(
               matchingPresetId(
