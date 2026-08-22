@@ -61,10 +61,16 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           label: 'Change setup',
           icon: 'restart_alt',
           className: 'pf-bt-settings-bar__add',
-          title:
-            'Go back to the preset picker for this tab. The current settings ' +
-            'are kept.',
+          // Disabled mid-run: the launcher replaces the editor, status box and
+          // Cancel button, and picking a preset there would rewrite the tab
+          // under a query that's still executing.
+          disabled: tab.isLoading,
+          title: tab.isLoading
+            ? 'Wait for the query to finish, or cancel it, to change the setup.'
+            : 'Go back to the preset picker for this tab. The current ' +
+              'settings are kept.',
           onclick: () => {
+            if (tab.isLoading) return;
             tab.configured = false;
             tabsState.markDirty();
           },

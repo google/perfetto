@@ -37,26 +37,37 @@ function endpointLabel(endpoint: string): string {
 
 // The endpoint is the one piece of state that isn't per-query — it's a
 // connection, not a configuration — so it lives up here rather than in the
-// per-tab settings. Auto-opens once when nothing is configured yet, which is
-// the app's onboarding step.
+// per-tab settings. Auto-opens once when there's no working backend, which is
+// the app's onboarding step now that the settings page is gone.
 export class ConnectionButton implements m.ClassComponent {
   private open = false;
   private autoOpened = false;
 
   view(): m.Children {
     const endpoint = getBigtraceEndpoint();
-    if (!this.autoOpened && endpoint === '') {
+    // The endpoint ships with a default, so "set" doesn't mean "reachable" —
+    // a backend that failed to answer counts as not connected, otherwise this
+    // button claims a connection the app doesn't have.
+    const connected =
+      endpoint !== '' &&
+      bigTraceSettingsStorage.execConfigLoadError === undefined;
+    if (
+      !this.autoOpened &&
+      !connected &&
+      !bigTraceSettingsStorage.isExecConfigLoading
+    ) {
       this.autoOpened = true;
       this.open = true;
     }
-    const connected = endpoint !== '';
     return m(
       Popup,
       {
         trigger: m(Button, {
           icon: connected ? 'cloud_done' : 'cloud_off',
           label: endpointLabel(endpoint),
-          title: connected ? endpoint : 'No BigTrace backend configured',
+          title: connected
+            ? endpoint
+            : `Not connected to ${endpoint === '' ? 'a backend' : endpoint}`,
           onclick: () => {
             this.open = !this.open;
           },

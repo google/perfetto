@@ -16,6 +16,7 @@ import m from 'mithril';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Card} from '../../widgets/card';
 import {EmptyState} from '../../widgets/empty_state';
+import {Spinner} from '../../widgets/spinner';
 import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {TextInput} from '../../widgets/text_input';
@@ -31,6 +32,7 @@ import {
 } from '../query/local_preset_store';
 import {lastPresetIdState} from '../settings/last_preset_state';
 import {presetMatches} from '../query/preset_match';
+import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
@@ -128,28 +130,44 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
       localPresetStore.list(),
     );
     if (presets.length === 0) {
+      // Don't call it empty while the catalog is still in flight.
+      if (presetStore.isLoading) {
+        return m(
+          EmptyState,
+          {title: 'Loading presets…', icon: 'hourglass_empty'},
+          m(Spinner),
+        );
+      }
+      // No catalog reached us: say so, and point at the control that fixes it.
+      const unreachable =
+        getBigtraceEndpoint() === '' ||
+        bigTraceSettingsStorage.execConfigLoadError !== undefined;
       return m(
         EmptyState,
         {
-          icon: getBigtraceEndpoint() === '' ? 'cloud_off' : 'bookmark_border',
-          title:
-            getBigtraceEndpoint() === ''
-              ? 'Connect a backend to load presets'
-              : 'No presets yet',
+          icon: unreachable ? 'cloud_off' : 'bookmark_border',
+          title: unreachable
+            ? 'Connect a backend to load presets'
+            : 'No presets yet',
         },
         m(
           '.pf-bt-launcher__empty-detail',
-          getBigtraceEndpoint() === ''
-            ? 'BigTrace runs your queries against a backend that holds the traces.'
-            : 'Configure a query below, then save it as a preset to reuse it.',
+          unreachable
+            ? 'BigTrace runs your queries against a backend that holds the ' +
+                'traces. Set the endpoint from the connection button, top right.'
+            : 'Configure the traces and options below, then save that setup ' +
+                'as a preset to reuse it.',
         ),
       );
     }
 
     const selectedId = preselectedPresetId(presets, lastPresetIdState.get());
     const {groups, byCuj} = groupPresetsByCuj(presets);
+    // Same bucketing as groupPresetsByCuj, so an uncategorised preset opens
+    // its ("Other") group rather than falling back to the first one.
+    const selected = presets.find((p) => p.id === selectedId);
     const selectedCuj =
-      presets.find((p) => p.id === selectedId)?.category || undefined;
+      selected === undefined ? undefined : selected.category || 'Other';
     const active =
       this.activeCuj !== undefined && byCuj.has(this.activeCuj)
         ? this.activeCuj
