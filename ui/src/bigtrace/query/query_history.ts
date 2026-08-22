@@ -62,29 +62,11 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
 
   view({attrs}: m.CVnode<QueryHistoryComponentAttrs>) {
     const {openQuery, ...rest} = attrs;
-
-    if (historyStore.isLoading && historyStore.history.length === 0) {
-      return m(
-        EmptyState,
-        {
-          title: 'Loading history...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        },
-        m(Spinner),
-      );
-    }
-
-    if (historyStore.error) {
-      return m(EmptyState, {
-        title: `Failed to load history: ${historyStore.error}`,
-        icon: 'error',
-        fillHeight: true,
-      });
-    }
-
     const shown = filterHistory(historyStore.history, historyStore.filter);
 
+    // The frame is unconditional: loading and error states render inside the
+    // list, so the panel keeps its bounded layout and the refresh button stays
+    // reachable — that button is how you retry a failed load.
     return m(
       '.pf-query-history',
       rest,
@@ -117,8 +99,29 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
           onclick: () => historyStore.refreshNow(),
         }),
       ),
-      m('.pf-bt-history-list', this.renderHistoryList(shown, openQuery)),
+      m('.pf-bt-history-list', this.renderBody(shown, openQuery)),
     );
+  }
+
+  private renderBody(
+    shown: QueryExecution[],
+    openQuery: OpenQueryFn,
+  ): m.Children {
+    if (historyStore.isLoading && historyStore.history.length === 0) {
+      return m(
+        EmptyState,
+        {title: 'Loading history…', icon: 'hourglass_empty', fillHeight: true},
+        m(Spinner),
+      );
+    }
+    if (historyStore.error !== null) {
+      return m(
+        EmptyState,
+        {title: "Couldn't load history", icon: 'error', fillHeight: true},
+        m('div.pf-bt-history-empty-hint', historyStore.error),
+      );
+    }
+    return this.renderHistoryList(shown, openQuery);
   }
 
   private renderHistoryList(
