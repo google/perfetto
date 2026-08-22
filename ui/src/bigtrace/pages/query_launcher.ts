@@ -84,9 +84,11 @@ export function canReturnToQuery(tab: BigTraceEditorTab): boolean {
 
 // One page for a tab that has no query yet and for the Settings of one that
 // does: a Presets section and the settings form, and only which of the two is
-// folded differs. Starting a query: presets open, the form folded under
-// "Custom settings", a card starts the query outright. Settings on an existing
-// query: presets folded, the form open, a card lends its setup only.
+// folded differs. Cards fill the page, buttons commit — everywhere. Starting a
+// query: presets open, the form folded under "Custom settings"; a card fills
+// in the whole preset, query included, and Start query opens the editor.
+// Settings on an existing query: presets folded, the form open; a card lends
+// its setup only, and Apply keeps it.
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   oninit() {
     void presetStore.load();
@@ -95,21 +97,34 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   view({attrs}: m.Vnode<QueryLauncherAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
     const editing = tab.settingsSession !== undefined;
+    const presets = launcherPresets(
+      presetStore.presets,
+      localPresetStore.list(),
+    );
+    // On a new tab: the preset the page is filled from, if it still is.
+    const selectedId = editing
+      ? undefined
+      : selectedPresetId(tab, presets, tab.lastPresetId);
+    const selected = presets.find((p) => p.id === selectedId);
     return m('.pf-bt-launcher', [
       m(
         '.pf-bt-launcher__body',
         m(QuerySettingsForm, {
           bindings,
           header: editing
-            ? this.renderSetupPresets(tab, tabsState)
-            : this.renderStartHeader(tab, tabsState),
+            ? this.renderSetupPresets(tab, tabsState, presets)
+            : this.renderStartHeader(tab, tabsState, presets, selectedId),
           fold: editing
             ? undefined
             : {
-                summary: m(
-                  '.pf-bt-settings-fold__summary',
+                summary: m('.pf-bt-settings-fold__summary', [
                   m('span.pf-bt-settings-fold__title', 'Custom settings'),
-                ),
+                  selected !== undefined &&
+                    m(
+                      'span.pf-bt-settings-fold__current',
+                      `From “${selected.name}”`,
+                    ),
+                ]),
                 defaultOpen: false,
               },
         }),
@@ -118,11 +133,14 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     ]);
   }
 
-  // Title, subtitle and the gallery a query starts from — one click applies
-  // the whole preset and the editor takes over.
+  // Title, subtitle and the gallery a query starts from. A card fills the
+  // page in — the whole preset, query included — and stays; Start query opens
+  // the editor.
   private renderStartHeader(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
+    presets: ReadonlyArray<TracePreset>,
+    selectedId: string | undefined,
   ): m.Children {
     return [
       // A tab with a query but no configuration flag (state persisted by an
@@ -156,7 +174,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
             m('span.pf-bt-settings-fold__title', 'Presets'),
           ),
         },
-        this.renderStartPresets(tab, tabsState),
+        this.renderStartPresets(tab, tabsState, presets, selectedId),
       ),
     ];
   }
@@ -164,11 +182,9 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   private renderStartPresets(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
+    presets: ReadonlyArray<TracePreset>,
+    selectedId: string | undefined,
   ): m.Children {
-    const presets = launcherPresets(
-      presetStore.presets,
-      localPresetStore.list(),
-    );
     if (presets.length === 0) {
       // Don't call it empty while the catalog is still in flight.
       if (presetStore.isLoading) {
@@ -200,15 +216,16 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         ),
       );
     }
+    // Until a card is picked, the last-used preset is suggested; once one is,
+    // the page reads back the one it's filled from.
+    const suggestedId = preselectedPresetId(presets, lastPresetIdState.get());
     return m(PresetGallery, {
       presets,
-      selectedId: preselectedPresetId(presets, lastPresetIdState.get()),
-      selectedBadge: 'Last used',
+      selectedId: selectedId ?? suggestedId,
+      selectedBadge: selectedId !== undefined ? 'Selected' : 'Last used',
       onPick: (preset) => {
         applyPresetToTab(tab, preset);
-        lastPresetIdState.set(preset.id);
         tabsState.markDirty();
-        m.redraw();
       },
     });
   }
@@ -224,11 +241,8 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   private renderSetupPresets(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
+    presets: ReadonlyArray<TracePreset>,
   ): m.Children {
-    const presets = launcherPresets(
-      presetStore.presets,
-      localPresetStore.list(),
-    );
     if (presets.length === 0) return null;
     const currentId = matchingSetupPresetId(tab, presets, tab.lastPresetId);
     const current = presets.find((p) => p.id === currentId);
@@ -297,16 +311,17 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           : 'Start with the settings below — the defaults, unless you ' +
             'changed them.',
         onclick: () => {
-          // Starting a query by hand: if this setup happens to be one of the
-          // presets on offer (e.g. it was just saved as one), the next tab
-          // preselects it; otherwise there's no preset to remember. Editing
-          // an existing query says nothing about what the next one starts
-          // from, so Apply leaves the last-used preset alone.
+          // Starting a query: the preset the page was filled from (or that
+          // the setup happens to equal, e.g. one just saved) is what the next
+          // tab suggests; otherwise there's no preset to remember. Editing an
+          // existing query says nothing about what the next one starts from,
+          // so Apply leaves the last-used preset alone.
           if (!editing) {
             lastPresetIdState.set(
-              matchingPresetId(
+              selectedPresetId(
                 tab,
                 launcherPresets(presetStore.presets, localPresetStore.list()),
+                tab.lastPresetId,
               ) ?? '',
             );
           }
@@ -339,13 +354,22 @@ function comparable(tab: BigTraceEditorTab) {
   };
 }
 
-// Whether the tab, as configured, is exactly one of the presets on offer.
-export function matchingPresetId(
+// The preset the tab is filled from — query and setup exactly, the setup
+// judged as strictly as matchingSetupPresetId does — for the launcher to read
+// back and to remember as last used; undefined when the tab is nobody's.
+// `preferId`, the one last applied, wins among presets that fit alike.
+export function selectedPresetId(
   tab: BigTraceEditorTab,
   presets: ReadonlyArray<TracePreset>,
+  preferId?: string,
 ): string | undefined {
   const current = comparable(tab);
-  return presets.find((p) => presetMatches(p, current))?.id;
+  const kinds = settingKinds();
+  const fits = (p: TracePreset) =>
+    presetMatches(p, current) && setupEquals(p, current, kinds);
+  const preferred = presets.find((p) => p.id === preferId);
+  if (preferred !== undefined && fits(preferred)) return preferred.id;
+  return presets.find(fits)?.id;
 }
 
 // Which registered settings are booleans, and which are run controls a setup

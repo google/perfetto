@@ -266,15 +266,13 @@ export function applyPresetSetup(tab: BigTraceEditorTab, t: TracePreset): void {
   tab.lastPresetId = t.id;
 }
 
-// Start a query from a preset: its setup plus its query and title. A preset
-// leaves the launcher for the editor, whichever half it was on and whatever
-// Settings session was open: the tab is now the preset's run.
+// Fill a tab from a preset: its setup plus its query and title. Whether the
+// tab then leaves the launcher is the caller's — on a new tab a card only
+// fills the page in, and Start query opens the editor.
 export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
   applyPresetSetup(tab, t);
   tab.editorText = t.perfettoSql;
   if (t.name) tab.title = t.name;
-  tab.configured = true;
-  tab.settingsSession = undefined;
 }
 
 // The run configuration Settings edits, as it stood when the form opened —
@@ -566,22 +564,6 @@ export class QueryTabsState {
     });
     this.tabs.push(tab);
     this.activeTabId = tab.id;
-    this.markDirty();
-    return tab;
-  }
-
-  // Seed and activate a new tab from a preset (backend catalog or one the user
-  // saved locally).
-  addTabFromPreset(t: TracePreset): BigTraceEditorTab {
-    const tab = this.addNewTab(
-      t.name || undefined,
-      t.perfettoSql,
-      undefined,
-      undefined, // queryUuid — a preset is a fresh run, not a reopened one
-      t.materialized ?? true,
-      true, // forceNew
-    );
-    applyPresetToTab(tab, t);
     this.markDirty();
     return tab;
   }

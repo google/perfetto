@@ -17,9 +17,9 @@ import {z} from 'zod';
 import {
   canReturnToQuery,
   launcherPresets,
-  matchingPresetId,
   matchingSetupPresetId,
   preselectedPresetId,
+  selectedPresetId,
 } from './query_launcher';
 import {presetNameConflict} from './preset_dialogs';
 import {
@@ -122,8 +122,8 @@ describe('applyPresetToTab', () => {
     bigTraceSettingsStorage.clear();
   });
 
-  test('loads the query, title, selection and marks the tab configured', () => {
-    const tab = fakeTab();
+  test("fills the query, title and selection; leaving the launcher is the caller's", () => {
+    const tab = fakeTab({configured: false});
     applyPresetToTab(
       tab,
       preset({
@@ -136,7 +136,7 @@ describe('applyPresetToTab', () => {
         materialized: true,
       }),
     );
-    expect(tab.configured).toBe(true);
+    expect(tab.configured).toBe(false);
     expect(tab.title).toBe('Jank by device');
     expect(tab.editorText).toBe('select * from slice');
     expect(tab.traceFilters).toEqual([
@@ -146,14 +146,6 @@ describe('applyPresetToTab', () => {
     expect(tab.traceOrderBy).toBe('size_bytes desc');
     expect(tab.limit).toBe(42);
     expect(tab.materialize).toBe(true);
-  });
-
-  test('applying a preset leaves the launcher, ending any Settings session', () => {
-    const tab = fakeTab({configured: true, editorText: ''});
-    openSettings(tab);
-    applyPresetToTab(tab, preset({perfettoSql: 'select 1'}));
-    expect(tab.configured).toBe(true);
-    expect(tab.settingsSession).toBeUndefined();
   });
 
   test('applyPresetSetup takes everything but the query', () => {
@@ -382,13 +374,14 @@ describe('applyPresetToTab', () => {
   });
 });
 
-describe('matchingPresetId', () => {
+describe('selectedPresetId', () => {
   beforeEach(() => {
     localStorage.clear();
     bigTraceSettingsStorage.clear();
+    regString('trace_directory');
   });
 
-  test('finds the preset a tab was configured from', () => {
+  test('reads back the preset a tab was filled from', () => {
     const p = preset({
       id: 'jank',
       perfettoSql: 'select * from slice',
@@ -396,15 +389,39 @@ describe('matchingPresetId', () => {
     });
     const tab = fakeTab();
     applyPresetToTab(tab, p);
-    expect(matchingPresetId(tab, [preset({id: 'other'}), p])).toBe('jank');
+    expect(selectedPresetId(tab, [preset({id: 'other'}), p])).toBe('jank');
   });
 
-  test('an edited query no longer matches', () => {
+  test("an edited query, or a setup with extras, is nobody's", () => {
     const p = preset({id: 'jank', perfettoSql: 'select * from slice'});
     const tab = fakeTab();
     applyPresetToTab(tab, p);
     tab.editorText = 'select * from slice limit 5';
-    expect(matchingPresetId(tab, [p])).toBeUndefined();
+    expect(selectedPresetId(tab, [p])).toBeUndefined();
+    tab.editorText = 'select * from slice';
+    tab.disabledSettings = [];
+    expect(selectedPresetId(tab, [p])).toBeUndefined();
+  });
+
+  test("a fresh tab is nobody's, whatever the catalog holds", () => {
+    // A query-only preset and a setup-only one: neither fits a tab with every
+    // setting on at its default.
+    const tab = fakeTab({editorText: ''});
+    expect(
+      selectedPresetId(tab, [
+        preset({id: 'q', perfettoSql: 'select 1'}),
+        preset({id: 's', perfettoSql: ''}),
+      ]),
+    ).toBeUndefined();
+  });
+
+  test('among presets that fit alike, the one last applied wins', () => {
+    const a = preset({id: 'a', perfettoSql: 'select 1'});
+    const b = preset({id: 'b', perfettoSql: 'select 1'});
+    const tab = fakeTab();
+    applyPresetToTab(tab, b);
+    expect(selectedPresetId(tab, [a, b])).toBe('a');
+    expect(selectedPresetId(tab, [a, b], tab.lastPresetId)).toBe('b');
   });
 });
 
