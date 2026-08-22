@@ -622,7 +622,7 @@ message WindowContainerProto {
   optional IdentifierProto identifier = 6;
   optional SurfaceControlProto surface_control = 7;
   optional bool visible_requested = 8;
-  repeated int32 child_tokens = 9;
+  repeated IdentifierProto child_tokens = 9;
 }
 
 // represents a generic child of a WindowContainer
