@@ -45,12 +45,25 @@ export function formatCompactDate(d: Date): string {
   return `${month} ${day}, ${year}, ${h}:${mm} ${m12}`;
 }
 
+// Which kind of run the history list shows. 'all' mixes both.
+export type HistoryFilter = 'all' | 'ephemeral' | 'persistent';
+
+// Narrow a history list to one kind of run.
+export function filterHistory(
+  entries: ReadonlyArray<QueryExecution>,
+  filter: HistoryFilter,
+): QueryExecution[] {
+  if (filter === 'all') return [...entries];
+  const wantPersistent = filter === 'persistent';
+  return entries.filter((e) => (e.materialized === true) === wantPersistent);
+}
+
 // Module-level: survives sidebar toggles so we don't re-fetch on every show.
 export class HistoryStore {
   history: QueryExecution[] = [];
   isLoading = true;
   error: string | null = null;
-  activeTabKey = 'standard';
+  filter: HistoryFilter = 'all';
   private lastRefreshSignal = -1;
   private debounceTimer?: number;
   private hasEverLoaded = false;
@@ -99,11 +112,3 @@ export class HistoryStore {
 }
 
 export const historyStore = new HistoryStore();
-
-// Point the History sidebar at the tab matching the impending run.
-export function setHistoryActiveTab(materialize: boolean): void {
-  const key = materialize ? 'materialized' : 'standard';
-  if (historyStore.activeTabKey === key) return;
-  historyStore.activeTabKey = key;
-  m.redraw();
-}

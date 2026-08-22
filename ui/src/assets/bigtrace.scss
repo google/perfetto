@@ -127,9 +127,7 @@
   height: 100%;
 }
 
-// Bound the nested Tabs too, else the whole history scrolls and the tab strip isn't sticky.
-.pf-bt-query-page__history,
-.pf-bt-query-page__history > .pf-tabs {
+.pf-bt-query-page__history {
   height: 100%;
   min-height: 0;
 }
@@ -192,9 +190,9 @@
   gap: 16px;
 }
 
-// Flat segmented control selecting the active CUJ. Deliberately not the
-// document-tab widget (no panel chrome) — mirrors the record page's flat look.
-.pf-bt-cuj-selector {
+// Flat segmented control (CUJ groups, History kind filter). Deliberately not
+// the document-tab widget (no panel chrome) — mirrors the record page's look.
+.pf-bt-segmented {
   display: flex;
   gap: 4px;
 
@@ -485,6 +483,35 @@
 
 // ---------- Query history ----------
 
+// Fixed kind filter above a scrolling list (the panel itself never scrolls).
+.pf-query-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-bt-history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--pf-color-border);
+}
+
+// Tighter segments than the preset picker — the sidebar is ~280px wide.
+.pf-bt-history-filter .pf-bt-segmented__item {
+  padding: 2px 6px;
+  font-size: var(--pf-font-size-s);
+}
+
+.pf-bt-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 4px 0;
+}
+
 // Anchors the abs-positioned buttons; the shared float made a BFC that
 // squeezed the meta card.
 .pf-query-history__item {
@@ -608,6 +635,15 @@
 
 .pf-bt-history-item-status {
   flex-shrink: 0;
+}
+
+// Ephemeral / Persistent marker — the list mixes both kinds.
+.pf-bt-history-item-kind {
+  flex-shrink: 0;
+  font-size: var(--pf-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
 }
 
 .pf-bt-history-item-date {

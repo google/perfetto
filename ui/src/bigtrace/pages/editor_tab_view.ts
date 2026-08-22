@@ -26,7 +26,6 @@ import {TextInput} from '../../widgets/text_input';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
-import {setHistoryActiveTab} from '../query/query_history';
 import {formatPerfettoSql} from '../query/sql_formatter';
 import {BigtraceQueryClient} from '../query/bigtrace_query_client';
 import type {QueryRunner} from '../query/query_runner';
@@ -191,7 +190,6 @@ function renderEditorPanel(
               variant: ButtonVariant.Filled,
               disabled: deriveTitleFromQuery(tab.editorText) === undefined,
               onclick: () => {
-                setHistoryActiveTab(tab.materialize);
                 tabsState.maybeAutoNameTab(tab.id, tab.editorText);
                 runner.run(tab, tab.editorText);
               },
@@ -221,7 +219,6 @@ function renderEditorPanel(
             disabled: tab.isLoading,
             onchange: (e: Event) => {
               tab.materialize = (e.target as HTMLInputElement).checked;
-              setHistoryActiveTab(tab.materialize);
               tabsState.markDirty();
             },
           }),
@@ -262,7 +259,6 @@ function renderEditorPanel(
         tabsState.markDirty();
       },
       onExecute: (query: string) => {
-        setHistoryActiveTab(tab.materialize);
         tabsState.maybeAutoNameTab(tab.id, query);
         runner.run(tab, query);
       },
