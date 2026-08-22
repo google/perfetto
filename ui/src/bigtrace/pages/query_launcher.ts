@@ -92,7 +92,6 @@ function presetIcon(icon?: string): string {
 // Shown in a tab until it has a configuration: pick a preset, or configure the
 // trace selection and options by hand.
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
-  private mode: 'presets' | 'custom' = 'presets';
   private activeCuj?: string;
 
   oninit() {
@@ -101,7 +100,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
 
   view({attrs}: m.Vnode<QueryLauncherAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
-    if (this.mode === 'custom') {
+    if (tab.setupMode === 'custom') {
       return m(
         '.pf-bt-launcher.pf-bt-launcher--custom',
         m('.pf-bt-launcher__custom-body', m(QuerySettingsForm, {bindings})),
@@ -120,6 +119,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
               label: 'Back to query',
               icon: 'arrow_back',
               onclick: () => {
+                tab.setupMode = undefined;
                 tab.configured = true;
                 tabsState.markDirty();
               },
@@ -137,7 +137,8 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
             label: 'Configure custom settings',
             icon: 'tune',
             onclick: () => {
-              this.mode = 'custom';
+              tab.setupMode = 'custom';
+              tabsState.markDirty();
             },
           }),
         ),
@@ -273,6 +274,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   ): void {
     applyPresetToTab(tab, preset);
     lastPresetIdState.set(preset.id);
+    tab.setupMode = undefined;
     tabsState.markDirty();
     m.redraw();
   }
@@ -282,13 +284,27 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     tabsState: QueryTabsState,
   ): m.Children {
     return m('.pf-bt-launcher__footer', [
-      m(Button, {
-        label: 'Back to presets',
-        icon: 'arrow_back',
-        onclick: () => {
-          this.mode = 'presets';
-        },
-      }),
+      // Hidden mid-run: applying a preset would rewrite the tab under a query
+      // that's still executing. Editing settings for the next run is fine.
+      !tab.isLoading &&
+        m(Button, {
+          label: 'Back to presets',
+          icon: 'arrow_back',
+          onclick: () => {
+            tab.setupMode = 'presets';
+            tabsState.markDirty();
+          },
+        }),
+      canReturnToQuery(tab) &&
+        m(Button, {
+          label: 'Back to query',
+          icon: 'arrow_back',
+          onclick: () => {
+            tab.setupMode = undefined;
+            tab.configured = true;
+            tabsState.markDirty();
+          },
+        }),
       m('.pf-bt-launcher__footer-spacer'),
       m(Button, {
         label: 'Save as preset…',
@@ -296,7 +312,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         onclick: () => void this.saveAsPreset(tab),
       }),
       m(Button, {
-        label: 'Start query',
+        label: canReturnToQuery(tab) ? 'Done' : 'Start query',
         icon: 'arrow_forward',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
@@ -310,6 +326,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
               launcherPresets(presetStore.presets, localPresetStore.list()),
             ) ?? '',
           );
+          tab.setupMode = undefined;
           tab.configured = true;
           tabsState.markDirty();
         },

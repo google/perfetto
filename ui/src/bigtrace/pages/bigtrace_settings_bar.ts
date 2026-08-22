@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {Chip} from '../../widgets/chip';
 import {Stack} from '../../widgets/stack';
-import {showModal} from '../../widgets/modal';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {Setting as BigTraceSetting} from '../settings/settings_types';
@@ -25,7 +24,6 @@ import {
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
-import {QuerySettingsForm} from './query_settings_form';
 
 export interface BigtraceSettingsBarAttrs {
   readonly tab: BigTraceEditorTab;
@@ -54,23 +52,11 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           label: 'Settings',
           icon: 'tune',
           className: 'pf-bt-settings-bar__add',
-          title: 'Edit the traces and options this query runs with.',
-          onclick: () => openAddSettingsModal(bindings),
-        }),
-        m(Chip, {
-          label: 'Change setup',
-          icon: 'restart_alt',
-          className: 'pf-bt-settings-bar__add',
-          // Disabled mid-run: the launcher replaces the editor, status box and
-          // Cancel button, and picking a preset there would rewrite the tab
-          // under a query that's still executing.
-          disabled: tab.isLoading,
-          title: tab.isLoading
-            ? 'Wait for the query to finish, or cancel it, to change the setup.'
-            : 'Go back to the preset picker for this tab. The current ' +
-              'settings are kept.',
+          title:
+            'Edit the traces and options this query runs with. Presets are ' +
+            'one step away, inside.',
           onclick: () => {
-            if (tab.isLoading) return;
+            tab.setupMode = 'custom';
             tab.configured = false;
             tabsState.markDirty();
           },
@@ -166,20 +152,4 @@ function formatFilterChipLabel(f: Filter): string {
   // discriminant via the early returns, so guard defensively.
   if ('value' in f) return `${f.field} ${f.op} ${String(f.value)}`;
   return `${f.field} ${f.op}`;
-}
-
-// ---------------------------------------------------------------------------
-// Modal opener
-// ---------------------------------------------------------------------------
-
-// Hosts the per-query settings form — where editing (settings, trace-grid
-// selection, metadata columns) happens for this tab.
-function openAddSettingsModal(bindings: SettingsBindings): void {
-  void showModal({
-    title: 'Bigtrace settings',
-    className: 'pf-bt-settings-modal',
-    vAlign: 'TOP',
-    content: () => m(QuerySettingsForm, {bindings}),
-    buttons: [{text: 'Done', primary: true}],
-  });
 }

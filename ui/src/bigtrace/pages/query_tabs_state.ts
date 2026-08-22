@@ -309,6 +309,9 @@ export interface BigTraceEditorTab {
   // the user chose by hand. Unconfigured tabs show the launcher instead of the
   // editor. Tabs restored from storage or opened from History are configured.
   configured: boolean;
+  // Which half of the launcher to show: the preset gallery, or the settings
+  // form. Set by whichever chip opened it; view state, so not persisted.
+  setupMode?: 'presets' | 'custom';
 }
 
 // Persisted subset of BigTraceEditorTab. Transient state is rebuilt on load.
