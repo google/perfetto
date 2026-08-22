@@ -350,6 +350,18 @@ describe('cloneTab', () => {
     expect(tabs.cloneTab('nope')).toBeUndefined();
     expect(tabs.tabs).toHaveLength(before);
   });
+
+  test('the last applied preset travels with the clone and survives reload', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    src.lastPresetId = 'local:sweep';
+    expect(tabs.cloneTab(src.id)?.lastPresetId).toBe('local:sweep');
+    (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
+    const restored = new QueryTabsState().tabs.find(
+      (t) => t.title === 'Jank by device',
+    )!;
+    expect(restored.lastPresetId).toBe('local:sweep');
+  });
 });
 
 describe('Settings session (Cancel restores, Apply keeps)', () => {

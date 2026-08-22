@@ -102,10 +102,6 @@ function presetIcon(icon?: string): string {
 // trace selection and options by hand.
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   private activeCuj?: string;
-  // The preset last picked in the form, so that among presets with identical
-  // setups (the catalog's query-only ones) the picker reads back the one that
-  // was chosen, for as long as the setup still is that setup.
-  private pickedSetupPresetId?: string;
 
   oninit() {
     void presetStore.load();
@@ -128,14 +124,9 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
             // user's. Provisional like any other edit here: Cancel undoes it.
             presetPicker: {
               presets,
-              selectedId: matchingSetupPresetId(
-                tab,
-                presets,
-                this.pickedSetupPresetId,
-              ),
+              selectedId: matchingSetupPresetId(tab, presets, tab.lastPresetId),
               onSelect: (preset) => {
                 applyPresetSetup(tab, preset);
-                this.pickedSetupPresetId = preset.id;
                 tabsState.markDirty();
               },
             },

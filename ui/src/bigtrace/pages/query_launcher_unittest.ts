@@ -457,11 +457,15 @@ describe('matchingSetupPresetId', () => {
     expect(matchingSetupPresetId(tab, [lmk])).toBeUndefined();
   });
 
-  test('among identical setups the one picked is read back', () => {
+  test('among identical setups the one applied is read back', () => {
     const tab = fakeTab();
     applyPresetSetup(tab, oom);
+    // Applying records the preset; without the hint the first twin wins.
+    expect(tab.lastPresetId).toBe('oom');
     expect(matchingSetupPresetId(tab, [lmk, oom])).toBe('lmk');
-    expect(matchingSetupPresetId(tab, [lmk, oom], 'oom')).toBe('oom');
+    expect(matchingSetupPresetId(tab, [lmk, oom], tab.lastPresetId)).toBe(
+      'oom',
+    );
     // ...until the setup stops being that setup.
     applyPresetSetup(tab, sweep);
     expect(matchingSetupPresetId(tab, [lmk, oom, sweep], 'oom')).toBe('sweep');

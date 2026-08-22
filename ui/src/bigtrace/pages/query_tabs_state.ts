@@ -263,6 +263,7 @@ export function applyPresetSetup(tab: BigTraceEditorTab, t: TracePreset): void {
     t.limit != null && t.limit > 0
       ? t.limit
       : modeDefaults(materialized).rowLimit;
+  tab.lastPresetId = t.id;
 }
 
 // Start a query from a preset: its setup plus its query and title. A preset
@@ -368,6 +369,11 @@ export interface BigTraceEditorTab {
   // Per-tab disabled setting IDs, independent of global /settings. Seeded from
   // globals at creation, then toggled per-tab; excluded from effective settings.
   disabledSettings: readonly string[];
+  // The preset last applied to this tab, from the gallery or the settings
+  // form's picker. Presets can share one setup (the catalog's query-only ones
+  // all have an empty one), so this is the hint for reading the setup back as
+  // the preset actually chosen.
+  lastPresetId?: string;
   // Tab-lifetime: every request plumbs `signal`; aborts on close.
   readonly lifecycle: AbortController;
   // Per-execute request: Cancel aborts this without tearing down the tab.
@@ -417,6 +423,7 @@ interface StoredTab {
   readonly resultColumns?: ReadonlyArray<string> | null;
   readonly disabledSettings?: ReadonlyArray<string>;
   readonly configured?: boolean;
+  readonly lastPresetId?: string;
 }
 
 interface StoredState {
@@ -558,6 +565,7 @@ export class QueryTabsState {
         : isFromHistory
           ? true
           : false,
+      lastPresetId: isFromStorage ? stored?.lastPresetId : undefined,
     };
     tab.execution = queryStore.getOrCreate(queryUuid || tab.id, {
       materialized: tab.materialize,
@@ -608,6 +616,7 @@ export class QueryTabsState {
         traceOrderBy: src.traceOrderBy,
         resultColumns: src.resultColumns,
         configured: true,
+        lastPresetId: src.lastPresetId,
       },
     );
     this.markDirty();
@@ -701,6 +710,7 @@ export class QueryTabsState {
         resultColumns: t.resultColumns,
         disabledSettings: t.disabledSettings,
         configured: t.configured,
+        lastPresetId: t.lastPresetId,
       })),
       activeTabId: this.activeTabId,
     };
