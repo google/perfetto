@@ -282,7 +282,8 @@ message InsetsControlTargetProto {
 // represents DisplayArea object
 message DisplayAreaProto {
   optional WindowContainerProto window_container = 1;
-  optional string name = 2 [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
+  optional string name = 2
+      [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
   repeated DisplayAreaChildProto children = 3 [deprecated = true];
   optional bool is_task_display_area = 4;
   optional bool is_root_display_area = 5;
@@ -407,7 +408,8 @@ message TaskProto {
   optional int32 display_id = 15 [deprecated = true];
   optional int32 root_task_id = 16;
   optional int32 activity_type = 17 [
-    (.com.android.internal.typedef) = "android.app.WindowConfiguration.ActivityType",
+    (.com.android.internal.typedef) =
+        "android.app.WindowConfiguration.ActivityType",
     deprecated = true
   ];
   optional int32 resize_mode = 18
@@ -443,7 +445,8 @@ message TaskFragmentProto {
 
 // represents ActivityRecordProto
 message ActivityRecordProto {
-  optional string name = 1 [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
+  optional string name = 1
+      [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
   optional WindowTokenProto window_token = 2;
   optional bool last_surface_showing = 3;
   optional bool is_waiting_for_transition_start = 4;
@@ -471,7 +474,8 @@ message ActivityRecordProto {
   // configuration_container
   reserved 25;
   optional IdentifierProto identifier = 26 [deprecated = true];
-  optional string state = 27 [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
+  optional string state = 27
+      [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
   optional bool front_of_task = 28;
   optional int32 proc_id = 29;
   optional bool translucent = 30;
@@ -580,7 +584,8 @@ message IdentifierProto {
   optional int32 user_id = 2;
   // Either a component name/string (eg: "com.android.settings/.FallbackHome")
   // or a window title ("NavigationBar").
-  optional string title = 3 [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
+  optional string title = 3
+      [(.com.android.internal.privacy).dest = DEST_EXPLICIT];
 }
 
 // represents WindowStateAnimator
@@ -622,7 +627,7 @@ message WindowContainerProto {
   optional IdentifierProto identifier = 6;
   optional SurfaceControlProto surface_control = 7;
   optional bool visible_requested = 8;
-  repeated int32 child_tokens = 9;
+  repeated IdentifierProto child_tokens = 9;
 }
 
 // represents a generic child of a WindowContainer
