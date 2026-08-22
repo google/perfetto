@@ -35,6 +35,7 @@ source_set("syntaqlite") {
   deps = [ "../../../../gn:default_deps" ]
   visibility = [
     "../../util:sql_module_doc_parser",
+    "../lineage:*",
     "../lineage_resolver:lineage_resolver",
     "../parser:*",
     "../tokenizer",

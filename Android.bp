@@ -18829,6 +18829,22 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/perfetto_sql/exec:exec
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_exec_exec",
+    srcs: [
+        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/exec:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_exec_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/exec/sql_scan_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/generator:gen_cc_perfetto_sql_descriptor
 genrule {
     name: "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor",
@@ -18863,6 +18879,31 @@ filegroup {
 // GN: //src/trace_processor/perfetto_sql/intrinsics/types:types
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+}
+
+// GN: //src/trace_processor/perfetto_sql/lineage:connection_catalog
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_lineage_connection_catalog",
+    srcs: [
+        "src/trace_processor/perfetto_sql/lineage/connection_catalog.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/lineage:lineage
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_lineage_lineage",
+    srcs: [
+        "src/trace_processor/perfetto_sql/lineage/column_lineage.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/lineage:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_lineage_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/lineage/column_lineage_unittest.cc",
+        "src/trace_processor/perfetto_sql/lineage/connection_catalog_unittest.cc",
+    ],
 }
 
 // GN: //src/trace_processor/perfetto_sql/parser:intrinsic_macro_expansion
@@ -24112,9 +24153,14 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_engine_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_exec_exec",
+        ":perfetto_src_trace_processor_perfetto_sql_exec_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
         ":perfetto_src_trace_processor_perfetto_sql_generator_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":perfetto_src_trace_processor_perfetto_sql_lineage_connection_catalog",
+        ":perfetto_src_trace_processor_perfetto_sql_lineage_lineage",
+        ":perfetto_src_trace_processor_perfetto_sql_lineage_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_parser_test_utils",
