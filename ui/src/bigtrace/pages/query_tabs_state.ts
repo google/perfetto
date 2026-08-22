@@ -27,7 +27,6 @@ import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
-const TAB_TITLE_MAX_CHARS = 32;
 
 // Row cap on the query and cap on how many traces it fans out to, defaulted per
 // execution mode: an ephemeral run is a quick look, a persistent one is a full
@@ -121,20 +120,13 @@ export function applyModeDefaults(
   tab.materialize = materialize;
 }
 
-// First non-empty `--`-stripped line, clipped. `/* */` blocks not handled.
-export function deriveTitleFromQuery(sql: string): string | undefined {
-  const stripped = sql
-    .split('\n')
-    .map((line) => {
-      const idx = line.indexOf('--');
-      return idx === -1 ? line : line.slice(0, idx);
-    })
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (stripped.length === 0) return undefined;
-  const firstLine = stripped[0];
-  if (firstLine.length <= TAB_TITLE_MAX_CHARS) return firstLine;
-  return firstLine.slice(0, TAB_TITLE_MAX_CHARS - 1) + '…';
+// Whether there is anything to run: a line that isn't blank or a `--`
+// comment. `/* */` blocks not handled.
+export function hasQueryText(sql: string): boolean {
+  return sql.split('\n').some((line) => {
+    const idx = line.indexOf('--');
+    return (idx === -1 ? line : line.slice(0, idx)).trim().length > 0;
+  });
 }
 
 // Sync populates rows/columns; async leaves them empty (reads via `tab.dataSource`).
@@ -266,13 +258,13 @@ export function applyPresetSetup(tab: BigTraceEditorTab, t: TracePreset): void {
   tab.lastPresetId = t.id;
 }
 
-// Fill a tab from a preset: its setup plus its query and title. Whether the
-// tab then leaves the launcher is the caller's — on a new tab a card only
-// fills the page in, and Start query opens the editor.
+// Fill a tab from a preset: its setup plus its query. The tab keeps its own
+// name — tabs are "Query N" until the user renames one, as on the main UI's
+// query page. Whether the tab then leaves the launcher is the caller's — on a
+// new tab a card only fills the page in, and Start query opens the editor.
 export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
   applyPresetSetup(tab, t);
   tab.editorText = t.perfettoSql;
-  if (t.name) tab.title = t.name;
 }
 
 // The run configuration Settings edits, as it stood when the form opened —
@@ -472,10 +464,9 @@ export class QueryTabsState {
       }
     }
 
-    // Caller title wins; else derive from SQL so History opens get meaningful
-    // labels instead of "Query N". maybeAutoNameTab refines on first run.
-    const derivedTitle =
-      title ?? (initialQuery && deriveTitleFromQuery(initialQuery));
+    // Restored tabs bring their own title (possibly one the user typed);
+    // everything else is "Query N".
+    const derivedTitle = title;
     // Seed the per-tab settings snapshot. Restored tabs use the persisted
     // one; history-reopen tabs start empty (the runner rehydrates from
     // /query_executions/{uuid}); fresh tabs start from the backend defaults.
@@ -575,7 +566,7 @@ export class QueryTabsState {
     const src = this.tabs.find((t) => t.id === tabId);
     if (src === undefined) return undefined;
     const clone = this.addNewTab(
-      this.cloneTitle(src.title),
+      undefined, // "Query N", like any new tab
       src.editorText,
       src.limit,
       undefined,
@@ -597,16 +588,6 @@ export class QueryTabsState {
     );
     this.markDirty();
     return clone;
-  }
-
-  // "<name> clone", then "clone 2", … so repeated clones stay apart.
-  private cloneTitle(base: string): string {
-    const taken = new Set(this.tabs.map((t) => t.title));
-    let title = `${base} clone`;
-    for (let n = 2; taken.has(title); n++) {
-      title = `${base} clone ${n}`;
-    }
-    return title;
   }
 
   closeTab(tabId: string): void {
@@ -635,18 +616,6 @@ export class QueryTabsState {
       tab.title = newTitle;
       this.markDirty();
     }
-  }
-
-  // Replace "Query N" with a SQL-derived title before submit;
-  // user-renamed tabs are skipped.
-  maybeAutoNameTab(tabId: string, queryText: string): void {
-    const tab = this.tabs.find((t) => t.id === tabId);
-    if (!tab) return;
-    if (!/^Query \d+$/.test(tab.title)) return;
-    const derived = deriveTitleFromQuery(queryText);
-    if (derived === undefined) return;
-    tab.title = derived;
-    this.markDirty();
   }
 
   reorderTab(draggedId: string, beforeId: string | undefined): void {

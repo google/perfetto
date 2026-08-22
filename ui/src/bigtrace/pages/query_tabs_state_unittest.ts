@@ -321,11 +321,10 @@ describe('cloneTab', () => {
     expect(clone.isLoading).toBe(false);
   });
 
-  test('titles stay distinguishable across repeated clones', () => {
+  test('a clone is a new tab, named like one', () => {
     const tabs = new QueryTabsState();
     const src = configuredTab(tabs);
-    expect(tabs.cloneTab(src.id)?.title).toBe('Jank by device clone');
-    expect(tabs.cloneTab(src.id)?.title).toBe('Jank by device clone 2');
+    expect(tabs.cloneTab(src.id)?.title).toMatch(/^Query \d+$/);
   });
 
   test('editing the clone leaves the original alone', () => {

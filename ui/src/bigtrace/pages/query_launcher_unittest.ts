@@ -136,7 +136,8 @@ describe('applyPresetToTab', () => {
       }),
     );
     expect(tab.configured).toBe(false);
-    expect(tab.title).toBe('Jank by device');
+    // Tabs keep their own name — "Query N" until the user renames one.
+    expect(tab.title).toBe('Query 1');
     expect(tab.editorText).toBe('select * from slice');
     expect(tab.traceFilters).toEqual([
       {field: 'device_name', op: 'is not null'},

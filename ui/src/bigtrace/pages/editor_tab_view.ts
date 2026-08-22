@@ -34,7 +34,7 @@ import {
   type BigTraceEditorTab,
   type QueryTabsState,
   applyModeDefaults,
-  deriveTitleFromQuery,
+  hasQueryText,
   effectiveTabSettings,
   effectiveTraceLimit,
   setTraceLimit,
@@ -220,11 +220,8 @@ function renderEditorPanel(
               icon: 'play_arrow',
               intent: Intent.Primary,
               variant: ButtonVariant.Filled,
-              disabled: deriveTitleFromQuery(tab.editorText) === undefined,
-              onclick: () => {
-                tabsState.maybeAutoNameTab(tab.id, tab.editorText);
-                runner.run(tab, tab.editorText);
-              },
+              disabled: !hasQueryText(tab.editorText),
+              onclick: () => runner.run(tab, tab.editorText),
             }),
         m(
           Stack,
@@ -237,7 +234,7 @@ function renderEditorPanel(
         m(Button, {
           icon: 'format_align_left',
           title: 'Format query (Alt+Shift+F)',
-          disabled: deriveTitleFromQuery(tab.editorText) === undefined,
+          disabled: !hasQueryText(tab.editorText),
           onclick: () => void formatTabQuery(tab, tabsState, tab.editorText),
         }),
         useBigtraceBackend && renderRunControls(tab, tabsState),
@@ -262,10 +259,7 @@ function renderEditorPanel(
         tab.editorText = text;
         tabsState.markDirty();
       },
-      onExecute: (query: string) => {
-        tabsState.maybeAutoNameTab(tab.id, query);
-        runner.run(tab, query);
-      },
+      onExecute: (query: string) => runner.run(tab, query),
     }),
   ]);
 }
