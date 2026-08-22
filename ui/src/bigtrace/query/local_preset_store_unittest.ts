@@ -151,7 +151,7 @@ describe('presetFromTab', () => {
     bigTraceSettingsStorage.clear();
   });
 
-  test('captures effective settings, selection, limit and mode', () => {
+  test('captures the trace selection and the SQL, nothing else', () => {
     bigTraceSettingsStorage.register({
       id: 'trace_directory',
       name: 'Trace Directory',
@@ -160,6 +160,15 @@ describe('presetFromTab', () => {
       schema: z.string(),
       defaultValue: '/global',
       category: 'TRACE_ADDRESS',
+    });
+    bigTraceSettingsStorage.register({
+      id: 'warn',
+      name: 'warn',
+      description: '',
+      type: 'boolean',
+      schema: z.boolean(),
+      defaultValue: false,
+      category: 'BIGTRACE_QUERY_OPTIONS',
     });
     const tab = fakeTab({
       editorText: 'select count(*) from slice',
@@ -173,6 +182,11 @@ describe('presetFromTab', () => {
           values: ['100000'],
           category: 'TRACE_ADDRESS',
         },
+        {
+          settingId: 'warn',
+          values: ['true'],
+          category: 'BIGTRACE_QUERY_OPTIONS',
+        },
       ],
     });
 
@@ -182,18 +196,20 @@ describe('presetFromTab', () => {
     expect(p.name).toBe('Slice count');
     expect(p.category).toBe(DEFAULT_LOCAL_CATEGORY);
     expect(p.perfettoSql).toBe('select count(*) from slice');
-    expect(p.limit).toBe(10000);
-    expect(p.materialized).toBe(true);
     expect(p.traceOrderBy).toBe('size_bytes desc');
     expect(p.traceFilters).toEqual([
       {field: 'file_name', op: 'glob', value: '*.pftrace'},
     ]);
-    // Global default merged with the per-tab override.
+    // Trace selection only: the source setting (global default merged in),
+    // and neither the cap, the option, the row limit nor the mode.
     const byId = new Map(
       (p.settings ?? []).map((s) => [s.settingId, s.values]),
     );
     expect(byId.get('trace_directory')).toEqual(['/global']);
-    expect(byId.get('trace_limit')).toEqual(['100000']);
+    expect(byId.has('trace_limit')).toBe(false);
+    expect(byId.has('warn')).toBe(false);
+    expect(p.limit).toBeUndefined();
+    expect(p.materialized).toBeUndefined();
   });
 
   test('null metadata columns ship as the empty list', () => {

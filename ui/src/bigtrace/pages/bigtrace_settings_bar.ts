@@ -21,8 +21,8 @@ import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
+  isTraceSelectionSetting,
   openSettings,
-  TRACE_LIMIT_SETTING_ID,
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
@@ -33,11 +33,12 @@ export interface BigtraceSettingsBarAttrs {
   readonly bindings: SettingsBindings;
 }
 
-// Chip strip atop each editor tab: a Settings button that opens the tab's
-// settings form in place, one read-only chip per active setting, one removable
-// chip per trace filter, and Clone. The two actions are buttons, not chips, so
-// they look pressable and answer to hover. Trace-metadata columns aren't shown
-// here — they live only in the form's Query Result Columns card.
+// Chip strip atop each editor tab: a Trace Selection button that opens the
+// tab's trace-selection page in place, one read-only chip per active
+// trace-selection setting, one removable chip per trace filter, and Clone.
+// The strip summarises which traces the query runs over — query options live
+// behind the toolbar's gear and are not chipped. The two actions are buttons,
+// not chips, so they look pressable and answer to hover.
 export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBarAttrs> {
   view({attrs}: m.Vnode<BigtraceSettingsBarAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
@@ -52,13 +53,13 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           className: 'pf-bt-settings-bar__chips',
         },
         m(Button, {
-          label: 'Settings',
+          label: 'Trace Selection',
           icon: 'tune',
           compact: true,
           variant: ButtonVariant.Filled,
           title:
-            'Edit the traces and options this query runs with. Apply keeps ' +
-            'the changes; Cancel drops them.',
+            'Choose which traces this query runs over. Apply keeps the ' +
+            'changes; Cancel drops them.',
           onclick: () => openSettings(tab),
         }),
         renderSettingChips(bindings),
@@ -88,12 +89,18 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
 // Chip rendering
 // ---------------------------------------------------------------------------
 
-// One read-only chip per effective setting (getEffectiveSettings applies
-// per-tab overrides and drops disabled settings). Editing lives in Settings.
+// One read-only chip per effective trace-selection setting
+// (getEffectiveSettings applies per-tab overrides and drops disabled
+// settings). Editing lives on the Trace Selection page; everything else — the
+// cap, the options — belongs to the toolbar's settings modal and isn't
+// summarised here.
 function renderSettingChips(bindings: SettingsBindings): m.Children {
   return bindings.getEffectiveSettings().map((entry) => {
-    // The trace cap has its own control in the run toolbar.
-    if (entry.settingId === TRACE_LIMIT_SETTING_ID) return null;
+    if (
+      !isTraceSelectionSetting({id: entry.settingId, category: entry.category})
+    ) {
+      return null;
+    }
     const setting = bigTraceSettingsStorage.get(entry.settingId) as
       BigTraceSetting<unknown> | undefined;
     if (setting === undefined) return null;
@@ -125,7 +132,7 @@ function renderFilterChips(
         tabsState.markDirty();
         m.redraw();
       },
-      // Display + remove only; add/refine filters via the Settings trace grid.
+      // Display + remove only; add/refine filters via the trace grid.
     }),
   );
 }

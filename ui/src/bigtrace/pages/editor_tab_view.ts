@@ -37,10 +37,11 @@ import {
   hasQueryText,
   effectiveTabSettings,
   effectiveTraceLimit,
-  setTraceLimit,
+  isTraceSelectionSetting,
   traceLimitDisabled,
   TRACE_LIMIT_SETTING_ID,
 } from './query_tabs_state';
+import {openQuerySettingsModal} from './query_settings_modal';
 import {renderResultsPanel} from './results_panel';
 import {QueryLauncher} from './query_launcher';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
@@ -264,17 +265,16 @@ function renderEditorPanel(
   ]);
 }
 
-// Mode switch plus the two caps a run is bounded by. Both follow the mode until
-// the user types over them (see applyModeDefaults).
+// Mode switch, the row cap, and the gear opening the query-settings modal
+// (the trace cap and every non-trace-selection setting).
 function renderRunControls(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
 ): m.Children {
-  // No control when the backend doesn't declare a trace cap, or when this tab
-  // switched it off — showing a number for an uncapped run would be a lie.
-  const hasTraceLimit =
-    bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID) !== undefined &&
-    !traceLimitDisabled(tab);
+  // Whether there is anything for the modal to show.
+  const hasQuerySettings = bigTraceSettingsStorage
+    .getAllSettings()
+    .some((s) => !isTraceSelectionSetting(s));
   return [
     m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
     m(Switch, {
@@ -305,23 +305,20 @@ function renderRunControls(
         }
       },
     }),
-    hasTraceLimit && [
-      m('span', 'Traces:'),
-      m(TextInput, {
-        type: 'number',
-        className: 'pf-bt-limit-input',
-        value: String(effectiveTraceLimit(tab)),
-        title: 'Maximum traces this query runs over.',
+    hasQuerySettings &&
+      m(Button, {
+        icon: 'settings',
+        title:
+          'Query settings — the trace cap and the query options. Applied ' +
+          'from the next run.',
         disabled: tab.isLoading,
-        onInput: (value: string) => {
-          const newLimit = parseInt(value, 10);
-          if (!isNaN(newLimit) && newLimit > 0) {
-            setTraceLimit(tab, newLimit);
-            tabsState.markDirty();
-          }
-        },
+        onclick: () =>
+          void openQuerySettingsModal(
+            tab,
+            tabsState,
+            buildTabBindings(tab, tabsState),
+          ),
       }),
-    ],
   ];
 }
 

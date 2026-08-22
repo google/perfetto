@@ -121,7 +121,7 @@ describe('applyPresetToTab', () => {
     bigTraceSettingsStorage.clear();
   });
 
-  test("fills the query, title and selection; leaving the launcher is the caller's", () => {
+  test("fills the query and trace selection; the rest is the tab's own", () => {
     const tab = fakeTab({configured: false});
     applyPresetToTab(
       tab,
@@ -131,6 +131,7 @@ describe('applyPresetToTab', () => {
         traceFilters: [{field: 'device_name', op: 'is not null'}],
         traceMetadataColumns: ['device_name'],
         traceOrderBy: 'size_bytes desc',
+        // A stale catalog entry may still carry these; they are ignored.
         limit: 42,
         materialized: true,
       }),
@@ -144,11 +145,12 @@ describe('applyPresetToTab', () => {
     ]);
     expect(tab.traceMetadataColumns).toEqual(['device_name']);
     expect(tab.traceOrderBy).toBe('size_bytes desc');
-    expect(tab.limit).toBe(42);
-    expect(tab.materialize).toBe(true);
+    // Caps and mode are not a preset's to set.
+    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
+    expect(tab.materialize).toBe(false);
   });
 
-  test('applyPresetSetup takes everything but the query', () => {
+  test('applyPresetSetup takes the trace selection, nothing else', () => {
     const tab = fakeTab({
       configured: true,
       title: 'Slice count',
@@ -171,35 +173,51 @@ describe('applyPresetToTab', () => {
     // The query and its title are the user's.
     expect(tab.editorText).toBe('select count(*) from slice');
     expect(tab.title).toBe('Slice count');
-    // The setup is the preset's, caps and mode included.
+    // The trace selection is the preset's.
     expect(tab.traceFilters).toEqual([
       {field: 'device_name', op: 'is not null'},
     ]);
     expect(tab.traceMetadataColumns).toEqual(['device_name']);
     expect(tab.traceOrderBy).toBe('size_bytes desc');
-    expect(tab.limit).toBe(42);
-    expect(tab.materialize).toBe(true);
+    // Caps and mode stay the tab's own.
+    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
+    expect(tab.materialize).toBe(false);
     // Still inside Settings: provisional until Apply.
     expect(tab.settingsSession).toBeDefined();
   });
 
-  test('a preset without a row cap takes the default for its mode', () => {
-    const persistent = fakeTab();
-    applyPresetToTab(persistent, preset({materialized: true}));
-    expect(persistent.limit).toBe(MODE_DEFAULTS.persistent.rowLimit);
-
-    const ephemeral = fakeTab();
-    applyPresetToTab(ephemeral, preset({materialized: false}));
-    expect(ephemeral.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
-    expect(effectiveTraceLimit(ephemeral)).toBe(
-      MODE_DEFAULTS.ephemeral.traceLimit,
-    );
+  test('mode and caps never follow a preset', () => {
+    const tab = fakeTab({materialize: false});
+    tab.limit = 77;
+    applyPresetToTab(tab, preset({materialized: true, limit: 42}));
+    expect(tab.materialize).toBe(false);
+    expect(tab.limit).toBe(77);
+    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
   });
 
-  test('settings the preset omits are turned off', () => {
+  test('trace settings the preset omits are turned off; options untouched', () => {
     regString('trace_directory');
+    // A trace-scope boolean (an indexer's metadata filter, say)...
+    bigTraceSettingsStorage.register({
+      id: 'only_indexed',
+      name: 'only_indexed',
+      description: '',
+      type: 'boolean',
+      schema: z.boolean() as never,
+      defaultValue: true,
+      category: 'TRACE_METADATA',
+    });
+    // ...and a query option outside the preset's scope.
     regBool('treat_trace_errors_as_warning');
-    const tab = fakeTab();
+    const tab = fakeTab({
+      querySettings: [
+        {
+          settingId: 'treat_trace_errors_as_warning',
+          values: ['true'],
+          category: 'BIGTRACE_QUERY_OPTIONS',
+        },
+      ],
+    });
     applyPresetToTab(
       tab,
       preset({
@@ -216,19 +234,31 @@ describe('applyPresetToTab', () => {
     expect(
       tab.querySettings.find((s) => s.settingId === 'trace_directory')?.values,
     ).toEqual(['/traces']);
-    // ...boolean it doesn't mention forced off (booleans can't be disabled)...
+    // ...trace-scope boolean it doesn't mention forced off...
+    expect(
+      tab.querySettings.find((s) => s.settingId === 'only_indexed')?.values,
+    ).toEqual(['false']);
+    // ...and the option kept exactly as the tab had it.
     expect(
       tab.querySettings.find(
         (s) => s.settingId === 'treat_trace_errors_as_warning',
       )?.values,
-    ).toEqual(['false']);
-    // ...and nothing else is silently left enabled.
+    ).toEqual(['true']);
     expect(tab.disabledSettings).toEqual([]);
   });
 
-  test('a togglable setting the preset omits is disabled, not blanked', () => {
+  test('a togglable trace setting the preset omits is disabled, not blanked', () => {
     regString('trace_directory');
-    regBool('a_flag');
+    bigTraceSettingsStorage.register({
+      id: 'device_filter',
+      name: 'device_filter',
+      description: '',
+      type: 'string',
+      schema: z.string() as never,
+      defaultValue: '',
+      category: 'TRACE_METADATA',
+    });
+    // An option-scope string is not the preset's to disable.
     bigTraceSettingsStorage.register({
       id: 'other_filter',
       name: 'other_filter',
@@ -251,10 +281,10 @@ describe('applyPresetToTab', () => {
         ],
       }),
     );
-    expect(tab.disabledSettings).toEqual(['other_filter']);
+    expect(tab.disabledSettings).toEqual(['device_filter']);
   });
 
-  test('a preset describes the whole run: what it omits is turned off', () => {
+  test('a preset is the whole trace selection: what it omits is turned off', () => {
     regString('trace_directory');
     const tab = fakeTab({
       querySettings: [
@@ -298,7 +328,7 @@ describe('applyPresetToTab', () => {
     ).toEqual(['/preset/traces']);
   });
 
-  test('a preset that omits the trace cap still ships one', () => {
+  test("the trace cap is never a preset's: named or not, the tab's own holds", () => {
     bigTraceSettingsStorage.register({
       id: 'trace_limit',
       name: 'trace_limit',
@@ -309,29 +339,8 @@ describe('applyPresetToTab', () => {
       category: 'TRACE_ADDRESS',
     });
     const tab = fakeTab();
-    // The reference catalog's presets don't mention the cap. Disabling it
-    // would run the query over every trace in the corpus while the toolbar
-    // showed a number.
-    applyPresetToTab(tab, preset({materialized: true, settings: []}));
-    expect(traceLimitDisabled(tab)).toBe(false);
-    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.persistent.traceLimit);
-    expect(
-      effectiveTabSettings(tab).find((s) => s.settingId === 'trace_limit')
-        ?.values,
-    ).toEqual([String(MODE_DEFAULTS.persistent.traceLimit)]);
-  });
-
-  test('a preset that states a trace cap keeps it', () => {
-    bigTraceSettingsStorage.register({
-      id: 'trace_limit',
-      name: 'trace_limit',
-      description: '',
-      type: 'number',
-      schema: z.number() as never,
-      defaultValue: 100,
-      category: 'TRACE_ADDRESS',
-    });
-    const tab = fakeTab();
+    setTraceLimit(tab, 500);
+    // A stale catalog entry naming a cap: ignored, not applied, not disabled.
     applyPresetToTab(
       tab,
       preset({
@@ -340,7 +349,8 @@ describe('applyPresetToTab', () => {
         ],
       }),
     );
-    expect(effectiveTraceLimit(tab)).toBe(25);
+    expect(traceLimitDisabled(tab)).toBe(false);
+    expect(effectiveTraceLimit(tab)).toBe(500);
   });
 
   test('setting a cap re-enables one the tab had switched off', () => {

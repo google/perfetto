@@ -41,6 +41,21 @@ export const MODE_DEFAULTS = {
 // cap, and the toolbar hides the control.
 export const TRACE_LIMIT_SETTING_ID = 'trace_limit';
 
+// Trace selection is WHICH traces a query runs over: the source settings
+// (TRACE_ADDRESS) and any per-trace metadata filters an indexer backend
+// declares (TRACE_METADATA). The trace cap is a run control, not selection,
+// so it belongs with the query options despite its category.
+export function isTraceSelectionSetting(setting: {
+  readonly id: string;
+  readonly category?: string;
+}): boolean {
+  if (setting.id === TRACE_LIMIT_SETTING_ID) return false;
+  return (
+    setting.category === 'TRACE_ADDRESS' ||
+    setting.category === 'TRACE_METADATA'
+  );
+}
+
 function modeDefaults(materialize: boolean): {
   readonly rowLimit: number;
   readonly traceLimit: number;
@@ -199,69 +214,67 @@ export function disabledSettingsFromSnapshot(
   return allCategoriedSettingIds.filter((id) => !active.has(id));
 }
 
-// Configure a tab's setup from a preset — everything but the query: settings,
-// trace selection, result columns, order, caps and mode. The preset's own
-// settings are applied and every other registered setting is turned off —
-// togglable ones disabled, booleans set to false (they have no disable
-// concept) — so a preset describes the whole run, not a diff. Used on its own
-// from Settings, where the query stays the user's.
+// Configure a tab's trace selection from a preset: the source settings, the
+// grid filter and order, and the result-metadata columns. A preset carries
+// trace selection and SQL, nothing else — the query options, the caps and
+// the mode are the tab's own and stay untouched (anything else a stale
+// catalog entry still names is ignored). Within its scope a preset is the
+// whole selection, not a diff: trace settings it doesn't name are turned
+// off — togglable ones disabled, booleans set to false.
 export function applyPresetSetup(tab: BigTraceEditorTab, t: TracePreset): void {
-  const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
-  const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
-    settingId: s.settingId,
-    values: [...s.values],
-    category: s.category as SettingCategory,
-  }));
-  const metadataColumns = t.traceMetadataColumns ?? [];
-  const materialized = t.materialized ?? true;
-  const disabledSettings: string[] = [];
+  const presetTraceSettings: SettingFilter[] = (t.settings ?? [])
+    .filter((s) =>
+      isTraceSelectionSetting({id: s.settingId, category: s.category}),
+    )
+    .map((s) => ({
+      settingId: s.settingId,
+      values: [...s.values],
+      category: s.category as SettingCategory,
+    }));
+  const presetIds = new Set(presetTraceSettings.map((s) => s.settingId));
+
+  // Overrides outside trace selection (options, the cap) are kept verbatim.
+  const querySettings: SettingFilter[] = tab.querySettings.filter(
+    (s) => !isTraceSelectionSetting({id: s.settingId, category: s.category}),
+  );
+  querySettings.push(...presetTraceSettings);
+  const disabledSettings = new Set(
+    tab.disabledSettings.filter((id) => {
+      const raw = bigTraceSettingsStorage.get(id);
+      // Unknown ids are not ours to interpret; keep them disabled.
+      return raw === undefined || !isTraceSelectionSetting(raw);
+    }),
+  );
   for (const raw of bigTraceSettingsStorage.getAllSettings()) {
-    if (raw.category === undefined) continue;
+    if (!isTraceSelectionSetting(raw)) continue;
     if (presetIds.has(raw.id)) continue;
-    if (raw.id === TRACE_LIMIT_SETTING_ID) {
-      // The trace cap is a run control with a per-mode default, not something
-      // a preset can leave unset: a preset that doesn't state one runs at the
-      // default for its mode, never uncapped.
-      querySettings.push({
-        settingId: raw.id,
-        values: [
-          String(clampTraceLimit(modeDefaults(materialized).traceLimit)),
-        ],
-        category: raw.category as SettingCategory,
-      });
-    } else if (raw.type === 'boolean') {
+    if (raw.type === 'boolean') {
       querySettings.push({
         settingId: raw.id,
         values: ['false'],
         category: raw.category as SettingCategory,
       });
     } else {
-      disabledSettings.push(raw.id);
+      disabledSettings.add(raw.id);
     }
   }
 
   tab.querySettings = querySettings;
-  tab.disabledSettings = disabledSettings;
+  tab.disabledSettings = [...disabledSettings];
   tab.traceFilters = [...(t.traceFilters ?? [])];
   // [] from the wire means "unspecified" → use the default-visible set.
+  const metadataColumns = t.traceMetadataColumns ?? [];
   tab.traceMetadataColumns = metadataColumns.length
     ? [...metadataColumns]
     : null;
   tab.traceOrderBy = t.traceOrderBy ?? '';
-  tab.materialize = materialized;
-  // Optional in the contract; a preset that doesn't state a cap uses the
-  // default for the mode it runs in.
-  tab.limit =
-    t.limit != null && t.limit > 0
-      ? t.limit
-      : modeDefaults(materialized).rowLimit;
   tab.lastPresetId = t.id;
 }
 
-// Fill a tab from a preset: its setup plus its query. The tab keeps its own
-// name — tabs are "Query N" until the user renames one, as on the main UI's
-// query page. Whether the tab then leaves the launcher is the caller's — on a
-// new tab a card only fills the page in, and Start query opens the editor.
+// Fill a tab from a preset: its trace selection plus its query. The tab keeps
+// its own name, options, caps and mode. Whether the tab then leaves the
+// launcher is the caller's — on a new tab a card only fills the page in, and
+// Start query opens the editor.
 export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
   applyPresetSetup(tab, t);
   tab.editorText = t.perfettoSql;

@@ -17,7 +17,6 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {Spinner} from '../../widgets/spinner';
 import {Intent} from '../../widgets/common';
-import {AccordionSection} from '../../widgets/accordion';
 import type {TracePreset} from '../query/bigtrace_query_client';
 import {presetStore} from '../query/preset_store';
 import {
@@ -39,7 +38,7 @@ import {
   applyPresetToTab,
   closeSettings,
   effectiveTabSettings,
-  TRACE_LIMIT_SETTING_ID,
+  isTraceSelectionSetting,
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
@@ -72,13 +71,12 @@ export function preselectedPresetId(
   return presets.some((p) => p.id === lastId) ? lastId : undefined;
 }
 
-// One page for a tab that has no query yet and for the Settings of one that
-// does: a Presets section and the settings form, and only which of the two is
-// folded differs. Cards fill the page, buttons commit — everywhere. Starting a
-// query: presets open, the form folded under "Custom settings"; a card fills
-// in the whole preset, query included, and Start query opens the editor.
-// Settings on an existing query: presets folded, the form open; a card lends
-// its setup only, and Apply keeps it.
+// One page for a tab that has no query yet and for the Trace Selection of one
+// that does: a Presets section, then the trace-selection form — nothing
+// folded. Cards fill the page, buttons commit. On a new tab a card fills in
+// the whole preset, query included, and Start query opens the editor; on an
+// existing query a card lends its setup only, and Apply keeps it. Query
+// options live elsewhere (the gear in the run toolbar).
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   oninit() {
     void presetStore.load();
@@ -87,71 +85,55 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   view({attrs}: m.Vnode<QueryLauncherAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
     const editing = tab.settingsSession !== undefined;
-    const presets = launcherPresets(
-      presetStore.presets,
-      localPresetStore.list(),
-    );
-    // On a new tab: the preset the page is filled from, if it still is.
-    const selectedId = editing
-      ? undefined
-      : selectedPresetId(tab, presets, tab.lastPresetId);
-    const selected = presets.find((p) => p.id === selectedId);
     return m('.pf-bt-launcher', [
       m(
         '.pf-bt-launcher__body',
         m(QuerySettingsForm, {
           bindings,
-          header: editing
-            ? this.renderSetupPresets(tab, tabsState, presets)
-            : this.renderStartHeader(tab, tabsState, presets, selectedId),
-          fold: editing
-            ? undefined
-            : {
-                summary: m('.pf-bt-settings-fold__summary', [
-                  m('span.pf-bt-settings-fold__title', 'Custom settings'),
-                  selected !== undefined &&
-                    m(
-                      'span.pf-bt-settings-fold__current',
-                      `From “${selected.name}”`,
-                    ),
-                ]),
-                defaultOpen: false,
-              },
+          scope: 'trace-selection',
+          header: this.renderPresetsSection(tab, tabsState, editing),
         }),
       ),
       this.renderFooter(tab, tabsState, editing),
     ]);
   }
 
-  // Title, subtitle and the gallery a query starts from. A card fills the
-  // page in — the whole preset, query included — and stays; Start query opens
-  // the editor.
-  private renderStartHeader(
+  // The Presets section, headed like the form's own sections. What a card
+  // does depends on the page: filling a new tab in wholesale, or lending an
+  // existing query its setup.
+  private renderPresetsSection(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
-    presets: ReadonlyArray<TracePreset>,
-    selectedId: string | undefined,
+    editing: boolean,
   ): m.Children {
+    const presets = launcherPresets(
+      presetStore.presets,
+      localPresetStore.list(),
+    );
     return [
-      m('.pf-bt-launcher__head', [
-        m('.pf-bt-launcher__title', 'Start a query'),
-        m(
-          '.pf-bt-launcher__subtitle',
-          'Pick a preset, or configure the traces and options yourself.',
-        ),
-      ]),
-      m(
-        AccordionSection,
-        {
-          className: 'pf-bt-settings-fold',
-          defaultOpen: true,
-          summary: m(
-            '.pf-bt-settings-fold__summary',
-            m('span.pf-bt-settings-fold__title', 'Presets'),
+      !editing &&
+        m('.pf-bt-launcher__head', [
+          m('.pf-bt-launcher__title', 'Start a query'),
+          m(
+            '.pf-bt-launcher__subtitle',
+            'Pick a preset, or configure the traces and options yourself.',
           ),
-        },
-        this.renderStartPresets(tab, tabsState, presets, selectedId),
-      ),
+        ]),
+      // With no presets to offer, an existing query's page goes straight to
+      // the trace selection; only a new tab explains where presets come from.
+      (presets.length > 0 || !editing) &&
+        m('.pf-bt-settings-page__plugin-section', [
+          m('h2.pf-bt-settings-page__plugin-title', 'Presets'),
+          editing &&
+            m(
+              '.pf-bt-presets-hint',
+              'Pick a preset to use its settings here. The query is not ' +
+                'changed.',
+            ),
+          editing
+            ? this.renderSetupPresets(tab, tabsState, presets)
+            : this.renderStartPresets(tab, tabsState, presets),
+        ]),
     ];
   }
 
@@ -159,7 +141,6 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
     presets: ReadonlyArray<TracePreset>,
-    selectedId: string | undefined,
   ): m.Children {
     if (presets.length === 0) {
       // Don't call it empty while the catalog is still in flight.
@@ -192,8 +173,9 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         ),
       );
     }
-    // Until a card is picked, the last-used preset is suggested; once one is,
-    // the page reads back the one it's filled from.
+    // The page reads back the preset it's filled from; until a card is
+    // picked, the last-used one is suggested.
+    const selectedId = selectedPresetId(tab, presets, tab.lastPresetId);
     const suggestedId = preselectedPresetId(presets, lastPresetIdState.get());
     return m(PresetGallery, {
       presets,
@@ -206,50 +188,25 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     });
   }
 
-  // The same gallery atop the settings form of a query that exists, folded
-  // away until wanted. From here a preset lends its setup only — settings,
-  // trace selection, result columns, order, caps and mode — and the query
-  // stays the user's: Settings is where you decide how a query runs, not what
-  // it runs. Provisional like any other edit in the form: Cancel undoes it.
-  // The card marked "Current" is the preset whose setup the tab runs with
-  // right now, and the folded heading says the same, so the answer is there
-  // without opening it.
+  // On an existing query a preset lends its setup only — settings, trace
+  // selection, result columns, order, caps and mode — and the query stays the
+  // user's: this page is about how a query runs, not what it runs.
+  // Provisional like any other edit here: Cancel undoes it. The card marked
+  // "Current" is the preset whose setup the tab runs with right now.
   private renderSetupPresets(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
     presets: ReadonlyArray<TracePreset>,
   ): m.Children {
-    if (presets.length === 0) return null;
-    const currentId = matchingSetupPresetId(tab, presets, tab.lastPresetId);
-    const current = presets.find((p) => p.id === currentId);
-    return m(
-      AccordionSection,
-      {
-        className: 'pf-bt-settings-fold',
-        summary: m('.pf-bt-settings-fold__summary', [
-          m('span.pf-bt-settings-fold__title', 'Presets'),
-          m(
-            'span.pf-bt-settings-fold__current',
-            current === undefined
-              ? 'Custom setup'
-              : `Setup from “${current.name}”`,
-          ),
-        ]),
+    return m(PresetGallery, {
+      presets,
+      selectedId: matchingSetupPresetId(tab, presets, tab.lastPresetId),
+      selectedBadge: 'Current',
+      onPick: (preset) => {
+        applyPresetSetup(tab, preset);
+        tabsState.markDirty();
       },
-      m(
-        '.pf-bt-settings-fold__hint',
-        'Pick a preset to use its settings here. The query is not changed.',
-      ),
-      m(PresetGallery, {
-        presets,
-        selectedId: currentId,
-        selectedBadge: 'Current',
-        onPick: (preset) => {
-          applyPresetSetup(tab, preset);
-          tabsState.markDirty();
-        },
-      }),
-    );
+    });
   }
 
   private renderFooter(
@@ -320,13 +277,28 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   }
 }
 
+// A preset carries trace selection and SQL, so both sides of a match are
+// narrowed to that: the tab's effective trace-selection settings, and — for a
+// stale catalog entry that still names an option or a cap — the preset's
+// trace-selection ones.
 function comparable(tab: BigTraceEditorTab) {
   return {
     sql: tab.editorText,
     traceFilters: tab.traceFilters,
     traceMetadataColumns: tab.traceMetadataColumns,
     traceOrderBy: tab.traceOrderBy,
-    settings: effectiveTabSettings(tab),
+    settings: effectiveTabSettings(tab).filter((s) =>
+      isTraceSelectionSetting({id: s.settingId, category: s.category}),
+    ),
+  };
+}
+
+function traceScopePreset(p: TracePreset): TracePreset {
+  return {
+    ...p,
+    settings: (p.settings ?? []).filter((s) =>
+      isTraceSelectionSetting({id: s.settingId, category: s.category}),
+    ),
   };
 }
 
@@ -341,24 +313,29 @@ export function selectedPresetId(
 ): string | undefined {
   const current = comparable(tab);
   const kinds = settingKinds();
-  const fits = (p: TracePreset) =>
-    presetMatches(p, current) && setupEquals(p, current, kinds);
+  const fits = (p: TracePreset) => {
+    const scoped = traceScopePreset(p);
+    return (
+      presetMatches(scoped, current) && setupEquals(scoped, current, kinds)
+    );
+  };
   const preferred = presets.find((p) => p.id === preferId);
   if (preferred !== undefined && fits(preferred)) return preferred.id;
   return presets.find(fits)?.id;
 }
 
-// Which registered settings are booleans, and which are run controls a setup
-// comparison ignores (the trace cap is defaulted per mode, not configured).
+// Which trace-selection settings are booleans (off = "false"). Both sides of
+// a comparison are already narrowed to trace selection, so nothing needs
+// ignoring beyond that.
 function settingKinds(): SettingKinds {
   return {
     booleanIds: new Set(
       bigTraceSettingsStorage
         .getAllSettings()
-        .filter((s) => s.type === 'boolean')
+        .filter((s) => isTraceSelectionSetting(s) && s.type === 'boolean')
         .map((s) => s.id),
     ),
-    ignoredIds: new Set([TRACE_LIMIT_SETTING_ID]),
+    ignoredIds: new Set<string>(),
   };
 }
 
@@ -373,9 +350,9 @@ export function matchingSetupPresetId(
 ): string | undefined {
   const current = comparable(tab);
   const kinds = settingKinds();
+  const fits = (p: TracePreset) =>
+    setupEquals(traceScopePreset(p), current, kinds);
   const preferred = presets.find((p) => p.id === preferId);
-  if (preferred !== undefined && setupEquals(preferred, current, kinds)) {
-    return preferred.id;
-  }
-  return presets.find((p) => setupEquals(p, current, kinds))?.id;
+  if (preferred !== undefined && fits(preferred)) return preferred.id;
+  return presets.find(fits)?.id;
 }

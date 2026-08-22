@@ -20,9 +20,7 @@ import {Callout} from '../../widgets/callout';
 import {linkify} from '../../widgets/anchor';
 import {Intent} from '../../widgets/common';
 import m from 'mithril';
-import {AccordionSection} from '../../widgets/accordion';
 import {Switch} from '../../widgets/switch';
-import {TextInput} from '../../widgets/text_input';
 import {
   type MultiSelectDiff,
   type MultiSelectOption,
@@ -64,6 +62,10 @@ import {
   traceColumnsState,
   effectiveQueryColumns,
 } from '../settings/trace_selection_state';
+import {
+  isTraceSelectionSetting,
+  TRACE_LIMIT_SETTING_ID,
+} from './query_tabs_state';
 import {linkColumnFirst, LINK_COLUMN} from '../settings/column_order';
 
 interface BigTraceSettingsCardAttrs extends m.Attributes {
@@ -156,10 +158,6 @@ class BigTraceSettingsCard implements m.ClassComponent<BigTraceSettingsCardAttrs
   }
 }
 
-// Trace-selection-grid section label. Must match CATEGORY_DISPLAY_NAMES so the
-// renderer can branch on it.
-const TRACE_ADDRESS_DISPLAY = 'Trace Address';
-
 // Schema from /trace_metadata_schema: one entry per column, default string
 // renderer (every cell is a string per the always-strings contract).
 function columnSchema(
@@ -191,16 +189,16 @@ export interface QuerySettingsFormAttrs {
   // Every read and write routes through these, so the form always edits one
   // tab's configuration — there is no global settings state behind it.
   readonly bindings: SettingsBindings;
+  // Which half of the configuration to show. 'trace-selection' is the
+  // launcher page: which traces a query runs over — the trace grid first,
+  // then the source settings and the result-metadata columns.
+  // 'query-options' is the gear modal: how it runs — the trace cap and every
+  // remaining setting.
+  readonly scope: 'trace-selection' | 'query-options';
   // Rendered above the sections, scrolling with them (the launcher puts its
   // preset gallery here). Anything it does to the tab's selection or order
   // shows up on the next render: the grid state is re-read each view.
   readonly header?: m.Children;
-  // Wrap the sections in a fold with this summary, so a page that leads with
-  // something else (the launcher's presets) can keep the form tucked away.
-  readonly fold?: {
-    readonly summary: m.Children;
-    readonly defaultOpen?: boolean;
-  };
 }
 
 // AIP-132 single-field order_by helpers. The DataGrid supports only one active
@@ -317,7 +315,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   private static readonly CATEGORY_DISPLAY_NAMES: ReadonlyMap<string, string> =
     new Map([
       ['General', 'General'],
-      ['TRACE_ADDRESS', TRACE_ADDRESS_DISPLAY],
+      ['TRACE_ADDRESS', 'Trace Address'],
       ['TRACE_METADATA', 'Trace Metadata'],
       ['BIGTRACE_QUERY_OPTIONS', 'Query Options'],
     ]);
@@ -525,12 +523,9 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
       Card,
       {
         className: 'pf-settings-card pf-bt-trace-card',
-        // Top margin separates this from the plain key-value cards above (Trace
-        // Directory, Trace Limit); padding-bottom keeps the grid clear of the
-        // card border.
+        // padding-bottom keeps the grid clear of the card border.
         style: {
           display: 'block',
-          marginTop: '32px',
           paddingBottom: '16px',
         },
       },
@@ -804,107 +799,88 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
     this.bindings = attrs.bindings;
     this.syncFromBindings();
 
+    const sections =
+      attrs.scope === 'trace-selection'
+        ? this.renderTraceSelectionSections()
+        : this.renderQueryOptionSections();
+
+    return m('.pf-bt-settings-embedded', [
+      m('.pf-bt-settings-page', [
+        attrs.header,
+        bigTraceSettingsStorage.isExecConfigLoading &&
+          m(EmptyState, {
+            title: 'Loading settings...',
+            icon: 'hourglass_empty',
+            fillHeight: true,
+          }),
+        sections,
+        bigTraceSettingsStorage.execConfigLoadError !== undefined &&
+          m(
+            Callout,
+            {
+              intent: Intent.Danger,
+              icon: 'error',
+              title: 'Failed to load settings from the backend',
+            },
+            bigTraceSettingsStorage.execConfigLoadError,
+          ),
+      ]),
+    ]);
+  }
+
+  // Which traces the query runs over. The grid leads — it IS the selection —
+  // with the result-metadata columns picked from its schema right after, and
+  // the source settings that feed it below.
+  private renderTraceSelectionSections(): m.Children {
+    const traceSettings = bigTraceSettingsStorage
+      .getAllSettings()
+      .filter(isTraceSelectionSetting);
+    return m('.pf-bt-settings-page__plugin-section', [
+      m('h2.pf-bt-settings-page__plugin-title', 'Trace selection'),
+      m(CardStack, [
+        this.renderTraceListCard(getBigtraceEndpoint()),
+        this.renderQueryColumnsCard(),
+        ...traceSettings.map((setting) =>
+          this.renderBigTraceSettingCard(setting),
+        ),
+      ]),
+    ]);
+  }
+
+  // How the query runs: the trace cap first (a run control, whatever its
+  // category), then every remaining setting grouped as declared.
+  private renderQueryOptionSections(): m.Children {
+    const all = bigTraceSettingsStorage.getAllSettings();
+    const traceLimit = all.find((s) => s.id === TRACE_LIMIT_SETTING_ID);
     const categories = new Map<string, BigTraceSetting<unknown>[]>();
-    for (const setting of bigTraceSettingsStorage.getAllSettings()) {
+    for (const setting of all) {
+      if (isTraceSelectionSetting(setting)) continue;
+      if (setting.id === TRACE_LIMIT_SETTING_ID) continue;
       const categoryName = this.displayCategory(setting.category || 'General');
       if (!categories.has(categoryName)) {
         categories.set(categoryName, []);
       }
       categories.get(categoryName)!.push(setting);
     }
-
-    const sections = Array.from(categories.entries()).map(
-      ([category, catSettings]) => {
-        const cards: m.Children[] = catSettings.map((setting) =>
-          this.renderBigTraceSettingCard(setting),
-        );
-        // Below the trace-source cards, two siblings: "Traces" picks WHICH
-        // traces, "Query Result Columns" picks WHAT metadata each result row
-        // carries.
-        if (category === TRACE_ADDRESS_DISPLAY) {
-          cards.push(this.renderTraceListCard(getBigtraceEndpoint()));
-          cards.push(this.renderQueryColumnsCard());
-        }
-        return m(
+    return [
+      traceLimit !== undefined &&
+        m(
+          '.pf-bt-settings-page__plugin-section',
+          m(CardStack, [this.renderBigTraceSettingCard(traceLimit)]),
+        ),
+      Array.from(categories.entries()).map(([category, catSettings]) =>
+        m(
           '.pf-bt-settings-page__plugin-section',
           m('h2.pf-bt-settings-page__plugin-title', category),
-          m(CardStack, cards),
-        );
-      },
-    );
-
-    const body: m.Children = [
-      bigTraceSettingsStorage.isExecConfigLoading &&
-        m(EmptyState, {
-          title: 'Loading settings...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        }),
-      this.renderRunSection(),
-      sections,
-      bigTraceSettingsStorage.execConfigLoadError !== undefined &&
-        m(
-          Callout,
-          {
-            intent: Intent.Danger,
-            icon: 'error',
-            title: 'Failed to load settings from the backend',
-          },
-          bigTraceSettingsStorage.execConfigLoadError,
-        ),
-    ];
-    return m('.pf-bt-settings-embedded', [
-      m('.pf-bt-settings-page', [
-        attrs.header,
-        attrs.fold === undefined
-          ? body
-          : m(
-              AccordionSection,
-              {
-                className: 'pf-bt-settings-fold',
-                summary: attrs.fold.summary,
-                defaultOpen: attrs.fold.defaultOpen ?? false,
-              },
-              body,
+          m(
+            CardStack,
+            catSettings.map((setting) =>
+              this.renderBigTraceSettingCard(setting),
             ),
-      ]),
-    ]);
-  }
-
-  // Mode and row cap: toolbar controls, mirrored here so a preset's setup is
-  // visible in full where it's applied.
-  private renderRunSection(): m.Children {
-    return m('.pf-bt-settings-page__plugin-section', [
-      m('h2.pf-bt-settings-page__plugin-title', 'Run'),
-      m(CardStack, [
-        m(BigTraceSettingsCard, {
-          title: 'Persistent',
-          description:
-            'Save the results to History so they can be reopened later. ' +
-            'Off, results are shown inline and dropped when the tab closes.',
-          controls: m(Switch, {
-            checked: this.bindings.getMaterialize(),
-            onchange: (e: Event) => {
-              this.bindings.setMaterialize(
-                (e.target as HTMLInputElement).checked,
-              );
-            },
-          }),
-        }),
-        m(BigTraceSettingsCard, {
-          title: 'Row limit',
-          description: 'Maximum rows this query returns.',
-          controls: m(TextInput, {
-            type: 'number',
-            value: String(this.bindings.getRowLimit()),
-            onInput: (value: string) => {
-              const n = parseInt(value, 10);
-              if (!isNaN(n) && n > 0) this.bindings.setRowLimit(n);
-            },
-          }),
-        }),
-      ]),
-    ]);
+          ),
+        ),
+      ),
+    ];
   }
 
   private renderBigTraceSettingCard(rawSetting: BigTraceSetting<unknown>) {

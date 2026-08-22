@@ -173,9 +173,9 @@
 
 // ---------- Launcher: start a query / Settings of an existing one ----------
 
-// Fills the tab. One page for both jobs: a scrolling body holding the preset
-// section and the settings form (which of the two is folded depends on the
-// tab), and a footer with the actions.
+// Fills the tab. One page for both jobs — start a query, or an existing
+// query's Trace Selection: a scrolling body holding the Presets section and
+// the trace-selection form, and a footer with the actions.
 .pf-bt-launcher {
   height: 100%;
   min-height: 0;
@@ -951,52 +951,21 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// The launcher's sections — Presets, and the settings form when it's the
-// secondary one — are AccordionSections styled like the form's own section
-// headings, so a fold reads as one more section that happens to open and
-// close.
-.pf-bt-settings-fold {
-  margin-bottom: 32px;
+// Hint under the Presets heading on an existing query's Trace Selection page.
+.pf-bt-presets-hint {
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-s);
+  margin: -8px 0 16px;
+}
 
-  > summary {
-    border-radius: 4px;
-    padding: 8px 12px;
-    // Not sticky here: the page scrolls as one document.
-    position: static;
-    background: var(--pf-minimal-background);
-  }
+// Query-settings modal (gear in the run toolbar): the settings form without
+// the page chrome — the modal provides the frame and the scrolling.
+.pf-bt-query-settings-modal {
+  width: min(640px, 90vw);
 
-  &[open] > summary {
-    background: var(--pf-minimal-background);
-  }
-
-  &__summary {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    min-width: 0;
-  }
-
-  &__title {
-    font-size: var(--pf-font-size-xl);
-    font-weight: 600;
-  }
-
-  &__current {
-    color: var(--pf-color-text-muted);
-    font-size: var(--pf-font-size-s);
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &__hint {
-    color: var(--pf-color-text-muted);
-    font-size: var(--pf-font-size-s);
-    margin: 4px 0 16px;
-  }
-
-  .pf-accordion__content {
-    padding: 8px 4px 4px;
-    background: transparent;
+  .pf-bt-settings-embedded {
+    height: auto;
+    max-height: 65vh;
+    padding: 0;
   }
 }
