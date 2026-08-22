@@ -266,6 +266,75 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
   tab.configured = true;
 }
 
+// The run configuration Settings edits, as it stood when the form opened —
+// enough to put the tab back if the user leaves with "Back" instead of "Done".
+export interface TabConfigSnapshot {
+  readonly querySettings: ReadonlyArray<SettingFilter>;
+  readonly disabledSettings: ReadonlyArray<string>;
+  readonly traceFilters: ReadonlyArray<Filter>;
+  readonly traceMetadataColumns: ReadonlyArray<string> | null;
+  readonly traceOrderBy: string;
+  readonly limit: number;
+  readonly materialize: boolean;
+}
+
+// Deep enough that neither side can reach the other's arrays.
+function copySettingFilters(
+  list: ReadonlyArray<SettingFilter>,
+): SettingFilter[] {
+  return list.map((s) => ({...s, values: [...s.values]}));
+}
+
+export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
+  return {
+    querySettings: copySettingFilters(tab.querySettings),
+    disabledSettings: [...tab.disabledSettings],
+    traceFilters: [...tab.traceFilters],
+    traceMetadataColumns:
+      tab.traceMetadataColumns === null ? null : [...tab.traceMetadataColumns],
+    traceOrderBy: tab.traceOrderBy,
+    limit: tab.limit,
+    materialize: tab.materialize,
+  };
+}
+
+export function restoreTabConfig(
+  tab: BigTraceEditorTab,
+  snap: TabConfigSnapshot,
+): void {
+  tab.querySettings = copySettingFilters(snap.querySettings);
+  tab.disabledSettings = [...snap.disabledSettings];
+  tab.traceFilters = [...snap.traceFilters];
+  tab.traceMetadataColumns =
+    snap.traceMetadataColumns === null ? null : [...snap.traceMetadataColumns];
+  tab.traceOrderBy = snap.traceOrderBy;
+  tab.limit = snap.limit;
+  tab.materialize = snap.materialize;
+}
+
+// Open Settings on a tab that already has a configuration: the launcher takes
+// the tab over on its settings form, and the configuration on entry is kept so
+// that leaving with "Back" restores it while "Done" keeps the edits.
+export function openSettings(tab: BigTraceEditorTab): void {
+  tab.settingsSession = {before: snapshotTabConfig(tab)};
+  tab.setupMode = 'custom';
+}
+
+// Leave the launcher for the editor. Without `keep`, the configuration goes
+// back to what it was when Settings opened; a tab with no such session (a new
+// tab starting its first query) has nothing to restore.
+export function closeSettings(
+  tab: BigTraceEditorTab,
+  {keep}: {readonly keep: boolean},
+): void {
+  if (!keep && tab.settingsSession !== undefined) {
+    restoreTabConfig(tab, tab.settingsSession.before);
+  }
+  tab.settingsSession = undefined;
+  tab.setupMode = undefined;
+  tab.configured = true;
+}
+
 // Mutated in-place by the runner; only QueryTabsState creates/destroys.
 export interface BigTraceEditorTab {
   readonly id: string;
@@ -310,8 +379,12 @@ export interface BigTraceEditorTab {
   // editor. Tabs restored from storage or opened from History are configured.
   configured: boolean;
   // Which half of the launcher to show: the preset gallery, or the settings
-  // form. Set by whichever chip opened it; view state, so not persisted.
+  // form. View state, so not persisted.
   setupMode?: 'presets' | 'custom';
+  // Set while Settings is open on a configured tab: the run configuration on
+  // entry, so "Back to query" can put it back. View state, not persisted — a
+  // reload closes Settings with the edits kept, as Done would.
+  settingsSession?: {readonly before: TabConfigSnapshot};
 }
 
 // Persisted subset of BigTraceEditorTab. Transient state is rebuilt on load.

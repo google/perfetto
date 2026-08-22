@@ -70,8 +70,9 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
     }
 
     // A tab with no configuration yet shows the launcher instead of the editor:
-    // every query starts from a preset or a deliberate custom setup.
-    if (!tab.configured) {
+    // every query starts from a preset or a deliberate custom setup. A
+    // configured tab shows it too while its Settings are open.
+    if (!tab.configured || tab.settingsSession !== undefined) {
       return m(
         '.pf-bt-editor-tab',
         m(QueryLauncher, {

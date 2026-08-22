@@ -16,12 +16,16 @@ import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
   applyModeDefaults,
+  closeSettings,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
   effectiveTraceLimit,
   MODE_DEFAULTS,
+  openSettings,
   QueryTabsState,
+  restoreTabConfig,
   setTraceLimit,
+  snapshotTabConfig,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
@@ -345,5 +349,131 @@ describe('cloneTab', () => {
     const before = tabs.tabs.length;
     expect(tabs.cloneTab('nope')).toBeUndefined();
     expect(tabs.tabs).toHaveLength(before);
+  });
+});
+
+describe('Settings session (Back restores, Done keeps)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  function workingTab(): BigTraceEditorTab {
+    return fakeTab({
+      configured: true,
+      editorText: 'select 1',
+      materialize: true,
+      limit: 500,
+      traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
+      traceMetadataColumns: ['device_name'],
+      traceOrderBy: 'size_bytes desc',
+      querySettings: [
+        {
+          settingId: 'trace_directory',
+          values: ['/traces'],
+          category: 'TRACE_ADDRESS',
+        },
+      ],
+      disabledSettings: ['some_filter'],
+    });
+  }
+
+  function edit(tab: BigTraceEditorTab) {
+    tab.querySettings = [
+      {
+        settingId: 'trace_directory',
+        values: ['/other'],
+        category: 'TRACE_ADDRESS',
+      },
+    ];
+    tab.disabledSettings = [];
+    tab.traceFilters = [];
+    tab.traceMetadataColumns = null;
+    tab.traceOrderBy = '';
+    tab.limit = 10;
+    tab.materialize = false;
+  }
+
+  test('opening keeps the tab configured and shows the settings form', () => {
+    const tab = workingTab();
+    openSettings(tab);
+    expect(tab.configured).toBe(true);
+    expect(tab.setupMode).toBe('custom');
+    expect(tab.settingsSession).toBeDefined();
+  });
+
+  test('Back puts every edited field back', () => {
+    const tab = workingTab();
+    const before = snapshotTabConfig(tab);
+    openSettings(tab);
+    edit(tab);
+    closeSettings(tab, {keep: false});
+    expect(snapshotTabConfig(tab)).toEqual(before);
+    expect(tab.settingsSession).toBeUndefined();
+    expect(tab.setupMode).toBeUndefined();
+    expect(tab.configured).toBe(true);
+  });
+
+  test('Done keeps the edits', () => {
+    const tab = workingTab();
+    openSettings(tab);
+    edit(tab);
+    closeSettings(tab, {keep: true});
+    expect(tab.querySettings[0].values).toEqual(['/other']);
+    expect(tab.traceFilters).toEqual([]);
+    expect(tab.limit).toBe(10);
+    expect(tab.settingsSession).toBeUndefined();
+    expect(tab.configured).toBe(true);
+  });
+
+  test('the snapshot is a copy: later mutation of the tab does not reach it', () => {
+    const tab = workingTab();
+    openSettings(tab);
+    tab.querySettings[0].values.push('/extra');
+    (tab.traceFilters as unknown[]).push({field: 'x', op: 'is null'});
+    closeSettings(tab, {keep: false});
+    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    expect(tab.traceFilters).toHaveLength(1);
+  });
+
+  test('restore hands out copies too, so the snapshot survives further edits', () => {
+    const tab = workingTab();
+    const snap = snapshotTabConfig(tab);
+    restoreTabConfig(tab, snap);
+    tab.querySettings[0].values.push('/extra');
+    expect(snap.querySettings[0].values).toEqual(['/traces']);
+  });
+
+  test('a new tab starting its first query has no session and keeps its setup', () => {
+    const tab = fakeTab({configured: false, editorText: ''});
+    tab.setupMode = 'custom';
+    edit(tab);
+    closeSettings(tab, {keep: false});
+    // Nothing to restore: the tab was never configured before this.
+    expect(tab.limit).toBe(10);
+    expect(tab.configured).toBe(true);
+    expect(tab.setupMode).toBeUndefined();
+  });
+
+  test('the session is not persisted: a reload closes Settings with edits kept', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.addNewTab(
+      undefined,
+      'select 1',
+      undefined,
+      undefined,
+      true,
+    );
+    tab.configured = true;
+    openSettings(tab);
+    tab.limit = 42;
+    // Force the debounced save.
+    (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
+    const restored = new QueryTabsState().tabs.find(
+      (t) => t.editorText === 'select 1',
+    )!;
+    expect(restored.configured).toBe(true);
+    expect(restored.settingsSession).toBeUndefined();
+    expect(restored.limit).toBe(42);
   });
 });

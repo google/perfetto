@@ -37,6 +37,7 @@ import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
   applyPresetToTab,
+  closeSettings,
   effectiveTabSettings,
   type BigTraceEditorTab,
   type QueryTabsState,
@@ -110,8 +111,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     return m(
       '.pf-bt-launcher',
       m('.pf-bt-launcher__inner', [
-        // Reached from "Change setup" on a tab that already has a query: this
-        // is the way out that changes nothing.
+        // On a tab that already has a query: the way out that changes nothing.
         canReturnToQuery(tab) &&
           m(
             '.pf-bt-launcher__back',
@@ -119,8 +119,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
               label: 'Back to query',
               icon: 'arrow_back',
               onclick: () => {
-                tab.setupMode = undefined;
-                tab.configured = true;
+                closeSettings(tab, {keep: false});
                 tabsState.markDirty();
               },
             }),
@@ -283,11 +282,12 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
   ): m.Children {
+    const hasQuery = canReturnToQuery(tab);
     return m('.pf-bt-launcher__footer', [
       // Presets belong to starting a query, not to configuring one that
       // exists: from a tab with a query, applying one would replace its SQL
       // and settings wholesale. New tab → the gallery is where you came from.
-      !canReturnToQuery(tab) &&
+      !hasQuery &&
         m(Button, {
           label: 'Back to presets',
           icon: 'arrow_back',
@@ -296,13 +296,16 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
             tabsState.markDirty();
           },
         }),
-      canReturnToQuery(tab) &&
+      // Edits apply as they're made, so leaving is where the choice is: Back
+      // puts the configuration back to what it was, Done keeps it.
+      hasQuery &&
         m(Button, {
           label: 'Back to query',
           icon: 'arrow_back',
+          title:
+            'Return to the query as it was; changes made here are dropped.',
           onclick: () => {
-            tab.setupMode = undefined;
-            tab.configured = true;
+            closeSettings(tab, {keep: false});
             tabsState.markDirty();
           },
         }),
@@ -313,10 +316,11 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         onclick: () => void this.saveAsPreset(tab),
       }),
       m(Button, {
-        label: canReturnToQuery(tab) ? 'Done' : 'Start query',
+        label: hasQuery ? 'Done' : 'Start query',
         icon: 'arrow_forward',
         intent: Intent.Primary,
         variant: ButtonVariant.Filled,
+        title: hasQuery ? 'Keep these settings for the next run.' : undefined,
         onclick: () => {
           // If this setup happens to be one of the presets on offer (e.g. it
           // was just saved as one), the next tab preselects it; otherwise
@@ -327,8 +331,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
               launcherPresets(presetStore.presets, localPresetStore.list()),
             ) ?? '',
           );
-          tab.setupMode = undefined;
-          tab.configured = true;
+          closeSettings(tab, {keep: true});
           tabsState.markDirty();
         },
       }),

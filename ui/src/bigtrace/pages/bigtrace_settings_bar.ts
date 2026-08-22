@@ -20,6 +20,7 @@ import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
+  openSettings,
   TRACE_LIMIT_SETTING_ID,
   type BigTraceEditorTab,
   type QueryTabsState,
@@ -31,10 +32,10 @@ export interface BigtraceSettingsBarAttrs {
   readonly bindings: SettingsBindings;
 }
 
-// Chip strip atop each editor tab: one chip per per-tab override (settings,
-// trace filters) plus an "+ Add" chip opening the Settings modal. Trace-metadata
-// columns aren't shown here — they live only in the modal's Query Result Columns
-// card.
+// Chip strip atop each editor tab: a Settings chip that opens the tab's
+// settings form in place, one read-only chip per active setting, one removable
+// chip per trace filter, and Clone. Trace-metadata columns aren't shown here —
+// they live only in the form's Query Result Columns card.
 export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBarAttrs> {
   view({attrs}: m.Vnode<BigtraceSettingsBarAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
@@ -53,13 +54,9 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           icon: 'tune',
           className: 'pf-bt-settings-bar__add',
           title:
-            'Edit the traces and options this query runs with. Presets are ' +
-            'one step away, inside.',
-          onclick: () => {
-            tab.setupMode = 'custom';
-            tab.configured = false;
-            tabsState.markDirty();
-          },
+            'Edit the traces and options this query runs with. Done keeps ' +
+            'the changes; Back to query drops them.',
+          onclick: () => openSettings(tab),
         }),
         renderSettingChips(bindings),
         renderFilterChips(tab, tabsState, bindings),
@@ -87,7 +84,7 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
 // ---------------------------------------------------------------------------
 
 // One read-only chip per effective setting (getEffectiveSettings applies
-// per-tab overrides and drops disabled settings). Editing lives in the modal.
+// per-tab overrides and drops disabled settings). Editing lives in Settings.
 function renderSettingChips(bindings: SettingsBindings): m.Children {
   return bindings.getEffectiveSettings().map((entry) => {
     // The trace cap has its own control in the run toolbar.
@@ -123,7 +120,7 @@ function renderFilterChips(
         tabsState.markDirty();
         m.redraw();
       },
-      // Display + remove only; add/refine filters via the modal's trace grid.
+      // Display + remove only; add/refine filters via the Settings trace grid.
     }),
   );
 }
