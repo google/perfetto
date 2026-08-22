@@ -98,7 +98,13 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           '.pf-bt-launcher__custom-body',
           m(QuerySettingsForm, {
             bindings,
-            header: this.renderSetupPresets(tab, tabsState),
+            // Presets fold into the form only for a query that exists. A new
+            // tab came here from the gallery, which is one step back — and
+            // there a preset starts the query, SQL and all.
+            header:
+              tab.settingsSession !== undefined
+                ? this.renderSetupPresets(tab, tabsState)
+                : undefined,
           }),
         ),
         this.renderCustomFooter(tab, tabsState),
