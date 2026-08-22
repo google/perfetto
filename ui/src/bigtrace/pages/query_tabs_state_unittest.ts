@@ -16,8 +16,13 @@ import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
   applyModeDefaults,
+  applyPresetSetup,
   closeSettings,
   isTraceSelectionSetting,
+  parseTraceUuids,
+  setTraceUuidsActive,
+  TRACE_UUIDS_SETTING_ID,
+  traceUuidsActive,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
   effectiveTraceLimit,
@@ -510,5 +515,121 @@ describe('isTraceSelectionSetting', () => {
       }),
     ).toBe(false);
     expect(isTraceSelectionSetting({id: 'misc'})).toBe(false);
+  });
+});
+
+describe('trace UUID selection mode', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  function regUuids() {
+    return bigTraceSettingsStorage.register({
+      id: TRACE_UUIDS_SETTING_ID,
+      name: 'Trace UUIDs',
+      description: '',
+      type: 'string-array',
+      schema: z.array(z.string()) as never,
+      defaultValue: [] as string[],
+      category: 'TRACE_ADDRESS',
+    });
+  }
+
+  test('parseTraceUuids splits on commas and whitespace, dedupes', () => {
+    expect(parseTraceUuids('a, b\n c,,a\t d ')).toEqual(['a', 'b', 'c', 'd']);
+    expect(parseTraceUuids('')).toEqual([]);
+    expect(parseTraceUuids(' ,\n, ')).toEqual([]);
+  });
+
+  test('the mode needs the declared setting AND an explicit tab entry', () => {
+    const tab = fakeTab({disabledSettings: []});
+    expect(traceUuidsActive(tab)).toBe(false);
+    setTraceUuidsActive(tab, true); // no-op: not declared
+    expect(tab.disabledSettings).toEqual([]);
+    expect(tab.querySettings).toEqual([]);
+    regUuids();
+    // Declared but no tab entry — a fresh tab created before the config
+    // arrived stays out of the mode.
+    expect(traceUuidsActive(tab)).toBe(false);
+    setTraceUuidsActive(tab, true);
+    expect(traceUuidsActive(tab)).toBe(true);
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual([]);
+  });
+
+  test('toggling the mode is non-destructive, both ways', () => {
+    regUuids();
+    const tab = fakeTab({
+      disabledSettings: [TRACE_UUIDS_SETTING_ID],
+      traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
+      querySettings: [
+        {
+          settingId: 'trace_directory',
+          values: ['/traces'],
+          category: 'TRACE_ADDRESS',
+        },
+        {
+          settingId: TRACE_UUIDS_SETTING_ID,
+          values: ['u1'],
+          category: 'TRACE_ADDRESS',
+        },
+      ],
+    });
+    expect(traceUuidsActive(tab)).toBe(false);
+    setTraceUuidsActive(tab, true);
+    expect(traceUuidsActive(tab)).toBe(true);
+    // Filter-mode configuration is hidden, not cleared...
+    expect(tab.traceFilters).toHaveLength(1);
+    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    // ...and an earlier stint's values survive re-entry.
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual(['u1']);
+    setTraceUuidsActive(tab, false);
+    expect(traceUuidsActive(tab)).toBe(false);
+    expect(tab.disabledSettings).toEqual([TRACE_UUIDS_SETTING_ID]);
+  });
+
+  test('a preset that does not name the list turns the mode off', () => {
+    regUuids();
+    const tab = fakeTab({disabledSettings: []});
+    setTraceUuidsActive(tab, true);
+    expect(traceUuidsActive(tab)).toBe(true);
+    applyPresetSetup(tab, {
+      id: 'p',
+      category: 'A',
+      name: 'P',
+      description: '',
+      perfettoSql: 'select 1',
+    });
+    expect(traceUuidsActive(tab)).toBe(false);
+  });
+
+  test('a preset that names the list turns the mode on with its values', () => {
+    regUuids();
+    const tab = fakeTab({disabledSettings: [TRACE_UUIDS_SETTING_ID]});
+    applyPresetSetup(tab, {
+      id: 'p',
+      category: 'A',
+      name: 'P',
+      description: '',
+      perfettoSql: '',
+      settings: [
+        {
+          settingId: TRACE_UUIDS_SETTING_ID,
+          values: ['u1', 'u2'],
+          category: 'TRACE_ADDRESS',
+        },
+      ],
+    });
+    expect(traceUuidsActive(tab)).toBe(true);
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual(['u1', 'u2']);
   });
 });

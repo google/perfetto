@@ -61,7 +61,11 @@ import {formatCompact} from '../query/query_store';
 import {effectiveQueryColumns} from '../settings/trace_selection_state';
 import {
   isTraceSelectionSetting,
+  parseTraceUuids,
   TRACE_LIMIT_SETTING_ID,
+  TRACE_UUIDS_SETTING_ID,
+  traceUuidsDeclared,
+  traceUuidsState,
 } from './query_tabs_state';
 import {linkColumnFirst, LINK_COLUMN} from '../settings/column_order';
 
@@ -250,6 +254,11 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   // One schema fetch at a time. A key change mid-flight is picked up once the
   // fetch settles, so rapid source edits coalesce instead of racing.
   private schemaFetching = false;
+  // UUID-mode paste box: the raw text being edited, and the canonical join of
+  // the value it was last synced with (so an external write resets the draft
+  // while the user's own typing survives re-renders).
+  private uuidDraft: string | undefined;
+  private uuidDraftBase: string | undefined;
   oninit({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     this.bindings = attrs.bindings;
     this.syncFromBindings();
@@ -724,13 +733,26 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
     ]);
   }
 
-  // Which traces the query runs over. The grid leads — it IS the selection,
-  // and its shown columns are the metadata attached to results — with the
-  // source settings that feed it below.
+  // Which traces the query runs over, in one of two mutually exclusive
+  // modes. Filter mode: the grid leads — it IS the selection, and its shown
+  // columns are the metadata attached to results — with the source settings
+  // that feed it below. UUID mode (trace_uuids enabled): the pasted list IS
+  // the corpus, so nothing else is shown — the filter-mode configuration is
+  // hidden, not cleared, and returns intact when the mode is left.
   private renderTraceSelectionSections(): m.Children {
-    const traceSettings = bigTraceSettingsStorage
-      .getAllSettings()
-      .filter(isTraceSelectionSetting);
+    if (this.traceUuidsActive()) {
+      return m(
+        '.pf-bt-settings-page__plugin-section',
+        m(CardStack, [this.renderTraceUuidsCard()]),
+      );
+    }
+    const traceSettings = bigTraceSettingsStorage.getAllSettings().filter(
+      (setting) =>
+        isTraceSelectionSetting(setting) &&
+        // The UUID list is a selection MODE with its own card and entry
+        // point, never a generic settings card.
+        setting.id !== TRACE_UUIDS_SETTING_ID,
+    );
     return m(
       '.pf-bt-settings-page__plugin-section',
       m(CardStack, [
@@ -738,6 +760,85 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
         ...traceSettings.map((setting) =>
           this.renderBigTraceSettingCard(setting),
         ),
+      ]),
+    );
+  }
+
+  private traceUuidsActive(): boolean {
+    return traceUuidsState(
+      traceUuidsDeclared(),
+      this.bindings.isSettingDisabled(TRACE_UUIDS_SETTING_ID),
+      this.bindings.getSettingValue(TRACE_UUIDS_SETTING_ID) !== undefined,
+    );
+  }
+
+  // The UUID-mode card: a paste box and a count. The draft text is kept
+  // locally so typing isn't reformatted mid-edit; the parsed list is written
+  // through on every input, and an external change to the tab's value (a
+  // preset, Cancel's restore) resets the draft.
+  private renderTraceUuidsCard(): m.Children {
+    const setting = bigTraceSettingsStorage.get(TRACE_UUIDS_SETTING_ID);
+    if (setting === undefined) return null;
+    const stored =
+      this.bindings.getSettingValue(TRACE_UUIDS_SETTING_ID) ??
+      (setting.defaultValue as readonly string[] | undefined) ??
+      [];
+    const canonical = stored.join('\n');
+    if (this.uuidDraftBase !== canonical) {
+      this.uuidDraft = canonical;
+      this.uuidDraftBase = canonical;
+    }
+    const count = parseTraceUuids(this.uuidDraft ?? '').length;
+    return m(
+      Card,
+      {
+        className: 'pf-settings-card pf-bt-uuid-settings-card',
+        style: {display: 'flex'},
+      },
+      m('.pf-bt-uuid-card', [
+        m('.pf-bt-uuid-card__head', [
+          m('.pf-bt-uuid-card__title-row', [
+            m('.pf-settings-card__title', 'Trace UUIDs'),
+            m(Icon, {
+              icon: 'info',
+              className: 'pf-bt-uuid-card__info',
+              title: 'Separate UUIDs with commas, spaces or new lines.',
+            }),
+          ]),
+          // The way out of the mode. "Back" is honest here: the switch
+          // destroys nothing in either direction — the pasted list and the
+          // whole filter setup are kept — and like everything on this page
+          // it is provisional until Apply.
+          m(Button, {
+            label: 'Back to filtering',
+            icon: 'arrow_back',
+            title:
+              'Select the corpus with the trace grid and the source ' +
+              'settings instead. The pasted list is kept and can be ' +
+              'returned to.',
+            onclick: () => {
+              this.bindings.setSettingDisabled(TRACE_UUIDS_SETTING_ID, true);
+              m.redraw();
+            },
+          }),
+        ]),
+        m('textarea.pf-bt-uuid-card__input', {
+          placeholder: 'Paste trace UUIDs…',
+          value: this.uuidDraft ?? '',
+          spellcheck: false,
+          oninput: (e: Event) => {
+            const text = (e.target as HTMLTextAreaElement).value;
+            this.uuidDraft = text;
+            const parsed = parseTraceUuids(text);
+            this.uuidDraftBase = parsed.join('\n');
+            this.bindings.setSettingValue(
+              TRACE_UUIDS_SETTING_ID,
+              parsed,
+              setting.category ?? 'TRACE_ADDRESS',
+            );
+          },
+        }),
+        m('.pf-bt-uuid-card__count', count === 1 ? '1 UUID' : `${count} UUIDs`),
       ]),
     );
   }

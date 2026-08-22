@@ -41,6 +41,88 @@ export const MODE_DEFAULTS = {
 // cap, and the toolbar hides the control.
 export const TRACE_LIMIT_SETTING_ID = 'trace_limit';
 
+// The backend setting carrying an explicit list of trace UUIDs — the second
+// way to select a corpus: instead of a source plus the grid filter, exactly
+// these traces. A backend that supports it declares the setting (disabled by
+// default); the UI names the id to treat it as a selection MODE rather than
+// an ordinary card. When it is enabled and non-empty the backend selects
+// exactly these traces and ignores the filter-mode fields.
+export const TRACE_UUIDS_SETTING_ID = 'trace_uuids';
+
+// Whether this deployment offers selection by UUID at all.
+export function traceUuidsDeclared(): boolean {
+  return bigTraceSettingsStorage.get(TRACE_UUIDS_SETTING_ID) !== undefined;
+}
+
+// UUID mode is DERIVED, not stored — one predicate for every surface. The
+// tab must hold its OWN trace_uuids entry (created on entering the mode, or
+// by a preset, or by a clone/restore) and not have it disabled. Requiring the
+// explicit entry keeps a fresh tab out of the mode even when the exec config
+// (which declares the setting) arrives only after the tab was created — the
+// tab-creation mirror of globally-disabled settings can't cover settings it
+// hasn't seen yet.
+export function traceUuidsState(
+  declared: boolean,
+  disabled: boolean,
+  hasEntry: boolean,
+): boolean {
+  return declared && !disabled && hasEntry;
+}
+
+export function traceUuidsActive(tab: BigTraceEditorTab): boolean {
+  return traceUuidsState(
+    traceUuidsDeclared(),
+    tab.disabledSettings.includes(TRACE_UUIDS_SETTING_ID),
+    tab.querySettings.some((s) => s.settingId === TRACE_UUIDS_SETTING_ID),
+  );
+}
+
+// Enter/leave UUID mode. Entering ensures the tab's own entry (keeping any
+// values it held from an earlier stint in the mode) and enables it; leaving
+// only disables — values and the whole filter-mode configuration (source,
+// grid filter, order) stay put, hidden rather than cleared.
+export function setTraceUuidsActive(
+  tab: BigTraceEditorTab,
+  active: boolean,
+): void {
+  const setting = bigTraceSettingsStorage.get(TRACE_UUIDS_SETTING_ID);
+  if (setting === undefined) return;
+  const without = tab.disabledSettings.filter(
+    (id) => id !== TRACE_UUIDS_SETTING_ID,
+  );
+  if (active) {
+    tab.disabledSettings = without;
+    if (
+      !tab.querySettings.some((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+    ) {
+      tab.querySettings = [
+        ...tab.querySettings,
+        {
+          settingId: TRACE_UUIDS_SETTING_ID,
+          values: [],
+          category: (setting.category ?? 'TRACE_ADDRESS') as SettingCategory,
+        },
+      ];
+    }
+  } else {
+    tab.disabledSettings = [...without, TRACE_UUIDS_SETTING_ID];
+  }
+}
+
+// Pasted text → UUID list: split on commas and any whitespace, drop empties,
+// dedupe keeping first occurrence. No format validation — what a "uuid" looks
+// like is the backend's business.
+export function parseTraceUuids(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of text.split(/[\s,]+/)) {
+    if (token === '' || seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+  }
+  return out;
+}
+
 // Trace selection is WHICH traces a query runs over: the source settings
 // (TRACE_ADDRESS) and any per-trace metadata filters an indexer backend
 // declares (TRACE_METADATA). The trace cap is a run control, not selection,
