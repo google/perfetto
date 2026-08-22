@@ -187,6 +187,7 @@
 "traced_buf_chunks_relocated",0,"info","trace",0
 "traced_buf_chunks_rewritten",0,"info","trace",0
 "traced_buf_chunks_written",0,"info","trace",4603
+"traced_buf_compactions",0,"info","trace",0
 "traced_buf_padding_bytes_cleared",0,"info","trace",0
 "traced_buf_padding_bytes_written",0,"info","trace",0
 "traced_buf_patches_failed",0,"data_loss","trace",0

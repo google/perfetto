@@ -1,6 +1,8 @@
 Unreleased:
   Tracing service and probes:
-   *
+    * Added opt-in TraceBufferV2 compaction to bound the resident memory of
+      long streaming traces. The feature is gated by the
+      tbv2_shift_left_compaction flag.
   Trace Processor:
    * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
      all_data_source_started_ns, ...) to trace time when primary_trace_clock
