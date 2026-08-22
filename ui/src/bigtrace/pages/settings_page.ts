@@ -65,9 +65,6 @@ import {
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
 import {presetStore} from '../query/preset_store';
 import {presetMatches, type PresetComparable} from '../query/preset_match';
-import {queryState} from '../query/query_state';
-import {setRoute} from '../router';
-import {Routes} from '../routes';
 import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
 import {formatCompact} from '../query/query_store';
 import {
@@ -624,20 +621,6 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
             void ds.refresh();
           },
         }),
-        // Standalone /settings only (the per-tab modal is already in a tab).
-        // Opens a new query tab seeded with the current settings (no SQL).
-        !this.bindings &&
-          m(Button, {
-            label: 'Query',
-            rightIcon: 'arrow_forward',
-            intent: Intent.Primary,
-            className: 'pf-bt-trace-card__query',
-            title: 'Open a new query with these settings (no SQL)',
-            onclick: () => {
-              queryState.seedTabFromSettings = true;
-              setRoute(Routes.QUERY);
-            },
-          }),
       ]),
       m(
         '.pf-settings-card__description',

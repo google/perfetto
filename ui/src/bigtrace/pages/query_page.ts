@@ -22,7 +22,6 @@ import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
 import {QueryTabsState} from './query_tabs_state';
-import {queryState} from '../query/query_state';
 
 interface QueryPageAttrs {
   useBigtraceBackend?: boolean;
@@ -56,44 +55,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view() {
-    // Read-and-clear initialQuery (set by home-page example buttons);
-    // consumed exactly once.
-    const initialQuery = queryState.initialQuery;
-    if (initialQuery !== undefined) {
-      queryState.initialQuery = undefined;
-      const activeTab = this.tabsState.getActiveTab();
-      if (activeTab && activeTab.editorText.trim() === '') {
-        activeTab.editorText = initialQuery;
-        this.tabsState.maybeAutoNameTab(activeTab.id, initialQuery);
-      } else {
-        this.tabsState.addNewTab(undefined, initialQuery);
-      }
-      this.tabsState.markDirty();
-    }
-
-    // Read-and-clear initialPreset (set by a home-page preset card);
-    // seeds a fresh tab with the recipe's query + trace-selection settings.
-    const initialPreset = queryState.initialPreset;
-    if (initialPreset !== undefined) {
-      queryState.initialPreset = undefined;
-      this.tabsState.addTabFromPreset(initialPreset);
-    }
-
-    // Read-and-clear the settings-page "Query" signal: open a fresh tab. With
-    // no stored snapshot it inherits the current /settings globals — the trace
-    // selection + options just configured, no SQL.
-    if (queryState.seedTabFromSettings) {
-      queryState.seedTabFromSettings = false;
-      this.tabsState.addNewTab(
-        undefined,
-        '',
-        undefined,
-        undefined,
-        undefined,
-        true, // forceNew
-      );
-    }
-
     const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({
       key: tab.id,
       title: tab.title,

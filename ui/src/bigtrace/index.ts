@@ -18,26 +18,20 @@ import '../assets/bigtrace.scss';
 import '../frontend/ui_main.scss';
 import m from 'mithril';
 import {defer} from '../base/deferred';
-import {Gate} from '../base/mithril_utils';
 import {reportError, addErrorHandler, type ErrorDetails} from '../base/logging';
 import {initLiveReload} from '../core/live_reload';
 import {settingsStorage} from './settings/settings_storage';
 import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
 import {QueryPage, queryRightSidebarToggleFn} from './pages/query_page';
-import {HomePage} from './pages/home_page';
 import {bigTraceSettingsStorage} from './settings/bigtrace_settings_storage';
-import {SettingsPage} from './pages/settings_page';
 import {Topbar} from './layout/topbar';
 import {BigTraceApp as BigTraceAppSingleton} from './bigtrace_app';
 import {OmniboxMode} from '../core/omnibox_manager';
-import {Sidebar, type SidebarMenuItem} from './layout/sidebar';
 import {type HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {initAssets} from '../base/assets';
-import {getCurrentRoute, initRouter} from './router';
 import {toggleHelp} from './help_modal';
-import {Routes} from './routes';
 
 function getRoot() {
   // Root for serving content, e.g. `http://origin/v1.2.3/`.
@@ -129,75 +123,24 @@ function main() {
   cssLoadPromise.then(() => onCssLoaded());
 }
 
-// Allows the sidebar toggle command (registered globally) to reach into the
-// BigTraceApp component's local state.
-let sidebarToggleFn: (() => void) | undefined;
-
 class BigTraceLayout implements m.ClassComponent {
-  private sidebarVisible = true;
-
   oninit() {
     bigTraceSettingsStorage.loadSettings();
-    sidebarToggleFn = () => {
-      this.sidebarVisible = !this.sidebarVisible;
-    };
   }
 
   view(vnode: m.Vnode) {
-    const currentRoute = getCurrentRoute();
-
-    const items: SidebarMenuItem[] = [
-      {
-        section: 'bigtrace',
-        text: 'Home',
-        href: `#!${Routes.HOME}`,
-        icon: 'home',
-        // Mirror resolvePage: the home page shows for any non-Query/Settings
-        // route, so highlight Home in those same cases.
-        active:
-          currentRoute !== Routes.QUERY && currentRoute !== Routes.SETTINGS,
-        onclick: () => {},
-      },
-      {
-        section: 'bigtrace',
-        text: 'Query (SQL)',
-        href: `#!${Routes.QUERY}`,
-        icon: 'database',
-        active: currentRoute === Routes.QUERY,
-        onclick: () => {},
-      },
-      {
-        section: 'bigtrace',
-        text: 'Settings',
-        href: `#!${Routes.SETTINGS}`,
-        icon: 'settings',
-        active: currentRoute === Routes.SETTINGS,
-        onclick: () => {},
-      },
-    ];
-
     return m('main.pf-ui-main', [
-      m(Sidebar, {
-        items,
-        onToggleSidebar: () => {
-          this.sidebarVisible = !this.sidebarVisible;
-        },
-        visible: this.sidebarVisible,
-      }),
-      m(Topbar, {sidebarVisible: this.sidebarVisible}),
+      m(Topbar),
       m('.pf-ui-main__page-container', vnode.children),
       maybeRenderFullscreenModalDialog(),
     ]);
   }
 }
 
-// Root: routing + theme + hotkeys. Uses m.mount (not m.route) because
-// m.route bypasses the raf scheduler and breaks portal-based popups.
+// Root: theme + hotkeys around the single page. Uses m.mount (not m.route)
+// because m.route bypasses the raf scheduler and breaks portal-based popups.
 class BigTraceRoot implements m.ClassComponent {
   view(): m.Children {
-    const route = getCurrentRoute();
-    const page = this.resolvePage(route);
-
     const theme = settingsStorage.get('theme');
     const themeValue = theme ? theme.get() : 'light';
 
@@ -216,25 +159,13 @@ class BigTraceRoot implements m.ClassComponent {
       m(
         HotkeyContext,
         {hotkeys, fillHeight: true, focusable: false},
-        m(OverlayContainer, {fillHeight: true}, [m(BigTraceLayout, page)]),
+        m(
+          OverlayContainer,
+          {fillHeight: true},
+          m(BigTraceLayout, m(QueryPage, {useBigtraceBackend: true})),
+        ),
       ),
     ]);
-  }
-
-  private resolvePage(route: string): m.Children {
-    return [
-      // QueryPage stays mounted (Gate) to preserve its DataGrid state across
-      // route changes; while closed its view() isn't called.
-      m(
-        Gate,
-        {open: route === Routes.QUERY},
-        m(QueryPage, {useBigtraceBackend: true}),
-      ),
-      // SettingsPage stays mounted (Gate) so the trace-list grid keeps its
-      // loaded rows across route changes; while closed its view() isn't called.
-      m(Gate, {open: route === Routes.SETTINGS}, m(SettingsPage)),
-      route !== Routes.QUERY && route !== Routes.SETTINGS && m(HomePage),
-    ];
   }
 }
 
@@ -258,15 +189,6 @@ function registerCommands() {
   });
 
   app.commands.registerCommand({
-    id: 'bigtrace.ToggleLeftSidebar',
-    name: 'Toggle left sidebar',
-    callback: () => {
-      sidebarToggleFn?.();
-    },
-    defaultHotkey: '!Mod+B',
-  });
-
-  app.commands.registerCommand({
     id: 'bigtrace.ToggleHistorySidebar',
     name: 'Toggle history sidebar',
     callback: () => {
@@ -286,7 +208,6 @@ function registerCommands() {
 
 function onCssLoaded() {
   document.body.innerHTML = '';
-  initRouter();
   m.mount(document.body, BigTraceRoot);
   initLiveReload();
   registerCommands();

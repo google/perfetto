@@ -131,66 +131,53 @@
   min-height: 0;
 }
 
-.pf-bt-sidebar-title {
-  margin: 0;
+// Brand block at the far left of the topbar (the left nav is gone — the query
+// page is the whole app).
+.pf-bt-topbar-brand {
+  position: absolute;
+  left: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--pf-color-text);
 }
 
-.pf-bt-sidebar-logo {
-  height: 1em;
+.pf-bt-topbar-logo {
+  height: 1.2em;
 }
 
-// Outrank the shared `.pf-home-page__center` centering so the column sits at
-// the top and stretches full-width — justify-self: stretch beats the grid's
-// justify-items: center, which would otherwise shrink it to content width.
-.pf-home-page .pf-home-page__center.pf-bt-home-center {
-  justify-self: stretch;
-  justify-content: flex-start;
-  padding-top: 48px;
-  gap: 20px;
-}
-
-// One block holding the intro, presets, and link. It shrinks to its widest
-// row (the grid) and the parent centers it, so a full 3-up grid reads as a
-// left-aligned column while a 1–2 card grid centers as a tight cluster.
-.pf-bt-home-content {
+// Endpoint panel hanging off the topbar's connection button.
+.pf-bt-connection-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: fit-content;
-  max-width: min(960px, 92%);
-}
-
-.pf-bt-home-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  padding: 4px;
+  min-width: 340px;
 
   &__title {
-    font-size: 36px;
-    font-weight: 400;
-    letter-spacing: -0.02em;
-    color: var(--pf-color-text);
+    font-weight: 600;
   }
 
-  &__subtitle {
-    font-size: 16px;
+  &__desc {
     color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+
+  &__input {
+    width: 100%;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
   }
 }
 
-.pf-bt-home-presets {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-// Flat segmented control (CUJ groups, History kind filter). Deliberately not
-// the document-tab widget (no panel chrome) — mirrors the record page's look.
+// Flat segmented control (preset groups, History kind filter). Deliberately
+// not the document-tab widget (no panel chrome) — mirrors the record page.
 .pf-bt-segmented {
   display: flex;
   gap: 4px;
@@ -309,7 +296,7 @@
   }
 }
 
-// ---------- Analysis preset cards (home page + launcher) ----------
+// ---------- Analysis preset cards (launcher) ----------
 
 // One column per card (capped at 3) via the --cols-N modifier, so a sparse
 // category leaves no empty tracks and the content block can center it.
@@ -328,8 +315,8 @@
   }
 }
 
-// Intentionally richer than the minimal house style — this is the landing
-// surface, so the cards carry color (icon tint) and hover depth.
+// Intentionally richer than the minimal house style — this is where a query
+// starts, so the cards carry color (icon tint) and hover depth.
 .pf-bt-preset-card {
   display: flex;
   flex-direction: row;
@@ -339,35 +326,6 @@
   border-radius: 4px;
   cursor: pointer;
   position: relative;
-
-  // The preset the last query started from — one click re-runs that setup.
-  &--selected {
-    border-color: var(--pf-color-primary);
-  }
-
-  // Rename / delete on a locally-saved preset; revealed on hover so the card
-  // reads the same as a backend one at rest.
-  &__tools {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    display: none;
-    gap: 2px;
-  }
-
-  &:hover &__tools {
-    display: flex;
-  }
-
-  &__badge {
-    position: absolute;
-    bottom: 6px;
-    right: 10px;
-    font-size: var(--pf-font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--pf-color-primary);
-  }
   transition:
     transform 0.12s ease,
     box-shadow 0.12s ease,
@@ -412,14 +370,38 @@
     color: var(--pf-color-text-muted);
     line-height: 1.4;
   }
+
+  // The preset the last query started from — one click repeats that setup.
+  &--selected {
+    border-color: var(--pf-color-primary);
+  }
+
+  // Rename / delete on a locally-saved preset; revealed on hover so the card
+  // reads the same as a backend one at rest.
+  &__tools {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: none;
+    gap: 2px;
+  }
+
+  &:hover &__tools {
+    display: flex;
+  }
+
+  &__badge {
+    position: absolute;
+    bottom: 6px;
+    right: 10px;
+    font-size: var(--pf-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pf-color-primary);
+  }
 }
 
-.pf-bt-home-empty__detail {
-  color: var(--pf-color-text-muted);
-  margin-bottom: 12px;
-}
-
-// ---------- Analysis preset chips (settings page / modal) ----------
+// ---------- Analysis preset chips (settings form) ----------
 // Apply-only tags: clicking applies the preset's trace-selection + option
 // settings (no SQL). `--active` marks the last-applied chip.
 
