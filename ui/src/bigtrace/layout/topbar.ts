@@ -14,23 +14,29 @@
 
 import '../../frontend/topbar.scss';
 import m from 'mithril';
-import {classNames} from '../../base/classnames';
+import {assetSrc} from '../../base/assets';
+import {Button} from '../../widgets/button';
+import {toggleHelp} from '../help_modal';
+import {ConnectionButton} from './connection_button';
 import {Omnibox} from './omnibox';
 
-interface TopbarAttrs {
-  sidebarVisible: boolean;
-}
-
-export class Topbar implements m.ClassComponent<TopbarAttrs> {
-  view({attrs}: m.CVnode<TopbarAttrs>) {
-    return m(
-      '.pf-topbar',
-      {
-        className: classNames(
-          !attrs.sidebarVisible && 'pf-topbar--hide-sidebar',
-        ),
-      },
+// The app's only chrome: brand, command omnibox, and the backend connection.
+export class Topbar implements m.ClassComponent {
+  view() {
+    return m('.pf-topbar', [
+      m('.pf-bt-topbar-brand', [
+        m('img.pf-bt-topbar-logo', {src: assetSrc('assets/logo-128.png')}),
+        'BigTrace',
+      ]),
       m(Omnibox),
-    );
+      m('.pf-topbar__right', [
+        m(ConnectionButton),
+        m(Button, {
+          icon: 'help_outline',
+          title: 'Help (?)',
+          onclick: () => toggleHelp(),
+        }),
+      ]),
+    ]);
   }
 }

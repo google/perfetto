@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {classNames} from '../../base/classnames';
+import type m from 'mithril';
 import type {TracePreset} from '../query/bigtrace_query_client';
+import {renderSegmented} from '../widgets/segmented';
 
 // Group presets by CUJ (their `category`), preserving first-seen order.
-// Shared by the home page (cards) and the settings page (chips).
+// `''` buckets as "Other"; the launcher relies on that when preselecting the
+// group of the last-used preset.
 export function groupPresetsByCuj(presets: ReadonlyArray<TracePreset>): {
   groups: Array<[string, TracePreset[]]>;
   byCuj: Map<string, TracePreset[]>;
@@ -37,27 +38,17 @@ export function groupPresetsByCuj(presets: ReadonlyArray<TracePreset>): {
   return {groups, byCuj};
 }
 
-// Flat segmented selector for CUJ groups. Stateless — the caller owns the
-// active key and updates it from onSelect. Renders nothing for a single group.
+// Segmented selector for CUJ groups. Renders nothing for a single group.
 export function renderCujSelector(
   cujs: ReadonlyArray<string>,
   active: string,
   onSelect: (cuj: string) => void,
 ): m.Children {
   if (cujs.length <= 1) return null;
-  return m(
-    '.pf-bt-cuj-selector',
-    cujs.map((cuj) =>
-      m(
-        'button.pf-bt-cuj-selector__item',
-        {
-          className: classNames(
-            cuj === active && 'pf-bt-cuj-selector__item--active',
-          ),
-          onclick: () => onSelect(cuj),
-        },
-        cuj,
-      ),
-    ),
+  return renderSegmented(
+    cujs.map((cuj) => ({key: cuj, label: cuj})),
+    active,
+    onSelect,
+    'pf-bt-cuj-selector',
   );
 }

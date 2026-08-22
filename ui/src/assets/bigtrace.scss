@@ -40,12 +40,6 @@
   margin-left: auto;
 }
 
-.pf-bt-settings-category-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
 .pf-bt-textarea {
   width: 100%;
   min-height: 60px;
@@ -67,34 +61,6 @@
     outline: none;
     border-color: var(--pf-color-primary);
   }
-}
-
-.pf-bt-settings-toggle {
-  margin-right: 8px;
-}
-
-.pf-bt-settings-warning {
-  color: var(--pf-color-danger);
-  margin-top: 4px;
-}
-
-.pf-bt-settings-warning-icon {
-  font-size: 14px;
-  vertical-align: middle;
-}
-
-.pf-bt-settings-hint {
-  opacity: 0.7;
-  font-style: italic;
-}
-
-.pf-bt-endpoint-row {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.pf-bt-endpoint-input {
-  width: min(300px, 30vw);
 }
 
 // ---------- Layout ----------
@@ -122,79 +88,63 @@
   }
 }
 
-.pf-bt-query-page__sidebar,
 .pf-bt-query-page__results {
   height: 100%;
 }
 
-// Bound the nested Tabs too, else the whole history scrolls and the tab strip isn't sticky.
-.pf-bt-query-page__history,
-.pf-bt-query-page__history > .pf-tabs {
+.pf-bt-query-page__history {
   height: 100%;
   min-height: 0;
 }
 
-.pf-bt-sidebar-title {
-  margin: 0;
+// Brand block at the far left of the topbar (the left nav is gone — the query
+// page is the whole app).
+.pf-bt-topbar-brand {
+  position: absolute;
+  left: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--pf-color-text);
 }
 
-.pf-bt-sidebar-logo {
-  height: 1em;
+.pf-bt-topbar-logo {
+  height: 1.2em;
 }
 
-// Outrank the shared `.pf-home-page__center` centering so the column sits at
-// the top and stretches full-width — justify-self: stretch beats the grid's
-// justify-items: center, which would otherwise shrink it to content width.
-.pf-home-page .pf-home-page__center.pf-bt-home-center {
-  justify-self: stretch;
-  justify-content: flex-start;
-  padding-top: 48px;
-  gap: 20px;
-}
-
-// One block holding the intro, presets, and link. It shrinks to its widest
-// row (the grid) and the parent centers it, so a full 3-up grid reads as a
-// left-aligned column while a 1–2 card grid centers as a tight cluster.
-.pf-bt-home-content {
+// Endpoint panel hanging off the topbar's connection button.
+.pf-bt-connection-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  width: fit-content;
-  max-width: min(960px, 92%);
-}
-
-.pf-bt-home-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  padding: 4px;
+  min-width: 340px;
 
   &__title {
-    font-size: 36px;
-    font-weight: 400;
-    letter-spacing: -0.02em;
-    color: var(--pf-color-text);
+    font-weight: 600;
   }
 
-  &__subtitle {
-    font-size: 16px;
+  &__desc {
     color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+
+  &__input {
+    width: 100%;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
   }
 }
 
-.pf-bt-home-presets {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-// Flat segmented control selecting the active CUJ. Deliberately not the
-// document-tab widget (no panel chrome) — mirrors the record page's flat look.
-.pf-bt-cuj-selector {
+// Flat segmented control (preset groups, History kind filter). Deliberately
+// not the document-tab widget (no panel chrome) — mirrors the record page.
+.pf-bt-segmented {
   display: flex;
   gap: 4px;
 
@@ -221,128 +171,68 @@
   }
 }
 
-// ---------- Analysis preset cards (home page) ----------
+// ---------- Launcher: start a query / Settings of an existing one ----------
 
-// One column per card (capped at 3) via the --cols-N modifier, so a sparse
-// category leaves no empty tracks and the content block can center it.
-.pf-bt-preset-list {
-  display: grid;
-  gap: 16px;
-
-  &--cols-1 {
-    grid-template-columns: minmax(240px, 309px);
-  }
-  &--cols-2 {
-    grid-template-columns: repeat(2, minmax(240px, 309px));
-  }
-  &--cols-3 {
-    grid-template-columns: repeat(3, minmax(240px, 309px));
-  }
-}
-
-// Intentionally richer than the minimal house style — this is the landing
-// surface, so the cards carry color (icon tint) and hover depth.
-.pf-bt-preset-card {
+// Fills the tab. One page for both jobs — start a query, or an existing
+// query's Trace Selection: a scrolling body holding the Presets section and
+// the trace-selection form, and a footer with the actions.
+.pf-bt-launcher {
+  height: 100%;
+  min-height: 0;
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.12s ease,
-    border-color 0.12s ease;
+  flex-direction: column;
+  overflow: hidden;
 
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-    border-color: var(--pf-color-primary);
-  }
-
-  &__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    border-radius: 4px;
-    background: rgba(var(--pf-color-primary-rgb), 0.12);
-    color: var(--pf-color-primary);
-
-    .pf-icon {
-      font-size: 24px;
-    }
-  }
-
-  &__body {
+  &__presets {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 16px;
   }
 
-  &__title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--pf-color-text);
-  }
-
-  &__desc {
-    font-size: var(--pf-font-size-s);
+  &__empty-detail {
     color: var(--pf-color-text-muted);
-    line-height: 1.4;
+    margin-bottom: 12px;
+  }
+
+  // Scrolls independently of the footer, which stays reachable.
+  &__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 24px 0;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 24px;
+    border-top: 1px solid var(--pf-color-border);
+    background: var(--pf-color-background-secondary);
+  }
+
+  &__footer-spacer {
+    flex: 1;
   }
 }
 
-.pf-bt-home-empty__detail {
-  color: var(--pf-color-text-muted);
-  margin-bottom: 12px;
-}
-
-// ---------- Analysis preset chips (settings page / modal) ----------
-// Apply-only tags: clicking applies the preset's trace-selection + option
-// settings (no SQL). `--active` marks the last-applied chip.
-
-.pf-bt-preset-chips {
+// Name / group / description fields in the save-preset and edit-preset modals.
+.pf-bt-save-preset {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
+  flex-direction: column;
+  gap: 4px;
+  min-width: 320px;
 
-// In the settings picker the selector follows the description; give it room.
-.pf-bt-preset-picker .pf-bt-cuj-selector {
-  margin-top: 8px;
-}
-
-.pf-bt-preset-chip {
-  font: inherit;
-  padding: 3px 10px;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 4px;
-  background: none;
-  color: var(--pf-color-text);
-  cursor: pointer;
-
-  &:hover {
-    background: color_hover(transparent);
+  label {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    margin-top: 8px;
   }
 
-  &:active {
-    background: color_active(transparent);
-  }
-
-  // The preset last applied on the settings surface.
-  &--active {
-    border-color: var(--pf-color-primary);
-    background: rgba(var(--pf-color-primary-rgb), 0.1);
-    color: var(--pf-color-primary);
-
-    &:hover {
-      background: rgba(var(--pf-color-primary-rgb), 0.16);
-    }
+  // Why the name can't be saved as typed; sits right under the Name field.
+  &__message {
+    color: var(--pf-color-danger);
+    font-size: var(--pf-font-size-s);
   }
 }
 
@@ -485,6 +375,41 @@
 
 // ---------- Query history ----------
 
+// Fixed kind filter above a scrolling list (the panel itself never scrolls).
+.pf-query-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-bt-history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--pf-color-border);
+}
+
+// Two kind checkboxes; tight enough for a ~280px sidebar.
+.pf-bt-history-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--pf-font-size-s);
+
+  .pf-checkbox {
+    gap: 4px;
+  }
+}
+
+.pf-bt-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 4px 0;
+}
+
 // Anchors the abs-positioned buttons; the shared float made a BFC that
 // squeezed the meta card.
 .pf-query-history__item {
@@ -608,6 +533,15 @@
 
 .pf-bt-history-item-status {
   flex-shrink: 0;
+}
+
+// Ephemeral / Persistent marker — the list mixes both kinds.
+.pf-bt-history-item-kind {
+  flex-shrink: 0;
+  font-size: var(--pf-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
 }
 
 .pf-bt-history-item-date {
@@ -778,155 +712,7 @@ pre.pf-bt-history-item-query--standalone {
   min-height: 0;
 }
 
-// ---------- Stdlib table list ----------
-
-.pf-bt-simple-table-list {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-
-  &__search {
-    margin: 8px;
-  }
-
-  &__items {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  &__item-name {
-    font-family: var(--pf-font-monospace);
-    font-size: 12px;
-  }
-
-  &__highlight {
-    background-color: var(--pf-color-accent);
-    color: var(--pf-color-text-on-accent);
-    border-radius: 2px;
-  }
-
-  &__description {
-    font-size: 12px;
-    color: var(--pf-color-text-muted);
-    line-height: 1.5;
-    margin-bottom: 12px;
-  }
-
-  &__detail-row {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 8px;
-
-    .pf-show-on-hover {
-      visibility: hidden;
-    }
-
-    &:hover .pf-show-on-hover {
-      visibility: visible;
-    }
-  }
-
-  &__detail-label {
-    font-size: 11px;
-    color: var(--pf-color-text-muted);
-    text-transform: uppercase;
-    min-width: 50px;
-  }
-
-  &__detail-value {
-    font-size: 12px;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__columns {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  &__column-list {
-    display: flex;
-    flex-direction: column;
-    margin-top: 4px;
-    border: 1px solid var(--pf-color-border-secondary);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  &__column {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--pf-color-border-secondary);
-
-    &:last-child {
-      border-bottom: none;
-    }
-
-    &:hover {
-      background: var(--pf-color-background-hover);
-    }
-  }
-
-  &__column-icon {
-    font-size: 14px;
-    color: var(--pf-color-text-muted);
-    width: 16px;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  &__column-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  &__column-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  &__column-name {
-    font-size: 12px;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__column-copy {
-    visibility: hidden;
-  }
-
-  &__column:hover &__column-copy {
-    visibility: visible;
-  }
-
-  &__column-type {
-    font-size: 11px;
-    color: var(--pf-color-text-muted);
-    margin-left: auto;
-    flex-shrink: 0;
-  }
-
-  &__column-desc {
-    font-size: 11px;
-    color: var(--pf-color-text-muted);
-    line-height: 1.4;
-  }
-}
-
-// ---------- Settings page ----------
+// ---------- Query settings form ----------
 
 .pf-bt-settings-page {
   &__plugin-section {
@@ -989,6 +775,12 @@ pre.pf-bt-history-item-query--standalone {
   border-bottom: 1px solid var(--pf-color-border-secondary);
   flex: 0 0 auto;
 
+  // Right-pinned action; never squeezed by a long chip row.
+  &__end {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
   &__chips {
     flex: 1 1 auto;
     min-width: 0;
@@ -1002,65 +794,10 @@ pre.pf-bt-history-item-query--standalone {
       max-width: 100%;
     }
   }
-
-  // Only the "Edit settings" chip is clickable — give it the pointer cursor.
-  // The other chips are read-only display (× still removes), so they keep the
-  // default cursor.
-  &__add {
-    cursor: pointer;
-  }
 }
 
-// "Traces" card header — title with the refresh icon directly to its
-// right. Used by both /settings and the embedded SettingsPage (+Add modal).
-.pf-bt-trace-card__title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-
-  .pf-settings-card__title {
-    margin: 0;
-  }
-
-  // The "Query" CTA sits at the far right of the Traces header.
-  .pf-bt-trace-card__query {
-    margin-left: auto;
-  }
-}
-
-// Per-chip edit modal — narrow, content stacked vertically. The +Add modal
-// hosts the full SettingsPage embedded view (.pf-bt-settings-embedded below).
-.pf-bt-settings-chip-modal__body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 320px;
-  padding: 4px 0;
-}
-
-.pf-bt-settings-chip-modal__description {
-  font-size: 12px;
-  color: var(--pf-color-text-muted);
-  line-height: 1.4;
-}
-
-.pf-bt-settings-chip-modal__control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-// Vertical column of checkboxes for the "Show with results" picker.
-.pf-bt-settings-chip-modal__checklist {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-// Settings sub-tab embedded SettingsPage — scrollable container, no
-// SettingsShell chrome.
+// The per-query settings form — scrollable container, no SettingsShell
+// chrome (it isn't a page).
 .pf-bt-settings-embedded {
   overflow: auto;
   height: 100%;
@@ -1069,5 +806,136 @@ pre.pf-bt-history-item-query--standalone {
 
   .pf-bt-settings-page {
     margin: 0;
+  }
+}
+
+// Page heading of the launcher / Trace Selection page.
+.pf-bt-corpus-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 20px;
+
+  &__title {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+}
+
+// UUID mode: the paste box IS the page, so the whole chain from the
+// launcher body down to the textarea stretches to fill the height the grid
+// otherwise would. min-height: 0 at every flex level or the intrinsic
+// textarea height wins and the page overflows instead of fitting.
+.pf-bt-launcher--uuid {
+  .pf-bt-launcher__body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pf-bt-settings-embedded,
+  .pf-bt-settings-page,
+  .pf-bt-settings-page__plugin-section,
+  .pf-card-stack,
+  .pf-bt-uuid-settings-card,
+  .pf-bt-uuid-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .pf-bt-settings-page__plugin-section {
+    margin-bottom: 0;
+  }
+
+  // The shared settings-card style centers its children (it lays out
+  // title/controls); here the card is a column and the paste box must span it.
+  .pf-bt-uuid-settings-card {
+    align-items: stretch;
+  }
+
+  .pf-bt-uuid-card__input {
+    flex: 1;
+  }
+}
+
+// UUID-mode card: paste box + count.
+.pf-bt-uuid-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  // Format help lives behind the icon, not as page text.
+  &__info {
+    color: var(--pf-color-text-muted);
+    font-size: 16px;
+    cursor: help;
+  }
+
+  &__input {
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: var(--pf-font-monospace, monospace);
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text);
+    background: var(--pf-color-background);
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    padding: 8px 10px;
+
+    &:focus-visible {
+      outline: 1px solid var(--pf-color-primary);
+    }
+  }
+
+  &__count {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+}
+
+// Category selector + per-category preset dropdown (+ edit/delete for the
+// user's own presets). Descriptions are tooltips, not page text.
+.pf-bt-preset-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+
+  &__select {
+    min-width: 260px;
+  }
+}
+
+// Query-settings modal (gear in the run toolbar): the settings form without
+// the page chrome — the modal provides the frame and the scrolling.
+.pf-bt-query-settings-modal {
+  width: min(640px, 90vw);
+
+  .pf-bt-settings-embedded {
+    height: auto;
+    max-height: 65vh;
+    padding: 0;
   }
 }

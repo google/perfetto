@@ -15,13 +15,33 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
+  applyModeDefaults,
+  applyPresetSetup,
+  closeSettings,
+  isTraceSelectionSetting,
+  parseTraceUuids,
+  setTraceUuidsActive,
+  TRACE_UUIDS_SETTING_ID,
+  traceUuidsActive,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
+  effectiveTraceLimit,
+  MODE_DEFAULTS,
+  openSettings,
+  QueryTabsState,
+  restoreTabConfig,
+  setTraceLimit,
+  snapshotTabConfig,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 
-function reg(id: string, defaultValue: unknown, type: 'string' | 'number') {
+function reg(
+  id: string,
+  defaultValue: unknown,
+  type: 'string' | 'number',
+  bounds: {min?: number; max?: number} = {},
+) {
   return bigTraceSettingsStorage.register({
     id,
     name: id,
@@ -30,11 +50,14 @@ function reg(id: string, defaultValue: unknown, type: 'string' | 'number') {
     schema: (type === 'number' ? z.number() : z.string()) as never,
     defaultValue,
     category: 'TRACE_ADDRESS',
+    ...bounds,
   });
 }
 
 function fakeTab(over: Partial<BigTraceEditorTab>): BigTraceEditorTab {
   return {
+    limit: MODE_DEFAULTS.ephemeral.rowLimit,
+    materialize: false,
     querySettings: [],
     traceFilters: [],
     traceMetadataColumns: [],
@@ -152,5 +175,461 @@ describe('boolean settings have no enable/disable concept', () => {
     expect(effectiveTabSettings(fakeTab({})).map((s) => s.settingId)).toContain(
       'my_flag',
     );
+  });
+});
+
+describe('per-mode row and trace limits', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  test('a new ephemeral tab gets the quick-look caps', () => {
+    reg('trace_limit', 100, 'number');
+    const tabs = new QueryTabsState();
+    const tab = tabs.addNewTab(undefined, '', undefined, undefined, false);
+    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
+    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
+  });
+
+  test('a new persistent tab gets the full-sweep caps', () => {
+    reg('trace_limit', 100, 'number');
+    const tabs = new QueryTabsState();
+    const tab = tabs.addNewTab(undefined, '', undefined, undefined, true);
+    expect(tab.limit).toBe(MODE_DEFAULTS.persistent.rowLimit);
+    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.persistent.traceLimit);
+  });
+
+  test('a caller-supplied row cap wins over the mode default', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.addNewTab(undefined, '', 42, undefined, true);
+    expect(tab.limit).toBe(42);
+  });
+
+  test('the run ships the mode cap when the tab sets none', () => {
+    reg('trace_limit', 100, 'number');
+    const settings = effectiveTabSettings(fakeTab({materialize: true}));
+    expect(settings.find((s) => s.settingId === 'trace_limit')?.values).toEqual(
+      [String(MODE_DEFAULTS.persistent.traceLimit)],
+    );
+  });
+
+  test('a trace cap disabled on the tab is not shipped at all', () => {
+    reg('trace_limit', 100, 'number');
+    const settings = effectiveTabSettings(
+      fakeTab({materialize: true, disabledSettings: ['trace_limit']}),
+    );
+    expect(settings.map((s) => s.settingId)).not.toContain('trace_limit');
+  });
+
+  test('switching mode moves caps the user never touched', () => {
+    reg('trace_limit', 100, 'number');
+    const tab = fakeTab({materialize: false});
+    applyModeDefaults(tab, true);
+    expect(tab.materialize).toBe(true);
+    expect(tab.limit).toBe(MODE_DEFAULTS.persistent.rowLimit);
+    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.persistent.traceLimit);
+    applyModeDefaults(tab, false);
+    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
+    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
+  });
+
+  test('switching mode leaves hand-edited caps alone', () => {
+    reg('trace_limit', 100, 'number');
+    const tab = fakeTab({materialize: false, limit: 7});
+    setTraceLimit(tab, 25);
+    applyModeDefaults(tab, true);
+    expect(tab.limit).toBe(7);
+    expect(effectiveTraceLimit(tab)).toBe(25);
+  });
+
+  test('a cap that matches the new mode default still moves with the mode', () => {
+    reg('trace_limit', 100, 'number');
+    // Explicitly set to the ephemeral default, then switch: it reads as
+    // untouched, which is the documented trade-off of the equality check.
+    const tab = fakeTab({materialize: false});
+    setTraceLimit(tab, MODE_DEFAULTS.ephemeral.traceLimit);
+    applyModeDefaults(tab, true);
+    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.persistent.traceLimit);
+  });
+
+  test('caps are clamped to the bounds the backend declared', () => {
+    reg('trace_limit', 100, 'number', {min: 1, max: 10000});
+    const tab = fakeTab({materialize: true});
+    // The persistent default (100k) exceeds this backend's ceiling.
+    expect(effectiveTraceLimit(tab)).toBe(10000);
+    setTraceLimit(tab, 999999);
+    expect(effectiveTraceLimit(tab)).toBe(10000);
+    setTraceLimit(tab, 0);
+    expect(effectiveTraceLimit(tab)).toBe(1);
+  });
+
+  test('with no trace_limit setting registered nothing is shipped or set', () => {
+    const tab = fakeTab({materialize: true});
+    setTraceLimit(tab, 500);
+    expect(tab.querySettings).toEqual([]);
+    expect(effectiveTabSettings(tab)).toEqual([]);
+  });
+});
+
+describe('cloneTab', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  function configuredTab(tabs: QueryTabsState) {
+    const tab = tabs.addNewTab(undefined, '', undefined, undefined, true);
+    tab.title = 'Jank by device';
+    tab.editorText = 'select * from slice';
+    tab.configured = true;
+    tab.queryUuid = 'uuid-1';
+    tab.traceFilters = [{field: 'file_name', op: 'glob', value: '*.pftrace'}];
+    tab.traceMetadataColumns = ['device_name'];
+    tab.traceOrderBy = 'size_bytes desc';
+    tab.querySettings = [
+      {
+        settingId: 'trace_directory',
+        values: ['/traces'],
+        category: 'TRACE_ADDRESS',
+      },
+    ];
+    tab.disabledSettings = ['some_filter'];
+    return tab;
+  }
+
+  test('copies the query and its configuration', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    const clone = tabs.cloneTab(src.id)!;
+
+    expect(clone.id).not.toBe(src.id);
+    expect(clone.editorText).toBe('select * from slice');
+    expect(clone.limit).toBe(src.limit);
+    expect(clone.materialize).toBe(true);
+    expect(clone.configured).toBe(true);
+    expect(clone.traceFilters).toEqual(src.traceFilters);
+    expect(clone.traceMetadataColumns).toEqual(['device_name']);
+    expect(clone.traceOrderBy).toBe('size_bytes desc');
+    expect(clone.querySettings).toEqual(src.querySettings);
+    expect(clone.disabledSettings).toEqual(['some_filter']);
+  });
+
+  test('the clone is unrun: no queryUuid, no results', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    const clone = tabs.cloneTab(src.id)!;
+    // Sharing the uuid would make the clone adopt the original's execution and
+    // reactivate its tab from History.
+    expect(clone.queryUuid).toBeUndefined();
+    expect(clone.queryResult).toBeUndefined();
+    expect(clone.dataSource).toBeUndefined();
+    expect(clone.isLoading).toBe(false);
+  });
+
+  test('a clone is a new tab, named like one', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    expect(tabs.cloneTab(src.id)?.title).toMatch(/^Query \d+$/);
+  });
+
+  test('editing the clone leaves the original alone', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    const clone = tabs.cloneTab(src.id)!;
+    clone.traceFilters = [...clone.traceFilters, {field: 'x', op: 'is null'}];
+    clone.querySettings = [
+      {
+        settingId: 'trace_directory',
+        values: ['/other'],
+        category: 'TRACE_ADDRESS',
+      },
+    ];
+    expect(src.traceFilters).toHaveLength(1);
+    expect(src.querySettings[0].values).toEqual(['/traces']);
+  });
+
+  test('an unknown id is a no-op', () => {
+    const tabs = new QueryTabsState();
+    const before = tabs.tabs.length;
+    expect(tabs.cloneTab('nope')).toBeUndefined();
+    expect(tabs.tabs).toHaveLength(before);
+  });
+
+  test('the last applied preset travels with the clone and survives reload', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    src.lastPresetId = 'local:sweep';
+    expect(tabs.cloneTab(src.id)?.lastPresetId).toBe('local:sweep');
+    (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
+    const restored = new QueryTabsState().tabs.find(
+      (t) => t.title === 'Jank by device',
+    )!;
+    expect(restored.lastPresetId).toBe('local:sweep');
+  });
+});
+
+describe('Settings session (Cancel restores, Apply keeps)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  function workingTab(): BigTraceEditorTab {
+    return fakeTab({
+      configured: true,
+      editorText: 'select 1',
+      materialize: true,
+      limit: 500,
+      traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
+      traceMetadataColumns: ['device_name'],
+      traceOrderBy: 'size_bytes desc',
+      querySettings: [
+        {
+          settingId: 'trace_directory',
+          values: ['/traces'],
+          category: 'TRACE_ADDRESS',
+        },
+      ],
+      disabledSettings: ['some_filter'],
+    });
+  }
+
+  function edit(tab: BigTraceEditorTab) {
+    tab.querySettings = [
+      {
+        settingId: 'trace_directory',
+        values: ['/other'],
+        category: 'TRACE_ADDRESS',
+      },
+    ];
+    tab.disabledSettings = [];
+    tab.traceFilters = [];
+    tab.traceMetadataColumns = null;
+    tab.traceOrderBy = '';
+    tab.limit = 10;
+    tab.materialize = false;
+  }
+
+  test('opening keeps the tab configured and starts a session', () => {
+    const tab = workingTab();
+    openSettings(tab);
+    expect(tab.configured).toBe(true);
+    expect(tab.settingsSession).toBeDefined();
+  });
+
+  test('Cancel puts every edited field back', () => {
+    const tab = workingTab();
+    const before = snapshotTabConfig(tab);
+    openSettings(tab);
+    edit(tab);
+    closeSettings(tab, {keep: false});
+    expect(snapshotTabConfig(tab)).toEqual(before);
+    expect(tab.settingsSession).toBeUndefined();
+    expect(tab.configured).toBe(true);
+  });
+
+  test('Apply keeps the edits', () => {
+    const tab = workingTab();
+    openSettings(tab);
+    edit(tab);
+    closeSettings(tab, {keep: true});
+    expect(tab.querySettings[0].values).toEqual(['/other']);
+    expect(tab.traceFilters).toEqual([]);
+    expect(tab.limit).toBe(10);
+    expect(tab.settingsSession).toBeUndefined();
+    expect(tab.configured).toBe(true);
+  });
+
+  test('the snapshot is a copy: later mutation of the tab does not reach it', () => {
+    const tab = workingTab();
+    openSettings(tab);
+    tab.querySettings[0].values.push('/extra');
+    (tab.traceFilters as unknown[]).push({field: 'x', op: 'is null'});
+    closeSettings(tab, {keep: false});
+    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    expect(tab.traceFilters).toHaveLength(1);
+  });
+
+  test('restore hands out copies too, so the snapshot survives further edits', () => {
+    const tab = workingTab();
+    const snap = snapshotTabConfig(tab);
+    restoreTabConfig(tab, snap);
+    tab.querySettings[0].values.push('/extra');
+    expect(snap.querySettings[0].values).toEqual(['/traces']);
+  });
+
+  test('a new tab starting its first query has no session and keeps its setup', () => {
+    const tab = fakeTab({configured: false, editorText: ''});
+    edit(tab);
+    closeSettings(tab, {keep: false});
+    // Nothing to restore: the tab was never configured before this.
+    expect(tab.limit).toBe(10);
+    expect(tab.configured).toBe(true);
+  });
+
+  test('the session is not persisted: a reload closes Settings with edits kept', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.addNewTab(
+      undefined,
+      'select 1',
+      undefined,
+      undefined,
+      true,
+    );
+    tab.configured = true;
+    openSettings(tab);
+    tab.limit = 42;
+    // Force the debounced save.
+    (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
+    const restored = new QueryTabsState().tabs.find(
+      (t) => t.editorText === 'select 1',
+    )!;
+    expect(restored.configured).toBe(true);
+    expect(restored.settingsSession).toBeUndefined();
+    expect(restored.limit).toBe(42);
+  });
+});
+
+describe('isTraceSelectionSetting', () => {
+  test('the source and metadata categories are selection; the cap is not', () => {
+    expect(
+      isTraceSelectionSetting({
+        id: 'trace_directory',
+        category: 'TRACE_ADDRESS',
+      }),
+    ).toBe(true);
+    expect(
+      isTraceSelectionSetting({
+        id: 'device_filter',
+        category: 'TRACE_METADATA',
+      }),
+    ).toBe(true);
+    expect(
+      isTraceSelectionSetting({id: 'trace_limit', category: 'TRACE_ADDRESS'}),
+    ).toBe(false);
+    expect(
+      isTraceSelectionSetting({
+        id: 'warn',
+        category: 'BIGTRACE_QUERY_OPTIONS',
+      }),
+    ).toBe(false);
+    expect(isTraceSelectionSetting({id: 'misc'})).toBe(false);
+  });
+});
+
+describe('trace UUID selection mode', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  function regUuids() {
+    return bigTraceSettingsStorage.register({
+      id: TRACE_UUIDS_SETTING_ID,
+      name: 'Trace UUIDs',
+      description: '',
+      type: 'string-array',
+      schema: z.array(z.string()) as never,
+      defaultValue: [] as string[],
+      category: 'TRACE_ADDRESS',
+    });
+  }
+
+  test('parseTraceUuids splits on commas and whitespace, dedupes', () => {
+    expect(parseTraceUuids('a, b\n c,,a\t d ')).toEqual(['a', 'b', 'c', 'd']);
+    expect(parseTraceUuids('')).toEqual([]);
+    expect(parseTraceUuids(' ,\n, ')).toEqual([]);
+  });
+
+  test('the mode needs the declared setting AND an explicit tab entry', () => {
+    const tab = fakeTab({disabledSettings: []});
+    expect(traceUuidsActive(tab)).toBe(false);
+    setTraceUuidsActive(tab, true); // no-op: not declared
+    expect(tab.disabledSettings).toEqual([]);
+    expect(tab.querySettings).toEqual([]);
+    regUuids();
+    // Declared but no tab entry — a fresh tab created before the config
+    // arrived stays out of the mode.
+    expect(traceUuidsActive(tab)).toBe(false);
+    setTraceUuidsActive(tab, true);
+    expect(traceUuidsActive(tab)).toBe(true);
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual([]);
+  });
+
+  test('toggling the mode is non-destructive, both ways', () => {
+    regUuids();
+    const tab = fakeTab({
+      disabledSettings: [TRACE_UUIDS_SETTING_ID],
+      traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
+      querySettings: [
+        {
+          settingId: 'trace_directory',
+          values: ['/traces'],
+          category: 'TRACE_ADDRESS',
+        },
+        {
+          settingId: TRACE_UUIDS_SETTING_ID,
+          values: ['u1'],
+          category: 'TRACE_ADDRESS',
+        },
+      ],
+    });
+    expect(traceUuidsActive(tab)).toBe(false);
+    setTraceUuidsActive(tab, true);
+    expect(traceUuidsActive(tab)).toBe(true);
+    // Filter-mode configuration is hidden, not cleared...
+    expect(tab.traceFilters).toHaveLength(1);
+    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    // ...and an earlier stint's values survive re-entry.
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual(['u1']);
+    setTraceUuidsActive(tab, false);
+    expect(traceUuidsActive(tab)).toBe(false);
+    expect(tab.disabledSettings).toEqual([TRACE_UUIDS_SETTING_ID]);
+  });
+
+  test('a preset that does not name the list turns the mode off', () => {
+    regUuids();
+    const tab = fakeTab({disabledSettings: []});
+    setTraceUuidsActive(tab, true);
+    expect(traceUuidsActive(tab)).toBe(true);
+    applyPresetSetup(tab, {
+      id: 'p',
+      category: 'A',
+      name: 'P',
+      description: '',
+      perfettoSql: 'select 1',
+    });
+    expect(traceUuidsActive(tab)).toBe(false);
+  });
+
+  test('a preset that names the list turns the mode on with its values', () => {
+    regUuids();
+    const tab = fakeTab({disabledSettings: [TRACE_UUIDS_SETTING_ID]});
+    applyPresetSetup(tab, {
+      id: 'p',
+      category: 'A',
+      name: 'P',
+      description: '',
+      perfettoSql: '',
+      settings: [
+        {
+          settingId: TRACE_UUIDS_SETTING_ID,
+          values: ['u1', 'u2'],
+          category: 'TRACE_ADDRESS',
+        },
+      ],
+    });
+    expect(traceUuidsActive(tab)).toBe(true);
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual(['u1', 'u2']);
   });
 });

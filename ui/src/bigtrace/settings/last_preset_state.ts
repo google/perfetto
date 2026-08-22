@@ -12,26 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import {SingleFieldStorage} from './single_field_storage';
 
-// Hash-based router (#!/query, #!/settings). Not m.route(): it bypasses the
-// raf scheduler and breaks portal-based popups.
-
-export function getCurrentRoute(): string {
-  const hash = window.location.hash;
-  if (hash.startsWith('#!')) {
-    const route = hash.slice(2);
-    return route || '/';
-  }
-  return '/';
-}
-
-export function setRoute(route: string): void {
-  window.location.hash = '!' + route;
-}
-
-export function initRouter(): void {
-  window.addEventListener('hashchange', () => {
-    m.redraw();
-  });
-}
+// Id of the preset the last new query started from, so the launcher can
+// preselect it. Empty when the last query was configured by hand.
+export const lastPresetIdState = new SingleFieldStorage<string>(
+  'bigtraceLastPreset',
+  'id',
+  (raw) => (typeof raw === 'string' ? raw : ''),
+  '',
+);
