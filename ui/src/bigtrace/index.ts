@@ -61,11 +61,11 @@ function setupContentSecurityPolicy() {
       'https://brush-googleapis.corp.google.com',
     ],
     'img-src': [`'self'`, 'data:', 'blob:'],
-    'style-src': [
-      `'self'`,
-      `'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='`,
-      `'sha256-yRQRG6LLKMvjvigtzXD1f8VRZSYY7J8fM2ZLfdMaHKg='`,
-    ],
+    // unsafe-inline: the editor (CodeMirror) generates its own stylesheet at
+    // runtime, so no fixed hash can cover it — pinned hashes left the editor
+    // unstyled in any browser that enforces the policy. Same allowance the
+    // main Perfetto UI makes, for the same reason.
+    'style-src': [`'self'`, `'unsafe-inline'`],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
