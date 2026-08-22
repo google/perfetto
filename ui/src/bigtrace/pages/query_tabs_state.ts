@@ -274,7 +274,6 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
   tab.editorText = t.perfettoSql;
   if (t.name) tab.title = t.name;
   tab.configured = true;
-  tab.setupMode = undefined;
   tab.settingsSession = undefined;
 }
 
@@ -329,7 +328,6 @@ export function restoreTabConfig(
 // that leaving with Cancel restores it while Apply keeps the edits.
 export function openSettings(tab: BigTraceEditorTab): void {
   tab.settingsSession = {before: snapshotTabConfig(tab)};
-  tab.setupMode = 'custom';
 }
 
 // Leave the launcher for the editor. Without `keep`, the configuration goes
@@ -343,7 +341,6 @@ export function closeSettings(
     restoreTabConfig(tab, tab.settingsSession.before);
   }
   tab.settingsSession = undefined;
-  tab.setupMode = undefined;
   tab.configured = true;
 }
 
@@ -395,9 +392,6 @@ export interface BigTraceEditorTab {
   // the user chose by hand. Unconfigured tabs show the launcher instead of the
   // editor. Tabs restored from storage or opened from History are configured.
   configured: boolean;
-  // Which half of the launcher to show: the preset gallery, or the settings
-  // form. View state, so not persisted.
-  setupMode?: 'presets' | 'custom';
   // Set while Settings is open on a configured tab: the run configuration on
   // entry, so Cancel can put it back. View state, not persisted — a reload
   // closes Settings with the edits kept, as Apply would.

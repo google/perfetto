@@ -171,37 +171,29 @@
   }
 }
 
-// ---------- New-query launcher ----------
+// ---------- Launcher: start a query / Settings of an existing one ----------
 
-// Fills the tab until it has a configuration. Presets mode centers a column;
-// custom mode gives the settings form the height and puts actions in a footer.
+// Fills the tab. One page for both jobs: a scrolling body holding the preset
+// section and the settings form (which of the two is folded depends on the
+// tab), and a footer with the actions.
 .pf-bt-launcher {
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
 
-  &--custom {
-    flex-direction: column;
-    justify-content: flex-start;
-    overflow: hidden;
+  // A tab with a query but no configuration flag (older persisted state): the
+  // way back sits first in reading order.
+  &__back {
+    margin: 0 0 8px -8px;
   }
 
-  &__inner {
+  &__head {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    width: fit-content;
-    max-width: min(960px, 92%);
-    padding: 48px 0 32px;
-  }
-
-  // Sits above the title, aligned with the content column, so the way back is
-  // the first thing in reading order.
-  &__back {
-    margin-bottom: -8px;
-    margin-left: -8px;
+    gap: 8px;
+    margin: 8px 0 24px;
   }
 
   &__title {
@@ -213,7 +205,6 @@
   &__subtitle {
     font-size: 15px;
     color: var(--pf-color-text-muted);
-    margin-top: -8px;
   }
 
   &__presets {
@@ -222,19 +213,13 @@
     gap: 16px;
   }
 
-  &__actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 4px;
-  }
-
   &__empty-detail {
     color: var(--pf-color-text-muted);
     margin-bottom: 12px;
   }
 
   // Scrolls independently of the footer, which stays reachable.
-  &__custom-body {
+  &__body {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -972,16 +957,17 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// The preset gallery folded atop the settings form. An AccordionSection with
-// the section-title look of the form's own headings, so it reads as one more
-// section that happens to open and close.
-.pf-bt-settings-presets {
+// The launcher's sections — Presets, and the settings form when it's the
+// secondary one — are AccordionSections styled like the form's own section
+// headings, so a fold reads as one more section that happens to open and
+// close.
+.pf-bt-settings-fold {
   margin-bottom: 32px;
 
   > summary {
     border-radius: 4px;
     padding: 8px 12px;
-    // Not sticky here: the form scrolls as one document.
+    // Not sticky here: the page scrolls as one document.
     position: static;
     background: var(--pf-minimal-background);
   }

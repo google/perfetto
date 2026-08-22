@@ -406,11 +406,10 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     tab.materialize = false;
   }
 
-  test('opening keeps the tab configured and shows the settings form', () => {
+  test('opening keeps the tab configured and starts a session', () => {
     const tab = workingTab();
     openSettings(tab);
     expect(tab.configured).toBe(true);
-    expect(tab.setupMode).toBe('custom');
     expect(tab.settingsSession).toBeDefined();
   });
 
@@ -422,7 +421,6 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     closeSettings(tab, {keep: false});
     expect(snapshotTabConfig(tab)).toEqual(before);
     expect(tab.settingsSession).toBeUndefined();
-    expect(tab.setupMode).toBeUndefined();
     expect(tab.configured).toBe(true);
   });
 
@@ -458,13 +456,11 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
 
   test('a new tab starting its first query has no session and keeps its setup', () => {
     const tab = fakeTab({configured: false, editorText: ''});
-    tab.setupMode = 'custom';
     edit(tab);
     closeSettings(tab, {keep: false});
     // Nothing to restore: the tab was never configured before this.
     expect(tab.limit).toBe(10);
     expect(tab.configured).toBe(true);
-    expect(tab.setupMode).toBeUndefined();
   });
 
   test('the session is not persisted: a reload closes Settings with edits kept', () => {

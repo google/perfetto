@@ -151,10 +151,8 @@ describe('applyPresetToTab', () => {
   test('applying a preset leaves the launcher, ending any Settings session', () => {
     const tab = fakeTab({configured: true, editorText: ''});
     openSettings(tab);
-    tab.setupMode = 'presets';
     applyPresetToTab(tab, preset({perfettoSql: 'select 1'}));
     expect(tab.configured).toBe(true);
-    expect(tab.setupMode).toBeUndefined();
     expect(tab.settingsSession).toBeUndefined();
   });
 
@@ -191,7 +189,6 @@ describe('applyPresetToTab', () => {
     expect(tab.materialize).toBe(true);
     // Still inside Settings: provisional until Apply.
     expect(tab.settingsSession).toBeDefined();
-    expect(tab.setupMode).toBe('custom');
   });
 
   test('a preset without a row cap takes the default for its mode', () => {

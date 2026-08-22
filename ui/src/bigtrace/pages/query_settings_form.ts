@@ -20,6 +20,7 @@ import {Callout} from '../../widgets/callout';
 import {linkify} from '../../widgets/anchor';
 import {Intent} from '../../widgets/common';
 import m from 'mithril';
+import {AccordionSection} from '../../widgets/accordion';
 import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
 import {
@@ -191,9 +192,15 @@ export interface QuerySettingsFormAttrs {
   // tab's configuration — there is no global settings state behind it.
   readonly bindings: SettingsBindings;
   // Rendered above the sections, scrolling with them (the launcher puts its
-  // folded preset gallery here). Anything it does to the tab's selection or
-  // order shows up on the next render: the grid state is re-read each view.
+  // preset gallery here). Anything it does to the tab's selection or order
+  // shows up on the next render: the grid state is re-read each view.
   readonly header?: m.Children;
+  // Wrap the sections in a fold with this summary, so a page that leads with
+  // something else (the launcher's presets) can keep the form tucked away.
+  readonly fold?: {
+    readonly summary: m.Children;
+    readonly defaultOpen?: boolean;
+  };
 }
 
 // AIP-132 single-field order_by helpers. The DataGrid supports only one active
@@ -826,27 +833,40 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
       },
     );
 
+    const body: m.Children = [
+      bigTraceSettingsStorage.isExecConfigLoading &&
+        m(EmptyState, {
+          title: 'Loading settings...',
+          icon: 'hourglass_empty',
+          fillHeight: true,
+        }),
+      this.renderRunSection(),
+      sections,
+      bigTraceSettingsStorage.execConfigLoadError !== undefined &&
+        m(
+          Callout,
+          {
+            intent: Intent.Danger,
+            icon: 'error',
+            title: 'Failed to load settings from the backend',
+          },
+          bigTraceSettingsStorage.execConfigLoadError,
+        ),
+    ];
     return m('.pf-bt-settings-embedded', [
       m('.pf-bt-settings-page', [
         attrs.header,
-        bigTraceSettingsStorage.isExecConfigLoading &&
-          m(EmptyState, {
-            title: 'Loading settings...',
-            icon: 'hourglass_empty',
-            fillHeight: true,
-          }),
-        this.renderRunSection(),
-        sections,
-        bigTraceSettingsStorage.execConfigLoadError !== undefined &&
-          m(
-            Callout,
-            {
-              intent: Intent.Danger,
-              icon: 'error',
-              title: 'Failed to load settings from the backend',
-            },
-            bigTraceSettingsStorage.execConfigLoadError,
-          ),
+        attrs.fold === undefined
+          ? body
+          : m(
+              AccordionSection,
+              {
+                className: 'pf-bt-settings-fold',
+                summary: attrs.fold.summary,
+                defaultOpen: attrs.fold.defaultOpen ?? false,
+              },
+              body,
+            ),
       ]),
     ]);
   }

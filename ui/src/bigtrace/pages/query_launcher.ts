@@ -82,8 +82,11 @@ export function canReturnToQuery(tab: BigTraceEditorTab): boolean {
   );
 }
 
-// Shown in a tab until it has a configuration: pick a preset, or configure the
-// trace selection and options by hand. Also hosts a configured tab's Settings.
+// One page for a tab that has no query yet and for the Settings of one that
+// does: a Presets section and the settings form, and only which of the two is
+// folded differs. Starting a query: presets open, the form folded under
+// "Custom settings", a card starts the query outright. Settings on an existing
+// query: presets folded, the form open, a card lends its setup only.
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   oninit() {
     void presetStore.load();
@@ -91,64 +94,74 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
 
   view({attrs}: m.Vnode<QueryLauncherAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
-    if (tab.setupMode === 'custom') {
-      return m(
-        '.pf-bt-launcher.pf-bt-launcher--custom',
+    const editing = tab.settingsSession !== undefined;
+    return m('.pf-bt-launcher', [
+      m(
+        '.pf-bt-launcher__body',
+        m(QuerySettingsForm, {
+          bindings,
+          header: editing
+            ? this.renderSetupPresets(tab, tabsState)
+            : this.renderStartHeader(tab, tabsState),
+          fold: editing
+            ? undefined
+            : {
+                summary: m(
+                  '.pf-bt-settings-fold__summary',
+                  m('span.pf-bt-settings-fold__title', 'Custom settings'),
+                ),
+                defaultOpen: false,
+              },
+        }),
+      ),
+      this.renderFooter(tab, tabsState, editing),
+    ]);
+  }
+
+  // Title, subtitle and the gallery a query starts from — one click applies
+  // the whole preset and the editor takes over.
+  private renderStartHeader(
+    tab: BigTraceEditorTab,
+    tabsState: QueryTabsState,
+  ): m.Children {
+    return [
+      // A tab with a query but no configuration flag (state persisted by an
+      // older build): the way out that changes nothing.
+      canReturnToQuery(tab) &&
         m(
-          '.pf-bt-launcher__custom-body',
-          m(QuerySettingsForm, {
-            bindings,
-            // Presets fold into the form only for a query that exists. A new
-            // tab came here from the gallery, which is one step back — and
-            // there a preset starts the query, SQL and all.
-            header:
-              tab.settingsSession !== undefined
-                ? this.renderSetupPresets(tab, tabsState)
-                : undefined,
+          '.pf-bt-launcher__back',
+          m(Button, {
+            label: 'Back to query',
+            icon: 'arrow_back',
+            onclick: () => {
+              closeSettings(tab, {keep: false});
+              tabsState.markDirty();
+            },
           }),
         ),
-        this.renderCustomFooter(tab, tabsState),
-      );
-    }
-    return m(
-      '.pf-bt-launcher',
-      m('.pf-bt-launcher__inner', [
-        // On a tab that already has a query: the way out that changes nothing.
-        canReturnToQuery(tab) &&
-          m(
-            '.pf-bt-launcher__back',
-            m(Button, {
-              label: 'Back to query',
-              icon: 'arrow_back',
-              onclick: () => {
-                closeSettings(tab, {keep: false});
-                tabsState.markDirty();
-              },
-            }),
-          ),
+      m('.pf-bt-launcher__head', [
         m('.pf-bt-launcher__title', 'Start a query'),
         m(
           '.pf-bt-launcher__subtitle',
           'Pick a preset, or configure the traces and options yourself.',
         ),
-        this.renderPresets(tab, tabsState),
-        m(
-          '.pf-bt-launcher__actions',
-          m(Button, {
-            label: 'Configure custom settings',
-            icon: 'tune',
-            onclick: () => {
-              tab.setupMode = 'custom';
-              tabsState.markDirty();
-            },
-          }),
-        ),
       ]),
-    );
+      m(
+        AccordionSection,
+        {
+          className: 'pf-bt-settings-fold',
+          defaultOpen: true,
+          summary: m(
+            '.pf-bt-settings-fold__summary',
+            m('span.pf-bt-settings-fold__title', 'Presets'),
+          ),
+        },
+        this.renderStartPresets(tab, tabsState),
+      ),
+    ];
   }
 
-  // The gallery a query starts from: one click applies the whole preset.
-  private renderPresets(
+  private renderStartPresets(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
   ): m.Children {
@@ -200,13 +213,14 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     });
   }
 
-  // The same gallery atop the settings form, folded away until wanted. From
-  // here a preset lends its setup only — settings, trace selection, result
-  // columns, order, caps and mode — and the query stays the user's: Settings
-  // is where you decide how a query runs, not what it runs. Provisional like
-  // any other edit in the form: Cancel undoes it. The card marked "Current" is
-  // the preset whose setup the tab runs with right now, and the folded header
-  // says the same, so the answer is there without opening it.
+  // The same gallery atop the settings form of a query that exists, folded
+  // away until wanted. From here a preset lends its setup only — settings,
+  // trace selection, result columns, order, caps and mode — and the query
+  // stays the user's: Settings is where you decide how a query runs, not what
+  // it runs. Provisional like any other edit in the form: Cancel undoes it.
+  // The card marked "Current" is the preset whose setup the tab runs with
+  // right now, and the folded heading says the same, so the answer is there
+  // without opening it.
   private renderSetupPresets(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
@@ -221,11 +235,11 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     return m(
       AccordionSection,
       {
-        className: 'pf-bt-settings-presets',
-        summary: m('.pf-bt-settings-presets__summary', [
-          m('span.pf-bt-settings-presets__title', 'Presets'),
+        className: 'pf-bt-settings-fold',
+        summary: m('.pf-bt-settings-fold__summary', [
+          m('span.pf-bt-settings-fold__title', 'Presets'),
           m(
-            'span.pf-bt-settings-presets__current',
+            'span.pf-bt-settings-fold__current',
             current === undefined
               ? 'Custom setup'
               : `Setup from “${current.name}”`,
@@ -233,7 +247,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         ]),
       },
       m(
-        '.pf-bt-settings-presets__hint',
+        '.pf-bt-settings-fold__hint',
         'Pick a preset to use its settings here. The query is not changed.',
       ),
       m(PresetGallery, {
@@ -248,27 +262,12 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     );
   }
 
-  private renderCustomFooter(
+  private renderFooter(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
+    editing: boolean,
   ): m.Children {
-    // Opened from Settings on a configured tab (a session is open), or reached
-    // from the gallery on a new tab. Presets belong to starting a query, not
-    // to configuring one that exists — even an empty one: applying a preset
-    // there would replace the tab wholesale. So only the new-tab form offers
-    // the way back to the gallery.
-    const editing = tab.settingsSession !== undefined;
     return m('.pf-bt-launcher__footer', [
-      !editing &&
-        m(Button, {
-          label: 'Back to presets',
-          icon: 'arrow_back',
-          variant: ButtonVariant.Filled,
-          onclick: () => {
-            tab.setupMode = 'presets';
-            tabsState.markDirty();
-          },
-        }),
       // Edits take effect as they're made, so leaving is where the choice is:
       // Cancel puts the configuration back to what it was, Apply keeps it.
       // Filled like a dialog's Cancel, so the way out is as visible as Apply.
@@ -295,7 +294,8 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         variant: ButtonVariant.Filled,
         title: editing
           ? 'Use these settings for this query from its next run.'
-          : undefined,
+          : 'Start with the settings below — the defaults, unless you ' +
+            'changed them.',
         onclick: () => {
           // Starting a query by hand: if this setup happens to be one of the
           // presets on offer (e.g. it was just saved as one), the next tab
