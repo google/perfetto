@@ -20,7 +20,11 @@ import type {Filter} from '../../components/widgets/datagrid/model';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
-import type {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
+import {
+  TRACE_LIMIT_SETTING_ID,
+  type BigTraceEditorTab,
+  type QueryTabsState,
+} from './query_tabs_state';
 import {SettingsPage} from './settings_page';
 
 export interface BigtraceSettingsBarAttrs {
@@ -47,10 +51,23 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           className: 'pf-bt-settings-bar__chips',
         },
         m(Chip, {
-          label: 'Add trace filter',
-          icon: 'add',
+          label: 'Settings',
+          icon: 'tune',
           className: 'pf-bt-settings-bar__add',
+          title: 'Edit the traces and options this query runs with.',
           onclick: () => openAddSettingsModal(bindings),
+        }),
+        m(Chip, {
+          label: 'Change setup',
+          icon: 'restart_alt',
+          className: 'pf-bt-settings-bar__add',
+          title:
+            'Go back to the preset picker for this tab. The current settings ' +
+            'are kept.',
+          onclick: () => {
+            tab.configured = false;
+            tabsState.markDirty();
+          },
         }),
         renderSettingChips(bindings),
         renderFilterChips(tab, tabsState, bindings),
@@ -67,6 +84,8 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
 // per-tab overrides and drops disabled settings). Editing lives in the modal.
 function renderSettingChips(bindings: SettingsBindings): m.Children {
   return bindings.getEffectiveSettings().map((entry) => {
+    // The trace cap has its own control in the run toolbar.
+    if (entry.settingId === TRACE_LIMIT_SETTING_ID) return null;
     const setting = bigTraceSettingsStorage.get(entry.settingId) as
       BigTraceSetting<unknown> | undefined;
     if (setting === undefined) return null;

@@ -25,6 +25,11 @@ import {queryStore, type QueryExecution} from '../query/query_store';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {
+  lastSetupState,
+  traceSourceSettings,
+  TRACE_SOURCE_CATEGORY,
+} from '../settings/query_setup_state';
+import {
   traceFilterState,
   traceOrderByState,
   traceQueryColumnsState,
@@ -200,6 +205,61 @@ export function disabledSettingsFromSnapshot(
   return allCategoriedSettingIds.filter((id) => !active.has(id));
 }
 
+// Configure a tab from a preset: its query, trace selection, caps and mode.
+// The preset's own settings are applied and every other registered setting is
+// turned off — togglable ones disabled, booleans set to false (they have no
+// disable concept) — so a preset describes the whole run, not a diff.
+export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
+  const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
+  const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
+    settingId: s.settingId,
+    values: [...s.values],
+    category: s.category as SettingCategory,
+  }));
+  const disabledSettings: string[] = [];
+  for (const raw of bigTraceSettingsStorage.getAllSettings()) {
+    if (raw.category === undefined) continue;
+    if (presetIds.has(raw.id)) continue;
+    // WHERE the traces come from isn't the preset's business — a catalog
+    // shared across users can't know it. Keep whatever this tab already has.
+    if (raw.category === TRACE_SOURCE_CATEGORY) {
+      const existing = tab.querySettings.find((s) => s.settingId === raw.id);
+      if (existing !== undefined) querySettings.push(existing);
+      continue;
+    }
+    if (raw.type === 'boolean') {
+      querySettings.push({
+        settingId: raw.id,
+        values: ['false'],
+        category: raw.category as SettingCategory,
+      });
+    } else {
+      disabledSettings.push(raw.id);
+    }
+  }
+  const metadataColumns = t.traceMetadataColumns ?? [];
+  const materialized = t.materialized ?? true;
+
+  tab.editorText = t.perfettoSql;
+  if (t.name) tab.title = t.name;
+  tab.querySettings = querySettings;
+  tab.disabledSettings = disabledSettings;
+  tab.traceFilters = [...(t.traceFilters ?? [])];
+  // [] from the wire means "unspecified" → use the default-visible set.
+  tab.traceMetadataColumns = metadataColumns.length
+    ? [...metadataColumns]
+    : null;
+  tab.traceOrderBy = t.traceOrderBy ?? '';
+  tab.materialize = materialized;
+  // Optional in the contract; a preset that doesn't state a cap uses the
+  // default for the mode it runs in.
+  tab.limit =
+    t.limit != null && t.limit > 0
+      ? t.limit
+      : modeDefaults(materialized).rowLimit;
+  tab.configured = true;
+}
+
 // Mutated in-place by the runner; only QueryTabsState creates/destroys.
 export interface BigTraceEditorTab {
   readonly id: string;
@@ -239,6 +299,10 @@ export interface BigTraceEditorTab {
   // on a no-row failure, else Table). Set on user click so it sticks across
   // redraws.
   resultsTabKey?: string;
+  // False until the tab has been given a configuration — a preset, or settings
+  // the user chose by hand. Unconfigured tabs show the launcher instead of the
+  // editor. Tabs restored from storage or opened from History are configured.
+  configured: boolean;
 }
 
 // Persisted subset of BigTraceEditorTab. Transient state is rebuilt on load.
@@ -259,6 +323,7 @@ interface StoredTab {
   readonly traceOrderBy?: string;
   readonly resultColumns?: ReadonlyArray<string> | null;
   readonly disabledSettings?: ReadonlyArray<string>;
+  readonly configured?: boolean;
 }
 
 interface StoredState {
@@ -332,6 +397,19 @@ export class QueryTabsState {
       : isFromHistory
         ? []
         : [...bigTraceSettingsStorage.buildSettingFilters()];
+    // A fresh tab starts from the backend defaults, which carry no trace
+    // source — inherit the one the last query used so it doesn't have to be
+    // configured again for every query.
+    if (!isFromStorage && !isFromHistory) {
+      for (const s of traceSourceSettings(lastSetupState.get(), [
+        TRACE_LIMIT_SETTING_ID,
+      ])) {
+        const idx = querySettings.findIndex((e) => e.settingId === s.settingId);
+        const entry = {...s, values: [...s.values]};
+        if (idx >= 0) querySettings[idx] = entry;
+        else querySettings.push(entry);
+      }
+    }
     // A fresh tab copies the current global defaults, which include the
     // backend's own trace cap; replace it with the one for this tab's mode.
     if (!isFromStorage && !isFromHistory) {
@@ -398,6 +476,13 @@ export class QueryTabsState {
       lastProcessedRows: 0,
       queryUuid,
       pollGeneration: 0,
+      // Tabs predating the launcher have no flag; treat them as configured so
+      // a reload never drops the user back into the picker.
+      configured: isFromStorage
+        ? (stored?.configured ?? true)
+        : isFromHistory
+          ? true
+          : false,
     };
     tab.execution = queryStore.getOrCreate(queryUuid || tab.id, {
       materialized: tab.materialize,
@@ -408,54 +493,20 @@ export class QueryTabsState {
     return tab;
   }
 
-  // Seed and activate a new tab from a home-page preset. The preset's own
-  // settings are applied; every other setting is turned off — togglable ones
-  // disabled, booleans set to false (they have no disable concept).
+  // Seed and activate a new tab from a preset (backend catalog or one the user
+  // saved locally).
   addTabFromPreset(t: TracePreset): BigTraceEditorTab {
-    const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
-    const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
-      settingId: s.settingId,
-      values: [...s.values],
-      category: s.category as SettingCategory,
-    }));
-    const disabledSettings: string[] = [];
-    for (const raw of bigTraceSettingsStorage.getAllSettings()) {
-      if (raw.category === undefined) continue;
-      if (presetIds.has(raw.id)) continue;
-      if (raw.type === 'boolean') {
-        querySettings.push({
-          settingId: raw.id,
-          values: ['false'],
-          category: raw.category as SettingCategory,
-        });
-      } else {
-        disabledSettings.push(raw.id);
-      }
-    }
-    const metadataColumns = t.traceMetadataColumns ?? [];
-    const materialized = t.materialized ?? true;
-    return this.addNewTab(
+    const tab = this.addNewTab(
       t.name || undefined,
       t.perfettoSql,
-      // Optional in the contract; a preset that doesn't state a cap uses the
-      // default for the mode it runs in.
-      t.limit != null && t.limit > 0
-        ? t.limit
-        : modeDefaults(materialized).rowLimit,
+      undefined,
       undefined, // queryUuid — a preset is a fresh run, not a reopened one
-      materialized,
+      t.materialized ?? true,
       true, // forceNew
-      {
-        querySettings,
-        disabledSettings,
-        traceFilters: [...(t.traceFilters ?? [])],
-        // [] from the wire means "unspecified" → use the default-visible set.
-        traceMetadataColumns: metadataColumns.length
-          ? [...metadataColumns]
-          : null,
-        traceOrderBy: t.traceOrderBy ?? '',
-      },
     );
+    applyPresetToTab(tab, t);
+    this.markDirty();
+    return tab;
   }
 
   closeTab(tabId: string): void {
@@ -534,6 +585,7 @@ export class QueryTabsState {
         traceOrderBy: t.traceOrderBy,
         resultColumns: t.resultColumns,
         disabledSettings: t.disabledSettings,
+        configured: t.configured,
       })),
       activeTabId: this.activeTabId,
     };

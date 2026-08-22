@@ -41,6 +41,7 @@ import {
   TRACE_LIMIT_SETTING_ID,
 } from './query_tabs_state';
 import {renderResultsPanel} from './results_panel';
+import {QueryLauncher} from './query_launcher';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {BigtraceSettingsBar} from './bigtrace_settings_bar';
@@ -65,6 +66,19 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
 
     if (tab.dataSource && tab.queryResult && tab.materialize && tab.execution) {
       tab.queryResult.totalRowCount = tab.execution.processedRows;
+    }
+
+    // A tab with no configuration yet shows the launcher instead of the editor:
+    // every query starts from a preset or a deliberate custom setup.
+    if (!tab.configured) {
+      return m(
+        '.pf-bt-editor-tab',
+        m(QueryLauncher, {
+          tab,
+          tabsState,
+          bindings: buildTabBindings(tab, tabsState),
+        }),
+      );
     }
 
     return m('.pf-bt-editor-tab', [

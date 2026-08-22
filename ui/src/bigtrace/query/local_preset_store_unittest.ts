@@ -17,13 +17,12 @@ import {z} from 'zod';
 import {
   DEFAULT_LOCAL_CATEGORY,
   isLocalPresetId,
-  lastPresetIdState,
-  lastSetupState,
   localPresetStore,
   presetFromTab,
   setupFromTab,
   type LocalPreset,
 } from './local_preset_store';
+import {lastPresetIdState, lastSetupState} from '../settings/query_setup_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
 

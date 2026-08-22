@@ -14,9 +14,7 @@
 
 import {shortUuid} from '../../base/uuid';
 import {LocalStorage} from '../../core/local_storage';
-import type {Filter} from '../../components/widgets/datagrid/model';
-import type {SettingFilter} from '../settings/settings_types';
-import {SingleFieldStorage} from '../settings/single_field_storage';
+import type {QuerySetup} from '../settings/query_setup_state';
 import type {TracePreset} from './bigtrace_query_client';
 import {
   effectiveTabSettings,
@@ -159,46 +157,6 @@ export function presetFromTab(
     materialized: tab.materialize,
   };
 }
-
-// Id of the preset the last new query started from. The launcher preselects it
-// so the common path is one click.
-export const lastPresetIdState = new SingleFieldStorage<string>(
-  'bigtraceLastPreset',
-  'id',
-  (raw) => (typeof raw === 'string' ? raw : ''),
-  '',
-);
-
-// The trace selection + options a query last ran with. Seeds the launcher's
-// custom form so configuring a second query by hand doesn't start from a blank
-// trace source. Not a global setting: nothing reads it at run time.
-export interface QuerySetup {
-  readonly settings: ReadonlyArray<SettingFilter>;
-  readonly traceFilters: ReadonlyArray<Filter>;
-  readonly traceMetadataColumns: ReadonlyArray<string> | null;
-  readonly traceOrderBy: string;
-}
-
-function parseSetup(raw: unknown): QuerySetup | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const s = raw as Partial<QuerySetup>;
-  if (!Array.isArray(s.settings)) return null;
-  return {
-    settings: s.settings,
-    traceFilters: Array.isArray(s.traceFilters) ? s.traceFilters : [],
-    traceMetadataColumns: Array.isArray(s.traceMetadataColumns)
-      ? s.traceMetadataColumns.filter((c): c is string => typeof c === 'string')
-      : null,
-    traceOrderBy: typeof s.traceOrderBy === 'string' ? s.traceOrderBy : '',
-  };
-}
-
-export const lastSetupState = new SingleFieldStorage<QuerySetup | null>(
-  'bigtraceLastSetup',
-  'setup',
-  parseSetup,
-  null,
-);
 
 export function setupFromTab(tab: BigTraceEditorTab): QuerySetup {
   return {
