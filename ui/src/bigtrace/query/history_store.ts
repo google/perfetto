@@ -45,17 +45,22 @@ export function formatCompactDate(d: Date): string {
   return `${month} ${day}, ${year}, ${h}:${mm} ${m12}`;
 }
 
-// Which kind of run the history list shows. 'all' mixes both.
-export type HistoryFilter = 'all' | 'ephemeral' | 'persistent';
+// Which kinds of run the history list shows. Independent, so both on shows
+// everything and both off shows nothing (the list says so).
+export interface HistoryFilter {
+  readonly ephemeral: boolean;
+  readonly persistent: boolean;
+}
 
-// Narrow a history list to one kind of run.
+export const ALL_KINDS: HistoryFilter = {ephemeral: true, persistent: true};
+
 export function filterHistory(
   entries: ReadonlyArray<QueryExecution>,
   filter: HistoryFilter,
 ): QueryExecution[] {
-  if (filter === 'all') return [...entries];
-  const wantPersistent = filter === 'persistent';
-  return entries.filter((e) => (e.materialized === true) === wantPersistent);
+  return entries.filter((e) =>
+    e.materialized === true ? filter.persistent : filter.ephemeral,
+  );
 }
 
 // Module-level: survives sidebar toggles so we don't re-fetch on every show.
@@ -63,7 +68,7 @@ export class HistoryStore {
   history: QueryExecution[] = [];
   isLoading = true;
   error: string | null = null;
-  filter: HistoryFilter = 'all';
+  filter: HistoryFilter = ALL_KINDS;
   private lastRefreshSignal = -1;
   private debounceTimer?: number;
   private hasEverLoaded = false;

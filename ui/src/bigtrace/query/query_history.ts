@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 import {Button} from '../../widgets/button';
+import {Checkbox} from '../../widgets/checkbox';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
 import type {QueryExecution} from './query_store';
-import {filterHistory, historyStore, type HistoryFilter} from './history_store';
+import {filterHistory, historyStore} from './history_store';
 import {renderHistoryItem, type OpenQueryFn} from './query_history_item';
-import {renderSegmented} from '../widgets/segmented';
 
 interface QueryHistoryComponentAttrs {
   readonly className?: string;
@@ -27,14 +27,13 @@ interface QueryHistoryComponentAttrs {
   readonly refreshSignal?: number;
 }
 
-// Kind filter above the list. Titles explain what each kind means, so the
-// segment labels can stay one word.
-const FILTERS: ReadonlyArray<{
-  readonly key: HistoryFilter;
+// Kind filter above the list: two independent checkboxes, so "everything" is
+// just both ticked and there's no redundant "All" to spend the row on.
+const KINDS: ReadonlyArray<{
+  readonly key: 'ephemeral' | 'persistent';
   readonly label: string;
   readonly title: string;
 }> = [
-  {key: 'all', label: 'All', title: 'Every query, newest first.'},
   {
     key: 'ephemeral',
     label: 'Ephemeral',
@@ -91,18 +90,26 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
       rest,
       m(
         '.pf-bt-history-toolbar',
-        renderSegmented(
-          FILTERS.map((f) => ({
-            key: f.key,
-            label: `${f.label} (${filterHistory(historyStore.history, f.key).length})`,
-            title: f.title,
-          })),
-          historyStore.filter,
-          (key) => {
-            historyStore.filter = key as HistoryFilter;
-            m.redraw();
-          },
-          'pf-bt-history-filter',
+        m(
+          '.pf-bt-history-filter',
+          KINDS.map((kind) => {
+            const checked = historyStore.filter[kind.key];
+            const count = historyStore.history.filter(
+              (h) => (h.materialized === true) === (kind.key === 'persistent'),
+            ).length;
+            return m(Checkbox, {
+              label: `${kind.label} (${count})`,
+              title: kind.title,
+              checked,
+              onchange: () => {
+                historyStore.filter = {
+                  ...historyStore.filter,
+                  [kind.key]: !checked,
+                };
+                m.redraw();
+              },
+            });
+          }),
         ),
         m(Button, {
           icon: 'refresh',
@@ -118,22 +125,30 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
     queries: QueryExecution[],
     openQuery?: OpenQueryFn,
   ): m.Children {
+    const {ephemeral, persistent} = historyStore.filter;
+    if (!ephemeral && !persistent) {
+      return m(
+        EmptyState,
+        {title: 'Nothing selected', icon: 'filter_alt_off', fillHeight: true},
+        m(
+          'div.pf-bt-history-empty-hint',
+          'Tick Ephemeral or Persistent to see queries.',
+        ),
+      );
+    }
     if (queries.length === 0) {
       return m(
         EmptyState,
         {
-          title:
-            historyStore.filter === 'all'
-              ? 'No queries yet'
-              : `No ${historyStore.filter} queries yet`,
+          title: 'No queries yet',
           icon: 'search',
           fillHeight: true,
         },
         m(
           'div.pf-bt-history-empty-hint',
-          historyStore.filter === 'persistent'
+          !ephemeral
             ? 'Run a query with Persistent on to see it here.'
-            : historyStore.filter === 'ephemeral'
+            : !persistent
               ? 'Run a query with Persistent off to see it here.'
               : 'Queries you run show up here.',
         ),

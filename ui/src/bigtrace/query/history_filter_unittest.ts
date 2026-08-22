@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {describe, expect, test} from 'vitest';
-import {filterHistory} from './history_store';
+import {ALL_KINDS, filterHistory} from './history_store';
 import type {QueryExecution} from './query_store';
 
 function entry(uuid: string, materialized?: boolean): QueryExecution {
@@ -35,32 +35,27 @@ const HISTORY = [
   entry('d', undefined),
 ];
 
+const ids = (filter: {ephemeral: boolean; persistent: boolean}) =>
+  filterHistory(HISTORY, filter).map((e) => e.uuid);
+
 describe('filterHistory', () => {
-  test('all keeps every entry, in order', () => {
-    expect(filterHistory(HISTORY, 'all').map((e) => e.uuid)).toEqual([
-      'a',
-      'b',
-      'c',
-      'd',
-    ]);
+  test('both kinds ticked keeps every entry, in order', () => {
+    expect(ids(ALL_KINDS)).toEqual(['a', 'b', 'c', 'd']);
   });
 
-  test('persistent keeps only materialized runs', () => {
-    expect(filterHistory(HISTORY, 'persistent').map((e) => e.uuid)).toEqual([
-      'a',
-      'c',
-    ]);
+  test('persistent only keeps materialized runs', () => {
+    expect(ids({ephemeral: false, persistent: true})).toEqual(['a', 'c']);
   });
 
-  test('ephemeral keeps non-materialized runs, including absent flags', () => {
-    expect(filterHistory(HISTORY, 'ephemeral').map((e) => e.uuid)).toEqual([
-      'b',
-      'd',
-    ]);
+  test('ephemeral only keeps the rest, including absent flags', () => {
+    expect(ids({ephemeral: true, persistent: false})).toEqual(['b', 'd']);
+  });
+
+  test('neither ticked shows nothing (the list says so)', () => {
+    expect(ids({ephemeral: false, persistent: false})).toEqual([]);
   });
 
   test('returns a copy, never the input array', () => {
-    const all = filterHistory(HISTORY, 'all');
-    expect(all).not.toBe(HISTORY);
+    expect(filterHistory(HISTORY, ALL_KINDS)).not.toBe(HISTORY);
   });
 });

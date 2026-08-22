@@ -601,10 +601,16 @@
   border-bottom: 1px solid var(--pf-color-border);
 }
 
-// Tighter segments than the preset picker — the sidebar is ~280px wide.
-.pf-bt-history-filter .pf-bt-segmented__item {
-  padding: 2px 6px;
+// Two kind checkboxes; tight enough for a ~280px sidebar.
+.pf-bt-history-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: var(--pf-font-size-s);
+
+  .pf-checkbox {
+    gap: 4px;
+  }
 }
 
 .pf-bt-history-list {
