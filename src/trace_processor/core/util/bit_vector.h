@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 #define SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -268,6 +269,31 @@ struct BitVector {
   // The && qualifier allows reusing the existing words_ buffer in-place.
   BitVector Compact(const BitVector& keep) && { return CompactInPlace(keep); }
 
+  // Sets bits [at, at + count) from `src` bits [from, from + count). Bits in
+  // the destination range which are unset in the source are left alone, so the
+  // range has to start clear to be a copy rather than a merge.
+  //
+  // Word at a time: a bit at a time serialises on the read-modify-write of the
+  // destination word, which costs more than the whole rest of an append.
+  void SetBitsFrom(uint64_t at,
+                   const BitVector& src,
+                   uint64_t from,
+                   uint64_t count) {
+    PERFETTO_DCHECK(at + count <= size_);
+    PERFETTO_DCHECK(from + count <= src.size_);
+    for (uint64_t done = 0; done < count;) {
+      // The most bits which can be read from one source word and written to one
+      // destination word.
+      uint64_t src_bit = (from + done) % 64;
+      uint64_t dst_bit = (at + done) % 64;
+      uint64_t run = std::min({count - done, 64 - src_bit, 64 - dst_bit});
+      uint64_t mask = run == 64 ? ~uint64_t{0} : (uint64_t{1} << run) - 1;
+      uint64_t word = (src.words_[(from + done) / 64] >> src_bit) & mask;
+      words_[(at + done) / 64] |= word << dst_bit;
+      done += run;
+    }
+  }
+
   // Clears all bits in the vector, resetting it to an empty state.
   void clear() {
     words_.clear();
@@ -281,6 +307,11 @@ struct BitVector {
 
   // Resizes the vector to the specified size. If shrinking, bits past the new
   // size are cleared. If growing, new bits are set to the given value.
+  // Makes room for `new_size` bits without changing the size. Growth here is
+  // geometric where resize allocates exactly what was asked for, so anything
+  // filling a bit vector a chunk at a time has to come through here first.
+  void reserve(uint64_t new_size) { words_.reserve((new_size + 63) / 64); }
+
   void resize(uint64_t new_size, bool value = false) {
     uint64_t new_words = (new_size + 63) / 64;
     words_.resize(new_words);
