@@ -183,24 +183,6 @@
   flex-direction: column;
   overflow: hidden;
 
-  &__head {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin: 8px 0 24px;
-  }
-
-  &__title {
-    font-size: 28px;
-    font-weight: 400;
-    letter-spacing: -0.02em;
-  }
-
-  &__subtitle {
-    font-size: 15px;
-    color: var(--pf-color-text-muted);
-  }
-
   &__presets {
     display: flex;
     flex-direction: column;
@@ -251,119 +233,6 @@
   &__message {
     color: var(--pf-color-danger);
     font-size: var(--pf-font-size-s);
-  }
-}
-
-// ---------- Analysis preset cards (launcher) ----------
-
-// One column per card (capped at 3) via the --cols-N modifier, so a sparse
-// category leaves no empty tracks and the content block can center it.
-.pf-bt-preset-list {
-  display: grid;
-  gap: 16px;
-
-  &--cols-1 {
-    grid-template-columns: minmax(240px, 309px);
-  }
-  &--cols-2 {
-    grid-template-columns: repeat(2, minmax(240px, 309px));
-  }
-  &--cols-3 {
-    grid-template-columns: repeat(3, minmax(240px, 309px));
-  }
-}
-
-// Intentionally richer than the minimal house style — this is where a query
-// starts, so the cards carry color (icon tint) and hover depth.
-.pf-bt-preset-card {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  position: relative;
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.12s ease,
-    border-color 0.12s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
-    border-color: var(--pf-color-primary);
-  }
-
-  &__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    border-radius: 4px;
-    background: rgba(var(--pf-color-primary-rgb), 0.12);
-    color: var(--pf-color-primary);
-
-    .pf-icon {
-      font-size: 24px;
-    }
-  }
-
-  &__body {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  &__title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--pf-color-text);
-  }
-
-  &__desc {
-    font-size: var(--pf-font-size-s);
-    color: var(--pf-color-text-muted);
-    line-height: 1.4;
-  }
-
-  // The preset the last query started from — one click repeats that setup.
-  &--selected {
-    border-color: var(--pf-color-primary);
-  }
-
-  // Rename / delete on a locally-saved preset; revealed on hover so the card
-  // reads the same as a backend one at rest.
-  &__tools {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    display: none;
-    gap: 2px;
-  }
-
-  &:hover &__tools {
-    display: flex;
-  }
-
-  &__badge {
-    position: absolute;
-    bottom: 6px;
-    right: 10px;
-    font-size: var(--pf-font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--pf-color-primary);
-  }
-
-  // A preset that carries no query: it configures the run, nothing more.
-  &__kind {
-    font-size: var(--pf-font-size-xs);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--pf-color-text-muted);
   }
 }
 
@@ -951,11 +820,18 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// Hint under the Presets heading on an existing query's Trace Selection page.
-.pf-bt-presets-hint {
-  color: var(--pf-color-text-muted);
-  font-size: var(--pf-font-size-s);
-  margin: -8px 0 16px;
+// Category selector + per-category preset dropdown (+ edit/delete for the
+// user's own presets). Descriptions are tooltips, not page text.
+.pf-bt-preset-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+
+  &__select {
+    min-width: 260px;
+  }
 }
 
 // Query-settings modal (gear in the run toolbar): the settings form without

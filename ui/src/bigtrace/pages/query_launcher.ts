@@ -15,12 +15,14 @@
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
+import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {Intent} from '../../widgets/common';
 import type {TracePreset} from '../query/bigtrace_query_client';
 import {presetStore} from '../query/preset_store';
 import {
   DEFAULT_LOCAL_CATEGORY,
+  isLocalPreset,
   localPresetStore,
   type LocalPreset,
 } from '../query/local_preset_store';
@@ -42,8 +44,12 @@ import {
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
-import {PresetGallery} from './preset_gallery';
-import {promptForPreset} from './preset_dialogs';
+import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
+import {
+  deleteLocalPreset,
+  editLocalPreset,
+  promptForPreset,
+} from './preset_dialogs';
 import {QuerySettingsForm} from './query_settings_form';
 
 export interface QueryLauncherAttrs {
@@ -72,12 +78,22 @@ export function preselectedPresetId(
 }
 
 // One page for a tab that has no query yet and for the Trace Selection of one
-// that does: a Presets section, then the trace-selection form — nothing
-// folded. Cards fill the page, buttons commit. On a new tab a card fills in
-// the whole preset, query included, and Start query opens the editor; on an
-// existing query a card lends its setup only, and Apply keeps it. Query
-// options live elsewhere (the gear in the run toolbar).
+// that does: a Presets section, then the trace-selection form. Presets are
+// picked from a category selector plus a dropdown of that category's presets.
+// Picking fills the page — the whole preset (query included) on a new tab,
+// the trace selection only on an existing query — and the footer commits.
+// Browsing never applies anything: switching category just changes what the
+// dropdown offers, and the dropdown's value is always the preset the page is
+// actually filled from ("—" when it isn't from the visible category, or from
+// any). Query options live elsewhere (the gear in the run toolbar).
 export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
+  // Category being browsed; defaults to the applied (else last-used)
+  // preset's, so the picker opens where the relevant entry lives.
+  private activeCuj?: string;
+  // The preset last applied per category while this page is up, so clicking
+  // back to a category restores the one that was chosen there.
+  private readonly lastByCategory = new Map<string, string>();
+
   oninit() {
     void presetStore.load();
   }
@@ -98,7 +114,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     ]);
   }
 
-  // The Presets section, headed like the form's own sections. What a card
+  // The Presets section, headed like the form's own sections. What picking
   // does depends on the page: filling a new tab in wholesale, or lending an
   // existing query its setup.
   private renderPresetsSection(
@@ -111,102 +127,156 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
       localPresetStore.list(),
     );
     return [
-      !editing &&
-        m('.pf-bt-launcher__head', [
-          m('.pf-bt-launcher__title', 'Start a query'),
-          m(
-            '.pf-bt-launcher__subtitle',
-            'Pick a preset, or configure the traces and options yourself.',
-          ),
-        ]),
       // With no presets to offer, an existing query's page goes straight to
       // the trace selection; only a new tab explains where presets come from.
       (presets.length > 0 || !editing) &&
         m('.pf-bt-settings-page__plugin-section', [
           m('h2.pf-bt-settings-page__plugin-title', 'Presets'),
-          editing &&
-            m(
-              '.pf-bt-presets-hint',
-              'Pick a preset to use its settings here. The query is not ' +
-                'changed.',
-            ),
-          editing
-            ? this.renderSetupPresets(tab, tabsState, presets)
-            : this.renderStartPresets(tab, tabsState, presets),
+          presets.length === 0
+            ? this.renderNoPresets()
+            : this.renderPresetPicker(tab, tabsState, presets, editing),
         ]),
     ];
   }
 
-  private renderStartPresets(
-    tab: BigTraceEditorTab,
-    tabsState: QueryTabsState,
-    presets: ReadonlyArray<TracePreset>,
-  ): m.Children {
-    if (presets.length === 0) {
-      // Don't call it empty while the catalog is still in flight.
-      if (presetStore.isLoading) {
-        return m(
-          EmptyState,
-          {title: 'Loading presets…', icon: 'hourglass_empty'},
-          m(Spinner),
-        );
-      }
-      // No catalog reached us: say so, and point at the control that fixes it.
-      const unreachable =
-        getBigtraceEndpoint() === '' ||
-        bigTraceSettingsStorage.execConfigLoadError !== undefined;
+  // Only reachable on a new tab (an existing query's section is skipped when
+  // there is nothing to offer).
+  private renderNoPresets(): m.Children {
+    // Don't call it empty while the catalog is still in flight.
+    if (presetStore.isLoading) {
       return m(
         EmptyState,
-        {
-          icon: unreachable ? 'cloud_off' : 'bookmark_border',
-          title: unreachable
-            ? 'Connect a backend to load presets'
-            : 'No presets yet',
-        },
-        m(
-          '.pf-bt-launcher__empty-detail',
-          unreachable
-            ? 'BigTrace runs your queries against a backend that holds the ' +
-                'traces. Set the endpoint from the connection button, top right.'
-            : 'Configure the traces and options below, then save that setup ' +
-                'as a preset to reuse it.',
-        ),
+        {title: 'Loading presets…', icon: 'hourglass_empty'},
+        m(Spinner),
       );
     }
-    // The page reads back the preset it's filled from; until a card is
-    // picked, the last-used one is suggested.
-    const selectedId = selectedPresetId(tab, presets, tab.lastPresetId);
-    const suggestedId = preselectedPresetId(presets, lastPresetIdState.get());
-    return m(PresetGallery, {
-      presets,
-      selectedId: selectedId ?? suggestedId,
-      selectedBadge: selectedId !== undefined ? 'Selected' : 'Last used',
-      onPick: (preset) => {
-        applyPresetToTab(tab, preset);
-        tabsState.markDirty();
+    // No catalog reached us: say so, and point at the control that fixes it.
+    const unreachable =
+      getBigtraceEndpoint() === '' ||
+      bigTraceSettingsStorage.execConfigLoadError !== undefined;
+    return m(
+      EmptyState,
+      {
+        icon: unreachable ? 'cloud_off' : 'bookmark_border',
+        title: unreachable
+          ? 'Connect a backend to load presets'
+          : 'No presets yet',
       },
-    });
+      m(
+        '.pf-bt-launcher__empty-detail',
+        unreachable
+          ? 'BigTrace runs your queries against a backend that holds the ' +
+              'traces. Set the endpoint from the connection button, top right.'
+          : 'Configure the traces and options below, then save that setup ' +
+              'as a preset to reuse it.',
+      ),
+    );
   }
 
-  // On an existing query a preset lends its setup only — settings, trace
-  // selection, result columns, order, caps and mode — and the query stays the
-  // user's: this page is about how a query runs, not what it runs.
-  // Provisional like any other edit here: Cancel undoes it. The card marked
-  // "Current" is the preset whose setup the tab runs with right now.
-  private renderSetupPresets(
+  // Category selector + a dropdown of that category's presets. Clicking a
+  // category applies one of its presets — the one last applied there while
+  // this page is up, else this tab's last preset when it belongs, else the
+  // first — and the dropdown refines the choice within it, so the picker
+  // always names what the page is filled from once it has been touched.
+  // Before that, the value is "—" and the last-used preset is marked inside
+  // the list as a suggestion. Descriptions ride as tooltips — on each option
+  // while choosing, on the control once something is chosen.
+  private renderPresetPicker(
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
     presets: ReadonlyArray<TracePreset>,
+    editing: boolean,
   ): m.Children {
-    return m(PresetGallery, {
-      presets,
-      selectedId: matchingSetupPresetId(tab, presets, tab.lastPresetId),
-      selectedBadge: 'Current',
-      onPick: (preset) => {
+    const appliedId = editing
+      ? matchingSetupPresetId(tab, presets, tab.lastPresetId)
+      : selectedPresetId(tab, presets, tab.lastPresetId);
+    const applied = presets.find((p) => p.id === appliedId);
+    const suggestedId =
+      appliedId === undefined
+        ? preselectedPresetId(presets, lastPresetIdState.get())
+        : undefined;
+    const anchor =
+      applied ?? presets.find((p) => p.id === suggestedId) ?? undefined;
+
+    const {groups, byCuj} = groupPresetsByCuj(presets);
+    // Same bucketing as groupPresetsByCuj, so an uncategorised preset's
+    // category resolves to its ("Other") group.
+    const anchorCuj =
+      anchor === undefined ? undefined : anchor.category || 'Other';
+    const active =
+      this.activeCuj !== undefined && byCuj.has(this.activeCuj)
+        ? this.activeCuj
+        : anchorCuj !== undefined && byCuj.has(anchorCuj)
+          ? anchorCuj
+          : groups[0][0];
+    const options = byCuj.get(active) ?? [];
+    const appliedInActive = options.some((p) => p.id === appliedId);
+    const shown = appliedInActive ? applied : undefined;
+
+    const pick = (preset: TracePreset) => {
+      if (editing) {
         applyPresetSetup(tab, preset);
-        tabsState.markDirty();
-      },
-    });
+      } else {
+        applyPresetToTab(tab, preset);
+      }
+      this.lastByCategory.set(preset.category || 'Other', preset.id);
+      tabsState.markDirty();
+    };
+
+    return m('.pf-bt-preset-picker', [
+      renderCujSelector(
+        groups.map(([cuj]) => cuj),
+        active,
+        (cuj) => {
+          this.activeCuj = cuj;
+          const candidates = byCuj.get(cuj) ?? [];
+          const remembered =
+            candidates.find((p) => p.id === this.lastByCategory.get(cuj)) ??
+            candidates.find((p) => p.id === tab.lastPresetId) ??
+            candidates[0];
+          if (remembered !== undefined) pick(remembered);
+        },
+      ),
+      m(
+        Select,
+        {
+          className: 'pf-bt-preset-picker__select',
+          value: appliedInActive ? appliedId : '',
+          title: shown?.description || undefined,
+          onchange: (e: Event) => {
+            const id = (e.target as HTMLSelectElement).value;
+            const preset = options.find((p) => p.id === id);
+            if (preset === undefined) return;
+            pick(preset);
+          },
+        },
+        [
+          m('option', {value: '', disabled: true}, '— choose a preset —'),
+          options.map((p) =>
+            m(
+              'option',
+              {value: p.id, title: p.description || undefined},
+              presetOptionLabel(p, suggestedId),
+            ),
+          ),
+        ],
+      ),
+      // Manage the applied preset when it's the user's own.
+      shown !== undefined &&
+        isLocalPreset(shown) && [
+          m(Button, {
+            icon: 'edit',
+            title: 'Edit this preset: name, group, description',
+            onclick: () => void editLocalPreset(shown as LocalPreset),
+          }),
+          m(Button, {
+            icon: 'delete',
+            intent: Intent.Danger,
+            title: 'Delete this preset',
+            onclick: () => void deleteLocalPreset(shown as LocalPreset),
+          }),
+        ],
+    ]);
   }
 
   private renderFooter(
@@ -275,6 +345,19 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     lastPresetIdState.set(saved.id);
     m.redraw();
   }
+}
+
+// Option text for the dropdown: the name, with what a card used to say in
+// its tags — setup-only, and the last-used suggestion while nothing is
+// applied yet.
+export function presetOptionLabel(
+  p: TracePreset,
+  suggestedId: string | undefined,
+): string {
+  let label = p.name;
+  if (p.perfettoSql.trim() === '') label += ' · setup only';
+  if (p.id === suggestedId) label += ' · last used';
+  return label;
 }
 
 // A preset carries trace selection and SQL, so both sides of a match are
