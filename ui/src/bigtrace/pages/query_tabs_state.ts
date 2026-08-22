@@ -29,11 +29,6 @@ import {
   traceSourceSettings,
   TRACE_SOURCE_CATEGORY,
 } from '../settings/query_setup_state';
-import {
-  traceFilterState,
-  traceOrderByState,
-  traceQueryColumnsState,
-} from '../settings/trace_selection_state';
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
@@ -425,22 +420,18 @@ export class QueryTabsState {
         };
       }
     }
+    // Restored tabs use their snapshot; history-reopen tabs are rehydrated by
+    // the runner; a fresh tab starts empty and gets its selection from the
+    // preset (or custom setup) chosen in the launcher.
     const traceFilters: Filter[] = isFromStorage
       ? [...(stored?.traceFilters ?? [])]
-      : isFromHistory
-        ? []
-        : [...traceFilterState.get()];
-    // Restored: persisted; history-reopen: null (runner rehydrates); fresh: global.
+      : [];
     const traceMetadataColumns: readonly string[] | null = isFromStorage
       ? (stored?.traceMetadataColumns ?? null)
-      : isFromHistory
-        ? null
-        : traceQueryColumnsState.get();
+      : null;
     const traceOrderBy: string = isFromStorage
       ? (stored?.traceOrderBy ?? '')
-      : isFromHistory
-        ? ''
-        : traceOrderByState.get();
+      : '';
     // Restored tabs keep their layout; fresh/history start at show-all (null).
     const resultColumns: readonly string[] | null = isFromStorage
       ? (stored?.resultColumns ?? null)

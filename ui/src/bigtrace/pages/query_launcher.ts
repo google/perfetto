@@ -42,7 +42,7 @@ import {
   type QueryTabsState,
 } from './query_tabs_state';
 import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
-import {SettingsPage} from './settings_page';
+import {QuerySettingsForm} from './query_settings_form';
 
 export interface QueryLauncherAttrs {
   readonly tab: BigTraceEditorTab;
@@ -96,7 +96,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     if (this.mode === 'custom') {
       return m(
         '.pf-bt-launcher.pf-bt-launcher--custom',
-        m('.pf-bt-launcher__custom-body', m(SettingsPage, {bindings})),
+        m('.pf-bt-launcher__custom-body', m(QuerySettingsForm, {bindings})),
         this.renderCustomFooter(tab, tabsState),
       );
     }
@@ -282,8 +282,15 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         variant: ButtonVariant.Filled,
         onclick: () => {
           lastSetupState.set(setupFromTab(tab));
-          // Configured by hand: no preset for the next tab to preselect.
-          lastPresetIdState.set('');
+          // If this setup happens to be one of the presets on offer (e.g. it
+          // was just saved as one), the next tab preselects it; otherwise
+          // there's no preset to remember.
+          lastPresetIdState.set(
+            matchingPresetId(
+              tab,
+              launcherPresets(presetStore.presets, localPresetStore.list()),
+            ) ?? '',
+          );
           tab.configured = true;
           tabsState.markDirty();
         },

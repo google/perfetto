@@ -25,7 +25,7 @@ import {
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
-import {SettingsPage} from './settings_page';
+import {QuerySettingsForm} from './query_settings_form';
 
 export interface BigtraceSettingsBarAttrs {
   readonly tab: BigTraceEditorTab;
@@ -159,7 +159,7 @@ function openAddSettingsModal(bindings: SettingsBindings): void {
     title: 'Bigtrace settings',
     className: 'pf-bt-settings-modal',
     vAlign: 'TOP',
-    content: () => m(SettingsPage, {bindings}),
+    content: () => m(QuerySettingsForm, {bindings}),
     buttons: [{text: 'Done', primary: true}],
   });
 }
