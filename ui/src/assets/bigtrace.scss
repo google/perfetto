@@ -906,6 +906,12 @@ pre.pf-bt-history-item-query--standalone {
   border-bottom: 1px solid var(--pf-color-border-secondary);
   flex: 0 0 auto;
 
+  // Right-pinned action; never squeezed by a long chip row.
+  &__end {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
   &__chips {
     flex: 1 1 auto;
     min-width: 0;

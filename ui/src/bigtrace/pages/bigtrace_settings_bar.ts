@@ -58,18 +58,6 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           onclick: () => openAddSettingsModal(bindings),
         }),
         m(Chip, {
-          label: 'Duplicate',
-          icon: 'content_copy',
-          className: 'pf-bt-settings-bar__add',
-          title:
-            'Open a copy of this query in a new tab — same SQL and settings, ' +
-            'its own run.',
-          onclick: () => {
-            tabsState.duplicateTab(tab.id);
-            m.redraw();
-          },
-        }),
-        m(Chip, {
           label: 'Change setup',
           icon: 'restart_alt',
           className: 'pf-bt-settings-bar__add',
@@ -90,6 +78,20 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
         renderSettingChips(bindings),
         renderFilterChips(tab, tabsState, bindings),
       ),
+      // Pinned to the right edge: this one acts on the tab as a whole, not on
+      // what it runs with, so it sits apart from the configuration chips.
+      m(Chip, {
+        label: 'Duplicate',
+        icon: 'content_copy',
+        className: 'pf-bt-settings-bar__end',
+        title:
+          'Open a copy of this query in a new tab — same SQL and settings, ' +
+          'its own run.',
+        onclick: () => {
+          tabsState.duplicateTab(tab.id);
+          m.redraw();
+        },
+      }),
     );
   }
 }
