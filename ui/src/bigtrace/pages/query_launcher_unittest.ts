@@ -22,8 +22,11 @@ import {
 } from './query_launcher';
 import {
   applyPresetToTab,
-  MODE_DEFAULTS,
+  effectiveTabSettings,
   effectiveTraceLimit,
+  MODE_DEFAULTS,
+  setTraceLimit,
+  traceLimitDisabled,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
@@ -254,6 +257,75 @@ describe('applyPresetToTab', () => {
     expect(
       tab.querySettings.find((s) => s.settingId === 'trace_directory')?.values,
     ).toEqual(['/preset/traces']);
+  });
+
+  test('a preset that omits the trace cap still ships one', () => {
+    bigTraceSettingsStorage.register({
+      id: 'trace_limit',
+      name: 'trace_limit',
+      description: '',
+      type: 'number',
+      schema: z.number() as never,
+      defaultValue: 100,
+      category: 'TRACE_ADDRESS',
+    });
+    const tab = fakeTab();
+    // The reference catalog's presets don't mention the cap. Disabling it
+    // would run the query over every trace in the corpus while the toolbar
+    // showed a number.
+    applyPresetToTab(tab, preset({materialized: true, settings: []}));
+    expect(traceLimitDisabled(tab)).toBe(false);
+    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.persistent.traceLimit);
+    expect(
+      effectiveTabSettings(tab).find((s) => s.settingId === 'trace_limit')
+        ?.values,
+    ).toEqual([String(MODE_DEFAULTS.persistent.traceLimit)]);
+  });
+
+  test('a preset that states a trace cap keeps it', () => {
+    bigTraceSettingsStorage.register({
+      id: 'trace_limit',
+      name: 'trace_limit',
+      description: '',
+      type: 'number',
+      schema: z.number() as never,
+      defaultValue: 100,
+      category: 'TRACE_ADDRESS',
+    });
+    const tab = fakeTab();
+    applyPresetToTab(
+      tab,
+      preset({
+        settings: [
+          {settingId: 'trace_limit', values: ['25'], category: 'TRACE_ADDRESS'},
+        ],
+      }),
+    );
+    expect(effectiveTraceLimit(tab)).toBe(25);
+  });
+
+  test('setting a cap re-enables one the tab had switched off', () => {
+    bigTraceSettingsStorage.register({
+      id: 'trace_limit',
+      name: 'trace_limit',
+      description: '',
+      type: 'number',
+      schema: z.number() as never,
+      defaultValue: 100,
+      category: 'TRACE_ADDRESS',
+    });
+    const tab = fakeTab({disabledSettings: ['trace_limit']});
+    // Uncapped until the user types a number in the toolbar.
+    expect(traceLimitDisabled(tab)).toBe(true);
+    expect(effectiveTabSettings(tab).map((s) => s.settingId)).not.toContain(
+      'trace_limit',
+    );
+    setTraceLimit(tab, 50);
+    expect(traceLimitDisabled(tab)).toBe(false);
+    expect(
+      effectiveTabSettings(tab).find((s) => s.settingId === 'trace_limit')
+        ?.values,
+    ).toEqual(['50']);
   });
 
   test('empty metadata columns from the wire mean "unchosen"', () => {

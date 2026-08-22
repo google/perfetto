@@ -38,6 +38,7 @@ import {
   effectiveTabSettings,
   effectiveTraceLimit,
   setTraceLimit,
+  traceLimitDisabled,
   TRACE_LIMIT_SETTING_ID,
 } from './query_tabs_state';
 import {renderResultsPanel} from './results_panel';
@@ -120,8 +121,9 @@ function buildTabBindings(
       const entry = tab.querySettings.find((s) => s.settingId === id);
       if (entry !== undefined) return entry.values;
       // Until the user sets one, the trace cap follows the execution mode —
-      // report that, so the settings card agrees with the toolbar.
-      if (id === TRACE_LIMIT_SETTING_ID) {
+      // report that, so the settings card agrees with the toolbar. A cap the
+      // tab switched off has no value to report: the run is uncapped.
+      if (id === TRACE_LIMIT_SETTING_ID && !traceLimitDisabled(tab)) {
         return [String(effectiveTraceLimit(tab))];
       }
       return undefined;
@@ -269,9 +271,11 @@ function renderRunControls(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
 ): m.Children {
-  // A backend that doesn't declare the trace cap gets no control for it.
+  // No control when the backend doesn't declare a trace cap, or when this tab
+  // switched it off — showing a number for an uncapped run would be a lie.
   const hasTraceLimit =
-    bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID) !== undefined;
+    bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID) !== undefined &&
+    !traceLimitDisabled(tab);
   return [
     m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
     m(Switch, {

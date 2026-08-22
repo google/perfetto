@@ -62,6 +62,11 @@ export function clampTraceLimit(value: number): number {
 }
 
 // The cap the user (or a preset) set explicitly on this tab, if any.
+// Whether this tab ships no cap at all, because the setting is switched off.
+export function traceLimitDisabled(tab: BigTraceEditorTab): boolean {
+  return tab.disabledSettings.includes(TRACE_LIMIT_SETTING_ID);
+}
+
 export function explicitTraceLimit(tab: BigTraceEditorTab): number | undefined {
   const entry = tab.querySettings.find(
     (s) => s.settingId === TRACE_LIMIT_SETTING_ID,
@@ -72,6 +77,8 @@ export function explicitTraceLimit(tab: BigTraceEditorTab): number | undefined {
 }
 
 // The cap the next run will use: the explicit value, else the mode default.
+// Meaningless when the tab has the setting disabled — then the run is uncapped
+// and callers hide the control (see traceLimitDisabled).
 export function effectiveTraceLimit(tab: BigTraceEditorTab): number {
   return (
     explicitTraceLimit(tab) ??
@@ -82,6 +89,11 @@ export function effectiveTraceLimit(tab: BigTraceEditorTab): number {
 export function setTraceLimit(tab: BigTraceEditorTab, value: number): void {
   const setting = bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID);
   if (setting === undefined) return;
+  // Setting a cap turns the setting back on — the toolbar control is the cap,
+  // so a value typed there can't be silently dropped by a stale disable.
+  tab.disabledSettings = tab.disabledSettings.filter(
+    (id) => id !== TRACE_LIMIT_SETTING_ID,
+  );
   tab.querySettings = [
     ...tab.querySettings.filter((s) => s.settingId !== TRACE_LIMIT_SETTING_ID),
     {
@@ -206,11 +218,24 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
     values: [...s.values],
     category: s.category as SettingCategory,
   }));
+  const metadataColumns = t.traceMetadataColumns ?? [];
+  const materialized = t.materialized ?? true;
   const disabledSettings: string[] = [];
   for (const raw of bigTraceSettingsStorage.getAllSettings()) {
     if (raw.category === undefined) continue;
     if (presetIds.has(raw.id)) continue;
-    if (raw.type === 'boolean') {
+    if (raw.id === TRACE_LIMIT_SETTING_ID) {
+      // The trace cap is a run control with a per-mode default, not something
+      // a preset can leave unset: a preset that doesn't state one runs at the
+      // default for its mode, never uncapped.
+      querySettings.push({
+        settingId: raw.id,
+        values: [
+          String(clampTraceLimit(modeDefaults(materialized).traceLimit)),
+        ],
+        category: raw.category as SettingCategory,
+      });
+    } else if (raw.type === 'boolean') {
       querySettings.push({
         settingId: raw.id,
         values: ['false'],
@@ -220,8 +245,6 @@ export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
       disabledSettings.push(raw.id);
     }
   }
-  const metadataColumns = t.traceMetadataColumns ?? [];
-  const materialized = t.materialized ?? true;
 
   tab.editorText = t.perfettoSql;
   if (t.name) tab.title = t.name;
