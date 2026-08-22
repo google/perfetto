@@ -16,13 +16,12 @@ import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
   canReturnToQuery,
-  isLocalPreset,
   launcherPresets,
   matchingPresetId,
   matchingSetupPresetId,
   preselectedPresetId,
-  presetNameConflict,
 } from './query_launcher';
+import {presetNameConflict} from './preset_dialogs';
 import {
   applyPresetSetup,
   applyPresetToTab,
@@ -36,7 +35,7 @@ import {
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {TracePreset} from '../query/bigtrace_query_client';
-import type {LocalPreset} from '../query/local_preset_store';
+import {isLocalPreset, type LocalPreset} from '../query/local_preset_store';
 
 function preset(over: Partial<TracePreset> = {}): TracePreset {
   return {

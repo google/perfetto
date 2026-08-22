@@ -20,7 +20,6 @@ import {Callout} from '../../widgets/callout';
 import {linkify} from '../../widgets/anchor';
 import {Intent} from '../../widgets/common';
 import m from 'mithril';
-import {Select} from '../../widgets/select';
 import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
 import {
@@ -56,10 +55,8 @@ import type {
 import {
   BigtraceQueryClient,
   type TraceColumnDescriptor,
-  type TracePreset,
   type TracesSchemaResponse,
 } from '../query/bigtrace_query_client';
-import {groupPresetsByCuj} from './preset_groups';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
 import {formatCompact} from '../query/query_store';
 import {
@@ -189,22 +186,14 @@ interface SchemaError {
 }
 type SchemaState = undefined | 'loading' | SchemaError | TracesSchemaResponse;
 
-// The picker at the top of the form: choose a preset to take its setup —
-// settings, trace selection, result columns, order, caps and mode — leaving
-// the query alone. It doubles as an indicator: it reads the preset the current
-// setup matches, and "Custom" once nothing does.
-export interface PresetPickerAttrs {
-  // Presets on offer, catalog first; grouped by category in the control.
-  readonly presets: ReadonlyArray<TracePreset>;
-  readonly selectedId: string | undefined;
-  readonly onSelect: (preset: TracePreset) => void;
-}
-
 export interface QuerySettingsFormAttrs {
   // Every read and write routes through these, so the form always edits one
   // tab's configuration — there is no global settings state behind it.
   readonly bindings: SettingsBindings;
-  readonly presetPicker?: PresetPickerAttrs;
+  // Rendered above the sections, scrolling with them (the launcher puts its
+  // folded preset gallery here). Anything it does to the tab's selection or
+  // order shows up on the next render: the grid state is re-read each view.
+  readonly header?: m.Children;
 }
 
 // AIP-132 single-field order_by helpers. The DataGrid supports only one active
@@ -265,8 +254,9 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
     bigTraceSettingsStorage.loadSettings();
   }
 
-  // Pull the grid's filter and sort state from the tab. On open, and again
-  // whenever something other than the grid rewrites them (a preset's setup).
+  // Pull the grid's filter and sort state from the tab. The grid writes them
+  // through as the user edits, but so can the header (a preset's setup), so
+  // this runs on every view rather than only on open.
   private syncFromBindings(): void {
     this.traceFilterss = this.readTraceFilters();
     const parsed = parseSingleFieldOrderBy(this.readTraceOrderBy());
@@ -805,6 +795,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   view({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     // Refresh bindings each render so callers can swap them without remounting.
     this.bindings = attrs.bindings;
+    this.syncFromBindings();
 
     const categories = new Map<string, BigTraceSetting<unknown>[]>();
     for (const setting of bigTraceSettingsStorage.getAllSettings()) {
@@ -837,7 +828,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
 
     return m('.pf-bt-settings-embedded', [
       m('.pf-bt-settings-page', [
-        attrs.presetPicker && this.renderPresetPicker(attrs.presetPicker),
+        attrs.header,
         bigTraceSettingsStorage.isExecConfigLoading &&
           m(EmptyState, {
             title: 'Loading settings...',
@@ -857,44 +848,6 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
             bigTraceSettingsStorage.execConfigLoadError,
           ),
       ]),
-    ]);
-  }
-
-  // Grouped like the launcher gallery. "Custom" is the reading when the setup
-  // matches no preset; it can't be picked — there is nothing to apply.
-  private renderPresetPicker(picker: PresetPickerAttrs): m.Children {
-    if (picker.presets.length === 0) return null;
-    const {groups} = groupPresetsByCuj(picker.presets);
-    return m('.pf-bt-settings-preset', [
-      m('span.pf-bt-settings-preset__label', 'Settings from preset'),
-      m(
-        Select,
-        {
-          value: picker.selectedId ?? '',
-          onchange: (e: Event) => {
-            const id = (e.target as HTMLSelectElement).value;
-            const preset = picker.presets.find((p) => p.id === id);
-            if (preset === undefined) return;
-            picker.onSelect(preset);
-            this.syncFromBindings();
-          },
-        },
-        [
-          m('option', {value: '', disabled: true}, 'Custom'),
-          groups.map(([cuj, presets]) =>
-            m(
-              'optgroup',
-              {label: cuj},
-              presets.map((p) => m('option', {value: p.id}, p.name)),
-            ),
-          ),
-        ],
-      ),
-      m(
-        'span.pf-bt-settings-preset__hint',
-        'Takes the preset’s settings, trace selection, result columns and ' +
-          'caps. The query is not changed.',
-      ),
     ]);
   }
 

@@ -979,24 +979,51 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// "Settings from preset" picker atop the settings form.
-.pf-bt-settings-preset {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  margin-bottom: 24px;
+// The preset gallery folded atop the settings form. An AccordionSection with
+// the section-title look of the form's own headings, so it reads as one more
+// section that happens to open and close.
+.pf-bt-settings-presets {
+  margin-bottom: 32px;
 
-  &__label {
+  > summary {
+    border-radius: 4px;
+    padding: 8px 12px;
+    // Not sticky here: the form scrolls as one document.
+    position: static;
+    background: var(--pf-minimal-background);
+  }
+
+  &[open] > summary {
+    background: var(--pf-minimal-background);
+  }
+
+  &__summary {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: var(--pf-font-size-xl);
     font-weight: 600;
   }
 
-  .pf-select {
-    min-width: 240px;
+  &__current {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__hint {
-    font-size: var(--pf-font-size-s);
     color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    margin: 4px 0 16px;
+  }
+
+  .pf-accordion__content {
+    padding: 8px 4px 4px;
+    background: transparent;
   }
 }

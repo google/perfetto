@@ -58,6 +58,10 @@ export function isLocalPresetId(id: string): boolean {
   return id.startsWith(LOCAL_ID_PREFIX);
 }
 
+export function isLocalPreset(p: TracePreset): p is LocalPreset {
+  return (p as LocalPreset).isLocal === true;
+}
+
 // Drop anything that isn't a usable preset — the store is user-editable
 // localStorage, so a hand-edited or half-written entry must not break the
 // launcher.
