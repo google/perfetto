@@ -261,3 +261,89 @@ describe('per-mode row and trace limits', () => {
     expect(effectiveTabSettings(tab)).toEqual([]);
   });
 });
+
+describe('duplicateTab', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  function configuredTab(tabs: QueryTabsState) {
+    const tab = tabs.addNewTab(undefined, '', undefined, undefined, true);
+    tab.title = 'Jank by device';
+    tab.editorText = 'select * from slice';
+    tab.configured = true;
+    tab.queryUuid = 'uuid-1';
+    tab.traceFilters = [{field: 'file_name', op: 'glob', value: '*.pftrace'}];
+    tab.traceMetadataColumns = ['device_name'];
+    tab.traceOrderBy = 'size_bytes desc';
+    tab.querySettings = [
+      {
+        settingId: 'trace_directory',
+        values: ['/traces'],
+        category: 'TRACE_ADDRESS',
+      },
+    ];
+    tab.disabledSettings = ['some_filter'];
+    return tab;
+  }
+
+  test('copies the query and its configuration', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    const copy = tabs.duplicateTab(src.id)!;
+
+    expect(copy.id).not.toBe(src.id);
+    expect(copy.editorText).toBe('select * from slice');
+    expect(copy.limit).toBe(src.limit);
+    expect(copy.materialize).toBe(true);
+    expect(copy.configured).toBe(true);
+    expect(copy.traceFilters).toEqual(src.traceFilters);
+    expect(copy.traceMetadataColumns).toEqual(['device_name']);
+    expect(copy.traceOrderBy).toBe('size_bytes desc');
+    expect(copy.querySettings).toEqual(src.querySettings);
+    expect(copy.disabledSettings).toEqual(['some_filter']);
+  });
+
+  test('the copy is unrun: no queryUuid, no results', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    const copy = tabs.duplicateTab(src.id)!;
+    // Sharing the uuid would make the copy adopt the original's execution and
+    // reactivate its tab from History.
+    expect(copy.queryUuid).toBeUndefined();
+    expect(copy.queryResult).toBeUndefined();
+    expect(copy.dataSource).toBeUndefined();
+    expect(copy.isLoading).toBe(false);
+  });
+
+  test('titles stay distinguishable across repeated forks', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    expect(tabs.duplicateTab(src.id)?.title).toBe('Jank by device copy');
+    expect(tabs.duplicateTab(src.id)?.title).toBe('Jank by device copy 2');
+  });
+
+  test('editing the copy leaves the original alone', () => {
+    const tabs = new QueryTabsState();
+    const src = configuredTab(tabs);
+    const copy = tabs.duplicateTab(src.id)!;
+    copy.traceFilters = [...copy.traceFilters, {field: 'x', op: 'is null'}];
+    copy.querySettings = [
+      {
+        settingId: 'trace_directory',
+        values: ['/other'],
+        category: 'TRACE_ADDRESS',
+      },
+    ];
+    expect(src.traceFilters).toHaveLength(1);
+    expect(src.querySettings[0].values).toEqual(['/traces']);
+  });
+
+  test('an unknown id is a no-op', () => {
+    const tabs = new QueryTabsState();
+    const before = tabs.tabs.length;
+    expect(tabs.duplicateTab('nope')).toBeUndefined();
+    expect(tabs.tabs).toHaveLength(before);
+  });
+});
