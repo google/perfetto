@@ -95,4 +95,18 @@ message SysStatsConfig {
   // Polls /proc/slabinfo every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 slab_period_ms = 15;
+
+  // Polls cgroup stats every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // Cost: ~0.5ms per cgroup path for file reading and parsing.
+  optional uint32 cgroup_period_ms = 16;
+
+  // Cgroup counters to collect. If empty, all known counters are reported.
+  // Otherwise, only the specified counters are collected to reduce overhead.
+  repeated CgroupCounters cgroup_counters = 17;
+
+  // Cgroup paths to monitor. If empty, monitors common Android cgroups
+  // like top-app, foreground, and background task groups.
+  // Examples: "/sys/fs/cgroup/cpu/top-app", "/sys/fs/cgroup/memory/background"
+  repeated string cgroup_paths = 18;
 }
