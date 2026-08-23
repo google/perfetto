@@ -411,6 +411,7 @@ perfetto_unittest_source_set("top_level_unittests") {
     "../../include/perfetto/ext/base",
     "../../include/perfetto/trace_processor",
     "../base:test_support",
+    "core/util",
     "importers/common",
     "importers/fuchsia:full",
     "importers/json",

@@ -73,7 +73,7 @@ class FailingFile final : public io::File {
     return base::ErrStatus("injected write failure");
   }
 
-  base::Status Truncate(uint64_t) override {
+  base::Status SetSize(uint64_t) override {
     return base::ErrStatus("injected truncate failure");
   }
 
@@ -117,7 +117,7 @@ class CountingFile final : public io::File {
     return base::OkStatus();
   }
 
-  base::Status Truncate(uint64_t) override {
+  base::Status SetSize(uint64_t) override {
     return base::ErrStatus("not supported");
   }
 

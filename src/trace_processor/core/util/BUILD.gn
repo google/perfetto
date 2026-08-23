@@ -19,6 +19,8 @@ source_set("util") {
     "bit_vector.h",
     "column_vector.cc",
     "column_vector.h",
+    "file_backed_column_vector.cc",
+    "file_backed_column_vector.h",
     "flex_vector.h",
     "ops.cc",
     "ops.h",
@@ -30,6 +32,7 @@ source_set("util") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
+    "../../../../include/perfetto/trace_processor:io",
     "../../../base",
     "../../containers",
   ]
