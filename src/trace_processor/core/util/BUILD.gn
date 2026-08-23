@@ -17,6 +17,8 @@ import("../../../../gn/test.gni")
 source_set("util") {
   sources = [
     "bit_vector.h",
+    "column_vector.cc",
+    "column_vector.h",
     "flex_vector.h",
     "ops.cc",
     "ops.h",
@@ -37,6 +39,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "bit_vector_unittest.cc",
+    "column_vector_unittest.cc",
     "flex_vector_unittest.cc",
     "ops_unittest.cc",
     "slab_unittest.cc",
