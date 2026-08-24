@@ -55,9 +55,9 @@ distinct.
 ## Step 2 — Execute the Clustering Script
 
 Invoke the provided standalone Python clustering script
-(`$SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py`) on the CSV data. The script performs TF-IDF
-vectorization, computes Silhouette scores to find the optimal $K$, and assigns
-cluster IDs.
+(`$SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py`) on the CSV data.
+Do not write custom clustering algorithms from scratch — this script already implements
+the TF-IDF vectorization, Silhouette score calculation for optimal $K$, and K-Means clustering.
 
 ```bash
 python3 $SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py --process_name <process_name> --input_file <path_to_input.csv> --output_file <path_to_clustered_output.csv>
