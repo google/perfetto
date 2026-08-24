@@ -27,7 +27,7 @@
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_redaction/add_synth_threads_to_process_trees.h"
@@ -89,6 +89,21 @@ base::Status WriteTraceToFile(const std::string& path,
         "TraceRedactor: failed to write redacted trace to disk");
   }
   return base::OkStatus();
+}
+
+// Appends a packet to the output buffer, prepending the necessary
+// trace_packet field tag and length prefix.
+void AppendPacketToTrace(std::string_view packet, std::string* output_buffer) {
+  uint8_t preamble[protozero::proto_utils::kMaxSimpleFieldEncodedSize];
+  uint8_t* ptr = preamble;
+  constexpr uint32_t kTag = protozero::proto_utils::MakeTagLengthDelimited(
+      protos::pbzero::Trace::kPacketFieldNumber);
+  ptr = protozero::proto_utils::WriteVarInt(kTag, ptr);
+  ptr = protozero::proto_utils::WriteVarInt(packet.size(), ptr);
+
+  output_buffer->append(reinterpret_cast<const char*>(preamble),
+                        static_cast<size_t>(ptr - preamble));
+  output_buffer->append(packet.data(), packet.size());
 }
 
 }  // namespace
@@ -173,10 +188,7 @@ base::Status TraceRedactorPass::Transform(
       continue;
     }
 
-    protozero::HeapBuffered<protos::pbzero::Trace> serializer;
-    serializer->add_packet()->AppendRawProtoBytes(packet.data(), packet.size());
-    std::string serialized = serializer.SerializeAsString();
-    output_buffer->append(serialized);
+    AppendPacketToTrace(packet, output_buffer);
   }
 
   return base::OkStatus();
@@ -193,11 +205,7 @@ base::Status TraceRedactorPass::Augment(const Context& context,
       if (packet.empty()) {
         break;
       }
-      protozero::HeapBuffered<protos::pbzero::Trace> serializer;
-      serializer->add_packet()->AppendRawProtoBytes(packet.data(),
-                                                    packet.size());
-      std::string serialized = serializer.SerializeAsString();
-      output_buffer->append(serialized);
+      AppendPacketToTrace(packet, output_buffer);
     }
   }
   return base::OkStatus();
