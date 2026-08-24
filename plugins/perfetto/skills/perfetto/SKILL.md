@@ -23,11 +23,14 @@ written against. It is the only always-required file.
 
 ## 1. Are you trying to record a trace?
 
-If you need to capture a new trace from an Android device:
+If you need to capture a new trace:
 
-*   To record Java/native heap dumps, CPU stack samples, system traces, or a
-    custom config via the Perfetto helper scripts, read
+*   **On an Android device:** to record Java/native heap dumps, CPU stack
+    samples, system traces, or a custom config via the Perfetto helper
+    scripts, read
     [recording_android_traces.md]($SKILL_ROOT/infra-references/recording_android_traces.md).
+*   **On Linux:** to record config-driven traces with `tracebox`, read
+    [recording_linux_traces.md]($SKILL_ROOT/infra-references/recording_linux_traces.md).
 
 ## 2. Are you trying to solve memory issues?
 
@@ -75,3 +78,13 @@ If you want to load a trace and write custom PerfettoSQL queries:
 
 Workflows above are self-contained (they carry their own queries); read
 `querying.md` only for ad-hoc work outside a workflow.
+
+## Finishing any analysis
+
+Whichever path you took — a guided workflow or ad-hoc queries — end by
+**saving a report of the analysis** as a markdown file in the working
+directory (default name: `perfetto_analysis_report.md`, or where the user
+asked). It should contain: the question investigated, the trace file(s)
+used, the findings with concrete numbers, the key validated queries so the
+analysis can be re-run, and open questions or suggested next steps. Tell
+the user the report's path in your final message.
