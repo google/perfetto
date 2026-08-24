@@ -407,14 +407,14 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             return;
           }
 
-          // Returns true if something was selected, so stop propagation.
+          // Returns true if something was selected, so prevent default.
           if (
             onTrackContentClick?.(
               currentTargetOffset(e),
               getTargetContainerSize(e),
             )
           ) {
-            e.stopPropagation();
+            e.preventDefault();
           }
         },
         ondblclick: (e: MouseEvent) => {
@@ -424,7 +424,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               getTargetContainerSize(e),
             )
           ) {
-            e.stopPropagation();
+            e.preventDefault();
           }
         },
       },
