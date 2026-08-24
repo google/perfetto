@@ -250,6 +250,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_NOTIFY_FD,
     OPT_NO_CLOBBER,
     OPT_ADD_ATTRIBUTE,
+    OPT_UPLOAD_AFTER_REBOOT,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -287,6 +288,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
       {"notify-fd", required_argument, nullptr, OPT_NOTIFY_FD},
       {"no-clobber", no_argument, nullptr, OPT_NO_CLOBBER},
+      {"upload-after-reboot", no_argument, nullptr, OPT_UPLOAD_AFTER_REBOOT},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
@@ -434,6 +436,15 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
 #else
       PERFETTO_ELOG("--upload is only supported on Android");
+      return 1;
+#endif
+    }
+
+    if (option == OPT_UPLOAD_AFTER_REBOOT) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      return UploadPersistentTracesAfterReboot();
+#else
+      PERFETTO_ELOG("--upload-after-reboot is only supported on Android");
       return 1;
 #endif
     }
@@ -868,6 +879,16 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     open_out_file = false;
   } else if (trace_out_path_.empty() && !upload_flag_) {
     PERFETTO_ELOG("Either --out or --upload is required");
+    return 1;
+  } else if (trace_config_->persist_trace_across_reboots() && !upload_flag_) {
+    PERFETTO_ELOG(
+        "persist_trace_across_reboots is only supported with --upload");
+    return 1;
+  } else if (trace_config_->persist_trace_across_reboots() &&
+             !trace_config_->write_into_file()) {
+    PERFETTO_ELOG(
+        "TraceConfig's write_into_file must be true when using "
+        "persist_trace_across_reboots");
     return 1;
   } else if (is_detach() && !trace_config_->write_into_file()) {
     // In detached mode we must pass the file descriptor to the service and
@@ -1331,7 +1352,13 @@ bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    fd = CreateUnlinkedTmpFile();
+    if (trace_config_ && trace_config_->persist_trace_across_reboots() &&
+        !is_clone()) {
+      fd = WaitForUploadCompleteAndCreatePersistentTmpFile(
+          trace_config_->unique_session_name(), &persistent_file_path_);
+    } else {
+      fd = CreateUnlinkedTmpFile();
+    }
 #endif
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
