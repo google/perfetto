@@ -224,6 +224,18 @@ class GraphSearchTests(TestSuite):
         99,"[NULL]"
         """))
 
+  def test_dfs_rejects_negative_start_node(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_dfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id),
+            (SELECT -1 AS node_id)
+          );
+        """,
+        out=ExpectedError('DFS: node ids must be non-negative 32-bit integers'))
+
   def test_bfs_start_node_not_in_graph(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
@@ -261,6 +273,18 @@ class GraphSearchTests(TestSuite):
         1,0
         99,"[NULL]"
         """))
+
+  def test_bfs_rejects_start_node_above_int32_max(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_bfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id),
+            (SELECT 4294967295 AS node_id)
+          );
+        """,
+        out=ExpectedError('BFS: node ids must be non-negative 32-bit integers'))
 
   def test_bfs_empty_table(self):
     return DiffTestBlueprint(
@@ -483,3 +507,34 @@ class GraphSearchTests(TestSuite):
         3,6,5
         2,2,"[NULL]"
         """))
+
+  def test_weight_bounded_dfs_root_outside_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_weight_bounded_dfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id, 1 AS edge_weight),
+            (SELECT 2147483632 AS root_node_id, 1000 AS root_target_weight),
+            TRUE
+          );
+        """,
+        out=Csv("""
+        "root_node_id","node_id","parent_node_id"
+        2147483632,2147483632,"[NULL]"
+        """))
+
+  def test_weight_bounded_dfs_rejects_negative_root(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+          SELECT * FROM graph_reachable_weight_bounded_dfs!(
+            (SELECT 1 AS source_node_id, 2 AS dest_node_id, 1 AS edge_weight),
+            (SELECT -1 AS root_node_id, 1000 AS root_target_weight),
+            TRUE
+          );
+        """,
+        out=ExpectedError(
+            'dfs_weight_bounded: root ids must be non-negative 32-bit integers')
+    )
