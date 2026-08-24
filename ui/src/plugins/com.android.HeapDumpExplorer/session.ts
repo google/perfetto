@@ -30,7 +30,7 @@ import {
   subpageToState,
 } from './nav_state';
 import type {OverviewData} from './types';
-import type {FlamegraphState} from '../../widgets/flamegraph';
+import type {TreeExplorerState} from '../../widgets/tree_explorer';
 import type {HdeState} from './persisted_state';
 import {
   METRIC_DOMINATED_OBJECT_SIZE,
@@ -356,21 +356,21 @@ export class HeapDumpExplorerSession {
     if (!tabs.some((t) => t.objId === id)) this.openInstanceTab(id, label);
   }
 
-  get flamegraphPanelState(): FlamegraphState | undefined {
+  get flamegraphPanelState(): TreeExplorerState | undefined {
     return this.store.state.flamegraphPanelState;
   }
 
-  readonly setFlamegraphPanelState = (state: FlamegraphState): void => {
+  readonly setFlamegraphPanelState = (state: TreeExplorerState): void => {
     this.store.edit((s) => {
       s.flamegraphPanelState = state;
     });
   };
 
-  get callstackPanelState(): FlamegraphState | undefined {
+  get callstackPanelState(): TreeExplorerState | undefined {
     return this.store.state.callstackPanelState;
   }
 
-  readonly setCallstackPanelState = (state: FlamegraphState): void => {
+  readonly setCallstackPanelState = (state: TreeExplorerState): void => {
     this.store.edit((s) => {
       s.callstackPanelState = state;
     });

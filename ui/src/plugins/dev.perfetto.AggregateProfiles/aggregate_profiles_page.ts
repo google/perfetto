@@ -15,8 +15,8 @@
 import m from 'mithril';
 
 import {Monitor} from '../../base/monitor';
-import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {Trace} from '../../public/trace';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
@@ -25,7 +25,10 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
 import {TabStrip} from '../../widgets/tab_strip';
 import {Icon} from '../../widgets/icon';
-import {Flamegraph} from '../../widgets/flamegraph';
+import {
+  createDefaultTreeExplorerState,
+  updateTreeExplorerState,
+} from '../../widgets/tree_explorer';
 import type {AggregateProfile, AggregateProfilesPageState} from './types';
 
 const HIDE_PAGE_EXPLANATION_KEY = 'hideAggregateProfilesPageExplanation';
@@ -41,7 +44,7 @@ export interface AggregateProfilesPageAttrs {
 export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
   private profiles?: ReadonlyArray<AggregateProfile>;
   private readonly monitor = new Monitor([() => this.profiles]);
-  private flamegraphMetrics?: ReadonlyArray<QueryFlamegraphMetric>;
+  private flamegraphMetrics?: ReadonlyArray<TreeExplorerQueryMetric>;
   private currentTab = 'flamegraph';
 
   view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
@@ -83,7 +86,7 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         m(StackAuto, [
           this.flamegraphMetrics &&
             attrs.state.flamegraphState &&
-            m(FlamegraphPanel, {
+            m(TreeExplorerPanel, {
               trace: attrs.trace,
               metrics: this.flamegraphMetrics,
               state: attrs.state.flamegraphState,
@@ -115,8 +118,8 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     attrs.onStateChange({
       ...attrs.state,
       flamegraphState: attrs.state.flamegraphState
-        ? Flamegraph.updateState(attrs.state.flamegraphState, profile.metrics)
-        : Flamegraph.createDefaultState(profile.metrics),
+        ? updateTreeExplorerState(attrs.state.flamegraphState, profile.metrics)
+        : createDefaultTreeExplorerState(profile.metrics),
     });
     this.flamegraphMetrics = profile.metrics;
   }

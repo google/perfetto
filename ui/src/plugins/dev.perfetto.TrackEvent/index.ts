@@ -31,7 +31,7 @@ import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrac
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
@@ -53,7 +53,7 @@ function createTrackEventDetailsPanel(trace: Trace) {
 }
 
 const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
 });
 
 type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
