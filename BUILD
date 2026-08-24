@@ -5776,6 +5776,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_track_event_zero",
         ":protos_perfetto_trace_translation_zero",
         ":protozero",
+        ":src_trace_processor_util_simple_json_parser",
     ],
     linkstatic = True,
 )

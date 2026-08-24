@@ -15,13 +15,13 @@
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
 import type {time} from '../../../base/time';
-import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../../components/flamegraph_panel';
+import type {TreeExplorerQueryMetric} from '../../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../../components/tree_explorer_panel';
 import {
-  Flamegraph,
-  type FlamegraphState,
-  type FlamegraphOptionalAction,
-} from '../../../widgets/flamegraph';
+  createDefaultTreeExplorerState,
+  type TreeExplorerState,
+  type TreeExplorerOptionalAction,
+} from '../../../widgets/tree_explorer';
 import {AsyncMemo} from '../../../base/async_memo';
 import {
   isHeapGraphIncomplete,
@@ -36,8 +36,8 @@ interface FlamegraphViewAttrs {
   readonly trace: Trace;
   readonly upid: number;
   readonly ts: time;
-  readonly state: FlamegraphState | undefined;
-  readonly onStateChange: (state: FlamegraphState) => void;
+  readonly state: TreeExplorerState | undefined;
+  readonly onStateChange: (state: TreeExplorerState) => void;
   // Open the flamegraph-objects tab for `pathHashes` (CSV).
   readonly onShowObjects: (pathHashes: string, isDominator: boolean) => void;
 }
@@ -72,8 +72,8 @@ function buildMetric(
   unit: string,
   valueColumn: 'self_size' | 'self_count',
   isDominator: boolean,
-  showObjectsAction: FlamegraphOptionalAction,
-): QueryFlamegraphMetric {
+  showObjectsAction: TreeExplorerOptionalAction,
+): TreeExplorerQueryMetric {
   const tree = isDominator
     ? '_heap_graph_dominator_class_tree'
     : '_heap_graph_class_tree';
@@ -143,10 +143,10 @@ function buildHeapGraphMetrics(
   upid: number,
   ts: time,
   onShowObjects: (pathHashes: string, isDominator: boolean) => void,
-): ReadonlyArray<QueryFlamegraphMetric> {
+): ReadonlyArray<TreeExplorerQueryMetric> {
   const showObjectsAction = (
     isDominator: boolean,
-  ): FlamegraphOptionalAction => ({
+  ): TreeExplorerOptionalAction => ({
     name: 'Show objects from this class',
     icon: 'data_object',
     category: 'DRILL',
@@ -171,7 +171,7 @@ function buildHeapGraphMetrics(
 }
 
 export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
-  let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
+  let cachedMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
   let cachedKey: string | undefined;
 
   // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
@@ -209,7 +209,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
 
       let state = attrs.state;
       if (state === undefined) {
-        state = Flamegraph.createDefaultState(metrics);
+        state = createDefaultTreeExplorerState(metrics);
         attrs.onStateChange(state);
       }
 
@@ -222,7 +222,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
           incompleteFlamegraphModal(attrs.trace, () => {
             incomplete.dismissed = true;
           }),
-        m(FlamegraphPanel, {
+        m(TreeExplorerPanel, {
           trace: attrs.trace,
           metrics,
           state,

@@ -15,15 +15,18 @@
 import m from 'mithril';
 import {AsyncMemo} from '../../base/async_memo';
 import {sqliteString} from '../../base/string_utils';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {
   metricsFromTableOrSubquery,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
+  type TreeExplorerQueryMetric,
+} from '../../components/tree_explorer_fetcher';
 import type {AreaSelection, AreaSelectionTab} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
-import {Flamegraph, type FlamegraphState} from '../../widgets/flamegraph';
+import {
+  updateTreeExplorerState,
+  type TreeExplorerState,
+} from '../../widgets/tree_explorer';
 
 const ARG_METRIC_PREFIX = 'arg:';
 
@@ -34,7 +37,7 @@ interface Metadata {
 
 interface MetricsCache {
   readonly key: string;
-  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
 }
 
 export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
@@ -46,8 +49,8 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
 
   constructor(
     private readonly trace: Trace,
-    private readonly getState: () => FlamegraphState | undefined,
-    private readonly setState: (state: FlamegraphState) => void,
+    private readonly getState: () => TreeExplorerState | undefined,
+    private readonly setState: (state: TreeExplorerState) => void,
   ) {}
 
   render(selection: AreaSelection) {
@@ -72,10 +75,10 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
       metadata.data.hasWeight,
       addedMetricIds,
     );
-    const currentState = Flamegraph.updateState(state, metrics);
+    const currentState = updateTreeExplorerState(state, metrics);
     if (currentState !== state) {
       // Persist so the state reference is stable on the next render:
-      // QueryFlamegraph refetches whenever the state identity changes.
+      // TreeExplorerPanel refetches whenever the state identity changes.
       this.setState(currentState);
     }
     const added = new Set(addedMetricIds);
@@ -85,7 +88,7 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
 
     return {
       isLoading: metadata.isPending,
-      content: m(FlamegraphPanel, {
+      content: m(TreeExplorerPanel, {
         trace: this.trace,
         metrics,
         addableMetrics,
@@ -138,7 +141,7 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
     samplesSql: string,
     hasWeight: boolean,
     addedMetricIds: ReadonlyArray<string>,
-  ): ReadonlyArray<QueryFlamegraphMetric> {
+  ): ReadonlyArray<TreeExplorerQueryMetric> {
     const key = `${samplesSql}\0${hasWeight}\0${addedMetricIds.join('\0')}`;
     if (this.metricsCache?.key === key) return this.metricsCache.metrics;
 
@@ -152,7 +155,7 @@ function buildMetrics(
   samplesSql: string,
   hasWeight: boolean,
   addedMetricIds: ReadonlyArray<string>,
-): ReadonlyArray<QueryFlamegraphMetric> {
+): ReadonlyArray<TreeExplorerQueryMetric> {
   const dependencySql = `
     include perfetto module callstacks.stack_profile;
     include perfetto module intervals.intersect;
@@ -176,7 +179,7 @@ function buildMetrics(
     mapping_name,
     source_file || ':' || line_number AS source_location
   `;
-  const metrics: QueryFlamegraphMetric[] = [];
+  const metrics: TreeExplorerQueryMetric[] = [];
 
   if (hasWeight) {
     metrics.push(
