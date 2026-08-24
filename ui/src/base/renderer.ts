@@ -18,6 +18,7 @@ import type {Transform1D, Transform2D} from './geom';
 // Flag bits for drawRect options
 export const RECT_PATTERN_HATCHED = 1; // Draw diagonal crosshatch pattern
 export const RECT_PATTERN_FADE_RIGHT = 2; // Fade alpha from full left to 0 right across width
+export const RECT_PATTERN_SAMPLED = 4; // Dashed bottom hairline (sampling-derived data)
 
 // Horizontal gap in CSS pixels inset from each slice's right edge, so adjacent
 // same-coloured slices stay visually distinct instead of merging into one bar.
@@ -130,6 +131,10 @@ export type MarkerRenderFunc = (
   h: number,
 ) => void;
 
+// Glyph drawn for each marker by renderers with fixed marker shapes (WebGL).
+// The Canvas2D fallback draws markers through MarkerRenderFunc instead.
+export type MarkerShape = 'chevron' | 'diamond';
+
 // Interface for a general renderer with 2D primitive drawing capabilities which
 // can be implemented with different backends (e.g., WebGL, Canvas2D).
 export interface Renderer {
@@ -161,6 +166,7 @@ export interface Renderer {
     markerWidth: number,
     xTransform: Transform1D,
     render: MarkerRenderFunc,
+    shape?: MarkerShape,
   ): void;
 
   // Draw multiple slices from columnar buffers.

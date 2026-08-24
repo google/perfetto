@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {getColorForSample} from '../../components/colorizer';
+import {sampleColorScheme} from './sample_colors';
 import {
   metricsFromTableOrSubquery,
   type QueryFlamegraphMetric,
@@ -29,8 +29,26 @@ import {
   FLAMEGRAPH_STATE_SCHEMA,
 } from '../../widgets/flamegraph';
 import type {Trace} from '../../public/trace';
-import {SliceTrack} from '../../components/tracks/slice_track';
+import {
+  type InstantStyle,
+  SliceTrack,
+} from '../../components/tracks/slice_track';
 import type {SourceDataset} from '../../trace_processor/dataset';
+
+// Stack samples render as diamonds on all stack-sample surfaces.
+export const DIAMOND_INSTANT_STYLE: InstantStyle = {
+  width: 7,
+  shape: 'diamond',
+  render: (ctx, r) => {
+    ctx.beginPath();
+    ctx.moveTo(r.x + r.width / 2, r.y);
+    ctx.lineTo(r.x + r.width, r.y + r.height / 2);
+    ctx.lineTo(r.x + r.width / 2, r.y + r.height);
+    ctx.lineTo(r.x, r.y + r.height / 2);
+    ctx.closePath();
+    ctx.fill();
+  },
+};
 
 /**
  * Configuration for creating a profiling track (CPU profile, perf samples, etc)
@@ -44,6 +62,7 @@ export interface ProfilingTrackConfig {
     id: number;
     ts: bigint;
     callsiteId: number;
+    category: number;
   }>;
 
   /**
@@ -112,74 +131,92 @@ export function createProfilingTrack(
     uri,
     dataset: config.dataset,
     sliceName: () => config.sliceName,
-    colorizer: (row) => getColorForSample(row.callsiteId),
-    detailsPanel: (row) => {
-      const ts = Time.fromRaw(row.ts);
-      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
-        metricsFromTableOrSubquery({
-          tableOrSubquery: `
-            (
-              select
-                id,
-                parent_id as parentId,
-                name,
-                mapping_name,
-                source_file || ':' || line_number as source_location,
-                self_count
-              from _callstacks_for_callsites!((
-                ${config.callsiteQuery(ts)}
-              ))
-            )
-          `,
-          tableMetrics: [
-            {
-              name: config.metricName,
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          dependencySql: `include perfetto module ${config.sqlModule}`,
-          unaggregatableProperties: [
-            {name: 'mapping_name', displayName: 'Mapping'},
-          ],
-          aggregatableProperties: [
-            {
-              name: 'source_location',
-              displayName: 'Source Location',
-              mergeAggregation: 'ONE_OR_SUMMARY',
-            },
-          ],
-          nameColumnLabel: 'Symbol',
-        });
-      // Use provided state or create initial state once
-      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
-      if (detailsPanelState === undefined) {
-        onDetailsPanelStateChange(state);
-      }
-      return {
-        load: async () => {},
-        render: () =>
-          renderProfilingDetailsPanel(
-            trace,
-            ts,
-            config,
-            state,
-            (newState) => {
-              state = newState;
-              onDetailsPanelStateChange(newState);
-            },
-            metrics,
-          ),
-        // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
-        // We moved serialization from being attached to selections to instead being
-        // attached to the plugin that loaded the panel.
-        serialization: {
-          schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
-          state: undefined as FlamegraphState | undefined,
-        },
-      };
-    },
+    colorizer: (row) => sampleColorScheme(row.category, ''),
+    instantStyle: DIAMOND_INSTANT_STYLE,
+    detailsPanel: (row) =>
+      createProfilingDetailsPanel(
+        trace,
+        Time.fromRaw(row.ts),
+        config,
+        detailsPanelState,
+        onDetailsPanelStateChange,
+      ),
   });
+}
+
+// Creates the details panel showing the flamegraph of the callsites returned
+// by config.callsiteQuery at |ts|. Shared between the profiling (instants)
+// track and the flamechart track's sample markers.
+export function createProfilingDetailsPanel(
+  trace: Trace,
+  ts: time,
+  config: Omit<ProfilingTrackConfig, 'dataset'>,
+  detailsPanelState: FlamegraphState | undefined,
+  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+) {
+  const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+    metricsFromTableOrSubquery({
+      tableOrSubquery: `
+        (
+          select
+            id,
+            parent_id as parentId,
+            name,
+            mapping_name,
+            source_file || ':' || line_number as source_location,
+            self_count
+          from _callstacks_for_callsites!((
+            ${config.callsiteQuery(ts)}
+          ))
+        )
+      `,
+      tableMetrics: [
+        {
+          name: config.metricName,
+          unit: '',
+          columnName: 'self_count',
+        },
+      ],
+      dependencySql: `include perfetto module ${config.sqlModule}`,
+      unaggregatableProperties: [
+        {name: 'mapping_name', displayName: 'Mapping'},
+      ],
+      aggregatableProperties: [
+        {
+          name: 'source_location',
+          displayName: 'Source Location',
+          mergeAggregation: 'ONE_OR_SUMMARY',
+        },
+      ],
+      nameColumnLabel: 'Symbol',
+    });
+  // Use provided state or create initial state once
+  let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
+  if (detailsPanelState === undefined) {
+    onDetailsPanelStateChange(state);
+  }
+  return {
+    load: async () => {},
+    render: () =>
+      renderProfilingDetailsPanel(
+        trace,
+        ts,
+        config,
+        state,
+        (newState) => {
+          state = newState;
+          onDetailsPanelStateChange(newState);
+        },
+        metrics,
+      ),
+    // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
+    // We moved serialization from being attached to selections to instead being
+    // attached to the plugin that loaded the panel.
+    serialization: {
+      schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+      state: undefined as FlamegraphState | undefined,
+    },
+  };
 }
 
 /**
@@ -188,7 +225,7 @@ export function createProfilingTrack(
 function renderProfilingDetailsPanel(
   trace: Trace,
   ts: time,
-  config: ProfilingTrackConfig,
+  config: Omit<ProfilingTrackConfig, 'dataset'>,
   state: FlamegraphState,
   onStateChange: (state: FlamegraphState) => void,
   metrics: ReadonlyArray<QueryFlamegraphMetric>,
