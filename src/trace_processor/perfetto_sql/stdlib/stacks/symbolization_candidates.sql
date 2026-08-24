@@ -70,9 +70,7 @@ CREATE PERFETTO TABLE _stacks_symbolization_candidates(
 AS
 WITH
   sample_callsites AS (
-    SELECT DISTINCT
-      COALESCE(tc.upid, t.upid) AS upid,
-      ss.callsite_id
+    SELECT DISTINCT COALESCE(tc.upid, t.upid) AS upid, ss.callsite_id
     FROM stack_sample AS ss
     LEFT JOIN stack_sample_task_context AS tc
       ON tc.id = ss.task_context_id

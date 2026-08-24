@@ -100,11 +100,13 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       `;
       const groupKey = `_day_explorer_ui_hierarchy_under_${parentId}`;
       const trackName = `${childIter.display_name} - ${childIter.energy_mwh}mWh`;
+
       const node = await this.createDayExplorerTrack(
         ctx,
         trackName,
         groupKey,
         query,
+        childIter.track_id,
       );
       parent.addChildInOrder(node);
       await this.addDayExplorerRecursive(ctx, node, limit, childIter.track_id);
@@ -116,6 +118,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     name: string,
     groupKey: string,
     query: string,
+    trackId: bigint,
   ): Promise<TrackNode> {
     const uri = `/day_explorer_${uuidv4()}`;
     const renderer = await CounterTrack.createMaterialized({
@@ -130,6 +133,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       renderer,
       tags: {
         kinds: [DAY_EXPLORER_TRACK_KIND],
+        trackId: Number(trackId),
       },
     });
 
@@ -178,27 +182,61 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     currentSelection: AreaSelection,
   ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
     // The flame graph will be shown when any day explorer track is in the area
-    // selection. The selection is used to filter by time, but not by track. All
-    // day explorer tracks are considered for the graph.
-    let hasDayExplorer = false;
+    // selection. The selection is used to filter by time, and we filter the graph
+    // to only include energy from the selected tracks and their recursive descendants.
+    // If a physical track is selected, we exclude label roots to avoid double-counting.
+    const selectedTrackIds: bigint[] = [];
+
     for (const trackInfo of currentSelection.tracks) {
-      if (trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND)) {
-        hasDayExplorer = true;
-        break;
+      if (
+        trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND) &&
+        trackInfo.tags.trackId !== undefined
+      ) {
+        const trackId = trackInfo.tags.trackId;
+        if (typeof trackId === 'string' || typeof trackId === 'number') {
+          selectedTrackIds.push(BigInt(trackId));
+        }
       }
     }
-    if (!hasDayExplorer) {
+
+    if (selectedTrackIds.length === 0) {
       return undefined;
     }
+
     const metrics = metricsFromTableOrSubquery({
       tableOrSubquery: `
         (
-          WITH
+          WITH RECURSIVE
+            selected_roots(track_id) AS (
+              SELECT column1 FROM (VALUES ${selectedTrackIds.map((id) => `(${id})`).join(',')})
+            ),
+            descendants(track_id) AS (
+              SELECT track_id FROM selected_roots
+              UNION ALL
+              SELECT child.track_id
+              FROM day_explorer_ui_hierarchy child
+              JOIN descendants parent ON child.parent_id = parent.track_id
+            ),
+            ancestors(track_id, parent_id) AS (
+              SELECT track_id, parent_id 
+              FROM day_explorer_ui_hierarchy 
+              WHERE track_id IN (SELECT track_id FROM selected_roots)
+              UNION ALL
+              SELECT parent.track_id, parent.parent_id
+              FROM day_explorer_ui_hierarchy parent
+              JOIN ancestors child ON child.parent_id = parent.track_id
+            ),
+            all_nodes(track_id) AS (
+              SELECT track_id FROM descendants
+              UNION
+              SELECT track_id FROM ancestors
+            ),
             total_energy AS (
               SELECT track_id, parent_id, display_name, SUM(energy_uws) AS energy_uws
               FROM day_explorer_ui_hierarchy_per_ts
               WHERE ts >= ${currentSelection.start}
                 AND ts <= ${currentSelection.end}
+                AND track_id IN (SELECT track_id FROM all_nodes)
               GROUP BY 1, 2, 3
             ),
             with_child AS (
@@ -213,7 +251,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
             )
           SELECT
             track_id AS id,
-            parent_id AS parentId,
+            CASE WHEN parent_id IN (SELECT track_id FROM total_energy) THEN parent_id ELSE NULL END AS parentId,
             display_name AS name,
             cast(round((energy_uws - child_energy) / 1000) as int) AS self_count
           FROM with_child

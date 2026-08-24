@@ -258,6 +258,53 @@ class ProfilingHeapGraph(TestSuite):
           3,0,"android.os.Parcel [ROOT_VM_INTERNAL]","JAVA",1,1,256,256,"[NULL]"
                 '''))
 
+  def test_heap_graph_flamegraph_truncated(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            continued: false
+            # Starting after packet zero marks the graph as truncated.
+            index: 1
+          }
+        }
+        """),
+        query="""
+        SELECT
+          depth,
+          name,
+          map_name,
+          count,
+          cumulative_count,
+          size,
+          cumulative_size
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT ts FROM heap_graph),
+          NULL,
+          (SELECT upid FROM heap_graph),
+          NULL,
+          NULL
+        );
+        """,
+        out=Csv('''
+          "depth","name","map_name","count","cumulative_count","size","cumulative_size"
+          0,"ERROR: INCOMPLETE GRAPH (try increasing buffer size)","JAVA",1,1,1,1
+        '''))
+
   def test_heap_graph_object_3(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph.textproto'),
@@ -606,6 +653,37 @@ class ProfilingHeapGraph(TestSuite):
         "android.graphics.Bitmap",123456
         "android.os.BinderProxy",0
         """))
+
+  def test_heap_graph_native_size_flamegraph(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_native_size.textproto'),
+        query="""
+        SELECT
+          depth,
+          name,
+          map_name,
+          count,
+          cumulative_count,
+          size,
+          cumulative_size,
+          alloc_count,
+          cumulative_alloc_count,
+          alloc_size,
+          cumulative_alloc_size
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT max(graph_sample_ts) FROM heap_graph_object),
+          NULL,
+          (SELECT max(upid) FROM heap_graph_object),
+          NULL,
+          NULL
+        )
+        WHERE name LIKE '[native] %';
+        """,
+        out=Csv('''
+          "depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size"
+          1,"[native] android.graphics.Bitmap [ROOT_JAVA_FRAME]","JAVA",1,1,123456,123456,0,0,0,0
+        '''))
 
   def test_heap_graph_runtime_internal_(self):
     return DiffTestBlueprint(

@@ -424,6 +424,216 @@ function buildAggFuncItems(
   });
 }
 
+interface AggregateParamMenuItemAttrs {
+  // Label shown on this submenu's own menu item.
+  readonly label: m.Children;
+  // Optional icon shown alongside the label.
+  readonly icon?: string;
+  // Path prefix of the parameterized column (the key is appended to this).
+  readonly pathPrefix: string;
+  // Filter/column type of the parameterized column.
+  readonly filterType?: 'text' | 'quantitative' | 'identifier';
+  // Existing aggregates, used to disable already-added function/column pairs.
+  readonly existingAggregates: readonly AggregateColumn[] | undefined;
+  // Data source used to discover the available parameter keys.
+  readonly datasource: DataSource;
+  // Callback invoked with the chosen aggregate function and full column path.
+  readonly onSelect: (func: AggregateFunction, field: string) => void;
+}
+
+/**
+ * A menu item for a parameterized aggregate column that expands into a searchable
+ * list of keys available in the data source. Each key expands into the aggregate
+ * functions available for its type.
+ */
+class AggregateParamMenuItem implements m.ClassComponent<AggregateParamMenuItemAttrs> {
+  view({attrs}: m.Vnode<AggregateParamMenuItemAttrs>) {
+    const {
+      pathPrefix,
+      filterType,
+      existingAggregates,
+      datasource,
+      onSelect,
+      label,
+      icon,
+    } = attrs;
+    return m(MenuItem, {label, icon}, [
+      m(AggregateRecordPopup, {
+        pathPrefix,
+        filterType,
+        existingAggregates,
+        datasource,
+        onSelect,
+      }),
+    ]);
+  }
+}
+
+interface AggregateRecordPopupAttrs {
+  // Path prefix of the parameterized column (the key is appended to this).
+  readonly pathPrefix: string;
+  // Filter/column type of the parameterized column.
+  readonly filterType?: 'text' | 'quantitative' | 'identifier';
+  // Existing aggregates, used to disable already-added function/column pairs.
+  readonly existingAggregates: readonly AggregateColumn[] | undefined;
+  // Data source used to discover the available parameter keys.
+  readonly datasource: DataSource;
+  // Callback invoked with the chosen aggregate function and full column path.
+  readonly onSelect: (func: AggregateFunction, field: string) => void;
+}
+
+class AggregateRecordPopup implements m.ClassComponent<AggregateRecordPopupAttrs> {
+  private readonly MAX_VISIBLE_ITEMS = 100;
+  private searchQuery = '';
+
+  view({attrs}: m.Vnode<AggregateRecordPopupAttrs>): m.Children {
+    const {pathPrefix, filterType, existingAggregates, datasource, onSelect} =
+      attrs;
+
+    // Fetch available keys - this is only called when the submenu is visible
+    const {data: availableKeys, isPending} =
+      datasource.useParameterKeys(pathPrefix);
+
+    // Show loading state while fetching
+    if (isPending || availableKeys === undefined) {
+      return m('.pf-distinct-values-menu', [
+        m(MenuItem, {label: 'Loading...', disabled: true}),
+      ]);
+    }
+
+    // Use fuzzy search to filter and get highlighted segments
+    const fuzzyResults = (() => {
+      if (this.searchQuery === '') {
+        // No search - show all keys without highlighting
+        return availableKeys.map((key: string) => ({
+          key,
+          segments: [{matching: false, value: key}],
+        }));
+      } else {
+        // Fuzzy search with highlighting
+        return fuzzySearch(
+          availableKeys as string[],
+          (k: string) => k,
+          this.searchQuery,
+        ).map((result) => ({
+          key: result.item,
+          segments: result.segments,
+        }));
+      }
+    })();
+
+    // Limit the number of items rendered
+    const visibleResults = fuzzyResults.slice(0, this.MAX_VISIBLE_ITEMS);
+    const remainingCount = fuzzyResults.length - this.MAX_VISIBLE_ITEMS;
+
+    // Check if search query could be used as a custom key
+    const customKeyPath =
+      this.searchQuery.trim().length > 0
+        ? `${pathPrefix}.${this.searchQuery.trim()}`
+        : '';
+    const isCustomKeyInResults =
+      this.searchQuery.trim().length > 0 &&
+      availableKeys.includes(this.searchQuery.trim());
+
+    return m('.pf-distinct-values-menu', [
+      // Search input
+      m(
+        '.pf-distinct-values-menu__search',
+        {
+          onclick: (e: MouseEvent) => {
+            // Prevent menu from closing when clicking search box
+            e.stopPropagation();
+          },
+        },
+        m(TextInput, {
+          placeholder: 'Search or enter key name...',
+          value: this.searchQuery,
+          oninput: (e: InputEvent) => {
+            this.searchQuery = (e.target as HTMLInputElement).value;
+          },
+          onkeydown: (e: KeyboardEvent) => {
+            if (this.searchQuery !== '' && e.key === 'Escape') {
+              this.searchQuery = '';
+              e.stopPropagation(); // Prevent menu from closing
+            }
+          },
+        }),
+      ),
+      // List of available keys
+      m(
+        '.pf-distinct-values-menu__list',
+        fuzzyResults.length > 0
+          ? [
+              visibleResults.map(
+                (result: {
+                  key: string;
+                  segments: readonly {matching: boolean; value: string}[];
+                }) => {
+                  const keyPath = `${pathPrefix}.${result.key}`;
+
+                  // Render highlighted label
+                  const labelContent = result.segments.map(
+                    (segment: {matching: boolean; value: string}) => {
+                      if (segment.matching) {
+                        return m('strong.pf-fuzzy-match', segment.value);
+                      } else {
+                        return segment.value;
+                      }
+                    },
+                  );
+
+                  return m(
+                    MenuItem,
+                    {
+                      label: labelContent,
+                    },
+                    buildAggFuncItems(
+                      filterType,
+                      keyPath,
+                      existingAggregates,
+                      (func, field) => {
+                        onSelect(func, field);
+                        this.searchQuery = '';
+                      },
+                    ),
+                  );
+                },
+              ),
+              remainingCount > 0 &&
+                m(MenuItem, {
+                  label: `...and ${remainingCount} more`,
+                  disabled: true,
+                }),
+            ]
+          : m(EmptyState, {
+              title: 'No matches',
+            }),
+      ),
+      // Footer with "Add custom" option when search query doesn't match existing keys
+      this.searchQuery.trim().length > 0 &&
+        !isCustomKeyInResults &&
+        m('.pf-distinct-values-menu__footer', [
+          m(
+            MenuItem,
+            {
+              label: `Add "${this.searchQuery.trim()}"`,
+              icon: 'add',
+            },
+            buildAggFuncItems(
+              filterType,
+              customKeyPath,
+              existingAggregates,
+              (func, field) => {
+                onSelect(func, field);
+                this.searchQuery = '';
+              },
+            ),
+          ),
+        ]),
+    ]);
+  }
+}
+
 interface AggregateSchemaMenuItemAttrs {
   // Label shown on this submenu's own menu item.
   readonly label: m.Children;
@@ -437,6 +647,8 @@ interface AggregateSchemaMenuItemAttrs {
   readonly onSelect: (func: AggregateFunction, field: string) => void;
   // Existing aggregates, used to disable already-added function/column pairs.
   readonly existingAggregates: readonly AggregateColumn[] | undefined;
+  // Data source used to discover keys for parameterized columns.
+  readonly datasource: DataSource;
   // Extra items rendered before the column entries (e.g. the COUNT option at
   // the root of the menu).
   readonly leadingItems?: m.Children;
@@ -457,6 +669,7 @@ const AggregateSchemaMenuItem: m.Component<AggregateSchemaMenuItemAttrs> = {
       pathPrefix,
       onSelect,
       existingAggregates,
+      datasource,
       leadingItems,
     } = attrs;
     const menuItems: m.Children[] = [];
@@ -467,38 +680,36 @@ const AggregateSchemaMenuItem: m.Component<AggregateSchemaMenuItemAttrs> = {
 
     for (const [columnName, entry] of Object.entries(schema)) {
       const fullPath = pathPrefix ? `${pathPrefix}.${columnName}` : columnName;
+      const title = entry.title ?? columnName;
 
       if ('parameterized' in entry) {
-        // For parameterized columns, aggregate over the base column.
-        const title =
-          typeof entry.title === 'string' ? entry.title : columnName;
+        // Show available keys from datasource
         menuItems.push(
-          m(
-            MenuItem,
-            {label: `${title} (base)`},
-            buildAggFuncItems(
-              entry.filterType,
-              fullPath,
-              existingAggregates,
-              onSelect,
-            ),
-          ),
+          m(AggregateParamMenuItem, {
+            label: `${title}...`,
+            pathPrefix: fullPath,
+            filterType: entry.filterType,
+            existingAggregates,
+            datasource,
+            onSelect,
+          }),
         );
       } else if ('schema' in entry) {
         menuItems.push(
           m(AggregateSchemaMenuItem, {
-            label: entry.title ?? columnName,
+            label: title,
             schema: entry.schema,
             pathPrefix: fullPath,
             onSelect,
             existingAggregates,
+            datasource,
           }),
         );
       } else {
         menuItems.push(
           m(
             MenuItem,
-            {label: entry.title ?? columnName},
+            {label: title},
             buildAggFuncItems(
               entry.columnType,
               fullPath,
@@ -518,8 +729,9 @@ const AggregateSchemaMenuItem: m.Component<AggregateSchemaMenuItemAttrs> = {
   },
 };
 
-interface AggregateMenuAttrs {
+export interface AggregateMenuAttrs {
   readonly schema: ColumnSchema;
+  readonly datasource: DataSource;
   readonly onAddAggregate: (
     func: AggregateFunction | 'COUNT',
     field: string | undefined,
@@ -530,6 +742,9 @@ interface AggregateMenuAttrs {
 
   // Custom label (default: "Add aggregate")
   readonly label?: string;
+
+  // Optional icon (default: Icons.AddColumnRight)
+  readonly icon?: string;
 }
 
 /**
@@ -541,9 +756,11 @@ export class AggregateMenu implements m.ClassComponent<AggregateMenuAttrs> {
   view({attrs}: m.Vnode<AggregateMenuAttrs>): m.Children {
     const {
       schema,
+      datasource,
       onAddAggregate,
       existingAggregates,
       label = 'Add column',
+      icon = Icons.AddColumnRight,
     } = attrs;
 
     const countExists = isAggregateExists(
@@ -554,9 +771,10 @@ export class AggregateMenu implements m.ClassComponent<AggregateMenuAttrs> {
 
     return m(AggregateSchemaMenuItem, {
       label,
-      icon: Icons.AddColumnRight,
+      icon,
       schema,
       pathPrefix: '',
+      datasource,
       onSelect: (func, field) => onAddAggregate(func, field),
       existingAggregates,
       // COUNT option - doesn't need a field

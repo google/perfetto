@@ -35,6 +35,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class PerfettoTrace {
   private static final String TAG = "PerfettoTrace";
 
+  static {
+    PerfettoNativeLibrary.load();
+  }
+
   // Keep in sync with C++
   private static final int PERFETTO_TE_TYPE_SLICE_BEGIN = 1;
   private static final int PERFETTO_TE_TYPE_SLICE_END = 2;

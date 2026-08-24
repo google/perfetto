@@ -363,6 +363,7 @@ base::Status MergeField(const ProtoFile::Field& input,
 base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
                          const std::vector<ProtoFile::Field>& upstream,
                          const std::set<int>& allowlist,
+                         const std::unordered_set<int>& reserved_numbers,
                          const std::set<std::string>& known_enums,
                          const std::set<std::string>& allowlisted_options,
                          std::vector<ProtoFile::Field>& out) {
@@ -386,11 +387,14 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
     out.emplace_back(std::move(out_field));
   }
 
-  // Sort all fields by tag number so reserved/deprecated fields are in place.
-  std::sort(out.begin(), out.end(),
-            [](const ProtoFile::Field& a, const ProtoFile::Field& b) {
-              return a.number < b.number;
-            });
+  // Append reserved fields from input as deprecated fields.
+  for (const auto& input_field : input) {
+    if (reserved_numbers.count(input_field.number)) {
+      ProtoFile::Field deprecated_field = input_field;
+      MarkFieldAsDeprecated(deprecated_field);
+      out.emplace_back(std::move(deprecated_field));
+    }
+  }
 
   return base::OkStatus();
 }
@@ -471,7 +475,7 @@ base::Status Merge(const ProtoFile::Oneof& input,
   out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
 
   // Finish by merging the list of fields.
-  return MergeFields(input.fields, upstream.fields, allowlist, known_enums,
+  return MergeFields(input.fields, upstream.fields, allowlist, {}, known_enums,
                      allowlisted_options, out.fields);
 }
 
@@ -495,14 +499,8 @@ base::Status Merge(const ProtoFile::Message& input,
       ComputeDeletedByName(input.nested_messages, upstream.nested_messages);
   out.deleted_oneofs = ComputeDeletedByName(input.oneofs, upstream.oneofs);
 
-  // Check if fields in input are deprecated in upstream or deleted.
-  std::vector<ProtoFile::Field> missing_fields =
-      ComputeDeletedByNumber(input.fields, upstream.fields);
-  for (auto& field : missing_fields) {
-    if (upstream.reserved_numbers.count(field.number)) {
-      MarkFieldAsDeprecated(field);
-      out.fields.emplace_back(std::move(field));
-    } else {
+  for (auto& field : ComputeDeletedByNumber(input.fields, upstream.fields)) {
+    if (!upstream.reserved_numbers.count(field.number)) {
       out.deleted_fields.emplace_back(std::move(field));
     }
   }
@@ -526,7 +524,8 @@ base::Status Merge(const ProtoFile::Message& input,
 
   // Finish by merging the list of fields.
   return MergeFields(input.fields, upstream.fields, allowlist.fields,
-                     known_enums, allowlisted_options, out.fields);
+                     upstream.reserved_numbers, known_enums,
+                     allowlisted_options, out.fields);
 }
 
 }  // namespace

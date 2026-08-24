@@ -84,6 +84,10 @@ enum class PerfettoStatsdAtom {
   kOnTracingDisabled = 4,
   kFinalizeTraceAndExit = 11,
   kCmdFwReportBegin = 49,
+  kRebootTraceRecovered = 66,
+  kRebootTraceUploadTimeout = 67,
+  kRebootTraceUploadLeftover = 68,
+  kRebootTraceParseFailed = 69,
   // Will be removed once incidentd is no longer used.
   kUploadIncidentBegin = 8,
   kNotUploadingEmptyTrace = 17,

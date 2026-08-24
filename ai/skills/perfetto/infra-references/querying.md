@@ -69,10 +69,10 @@ calls. Default to a session.
 
 ## Discovering what's in the trace
 
-PerfettoSQL ships with **intrinsic table-functions** for browsing the
-loaded standard library — modules, tables/views, functions, macros. Use
-these to find what's available and to verify if a Standard Library module
-already provides the needed abstraction before drafting custom logic.
+PerfettoSQL provides a searchable intrinsic table containing every loaded
+standard-library module, table, view, function, table function, and macro. Use
+it to verify whether the Standard Library already provides the needed
+abstraction before drafting custom logic.
 
 **Mandatory Schema Check:** Do not guess column names or join keys. Always
 use a plain `LIMIT 0` query to read the exact column schema of any specific
@@ -85,24 +85,27 @@ table, view, or query result before drafting your query.
 > or stdlib modules** — they can change without notice.
 
 ```sql
--- 1. List every stdlib module currently available.
-SELECT package, module FROM __intrinsic_stdlib_modules ORDER BY 1, 2;
+-- Search every documented stdlib object. Start with one precise phrase or
+-- API-like term. In a regexp, `|` means alternatives: prefer
+-- `breadth.first|bfs`, not a broad expression such as `breadth|graph|search`.
+WITH search(pattern) AS (VALUES ('precise phrase|api_term'))
+SELECT o.qualified_name, o.object_type, o.short_description
+FROM __intrinsic_stdlib_objects AS o, search AS s
+WHERE o.exposed = 1
+  AND regexp(s.pattern, o.summary, 'i')
+ORDER BY regexp(s.pattern, o.qualified_name, 'i') DESC,
+         o.qualified_name
+LIMIT 10;
 
--- 2. List the tables/views a specific module exposes
---    (after INCLUDE PERFETTO MODULE).
-INCLUDE PERFETTO MODULE slices.with_context;
-SELECT name, type, exposed, description
-FROM __intrinsic_stdlib_tables('slices.with_context');
+-- Once a candidate is found, read one human-friendly document containing its
+-- identity, description, arguments, return value, and result columns.
+SELECT o.summary
+FROM __intrinsic_stdlib_objects AS o
+WHERE o.qualified_name =
+  'intervals.overlap.intervals_overlap_count_by_group';
 
--- 3. List functions / macros a module exposes.
-SELECT name, return_type, args
-FROM __intrinsic_stdlib_functions('slices.with_context');
-SELECT name, return_type, args
-FROM __intrinsic_stdlib_macros('android.memory.heap_graph.helpers');
-
--- 4. Read the column schema of any table, view, or query.
---    LIMIT 0 returns the result header with no row scan; trace_processor
---    prints "column N = <name>" lines for each column.
+-- Read the runtime schema of any table, view, or query. LIMIT 0 returns the
+-- result header with no row scan.
 SELECT * FROM slice LIMIT 0;
 SELECT * FROM thread_or_process_slice LIMIT 0;
 SELECT * FROM (SELECT ts, dur, name FROM slice WHERE dur > 0) LIMIT 0;
@@ -208,51 +211,98 @@ reference linked above.
   properties instead of manually joining the `args` table.
 - **JSON Parsing:** When dealing with JSON text, use standard SQLite JSON
   functions (for example, `json_extract()`) to extract values.
-- **String Matching (Always use GLOB).** Use `GLOB` instead of `LIKE`. `LIKE`
+- **String Matching (Avoid `LIKE`).** Use `GLOB` or `regexp()` instead of
+  `LIKE`. `LIKE`
   causes performance bottlenecks and treats underscores (`_`) as wildcards,
   leading to bugs.
   - **Exact matches:** Use `=`.
   - **Substring matches:** Use `GLOB` with `*` (for example, `name GLOB
     '*RenderThread*'`).
-  - **Case-insensitive matches:** Use `LOWER(name) GLOB` and make sure the
-    search string is fully lowercase (for example, `LOWER(name) GLOB
-    '*renderthread*'`). Use this when dealing with inconsistent trace
-    capitalization (for example, `WakeLock` versus `wakelock`).
+  - **Case-insensitive matches:** Use `regexp(pattern, input, 'i')`. It
+    performs a case-insensitive partial match without `LOWER()` or `*`
+    wildcards (for example, `regexp('renderthread', name, 'i')`).
 - **Alias Precision.** Always prefix column names with table or view alias,
   that is: `{alias}.{column_name}`.
 
+- **Avoid Custom SQL Functions (Performance):** Avoid creating custom
+  functions via `CREATE PERFETTO FUNCTION` for large datasets or per-row
+  computations, as scalar/table function calls in SQLite/Perfetto incur
+  substantial per-row execution overhead. Instead, prefer direct SQL queries,
+  inline expressions, CTEs, or precomputed stdlib views/tables.
+
 ## Common Analysis Patterns
 
-- **Calculating Time Overlaps & CPU Time:**
-  1.  **Primary Method (MANDATORY):** Always search the standard library first
-    before writing custom interval logic. For example, to find the exact CPU
-    execution time of a slice, do not calculate it manually; instead, search
-    the docs and use the `slices.cpu_time` module.
-  2.  **Fallback Method (Use ONLY if you have verified no stdlib module or
-    `SPAN_JOIN` applies):** If you must calculate custom overlap durations
-    between two different sets of time intervals `[start1, end1]` and
-    `[start2, end2]`:
-  - **Condition:** The intervals overlap if `start1 < end2` and `start2
-      < end1`.
-  - **Duration:** The overlap duration is calculated as `MIN(end1, end2)
-    - MAX(start1, start2)`.
-  - **Important:** Incomplete Perfetto slices have a duration of -1
-    (`dur = -1`). Always calculate the effective end time using `ts +
-      IIF(dur = -1, trace_end() - ts, dur)` before applying this logic.
+- **Time Overlaps & Intersections (SPAN_JOIN):**
+  - **Concept:** `SPAN_JOIN` is a custom operator table that computes the time-interval
+    intersection of spans from two tables or views. A "span" is any row with `ts`
+    (timestamp) and `dur` (duration) columns. The output virtual table contains the
+    intersected `ts` and `dur` representing the exact overlapping time window, along with
+    all columns from both input tables.
+  - **Partitioning:** An optional partition column can be specified on neither, either,
+    or both tables (`PARTITIONED col`). If specified on both, the column name must match.
+    Partition columns **must be integers** (e.g. `cpu`, `upid`, `utid`, `track_id`).
+    String columns are *not* supported directly; convert to integers with `HASH(str_col)`
+    if necessary.
+  - **No Internal Overlaps:** Spans within the same input table and partition **must not
+    overlap**. `SPAN_JOIN` assumes non-overlapping slices per partition; if internal
+    intervals overlap, incorrect rows will silently be produced. Ensure input tables are
+    cleanly partitioned and materialized via `CREATE PERFETTO TABLE`.
+  - **Syntax & Idempotency:** Because `SPAN_JOIN` creates an SQLite virtual table,
+    `CREATE OR REPLACE` is not supported. Always drop first:
+    ```sql
+    DROP TABLE IF EXISTS sched_with_frequency;
+    CREATE VIRTUAL TABLE sched_with_frequency
+    USING SPAN_JOIN(sp_sched PARTITIONED cpu, sp_frequency PARTITIONED cpu);
+    ```
+  - **Variants:** `SPAN_LEFT_JOIN` (left outer interval intersection) and `SPAN_OUTER_JOIN`
+    (full outer interval intersection) are also available.
+  - **Fallback (When `SPAN_JOIN` is not applicable):** If computing custom overlap durations
+    between two interval sets `[start1, end1]` and `[start2, end2]` manually:
+    - **Condition:** Overlap if `start1 < end2 AND start2 < end1`.
+    - **Duration:** `MIN(end1, end2) - MAX(start1, start2)`.
+    - **Incomplete Slices:** Handle `dur = -1` via `ts + IIF(dur = -1, trace_end() - ts, dur)`.
 - **Window Size:** When looking for events around a specific timestamp, start
   with 100ms as the window size.
 - **Total Duration:** To calculate the total time spent in slices matching a
-  specific name pattern (for example, `*{name_pattern}*`), you must sum their
-  durations. **Why it's useful**: This helps quantify the total impact of a
-  specific function or feature on performance across multiple calls. Here is
-  an example query (note the safe handling of incomplete slices):
+  specific name pattern (for example, `*{name_pattern}*`), sum their durations:
   ```sql
   SELECT
-  count(*) as total_count,
-  sum(IIF(slice.dur = -1, trace_end() - slice.ts, slice.dur)) / 1000000.0 as total_dur_ms
+    count(*) as total_count,
+    sum(IIF(slice.dur = -1, trace_end() - slice.ts, slice.dur)) / 1000000.0 as total_dur_ms
   FROM slice
   WHERE slice.name GLOB '*{name_pattern}*';
   ```
+- **CPU Cluster & Frequency Analysis:**
+  - Classify CPU core clusters (big, mid, little) with `INCLUDE PERFETTO MODULE android.cpu.cluster_type;` (`android_cpu_cluster_mapping`) and calculate time-weighted frequency via `INCLUDE PERFETTO MODULE linux.cpu.frequency;`.
+- **Binder Transaction Analysis:**
+  - Query cross-process Binder calls using stdlib views like `android_binder_txns` or `android_binder_metrics_by_process` (`INCLUDE PERFETTO MODULE android.binder;`), grouping by process names (`client_process`, `server_process`, `process_name`).
+- **Low Memory Killer (LMK) & Process Memory Analysis:**
+  - Identify killed processes and timestamps with `INCLUDE PERFETTO MODULE android.memory.lmk;` (`android_lmk_events`).
+  - Query process RSS and swap changes over time with `INCLUDE PERFETTO MODULE linux.memory.process;` (`memory_rss_and_swap_per_process`).
+- **Wakeup Chain & Thread Scheduling Analysis:**
+  - To trace which threads woke each other up leading into a slice execution, locate the slice via `slices.with_context` (`thread_slice`), correlate with `thread_state` where `state = 'R'` (Runnable state preceding execution), and recursively traverse `waker_utid`, joining out to `thread.name`:
+    ```sql
+    INCLUDE PERFETTO MODULE slices.with_context;
+
+    WITH RECURSIVE wakeup_chain(depth, utid, waker_utid, ts) AS (
+      -- Base: find the runnable state preceding the target slice
+      SELECT 0 AS depth, s.utid, ts.waker_utid, ts.ts
+      FROM thread_slice s
+      JOIN thread_state ts ON s.utid = ts.utid AND ts.state = 'R'
+        AND ts.ts + ts.dur = s.ts
+      WHERE s.is_main_thread = 1 AND s.name GLOB '*Choreographer*'
+      UNION ALL
+      -- Recurse: find the runnable state of the waker thread
+      SELECT c.depth + 1, c.waker_utid, prev.waker_utid, prev.ts
+      FROM wakeup_chain c
+      JOIN thread_state prev ON c.waker_utid = prev.utid AND prev.state = 'R'
+        AND prev.ts + prev.dur = c.ts
+      WHERE c.depth < 3 AND c.waker_utid IS NOT NULL
+    )
+    SELECT c.depth, t.name AS thread_name
+    FROM wakeup_chain c
+    JOIN thread t ON c.utid = t.utid;
+    ```
 
 ## Analytical Workflow (Standard Operating Procedure)
 
@@ -260,14 +310,16 @@ To ensure accuracy and efficiency, follow these steps:
 
 1. **Research & Dissection:** Identify the core question and required data
    points.
-2. **Mandatory Schema Validation:** Locate relevant tables via
-   `__intrinsic_stdlib_tables`. Verify column names and types.
-   - **Intent Check:** You must verify if a stdlib module already provides
-   the needed abstraction before drafting manual arithmetic or custom joins.
-  - **IMPORTANT:** If your query requires calculating overlaps,
-   intersections, or boundaries between intervals, you MUST search the
-   `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
-    writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
+2. **Mandatory Schema Validation:** Search `__intrinsic_stdlib_objects`
+   globally across modules, tables, views, functions, table functions, and
+   macros. Filter to `exposed = 1`. Use one precise case-insensitive regexp,
+   rank qualified-name matches first, and use `LIMIT 10`. Once a candidate is
+   found, read its `summary`; it contains all argument, column, return, and
+   descriptive metadata.
+   - **Intent Check:** You must verify if a stdlib object already provides the
+   needed abstraction before drafting manual arithmetic or custom joins.
+  - **IMPORTANT:** For overlaps, intersections, or interval boundaries, search
+   the global object table before writing custom timestamp arithmetic.
 3. **Draft & Validate Loop (Max 3 Iterations):**
   - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
     MODULE` is present for non-prelude modules.
@@ -275,7 +327,8 @@ To ensure accuracy and efficiency, follow these steps:
     EXISTS` for virtual tables.
   - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
     `s.name`)? Are you joining on `utid`/`upid`?
-  - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
+  - [ ] **String Matching:** Did you use `=`, `GLOB`, or case-insensitive
+    `regexp(..., ..., 'i')` instead of `LIKE`?
   - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
     and materialized?
   - [ ] **Execute:** Run against the session:

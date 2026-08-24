@@ -86,6 +86,9 @@ on property:persist.traced.enable=1
     # Traces in this directory are only accessed by system server
     mkdir /data/misc/perfetto-traces/profiling 0777 root shell
 
+    # Traces in this directory are persistent traces recovered after reboots
+    mkdir /data/misc/perfetto-traces/persistent 0773 root shell
+
     # This directory allows shell to save configs file in a place where the
     # perfetto cmdline client can read then. /data/local/tmp/ isn't safe because
     # too many other domains can write into that. See b/170404111.
@@ -137,6 +140,16 @@ service perfetto_trace_on_boot /system/bin/perfetto -c /data/misc/perfetto-confi
 # the name specified in configuration used in perfetto_trace_on_boot.
 on property:sys.boot_completed=1 && property:init.svc.perfetto_trace_on_boot=running
     exec -- /system/bin/perfetto -c /data/misc/perfetto-configs/stopboottracetrigger.pbtxt --txt
+
+# Trigger upload of post-reboot traces after boot completes
+on property:sys.boot_completed=1 && property:persist.traced.enable=1
+    start perfetto_upload_after_reboot
+
+service perfetto_upload_after_reboot /system/bin/perfetto --upload-after-reboot
+    disabled
+    oneshot
+    user shell
+    group shell log system
 
 # Forcefully enable select userspace (atrace) tracing categories early into the
 # userspace boot. This is primarily for capturing zygote events without waiting

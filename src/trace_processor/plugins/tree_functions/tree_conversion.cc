@@ -211,9 +211,23 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
     return std::move(builder).Build();
   }
 
-  // Pre-initialize working vectors. Every node dominates itself (count=1,
-  // depth=1).
-  std::vector<int64_t> subtree_count(N, 1);
+  if (tree.columns.size() != 5) {
+    return base::ErrStatus(
+        "__intrinsic_tree_dominator_summary: expected tree with exactly 5 "
+        "columns (id, parent_id, self_size, native_size, self_count), got %zu",
+        tree.columns.size());
+  }
+  constexpr uint32_t kInt64Columns[] = {0, 2, 3, 4};
+  for (uint32_t column : kInt64Columns) {
+    if (!tree.columns[column].type.Is<core::Int64>()) {
+      return base::ErrStatus(
+          "__intrinsic_tree_dominator_summary: expected id, self_size, "
+          "native_size, and self_count columns to be integers");
+    }
+  }
+
+  // Pre-initialize working vectors. Nodes start at depth=1.
+  std::vector<int64_t> subtree_count(N, 0);
   std::vector<int64_t> subtree_size_bytes(N, 0);
   std::vector<int64_t> subtree_native_size_bytes(N, 0);
   std::vector<int64_t> depth(N, 1);
@@ -221,6 +235,19 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
   const auto* ids = tree.columns[0].unchecked_data<int64_t>();
   const auto* self_sizes = tree.columns[2].unchecked_data<int64_t>();
   const auto* native_sizes = tree.columns[3].unchecked_data<int64_t>();
+  const auto* counts = tree.columns[4].unchecked_data<int64_t>();
+
+  // Copy initial self-counts into subtree accumulators, skipping nulls if
+  // present.
+  if (tree.columns[4].null_bv.size() == 0) {
+    std::copy(counts, counts + N, subtree_count.begin());
+  } else {
+    for (uint32_t i = 0; i < N; ++i) {
+      if (tree.columns[4].null_bv.is_set(i)) {
+        subtree_count[i] = counts[i];
+      }
+    }
+  }
 
   // Copy initial self-sizes into subtree accumulators, skipping nulls if
   // present.
