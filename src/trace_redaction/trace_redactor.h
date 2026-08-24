@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
@@ -82,7 +81,7 @@ class TraceRedactorPass {
 
   // Executes the pass: Collect -> Validate -> Build -> Transform -> Augment.
   // Transformed and augmented packets are appended to `output_buffer`.
-  base::Status Redact(const trace_processor::TraceBlobView& view,
+  base::Status Redact(std::string_view view,
                       Context* context,
                       std::string* output_buffer) const;
 
@@ -96,8 +95,7 @@ class TraceRedactorPass {
   //     for collector in collectors:
   //       collector(context, packet)
   // ```
-  base::Status Collect(Context* context,
-                       const trace_processor::TraceBlobView& view) const;
+  base::Status Collect(Context* context, std::string_view view) const;
 
   // Runs all validators once on the context. Validators verify invariants
   // across the entire trace after all the data has been collected. If any
@@ -130,7 +128,7 @@ class TraceRedactorPass {
   //       transform(context, packet)
   // ```
   base::Status Transform(const Context& context,
-                         const trace_processor::TraceBlobView& view,
+                         std::string_view view,
                          std::string* output_buffer) const;
 
   // Runs all augmenters, appending generated packets to `output_buffer`

@@ -20,6 +20,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
+#include "src/trace_redaction/proto_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
@@ -135,7 +136,7 @@ base::Status AugmentProcessTrees::Augment(const Context& context,
       thread_field->set_name(thread.name);
     }
   }
-  packet->assign(message.SerializeAsString());
+  proto_util::AppendMessage(message, packet);
   return base::OkStatus();
 }
 

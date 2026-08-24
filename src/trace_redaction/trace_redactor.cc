@@ -76,7 +76,7 @@ base::StatusOr<trace_processor::TraceBlob> LoadTrace(const std::string& path) {
 }
 
 base::Status WriteTraceToFile(const std::string& path,
-                              const std::string& buffer) {
+                              std::string_view buffer) {
   const auto dest_fd = base::OpenFile(path, O_RDWR | O_CREAT | O_TRUNC, 0666);
   if (dest_fd.get() == -1) {
     return base::ErrStatus(
@@ -113,7 +113,7 @@ TraceRedactorPass::TraceRedactorPass() = default;
 TraceRedactorPass::~TraceRedactorPass() = default;
 
 base::Status TraceRedactorPass::Redact(
-    const trace_processor::TraceBlobView& view,
+    std::string_view view,
     Context* context,
     std::string* output_buffer) const {
   RETURN_IF_ERROR(Collect(context, view));
@@ -127,12 +127,13 @@ base::Status TraceRedactorPass::Redact(
 
 base::Status TraceRedactorPass::Collect(
     Context* context,
-    const trace_processor::TraceBlobView& view) const {
+    std::string_view view) const {
   for (const auto& collector : collectors_) {
     RETURN_IF_ERROR(collector->Begin(context));
   }
 
-  const Trace::Decoder trace_decoder(view.data(), view.length());
+  const Trace::Decoder trace_decoder(
+      reinterpret_cast<const uint8_t*>(view.data()), view.size());
 
   for (auto packet_it = trace_decoder.packet(); packet_it; ++packet_it) {
     const TracePacket::Decoder packet(packet_it->as_bytes());
@@ -165,9 +166,10 @@ base::Status TraceRedactorPass::Build(Context* context) const {
 
 base::Status TraceRedactorPass::Transform(
     const Context& context,
-    const trace_processor::TraceBlobView& view,
+    std::string_view view,
     std::string* output_buffer) const {
-  const Trace::Decoder trace_decoder(view.data(), view.length());
+  const Trace::Decoder trace_decoder(
+      reinterpret_cast<const uint8_t*>(view.data()), view.size());
   for (auto packet_it = trace_decoder.packet(); packet_it; ++packet_it) {
     auto packet = packet_it->as_std_string();
 
@@ -229,25 +231,27 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
   const std::string dest_filename_str(dest_filename);
   ASSIGN_OR_RETURN(trace_processor::TraceBlob blob,
                    LoadTrace(source_filename_str));
-  trace_processor::TraceBlobView current_view(std::move(blob));
 
-  std::string current_buffer;
+  std::string buffer_a;
+  std::string buffer_b;
+
+  std::string_view current_input(reinterpret_cast<const char*>(blob.data()),
+                                 blob.size());
+  std::string* current_output = &buffer_a;
+
   for (size_t i = 0; i < passes_.size(); ++i) {
-    std::string next_buffer;
-    RETURN_IF_ERROR(passes_[i]->Redact(current_view, context, &next_buffer));
-    current_buffer = std::move(next_buffer);
+    current_output->clear();
+    RETURN_IF_ERROR(
+        passes_[i]->Redact(current_input, context, current_output));
+    current_input = *current_output;
 
-    // Only wrap the output in a TraceBlobView if there is a subsequent pass
-    // that needs to read it. The final pass writes directly from
-    // current_buffer.
-    if (i + 1 < passes_.size()) {
-      auto pass_blob = trace_processor::TraceBlob::CopyFrom(
-          current_buffer.data(), current_buffer.size());
-      current_view = trace_processor::TraceBlobView(std::move(pass_blob));
-    }
+    // Double buffering, flip buffers for next pass to only keep at most
+    // one buffer for reading and another one for writting, ping-pong between
+    // buffer_a and buffer_b.
+    current_output = (current_output == &buffer_a) ? &buffer_b : &buffer_a;
   }
 
-  return WriteTraceToFile(dest_filename_str, current_buffer);
+  return WriteTraceToFile(dest_filename_str, current_input);
 }
 
 std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(

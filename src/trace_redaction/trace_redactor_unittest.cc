@@ -18,8 +18,6 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
-#include "perfetto/trace_processor/trace_blob.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/android/packages_list.gen.h"
 #include "protos/perfetto/trace/ps/process_tree.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -37,7 +35,7 @@ class DummyCollect : public CollectPrimitive {
  public:
   base::Status Collect(const protos::pbzero::TracePacket::Decoder& packet,
                        Context* context) const override {
-    if (packet.has_trusted_uid()) {
+    if (packet.has_trusted_uid() && !context->package_uid.has_value()) {
       context->package_uid = static_cast<uint64_t>(packet.trusted_uid());
     }
     return base::OkStatus();
@@ -87,6 +85,25 @@ class DummyAugment : public AugmentPrimitive {
   bool emitted_ = false;
 };
 
+template <uint64_t TS>
+class DummyAugmentTimestamp : public AugmentPrimitive {
+ public:
+  base::Status Augment(const Context& context, std::string* packet) override {
+    if (emitted_ || !context.package_uid.has_value()) {
+      return base::OkStatus();
+    }
+    emitted_ = true;
+    protos::gen::TracePacket gen_packet;
+    gen_packet.set_timestamp(TS);
+    gen_packet.set_trusted_uid(static_cast<int32_t>(*context.package_uid));
+    packet->assign(gen_packet.SerializeAsString());
+    return base::OkStatus();
+  }
+
+ private:
+  bool emitted_ = false;
+};
+
 }  // namespace
 
 TEST(TraceRedactorPassTest, DirectPassExecution) {
@@ -108,9 +125,6 @@ TEST(TraceRedactorPassTest, DirectPassExecution) {
   }
 
   std::string serialized = trace.SerializeAsString();
-  auto blob = trace_processor::TraceBlob::CopyFrom(serialized.data(),
-                                                   serialized.size());
-  trace_processor::TraceBlobView view(std::move(blob));
 
   TraceRedactorPass pass;
   pass.emplace_collect<DummyCollect>();
@@ -120,7 +134,7 @@ TEST(TraceRedactorPassTest, DirectPassExecution) {
   Context context;
   context.package_uid = 1000;
   std::string output_buffer;
-  ASSERT_OK(pass.Redact(view, &context, &output_buffer));
+  ASSERT_OK(pass.Redact(serialized, &context, &output_buffer));
 
   protos::pbzero::Trace::Decoder output_trace(output_buffer);
   std::vector<uint64_t> timestamps;
@@ -142,16 +156,13 @@ TEST(TraceRedactorPassTest, ValidatorErrorHaltsExecution) {
   packet->set_timestamp(100);
 
   std::string serialized = trace.SerializeAsString();
-  auto blob = trace_processor::TraceBlob::CopyFrom(serialized.data(),
-                                                   serialized.size());
-  trace_processor::TraceBlobView view(std::move(blob));
 
   TraceRedactorPass pass;
   pass.emplace_validator<DummyValidator>();
 
   Context context;
   std::string output_buffer;
-  auto status = pass.Redact(view, &context, &output_buffer);
+  auto status = pass.Redact(serialized, &context, &output_buffer);
 
   ASSERT_FALSE(status.ok());
   ASSERT_EQ(status.message(), "DummyValidator: validation failed");
@@ -163,16 +174,13 @@ TEST(TraceRedactorPassTest, EmptyTimelineWithTimelineValidationReturnsError) {
   packet->set_timestamp(100);
 
   std::string serialized = trace.SerializeAsString();
-  auto blob = trace_processor::TraceBlob::CopyFrom(serialized.data(),
-                                                   serialized.size());
-  trace_processor::TraceBlobView view(std::move(blob));
 
   TraceRedactorPass pass;
   pass.emplace_validator<TimelineValidation>();
 
   Context context;  // timeline is null / empty
   std::string output_buffer;
-  auto status = pass.Redact(view, &context, &output_buffer);
+  auto status = pass.Redact(serialized, &context, &output_buffer);
 
   ASSERT_FALSE(status.ok());
   ASSERT_EQ(status.message(),
@@ -312,6 +320,69 @@ TEST(TraceRedactorTest, MultiPassPipelineExecution) {
   EXPECT_EQ(timestamps[0], 10u);
   EXPECT_EQ(timestamps[1], 999u);
   EXPECT_EQ(timestamps[2], 999u);
+}
+
+TEST(TraceRedactorTest, ThreePassPipelineExecution) {
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
+
+  protos::gen::Trace trace;
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    packet->set_trusted_uid(500);
+  }
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(20);
+    packet->set_trusted_uid(999);  // Will be dropped by pass 2 transform
+  }
+
+  std::string serialized = trace.SerializeAsString();
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
+
+  TraceRedactor redactor;
+
+  // Pass 1: Collect package_uid and augment a packet (ts = 100)
+  auto* pass1 = redactor.add_pass();
+  pass1->emplace_collect<DummyCollect>();
+  pass1->emplace_augment<DummyAugmentTimestamp<100>>();
+
+  // Pass 2: Transform (drop untrusted uid 999) and augment a packet (ts = 200)
+  auto* pass2 = redactor.add_pass();
+  pass2->emplace_transform<DummyTransform>();
+  pass2->emplace_augment<DummyAugmentTimestamp<200>>();
+
+  // Pass 3: Augment a packet (ts = 300) - exercises buffer recycling back to buffer_a
+  auto* pass3 = redactor.add_pass();
+  pass3->emplace_augment<DummyAugmentTimestamp<300>>();
+
+  Context context;
+  ASSERT_OK(redactor.Redact(input_file.path(), output_file.path(), &context));
+
+  std::string output_content;
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
+
+  protos::pbzero::Trace::Decoder output_trace(output_content);
+  std::vector<uint64_t> timestamps;
+  for (auto it = output_trace.packet(); it; ++it) {
+    protos::pbzero::TracePacket::Decoder p(it->as_bytes());
+    timestamps.push_back(p.timestamp());
+  }
+
+  // Expect:
+  // 1. Initial packet (ts = 10)
+  // 2. Pass 1 augment (ts = 100)
+  // 3. Pass 2 augment (ts = 200)
+  // 4. Pass 3 augment (ts = 300)
+  // (Initial packet with ts = 20 was dropped by pass 2)
+  ASSERT_EQ(timestamps.size(), 4u);
+  EXPECT_EQ(timestamps[0], 10u);
+  EXPECT_EQ(timestamps[1], 100u);
+  EXPECT_EQ(timestamps[2], 200u);
+  EXPECT_EQ(timestamps[3], 300u);
 }
 
 }  // namespace perfetto::trace_redaction
