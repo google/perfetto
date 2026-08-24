@@ -14,90 +14,65 @@ runs on top of, including the Perfetto UI. Reference docs:
 > `$SKILL_ROOT/environment-references/setup.md`. It defines how to make
 > the bare `trace_processor` commands below work in this environment.
 
-## Quickstart
+## Querying a trace: sessions
 
-To run a single query and exit:
+Querying goes through a **session**: load the trace once into a named
+background session, then run every query against it with `--remote`.
+Parsing a trace is the expensive part (tens of seconds for a multi-GB
+trace); the session pays it once, and every real analysis runs more than
+one query.
 
 ```sh
-trace_processor query TRACE_FILE "SELECT ts, dur FROM slice LIMIT 10"
+# 1. Load the trace into a background session — once per trace.
+#    Pick a descriptive session name (e.g. derived from the trace file).
+trace_processor server unix --name mysession --daemonize TRACE_FILE
+
+# 2. Run queries against the warm session: instant, no reparse.
+trace_processor query --remote mysession \
+  "SELECT ts, dur, name FROM slice WHERE dur > 5e8 LIMIT 5"
+
+# 3. When you are completely done with the trace:
+trace_processor server kill mysession
 ```
 
 Multiple statements separated by `;` are supported in one invocation.
 
+Session rules:
+
+- Session names are managed by trace_processor in a per-user session
+  directory — there are no ports to choose and no collisions with other
+  agents or the Perfetto UI.
+- **Session state persists across `query --remote` calls.** A
+  `CREATE PERFETTO TABLE` or `INCLUDE PERFETTO MODULE` run in one call is
+  visible in the next, so materializing intermediate results pays off
+  across invocations.
+- Flags that configure trace loading (`--full-sort`,
+  `--add-sql-package`, ...) belong on the `server unix` invocation, not
+  on `query --remote` — the client rejects them with an explanatory
+  error.
+- `--remote` also accepts an absolute `*.sock` path or `host:port`;
+  names are the common case.
+- Forgotten sessions are reaped automatically after 30 minutes idle
+  (`--idle-timeout`), but kill your session when the analysis is done.
+
 `TRACE_FILE` can be a local path, an `http(s)://` URL, or a Perfetto UI
 share link (`https://ui.perfetto.dev/#!/?s=<hash>`) — in the last two
-cases trace_processor downloads the trace for you, resolving the share
-link to its underlying trace first:
+cases trace_processor downloads the trace for you (cached under
+`~/.cache/perfetto/` or the platform equivalent), resolving the share
+link to its underlying trace first.
 
-```sh
-trace_processor query "https://ui.perfetto.dev/#!/?s=<hash>" \
-  "SELECT name, dur FROM slice ORDER BY dur DESC LIMIT 10"
-```
-
-Downloaded traces are cached locally (under `~/.cache/perfetto/`, or the
-platform equivalent), so re-running on the same URL doesn't re-download.
-The same `URL`/share-link form works anywhere a trace path is accepted
-(`query`, `server`, the interactive shell, etc.).
-
-## Long-running mode (preferred for iteration)
-
-Reparsing a trace on every query is slow — for a multi-GB trace it's tens
-of seconds, every time. When you expect to run more than a couple of
-queries, start the shell once as an HTTP RPC server and drive it from
-the Python client. (If the `perfetto` Python package is not installed
-yet, `pip install perfetto protobuf` — ideally into a venv.)
-
-```sh
-# Terminal A: pick a random high port and start the server on it.
-# Always pass --port explicitly: the default (9001) is also used by
-# the Perfetto UI, and a fixed port collides with any other agent
-# already running a trace_processor server.
-PORT=$((9100 + RANDOM % 900))
-trace_processor server http --port $PORT TRACE_FILE
-```
-
-```python
-# Terminal B (or any Python process): connect to the running server.
-# PORT is the value chosen in Terminal A.
-from perfetto.trace_processor import TraceProcessor
-
-tp = TraceProcessor(addr='127.0.0.1:PORT')
-for row in tp.query('SELECT ts, dur, name FROM slice WHERE dur > 5e8 LIMIT 5'):
-    print(row.dur, row.name)
-
-# Pandas is also supported if the dependency is installed:
-df = tp.query('SELECT ts, dur, name FROM slice LIMIT 100').as_pandas_dataframe()
-
-tp.close()
-```
-
-The server keeps the trace parsed in memory; each `tp.query()` call is
-just a query against the existing session. This is the same RPC channel
-`ui.perfetto.dev` uses when you load a trace there.
-
-Notes:
-
-- Use `'127.0.0.1:PORT'`, not `'localhost:PORT'`. The server binds on
-  IPv4/IPv6 explicitly and `localhost` resolution can pick an interface
-  that isn't bound on macOS.
-- A quick liveness check from the shell:
-  `curl http://127.0.0.1:PORT/status` returns plain JSON-ish status
-  (loaded path, version) and is the fastest way to confirm the server
-  is up.
-- The on-the-wire `/query`, `/parse`, `/rpc` endpoints take protobuf-
-  encoded `QueryArgs`/`TraceProcessorRpc` payloads. **Do not hand-craft
-  HTTP calls with `curl`** — use the Python client (or the WASM
-  client embedded in the UI). Hand-crafted calls work for `/status` only.
-- If you want to stay in the C++ shell instead of Python, a one-shot
-  `trace_processor query TRACE_FILE "..."` is fine for a handful of
-  queries; the server is the right answer the moment iteration starts.
+For a single throwaway query on a small trace you *can* skip the session
+(`trace_processor query TRACE_FILE "..."` parses, queries, and exits),
+but treat that as the exception: it re-parses the trace on every
+invocation and forgets created tables and included modules between
+calls. Default to a session.
 
 ## Discovering what's in the trace
 
-PerfettoSQL ships with **intrinsic table-functions** for browsing the
-loaded standard library — modules, tables/views, functions, macros. Use
-these to find what's available and to verify if a Standard Library module
-already provides the needed abstraction before drafting custom logic.
+PerfettoSQL provides a searchable intrinsic table containing every loaded
+standard-library module, table, view, function, table function, and macro. Use
+it to verify whether the Standard Library already provides the needed
+abstraction before drafting custom logic.
 
 **Mandatory Schema Check:** Do not guess column names or join keys. Always
 use a plain `LIMIT 0` query to read the exact column schema of any specific
@@ -110,24 +85,27 @@ table, view, or query result before drafting your query.
 > or stdlib modules** — they can change without notice.
 
 ```sql
--- 1. List every stdlib module currently available.
-SELECT package, module FROM __intrinsic_stdlib_modules ORDER BY 1, 2;
+-- Search every documented stdlib object. Start with one precise phrase or
+-- API-like term. In a regexp, `|` means alternatives: prefer
+-- `breadth.first|bfs`, not a broad expression such as `breadth|graph|search`.
+WITH search(pattern) AS (VALUES ('precise phrase|api_term'))
+SELECT o.qualified_name, o.object_type, o.short_description
+FROM __intrinsic_stdlib_objects AS o, search AS s
+WHERE o.exposed = 1
+  AND regexp(s.pattern, o.summary, 'i')
+ORDER BY regexp(s.pattern, o.qualified_name, 'i') DESC,
+         o.qualified_name
+LIMIT 10;
 
--- 2. List the tables/views a specific module exposes
---    (after INCLUDE PERFETTO MODULE).
-INCLUDE PERFETTO MODULE slices.with_context;
-SELECT name, type, exposed, description
-FROM __intrinsic_stdlib_tables('slices.with_context');
+-- Once a candidate is found, read one human-friendly document containing its
+-- identity, description, arguments, return value, and result columns.
+SELECT o.summary
+FROM __intrinsic_stdlib_objects AS o
+WHERE o.qualified_name =
+  'intervals.overlap.intervals_overlap_count_by_group';
 
--- 3. List functions / macros a module exposes.
-SELECT name, return_type, args
-FROM __intrinsic_stdlib_functions('slices.with_context');
-SELECT name, return_type, args
-FROM __intrinsic_stdlib_macros('android.memory.heap_graph.helpers');
-
--- 4. Read the column schema of any table, view, or query.
---    LIMIT 0 returns the result header with no row scan; trace_processor
---    prints "column N = <name>" lines for each column.
+-- Read the runtime schema of any table, view, or query. LIMIT 0 returns the
+-- result header with no row scan.
 SELECT * FROM slice LIMIT 0;
 SELECT * FROM thread_or_process_slice LIMIT 0;
 SELECT * FROM (SELECT ts, dur, name FROM slice WHERE dur > 0) LIMIT 0;
@@ -233,16 +211,16 @@ reference linked above.
   properties instead of manually joining the `args` table.
 - **JSON Parsing:** When dealing with JSON text, use standard SQLite JSON
   functions (for example, `json_extract()`) to extract values.
-- **String Matching (Always use GLOB).** Use `GLOB` instead of `LIKE`. `LIKE`
+- **String Matching (Avoid `LIKE`).** Use `GLOB` or `regexp()` instead of
+  `LIKE`. `LIKE`
   causes performance bottlenecks and treats underscores (`_`) as wildcards,
   leading to bugs.
   - **Exact matches:** Use `=`.
   - **Substring matches:** Use `GLOB` with `*` (for example, `name GLOB
     '*RenderThread*'`).
-  - **Case-insensitive matches:** Use `LOWER(name) GLOB` and make sure the
-    search string is fully lowercase (for example, `LOWER(name) GLOB
-    '*renderthread*'`). Use this when dealing with inconsistent trace
-    capitalization (for example, `WakeLock` versus `wakelock`).
+  - **Case-insensitive matches:** Use `regexp(pattern, input, 'i')`. It
+    performs a case-insensitive partial match without `LOWER()` or `*`
+    wildcards (for example, `regexp('renderthread', name, 'i')`).
 - **Alias Precision.** Always prefix column names with table or view alias,
   that is: `{alias}.{column_name}`.
 
@@ -285,14 +263,16 @@ To ensure accuracy and efficiency, follow these steps:
 
 1. **Research & Dissection:** Identify the core question and required data
    points.
-2. **Mandatory Schema Validation:** Locate relevant tables via
-   `__intrinsic_stdlib_tables`. Verify column names and types.
-   - **Intent Check:** You must verify if a stdlib module already provides
-   the needed abstraction before drafting manual arithmetic or custom joins.
-  - **IMPORTANT:** If your query requires calculating overlaps,
-   intersections, or boundaries between intervals, you MUST search the
-   `__intrinsic_*` tables globally (for example, `GLOB 'overlap*'`) before
-    writing `MIN()/MAX()` or `IIF(dur = -1...)` logic.
+2. **Mandatory Schema Validation:** Search `__intrinsic_stdlib_objects`
+   globally across modules, tables, views, functions, table functions, and
+   macros. Filter to `exposed = 1`. Use one precise case-insensitive regexp,
+   rank qualified-name matches first, and use `LIMIT 10`. Once a candidate is
+   found, read its `summary`; it contains all argument, column, return, and
+   descriptive metadata.
+   - **Intent Check:** You must verify if a stdlib object already provides the
+   needed abstraction before drafting manual arithmetic or custom joins.
+  - **IMPORTANT:** For overlaps, intersections, or interval boundaries, search
+   the global object table before writing custom timestamp arithmetic.
 3. **Draft & Validate Loop (Max 3 Iterations):**
   - [ ] **Draft:** Use only verified schemas. Ensure `INCLUDE PERFETTO
     MODULE` is present for non-prelude modules.
@@ -300,10 +280,12 @@ To ensure accuracy and efficiency, follow these steps:
     EXISTS` for virtual tables.
   - [ ] **Check Precision:** Are ALL columns prefixed with aliases (e.g.,
     `s.name`)? Are you joining on `utid`/`upid`?
-  - [ ] **String Matching:** Did you use `GLOB` or `=` instead of `LIKE`?
+  - [ ] **String Matching:** Did you use `=`, `GLOB`, or case-insensitive
+    `regexp(..., ..., 'i')` instead of `LIKE`?
   - [ ] **Span Join Check:** If using `SPAN_JOIN`, are tables `PARTITIONED`
     and materialized?
-  - [ ] **Execute:** Run using `trace_processor query TRACE_FILE "QUERY"`.
+  - [ ] **Execute:** Run against the session:
+    `trace_processor query --remote SESSION "QUERY"`.
 
    **Execution Rules:**
   - **File Usage:** If you must create a SQL file to execute queries (for
@@ -317,6 +299,12 @@ To ensure accuracy and efficiency, follow these steps:
 4. **Cleanup & Finalize:**
   - Explicitly return and state the final validated SQL and explain the
     results to the user.
+  - **Save an analysis report.** Write a markdown file in the working
+    directory (default `perfetto_analysis_report.md`) containing: the
+    question investigated, the trace file(s) analyzed, the findings with
+    concrete numbers, the final validated queries (so the analysis can be
+    re-run), and open questions / next steps. Point the user at it in
+    your final message.
   - Before finishing, delete any temporary SQL files created in `/tmp/`.
 
 ## Where to look for more
