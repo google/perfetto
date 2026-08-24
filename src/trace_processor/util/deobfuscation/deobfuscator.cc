@@ -45,9 +45,9 @@ constexpr std::string_view kMergedClassesId =
     "com.android.tools.r8.mergedClasses";
 constexpr std::string_view kIdKey = "id";
 constexpr std::string_view kClassNameKey = "name";
-constexpr std::string_view kClassIdKey = "class_id";
-constexpr std::string_view kClassIdFieldKey = "class_id_field";
-constexpr std::string_view kMergedClassesKey = "merged_classes";
+constexpr std::string_view kClassIdKey = "classId";
+constexpr std::string_view kClassIdFieldKey = "classIdField";
+constexpr std::string_view kMergedClassesKey = "mergedClasses";
 
 struct ProguardClass {
   std::string obfuscated_name;
@@ -96,7 +96,7 @@ std::optional<ProguardClass> ParseClass(std::string line) {
 base::Status ParseMergedClass(SimpleJsonParser& parser,
                               ObfuscatedClass::MergedClass& out);
 
-// Parses common fields for MergedClasses (class_id_field and merged_classes).
+// Parses common fields for MergedClasses (classIdField and mergedClasses).
 FieldResult ParseMergedClassesField(SimpleJsonParser& parser,
                                     std::string_view key,
                                     ObfuscatedClass::MergedClasses& mcs) {
@@ -110,7 +110,7 @@ FieldResult ParseMergedClassesField(SimpleJsonParser& parser,
   }
   if (key == kMergedClassesKey) {
     if (!parser.IsArray()) {
-      return base::Status("Expected array for merged_classes.");
+      return base::Status("Expected array for mergedClasses.");
     }
     base::Status array_status =
         parser.ForEachArrayElement([&]() -> base::Status {

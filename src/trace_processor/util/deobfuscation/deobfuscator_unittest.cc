@@ -263,7 +263,7 @@ TEST(ProguardParserTest, MergedClassesJsonComment) {
   ProguardParser p;
   const char input[] = R"(
 com.example.Merged -> z:
-# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": "com.example.ClassA" }, { "name": "com.example.ClassB" }] }
+# {"id":"com.android.tools.r8.mergedClasses", "mergedClasses": [{ "name": "com.example.ClassA" }, { "name": "com.example.ClassB" }] }
 )";
 
   ASSERT_TRUE(p.AddLines(std::string(input)));
@@ -291,7 +291,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentClassIdTypes) {
   ProguardParser p;
   const char input[] = R"(
 com.example.Merged -> z:
-# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": "$cid", "merged_classes": [{ "name": "ClassPos", "class_id": 100 }, { "name": "ClassNeg", "class_id": -10 }, { "name": "ClassZero", "class_id": 0 }, { "name": "ClassMax", "class_id": 2147483647 }, { "name": "ClassMin", "class_id": -2147483648 }, { "name": "ClassNoId" }] }
+# {"id":"com.android.tools.r8.mergedClasses", "classIdField": "$cid", "mergedClasses": [{ "name": "ClassPos", "classId": 100 }, { "name": "ClassNeg", "classId": -10 }, { "name": "ClassZero", "classId": 0 }, { "name": "ClassMax", "classId": 2147483647 }, { "name": "ClassMin", "classId": -2147483648 }, { "name": "ClassNoId" }] }
 )";
 
   ASSERT_TRUE(p.AddLines(std::string(input)));
@@ -328,7 +328,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentWithKindAndClassId) {
   const char input[] = R"(
 com.example.ClassA -> a:
 # {"id":"unrelated"}
-# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": "$cid", "kind": "horizontal", "merged_classes": [{ "name": "com.example.ClassA", "class_id": "0" }, { "name": "com.example.ClassB", "class_id": "1" }] }
+# {"id":"com.android.tools.r8.mergedClasses", "classIdField": "$cid", "kind": "horizontal", "mergedClasses": [{ "name": "com.example.ClassA", "classId": "0" }, { "name": "com.example.ClassB", "classId": "1" }] }
 )";
 
   ASSERT_TRUE(p.AddLines(std::string(input)));
@@ -356,7 +356,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentNested) {
   ProguardParser p;
   const char input[] = R"(
 com.example.Merged -> z:
-# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": "$cid$1", "kind": "horizontal", "merged_classes": [{ "class_id": "0", "class_id_field": "$cid", "merged_classes": [{ "name": "com.example.ClassA", "class_id": "0" }, { "name": "com.example.ClassB", "class_id": "1" }] }, { "name": "com.example.ClassC", "class_id": "1" }] }
+# {"id":"com.android.tools.r8.mergedClasses", "classIdField": "$cid$1", "kind": "horizontal", "mergedClasses": [{ "classId": "0", "classIdField": "$cid", "mergedClasses": [{ "name": "com.example.ClassA", "classId": "0" }, { "name": "com.example.ClassB", "classId": "1" }] }, { "name": "com.example.ClassC", "classId": "1" }] }
 )";
 
   ASSERT_TRUE(p.AddLines(std::string(input)));
@@ -397,7 +397,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentUnrelatedId) {
   ProguardParser p;
   const char input[] = R"(
 com.example.Class -> a:
-# {"id":"com.android.tools.r8.synthesized", "merged_classes": [{ "name": "com.example.Other", "class_id": "0" }] }
+# {"id":"com.android.tools.r8.synthesized", "mergedClasses": [{ "name": "com.example.Other", "classId": "0" }] }
 )";
 
   ASSERT_TRUE(p.AddLines(std::string(input)));
@@ -411,7 +411,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentSyntaxError) {
   ProguardParser p;
   const char input[] = R"(
 com.example.ClassA -> a:
-# {"id":"com.android.tools.r8.mergedClasses", "class_id_field": }
+# {"id":"com.android.tools.r8.mergedClasses", "classIdField": }
 )";
   ASSERT_TRUE(p.AddLines(std::string(input)));
   auto mapping = p.ConsumeMapping();
@@ -424,7 +424,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentNonNumericClassId) {
   ProguardParser p;
   const char input[] = R"(
 com.example.ClassB -> b:
-# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": "com.example.Sub", "class_id": "not_a_number" }] }
+# {"id":"com.android.tools.r8.mergedClasses", "mergedClasses": [{ "name": "com.example.Sub", "classId": "not_a_number" }] }
 )";
   ASSERT_TRUE(p.AddLines(std::string(input)));
   auto mapping = p.ConsumeMapping();
@@ -437,7 +437,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentClassIdOutOfRange) {
   ProguardParser p;
   const char input[] = R"(
 com.example.ClassC -> c:
-# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": "com.example.Sub", "class_id": 999999999999999999 }]}
+# {"id":"com.android.tools.r8.mergedClasses", "mergedClasses": [{ "name": "com.example.Sub", "classId": 999999999999999999 }]}
 )";
   ASSERT_TRUE(p.AddLines(std::string(input)));
   auto mapping = p.ConsumeMapping();
@@ -450,7 +450,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentInvalidClassName) {
   ProguardParser p;
   const char input[] = R"(
 com.example.ClassD -> d:
-# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": [{ "name": 12345, "class_id": 1 }]}
+# {"id":"com.android.tools.r8.mergedClasses", "mergedClasses": [{ "name": 12345, "classId": 1 }]}
 )";
   ASSERT_TRUE(p.AddLines(std::string(input)));
   auto mapping = p.ConsumeMapping();
@@ -463,7 +463,7 @@ TEST(ProguardParserTest, MergedClassesJsonCommentNonArrayMergedClasses) {
   ProguardParser p;
   const char input[] = R"(
 com.example.ClassE -> e:
-# {"id":"com.android.tools.r8.mergedClasses", "merged_classes": "not_an_array"}
+# {"id":"com.android.tools.r8.mergedClasses", "mergedClasses": "not_an_array"}
 )";
   ASSERT_TRUE(p.AddLines(std::string(input)));
   auto mapping = p.ConsumeMapping();
