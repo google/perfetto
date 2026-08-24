@@ -50,6 +50,22 @@ message ObfuscatedClass {
   // fields.
   repeated ObfuscatedMember obfuscated_members = 3;
   repeated ObfuscatedMember obfuscated_methods = 4;
+
+  // Information about a single class merged by optimization into this
+  // obfuscated class.
+  message MergedClass {
+    optional string name = 1;
+    optional int32 class_id = 2;
+    optional MergedClasses merged_classes = 3;
+  }
+
+  // Set of classes merged into this obfuscated class by optimization.
+  message MergedClasses {
+    optional string class_id_field_name = 1;
+    repeated MergedClass merged_classes = 2;
+  }
+
+  optional MergedClasses merged_classes = 5;
 }
 
 message DeobfuscationMapping {
