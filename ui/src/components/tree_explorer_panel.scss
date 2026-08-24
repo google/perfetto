@@ -18,8 +18,16 @@
   flex-direction: column;
   overflow-y: hidden;
 
-  > .pf-flamegraph {
+  > .pf-flamegraph,
+  > .pf-tree-explorer__grid {
     flex: 1;
     min-height: 0;
+  }
+
+  .pf-tree-explorer__loading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
