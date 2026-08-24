@@ -355,7 +355,8 @@ TEST(TraceRedactorTest, ThreePassPipelineExecution) {
   pass2->emplace_transform<DummyTransform>();
   pass2->emplace_augment<DummyAugmentTimestamp<200>>();
 
-  // Pass 3: Augment a packet (ts = 300) - exercises buffer recycling back to buffer_a
+  // Pass 3: Augment a packet (ts = 300) - exercises buffer recycling back to
+  // buffer_a
   auto* pass3 = redactor.add_pass();
   pass3->emplace_augment<DummyAugmentTimestamp<300>>();
 

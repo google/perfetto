@@ -112,10 +112,9 @@ TraceRedactorPass::TraceRedactorPass() = default;
 
 TraceRedactorPass::~TraceRedactorPass() = default;
 
-base::Status TraceRedactorPass::Redact(
-    std::string_view view,
-    Context* context,
-    std::string* output_buffer) const {
+base::Status TraceRedactorPass::Redact(std::string_view view,
+                                       Context* context,
+                                       std::string* output_buffer) const {
   RETURN_IF_ERROR(Collect(context, view));
   RETURN_IF_ERROR(Validate(*context));
   RETURN_IF_ERROR(Build(context));
@@ -125,9 +124,8 @@ base::Status TraceRedactorPass::Redact(
   return base::OkStatus();
 }
 
-base::Status TraceRedactorPass::Collect(
-    Context* context,
-    std::string_view view) const {
+base::Status TraceRedactorPass::Collect(Context* context,
+                                        std::string_view view) const {
   for (const auto& collector : collectors_) {
     RETURN_IF_ERROR(collector->Begin(context));
   }
@@ -164,10 +162,9 @@ base::Status TraceRedactorPass::Build(Context* context) const {
   return base::OkStatus();
 }
 
-base::Status TraceRedactorPass::Transform(
-    const Context& context,
-    std::string_view view,
-    std::string* output_buffer) const {
+base::Status TraceRedactorPass::Transform(const Context& context,
+                                          std::string_view view,
+                                          std::string* output_buffer) const {
   const Trace::Decoder trace_decoder(
       reinterpret_cast<const uint8_t*>(view.data()), view.size());
   for (auto packet_it = trace_decoder.packet(); packet_it; ++packet_it) {
@@ -241,8 +238,7 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
 
   for (size_t i = 0; i < passes_.size(); ++i) {
     current_output->clear();
-    RETURN_IF_ERROR(
-        passes_[i]->Redact(current_input, context, current_output));
+    RETURN_IF_ERROR(passes_[i]->Redact(current_input, context, current_output));
     current_input = *current_output;
 
     // Double buffering, flip buffers for next pass to only keep at most

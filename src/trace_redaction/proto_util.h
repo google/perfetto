@@ -35,8 +35,8 @@ void AppendField(const protozero::Field& field, protozero::Message* message);
 
 void AppendFields(const protozero::Field& field, protozero::Message* message);
 
-// Appends the serialized slices from a protozero::HeapBuffered message into |packet|
-// without intermediate copies or heap allocations.
+// Appends the serialized slices from a protozero::HeapBuffered message into
+// |packet| without intermediate copies or heap allocations.
 template <typename T>
 void AppendMessage(protozero::HeapBuffered<T>& message, std::string* packet) {
   PERFETTO_DCHECK(packet);
