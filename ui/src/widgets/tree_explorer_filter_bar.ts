@@ -257,13 +257,6 @@ export class TreeExplorerFilterBar implements m.ClassComponent<TreeExplorerFilte
               title: 'Clear highlight',
               onclick: () => attrs.onHighlightChange(''),
             }),
-          m(Button, {
-            label: 'Hide',
-            compact: true,
-            onclick: () => {
-              this.showHighlightSearch = false;
-            },
-          }),
         ),
     );
   }
