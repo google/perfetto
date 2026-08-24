@@ -16,10 +16,34 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
 class GraphSearchTests(TestSuite):
+
+  def test_graph_rejects_negative_node_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          SELECT __intrinsic_graph_agg(source_node_id, dest_node_id)
+          FROM (
+            SELECT 1 AS source_node_id, 2 AS dest_node_id
+            UNION ALL
+            SELECT -1, -1
+          );
+        """,
+        out=ExpectedError(
+            'GRAPH: node ids must be non-negative 32-bit integers'))
+
+  def test_graph_rejects_node_id_above_int32_max(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          SELECT __intrinsic_graph_agg(4294967295, 0);
+        """,
+        out=ExpectedError(
+            'GRAPH: node ids must be non-negative 32-bit integers'))
 
   def test_dfs_empty_table(self):
     return DiffTestBlueprint(
