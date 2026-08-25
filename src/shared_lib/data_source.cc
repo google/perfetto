@@ -611,6 +611,13 @@ void PerfettoDsTracerImplFlush(struct PerfettoDsTracerImpl* tracer,
   tls_inst->trace_writer->Flush(fn);
 }
 
+uint64_t PerfettoDsTracerImplGetDropCount(struct PerfettoDsTracerImpl* tracer) {
+  auto* tls_inst =
+      reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
+
+  return tls_inst->trace_writer->drop_count();
+}
+
 uint32_t PerfettoDsGetDefaultClockId() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

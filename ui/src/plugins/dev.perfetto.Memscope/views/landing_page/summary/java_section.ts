@@ -194,7 +194,7 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
     )
     SELECT
       r.graph_sample_ts AS ts,
-      r.type_name AS type_name,
+      ifnull(r.type_name, '[unknown]') AS type_name,
       r.reachable_obj_count AS reachable_obj_count,
       r.reachable_size_bytes AS reachable_size_bytes,
       r.reachable_native_size_bytes AS reachable_native_size_bytes,
@@ -385,7 +385,8 @@ async function loadRetainers(
         FROM hits
         GROUP BY owned_class, retainer
       )
-      SELECT a.owned_class AS type_name, a.retainer AS retainer_name,
+      SELECT ifnull(a.owned_class, '[unknown]') AS type_name,
+        ifnull(a.retainer, '[unknown]') AS retainer_name,
         a.bytes AS bytes
       FROM agg a
       WHERE a.rrn <= ${RETAINER_MAX_VIAS}

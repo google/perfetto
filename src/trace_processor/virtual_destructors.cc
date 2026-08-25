@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 ChunkedTraceReader::~ChunkedTraceReader() {}
+
+// Anchored here: embedders linking only "storage_minimal" call
+// GetFileSystem() and still need the vtable.
+TraceProcessor_PlatformInterface::~TraceProcessor_PlatformInterface() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

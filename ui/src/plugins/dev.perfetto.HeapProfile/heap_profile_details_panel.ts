@@ -17,10 +17,10 @@ import m from 'mithril';
 import {extensions} from '../../components/extensions';
 import type {time} from '../../base/time';
 import {
-  type QueryFlamegraphMetric,
+  type TreeExplorerQueryMetric,
   metricsFromTableOrSubquery,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -36,11 +36,12 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {showModal} from '../../widgets/modal';
 import {incompleteFlamegraphModal} from './incomplete_flamegraph';
 import {
-  Flamegraph,
-  type FlamegraphState,
-  FLAMEGRAPH_STATE_SCHEMA,
-  type FlamegraphOptionalAction,
-} from '../../widgets/flamegraph';
+  createDefaultTreeExplorerState,
+  updateTreeExplorerState,
+  type TreeExplorerState,
+  TREE_EXPLORER_STATE_SCHEMA,
+  type TreeExplorerOptionalAction,
+} from '../../widgets/tree_explorer';
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
@@ -184,13 +185,13 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
   // We moved serialization from being attached to selections to instead being
   // attached to the plugin that loaded the panel.
   readonly serialization: TrackEventDetailsPanelSerializeArgs<
-    FlamegraphState | undefined
+    TreeExplorerState | undefined
   > = {
-    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    schema: TREE_EXPLORER_STATE_SCHEMA.optional(),
     state: undefined,
   };
 
-  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
 
   constructor(
     private readonly trace: Trace,
@@ -199,8 +200,8 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
     private readonly profileDescriptor: ProfileDescriptor,
     private readonly ts: time,
     private readonly tsEnd: time,
-    private state: FlamegraphState | undefined,
-    private readonly onStateChange: (state: FlamegraphState) => void,
+    private state: TreeExplorerState | undefined,
+    private readonly onStateChange: (state: TreeExplorerState) => void,
     onNodeSelected?: (args: {
       pathHashes: string;
       isDominator: boolean;
@@ -221,7 +222,7 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
         : undefined,
     );
     if (this.state === undefined) {
-      this.state = Flamegraph.createDefaultState(this.metrics);
+      this.state = createDefaultTreeExplorerState(this.metrics);
       onStateChange(this.state);
     }
   }
@@ -236,7 +237,7 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
     // it.
     // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
     if (this.serialization.state !== undefined) {
-      this.state = Flamegraph.updateState(
+      this.state = updateTreeExplorerState(
         this.serialization.state,
         this.metrics,
       );
@@ -286,7 +287,7 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
               ),
           ]),
         },
-        m(FlamegraphPanel, {
+        m(TreeExplorerPanel, {
           trace: this.trace,
           metrics: this.metrics,
           state: this.state,
@@ -323,7 +324,7 @@ function flamegraphMetrics(
   tsEnd: time,
   upid: number,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
-): ReadonlyArray<QueryFlamegraphMetric> {
+): ReadonlyArray<TreeExplorerQueryMetric> {
   switch (descriptor.type) {
     case ProfileType.NATIVE_HEAP_PROFILE:
       return flamegraphMetricsForHeapProfile(
@@ -683,7 +684,7 @@ function getHeapGraphNodeOptionalActions(
   trace: Trace,
   isDominator: boolean,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
-): ReadonlyArray<FlamegraphOptionalAction> {
+): ReadonlyArray<TreeExplorerOptionalAction> {
   if (!trace.plugins.isPluginEnabled('com.android.HeapDumpExplorer')) {
     return [];
   }
@@ -712,7 +713,7 @@ function getHeapGraphNodeOptionalActions(
 function getHeapGraphRootOptionalActions(
   trace: Trace,
   isDominator: boolean,
-): ReadonlyArray<FlamegraphOptionalAction> {
+): ReadonlyArray<TreeExplorerOptionalAction> {
   return [
     {
       name: 'Reference paths by class',

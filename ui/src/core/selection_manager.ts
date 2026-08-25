@@ -77,8 +77,8 @@ export class SelectionManagerImpl implements SelectionManager {
     trackUri: string,
     eventId: number,
     opts?: SelectionOpts,
-  ) {
-    this.selectTrackEventInternal(trackUri, eventId, opts);
+  ): Promise<void> {
+    await this.selectTrackEventInternal(trackUri, eventId, opts);
   }
 
   selectTrack(uri: string, opts?: SelectionOpts) {

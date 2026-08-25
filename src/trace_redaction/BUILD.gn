@@ -115,6 +115,7 @@ if (enable_perfetto_integration_tests) {
       "trace_processor_integrationtest.cc",
       "trace_redaction_integration_fixture.cc",
       "trace_redaction_integration_fixture.h",
+      "trace_redactor_smoketest.cc",
     ]
     deps = [
       ":trace_redaction",

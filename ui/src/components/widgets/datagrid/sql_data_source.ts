@@ -18,7 +18,6 @@ import {
   AsyncMemo,
   AtomicTaskQueue,
 } from '../../../base/async_memo';
-import {maybeUndefined} from '../../../base/utils';
 import {shortUuid} from '../../../base/uuid';
 import type {Engine} from '../../../trace_processor/engine';
 import {
@@ -198,20 +197,34 @@ export class SQLDataSource implements DataSource {
     return this.parameterKeysSlot.use({
       key: prefix,
       compute: async () => {
-        const colDef = maybeUndefined(this.sqlSchema.columns?.[prefix]);
-        if (
-          !colDef ||
-          !('expression' in colDef) ||
-          !colDef.parameterKeysQuery
-        ) {
+        const resolver = new SQLSchemaResolver(this.sqlSchema);
+        const resolved = resolver.resolveParameterizedColumn(prefix);
+        if (!resolved) {
           return [];
         }
 
-        const baseTableOrSubquery = this.sqlSchema.tableOrSubquery;
-        const resolver = new SQLSchemaResolver(this.sqlSchema);
-        const baseAlias = resolver.getBaseAlias();
+        const {colDef, targetAlias} = resolved;
+        if (!colDef.parameterKeysQuery) {
+          return [];
+        }
 
-        const query = colDef.parameterKeysQuery(baseTableOrSubquery, baseAlias);
+        const baseTable = resolver.getBaseTableOrSubquery();
+        const baseAlias = resolver.getBaseAlias();
+        const joins = resolver.getJoins();
+
+        let tableOrSubquery: string;
+        if (joins.length === 0) {
+          tableOrSubquery = baseTable;
+        } else {
+          const joinClauses = resolver.buildJoinClauses();
+          tableOrSubquery = `
+            SELECT ${targetAlias}.*
+            FROM (${baseTable}) AS ${baseAlias}
+            ${joinClauses}
+          `;
+        }
+
+        const query = colDef.parameterKeysQuery(tableOrSubquery, baseAlias);
         const queryResult = await this.engine.query(query);
         const keys: string[] = [];
         for (let it = queryResult.iter({key: UNKNOWN}); it.valid(); it.next()) {

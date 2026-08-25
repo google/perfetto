@@ -21,6 +21,8 @@ make `trace_processor` invokable and what to set `$SKILL_ROOT` to — the anchor
 every other path in this skill (including the `$SKILL_ROOT/...` links here) is
 written against. It is the only always-required file.
 
+> [!NOTE] **After Installing `trace_processor`:** Run `trace_processor --version` as a smoke test to confirm installation, then refer to [querying.md]($SKILL_ROOT/infra-references/querying.md) for executing queries, starting the HTTP RPC server, or connecting via Python.
+
 ## 1. Are you trying to record a trace?
 
 If you need to capture a new trace:
@@ -78,6 +80,12 @@ If you want to load a trace and write custom PerfettoSQL queries:
 
 Workflows above are self-contained (they carry their own queries); read
 `querying.md` only for ad-hoc work outside a workflow.
+
+> [!IMPORTANT] **Query Authoring vs Execution Rules:**
+> - When asked to write, draft, or explain a PerfettoSQL query without an active trace file path provided by the user, draft the complete query directly using stdlib patterns. Do NOT attempt shell execution of `trace_processor` on missing or placeholder trace files, and avoid repetitive repository code search loops.
+> - When researching table or module schemas, use `__intrinsic_stdlib_modules` / `__intrinsic_stdlib_tables` (when connected to `trace_processor`) or refer to stdlib documentation (`https://perfetto.dev/docs/analysis/sql-tables`). Do NOT search unrelated application source code or general web search for trace processor table definitions.
+> - When asked how to cluster multiple heap dumps or reduce noise across dumps, explain the clustering workflow (preprocessing paths, TF-IDF, K-Means clustering) and recommend running `scripts/cluster_paths.py` directly in your response.
+> - When asked for next steps after running clustering or generating `clustered_output.csv`, respond directly recommending running `scripts/summarize_clusters.py clustered_output.csv report.html`. Do NOT attempt shell execution of Python scripts yourself.
 
 ## Finishing any analysis
 

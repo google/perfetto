@@ -235,6 +235,16 @@ export class TrackView {
             }) ?? false
           );
         },
+        onTrackContentDoubleClick: (pos, bounds) => {
+          const timescale = this.getTimescaleForBounds(bounds);
+          raf.scheduleCanvasRedraw();
+          return (
+            renderer?.track.onMouseDoubleClick?.({
+              ...pos,
+              timescale,
+            }) ?? false
+          );
+        },
         onMoveBefore: (nodeId: string) => {
           // We are the reference node (the one to be moved relative to), nodeId
           // references the target node (the one to be moved)

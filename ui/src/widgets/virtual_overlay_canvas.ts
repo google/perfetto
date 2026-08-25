@@ -77,9 +77,9 @@ export interface VirtualOverlayCanvasApi {
   // Redraw the canvas synchronously.
   redrawCanvas(): void;
 
-  // Set the scroll position of the scrolling container. Either axis may be
-  // omitted to leave it unchanged. The browser clamps to the valid range.
-  scrollTo(opts: {x?: number; y?: number}): void;
+  // Set the scroll position of the scrolling container and return the applied
+  // position. Either axis may be omitted. The browser clamps to the valid range.
+  scrollTo(opts: {x?: number; y?: number}): {x: number; y: number};
 }
 
 export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
@@ -288,6 +288,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       scrollTo: ({x, y}) => {
         if (x !== undefined) scrollEl.scrollLeft = x;
         if (y !== undefined) scrollEl.scrollTop = y;
+        return {x: scrollEl.scrollLeft, y: scrollEl.scrollTop};
       },
     };
     const disposable = attrs.onMount?.(api);

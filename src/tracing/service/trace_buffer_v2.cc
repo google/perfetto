@@ -1302,8 +1302,8 @@ void TraceBufferV2::DumpForTesting() {
       PERFETTO_DLOG(
           "[%06zu-%06zu] size=%05u(%05u) id=%05u pr_wr=%08x flags=%08x", rd,
           rd + c->outer_size(), c->payload_size,
-          c->payload_size - c->payload_avail, c->chunk_id, c->pri_wri_id,
-          c->flags);
+          static_cast<unsigned>(c->payload_size - c->payload_avail),
+          c->chunk_id, c->pri_wri_id, c->flags);
       rd += c->outer_size();
       continue;
     }
