@@ -50,4 +50,15 @@ message EtwConfig {
   // Provides events relating to multiple kinds of IO including disk, cache, and
   // network.
   repeated string system_io_provider_events = 7;
+
+  // A debug ID that uniquely identifies an image (i.e., executable) for
+  // symbolization when stack sampling.
+  message DebugId {
+    // The full path to the image file.
+    optional string path = 1;
+    // The unique identifier for the image file.
+    optional string debug_id = 2;
+  }
+  // Debug IDs for images whose stack samples should be symbolized.
+  repeated DebugId stack_sampling_debug_ids = 8;
 }

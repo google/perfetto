@@ -34,6 +34,7 @@ Rpc* g_trace_processor_rpc;
 // The buffer used to pass the request arguments. The caller (JS) decides how
 // big this buffer should be in the Initialize() call.
 uint8_t* g_req_buf;
+uint32_t g_req_buf_size;
 
 PERFETTO_NO_INLINE void OutOfMemoryHandler() {
   fprintf(stderr, "\nCannot enlarge memory\n");
@@ -69,11 +70,18 @@ uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
   g_trace_processor_rpc->SetRpcResponseFunction(resp_function);
 
   g_req_buf = new uint8_t[req_buffer_size];
+  g_req_buf_size = req_buffer_size;
   return g_req_buf;
 }
 
 void EMSCRIPTEN_KEEPALIVE trace_processor_on_rpc_request(uint32_t);
 void trace_processor_on_rpc_request(uint32_t size) {
+  if (PERFETTO_UNLIKELY(size > g_req_buf_size)) {
+    fprintf(stderr,
+            "RPC request size exceeds the buffer passed to "
+            "trace_processor_rpc_init\n");
+    return;
+  }
   g_trace_processor_rpc->OnRpcRequest(g_req_buf, size);
 }
 

@@ -559,9 +559,10 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
   std::vector<uint8_t> batch_metadata = FinishFlatbuffer(
       &batch_writer, BuildMessage(batch_writer, kHeaderRecordBatch, batch,
                                   static_cast<int64_t>(plan.size)));
-  uint32_t schema_size = static_cast<uint32_t>(AlignToArrow(schema.size()));
-  uint32_t metadata_size =
-      static_cast<uint32_t>(AlignToArrow(batch_metadata.size()));
+  auto schema_size =
+      static_cast<uint32_t>(PaddedSchemaMetadataSize(schema.size()));
+  auto metadata_size =
+      static_cast<uint32_t>(PaddedMetadataSize(batch_metadata.size()));
   uint32_t maximum_metadata_size = static_cast<uint32_t>(
       std::numeric_limits<int32_t>::max() - kMessagePrefixSize);
   if (schema_size > maximum_metadata_size ||
@@ -584,7 +585,8 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
                               BuildDictionaryBatch(writer, i, values,
                                                    dictionary.buffers),
                               static_cast<int64_t>(dictionary.body_size)));
-    auto size = static_cast<uint32_t>(AlignToArrow(dictionary_metadata.size()));
+    auto size =
+        static_cast<uint32_t>(PaddedMetadataSize(dictionary_metadata.size()));
     if (size > maximum_metadata_size) {
       return base::ErrStatus("Arrow metadata is too large");
     }

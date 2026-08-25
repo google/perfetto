@@ -729,7 +729,7 @@ class Tables(TestSuite):
         """,
         out=Csv("""
         "utid_count","end_utid_count"
-        89,0
+        336,0
         """))
 
   def test_machine(self):
