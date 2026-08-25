@@ -13514,18 +13514,26 @@ class SchedMigrateTaskFtraceEvent(_message.Message):
     def __init__(self, comm: _Optional[str] = ..., pid: _Optional[int] = ..., prio: _Optional[int] = ..., orig_cpu: _Optional[int] = ..., dest_cpu: _Optional[int] = ..., running: _Optional[int] = ..., load: _Optional[int] = ...) -> None: ...
 
 class SchedWakeupTaskAttrFtraceEvent(_message.Message):
-    __slots__ = ("pid", "cpu_affinity", "task_util", "uclamp_min", "vruntime")
+    __slots__ = ("pid", "cpu_affinity", "task_util", "uclamp_min", "vruntime", "sched_qos_user_defined_flag", "rampup_multiplier", "effect_rampup_multiplier", "tag_nice")
     PID_FIELD_NUMBER: _ClassVar[int]
     CPU_AFFINITY_FIELD_NUMBER: _ClassVar[int]
     TASK_UTIL_FIELD_NUMBER: _ClassVar[int]
     UCLAMP_MIN_FIELD_NUMBER: _ClassVar[int]
     VRUNTIME_FIELD_NUMBER: _ClassVar[int]
+    SCHED_QOS_USER_DEFINED_FLAG_FIELD_NUMBER: _ClassVar[int]
+    RAMPUP_MULTIPLIER_FIELD_NUMBER: _ClassVar[int]
+    EFFECT_RAMPUP_MULTIPLIER_FIELD_NUMBER: _ClassVar[int]
+    TAG_NICE_FIELD_NUMBER: _ClassVar[int]
     pid: int
     cpu_affinity: int
     task_util: int
     uclamp_min: int
     vruntime: int
-    def __init__(self, pid: _Optional[int] = ..., cpu_affinity: _Optional[int] = ..., task_util: _Optional[int] = ..., uclamp_min: _Optional[int] = ..., vruntime: _Optional[int] = ...) -> None: ...
+    sched_qos_user_defined_flag: int
+    rampup_multiplier: int
+    effect_rampup_multiplier: int
+    tag_nice: int
+    def __init__(self, pid: _Optional[int] = ..., cpu_affinity: _Optional[int] = ..., task_util: _Optional[int] = ..., uclamp_min: _Optional[int] = ..., vruntime: _Optional[int] = ..., sched_qos_user_defined_flag: _Optional[int] = ..., rampup_multiplier: _Optional[int] = ..., effect_rampup_multiplier: _Optional[int] = ..., tag_nice: _Optional[int] = ...) -> None: ...
 
 class SchedGroupTrackerFtraceEvent(_message.Message):
     __slots__ = ("comm", "pid", "group", "group_num")
