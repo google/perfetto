@@ -70,8 +70,12 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
   // (proto ClockSnapshots, ftrace bundles, instruments).
   if (PERFETTO_UNLIKELY(context_->has_clock_override())) {
     return base::ErrStatus(
-        "perfetto_manifest: clock overrides require the trace to use a "
-        "single clock");
+        "perfetto_manifest: a `clocks` override without a source `clock` pins "
+        "a clockless file to a reference timeline, but this trace emits clock "
+        "snapshots. If this is an internally-clocked trace (e.g. Perfetto "
+        R"(proto), specify the source clock in the `clocks` block (e.g. )"
+        R"("clock": "BOOTTIME"). See )"
+        "https://perfetto.dev/docs/reference/perfetto-manifest#clocks");
   }
   // A non-primary trace that brings its own snapshot isolates its builtins onto
   // its own file tag so they cannot corrupt other files' conversions (e.g. an
