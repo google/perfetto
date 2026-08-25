@@ -305,7 +305,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           ),
         ),
       m(Editor, {
-        autofocus: true, // Auto focus when we create a new tab for instance.
+        // Focus the editor whenever its tab becomes visible (on creation and on
+        // every subsequent tab switch).
+        focusOnVisible: true,
         language: 'perfetto-sql',
         text: tab.editorText,
         extensions: attrs.editorExtensions?.(tab.id),
