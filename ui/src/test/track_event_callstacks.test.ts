@@ -167,8 +167,8 @@ test('highlight controls can be kept open or hidden', async () => {
     locator: drawerPanel,
   });
 
-  // Hiding the controls preserves the active highlight.
-  await highlightRow.locator('.pf-button', {hasText: 'Hide'}).click();
+  // Toggling the controls closed preserves the active highlight.
+  await highlightButton.click();
   await expect(highlightRow).toHaveCount(0);
   await expect(highlightButton).toHaveClass(/pf-active/);
 });
