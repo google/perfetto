@@ -276,6 +276,8 @@ SELECT
   end_vsync,
   'jank' AS cuj_type
 FROM android_sysui_jank_cujs
+ORDER BY
+  id
 UNION ALL
 SELECT
   cuj_id,
