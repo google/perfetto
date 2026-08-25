@@ -185,6 +185,19 @@ clocks to a clock in another file. Use this when the automatic rules (shared
 clock domains, `REALTIME` rendezvous) cannot place the file, or to apply a
 known fixed offset.
 
+Relating an internally-clocked trace (e.g. Perfetto proto):
+```json
+{
+  "path": "device2.pftrace",
+  "clocks": {
+    "clock": "BOOTTIME",
+    "sync_to": {"file": "device1.pftrace", "clock": "BOOTTIME"},
+    "offset_ns": 250000000
+  }
+}
+```
+
+Pinning a clockless trace (e.g. Chrome JSON, text logs):
 ```json
 {
   "path": "app_log.json",
@@ -309,7 +322,7 @@ with an error prefixed by `perfetto_manifest:`. The conditions:
 | This file is multi-machine but `clocks.machine` missing | `file 'X' is a multi-machine trace; name which machine the clock is on` |
 | `offset_ns` not an integer / INT64_MIN | `offset_ns must be an integer` / `offset_ns is out of range` |
 | Override on a file that is itself an archive or manifest | rejected |
-| Pinning override on a file that emits clock snapshots | `clock overrides require the trace to use a single clock` |
+| Pinning override on a file that emits clock snapshots | `a clocks override without a source clock pins a clockless file...` |
 
 The authoritative definition of the format is the reader in
 [perfetto_manifest_reader.cc](/src/trace_processor/plugins/perfetto_manifest/perfetto_manifest_reader.cc)

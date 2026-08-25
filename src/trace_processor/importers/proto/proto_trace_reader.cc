@@ -729,8 +729,12 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   // load on what is a configuration error.
   if (context_->has_clock_override()) {
     return base::ErrStatus(
-        "perfetto_manifest: clock overrides require the trace to use a "
-        "single clock");
+        "perfetto_manifest: a `clocks` override without a source `clock` pins "
+        "a clockless file to a reference timeline, but this trace emits clock "
+        "snapshots. If this is an internally-clocked trace (e.g. Perfetto "
+        R"(proto), specify the source clock in the `clocks` block (e.g. )"
+        R"("clock": "BOOTTIME"). See )"
+        "https://perfetto.dev/docs/reference/perfetto-manifest#clocks");
   }
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
