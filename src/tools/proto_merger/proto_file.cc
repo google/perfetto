@@ -194,7 +194,7 @@ ProtoFile::Field FieldFromDescriptor(
     const google::protobuf::Descriptor& parent,
     const google::protobuf::FieldDescriptor& desc) {
   auto field = InitFromDescriptor<ProtoFile::Field>(desc);
-  field.is_repeated = desc.is_repeated();
+  field.is_repeated = desc.is_repeated() && !desc.is_map();
   field.packageless_type = FieldTypeFromDescriptor(parent, desc, true);
   field.type = FieldTypeFromDescriptor(parent, desc, false);
   field.name = desc.name();
@@ -261,6 +261,8 @@ ProtoFile::Message MessageFromDescriptor(
     message.enums.emplace_back(EnumFromDescriptor(*desc.enum_type(i)));
   }
   for (int i = 0; i < desc.nested_type_count(); ++i) {
+    if (desc.nested_type(i)->options().map_entry())
+      continue;
     message.nested_messages.emplace_back(
         MessageFromDescriptor(*desc.nested_type(i)));
   }

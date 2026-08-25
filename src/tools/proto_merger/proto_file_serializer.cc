@@ -125,7 +125,7 @@ std::string SerializeField(size_t indent,
   output += SerializeLeadingComments(prefix, field);
 
   output += prefix;
-  if (write_label && field.is_repeated)
+  if (write_label && field.is_repeated && !base::StartsWith(field.type, "map<"))
     output += "repeated ";
   output +=
       field.type + " " + field.name + " = " + std::to_string(field.number);
