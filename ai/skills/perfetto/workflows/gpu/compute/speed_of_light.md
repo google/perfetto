@@ -32,8 +32,9 @@ Read Compute Throughput vs Memory Throughput (both are achieved-vs-theoretical �
 
 - **Compute Throughput high, Memory Throughput lower → compute-bound.** The
   compute units are the ceiling; the lever is the math — go to
-  [workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/workload_analysis.md) for the saturated pipeline, and
-  consider a cheaper precision or doing less work.
+  [compute_workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/compute_workload_analysis.md)
+  for the saturated pipeline, and consider a cheaper precision or doing less
+  work.
 - **Memory Throughput high, Compute Throughput lower → memory-bound.** The
   memory system is the ceiling; locate it in the hierarchy:
   - **DRAM Throughput high** → DRAM-bandwidth bound; the lever is locality /
