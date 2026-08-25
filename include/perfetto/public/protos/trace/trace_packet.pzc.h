@@ -576,7 +576,7 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_RecoveredTraceInfo,
                   recovered_trace_info,
-                  136);
+                  138);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

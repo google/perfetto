@@ -112,7 +112,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 137.
+// Next id: 139.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -293,7 +293,7 @@ message TracePacket {
 
     // Injected into TracePacket by perfetto post-reboot recovery to record
     // recovered trace metadata.
-    RecoveredTraceInfo recovered_trace_info = 136;
+    RecoveredTraceInfo recovered_trace_info = 138;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
