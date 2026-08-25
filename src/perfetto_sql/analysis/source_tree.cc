@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include "src/tools/pfsql/lineage_resolver.h"
+#include "src/perfetto_sql/analysis/source_tree.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -34,19 +33,28 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/perfetto_sql/syntaqlite/utils.h"
 
-namespace perfetto::pfsql::lineage_resolver {
+namespace perfetto::perfetto_sql::analysis {
 namespace {
 
 namespace sql = ::perfetto::perfetto_sql;
 
-using NameSet = std::unordered_set<std::string>;
+class NameSet {
+ public:
+  bool Insert(std::string name) {
+    return names_.Insert(std::move(name), true).second;
+  }
 
-constexpr std::string_view kPreludePrefix = "prelude.";
+  bool Contains(std::string_view name) const {
+    return names_.Find(std::string(name)) != nullptr;
+  }
 
-bool IsPreludeModule(const std::string& m) {
-  return m.size() >= kPreludePrefix.size() &&
-         std::string_view(m).substr(0, kPreludePrefix.size()) == kPreludePrefix;
-}
+  base::FlatHashMap<std::string, bool>::Iterator GetIterator() const {
+    return names_.GetIterator();
+  }
+
+ private:
+  base::FlatHashMap<std::string, bool> names_;
+};
 
 // "slices/with_context.sql" → "slices.with_context".
 std::string ModuleNameFromRelPath(const std::string& rel) {
@@ -63,10 +71,8 @@ std::string ModuleNameFromRelPath(const std::string& rel) {
   return r;
 }
 
-// Raw (unresolved) refs collected from a single CREATE PERFETTO * statement's
-// AST. Materialised into
-// DefinedSymbol::uses/implicit_uses/intrinsics_or_external once the global
-// symbol index is built.
+// Raw references collected from a single definition before ProgramBuilder
+// resolves them into graph edges.
 struct RawRefs {
   NameSet relation_refs;
   NameSet function_refs;
@@ -76,7 +82,7 @@ struct RawRefs {
 // A defined symbol as seen during parsing, before resolution.
 struct ScratchSymbol {
   std::string name;
-  std::string kind;
+  SymbolKind kind;
   RawRefs refs;
 };
 
@@ -87,14 +93,6 @@ struct ScratchModule {
   std::vector<ScratchSymbol> symbols;
   std::vector<std::string> includes;
   std::vector<std::string> errors;
-};
-
-struct SymbolIndex {
-  struct Origin {
-    std::string module;
-    std::string kind;
-  };
-  base::FlatHashMap<std::string, Origin> by_name;
 };
 
 struct DiscoveredFile {
@@ -229,7 +227,7 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
     const auto* node =
         static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, id));
     if (node && node->tag == SYNTAQLITE_NODE_CTE_DEFINITION) {
-      cte_locals.insert(SpanString(p, node->cte_definition.cte_name));
+      cte_locals.Insert(SpanString(p, node->cte_definition.cte_name));
     }
   }
   for (uint32_t id = 1; id < n; ++id) {
@@ -244,12 +242,12 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
         std::string name = SpanString(p, node->table_ref.table_name);
         auto bang = name.find('!');
         if (bang != std::string::npos) {
-          out.macro_invocations.insert(name.substr(0, bang));
+          out.macro_invocations.Insert(name.substr(0, bang));
           break;
         }
-        if (name.empty() || cte_locals.count(name))
+        if (name.empty() || cte_locals.Contains(name))
           break;
-        out.relation_refs.insert(std::move(name));
+        out.relation_refs.Insert(std::move(name));
         break;
       }
       case SYNTAQLITE_NODE_FUNCTION_CALL:
@@ -266,10 +264,10 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
           break;
         auto bang = name.find('!');
         if (bang != std::string::npos) {
-          out.macro_invocations.insert(name.substr(0, bang));
+          out.macro_invocations.Insert(name.substr(0, bang));
           break;
         }
-        out.function_refs.insert(std::move(name));
+        out.function_refs.Insert(std::move(name));
         break;
       }
       default:
@@ -280,7 +278,7 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
   for (uint32_t i = 0; i < rw_count; ++i) {
     SyntaqliteMacroRewrite rw = syntaqlite_result_macro_rewrite_at(p, i);
     if (rw.name && rw.name_len > 0)
-      out.macro_invocations.emplace(rw.name, rw.name_len);
+      out.macro_invocations.Insert(std::string(rw.name, rw.name_len));
   }
 }
 
@@ -335,7 +333,7 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
         static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, root));
     if (!node)
       continue;
-    auto push_symbol = [&](std::string name, const char* kind) {
+    auto push_symbol = [&](std::string name, SymbolKind kind) {
       ScratchSymbol s;
       s.name = std::move(name);
       s.kind = kind;
@@ -348,28 +346,28 @@ void PassA(const DiscoveredFile& f, ScratchModule& m, MacroRegistry& registry) {
         break;
       case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT:
         push_symbol(SpanString(p, node->create_perfetto_table_stmt.table_name),
-                    "table");
+                    SymbolKind::kTable);
         break;
       case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT:
         push_symbol(SpanString(p, node->create_perfetto_view_stmt.view_name),
-                    "view");
+                    SymbolKind::kView);
         break;
       case SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT:
         push_symbol(
             SpanString(p, node->create_perfetto_function_stmt.function_name),
-            "function");
+            SymbolKind::kFunction);
         break;
       case SYNTAQLITE_NODE_CREATE_PERFETTO_DELEGATING_FUNCTION_STMT:
         push_symbol(
             SpanString(
                 p,
                 node->create_perfetto_delegating_function_stmt.function_name),
-            "function");
+            SymbolKind::kFunction);
         break;
       case SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT: {
         const auto& n = node->create_perfetto_macro_stmt;
         std::string name = SpanString(p, n.macro_name);
-        push_symbol(name, "macro");
+        push_symbol(name, SymbolKind::kMacro);
         MacroDef def;
         def.body = SpanString(p, n.body);
         ExtractMacroParamNames(p, n.args, def.param_names);
@@ -436,42 +434,6 @@ void PassB(const DiscoveredFile& f, MacroRegistry& registry, ScratchModule& m) {
   }
 }
 
-DefinedSymbol Materialise(const ScratchSymbol& scratch,
-                          const std::string& self_module,
-                          const SymbolIndex& idx,
-                          NameSet& touched_non_prelude_modules) {
-  DefinedSymbol out;
-  out.name = scratch.name;
-  out.kind = scratch.kind;
-
-  auto resolve = [&](const std::string& name) {
-    auto* o = idx.by_name.Find(name);
-    if (!o) {
-      out.intrinsics_or_external.insert(name);
-      return;
-    }
-    if (o->module == self_module)
-      return;  // Self-reference; ignore.
-    SymbolRefsByModule& bucket_map =
-        IsPreludeModule(o->module) ? out.implicit_uses : out.uses;
-    auto* bucket = bucket_map.Find(o->module);
-    if (!bucket) {
-      bucket_map.Insert(o->module, std::vector<SymbolRef>{});
-      bucket = bucket_map.Find(o->module);
-    }
-    bucket->push_back({name, o->kind});
-    if (!IsPreludeModule(o->module))
-      touched_non_prelude_modules.insert(o->module);
-  };
-  for (const auto& n : scratch.refs.relation_refs)
-    resolve(n);
-  for (const auto& n : scratch.refs.function_refs)
-    resolve(n);
-  for (const auto& n : scratch.refs.macro_invocations)
-    resolve(n);
-  return out;
-}
-
 // Two modules defining the same name is a bug — the runtime engine would
 // reject it. Surface it loudly by appending an error to every involved
 // module's errors list. Resolution itself uses first-defined-wins (which
@@ -510,40 +472,23 @@ void FlagSymbolCollisions(std::vector<ScratchModule>& modules) {
   }
 }
 
-ResolvedModule MaterialiseModule(const ScratchModule& m,
-                                 const SymbolIndex& idx) {
-  ResolvedModule out;
-  out.module = m.module;
-  out.path = m.path;
-  out.tree_root = m.tree_root;
-  out.declared_includes = m.includes;
-  out.errors = m.errors;
-
-  NameSet touched_non_prelude_modules;
-  out.symbols.reserve(m.symbols.size());
-  for (const auto& s : m.symbols) {
-    out.symbols.push_back(
-        Materialise(s, m.module, idx, touched_non_prelude_modules));
-  }
-
-  NameSet declared(m.includes.begin(), m.includes.end());
-  for (const auto& mod : touched_non_prelude_modules) {
-    if (!declared.count(mod))
-      out.missing_includes.push_back(mod);
-  }
-  std::sort(out.missing_includes.begin(), out.missing_includes.end());
-  return out;
-}
-
 }  // namespace
 
-void Resolver::AddTreeRoot(std::string absolute_root) {
-  tree_roots_.push_back(std::move(absolute_root));
+class SourceTreeAnalyzer::Impl {
+ public:
+  std::vector<std::string> tree_roots;
+};
+
+SourceTreeAnalyzer::SourceTreeAnalyzer() : impl_(std::make_unique<Impl>()) {}
+SourceTreeAnalyzer::~SourceTreeAnalyzer() = default;
+
+void SourceTreeAnalyzer::AddTree(std::string root) {
+  impl_->tree_roots.push_back(std::move(root));
 }
 
-std::vector<ResolvedModule> Resolver::Resolve() {
+Program SourceTreeAnalyzer::Analyze() {
   std::vector<DiscoveredFile> files;
-  for (const auto& root : tree_roots_) {
+  for (const std::string& root : impl_->tree_roots) {
     auto st = DiscoverTree(root, files);
     PERFETTO_DCHECK(st.ok());
     (void)st;
@@ -556,7 +501,7 @@ std::vector<ResolvedModule> Resolver::Resolve() {
     std::vector<DiscoveredFile> deduped;
     NameSet seen;
     for (auto& f : files) {
-      if (seen.insert(f.module).second)
+      if (seen.Insert(f.module))
         deduped.push_back(std::move(f));
     }
     files = std::move(deduped);
@@ -567,26 +512,35 @@ std::vector<ResolvedModule> Resolver::Resolve() {
   for (size_t i = 0; i < files.size(); ++i)
     PassA(files[i], scratch[i], registry);
 
-  // Global symbol index — first-defined wins (deterministic given the sorted
-  // file order). Collisions are flagged separately as errors on every
-  // involved module.
-  SymbolIndex idx;
-  for (const auto& m : scratch) {
-    for (const auto& s : m.symbols) {
-      if (!idx.by_name.Find(s.name))
-        idx.by_name.Insert(s.name, SymbolIndex::Origin{m.module, s.kind});
-    }
-  }
   FlagSymbolCollisions(scratch);
 
   for (size_t i = 0; i < files.size(); ++i)
     PassB(files[i], registry, scratch[i]);
 
-  std::vector<ResolvedModule> out;
-  out.reserve(scratch.size());
-  for (const auto& m : scratch)
-    out.push_back(MaterialiseModule(m, idx));
-  return out;
+  ProgramBuilder builder;
+  for (const ScratchModule& module : scratch) {
+    ModuleId module_id = builder.AddModule(module.module, module.path);
+    for (const std::string& include : module.includes) {
+      builder.AddDeclaredInclude(module_id, include);
+    }
+    for (const std::string& error : module.errors) {
+      builder.AddDiagnostic(module_id, error);
+    }
+    for (const ScratchSymbol& symbol : module.symbols) {
+      SymbolId symbol_id =
+          builder.AddSymbol(module_id, symbol.name, symbol.kind);
+      for (auto it = symbol.refs.relation_refs.GetIterator(); it; ++it) {
+        builder.AddReference(symbol_id, it.key(), ReferenceKind::kRelation);
+      }
+      for (auto it = symbol.refs.function_refs.GetIterator(); it; ++it) {
+        builder.AddReference(symbol_id, it.key(), ReferenceKind::kFunction);
+      }
+      for (auto it = symbol.refs.macro_invocations.GetIterator(); it; ++it) {
+        builder.AddReference(symbol_id, it.key(), ReferenceKind::kMacro);
+      }
+    }
+  }
+  return builder.Build();
 }
 
-}  // namespace perfetto::pfsql::lineage_resolver
+}  // namespace perfetto::perfetto_sql::analysis

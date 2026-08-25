@@ -16348,6 +16348,26 @@ filegroup {
     ],
 }
 
+// GN: //src/perfetto_sql/analysis:analysis
+filegroup {
+    name: "perfetto_src_perfetto_sql_analysis_analysis",
+    srcs: [
+        "src/perfetto_sql/analysis/program.cc",
+        "src/perfetto_sql/analysis/relation.cc",
+        "src/perfetto_sql/analysis/source_tree.cc",
+    ],
+}
+
+// GN: //src/perfetto_sql/analysis:unittests
+filegroup {
+    name: "perfetto_src_perfetto_sql_analysis_unittests",
+    srcs: [
+        "src/perfetto_sql/analysis/program_unittest.cc",
+        "src/perfetto_sql/analysis/relation_unittest.cc",
+        "src/perfetto_sql/analysis/source_tree_unittest.cc",
+    ],
+}
+
 // GN: //src/perfetto_sql:intrinsic_macro_expansion
 filegroup {
     name: "perfetto_src_perfetto_sql_intrinsic_macro_expansion",
@@ -23960,6 +23980,8 @@ cc_test {
         ":perfetto_src_perfetto_cmd_protos_cpp_gen",
         ":perfetto_src_perfetto_cmd_trigger_producer",
         ":perfetto_src_perfetto_cmd_unittests",
+        ":perfetto_src_perfetto_sql_analysis_analysis",
+        ":perfetto_src_perfetto_sql_analysis_unittests",
         ":perfetto_src_perfetto_sql_intrinsic_macro_expansion",
         ":perfetto_src_perfetto_sql_syntaqlite_syntaqlite",
         ":perfetto_src_profiling_common_callstack_trie",

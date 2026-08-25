@@ -25,14 +25,14 @@
 #include <cstring>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/getopt.h"
-#include "src/tools/pfsql/lineage_resolver.h"
+#include "src/perfetto_sql/analysis/source_tree.h"
 #include "src/trace_processor/util/json_value.h"
 #include "src/trace_processor/util/simple_json_serializer.h"
 
@@ -40,6 +40,7 @@ namespace perfetto::pfsql {
 namespace {
 
 namespace json = trace_processor::json;
+namespace analysis = ::perfetto::perfetto_sql::analysis;
 
 // ---------- lineage subcommand ----------
 
@@ -53,7 +54,7 @@ std::string ResolvePath(const std::string& base_dir, const std::string& p) {
 }
 
 base::Status LoadConfig(const std::string& config_path,
-                        lineage_resolver::Resolver& resolver) {
+                        analysis::SourceTreeAnalyzer& analyzer) {
   std::string text;
   if (!base::ReadFile(config_path, &text))
     return base::ErrStatus("failed to read config %s", config_path.c_str());
@@ -76,17 +77,22 @@ base::Status LoadConfig(const std::string& config_path,
       return base::ErrStatus(
           "each tree must be a string or { \"root\": \"...\" }");
     }
-    resolver.AddTreeRoot(ResolvePath(base_dir, root));
+    analyzer.AddTree(ResolvePath(base_dir, root));
     empty = false;
   }
   return empty ? base::ErrStatus("config has no trees") : base::OkStatus();
 }
 
-// Snapshot a SymbolRefsByModule into a sorted vector so JSON output is stable.
-using SortedUseEntry =
-    std::pair<std::string, const std::vector<lineage_resolver::SymbolRef>*>;
-std::vector<SortedUseEntry> SortedUses(
-    const lineage_resolver::SymbolRefsByModule& by_mod) {
+struct SymbolRef {
+  std::string_view name;
+  analysis::SymbolKind kind;
+};
+
+using SymbolRefsByModule =
+    base::FlatHashMap<std::string, std::vector<SymbolRef>>;
+using SortedUseEntry = std::pair<std::string, const std::vector<SymbolRef>*>;
+
+std::vector<SortedUseEntry> SortedUses(const SymbolRefsByModule& by_mod) {
   std::vector<SortedUseEntry> out;
   for (auto it = by_mod.GetIterator(); it; ++it)
     out.emplace_back(it.key(), &it.value());
@@ -95,22 +101,83 @@ std::vector<SortedUseEntry> SortedUses(
   return out;
 }
 
-std::vector<std::string> SortedStrings(
-    const std::unordered_set<std::string>& set) {
-  std::vector<std::string> out(set.begin(), set.end());
-  std::sort(out.begin(), out.end());
+std::vector<std::string_view> SortedUniqueStrings(
+    std::vector<std::string_view> values) {
+  std::sort(values.begin(), values.end());
+  values.erase(std::unique(values.begin(), values.end()), values.end());
+  return values;
+}
+
+bool IsPrelude(std::string_view module) {
+  constexpr std::string_view prefix = "prelude.";
+  return module.size() >= prefix.size() &&
+         module.substr(0, prefix.size()) == prefix;
+}
+
+SymbolRefsByModule UsesByModule(const analysis::Program& program,
+                                const analysis::Symbol& symbol,
+                                bool prelude) {
+  SymbolRefsByModule out;
+  for (const analysis::SymbolReference& reference : symbol.references) {
+    const analysis::Symbol& target = program.symbol(reference.symbol);
+    std::string_view module = program.module(target.module).name;
+    if (IsPrelude(module) != prelude) {
+      continue;
+    }
+    std::string key(module);
+    std::vector<SymbolRef>* refs = out.Find(key);
+    if (!refs) {
+      out.Insert(key, {});
+      refs = out.Find(key);
+    }
+    refs->push_back({target.name, target.kind});
+  }
   return out;
 }
 
-std::string EmitLineageJson(
-    const std::vector<lineage_resolver::ResolvedModule>& ms) {
+std::vector<std::string_view> MissingIncludes(const analysis::Program& program,
+                                              const analysis::Module& module) {
+  std::vector<std::string_view> touched;
+  for (analysis::SymbolId symbol_id : module.symbols) {
+    for (const analysis::SymbolReference& reference :
+         program.symbol(symbol_id).references) {
+      std::string_view target_module =
+          program.module(program.symbol(reference.symbol).module).name;
+      if (IsPrelude(target_module)) {
+        continue;
+      }
+      bool declared =
+          std::find(module.declared_includes.begin(),
+                    module.declared_includes.end(),
+                    target_module) != module.declared_includes.end();
+      if (!declared) {
+        touched.push_back(target_module);
+      }
+    }
+  }
+  return SortedUniqueStrings(std::move(touched));
+}
+
+std::vector<std::string_view> UnresolvedNames(const analysis::Symbol& symbol) {
+  std::vector<std::string_view> out;
+  out.reserve(symbol.unresolved_references.size());
+  for (const analysis::UnresolvedReference& reference :
+       symbol.unresolved_references) {
+    out.push_back(reference.name);
+  }
+  std::sort(out.begin(), out.end());
+  out.erase(std::unique(out.begin(), out.end()), out.end());
+  return out;
+}
+
+std::string EmitLineageJson(const analysis::Program& program) {
   auto write_strings = [](const auto& items) {
     return [&items](json::JsonArraySerializer& a) {
       for (const auto& s : items)
         a.AppendString(s);
     };
   };
-  auto write_use_map = [](const lineage_resolver::SymbolRefsByModule& by_mod) {
+  auto write_use_map = [](const SymbolRefsByModule& by_mod) {
     auto sorted = SortedUses(by_mod);
     return [sorted = std::move(sorted)](json::JsonDictSerializer& d) {
       for (const auto& kv : sorted) {
@@ -118,7 +185,7 @@ std::string EmitLineageJson(
           for (const auto& u : *kv.second) {
             a.AppendDict([&u](json::JsonDictSerializer& e) {
               e.AddString("name", u.name);
-              e.AddString("kind", u.kind);
+              e.AddString("kind", analysis::SymbolKindName(u.kind));
             });
           }
         });
@@ -129,27 +196,33 @@ std::string EmitLineageJson(
   std::string out = json::SerializeJson([&](json::JsonValueSerializer&& w) {
     std::move(w).WriteDict([&](json::JsonDictSerializer& root) {
       root.AddArray("modules", [&](json::JsonArraySerializer& arr) {
-        for (const auto& m : ms) {
+        for (const analysis::Module& m : program.modules()) {
           arr.AppendDict([&](json::JsonDictSerializer& mod) {
-            mod.AddString("module", m.module);
+            mod.AddString("module", m.name);
             mod.AddString("path", m.path);
             mod.AddArray("declared_includes",
                          write_strings(m.declared_includes));
             mod.AddArray("symbols", [&](json::JsonArraySerializer& syms) {
-              for (const auto& s : m.symbols) {
+              for (analysis::SymbolId symbol_id : m.symbols) {
+                const analysis::Symbol& s = program.symbol(symbol_id);
+                SymbolRefsByModule uses =
+                    UsesByModule(program, s, /*prelude=*/false);
+                SymbolRefsByModule implicit_uses =
+                    UsesByModule(program, s, /*prelude=*/true);
+                std::vector<std::string_view> unresolved = UnresolvedNames(s);
                 syms.AppendDict([&](json::JsonDictSerializer& sd) {
                   sd.AddString("name", s.name);
-                  sd.AddString("kind", s.kind);
-                  sd.AddDict("uses", write_use_map(s.uses));
-                  sd.AddDict("implicit_uses", write_use_map(s.implicit_uses));
-                  sd.AddArray(
-                      "intrinsics_or_external",
-                      write_strings(SortedStrings(s.intrinsics_or_external)));
+                  sd.AddString("kind", analysis::SymbolKindName(s.kind));
+                  sd.AddDict("uses", write_use_map(uses));
+                  sd.AddDict("implicit_uses", write_use_map(implicit_uses));
+                  sd.AddArray("intrinsics_or_external",
+                              write_strings(unresolved));
                 });
               }
             });
-            mod.AddArray("missing_includes", write_strings(m.missing_includes));
-            mod.AddArray("errors", write_strings(m.errors));
+            std::vector<std::string_view> missing = MissingIncludes(program, m);
+            mod.AddArray("missing_includes", write_strings(missing));
+            mod.AddArray("errors", write_strings(m.diagnostics));
           });
         }
       });
@@ -236,17 +309,17 @@ int RunLineage(int argc, char** argv) {
     return 1;
   }
 
-  lineage_resolver::Resolver resolver;
+  analysis::SourceTreeAnalyzer analyzer;
   if (have_config) {
-    if (auto st = LoadConfig(config_path, resolver); !st.ok()) {
+    if (auto st = LoadConfig(config_path, analyzer); !st.ok()) {
       fprintf(stderr, "%s\n", st.c_message());
       return 1;
     }
   } else {
     for (const auto& p : tree_paths)
-      resolver.AddTreeRoot(p);
+      analyzer.AddTree(p);
   }
-  std::string s = EmitLineageJson(resolver.Resolve());
+  std::string s = EmitLineageJson(analyzer.Analyze());
   fwrite(s.data(), 1, s.size(), stdout);
   return 0;
 }

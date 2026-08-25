@@ -36,10 +36,10 @@ source_set("syntaqlite") {
   assert_no_deps = [ "../../trace_processor/*" ]
   visibility = [
     "..:intrinsic_macro_expansion",
-    "../../tools/pfsql:lineage_resolver",
     "../../trace_processor/perfetto_sql/parser:*",
     "../../trace_processor/perfetto_sql/tokenizer",
     "../../trace_processor/util:sql_module_doc_parser",
+    "../analysis:*",
   ]
 }
 
