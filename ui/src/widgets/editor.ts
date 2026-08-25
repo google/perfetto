@@ -30,6 +30,7 @@ import {assertUnreachable} from '../base/assert';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
 import type {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
+import {GateDetector} from '../base/mithril_utils';
 
 type EditorLanguage = 'perfetto-sql' | 'javascript';
 
@@ -48,6 +49,13 @@ export interface EditorAttrs extends HTMLAttrs {
 
   // Whether the editor should be focused on creation.
   readonly autofocus?: boolean;
+
+  // Whether the editor should be focused every time it becomes visible (e.g.
+  // when its tab is activated). The editor must be inside a Gate (see
+  // mithril_utils) for this to have any effect; otherwise it is ignored.
+  // Unlike `autofocus`, which fires only on first creation, this re-focuses on
+  // every visibility change.
+  readonly focusOnVisible?: boolean;
 
   // Whether the editor should fill the height of its container.
   readonly fillHeight?: boolean;
@@ -198,6 +206,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     if (attrs.autofocus) {
       this.focus();
     }
+
+    if (attrs.focusOnVisible) {
+      // Cover the initial creation: the GateDetector (see view) handles later
+      // visibility changes, but its first callback cannot run yet because
+      // Mithril calls oncreate bottom-up, so editorView does not exist when it
+      // fires. Focus now if we are already inside an open Gate.
+      const gate = dom.closest('[data-gate-open]') as HTMLElement | null;
+      if (gate?.dataset.gateOpen === 'true') {
+        this.focus();
+      }
+    }
   }
 
   onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {
@@ -237,9 +256,26 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       attrs.className,
       attrs.fillHeight && 'pf-editor--fill-height',
     );
-    return m('.pf-editor', {
+    const editor = m('.pf-editor', {
       className: className,
       ref: attrs.ref,
     });
+    if (!attrs.focusOnVisible) {
+      return editor;
+    }
+    // Re-focus whenever the enclosing Gate becomes visible (e.g. when this
+    // editor's tab is activated). The GateDetector finds the Gate via its
+    // `dom` (the .pf-editor element) and observes its data-gate-open attribute.
+    return m(
+      GateDetector,
+      {
+        onVisibilityChanged: (visible: boolean) => {
+          if (visible) {
+            this.focus();
+          }
+        },
+      },
+      editor,
+    );
   }
 }
