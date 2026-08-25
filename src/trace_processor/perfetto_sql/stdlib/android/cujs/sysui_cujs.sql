@@ -295,7 +295,7 @@ SELECT
   NULL AS begin_vsync,
   NULL AS end_vsync,
   'latency' AS cuj_type
-FROM android_sysui_latency_cujs;
+FROM android_sysui_latency_cujs ORDER BY id;
 
 -- Slices corresponding to critical blocking calls that occurred during a CUJ,
 -- clipped to the CUJ time boundaries.
