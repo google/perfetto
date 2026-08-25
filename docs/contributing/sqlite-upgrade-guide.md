@@ -44,12 +44,12 @@ Only upgrade when Chrome, Android, and Google3 all support the target SQLite ver
 - `tools/gen_syntaqlite_parser` - Parser regeneration script
 
 ### Generated (Don't Edit)
-- `src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c`
-- `src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h`
+- `src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c`
+- `src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h`
 
 ### Grammar Sources (Edit These)
-- `src/trace_processor/perfetto_sql/syntaqlite/perfetto.y` - Perfetto dialect grammar
-- `src/trace_processor/perfetto_sql/syntaqlite/perfetto.synq` - AST node definitions
+- `src/perfetto_sql/syntaqlite/perfetto.y` - Perfetto dialect grammar
+- `src/perfetto_sql/syntaqlite/perfetto.synq` - AST node definitions
 
 ## Rollback
 1. Revert version changes in `tools/install-build-deps` and `bazel/deps.bzl`

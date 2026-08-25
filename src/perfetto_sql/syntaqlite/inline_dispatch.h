@@ -8,8 +8,8 @@
  *      http://www.apache.org/licenses/LICENSE-2.0
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_SYNTAQLITE_INLINE_DISPATCH_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_SYNTAQLITE_INLINE_DISPATCH_H_
+#ifndef SRC_PERFETTO_SQL_SYNTAQLITE_INLINE_DISPATCH_H_
+#define SRC_PERFETTO_SQL_SYNTAQLITE_INLINE_DISPATCH_H_
 
 /* Inline dialect dispatch for syntaqlite_perfetto.c — replaces the dialect
  * function-pointer indirection with direct calls. Enabled via
@@ -31,4 +31,4 @@
 #endif
 #define SYNQ_GET_TOKEN(env, z, t) SynqPerfettoGetToken(env, z, t)
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_SYNTAQLITE_INLINE_DISPATCH_H_
+#endif  // SRC_PERFETTO_SQL_SYNTAQLITE_INLINE_DISPATCH_H_

@@ -12,20 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
-import("../../../../gn/perfetto_host_executable.gni")
+import("../../gn/perfetto.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-# pfsql: standalone offline CLI for working with PerfettoSQL source files.
-# Not part of trace_processor_shell — pfsql does not load traces.
-perfetto_host_executable("pfsql") {
-  sources = [ "main.cc" ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-    "../../util:json_value",
-    "../../util:simple_json_serializer",
-    "../lineage_resolver",
+# Language-level intrinsic macros shared by the runtime parser and offline
+# PerfettoSQL tools.
+source_set("intrinsic_macro_expansion") {
+  sources = [
+    "intrinsic_macro_expansion.cc",
+    "intrinsic_macro_expansion.h",
   ]
+  deps = [
+    "../../gn:default_deps",
+    "../base",
+    "syntaqlite",
+  ]
+  assert_no_deps = [ "../trace_processor/*" ]
 }
