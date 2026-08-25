@@ -1352,15 +1352,17 @@ class AndroidStdlib(TestSuite):
         upid,
         pid,
         process_name,
-        event_type
+        event_type,
+        event_action,
+        event_time
         FROM android_input_events
         WHERE end_to_end_latency_dur IS NOT NULL
         ORDER BY dispatch_ts
       """,
         out=Csv("""
-        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","upid","pid","process_name","event_type"
-        3422992,2937418,363000,51007097,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION"
-        2139405,1956366,81387,50642855,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION"
+        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","upid","pid","process_name","event_type","event_action","event_time"
+        3422992,2937418,363000,51007097,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION","HOVER_MOVE",12394215174000
+        2139405,1956366,81387,50642855,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION","SCROLL",12394215174000
       """))
 
   def test_job_scheduler_events(self):

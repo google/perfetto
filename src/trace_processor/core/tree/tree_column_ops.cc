@@ -59,46 +59,6 @@ Tree::Column GatherTyped(const Tree::Column& input, Span<const uint32_t> rows) {
   return output;
 }
 
-template <typename T>
-void GatherInto(const Tree::Column& input,
-                Span<const uint32_t> rows,
-                uint32_t offset,
-                Tree::Column* output) {
-  Span<T> destination =
-      output->unchecked_span<T>().subspan(offset, rows.size());
-  Span<const T> source = input.unchecked_span<T>();
-  for (uint32_t row = 0; row < rows.size(); ++row) {
-    const uint32_t source_row = rows[row];
-    if (input.null_bv.size() > 0 && !input.null_bv.is_set(source_row)) {
-      continue;
-    }
-    destination[row] = source[source_row];
-    output->null_bv.set(offset + row);
-  }
-}
-
-template <typename T>
-Tree::Column GatherConcatTyped(const Tree::Column& first,
-                               Span<const uint32_t> first_rows,
-                               const Tree::Column& second,
-                               Span<const uint32_t> second_rows) {
-  const uint32_t first_size = static_cast<uint32_t>(first_rows.size());
-  const uint32_t second_size = static_cast<uint32_t>(second_rows.size());
-  Tree::Column output = Tree::Column::Create<T>(first_size + second_size);
-  if (first.null_bv.size() == 0 && second.null_bv.size() == 0) {
-    Span<T> destination = output.unchecked_span<T>();
-    ops::GatherRows(first.unchecked_span<T>(),
-                    destination.subspan(0, first_size), first_rows);
-    ops::GatherRows(second.unchecked_span<T>(),
-                    destination.subspan(first_size, second_size), second_rows);
-    return output;
-  }
-  output.null_bv = BitVector::CreateWithSize(first_size + second_size, false);
-  GatherInto<T>(first, first_rows, 0, &output);
-  GatherInto<T>(second, second_rows, first_size, &output);
-  return output;
-}
-
 }  // namespace
 
 void UpdateRowHashes(const Tree::Column& column,
@@ -116,6 +76,13 @@ void UpdateRowHashes(const Tree::Column& column,
       UpdateTypedRowHashes(column.unchecked_span<StringPool::Id>(), non_null,
                            hashes);
       return;
+    case Tree::Column::Type::GetTypeIndex<Null>():
+      // Combine the same marker a nullable typed column contributes for a
+      // null row.
+      for (uint32_t row = 0; row < hashes.size(); ++row) {
+        hashes[row].Combine(false, int64_t{});
+      }
+      return;
     default:
       PERFETTO_FATAL("Unsupported tree column type");
   }
@@ -129,24 +96,8 @@ Tree::Column Gather(const Tree::Column& input, Span<const uint32_t> rows) {
       return GatherTyped<double>(input, rows);
     case Tree::Column::Type::GetTypeIndex<String>():
       return GatherTyped<StringPool::Id>(input, rows);
-    default:
-      PERFETTO_FATAL("Unsupported tree column type");
-  }
-}
-
-Tree::Column GatherConcat(const Tree::Column& first,
-                          Span<const uint32_t> first_rows,
-                          const Tree::Column& second,
-                          Span<const uint32_t> second_rows) {
-  PERFETTO_DCHECK(first.type.index() == second.type.index());
-  switch (first.type.index()) {
-    case Tree::Column::Type::GetTypeIndex<Int64>():
-      return GatherConcatTyped<int64_t>(first, first_rows, second, second_rows);
-    case Tree::Column::Type::GetTypeIndex<Double>():
-      return GatherConcatTyped<double>(first, first_rows, second, second_rows);
-    case Tree::Column::Type::GetTypeIndex<String>():
-      return GatherConcatTyped<StringPool::Id>(first, first_rows, second,
-                                               second_rows);
+    case Tree::Column::Type::GetTypeIndex<Null>():
+      return Tree::Column::CreateNull(static_cast<uint32_t>(rows.size()));
     default:
       PERFETTO_FATAL("Unsupported tree column type");
   }

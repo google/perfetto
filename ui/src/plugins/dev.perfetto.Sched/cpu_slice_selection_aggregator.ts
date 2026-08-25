@@ -14,10 +14,12 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {Time} from '../../base/time';
 import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridPreset,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -42,6 +44,8 @@ import {
   formatDurationValue,
   formatPercentValue,
 } from '../../components/aggregation_panel';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Timestamp} from '../../components/widgets/timestamp';
 
 const CPU_SLICE_SPEC = {
   id: NUM,
@@ -110,27 +114,28 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            utid,
-            process.name as process_name,
-            pid,
-            thread.name as thread_name,
-            tid,
-            sched.dur,
-            sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
-            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
-            ucpu
-          from ${iiTable.name} as sched
-          join thread using (utid)
-          left join process using (upid)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            select
+              json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              utid,
+              process.name as process_name,
+              pid,
+              thread.name as thread_name,
+              tid,
+              sched.ts,
+              sched.dur,
+              sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
+              sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
+              ucpu
+            from ${iiTable.name} as sched
+            join thread using (utid)
+            left join process using (upid)
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }
@@ -173,6 +178,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
               onclick: () => {
                 this.trace.selection.selectTrackEvent(track.uri, id, {
                   scrollToSelection: true,
+                  switchToCurrentSelectionTab: false,
                 });
               },
             },
@@ -184,6 +190,16 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       process_name: {title: 'Process Name', columnType: 'text' as const},
       tid: {title: 'TID', columnType: 'identifier' as const},
       thread_name: {title: 'Thread Name', columnType: 'text' as const},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative' as const,
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
+      },
       dur: {
         title: 'CPU Time',
         columnType: 'quantitative' as const,
@@ -218,11 +234,23 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       {id: 'dur_avg', field: 'dur', function: 'AVG' as const},
     ];
 
+    const initialColumns = [
+      {id: 'id_with_lineage', field: 'id_with_lineage'},
+      {id: 'process_name', field: 'process_name'},
+      {id: 'pid', field: 'pid'},
+      {id: 'thread_name', field: 'thread_name'},
+      {id: 'tid', field: 'tid'},
+      {id: 'ts', field: 'ts'},
+      {id: 'dur', field: 'dur'},
+      {id: 'ucpu', field: 'ucpu'},
+    ];
+
     return [
       {
         displayName: 'By Thread',
         config: {
           schema,
+          initialColumns,
           initialPivot: {
             groupBy: [
               {id: 'process_name', field: 'process_name'},
@@ -236,6 +264,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         displayName: 'By Process',
         config: {
           schema,
+          initialColumns,
           initialPivot: {
             groupBy: [{id: 'process_name', field: 'process_name'}],
             aggregates,

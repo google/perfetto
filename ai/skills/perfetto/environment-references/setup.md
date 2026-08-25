@@ -42,3 +42,12 @@ Notes:
 - If the user's environment has its own mandatory `trace_processor`
   (Google-internal, OEM build environments, CI images), prefer that
   team-specific setup instead.
+
+When the user asks what to do after installing `trace_processor` (or `perfetto-trace-processor-shell`):
+
+1. Respond directly to the user in your message text instructing them to run the smoke test command:
+   ```bash
+   trace_processor --version
+   ```
+   *(Do NOT execute `run_command` yourself to run `--version`; provide it as instructions for the user).*
+2. Defer explicitly to `[querying.md]($SKILL_ROOT/infra-references/querying.md)` for all instructions on how to write trace queries, execute SQL, start HTTP server mode, or connect via Python.

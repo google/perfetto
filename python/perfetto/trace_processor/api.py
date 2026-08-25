@@ -305,12 +305,15 @@ class TraceProcessor:
     for external consumers, but it cannot be loaded back into Trace Processor.
     `perfetto` can be loaded by a fresh Trace Processor instance from the same
     version. Loading it in a different version may work but is not guaranteed.
+    `sqlite` writes all SQL-visible tables and views into a standard SQLite
+    database; the database is materialized on the server and streamed to
+    `output_path`, so the server must support file access.
     Output is streamed directly to
     disk without materializing the complete archive in memory.
 
     Args:
       output_path: Path to write the export to.
-      export_format: Either `arrow_tar` or `perfetto`.
+      export_format: Either `arrow_tar`, `perfetto` or `sqlite`.
     """
     with open(output_path, 'wb') as f:
       self.http.export(f, export_format)

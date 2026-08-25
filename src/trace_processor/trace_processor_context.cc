@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
@@ -170,6 +171,7 @@ void InitGlobalState(TraceProcessorContext* context,
   // Global state.
   context->config = config;
   context->platform = platform;
+  context->file_system = platform ? platform->GetFileSystem() : nullptr;
   context->storage = Ptr<TraceStorage>::MakeRoot(config);
   context->global_stats_tracker =
       Ptr<GlobalStatsTracker>::MakeRoot(context->storage.get());
@@ -213,6 +215,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   // Global state.
   dest->config = source->config;
   dest->platform = source->platform;
+  dest->file_system = source->file_system;
   dest->storage = source->storage.Fork();
   dest->sorter = source->sorter.Fork();
   dest->reader_registry = source->reader_registry.Fork();
@@ -311,6 +314,7 @@ void TraceProcessorContext::DestroyParsingState() {
   // so preserve them while reconstructing the parsing context.
   Config _config = std::move(config);
   TraceProcessor_PlatformInterface* _platform = platform;
+  io::FileSystem* _file_system = file_system;
   auto _storage = std::move(storage);
 
   // TODO(b/309623584): Decouple from storage and remove from here. This
@@ -331,6 +335,7 @@ void TraceProcessorContext::DestroyParsingState() {
 
   config = std::move(_config);
   platform = _platform;
+  file_system = _file_system;
   storage = std::move(_storage);
   heap_graph_tracker = std::move(_heap_graph_tracker);
   clock_converter = std::move(_clock_converter);

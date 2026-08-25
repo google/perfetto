@@ -263,3 +263,67 @@ class ParsingTracedStats(TestSuite):
         "traced_buf_data_loss_smb_full",0,1
         "traced_buf_data_loss_writer_abort",0,1
         """))
+
+  # Check that overwrites in a `write_into_file` trace map to
+  # `long_trace_mode_bytes_overwritten`, one row per affected buffer with the
+  # bytes it overwrote. Buffer 1 overwrote nothing, so it gets no row.
+  def test_long_trace_mode_bytes_overwritten(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trace_config {
+            write_into_file: true
+            file_write_period_ms: 5000
+            buffers { size_kb: 1024 }
+            buffers { size_kb: 1024 fill_policy: RING_BUFFER }
+          }
+        }
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            buffer_stats { bytes_written: 4096 bytes_overwritten: 2048 }
+            buffer_stats { bytes_written: 4096 bytes_overwritten: 0 }
+          }
+        }
+        """),
+        query="""
+          SELECT idx, value
+          FROM stats
+          WHERE name = 'long_trace_mode_bytes_overwritten'
+          ORDER BY idx;
+        """,
+        out=Csv("""
+        "idx","value"
+        0,2048
+        """))
+
+  # Check that a 7 day `file_write_period_ms` produces no stat: the client is
+  # asking for ring-buffer behavior (see RecordLongTraceModeOverwrites).
+  def test_long_trace_mode_bytes_overwritten_ring_buffer_intent(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trace_config {
+            write_into_file: true
+            file_write_period_ms: 604800000
+            buffers { size_kb: 1024 }
+          }
+        }
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            buffer_stats { bytes_written: 4096 bytes_overwritten: 2048 }
+          }
+        }
+        """),
+        query="""
+          SELECT count(*) AS stat_rows
+          FROM stats
+          WHERE name = 'long_trace_mode_bytes_overwritten';
+        """,
+        out=Csv("""
+        "stat_rows"
+        0
+        """))

@@ -724,6 +724,11 @@ HEAP_GRAPH_TABLE = Table(
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
+        C(
+            'truncated',
+            CppBool(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='A list of heap graphs (heap dumps) captured during the trace.',
@@ -737,6 +742,8 @@ HEAP_GRAPH_TABLE = Table(
                 'Reason why the heap graph was dumped (e.g. OOME, periodic, manual).',
             'heap_size':
                 'Total bytes allocated in the heap as reported by the VM.',
+            'truncated':
+                'True if the heap dump was incomplete (missing packets).',
         }),
 )
 

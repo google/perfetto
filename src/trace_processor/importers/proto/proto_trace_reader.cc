@@ -374,6 +374,19 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   if (decoder.has_service_event()) {
     PERFETTO_DCHECK(decoder.has_timestamp());
     int64_t ts = static_cast<int64_t>(decoder.timestamp());
+    // TracingServiceImpl always stamps lifecycle events with GetBootTimeNs(),
+    // so these timestamps are BOOTTIME regardless of primary_trace_clock.
+    // Convert explicitly: this path bypasses the generic timestamp conversion.
+    // If the conversion fails (e.g. clock snapshotting was disabled), keep
+    // the raw value, which is trace time in that case.
+    uint32_t timestamp_clock_id = decoder.has_timestamp_clock_id()
+                                      ? decoder.timestamp_clock_id()
+                                      : protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+    if (auto trace_ts = context_->clock_tracker->ToTraceTime(
+            ClockId::Machine(timestamp_clock_id), ts, packet.offset(),
+            /*suppress_errors=*/true)) {
+      ts = *trace_ts;
+    }
     return ParseServiceEvent(ts, decoder.service_event());
   }
 
@@ -1287,7 +1300,30 @@ void ProtoTraceReader::OnEventsFullyExtracted() {
   using Config = protos::pbzero::TraceConfig;
   Config::Decoder trace_config(trace_config_raw_.data(),
                                trace_config_raw_.size());
-  if (!trace_config.write_into_file() || trace_config.flush_period_ms()) {
+  if (!trace_config.write_into_file()) {
+    return;
+  }
+
+  // Overwritten data never reached the file, so it counts as a data loss.
+  // A period of a day or more means "still a ring-buffer trace", the same
+  // cutoff as is_long_trace in tracing_service_impl.cc. In practice that is
+  // Traceur, which only uses write_into_file for detached mode.
+  constexpr uint32_t kMinRingBufferIntentPeriodMs = 24 * 60 * 60 * 1000;
+  if (trace_config.file_write_period_ms() < kMinRingBufferIntentPeriodMs) {
+    int buffer_index = 0;
+    for (auto it = trace_config.buffers(); it; ++it, ++buffer_index) {
+      std::optional<int64_t> bytes_overwritten =
+          context_->stats_tracker->GetIndexedStats(
+              stats::traced_buf_bytes_overwritten, buffer_index);
+      if (bytes_overwritten.value_or(0) > 0) {
+        context_->stats_tracker->SetIndexedStats(
+            stats::long_trace_mode_bytes_overwritten, buffer_index,
+            *bytes_overwritten);
+      }
+    }
+  }
+
+  if (trace_config.flush_period_ms()) {
     return;
   }
 

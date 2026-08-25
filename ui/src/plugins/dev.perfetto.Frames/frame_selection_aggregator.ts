@@ -12,22 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {Time} from '../../base/time';
 import {
   type Aggregation,
   type Aggregator,
   type AggregatorGridConfig,
+  createAggregationData,
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
+import {formatDurationValue} from '../../components/aggregation_panel';
+import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
+import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema';
+import {Timestamp} from '../../components/widgets/timestamp';
 import type {AreaSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {formatDurationValue} from '../../components/aggregation_panel';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 export class FrameSelectionAggregator implements Aggregator {
   readonly id = 'frame_aggregation';
+
+  constructor(private readonly trace: Trace) {}
 
   probe(area: AreaSelection): Aggregation | undefined {
     const dataset = selectTracksAndGetDataset(
@@ -37,6 +47,7 @@ export class FrameSelectionAggregator implements Aggregator {
         ts: LONG,
         dur: LONG,
         jank_type: STR,
+        track_id: NUM,
       },
       ACTUAL_FRAMES_SLICE_TRACK_KIND,
     );
@@ -52,17 +63,23 @@ export class FrameSelectionAggregator implements Aggregator {
           area.start,
           area.end,
         );
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            jank_type,
-            dur
-          from (${iiTable.name})
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            select
+              f.ts,
+              f.jank_type,
+              f.dur,
+              f.track_id,
+              process_track.upid,
+              process.name as process_name
+            from ${iiTable.name} f
+            left join process_track on (f.track_id = process_track.id)
+            left join process on (process_track.upid = process.upid)
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }
@@ -72,15 +89,71 @@ export class FrameSelectionAggregator implements Aggregator {
   }
 
   private getGridConfig(): AggregatorGridConfig {
-    return {
-      schema: {
-        jank_type: {title: 'Jank Type', columnType: 'text'},
-        dur: {
-          title: 'Duration',
-          columnType: 'quantitative',
-          cellRenderer: formatDurationValue,
+    const schema: ColumnSchema = {
+      jank_type: {title: 'Jank Type', columnType: 'text'},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative',
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
         },
       },
+      dur: {
+        title: 'Duration',
+        columnType: 'quantitative',
+        cellRenderer: formatDurationValue,
+      },
+      process: {
+        title: 'Process',
+        schema: {
+          id: {
+            title: 'UPID',
+            columnType: 'identifier',
+          },
+          name: {
+            title: 'Process Name',
+            columnType: 'text',
+          },
+          pid: {
+            title: 'PID',
+            columnType: 'identifier',
+          },
+          cmdline: {
+            title: 'Cmdline',
+            columnType: 'text',
+          },
+        },
+      },
+    };
+
+    return {
+      schema,
+      sqlConfig: ({sqlTable}): SQLTableSchema => ({
+        tableOrSubquery: sqlTable.get().name,
+        columns: {
+          process: {
+            foreignKey: 'upid',
+            schema: {
+              tableOrSubquery: 'process',
+              columns: {
+                id: {},
+                name: {},
+                pid: {},
+                cmdline: {},
+              },
+            },
+          },
+        },
+      }),
+      initialColumns: [
+        {id: 'jank_type', field: 'jank_type'},
+        {id: 'ts', field: 'ts'},
+        {id: 'dur', field: 'dur'},
+        {id: 'process_name', field: 'process_name'},
+      ],
       initialPivot: {
         groupBy: [{id: 'jank_type', field: 'jank_type'}],
         aggregates: [

@@ -37,6 +37,13 @@
 #include <android/set_abort_message.h>
 #endif
 
+// The __attribute__((constructor)) below is intentional, it sets the crash
+// reporter globally for Perfetto. It's only enabled on debug builds so should
+// be pretty safe.
+#if defined(__clang__)
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
+
 namespace perfetto {
 namespace base {
 

@@ -1340,6 +1340,13 @@ std::vector<TarMember> ReadTarMembers(const std::string& tar) {
   return members;
 }
 
+TEST_F(TraceProcessorIntegrationTest, ExportSqliteRequiresFilePath) {
+  StringExportOutput output;
+  EXPECT_THAT(
+      Processor()->Export(TraceProcessor::ExportFormat::kSqlite, &output),
+      IsError());
+}
+
 TEST_F(TraceProcessorIntegrationTest, ExportPerfetto) {
   ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
 

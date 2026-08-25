@@ -171,7 +171,13 @@ struct NodeAgg : public sqlite::AggregateFunction<NodeAgg> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
 
-    auto source_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+    int64_t raw_source_id = sqlite::value::Int64(argv[0]);
+    if (raw_source_id < 0 ||
+        raw_source_id > std::numeric_limits<int32_t>::max()) {
+      return sqlite::result::Error(
+          ctx, "GRAPH: node ids must be non-negative 32-bit integers");
+    }
+    auto source_id = static_cast<uint32_t>(raw_source_id);
     auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
 
     // A NULL target means the source node has no edge (e.g. a root in a tree
@@ -179,15 +185,21 @@ struct NodeAgg : public sqlite::AggregateFunction<NodeAgg> {
     // NULL to 0 and create a spurious edge to node 0.
     if (sqlite::value::IsNull(argv[1])) {
       if (source_id >= agg_ctx.graph.size()) {
-        agg_ctx.graph.resize(source_id + 1);
+        agg_ctx.graph.resize(static_cast<size_t>(source_id) + 1);
       }
       return;
     }
 
-    auto target_id = static_cast<uint32_t>(sqlite::value::Int64(argv[1]));
+    int64_t raw_target_id = sqlite::value::Int64(argv[1]);
+    if (raw_target_id < 0 ||
+        raw_target_id > std::numeric_limits<int32_t>::max()) {
+      return sqlite::result::Error(
+          ctx, "GRAPH: node ids must be non-negative 32-bit integers");
+    }
+    auto target_id = static_cast<uint32_t>(raw_target_id);
     uint32_t max_id = std::max(source_id, target_id);
     if (max_id >= agg_ctx.graph.size()) {
-      agg_ctx.graph.resize(max_id + 1);
+      agg_ctx.graph.resize(static_cast<size_t>(max_id) + 1);
     }
     agg_ctx.graph[source_id].outgoing_edges.push_back(target_id);
   }

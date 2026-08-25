@@ -73,6 +73,17 @@ void MergeAllowlistedOptions(const std::vector<ProtoFile::Option>& upstream,
   }
 }
 
+void MarkFieldAsDeprecated(ProtoFile::Field& field) {
+  auto it = std::find_if(
+      field.options.begin(), field.options.end(),
+      [](const ProtoFile::Option& opt) { return opt.key == "deprecated"; });
+  if (it != field.options.end()) {
+    it->value = "true";
+  } else {
+    field.options.push_back(ProtoFile::Option{"deprecated", "true"});
+  }
+}
+
 template <typename Key, typename Value>
 std::optional<Value> FindInMap(const std::map<Key, Value>& map,
                                const Key& key) {
@@ -352,6 +363,7 @@ base::Status MergeField(const ProtoFile::Field& input,
 base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
                          const std::vector<ProtoFile::Field>& upstream,
                          const std::set<int>& allowlist,
+                         const std::unordered_set<int>& reserved_numbers,
                          const std::set<std::string>& known_enums,
                          const std::set<std::string>& allowlisted_options,
                          std::vector<ProtoFile::Field>& out) {
@@ -374,6 +386,16 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
       return status;
     out.emplace_back(std::move(out_field));
   }
+
+  // Append reserved fields from input as deprecated fields.
+  for (const auto& input_field : input) {
+    if (reserved_numbers.count(input_field.number)) {
+      ProtoFile::Field deprecated_field = input_field;
+      MarkFieldAsDeprecated(deprecated_field);
+      out.emplace_back(std::move(deprecated_field));
+    }
+  }
+
   return base::OkStatus();
 }
 
@@ -453,7 +475,7 @@ base::Status Merge(const ProtoFile::Oneof& input,
   out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
 
   // Finish by merging the list of fields.
-  return MergeFields(input.fields, upstream.fields, allowlist, known_enums,
+  return MergeFields(input.fields, upstream.fields, allowlist, {}, known_enums,
                      allowlisted_options, out.fields);
 }
 
@@ -476,7 +498,12 @@ base::Status Merge(const ProtoFile::Message& input,
   out.deleted_nested_messages =
       ComputeDeletedByName(input.nested_messages, upstream.nested_messages);
   out.deleted_oneofs = ComputeDeletedByName(input.oneofs, upstream.oneofs);
-  out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
+
+  for (auto& field : ComputeDeletedByNumber(input.fields, upstream.fields)) {
+    if (!upstream.reserved_numbers.count(field.number)) {
+      out.deleted_fields.emplace_back(std::move(field));
+    }
+  }
 
   // Merge any nested enum types.
   out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums,
@@ -497,7 +524,8 @@ base::Status Merge(const ProtoFile::Message& input,
 
   // Finish by merging the list of fields.
   return MergeFields(input.fields, upstream.fields, allowlist.fields,
-                     known_enums, allowlisted_options, out.fields);
+                     upstream.reserved_numbers, known_enums,
+                     allowlisted_options, out.fields);
 }
 
 }  // namespace
