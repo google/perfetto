@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/lineage_resolver/lineage_resolver.h"
+#include "src/tools/pfsql/lineage_resolver.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -30,12 +30,14 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/perfetto_sql/parser/intrinsic_macro_expansion.h"
-#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/perfetto_sql/syntaqlite/utils.h"
+#include "src/perfetto_sql/intrinsic_macro_expansion.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/perfetto_sql/syntaqlite/utils.h"
 
-namespace perfetto::trace_processor::lineage_resolver {
+namespace perfetto::pfsql::lineage_resolver {
 namespace {
+
+namespace sql = ::perfetto::perfetto_sql;
 
 using NameSet = std::unordered_set<std::string>;
 
@@ -124,11 +126,11 @@ class MacroRegistry {
   const MacroDef* Lookup(std::string_view name) const {
     return defs_.Find(std::string(name));
   }
-  perfetto_sql::IntrinsicMacroExpander& intrinsics() { return intrinsics_; }
+  sql::IntrinsicMacroExpander& intrinsics() { return intrinsics_; }
 
  private:
   base::FlatHashMap<std::string, MacroDef> defs_;
-  perfetto_sql::IntrinsicMacroExpander intrinsics_;
+  sql::IntrinsicMacroExpander intrinsics_;
 };
 
 int MacroLookupCb(void* user_data,
@@ -143,16 +145,16 @@ int MacroLookupCb(void* user_data,
   // 1) Try the real C++-implemented intrinsic macros first — same expander
   // the runtime preprocessor uses, so expansions are byte-exact.
   switch (reg->intrinsics().TryExpand(nm, args, arg_count)) {
-    case perfetto_sql::ExpandStatus::kExpanded: {
+    case sql::ExpandStatus::kExpanded: {
       std::string_view body = reg->intrinsics().body();
       syntaqlite_macro_expansion_set_result(
           parser, body.data(), static_cast<SyntaqliteLength>(body.size()), 0,
           0);
       return SYNTAQLITE_MACRO_LOOKUP_OK;
     }
-    case perfetto_sql::ExpandStatus::kExpansionFailed:
+    case sql::ExpandStatus::kExpansionFailed:
       return SYNTAQLITE_MACRO_LOOKUP_ERROR;
-    case perfetto_sql::ExpandStatus::kNotIntrinsic:
+    case sql::ExpandStatus::kNotIntrinsic:
       break;
   }
 
@@ -181,7 +183,7 @@ using ScopedParser = std::unique_ptr<SyntaqliteParser, ParserDeleter>;
 std::string SpanString(SyntaqliteParser* p, SyntaqliteTextSpan span) {
   // Macro-arg drill-through can hand us spans with surrounding whitespace
   // (authored arg text is verbatim). Trim so identifiers compare cleanly.
-  return std::string(base::TrimWhitespace(SyntaqliteSpanText(p, span)));
+  return std::string(base::TrimWhitespace(sql::SyntaqliteSpanText(p, span)));
 }
 
 ScopedParser MakeParser(MacroRegistry* registry_for_lookup) {
@@ -587,4 +589,4 @@ std::vector<ResolvedModule> Resolver::Resolve() {
   return out;
 }
 
-}  // namespace perfetto::trace_processor::lineage_resolver
+}  // namespace perfetto::pfsql::lineage_resolver

@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_SYNTAQLITE_UTILS_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_SYNTAQLITE_UTILS_H_
+#ifndef SRC_PERFETTO_SQL_SYNTAQLITE_UTILS_H_
+#define SRC_PERFETTO_SQL_SYNTAQLITE_UTILS_H_
 
 #include <cstdint>
 #include <string_view>
 
-#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::perfetto_sql {
 
 // Returns the authored source text for |span| as a string_view into the
 // original input — no allocation. Uses span_text (not expanded_text) so
@@ -37,6 +37,6 @@ inline std::string_view SyntaqliteSpanText(SyntaqliteParser* p,
   return {text, len};
 }
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::perfetto_sql
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_SYNTAQLITE_UTILS_H_
+#endif  // SRC_PERFETTO_SQL_SYNTAQLITE_UTILS_H_

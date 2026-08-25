@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_INTRINSIC_MACRO_EXPANSION_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_INTRINSIC_MACRO_EXPANSION_H_
+#ifndef SRC_PERFETTO_SQL_INTRINSIC_MACRO_EXPANSION_H_
+#define SRC_PERFETTO_SQL_INTRINSIC_MACRO_EXPANSION_H_
 
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 
-namespace perfetto::trace_processor::perfetto_sql {
+namespace perfetto::perfetto_sql {
 
 enum class ExpandStatus : uint8_t {
   // Name matched an intrinsic and `body()` holds the expansion text.
@@ -79,6 +79,6 @@ class IntrinsicMacroExpander {
   std::string body_;
 };
 
-}  // namespace perfetto::trace_processor::perfetto_sql
+}  // namespace perfetto::perfetto_sql
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_INTRINSIC_MACRO_EXPANSION_H_
+#endif  // SRC_PERFETTO_SQL_INTRINSIC_MACRO_EXPANSION_H_

@@ -32,12 +32,14 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
-#include "src/trace_processor/perfetto_sql/lineage_resolver/lineage_resolver.h"
+#include "src/tools/pfsql/lineage_resolver.h"
 #include "src/trace_processor/util/json_value.h"
 #include "src/trace_processor/util/simple_json_serializer.h"
 
-namespace perfetto::trace_processor::pfsql {
+namespace perfetto::pfsql {
 namespace {
+
+namespace json = trace_processor::json;
 
 // ---------- lineage subcommand ----------
 
@@ -283,8 +285,8 @@ int Main(int argc, char** argv) {
 }
 
 }  // namespace
-}  // namespace perfetto::trace_processor::pfsql
+}  // namespace perfetto::pfsql
 
 int main(int argc, char** argv) {
-  return perfetto::trace_processor::pfsql::Main(argc, argv);
+  return perfetto::pfsql::Main(argc, argv);
 }

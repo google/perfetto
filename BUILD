@@ -301,6 +301,28 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
+# GN target: //src/tools/pfsql:pfsql
+perfetto_cc_binary(
+    name = "pfsql",
+    srcs = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
+        ":src_perfetto_sql_intrinsic_macro_expansion",
+        ":src_perfetto_sql_syntaqlite_syntaqlite",
+        ":src_tools_pfsql_lineage_resolver",
+        ":src_trace_processor_util_json_parser",
+        ":src_trace_processor_util_json_serializer",
+        ":src_trace_processor_util_json_value",
+        ":src_trace_processor_util_simple_json_serializer",
+        "src/tools/pfsql/main.cc",
+    ],
+    deps = [
+        ":src_base_base",
+    ],
+)
+
 # GN target: //src/tools/proto_filter:proto_filter
 perfetto_cc_binary(
     name = "proto_filter",
@@ -368,34 +390,14 @@ perfetto_cc_binary(
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
-# GN target: //src/trace_processor/perfetto_sql/pfsql:pfsql
-perfetto_cc_binary(
-    name = "pfsql",
-    srcs = [
-        ":include_perfetto_base_base",
-        ":include_perfetto_ext_base_base",
-        ":include_perfetto_public_abi_base",
-        ":include_perfetto_public_base",
-        ":src_trace_processor_perfetto_sql_lineage_resolver_lineage_resolver",
-        ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
-        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
-        ":src_trace_processor_util_json_parser",
-        ":src_trace_processor_util_json_serializer",
-        ":src_trace_processor_util_json_value",
-        ":src_trace_processor_util_simple_json_serializer",
-        "src/trace_processor/perfetto_sql/pfsql/main.cc",
-    ],
-    deps = [
-        ":src_base_base",
-    ],
-)
-
 # GN target: //src/trace_processor/rpc:trace_processor_rpc
 perfetto_cc_library(
     name = "trace_processor_rpc",
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_intrinsic_macro_expansion",
+        ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -453,9 +455,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
-        ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -709,6 +709,8 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_intrinsic_macro_expansion",
+        ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -767,9 +769,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
-        ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -2152,6 +2152,26 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/perfetto_sql/syntaqlite:syntaqlite
+perfetto_filegroup(
+    name = "src_perfetto_sql_syntaqlite_syntaqlite",
+    srcs = [
+        "src/perfetto_sql/syntaqlite/inline_dispatch.h",
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
+        "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
+        "src/perfetto_sql/syntaqlite/utils.h",
+    ],
+)
+
+# GN target: //src/perfetto_sql:intrinsic_macro_expansion
+perfetto_filegroup(
+    name = "src_perfetto_sql_intrinsic_macro_expansion",
+    srcs = [
+        "src/perfetto_sql/intrinsic_macro_expansion.cc",
+        "src/perfetto_sql/intrinsic_macro_expansion.h",
+    ],
+)
+
 # GN target: //src/proto_utils:gen_cc_config_descriptor
 perfetto_cpp_blob_header(
     name = "src_proto_utils_gen_cc_config_descriptor",
@@ -2398,6 +2418,15 @@ perfetto_filegroup(
         "src/shared_lib/stream_writer.h",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
+    ],
+)
+
+# GN target: //src/tools/pfsql:lineage_resolver
+perfetto_filegroup(
+    name = "src_tools_pfsql_lineage_resolver",
+    srcs = [
+        "src/tools/pfsql/lineage_resolver.cc",
+        "src/tools/pfsql/lineage_resolver.h",
     ],
 )
 
@@ -3724,24 +3753,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/lineage_resolver:lineage_resolver
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_lineage_resolver_lineage_resolver",
-    srcs = [
-        "src/trace_processor/perfetto_sql/lineage_resolver/lineage_resolver.cc",
-        "src/trace_processor/perfetto_sql/lineage_resolver/lineage_resolver.h",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/parser:intrinsic_macro_expansion
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
-    srcs = [
-        "src/trace_processor/perfetto_sql/parser/intrinsic_macro_expansion.cc",
-        "src/trace_processor/perfetto_sql/parser/intrinsic_macro_expansion.h",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/parser:parser
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_parser_parser",
@@ -4374,17 +4385,6 @@ perfetto_cpp_blob_header(
         "--gen-dir=$(GENDIR)",
         "--namespace",
         "perfetto::trace_processor::stdlib",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/syntaqlite:syntaqlite
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
-    srcs = [
-        "src/trace_processor/perfetto_sql/syntaqlite/inline_dispatch.h",
-        "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
-        "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
-        "src/trace_processor/perfetto_sql/syntaqlite/utils.h",
     ],
 )
 
@@ -11569,6 +11569,8 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_intrinsic_macro_expansion",
+        ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
@@ -11625,9 +11627,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
-        ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -11913,6 +11913,8 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_util",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_intrinsic_macro_expansion",
+        ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
@@ -11970,9 +11972,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
-        ":src_trace_processor_perfetto_sql_parser_intrinsic_macro_expansion",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",

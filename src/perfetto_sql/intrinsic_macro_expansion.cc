@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/parser/intrinsic_macro_expansion.h"
+#include "src/perfetto_sql/intrinsic_macro_expansion.h"
 
 #include <algorithm>
 #include <array>
@@ -25,9 +25,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 
-namespace perfetto::trace_processor::perfetto_sql {
+namespace perfetto::perfetto_sql {
 namespace {
 
 bool IsSkippable(uint32_t type) {
@@ -176,4 +176,4 @@ ExpandStatus IntrinsicMacroExpander::TryExpand(std::string_view name,
   return ExpandStatus::kNotIntrinsic;
 }
 
-}  // namespace perfetto::trace_processor::perfetto_sql
+}  // namespace perfetto::perfetto_sql

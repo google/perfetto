@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_RESOLVER_LINEAGE_RESOLVER_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_RESOLVER_LINEAGE_RESOLVER_H_
+#ifndef SRC_TOOLS_PFSQL_LINEAGE_RESOLVER_H_
+#define SRC_TOOLS_PFSQL_LINEAGE_RESOLVER_H_
 
 #include <string>
 #include <unordered_set>
@@ -23,7 +23,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 
-namespace perfetto::trace_processor::lineage_resolver {
+namespace perfetto::pfsql::lineage_resolver {
 
 // A reference to a symbol defined by another module.
 struct SymbolRef {
@@ -104,6 +104,6 @@ class Resolver {
   std::vector<std::string> tree_roots_;
 };
 
-}  // namespace perfetto::trace_processor::lineage_resolver
+}  // namespace perfetto::pfsql::lineage_resolver
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_RESOLVER_LINEAGE_RESOLVER_H_
+#endif  // SRC_TOOLS_PFSQL_LINEAGE_RESOLVER_H_
