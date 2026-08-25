@@ -31,7 +31,7 @@ import type {SummaryRow} from './summary';
 import {registerSpeedOfLightSection} from './section/speed_of_light';
 import {registerLaunchStatisticsSection} from './section/launch_statistics';
 import {registerOccupancySection} from './section/occupancy';
-import {registerWorkloadAnalysisSection} from './section/workload_analysis';
+import {registerComputeWorkloadAnalysisSection} from './section/compute_workload_analysis';
 import {cudaTerminology} from './terminology/cuda';
 import {openclTerminology} from './terminology/opencl';
 import {TerminologyRegistry} from './terminology';
@@ -373,7 +373,7 @@ export default class GpuComputePlugin implements PerfettoPlugin {
     registerSpeedOfLightSection(this.sectionRegistry);
     registerLaunchStatisticsSection(this.sectionRegistry);
     registerOccupancySection(this.sectionRegistry);
-    registerWorkloadAnalysisSection(this.sectionRegistry);
+    registerComputeWorkloadAnalysisSection(this.sectionRegistry);
   }
 
   registerAnalysisProvider(provider: AnalysisProvider): void {
