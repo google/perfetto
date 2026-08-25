@@ -276,8 +276,6 @@ SELECT
   end_vsync,
   'jank' AS cuj_type
 FROM android_sysui_jank_cujs
-ORDER BY
-  id
 UNION ALL
 SELECT
   cuj_id,
@@ -297,7 +295,7 @@ SELECT
   NULL AS begin_vsync,
   NULL AS end_vsync,
   'latency' AS cuj_type
-FROM android_sysui_latency_cujs ORDER BY id;
+FROM android_sysui_latency_cujs ORDER BY cuj_id;
 
 -- Slices corresponding to critical blocking calls that occurred during a CUJ,
 -- clipped to the CUJ time boundaries.
