@@ -461,10 +461,16 @@ if (enable_perfetto_zlib) {
   }
 }
 
+config("system_zstd_config") {
+  libs = [ "zstd" ]
+}
+
 # Zstd is used both by trace_processor and by the tracing service.
 if (enable_perfetto_zstd) {
   group("zstd") {
-    if (perfetto_root_path == "//") {
+    if (perfetto_use_system_zstd) {
+      public_configs = [ "//gn:system_zstd_config" ]
+    } else if (perfetto_root_path == "//") {
       public_configs = [ "//buildtools:zstd_config" ]
       public_deps = [ "//buildtools:zstd" ]
     } else {
