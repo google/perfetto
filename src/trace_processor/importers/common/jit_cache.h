@@ -76,6 +76,13 @@ class JitCache {
                                     uint64_t from_code_start,
                                     uint64_t to_code_start);
 
+  // Executes an $O(\log N)$ temporal point-containment Interval-Tree query
+  // against the underlying `AddressRangeMap`, resolving a physical
+  // instruction-pointer (`pc`) back to its authoritative, encompassing
+  // `JitCodeTable::Id`. Returns `std::nullopt` if `pc` resides outside of valid
+  // V8 JIT or IGNITION bytecode boundaries.
+  std::optional<tables::JitCodeTable::Id> FindJitCodeId(uint64_t pc) const;
+
   // Forward frame interning request.
   // MappingTracker allows other trackers to register ranges of memory for
   // which they need to control when a new frame is created. Jitted code can

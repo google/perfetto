@@ -448,8 +448,63 @@ void V8Tracker::AddJsCode(int64_t timestamp,
                                               code.machine_code().size))
           : TraceBlobView());
 
-  context_->storage->mutable_v8_js_code_table()->Insert(
-      {jit_code_id, function_id, tier});
+  auto v8_js_code_id = context_->storage->mutable_v8_js_code_table()
+                           ->Insert({jit_code_id, function_id, tier})
+                           .id;
+  jit_to_v8_js_code_.Insert(*jit_code_id, v8_js_code_id);
+}
+
+void V8Tracker::AddICEvent(int64_t timestamp,
+                           UniqueTid utid,
+                           IsolateId isolate_id,
+                           const V8ICEvent::Decoder& ic_event) {
+  uint64_t pc = ic_event.pc();
+
+  // Execute the $O(\log N)$ Point-Containment Interval-Tree query to identify
+  // the active JitCache.
+  JitCache* jit_cache =
+      FindJitCache(isolate_id, AddressRange::FromStartAndSize(pc, 1));
+  if (!jit_cache) {
+    return;
+  }
+
+  // Retrieve the encompassing JitCode identifier temporal-bound at
+  // $T_{\text{event}}$.
+  std::optional<tables::JitCodeTable::Id> jit_code_id =
+      jit_cache->FindJitCodeId(pc);
+  if (!jit_code_id) {
+    context_->stats_tracker->IncrementStats(stats::v8_ic_event_missing_code);
+    return;
+  }
+
+  // Translate the generalized JitCode ID to the explicit relational
+  // V8JsCodeTable::Id Foreign-Key.
+  auto* v8_js_code_id = jit_to_v8_js_code_.Find(*jit_code_id);
+  if (!v8_js_code_id) {
+    context_->stats_tracker->IncrementStats(stats::v8_ic_event_missing_code);
+    return;
+  }
+
+  // Synthesize and Insert the hyper-dense relational Tuple into
+  // __intrinsic_v8_ic_event.
+  tables::V8IcEventTable::Row row;
+  row.v8_isolate_id = isolate_id;
+  row.utid = utid;
+  row.ts = timestamp;
+  row.is_load = ic_event.is_load();
+  row.is_global = ic_event.is_global();
+  row.is_keyed = ic_event.is_keyed();
+  row.map = static_cast<int64_t>(ic_event.map());
+  row.key = context_->storage->InternString(ic_event.key());
+  row.old_state = context_->storage->InternString(ic_event.old_state());
+  row.new_state = context_->storage->InternString(ic_event.new_state());
+  row.modifier = context_->storage->InternString(ic_event.modifier());
+  row.slow_stub_reason =
+      context_->storage->InternString(ic_event.slow_stub_reason());
+  row.v8_js_code_id = *v8_js_code_id;
+  row.pc = static_cast<int64_t>(pc);
+
+  context_->storage->mutable_v8_ic_event_table()->Insert(row);
 }
 
 void V8Tracker::AddInternalCode(int64_t timestamp,

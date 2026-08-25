@@ -43,6 +43,7 @@ namespace {
 using ::perfetto::protos::pbzero::TracePacket;
 using ::perfetto::protos::pbzero::V8CodeDefaults;
 using ::perfetto::protos::pbzero::V8CodeMove;
+using ::perfetto::protos::pbzero::V8ICEvent;
 using ::perfetto::protos::pbzero::V8InternalCode;
 using ::perfetto::protos::pbzero::V8JsCode;
 using ::perfetto::protos::pbzero::V8RegExpCode;
@@ -60,6 +61,7 @@ V8Module::V8Module(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kV8WasmCodeFieldNumber);
   RegisterForField(TracePacket::kV8RegExpCodeFieldNumber);
   RegisterForField(TracePacket::kV8CodeMoveFieldNumber);
+  RegisterForField(TracePacket::kV8IcEventFieldNumber);
 }
 
 V8Module::~V8Module() = default;
@@ -89,6 +91,10 @@ void V8Module::ParseField(const ParseFieldArgs& args) {
     case TracePacket::kV8CodeMoveFieldNumber:
       ParseV8CodeMove(args.field.Cast<TracePacket::kV8CodeMove>(), args.ts,
                       args.data);
+      break;
+    case TracePacket::kV8IcEventFieldNumber:
+      ParseV8ICEvent(args.field.Cast<TracePacket::kV8IcEvent>(), args.ts,
+                     args.data);
       break;
     default:
       break;
@@ -268,6 +274,28 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
   }
 
   v8_tracker_->MoveCode(ts, *utid, *isolate_id, v8_code_move);
+}
+
+void V8Module::ParseV8ICEvent(protozero::ConstBytes bytes,
+                              int64_t ts,
+                              const TracePacketData& data) {
+  V8SequenceState& state =
+      *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
+
+  V8ICEvent::Decoder ic_event(bytes);
+
+  std::optional<IsolateId> v8_isolate_id = state.GetOrInsertIsolate(
+      data.sequence_state.get(), ic_event.v8_isolate_iid());
+  return;
+}
+
+std::optional<UniqueTid> utid =
+    GetUtid(*data.sequence_state, *isolate_id, ic_event);
+if (!utid) {
+  return;
+}
+
+v8_tracker_->AddICEvent(ts, *utid, *isolate_id, ic_event);
 }
 
 }  // namespace trace_processor
