@@ -73,7 +73,8 @@ describe('parsePostedTrace', () => {
 
     test('is local-only by default (no way to opt into sharing)', () => {
       const result = parsePostedTrace(new ArrayBuffer());
-      expect(result?.localOnly).toBe(true);
+      expect(result?.shareable).toBe(false);
+      expect(result?.downloadable).toBe(false);
     });
 
     test('view is snipped to the view, not the underlying buffer', () => {
@@ -98,6 +99,36 @@ describe('parsePostedTrace', () => {
       const buffer = new ArrayBuffer();
       const result = parsePostedTrace({perfetto: {buffer, title: 'foo'}});
       expect(result?.buffer).toBe(buffer);
+    });
+
+    test('defaults to local-only', () => {
+      const result = parsePostedTrace({
+        perfetto: {buffer: new ArrayBuffer(), title: 'foo'},
+      });
+      expect(result?.shareable).toBe(false);
+      expect(result?.downloadable).toBe(false);
+    });
+
+    test('legacy localOnly: false opts into sharing and downloading', () => {
+      const result = parsePostedTrace({
+        perfetto: {buffer: new ArrayBuffer(), title: 'foo', localOnly: false},
+      });
+      expect(result?.shareable).toBe(true);
+      expect(result?.downloadable).toBe(true);
+    });
+
+    test('explicit shareable/downloadable win over legacy localOnly', () => {
+      const result = parsePostedTrace({
+        perfetto: {
+          buffer: new ArrayBuffer(),
+          title: 'foo',
+          localOnly: false,
+          shareable: false,
+          downloadable: true,
+        },
+      });
+      expect(result?.shareable).toBe(false);
+      expect(result?.downloadable).toBe(true);
     });
 
     test('view converted to arraybuffer', () => {
