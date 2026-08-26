@@ -255,8 +255,8 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = dir.path() + "/trace.json";
+  base::TempFile file = base::TempFile::Create();
+  const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
@@ -272,12 +272,11 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
   std::string contents;
   ASSERT_TRUE(base::ReadFile(path, &contents));
   EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
-  ASSERT_TRUE(base::Unlink(path.c_str()));
 }
 
 TEST(TraceProcessorCustomConfigTest,
      RpcImplicitResetPreservesSqlFileAccessGrant) {
-  base::TempDir dir = base::TempDir::Create();
+  base::TempFile first_file = base::TempFile::Create();
   auto file_system = io::CreateLocalFileSystem();
   FileSystemPlatform platform(file_system);
   Config config;
@@ -292,16 +291,13 @@ TEST(TraceProcessorCustomConfigTest,
     EXPECT_OK(it.Status());
   };
 
-  std::string first_path = dir.path() + "/before_reset";
-  write_file(first_path);
-  ASSERT_TRUE(base::Unlink(first_path.c_str()));
+  write_file(first_file.path());
 
   ASSERT_OK(rpc.NotifyEndOfFile());
   ASSERT_OK(rpc.Parse(nullptr, 0));
 
-  std::string second_path = dir.path() + "/after_reset";
-  write_file(second_path);
-  ASSERT_TRUE(base::Unlink(second_path.c_str()));
+  base::TempFile second_file = base::TempFile::Create();
+  write_file(second_file.path());
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonPropagatesWriteFailure) {
@@ -343,8 +339,8 @@ TEST(TraceProcessorCustomConfigTest,
 
 TEST(TraceProcessorCustomConfigTest,
      IntrinsicFileWriteUsesConfiguredFileSystem) {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = dir.path() + "/file_write";
+  base::TempFile file = base::TempFile::Create();
+  const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
@@ -362,7 +358,6 @@ TEST(TraceProcessorCustomConfigTest,
   std::string contents;
   ASSERT_TRUE(base::ReadFile(path, &contents));
   EXPECT_EQ(contents, std::string("\0\1\2\xff", 4));
-  ASSERT_TRUE(base::Unlink(path.c_str()));
 }
 
 namespace {

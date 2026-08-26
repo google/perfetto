@@ -428,8 +428,8 @@ TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
 }
 
 TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
-  auto tmp = TempDir::Create();
-  std::string tmp_path = tmp.path() + "/temp.txt";
+  TempFile file = TempFile::Create();
+  const std::string& tmp_path = file.path();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
   ASSERT_EQ(payload.size(), static_cast<size_t>(16));
@@ -449,7 +449,6 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
       ASSERT_TRUE(ReadFile(tmp_path, &actual));
       ASSERT_EQ(actual, payload);
     }
-    ASSERT_EQ(remove(tmp_path.c_str()), 0);
   }
 
   {

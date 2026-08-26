@@ -101,17 +101,6 @@ base::TempFile WriteTempFile(const std::string& content) {
   return f;
 }
 
-// A path for an output file the code under test creates. Not a TempFile: on
-// Windows an open TempFile lacks FILE_SHARE_WRITE, so reopening it for write
-// hits a sharing violation.
-struct OutputPath {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path() const { return dir.path() + "/out"; }
-  ~OutputPath() {
-    base::Unlink(path().c_str());
-  }  // TempDir needs an empty dir.
-};
-
 class TestFileSystem final : public io::FileSystem {
  public:
   base::Status OpenFile(const std::string&,
@@ -418,7 +407,7 @@ TEST(ConvertSubcommandTest, RequiresFormat) {
 
 TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
   base::TempFile input = WriteTempFile("ignored");
-  OutputPath output;
+  base::TempFile output = base::TempFile::Create();
 
   ConvertSubcommand convert;
   base::Status s =
@@ -431,7 +420,7 @@ TEST(ConvertSubcommandTest, RejectsUnknownFormat) {
 // in favour of `convert profile --java-heap`; `convert` must reject them all.
 TEST(ConvertSubcommandTest, RejectsFormatsMovedOrRemoved) {
   base::TempFile input = WriteTempFile("ignored");
-  OutputPath output;
+  base::TempFile output = base::TempFile::Create();
 
   for (const char* fmt :
        {"binary", "decompress_packets", "java_heap_profile"}) {
@@ -487,7 +476,7 @@ TEST(UtilSubcommandTest, RejectsUnknownUtility) {
 // must be converted to a non-empty binary trace.
 TEST(UtilSubcommandTest, TextToBinaryConvertsTextProto) {
   base::TempFile input = WriteTempFile("packet { timestamp: 42 }");
-  OutputPath output;
+  base::TempFile output = base::TempFile::Create();
 
   UtilSubcommand util;
   base::Status s = util.Run(
