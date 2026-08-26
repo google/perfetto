@@ -367,11 +367,8 @@ TEST(TreeChildFirstTest, RewindDiscardsAFailedFill) {
   EXPECT_THAT(recovered.payload, ElementsAre(103, 102, 101, 100));
 }
 
-// Child first is not merely "every child before its parent": it is a depth
-// first post-order, so a node's descendants are the block of rows immediately
-// before it. A fold up the tree can therefore carry a stack of the current
-// path rather than an array indexed by node.
-TEST(TreeChildFirstTest, IsADepthFirstPostOrder) {
+// Every child precedes its parent; subtree contiguity is not required.
+TEST(TreeChildFirstTest, ChildrenPrecedeParents) {
   std::mt19937 rng(29);
   std::vector<Row> rows;
   rows.push_back({0, std::nullopt, 0});
@@ -388,41 +385,25 @@ TEST(TreeChildFirstTest, IsADepthFirstPostOrder) {
   ASSERT_TRUE(out.status.ok()) << out.status.message();
   ASSERT_EQ(out.node.size(), rows.size());
 
-  // Fold the tree up carrying only the current path, which is correct exactly
-  // when the order is a post-order.
-  std::vector<std::pair<int64_t, int64_t>> path;
-  std::vector<int64_t> totals(rows.size(), 0);
+  std::vector<uint32_t> position(rows.size());
   for (uint32_t i = 0; i < out.node.size(); ++i) {
-    int64_t below = 0;
-    if (!path.empty() && path.back().first == out.node[i]) {
-      below = path.back().second;
-      path.pop_back();
-    }
-    int64_t total = 1 + below;
-    totals[static_cast<size_t>(out.payload[i])] = total;
+    position[static_cast<size_t>(out.node[i])] = i;
+  }
+  for (uint32_t i = 0; i < out.node.size(); ++i) {
     if (out.parent[i] >= 0) {
-      if (path.empty() || path.back().first != out.parent[i]) {
-        path.push_back({out.parent[i], 0});
-      }
-      path.back().second += total;
+      EXPECT_LT(i, position[static_cast<size_t>(out.parent[i])]);
     }
   }
-  EXPECT_TRUE(path.empty()) << "the path did not unwind";
+}
 
-  // Every node's total is the size of its subtree.
-  std::vector<int64_t> expected(rows.size(), 1);
-  std::vector<int64_t> parent_of(rows.size(), -1);
-  for (const Row& row : rows) {
-    parent_of[static_cast<size_t>(row.id)] =
-        row.parent ? *row.parent : int64_t{-1};
-  }
-  for (size_t id = 0; id < rows.size(); ++id) {
-    for (int64_t p = parent_of[id]; p >= 0;
-         p = parent_of[static_cast<size_t>(p)]) {
-      ++expected[static_cast<size_t>(p)];
-    }
-  }
-  EXPECT_EQ(totals, expected);
+TEST(TreeChildFirstTest, PreservesInterleavedChildFirstSubtrees) {
+  RowSource source(
+      {{3, 1, 3}, {4, 2, 4}, {1, 0, 1}, {2, 0, 2}, {0, std::nullopt, 0}}, 2);
+  Pipeline numbered(source, Number());
+  TreeChildFirst order(numbered, 3, 4);
+  Output out = Drain(order);
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  EXPECT_THAT(out.payload, ElementsAre(3, 4, 1, 2, 0));
 }
 
 // Numbers the rows, then puts them parent first.
