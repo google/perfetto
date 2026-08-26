@@ -69,6 +69,141 @@ TEST(StraceLineParserTest, PidPrefixFromDashF) {
   EXPECT_EQ(line->syscall, "read");
 }
 
+TEST(StraceLineParserTest, BracketedPidPrefix) {
+  // Writing to stderr (the default, and what a piped capture records)
+  // strace prints the pid as a right-aligned "[pid  1234]" prefix rather
+  // than the bare "1234 " form it uses with -o/-ff.
+  auto line = ParseStraceLine(
+                  R"([pid  1234] 1700000000.000000 read(3, "abc", 1024) = 3)")
+                  .line;
+  ASSERT_TRUE(line.has_value());
+  ASSERT_TRUE(line->pid.has_value());
+  EXPECT_EQ(*line->pid, 1234u);
+  EXPECT_EQ(line->syscall, "read");
+  EXPECT_EQ(line->args, R"(3, "abc", 1024)");
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "3");
+}
+
+TEST(StraceLineParserTest, BracketedPidPrefixOnResumedLine) {
+  auto line =
+      ParseStraceLine(
+          R"([pid    75] 1700000000.000500 <... execve resumed>) = 0 <0.000328>)")
+          .line;
+  ASSERT_TRUE(line.has_value());
+  ASSERT_TRUE(line->pid.has_value());
+  EXPECT_EQ(*line->pid, 75u);
+  EXPECT_EQ(line->syscall, "execve");
+  EXPECT_EQ(line->kind, StraceEventKind::kResumed);
+}
+
+TEST(StraceLineParserTest, BracketedPidPrefixOnNonSyscallLine) {
+  // Exit banners and signal deliveries carry the same pid prefix when
+  // following processes. They are still not syscall lines, and must not be
+  // mistaken for one (nor reported as a timestamp-format problem).
+  auto exited =
+      ParseStraceLine("[pid    75] 1700000000.000000 +++ exited with 0 +++");
+  EXPECT_FALSE(exited.line.has_value());
+  EXPECT_FALSE(exited.unsupported_timestamp_format);
+
+  auto signalled = ParseStraceLine(
+      "[pid    75] 1700000000.000000 --- SIGCHLD {si_signo=SIGCHLD} ---");
+  EXPECT_FALSE(signalled.line.has_value());
+  EXPECT_FALSE(signalled.unsupported_timestamp_format);
+}
+
+TEST(StraceLineParserTest, RejectsMalformedBracketedPid) {
+  EXPECT_FALSE(ParseStraceLine(R"([pid  abc] 1700000000.000000 read(3) = 3)")
+                   .line.has_value());
+  EXPECT_FALSE(ParseStraceLine(R"([pid  12 1700000000.000000 read(3) = 3)")
+                   .line.has_value());
+}
+
+TEST(StraceLineParserTest, StraceOwnDiagnosticLine) {
+  // strace interleaves its own messages with the trace. These are not
+  // syscall lines, and in particular the ':' in "strace:" must not make
+  // them look like `-t`/`-tt` output: that would raise a spurious
+  // "re-run with -ttt" error on a trace collected exactly as documented.
+  for (const char* diagnostic :
+       {"strace: Process 75 attached", "strace: Process 75 detached",
+        "strace: [ Process PID=75 runs in 32 bit mode. ]"}) {
+    auto result = ParseStraceLine(diagnostic);
+    EXPECT_FALSE(result.line.has_value()) << diagnostic;
+    EXPECT_FALSE(result.unsupported_timestamp_format) << diagnostic;
+  }
+}
+
+TEST(StraceLineParserTest, SyscallDurationFromDashT) {
+  auto line =
+      ParseStraceLine(
+          R"(1700000000.000000 clock_nanosleep(CLOCK_REALTIME, 0, {tv_sec=1}, NULL) = 0 <1.004879>)")
+          .line;
+  ASSERT_TRUE(line.has_value());
+  ASSERT_TRUE(line->duration_ns.has_value());
+  EXPECT_EQ(*line->duration_ns, 1004879000);
+  // The suffix belongs to the duration, not to the return value.
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "0");
+}
+
+TEST(StraceLineParserTest, SyscallDurationScalesByDigitCount) {
+  // Six digits is strace's default; `--syscall-times=ns` prints nine. The
+  // fraction is scaled by how many digits are actually there, so neither is
+  // silently off by a factor of 1000.
+  auto us =
+      ParseStraceLine(R"(1700000000.000000 close(3) = 0 <0.000123>)").line;
+  ASSERT_TRUE(us.has_value());
+  ASSERT_TRUE(us->duration_ns.has_value());
+  EXPECT_EQ(*us->duration_ns, 123000);
+
+  auto ns =
+      ParseStraceLine(R"(1700000000.000000 close(3) = 0 <0.000004321>)").line;
+  ASSERT_TRUE(ns.has_value());
+  ASSERT_TRUE(ns->duration_ns.has_value());
+  EXPECT_EQ(*ns->duration_ns, 4321);
+}
+
+TEST(StraceLineParserTest, DurationOnErrorReturnValue) {
+  auto line =
+      ParseStraceLine(
+          R"(1700000000.000000 wait4(-1, 0x0, WNOHANG, NULL) = -1 ECHILD (No child processes) <0.000027>)")
+          .line;
+  ASSERT_TRUE(line.has_value());
+  ASSERT_TRUE(line->duration_ns.has_value());
+  EXPECT_EQ(*line->duration_ns, 27000);
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "-1 ECHILD (No child processes)");
+}
+
+TEST(StraceLineParserTest, NoDurationWithoutDashT) {
+  auto line = ParseStraceLine(R"(1700000000.000000 close(3) = 0)").line;
+  ASSERT_TRUE(line.has_value());
+  EXPECT_FALSE(line->duration_ns.has_value());
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "0");
+}
+
+TEST(StraceLineParserTest, MalformedDurationStaysInReturnValue) {
+  // Anything that isn't a well-formed duration is left alone rather than
+  // silently dropped from the return value.
+  auto line =
+      ParseStraceLine(R"(1700000000.000000 fcntl(3, F_GETFL) = 0 <x>)").line;
+  ASSERT_TRUE(line.has_value());
+  EXPECT_FALSE(line->duration_ns.has_value());
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "0 <x>");
+}
+
+TEST(StraceLineParserTest, UnfinishedCallHasNoDuration) {
+  auto line =
+      ParseStraceLine(
+          R"([pid    74] 1700000000.000000 wait4(-1,  <unfinished ...>)")
+          .line;
+  ASSERT_TRUE(line.has_value());
+  EXPECT_EQ(line->kind, StraceEventKind::kUnfinished);
+  EXPECT_FALSE(line->duration_ns.has_value());
+}
+
 TEST(StraceLineParserTest, RejectsNegativeTimestampAfterPidPrefix) {
   // The leading '-' guard in ParseStraceLine only inspects the first
   // character of the whole line (to reject "--- SIGCHLD ... ---"), which is
@@ -177,6 +312,32 @@ TEST(StraceLineParserTest, ReturnValueContainingParens) {
   EXPECT_EQ(*line->return_value, "-1 ECONNREFUSED (Connection refused)");
 }
 
+TEST(StraceLineParserTest, ArgumentContainingClosingParenAndEquals) {
+  // wait4 prints its status through macros, so the argument list itself
+  // contains ") ==". Anchoring the return value on the first ")" followed
+  // by "=" would cut the line in the middle of the arguments.
+  auto line =
+      ParseStraceLine(
+          R"(1700000000.000000 wait4(-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 75)")
+          .line;
+  ASSERT_TRUE(line.has_value());
+  EXPECT_EQ(line->args, "-1, [{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL");
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "75");
+}
+
+TEST(StraceLineParserTest, StringArgumentContainingParenEquals) {
+  auto line = ParseStraceLine(
+                  R"(1700000000.000000 write(1, "x) = y", 6) = 6 <0.000004>)")
+                  .line;
+  ASSERT_TRUE(line.has_value());
+  EXPECT_EQ(line->args, R"(1, "x) = y", 6)");
+  ASSERT_TRUE(line->return_value.has_value());
+  EXPECT_EQ(*line->return_value, "6");
+  ASSERT_TRUE(line->duration_ns.has_value());
+  EXPECT_EQ(*line->duration_ns, 4000);
+}
+
 TEST(StraceLineParserTest, ReturnValueColumnAlignedWithSpaces) {
   // strace right-aligns the '=' column across a trace with padding spaces
   // (so short calls like "close(2)" don't need to match the width of the
@@ -231,6 +392,22 @@ TEST(StraceLineParserTest, NonSyscallLineIsNotUnsupportedTimestampFormat) {
   // syscall line) must not be misclassified as the timestamp-format case.
   EXPECT_FALSE(ParseStraceLine(R"(--- SIGCHLD {si_signo=SIGCHLD} ---)")
                    .unsupported_timestamp_format);
+}
+
+TEST(StraceLineParserTest, IsStraceFormatTraceSkipsLeadingDiagnostics) {
+  // `strace -f -p <pid>` opens with an "attached" diagnostic rather than a
+  // syscall line; the trace is still strace output.
+  std::string trace =
+      "strace: Process 1234 attached\n"
+      "[pid  1234] 1700000000.000000 read(3, \"abc\", 1024) = 3 <0.000012>\n";
+  EXPECT_TRUE(IsStraceFormatTrace(
+      reinterpret_cast<const uint8_t*>(trace.data()), trace.size()));
+
+  // Skipping diagnostics must not turn an unrelated format into strace.
+  std::string not_strace =
+      "strace: Process 1234 attached\n{\"traceEvents\": []}";
+  EXPECT_FALSE(IsStraceFormatTrace(
+      reinterpret_cast<const uint8_t*>(not_strace.data()), not_strace.size()));
 }
 
 TEST(StraceLineParserTest, IsStraceFormatTraceSniffing) {
