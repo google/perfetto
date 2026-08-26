@@ -68,7 +68,7 @@ std::optional<SymbolId> CommonOrigin(
       return std::nullopt;
     }
     for (const ColumnOrigin& origin : column.origins) {
-      if (!(origin.relation == first)) {
+      if (origin.relation != first) {
         return std::nullopt;
       }
     }
@@ -361,7 +361,7 @@ base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::SelectStmt(
       continue;
     }
 
-    std::string_view alias;
+    std::string_view alias = "";
     if (const SyntaqliteNode* a = Node(p, column.alias)) {
       alias = Text(p, a->ident_name.source);
     }

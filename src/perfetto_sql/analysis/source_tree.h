@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 
+#include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/analysis/program.h"
 
 namespace perfetto::perfetto_sql::analysis {
@@ -39,7 +40,7 @@ class SourceTreeAnalyzer {
   // module path occurs in more than one tree.
   void AddTree(std::string root);
 
-  Program Analyze();
+  base::StatusOr<Program> Analyze();
 
  private:
   class Impl;

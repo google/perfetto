@@ -37,14 +37,14 @@ struct PendingReference {
 struct PendingSymbol {
   std::string name;
   SymbolKind kind;
-  ModuleId module;
+  ModuleId module_id;
   std::vector<PendingReference> references;
 };
 
 struct PendingModule {
   std::string name;
   std::string path;
-  std::vector<SymbolId> symbols;
+  std::vector<SymbolId> symbol_ids;
   std::vector<std::string> declared_includes;
   std::vector<std::string> diagnostics;
 };
@@ -84,7 +84,7 @@ class Program::Storage {
       Module module;
       module.name = strings_.Append(pending.name);
       module.path = strings_.Append(pending.path);
-      module.symbols = pending.symbols;
+      module.symbol_ids = pending.symbol_ids;
       module.declared_includes.reserve(pending.declared_includes.size());
       for (const std::string& include : pending.declared_includes) {
         module.declared_includes.push_back(strings_.Append(include));
@@ -102,7 +102,7 @@ class Program::Storage {
       Symbol symbol;
       symbol.name = strings_.Append(pending.name);
       symbol.kind = pending.kind;
-      symbol.module = pending.module;
+      symbol.module_id = pending.module_id;
       SymbolId id{static_cast<uint32_t>(symbols_.size())};
       if (!symbol_by_name_.Find(std::string(symbol.name))) {
         symbol_by_name_.Insert(std::string(symbol.name), id);
@@ -120,7 +120,7 @@ class Program::Storage {
               {strings_.Append(reference.name), reference.kind});
           continue;
         }
-        if (symbols_[target->value].module == symbol.module) {
+        if (symbols_[target->value].module_id == symbol.module_id) {
           continue;
         }
         symbol.references.push_back({*target, reference.kind});
@@ -216,19 +216,19 @@ void ProgramBuilder::AddDiagnostic(ModuleId id, std::string message) {
   impl_->modules[id.value].diagnostics.push_back(std::move(message));
 }
 
-SymbolId ProgramBuilder::AddSymbol(ModuleId module,
+SymbolId ProgramBuilder::AddSymbol(ModuleId module_id,
                                    std::string name,
                                    SymbolKind kind) {
   SymbolId id{static_cast<uint32_t>(impl_->symbols.size())};
-  impl_->symbols.push_back({std::move(name), kind, module, {}});
-  impl_->modules[module.value].symbols.push_back(id);
+  impl_->symbols.push_back({std::move(name), kind, module_id, {}});
+  impl_->modules[module_id.value].symbol_ids.push_back(id);
   return id;
 }
 
-void ProgramBuilder::AddReference(SymbolId symbol,
+void ProgramBuilder::AddReference(SymbolId symbol_id,
                                   std::string referenced_name,
                                   ReferenceKind kind) {
-  impl_->symbols[symbol.value].references.push_back(
+  impl_->symbols[symbol_id.value].references.push_back(
       {std::move(referenced_name), kind});
 }
 

@@ -42,7 +42,7 @@ TEST(ProgramTest, OwnsNamesAndResolvesReferences) {
 
   const Symbol& view = program.symbol(SymbolId{1});
   ASSERT_THAT(view.references, testing::SizeIs(1));
-  EXPECT_EQ(view.references.front().symbol, SymbolId{0});
+  EXPECT_EQ(view.references.front().symbol_id, SymbolId{0});
   EXPECT_EQ(view.references.front().kind, ReferenceKind::kRelation);
   ASSERT_THAT(view.unresolved_references, testing::SizeIs(1));
   EXPECT_EQ(view.unresolved_references.front().name, "external_fn");

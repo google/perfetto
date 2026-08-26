@@ -28,6 +28,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/intrinsic_macro_expansion.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
@@ -486,12 +487,10 @@ void SourceTreeAnalyzer::AddTree(std::string root) {
   impl_->tree_roots.push_back(std::move(root));
 }
 
-Program SourceTreeAnalyzer::Analyze() {
+base::StatusOr<Program> SourceTreeAnalyzer::Analyze() {
   std::vector<DiscoveredFile> files;
   for (const std::string& root : impl_->tree_roots) {
-    auto st = DiscoverTree(root, files);
-    PERFETTO_DCHECK(st.ok());
-    (void)st;
+    RETURN_IF_ERROR(DiscoverTree(root, files));
   }
   std::sort(files.begin(), files.end(),
             [](const DiscoveredFile& a, const DiscoveredFile& b) {

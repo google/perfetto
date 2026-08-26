@@ -36,16 +36,27 @@ TEST(SourceTreeAnalyzerTest, BuildsCrossModuleGraph) {
 
   SourceTreeAnalyzer analyzer;
   analyzer.AddTree(tree.path());
-  Program program = analyzer.Analyze();
+  base::StatusOr<Program> program = analyzer.Analyze();
 
-  ASSERT_THAT(program.modules(), testing::SizeIs(2));
-  std::optional<SymbolId> output = program.FindSymbol("output_view");
+  ASSERT_TRUE(program.ok()) << program.status().c_message();
+  ASSERT_THAT(program->modules(), testing::SizeIs(2));
+  std::optional<SymbolId> output = program->FindSymbol("output_view");
   ASSERT_TRUE(output.has_value());
-  const Symbol& symbol = program.symbol(*output);
+  const Symbol& symbol = program->symbol(*output);
   ASSERT_THAT(symbol.references, testing::SizeIs(1));
-  EXPECT_EQ(program.symbol(symbol.references.front().symbol).name,
+  EXPECT_EQ(program->symbol(symbol.references.front().symbol_id).name,
             "input_table");
   EXPECT_TRUE(symbol.unresolved_references.empty());
+}
+
+TEST(SourceTreeAnalyzerTest, ReportsTreeDiscoveryFailure) {
+  base::TmpDirTree tree;
+  SourceTreeAnalyzer analyzer;
+  analyzer.AddTree(tree.path() + "/missing");
+
+  base::StatusOr<Program> program = analyzer.Analyze();
+
+  EXPECT_FALSE(program.ok());
 }
 
 }  // namespace

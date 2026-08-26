@@ -119,8 +119,8 @@ SymbolRefsByModule UsesByModule(const analysis::Program& program,
                                 bool prelude) {
   SymbolRefsByModule out;
   for (const analysis::SymbolReference& reference : symbol.references) {
-    const analysis::Symbol& target = program.symbol(reference.symbol);
-    std::string_view module = program.module(target.module).name;
+    const analysis::Symbol& target = program.symbol(reference.symbol_id);
+    std::string_view module = program.module(target.module_id).name;
     if (IsPrelude(module) != prelude) {
       continue;
     }
@@ -138,11 +138,11 @@ SymbolRefsByModule UsesByModule(const analysis::Program& program,
 std::vector<std::string_view> MissingIncludes(const analysis::Program& program,
                                               const analysis::Module& module) {
   std::vector<std::string_view> touched;
-  for (analysis::SymbolId symbol_id : module.symbols) {
+  for (analysis::SymbolId symbol_id : module.symbol_ids) {
     for (const analysis::SymbolReference& reference :
          program.symbol(symbol_id).references) {
       std::string_view target_module =
-          program.module(program.symbol(reference.symbol).module).name;
+          program.module(program.symbol(reference.symbol_id).module_id).name;
       if (IsPrelude(target_module)) {
         continue;
       }
@@ -203,7 +203,7 @@ std::string EmitLineageJson(const analysis::Program& program) {
             mod.AddArray("declared_includes",
                          write_strings(m.declared_includes));
             mod.AddArray("symbols", [&](json::JsonArraySerializer& syms) {
-              for (analysis::SymbolId symbol_id : m.symbols) {
+              for (analysis::SymbolId symbol_id : m.symbol_ids) {
                 const analysis::Symbol& s = program.symbol(symbol_id);
                 SymbolRefsByModule uses =
                     UsesByModule(program, s, /*prelude=*/false);
@@ -319,7 +319,12 @@ int RunLineage(int argc, char** argv) {
     for (const auto& p : tree_paths)
       analyzer.AddTree(p);
   }
-  std::string s = EmitLineageJson(analyzer.Analyze());
+  base::StatusOr<analysis::Program> program = analyzer.Analyze();
+  if (!program.ok()) {
+    fprintf(stderr, "pfsql lineage: %s\n", program.status().c_message());
+    return 1;
+  }
+  std::string s = EmitLineageJson(*program);
   fwrite(s.data(), 1, s.size(), stdout);
   return 0;
 }

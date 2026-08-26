@@ -30,12 +30,14 @@ struct ModuleId {
   uint32_t value;
 
   bool operator==(ModuleId other) const { return value == other.value; }
+  bool operator!=(ModuleId other) const { return value != other.value; }
 };
 
 struct SymbolId {
   uint32_t value;
 
   bool operator==(SymbolId other) const { return value == other.value; }
+  bool operator!=(SymbolId other) const { return value != other.value; }
 };
 
 enum class SymbolKind {
@@ -54,7 +56,7 @@ enum class ReferenceKind {
 const char* SymbolKindName(SymbolKind);
 
 struct SymbolReference {
-  SymbolId symbol;
+  SymbolId symbol_id;
   ReferenceKind kind;
 };
 
@@ -66,7 +68,7 @@ struct UnresolvedReference {
 struct Symbol {
   std::string_view name;
   SymbolKind kind;
-  ModuleId module;
+  ModuleId module_id;
   std::vector<SymbolReference> references;
   std::vector<UnresolvedReference> unresolved_references;
 };
@@ -74,7 +76,7 @@ struct Symbol {
 struct Module {
   std::string_view name;
   std::string_view path;
-  std::vector<SymbolId> symbols;
+  std::vector<SymbolId> symbol_ids;
   std::vector<std::string_view> declared_includes;
   std::vector<std::string_view> diagnostics;
 };
