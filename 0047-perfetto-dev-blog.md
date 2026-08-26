@@ -10,6 +10,8 @@ This proposes adding `/blog` to perfetto.dev: a chronological, statically
 generated blog whose posts live on a dedicated `blog` git branch, rendered by
 the existing `infra/perfetto.dev` pipeline.
 
+**Live demo**: https://perfetto-blog-demo.surge.sh/blog/ (I'm still working on some details)
+
 ## Problem
 
 Perfetto has no place to publish prose. We have reference documentation and we
