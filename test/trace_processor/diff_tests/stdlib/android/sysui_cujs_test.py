@@ -77,10 +77,10 @@ class SystemUICujs(TestSuite):
         out=Csv("""
         "process_name","cuj_slice_name","cuj_name","ts","ts_end","dur","state","begin_vsync","end_vsync","cuj_type"
         "com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",27000000,65000000,38000000,"completed",20,30,"jank"
-        "com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",85000000,89000000,4000000,"completed",60,70,"jank"
-        "com.google.android.apps.nexuslauncher","J<CUJ_NAME>","CUJ_NAME",121000000,143000000,22000000,"completed",80,90,"jank"
         "com.android.systemui","L<IGNORED_CUJ_1>","IGNORED_CUJ_1",150000000,155000000,5000000,"completed","[NULL]","[NULL]","latency"
+        "com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",85000000,89000000,4000000,"completed",60,70,"jank"
         "com.android.systemui","L<IGNORED_CUJ_2>","IGNORED_CUJ_2",156000000,160000000,4000000,"completed","[NULL]","[NULL]","latency"
+        "com.google.android.apps.nexuslauncher","J<CUJ_NAME>","CUJ_NAME",121000000,143000000,22000000,"completed",80,90,"jank"
         """))
 
   def test_android_sysui_latency_cujs_state(self):
