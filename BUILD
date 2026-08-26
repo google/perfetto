@@ -309,9 +309,9 @@ perfetto_cc_binary(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
+        ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
-        ":src_tools_pfsql_lineage_resolver",
         ":src_trace_processor_util_json_parser",
         ":src_trace_processor_util_json_serializer",
         ":src_trace_processor_util_json_value",
@@ -2152,6 +2152,20 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/perfetto_sql/analysis:analysis
+perfetto_filegroup(
+    name = "src_perfetto_sql_analysis_analysis",
+    srcs = [
+        "src/perfetto_sql/analysis/program.cc",
+        "src/perfetto_sql/analysis/program.h",
+        "src/perfetto_sql/analysis/relation.cc",
+        "src/perfetto_sql/analysis/relation.h",
+        "src/perfetto_sql/analysis/source_tree.cc",
+        "src/perfetto_sql/analysis/source_tree.h",
+        "src/perfetto_sql/analysis/string_arena.h",
+    ],
+)
+
 # GN target: //src/perfetto_sql/syntaqlite:syntaqlite
 perfetto_filegroup(
     name = "src_perfetto_sql_syntaqlite_syntaqlite",
@@ -2418,15 +2432,6 @@ perfetto_filegroup(
         "src/shared_lib/stream_writer.h",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
-    ],
-)
-
-# GN target: //src/tools/pfsql:lineage_resolver
-perfetto_filegroup(
-    name = "src_tools_pfsql_lineage_resolver",
-    srcs = [
-        "src/tools/pfsql/lineage_resolver.cc",
-        "src/tools/pfsql/lineage_resolver.h",
     ],
 )
 
