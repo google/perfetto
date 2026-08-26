@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  isDebuggableAndroidBuild,
-  parseAndroidBuildVariant,
-} from './utils';
-
+import {isDebuggableAndroidBuild, parseAndroidBuildVariant} from './utils';
 
 describe('parseAndroidBuildVariant', () => {
   it('identifies userdebug build from standard fingerprint', () => {
@@ -101,4 +97,3 @@ describe('isDebuggableAndroidBuild', () => {
     expect(isDebuggableAndroidBuild('')).toBe(false);
   });
 });
-

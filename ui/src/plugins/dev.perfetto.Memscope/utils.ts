@@ -104,4 +104,3 @@ export function isDebuggableAndroidBuild(fingerprint?: string): boolean {
   const variant = parseAndroidBuildVariant(fingerprint);
   return variant === 'userdebug' || variant === 'eng';
 }
-
