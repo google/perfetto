@@ -183,6 +183,29 @@ class TraceBlobViewReader {
     return PopFrontUntil(start_offset() + bytes);
   }
 
+  // Returns a pointer to |length| contiguous bytes starting at |offset|, or
+  // nullptr if they are not entirely contained in the first buffered chunk.
+  //
+  // Unlike SliceOff() this does not create a TraceBlobView, so it does not
+  // touch the refcount of the underlying blob. Intended for readers which
+  // decode many small scalars and do not need to retain the data.
+  PERFETTO_ALWAYS_INLINE const uint8_t* ContiguousAt(size_t offset,
+                                                     size_t length) const {
+    if (PERFETTO_UNLIKELY(data_.empty())) {
+      return nullptr;
+    }
+    const Entry& entry = data_.front();
+    if (PERFETTO_UNLIKELY(offset < entry.start_offset)) {
+      return nullptr;
+    }
+    size_t rel_off = offset - entry.start_offset;
+    size_t size = entry.data.size();
+    if (PERFETTO_UNLIKELY(rel_off > size || length > size - rel_off)) {
+      return nullptr;
+    }
+    return entry.data.data() + rel_off;
+  }
+
   // Creates a TraceBlobView by slicing this reader starting at |offset| and
   // spanning |length| bytes.
   //
