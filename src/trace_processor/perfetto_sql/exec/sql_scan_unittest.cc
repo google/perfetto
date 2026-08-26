@@ -27,12 +27,17 @@
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/exec/tree_number_nodes.h"
+#include "src/trace_processor/core/exec/tree_order.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
@@ -328,6 +333,67 @@ TEST_F(SqlScanTest, AQueryReachesARowCursor) {
     values.push_back(cursor.Value<Variant>(0).AsInt64());
   }
   EXPECT_THAT(values, testing::ElementsAre(5, 6, 7));
+}
+
+// The whole pipeline: a query, its columns asserted to be integers, put into a
+// tree order and folded up the tree.
+TEST_F(SqlScanTest, AQueryReachesTheTreeOperators) {
+  Exec(
+      "CREATE TABLE t AS "
+      "SELECT 0 AS id, NULL AS parent_id, 10 AS self "
+      "UNION ALL SELECT 1, 0, 20 "
+      "UNION ALL SELECT 2, 0, 30 "
+      "UNION ALL SELECT 3, 1, 40");
+  auto scan = Scan("SELECT id, parent_id, self FROM t ORDER BY id");
+  ASSERT_TRUE(scan.ok()) << scan.status().c_message();
+
+  std::vector<std::unique_ptr<core::exec::Operator>> ops;
+  ops.push_back(std::make_unique<core::exec::AssertType>(
+      0, core::exec::AssertTypeTarget{core::Int64{}}, "id"));
+  ops.push_back(std::make_unique<core::exec::AssertType>(
+      1, core::exec::AssertTypeTarget{core::Int64{}}, "parent_id"));
+  ops.push_back(std::make_unique<core::exec::AssertType>(
+      2, core::exec::AssertTypeTarget{core::Int64{}}, "self"));
+  ops.push_back(std::make_unique<core::exec::TreeNumberNodes>(0, 1));
+  core::exec::Pipeline typed(**scan, std::move(ops));
+  core::exec::TreeChildFirst order(typed, 3, 4);
+  core::exec::AccumulateSpec spec{3, 4, 2};
+  std::vector<std::unique_ptr<core::exec::Operator>> folds;
+  folds.push_back(std::make_unique<core::exec::TreeAccumulateUp>(spec));
+  core::exec::Pipeline folded(order, std::move(folds));
+
+  std::unique_ptr<core::exec::OperatorState> state = folded.MakeState();
+  RowBatch batch;
+  std::vector<int64_t> totals(4, 0);
+  while (folded.GetData(batch, *state)) {
+    std::vector<int64_t> ids = core::exec::test::ReadColumn<int64_t>(batch, 0);
+    std::vector<int64_t> values =
+        core::exec::test::ReadColumn<int64_t>(batch, 5);
+    for (uint32_t row = 0; row < batch.size(); ++row) {
+      totals[static_cast<size_t>(ids[row])] = values[row];
+    }
+  }
+  ASSERT_TRUE(folded.status(*state).ok()) << folded.status(*state).message();
+  EXPECT_THAT(totals, testing::ElementsAre(100, 60, 30, 40));
+}
+
+// A column which is not the type claimed for it fails the pipeline.
+TEST_F(SqlScanTest, AColumnWhichIsNotWhatWasAssertedIsReported) {
+  Exec("CREATE TABLE t(i INTEGER)");
+  Exec("INSERT INTO t VALUES(1), ('not a number')");
+  auto scan = Scan("SELECT i FROM t");
+  ASSERT_TRUE(scan.ok()) << scan.status().c_message();
+
+  std::vector<std::unique_ptr<core::exec::Operator>> ops;
+  ops.push_back(std::make_unique<core::exec::AssertType>(
+      0, core::exec::AssertTypeTarget{core::Int64{}}, "i"));
+  core::exec::Pipeline typed(**scan, std::move(ops));
+
+  Execution run(typed);
+  while (run.Next()) {
+  }
+  EXPECT_FALSE(run.status().ok());
+  EXPECT_THAT(run.status().message(), testing::HasSubstr("'i'"));
 }
 
 // A column which can be traced back to a dataframe needs neither a variant nor

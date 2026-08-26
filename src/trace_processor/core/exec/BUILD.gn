@@ -37,6 +37,8 @@ source_set("exec") {
     "row_selection.h",
     "row_store.cc",
     "row_store.h",
+    "tree_accumulate.cc",
+    "tree_accumulate.h",
     "tree_number_nodes.cc",
     "tree_number_nodes.h",
     "variant.h",
@@ -70,6 +72,7 @@ perfetto_unittest_source_set("unittests") {
     "operator_unittest.cc",
     "row_batch_unittest.cc",
     "row_store_unittest.cc",
+    "tree_accumulate_unittest.cc",
     "tree_number_nodes_unittest.cc",
     "variant_unittest.cc",
   ]

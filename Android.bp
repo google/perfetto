@@ -17774,6 +17774,7 @@ filegroup {
         "src/trace_processor/core/exec/row_batch.cc",
         "src/trace_processor/core/exec/row_cursor.cc",
         "src/trace_processor/core/exec/row_store.cc",
+        "src/trace_processor/core/exec/tree_accumulate.cc",
         "src/trace_processor/core/exec/tree_number_nodes.cc",
     ],
 }
@@ -17793,6 +17794,7 @@ filegroup {
         "src/trace_processor/core/exec/operator_unittest.cc",
         "src/trace_processor/core/exec/row_batch_unittest.cc",
         "src/trace_processor/core/exec/row_store_unittest.cc",
+        "src/trace_processor/core/exec/tree_accumulate_unittest.cc",
         "src/trace_processor/core/exec/tree_number_nodes_unittest.cc",
         "src/trace_processor/core/exec/variant_unittest.cc",
     ],
