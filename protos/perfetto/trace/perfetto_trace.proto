@@ -18477,6 +18477,10 @@ message TracePacket {
   // removed AndroidCameraSessionStats android_camera_session_stats
   reserved 80, 81;
 
+  // 136 and 137 were accidentally allocated in downstream Google internal
+  // protos.
+  reserved 136, 137;
+
   // Android out-of-tree extensions. These payloads are defined in the Android
   // tree and mirrored under protos/third_party/android/; each hole keeps its
   // original field number for wire compatibility. Per schema:
