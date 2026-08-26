@@ -65,7 +65,7 @@ const MEMMAP_LIGHTEN: Record<string, string> = {
 const MEMMAP_BLOCK_INFO: Record<string, string> = {
   'File-backed':
     'Memory backed by files on disk: code (.so/.oat), fonts and resources. ' +
-    'Mostly clean — the kernel can drop and re-read it under pressure.',
+    'Mostly clean - the kernel can drop and re-read it under pressure.',
   'Anonymous':
     'Memory not backed by any file: heaps and runtime allocations. This is ' +
     'what your process truly costs; it can only be reclaimed by swapping.',
@@ -79,14 +79,14 @@ const MEMMAP_BLOCK_INFO: Record<string, string> = {
     'Native allocator arenas (scudo / jemalloc / libc malloc / GWP-ASan) ' +
     'and the legacy [heap]. What malloc() costs you in resident memory.',
   'Java':
-    'Dalvik/ART managed heap and runtime spaces — everything the Java ' +
+    'Dalvik/ART managed heap and runtime spaces - everything the Java ' +
     'garbage collector manages.',
   'Thread stacks': 'Stack memory for every live thread in the process.',
   'Other anon':
     'Anonymous memory not attributable to a specific allocator: plain ' +
     'mmap() regions, untagged buffers, IPC shared memory.',
   'Native libs (.so)':
-    'Shared libraries (.so) mapped into the process — code and read-only ' +
+    'Shared libraries (.so) mapped into the process - code and read-only ' +
     'data, mostly clean and shared between processes.',
   'Java code (.jar/.oat)':
     'Compiled and bytecode Java artifacts (.jar/.oat/.odex/.vdex/.art) ' +
@@ -101,7 +101,7 @@ const MEMMAP_BLOCK_INFO: Record<string, string> = {
     'Native resident memory the profiler could not attribute: allocator ' +
     'metadata, fragmentation and allocations that predate the trace.',
   'Reachable':
-    'Java heap still reachable from GC roots at the nearest heap dump — live ' +
+    'Java heap still reachable from GC roots at the nearest heap dump - live ' +
     'objects the collector cannot free.',
   'Unreachable / other':
     'Managed heap not accounted for as reachable at the nearest dump: ' +
@@ -294,7 +294,7 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
               },
               comparing && baseIdx !== undefined
                 ? `Diffing snapshot #${baseIdx + 1} → #${selIdx + 1}`
-                : `Snapshot #${selIdx + 1} — t=${snap.x.toFixed(0)}s`,
+                : `Snapshot #${selIdx + 1} - t=${snap.x.toFixed(0)}s`,
             ),
             m(
               'span.pf-memscope-memmap__section-hint',

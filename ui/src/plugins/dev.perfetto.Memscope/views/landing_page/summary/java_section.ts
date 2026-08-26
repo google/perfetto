@@ -49,7 +49,7 @@ import {BillboardStrip} from '../../../components/billboard';
 
 const TITLE = 'How much Java memory did you use, and where did it go?';
 const SUBTITLE =
-  'From the full heap graph — complete and exact, with retention but no ' +
+  'From the full heap graph - complete and exact, with retention but no ' +
   'callstacks.';
 
 // Per-class aggregation row at a dump. All sizes/counts are reachable-only (see
@@ -555,7 +555,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
         m('b', shortClassName(topRetainer.typeName)),
         ' retains ',
         m('b', formatBytes(retained)),
-        ' — ',
+        ' - ',
         m(
           'b',
           `${Math.round((retained / reachableTotal) * 100)}% of the ` +
@@ -614,7 +614,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
         withDelta(
           c.reachableNativeSizeBytes > 0
             ? formatBytes(c.reachableNativeSizeBytes)
-            : '—',
+            : '-',
           b !== undefined
             ? c.reachableNativeSizeBytes - b.reachableNativeSizeBytes
             : undefined,

@@ -318,7 +318,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         m(
           '.pf-memscope-snapshot-info__overrun',
           m('span.material-icons', 'warning'),
-          'Exceeds interval — increase snapshot rate',
+          'Exceeds interval - increase snapshot rate',
         ),
     );
   }

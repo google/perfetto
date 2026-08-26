@@ -51,7 +51,7 @@ import {BillboardStrip} from '../../../components/billboard';
 
 const TITLE = 'What about bitmaps?';
 const SUBTITLE =
-  'Usually the largest and most reducible cost on Android — pulled out on ' +
+  'Usually the largest and most reducible cost on Android - pulled out on ' +
   'their own.';
 
 // One reachable-bitmap group at the latest dump: (dimensions, storage backing)
@@ -376,7 +376,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
           retainerNote,
         ]
       : [
-          'This trace format does not record bitmap dimensions — only ' +
+          'This trace format does not record bitmap dimensions - only ' +
             'counts and sizes are available.',
         ];
 

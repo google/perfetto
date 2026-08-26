@@ -304,7 +304,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
           {label: 'Swap', get: (r) => r.swap},
         ];
 
-    const fmtCell = (n: number) => (n > 0 ? formatBytes(n) : '—');
+    const fmtCell = (n: number) => (n > 0 ? formatBytes(n) : '-');
     const numCells = (r: SmapsPathRow) =>
       cols.map((c) => m('td.pf-memscope-table__num', fmtCell(c.get(r))));
     const sumCells = (list: SmapsPathRow[]) =>

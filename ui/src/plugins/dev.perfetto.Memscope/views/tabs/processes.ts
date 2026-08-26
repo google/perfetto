@@ -65,7 +65,7 @@ function sparkline(
   height = 16,
 ): m.Children {
   if (values.length < 2) {
-    return m('span.pf-memscope-sparkline-empty', '—');
+    return m('span.pf-memscope-sparkline-empty', '-');
   }
   let min = values[0];
   let max = values[0];

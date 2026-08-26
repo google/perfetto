@@ -41,7 +41,7 @@ import {BillboardStrip} from '../../../components/billboard';
 
 const TITLE = 'How much native memory did you use, and where did it go?';
 const SUBTITLE =
-  "Aggregated by allocation callstack — the clearest signal when it's " +
+  "Aggregated by allocation callstack - the clearest signal when it's " +
   'available.';
 
 // One top-unreleased heapprofd callsite with its app-only frame chain
@@ -399,7 +399,7 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
             {intent: Intent.Warning},
             'The native profiler only sees allocations made ',
             m('b', 'after'),
-            " tracing started — it can't explain the past. Leaks present " +
+            " tracing started - it can't explain the past. Leaks present " +
               'before t=0 are invisible here; trust the composition totals ' +
               'above for the full resident picture.',
           ),
