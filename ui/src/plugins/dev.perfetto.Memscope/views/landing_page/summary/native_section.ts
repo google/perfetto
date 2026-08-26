@@ -366,11 +366,7 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       m(
         '.pf-memscope-stack',
         stackSnippet(s.frames).map((f) =>
-          m(
-            '.pf-memscope-stack__frame',
-            {title: f},
-            f.length > 60 ? `${f.slice(0, 58)}…` : f,
-          ),
+          m('.pf-memscope-stack__frame', {title: f}, f),
         ),
       ),
       formatBytes(s.unreleased),
