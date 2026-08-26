@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/type_set.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
@@ -32,7 +33,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
@@ -46,7 +46,7 @@ struct BeginBound {};
 struct EndBound {};
 
 // Which bounds should be modified by a range operation.
-using BoundModifier = TypeSet<BothBounds, BeginBound, EndBound>;
+using BoundModifier = base::TypeSet<BothBounds, BeginBound, EndBound>;
 
 // Represents a filter operation where we are performing an equality operation
 // on a sorted column.
@@ -62,7 +62,7 @@ struct UpperBound {};
 
 // Set of operations that can be applied to a sorted column.
 using EqualRangeLowerBoundUpperBound =
-    TypeSet<EqualRange, LowerBound, UpperBound>;
+    base::TypeSet<EqualRange, LowerBound, UpperBound>;
 
 // Type tag indicating nulls should be placed at the start during
 // partitioning/sorting.
@@ -73,7 +73,7 @@ struct NullsAtStart {};
 struct NullsAtEnd {};
 
 // TypeSet defining the possible placement locations for nulls.
-using NullsLocation = TypeSet<NullsAtStart, NullsAtEnd>;
+using NullsLocation = base::TypeSet<NullsAtStart, NullsAtEnd>;
 
 // Type tag for finding the minimum value.
 struct MinOp {};
@@ -82,11 +82,12 @@ struct MinOp {};
 struct MaxOp {};
 
 // TypeSet combining Min and Max operations.
-using MinMaxOp = TypeSet<MinOp, MaxOp>;
+using MinMaxOp = base::TypeSet<MinOp, MaxOp>;
 
 // TypeSet which collapses all of the sparse nullability types into a single
 // type.
-using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
+using SparseNullCollapsedNullability =
+    base::TypeSet<NonNull, SparseNull, DenseNull>;
 
 // Handle for referring to a filter value during query execution.
 struct FilterValueHandle {

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_TYPE_SET_H_
-#define SRC_TRACE_PROCESSOR_CORE_UTIL_TYPE_SET_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_TYPE_SET_H_
+#define INCLUDE_PERFETTO_EXT_BASE_TYPE_SET_H_
 
 #include <array>
 #include <cstddef>
@@ -28,7 +28,7 @@
 
 #include "perfetto/base/logging.h"
 
-namespace perfetto::trace_processor::core {
+namespace perfetto::base {
 
 // TypeSet: memory-efficient type hierarchy system with explicit ownership.
 //
@@ -112,6 +112,17 @@ class TypeSet {
   template <typename OtherTypeSet>
   OtherTypeSet Upcast() const {
     return UpcastImpl(static_cast<OtherTypeSet*>(nullptr));
+  }
+
+  // Converts to a TypeSet whose types correspond one to one, by position, to
+  // this one's. The caller is responsible for that correspondence: nothing
+  // here can check that the types at each index mean the same thing, so pin
+  // the pairing with static_asserts at the call site.
+  template <typename OtherTypeSet>
+  OtherTypeSet MapByIndex() const {
+    static_assert(OtherTypeSet::kSize == kSize,
+                  "Both TypeSets must have the same number of types");
+    return OtherTypeSet(type_idx_);
   }
 
   // Attempts to convert to a more specific TypeSet.
@@ -231,6 +242,6 @@ class TypeSet {
   uint32_t type_idx_;
 };
 
-}  // namespace perfetto::trace_processor::core
+}  // namespace perfetto::base
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_UTIL_TYPE_SET_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_TYPE_SET_H_

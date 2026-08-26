@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/type_set.h"
 
 struct SyntaqliteParser;
 
@@ -36,10 +37,26 @@ struct SqlNode {
   uint32_t id;
 };
 
+// How a leaf relation column is stored, as declared by the catalog. Mirrors
+// the storage vocabulary of the engine behind the catalog without depending
+// on it.
+struct Id {};
+struct Uint32 {};
+struct Int32 {};
+struct Int64 {};
+struct Double {};
+struct String {};
+using ColumnType = base::TypeSet<Id, Uint32, Int32, Int64, Double, String>;
+
 // A leaf relation whose columns can be used as lineage origins.
+struct LeafColumn {
+  std::string_view name;
+  // Nothing when the catalog does not know how the column is stored.
+  std::optional<ColumnType> type;
+};
 struct LeafRelation {
   std::string_view name;
-  std::vector<std::string_view> columns;
+  std::vector<LeafColumn> columns;
 };
 
 // Supplies the schema objects referenced by parsed queries. Returned leaf
@@ -57,7 +74,10 @@ class Catalog {
 struct ColumnOrigin {
   std::string_view relation_name;
   std::string_view column_name;
+  std::optional<ColumnType> type;
 
+  // Two origins naming the same column always store it the same way, so the
+  // type does not participate.
   bool operator==(const ColumnOrigin& other) const {
     return relation_name == other.relation_name &&
            column_name == other.column_name;
@@ -69,6 +89,10 @@ struct ColumnLineage {
   // Empty when the expression cannot be traced to a known leaf column. USING
   // columns and compound queries can have more than one origin.
   std::vector<ColumnOrigin> origins;
+
+  // The type every origin agrees on, or nothing when the column has no
+  // origins, an origin is untyped, or the origins disagree.
+  std::optional<ColumnType> type() const;
 };
 
 // The lineage of a query result considered as a relation. All strings are

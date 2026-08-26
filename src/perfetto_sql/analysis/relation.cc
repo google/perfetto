@@ -439,8 +439,9 @@ base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::Relation(
   if (std::optional<LeafRelation> relation = catalog_.FindLeafRelation(name)) {
     std::vector<ColumnLineage> out;
     out.reserve(relation->columns.size());
-    for (std::string_view column : relation->columns) {
-      out.push_back({column, {{relation->name, column}}});
+    for (const LeafColumn& column : relation->columns) {
+      out.push_back(
+          {column.name, {{relation->name, column.name, column.type}}});
     }
     return out;
   }
@@ -513,6 +514,17 @@ base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::Relation(
 }
 
 Catalog::~Catalog() = default;
+
+std::optional<ColumnType> ColumnLineage::type() const {
+  std::optional<ColumnType> result;
+  for (const ColumnOrigin& origin : origins) {
+    if (!origin.type || (result && !(*result == *origin.type))) {
+      return std::nullopt;
+    }
+    result = origin.type;
+  }
+  return result;
+}
 
 RelationLineage::RelationLineage(std::unique_ptr<Storage> storage)
     : storage_(std::move(storage)) {}

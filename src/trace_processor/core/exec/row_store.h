@@ -23,6 +23,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
@@ -73,24 +74,20 @@ class RowStore {
   // Drops all the rows but keeps the allocated chunks.
   void Clear();
 
-  // kChunkRows rows of one column. Defined in the .cc and opaque here: it is
-  // public only so file-local helpers there can name it.
-  struct Chunk;
-
  private:
   struct Column {
     StorageType type{Uint32{}};
     bool variant = false;
     bool nullable = false;
-    std::vector<std::unique_ptr<Chunk>> chunks;
+    std::vector<std::unique_ptr<ColumnChunk>> chunks;
     // Where a gathered view puts the values it picks out.
-    std::unique_ptr<Chunk> gathered;
+    std::unique_ptr<ColumnChunk> gathered;
   };
 
   base::Status ValidateColumn(const Column&, const ColumnView&) const;
   void AppendColumn(Column&, const ColumnView&, uint32_t count);
-  ColumnView ViewOf(const Column&, const Chunk&) const;
-  Chunk& ChunkAt(Column&, uint32_t index) const;
+  ColumnView ViewOf(const Column&, const ColumnChunk&) const;
+  ColumnChunk& ChunkAt(Column&, uint32_t index) const;
 
   std::vector<Column> columns_;
   bool initialized_ = false;
