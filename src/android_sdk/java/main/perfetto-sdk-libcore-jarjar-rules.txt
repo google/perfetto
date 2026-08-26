@@ -1,0 +1,2 @@
+rule dev.perfetto.sdk.** dalvik.system.dev.perfetto.sdk.@1
+zap com.google.errorprone.annotations.**

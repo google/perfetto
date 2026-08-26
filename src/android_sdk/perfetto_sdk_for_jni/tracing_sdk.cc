@@ -15,7 +15,6 @@
  */
 
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
-
 #include <sys/types.h>
 
 #include <cstdarg>

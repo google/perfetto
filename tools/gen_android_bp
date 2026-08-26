@@ -371,6 +371,8 @@ additional_args = {
         }),
     ],
     'libperfetto_c': [
+        ('apex_available',
+         {'//apex_available:platform', '//apex_available:anyapex'}),
         ('min_sdk_version', '30'),
         ('export_include_dirs', {'include'}),
         # Exports the SDK ABI symbols from the .so (see
@@ -434,8 +436,16 @@ additional_args = {
         # Framework should use 'perfetto_trace_lib_framework_java' instead.
         ('visibility', {':__subpackages__'}),
     ],
-    # Framework should use 'libperfetto_framework_jni' instead.
-    'libperfetto_jni': [('visibility', {':__subpackages__'}),],
+    'libperfetto_framework_jni': [
+        ('apex_available',
+         {'//apex_available:platform', '//apex_available:anyapex'}),
+        ('min_sdk_version', '31'),
+    ],
+    'libperfetto_jni': [
+        ('apex_available',
+         {'//apex_available:platform', '//apex_available:anyapex'}),
+        ('min_sdk_version', '31'),
+    ],
 }
 
 
