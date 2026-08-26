@@ -22,6 +22,7 @@ import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {createAdbTracingSession} from '../../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
 import type {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
 import type {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
+import {isDebuggableAndroidBuild} from '../utils';
 import type {ConnectionResult} from '../views/connection';
 import {download} from '../../../base/download_utils';
 import {ProfileSession, type ProfileState} from './profile_session';
@@ -712,9 +713,9 @@ async function extractSnapshotData(
     });
   }
 
-  // Check if device is userdebug.
+  // Check if device is userdebug / eng.
   const buildRow = buildResult.maybeFirstRow({fingerprint: STR});
-  const isUserDebug = buildRow?.fingerprint?.includes('userdebug') ?? false;
+  const isUserDebug = isDebuggableAndroidBuild(buildRow?.fingerprint);
 
   return {
     data: {
