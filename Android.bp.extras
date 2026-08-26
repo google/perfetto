@@ -389,3 +389,11 @@ filegroup {
         "python/tools/cpp_blob_emitter.py",
     ],
 }
+
+filegroup {
+    name: "perfetto_sdk_libcore_jarjar_rules",
+    srcs: ["src/android_sdk/java/main/perfetto-sdk-libcore-jarjar-rules.txt"],
+    visibility: [
+        "//libcore:__subpackages__",
+    ],
+}

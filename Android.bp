@@ -1069,6 +1069,10 @@ cc_library {
         "-DPERFETTO_SDK_SHLIB_IMPLEMENTATION",
         "-DZLIB_IMPLEMENTATION",
     ],
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+    ],
     min_sdk_version: "30",
     target: {
         android: {
@@ -1414,6 +1418,11 @@ cc_library_shared {
     header_libs: [
         "jni_headers",
     ],
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+    ],
+    min_sdk_version: "apex_inherit",
     target: {
         android: {
             shared_libs: [
@@ -1475,6 +1484,45 @@ cc_library_shared {
     ],
     header_libs: [
         "jni_headers",
+    ],
+}
+
+// GN: //src/android_sdk/jni:libperfetto_libcore_jni
+cc_library_static {
+    name: "libperfetto_libcore_jni",
+    srcs: [
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_abi_public",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protos_protos",
+        ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_include_perfetto_public_public",
+        ":perfetto_src_android_sdk_jni_libperfetto_libcore_jni_src",
+        ":perfetto_src_android_sdk_nativehelper_nativehelper",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+    ],
+    shared_libs: [
+        "libperfetto_c",
+    ],
+    host_supported: true,
+    defaults: [
+        "perfetto_defaults",
+    ],
+    cflags: [
+        "-DPERFETTO_JNI_ART_STATIC_INTEGRATION",
+        "-DPERFETTO_JNI_JARJAR_PREFIX=dalvik/system/",
+    ],
+    header_libs: [
+        "jni_headers",
+    ],
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+    ],
+    min_sdk_version: "apex_inherit",
+    visibility: [
+        "//libcore:__subpackages__",
     ],
 }
 
@@ -15799,6 +15847,16 @@ filegroup {
     ],
 }
 
+// GN: //src/android_sdk/jni:libperfetto_libcore_jni_src
+filegroup {
+    name: "perfetto_src_android_sdk_jni_libperfetto_libcore_jni_src",
+    srcs: [
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
+    ],
+}
+
 // GN: //src/android_sdk/nativehelper:nativehelper
 filegroup {
     name: "perfetto_src_android_sdk_nativehelper_nativehelper",
@@ -23284,6 +23342,22 @@ java_defaults {
     },
 }
 
+// GN: //src/android_sdk/java/main:perfetto_trace_lib
+filegroup {
+    name: "perfetto_trace_lib_libcore_java",
+    srcs: [
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeLibrary.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+    ],
+    visibility: [
+        "//libcore:__subpackages__",
+    ],
+}
+
 // GN: //protos/perfetto/trace:perfetto_trace_protos
 cc_library_static {
     name: "perfetto_trace_protos",
@@ -27264,5 +27338,13 @@ filegroup {
     name: "perfetto_cpp_blob_emitter",
     srcs: [
         "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+filegroup {
+    name: "perfetto_sdk_libcore_jarjar_rules",
+    srcs: ["src/android_sdk/java/main/perfetto-sdk-libcore-jarjar-rules.txt"],
+    visibility: [
+        "//libcore:__subpackages__",
     ],
 }
