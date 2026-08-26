@@ -15,7 +15,10 @@
  */
 
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
+#include <algorithm>
 #include <cinttypes>
+#include "perfetto/ext/base/endian.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto::trace_processor::art_hprof {
@@ -88,15 +91,18 @@ void HeapGraphBuilder::PushBlob(TraceBlobView&& blob) {
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
   resolver_ = std::make_unique<HeapGraphResolver>(
-      context_, header_, objects_, classes_, roots_, string_class_id_, stats_);
+      context_, header_, objects_, classes_, roots_, class_fields_,
+      string_class_id_, stats_);
   resolver_->ResolveGraph();
 
   stats_.Write(context_);
   HeapGraph graph(header_.GetTimestamp());
 
+  graph.SetIdSize(header_.GetIdSize());
   graph.SetStrings(std::move(strings_));
   graph.SetClasses(std::move(classes_));
   graph.SetObjects(std::move(objects_));
+  graph.SetClassFields(std::move(class_fields_));
 
   return graph;
 }
@@ -106,8 +112,9 @@ void HeapGraphBuilder::Clear() {
   classes_.Clear();
   objects_.Clear();
   roots_.Clear();
+  class_fields_.Clear();
   resolver_.reset();
-  current_heap_.clear();
+  current_heap_ = StringId::Null();
 }
 
 bool HeapGraphBuilder::ParseHeader() {
@@ -435,7 +442,6 @@ bool HeapGraphBuilder::ParseClassStructure() {
   Object& class_obj = objects_[class_id];
   if (class_obj.GetId() == 0) {
     class_obj = Object(class_id, class_id, current_heap_, ObjectType::kClass);
-    class_obj.SetHeapType(current_heap_);
   }
 
   uint16_t static_field_count;
@@ -452,14 +458,14 @@ bool HeapGraphBuilder::ParseClassStructure() {
       return false;
 
     FieldType field_type = static_cast<FieldType>(type_value);
-    std::string field_name = LookupString(name_id);
+    StringId field_name = LookupStringId(name_id);
 
     switch (field_type) {
       case FieldType::kObject: {
         uint64_t target_id = 0;
         if (!iterator_->ReadId(target_id, header_.GetIdSize()))
           return false;
-        class_obj.AddPendingReference(field_name, std::nullopt, target_id);
+        class_obj.AddPendingReference(field_name, target_id);
         Field field(field_name, field_type, target_id);
         class_obj.AddField(std::move(field));
         break;
@@ -539,8 +545,8 @@ bool HeapGraphBuilder::ParseClassStructure() {
     if (!iterator_->ReadU1(type_value))
       return false;
 
-    std::string field_name = LookupString(name_id);
-    fields.emplace_back(field_name, static_cast<FieldType>(type_value));
+    fields.emplace_back(LookupStringId(name_id),
+                        static_cast<FieldType>(type_value));
   }
 
   cls->SetInstanceFields(std::move(fields));
@@ -568,8 +574,8 @@ bool HeapGraphBuilder::ParseInstanceObject() {
     return false;
   }
 
-  std::vector<uint8_t> data;
-  if (!iterator_->ReadBytes(data, data_length)) {
+  TraceBlobView data;
+  if (!iterator_->ReadView(data, data_length)) {
     return false;
   }
 
@@ -586,7 +592,6 @@ bool HeapGraphBuilder::ParseInstanceObject() {
   // Overwrite or create object
   Object obj(object_id, class_id, current_heap_, ObjectType::kInstance);
   obj.SetRawData(std::move(data));
-  obj.SetHeapType(current_heap_);
 
   if (was_root && root_type.has_value()) {
     obj.SetRootType(root_type.value());
@@ -618,28 +623,56 @@ bool HeapGraphBuilder::ParseObjectArrayObject() {
     return false;
   }
 
-  // Read elements
-  std::vector<uint64_t> elements;
-  elements.reserve(element_count);
-
-  for (uint32_t i = 0; i < element_count; i++) {
-    uint64_t element_id;
-    if (!iterator_->ReadId(element_id, header_.GetIdSize())) {
-      return false;
-    }
-    elements.push_back(element_id);
+  // The element ids are read straight out of the trace when references are
+  // resolved; no copy is made here.
+  TraceBlobView elements;
+  if (!iterator_->ReadView(
+          elements, static_cast<size_t>(element_count) * header_.GetIdSize())) {
+    return false;
   }
 
   Object obj{array_id, array_class_id, current_heap_, ObjectType::kObjectArray};
-  obj.SetArrayElements(std::move(elements));
+  obj.SetRawData(std::move(elements));
+  obj.SetArrayElementCount(element_count);
   obj.SetArrayElementType(FieldType::kObject);
-  obj.SetHeapType(current_heap_);
 
   objects_[array_id] = std::move(obj);
   stats_.object_array_count++;
 
   return true;
 }
+
+namespace {
+
+// HPROF stores array elements big endian; convert to native endianness in
+// place so the buffer can be handed to the storage as-is.
+template <typename T, typename Conv>
+void ConvertElements(uint8_t* data, size_t element_count, Conv conv) {
+  for (size_t i = 0; i < element_count; ++i) {
+    T value;
+    memcpy(&value, data + i * sizeof(T), sizeof(T));
+    value = conv(value);
+    memcpy(data + i * sizeof(T), &value, sizeof(T));
+  }
+}
+
+void ToNativeEndian(uint8_t* data, size_t element_count, size_t element_size) {
+  switch (element_size) {
+    case 2:
+      ConvertElements<uint16_t>(data, element_count, base::BE16ToHost);
+      break;
+    case 4:
+      ConvertElements<uint32_t>(data, element_count, base::BE32ToHost);
+      break;
+    case 8:
+      ConvertElements<uint64_t>(data, element_count, base::BE64ToHost);
+      break;
+    default:
+      break;
+  }
+}
+
+}  // namespace
 
 bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
   uint64_t array_id;
@@ -665,31 +698,45 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
 
   size_t type_size = GetFieldTypeSize(element_type, header_.GetIdSize());
 
-  size_t data_length = static_cast<size_t>(element_count) * type_size;
-  std::vector<uint8_t> data;
-  if (!iterator_->ReadBytes(data, data_length)) {
-    return false;
-  }
-
   uint64_t class_id = 0;
   size_t element_type_index = static_cast<size_t>(element_type);
   if (element_type_index >= prim_array_class_ids_.size()) {
     context_->stats_tracker->IncrementStats(
         stats::hprof_primitive_array_parsing_errors);
     return false;
-  } else {
-    class_id = prim_array_class_ids_[element_type_index];
-    if (class_id == 0) {
-      context_->stats_tracker->IncrementStats(
-          stats::hprof_primitive_array_parsing_errors);
-      return false;
-    }
+  }
+  class_id = prim_array_class_ids_[element_type_index];
+  if (class_id == 0) {
+    context_->stats_tracker->IncrementStats(
+        stats::hprof_primitive_array_parsing_errors);
+    return false;
   }
 
+  size_t data_length = static_cast<size_t>(element_count) * type_size;
+
   Object obj{array_id, class_id, current_heap_, ObjectType::kPrimitiveArray};
-  obj.SetRawData(std::move(data));
   obj.SetArrayElementType(element_type);
-  obj.SetHeapType(current_heap_);
+  obj.SetArrayDataBytes(static_cast<uint32_t>(data_length));
+
+  if (data_length > 0) {
+    // Array payloads are handed to the storage and live for as long as the
+    // trace is loaded, so they get an exactly sized buffer of their own: a
+    // view would pin the whole trace chunk it points into, however small the
+    // array is.
+    TraceBlob blob = TraceBlob::Allocate(data_length);
+    if (!iterator_->ReadInto(blob.data(), data_length)) {
+      return false;
+    }
+    if (element_type == FieldType::kBoolean) {
+      // Normalise to 0/1 to match the values exposed for boolean arrays.
+      for (size_t i = 0; i < data_length; ++i) {
+        blob.data()[i] = blob.data()[i] != 0 ? 1 : 0;
+      }
+    } else {
+      ToNativeEndian(blob.data(), element_count, type_size);
+    }
+    obj.SetArrayData(TraceBlobView(std::move(blob)), element_count);
+  }
 
   objects_[array_id] = std::move(obj);
   stats_.primitive_array_count++;
@@ -708,8 +755,17 @@ bool HeapGraphBuilder::ParseHeapName() {
     return false;
   }
 
-  current_heap_ = LookupString(name_string_id);
+  current_heap_ = LookupStringId(name_string_id);
   return true;
+}
+
+StringId HeapGraphBuilder::LookupStringId(uint64_t id) const {
+  auto it = strings_.Find(id);
+  if (!it) {
+    return context_->storage->InternString(
+        "[unknown string ID: " + std::to_string(id) + "]");
+  }
+  return *it;
 }
 
 std::string HeapGraphBuilder::LookupString(uint64_t id) const {

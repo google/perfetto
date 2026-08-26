@@ -1130,7 +1130,8 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
         C(
             'object_data_id',
             CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            flags=ColumnFlag.DENSE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
     ],
     tabledoc=TableDoc(
