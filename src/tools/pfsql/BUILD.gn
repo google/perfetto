@@ -17,30 +17,14 @@ import("../../../gn/perfetto_host_executable.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-# Offline PerfettoSQL source analysis. This library is private to pfsql and is
-# not linked into Trace Processor.
-source_set("lineage_resolver") {
-  sources = [
-    "lineage_resolver.cc",
-    "lineage_resolver.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-    "../../perfetto_sql:intrinsic_macro_expansion",
-    "../../perfetto_sql/syntaqlite",
-  ]
-  assert_no_deps = [ "../../trace_processor/*" ]
-}
-
 # Standalone offline CLI for working with PerfettoSQL source files. It does not
 # load traces and is not part of trace_processor_shell.
 perfetto_host_executable("pfsql") {
   sources = [ "main.cc" ]
   deps = [
-    ":lineage_resolver",
     "../../../gn:default_deps",
     "../../base",
+    "../../perfetto_sql/analysis",
     "../../trace_processor/util:json_value",
     "../../trace_processor/util:simple_json_serializer",
   ]

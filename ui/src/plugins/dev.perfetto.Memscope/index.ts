@@ -132,7 +132,7 @@ export default class implements PerfettoPlugin {
     const result = await trace.engine.query(`
       SELECT
         EXISTS(SELECT 1 FROM profiler_smaps) AS hasSmapsSnapshots,
-        EXISTS(SELECT 1 FROM heap_graph_object) AS hasHeapDumps
+        EXISTS(SELECT 1 FROM heap_graph) AS hasHeapDumps
     `);
     const row = result.firstRow({
       hasSmapsSnapshots: NUM,

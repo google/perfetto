@@ -34,8 +34,11 @@ interface PostedTrace {
   // The hash of the app state to load from GCS after the trace is loaded
   appStateHash?: string;
 
-  // if |localOnly| is true then the trace should not be shared or downloaded.
-  localOnly?: boolean;
+  // Whether the UI may share the trace externally (e.g. upload it to GCS
+  // as a permalink) and/or download it to disk. Both default to false:
+  // traces pushed via postMessage are local-only unless the sender opts in.
+  shareable?: boolean;
+  downloadable?: boolean;
   keepApiOpen?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
@@ -54,6 +57,12 @@ interface PostedTrace {
 // pure ArrayBuffer, so model that here. sanitizePostedTrace() normalizes it.
 interface RawPostedTrace extends Omit<PostedTrace, 'buffer'> {
   buffer: ArrayBuffer | ArrayBufferView;
+
+  // Legacy field: senders that predate the shareable/downloadable split may
+  // still pass |localOnly|. localOnly: false opts into both sharing and
+  // downloading; anything else (or absent) keeps the trace local-only.
+  // Translated in sanitizePostedTrace().
+  localOnly?: boolean;
 }
 
 interface PostedTraceWrapped {
@@ -138,9 +147,10 @@ export function parsePostedTrace(
   } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
     return {
       title: 'External trace',
-      // A bare buffer gives the sender no way to opt into sharing, so default
-      // to local-only (matching the wrapped path).
-      localOnly: true,
+      // A bare buffer gives the sender no way to opt into sharing or
+      // downloading, so both default to false (matching the wrapped path).
+      shareable: false,
+      downloadable: false,
       buffer: toArrayBuffer(data),
     };
   } else {
@@ -320,6 +330,10 @@ export function postMessageHandler(messageEvent: MessageEvent) {
 }
 
 function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
+  // Translate the legacy |localOnly| field. Absent localOnly defaults to true
+  // (local-only); localOnly: false opts into both sharing and downloading.
+  // Explicit shareable/downloadable fields win over the legacy field.
+  const localOnly = postedTrace.localOnly ?? true;
   const result: PostedTrace = {
     title: sanitizeString(postedTrace.title),
     // Senders routinely pass a view (e.g. Uint8Array) despite the static type;
@@ -328,7 +342,8 @@ function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
     keepApiOpen: postedTrace.keepApiOpen,
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace, unless the caller allows it.
-    localOnly: postedTrace.localOnly ?? true,
+    shareable: postedTrace.shareable ?? !localOnly,
+    downloadable: postedTrace.downloadable ?? !localOnly,
     appStateHash: postedTrace.appStateHash,
     pluginArgs: postedTrace.pluginArgs,
   };
