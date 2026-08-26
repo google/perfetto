@@ -62,14 +62,13 @@ export interface HeapDump {
 export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
   const res = await engine.query(`
     SELECT
-      o.upid AS upid,
-      o.graph_sample_ts AS ts,
+      g.upid AS upid,
+      g.ts AS ts,
       coalesce(p.cmdline, p.name) AS pname,
       p.pid AS pid
-    FROM heap_graph_object o
+    FROM heap_graph g
     JOIN process p USING (upid)
-    GROUP BY o.upid, o.graph_sample_ts
-    ORDER BY o.graph_sample_ts ASC
+    ORDER BY g.ts ASC
   `);
   const result: HeapDump[] = [];
   for (
