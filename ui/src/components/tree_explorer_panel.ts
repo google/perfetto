@@ -21,6 +21,7 @@ import type {Trace} from '../public/trace';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {Flamegraph, buildFlamegraphExportString} from '../widgets/flamegraph';
+import type {ExportDownloadItem} from '../widgets/export_button';
 import {TreeExplorerFilterBar} from '../widgets/tree_explorer_filter_bar';
 import {TreeExplorerViewSwitcher} from '../widgets/tree_explorer_view_switcher';
 import {
@@ -62,6 +63,10 @@ export interface TreeExplorerPanelAttrs {
   // them to the inner `TreeExplorerFetcher`, which disposes them along with
   // itself on unmount or when the array reference changes.
   readonly dependencies?: ReadonlyArray<TreeExplorerFetcherDependency>;
+
+  // Host-provided downloads shown alongside the built-in exports of the
+  // displayed tree, for representations the panel cannot build itself.
+  readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
 }
 
 // The batteries-included tree explorer: owns a `TreeExplorerFetcher` (created
@@ -176,6 +181,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
             : displayMode === 'tree'
               ? 'call_tree'
               : 'flamegraph',
+        extraDownloadItems: attrs.extraDownloadItems,
       }),
       this.renderView(attrs, shownState, highlightRegex),
     );

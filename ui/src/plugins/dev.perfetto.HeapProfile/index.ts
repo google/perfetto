@@ -418,6 +418,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                         state;
                     });
                   },
+                  /* isAreaSelection= */ true,
                 );
         }
         // Hide the tab entirely when this selection has no flamegraph for this
