@@ -42,7 +42,7 @@ export default class implements PerfettoPlugin {
     });
 
     const res = await ctx.engine.query(
-      'SELECT count(*) AS cnt FROM heap_graph_object LIMIT 1',
+      'SELECT count(*) AS cnt FROM heap_graph LIMIT 1',
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 

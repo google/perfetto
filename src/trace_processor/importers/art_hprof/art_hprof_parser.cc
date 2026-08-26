@@ -86,6 +86,10 @@ base::Status ArtHprofParser::OnPushDataToSorter() {
   }
 
   int64_t ts = static_cast<int64_t>(graph.GetTimestamp());
+  tables::HeapGraphTable::Row heap_graph_row;
+  heap_graph_row.ts = ts;
+  heap_graph_row.upid = upid;
+  context_->storage->mutable_heap_graph_table()->Insert(heap_graph_row);
 
   PopulateClasses(graph);
   PopulateObjects(graph, ts, upid);

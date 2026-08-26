@@ -173,8 +173,8 @@ async function loadBitmapRetainer(
     const res = await trace.engine.query(`
       WITH RECURSIVE
       last_ts AS (
-        SELECT MAX(graph_sample_ts) AS ts
-        FROM heap_graph_object WHERE upid = ${upid}
+        SELECT MAX(ts) AS ts
+        FROM heap_graph WHERE upid = ${upid}
       ),
       ck AS (
         SELECT c.id,
