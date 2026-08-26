@@ -767,6 +767,121 @@ TEST(ProtoFileSerializerTest, EndToEndReservedFieldMerge) {
   EXPECT_THAT(out, HasSubstr("not present upstream"));
 }
 
+TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
+  struct ScopedUnlink {
+    std::string path;
+    ~ScopedUnlink() { base::Unlink(path.c_str()); }
+  };
+
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string input_path = temp_dir.path() + "/input.proto";
+  std::string upstream_path = temp_dir.path() + "/upstream.proto";
+  std::string merged_path = temp_dir.path() + "/merged.proto";
+
+  ScopedUnlink unlink_input{input_path};
+  ScopedUnlink unlink_upstream{upstream_path};
+  ScopedUnlink unlink_merged{merged_path};
+
+  std::string input_content = R"(
+    syntax = "proto3";
+    package perfetto.protos;
+
+    message SubMsg {
+      string name = 1;
+    }
+
+    message Container {
+      map<string, int32> simple_map = 1;
+      map<string, SubMsg> msg_map = 2;
+    }
+  )";
+
+  std::string upstream_content = R"(
+    syntax = "proto3";
+    package perfetto.protos;
+
+    message SubMsg {
+      string name = 1;
+    }
+
+    message Container {
+      map<string, int32> simple_map = 1;
+      map<string, SubMsg> msg_map = 2;
+      map<int64, string> new_map = 3;
+    }
+  )";
+
+  {
+    base::ScopedFile file(base::OpenFile(input_path, O_CREAT | O_WRONLY, 0600));
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(
+        base::WriteAll(*file, input_content.c_str(), input_content.size()));
+  }
+  {
+    base::ScopedFile file(
+        base::OpenFile(upstream_path, O_CREAT | O_WRONLY, 0600));
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(base::WriteAll(*file, upstream_content.c_str(),
+                               upstream_content.size()));
+  }
+
+  protozero::MultiFileErrorCollectorImpl mfe_input;
+  protozero::MultiFileErrorCollectorImpl mfe_upstream;
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  dst.MapPath("", ".");
+  dst.MapPath("", "buildtools/protobuf/src");
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe_input);
+  const auto* input_desc = importer_input.Import("input.proto");
+
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe_upstream);
+  const auto* upstream_desc = importer_upstream.Import("upstream.proto");
+
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(upstream_desc, nullptr);
+
+  Allowlist allowed;
+  const auto* container_desc =
+      upstream_desc->FindMessageTypeByName("Container");
+  ASSERT_NE(container_desc, nullptr);
+  ASSERT_TRUE(AllowlistFromFieldList(*container_desc,
+                                     {"simple_map", "msg_map", "new_map"},
+                                     allowed)
+                  .ok());
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  EXPECT_THAT(out, HasSubstr("map<string,int32> simple_map = 1;"));
+  EXPECT_THAT(out, HasSubstr("map<string,SubMsg> msg_map = 2;"));
+  EXPECT_THAT(out, HasSubstr("map<int64,string> new_map = 3;"));
+  EXPECT_THAT(out, Not(HasSubstr("repeated map")));
+  EXPECT_THAT(out, Not(HasSubstr("SimpleMapEntry")));
+  EXPECT_THAT(out, Not(HasSubstr("MsgMapEntry")));
+  EXPECT_THAT(out, Not(HasSubstr("NewMapEntry")));
+
+  // Verify the serialized proto can be parsed by protoc importer without error.
+  std::string full_proto =
+      "syntax = \"proto3\";\npackage perfetto.protos;\n" + out;
+  {
+    base::ScopedFile file(
+        base::OpenFile(merged_path, O_CREAT | O_WRONLY, 0600));
+    ASSERT_TRUE(file);
+    ASSERT_TRUE(base::WriteAll(*file, full_proto.c_str(), full_proto.size()));
+  }
+
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  const auto* merged_desc = importer_merged.Import("merged.proto");
+  EXPECT_NE(merged_desc, nullptr);
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto
