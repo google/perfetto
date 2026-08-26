@@ -20,11 +20,11 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/analysis/program.h"
 
 struct SyntaqliteParser;
 
@@ -38,33 +38,29 @@ struct SqlNode {
 
 // A leaf relation whose columns can be used as lineage origins.
 struct LeafRelation {
+  std::string_view name;
   std::vector<std::string_view> columns;
 };
 
-// A view definition already parsed by the caller.
-struct ViewDefinition {
-  SqlNode statement;
-};
-
-// Supplies the schema objects referenced by parsed queries. Returned strings
-// and parse trees only need to remain valid for the duration of an Analyze
-// call.
+// Supplies the schema objects referenced by parsed queries. Returned leaf
+// strings only need to remain valid for the duration of an Analyze call.
 class Catalog {
  public:
   virtual ~Catalog();
 
   virtual std::optional<LeafRelation> FindLeafRelation(
       std::string_view name) const = 0;
-  virtual std::optional<ViewDefinition> FindView(
+  virtual std::optional<std::string> FindViewSql(
       std::string_view name) const = 0;
 };
 
 struct ColumnOrigin {
-  SymbolId relation;
+  std::string_view relation_name;
   std::string_view column_name;
 
   bool operator==(const ColumnOrigin& other) const {
-    return relation == other.relation && column_name == other.column_name;
+    return relation_name == other.relation_name &&
+           column_name == other.column_name;
   }
 };
 
@@ -90,7 +86,7 @@ class RelationLineage {
 
   // The leaf relation whose rows map directly to the output rows, or nothing
   // when the query filters, joins, groups, limits or computes values.
-  std::optional<SymbolId> row_origin() const;
+  std::optional<std::string_view> row_origin() const;
 
  private:
   class Storage;
@@ -105,7 +101,7 @@ class RelationLineage {
 // Computes relation and column lineage over caller-owned parse trees.
 class RelationAnalyzer {
  public:
-  RelationAnalyzer(const Program&, const Catalog&);
+  explicit RelationAnalyzer(const Catalog&);
   ~RelationAnalyzer();
 
   RelationAnalyzer(const RelationAnalyzer&) = delete;

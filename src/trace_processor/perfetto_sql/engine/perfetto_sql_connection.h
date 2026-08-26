@@ -30,14 +30,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/plugin/plugin.h"
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
@@ -358,7 +357,7 @@ class PerfettoSqlConnection {
   }
 
   // Find dataframe registered with this connection with provided name.
-  const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
+  const dataframe::Dataframe* GetDataframeOrNull(std::string_view name) const;
 
   // Registers a function with the prototype |prototype| implemented by
   // executing the SQL statement |sql|.
