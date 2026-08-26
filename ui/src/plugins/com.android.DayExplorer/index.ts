@@ -215,31 +215,17 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
             ),
             descendants(track_id) AS (
               SELECT track_id FROM selected_roots
-              UNION ALL
+              UNION
               SELECT child.track_id
               FROM day_explorer_ui_hierarchy child
               JOIN descendants parent ON child.parent_id = parent.track_id
-            ),
-            ancestors(track_id, parent_id) AS (
-              SELECT track_id, parent_id 
-              FROM day_explorer_ui_hierarchy 
-              WHERE track_id IN (SELECT track_id FROM selected_roots)
-              UNION ALL
-              SELECT parent.track_id, parent.parent_id
-              FROM day_explorer_ui_hierarchy parent
-              JOIN ancestors child ON child.parent_id = parent.track_id
-            ),
-            all_nodes(track_id) AS (
-              SELECT track_id FROM descendants
-              UNION
-              SELECT track_id FROM ancestors
             ),
             total_energy AS (
               SELECT track_id, parent_id, display_name, SUM(energy_uws) AS energy_uws
               FROM day_explorer_ui_hierarchy_per_ts
               WHERE ts >= ${currentSelection.start}
                 AND ts <= ${currentSelection.end}
-                AND track_id IN (SELECT track_id FROM all_nodes)
+                AND track_id IN (SELECT track_id FROM descendants)
               GROUP BY 1, 2, 3
             ),
             with_child AS (
