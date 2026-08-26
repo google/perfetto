@@ -80,8 +80,7 @@ interface DumpStats {
   readonly reachableHeapSize: number;
   readonly reachableNativeSize: number;
   readonly reachableObjCount: number;
-  // MIN(heap_graph_object.id) for this dump — the HeapProfile track event id
-  // used to select the dump on the timeline.
+  // heap_graph.id, used to select the dump on the HeapProfile track.
   readonly eventId: number;
 }
 
@@ -111,14 +110,11 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
   await trace.engine.query(
     'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;',
   );
-  // MIN(object id) per dump — the HeapProfile track event id for that dump
-  // (mirrors how dev.perfetto.HeapProfile builds its timeline events).
   const eventIdByTs = new Map<bigint, number>();
   const eventRes = await trace.engine.query(`
-    SELECT graph_sample_ts AS ts, MIN(id) AS event_id
-    FROM heap_graph_object
+    SELECT ts, id AS event_id
+    FROM heap_graph
     WHERE upid = ${upid}
-    GROUP BY graph_sample_ts
   `);
   for (
     const it = eventRes.iter({ts: LONG, event_id: NUM});
@@ -275,8 +271,8 @@ async function loadRetainers(
     const res = await trace.engine.query(`
       WITH
       last_ts AS (
-        SELECT MAX(graph_sample_ts) AS ts
-        FROM heap_graph_object WHERE upid = ${upid}
+        SELECT MAX(ts) AS ts
+        FROM heap_graph WHERE upid = ${upid}
       ),
       ck AS (
         -- Classify by the *wrapped* name: a class object is named
