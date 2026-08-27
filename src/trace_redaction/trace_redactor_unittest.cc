@@ -225,9 +225,8 @@ TEST(TraceRedactorTest, EmptyTimelineReturnsError) {
 }
 
 TEST(TraceRedactorTest, SinglePassAppendsAugmentAtEnd) {
-  auto tmp_dir = base::TempDir::Create();
-  std::string input_file_path = tmp_dir.path() + "/input.pb";
-  std::string output_file_path = tmp_dir.path() + "/output.pb";
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
 
   protos::gen::Trace trace;
   {
@@ -246,11 +245,10 @@ TEST(TraceRedactorTest, SinglePassAppendsAugmentAtEnd) {
     packet->set_trusted_uid(1000);
   }
 
-  const auto input_fd =
-      base::OpenFile(input_file_path, O_RDWR | O_CREAT | O_TRUNC, 0666);
   std::string serialized = trace.SerializeAsString();
-  ASSERT_EQ(base::WriteAll(*input_fd, serialized.data(), serialized.size()),
-            static_cast<ssize_t>(serialized.size()));
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor redactor;
   redactor.emplace_collect<DummyCollect>();
@@ -259,10 +257,10 @@ TEST(TraceRedactorTest, SinglePassAppendsAugmentAtEnd) {
 
   Context context;
   context.package_uid = 1000;
-  ASSERT_OK(redactor.Redact(input_file_path, output_file_path, &context));
+  ASSERT_OK(redactor.Redact(input_file.path(), output_file.path(), &context));
 
   std::string output_content;
-  ASSERT_TRUE(base::ReadFile(output_file_path, &output_content));
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
 
   protos::pbzero::Trace::Decoder output_trace(output_content);
   std::vector<uint64_t> timestamps;
@@ -276,16 +274,11 @@ TEST(TraceRedactorTest, SinglePassAppendsAugmentAtEnd) {
   EXPECT_EQ(timestamps[0], 100u);
   EXPECT_EQ(timestamps[1], 300u);
   EXPECT_EQ(timestamps[2], 999u);
-
-  // Clean up temporary files
-  remove(input_file_path.c_str());
-  remove(output_file_path.c_str());
 }
 
 TEST(TraceRedactorTest, MultiPassPipelineExecution) {
-  auto tmp_dir = base::TempDir::Create();
-  std::string input_file_path = tmp_dir.path() + "/input.pb";
-  std::string output_file_path = tmp_dir.path() + "/output.pb";
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
 
   protos::gen::Trace trace;
   {
@@ -294,11 +287,10 @@ TEST(TraceRedactorTest, MultiPassPipelineExecution) {
     packet->set_trusted_uid(500);
   }
 
-  const auto input_fd =
-      base::OpenFile(input_file_path, O_RDWR | O_CREAT | O_TRUNC, 0666);
   std::string serialized = trace.SerializeAsString();
-  ASSERT_EQ(base::WriteAll(*input_fd, serialized.data(), serialized.size()),
-            static_cast<ssize_t>(serialized.size()));
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor redactor;
   auto* pass1 = redactor.add_pass();
@@ -310,10 +302,10 @@ TEST(TraceRedactorTest, MultiPassPipelineExecution) {
 
   Context context;
   context.package_uid = 500;
-  ASSERT_OK(redactor.Redact(input_file_path, output_file_path, &context));
+  ASSERT_OK(redactor.Redact(input_file.path(), output_file.path(), &context));
 
   std::string output_content;
-  ASSERT_TRUE(base::ReadFile(output_file_path, &output_content));
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
 
   protos::pbzero::Trace::Decoder output_trace(output_content);
   std::vector<uint64_t> timestamps;
@@ -328,16 +320,11 @@ TEST(TraceRedactorTest, MultiPassPipelineExecution) {
   EXPECT_EQ(timestamps[0], 10u);
   EXPECT_EQ(timestamps[1], 999u);
   EXPECT_EQ(timestamps[2], 999u);
-
-  // Clean up temporary files
-  remove(input_file_path.c_str());
-  remove(output_file_path.c_str());
 }
 
 TEST(TraceRedactorTest, ThreePassPipelineExecution) {
-  auto tmp_dir = base::TempDir::Create();
-  std::string input_file_path = tmp_dir.path() + "/input.pb";
-  std::string output_file_path = tmp_dir.path() + "/output.pb";
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
 
   protos::gen::Trace trace;
   {
@@ -351,11 +338,10 @@ TEST(TraceRedactorTest, ThreePassPipelineExecution) {
     packet->set_trusted_uid(999);  // Will be dropped by pass 2 transform
   }
 
-  const auto input_fd =
-      base::OpenFile(input_file_path, O_RDWR | O_CREAT | O_TRUNC, 0666);
   std::string serialized = trace.SerializeAsString();
-  ASSERT_EQ(base::WriteAll(*input_fd, serialized.data(), serialized.size()),
-            static_cast<ssize_t>(serialized.size()));
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor redactor;
 
@@ -375,10 +361,10 @@ TEST(TraceRedactorTest, ThreePassPipelineExecution) {
   pass3->emplace_augment<DummyAugmentTimestamp<300>>();
 
   Context context;
-  ASSERT_OK(redactor.Redact(input_file_path, output_file_path, &context));
+  ASSERT_OK(redactor.Redact(input_file.path(), output_file.path(), &context));
 
   std::string output_content;
-  ASSERT_TRUE(base::ReadFile(output_file_path, &output_content));
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
 
   protos::pbzero::Trace::Decoder output_trace(output_content);
   std::vector<uint64_t> timestamps;
@@ -398,10 +384,6 @@ TEST(TraceRedactorTest, ThreePassPipelineExecution) {
   EXPECT_EQ(timestamps[1], 100u);
   EXPECT_EQ(timestamps[2], 200u);
   EXPECT_EQ(timestamps[3], 300u);
-
-  // Clean up temporary files
-  remove(input_file_path.c_str());
-  remove(output_file_path.c_str());
 }
 
 }  // namespace perfetto::trace_redaction
