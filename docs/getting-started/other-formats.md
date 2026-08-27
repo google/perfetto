@@ -696,6 +696,145 @@ source directly.**
 - **Tracefs Documentation:**
   [The Tracefs Pseudo Filesystem (kernel.org)](https://www.kernel.org/doc/html/latest/trace/tracefs.html)
 
+## {#strace-format} Linux `strace` textual format
+
+**Description:** [`strace`](https://strace.io/) is the standard Linux tool for
+observing the system calls a process makes, which it does by attaching to the
+process with `ptrace`. Perfetto ingests the textual log strace writes, in the
+form produced by `strace -ttt -f`: one line per system call, carrying the pid
+of the calling thread, a Unix epoch timestamp, the system call name, its
+arguments, the return value and — when `-T` is used — the time spent inside
+the call.
+
+```
+66    1787745825.395990 execve("/usr/bin/sh", ["sh", "-c", "ls /usr/bin > /dev/null; sleep 0"...], 0xffffe3fb3ce0 /* 4 vars */) = 0 <0.003849>
+66    1787745825.527876 clone(child_stack=0xffffede25a00, flags=CLONE_VM|CLONE_VFORK|SIGCHLD <unfinished ...>
+67    1787745825.534500 execve("/usr/bin/ls", ["ls", "/usr/bin"], 0xaaaaf807e498 /* 4 vars */ <unfinished ...>
+66    1787745825.543303 <... clone resumed>) = 67 <0.014914>
+67    1787745825.550192 <... execve resumed>) = 0 <0.014576>
+66    1787745825.554319 wait4(-1,  <unfinished ...>
+67    1787745826.332621 exit_group(0)   = ?
+66    1787745826.348956 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 67 <0.794037>
+```
+
+When a call blocks, strace splits it across two lines — the `<unfinished ...>`
+above and the matching `<... wait4 resumed>` — so that the calls made by other
+threads in between stay in chronological order.
+
+**Common Scenarios:** This format is useful when:
+
+- You want to see *where* a process's wall-clock time goes inside the kernel:
+  which `read` blocked and for how long, how long a `futex` wait lasted, how
+  many `openat` calls a startup path makes — as a timeline rather than as
+  thousands of lines of text. The same question can be asked in SQL, for
+  example the calls a run spent the longest inside:
+
+  ```sql
+  select name, count(*) as calls, sum(dur) as total_dur
+  from slice
+  where category = 'strace'
+  group by name
+  order by total_dur desc
+  limit 10;
+  ```
+
+- Perfetto's own tracing is not available on the machine you are debugging — a
+  locked-down container, a customer's box, a distro without `tracefs` — but
+  `strace` is.
+- Someone has attached an strace log to a bug report and you would like to
+  analyse it rather than read it.
+- You want to follow system call behaviour across a whole process tree
+  captured with `strace -f`.
+
+**Perfetto Support:** strace logs are recognised by their content, so no
+particular file extension is required.
+
+- **Perfetto UI & Trace Processor:**
+  - Each completed system call becomes a slice on the thread track of the
+    thread that made it, with `slice.name` set to the system call name and
+    `slice.category` set to `strace`.
+  - For a call printed on a single line, `slice.dur` is the duration `-T`
+    measured inside it. Without `-T` such a line records only the moment the
+    call was *entered*, so those slices become zero-duration markers.
+  - A call that blocks is printed on two lines, and opens a slice at its
+    `<unfinished ...>` line which is closed at the matching `<... resumed>`
+    line — so the block itself is visible as a slice spanning the interval
+    between them, whether or not `-T` was used. A call still unfinished when
+    the log ends stays open (a `dur` of -1).
+  - The raw text of the arguments and of the return value are attached to the
+    slice as the `args` and `ret` arguments, so an errno survives in full
+    (`-1 ENOENT (No such file or directory)`) and can be read back with
+    `extract_arg(arg_set_id, 'ret')`.
+  - Lines that are not system calls — signal delivery
+    (`--- SIGCHLD {si_signo=SIGCHLD, ...} ---`), exit banners
+    (`+++ exited with 0 +++`) and strace's own messages
+    (`strace: Process 75 attached`) — are skipped.
+  - Timestamps are Unix epoch and are exposed on the realtime clock domain.
+- **Required strace flags:**
+  - **`-ttt`.** Timestamps must be Unix epoch seconds. `-t` and `-tt` print a
+    wall-clock time of day with no date, which cannot be turned back into an
+    absolute point in time, so those lines are rejected rather than silently
+    placed decades away from every other trace they are merged with. See the
+    `strace_unsupported_timestamp_format` stat.
+  - **`-f`.** strace only prints pids while it is following processes. Without
+    a pid there is no thread to attribute a system call to, so such lines are
+    dropped; see the `strace_missing_pid` stat.
+- **Limitations:**
+  - System call arguments are kept as the single opaque string strace printed.
+    They are not decoded into structured fields, so there are no per-fd or
+    per-path tables to join against.
+  - strace stops the traced process twice per system call. This slows the
+    workload down substantially and perturbs the very timings being measured,
+    so an strace timeline is a qualitative picture of system call behaviour
+    rather than a low-overhead measurement.
+  - Only what strace prints is available: no scheduling, CPU frequency or
+    userspace instrumentation data. Where Perfetto's own tracing is an option,
+    prefer it.
+
+Lines that could not be imported are counted in the `stats` table, each with
+an explanation of what to change:
+
+```sql
+select name, value from stats where name glob 'strace*' and value > 0;
+```
+
+**How to Generate:**
+
+- **Trace a command and everything it forks, writing the log to a file:**
+
+  ```bash
+  strace -ttt -f -T -o my_trace.strace -- ./my_program
+  ```
+
+  Or attach to something already running:
+
+  ```bash
+  sudo strace -ttt -f -T -o my_trace.strace -p 1234
+  ```
+
+- **Use `-o FILE`; do not redirect stderr.** Given `-o`, strace prefixes every
+  line with the pid it belongs to. Writing to stderr instead, it leaves the
+  process it started unprefixed until a second process is attached, and those
+  unprefixed lines have to be dropped on import. On a program that never forks
+  at all no second process is ever attached, so a stderr capture is dropped in
+  its entirety and imports nothing.
+
+- **For nanosecond-resolution durations,** ask `-T` for more precision:
+
+  ```bash
+  strace -ttt -f --syscall-times=ns -o my_trace.strace -- ./my_program
+  ```
+
+  (`--syscall-times` takes one of `s`, `ms`, `us` or `ns`; the default is
+  microseconds. The option was added in strace 5.6; on older versions only
+  the default `-T` precision is available.)
+
+**External Resources:**
+
+- **`strace` man page:**
+  [strace(1) (man7.org)](https://man7.org/linux/man-pages/man1/strace.1.html)
+- **`strace` home page:** [strace.io](https://strace.io/)
+
 ## ART method tracing format
 
 **Description:** The Android Runtime (ART) method tracing format (commonly found
