@@ -94,7 +94,7 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
 
   // Called when the canvas needs to be repainted due to a layout shift or
   // or resize.
-  onCanvasRedraw?(ctx: VirtualOverlayCanvasDrawContext): void;
+  readonly onCanvasRedraw?: (ctx: VirtualOverlayCanvasDrawContext) => void;
 
   // When true the canvas will not be redrawn on mithril update cycles. Disable
   // this if you want to manage the canvas redraw cycle yourself (i.e. possibly
@@ -105,11 +105,11 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Called when the canvas is mounted. The passed api object exposes
   // imperative methods for controlling the canvas. Any returned disposable
   // will be disposed of when the component is removed.
-  onMount?(api: VirtualOverlayCanvasApi): Disposable | void;
+  readonly onMount?: (api: VirtualOverlayCanvasApi) => Disposable | void;
 
   // Override styles from base interface, only allowing object type styles
   // rather than strings.
-  style?: Partial<CSSStyleDeclaration>;
+  readonly style?: Partial<CSSStyleDeclaration>;
 
   // Enable a second canvas for WebGL rendering. When enabled, webglCanvas and
   // webglCtx will be provided in the draw context.

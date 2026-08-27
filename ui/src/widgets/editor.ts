@@ -64,16 +64,16 @@ export interface EditorAttrs extends HTMLAttrs {
   readonly readonly?: boolean;
 
   // Callback for the Ctrl/Cmd + Enter key binding.
-  onExecute?: (text: string) => void;
+  readonly onExecute?: (text: string) => void;
 
   // Callback for the Ctrl/Cmd + S key binding.
-  onSave?: () => void;
+  readonly onSave?: () => void;
 
   // Callback for the Alt/Opt + Shift + F key binding.
-  onFormat?: (text: string) => void;
+  readonly onFormat?: (text: string) => void;
 
   // Callback for every change to the editor's content.
-  onUpdate?: (text: string) => void;
+  readonly onUpdate?: (text: string) => void;
 
   // Extra CodeMirror extensions supplied by the caller (e.g. the LSP
   // integration from the SqlLsp plugin).
