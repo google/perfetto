@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {download} from '../../../base/download_utils';
 import type {Trace} from '../../../public/trace';
 import type {time} from '../../../base/time';
 import type {TreeExplorerQueryMetric} from '../../../components/tree_explorer_fetcher';
@@ -27,6 +28,13 @@ import {
   isHeapGraphIncomplete,
   incompleteFlamegraphModal,
 } from '../../dev.perfetto.HeapProfile/incomplete_flamegraph';
+import {
+  convertTrace,
+  type PprofProfileType,
+} from '../../../base/trace_converter';
+
+import {showModal} from '../../../widgets/modal';
+import {NUM} from '../../../trace_processor/query_result';
 
 // Referenced by session.openFlamegraphPivotedAt.
 export const METRIC_OBJECT_SIZE = 'Object Size';
@@ -227,8 +235,52 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
           metrics,
           state,
           onStateChange: attrs.onStateChange,
+          extraDownloadItems: [
+            {
+              label: 'Pprof profile (.pb)',
+              icon: 'file_download',
+              description:
+                'Whole snapshot, converted from the trace: filters, the ' +
+                'selected measure and the view direction are not applied.',
+              title:
+                'Download the full profile as pprof, for use with pprof tools',
+              onDownload: () =>
+                downloadPprof(attrs.trace, attrs.upid, attrs.ts),
+            },
+          ],
         }),
       );
     },
   };
+}
+
+const HEAP_PPROFILE_TYPE: PprofProfileType = 'java-heap';
+
+async function downloadPprof(trace: Trace, upid: number, ts: time) {
+  const pid = await trace.engine.query(
+    `select pid from process where upid = ${upid}`,
+  );
+  if (!trace.traceInfo.downloadable) {
+    showModal({
+      title: 'Download not supported',
+      content: m('div', 'This trace file does not support downloads'),
+    });
+    return;
+  }
+  const blob = await trace.getTraceFile();
+  const result = await convertTrace(blob, {
+    format: 'pprof',
+    profileType: HEAP_PPROFILE_TYPE,
+    pid: pid.firstRow({pid: NUM}).pid,
+    ts,
+    onStatus: (s) => trace.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    showModal({
+      title: 'Pprof conversion failed',
+      content: m('div', result.error.message),
+    });
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
