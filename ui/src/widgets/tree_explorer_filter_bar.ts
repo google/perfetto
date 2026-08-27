@@ -20,7 +20,11 @@ import {Chip} from './chip';
 import {Intent} from './common';
 import {CopyToClipboardButton} from './copy_to_clipboard_button';
 import {EmptyState} from './empty_state';
-import {ExportButton, type ExportFormat} from './export_button';
+import {
+  ExportButton,
+  type ExportDownloadItem,
+  type ExportFormat,
+} from './export_button';
 import {Form, FormLabel} from './form';
 import {Icon} from './icon';
 import {MiddleEllipsis} from './middle_ellipsis';
@@ -73,6 +77,10 @@ export interface TreeExplorerFilterBarAttrs {
   // Undefined hides the export button.
   readonly onExportData?: (format: ExportFormat) => Promise<string>;
   readonly exportFileBaseName?: string;
+
+  // Downloads the host produces itself, appended to the export menu for
+  // representations this bar cannot build from the displayed tree.
+  readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
 }
 
 // The filtering / measure-selection bar shared by all tree explorer views.
@@ -243,6 +251,7 @@ export class TreeExplorerFilterBar implements m.ClassComponent<TreeExplorerFilte
         m(ExportButton, {
           fileBaseName: attrs.exportFileBaseName ?? 'tree_explorer',
           onExportData: attrs.onExportData,
+          extraDownloadItems: attrs.extraDownloadItems,
         }),
       this.showHighlightSearch &&
         !attrs.highlightDisabled &&

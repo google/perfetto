@@ -70,6 +70,7 @@ export function createHeapProfileTrack(
         tsEnd,
         detailsPanelState,
         onDetailsPanelStateChange,
+        /* isAreaSelection= */ false,
         onNodeSelected,
       );
     },
