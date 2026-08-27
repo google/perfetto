@@ -528,6 +528,29 @@ base::Status Merge(const ProtoFile::Message& input,
                      allowlisted_options, out.fields);
 }
 
+void ConvertOptionsForEditions(ProtoFile::Field& field) {
+  for (auto& opt : field.options) {
+    if (opt.key == "packed") {
+      opt.key = "features.repeated_field_encoding";
+      opt.value = "PACKED";
+    }
+  }
+}
+
+void ConvertOptionsForEditions(ProtoFile::Message& msg) {
+  for (auto& f : msg.fields) {
+    ConvertOptionsForEditions(f);
+  }
+  for (auto& oneof : msg.oneofs) {
+    for (auto& f : oneof.fields) {
+      ConvertOptionsForEditions(f);
+    }
+  }
+  for (auto& nested : msg.nested_messages) {
+    ConvertOptionsForEditions(nested);
+  }
+}
+
 }  // namespace
 
 base::Status MergeProtoFiles(const ProtoFile& input,
@@ -538,6 +561,7 @@ base::Status MergeProtoFiles(const ProtoFile& input,
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
+  out.is_proto2 = input.is_proto2;
 
   std::set<std::string> known_enums;
   for (const auto& en : upstream.enums) {
@@ -564,8 +588,19 @@ base::Status MergeProtoFiles(const ProtoFile& input,
                          allowlisted_options);
 
   // Finish by merging the top-level messages.
-  return MergeRecursive(input.messages, upstream.messages, allowlist.messages,
-                        known_enums, allowlisted_options, out.messages);
+  base::Status status =
+      MergeRecursive(input.messages, upstream.messages, allowlist.messages,
+                     known_enums, allowlisted_options, out.messages);
+  if (!status.ok())
+    return status;
+
+  if (!out.is_proto2) {
+    for (auto& msg : out.messages) {
+      ConvertOptionsForEditions(msg);
+    }
+  }
+
+  return base::OkStatus();
 }
 
 }  // namespace proto_merger
