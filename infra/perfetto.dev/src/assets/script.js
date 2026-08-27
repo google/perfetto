@@ -49,10 +49,10 @@ function setupSandwichMenu() {
 
 // (Re-)Generates the Table Of Contents for docs (the right-hand-side one).
 function updateTOC() {
-  const tocContainer = document.querySelector(".docs .toc");
+  const tocContainer = document.querySelector(".toc");
   if (!tocContainer) return;
   const toc = document.createElement("ul");
-  const anchors = document.querySelectorAll(".doc a.anchor");
+  const anchors = document.querySelectorAll(".md-content a.anchor");
   tocAnchors = [];
   for (const anchor of anchors) {
     const li = document.createElement("li");
@@ -79,12 +79,12 @@ function updateTOC() {
   // recompute anchors on resize).
   if (tocEventHandlersInstalled) return;
   tocEventHandlersInstalled = true;
-  const doc = document.querySelector(".doc");
+  const mdContent = document.querySelector(".md-content");
   const passive = { passive: true };
-  if (doc) {
-    const offY = doc.offsetTop;
-    doc.addEventListener("mousemove", (e) => onMouseMove(offY, e), passive);
-    doc.addEventListener(
+  if (mdContent) {
+    const offY = mdContent.offsetTop;
+    mdContent.addEventListener("mousemove", (e) => onMouseMove(offY, e), passive);
+    mdContent.addEventListener(
       "mouseleave",
       () => {
         lastMouseOffY = 0;
@@ -99,7 +99,7 @@ function updateTOC() {
       updateTOC();
     }),
   );
-  resizeObserver.observe(doc);
+  resizeObserver.observe(mdContent);
 }
 
 // Highlights the current TOC anchor depending on the scroll offset.
@@ -115,7 +115,7 @@ function onScroll(forceHighlight) {
     if (y < x.top) continue;
     highEl = x.obj;
   }
-  for (const link of document.querySelectorAll(".docs .toc a")) {
+  for (const link of document.querySelectorAll(".toc a")) {
     if ((!forceHighlight && link === highEl) || forceHighlight === link) {
       link.classList.add("highlighted");
     } else {
@@ -152,7 +152,7 @@ function tagLabel(tag) {
 // This function needs to be idempotent as it is called more than once (on every
 // resize).
 function updateNav() {
-  const curDoc = document.querySelector(".doc");
+  const curDoc = document.querySelector(".md-content");
   let curFileName = "";
   if (curDoc) curFileName = curDoc.dataset["mdFile"];
 
@@ -396,7 +396,12 @@ function searchTokenize(str) {
 }
 
 async function loadSearchIndex() {
-  const resp = await fetch("/assets/search_index.json.gz");
+  // A page belongs to exactly one section and cannot switch without a full
+  // reload, so one cached index per page is enough.
+  const resp = await fetch(
+    location.pathname.startsWith("/blog/")
+      ? "/assets/blog_search_index.json.gz"
+      : "/assets/search_index.json.gz");
   if (!resp.ok) throw new Error(`search index HTTP ${resp.status}`);
   // The server doesn't gzip this file, so it's gzipped at build time and
   // decompressed here.
@@ -423,7 +428,6 @@ async function loadSearchIndex() {
     sortedTerms: data.terms,  // Already sorted at build time.
     docLen: data.docLen,
     titleTokens: data.titleTokens,
-    navTokens: data.navTokens,
     avgdl: data.docLen.length ? total / data.docLen.length : 1,
     N: data.docs.length,
   };
@@ -514,9 +518,7 @@ function searchRank(idx, query, limit) {
     return 3 + 6 * (terms.length / toks.length) + (norm.startsWith(phrase + " ") ? 3 : 0);
   };
   for (const docIdx of scores.keys()) {
-    let boost = titleBoost(idx.titleTokens[docIdx]);
-    const nav = idx.navTokens[docIdx];
-    if (nav) boost = Math.max(boost, titleBoost(nav));
+    const boost = titleBoost(idx.titleTokens[docIdx]);
     if (boost) scores.set(docIdx, scores.get(docIdx) + boost);
   }
   return [...scores.entries()]
@@ -735,7 +737,10 @@ function setupCodeCopy() {
 }
 
 function setupChineseDocsBanner() {
-  if (!location.pathname.startsWith('/docs/')) return;
+  // Docs and blog each ship their own index, so searching from a post returns
+  // posts rather than documentation.
+  if (!location.pathname.startsWith('/docs/') &&
+      !location.pathname.startsWith('/blog/')) return;
   const langs = navigator.languages || [navigator.language || ''];
   if (!langs.some(l => l.startsWith('zh'))) return;
   const dismissedAt = localStorage.getItem('cn-docs-banner-dismissed');

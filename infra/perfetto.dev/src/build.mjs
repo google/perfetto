@@ -45,11 +45,16 @@ import {
   isIndexable,
   parseSearchDoc,
 } from "./search_index.mjs";
+import * as blog from "./blog.mjs";
 
 const pjoin = path.join;
 const CUR_DIR = path.dirname(new URL(import.meta.url).pathname);
 const SRC_DIR = CUR_DIR;
 const DOCS_DIR = pjoin(ROOT_DIR, "docs");
+// Blog posts live on the orphan `blog` branch, checked out into //blog as a
+// worktree. Deliberately optional: with no worktree, collectPosts() returns []
+// and the site builds without a blog rather than failing.
+const BLOG_DIR = pjoin(ROOT_DIR, "blog");
 const GEN_SCRATCH = "gen"; // Subdir of outDir for python intermediates.
 
 // Exit code that asks the `build` wrapper script to re-exec us. Used when our
@@ -87,6 +92,7 @@ const REMOVED_RENAMED_MOVED = [
 // Directories whose contents feed the build, watched in --watch mode.
 const WATCH_DIRS = [
   "docs",
+  "blog",
   "infra/perfetto.dev/src",
   "protos",
   "python",
@@ -212,6 +218,58 @@ function exec(cmd, args, opts) {
   return res;
 }
 
+// Blog posts live on the orphan `blog` branch and are read from a worktree at
+// //blog. Anything already there -- a worktree, or a symlink to one checked out
+// elsewhere -- is left alone, so a local setup is never clobbered.
+//
+// Failure here is deliberately not fatal. collectPosts() returns [] for a
+// missing directory, so the site still builds, just without a blog: `git clone
+// && build` keeps working offline, on forks, and for someone who only touches
+// C++ and has no interest in the blog.
+function ensureBlogWorktree() {
+  // lstat rather than existsSync: a dangling symlink is still something someone
+  // put there on purpose, and `git worktree add` would refuse to overwrite it.
+  try {
+    fs.lstatSync(BLOG_DIR);
+    return;
+  } catch (e) {
+    /* Not there. Create it below. */
+  }
+
+  const git = (args) =>
+    exec("git", ["-C", ROOT_DIR, ...args], {
+      noErrCheck: true,
+      stdout: "pipe",
+    });
+
+  console.log("Creating the blog worktree in //blog");
+  // Drop stale metadata left by a worktree whose directory was deleted by
+  // hand, otherwise `worktree add` refuses with "already registered".
+  git(["worktree", "prune"]);
+
+  // Cloud Build checks the repo out shallow, so the branch usually isn't local.
+  const haveBranch =
+    git(["rev-parse", "--verify", "--quiet", "refs/heads/blog"]).status === 0;
+  if (
+    !haveBranch &&
+    git(["fetch", "--depth=1", "origin", "blog:refs/heads/blog"]).status !== 0
+  ) {
+    console.warn(
+      "WARNING: could not fetch the `blog` branch. Building the site without " +
+        "the blog.",
+    );
+    return;
+  }
+
+  if (git(["worktree", "add", BLOG_DIR, "blog"]).status !== 0) {
+    console.warn(
+      "WARNING: could not create the blog worktree, building without the " +
+        "blog. If you have the `blog` branch checked out somewhere else, " +
+        `symlink it here instead:  ln -s <path> ${BLOG_DIR}`,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The build.
 // ---------------------------------------------------------------------------
@@ -249,13 +307,20 @@ async function build() {
   site.set("docs/_nav.html", nav);
 
   const pages = collectPages(await buildGeneratedMarkdown(genDir), tocPath);
-  await renderAllPages(pages, nav, site);
+  const posts = blog.collectPosts(BLOG_DIR);
+  await addBlogThumbnails(posts, site);
+  const blogPages = collectBlogPages(posts);
+  await renderAllPages([...pages, ...blogPages], nav, site);
   await addStylesheet(site);
   addStaticAssets(site);
-  site.set(
-    "assets/search_index.json.gz",
-    await buildSearchIndex(pages, tocPath),
-  );
+  await addSearchIndex(site, "assets/search_index.json.gz", pages);
+  // //blog is optional. With no worktree there are no posts, and a docs-only
+  // site is built rather than one advertising an empty blog.
+  if (posts.length > 0) {
+    await addBlogAssets(posts, site);
+    const blogIndex = "assets/blog_search_index.json.gz";
+    await addSearchIndex(site, blogIndex, blogPages);
+  }
   return site;
 }
 
@@ -323,6 +388,51 @@ function collectPages(genPages, tocPath) {
   return pages;
 }
 
+// The blog's page records, in the same shape collectPages() produces so that
+// renderAllPages/writeSite/the dev server need no idea a blog exists. The extra
+// `post` field carries the front matter through to the template.
+//
+// Posts are collected newest-first; that order is what the index and the feed
+// use, so it must not be re-sorted here.
+function collectBlogPages(posts) {
+  if (posts.length === 0) return [];
+  const tmplPost = pjoin(SRC_DIR, "template_blog_post.html");
+  const tmplIndex = pjoin(SRC_DIR, "template_blog_index.html");
+  const pages = [];
+  for (const post of posts) {
+    pages.push({
+      key: `blog:${post.slug}`,
+      // The front matter is stripped: it is metadata, not prose, and leaving it
+      // in would render as a stray paragraph and pollute the search index.
+      markdown: post.body,
+      mdFile: post.mdPath,
+      templatePath: tmplPost,
+      sitePath: `blog/${post.slug}`,
+      searchUrl: `/blog/${post.slug}`,
+      // parseSearchDoc() reads the title off the first <h1>. A post's title is
+      // front matter and its body deliberately has none, so without this every
+      // post looks like an empty redirect stub and is dropped from the index.
+      searchMarkdown: `# ${post.title}\n\n${post.summary}\n\n${post.body}`,
+      post,
+    });
+  }
+  pages.push({
+    key: "blog:index",
+    markdown: null,
+    mdFile: tmplIndex,
+    templatePath: tmplIndex,
+    sitePath: "blog/index.html",
+    post: {
+      isIndex: true,
+      posts,
+      summary:
+        "Release notes, performance investigations and deep dives from the " +
+        "people who build Perfetto.",
+    },
+  });
+  return pages;
+}
+
 // Renders every page into `site`. Dead links and bad relative paths throw;
 // failures are collected rather than fatal at the first one, so a single build
 // reports every broken page and watch mode can keep serving the last good one.
@@ -332,6 +442,8 @@ async function renderAllPages(pages, nav, site) {
     { file: pjoin(SRC_DIR, "template_index.html") },
     { file: pjoin(SRC_DIR, "template_header.html") },
     { file: pjoin(SRC_DIR, "template_footer.html") },
+    { file: pjoin(SRC_DIR, "template_blog_post.html") },
+    { file: pjoin(SRC_DIR, "template_blog_index.html") },
   ];
   const errors = [];
 
@@ -349,6 +461,9 @@ async function renderAllPages(pages, nav, site) {
         p.templatePath,
         ...templateDeps,
         nav,
+        // Front matter is stripped out of p.markdown, so it has to be hashed
+        // separately or a title-only edit would be a cache hit.
+        p.post === undefined ? "" : JSON.stringify(p.post),
       ];
       const asDeps = (files) => files.map((f) => ({ file: f }));
       const prev = memoCache.get(key);
@@ -365,7 +480,10 @@ async function renderAllPages(pages, nav, site) {
           mdFile: p.mdFile,
           templatePath: p.templatePath,
           sitePath: p.sitePath,
-          nav,
+          // Blog posts have no nav sidebar; passing it would only make every
+          // post re-render whenever docs/toc.md is touched.
+          nav: p.post === undefined ? nav : undefined,
+          post: p.post,
         });
         const imgFiles = [...value.assets.values()].sort();
         memoCache.set(key, {
@@ -402,6 +520,63 @@ async function renderAllPages(pages, nav, site) {
     site.set(pages[i].sitePath, rendered[i].html);
     for (const [sitePath, srcAbs] of rendered[i].assets) {
       site.set(sitePath, { copyFrom: srcAbs });
+    }
+  }
+}
+
+// The blog's non-page outputs: the Atom feed, the generated cover art and the
+// author avatars. Images a post references are handled by renderImage() like
+// any doc image; these are referenced only by the feed, the index card and the
+// byline, so nothing else would pull them in.
+// Downscaled cover images for the index. A card is 320px wide but the covers
+// are full-resolution screenshots, so this is most of the index's weight.
+//
+// Must run before collectBlogPages(), because it decides each post's cardUrl
+// and the index page is rendered from those.
+async function addBlogThumbnails(posts, site) {
+  for (const post of posts) {
+    if (post.thumbSitePath === null) continue;
+    const srcAbs = pjoin(post.dir, path.basename(post.cover.sitePath));
+    const thumb = await memo(`blog:thumb:${post.slug}`, [{ file: srcAbs }], () =>
+      blog.makeThumbnail(srcAbs),
+    );
+    // null: already small enough, or not decodable. Leave cardUrl pointing at
+    // the full image rather than at a file we never write.
+    if (thumb === null) continue;
+    // A modestly-sized source re-encodes to about what it already was, and a
+    // second asset that saves nothing is worse than none. Only take the
+    // thumbnail when it is a real win.
+    if (thumb.length > fs.statSync(srcAbs).size * 0.7) continue;
+    site.set(post.thumbSitePath, thumb);
+    post.cardUrl = "/" + post.thumbSitePath;
+  }
+}
+
+async function addBlogAssets(posts, site) {
+  site.set(
+    "blog/atom.xml",
+    await memo("blog:feed", posts.map((p) => JSON.stringify(p)), () =>
+      blog.atomFeed(posts),
+    ),
+  );
+  for (const post of posts) {
+    if (post.cover.generated) {
+      site.set(
+        post.cover.sitePath,
+        await memo(`blog:cover:${post.slug}`, [post.title], () =>
+          blog.generateCover(post.title).svg,
+        ),
+      );
+    }
+  }
+  const handles = new Set();
+  for (const post of posts) for (const a of post.authors) handles.add(a.handle);
+  for (const handle of [...handles].sort()) {
+    // Authors with no committed avatar point at assets/default-avatar.png,
+    // which addStaticAssets() already publishes; nothing to emit for them.
+    const av = blog.avatarUrl(BLOG_DIR, handle);
+    if (av.copyFrom !== null) {
+      site.set(av.url.replace(/^\//, ""), { copyFrom: av.copyFrom });
     }
   }
 }
@@ -461,16 +636,23 @@ function addStaticAssets(site) {
   }
 }
 
-// The index takes the in-memory page list,
+// Builds one search index and adds it to `site` under `outPath`.
+//
+// Called twice: once for the docs, once for the blog, so that searching from a
+// post returns posts rather than documentation. `outPath` is the single source
+// of truth for all three things that must agree -- the site key, the progress
+// label and the memo key. Sharing a memo key between the two indexes would make
+// them evict each other on every build.
+//
 // Each document is lexed under its own memo key, so a one-word edit re-lexes
 // one document rather than all ~150; only the cheap inverted-index assembly
 // re-runs.
-async function buildSearchIndex(pages, tocPath) {
+async function addSearchIndex(site, outPath, pages) {
   const parsedDocs = await Promise.all(
     pages
       .filter((p) => p.searchUrl !== undefined && isIndexable(p.searchUrl))
       .map((p) => {
-        const md = p.markdown || "";
+        const md = p.searchMarkdown || p.markdown || "";
         const full = p.searchFull !== false;
         return memo(`sidoc:${p.searchUrl}`, [md, full], () =>
           parseSearchDoc(p.searchUrl, md, full),
@@ -478,12 +660,13 @@ async function buildSearchIndex(pages, tocPath) {
       }),
   );
   const indexable = parsedDocs.filter((d) => d !== null);
-  progress("assets/search_index.json.gz");
-  const tocMd = fs.readFileSync(tocPath, "utf8");
-  return memo(
-    "search",
-    [...indexable.map((d) => JSON.stringify(d)), { file: tocPath }],
-    () => assembleSearchIndex(indexable, tocMd),
+
+  progress(outPath);
+  site.set(
+    outPath,
+    await memo(outPath, indexable.map((d) => JSON.stringify(d)), () =>
+      assembleSearchIndex(indexable),
+    ),
   );
 }
 
@@ -665,11 +848,16 @@ function writeSite(site) {
 const MIME = {
   css: "text/css",
   gz: "application/gzip",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
   js: "application/javascript",
   json: "application/json",
   map: "application/json",
+  mp4: "video/mp4",
   png: "image/png",
   svg: "image/svg+xml",
+  webm: "video/webm",
+  xml: "application/atom+xml",
 };
 
 function mimeFor(sitePath) {
@@ -753,6 +941,14 @@ function startServer() {
     }
 
     let key = uri.replace(/^\//, "");
+    // /docs and /blog are directories holding an index.html. The App Engine
+    // proxy 301s those to the trailing-slash form; do the same here so the dev
+    // server and production agree.
+    if (key !== "" && !key.endsWith("/") && currentSite.has(key + "/index.html")) {
+      res.writeHead(301, { Location: uri + "/" });
+      res.end();
+      return;
+    }
     if (key === "" || key.endsWith("/")) key += "index.html";
     if (cfg.verbose) console.debug(req.method, req.url);
 
@@ -945,6 +1141,10 @@ async function main() {
   cfg.startHttpServer = !!args.serve;
   cfg.port = args.port;
   cfg.host = args.host;
+
+  // Before watching or building: the watcher needs //blog to exist to attach
+  // to it, and the build needs it to find any posts.
+  ensureBlogWorktree();
 
   // Watch first: a file written while the initial build is running would
   // otherwise never be noticed (it wasn't in the glob, and no later event

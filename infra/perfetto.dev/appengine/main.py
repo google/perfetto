@@ -35,6 +35,13 @@ def docs_redirect():
   return flask.redirect('/docs/', code=301)
 
 
+# Same as /docs above: the blog index is blog/index.html, which the catch-all
+# handler below only resolves for paths ending in '/'.
+@app.route('/blog')
+def blog_redirect():
+  return flask.redirect('/blog/', code=301)
+
+
 # Serve the requests from the GCS bucket.
 @app.route('/', methods=['GET'])
 @app.route('/<path:path>', methods=['GET'])
