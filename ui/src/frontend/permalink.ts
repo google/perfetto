@@ -200,7 +200,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
         'div',
         m(
           'p',
-          'Something went wrong when restoring the app state.' +
+          'Something went wrong when restoring the app state. ' +
             'This is due to some backwards-incompatible change ' +
             'when the permalink is generated and then opened using ' +
             'two different UI versions.',
