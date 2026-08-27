@@ -225,8 +225,10 @@ base::Status TraceToProfile(std::istream* input,
 
   // Generate profiles.
   std::vector<SerializedProfile> profiles;
-  TraceToPprof(tp.get(), &profiles, *mode, ToConversionFlags(annotate_frames),
-               pid, timestamps);
+  if (!TraceToPprof(tp.get(), &profiles, *mode,
+                    ToConversionFlags(annotate_frames), pid, timestamps)) {
+    return base::ErrStatus("failed to convert the trace to pprof");
+  }
   if (profiles.empty()) {
     return base::OkStatus();
   }
