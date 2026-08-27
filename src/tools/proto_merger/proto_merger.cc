@@ -326,10 +326,7 @@ base::Status MergeField(const ProtoFile::Field& input,
   // type in another package 'my.private.Foo'.
   if (input.packageless_type == upstream.packageless_type &&
       input.type != upstream.type) {
-    if (!base::EndsWith(upstream.type, "Atom") &&
-        !base::EndsWith(upstream.type, "InternedString") &&
-        !base::EndsWith(upstream.type, "AndroidProcessStateSnapshot") &&
-        !base::EndsWith(upstream.type, "RecoveredTraceInfo")) {
+    if (!base::EndsWith(upstream.type, "Atom")) {
       return base::ErrStatus(
           "Upstream field with id %d and name '%s' "
           "(source of truth name: '%s') uses the type '%s' but we have the "
