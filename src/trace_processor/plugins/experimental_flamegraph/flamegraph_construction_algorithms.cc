@@ -585,6 +585,15 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapGraphFlamegraph(
                  self_alloc_count_col && cumulative_alloc_count_col &&
                  self_alloc_size_col && cumulative_alloc_size_col);
 
+  // A string column holding no values at all is typed Null and carries no
+  // payload, so its data must not be read: every row is the null string.
+  auto string_at = [](const core::Tree::Column* column,
+                      uint32_t row) -> StringPool::Id {
+    return column->type.Is<core::Null>()
+               ? StringPool::Id::Null()
+               : column->unchecked_data<StringPool::Id>()[row];
+  };
+
   for (uint32_t row = 0; row < result.row_count; ++row) {
     tables::ExperimentalFlamegraphTable::Row alloc_row{};
     alloc_row.ts = ts;
@@ -593,8 +602,8 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapGraphFlamegraph(
     const int64_t depth = depth_col->unchecked_data<int64_t>()[row];
     PERFETTO_DCHECK(depth > 0);
     alloc_row.depth = static_cast<uint32_t>(depth - 1);
-    alloc_row.name = name_col->unchecked_data<StringPool::Id>()[row];
-    alloc_row.map_name = map_name_col->unchecked_data<StringPool::Id>()[row];
+    alloc_row.name = string_at(name_col, row);
+    alloc_row.map_name = string_at(map_name_col, row);
     alloc_row.count = self_count_col->unchecked_data<int64_t>()[row];
     alloc_row.cumulative_count =
         cumulative_count_col->unchecked_data<int64_t>()[row];

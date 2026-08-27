@@ -229,6 +229,44 @@ TEST(FlamegraphTest, AllNullAggregates) {
   }
 }
 
+// A name column holding no values at all is typed Null rather than String,
+// e.g. a heap graph whose class names were all stripped. Every frame is then
+// unnamed, which is still a well-formed flamegraph.
+TEST(FlamegraphTest, AllNullNames) {
+  StringPool pool;
+  core::Tree input =
+      MakeTree(&pool, {{"main", std::nullopt, 1}, {"a", 0, 2}, {"b", 0, 3}});
+  input.columns[0] = core::Tree::Column::CreateNull(3);
+  Config config = MakeConfig(input, pool);
+
+  auto result = Build(input, config);
+  ASSERT_TRUE(result.ok());
+  // Both children are unnamed, so they merge into a single child frame.
+  ASSERT_EQ(result->row_count, 2u);
+  EXPECT_EQ(Value<int64_t>(*result, "cumulative_value", 0), 6);
+  EXPECT_EQ(Value<int64_t>(*result, "cumulative_value", 1), 5);
+  auto name = result->Find("name");
+  ASSERT_TRUE(name);
+  ASSERT_TRUE((*name)->null_bv.size() > 0);
+  for (uint32_t row = 0; row < result->row_count; ++row) {
+    EXPECT_FALSE((*name)->null_bv.is_set(row));
+  }
+}
+
+// Filters read the name of every frame, which must not touch the absent
+// payload of a Null-typed column. Nothing can match, so nothing is retained.
+TEST(FlamegraphTest, AllNullNamesWithFilters) {
+  StringPool pool;
+  core::Tree input = MakeTree(&pool, {{"main", std::nullopt, 1}, {"a", 0, 2}});
+  input.columns[0] = core::Tree::Column::CreateNull(2);
+  Config config = MakeConfig(input, pool);
+  config.show_stack_filters.push_back(base::Regex::CreateOrCheck("^main$"));
+
+  auto result = Build(input, config);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(result->row_count, 0u);
+}
+
 TEST(FlamegraphTest, BottomUp) {
   StringPool pool;
   core::Tree input =
