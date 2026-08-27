@@ -2441,6 +2441,8 @@ perfetto_filegroup(
     srcs = [
         "src/tools/proto_merger/allowlist.cc",
         "src/tools/proto_merger/allowlist.h",
+        "src/tools/proto_merger/extension_proto_merger.cc",
+        "src/tools/proto_merger/extension_proto_merger.h",
         "src/tools/proto_merger/proto_file.cc",
         "src/tools/proto_merger/proto_file.h",
         "src/tools/proto_merger/proto_file_serializer.cc",
