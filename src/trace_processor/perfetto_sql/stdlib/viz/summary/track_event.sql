@@ -101,6 +101,7 @@ WITH
     SELECT id, order_id FROM chronological
   )
 SELECT
+  track.machine_id,
   extract_arg(track.dimension_arg_set_id, 'upid') AS upid,
   extract_arg(track.dimension_arg_set_id, 'utid') AS utid,
   track.parent_id,
@@ -124,6 +125,7 @@ LEFT JOIN _track_event_has_children AS c USING (id)
 LEFT JOIN _min_ts_per_track AS m USING (id)
 LEFT JOIN _track_event_tracks_with_callstacks AS cs ON cs.track_id = unioned.id
 GROUP BY
+  track.machine_id,
   track.track_group_id,
   coalesce(track.track_group_id, track.id)
 ORDER BY
