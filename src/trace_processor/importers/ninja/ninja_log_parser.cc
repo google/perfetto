@@ -41,6 +41,17 @@ namespace perfetto::trace_processor {
 
 using base::StringSplitter;
 
+namespace {
+// The range of `# ninja log vN` headers we can read. ninja bumped the version
+// twice without changing the layout of a log line: v6 (ninja 1.12) only
+// dropped its own support for reading v4 logs, and v7 (ninja 1.13) switched
+// the command hash from MurmurHash2 to rapidhash. We never interpret that
+// hash, only compare it for equality, so v5, v6 and v7 all parse the same
+// here. Anything newer is rejected rather than guessed at.
+constexpr uint32_t kOldestSupportedVersion = 5;
+constexpr uint32_t kNewestSupportedVersion = 7;
+}  // namespace
+
 NinjaLogParser::NinjaLogParser(TraceProcessorContext* ctx) : ctx_(ctx) {}
 NinjaLogParser::~NinjaLogParser() = default;
 
@@ -64,8 +75,11 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
         return base::ErrStatus("Failed to parse ninja log header");
       header_parsed_ = true;
       auto version = base::CStringToUInt32(line.cur_token() + strlen(kHeader));
-      if (!version || *version != 5)
-        return base::ErrStatus("Unsupported ninja log version");
+      if (!version || *version < kOldestSupportedVersion ||
+          *version > kNewestSupportedVersion) {
+        return base::ErrStatus("Unsupported ninja log version: %s",
+                               line.cur_token() + strlen(kHeader));
+      }
       continue;
     }
 

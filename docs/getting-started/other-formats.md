@@ -862,6 +862,9 @@ occasionally adding fields.
     heuristics to represent concurrency.
   - The timestamps (start and end times) are converted from milliseconds to
     nanoseconds for consistency within Perfetto.
+  - Log format versions 5 to 7 are read. ninja bumped the version to v6 in
+    1.12 and to v7 in 1.13 without changing the layout of a log line; a
+    version outside that range is rejected rather than guessed at.
   - This allows the build process to be visualized in the Perfetto UI, showing
     the duration and concurrency of various compilation, linking, and other
     build tasks, which can be very helpful for understanding the build's

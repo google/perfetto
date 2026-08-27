@@ -94,6 +94,7 @@ from diff_tests.parser.json.tests import JsonParser
 from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
+from diff_tests.parser.ninja.tests import NinjaParser
 from diff_tests.parser.parsing.tests import Parsing
 from diff_tests.parser.parsing.tests_concurrent_sessions import ParsingConcurrentSessions
 from diff_tests.parser.parsing.tests_debug_annotation import ParsingDebugAnnotation
@@ -298,6 +299,7 @@ def fetch_all_diff_tests(
       PprofParser,
       CollapsedStackParser,
       PrimesTraceParser,
+      NinjaParser,
   ]
 
   metrics_tests = [
