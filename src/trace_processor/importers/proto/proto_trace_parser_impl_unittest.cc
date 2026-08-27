@@ -83,6 +83,7 @@
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -3008,6 +3009,43 @@ TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
       context_.metadata_tracker->GetMetadata(metadata::trace_config_pbtxt)
           .value();
   EXPECT_THAT(value.string_value, HasSubstr("size_kb: 42"));
+}
+
+TEST_F(ProtoTraceParserTest, RecoveredTraceInfoWithReason) {
+  auto* packet = trace_->add_packet();
+  auto* info = packet->set_recovered_trace_info();
+  info->set_reason(
+      protos::pbzero::RecoveredTraceInfo::REASON_UNEXPECTED_REBOOT);
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  SqlValue reason =
+      context_.metadata_tracker->GetMetadata(metadata::trace_recovery_reason)
+          .value();
+  EXPECT_STREQ(reason.string_value, "REASON_UNEXPECTED_REBOOT");
+}
+
+TEST_F(ProtoTraceParserTest,
+       RecoveredTraceInfoOmittedReasonDefaultsToUnspecified) {
+  trace_->add_packet()->set_recovered_trace_info();
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  SqlValue reason =
+      context_.metadata_tracker->GetMetadata(metadata::trace_recovery_reason)
+          .value();
+  EXPECT_STREQ(reason.string_value, "REASON_UNSPECIFIED");
+}
+
+TEST_F(ProtoTraceParserTest, RecoveredTraceInfoNotPresentIsNull) {
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  auto reason =
+      context_.metadata_tracker->GetMetadata(metadata::trace_recovery_reason);
+  EXPECT_FALSE(reason.has_value());
 }
 
 TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
