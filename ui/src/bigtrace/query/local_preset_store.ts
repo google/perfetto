@@ -17,6 +17,7 @@ import {LocalStorage} from '../../core/local_storage';
 import type {TracePreset} from './bigtrace_query_client';
 import {
   effectiveTabSettings,
+  isTraceSelectionSetting,
   type BigTraceEditorTab,
 } from '../pages/query_tabs_state';
 
@@ -143,9 +144,11 @@ function newLocalPresetId(): string {
   return `${LOCAL_ID_PREFIX}${shortUuid()}`;
 }
 
-// Capture a tab's configuration as a preset. Settings are the EFFECTIVE ones
-// (per-tab overrides layered over the backend defaults), so applying the preset
-// later reproduces this run without depending on what else is registered.
+// Capture a tab's trace selection as a preset: the effective trace-selection
+// settings (per-tab overrides layered over the backend defaults), the grid
+// filter and order, the result-metadata columns, and the SQL. Options, caps
+// and mode are deliberately not captured — a preset carries trace selection
+// and a query, nothing else.
 export function presetFromTab(
   tab: BigTraceEditorTab,
   opts: {
@@ -165,17 +168,19 @@ export function presetFromTab(
     description: opts.description ?? '',
     icon: 'bookmark',
     perfettoSql: tab.editorText,
-    settings: effectiveTabSettings(tab).map((s) => ({
-      settingId: s.settingId,
-      values: [...s.values],
-      category: s.category,
-    })),
+    settings: effectiveTabSettings(tab)
+      .filter((s) =>
+        isTraceSelectionSetting({id: s.settingId, category: s.category}),
+      )
+      .map((s) => ({
+        settingId: s.settingId,
+        values: [...s.values],
+        category: s.category,
+      })),
     traceFilters: [...tab.traceFilters],
     // null means "whatever the backend flags default-visible"; the wire says
     // that with an empty list, and applying maps it back to null.
     traceMetadataColumns: cols === null ? [] : [...cols],
     traceOrderBy: tab.traceOrderBy,
-    limit: tab.limit,
-    materialized: tab.materialize,
   };
 }

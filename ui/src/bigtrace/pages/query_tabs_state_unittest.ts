@@ -17,6 +17,7 @@ import {z} from 'zod';
 import {
   applyModeDefaults,
   closeSettings,
+  isTraceSelectionSetting,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
   effectiveTraceLimit,
@@ -482,5 +483,32 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     expect(restored.configured).toBe(true);
     expect(restored.settingsSession).toBeUndefined();
     expect(restored.limit).toBe(42);
+  });
+});
+
+describe('isTraceSelectionSetting', () => {
+  test('the source and metadata categories are selection; the cap is not', () => {
+    expect(
+      isTraceSelectionSetting({
+        id: 'trace_directory',
+        category: 'TRACE_ADDRESS',
+      }),
+    ).toBe(true);
+    expect(
+      isTraceSelectionSetting({
+        id: 'device_filter',
+        category: 'TRACE_METADATA',
+      }),
+    ).toBe(true);
+    expect(
+      isTraceSelectionSetting({id: 'trace_limit', category: 'TRACE_ADDRESS'}),
+    ).toBe(false);
+    expect(
+      isTraceSelectionSetting({
+        id: 'warn',
+        category: 'BIGTRACE_QUERY_OPTIONS',
+      }),
+    ).toBe(false);
+    expect(isTraceSelectionSetting({id: 'misc'})).toBe(false);
   });
 });

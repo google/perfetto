@@ -12,45 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  SingleFieldStorage,
-  parseNullableStringArray,
-} from './single_field_storage';
 import {linkNameFirst} from './column_order';
 
-// Persisted trace-grid display state. The trace filter, processing order and
-// result-metadata columns are per-query (they live on the tab and its saved
-// presets); only which columns the grid SHOWS is a lasting display preference.
+// Everything about the trace selection is per-query — it lives on the tab and
+// its saved presets. The tab's traceMetadataColumns double as the grid's
+// shown columns: what the grid shows is what a run attaches to result rows.
 
-// Subset of a /trace_metadata_schema column the resolvers below need.
+// Subset of a /trace_metadata_schema column the resolver below needs.
 interface SchemaColumn {
   readonly name: string;
   readonly defaultVisible: boolean;
 }
 
-// Columns shown in the trace-selection grid; backs the DataGrid's controlled
-// `columns`. An explicit array, else null = "use the schema's defaultVisible".
-class TraceColumnsState extends SingleFieldStorage<readonly string[] | null> {
-  constructor() {
-    super('bigtraceTraceColumns', 'chosen', parseNullableStringArray, null);
-  }
-
-  // null → defaultVisible columns; else the selection ∩ schema (dropping removed
-  // columns). `link` hoisted first.
-  effective(schema: ReadonlyArray<SchemaColumn>): string[] {
-    const chosen = this.get();
-    if (chosen === null) {
-      return linkNameFirst(
-        schema.filter((c) => c.defaultVisible).map((c) => c.name),
-      );
-    }
-    const known = new Set(schema.map((c) => c.name));
-    return linkNameFirst(chosen.filter((c) => known.has(c)));
-  }
-}
-export const traceColumnsState = new TraceColumnsState();
-
-// Resolves a tab's chosen result-metadata columns against the live schema
+// Resolves a tab's chosen trace columns against the live schema
 // (link first): null → defaultVisible (so an untouched picker shows defaults);
 // [...] → these ∩ schema; [] → nothing.
 export function effectiveQueryColumns(
