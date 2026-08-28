@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {download} from '../../base/download_utils';
 import {extensions} from '../../components/extensions';
 import type {time} from '../../base/time';
 import {
@@ -22,10 +23,8 @@ import {
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
-import {
-  type PprofProfileType,
-  convertTraceToPprofAndDownload,
-} from '../../frontend/trace_converter';
+import {type PprofProfileType, convertTrace} from '../../base/trace_converter';
+
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {
   TrackEventDetailsPanel,
@@ -692,12 +691,21 @@ async function downloadPprof(
     return;
   }
   const blob = await trace.getTraceFile();
-  await convertTraceToPprofAndDownload(
-    blob,
+  const result = await convertTrace(blob, {
+    format: 'pprof',
     profileType,
-    pid.firstRow({pid: NUM}).pid,
+    pid: pid.firstRow({pid: NUM}).pid,
     ts,
-  );
+    onStatus: (s) => trace.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    showModal({
+      title: 'Pprof conversion failed',
+      content: m('div', result.error.message),
+    });
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 function getHeapGraphDuplicateObjectsView(

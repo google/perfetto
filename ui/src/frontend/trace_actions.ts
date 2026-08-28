@@ -24,10 +24,8 @@ import {AppImpl} from '../core/app_impl';
 import type {Trace} from '../public/trace';
 import type {TraceImpl} from '../core/trace_impl';
 import {download, downloadUrl} from '../base/download_utils';
-import {
-  convertTraceToJsonAndDownload,
-  convertTraceToSystraceAndDownload,
-} from './trace_converter';
+import {convertTrace} from '../base/trace_converter';
+import {maybeShowErrorDialog} from './error_dialog';
 import {showModal} from '../widgets/modal';
 import {ensureExists, assertIsArrayBufferView} from '../base/assert';
 
@@ -36,13 +34,29 @@ const TRACE_SUFFIX = '.perfetto-trace';
 export async function convertTraceToSystrace(trace: Trace): Promise<void> {
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');
   const file = await trace.getTraceFile();
-  await convertTraceToSystraceAndDownload(file);
+  const result = await convertTrace(file, {
+    format: 'systrace',
+    onStatus: (s) => AppImpl.instance.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    maybeShowErrorDialog(result.error);
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 export async function convertTraceToJson(trace: Trace): Promise<void> {
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .json');
   const file = await trace.getTraceFile();
-  await convertTraceToJsonAndDownload(file);
+  const result = await convertTrace(file, {
+    format: 'json',
+    onStatus: (s) => AppImpl.instance.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    maybeShowErrorDialog(result.error);
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 export async function downloadTrace(trace: TraceImpl) {
