@@ -15,14 +15,13 @@
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
-import {Select} from '../../widgets/select';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Spinner} from '../../widgets/spinner';
 import {Intent} from '../../widgets/common';
 import type {TracePreset} from '../query/bigtrace_query_client';
 import {presetStore} from '../query/preset_store';
 import {
   DEFAULT_LOCAL_CATEGORY,
-  isLocalPreset,
   localPresetStore,
   type LocalPreset,
 } from '../query/local_preset_store';
@@ -41,15 +40,14 @@ import {
   closeSettings,
   effectiveTabSettings,
   isTraceSelectionSetting,
+  setTraceUuidsActive,
+  traceUuidsActive,
+  traceUuidsDeclared,
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
 import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
-import {
-  deleteLocalPreset,
-  editLocalPreset,
-  promptForPreset,
-} from './preset_dialogs';
+import {openManagePresetsModal, promptForPreset} from './preset_dialogs';
 import {QuerySettingsForm} from './query_settings_form';
 
 export interface QueryLauncherAttrs {
@@ -101,17 +99,25 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   view({attrs}: m.Vnode<QueryLauncherAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
     const editing = tab.settingsSession !== undefined;
-    return m('.pf-bt-launcher', [
-      m(
-        '.pf-bt-launcher__body',
-        m(QuerySettingsForm, {
-          bindings,
-          scope: 'trace-selection',
-          header: this.renderPresetsSection(tab, tabsState, editing),
-        }),
-      ),
-      this.renderFooter(tab, tabsState, editing),
-    ]);
+    return m(
+      '.pf-bt-launcher',
+      {
+        // In UUID mode the paste box is the page: stretch the chain so it
+        // fills the height the grid otherwise would.
+        className: traceUuidsActive(tab) ? 'pf-bt-launcher--uuid' : undefined,
+      },
+      [
+        m(
+          '.pf-bt-launcher__body',
+          m(QuerySettingsForm, {
+            bindings,
+            scope: 'trace-selection',
+            header: this.renderPresetsSection(tab, tabsState, editing),
+          }),
+        ),
+        this.renderFooter(tab, tabsState, editing),
+      ],
+    );
   }
 
   // The page heading and the preset picker. What picking does depends on the
@@ -126,22 +132,30 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
       presetStore.presets,
       localPresetStore.list(),
     );
+    // In UUID mode the pasted list is the whole page: presets are about
+    // picking a filter setup, so they hide with the rest — and the category
+    // row applying on click would otherwise yank the tab out of the mode.
+    // The way back to all of it is the card's own "Back to filtering".
+    const uuidMode = traceUuidsActive(tab);
     return [
       // One heading for the whole page: presets, grid and source settings are
       // all one activity.
       m('.pf-bt-corpus-head', [
         m('.pf-bt-corpus-head__title', 'Select a trace corpus'),
-        m(
-          '.pf-bt-corpus-head__subtitle',
-          'Start from a preset for your vertical, then filter the table ' +
-            'down to the traces of interest.',
-        ),
+        !uuidMode &&
+          m(
+            '.pf-bt-corpus-head__subtitle',
+            'Start from a preset for your vertical, then filter the table ' +
+              'down to the traces of interest.' +
+              (traceUuidsDeclared() ? ' Or simply paste trace uuids.' : ''),
+          ),
       ]),
-      presets.length > 0
-        ? this.renderPresetPicker(tab, tabsState, presets, editing)
-        : // Only a new tab explains where presets come from; an existing
-          // query's page goes straight to the trace selection.
-          !editing && this.renderNoPresets(),
+      !uuidMode &&
+        (presets.length > 0 || traceUuidsDeclared()
+          ? this.renderPresetPicker(tab, tabsState, presets, editing)
+          : // Only a new tab explains where presets come from; an existing
+            // query's page goes straight to the trace selection.
+            !editing && this.renderNoPresets()),
     ];
   }
 
@@ -193,6 +207,14 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     presets: ReadonlyArray<TracePreset>,
     editing: boolean,
   ): m.Children {
+    if (presets.length === 0) {
+      // Backend declares UUID selection but offers no presets: the row is
+      // just the way into UUID mode (plus the new-tab empty state).
+      return [
+        m('.pf-bt-preset-picker', this.renderUuidModeButton(tab, tabsState)),
+        !editing && this.renderNoPresets(),
+      ];
+    }
     const appliedId = editing
       ? matchingSetupPresetId(tab, presets, tab.lastPresetId)
       : selectedPresetId(tab, presets, tab.lastPresetId);
@@ -243,46 +265,54 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           if (remembered !== undefined) pick(remembered);
         },
       ),
+      m('span.pf-bt-preset-picker__dot', {'aria-hidden': 'true'}, '·'),
       m(
-        Select,
+        PopupMenu,
         {
-          className: 'pf-bt-preset-picker__select',
-          value: appliedInActive ? appliedId : '',
-          title: shown?.description || undefined,
-          onchange: (e: Event) => {
-            const id = (e.target as HTMLSelectElement).value;
-            const preset = options.find((p) => p.id === id);
-            if (preset === undefined) return;
-            pick(preset);
-          },
+          trigger: m(Button, {
+            className: 'pf-bt-preset-picker__select',
+            label: shown !== undefined ? shown.name : 'Choose a preset…',
+            rightIcon: 'arrow_drop_down',
+            // Outlined so it reads as a field with a value, not another tab.
+            variant: ButtonVariant.Outlined,
+            title: shown?.description || undefined,
+          }),
         },
         [
-          m('option', {value: '', disabled: true}, '— choose a preset —'),
           options.map((p) =>
-            m(
-              'option',
-              {value: p.id, title: p.description || undefined},
-              presetOptionLabel(p, suggestedId),
-            ),
+            m(MenuItem, {
+              label: presetOptionLabel(p, suggestedId),
+              rightIcon: p.id === appliedId ? 'check' : undefined,
+              title: p.description || undefined,
+              onclick: () => pick(p),
+            }),
           ),
         ],
       ),
-      // Manage the applied preset when it's the user's own.
-      shown !== undefined &&
-        isLocalPreset(shown) && [
-          m(Button, {
-            icon: 'edit',
-            title: 'Edit this preset: name, group, description',
-            onclick: () => void editLocalPreset(shown as LocalPreset),
-          }),
-          m(Button, {
-            icon: 'delete',
-            intent: Intent.Danger,
-            title: 'Delete this preset',
-            onclick: () => void deleteLocalPreset(shown as LocalPreset),
-          }),
-        ],
+      this.renderUuidModeButton(tab, tabsState),
     ]);
+  }
+
+  // The way into UUID mode, offered only when the backend declares
+  // trace_uuids and the tab isn't already in it (the mode's own card carries
+  // the way back). Provisional like everything else on this page.
+  private renderUuidModeButton(
+    tab: BigTraceEditorTab,
+    tabsState: QueryTabsState,
+  ): m.Children {
+    if (!traceUuidsDeclared() || traceUuidsActive(tab)) return null;
+    return m(Button, {
+      label: 'Paste trace UUIDs…',
+      icon: 'format_list_bulleted',
+      className: 'pf-bt-preset-picker__uuid',
+      title:
+        'Select the corpus by exact trace UUIDs instead of the directory ' +
+        'and the grid filter.',
+      onclick: () => {
+        setTraceUuidsActive(tab, true);
+        tabsState.markDirty();
+      },
+    });
   }
 
   private renderFooter(
@@ -305,6 +335,14 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           },
         }),
       m('.pf-bt-launcher__footer-spacer'),
+      // Curation without application: edit or delete saved presets while the
+      // tab's selection stays untouched — reachable in either mode.
+      localPresetStore.list().length > 0 &&
+        m(Button, {
+          label: 'Manage presets…',
+          icon: 'bookmarks',
+          onclick: () => void openManagePresetsModal(),
+        }),
       m(Button, {
         label: 'Save as preset…',
         icon: 'bookmark_add',
@@ -361,7 +399,6 @@ export function presetOptionLabel(
   suggestedId: string | undefined,
 ): string {
   let label = p.name;
-  if (p.perfettoSql.trim() === '') label += ' · setup only';
   if (p.id === suggestedId) label += ' · last used';
   return label;
 }

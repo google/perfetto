@@ -827,8 +827,96 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
-// Category selector + per-category preset dropdown (+ edit/delete for the
-// user's own presets). Descriptions are tooltips, not page text.
+// UUID mode: the paste box IS the page, so the whole chain from the
+// launcher body down to the textarea stretches to fill the height the grid
+// otherwise would. min-height: 0 at every flex level or the intrinsic
+// textarea height wins and the page overflows instead of fitting.
+.pf-bt-launcher--uuid {
+  .pf-bt-launcher__body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pf-bt-settings-embedded,
+  .pf-bt-settings-page,
+  .pf-bt-settings-page__plugin-section,
+  .pf-card-stack,
+  .pf-bt-uuid-settings-card,
+  .pf-bt-uuid-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .pf-bt-settings-page__plugin-section {
+    margin-bottom: 0;
+  }
+
+  // The shared settings-card style centers its children (it lays out
+  // title/controls); here the card is a column and the paste box must span it.
+  .pf-bt-uuid-settings-card {
+    align-items: stretch;
+  }
+
+  .pf-bt-uuid-card__input {
+    flex: 1;
+  }
+}
+
+// UUID-mode card: paste box + count.
+.pf-bt-uuid-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  // Format help lives behind the icon, not as page text.
+  &__info {
+    color: var(--pf-color-text-muted);
+    font-size: 16px;
+    cursor: help;
+  }
+
+  &__input {
+    width: 100%;
+    min-height: 160px;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: var(--pf-font-monospace, monospace);
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text);
+    background: var(--pf-color-background);
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    padding: 8px 10px;
+
+    &:focus-visible {
+      outline: 1px solid var(--pf-color-primary);
+    }
+  }
+
+  &__count {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+}
+
+// Category selector + per-category preset dropdown; the UUID-mode entry
+// anchors to the row's right edge (auto margin, so it holds even when the
+// row wraps). Descriptions are tooltips, not page text.
 .pf-bt-preset-picker {
   display: flex;
   align-items: center;
@@ -836,8 +924,88 @@ pre.pf-bt-history-item-query--standalone {
   gap: 8px 16px;
   margin-bottom: 8px;
 
+  &__dot {
+    color: var(--pf-color-text-muted);
+    font-weight: 700;
+  }
+
+  // The dropdown trigger holds a steady width; label left, arrow right.
   &__select {
     min-width: 260px;
+    justify-content: space-between;
+  }
+
+  &__uuid {
+    margin-left: auto;
+  }
+}
+
+// Manage-presets modal: one row per preset saved in this browser. List
+// styling like a menu — hover highlight instead of hairlines; the danger
+// color is the confirm dialog's, not every row's.
+.pf-bt-manage-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: min(440px, 80vw);
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--pf-color-background-secondary);
+    }
+  }
+
+  // A row expanded into its inline editor: a contained panel with the form
+  // stacked over right-aligned actions, so it reads as one unit in the list.
+  &__row--editing {
+    flex-direction: column;
+    align-items: stretch;
+    background: var(--pf-color-background-secondary);
+    padding: 8px;
+
+    &:hover {
+      background: var(--pf-color-background-secondary);
+    }
+  }
+
+  &__form {
+    min-width: 0;
+
+    label:first-child {
+      margin-top: 0;
+    }
+  }
+
+  &__form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-top: 8px;
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    margin-right: 16px;
+  }
+
+  &__name {
+    font-weight: 500;
+  }
+
+  &__meta {
+    color: var(--pf-color-text-muted);
+    font-size: smaller;
+  }
+
+  &__empty {
+    color: var(--pf-color-text-muted);
   }
 }
 

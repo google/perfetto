@@ -57,6 +57,10 @@ export interface SettingsBindings {
   readonly setRowLimit: (limit: number) => void;
   readonly getMaterialize: () => boolean;
   readonly setMaterialize: (materialize: boolean) => void;
+  // The trace fan-out cap — a top-level request field like the row limit,
+  // edited in the query-settings modal.
+  readonly getTraceLimit: () => number;
+  readonly setTraceLimit: (limit: number) => void;
 }
 
 // Wraps a globally-registered Setting<T> so reads/writes route through per-tab

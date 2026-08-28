@@ -36,20 +36,95 @@ export const MODE_DEFAULTS = {
   persistent: {rowLimit: 10_000, traceLimit: 100_000},
 } as const;
 
-// The backend setting carrying the trace fan-out cap. The UI has to name it to
-// seed the per-mode default; a backend that doesn't declare it simply gets no
-// cap, and the toolbar hides the control.
-export const TRACE_LIMIT_SETTING_ID = 'trace_limit';
+// The backend setting carrying an explicit list of trace UUIDs — the second
+// way to select a corpus: instead of a source plus the grid filter, exactly
+// these traces. A backend that supports it declares the setting (disabled by
+// default); the UI names the id to treat it as a selection MODE rather than
+// an ordinary card. When it is enabled and non-empty the backend selects
+// exactly these traces and ignores the filter-mode fields.
+export const TRACE_UUIDS_SETTING_ID = 'trace_uuids';
+
+// Whether this deployment offers selection by UUID at all.
+export function traceUuidsDeclared(): boolean {
+  return bigTraceSettingsStorage.get(TRACE_UUIDS_SETTING_ID) !== undefined;
+}
+
+// UUID mode is DERIVED, not stored — one predicate for every surface. The
+// tab must hold its OWN trace_uuids entry (created on entering the mode, or
+// by a preset, or by a clone/restore) and not have it disabled. Requiring the
+// explicit entry keeps a fresh tab out of the mode even when the exec config
+// (which declares the setting) arrives only after the tab was created — the
+// tab-creation mirror of globally-disabled settings can't cover settings it
+// hasn't seen yet.
+export function traceUuidsState(
+  declared: boolean,
+  disabled: boolean,
+  hasEntry: boolean,
+): boolean {
+  return declared && !disabled && hasEntry;
+}
+
+export function traceUuidsActive(tab: BigTraceEditorTab): boolean {
+  return traceUuidsState(
+    traceUuidsDeclared(),
+    tab.disabledSettings.includes(TRACE_UUIDS_SETTING_ID),
+    tab.querySettings.some((s) => s.settingId === TRACE_UUIDS_SETTING_ID),
+  );
+}
+
+// Enter/leave UUID mode. Entering ensures the tab's own entry (keeping any
+// values it held from an earlier stint in the mode) and enables it; leaving
+// only disables — values and the whole filter-mode configuration (source,
+// grid filter, order) stay put, hidden rather than cleared.
+export function setTraceUuidsActive(
+  tab: BigTraceEditorTab,
+  active: boolean,
+): void {
+  const setting = bigTraceSettingsStorage.get(TRACE_UUIDS_SETTING_ID);
+  if (setting === undefined) return;
+  const without = tab.disabledSettings.filter(
+    (id) => id !== TRACE_UUIDS_SETTING_ID,
+  );
+  if (active) {
+    tab.disabledSettings = without;
+    if (
+      !tab.querySettings.some((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+    ) {
+      tab.querySettings = [
+        ...tab.querySettings,
+        {
+          settingId: TRACE_UUIDS_SETTING_ID,
+          values: [],
+          category: (setting.category ?? 'TRACE_ADDRESS') as SettingCategory,
+        },
+      ];
+    }
+  } else {
+    tab.disabledSettings = [...without, TRACE_UUIDS_SETTING_ID];
+  }
+}
+
+// Pasted text → UUID list: split on commas and any whitespace, drop empties,
+// dedupe keeping first occurrence. No format validation — what a "uuid" looks
+// like is the backend's business.
+export function parseTraceUuids(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of text.split(/[\s,]+/)) {
+    if (token === '' || seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+  }
+  return out;
+}
 
 // Trace selection is WHICH traces a query runs over: the source settings
 // (TRACE_ADDRESS) and any per-trace metadata filters an indexer backend
-// declares (TRACE_METADATA). The trace cap is a run control, not selection,
-// so it belongs with the query options despite its category.
+// declares (TRACE_METADATA).
 export function isTraceSelectionSetting(setting: {
   readonly id: string;
   readonly category?: string;
 }): boolean {
-  if (setting.id === TRACE_LIMIT_SETTING_ID) return false;
   return (
     setting.category === 'TRACE_ADDRESS' ||
     setting.category === 'TRACE_METADATA'
@@ -63,61 +138,6 @@ function modeDefaults(materialize: boolean): {
   return materialize ? MODE_DEFAULTS.persistent : MODE_DEFAULTS.ephemeral;
 }
 
-// Clamp to the bounds the backend declared, so a default we seed ourselves
-// can't exceed what this deployment accepts.
-function clampTraceLimit(value: number): number {
-  const setting = bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID);
-  if (setting === undefined) return value;
-  const {min, max} = setting;
-  let out = value;
-  if (typeof min === 'number' && out < min) out = min;
-  if (typeof max === 'number' && max > 0 && out > max) out = max;
-  return out;
-}
-
-// The cap the user (or a preset) set explicitly on this tab, if any.
-// Whether this tab ships no cap at all, because the setting is switched off.
-export function traceLimitDisabled(tab: BigTraceEditorTab): boolean {
-  return tab.disabledSettings.includes(TRACE_LIMIT_SETTING_ID);
-}
-
-function explicitTraceLimit(tab: BigTraceEditorTab): number | undefined {
-  const entry = tab.querySettings.find(
-    (s) => s.settingId === TRACE_LIMIT_SETTING_ID,
-  );
-  if (entry === undefined) return undefined;
-  const n = Number(entry.values[0]);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-// The cap the next run will use: the explicit value, else the mode default.
-// Meaningless when the tab has the setting disabled — then the run is uncapped
-// and callers hide the control (see traceLimitDisabled).
-export function effectiveTraceLimit(tab: BigTraceEditorTab): number {
-  return (
-    explicitTraceLimit(tab) ??
-    clampTraceLimit(modeDefaults(tab.materialize).traceLimit)
-  );
-}
-
-export function setTraceLimit(tab: BigTraceEditorTab, value: number): void {
-  const setting = bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID);
-  if (setting === undefined) return;
-  // Setting a cap turns the setting back on — the toolbar control is the cap,
-  // so a value typed there can't be silently dropped by a stale disable.
-  tab.disabledSettings = tab.disabledSettings.filter(
-    (id) => id !== TRACE_LIMIT_SETTING_ID,
-  );
-  tab.querySettings = [
-    ...tab.querySettings.filter((s) => s.settingId !== TRACE_LIMIT_SETTING_ID),
-    {
-      settingId: TRACE_LIMIT_SETTING_ID,
-      values: [String(clampTraceLimit(value))],
-      category: (setting.category ?? 'TRACE_ADDRESS') as SettingCategory,
-    },
-  ];
-}
-
 // Switch a tab's execution mode, moving both limits to the new mode's defaults
 // — but only where they still hold the old mode's default, so a value the user
 // typed (or a preset set) survives the flip.
@@ -128,10 +148,7 @@ export function applyModeDefaults(
   const from = modeDefaults(tab.materialize);
   const to = modeDefaults(materialize);
   if (tab.limit === from.rowLimit) tab.limit = to.rowLimit;
-  const explicit = explicitTraceLimit(tab);
-  if (explicit !== undefined && explicit === clampTraceLimit(from.traceLimit)) {
-    setTraceLimit(tab, to.traceLimit);
-  }
+  if (tab.traceLimit === from.traceLimit) tab.traceLimit = to.traceLimit;
   tab.materialize = materialize;
 }
 
@@ -189,15 +206,6 @@ export function effectiveTabSettings(tab: BigTraceEditorTab): SettingFilter[] {
   }
   for (const s of tab.querySettings) byId.set(s.settingId, s);
   for (const id of tab.disabledSettings) byId.delete(id);
-  // With no explicit per-tab cap, fall back to this tab's mode default rather
-  // than the backend's global one, so an ephemeral run stays a quick look.
-  const traceLimit = byId.get(TRACE_LIMIT_SETTING_ID);
-  if (traceLimit !== undefined && explicitTraceLimit(tab) === undefined) {
-    byId.set(TRACE_LIMIT_SETTING_ID, {
-      ...traceLimit,
-      values: [String(effectiveTraceLimit(tab))],
-    });
-  }
   return [...byId.values()];
 }
 
@@ -289,6 +297,7 @@ export interface TabConfigSnapshot {
   readonly traceMetadataColumns: ReadonlyArray<string> | null;
   readonly traceOrderBy: string;
   readonly limit: number;
+  readonly traceLimit: number;
   readonly materialize: boolean;
 }
 
@@ -308,6 +317,7 @@ export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
       tab.traceMetadataColumns === null ? null : [...tab.traceMetadataColumns],
     traceOrderBy: tab.traceOrderBy,
     limit: tab.limit,
+    traceLimit: tab.traceLimit,
     materialize: tab.materialize,
   };
 }
@@ -323,6 +333,7 @@ export function restoreTabConfig(
     snap.traceMetadataColumns === null ? null : [...snap.traceMetadataColumns];
   tab.traceOrderBy = snap.traceOrderBy;
   tab.limit = snap.limit;
+  tab.traceLimit = snap.traceLimit;
   tab.materialize = snap.materialize;
 }
 
@@ -353,6 +364,9 @@ export interface BigTraceEditorTab {
   title: string;
   editorText: string;
   limit: number;
+  // Cap on how many traces the run fans out to; a top-level request field
+  // like `limit`, defaulted per mode and moved with it while untouched.
+  traceLimit: number;
   queryResult?: QueryResponse;
   isLoading: boolean;
   dataSource?: DataSource;
@@ -407,6 +421,7 @@ interface StoredTab {
   readonly title: string;
   readonly editorText: string;
   readonly limit: number;
+  readonly traceLimit?: number;
   readonly materialize: boolean;
   readonly queryUuid?: string;
   readonly error?: string;
@@ -460,6 +475,7 @@ export class QueryTabsState {
     materialize?: boolean,
     forceNew?: boolean,
     stored?: Partial<StoredTab>,
+    traceLimit?: number,
   ): BigTraceEditorTab {
     if (!forceNew) {
       const existingTab = this.tabs.find((t) => {
@@ -492,21 +508,6 @@ export class QueryTabsState {
       : isFromHistory
         ? []
         : [...bigTraceSettingsStorage.buildSettingFilters()];
-    // A fresh tab copies the current global defaults, which include the
-    // backend's own trace cap; replace it with the one for this tab's mode.
-    if (!isFromStorage && !isFromHistory) {
-      const idx = querySettings.findIndex(
-        (s) => s.settingId === TRACE_LIMIT_SETTING_ID,
-      );
-      if (idx >= 0) {
-        querySettings[idx] = {
-          ...querySettings[idx],
-          values: [
-            String(clampTraceLimit(modeDefaults(isPersistent).traceLimit)),
-          ],
-        };
-      }
-    }
     // Restored tabs use their snapshot; history-reopen tabs are rehydrated by
     // the runner; a fresh tab starts empty and gets its selection from the
     // preset (or custom setup) chosen in the launcher.
@@ -537,8 +538,15 @@ export class QueryTabsState {
       id: shortUuid(),
       title: derivedTitle || this.nextTabName(),
       editorText: initialQuery ?? '',
-      // No caller-supplied cap: take the one that fits the execution mode.
+      // No caller-supplied caps: take the ones that fit the execution mode.
       limit: limit ?? modeDefaults(isPersistent).rowLimit,
+      traceLimit:
+        traceLimit ??
+        (isFromStorage &&
+        typeof stored?.traceLimit === 'number' &&
+        stored.traceLimit > 0
+          ? stored.traceLimit
+          : modeDefaults(isPersistent).traceLimit),
       queryResult: undefined,
       isLoading: false,
       dataSource: undefined,
@@ -597,6 +605,7 @@ export class QueryTabsState {
         resultColumns: src.resultColumns,
         configured: true,
         lastPresetId: src.lastPresetId,
+        traceLimit: src.traceLimit,
       },
     );
     this.markDirty();
@@ -656,6 +665,7 @@ export class QueryTabsState {
         title: t.title,
         editorText: t.editorText,
         limit: t.limit,
+        traceLimit: t.traceLimit,
         materialize: t.materialize,
         queryUuid: t.queryUuid,
         error: t.queryResult?.error,

@@ -32,6 +32,7 @@ export interface RawQueryExecution {
   readonly errorMessage?: string;
   readonly perfettoSql?: string;
   readonly limit?: number;
+  readonly traceLimit?: number;
   readonly materialized?: boolean;
   readonly tableName?: string;
   readonly tableLink?: string;

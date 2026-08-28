@@ -67,6 +67,9 @@ export interface ExecuteOptions {
   readonly traceMetadataColumns?: ReadonlyArray<string>;
   // AIP-132 ordering for the trace processing order.
   readonly traceOrderBy?: string;
+  // Cap on how many traces the query fans out to, applied after the trace
+  // selection. A first-class field like `limit`, not a setting.
+  readonly traceLimit?: number;
 }
 
 // One analysis preset from `GET /trace_presets`: display metadata plus a
@@ -354,6 +357,9 @@ export class BigtraceQueryClient {
     }
     if (options?.traceOrderBy && options.traceOrderBy.length > 0) {
       body.trace_order_by = options.traceOrderBy;
+    }
+    if (options?.traceLimit !== undefined && options.traceLimit > 0) {
+      body.trace_limit = options.traceLimit;
     }
     const result = await this.requestJson<QueryResponsePayload>(path, {
       method: 'POST',

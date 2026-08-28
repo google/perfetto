@@ -24,7 +24,6 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {formatPerfettoSql} from '../query/sql_formatter';
@@ -36,10 +35,6 @@ import {
   applyModeDefaults,
   hasQueryText,
   effectiveTabSettings,
-  effectiveTraceLimit,
-  isTraceSelectionSetting,
-  traceLimitDisabled,
-  TRACE_LIMIT_SETTING_ID,
 } from './query_tabs_state';
 import {openQuerySettingsModal} from './query_settings_modal';
 import {renderResultsPanel} from './results_panel';
@@ -121,14 +116,7 @@ function buildTabBindings(
     getEffectiveSettings: () => effectiveTabSettings(tab),
     getSettingValue: (id) => {
       const entry = tab.querySettings.find((s) => s.settingId === id);
-      if (entry !== undefined) return entry.values;
-      // Until the user sets one, the trace cap follows the execution mode —
-      // report that, so the settings card agrees with the toolbar. A cap the
-      // tab switched off has no value to report: the run is uncapped.
-      if (id === TRACE_LIMIT_SETTING_ID && !traceLimitDisabled(tab)) {
-        return [String(effectiveTraceLimit(tab))];
-      }
-      return undefined;
+      return entry?.values;
     },
     setSettingValue: (id, values, category) => {
       const next = [...tab.querySettings];
@@ -177,6 +165,13 @@ function buildTabBindings(
       // the mode.
       applyModeDefaults(tab, materialize);
       tabsState.markDirty();
+    },
+    getTraceLimit: () => tab.traceLimit,
+    setTraceLimit: (limit) => {
+      if (limit > 0) {
+        tab.traceLimit = limit;
+        tabsState.markDirty();
+      }
     },
   };
 }
@@ -230,7 +225,7 @@ function renderEditorPanel(
           'or press',
           m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
         ),
-        m(StackAuto),
+        m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
         // Icon-only to keep the toolbar lean; the editor binds the same chord.
         m(Button, {
           icon: 'format_align_left',
@@ -238,6 +233,7 @@ function renderEditorPanel(
           disabled: !hasQueryText(tab.editorText),
           onclick: () => void formatTabQuery(tab, tabsState, tab.editorText),
         }),
+        m(StackAuto),
         useBigtraceBackend && renderRunControls(tab, tabsState),
       ]),
     ]),
@@ -266,17 +262,14 @@ function renderEditorPanel(
 }
 
 // Mode switch, the row cap, and the gear opening the query-settings modal
-// (the trace cap and every non-trace-selection setting).
+// (the trace cap and every non-trace-selection setting). The gear is always
+// there: the trace cap is a universal request field, whatever the backend
+// declares.
 function renderRunControls(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
 ): m.Children {
-  // Whether there is anything for the modal to show.
-  const hasQuerySettings = bigTraceSettingsStorage
-    .getAllSettings()
-    .some((s) => !isTraceSelectionSetting(s));
   return [
-    m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
     m(Switch, {
       label: 'Persistent',
       title:
@@ -305,20 +298,19 @@ function renderRunControls(
         }
       },
     }),
-    hasQuerySettings &&
-      m(Button, {
-        icon: 'settings',
-        title:
-          'Query settings — the trace cap and the query options. Applied ' +
-          'from the next run.',
-        disabled: tab.isLoading,
-        onclick: () =>
-          void openQuerySettingsModal(
-            tab,
-            tabsState,
-            buildTabBindings(tab, tabsState),
-          ),
-      }),
+    m(Button, {
+      icon: 'settings',
+      title:
+        'Advanced query settings — the trace cap and the query options. ' +
+        'Applied from the next run.',
+      disabled: tab.isLoading,
+      onclick: () =>
+        void openQuerySettingsModal(
+          tab,
+          tabsState,
+          buildTabBindings(tab, tabsState),
+        ),
+    }),
   ];
 }
 

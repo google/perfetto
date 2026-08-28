@@ -14,6 +14,8 @@
 
 import m from 'mithril';
 import {TextInput} from '../../widgets/text_input';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 import {showModal} from '../../widgets/modal';
 import type {TracePreset} from '../query/bigtrace_query_client';
 import {presetStore} from '../query/preset_store';
@@ -25,7 +27,10 @@ import {
   type LocalPreset,
   type PresetDetails,
 } from '../query/local_preset_store';
-import type {BigTraceEditorTab} from './query_tabs_state';
+import {
+  TRACE_UUIDS_SETTING_ID,
+  type BigTraceEditorTab,
+} from './query_tabs_state';
 
 // A preset name that would collide with one already on offer. Catalog names
 // are reserved outright: a local twin couldn't be told apart in the gallery. A
@@ -184,37 +189,190 @@ export async function promptForPreset(
   );
 }
 
-// Edit what a saved preset shows in the gallery; what it runs is untouched.
-export async function editLocalPreset(preset: LocalPreset): Promise<void> {
-  const details = await promptPresetDetails({
-    title: 'Edit preset',
-    button: 'Save',
-    initial: preset,
-    own: preset,
-    allowOverwrite: false,
-  });
-  if (details === undefined) return;
-  localPresetStore.update(preset.id, details);
-  m.redraw();
+// One line describing what a preset selects, for the manage list.
+function presetSelectionHint(p: LocalPreset): string {
+  const uuids = (p.settings ?? []).find(
+    (s) => s.settingId === TRACE_UUIDS_SETTING_ID,
+  );
+  const selection =
+    uuids !== undefined && uuids.values.length > 0
+      ? `Trace UUIDs: ${uuids.values.length}`
+      : (p.traceFilters ?? []).length > 0
+        ? `Filters: ${(p.traceFilters ?? []).length}`
+        : 'All traces';
+  return [p.category || DEFAULT_LOCAL_CATEGORY, selection].join(' · ');
 }
 
-export async function deleteLocalPreset(preset: LocalPreset): Promise<void> {
-  let confirmed = false;
-  await showModal({
-    title: 'Delete preset?',
-    content: m('div', `"${preset.name}" will be removed from this browser.`),
-    buttons: [
-      {text: 'Cancel'},
-      {
-        text: 'Delete',
-        primary: true,
-        action: () => {
-          confirmed = true;
+type DraftDetails = {
+  -readonly [K in keyof PresetDetails]: PresetDetails[K];
+};
+
+// Every preset saved in this browser, editable and deletable in place —
+// management without application, so a preset can be curated or removed even
+// when applying it would rewrite the tab's selection or flip its mode.
+export async function openManagePresetsModal(): Promise<void> {
+  // At most one row is expanded into its inline editor or delete confirm;
+  // both live inside this modal, so no dialog ever replaces it.
+  let active:
+    | {kind: 'edit'; id: string; draft: DraftDetails}
+    | {kind: 'delete'; id: string}
+    | undefined = undefined;
+
+  const editProblem = (own: LocalPreset, name: string): string | undefined => {
+    const conflict = presetNameConflict(
+      name,
+      presetStore.presets,
+      localPresetStore.list(),
+      own,
+    );
+    if (conflict === undefined) return undefined;
+    if (conflict.kind === 'catalog') {
+      return `The catalog already has a preset called "${conflict.preset.name}". Pick another name.`;
+    }
+    return `You already have a preset called "${conflict.preset.name}".`;
+  };
+
+  const renderRow = (p: LocalPreset): m.Children =>
+    m('.pf-bt-manage-presets__row', {key: p.id}, [
+      m('.pf-bt-manage-presets__text', [
+        m('.pf-bt-manage-presets__name', p.name),
+        m('.pf-bt-manage-presets__meta', presetSelectionHint(p)),
+      ]),
+      m(Button, {
+        icon: 'edit',
+        title: 'Edit this preset: name, group, description',
+        onclick: () => {
+          active = {
+            kind: 'edit',
+            id: p.id,
+            draft: {
+              name: p.name,
+              category: p.category,
+              description: p.description,
+            },
+          };
         },
-      },
-    ],
+      }),
+      m(Button, {
+        icon: 'delete',
+        title: 'Delete this preset',
+        onclick: () => {
+          active = {kind: 'delete', id: p.id};
+        },
+      }),
+    ]);
+
+  const renderEditRow = (p: LocalPreset, draft: DraftDetails): m.Children => {
+    const message = editProblem(p, draft.name);
+    const field = (
+      label: string,
+      value: string,
+      placeholder: string,
+      write: (v: string) => void,
+    ): m.Children => [
+      m('label', label),
+      m(TextInput, {
+        value,
+        placeholder,
+        oninput: (e: Event) => {
+          write((e.target as HTMLInputElement).value);
+        },
+      }),
+    ];
+    return m(
+      '.pf-bt-manage-presets__row.pf-bt-manage-presets__row--editing',
+      {key: p.id},
+      [
+        m('.pf-bt-save-preset.pf-bt-manage-presets__form', [
+          field('Name', draft.name, 'Preset name', (v) => {
+            draft.name = v;
+          }),
+          message !== undefined &&
+            m('.pf-bt-save-preset__message', {role: 'alert'}, message),
+          field('Group', draft.category, 'Group shown in the picker', (v) => {
+            draft.category = v;
+          }),
+          field(
+            'Description',
+            draft.description,
+            'One line, shown on the card',
+            (v) => {
+              draft.description = v;
+            },
+          ),
+        ]),
+        m('.pf-bt-manage-presets__form-actions', [
+          m(Button, {
+            label: 'Cancel',
+            onclick: () => {
+              active = undefined;
+            },
+          }),
+          m(Button, {
+            label: 'Save',
+            intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
+            disabled: draft.name.trim() === '' || message !== undefined,
+            onclick: () => {
+              localPresetStore.update(p.id, {
+                name: draft.name.trim(),
+                category: draft.category.trim() || DEFAULT_LOCAL_CATEGORY,
+                description: draft.description.trim(),
+              });
+              active = undefined;
+            },
+          }),
+        ]),
+      ],
+    );
+  };
+
+  const renderDeleteRow = (p: LocalPreset): m.Children =>
+    m('.pf-bt-manage-presets__row', {key: p.id}, [
+      m('.pf-bt-manage-presets__text', [
+        m('.pf-bt-manage-presets__name', p.name),
+        m('.pf-bt-manage-presets__meta', 'Will be removed from this browser.'),
+      ]),
+      m(Button, {
+        label: 'Delete',
+        intent: Intent.Danger,
+        variant: ButtonVariant.Filled,
+        onclick: () => {
+          localPresetStore.remove(p.id);
+          active = undefined;
+        },
+      }),
+      m(Button, {
+        label: 'Cancel',
+        onclick: () => {
+          active = undefined;
+        },
+      }),
+    ]);
+
+  await showModal({
+    title: 'Manage presets',
+    className: 'pf-bt-manage-presets-modal',
+    content: () => {
+      const list = localPresetStore.list();
+      if (list.length === 0) {
+        return m(
+          '.pf-bt-manage-presets__empty',
+          'No presets saved in this browser.',
+        );
+      }
+      return m(
+        '.pf-bt-manage-presets',
+        list.map((p) => {
+          if (active !== undefined && active.id === p.id) {
+            return active.kind === 'edit'
+              ? renderEditRow(p, active.draft)
+              : renderDeleteRow(p);
+          }
+          return renderRow(p);
+        }),
+      );
+    },
+    buttons: [{text: 'Close'}],
   });
-  if (!confirmed) return;
-  localPresetStore.remove(preset.id);
-  m.redraw();
 }

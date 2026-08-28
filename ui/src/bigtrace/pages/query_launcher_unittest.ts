@@ -24,12 +24,8 @@ import {presetNameConflict} from './preset_dialogs';
 import {
   applyPresetSetup,
   applyPresetToTab,
-  effectiveTabSettings,
-  effectiveTraceLimit,
   MODE_DEFAULTS,
   openSettings,
-  setTraceLimit,
-  traceLimitDisabled,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
@@ -56,6 +52,7 @@ function fakeTab(over: Partial<BigTraceEditorTab> = {}): BigTraceEditorTab {
     title: 'Query 1',
     editorText: '',
     limit: MODE_DEFAULTS.ephemeral.rowLimit,
+    traceLimit: MODE_DEFAULTS.ephemeral.traceLimit,
     materialize: false,
     configured: false,
     querySettings: [],
@@ -189,10 +186,11 @@ describe('applyPresetToTab', () => {
   test('mode and caps never follow a preset', () => {
     const tab = fakeTab({materialize: false});
     tab.limit = 77;
+    tab.traceLimit = 88;
     applyPresetToTab(tab, preset({materialized: true, limit: 42}));
     expect(tab.materialize).toBe(false);
     expect(tab.limit).toBe(77);
-    expect(effectiveTraceLimit(tab)).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
+    expect(tab.traceLimit).toBe(88);
   });
 
   test('trace settings the preset omits are turned off; options untouched', () => {
@@ -326,55 +324,6 @@ describe('applyPresetToTab', () => {
     expect(
       tab.querySettings.find((s) => s.settingId === 'trace_directory')?.values,
     ).toEqual(['/preset/traces']);
-  });
-
-  test("the trace cap is never a preset's: named or not, the tab's own holds", () => {
-    bigTraceSettingsStorage.register({
-      id: 'trace_limit',
-      name: 'trace_limit',
-      description: '',
-      type: 'number',
-      schema: z.number() as never,
-      defaultValue: 100,
-      category: 'TRACE_ADDRESS',
-    });
-    const tab = fakeTab();
-    setTraceLimit(tab, 500);
-    // A stale catalog entry naming a cap: ignored, not applied, not disabled.
-    applyPresetToTab(
-      tab,
-      preset({
-        settings: [
-          {settingId: 'trace_limit', values: ['25'], category: 'TRACE_ADDRESS'},
-        ],
-      }),
-    );
-    expect(traceLimitDisabled(tab)).toBe(false);
-    expect(effectiveTraceLimit(tab)).toBe(500);
-  });
-
-  test('setting a cap re-enables one the tab had switched off', () => {
-    bigTraceSettingsStorage.register({
-      id: 'trace_limit',
-      name: 'trace_limit',
-      description: '',
-      type: 'number',
-      schema: z.number() as never,
-      defaultValue: 100,
-      category: 'TRACE_ADDRESS',
-    });
-    const tab = fakeTab({disabledSettings: ['trace_limit']});
-    // Uncapped until the user types a number in the toolbar.
-    expect(traceLimitDisabled(tab)).toBe(true);
-    expect(effectiveTabSettings(tab).map((s) => s.settingId)).not.toContain(
-      'trace_limit',
-    );
-    setTraceLimit(tab, 50);
-    expect(traceLimitDisabled(tab)).toBe(false);
-    expect(
-      effectiveTabSettings(tab).find((s) => s.settingId === 'trace_limit')
-        ?.values,
-    ).toEqual(['50']);
   });
 
   test('empty metadata columns from the wire mean "unchosen"', () => {

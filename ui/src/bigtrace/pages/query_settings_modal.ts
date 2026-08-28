@@ -36,7 +36,7 @@ export async function openQuerySettingsModal(
   const before = snapshotTabConfig(tab);
   let applied = false;
   await showModal({
-    title: 'Settings',
+    title: 'Advanced Query Settings',
     className: 'pf-bt-query-settings-modal',
     content: () => m(QuerySettingsForm, {bindings, scope: 'query-options'}),
     buttons: [

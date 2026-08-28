@@ -124,6 +124,7 @@ export class QueryRunner {
       traceFilters,
       traceMetadataColumns,
       traceOrderBy,
+      traceLimit: tab.traceLimit,
     };
 
     const wallStartMs = performance.now();
@@ -252,6 +253,9 @@ export class QueryRunner {
     exec.processedTraces = details.processedTraces ?? 0;
     exec.totalTraces = details.totalTraces ?? 0;
     if (details.limit !== undefined) tab.limit = details.limit;
+    if (typeof details.traceLimit === 'number' && details.traceLimit > 0) {
+      tab.traceLimit = details.traceLimit;
+    }
     // Restore the submit-time snapshot so the settings bar reflects what this
     // query ran with (only the full GET echoes it; the list endpoint omits it).
     // `settings` arrives camelCase (settingId); convert to SettingFilter[].

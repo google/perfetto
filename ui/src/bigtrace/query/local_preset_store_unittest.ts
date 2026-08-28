@@ -178,11 +178,6 @@ describe('presetFromTab', () => {
       traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
       querySettings: [
         {
-          settingId: 'trace_limit',
-          values: ['100000'],
-          category: 'TRACE_ADDRESS',
-        },
-        {
           settingId: 'warn',
           values: ['true'],
           category: 'BIGTRACE_QUERY_OPTIONS',
@@ -201,12 +196,11 @@ describe('presetFromTab', () => {
       {field: 'file_name', op: 'glob', value: '*.pftrace'},
     ]);
     // Trace selection only: the source setting (global default merged in),
-    // and neither the cap, the option, the row limit nor the mode.
+    // and neither the option, the row limit nor the mode.
     const byId = new Map(
       (p.settings ?? []).map((s) => [s.settingId, s.values]),
     );
     expect(byId.get('trace_directory')).toEqual(['/global']);
-    expect(byId.has('trace_limit')).toBe(false);
     expect(byId.has('warn')).toBe(false);
     expect(p.limit).toBeUndefined();
     expect(p.materialized).toBeUndefined();

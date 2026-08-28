@@ -23,6 +23,8 @@ import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
   isTraceSelectionSetting,
   openSettings,
+  TRACE_UUIDS_SETTING_ID,
+  traceUuidsActive,
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
@@ -62,8 +64,14 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
             'changes; Cancel drops them.',
           onclick: () => openSettings(tab),
         }),
-        renderSettingChips(bindings),
-        renderFilterChips(tab, tabsState, bindings),
+        // In UUID mode the pasted list IS the corpus: one count chip, and
+        // none of the filter-mode chips it overrides.
+        traceUuidsActive(tab)
+          ? renderUuidChip(bindings)
+          : [
+              renderSettingChips(bindings),
+              renderFilterChips(tab, tabsState, bindings),
+            ],
       ),
       // Pinned to the right edge: this one acts on the tab as a whole, not on
       // what it runs with, so it sits apart from the configuration chips.
@@ -89,6 +97,18 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
 // Chip rendering
 // ---------------------------------------------------------------------------
 
+// The UUID-mode summary: how many traces the pasted list names.
+function renderUuidChip(bindings: SettingsBindings): m.Children {
+  const values =
+    bindings
+      .getEffectiveSettings()
+      .find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)?.values ?? [];
+  return m(Chip, {
+    label: `Trace UUIDs: ${values.length}`,
+    title: values.slice(0, 20).join('\n') + (values.length > 20 ? '\n…' : ''),
+  });
+}
+
 // One read-only chip per effective trace-selection setting
 // (getEffectiveSettings applies per-tab overrides and drops disabled
 // settings). Editing lives on the Trace Selection page; everything else — the
@@ -101,6 +121,9 @@ function renderSettingChips(bindings: SettingsBindings): m.Children {
     ) {
       return null;
     }
+    // The UUID list has its own summary chip (and is disabled outside its
+    // mode anyway); never render it as a generic values chip.
+    if (entry.settingId === TRACE_UUIDS_SETTING_ID) return null;
     const setting = bigTraceSettingsStorage.get(entry.settingId) as
       BigTraceSetting<unknown> | undefined;
     if (setting === undefined) return null;
