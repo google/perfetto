@@ -85,16 +85,21 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   const TraceBlobView& blob = data.packet;
   // TODO(eseckler): Propagate statuses from modules.
   auto& modules = module_context_->modules_by_field;
-  // One pass over the packet: the first registered field found wins. This
-  // also covers fields in the out-of-tree `extensions 1000 to 1999` range,
-  // which a typed decoder would not store. Packets claimed by a module skip
-  // the full typed decode below entirely.
+  // Dispatch all registered fields found in the packet to their respective
+  // modules. This covers out-of-tree extensions (1000 to 1999) which a typed
+  // decoder would not store. Note that some producers (e.g. Android framework
+  // dumpers) may emit multiple extension fields within the same TracePacket.
+  // If any registered field was parsed, skip the fallback typed decode below.
   SelectiveTracePacketDecoder packet_fields(blob.data(), blob.length());
+  bool parsed = false;
   for (const protozero::Field& f : packet_fields.unknown_fields()) {
     if (f.id() >= modules.size() || modules[f.id()].empty())
       continue;
     for (ProtoImporterModule* module : modules[f.id()])
       module->ParseField({packet_fields, ts, data, TracePacketField(f)});
+    parsed = true;
+  }
+  if (parsed) {
     return;
   }
 

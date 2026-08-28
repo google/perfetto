@@ -121,7 +121,8 @@ packet {
     }
   }
 }
-# Trace-stop dump for process state (contains pid 100, pid 200, pid 300, and pid 400).
+# Trace-stop dump for process state and freezer state in a single TracePacket
+# (exercises multi-extension field dispatch on the same packet).
 packet {
   timestamp: 10000
   [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
@@ -154,11 +155,6 @@ packet {
       proc_state: 1003
     }
   }
-}
-# Trace-stop dump for freezer state (contains pid 100 and pid 600).
-# PID 600 tests dump-only freezer records.
-packet {
-  timestamp: 10000
   [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
     record {
       pid: 100

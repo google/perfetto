@@ -82,6 +82,8 @@
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/android/android_game_intervention_list.pbzero.h"
+#include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
@@ -3179,6 +3181,29 @@ TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
   EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
                "ARMv8 Processor rev 0 (v8l)");
   EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+}
+
+TEST_F(ProtoTraceParserTest, MultiExtensionFieldPacketDispatch) {
+  auto* packet = trace_->add_packet();
+  packet->set_timestamp(1000);
+
+  auto* game_list = packet->set_android_game_intervention_list();
+  auto* game_pkg = game_list->add_game_packages();
+  game_pkg->set_name("com.example.game");
+  game_pkg->set_uid(10001);
+  game_pkg->set_current_mode(1);
+
+  auto* display = packet->set_initial_display_state();
+  display->set_display_state(1);
+
+  EXPECT_CALL(*event_, PushCounter(1000, 1.0, testing::_));
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& game_table =
+      context_.storage->android_game_intervention_list_table();
+  EXPECT_EQ(game_table.row_count(), 1u);
 }
 
 }  // namespace
