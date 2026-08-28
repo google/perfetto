@@ -20,8 +20,12 @@ import type {Filter} from '../../components/widgets/datagrid/model';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
-import type {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
-import {SettingsPage} from './settings_page';
+import {
+  TRACE_LIMIT_SETTING_ID,
+  type BigTraceEditorTab,
+  type QueryTabsState,
+} from './query_tabs_state';
+import {QuerySettingsForm} from './query_settings_form';
 
 export interface BigtraceSettingsBarAttrs {
   readonly tab: BigTraceEditorTab;
@@ -47,14 +51,47 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           className: 'pf-bt-settings-bar__chips',
         },
         m(Chip, {
-          label: 'Add trace filter',
-          icon: 'add',
+          label: 'Settings',
+          icon: 'tune',
           className: 'pf-bt-settings-bar__add',
+          title: 'Edit the traces and options this query runs with.',
           onclick: () => openAddSettingsModal(bindings),
+        }),
+        m(Chip, {
+          label: 'Change setup',
+          icon: 'restart_alt',
+          className: 'pf-bt-settings-bar__add',
+          // Disabled mid-run: the launcher replaces the editor, status box and
+          // Cancel button, and picking a preset there would rewrite the tab
+          // under a query that's still executing.
+          disabled: tab.isLoading,
+          title: tab.isLoading
+            ? 'Wait for the query to finish, or cancel it, to change the setup.'
+            : 'Go back to the preset picker for this tab. The current ' +
+              'settings are kept.',
+          onclick: () => {
+            if (tab.isLoading) return;
+            tab.configured = false;
+            tabsState.markDirty();
+          },
         }),
         renderSettingChips(bindings),
         renderFilterChips(tab, tabsState, bindings),
       ),
+      // Pinned to the right edge: this one acts on the tab as a whole, not on
+      // what it runs with, so it sits apart from the configuration chips.
+      m(Chip, {
+        label: 'Clone',
+        icon: 'content_copy',
+        className: 'pf-bt-settings-bar__end',
+        title:
+          'Open a clone of this query in a new tab — same SQL and settings, ' +
+          'its own run.',
+        onclick: () => {
+          tabsState.cloneTab(tab.id);
+          m.redraw();
+        },
+      }),
     );
   }
 }
@@ -67,6 +104,8 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
 // per-tab overrides and drops disabled settings). Editing lives in the modal.
 function renderSettingChips(bindings: SettingsBindings): m.Children {
   return bindings.getEffectiveSettings().map((entry) => {
+    // The trace cap has its own control in the run toolbar.
+    if (entry.settingId === TRACE_LIMIT_SETTING_ID) return null;
     const setting = bigTraceSettingsStorage.get(entry.settingId) as
       BigTraceSetting<unknown> | undefined;
     if (setting === undefined) return null;
@@ -133,14 +172,14 @@ function formatFilterChipLabel(f: Filter): string {
 // Modal opener
 // ---------------------------------------------------------------------------
 
-// Hosts the SettingsPage in embedded (per-tab) mode — the one place editing
-// (settings, trace-grid selection, metadata columns) happens.
+// Hosts the per-query settings form — where editing (settings, trace-grid
+// selection, metadata columns) happens for this tab.
 function openAddSettingsModal(bindings: SettingsBindings): void {
   void showModal({
     title: 'Bigtrace settings',
     className: 'pf-bt-settings-modal',
     vAlign: 'TOP',
-    content: () => m(SettingsPage, {bindings}),
+    content: () => m(QuerySettingsForm, {bindings}),
     buttons: [{text: 'Done', primary: true}],
   });
 }

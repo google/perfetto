@@ -14,10 +14,7 @@
 
 import {beforeEach, describe, expect, test} from 'vitest';
 import {
-  traceFilterState,
   traceColumnsState,
-  traceOrderByState,
-  traceQueryColumnsState,
   effectiveQueryColumns,
 } from './trace_selection_state';
 import {
@@ -26,36 +23,9 @@ import {
   groupResultColumns,
   resolveResultColumns,
 } from './column_order';
-import type {Filter} from '../../components/widgets/datagrid/model';
 
 beforeEach(() => {
   localStorage.clear();
-});
-
-describe('traceFilterState', () => {
-  test('defaults to an empty list', () => {
-    expect(traceFilterState.get()).toEqual([]);
-  });
-
-  test('round-trips a set of chips', () => {
-    const filters: Filter[] = [
-      {field: 'file_name', op: 'glob', value: '*.pftrace'},
-      {field: 'size_bytes', op: '>', value: '100'},
-    ];
-    traceFilterState.set(filters);
-    expect(traceFilterState.get()).toEqual(filters);
-  });
-
-  test('clear() empties the list', () => {
-    traceFilterState.set([{field: 'a', op: '=', value: '1'}]);
-    traceFilterState.clear();
-    expect(traceFilterState.get()).toEqual([]);
-  });
-
-  test('a malformed stored value reads back as empty', () => {
-    localStorage.setItem('bigtraceTraceFilters', '{"filters":"not-an-array"}');
-    expect(traceFilterState.get()).toEqual([]);
-  });
 });
 
 describe('traceColumnsState', () => {
@@ -108,65 +78,6 @@ describe('traceColumnsState', () => {
         {name: 'link', defaultVisible: true},
       ]),
     ).toEqual(['link', 'file_name']);
-  });
-});
-
-describe('traceOrderByState', () => {
-  test('defaults to the empty string', () => {
-    expect(traceOrderByState.get()).toBe('');
-  });
-
-  test('round-trips an AIP-132 ordering string', () => {
-    traceOrderByState.set('size_bytes desc');
-    expect(traceOrderByState.get()).toBe('size_bytes desc');
-  });
-
-  test('clear() resets to the empty string', () => {
-    traceOrderByState.set('file_name asc');
-    traceOrderByState.clear();
-    expect(traceOrderByState.get()).toBe('');
-  });
-
-  test('a non-string stored value reads back as empty', () => {
-    localStorage.setItem('bigtraceTraceOrderBy', '{"orderBy":42}');
-    expect(traceOrderByState.get()).toBe('');
-  });
-});
-
-describe('traceQueryColumnsState', () => {
-  test('defaults to null (unchosen → attach defaultVisible)', () => {
-    expect(traceQueryColumnsState.get()).toBeNull();
-  });
-
-  test('round-trips a selection', () => {
-    traceQueryColumnsState.set(['device_name', 'android_id']);
-    expect(traceQueryColumnsState.get()).toEqual(['device_name', 'android_id']);
-  });
-
-  test('preserves an explicit empty list as "attach nothing" (not null)', () => {
-    // Unlike traceColumnsState, [] must NOT collapse to null, else "attach
-    // nothing" is unexpressible.
-    traceQueryColumnsState.set([]);
-    expect(traceQueryColumnsState.get()).toEqual([]);
-  });
-
-  test('drops non-string entries from a malformed write', () => {
-    localStorage.setItem(
-      'bigtraceTraceQueryColumns',
-      '{"chosen":["device_name",7,null,"android_id"]}',
-    );
-    expect(traceQueryColumnsState.get()).toEqual(['device_name', 'android_id']);
-  });
-
-  test('a non-array stored value reads back as null', () => {
-    localStorage.setItem('bigtraceTraceQueryColumns', '{"chosen":"nope"}');
-    expect(traceQueryColumnsState.get()).toBeNull();
-  });
-
-  test('clear() reverts to the null default', () => {
-    traceQueryColumnsState.set(['device_name']);
-    traceQueryColumnsState.clear();
-    expect(traceQueryColumnsState.get()).toBeNull();
   });
 });
 

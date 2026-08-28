@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// The settings-card styles live with the shared SettingsShell widget; this
+// form renders those cards without the shell, so it pulls the stylesheet in.
+import '../../widgets/settings_shell.scss';
 import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
 import {linkify} from '../../widgets/anchor';
 import {Intent} from '../../widgets/common';
 import m from 'mithril';
-import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {
   type MultiSelectDiff,
@@ -28,7 +30,6 @@ import {PopupPosition} from '../../widgets/popup';
 import {Card, CardStack} from '../../widgets/card';
 import {Icon} from '../../widgets/icon';
 import {classNames} from '../../base/classnames';
-import {arrayEquals} from '../../base/array_utils';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {
   Setting as BigTraceSetting,
@@ -39,16 +40,9 @@ import {
   type SettingsBindings,
   TabBoundSetting,
 } from '../settings/tab_bound_setting';
-import {Button, ButtonVariant} from '../../widgets/button';
+import {Button} from '../../widgets/button';
 
-import {
-  endpointStorage,
-  getBigtraceEndpoint,
-} from '../settings/endpoint_storage';
-import type {Setting} from '../../public/settings';
-
-import {TextInput} from '../../widgets/text_input';
-import {Stack, StackAuto} from '../../widgets/stack';
+import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
@@ -59,23 +53,13 @@ import type {
 } from '../../components/widgets/datagrid/model';
 import {
   BigtraceQueryClient,
-  type TracePreset,
   type TraceColumnDescriptor,
   type TracesSchemaResponse,
 } from '../query/bigtrace_query_client';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
-import {presetStore} from '../query/preset_store';
-import {encodeFilters} from '../query/filter_encoding';
-import {queryState} from '../query/query_state';
-import {setRoute} from '../router';
-import {Routes} from '../routes';
-import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
 import {formatCompact} from '../query/query_store';
 import {
-  traceFilterState as traceFiltersState,
-  traceOrderByState,
   traceColumnsState,
-  traceQueryColumnsState,
   effectiveQueryColumns,
 } from '../settings/trace_selection_state';
 import {linkColumnFirst, LINK_COLUMN} from '../settings/column_order';
@@ -201,11 +185,10 @@ interface SchemaError {
 }
 type SchemaState = undefined | 'loading' | SchemaError | TracesSchemaResponse;
 
-export interface SettingsPageAttrs {
-  // When set, reads/writes route through the bindings instead of global state.
-  // The /settings route mounts without bindings; the Query page's "Bigtrace
-  // Settings" sub-tab mounts with per-tab bindings.
-  readonly bindings?: SettingsBindings;
+export interface QuerySettingsFormAttrs {
+  // Every read and write routes through these, so the form always edits one
+  // tab's configuration — there is no global settings state behind it.
+  readonly bindings: SettingsBindings;
 }
 
 // AIP-132 single-field order_by helpers. The DataGrid supports only one active
@@ -231,13 +214,10 @@ function formatSingleFieldOrderBy(
   return `${col.field} ${col.sort.toLowerCase()}`;
 }
 
-export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
-  private searchQuery = '';
-  // Active CUJ tab in the preset picker. Defaults to the matched preset's
-  // group (so its highlighted chip is visible), else the first group.
-  private activePresetCuj?: string;
-  // Captured on every view() so private methods read it without threading attrs.
-  private bindings: SettingsBindings | undefined;
+export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttrs> {
+  // Captured on every view() so private methods read it without threading
+  // attrs. Set in oninit before any read.
+  private bindings!: SettingsBindings;
   // Trace-list grid state. Rebuilt whenever the endpoint changes (its
   // BigtraceQueryClient binds to one endpoint at construction). With bindings
   // set, the data source's `getSettings` callback routes through them so
@@ -248,9 +228,9 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   // Sort state for the trace grid. The DataGrid carries sort on the `Column`
   // object, so controlled-mode `columns` splices it back onto the matching
   // column every render, else the click that set it is discarded on the next
-  // redraw. Persisted to `traceOrderByState` because the sort is functionally
-  // significant (under `trace_limit > 0` it picks which traces run first);
-  // seeding on oninit survives a reload.
+  // redraw. Written through to the tab because the sort is functionally
+  // significant (under a trace cap it picks which traces run first); seeding
+  // on oninit restores it when the form is reopened.
   private traceListSortField: string | undefined;
   private traceListSortDirection: SortDirection | undefined;
   // /trace_metadata_schema response. undefined = not yet requested; 'loading' =
@@ -263,68 +243,55 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   // One schema fetch at a time. A key change mid-flight is picked up once the
   // fetch settles, so rapid source edits coalesce instead of racing.
   private schemaFetching = false;
-  oninit({attrs}: m.Vnode<SettingsPageAttrs>) {
+  oninit({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     this.bindings = attrs.bindings;
     this.traceFilterss = this.readTraceFilters();
     const parsed = parseSingleFieldOrderBy(this.readTraceOrderBy());
     this.traceListSortField = parsed?.field;
     this.traceListSortDirection = parsed?.direction;
     bigTraceSettingsStorage.loadSettings();
-    void presetStore.load();
   }
 
   // Binding-aware accessors (fall back to globals).
 
   private readTraceFilters(): readonly Filter[] {
-    return this.bindings
-      ? this.bindings.getTraceFilters()
-      : traceFiltersState.get();
+    return this.bindings.getTraceFilters();
   }
 
   private writeTraceFilters(filters: readonly Filter[]): void {
-    if (this.bindings) this.bindings.setTraceFilters(filters);
-    else traceFiltersState.set(filters);
+    this.bindings.setTraceFilters(filters);
   }
 
   // null = unchosen (resolves to defaultVisible); [] = attach nothing.
   private readTraceMetadataColumns(): readonly string[] | null {
-    return this.bindings
-      ? this.bindings.getTraceMetadataColumns()
-      : traceQueryColumnsState.get();
+    return this.bindings.getTraceMetadataColumns();
   }
 
   private readTraceOrderBy(): string {
-    return this.bindings
-      ? this.bindings.getTraceOrderBy()
-      : traceOrderByState.get();
+    return this.bindings.getTraceOrderBy();
   }
 
   private writeTraceOrderBy(orderBy: string): void {
-    if (this.bindings) this.bindings.setTraceOrderBy(orderBy);
-    else traceOrderByState.set(orderBy);
+    this.bindings.setTraceOrderBy(orderBy);
   }
 
   // `null` resets to unchosen; a concrete list (incl. []) is stored verbatim.
   private writeTraceMetadataColumns(cols: readonly string[] | null): void {
-    if (this.bindings) this.bindings.setTraceMetadataColumns(cols);
-    else traceQueryColumnsState.set(cols);
+    this.bindings.setTraceMetadataColumns(cols);
   }
 
-  // Effective settings for outgoing /trace_metadata[_schema] requests. With
-  // bindings set, the per-tab snapshot wins so the grid reflects the same
-  // trace_directory / trace_limit the next Run uses, not /settings defaults.
+  // Effective settings for outgoing /trace_metadata[_schema] requests: the
+  // tab's own snapshot, so the grid reflects the same trace source the next
+  // Run uses.
   private effectiveSettings(): ReadonlyArray<SettingFilter> {
-    return this.bindings
-      ? this.bindings.getEffectiveSettings()
-      : bigTraceSettingsStorage.buildSettingFilters();
+    return this.bindings.getEffectiveSettings();
   }
 
-  // Wrap a globally-registered setting so its widget reads/writes per-tab.
-  // No-op when bindings is undefined (returns the original).
+  // Wrap a globally-registered setting so its widget reads/writes this tab's
+  // configuration rather than the registry's stored value.
   private boundSetting(
     setting: BigTraceSetting<unknown>,
   ): BigTraceSetting<unknown> {
-    if (!this.bindings) return setting;
     return new TabBoundSetting(setting, this.bindings);
   }
 
@@ -337,7 +304,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     ]);
 
   private displayCategory(raw: string): string {
-    return SettingsPage.CATEGORY_DISPLAY_NAMES.get(raw) ?? raw;
+    return QuerySettingsForm.CATEGORY_DISPLAY_NAMES.get(raw) ?? raw;
   }
 
   // Lazily build/rebuild the trace-list data source. BigtraceQueryClient binds
@@ -455,160 +422,6 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     m.redraw();
   }
 
-  // "Load a preset" control atop the settings, on both the standalone
-  // /settings page and the per-tab modal. Applies a preset's trace-selection +
-  // option settings; the per-tab modal also loads its query + title.
-  private renderPresetPicker(): m.Children {
-    const tpls = presetStore.presets;
-    if (tpls.length === 0) return null;
-    const {groups, byCuj} = groupPresetsByCuj(tpls);
-    // The preset the current tab matches 1:1 (incl. SQL), if any — its chip
-    // highlights and its group opens by default.
-    const matchedId = this.matchedPresetId();
-    const matchedCuj = matchedId
-      ? tpls.find((t) => t.id === matchedId)?.category || 'Other'
-      : undefined;
-    const activeCuj =
-      this.activePresetCuj !== undefined && byCuj.has(this.activePresetCuj)
-        ? this.activePresetCuj
-        : matchedCuj !== undefined && byCuj.has(matchedCuj)
-          ? matchedCuj
-          : groups[0][0];
-    return m(
-      Card,
-      {
-        className: 'pf-settings-card pf-bt-preset-picker',
-        style: {display: 'block', marginBottom: '16px'},
-      },
-      m('.pf-settings-card__title', 'Presets'),
-      m(
-        '.pf-settings-card__description',
-        this.bindings
-          ? 'Click a preset to load its query and settings into this tab.'
-          : 'Click a preset to apply its trace selection and options to the ' +
-              'settings below.',
-      ),
-      renderCujSelector(
-        groups.map(([cuj]) => cuj),
-        activeCuj,
-        (cuj) => {
-          this.activePresetCuj = cuj;
-        },
-      ),
-      m(
-        '.pf-bt-preset-chips',
-        (byCuj.get(activeCuj) ?? []).map((t) =>
-          m(
-            'button.pf-bt-preset-chip',
-            {
-              className: classNames(
-                t.id === matchedId && 'pf-bt-preset-chip--active',
-              ),
-              title: t.description || t.name,
-              onclick: () => this.applyPreset(t),
-            },
-            t.name,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // The preset the current context matches 1:1 (SQL + trace selection + the
-  // option settings it specifies), or undefined. Derived each render. Only the
-  // per-tab modal has SQL to compare, so standalone /settings never matches.
-  private matchedPresetId(): string | undefined {
-    if (this.bindings === undefined) return undefined;
-    return presetStore.presets.find((t) => this.presetMatches(t))?.id;
-  }
-
-  private presetMatches(t: TracePreset): boolean {
-    const b = this.bindings;
-    if (b === undefined) return false;
-    // SQL, trimmed. materialized and limit are run-time toolbar params, not
-    // settings, so they're deliberately excluded from the match.
-    if ((b.getSql?.() ?? '').trim() !== t.perfettoSql.trim()) return false;
-    // Trace selection (optional fields default to empty). Filters compared by
-    // canonical key-sorted encoding, so a different key order still matches.
-    if (this.readTraceOrderBy() !== (t.traceOrderBy ?? '')) return false;
-    if (
-      encodeFilters(this.readTraceFilters()) !==
-      encodeFilters(t.traceFilters ?? [])
-    ) {
-      return false;
-    }
-    const cols = t.traceMetadataColumns ?? [];
-    const wantCols = cols.length ? cols : null;
-    const curCols = this.readTraceMetadataColumns();
-    if (curCols === null || wantCols === null) {
-      if (curCols !== wantCols) return false;
-    } else if (!arrayEquals(curCols, wantCols)) {
-      return false;
-    }
-    // Every option setting the preset specifies must equal the effective one.
-    const eff = this.effectiveSettings();
-    for (const s of t.settings ?? []) {
-      const cur = eff.find((e) => e.settingId === s.settingId);
-      if (cur === undefined || !arrayEquals(cur.values, s.values)) return false;
-    }
-    return true;
-  }
-
-  private applyPreset(t: TracePreset): void {
-    // The per-tab modal has an editor, so load the preset's query + title;
-    // standalone /settings has none (the optional setter is absent there).
-    // Everything else routes through the binding-aware writers.
-    this.bindings?.setQueryAndTitle?.(t.perfettoSql, t.name);
-    this.writeTraceFilters([...(t.traceFilters ?? [])]);
-    const cols = t.traceMetadataColumns ?? [];
-    this.writeTraceMetadataColumns(cols.length ? [...cols] : null);
-    this.writeTraceOrderBy(t.traceOrderBy ?? '');
-    // Keep the trace grid's controlled-mode filter in sync with the write.
-    this.traceFilterss = this.readTraceFilters();
-    // The preset's settings are enabled and set; every other setting is turned
-    // off — togglable → disabled, boolean → false (booleans can't disable).
-    const byId = new Map(
-      (t.settings ?? []).map((s) => [s.settingId, s] as const),
-    );
-    for (const raw of bigTraceSettingsStorage.getAllSettings()) {
-      if (raw.category === undefined) continue;
-      const setting = this.boundSetting(raw);
-      const preset = byId.get(raw.id);
-      try {
-        if (preset !== undefined) {
-          if (raw.type !== 'boolean') setting.setDisabled(false);
-          setting.set(this.coerceSettingValue(setting, preset.values));
-        } else if (raw.type === 'boolean') {
-          setting.set(false);
-        } else {
-          setting.setDisabled(true);
-        }
-      } catch (e) {
-        console.error(`preset setting ${raw.id} rejected`, e);
-      }
-    }
-    m.redraw();
-  }
-
-  // The wire ships setting values as strings; coerce to the registered
-  // setting's type before writing it to the global store.
-  private coerceSettingValue(
-    setting: BigTraceSetting<unknown>,
-    values: readonly string[],
-  ): unknown {
-    switch (setting.type) {
-      case 'boolean':
-        return values[0] === 'true';
-      case 'number':
-        return Number(values[0]);
-      case 'multi-select':
-      case 'string-array':
-        return [...values];
-      default:
-        return values[0] ?? '';
-    }
-  }
-
   // Renders the "Traces" card: a caption, a column-picker toggle row, and a
   // DataGrid driven by the trace-list DataSource. The toggle row and the grid's
   // "Add column" menu both write through `traceColumnsState`, so they stay in
@@ -649,20 +462,6 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
             void ds.refresh();
           },
         }),
-        // Standalone /settings only (the per-tab modal is already in a tab).
-        // Opens a new query tab seeded with the current settings (no SQL).
-        !this.bindings &&
-          m(Button, {
-            label: 'Query',
-            rightIcon: 'arrow_forward',
-            intent: Intent.Primary,
-            className: 'pf-bt-trace-card__query',
-            title: 'Open a new query with these settings (no SQL)',
-            onclick: () => {
-              queryState.seedTabFromSettings = true;
-              setRoute(Routes.QUERY);
-            },
-          }),
       ]),
       m(
         '.pf-settings-card__description',
@@ -742,9 +541,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
             onColumnsChanged: (cols: ReadonlyArray<Column>) => {
               // Extract sort (it lives on the Column object) before collapsing
               // cols to string[] so the next render can splice it back, else
-              // the header click reverts each redraw. Persisted to
-              // traceOrderByState so a reload keeps it; a Run ships it as
-              // `trace_order_by` on /execute_*.
+              // the header click reverts each redraw. Stored on the tab; a Run
+              // ships it as `trace_order_by` on /execute_*.
               const sorted = cols.find((c) => c.sort);
               this.traceListSortField = sorted?.field;
               this.traceListSortDirection = sorted?.sort;
@@ -982,31 +780,12 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     this.updateChosenColumns(next);
   }
 
-  view({attrs}: m.Vnode<SettingsPageAttrs>) {
+  view({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     // Refresh bindings each render so callers can swap them without remounting.
     this.bindings = attrs.bindings;
-    const embedded = this.bindings !== undefined;
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
 
-    const query = this.searchQuery.toLowerCase();
     const categories = new Map<string, BigTraceSetting<unknown>[]>();
-
-    // Show General (the endpoint) only on the standalone /settings route. The
-    // endpoint is a connection, not a query, so it stays global and out of the
-    // per-tab snapshot UI.
-    if (endpointSetting && !embedded) {
-      categories.set('General', []);
-    }
-
-    const settings = bigTraceSettingsStorage
-      .getAllSettings()
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(query) ||
-          s.description.toLowerCase().includes(query),
-      );
-
-    for (const setting of settings) {
+    for (const setting of bigTraceSettingsStorage.getAllSettings()) {
       const categoryName = this.displayCategory(setting.category || 'General');
       if (!categories.has(categoryName)) {
         categories.set(categoryName, []);
@@ -1014,160 +793,47 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       categories.get(categoryName)!.push(setting);
     }
 
-    // "No matches" hint when search hides everything but the General card.
-    const hasOtherMatches = settings.length > 0;
-    const showNoMatchesHint =
-      this.searchQuery !== '' &&
-      !hasOtherMatches &&
-      !bigTraceSettingsStorage.execConfigLoadError;
-
     const sections = Array.from(categories.entries()).map(
       ([category, catSettings]) => {
-        const categoryHeader: m.Children = m(
-          'h2.pf-bt-settings-page__plugin-title',
-          category,
+        const cards: m.Children[] = catSettings.map((setting) =>
+          this.renderBigTraceSettingCard(setting),
         );
-
-        const cards: m.Children[] = [];
-        // Render the endpoint card inside "General".
-        if (category === 'General' && endpointSetting) {
-          // Reset restores the default URL; applied via "Reload to apply".
-          const endpointAtDefault =
-            JSON.stringify(endpointSetting.get()) ===
-            JSON.stringify(endpointSetting.defaultValue);
-          cards.push(
-            m(BigTraceSettingsCard, {
-              id: endpointSetting.id,
-              title: endpointSetting.name,
-              description: endpointSetting.description,
-              disabled: undefined,
-              controls: this.renderEndpointControl(endpointSetting),
-              onReset: endpointAtDefault
-                ? undefined
-                : () => endpointSetting.reset(),
-            }),
-          );
-        }
-        for (const setting of catSettings) {
-          cards.push(this.renderBigTraceSettingCard(setting));
-        }
-        // Below the trace_directory/trace_limit cards, two sibling cards:
-        // "Traces" picks WHICH traces, "Query Result Columns" picks WHAT
-        // metadata attaches to each result row. Both omitted while searching.
-        if (category === TRACE_ADDRESS_DISPLAY && this.searchQuery === '') {
-          const endpoint = getBigtraceEndpoint();
-          cards.push(this.renderTraceListCard(endpoint));
+        // Below the trace-source cards, two siblings: "Traces" picks WHICH
+        // traces, "Query Result Columns" picks WHAT metadata each result row
+        // carries.
+        if (category === TRACE_ADDRESS_DISPLAY) {
+          cards.push(this.renderTraceListCard(getBigtraceEndpoint()));
           cards.push(this.renderQueryColumnsCard());
         }
-        const categoryContent = m(CardStack, cards);
-
         return m(
           '.pf-bt-settings-page__plugin-section',
-          categoryHeader,
-          categoryContent,
+          m('h2.pf-bt-settings-page__plugin-title', category),
+          m(CardStack, cards),
         );
       },
     );
 
-    // The endpoint setting lives in "General"; render the Presets picker
-    // right after that section so the prerequisite (the endpoint) sits above it.
-    const generalIdx = Array.from(categories.keys()).indexOf('General');
-    const sectionsWithPresets =
-      generalIdx >= 0
-        ? [
-            ...sections.slice(0, generalIdx + 1),
-            this.renderPresetPicker(),
-            ...sections.slice(generalIdx + 1),
-          ]
-        : [this.renderPresetPicker(), ...sections];
-
-    const body = m('.pf-bt-settings-page', [
-      bigTraceSettingsStorage.isExecConfigLoading &&
-        m(EmptyState, {
-          title: 'Loading settings...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        }),
-      sectionsWithPresets,
-      // After the General card so the callout's "Set the Endpoint above" copy
-      // points at a field above it.
-      bigTraceSettingsStorage.execConfigLoadError &&
-        m(
-          Callout,
-          {
-            intent: Intent.Danger,
-            icon: 'error',
-            title: 'Failed to Load Execution Configuration',
-          },
-          bigTraceSettingsStorage.execConfigLoadError,
-        ),
-      showNoMatchesHint &&
-        m(EmptyState, {
-          title: `No settings match "${this.searchQuery}"`,
-          icon: 'search_off',
-        }),
-    ]);
-
-    // Embedded in the Query page's "Bigtrace Settings" sub-tab: skip the
-    // SettingsShell chrome (title + sticky search). The pill row already labels
-    // the surface, so a second "Settings" header would be noise.
-    if (embedded) {
-      return m('.pf-bt-settings-embedded', body);
-    }
-    return m(
-      SettingsShell,
-      {
-        title: 'Settings',
-        className: 'page',
-        // Reload-required affordance lives next to the endpoint input, not
-        // here.
-        stickyHeaderContent: m(
-          Stack,
-          {orientation: 'horizontal'},
-          m(StackAuto),
-          m(TextInput, {
-            placeholder: 'Search...',
-            value: this.searchQuery,
-            leftIcon: 'search',
-            oninput: (e: Event) => {
-              this.searchQuery = (e.target as HTMLInputElement).value;
-            },
+    return m('.pf-bt-settings-embedded', [
+      m('.pf-bt-settings-page', [
+        bigTraceSettingsStorage.isExecConfigLoading &&
+          m(EmptyState, {
+            title: 'Loading settings...',
+            icon: 'hourglass_empty',
+            fillHeight: true,
           }),
-        ),
-      },
-      body,
-    );
-  }
-
-  private renderEndpointControl(setting: Setting<unknown>) {
-    const currentValue = setting.get() as string;
-    return m(
-      Stack,
-      {
-        orientation: 'horizontal',
-        gap: '8px',
-        alignItems: 'center',
-        style: {flexWrap: 'wrap', justifyContent: 'flex-end'},
-      },
-      m(TextInput, {
-        value: currentValue,
-        placeholder: 'https://your-bigtrace-backend/v1',
-        style: {width: 'min(300px, 30vw)'},
-        oninput: (e: Event) => {
-          const target = e.target as HTMLInputElement;
-          setting.set(target.value);
-        },
-      }),
-      // Endpoint is cached at module init, so changes need a reload.
-      endpointStorage.isReloadRequired() &&
-        m(Button, {
-          label: 'Reload to apply',
-          icon: 'refresh',
-          intent: Intent.Primary,
-          variant: ButtonVariant.Filled,
-          onclick: () => window.location.reload(),
-        }),
-    );
+        sections,
+        bigTraceSettingsStorage.execConfigLoadError !== undefined &&
+          m(
+            Callout,
+            {
+              intent: Intent.Danger,
+              icon: 'error',
+              title: 'Failed to load settings from the backend',
+            },
+            bigTraceSettingsStorage.execConfigLoadError,
+          ),
+      ]),
+    ]);
   }
 
   private renderBigTraceSettingCard(rawSetting: BigTraceSetting<unknown>) {

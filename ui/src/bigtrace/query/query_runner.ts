@@ -76,7 +76,9 @@ export class QueryRunner {
 
     if (endpoint.trim() === '') {
       tab.queryResult = makeQueryResponse(query, {
-        error: 'Set the BigTrace Endpoint in Settings before running queries.',
+        error:
+          'Set the BigTrace endpoint from the connection button (top right) ' +
+          'before running queries.',
       });
       tab.dataSource = new InMemoryDataSource([]);
       tab.isLoading = false;

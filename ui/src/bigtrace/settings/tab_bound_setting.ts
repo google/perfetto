@@ -20,8 +20,9 @@ import type {
   SettingFilter,
 } from './settings_types';
 
-// Routes SettingsPage reads/writes to the per-query snapshot instead of the
-// global state modules. Used by the Query page's chip strip / +Add modal.
+// Routes the settings form's reads/writes to one tab's snapshot. There is no
+// global settings state behind it: a query is configured by its preset or by
+// its own custom setup.
 export interface SettingsBindings {
   // Effective SettingFilter[] for data source + schema requests.
   readonly getEffectiveSettings: () => ReadonlyArray<SettingFilter>;
@@ -69,6 +70,8 @@ export class TabBoundSetting<T> implements BigTraceSetting<T> {
   readonly schema: BigTraceSetting<T>['schema'];
   readonly defaultValue: T;
   readonly category?: string;
+  readonly min?: number;
+  readonly max?: number;
   readonly requiresReload?: boolean;
   readonly options?: readonly (string | EnumOption)[];
   readonly placeholder?: string;
@@ -86,6 +89,8 @@ export class TabBoundSetting<T> implements BigTraceSetting<T> {
     this.schema = base.schema;
     this.defaultValue = base.defaultValue;
     this.category = base.category;
+    this.min = base.min;
+    this.max = base.max;
     this.requiresReload = base.requiresReload;
     this.options = base.options;
     this.placeholder = base.placeholder;

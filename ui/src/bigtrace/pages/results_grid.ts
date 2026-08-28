@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {EmptyState} from '../../widgets/empty_state';
 import {linkify} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
@@ -198,13 +197,6 @@ function renderDataGrid(
         : 'No rows match the visible columns',
     toolbarItemsLeft: [
       m('span.pf-bt-results-summary', renderResultsSummary(tab, queryResult)),
-    ],
-    toolbarItemsRight: [
-      m(CopyToClipboardButton, {
-        textToCopy: queryResult.query,
-        title: 'Copy executed query to clipboard',
-        label: 'Copy Query',
-      }),
     ],
   });
 }

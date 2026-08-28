@@ -24,19 +24,25 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
+import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
-import {setHistoryActiveTab} from '../query/query_history';
 import {formatPerfettoSql} from '../query/sql_formatter';
 import {BigtraceQueryClient} from '../query/bigtrace_query_client';
 import type {QueryRunner} from '../query/query_runner';
 import {
   type BigTraceEditorTab,
   type QueryTabsState,
+  applyModeDefaults,
   deriveTitleFromQuery,
   effectiveTabSettings,
+  effectiveTraceLimit,
+  setTraceLimit,
+  traceLimitDisabled,
+  TRACE_LIMIT_SETTING_ID,
 } from './query_tabs_state';
 import {renderResultsPanel} from './results_panel';
+import {QueryLauncher} from './query_launcher';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {BigtraceSettingsBar} from './bigtrace_settings_bar';
@@ -61,6 +67,19 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
 
     if (tab.dataSource && tab.queryResult && tab.materialize && tab.execution) {
       tab.queryResult.totalRowCount = tab.execution.processedRows;
+    }
+
+    // A tab with no configuration yet shows the launcher instead of the editor:
+    // every query starts from a preset or a deliberate custom setup.
+    if (!tab.configured) {
+      return m(
+        '.pf-bt-editor-tab',
+        m(QueryLauncher, {
+          tab,
+          tabsState,
+          bindings: buildTabBindings(tab, tabsState),
+        }),
+      );
     }
 
     return m('.pf-bt-editor-tab', [
@@ -100,7 +119,14 @@ function buildTabBindings(
     getEffectiveSettings: () => effectiveTabSettings(tab),
     getSettingValue: (id) => {
       const entry = tab.querySettings.find((s) => s.settingId === id);
-      return entry?.values;
+      if (entry !== undefined) return entry.values;
+      // Until the user sets one, the trace cap follows the execution mode —
+      // report that, so the settings card agrees with the toolbar. A cap the
+      // tab switched off has no value to report: the run is uncapped.
+      if (id === TRACE_LIMIT_SETTING_ID && !traceLimitDisabled(tab)) {
+        return [String(effectiveTraceLimit(tab))];
+      }
+      return undefined;
     },
     setSettingValue: (id, values, category) => {
       const next = [...tab.querySettings];
@@ -191,7 +217,6 @@ function renderEditorPanel(
               variant: ButtonVariant.Filled,
               disabled: deriveTitleFromQuery(tab.editorText) === undefined,
               onclick: () => {
-                setHistoryActiveTab(tab.materialize);
                 tabsState.maybeAutoNameTab(tab.id, tab.editorText);
                 runner.run(tab, tab.editorText);
               },
@@ -210,36 +235,7 @@ function renderEditorPanel(
           disabled: deriveTitleFromQuery(tab.editorText) === undefined,
           onclick: () => void formatTabQuery(tab, tabsState, tab.editorText),
         }),
-        useBigtraceBackend && [
-          m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
-          m(Switch, {
-            label: 'Persistent',
-            title:
-              'ON: results saved to History (Persistent tab) — reopen later. ' +
-              'OFF: results shown inline and discarded when the tab closes.',
-            checked: tab.materialize,
-            disabled: tab.isLoading,
-            onchange: (e: Event) => {
-              tab.materialize = (e.target as HTMLInputElement).checked;
-              setHistoryActiveTab(tab.materialize);
-              tabsState.markDirty();
-            },
-          }),
-          m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
-          m('span', 'Limit:'),
-          m(TextInput, {
-            type: 'number',
-            value: String(tab.limit),
-            placeholder: 'Limit',
-            disabled: tab.isLoading,
-            onInput: (value: string) => {
-              const newLimit = parseInt(value, 10);
-              if (!isNaN(newLimit) && newLimit > 0) {
-                tab.limit = newLimit;
-              }
-            },
-          }),
-        ],
+        useBigtraceBackend && renderRunControls(tab, tabsState),
       ]),
     ]),
     tab.editorText.includes('"') &&
@@ -262,12 +258,72 @@ function renderEditorPanel(
         tabsState.markDirty();
       },
       onExecute: (query: string) => {
-        setHistoryActiveTab(tab.materialize);
         tabsState.maybeAutoNameTab(tab.id, query);
         runner.run(tab, query);
       },
     }),
   ]);
+}
+
+// Mode switch plus the two caps a run is bounded by. Both follow the mode until
+// the user types over them (see applyModeDefaults).
+function renderRunControls(
+  tab: BigTraceEditorTab,
+  tabsState: QueryTabsState,
+): m.Children {
+  // No control when the backend doesn't declare a trace cap, or when this tab
+  // switched it off — showing a number for an uncapped run would be a lie.
+  const hasTraceLimit =
+    bigTraceSettingsStorage.get(TRACE_LIMIT_SETTING_ID) !== undefined &&
+    !traceLimitDisabled(tab);
+  return [
+    m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
+    m(Switch, {
+      label: 'Persistent',
+      title:
+        'ON: results saved to History — reopen later. ' +
+        'OFF: results shown inline and discarded when the tab closes.',
+      checked: tab.materialize,
+      disabled: tab.isLoading,
+      onchange: (e: Event) => {
+        applyModeDefaults(tab, (e.target as HTMLInputElement).checked);
+        tabsState.markDirty();
+      },
+    }),
+    m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
+    m('span', 'Rows:'),
+    m(TextInput, {
+      type: 'number',
+      className: 'pf-bt-limit-input',
+      value: String(tab.limit),
+      title: 'Maximum rows this query returns.',
+      disabled: tab.isLoading,
+      onInput: (value: string) => {
+        const newLimit = parseInt(value, 10);
+        if (!isNaN(newLimit) && newLimit > 0) {
+          tab.limit = newLimit;
+          tabsState.markDirty();
+        }
+      },
+    }),
+    hasTraceLimit && [
+      m('span', 'Traces:'),
+      m(TextInput, {
+        type: 'number',
+        className: 'pf-bt-limit-input',
+        value: String(effectiveTraceLimit(tab)),
+        title: 'Maximum traces this query runs over.',
+        disabled: tab.isLoading,
+        onInput: (value: string) => {
+          const newLimit = parseInt(value, 10);
+          if (!isNaN(newLimit) && newLimit > 0) {
+            setTraceLimit(tab, newLimit);
+            tabsState.markDirty();
+          }
+        },
+      }),
+    ],
+  ];
 }
 
 // ---------------------------------------------------------------------------
