@@ -376,6 +376,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         auto it = trace_processor_->ExecuteQuery(sql);
 
         QueryResultSerializer serializer(std::move(it), t_start);
+        serializer.set_use_fixed_width_int_cells(use_fixed_width_int_cells_);
         StreamSerializerResponses(&serializer, req_type, &tx_seq_id_,
                                   rpc_response_fn_, /*header=*/nullptr);
       }

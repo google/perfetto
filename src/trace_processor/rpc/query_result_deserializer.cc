@@ -82,6 +82,8 @@ base::Status QueryResultDeserializer::AddMessage(const uint8_t* data,
   // walk the tag stream consuming one entry per typed cell.
   std::vector<int64_t> varints;
   std::vector<double> doubles;
+  std::vector<int32_t> int32s;
+  std::vector<int64_t> int64s;
   std::vector<std::string> blobs;
   std::vector<std::string> strings;
   for (auto batch_it = qr.batch(); batch_it; ++batch_it) {
@@ -90,6 +92,8 @@ base::Status QueryResultDeserializer::AddMessage(const uint8_t* data,
 
     varints.clear();
     doubles.clear();
+    int32s.clear();
+    int64s.clear();
     blobs.clear();
     strings.clear();
     bool parse_error = false;
@@ -97,6 +101,10 @@ base::Status QueryResultDeserializer::AddMessage(const uint8_t* data,
       varints.push_back(*it);
     for (auto it = batch.float64_cells(&parse_error); it; ++it)
       doubles.push_back(*it);
+    for (auto it = batch.int32_cells(&parse_error); it; ++it)
+      int32s.push_back(*it);
+    for (auto it = batch.int64_cells(&parse_error); it; ++it)
+      int64s.push_back(*it);
     for (auto it = batch.blob_cells(); it; ++it)
       blobs.push_back((*it).ToStdString());
 
@@ -111,7 +119,7 @@ base::Status QueryResultDeserializer::AddMessage(const uint8_t* data,
       pos = nul ? end + 1 : merged.size;
     }
 
-    size_t vi = 0, di = 0, bi = 0, si = 0;
+    size_t vi = 0, di = 0, i32i = 0, i64i = 0, bi = 0, si = 0;
     for (auto it = batch.cells(&parse_error); it; ++it) {
       Cell cell;
       switch (static_cast<uint8_t>(*it)) {
@@ -124,6 +132,18 @@ base::Status QueryResultDeserializer::AddMessage(const uint8_t* data,
             return base::ErrStatus("Malformed query result: varint underflow");
           cell.type = SqlValue::kLong;
           cell.long_value = varints[vi++];
+          break;
+        case CellsBatch::CELL_INT32:
+          if (i32i >= int32s.size())
+            return base::ErrStatus("Malformed query result: int32 underflow");
+          cell.type = SqlValue::kLong;
+          cell.long_value = int32s[i32i++];
+          break;
+        case CellsBatch::CELL_INT64:
+          if (i64i >= int64s.size())
+            return base::ErrStatus("Malformed query result: int64 underflow");
+          cell.type = SqlValue::kLong;
+          cell.long_value = int64s[i64i++];
           break;
         case CellsBatch::CELL_FLOAT64:
           if (di >= doubles.size())
