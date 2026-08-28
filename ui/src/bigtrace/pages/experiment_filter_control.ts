@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from '../../widgets/button';
+import {Button, ButtonGroup, ButtonVariant} from '../../widgets/button';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
 import {TextInput} from '../../widgets/text_input';
@@ -24,7 +24,6 @@ import {
 } from '../query/bigtrace_query_client';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
-import {renderSegmented} from '../widgets/segmented';
 import type {ExperimentFilterState} from './query_tabs_state';
 
 // What the backend says about an arm the caller can't query. Shown wherever
@@ -173,19 +172,27 @@ export class ExperimentFilterControl implements m.ClassComponent<ExperimentFilte
     bindings: SettingsBindings,
     filter: ExperimentFilterState,
   ): m.Children {
+    const setArm = (isTreatment: boolean) =>
+      bindings.setExperimentFilter({...filter, isTreatment});
     return m('.pf-bt-experiment-filter', [
-      renderSegmented(
-        [
-          {key: 'experiment', label: 'Experiment'},
-          {key: 'control', label: 'Control'},
-        ],
-        filter.isTreatment ? 'experiment' : 'control',
-        (key) => {
-          bindings.setExperimentFilter({
-            ...filter,
-            isTreatment: key === 'experiment',
-          });
-        },
+      // Welded rather than two loose buttons: the inner border is de-duped,
+      // so the pair reads as one control with two states, which is what
+      // picking an arm is. Both arms are outlined so the border belongs to
+      // the pair; the chosen one is the one that looks pressed.
+      m(
+        ButtonGroup,
+        m(Button, {
+          label: 'Experiment',
+          variant: ButtonVariant.Outlined,
+          active: filter.isTreatment,
+          onclick: () => setArm(true),
+        }),
+        m(Button, {
+          label: 'Control',
+          variant: ButtonVariant.Outlined,
+          active: !filter.isTreatment,
+          onclick: () => setArm(false),
+        }),
       ),
       m(
         '.pf-bt-experiment-filter__arm',

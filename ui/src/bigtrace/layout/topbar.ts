@@ -16,9 +16,11 @@ import '../../frontend/topbar.scss';
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {Button} from '../../widgets/button';
+import {settingsStorage} from '../settings/settings_storage';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
+import {PopupPosition} from '../../widgets/popup';
 import {toggleHelp} from '../help_modal';
 import {ConnectionButton} from './connection_button';
-import {Omnibox} from './omnibox';
 
 // The app's only chrome: brand, command omnibox, and the backend connection.
 export class Topbar implements m.ClassComponent {
@@ -28,15 +30,42 @@ export class Topbar implements m.ClassComponent {
         m('img.pf-bt-topbar-logo', {src: assetSrc('assets/logo-128.png')}),
         'BigTrace',
       ]),
-      m(Omnibox),
       m('.pf-topbar__right', [
         m(ConnectionButton),
-        m(Button, {
-          icon: 'help_outline',
-          title: 'Help (?)',
-          onclick: () => toggleHelp(),
-        }),
+        // Two rare actions, so one door rather than two: the topbar stays
+        // the connection and nothing else, and help has somewhere to be
+        // found again.
+        m(
+          PopupMenu,
+          {
+            trigger: m(Button, {
+              icon: 'more_vert',
+              title: 'More',
+            }),
+            position: PopupPosition.BottomEnd,
+          },
+          m(MenuItem, {
+            // Names the theme you'd get, not the one you're in.
+            label: isDark() ? 'Switch to light theme' : 'Switch to dark theme',
+            icon: isDark() ? 'light_mode' : 'dark_mode',
+            onclick: () => toggleTheme(),
+          }),
+          m(MenuItem, {
+            label: 'Keyboard shortcuts',
+            icon: 'help_outline',
+            onclick: () => toggleHelp(),
+          }),
+        ),
       ]),
     ]);
   }
+}
+
+function isDark(): boolean {
+  return settingsStorage.get('theme')?.get() === 'dark';
+}
+
+function toggleTheme(): void {
+  const theme = settingsStorage.get('theme');
+  if (theme) theme.set(isDark() ? 'light' : 'dark');
 }

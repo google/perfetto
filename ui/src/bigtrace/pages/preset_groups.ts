@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type m from 'mithril';
+import m from 'mithril';
+import {Button, ButtonGroup, ButtonVariant} from '../../widgets/button';
 import type {TracePreset} from '../query/bigtrace_query_client';
-import {renderSegmented} from '../widgets/segmented';
 
 // Group presets by CUJ (their `category`), preserving first-seen order.
 // `''` buckets as "Other"; the launcher relies on that when preselecting the
@@ -38,17 +38,24 @@ export function groupPresetsByCuj(presets: ReadonlyArray<TracePreset>): {
   return {groups, byCuj};
 }
 
-// Segmented selector for CUJ groups. Renders nothing for a single group.
+// Selector for CUJ groups. Renders nothing for a single group. Same welded
+// control as the experiment arm toggle: outlined throughout, so the border
+// belongs to the group and the chosen one is the one that looks pressed.
 export function renderCujSelector(
   cujs: ReadonlyArray<string>,
   active: string,
   onSelect: (cuj: string) => void,
 ): m.Children {
   if (cujs.length <= 1) return null;
-  return renderSegmented(
-    cujs.map((cuj) => ({key: cuj, label: cuj})),
-    active,
-    onSelect,
-    'pf-bt-cuj-selector',
+  return m(
+    ButtonGroup,
+    cujs.map((cuj) =>
+      m(Button, {
+        label: cuj,
+        variant: ButtonVariant.Outlined,
+        active: cuj === active,
+        onclick: () => onSelect(cuj),
+      }),
+    ),
   );
 }

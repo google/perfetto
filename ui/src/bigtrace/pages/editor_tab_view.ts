@@ -230,7 +230,7 @@ function renderEditorPanel(
           'or press',
           m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
         ),
-        m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
+        m('span.pf-bt-divider', {'aria-hidden': 'true'}),
         // Icon-only to keep the toolbar lean; the editor binds the same chord.
         m(Button, {
           icon: 'format_align_left',
@@ -287,7 +287,7 @@ function renderRunControls(
         tabsState.markDirty();
       },
     }),
-    m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
+    m('span.pf-bt-divider', {'aria-hidden': 'true'}),
     m('span', 'Rows:'),
     m(TextInput, {
       type: 'number',

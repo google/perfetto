@@ -27,7 +27,6 @@ import {QueryPage, queryRightSidebarToggleFn} from './pages/query_page';
 import {bigTraceSettingsStorage} from './settings/bigtrace_settings_storage';
 import {Topbar} from './layout/topbar';
 import {BigTraceApp as BigTraceAppSingleton} from './bigtrace_app';
-import {OmniboxMode} from '../core/omnibox_manager';
 import {type HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {initAssets} from '../base/assets';
@@ -179,13 +178,6 @@ function registerCommands() {
       const theme = settingsStorage.get('theme');
       if (theme) theme.set(theme.get() === 'light' ? 'dark' : 'light');
     },
-  });
-
-  app.commands.registerCommand({
-    id: 'bigtrace.OpenCommandPalette',
-    name: 'Open command palette',
-    callback: () => app.omnibox.setMode(OmniboxMode.Command),
-    defaultHotkey: '!Mod+Shift+P',
   });
 
   app.commands.registerCommand({

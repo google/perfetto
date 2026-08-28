@@ -268,7 +268,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           if (remembered !== undefined) pick(remembered);
         },
       ),
-      m('span.pf-bt-preset-picker__dot', {'aria-hidden': 'true'}, '·'),
+      m('span.pf-bt-divider', {'aria-hidden': 'true'}),
       m(
         PopupMenu,
         {

@@ -142,35 +142,6 @@
   }
 }
 
-// Flat segmented control (preset groups, History kind filter). Deliberately
-// not the document-tab widget (no panel chrome) — mirrors the record page.
-.pf-bt-segmented {
-  display: flex;
-  gap: 4px;
-
-  &__item {
-    font: inherit;
-    padding: 4px 12px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    background: none;
-    color: var(--pf-color-text-muted);
-    cursor: pointer;
-
-    &:hover {
-      background: color_hover(transparent);
-      color: var(--pf-color-text);
-    }
-
-    &--active {
-      background: var(--pf-color-background-secondary);
-      border-color: var(--pf-color-border);
-      color: var(--pf-color-text);
-      font-weight: 600;
-    }
-  }
-}
-
 // ---------- Launcher: start a query / Settings of an existing one ----------
 
 // Fills the tab. One page for both jobs — start a query, or an existing
@@ -280,7 +251,7 @@
   }
 }
 
-.pf-bt-toolbar-divider {
+.pf-bt-divider {
   display: inline-block;
   width: 1px;
   align-self: stretch;
@@ -923,11 +894,6 @@ pre.pf-bt-history-item-query--standalone {
   flex-wrap: wrap;
   gap: 8px 16px;
   margin-bottom: 8px;
-
-  &__dot {
-    color: var(--pf-color-text-muted);
-    font-weight: 700;
-  }
 
   // The dropdown trigger holds a steady width; label left, arrow right.
   &__select {
