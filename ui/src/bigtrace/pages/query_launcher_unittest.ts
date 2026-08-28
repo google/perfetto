@@ -15,24 +15,26 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
-  canReturnToQuery,
-  isLocalPreset,
   launcherPresets,
-  matchingPresetId,
+  matchingSetupPresetId,
   preselectedPresetId,
+  selectedPresetId,
 } from './query_launcher';
+import {presetNameConflict} from './preset_dialogs';
 import {
+  applyPresetSetup,
   applyPresetToTab,
   effectiveTabSettings,
   effectiveTraceLimit,
   MODE_DEFAULTS,
+  openSettings,
   setTraceLimit,
   traceLimitDisabled,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {TracePreset} from '../query/bigtrace_query_client';
-import type {LocalPreset} from '../query/local_preset_store';
+import {isLocalPreset, type LocalPreset} from '../query/local_preset_store';
 
 function preset(over: Partial<TracePreset> = {}): TracePreset {
   return {
@@ -89,38 +91,38 @@ describe('launcher preset list', () => {
   });
 });
 
+function regBool(id: string) {
+  return bigTraceSettingsStorage.register({
+    id,
+    name: id,
+    description: '',
+    type: 'boolean',
+    schema: z.boolean() as never,
+    defaultValue: true,
+    category: 'BIGTRACE_QUERY_OPTIONS',
+  });
+}
+
+function regString(id: string) {
+  return bigTraceSettingsStorage.register({
+    id,
+    name: id,
+    description: '',
+    type: 'string',
+    schema: z.string() as never,
+    defaultValue: '',
+    category: 'TRACE_ADDRESS',
+  });
+}
+
 describe('applyPresetToTab', () => {
   beforeEach(() => {
     localStorage.clear();
     bigTraceSettingsStorage.clear();
   });
 
-  function regBool(id: string) {
-    return bigTraceSettingsStorage.register({
-      id,
-      name: id,
-      description: '',
-      type: 'boolean',
-      schema: z.boolean() as never,
-      defaultValue: true,
-      category: 'BIGTRACE_QUERY_OPTIONS',
-    });
-  }
-
-  function regString(id: string) {
-    return bigTraceSettingsStorage.register({
-      id,
-      name: id,
-      description: '',
-      type: 'string',
-      schema: z.string() as never,
-      defaultValue: '',
-      category: 'TRACE_ADDRESS',
-    });
-  }
-
-  test('loads the query, title, selection and marks the tab configured', () => {
-    const tab = fakeTab();
+  test("fills the query, title and selection; leaving the launcher is the caller's", () => {
+    const tab = fakeTab({configured: false});
     applyPresetToTab(
       tab,
       preset({
@@ -133,8 +135,9 @@ describe('applyPresetToTab', () => {
         materialized: true,
       }),
     );
-    expect(tab.configured).toBe(true);
-    expect(tab.title).toBe('Jank by device');
+    expect(tab.configured).toBe(false);
+    // Tabs keep their own name — "Query N" until the user renames one.
+    expect(tab.title).toBe('Query 1');
     expect(tab.editorText).toBe('select * from slice');
     expect(tab.traceFilters).toEqual([
       {field: 'device_name', op: 'is not null'},
@@ -143,6 +146,41 @@ describe('applyPresetToTab', () => {
     expect(tab.traceOrderBy).toBe('size_bytes desc');
     expect(tab.limit).toBe(42);
     expect(tab.materialize).toBe(true);
+  });
+
+  test('applyPresetSetup takes everything but the query', () => {
+    const tab = fakeTab({
+      configured: true,
+      title: 'Slice count',
+      editorText: 'select count(*) from slice',
+      traceOrderBy: 'mtime asc',
+    });
+    openSettings(tab);
+    applyPresetSetup(
+      tab,
+      preset({
+        name: 'Fleet sweep',
+        perfettoSql: 'select * from thread',
+        traceFilters: [{field: 'device_name', op: 'is not null'}],
+        traceMetadataColumns: ['device_name'],
+        traceOrderBy: 'size_bytes desc',
+        limit: 42,
+        materialized: true,
+      }),
+    );
+    // The query and its title are the user's.
+    expect(tab.editorText).toBe('select count(*) from slice');
+    expect(tab.title).toBe('Slice count');
+    // The setup is the preset's, caps and mode included.
+    expect(tab.traceFilters).toEqual([
+      {field: 'device_name', op: 'is not null'},
+    ]);
+    expect(tab.traceMetadataColumns).toEqual(['device_name']);
+    expect(tab.traceOrderBy).toBe('size_bytes desc');
+    expect(tab.limit).toBe(42);
+    expect(tab.materialize).toBe(true);
+    // Still inside Settings: provisional until Apply.
+    expect(tab.settingsSession).toBeDefined();
   });
 
   test('a preset without a row cap takes the default for its mode', () => {
@@ -336,13 +374,14 @@ describe('applyPresetToTab', () => {
   });
 });
 
-describe('matchingPresetId', () => {
+describe('selectedPresetId', () => {
   beforeEach(() => {
     localStorage.clear();
     bigTraceSettingsStorage.clear();
+    regString('trace_directory');
   });
 
-  test('finds the preset a tab was configured from', () => {
+  test('reads back the preset a tab was filled from', () => {
     const p = preset({
       id: 'jank',
       perfettoSql: 'select * from slice',
@@ -350,32 +389,145 @@ describe('matchingPresetId', () => {
     });
     const tab = fakeTab();
     applyPresetToTab(tab, p);
-    expect(matchingPresetId(tab, [preset({id: 'other'}), p])).toBe('jank');
+    expect(selectedPresetId(tab, [preset({id: 'other'}), p])).toBe('jank');
   });
 
-  test('an edited query no longer matches', () => {
+  test("an edited query, or a setup with extras, is nobody's", () => {
     const p = preset({id: 'jank', perfettoSql: 'select * from slice'});
     const tab = fakeTab();
     applyPresetToTab(tab, p);
     tab.editorText = 'select * from slice limit 5';
-    expect(matchingPresetId(tab, [p])).toBeUndefined();
+    expect(selectedPresetId(tab, [p])).toBeUndefined();
+    tab.editorText = 'select * from slice';
+    tab.disabledSettings = [];
+    expect(selectedPresetId(tab, [p])).toBeUndefined();
+  });
+
+  test("a fresh tab is nobody's, whatever the catalog holds", () => {
+    // A query-only preset and a setup-only one: neither fits a tab with every
+    // setting on at its default.
+    const tab = fakeTab({editorText: ''});
+    expect(
+      selectedPresetId(tab, [
+        preset({id: 'q', perfettoSql: 'select 1'}),
+        preset({id: 's', perfettoSql: ''}),
+      ]),
+    ).toBeUndefined();
+  });
+
+  test('among presets that fit alike, the one last applied wins', () => {
+    const a = preset({id: 'a', perfettoSql: 'select 1'});
+    const b = preset({id: 'b', perfettoSql: 'select 1'});
+    const tab = fakeTab();
+    applyPresetToTab(tab, b);
+    expect(selectedPresetId(tab, [a, b])).toBe('a');
+    expect(selectedPresetId(tab, [a, b], tab.lastPresetId)).toBe('b');
   });
 });
 
-describe('canReturnToQuery', () => {
-  test('a brand-new tab has nothing to go back to', () => {
-    expect(canReturnToQuery(fakeTab())).toBe(false);
+describe('matchingSetupPresetId', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+    regString('trace_directory');
+    regBool('warn');
   });
 
-  test('a tab with a query, a run or results does', () => {
-    expect(canReturnToQuery(fakeTab({editorText: 'select 1'}))).toBe(true);
-    expect(canReturnToQuery(fakeTab({queryUuid: 'uuid'}))).toBe(true);
+  const sweep = preset({
+    id: 'sweep',
+    perfettoSql: 'select 1',
+    settings: [
+      {
+        settingId: 'trace_directory',
+        values: ['/traces'],
+        category: 'TRACE_ADDRESS',
+      },
+    ],
+  });
+  // Query-only catalog entries: identical (empty) setups.
+  const lmk = preset({id: 'lmk', perfettoSql: 'select 2'});
+  const oom = preset({id: 'oom', perfettoSql: 'select 3'});
+
+  test('a hand-made setup reads as Custom, whatever the query', () => {
+    // Fresh tab: every registered setting on at its default.
+    const tab = fakeTab({editorText: 'select 1'});
+    expect(matchingSetupPresetId(tab, [sweep, lmk, oom])).toBeUndefined();
+  });
+
+  test('after applying a preset the tab reads as that preset, query aside', () => {
+    const tab = fakeTab({editorText: 'select something_else'});
+    applyPresetSetup(tab, sweep);
+    expect(matchingSetupPresetId(tab, [lmk, sweep])).toBe('sweep');
+  });
+
+  test('a setting the preset left off, switched on, makes it Custom', () => {
+    const tab = fakeTab();
+    applyPresetSetup(tab, lmk);
+    expect(matchingSetupPresetId(tab, [lmk])).toBe('lmk');
+    tab.disabledSettings = tab.disabledSettings.filter(
+      (id) => id !== 'trace_directory',
+    );
+    expect(matchingSetupPresetId(tab, [lmk])).toBeUndefined();
+  });
+
+  test('among identical setups the one applied is read back', () => {
+    const tab = fakeTab();
+    applyPresetSetup(tab, oom);
+    // Applying records the preset; without the hint the first twin wins.
+    expect(tab.lastPresetId).toBe('oom');
+    expect(matchingSetupPresetId(tab, [lmk, oom])).toBe('lmk');
+    expect(matchingSetupPresetId(tab, [lmk, oom], tab.lastPresetId)).toBe(
+      'oom',
+    );
+    // ...until the setup stops being that setup.
+    applyPresetSetup(tab, sweep);
+    expect(matchingSetupPresetId(tab, [lmk, oom, sweep], 'oom')).toBe('sweep');
+  });
+});
+
+describe('presetNameConflict', () => {
+  const catalog = [preset({id: 'jank', name: 'Jank by device'})];
+  const mine = local({id: 'local:1', name: 'My sweep'});
+  const other = local({id: 'local:2', name: 'Other'});
+
+  test('a catalog name is reserved, whatever the case or spacing', () => {
+    const c = presetNameConflict('  jank BY device ', catalog, [mine]);
+    expect(c?.kind).toBe('catalog');
+    expect(c?.preset.id).toBe('jank');
+  });
+
+  test('a local name is reported as local, for the caller to decide', () => {
+    const c = presetNameConflict('my sweep', catalog, [mine]);
+    expect(c?.kind).toBe('local');
+    expect(c?.preset.id).toBe('local:1');
+  });
+
+  test('a preset keeps its own name while being edited', () => {
     expect(
-      canReturnToQuery(fakeTab({queryResult: {rows: []} as unknown as never})),
-    ).toBe(true);
+      presetNameConflict('My sweep', catalog, [mine], mine),
+    ).toBeUndefined();
+    expect(
+      presetNameConflict('MY SWEEP', catalog, [mine], mine),
+    ).toBeUndefined();
   });
 
-  test('whitespace-only SQL does not count', () => {
-    expect(canReturnToQuery(fakeTab({editorText: '   \n  '}))).toBe(false);
+  test("editing into another preset's name still conflicts", () => {
+    expect(
+      presetNameConflict('Other', catalog, [mine, other], mine)?.kind,
+    ).toBe('local');
+    expect(
+      presetNameConflict('Jank by device', catalog, [mine], mine)?.kind,
+    ).toBe('catalog');
+  });
+
+  test('a preset whose name already shadows the catalog can keep it', () => {
+    const twin = local({id: 'local:3', name: 'Jank by device'});
+    expect(
+      presetNameConflict('Jank by device', catalog, [twin], twin),
+    ).toBeUndefined();
+  });
+
+  test('a fresh name is free', () => {
+    expect(presetNameConflict('Brand new', catalog, [mine])).toBeUndefined();
   });
 });

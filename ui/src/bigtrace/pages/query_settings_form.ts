@@ -20,7 +20,9 @@ import {Callout} from '../../widgets/callout';
 import {linkify} from '../../widgets/anchor';
 import {Intent} from '../../widgets/common';
 import m from 'mithril';
+import {AccordionSection} from '../../widgets/accordion';
 import {Switch} from '../../widgets/switch';
+import {TextInput} from '../../widgets/text_input';
 import {
   type MultiSelectDiff,
   type MultiSelectOption,
@@ -189,6 +191,16 @@ export interface QuerySettingsFormAttrs {
   // Every read and write routes through these, so the form always edits one
   // tab's configuration — there is no global settings state behind it.
   readonly bindings: SettingsBindings;
+  // Rendered above the sections, scrolling with them (the launcher puts its
+  // preset gallery here). Anything it does to the tab's selection or order
+  // shows up on the next render: the grid state is re-read each view.
+  readonly header?: m.Children;
+  // Wrap the sections in a fold with this summary, so a page that leads with
+  // something else (the launcher's presets) can keep the form tucked away.
+  readonly fold?: {
+    readonly summary: m.Children;
+    readonly defaultOpen?: boolean;
+  };
 }
 
 // AIP-132 single-field order_by helpers. The DataGrid supports only one active
@@ -245,11 +257,18 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   private schemaFetching = false;
   oninit({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     this.bindings = attrs.bindings;
+    this.syncFromBindings();
+    bigTraceSettingsStorage.loadSettings();
+  }
+
+  // Pull the grid's filter and sort state from the tab. The grid writes them
+  // through as the user edits, but so can the header (a preset's setup), so
+  // this runs on every view rather than only on open.
+  private syncFromBindings(): void {
     this.traceFilterss = this.readTraceFilters();
     const parsed = parseSingleFieldOrderBy(this.readTraceOrderBy());
     this.traceListSortField = parsed?.field;
     this.traceListSortDirection = parsed?.direction;
-    bigTraceSettingsStorage.loadSettings();
   }
 
   // Binding-aware accessors (fall back to globals).
@@ -783,6 +802,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   view({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     // Refresh bindings each render so callers can swap them without remounting.
     this.bindings = attrs.bindings;
+    this.syncFromBindings();
 
     const categories = new Map<string, BigTraceSetting<unknown>[]>();
     for (const setting of bigTraceSettingsStorage.getAllSettings()) {
@@ -813,25 +833,76 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
       },
     );
 
+    const body: m.Children = [
+      bigTraceSettingsStorage.isExecConfigLoading &&
+        m(EmptyState, {
+          title: 'Loading settings...',
+          icon: 'hourglass_empty',
+          fillHeight: true,
+        }),
+      this.renderRunSection(),
+      sections,
+      bigTraceSettingsStorage.execConfigLoadError !== undefined &&
+        m(
+          Callout,
+          {
+            intent: Intent.Danger,
+            icon: 'error',
+            title: 'Failed to load settings from the backend',
+          },
+          bigTraceSettingsStorage.execConfigLoadError,
+        ),
+    ];
     return m('.pf-bt-settings-embedded', [
       m('.pf-bt-settings-page', [
-        bigTraceSettingsStorage.isExecConfigLoading &&
-          m(EmptyState, {
-            title: 'Loading settings...',
-            icon: 'hourglass_empty',
-            fillHeight: true,
-          }),
-        sections,
-        bigTraceSettingsStorage.execConfigLoadError !== undefined &&
-          m(
-            Callout,
-            {
-              intent: Intent.Danger,
-              icon: 'error',
-              title: 'Failed to load settings from the backend',
+        attrs.header,
+        attrs.fold === undefined
+          ? body
+          : m(
+              AccordionSection,
+              {
+                className: 'pf-bt-settings-fold',
+                summary: attrs.fold.summary,
+                defaultOpen: attrs.fold.defaultOpen ?? false,
+              },
+              body,
+            ),
+      ]),
+    ]);
+  }
+
+  // Mode and row cap: toolbar controls, mirrored here so a preset's setup is
+  // visible in full where it's applied.
+  private renderRunSection(): m.Children {
+    return m('.pf-bt-settings-page__plugin-section', [
+      m('h2.pf-bt-settings-page__plugin-title', 'Run'),
+      m(CardStack, [
+        m(BigTraceSettingsCard, {
+          title: 'Persistent',
+          description:
+            'Save the results to History so they can be reopened later. ' +
+            'Off, results are shown inline and dropped when the tab closes.',
+          controls: m(Switch, {
+            checked: this.bindings.getMaterialize(),
+            onchange: (e: Event) => {
+              this.bindings.setMaterialize(
+                (e.target as HTMLInputElement).checked,
+              );
             },
-            bigTraceSettingsStorage.execConfigLoadError,
-          ),
+          }),
+        }),
+        m(BigTraceSettingsCard, {
+          title: 'Row limit',
+          description: 'Maximum rows this query returns.',
+          controls: m(TextInput, {
+            type: 'number',
+            value: String(this.bindings.getRowLimit()),
+            onInput: (value: string) => {
+              const n = parseInt(value, 10);
+              if (!isNaN(n) && n > 0) this.bindings.setRowLimit(n);
+            },
+          }),
+        }),
       ]),
     ]);
   }

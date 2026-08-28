@@ -34,7 +34,7 @@ import {
   type BigTraceEditorTab,
   type QueryTabsState,
   applyModeDefaults,
-  deriveTitleFromQuery,
+  hasQueryText,
   effectiveTabSettings,
   effectiveTraceLimit,
   setTraceLimit,
@@ -70,8 +70,9 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
     }
 
     // A tab with no configuration yet shows the launcher instead of the editor:
-    // every query starts from a preset or a deliberate custom setup.
-    if (!tab.configured) {
+    // every query starts from a preset or a deliberate custom setup. A
+    // configured tab shows it too while its Settings are open.
+    if (!tab.configured || tab.settingsSession !== undefined) {
       return m(
         '.pf-bt-editor-tab',
         m(QueryLauncher, {
@@ -105,7 +106,7 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
 }
 
 // ---------------------------------------------------------------------------
-// Per-tab bindings shared between the chip strip and any modal it opens.
+// Per-tab bindings shared between the chip strip and the settings form.
 // Getters read live; setters mutate in place and mark dirty.
 // getEffectiveSettings layers per-tab overrides over global defaults so
 // /trace_metadata sees a complete settings array even before the user edits.
@@ -164,13 +165,17 @@ function buildTabBindings(
       tab.disabledSettings = [...set];
       tabsState.markDirty();
     },
-    getSql: () => tab.editorText,
-    setQueryAndTitle: (perfettoSql, title) => {
-      tab.editorText = perfettoSql;
-      // A title other than "Query N" sticks — maybeAutoNameTab won't replace it.
-      if (title) tab.title = title;
+    getRowLimit: () => tab.limit,
+    setRowLimit: (limit) => {
+      tab.limit = limit;
       tabsState.markDirty();
-      m.redraw();
+    },
+    getMaterialize: () => tab.materialize,
+    setMaterialize: (materialize) => {
+      // Same path as the toolbar switch: caps the user never touched follow
+      // the mode.
+      applyModeDefaults(tab, materialize);
+      tabsState.markDirty();
     },
   };
 }
@@ -215,11 +220,8 @@ function renderEditorPanel(
               icon: 'play_arrow',
               intent: Intent.Primary,
               variant: ButtonVariant.Filled,
-              disabled: deriveTitleFromQuery(tab.editorText) === undefined,
-              onclick: () => {
-                tabsState.maybeAutoNameTab(tab.id, tab.editorText);
-                runner.run(tab, tab.editorText);
-              },
+              disabled: !hasQueryText(tab.editorText),
+              onclick: () => runner.run(tab, tab.editorText),
             }),
         m(
           Stack,
@@ -232,7 +234,7 @@ function renderEditorPanel(
         m(Button, {
           icon: 'format_align_left',
           title: 'Format query (Alt+Shift+F)',
-          disabled: deriveTitleFromQuery(tab.editorText) === undefined,
+          disabled: !hasQueryText(tab.editorText),
           onclick: () => void formatTabQuery(tab, tabsState, tab.editorText),
         }),
         useBigtraceBackend && renderRunControls(tab, tabsState),
@@ -257,10 +259,7 @@ function renderEditorPanel(
         tab.editorText = text;
         tabsState.markDirty();
       },
-      onExecute: (query: string) => {
-        tabsState.maybeAutoNameTab(tab.id, query);
-        runner.run(tab, query);
-      },
+      onExecute: (query: string) => runner.run(tab, query),
     }),
   ]);
 }

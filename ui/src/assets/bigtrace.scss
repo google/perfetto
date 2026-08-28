@@ -171,37 +171,23 @@
   }
 }
 
-// ---------- New-query launcher ----------
+// ---------- Launcher: start a query / Settings of an existing one ----------
 
-// Fills the tab until it has a configuration. Presets mode centers a column;
-// custom mode gives the settings form the height and puts actions in a footer.
+// Fills the tab. One page for both jobs: a scrolling body holding the preset
+// section and the settings form (which of the two is folded depends on the
+// tab), and a footer with the actions.
 .pf-bt-launcher {
   height: 100%;
   min-height: 0;
-  overflow-y: auto;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
 
-  &--custom {
-    flex-direction: column;
-    justify-content: flex-start;
-    overflow: hidden;
-  }
-
-  &__inner {
+  &__head {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    width: fit-content;
-    max-width: min(960px, 92%);
-    padding: 48px 0 32px;
-  }
-
-  // Sits above the title, aligned with the content column, so the way back is
-  // the first thing in reading order.
-  &__back {
-    margin-bottom: -8px;
-    margin-left: -8px;
+    gap: 8px;
+    margin: 8px 0 24px;
   }
 
   &__title {
@@ -213,7 +199,6 @@
   &__subtitle {
     font-size: 15px;
     color: var(--pf-color-text-muted);
-    margin-top: -8px;
   }
 
   &__presets {
@@ -222,19 +207,13 @@
     gap: 16px;
   }
 
-  &__actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 4px;
-  }
-
   &__empty-detail {
     color: var(--pf-color-text-muted);
     margin-bottom: 12px;
   }
 
   // Scrolls independently of the footer, which stays reachable.
-  &__custom-body {
+  &__body {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -255,7 +234,7 @@
   }
 }
 
-// Name + group fields in the save-preset modal.
+// Name / group / description fields in the save-preset and edit-preset modals.
 .pf-bt-save-preset {
   display: flex;
   flex-direction: column;
@@ -266,6 +245,12 @@
     color: var(--pf-color-text-muted);
     font-size: var(--pf-font-size-s);
     margin-top: 8px;
+  }
+
+  // Why the name can't be saved as typed; sits right under the Name field.
+  &__message {
+    color: var(--pf-color-danger);
+    font-size: var(--pf-font-size-s);
   }
 }
 
@@ -371,6 +356,14 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--pf-color-primary);
+  }
+
+  // A preset that carries no query: it configures the run, nothing more.
+  &__kind {
+    font-size: var(--pf-font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pf-color-text-muted);
   }
 }
 
@@ -932,13 +925,6 @@ pre.pf-bt-history-item-query--standalone {
       max-width: 100%;
     }
   }
-
-  // Only the "Edit settings" chip is clickable — give it the pointer cursor.
-  // The other chips are read-only display (× still removes), so they keep the
-  // default cursor.
-  &__add {
-    cursor: pointer;
-  }
 }
 
 // "Traces" card header — title with the refresh icon directly to its right.
@@ -962,5 +948,55 @@ pre.pf-bt-history-item-query--standalone {
 
   .pf-bt-settings-page {
     margin: 0;
+  }
+}
+
+// The launcher's sections — Presets, and the settings form when it's the
+// secondary one — are AccordionSections styled like the form's own section
+// headings, so a fold reads as one more section that happens to open and
+// close.
+.pf-bt-settings-fold {
+  margin-bottom: 32px;
+
+  > summary {
+    border-radius: 4px;
+    padding: 8px 12px;
+    // Not sticky here: the page scrolls as one document.
+    position: static;
+    background: var(--pf-minimal-background);
+  }
+
+  &[open] > summary {
+    background: var(--pf-minimal-background);
+  }
+
+  &__summary {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 600;
+  }
+
+  &__current {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__hint {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    margin: 4px 0 16px;
+  }
+
+  .pf-accordion__content {
+    padding: 8px 4px 4px;
+    background: transparent;
   }
 }

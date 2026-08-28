@@ -19,6 +19,7 @@ import {
   isLocalPresetId,
   localPresetStore,
   presetFromTab,
+  presetNamed,
   type LocalPreset,
 } from './local_preset_store';
 import {lastPresetIdState} from '../settings/last_preset_state';
@@ -74,18 +75,39 @@ describe('localPresetStore', () => {
     ]);
   });
 
-  test('rename and remove', () => {
-    const p = localPresetStore.save(preset({name: 'Old'}));
-    localPresetStore.rename(p.id, 'New');
-    expect(localPresetStore.get(p.id)?.name).toBe('New');
+  test('update changes what a preset shows, not what it runs', () => {
+    const p = localPresetStore.save(
+      preset({name: 'Old', perfettoSql: 'select 2', limit: 7}),
+    );
+    localPresetStore.update(p.id, {
+      name: 'New',
+      category: 'Latency',
+      description: 'Slow frames per trace.',
+    });
+    const got = localPresetStore.get(p.id)!;
+    expect(got.name).toBe('New');
+    expect(got.category).toBe('Latency');
+    expect(got.description).toBe('Slow frames per trace.');
+    expect(got.perfettoSql).toBe('select 2');
+    expect(got.limit).toBe(7);
     localPresetStore.remove(p.id);
     expect(localPresetStore.list()).toEqual([]);
   });
 
-  test('rename of an unknown id is a no-op', () => {
+  test('update of an unknown id is a no-op', () => {
     localPresetStore.save(preset({name: 'Kept'}));
-    localPresetStore.rename('local:nope', 'Changed');
+    localPresetStore.update('local:nope', {
+      name: 'Changed',
+      category: '',
+      description: '',
+    });
     expect(localPresetStore.list().map((p) => p.name)).toEqual(['Kept']);
+  });
+
+  test('presetNamed ignores case and surrounding space', () => {
+    const list = [preset({id: 'a', name: 'Startup latency'})];
+    expect(presetNamed('  startup LATENCY ', list)?.id).toBe('a');
+    expect(presetNamed('other', list)).toBeUndefined();
   });
 
   test('findByName ignores case and surrounding space', () => {
