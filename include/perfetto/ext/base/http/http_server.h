@@ -42,8 +42,9 @@ struct HttpRequest {
 
   HttpServerConnection* conn;
 
-  // These StringViews point to memory in the rxbuf owned by |conn|. They are
-  // valid only within the OnHttpRequest() call.
+  // |method|, |uri| and |origin| point into the rxbuf owned by |conn|, |body|
+  // into the buffer returned by OnHttpRequestBody(). All are valid only within
+  // the OnHttpRequest() call.
   StringView method;
   StringView uri;
   StringView origin;
@@ -70,8 +71,8 @@ struct WebsocketMessage {
   // Note: message boundaries are not respected in case of fragmentation.
   // This websocket implementation preserves only the byte stream, but not the
   // atomicity of inbound messages (like SOCK_STREAM, unlike SOCK_DGRAM).
-  // Holds onto the connection's |rxbuf|. This is valid only within the scope
-  // of the OnWebsocketMessage() callback.
+  // Points into the buffer the handler returned from OnWebsocketPayload().
+  // This is valid only within the scope of the OnWebsocketMessage() callback.
   StringView data;
 
   // If false the payload contains binary data. If true it's supposed to contain
@@ -128,10 +129,20 @@ class HttpServerConnection {
   friend class HttpServer;
 
   size_t rxbuf_avail() { return rxbuf.size() - rxbuf_used; }
+  void ClearPayload();
 
   std::unique_ptr<UnixSocket> sock;
+
+  // Holds request lines, headers and websocket frame headers only. Payloads
+  // are read straight into the buffer the handler supplies.
   PagedMemory rxbuf;
   size_t rxbuf_used = 0;
+
+  // Set while a payload is being read into the handler's buffer.
+  uint8_t* payload_ = nullptr;
+  size_t payload_size_ = 0;
+  size_t payload_used_ = 0;
+  uint8_t payload_mask_[4]{};  // Websocket masking key for |payload_|.
   bool is_websocket_ = false;
   bool headers_sent_ = false;
   size_t content_len_headers_ = 0;
@@ -150,6 +161,17 @@ class HttpServerConnection {
 class HttpRequestHandler {
  public:
   virtual ~HttpRequestHandler();
+
+  // Called once the size of an inbound payload (an HTTP request body or a
+  // websocket frame payload) is known, to obtain the memory it is read into.
+  // The buffer must hold |size| bytes and stay valid until the matching
+  // OnHttpRequest()/OnWebsocketMessage() returns. Returning nullptr rejects the
+  // payload (413 for HTTP, close for websockets).
+  // Payloads on different connections can be in flight at the same time, so a
+  // handler serving more than one needs per-connection storage.
+  virtual uint8_t* OnHttpRequestBody(const HttpRequest&, size_t size) = 0;
+  virtual uint8_t* OnWebsocketPayload(HttpServerConnection*, size_t size) = 0;
+
   virtual void OnHttpRequest(const HttpRequest&) = 0;
   virtual void OnWebsocketMessage(const WebsocketMessage&);
   virtual void OnHttpConnectionClosed(HttpServerConnection*);
