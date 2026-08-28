@@ -81,9 +81,18 @@ class Rpc {
   // exchanged on these pipes are TraceProcessorRpc protos (defined in
   // trace_processor.proto). This has been introduced in Perfetto v15.
 
-  // A reservation inside the tokenizer for a transport to read into. Must be
-  // consumed exactly once: EndRequest() reports how many bytes were written
-  // and dispatches whatever messages completed, AbortRequest() discards it;
+  // The size argument is a uint32_t and not size_t to avoid ABI mismatches
+  // with Wasm, where size_t = uint32_t.
+  // (nullptr, 0) has the semantic of "close the channel" and is issued when an
+  // unrecoverable wire-protocol framing error is detected.
+  using RpcResponseFunction =
+      std::function<void(const void* /*data*/, uint32_t /*len*/)>;
+
+  class Stream;
+
+  // A reservation inside a Stream's tokenizer to read into. Must be consumed
+  // exactly once: EndRequest() reports how many bytes were written and
+  // dispatches whatever messages completed, AbortRequest() discards it;
   // dropping one fails a CHECK.
   class RequestHandle {
    public:
@@ -101,36 +110,58 @@ class Rpc {
     void EndRequest(size_t size_written);
     void AbortRequest();
 
-    explicit operator bool() const { return rpc_ != nullptr; }
+    // False once consumed or moved from.
+    explicit operator bool() const { return stream_ != nullptr; }
 
    private:
-    friend class Rpc;
-    RequestHandle(Rpc* rpc, protozero::ProtoRingBuffer::WriteHandle write)
-        : rpc_(rpc), write_(std::move(write)) {}
+    friend class Stream;
+    RequestHandle(Stream* stream, protozero::ProtoRingBuffer::WriteHandle write)
+        : stream_(stream), write_(std::move(write)) {}
 
-    Rpc* rpc_ = nullptr;
+    Stream* stream_ = nullptr;
     protozero::ProtoRingBuffer::WriteHandle write_;
   };
 
-  // Pushes data received by the RPC channel into the parser. Inbound messages
-  // are tokenized and turned into TraceProcessor method invocations. The bytes
-  // do not need to be a whole TraceProcessorRpc message: they can be a portion
-  // of it or a union of >1 messages.
-  // OnRpcRequest() is the copying equivalent, for transports that cannot read
-  // into the reservation directly.
-  // Responses are sent throught the RpcResponseFunction (below).
-  void OnRpcRequest(const void* data, size_t len);
-  PERFETTO_WARN_UNUSED_RESULT RequestHandle BeginRpcRequest(size_t size);
+  // One byte-pipe: an HTTP connection, a websocket, a unix socket, or the one
+  // postmessage channel in the Wasm case. A transport that serves several
+  // peers at once owns a Stream per peer.
+  //
+  // A Stream owns only the framing state: the tokenizer holding a message that
+  // arrived in pieces. Interleaving the bytes of two peers into one tokenizer
+  // corrupts both, hence one per connection.
+  //
+  // The message sequence ids stay on Rpc and shared: a second peer numbering
+  // from its own 0 breaks the sequence, which is how two clients on one
+  // TraceProcessor (e.g. two UI tabs on the same --httpd instance) are
+  // detected and told so.
+  class Stream {
+   public:
+    // |rpc| must outlive this. |response_fn| is called, possibly several times
+    // for a single request, with this stream's responses.
+    Stream(Rpc& rpc, RpcResponseFunction response_fn);
+    ~Stream();
 
-  // The size argument is a uint32_t and not size_t to avoid ABI mismatches
-  // with Wasm, where size_t = uint32_t.
-  // (nullptr, 0) has the semantic of "close the channel" and is issued when an
-  // unrecoverable wire-protocol framing error is detected.
-  using RpcResponseFunction =
-      std::function<void(const void* /*data*/, uint32_t /*len*/)>;
-  void SetRpcResponseFunction(RpcResponseFunction f) {
-    rpc_response_fn_ = std::move(f);
-  }
+    Stream(const Stream&) = delete;
+    Stream& operator=(const Stream&) = delete;
+
+    // Pushes data received on this pipe into the parser. Inbound messages are
+    // tokenized and turned into TraceProcessor method invocations. The bytes
+    // do not need to be a whole TraceProcessorRpc message: they can be a
+    // portion of it or a union of >1 messages, as long as the stream sees the
+    // peer's bytes in order and without gaps.
+    PERFETTO_WARN_UNUSED_RESULT RequestHandle BeginRequest(size_t size);
+
+   private:
+    friend class Rpc;
+    friend class RequestHandle;
+
+    void FinishRequest();
+
+    Rpc& rpc_;
+    RpcResponseFunction response_fn_;
+    protozero::ProtoRingBuffer rxbuf_;
+    bool request_in_flight_ = false;
+  };
 
   // 2. TraceProcessor legacy RPC endpoints.
   // The methods below are exposed for the old RPC interfaces, where each RPC
@@ -185,8 +216,8 @@ class Rpc {
  private:
   base::Status ExportSqlite(const ExportCallback&);
 
-  void ParseRpcRequest(const uint8_t*, size_t);
-  void DrainRxBuf();
+  void ParseRpcRequest(Stream&, const uint8_t*, size_t);
+  void DrainStream(Stream&);
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);
   void ResetTraceProcessorInternal(const Config&);
@@ -200,7 +231,6 @@ class Rpc {
                                    protos::pbzero::TraceSummaryResult*);
   void DisableAndReadMetatraceInternal(
       protos::pbzero::DisableAndReadMetatraceResult*);
-  void FinishRpcRequest();
 
   Config default_config_;
   TraceProcessor::PlatformInterface* platform_ = nullptr;
@@ -208,9 +238,8 @@ class Rpc {
 
   Config current_config_;
   std::unique_ptr<TraceProcessor> trace_processor_;
-  RpcResponseFunction rpc_response_fn_;
-  protozero::ProtoRingBuffer rxbuf_;
-  bool request_in_flight_ = false;
+  // Deliberately shared by every Stream: a second peer talking to the same
+  // TraceProcessor breaks the sequence, which is how that is detected.
   int64_t tx_seq_id_ = 0;
   int64_t rx_seq_id_ = 0;
   bool eof_ = false;

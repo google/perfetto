@@ -39,8 +39,15 @@ namespace perfetto::trace_processor {
 
 base::Status RunStdioRpcServer(Rpc& rpc) {
   constexpr size_t kReadSize = 4096;
+  // stdin/stdout is a single pipe with a single peer, hence one stream.
+  Rpc::Stream stream(rpc, [](const void* ptr, uint32_t size) {
+    auto ret = base::WriteAll(STDOUT_FILENO, ptr, size);
+    if (ret < 0 || static_cast<uint32_t>(ret) != size) {
+      PERFETTO_FATAL("Failed to write response");
+    }
+  });
   for (;;) {
-    Rpc::RequestHandle req = rpc.BeginRpcRequest(kReadSize);
+    Rpc::RequestHandle req = stream.BeginRequest(kReadSize);
     auto ret = base::Read(STDIN_FILENO, req.data(), req.size());
     if (ret <= 0) {
       req.AbortRequest();
@@ -48,14 +55,7 @@ base::Status RunStdioRpcServer(Rpc& rpc) {
         return base::ErrStatus("Failed while reading the buffer");
       return base::OkStatus();
     }
-    rpc.SetRpcResponseFunction([](const void* ptr, uint32_t size) {
-      auto ret = base::WriteAll(STDOUT_FILENO, ptr, size);
-      if (ret < 0 || static_cast<uint32_t>(ret) != size) {
-        PERFETTO_FATAL("Failed to write response");
-      }
-    });
     req.EndRequest(static_cast<size_t>(ret));
-    rpc.SetRpcResponseFunction(nullptr);
   }
 }
 

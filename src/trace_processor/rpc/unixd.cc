@@ -118,6 +118,9 @@ class UnixRpcServer : public base::UnixSocket::EventListener {
  private:
   struct ClientConn {
     std::unique_ptr<base::UnixSocket> sock;
+    // Framing state for this client. Kept per connection so that a peer that
+    // disconnects mid-message cannot leave a partial frame in another's.
+    std::unique_ptr<Rpc::Stream> stream;
   };
 
   ClientConn* FindConn(base::UnixSocket* self);
@@ -265,7 +268,16 @@ void UnixRpcServer::OnNewIncomingConnection(
     base::UnixSocket*,
     std::unique_ptr<base::UnixSocket> new_conn) {
   auto conn = std::make_unique<ClientConn>();
+  base::UnixSocket* sock = new_conn.get();
   conn->sock = std::move(new_conn);
+  conn->stream = std::make_unique<Rpc::Stream>(
+      rpc_, [sock](const void* resp, uint32_t resp_len) {
+        if (resp == nullptr) {
+          sock->Shutdown(/*notify=*/false);
+          return;
+        }
+        sock->Send(resp, resp_len);
+      });
   clients_.push_back(std::move(conn));
 }
 
@@ -287,34 +299,25 @@ UnixRpcServer::ClientConn* UnixRpcServer::FindConn(base::UnixSocket* self) {
 }
 
 void UnixRpcServer::OnDataAvailable(base::UnixSocket* self) {
-  if (!FindConn(self))
+  ClientConn* conn = FindConn(self);
+  if (!conn)
     return;
 
   if (reaper_)
     reaper_->set_query_in_flight(true);
 
-  // A framing error makes Rpc emit a fatal_error message and then call the
-  // response function with nullptr, which tears the connection down below.
-  rpc_.SetRpcResponseFunction([self](const void* resp, uint32_t resp_len) {
-    if (resp == nullptr) {
-      self->Shutdown(/*notify=*/false);
-      return;
-    }
-    self->Send(resp, resp_len);
-  });
-
-  // A session serves one client at a time, so no second byte stream can
-  // interleave with this one inside Rpc's tokenizer.
+  // Read straight into this connection's stream and let it dispatch whatever
+  // messages complete. The stream keeps the framing state, so a peer that
+  // stops mid-message holds up only itself.
   for (;;) {
     constexpr size_t kReadSize = 4096;
-    Rpc::RequestHandle req = rpc_.BeginRpcRequest(kReadSize);
+    Rpc::RequestHandle req = conn->stream->BeginRequest(kReadSize);
     size_t rx_bytes = self->Receive(req.data(), req.size());
     req.EndRequest(rx_bytes);
     if (rx_bytes == 0)
       break;
   }
 
-  rpc_.SetRpcResponseFunction(nullptr);
   if (reaper_) {
     reaper_->set_query_in_flight(false);
     reaper_->OnActivity();
