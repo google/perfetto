@@ -374,6 +374,19 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   if (decoder.has_service_event()) {
     PERFETTO_DCHECK(decoder.has_timestamp());
     int64_t ts = static_cast<int64_t>(decoder.timestamp());
+    // TracingServiceImpl always stamps lifecycle events with GetBootTimeNs(),
+    // so these timestamps are BOOTTIME regardless of primary_trace_clock.
+    // Convert explicitly: this path bypasses the generic timestamp conversion.
+    // If the conversion fails (e.g. clock snapshotting was disabled), keep
+    // the raw value, which is trace time in that case.
+    uint32_t timestamp_clock_id = decoder.has_timestamp_clock_id()
+                                      ? decoder.timestamp_clock_id()
+                                      : protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+    if (auto trace_ts = context_->clock_tracker->ToTraceTime(
+            ClockId::Machine(timestamp_clock_id), ts, packet.offset(),
+            /*suppress_errors=*/true)) {
+      ts = *trace_ts;
+    }
     return ParseServiceEvent(ts, decoder.service_event());
   }
 
@@ -716,8 +729,12 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   // load on what is a configuration error.
   if (context_->has_clock_override()) {
     return base::ErrStatus(
-        "perfetto_manifest: clock overrides require the trace to use a "
-        "single clock");
+        "perfetto_manifest: a `clocks` override without a source `clock` pins "
+        "a clockless file to a reference timeline, but this trace emits clock "
+        "snapshots. If this is an internally-clocked trace (e.g. Perfetto "
+        R"(proto), specify the source clock in the `clocks` block (e.g. )"
+        R"("clock": "BOOTTIME"). See )"
+        "https://perfetto.dev/docs/reference/perfetto-manifest#clocks");
   }
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);

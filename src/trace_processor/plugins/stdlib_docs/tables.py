@@ -18,43 +18,21 @@ from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
-STDLIB_DOCS_MODULES_TABLE = Table(
+STDLIB_DOCS_OBJECTS_TABLE = Table(
     python_module=__file__,
-    class_name="StdlibDocsModulesTable",
+    class_name="StdlibDocsObjectsTable",
     purpose=Purpose.STATIC_TABLE_FUNCTION,
-    sql_name="__intrinsic_stdlib_modules",
+    sql_name="not_exposed_to_sql",
     columns=[
-        C("module", CppString()),
         C("package", CppString()),
-    ],
-)
-
-STDLIB_DOCS_TABLES_TABLE = Table(
-    python_module=__file__,
-    class_name="StdlibDocsTablesTable",
-    purpose=Purpose.STATIC_TABLE_FUNCTION,
-    sql_name="not_exposed_to_sql",
-    columns=[
         C("module", CppString()),
         C("name", CppString()),
-        C("type", CppString()),
-        C("description", CppString()),
+        C("qualified_name", CppString()),
+        C("object_type", CppString()),
         C("exposed", CppInt64()),
-        C("cols", CppString()),
-    ],
-)
-
-STDLIB_DOCS_FUNCTIONS_TABLE = Table(
-    python_module=__file__,
-    class_name="StdlibDocsFunctionsTable",
-    purpose=Purpose.STATIC_TABLE_FUNCTION,
-    sql_name="not_exposed_to_sql",
-    columns=[
-        C("module", CppString()),
-        C("name", CppString()),
+        C("short_description", CppString()),
+        C("summary", CppString()),
         C("description", CppString()),
-        C("exposed", CppInt64()),
-        C("is_table_function", CppInt64()),
         C("return_type", CppString()),
         C("return_description", CppString()),
         C("args", CppString()),
@@ -62,26 +40,4 @@ STDLIB_DOCS_FUNCTIONS_TABLE = Table(
     ],
 )
 
-STDLIB_DOCS_MACROS_TABLE = Table(
-    python_module=__file__,
-    class_name="StdlibDocsMacrosTable",
-    purpose=Purpose.STATIC_TABLE_FUNCTION,
-    sql_name="not_exposed_to_sql",
-    columns=[
-        C("module", CppString()),
-        C("name", CppString()),
-        C("description", CppString()),
-        C("exposed", CppInt64()),
-        C("return_type", CppString()),
-        C("return_description", CppString()),
-        C("args", CppString()),
-    ],
-)
-
-# Keep this list sorted.
-ALL_TABLES = [
-    STDLIB_DOCS_FUNCTIONS_TABLE,
-    STDLIB_DOCS_MACROS_TABLE,
-    STDLIB_DOCS_MODULES_TABLE,
-    STDLIB_DOCS_TABLES_TABLE,
-]
+ALL_TABLES = [STDLIB_DOCS_OBJECTS_TABLE]

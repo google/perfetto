@@ -1493,6 +1493,17 @@ message EtwConfig {
   // Provides events relating to multiple kinds of IO including disk, cache, and
   // network.
   repeated string system_io_provider_events = 7;
+
+  // A debug ID that uniquely identifies an image (i.e., executable) for
+  // symbolization when stack sampling.
+  message DebugId {
+    // The full path to the image file.
+    optional string path = 1;
+    // The unique identifier for the image file.
+    optional string debug_id = 2;
+  }
+  // Debug IDs for images whose stack samples should be symbolized.
+  repeated DebugId stack_sampling_debug_ids = 8;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -5097,7 +5108,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 49.
+// Next id: 50.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -6055,6 +6066,15 @@ message TraceConfig {
   //
   // Introduced in: perfetto v58.
   optional TraceAttributes trace_attributes = 48;
+
+  // Android-only. Not for general use. If set to true, writes trace chunks to a
+  // persistent file
+  // (/data/misc/perfetto-traces/persistent/$unique_session_name.tmp) that
+  // survives device reboots (e.g. during OTA updates or battery depletion).
+  //
+  // Introduced in: perfetto v59.
+  // Supported on: Android 26Q4+.
+  optional bool persist_trace_across_reboots = 49;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -6698,6 +6718,27 @@ message PixelModemTokenDatabase {
 }
 
 // End of protos/perfetto/trace/android/pixel_modem_events.proto
+
+// Begin of protos/perfetto/trace/android/recovered_trace_info.proto
+
+// Injected into TracePacket by perfetto post-reboot recovery to record
+// recovered trace metadata.
+message RecoveredTraceInfo {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_UNEXPECTED_REBOOT = 1;
+  }
+
+  optional Reason reason = 1;
+
+  // Raw trace file size (in bytes) on disk prior to post-reboot recovery.
+  optional uint64 original_file_size_bytes = 2;
+
+  // Amount of trailing corrupted/incomplete bytes truncated during recovery.
+  optional uint64 bytes_truncated = 3;
+}
+
+// End of protos/perfetto/trace/android/recovered_trace_info.proto
 
 // Begin of protos/perfetto/trace/android/user_list.proto
 
@@ -11507,6 +11548,10 @@ message SchedWakeupTaskAttrFtraceEvent {
   optional uint64 task_util = 3;
   optional uint64 uclamp_min = 4;
   optional uint64 vruntime = 5;
+  optional uint64 sched_qos_user_defined_flag = 6;
+  optional uint32 rampup_multiplier = 7;
+  optional uint32 effect_rampup_multiplier = 8;
+  optional int32 tag_nice = 9;
 }
 message SchedGroupTrackerFtraceEvent {
   optional string comm = 1;
@@ -16374,6 +16419,22 @@ message ObfuscatedClass {
   // fields.
   repeated ObfuscatedMember obfuscated_members = 3;
   repeated ObfuscatedMember obfuscated_methods = 4;
+
+  // Information about a single class merged by optimization into this
+  // obfuscated class.
+  message MergedClass {
+    optional string name = 1;
+    optional int32 class_id = 2;
+    optional MergedClasses merged_classes = 3;
+  }
+
+  // Set of classes merged into this obfuscated class by optimization.
+  message MergedClasses {
+    optional string class_id_field_name = 1;
+    repeated MergedClass merged_classes = 2;
+  }
+
+  optional MergedClasses merged_classes = 5;
 }
 
 message DeobfuscationMapping {
@@ -18214,7 +18275,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 136.
+// Next id: 139.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18392,6 +18453,10 @@ message TracePacket {
     AndroidUserList user_list = 123;
 
     SystemdJournaldEvent journald_event = 132;
+
+    // Injected into TracePacket by perfetto post-reboot recovery to record
+    // recovered trace metadata.
+    RecoveredTraceInfo recovered_trace_info = 138;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

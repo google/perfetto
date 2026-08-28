@@ -363,6 +363,7 @@ base::Status MergeField(const ProtoFile::Field& input,
 base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
                          const std::vector<ProtoFile::Field>& upstream,
                          const std::set<int>& allowlist,
+                         const std::unordered_set<int>& reserved_numbers,
                          const std::set<std::string>& known_enums,
                          const std::set<std::string>& allowlisted_options,
                          std::vector<ProtoFile::Field>& out) {
@@ -386,11 +387,14 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
     out.emplace_back(std::move(out_field));
   }
 
-  // Sort all fields by tag number so reserved/deprecated fields are in place.
-  std::sort(out.begin(), out.end(),
-            [](const ProtoFile::Field& a, const ProtoFile::Field& b) {
-              return a.number < b.number;
-            });
+  // Append reserved fields from input as deprecated fields.
+  for (const auto& input_field : input) {
+    if (reserved_numbers.count(input_field.number)) {
+      ProtoFile::Field deprecated_field = input_field;
+      MarkFieldAsDeprecated(deprecated_field);
+      out.emplace_back(std::move(deprecated_field));
+    }
+  }
 
   return base::OkStatus();
 }
@@ -471,7 +475,7 @@ base::Status Merge(const ProtoFile::Oneof& input,
   out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
 
   // Finish by merging the list of fields.
-  return MergeFields(input.fields, upstream.fields, allowlist, known_enums,
+  return MergeFields(input.fields, upstream.fields, allowlist, {}, known_enums,
                      allowlisted_options, out.fields);
 }
 
@@ -495,14 +499,8 @@ base::Status Merge(const ProtoFile::Message& input,
       ComputeDeletedByName(input.nested_messages, upstream.nested_messages);
   out.deleted_oneofs = ComputeDeletedByName(input.oneofs, upstream.oneofs);
 
-  // Check if fields in input are deprecated in upstream or deleted.
-  std::vector<ProtoFile::Field> missing_fields =
-      ComputeDeletedByNumber(input.fields, upstream.fields);
-  for (auto& field : missing_fields) {
-    if (upstream.reserved_numbers.count(field.number)) {
-      MarkFieldAsDeprecated(field);
-      out.fields.emplace_back(std::move(field));
-    } else {
+  for (auto& field : ComputeDeletedByNumber(input.fields, upstream.fields)) {
+    if (!upstream.reserved_numbers.count(field.number)) {
       out.deleted_fields.emplace_back(std::move(field));
     }
   }
@@ -526,7 +524,31 @@ base::Status Merge(const ProtoFile::Message& input,
 
   // Finish by merging the list of fields.
   return MergeFields(input.fields, upstream.fields, allowlist.fields,
-                     known_enums, allowlisted_options, out.fields);
+                     upstream.reserved_numbers, known_enums,
+                     allowlisted_options, out.fields);
+}
+
+void ConvertOptionsForEditions(ProtoFile::Field& field) {
+  for (auto& opt : field.options) {
+    if (opt.key == "packed") {
+      opt.key = "features.repeated_field_encoding";
+      opt.value = "PACKED";
+    }
+  }
+}
+
+void ConvertOptionsForEditions(ProtoFile::Message& msg) {
+  for (auto& f : msg.fields) {
+    ConvertOptionsForEditions(f);
+  }
+  for (auto& oneof : msg.oneofs) {
+    for (auto& f : oneof.fields) {
+      ConvertOptionsForEditions(f);
+    }
+  }
+  for (auto& nested : msg.nested_messages) {
+    ConvertOptionsForEditions(nested);
+  }
 }
 
 }  // namespace
@@ -539,6 +561,7 @@ base::Status MergeProtoFiles(const ProtoFile& input,
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
+  out.is_proto2 = input.is_proto2;
 
   std::set<std::string> known_enums;
   for (const auto& en : upstream.enums) {
@@ -565,8 +588,19 @@ base::Status MergeProtoFiles(const ProtoFile& input,
                          allowlisted_options);
 
   // Finish by merging the top-level messages.
-  return MergeRecursive(input.messages, upstream.messages, allowlist.messages,
-                        known_enums, allowlisted_options, out.messages);
+  base::Status status =
+      MergeRecursive(input.messages, upstream.messages, allowlist.messages,
+                     known_enums, allowlisted_options, out.messages);
+  if (!status.ok())
+    return status;
+
+  if (!out.is_proto2) {
+    for (auto& msg : out.messages) {
+      ConvertOptionsForEditions(msg);
+    }
+  }
+
+  return base::OkStatus();
 }
 
 }  // namespace proto_merger

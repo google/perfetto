@@ -297,7 +297,7 @@ bool TruncateFile(int fd, uint64_t size) {
     errno = EOVERFLOW;
     return false;
   }
-  int result = _chsize_s(fd, size);
+  int result = _chsize_s(fd, static_cast<int64_t>(size));
   if (result != 0) {
     errno = result;
     return false;

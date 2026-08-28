@@ -20,18 +20,36 @@ import {Callout} from '../widgets/callout';
 import {Intent} from '../widgets/common';
 import {Button} from '../widgets/button';
 import type {Setting} from '../public/settings';
+import {raf} from '../core/raf_scheduler';
+import {getErrorMessage} from '../base/errors';
+
+export interface ValidationResult {
+  message: string;
+  intent?: Intent;
+  icon?: string;
+}
 
 export interface JsonSettingsEditorOptions<T> {
   // Zod schema for validation
   schema: z.ZodSchema<T>;
   // Optional validator function for additional business logic validation
   validator?: (data: T) => string | undefined;
+  // Optional custom validate button action callback
+  onValidate?: (
+    data: T,
+  ) =>
+    | Promise<ValidationResult | string | undefined>
+    | ValidationResult
+    | string
+    | undefined;
 }
 
 export class JsonSettingsEditor<T> {
   private textareaValue: string | undefined;
   private originalValue: string | undefined;
   private jsonError: string | undefined = undefined;
+  private validationResult: ValidationResult | undefined = undefined;
+  private isValidating = false;
   private currentSetting: Setting<T> | undefined;
 
   constructor(private options: JsonSettingsEditorOptions<T>) {}
@@ -52,12 +70,34 @@ export class JsonSettingsEditor<T> {
           m(
             Callout,
             {
+              icon: 'error',
               intent: Intent.Danger,
               className: 'pf-json-settings-editor__error',
             },
             `JSON Error: ${this.jsonError}`,
           ),
+        this.jsonError === undefined &&
+          this.validationResult !== undefined &&
+          m(
+            Callout,
+            {
+              icon:
+                this.validationResult.icon ??
+                (this.validationResult.intent === Intent.Success
+                  ? 'check_circle'
+                  : 'error'),
+              intent: this.validationResult.intent ?? Intent.None,
+              className: 'pf-json-settings-editor__validation-result',
+            },
+            this.validationResult.message,
+          ),
         m('div', {className: 'pf-json-settings-editor__actions'}, [
+          this.options.onValidate !== undefined &&
+            m(Button, {
+              label: this.isValidating ? 'Validating...' : 'Validate',
+              disabled: this.isValidateDisabled(),
+              onclick: () => this.handleValidate(),
+            }),
           m(Button, {
             label: 'Save',
             disabled: this.isSaveDisabled(),
@@ -66,6 +106,57 @@ export class JsonSettingsEditor<T> {
         ]),
       ]),
     ]);
+  }
+
+  private async runValidation(
+    validatedData: T,
+  ): Promise<ValidationResult | undefined> {
+    if (!this.options.onValidate) {
+      return undefined;
+    }
+
+    this.isValidating = true;
+    this.validationResult = undefined;
+    raf.scheduleFullRedraw();
+    try {
+      const result = await this.options.onValidate(validatedData);
+      if (typeof result === 'string') {
+        return {
+          message: result,
+          intent: Intent.Danger,
+          icon: 'error',
+        };
+      } else if (result !== undefined) {
+        return result;
+      } else {
+        return {
+          message: 'Validation passed successfully.',
+          intent: Intent.Success,
+          icon: 'check_circle',
+        };
+      }
+    } catch (err) {
+      return {
+        message: `Validation error: ${getErrorMessage(err)}`,
+        intent: Intent.Danger,
+        icon: 'error',
+      };
+    } finally {
+      this.isValidating = false;
+      raf.scheduleFullRedraw();
+    }
+  }
+
+  private async handleValidate(): Promise<void> {
+    if (this.textareaValue === undefined) return;
+    const validatedData = this.validateAndSetError(this.textareaValue);
+    if (validatedData === undefined) {
+      this.validationResult = undefined;
+      return;
+    }
+
+    this.validationResult = await this.runValidation(validatedData);
+    raf.scheduleFullRedraw();
   }
 
   private initializeTextValue(): void {
@@ -82,16 +173,28 @@ export class JsonSettingsEditor<T> {
 
   private handleUpdate(text: string): void {
     this.textareaValue = text;
+    this.validationResult = undefined;
     this.validateAndSetError(text);
   }
 
-  private handleSave(): void {
+  private async handleSave(): Promise<void> {
     if (this.textareaValue === undefined || !this.currentSetting) return;
     const validatedData = this.validateAndSetError(this.textareaValue);
-    if (validatedData !== undefined) {
-      this.currentSetting.set(validatedData);
-      this.originalValue = this.textareaValue;
+    if (validatedData === undefined) return;
+
+    if (this.options.onValidate) {
+      const result = await this.runValidation(validatedData);
+      this.validationResult = result;
+      raf.scheduleFullRedraw();
+      if (result && result.intent === Intent.Danger) {
+        return;
+      }
     }
+
+    this.currentSetting.set(validatedData);
+    this.originalValue = this.textareaValue;
+    this.validationResult = undefined;
+    raf.scheduleFullRedraw();
   }
 
   private hasUnsavedChanges(): boolean {
@@ -99,7 +202,22 @@ export class JsonSettingsEditor<T> {
   }
 
   private isSaveDisabled(): boolean {
-    return this.jsonError !== undefined || !this.hasUnsavedChanges();
+    return (
+      !this.hasUnsavedChanges() ||
+      this.jsonError !== undefined ||
+      this.isValidating ||
+      (this.validationResult !== undefined &&
+        this.validationResult.intent === Intent.Danger)
+    );
+  }
+
+  private isValidateDisabled(): boolean {
+    return (
+      !this.hasUnsavedChanges() ||
+      this.jsonError !== undefined ||
+      this.isValidating ||
+      this.validationResult !== undefined
+    );
   }
 
   private validateAndSetError(text: string): T | undefined {

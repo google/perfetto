@@ -163,7 +163,7 @@ function setupContentSecurityPolicy() {
       'https://www.googletagmanager.com',
       'https://*.google-analytics.com',
     ],
-    'object-src': ['none'],
+    'object-src': [`'none'`],
     'connect-src': [
       `'self'`,
       'ws://127.0.0.1:8037', // For the adb websocket server.

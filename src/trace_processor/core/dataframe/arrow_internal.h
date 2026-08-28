@@ -47,7 +47,7 @@ constexpr uint8_t kTypeUtf8 = 5;
 constexpr int16_t kPrecisionDouble = 2;
 constexpr int16_t kEndiannessLittle = 0;
 
-constexpr uint32_t kArrowAlignment = 8;
+constexpr uint32_t kArrowAlignment = 64;
 constexpr uint32_t kBitsPerByte = 8;
 constexpr uint32_t kMessagePrefixSize = 8;
 constexpr uint32_t kEndOfStreamSize = kMessagePrefixSize;
@@ -146,6 +146,20 @@ inline base::Status InvalidFile() {
 inline uint64_t AlignToArrow(uint64_t value) {
   constexpr uint64_t kMask = kArrowAlignment - 1;
   return (value + kMask) & ~kMask;
+}
+
+// A message body starts immediately after the message prefix and the padded
+// metadata, so the metadata padding is what decides whether the body lands on
+// an aligned file offset.
+inline uint64_t PaddedMetadataSize(uint64_t metadata_size) {
+  return AlignToArrow(metadata_size + kMessagePrefixSize) - kMessagePrefixSize;
+}
+
+// The schema message is the first message in the file, so its padding also has
+// to absorb the leading magic to keep every later message aligned.
+inline uint64_t PaddedSchemaMetadataSize(uint64_t metadata_size) {
+  constexpr uint64_t kLeading = sizeof(kPaddedMagic) + kMessagePrefixSize;
+  return AlignToArrow(metadata_size + kLeading) - kLeading;
 }
 
 inline uint64_t ValidityBufferSize(uint32_t rows) {

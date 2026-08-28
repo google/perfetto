@@ -16,18 +16,18 @@ import m from 'mithril';
 import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+  type TreeExplorerQueryMetric,
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, type time} from '../../base/time';
 import {
-  Flamegraph,
-  type FlamegraphState,
-  FLAMEGRAPH_STATE_SCHEMA,
-} from '../../widgets/flamegraph';
+  createDefaultTreeExplorerState,
+  type TreeExplorerState,
+  TREE_EXPLORER_STATE_SCHEMA,
+} from '../../widgets/tree_explorer';
 import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {SourceDataset} from '../../trace_processor/dataset';
@@ -104,8 +104,8 @@ export function createProfilingTrack(
   trace: Trace,
   uri: string,
   config: ProfilingTrackConfig,
-  detailsPanelState: FlamegraphState | undefined,
-  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  detailsPanelState: TreeExplorerState | undefined,
+  onDetailsPanelStateChange: (state: TreeExplorerState) => void,
 ) {
   return SliceTrack.create({
     trace,
@@ -115,7 +115,7 @@ export function createProfilingTrack(
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
-      const metrics: ReadonlyArray<QueryFlamegraphMetric> =
+      const metrics: ReadonlyArray<TreeExplorerQueryMetric> =
         metricsFromTableOrSubquery({
           tableOrSubquery: `
             (
@@ -152,7 +152,7 @@ export function createProfilingTrack(
           nameColumnLabel: 'Symbol',
         });
       // Use provided state or create initial state once
-      let state = detailsPanelState ?? Flamegraph.createDefaultState(metrics);
+      let state = detailsPanelState ?? createDefaultTreeExplorerState(metrics);
       if (detailsPanelState === undefined) {
         onDetailsPanelStateChange(state);
       }
@@ -174,8 +174,8 @@ export function createProfilingTrack(
         // We moved serialization from being attached to selections to instead being
         // attached to the plugin that loaded the panel.
         serialization: {
-          schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
-          state: undefined as FlamegraphState | undefined,
+          schema: TREE_EXPLORER_STATE_SCHEMA.optional(),
+          state: undefined as TreeExplorerState | undefined,
         },
       };
     },
@@ -189,9 +189,9 @@ function renderProfilingDetailsPanel(
   trace: Trace,
   ts: time,
   config: ProfilingTrackConfig,
-  state: FlamegraphState,
-  onStateChange: (state: FlamegraphState) => void,
-  metrics: ReadonlyArray<QueryFlamegraphMetric>,
+  state: TreeExplorerState,
+  onStateChange: (state: TreeExplorerState) => void,
+  metrics: ReadonlyArray<TreeExplorerQueryMetric>,
 ): m.Children {
   return m(
     FlamegraphProfile,
@@ -202,7 +202,7 @@ function renderProfilingDetailsPanel(
         title: config.panelTitle,
         buttons: m('span', 'Timestamp: ', m(Timestamp, {trace, ts})),
       },
-      m(FlamegraphPanel, {trace, metrics, state, onStateChange}),
+      m(TreeExplorerPanel, {trace, metrics, state, onStateChange}),
     ),
   );
 }

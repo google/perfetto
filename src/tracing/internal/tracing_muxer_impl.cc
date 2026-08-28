@@ -2553,7 +2553,7 @@ TracingMuxerImpl::CreateStartupTracingSession(
               "Setting up data source %s for startup tracing with target "
               "buffer reservation %" PRIi32,
               rds.descriptor.name().c_str(),
-              backend.producer->last_startup_target_buffer_reservation_ + 1u);
+              backend.producer->last_startup_target_buffer_reservation_ + 1);
           auto ds = SetupDataSourceImpl(
               rds, backend_id,
               backend.producer->connection_id_.load(std::memory_order_relaxed),

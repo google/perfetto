@@ -44,7 +44,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     deps = [
       "../../../gn:default_deps",
       "../../base",
-      "../perfetto_sql/syntaqlite",
+      "../../perfetto_sql/syntaqlite",
     ]
   }
 }
@@ -317,8 +317,8 @@ source_set("json_parser") {
   ]
 }
 
-# Header-only JSON streaming parser. No external dependencies.
-source_set("simple_json_parser") {
+# JSON streaming parser.
+perfetto_component("simple_json_parser") {
   sources = [
     "simple_json_parser.cc",
     "simple_json_parser.h",

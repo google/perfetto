@@ -28,6 +28,19 @@ perfetto_host_executable("proto_merger") {
   sources = [ "main.cc" ]
 }
 
+perfetto_host_executable("extension_proto_merger") {
+  testonly = true
+  deps = [
+    ":lib",
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../base",
+    "../../base:version",
+    "../../protozero:multifile_error_collector",
+  ]
+  sources = [ "extension_proto_merger_main.cc" ]
+}
+
 source_set("lib") {
   testonly = true
   deps = [
@@ -35,10 +48,14 @@ source_set("lib") {
     "../../../gn:protobuf_full",
     "../../../protos/perfetto/common:passthrough_lite",
     "../../base",
+    "../../base:version",
+    "../../protozero:multifile_error_collector",
   ]
   sources = [
     "allowlist.cc",
     "allowlist.h",
+    "extension_proto_merger.cc",
+    "extension_proto_merger.h",
     "proto_file.cc",
     "proto_file.h",
     "proto_file_serializer.cc",

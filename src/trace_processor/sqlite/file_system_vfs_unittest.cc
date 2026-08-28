@@ -39,8 +39,8 @@ TEST(SqliteFileSystemVfsTest, CreatesReadableDatabase) {
       SqliteConnection::CreateConnectionToNewDatabase();
   ASSERT_NE(initialization_connection, nullptr);
 
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = dir.path() + "/database.sqlite";
+  base::TempFile file = base::TempFile::Create();
+  const std::string& path = file.path();
   auto file_system = io::CreateLocalFileSystem();
   ASSERT_OK_AND_ASSIGN(auto vfs, SqliteFileSystemVfs::Create(file_system));
 
@@ -78,8 +78,6 @@ TEST(SqliteFileSystemVfsTest, CreatesReadableDatabase) {
   EXPECT_EQ(sqlite3_column_int64(stmt.get(), 0), 42);
   stmt.reset();
   db.reset();
-
-  ASSERT_OK(file_system->DeleteFile(path));
 }
 
 TEST(SqliteFileSystemVfsTest, NoopFileSystemCannotOpenDatabase) {

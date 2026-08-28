@@ -19,8 +19,8 @@ import sys
 from code_format_utils import CodeFormatterBase, run_code_formatters
 
 SKIP_PATHS = (
-    'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
-    'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h',
+    'src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
+    'src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h',
 )
 
 

@@ -820,5 +820,112 @@ TEST(DescriptorsTest, FlagSetToViews) {
   EXPECT_THAT(out, testing::IsEmpty());
 }
 
+// Re-declaring a scalar int32 extension as an enum (same wire type kVarInt)
+// must be accepted without triggering an assertion failure or structural check
+// crash.
+TEST(DescriptorsTest, ScalarToEnumExtensionReDeclarationAllowed) {
+  // Pass 1: Base descriptor where ext_field (tag 10) is TYPE_INT32
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* file1 = fds1->add_file();
+  file1->set_name("base.proto");
+  file1->set_package("test");
+
+  auto* base_msg = file1->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* ext1 = file1->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext1->set_extendee(".test.BaseMessage");
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  // Pass 2: Incoming descriptor where ext_field (tag 10) is re-declared as
+  // TYPE_ENUM
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* file2 = fds2->add_file();
+  file2->set_name("extension.proto");
+  file2->set_package("test");
+
+  auto* enum_type = file2->add_enum_type();
+  enum_type->set_name("MyEnum");
+  auto* val0 = enum_type->add_value();
+  val0->set_name("VAL_0");
+  val0->set_number(0);
+
+  auto* ext2 = file2->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(FieldDescriptorProto::TYPE_ENUM);
+  ext2->set_type_name(".test.MyEnum");
+  ext2->set_extendee(".test.BaseMessage");
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  EXPECT_NE(pool.descriptors()[base_idx.value()].FindFieldByTag(10), nullptr);
+}
+
+// Re-declaring an enum extension as a scalar int32 (same wire type kVarInt)
+// must also be accepted.
+TEST(DescriptorsTest, EnumToScalarExtensionReDeclarationAllowed) {
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* file1 = fds1->add_file();
+  file1->set_name("base.proto");
+  file1->set_package("test");
+
+  auto* base_msg = file1->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* enum_type = file1->add_enum_type();
+  enum_type->set_name("MyEnum");
+  auto* val0 = enum_type->add_value();
+  val0->set_name("VAL_0");
+  val0->set_number(0);
+
+  auto* ext1 = file1->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(FieldDescriptorProto::TYPE_ENUM);
+  ext1->set_type_name(".test.MyEnum");
+  ext1->set_extendee(".test.BaseMessage");
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* file2 = fds2->add_file();
+  file2->set_name("extension.proto");
+  file2->set_package("test");
+
+  auto* ext2 = file2->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext2->set_extendee(".test.BaseMessage");
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+
+  EXPECT_TRUE(status.ok()) << status.message();
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

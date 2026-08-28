@@ -58,7 +58,9 @@ FROM __intrinsic_table_ptr(
           'self_size',
           o.self_size,
           'native_size',
-          o.native_size
+          o.native_size,
+          'self_count',
+          1
         )
       )
     FROM _raw_heap_graph_dominator_tree AS p

@@ -60,7 +60,7 @@ function setupContentSecurityPolicy() {
     // wasm-unsafe-eval: the SQL formatter runs as WebAssembly; this allows
     // Wasm compilation without enabling JS eval().
     'script-src': [`'self'`, `'wasm-unsafe-eval'`],
-    'object-src': ['none'],
+    'object-src': [`'none'`],
     'connect-src': [
       `'self'`,
       'https://autopush-brush-googleapis.corp.google.com',

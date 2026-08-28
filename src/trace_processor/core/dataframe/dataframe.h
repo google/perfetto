@@ -46,6 +46,7 @@ class TraceBlobViewReader;
 namespace perfetto::trace_processor::core::dataframe {
 
 struct QueryPlanImpl;
+struct LogicalPlan;
 
 // Dataframe is a columnar data structure for efficient querying and filtering
 // of tabular data. It provides:
@@ -152,6 +153,15 @@ class Dataframe {
   // Returns:
   //   A StatusOr containing the QueryPlan or an error status.
   base::StatusOr<QueryPlan> PlanQuery(
+      std::vector<FilterSpec>& filter_specs,
+      const std::vector<DistinctSpec>& distinct_specs,
+      const std::vector<SortSpec>& sort_specs,
+      const LimitSpec& limit_spec,
+      uint64_t cols_used_bitmap) const;
+
+  // Returns the logical plan PlanQuery would lower, for tests which assert on
+  // the planner's choices rather than on the bytecode they produce.
+  base::StatusOr<LogicalPlan> PlanQueryLogicalForTesting(
       std::vector<FilterSpec>& filter_specs,
       const std::vector<DistinctSpec>& distinct_specs,
       const std::vector<SortSpec>& sort_specs,

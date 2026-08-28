@@ -3951,6 +3951,12 @@ void TracingServiceImpl::SetServiceTracePacketHeader(
     protos::pbzero::TracePacket* tp) {
   tp->set_trusted_uid(static_cast<int32_t>(uid_));
   tp->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  // Every timestamp the service stamps on its own packets comes from
+  // GetBootTimeNs(), so declare the clock domain explicitly. Without this,
+  // Trace Processor's "no clock id" fallback resolves to the trace's primary
+  // clock, which is not BOOTTIME in general
+  // (https://github.com/google/perfetto/discussions/7112).
+  tp->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
   // When a local machine was adopted (an in-process producer with a non-default
   // machine id; see ConnectProducer), attribute the service's own packets to it
   // so the trace has no separate host machine. Host and relay sessions leave

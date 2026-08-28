@@ -29,6 +29,8 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/bytecode_lowering.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -109,11 +111,22 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
-  ASSIGN_OR_RETURN(auto plan,
-                   QueryPlanBuilder::Build(row_count_, columns_, indexes_,
-                                           filter_specs, distinct_specs,
-                                           sort_specs, limit_spec, cols_used));
-  return QueryPlan(std::move(plan));
+  ASSIGN_OR_RETURN(
+      LogicalPlan logical,
+      LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
+                           distinct_specs, sort_specs, limit_spec, cols_used));
+  return QueryPlan(BytecodeLowering::Lower(logical, columns_, indexes_));
+}
+
+base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogicalForTesting(
+    std::vector<FilterSpec>& filter_specs,
+    const std::vector<DistinctSpec>& distinct_specs,
+    const std::vector<SortSpec>& sort_specs,
+    const LimitSpec& limit_spec,
+    uint64_t cols_used) const {
+  return LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
+                              distinct_specs, sort_specs, limit_spec,
+                              cols_used);
 }
 
 void Dataframe::Clear() {

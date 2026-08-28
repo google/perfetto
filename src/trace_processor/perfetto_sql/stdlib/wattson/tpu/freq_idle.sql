@@ -14,12 +14,13 @@
 -- limitations under the License.
 
 -- Creates TPU freq counter and cluster based off of slices
+-- (gapless from trace_start to trace_end)
 CREATE PERFETTO TABLE _tpu_freq AS
 WITH
-  nominal_freqs AS (
+  raw_freqs AS (
     SELECT
       s.ts,
-      s.dur,
+      iif(s.dur = -1, trace_end() - s.ts, s.dur) AS dur,
       CAST(s.name AS INTEGER) AS freq,
       CASE
         WHEN s.name GLOB '*Cluster Both*' THEN 2
@@ -27,27 +28,33 @@ WITH
         WHEN s.name GLOB '*Cluster 1*' THEN 1
         ELSE 2
       END AS cluster
-    FROM slices AS s
+    FROM slice AS s
     JOIN track AS t
       ON t.id = s.track_id
     WHERE
       t.name = 'DVFS'
+  ),
+  all_slices AS (
+    -- Initial gap before first DVFS event
+    SELECT
+      trace_start() AS ts,
+      min(ts) - trace_start() AS dur,
+      0 AS freq,
+      0 AS cluster
+    FROM raw_freqs
+    UNION ALL
+    -- Active DVFS events
+    SELECT ts, dur, freq, cluster FROM raw_freqs
+    UNION ALL
+    -- Gaps between consecutive DVFS events and after the last DVFS event
+    SELECT
+      ts + dur AS ts,
+      lead(ts, 1, trace_end()) OVER (ORDER BY ts) - (ts + dur) AS dur,
+      0 AS freq,
+      0 AS cluster
+    FROM raw_freqs
   )
-SELECT
-  trace_start() AS ts,
-  min(ts) - trace_start() AS dur,
-  0 AS freq,
-  0 AS cluster
-FROM nominal_freqs
-UNION ALL
-SELECT ts, dur, freq, coalesce(cluster, 2) AS cluster FROM nominal_freqs
-UNION ALL
-SELECT
-  max(ts) + dur AS ts,
-  trace_end() - max(ts) - dur AS dur,
-  0 AS freq,
-  0 AS cluster
-FROM nominal_freqs;
+SELECT * FROM all_slices WHERE dur > 0 ORDER BY ts;
 
 -- Gapless time slices of TPU parallel requests from trace_start() to trace_end()
 CREATE PERFETTO TABLE _tpu_requests_count AS

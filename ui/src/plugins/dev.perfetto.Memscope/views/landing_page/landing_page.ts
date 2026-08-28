@@ -220,9 +220,9 @@ async function loadProcessMemoryStats(engine: Engine): Promise<ProcWithMem> {
       p.pid,
       COALESCE(p.cmdline, p.name, '<unknown>') AS procName,
       (
-        SELECT count(DISTINCT graph_sample_ts)
-        FROM heap_graph_object o
-        WHERE o.upid = p.upid
+        SELECT count(*)
+        FROM heap_graph g
+        WHERE g.upid = p.upid
       ) AS heapDumps,
       (
         SELECT count(DISTINCT ts)

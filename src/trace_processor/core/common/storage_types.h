@@ -66,6 +66,19 @@ struct Null {
 // TypeSet of all possible storage value types.
 using StorageType = core::TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 
+// Subsets of StorageType grouping the value types which share a filtering or
+// storage strategy.
+
+// Set of content types that aren't string-based.
+using NonStringType = core::TypeSet<Id, Uint32, Int32, Int64, Double>;
+
+// Set of content types that are numeric in nature.
+using IntegerOrDoubleType = core::TypeSet<Uint32, Int32, Int64, Double>;
+
+// Set of content types which are backed by real storage, i.e. everything
+// except Id, whose value is the row index itself.
+using NonIdStorageType = core::TypeSet<Uint32, Int32, Int64, Double, String>;
+
 // Maps a C++ type to its corresponding storage type tag.
 // E.g., TypeTagFor<int64_t>::type = Int64
 template <typename CppType>

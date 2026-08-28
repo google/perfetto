@@ -510,7 +510,7 @@ class WattsonStdlib(TestSuite):
             """),
         out=Csv("""
             "avg_tpu_mw","total_tpu_mws"
-            52.389828,592.702934
+            43.459353,592.702934
             """))
 
   # Verify intermediate GPU active region extraction

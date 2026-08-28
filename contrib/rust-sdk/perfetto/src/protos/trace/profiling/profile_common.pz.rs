@@ -16,7 +16,18 @@
 // Invoked by contrib/rust-sdk/tools/gen_rust_protos
 // DO NOT EDIT.
 
+use crate::pb_enum;
 use crate::pb_msg;
+
+pb_enum!(FrameKind {
+    KIND_UNKNOWN: 0,
+    KIND_NATIVE: 1,
+    KIND_KERNEL: 2,
+    KIND_INTERPRETED: 3,
+    KIND_JIT: 4,
+    KIND_GC: 5,
+    KIND_RUNTIME: 6,
+});
 
 pb_msg!(Callstack {
     iid: u64, primitive, 1,
@@ -30,6 +41,8 @@ pb_msg!(Frame {
     rel_pc: u64, primitive, 4,
     source_path_iid: u64, primitive, 5,
     line_number: u32, primitive, 6,
+    kind: FrameKind, enum, 7,
+    kind_str: String, primitive, 8,
 });
 
 pb_msg!(Mapping {

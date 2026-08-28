@@ -45,17 +45,17 @@ size_t TestDescriptorSize() {
 
 std::string FilterToText(FilterUtil& filter,
                          const std::optional<std::string>& bytecode = {}) {
-  std::string tmp_path = perfetto::base::TempFile::Create().path();
+  auto tmp_file = perfetto::base::TempFile::Create();
   {
     perfetto::base::ScopedFstream tmp_stream(
-        perfetto::base::OpenFstream(tmp_path, "w"));
+        perfetto::base::OpenFstream(tmp_file.path(), "w"));
     PERFETTO_CHECK(!!tmp_stream);
     filter.set_print_stream_for_testing(*tmp_stream);
     filter.PrintAsText(bytecode);
     filter.set_print_stream_for_testing(stdout);
   }
   std::string output;
-  PERFETTO_CHECK(perfetto::base::ReadFile(tmp_path, &output));
+  PERFETTO_CHECK(perfetto::base::ReadFile(tmp_file.path(), &output));
   // Make the output a bit more compact.
   auto re = perfetto::base::Regex::CreateOrCheck(" +");
   output = re.GlobalReplace(output, " ");

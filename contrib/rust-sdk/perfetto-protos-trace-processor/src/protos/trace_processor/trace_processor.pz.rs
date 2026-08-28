@@ -26,6 +26,13 @@ pb_enum!(TraceProcessorApiVersion {
     TRACE_PROCESSOR_CURRENT_API_VERSION: 14,
 });
 
+pb_enum!(ExportArgsFormat {
+    FORMAT_UNSPECIFIED: 0,
+    PERFETTO: 1,
+    ARROW_TAR: 2,
+    SQLITE: 3,
+});
+
 pb_enum!(TraceSummaryArgsFormat {
     BINARY_PROTOBUF: 0,
     TEXTPROTO: 1,
@@ -80,6 +87,18 @@ pb_enum!(TraceProcessorRpcTraceProcessorMethod {
     TPM_UPDATE_SUMMARIZER_SPEC: 17,
     TPM_QUERY_SUMMARIZER: 18,
     TPM_DESTROY_SUMMARIZER: 19,
+    TPM_STATEMENT_STREAMING: 20,
+    TPM_EXPORT: 21,
+});
+
+pb_msg!(ExportResult {
+    data: String, primitive, 1,
+    error: String, primitive, 2,
+    has_more: bool, primitive, 3,
+});
+
+pb_msg!(ExportArgs {
+    format: ExportArgsFormat, enum, 1,
 });
 
 pb_msg!(DestroySummarizerResult {
@@ -219,6 +238,12 @@ pb_msg!(StatusResult {
 
 pb_msg!(StatusArgs {});
 
+pb_msg!(StatementResult {
+    result: QueryResult, msg, 1,
+    tail_offset: u32, primitive, 2,
+    statement_executed: bool, primitive, 3,
+});
+
 pb_msg!(QueryResult {
     column_names: String, primitive, 1,
     error: String, primitive, 2,
@@ -236,6 +261,12 @@ pb_msg!(QueryResultCellsBatch {
     blob_cells: String, primitive, 4,
     string_cells: String, primitive, 5,
     is_last_batch: bool, primitive, 6,
+});
+
+pb_msg!(StatementArgs {
+    sql: String, primitive, 1,
+    start_offset: u32, primitive, 2,
+    tag: String, primitive, 3,
 });
 
 pb_msg!(QueryArgs {
@@ -265,6 +296,8 @@ pb_msg!(TraceProcessorRpc {
     update_summarizer_spec_args: UpdateSummarizerSpecArgs, msg, 112,
     query_summarizer_args: QuerySummarizerArgs, msg, 113,
     destroy_summarizer_args: DestroySummarizerArgs, msg, 114,
+    statement_args: StatementArgs, msg, 115,
+    export_args: ExportArgs, msg, 116,
     append_result: AppendTraceDataResult, msg, 201,
     query_result: QueryResult, msg, 203,
     metric_result: ComputeMetricResult, msg, 205,
@@ -278,6 +311,8 @@ pb_msg!(TraceProcessorRpc {
     update_summarizer_spec_result: UpdateSummarizerSpecResult, msg, 216,
     query_summarizer_result: QuerySummarizerResult, msg, 217,
     destroy_summarizer_result: DestroySummarizerResult, msg, 218,
+    statement_result: StatementResult, msg, 219,
+    export_result: ExportResult, msg, 220,
 });
 
 pb_msg!(TraceProcessorRpcStream {

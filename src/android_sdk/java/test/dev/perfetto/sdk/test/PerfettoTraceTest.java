@@ -83,7 +83,6 @@ public class PerfettoTraceTest {
 
   @Before
   public void setUp() {
-    System.loadLibrary("perfetto_jni");
     PerfettoTrace.registerWithDebugChecks(true);
     // 'var unused' suppress error-prone warning
     var unused = FOO_CATEGORY.register();

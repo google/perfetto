@@ -764,13 +764,13 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           break;
         }
         default:
-          PERFETTO_DLOG("Skipping unknown scheduler event type %d", event_type);
+          PERFETTO_DLOG("Skipping unknown scheduler event type %u", event_type);
           break;
       }
       break;
     }
     default: {
-      PERFETTO_DFATAL("Unknown record type %d in FuchsiaTraceParser",
+      PERFETTO_DFATAL("Unknown record type %u in FuchsiaTraceParser",
                       record_type);
       break;
     }

@@ -22,15 +22,15 @@ import {MenuItem, PopupMenu} from './menu';
 // given a table name and an ID.
 export interface SqlRefAttrs {
   // The name of the table our row lives in.
-  table: string;
+  readonly table: string;
   // The ID of our row.
   // If not provided, `table[Unknown]` is shown with no popup menu.
-  id?: number | bigint;
+  readonly id?: number | bigint;
   // The name of the ID column of the table.
   // If not provided, defaults to 'id'.
-  idColumnName?: string;
+  readonly idColumnName?: string;
   // Optional additional popup menu items.
-  additionalMenuItems?: m.Children;
+  readonly additionalMenuItems?: m.Children;
 }
 
 export class SqlRef implements m.ClassComponent<SqlRefAttrs> {

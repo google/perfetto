@@ -36,36 +36,6 @@
 
 namespace perfetto::trace_processor::core::interpreter {
 
-// Type categories for column content and operations.
-// These define which operations can be applied to which content types.
-
-// Set of content types that aren't string-based.
-using NonStringType = TypeSet<Id, Uint32, Int32, Int64, Double>;
-
-// Set of content types that are numeric in nature.
-using IntegerOrDoubleType = TypeSet<Uint32, Int32, Int64, Double>;
-
-// Set of operations applicable to non-null values.
-using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
-
-// Set of operations applicable to non-string values.
-using NonStringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
-
-// Set of operations applicable to string values.
-using StringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
-
-// Set of operations applicable to only string values.
-using OnlyStringOp = TypeSet<Glob, Regex>;
-
-// Set of operations applicable to ranges.
-using RangeOp = TypeSet<Eq, Lt, Le, Gt, Ge>;
-
-// Set of inequality operations (Lt, Le, Gt, Ge).
-using InequalityOp = TypeSet<Lt, Le, Gt, Ge>;
-
-// Set of null operations (IsNotNull, IsNull).
-using NullOp = TypeSet<IsNotNull, IsNull>;
-
 // Indicates an operation applies to both bounds of a range.
 struct BothBounds {};
 
@@ -113,9 +83,6 @@ struct MaxOp {};
 
 // TypeSet combining Min and Max operations.
 using MinMaxOp = TypeSet<MinOp, MaxOp>;
-
-// TypeSet containing all the non-id storage types.
-using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
 
 // TypeSet which collapses all of the sparse nullability types into a single
 // type.

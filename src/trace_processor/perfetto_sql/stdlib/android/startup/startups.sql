@@ -21,6 +21,8 @@ INCLUDE PERFETTO MODULE android.startup.startups_minsdk29;
 
 INCLUDE PERFETTO MODULE android.startup.startups_minsdk33;
 
+INCLUDE PERFETTO MODULE android.startup.startup_events;
+
 INCLUDE PERFETTO MODULE android.version;
 
 CREATE PERFETTO TABLE _android_startups_raw AS
@@ -153,6 +155,9 @@ CREATE PERFETTO VIEW android_startups(
   ts_end TIMESTAMP,
   -- Startup duration.
   dur DURATION,
+  -- Duration of the launch excluding a preceding trampoline. Equals `dur` when
+  -- there is no trampoline.
+  dur_without_trampoline DURATION,
   -- Package name.
   package STRING,
   -- Startup type.
@@ -164,6 +169,28 @@ SELECT
   r.ts,
   r.ts_end,
   r.dur,
+  coalesce(
+    (
+      SELECT le.dur
+      FROM _startup_events AS le
+      WHERE
+        le.package_name = r.package
+        AND le.ts >= r.ts
+        AND le.ts < r.ts_end
+        AND EXISTS (
+          SELECT 1
+          FROM _startup_events AS e
+          WHERE
+            e.ts >= r.ts
+            AND e.ts < r.ts_end
+            AND e.ts < le.ts
+        )
+      ORDER BY
+        le.ts DESC
+      LIMIT 1
+    ),
+    r.dur
+  ) AS dur_without_trampoline,
   r.package,
   coalesce(r.startup_type, max(p.startup_type)) AS startup_type
 FROM _android_startups_raw AS r

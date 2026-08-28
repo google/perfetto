@@ -745,7 +745,7 @@ function buildSyntaqlitePerfettoDialect() {
   const emcc = pjoin(buildToolsBinDir, 'emsdk/emscripten/emcc');
   const src = pjoin(
     ROOT_DIR,
-    'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
+    'src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
   );
   const dst = pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm');
   try {

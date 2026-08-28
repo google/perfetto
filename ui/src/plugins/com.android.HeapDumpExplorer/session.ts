@@ -23,6 +23,7 @@ import {SQL_PREAMBLE} from './components';
 import {flamegraphQuery} from './views/flamegraph_objects_view';
 import * as queries from './queries';
 import {
+  type DefaultNavView,
   type NavState,
   type NavView,
   stateToPath,
@@ -30,7 +31,7 @@ import {
   subpageToState,
 } from './nav_state';
 import type {OverviewData} from './types';
-import type {FlamegraphState} from '../../widgets/flamegraph';
+import type {TreeExplorerState} from '../../widgets/tree_explorer';
 import type {HdeState} from './persisted_state';
 import {
   METRIC_DOMINATED_OBJECT_SIZE,
@@ -86,8 +87,13 @@ export class HeapDumpExplorerSession {
     readonly trace: Trace,
     readonly engine: Engine,
     readonly hideDefaultChangedHint: Setting<boolean>,
+    readonly defaultFlamegraph: Setting<boolean>,
     private readonly store: Store<HdeState>,
   ) {}
+
+  get defaultView(): DefaultNavView {
+    return this.defaultFlamegraph.get() ? 'flamegraph' : 'overview';
+  }
 
   get dumps(): ReadonlyArray<queries.HeapDump> {
     return this._dumps;
@@ -136,7 +142,7 @@ export class HeapDumpExplorerSession {
     this.switchToDump(d);
     const view = this.nav.view;
     if (view === 'object' || view === 'flamegraph-objects') {
-      this.navigate('overview');
+      this.navigate(this.defaultView);
     }
     m.redraw();
   }
@@ -155,11 +161,14 @@ export class HeapDumpExplorerSession {
   }
 
   get nav(): NavState {
-    return subpageToState(this.store.state.nav);
+    return subpageToState(this.store.state.nav, this.defaultView);
   }
 
   // The current nav as a route path (no query params).
   get navPath(): string {
+    if (this.store.state.nav === undefined) {
+      return '';
+    }
     return stateToPath(this.nav);
   }
 
@@ -196,7 +205,7 @@ export class HeapDumpExplorerSession {
     // sync and clobbers the user's later manual filter edits. Query params are
     // already gone (the router strips them), but path-encoded ones (e.g.
     // objects_<class>) survive in the URL, so we must rewrite it here.
-    const nav = subpageToState(this.store.state.nav);
+    const nav = subpageToState(this.store.state.nav, this.defaultView);
     delete (nav.params as Record<string, unknown>)[key];
     const sub = stateToSubpage(nav);
     this.store.edit((s) => {
@@ -212,7 +221,9 @@ export class HeapDumpExplorerSession {
     const incomingPath = (sub ?? '').split('?')[0];
     if (incomingPath !== this.navPath) {
       this.store.edit((s) => {
-        s.nav = stateToSubpage(subpageToState(sub));
+        s.nav = sub
+          ? stateToSubpage(subpageToState(sub, this.defaultView))
+          : undefined;
       });
     }
   }
@@ -286,7 +297,7 @@ export class HeapDumpExplorerSession {
       active.pathHashes === pathHashes &&
       active.isDominator === isDominator
     ) {
-      this.navigate('overview');
+      this.navigate(this.defaultView);
     }
   }
 
@@ -345,7 +356,7 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.instanceTabs = (s.instanceTabs ?? []).filter((t) => t.objId !== objId);
     });
-    if (wasActive) this.navigate('overview');
+    if (wasActive) this.navigate(this.defaultView);
   }
 
   syncInstanceTabFromNav(): void {
@@ -356,21 +367,21 @@ export class HeapDumpExplorerSession {
     if (!tabs.some((t) => t.objId === id)) this.openInstanceTab(id, label);
   }
 
-  get flamegraphPanelState(): FlamegraphState | undefined {
+  get flamegraphPanelState(): TreeExplorerState | undefined {
     return this.store.state.flamegraphPanelState;
   }
 
-  readonly setFlamegraphPanelState = (state: FlamegraphState): void => {
+  readonly setFlamegraphPanelState = (state: TreeExplorerState): void => {
     this.store.edit((s) => {
       s.flamegraphPanelState = state;
     });
   };
 
-  get callstackPanelState(): FlamegraphState | undefined {
+  get callstackPanelState(): TreeExplorerState | undefined {
     return this.store.state.callstackPanelState;
   }
 
-  readonly setCallstackPanelState = (state: FlamegraphState): void => {
+  readonly setCallstackPanelState = (state: TreeExplorerState): void => {
     this.store.edit((s) => {
       s.callstackPanelState = state;
     });
@@ -389,6 +400,7 @@ export class HeapDumpExplorerSession {
         ? METRIC_DOMINATED_OBJECT_SIZE
         : METRIC_OBJECT_SIZE,
       addedMetricIds: [],
+      displayMode: 'flamegraph',
       filters: [],
       view: {
         kind: 'PIVOT',

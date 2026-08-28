@@ -100,11 +100,14 @@ AS (
         o.upid,
         path_hash,
         parent_path_hash,
-        coalesce(c.deobfuscated_name, c.name) AS name,
+        coalesce(c.deobfuscated_name, c.name, '') AS name,
         o.root_type,
         o.heap_type,
         count() AS self_count,
-        sum(o.self_size) AS self_size,
+        -- -1 is a placeholder sentinel (see HeapGraphTracker::GetOrInsertObject
+        -- in heap_graph_tracker.cc) for forward-referenced objects in
+        -- incomplete/non-finalized heap graphs (e.g. from packet loss).
+        sum(iif(o.self_size != -1, o.self_size, 0)) AS self_size,
         sum(o.native_size > 0) AS self_native_count,
         sum(o.native_size) AS self_native_size
       FROM $tab

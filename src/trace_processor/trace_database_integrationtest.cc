@@ -255,8 +255,8 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = dir.path() + "/trace.json";
+  base::TempFile file = base::TempFile::Create();
+  const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
@@ -272,12 +272,11 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
   std::string contents;
   ASSERT_TRUE(base::ReadFile(path, &contents));
   EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
-  ASSERT_TRUE(base::Unlink(path.c_str()));
 }
 
 TEST(TraceProcessorCustomConfigTest,
      RpcImplicitResetPreservesSqlFileAccessGrant) {
-  base::TempDir dir = base::TempDir::Create();
+  base::TempFile first_file = base::TempFile::Create();
   auto file_system = io::CreateLocalFileSystem();
   FileSystemPlatform platform(file_system);
   Config config;
@@ -292,16 +291,13 @@ TEST(TraceProcessorCustomConfigTest,
     EXPECT_OK(it.Status());
   };
 
-  std::string first_path = dir.path() + "/before_reset";
-  write_file(first_path);
-  ASSERT_TRUE(base::Unlink(first_path.c_str()));
+  write_file(first_file.path());
 
   ASSERT_OK(rpc.NotifyEndOfFile());
   ASSERT_OK(rpc.Parse(nullptr, 0));
 
-  std::string second_path = dir.path() + "/after_reset";
-  write_file(second_path);
-  ASSERT_TRUE(base::Unlink(second_path.c_str()));
+  base::TempFile second_file = base::TempFile::Create();
+  write_file(second_file.path());
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonPropagatesWriteFailure) {
@@ -343,8 +339,8 @@ TEST(TraceProcessorCustomConfigTest,
 
 TEST(TraceProcessorCustomConfigTest,
      IntrinsicFileWriteUsesConfiguredFileSystem) {
-  base::TempDir dir = base::TempDir::Create();
-  std::string path = dir.path() + "/file_write";
+  base::TempFile file = base::TempFile::Create();
+  const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
   auto file_system = io::CreateLocalFileSystem();
@@ -362,7 +358,6 @@ TEST(TraceProcessorCustomConfigTest,
   std::string contents;
   ASSERT_TRUE(base::ReadFile(path, &contents));
   EXPECT_EQ(contents, std::string("\0\1\2\xff", 4));
-  ASSERT_TRUE(base::Unlink(path.c_str()));
 }
 
 namespace {
@@ -1219,24 +1214,25 @@ TEST_F(TraceProcessorIntegrationTest, PackagePrefixClash_NewIsPrefix) {
   ASSERT_THAT(status.message(), HasSubstr("clashes"));
 }
 
-TEST_F(TraceProcessorIntegrationTest, StdlibDocsWildcardDottedPackage) {
+TEST_F(TraceProcessorIntegrationTest, StdlibDocsObjectsDottedPackage) {
   ASSERT_OK(NotifyEndOfFile());
 
-  // A package whose *name* itself contains dots, owning a module beneath it.
-  // The stdlib docs table functions must resolve the owning package via the
-  // (package, module) pairs from the registry, not by splitting the module key
-  // on the first '.' (which would yield "dev" and fail to find the package).
+  // A package whose name itself contains dots, owning a module beneath it.
+  // Package ownership must come directly from the registry rather than from
+  // splitting the module key on the first dot.
   SqlPackage pkg;
   pkg.name = "dev.perfetto.test";
   pkg.modules.push_back({"dev.perfetto.test.common", "SELECT 1"});
   ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
 
-  // The wildcard enumerates every registered module, including the dotted one.
-  // Before the fix this failed with "Module not found:
-  // dev.perfetto.test.common" and aborted the whole query.
-  auto it = Query("SELECT COUNT(*) AS c FROM __intrinsic_stdlib_tables('*')");
-  ASSERT_TRUE(it.Next());
-  ASSERT_OK(it.Status());
+  auto result = Query(
+      "SELECT COUNT(*) FROM __intrinsic_stdlib_objects "
+      "WHERE package = 'dev.perfetto.test' "
+      "AND module = 'dev.perfetto.test.common' "
+      "AND object_type = 'MODULE'");
+  ASSERT_TRUE(result.Next());
+  ASSERT_EQ(result.Get(0).AsLong(), 1);
+  ASSERT_OK(result.Status());
 }
 
 TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {

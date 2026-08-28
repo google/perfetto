@@ -25,7 +25,7 @@ import {
 } from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import type {Track} from '../../public/track';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
@@ -51,8 +51,8 @@ const EVENT_TABLE_NAME = 'heap_profile_events';
 const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.record(
   z.enum(ProfileType),
   z.object({
-    trackFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    trackFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
+    areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
   }),
 );
 
@@ -418,6 +418,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                         state;
                     });
                   },
+                  /* isAreaSelection= */ true,
                 );
         }
         // Hide the tab entirely when this selection has no flamegraph for this

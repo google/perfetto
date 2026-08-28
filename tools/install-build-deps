@@ -166,13 +166,13 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # tools/clang/scripts/update.py.
     Dependency(
         'buildtools/linux64/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-19-init-2941-ga0b3dbaf-22.tgz',
-        '6741cc1083f935795330b6e04617ac891a7b5d2b5647b664c5b0fccc354adb43',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-23-init-19482-g53d18800-22.tar.xz',
+        'a1f881d528ffd8f67a752cdcbad35595dafcf89c177b33931ec2c802280392e1',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-19-init-2941-ga0b3dbaf-22.tgz',
-        'f627080ed53d4c156f089323e04fa3690c8bb459110b62cd1952b0e1f0755987',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-23-init-19482-g53d18800-22.tar.xz',
+        '8d05e0bf6cd31580e457ceddbbf249f73e1d0a784e96d3101495b28a4833904e',
         'windows', 'x64'),
 ]
 
@@ -510,7 +510,7 @@ BIGTRACE_DEPS = [
 
 # Syntaqlite CLI prebuilt binaries. Used by tools/format-sql-sources to format
 # `.sql` files (via `syntaqlite fmt`) and by tools/gen_syntaqlite_parser to
-# regenerate src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
+# regenerate src/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
 # from the canonical perfetto.y + perfetto.synq grammar files.
 SYNTAQLITE_DEPS = [
     Dependency(

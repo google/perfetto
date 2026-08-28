@@ -30,7 +30,7 @@ export interface TabStripAttrs {
   readonly className?: string;
   readonly tabs: ReadonlyArray<TabOption>;
   readonly currentTabKey: string;
-  onTabChange(key: string): void;
+  readonly onTabChange: (key: string) => void;
 }
 
 /** @deprecated Use {@link Tabs} from `./tabs` instead. */

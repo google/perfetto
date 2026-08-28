@@ -15,7 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 
-import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
@@ -103,7 +103,7 @@ export default class implements PerfettoPlugin {
   private async getProfileMetrics(
     trace: Trace,
     scope: string,
-  ): Promise<QueryFlamegraphMetric[]> {
+  ): Promise<TreeExplorerQueryMetric[]> {
     const result = await trace.engine.query(`
       SELECT
         id,
@@ -114,7 +114,7 @@ export default class implements PerfettoPlugin {
       WHERE scope = '${scope}'
       ORDER BY sample_type_type
     `);
-    const metrics: QueryFlamegraphMetric[] = [];
+    const metrics: TreeExplorerQueryMetric[] = [];
     for (
       const it = result.iter({
         id: NUM,

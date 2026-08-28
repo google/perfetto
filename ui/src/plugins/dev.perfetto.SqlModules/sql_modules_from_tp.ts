@@ -99,130 +99,83 @@ function summaryDesc(desc: string): string {
   return trimmed;
 }
 
-// Queries the TP's __intrinsic_stdlib_* table functions and merges with the
+// Queries the TP's unified stdlib object catalog and merges it with the
 // pre-generated metadata JSON to build a SqlModules object.
-// Uses 4 parallel queries (one per entity type) instead of per-module queries.
 export async function loadSqlModulesFromTp(
   trace: Trace,
   metadata: StdlibMetadata,
 ): Promise<SqlModules> {
-  const engine = trace.engine;
-
-  const [modsResult, tablesResult, fnsResult, macrosResult] = await Promise.all(
-    [
-      engine.query('SELECT module, package FROM __intrinsic_stdlib_modules()'),
-      engine.query(
-        `SELECT module, name, type, description, exposed, cols
-           FROM __intrinsic_stdlib_tables('*')`,
-      ),
-      engine.query(
-        `SELECT module, name, description, exposed, is_table_function,
-                return_type, return_description, args, cols
-           FROM __intrinsic_stdlib_functions('*')`,
-      ),
-      engine.query(
-        `SELECT module, name, description, exposed,
-                return_type, return_description, args
-           FROM __intrinsic_stdlib_macros('*')`,
-      ),
-    ],
+  const result = await trace.engine.query(
+    `SELECT package, module, name, object_type, description, exposed,
+            return_type, return_description, args, cols
+       FROM __intrinsic_stdlib_objects`,
   );
 
-  // Build package → [module] map.
   const packageMap = new Map<string, string[]>();
-  const modsIter = modsResult.iter({module: STR, package: STR});
-  for (; modsIter.valid(); modsIter.next()) {
-    getOrCreate(packageMap, modsIter.package, () => []).push(modsIter.module);
-  }
-
-  // Group tables by module.
   const tablesByModule = new Map<string, DataObject[]>();
-  const tIter = tablesResult.iter({
-    module: STR,
-    name: STR,
-    type: STR,
-    description: STR,
-    exposed: LONG,
-    cols: STR,
-  });
-  for (; tIter.valid(); tIter.next()) {
-    if (!tIter.exposed) continue;
-    const modKey = tIter.module;
-    const tableMeta = metadata[modKey]?.tables?.[tIter.name];
-    const desc = tIter.description;
-    getOrCreate(tablesByModule, modKey, () => []).push({
-      name: tIter.name,
-      desc,
-      summary_desc: summaryDesc(desc),
-      type: tIter.type,
-      importance: tableMeta?.importance ?? null,
-      data_check_sql: tableMeta?.data_check_sql ?? null,
-      cols: parseEntries(tIter.cols).map((e) => toArgOrCol(e)),
-    });
-  }
-
-  // Group functions and table functions by module.
   const fnsByModule = new Map<string, FnObject[]>();
   const tblFnsByModule = new Map<string, TblFnObject[]>();
-  const fIter = fnsResult.iter({
+  const macrosByModule = new Map<string, MacroObject[]>();
+  const iter = result.iter({
+    package: STR,
     module: STR,
     name: STR,
+    object_type: STR,
     description: STR,
     exposed: LONG,
-    is_table_function: LONG,
     return_type: STR,
     return_description: STR,
     args: STR,
     cols: STR,
   });
-  for (; fIter.valid(); fIter.next()) {
-    if (!fIter.exposed) continue;
-    const modKey = fIter.module;
-    const desc = fIter.description;
-    const args = parseEntries(fIter.args).map((e) => toArgOrCol(e));
-    if (fIter.is_table_function) {
+  for (; iter.valid(); iter.next()) {
+    const modKey = iter.module;
+    if (iter.object_type === 'MODULE') {
+      getOrCreate(packageMap, iter.package, () => []).push(modKey);
+      continue;
+    }
+    if (iter.exposed === 0n) continue;
+
+    const desc = iter.description;
+    const args = parseEntries(iter.args).map((entry) => toArgOrCol(entry));
+    if (iter.object_type === 'TABLE' || iter.object_type === 'VIEW') {
+      const tableMeta = metadata[modKey]?.tables?.[iter.name];
+      getOrCreate(tablesByModule, modKey, () => []).push({
+        name: iter.name,
+        desc,
+        summary_desc: summaryDesc(desc),
+        type: iter.object_type,
+        importance: tableMeta?.importance ?? null,
+        data_check_sql: tableMeta?.data_check_sql ?? null,
+        cols: parseEntries(iter.cols).map((entry) => toArgOrCol(entry)),
+      });
+    } else if (iter.object_type === 'FUNCTION') {
+      getOrCreate(fnsByModule, modKey, () => []).push({
+        name: iter.name,
+        desc,
+        summary_desc: summaryDesc(desc),
+        return_type: iter.return_type,
+        return_desc: iter.return_description,
+        args,
+      });
+    } else if (iter.object_type === 'TABLE_FUNCTION') {
       getOrCreate(tblFnsByModule, modKey, () => []).push({
-        name: fIter.name,
+        name: iter.name,
         desc,
         summary_desc: summaryDesc(desc),
         args,
-        cols: parseEntries(fIter.cols).map((e) => toArgOrCol(e)),
+        cols: parseEntries(iter.cols).map((entry) => toArgOrCol(entry)),
       });
-    } else {
-      getOrCreate(fnsByModule, modKey, () => []).push({
-        name: fIter.name,
+    } else if (iter.object_type === 'MACRO') {
+      getOrCreate(macrosByModule, modKey, () => []).push({
+        name: iter.name,
         desc,
         summary_desc: summaryDesc(desc),
-        return_type: fIter.return_type,
-        return_desc: fIter.return_description,
+        return_type: iter.return_type,
+        return_desc: iter.return_description,
         args,
       });
     }
-  }
-
-  // Group macros by module.
-  const macrosByModule = new Map<string, MacroObject[]>();
-  const mIter = macrosResult.iter({
-    module: STR,
-    name: STR,
-    description: STR,
-    exposed: LONG,
-    return_type: STR,
-    return_description: STR,
-    args: STR,
-  });
-  for (; mIter.valid(); mIter.next()) {
-    if (!mIter.exposed) continue;
-    const modKey = mIter.module;
-    const desc = mIter.description;
-    getOrCreate(macrosByModule, modKey, () => []).push({
-      name: mIter.name,
-      desc,
-      summary_desc: summaryDesc(desc),
-      return_type: mIter.return_type,
-      return_desc: mIter.return_description,
-      args: parseEntries(mIter.args).map((e) => toArgOrCol(e)),
-    });
   }
 
   // Assemble the final docs structure.

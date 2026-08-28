@@ -877,9 +877,10 @@ void TraceBufferV2::CopyChunkUntrusted(
     // Nothing for the erase to lose, nothing for the relocation to duplicate.
     const bool copy_fully_consumed = recommit_chunk->payload_avail == 0;
 
-    // The producer's final commit (not another scrape), with new fragments.
+    // Any re-commit with new fragments, whether the producer's final commit or
+    // a later scrape of the same still-open chunk.
     const bool commit_adds_new_data =
-        chunk_complete && all_frags_size > recommit_chunk->payload_size;
+        all_frags_size > recommit_chunk->payload_size;
 
     // EraseCurrentChunk() only supports the first chunk of a sequence. Later
     // chunks may stay physically ahead of the relocated one, which is fine:
@@ -1302,8 +1303,8 @@ void TraceBufferV2::DumpForTesting() {
       PERFETTO_DLOG(
           "[%06zu-%06zu] size=%05u(%05u) id=%05u pr_wr=%08x flags=%08x", rd,
           rd + c->outer_size(), c->payload_size,
-          c->payload_size - c->payload_avail, c->chunk_id, c->pri_wri_id,
-          c->flags);
+          static_cast<unsigned>(c->payload_size - c->payload_avail),
+          c->chunk_id, c->pri_wri_id, c->flags);
       rd += c->outer_size();
       continue;
     }

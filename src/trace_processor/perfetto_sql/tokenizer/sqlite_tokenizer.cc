@@ -22,7 +22,7 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor {

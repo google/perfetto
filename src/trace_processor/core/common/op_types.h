@@ -58,6 +58,30 @@ struct In {};
 using Op =
     core::TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull, In>;
 
+// Subsets of Op describing which operations a given kind of value or access
+// path supports. Used to pick how a filter is evaluated.
+
+// Set of operations applicable to non-null values.
+using NonNullOp = core::TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
+
+// Set of operations applicable to non-string values.
+using NonStringOp = core::TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+
+// Set of operations applicable to string values.
+using StringOp = core::TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
+
+// Set of operations applicable to only string values.
+using OnlyStringOp = core::TypeSet<Glob, Regex>;
+
+// Set of operations applicable to ranges.
+using RangeOp = core::TypeSet<Eq, Lt, Le, Gt, Ge>;
+
+// Set of inequality operations (Lt, Le, Gt, Ge).
+using InequalityOp = core::TypeSet<Lt, Le, Gt, Ge>;
+
+// Set of null operations (IsNotNull, IsNull).
+using NullOp = core::TypeSet<IsNotNull, IsNull>;
+
 }  // namespace perfetto::trace_processor::core
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_OP_TYPES_H_

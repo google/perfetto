@@ -20,6 +20,7 @@
 syntax = "proto2";
 
 import public "protos/perfetto/trace/trace_packet.proto";
+import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.proto";
 import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto";
 
 package com.android.internal;
@@ -106,10 +107,55 @@ message VideoFrameError {
   optional Reason reason = 2;
 }
 
+// Snapshot of all running process states written at trace stop.
+// See AndroidProcessStateChangedEvent in frameworks_base_track_event.proto
+message AndroidProcessStateSnapshot {
+  // A single process state entry.
+  message Record {
+    // Process ID.
+    optional int32 pid = 1;
+    // Package UID of the process.
+    optional int32 uid = 2;
+    // Process state (ActivityManager process state enum).
+    optional int32 proc_state = 3;
+    // OOM score adjustment value.
+    optional int32 oom_score = 4;
+    // Process capability flags.
+    optional int32 capability_flags = 5;
+    // Process name.
+    optional string process_name = 6;
+    // start sequence id which is assigned to a process during start update
+    optional int64 start_seq_id = 7;
+    // Process start elapsed realtime in milliseconds.
+    optional int64 start_time_ms = 8;
+  }
+  repeated Record record = 1;
+}
+
+// Snapshot of frozen process states written at trace stop.
+message AndroidFreezerStateSnapshot {
+  // A single freezer state entry for a frozen process.
+  message Record {
+    // Package UID of the process being frozen or unfrozen.
+    optional int32 uid = 1;
+    // Process ID of the process being frozen or unfrozen.
+    optional int32 pid = 2;
+    // Time in milliseconds since last unfrozen.
+    optional int64 unfrozen_dur_ms = 3;
+    // Time in milliseconds since last frozen.
+    optional int64 frozen_dur_ms = 4;
+    // Unfreeze reason.
+    optional UnfreezeReason unfreeze_reason = 5;
+  }
+  repeated Record record = 1;
+}
+
 message FrameworksBaseTracePacket {
   extend perfetto.protos.TracePacket {
     optional AppWakelockBundle app_wakelock_bundle = 116;
     optional VideoFrame video_frame = 1000;
     optional VideoFrameError video_frame_error = 1001;
+    optional AndroidProcessStateSnapshot android_process_state = 1002;
+    optional AndroidFreezerStateSnapshot android_freezer_state = 1003;
   }
 }

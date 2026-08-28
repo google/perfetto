@@ -29,9 +29,9 @@ import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import {createTraceProcessorStateTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_state_track';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
-import {getTrackName} from '../../public/utils';
+import {getMachineCount, getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
@@ -53,7 +53,7 @@ function createTrackEventDetailsPanel(trace: Trace) {
 }
 
 const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
 });
 
 type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
@@ -76,6 +76,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const numMachines = await getMachineCount(ctx.engine);
     this.store = ctx.mountStore(TrackEventPlugin.id, (init) =>
       this.migrateTrackEventPluginState(init),
     );
@@ -89,7 +90,16 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       name: '__track_event_tracks',
       engine: ctx.engine,
       as: `
+        with machine_cpu_counts as (
+          select machine_id, count(*) as cpuCount
+          from cpu
+          group by machine_id
+        )
         select
+          g.machine_id as machineId,
+          machine.name as machineName,
+          machine.label_index as machineLabelIndex,
+          ifnull(machine_cpu_counts.cpuCount, 0) as cpuCount,
           ifnull(g.upid, t.upid) as upid,
           g.utid,
           g.parent_id as parentId,
@@ -115,6 +125,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         left join process p using (upid)
         left join thread t using (utid)
         left join process tp on tp.upid = t.upid
+        left join machine on machine.id = g.machine_id
+        left join machine_cpu_counts using (machine_id)
       `,
     });
 
@@ -152,17 +164,16 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       tid: LONG_NULL,
       pid: LONG_NULL,
       processName: STR_NULL,
+      machineId: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
+      cpuCount: NUM,
     });
     const processGroupsPlugin = ctx.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
     );
     const trackIdToTrackNode = new Map<number, TrackNode>();
 
-    // Get CPU count and threads for summary tracks
-    const cpuCountResult = await ctx.engine.query(`
-      SELECT COUNT(*) as cpu_count FROM cpu WHERE machine_id = 0
-    `);
-    const cpuCount = cpuCountResult.firstRow({cpu_count: NUM}).cpu_count;
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
 
     for (; it.valid(); it.next()) {
@@ -186,6 +197,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         tid,
         pid,
         processName,
+        machineName,
+        machineLabelIndex,
+        cpuCount,
       } = it;
 
       // Don't add track_event tracks which don't have any data and don't have
@@ -206,6 +220,9 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         processName,
         tid,
         pid,
+        machineName,
+        machineLabelIndex,
+        numMachines,
       });
       const uri = `/track_event_${trackIds[0]}`;
       if (hasData && isCounter) {

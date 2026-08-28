@@ -2,11 +2,28 @@ Unreleased:
   Tracing service and probes:
    *
   Trace Processor:
-   *
+   * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
+     all_data_source_started_ns, ...) to trace time when primary_trace_clock
+     is not BOOTTIME. They were previously stored unconverted, which could
+     also cause ftrace events to be dropped when preserve_ftrace_buffer is
+     disabled.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
   SDK:
    *
+
+v58.3 - 2026-08-27:
+  Misc:
+    * Fix trace sharing issue where traces with a single selection failed
+      to restore.
+
+v58.2 - 2026-08-21:
+  Misc:
+    * Fixed additional Windows build and test failures.
+
+v58.1 - 2026-08-21:
+  Misc:
+    * Fixed builds on Windows.
 
 v58.0 - 2026-08-06:
   Tracing service and probes:

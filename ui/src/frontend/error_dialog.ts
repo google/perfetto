@@ -177,8 +177,9 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       this.traceData = traceSource.file;
       // this.traceSize = this.traceData.size;
     } else if (traceSource.type === 'ARRAY_BUFFER') {
-      // Never upload local-only traces (e.g. from postMessage) to GCS.
-      if (traceSource.localOnly) return;
+      // Never upload traces the sender didn't allow sharing (e.g. pushed via
+      // postMessage) to GCS, not even for bug reports.
+      if (traceSource.shareable === false) return;
       this.traceData = traceSource.buffer;
       // this.traceSize = this.traceData.byteLength;
     } else {

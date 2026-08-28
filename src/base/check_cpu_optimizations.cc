@@ -25,6 +25,14 @@
 
 #include <stdint.h>
 
+// The __attribute__((constructor)) below is intentional: this function runs at
+// load time on purpose to verify the CPU supports the extensions the binary is
+// built with. -Wglobal-constructors (enabled by -Weverything) would otherwise
+// flag it.
+#if defined(__clang__)
+#pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 

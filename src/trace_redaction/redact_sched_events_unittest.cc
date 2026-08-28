@@ -219,6 +219,20 @@ class RedactCompactSchedSwitchTest : public testing::Test {
     compact_sched->add_switch_next_comm_index(comm);
   }
 
+  void AddWakingEvent(uint64_t ts,
+                      int32_t pid,
+                      int32_t target_cpu,
+                      int32_t prio,
+                      uint32_t comm,
+                      uint32_t common_flags = 0) {
+    compact_sched->add_waking_timestamp(ts);
+    compact_sched->add_waking_pid(pid);
+    compact_sched->add_waking_target_cpu(target_cpu);
+    compact_sched->add_waking_prio(prio);
+    compact_sched->add_waking_comm_index(comm);
+    compact_sched->add_waking_common_flags(common_flags);
+  }
+
   protos::gen::TracePacket packet_;
   protos::gen::FtraceEventBundle::CompactSched* compact_sched;
 
@@ -229,10 +243,6 @@ class RedactCompactSchedSwitchTest : public testing::Test {
 TEST_F(RedactCompactSchedSwitchTest, KeepsTargetCommValues) {
   uint32_t kCommIndexA = 0;
   uint32_t kCommIndexB = 1;
-
-  // The new entry will be appended to the table. Another primitive can be used
-  // to reduce the intern string table.
-  uint32_t kCommIndexNone = 2;
 
   AddSwitchEvent(kTimeA, kPidA, 0, 0, kCommIndexA);
   AddSwitchEvent(kTimeB, kPidB, 0, 0, kCommIndexB);
@@ -251,13 +261,15 @@ TEST_F(RedactCompactSchedSwitchTest, KeepsTargetCommValues) {
 
   const auto& compact_sched = bundle.compact_sched();
 
-  // A new entry (empty string) should have been added to the table.
-  ASSERT_EQ(compact_sched.intern_table_size(), 3);
-  ASSERT_EQ(compact_sched.intern_table().back(), kCommNone);
+  // The intern table should contain only referenced entries: kCommA and
+  // the empty string (replacing kCommB). Unreferenced entries are removed.
+  ASSERT_EQ(compact_sched.intern_table_size(), 2);
+  ASSERT_EQ(compact_sched.intern_table().at(0), kCommA);
+  ASSERT_EQ(compact_sched.intern_table().at(1), kCommNone);
 
   ASSERT_EQ(compact_sched.switch_next_comm_index_size(), 2);
-  ASSERT_EQ(compact_sched.switch_next_comm_index().at(0), kCommIndexA);
-  ASSERT_EQ(compact_sched.switch_next_comm_index().at(1), kCommIndexNone);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(0), 0u);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(1), 1u);
 }
 
 // If two pids use the same comm, but one pid changes, the shared comm should
@@ -282,20 +294,20 @@ TEST_F(RedactCompactSchedSwitchTest, ChangingSharedCommonRetainsComm) {
 
   const auto& compact_sched = bundle.compact_sched();
 
-  // A new entry should have been appended, but comm A (previously shared)
-  // should still exist in the table.
-  ASSERT_EQ(compact_sched.intern_table_size(), 3);
-  ASSERT_EQ(compact_sched.intern_table().front(), kCommA);
-  ASSERT_EQ(compact_sched.intern_table().back(), kCommNone);
+  // The intern table should contain kCommA and the empty string (replacing
+  // the comm for PidB). Unreferenced entries are removed.
+  ASSERT_EQ(compact_sched.intern_table_size(), 2);
+  ASSERT_EQ(compact_sched.intern_table().at(0), kCommA);
+  ASSERT_EQ(compact_sched.intern_table().at(1), kCommNone);
+
+  ASSERT_EQ(compact_sched.switch_next_comm_index_size(), 2);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(0), 0u);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(1), 1u);
 }
 
 TEST_F(RedactCompactSchedSwitchTest, RemovesAllCommsIfPackageDoesntExist) {
   uint32_t kCommIndexA = 0;
   uint32_t kCommIndexB = 1;
-
-  // The new entry will be appended to the table. Another primitive can be used
-  // to reduce the intern string table.
-  uint32_t kCommIndexNone = 2;
 
   AddSwitchEvent(kTimeA, kPidA, 0, 0, kCommIndexA);
   AddSwitchEvent(kTimeB, kPidB, 0, 0, kCommIndexB);
@@ -314,13 +326,14 @@ TEST_F(RedactCompactSchedSwitchTest, RemovesAllCommsIfPackageDoesntExist) {
 
   const auto& compact_sched = bundle.compact_sched();
 
-  // A new entry (empty string) should have been added to the table.
-  ASSERT_EQ(compact_sched.intern_table_size(), 3);
-  ASSERT_EQ(compact_sched.intern_table().back(), kCommNone);
+  // Because no package matched, all comms are replaced with empty string.
+  // Unreferenced original comms are dropped, leaving only the empty string.
+  ASSERT_EQ(compact_sched.intern_table_size(), 1);
+  ASSERT_EQ(compact_sched.intern_table().at(0), kCommNone);
 
   ASSERT_EQ(compact_sched.switch_next_comm_index_size(), 2);
-  ASSERT_EQ(compact_sched.switch_next_comm_index().at(0), kCommIndexNone);
-  ASSERT_EQ(compact_sched.switch_next_comm_index().at(1), kCommIndexNone);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(0), 0u);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(1), 0u);
 }
 
 TEST_F(RedactCompactSchedSwitchTest, CanChangePid) {
@@ -355,6 +368,294 @@ TEST_F(RedactCompactSchedSwitchTest, CanChangePid) {
 
   // Because Pid B was not connected to Uid A, it should have its pid changed.
   ASSERT_EQ(compact_sched.switch_next_pid().at(1), kPidC);
+}
+
+TEST_F(RedactCompactSchedSwitchTest, PrunesUnreferencedInternTableEntries) {
+  compact_sched->add_intern_table(kCommC);
+
+  // Switch events only reference index 0 (kCommA) and index 2 (kCommC).
+  // Index 1 (kCommB) is unreferenced.
+  AddSwitchEvent(kTimeA, kPidA, 0, 0, 0);
+  AddSwitchEvent(kTimeB, kPidA, 0, 0, 2);
+
+  context_.package_uid = kUidA;
+  redact_.emplace_modifier<DoNothing>();
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  // The unreferenced entry (kCommB at old index 1) is pruned.
+  ASSERT_EQ(redacted_sched.intern_table_size(), 2);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommA);
+  ASSERT_EQ(redacted_sched.intern_table().at(1), kCommC);
+
+  // Indices are remapped: old 0 -> new 0, old 2 -> new 1.
+  ASSERT_EQ(redacted_sched.switch_next_comm_index_size(), 2);
+  ASSERT_EQ(redacted_sched.switch_next_comm_index().at(0), 0u);
+  ASSERT_EQ(redacted_sched.switch_next_comm_index().at(1), 1u);
+}
+
+TEST_F(RedactCompactSchedSwitchTest, DeduplicatesRedactedCommEntries) {
+  // 3 events for non-target PID (kPidB), all using kCommB (index 1).
+  AddSwitchEvent(kTimeA, kPidB, 0, 0, 1);
+  AddSwitchEvent(kTimeB, kPidB, 0, 0, 1);
+  AddSwitchEvent(kTimeB, kPidB, 0, 0, 1);
+
+  context_.package_uid = kUidA;
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  // Only one entry ("") should remain in the intern table after clearing.
+  ASSERT_EQ(redacted_sched.intern_table_size(), 1);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommNone);
+
+  // All three events point to index 0 ("").
+  ASSERT_EQ(redacted_sched.switch_next_comm_index_size(), 3);
+  ASSERT_EQ(redacted_sched.switch_next_comm_index().at(0), 0u);
+  ASSERT_EQ(redacted_sched.switch_next_comm_index().at(1), 0u);
+  ASSERT_EQ(redacted_sched.switch_next_comm_index().at(2), 0u);
+}
+
+TEST_F(RedactCompactSchedSwitchTest, SharesInternTableWithWakingEvents) {
+  uint32_t kCommIndexA = 0;
+  uint32_t kCommIndexB = 1;
+
+  AddSwitchEvent(kTimeA, kPidA, 0, 0, kCommIndexA);
+  AddWakingEvent(kTimeA, kPidB, kCpuA, 0, kCommIndexB);
+  AddWakingEvent(kTimeB, kPidA, kCpuA, 0, kCommIndexA);
+  AddSwitchEvent(kTimeB, kPidB, 0, 0, kCommIndexB);
+
+  context_.package_uid = kUidA;
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  // Shared intern table contains only kCommA and "" (kCommNone).
+  ASSERT_EQ(redacted_sched.intern_table_size(), 2);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommA);
+  ASSERT_EQ(redacted_sched.intern_table().at(1), kCommNone);
+
+  ASSERT_EQ(redacted_sched.switch_next_comm_index_size(), 2);
+  ASSERT_EQ(redacted_sched.switch_next_comm_index().at(0), 0u);
+  ASSERT_EQ(redacted_sched.switch_next_comm_index().at(1), 1u);
+
+  ASSERT_EQ(redacted_sched.waking_comm_index_size(), 2);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(0), 1u);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(1), 0u);
+}
+
+class RedactCompactSchedWakingTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    context_.timeline = std::make_unique<ProcessThreadTimeline>();
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+    context_.timeline->Sort();
+
+    auto* bundle = packet_.mutable_ftrace_events();
+    bundle->set_cpu(kCpuA);
+
+    compact_sched = bundle->mutable_compact_sched();
+
+    compact_sched->add_intern_table(kCommA);
+    compact_sched->add_intern_table(kCommB);
+
+    redact_.emplace_modifier<ClearComms>();
+    redact_.emplace_waking_filter<AllowAll>();
+  }
+
+  void AddWakingEvent(uint64_t ts,
+                      int32_t pid,
+                      int32_t target_cpu,
+                      int32_t prio,
+                      uint32_t comm,
+                      uint32_t common_flags = 0) {
+    compact_sched->add_waking_timestamp(ts);
+    compact_sched->add_waking_pid(pid);
+    compact_sched->add_waking_target_cpu(target_cpu);
+    compact_sched->add_waking_prio(prio);
+    compact_sched->add_waking_comm_index(comm);
+    compact_sched->add_waking_common_flags(common_flags);
+  }
+
+  protos::gen::TracePacket packet_;
+  protos::gen::FtraceEventBundle::CompactSched* compact_sched;
+
+  Context context_;
+  RedactSchedEvents redact_;
+};
+
+TEST_F(RedactCompactSchedWakingTest, KeepsTargetCommValues) {
+  uint32_t kCommIndexA = 0;
+  uint32_t kCommIndexB = 1;
+
+  AddWakingEvent(kTimeA, kPidA, kCpuA, 0, kCommIndexA);
+  AddWakingEvent(kTimeB, kPidB, kCpuA, 0, kCommIndexB);
+
+  context_.package_uid = kUidA;
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  ASSERT_EQ(redacted_sched.intern_table_size(), 2);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommA);
+  ASSERT_EQ(redacted_sched.intern_table().at(1), kCommNone);
+
+  ASSERT_EQ(redacted_sched.waking_comm_index_size(), 2);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(0), 0u);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(1), 1u);
+}
+
+TEST_F(RedactCompactSchedWakingTest, RemovesAllCommsIfPackageDoesntExist) {
+  uint32_t kCommIndexA = 0;
+  uint32_t kCommIndexB = 1;
+
+  AddWakingEvent(kTimeA, kPidA, kCpuA, 0, kCommIndexA);
+  AddWakingEvent(kTimeB, kPidB, kCpuA, 0, kCommIndexB);
+
+  context_.package_uid = kUidC;
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  ASSERT_EQ(redacted_sched.intern_table_size(), 1);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommNone);
+
+  ASSERT_EQ(redacted_sched.waking_comm_index_size(), 2);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(0), 0u);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(1), 0u);
+}
+
+TEST_F(RedactCompactSchedWakingTest, PrunesUnreferencedInternTableEntries) {
+  compact_sched->add_intern_table(kCommC);
+
+  // Only reference index 0 (kCommA) and index 2 (kCommC).
+  // Index 1 (kCommB) is unreferenced.
+  AddWakingEvent(kTimeA, kPidA, kCpuA, 0, 0);
+  AddWakingEvent(kTimeB, kPidA, kCpuA, 0, 2);
+
+  context_.package_uid = kUidA;
+  redact_.emplace_modifier<DoNothing>();
+  redact_.emplace_waking_filter<AllowAll>();
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  ASSERT_EQ(redacted_sched.intern_table_size(), 2);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommA);
+  ASSERT_EQ(redacted_sched.intern_table().at(1), kCommC);
+
+  ASSERT_EQ(redacted_sched.waking_comm_index_size(), 2);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(0), 0u);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(1), 1u);
+}
+
+TEST_F(RedactCompactSchedWakingTest, DeduplicatesRedactedCommEntries) {
+  AddWakingEvent(kTimeA, kPidB, kCpuA, 0, 1);
+  AddWakingEvent(kTimeB, kPidB, kCpuA, 0, 1);
+  AddWakingEvent(kTimeB, kPidB, kCpuA, 0, 1);
+
+  context_.package_uid = kUidA;
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  ASSERT_EQ(redacted_sched.intern_table_size(), 1);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommNone);
+
+  ASSERT_EQ(redacted_sched.waking_comm_index_size(), 3);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(0), 0u);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(1), 0u);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(2), 0u);
+}
+
+TEST_F(RedactCompactSchedWakingTest, DropsFilteredWakingEventsAndTheirComms) {
+  // Use ConnectedToPackage filter so waking event for PidB is filtered out.
+  redact_.emplace_waking_filter<ConnectedToPackage>();
+
+  AddWakingEvent(kTimeA, kPidA, kCpuA, 0, 0);
+  AddWakingEvent(kTimeB, kPidB, kCpuA, 0, 1);
+
+  context_.package_uid = kUidA;
+
+  auto packet_buffer = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& redacted_sched = bundle.compact_sched();
+
+  // Only kCommA (for kPidA) should be in the intern table. kCommB is never
+  // referenced.
+  ASSERT_EQ(redacted_sched.intern_table_size(), 1);
+  ASSERT_EQ(redacted_sched.intern_table().at(0), kCommA);
+
+  // Only one waking event (for PidA) should remain.
+  ASSERT_EQ(redacted_sched.waking_comm_index_size(), 1);
+  ASSERT_EQ(redacted_sched.waking_comm_index().at(0), 0u);
 }
 
 class RedactSchedWakingFtraceEventTest : public testing::Test {

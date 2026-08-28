@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {time} from '../../base/time';
-import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
 import type {Engine} from '../../trace_processor/engine';
 import {LONG_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {formatFileSize} from '../../base/file_utils';
@@ -23,7 +23,7 @@ import {Grid, GridCell, GridHeaderCell, type GridRow} from '../../widgets/grid';
 
 export function buildOomeCallstackMetrics(
   ts: time,
-): ReadonlyArray<QueryFlamegraphMetric> {
+): ReadonlyArray<TreeExplorerQueryMetric> {
   return [
     {
       name: 'OOME Callstack',

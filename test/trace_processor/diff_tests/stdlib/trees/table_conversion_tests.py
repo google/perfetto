@@ -22,6 +22,32 @@ from python.generators.diff_tests.testing import TestSuite
 
 class TreeRoundtrip(TestSuite):
 
+  def test_dominator_summary_rejects_non_integer_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          SELECT __intrinsic_tree_dominator_summary(
+            __intrinsic_tree_from_table(
+              'id', id,
+              'parent_id', parent_id,
+              'self_size', self_size,
+              'native_size', native_size,
+              'self_count', self_count
+            )
+          )
+          FROM (
+            SELECT
+              1 AS id,
+              NULL AS parent_id,
+              1.5 AS self_size,
+              0 AS native_size,
+              1 AS self_count
+          );
+        """,
+        out=ExpectedError(
+            '__intrinsic_tree_dominator_summary: expected id, self_size, '
+            'native_size, and self_count columns to be integers'))
+
   def test_basic(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),

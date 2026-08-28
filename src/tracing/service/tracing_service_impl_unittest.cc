@@ -5259,10 +5259,11 @@ TEST_F(TracingServiceImplTest, TraceWriterStats) {
     for (const auto& wri : packet.trace_stats().writer_stats()) {
       for (size_t i = 0; i < wri.chunk_payload_histogram_counts().size() - 1;
            i++) {
-        PERFETTO_DLOG("Seq=%" PRIu64 ", %" PRIu64 " : %" PRIu64,
-                      wri.sequence_id(),
-                      packet.trace_stats().chunk_payload_histogram_def()[i],
-                      wri.chunk_payload_histogram_counts()[i]);
+        PERFETTO_DLOG(
+            "Seq=%" PRIu64 ", %" PRIu64 " : %" PRIu64, wri.sequence_id(),
+            static_cast<uint64_t>(
+                packet.trace_stats().chunk_payload_histogram_def()[i]),
+            wri.chunk_payload_histogram_counts()[i]);
       }
 
       switch (wri.sequence_id()) {
