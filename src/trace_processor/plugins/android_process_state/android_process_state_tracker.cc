@@ -178,6 +178,12 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
     FreezerStateValues v;
     v.upid = context_->process_tracker->GetOrCreateProcess(
         static_cast<uint32_t>(rec.pid()));
+    if (rec.has_unfrozen_dur_ms()) {
+      v.unfrozen_dur_ms = rec.unfrozen_dur_ms();
+    }
+    if (rec.has_frozen_dur_ms()) {
+      v.frozen_dur_ms = rec.frozen_dur_ms();
+    }
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields represent UFR_NONE (0).
     v.unfreeze_reason =
@@ -249,8 +255,12 @@ void AndroidProcessStateTracker::EmitInitialFreezerRow(
   tables::AndroidFreezerStateTable::Row row;
   row.upid = v.upid;
   row.ts = std::nullopt;
-  row.unfrozen_dur_ms = std::nullopt;
-  row.frozen_dur_ms = std::nullopt;
+  if (v.unfrozen_dur_ms.has_value()) {
+    row.unfrozen_dur_ms = *v.unfrozen_dur_ms;
+  }
+  if (v.frozen_dur_ms.has_value()) {
+    row.frozen_dur_ms = *v.frozen_dur_ms;
+  }
   row.is_initial = 1;
   if (v.unfreeze_reason.has_value()) {
     row.unfreeze_reason =

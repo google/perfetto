@@ -413,8 +413,8 @@ class AndroidParser(TestSuite):
         """,
         out=Csv("""
           "ts","pid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","is_initial"
-          "[NULL]",100,"[NULL]","[NULL]","UFR_ACTIVITY",1
+          "[NULL]",100,500,1200,"UFR_ACTIVITY",1
           3000,200,100,300,"UFR_BIND_SERVICE",0
-          "[NULL]",600,"[NULL]","[NULL]","UFR_PING",1
+          "[NULL]",600,50,600,"UFR_PING",1
           "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
         """))

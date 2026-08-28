@@ -73,6 +73,8 @@ class AndroidProcessStateTracker {
   // Information captured for freezer state from trace-stop dumps.
   struct FreezerStateValues {
     UniquePid upid = 0;
+    std::optional<int64_t> unfrozen_dur_ms;
+    std::optional<int64_t> frozen_dur_ms;
     std::optional<int32_t> unfreeze_reason;
   };
 
