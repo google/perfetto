@@ -18,7 +18,10 @@ import {EmptyState} from '../../widgets/empty_state';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Spinner} from '../../widgets/spinner';
 import {Intent} from '../../widgets/common';
-import type {TracePreset} from '../query/bigtrace_query_client';
+import {
+  toExperimentFilterSpec,
+  type TracePreset,
+} from '../query/bigtrace_query_client';
 import {presetStore} from '../query/preset_store';
 import {
   DEFAULT_LOCAL_CATEGORY,
@@ -413,6 +416,7 @@ function comparable(tab: BigTraceEditorTab) {
     traceFilters: tab.traceFilters,
     traceMetadataColumns: tab.traceMetadataColumns,
     traceOrderBy: tab.traceOrderBy,
+    experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
     settings: effectiveTabSettings(tab).filter((s) =>
       isTraceSelectionSetting({id: s.settingId, category: s.category}),
     ),

@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import type {Filter} from '../../components/widgets/datagrid/model';
+import type {ExperimentFilterState} from '../pages/query_tabs_state';
 import type {
   EnumOption,
   Setting as BigTraceSetting,
@@ -61,6 +62,12 @@ export interface SettingsBindings {
   // edited in the query-settings modal.
   readonly getTraceLimit: () => number;
   readonly setTraceLimit: (limit: number) => void;
+  // The experiment/control pair and arm the query runs over; undefined = no
+  // experiment filtering. Set from the trace grid's experiment picker.
+  readonly getExperimentFilter: () => ExperimentFilterState | undefined;
+  readonly setExperimentFilter: (
+    filter: ExperimentFilterState | undefined,
+  ) => void;
 }
 
 // Wraps a globally-registered Setting<T> so reads/writes route through per-tab

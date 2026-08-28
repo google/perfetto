@@ -39,6 +39,7 @@ function current(over: Partial<PresetComparable> = {}): PresetComparable {
     traceFilters: [],
     traceMetadataColumns: null,
     traceOrderBy: '',
+    experimentFilter: undefined,
     settings: [],
     ...over,
   };

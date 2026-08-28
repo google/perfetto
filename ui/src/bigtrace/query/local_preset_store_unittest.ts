@@ -244,3 +244,36 @@ describe('lastPresetIdState', () => {
     expect(lastPresetIdState.get()).toBe('');
   });
 });
+
+describe('presetFromTab with an experiment', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  test('captures the ids and arm, never the names', () => {
+    const saved = presetFromTab(
+      fakeTab({
+        experimentFilter: {
+          experimentId: 1,
+          controlId: 2,
+          isTreatment: false,
+          experimentName: 'a name',
+          controlDenied: true,
+        },
+      }),
+      {name: 'p'},
+    );
+    expect(saved.experimentFilter).toEqual({
+      experimentId: 1,
+      controlId: 2,
+      isTreatment: false,
+    });
+  });
+
+  test('a tab running no experiment saves no experiment', () => {
+    expect(
+      presetFromTab(fakeTab({}), {name: 'p'}).experimentFilter,
+    ).toBeUndefined();
+  });
+});

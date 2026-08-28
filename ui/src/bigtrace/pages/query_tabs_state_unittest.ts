@@ -380,6 +380,12 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
         },
       ],
       disabledSettings: ['some_filter'],
+      experimentFilter: {
+        experimentId: 111,
+        controlId: 222,
+        isTreatment: true,
+        experimentName: 'an experiment',
+      },
     });
   }
 
@@ -398,6 +404,11 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     tab.limit = 10;
     tab.traceLimit = 11;
     tab.materialize = false;
+    tab.experimentFilter = {
+      experimentId: 999,
+      controlId: 888,
+      isTreatment: false,
+    };
   }
 
   test('opening keeps the tab configured and starts a session', () => {
@@ -618,5 +629,164 @@ describe('trace UUID selection mode', () => {
       tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
         ?.values,
     ).toEqual(['u1', 'u2']);
+  });
+});
+
+describe('experiment filter', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  const chosen = {
+    experimentId: 111,
+    controlId: 222,
+    isTreatment: true,
+    experimentName: 'an experiment',
+    controlName: 'its control',
+  };
+
+  test('Cancel puts back the experiment the query had', () => {
+    const tab = fakeTab({configured: true, experimentFilter: {...chosen}});
+    openSettings(tab);
+    tab.experimentFilter = {
+      experimentId: 999,
+      controlId: 888,
+      isTreatment: false,
+    };
+    closeSettings(tab, {keep: false});
+    expect(tab.experimentFilter).toEqual(chosen);
+  });
+
+  test('Cancel puts back one that was cleared', () => {
+    const tab = fakeTab({configured: true, experimentFilter: {...chosen}});
+    openSettings(tab);
+    tab.experimentFilter = undefined;
+    closeSettings(tab, {keep: false});
+    expect(tab.experimentFilter).toEqual(chosen);
+  });
+
+  test('Cancel takes away one that was picked', () => {
+    const tab = fakeTab({configured: true});
+    openSettings(tab);
+    tab.experimentFilter = {...chosen};
+    closeSettings(tab, {keep: false});
+    expect(tab.experimentFilter).toBeUndefined();
+  });
+
+  test('Apply keeps the switch of arm', () => {
+    const tab = fakeTab({configured: true, experimentFilter: {...chosen}});
+    openSettings(tab);
+    tab.experimentFilter = {...chosen, isTreatment: false};
+    closeSettings(tab, {keep: true});
+    expect(tab.experimentFilter?.isTreatment).toBe(false);
+  });
+
+  test('the snapshot is a copy: later edits do not reach it', () => {
+    const tab = fakeTab({experimentFilter: {...chosen}});
+    const snap = snapshotTabConfig(tab);
+    tab.experimentFilter = {...chosen, isTreatment: false};
+    expect(snap.experimentFilter?.isTreatment).toBe(true);
+    restoreTabConfig(tab, snap);
+    // Restoring hands out a copy too.
+    tab.experimentFilter = {...tab.experimentFilter!, isTreatment: false};
+    expect(snap.experimentFilter?.isTreatment).toBe(true);
+  });
+
+  test('a clone runs over the same experiment, in its own object', () => {
+    const tabs = new QueryTabsState();
+    const src = tabs.addNewTab(undefined, 'select 1');
+    src.configured = true;
+    src.experimentFilter = {...chosen};
+    const clone = tabs.cloneTab(src.id);
+    expect(clone?.experimentFilter).toEqual(chosen);
+    expect(clone?.experimentFilter).not.toBe(src.experimentFilter);
+  });
+
+  test('the experiment round-trips through storage, names and all', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.addNewTab(undefined, 'select 1');
+    tab.configured = true;
+    tab.experimentFilter = {...chosen};
+    (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
+
+    const reloaded = new QueryTabsState().tabs.find(
+      (t) => t.editorText === 'select 1',
+    );
+    expect(reloaded?.experimentFilter).toEqual(chosen);
+  });
+
+  test('a new query starts with no experiment', () => {
+    const tabs = new QueryTabsState();
+    expect(tabs.addNewTab().experimentFilter).toBeUndefined();
+  });
+
+  test('tabs stored before experiments existed still load', () => {
+    localStorage.setItem(
+      'bigtraceQueryTabs',
+      JSON.stringify({
+        tabs: [
+          {
+            id: 'a',
+            title: 'Query 1',
+            editorText: 'select 1',
+            limit: 1000,
+            materialize: true,
+            configured: true,
+          },
+        ],
+        activeTabId: 'a',
+      }),
+    );
+    const tabs = new QueryTabsState();
+    expect(tabs.tabs).toHaveLength(1);
+    expect(tabs.tabs[0].experimentFilter).toBeUndefined();
+  });
+
+  test('a preset naming an experiment runs the query over it', () => {
+    const tab = fakeTab({});
+    applyPresetSetup(tab, {
+      id: 'p',
+      category: '',
+      name: 'p',
+      description: '',
+      perfettoSql: 'select 1',
+      experimentFilter: {experimentId: 1, controlId: 2, isTreatment: false},
+    });
+    expect(tab.experimentFilter).toEqual({
+      experimentId: 1,
+      controlId: 2,
+      isTreatment: false,
+    });
+  });
+
+  test('a preset that names none turns the experiment off', () => {
+    const tab = fakeTab({experimentFilter: {...chosen}});
+    applyPresetSetup(tab, {
+      id: 'p',
+      category: '',
+      name: 'p',
+      description: '',
+      perfettoSql: 'select 1',
+    });
+    expect(tab.experimentFilter).toBeUndefined();
+  });
+
+  test('applying replaces wholesale: no names from the one before', () => {
+    const tab = fakeTab({experimentFilter: {...chosen}});
+    applyPresetSetup(tab, {
+      id: 'p',
+      category: '',
+      name: 'p',
+      description: '',
+      perfettoSql: 'select 1',
+      experimentFilter: {experimentId: 333, controlId: 444, isTreatment: true},
+    });
+    expect(tab.experimentFilter).toEqual({
+      experimentId: 333,
+      controlId: 444,
+      isTreatment: true,
+    });
+    expect(tab.experimentFilter?.experimentName).toBeUndefined();
   });
 });

@@ -24,6 +24,7 @@ import {
   type ExecuteOptions,
   QueryCancelledError,
   QueryNotFoundError,
+  toExperimentFilterSpec,
 } from './bigtrace_query_client';
 import {forwardAbort} from './abort_utils';
 import {
@@ -125,6 +126,7 @@ export class QueryRunner {
       traceMetadataColumns,
       traceOrderBy,
       traceLimit: tab.traceLimit,
+      experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
     };
 
     const wallStartMs = performance.now();
@@ -282,6 +284,11 @@ export class QueryRunner {
     }
     if (typeof details.traceOrderBy === 'string') {
       tab.traceOrderBy = details.traceOrderBy;
+    }
+    // Ids restore now; the names for them are resolved by whichever view
+    // shows the filter first.
+    if (details.experimentFilter !== undefined) {
+      tab.experimentFilter = {...details.experimentFilter};
     }
     this.cb.markDirty?.();
     tab.editorText = details.perfettoSql || fallbackQuery;

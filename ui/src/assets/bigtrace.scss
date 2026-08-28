@@ -1009,6 +1009,128 @@ pre.pf-bt-history-item-query--standalone {
   }
 }
 
+// A chosen experiment's name can be a sentence; the chip states which arm
+// and as much of it as fits, with the whole of both arms in the tooltip.
+.pf-bt-settings-bar .pf-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 32rem;
+}
+
+// Trace-grid header row: column picker left, experiment filter hard right.
+.pf-bt-trace-columns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+// Chosen experiment: arm toggle, the active arm, and the way to clear it.
+// The name is free to clamp; the id stays whole.
+.pf-bt-experiment-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-left: auto;
+
+  &__open {
+    margin-left: auto;
+  }
+
+  &__arm {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 320px;
+  }
+}
+
+// The popup box itself, so the one thing that can hang off the screen is
+// bounded on the element that hangs. Everything from here down is sized by
+// its content, so the viewport is the only fixed thing to measure against:
+// its width less the 8px per side Popup keeps clear of the edges. Border and
+// padding are inside the number, the box being border-box.
+// Two classes deep to outrank the widget's own `--fit-content`, which unsets
+// max-width to let content decide the size — content still decides, it just
+// can't decide to leave the screen.
+.pf-popup.pf-bt-experiment-popup {
+  max-width: calc(100vw - 16px);
+}
+
+// Experiment search popup. Own block, like the connection panel — the shared
+// popup content class stays untouched.
+.pf-bt-experiment-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  // Follows the window, so a wide screen gets a wide popup; bounded in rem
+  // so it also respects the reader's font size, stays usable when narrow,
+  // and never runs a name past a comfortable line length.
+  width: clamp(30rem, 40vw, 60rem);
+  // The floor would otherwise win over a very narrow window; yielding to the
+  // box around it is what makes that cap effective, since a width this
+  // explicit would happily overflow its container.
+  max-width: 100%;
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  &__note {
+    color: var(--pf-color-text-muted);
+    padding: 4px 0;
+  }
+
+  // One experiment: both arms, picked as a unit.
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--pf-color-background-secondary);
+    }
+  }
+
+  &__arm {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__label {
+    color: var(--pf-color-text-muted);
+    font-size: smaller;
+    flex: 0 0 72px;
+  }
+
+  &__id {
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+  }
+
+  // Choosing is done by the name, so it wraps rather than truncates; the id
+  // and label keep their column while it does.
+  &__name {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+
+    &--denied {
+      color: var(--pf-color-text-muted);
+    }
+  }
+}
+
 // Query-settings modal (gear in the run toolbar): the settings form without
 // the page chrome — the modal provides the frame and the scrolling.
 .pf-bt-query-settings-modal {

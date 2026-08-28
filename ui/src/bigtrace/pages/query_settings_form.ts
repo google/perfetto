@@ -54,9 +54,11 @@ import type {
 } from '../../components/widgets/datagrid/model';
 import {
   BigtraceQueryClient,
+  toExperimentFilterSpec,
   type TraceColumnDescriptor,
   type TracesSchemaResponse,
 } from '../query/bigtrace_query_client';
+import {ExperimentFilterControl} from './experiment_filter_control';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
 import {formatCompact} from '../query/query_store';
 import {effectiveQueryColumns} from '../settings/trace_selection_state';
@@ -349,8 +351,12 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
       const client = new BigtraceQueryClient(endpoint);
       // `getSettings` runs on every fetch, so a per-tab caller sees latest
       // snapshot edits without rebuilding the data source.
-      this.traceListDataSource = new BigtraceTraceListDataSource(client, () =>
-        this.effectiveSettings(),
+      this.traceListDataSource = new BigtraceTraceListDataSource(
+        client,
+        () => this.effectiveSettings(),
+        undefined,
+        undefined,
+        () => toExperimentFilterSpec(this.bindings.getExperimentFilter()),
       );
       this.traceListEndpoint = endpoint;
     }
@@ -655,13 +661,6 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
     }));
     return m(
       '.pf-bt-trace-columns',
-      {
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        },
-      },
       m(PopupMultiSelect, {
         label: 'Query result columns',
         icon: 'view_column',
@@ -679,6 +678,8 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
           'that default as it changes.',
         () => this.writeTraceMetadataColumns(null),
       ),
+      // Which traces the grid lists, and which a run processes.
+      m(ExperimentFilterControl, {bindings: this.bindings}),
     );
   }
 

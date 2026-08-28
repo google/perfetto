@@ -14,7 +14,10 @@
 
 import {shortUuid} from '../../base/uuid';
 import {LocalStorage} from '../../core/local_storage';
-import type {TracePreset} from './bigtrace_query_client';
+import {
+  toExperimentFilterSpec,
+  type TracePreset,
+} from './bigtrace_query_client';
 import {
   effectiveTabSettings,
   isTraceSelectionSetting,
@@ -178,6 +181,10 @@ export function presetFromTab(
         category: s.category,
       })),
     traceFilters: [...tab.traceFilters],
+    // Ids + arm only: names are display data the catalog owns.
+    ...(tab.experimentFilter === undefined
+      ? {}
+      : {experimentFilter: toExperimentFilterSpec(tab.experimentFilter)}),
     // null means "whatever the backend flags default-visible"; the wire says
     // that with an empty list, and applying maps it back to null.
     traceMetadataColumns: cols === null ? [] : [...cols],

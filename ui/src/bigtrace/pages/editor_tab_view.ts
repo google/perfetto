@@ -166,6 +166,11 @@ function buildTabBindings(
       applyModeDefaults(tab, materialize);
       tabsState.markDirty();
     },
+    getExperimentFilter: () => tab.experimentFilter,
+    setExperimentFilter: (filter) => {
+      tab.experimentFilter = filter;
+      tabsState.markDirty();
+    },
     getTraceLimit: () => tab.traceLimit,
     setTraceLimit: (limit) => {
       if (limit > 0) {

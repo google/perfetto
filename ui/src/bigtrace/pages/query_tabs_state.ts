@@ -19,6 +19,7 @@ import {debounce} from '../../base/rate_limiters';
 import {shortUuid} from '../../base/uuid';
 import type {
   BigtraceQueryClient,
+  ExperimentFilterSpec,
   TracePreset,
 } from '../query/bigtrace_query_client';
 import {queryStore, type QueryExecution} from '../query/query_store';
@@ -42,6 +43,16 @@ export const MODE_DEFAULTS = {
 // default); the UI names the id to treat it as a selection MODE rather than
 // an ordinary card. When it is enabled and non-empty the backend selects
 // exactly these traces and ignores the filter-mode fields.
+// A tab's experiment selection: the wire triple plus whatever the catalog
+// told us about it. The names and denial flags are for display only — they
+// are refetched, never authoritative, and never travel.
+export interface ExperimentFilterState extends ExperimentFilterSpec {
+  readonly experimentName?: string;
+  readonly controlName?: string;
+  readonly experimentDenied?: boolean;
+  readonly controlDenied?: boolean;
+}
+
 export const TRACE_UUIDS_SETTING_ID = 'trace_uuids';
 
 // Whether this deployment offers selection by UUID at all.
@@ -276,6 +287,11 @@ export function applyPresetSetup(tab: BigTraceEditorTab, t: TracePreset): void {
     ? [...metadataColumns]
     : null;
   tab.traceOrderBy = t.traceOrderBy ?? '';
+  // Ids and arm only: a preset states the selection, and the names for it are
+  // resolved from the catalog. One it doesn't state is turned off, like every
+  // other part of the selection.
+  tab.experimentFilter =
+    t.experimentFilter === undefined ? undefined : {...t.experimentFilter};
   tab.lastPresetId = t.id;
 }
 
@@ -296,9 +312,17 @@ export interface TabConfigSnapshot {
   readonly traceFilters: ReadonlyArray<Filter>;
   readonly traceMetadataColumns: ReadonlyArray<string> | null;
   readonly traceOrderBy: string;
+  readonly experimentFilter: ExperimentFilterState | undefined;
   readonly limit: number;
   readonly traceLimit: number;
   readonly materialize: boolean;
+}
+
+// Flat primitives throughout, so a spread detaches it fully.
+export function copyExperimentFilter(
+  filter: ExperimentFilterState | undefined,
+): ExperimentFilterState | undefined {
+  return filter === undefined ? undefined : {...filter};
 }
 
 // Deep enough that neither side can reach the other's arrays.
@@ -316,6 +340,7 @@ export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
     traceMetadataColumns:
       tab.traceMetadataColumns === null ? null : [...tab.traceMetadataColumns],
     traceOrderBy: tab.traceOrderBy,
+    experimentFilter: copyExperimentFilter(tab.experimentFilter),
     limit: tab.limit,
     traceLimit: tab.traceLimit,
     materialize: tab.materialize,
@@ -332,6 +357,7 @@ export function restoreTabConfig(
   tab.traceMetadataColumns =
     snap.traceMetadataColumns === null ? null : [...snap.traceMetadataColumns];
   tab.traceOrderBy = snap.traceOrderBy;
+  tab.experimentFilter = copyExperimentFilter(snap.experimentFilter);
   tab.limit = snap.limit;
   tab.traceLimit = snap.traceLimit;
   tab.materialize = snap.materialize;
@@ -378,6 +404,9 @@ export interface BigTraceEditorTab {
   // Tri-state (effectiveQueryColumns): null = defaultVisible; [] = nothing; [...] = these.
   traceMetadataColumns: readonly string[] | null;
   traceOrderBy: string;
+  // Which experiment/control pair and arm the query runs over; undefined =
+  // no experiment filtering.
+  experimentFilter?: ExperimentFilterState;
   // Per-tab shown columns (display pref, persisted); null = show all.
   resultColumns: readonly string[] | null;
   // Per-tab disabled setting IDs, independent of global /settings. Seeded from
@@ -432,6 +461,7 @@ interface StoredTab {
   // null = unchosen (attach defaultVisible); preserved distinct from [].
   readonly traceMetadataColumns?: ReadonlyArray<string> | null;
   readonly traceOrderBy?: string;
+  readonly experimentFilter?: ExperimentFilterState;
   readonly resultColumns?: ReadonlyArray<string> | null;
   readonly disabledSettings?: ReadonlyArray<string>;
   readonly configured?: boolean;
@@ -521,6 +551,12 @@ export class QueryTabsState {
       ? (stored?.traceOrderBy ?? '')
       : '';
     // Restored tabs keep their layout; fresh/history start at show-all (null).
+    // Restored whole (names included), so a reload needs no catalog refetch.
+    // Fresh tabs have no experiment selection; a history-reopen tab gets one
+    // from its submit-time snapshot, not from here.
+    const experimentFilter = isFromStorage
+      ? copyExperimentFilter(stored?.experimentFilter)
+      : undefined;
     const resultColumns: readonly string[] | null = isFromStorage
       ? (stored?.resultColumns ?? null)
       : null;
@@ -554,6 +590,7 @@ export class QueryTabsState {
       traceFilters,
       traceMetadataColumns,
       traceOrderBy,
+      experimentFilter,
       resultColumns,
       disabledSettings,
       lifecycle: new AbortController(),
@@ -602,6 +639,7 @@ export class QueryTabsState {
             ? null
             : [...src.traceMetadataColumns],
         traceOrderBy: src.traceOrderBy,
+        experimentFilter: copyExperimentFilter(src.experimentFilter),
         resultColumns: src.resultColumns,
         configured: true,
         lastPresetId: src.lastPresetId,
@@ -675,6 +713,7 @@ export class QueryTabsState {
         traceFilters: t.traceFilters,
         traceMetadataColumns: t.traceMetadataColumns,
         traceOrderBy: t.traceOrderBy,
+        experimentFilter: t.experimentFilter,
         resultColumns: t.resultColumns,
         disabledSettings: t.disabledSettings,
         configured: t.configured,

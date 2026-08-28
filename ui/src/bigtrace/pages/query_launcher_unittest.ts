@@ -490,3 +490,41 @@ describe('presetNameConflict', () => {
     expect(presetNameConflict('Brand new', catalog, [mine])).toBeUndefined();
   });
 });
+
+describe('preset matching with an experiment', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  const filter = {experimentId: 1, controlId: 2, isTreatment: true};
+  const withExperiment = preset({id: 'exp', experimentFilter: filter});
+
+  test('a tab running the preset experiment reads back as that preset', () => {
+    const tab = fakeTab({
+      editorText: 'select 1',
+      experimentFilter: {...filter, experimentName: 'a name'},
+    });
+    // Names are display data the catalog owns, so they cannot decide whether
+    // two selections are the same.
+    expect(selectedPresetId(tab, [withExperiment])).toBe('exp');
+  });
+
+  test('the other arm of the same experiment is a different selection', () => {
+    const tab = fakeTab({
+      editorText: 'select 1',
+      experimentFilter: {...filter, isTreatment: false},
+    });
+    expect(selectedPresetId(tab, [withExperiment])).toBeUndefined();
+  });
+
+  test('an experiment the preset does not name makes it Custom', () => {
+    const tab = fakeTab({editorText: 'select 1', experimentFilter: filter});
+    expect(selectedPresetId(tab, [preset({id: 'plain'})])).toBeUndefined();
+  });
+
+  test('a preset naming one does not match a tab running none', () => {
+    const tab = fakeTab({editorText: 'select 1'});
+    expect(selectedPresetId(tab, [withExperiment])).toBeUndefined();
+  });
+});

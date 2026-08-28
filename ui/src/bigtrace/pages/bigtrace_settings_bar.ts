@@ -21,6 +21,11 @@ import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import type {Setting as BigTraceSetting} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
+  describeExperimentFilter,
+  ensureExperimentNames,
+  summarizeExperimentFilter,
+} from './experiment_filter_control';
+import {
   isTraceSelectionSetting,
   openSettings,
   TRACE_UUIDS_SETTING_ID,
@@ -70,6 +75,7 @@ export class BigtraceSettingsBar implements m.ClassComponent<BigtraceSettingsBar
           ? renderUuidChip(bindings)
           : [
               renderSettingChips(bindings),
+              renderExperimentChip(bindings),
               renderFilterChips(tab, tabsState, bindings),
             ],
       ),
@@ -137,6 +143,23 @@ function renderSettingChip(
 ): m.Children {
   return m(Chip, {
     label: `${setting.name}: ${formatSettingValue(values)}`,
+  });
+}
+
+// The experiment/control arm the query runs over. Named once the catalog
+// answers; until then the id says which one it is.
+function renderExperimentChip(bindings: SettingsBindings): m.Children {
+  const filter = bindings.getExperimentFilter();
+  if (filter === undefined) return null;
+  ensureExperimentNames(bindings);
+  return m(Chip, {
+    label: `${filter.isTreatment ? 'Experiment' : 'Control'}: ${summarizeExperimentFilter(filter)}`,
+    title: describeExperimentFilter(filter),
+    removable: true,
+    onRemove: () => {
+      bindings.setExperimentFilter(undefined);
+      m.redraw();
+    },
   });
 }
 

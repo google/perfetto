@@ -15,7 +15,7 @@
 import {arrayEquals} from '../../base/array_utils';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {SettingFilter} from '../settings/settings_types';
-import type {TracePreset} from './bigtrace_query_client';
+import type {ExperimentFilterSpec, TracePreset} from './bigtrace_query_client';
 import {encodeFilters} from './filter_encoding';
 
 // What a tab is currently configured with, in the shape a preset declares it.
@@ -25,7 +25,23 @@ export interface PresetComparable {
   // null = unchosen (the backend's default-visible columns).
   readonly traceMetadataColumns: readonly string[] | null;
   readonly traceOrderBy: string;
+  // Ids + arm only; display names never take part in a comparison.
+  readonly experimentFilter: ExperimentFilterSpec | undefined;
   readonly settings: ReadonlyArray<SettingFilter>;
+}
+
+// Both-ways equality: a filter on one side and none on the other is a
+// mismatch, exactly like the trace filters.
+function experimentFiltersEqual(
+  a: ExperimentFilterSpec | undefined,
+  b: ExperimentFilterSpec | undefined,
+): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return (
+    a.experimentId === b.experimentId &&
+    a.controlId === b.controlId &&
+    a.isTreatment === b.isTreatment
+  );
 }
 
 // Whether `current` is exactly what the preset describes, so the launcher can
@@ -51,6 +67,11 @@ export function setupMatches(
   current: Omit<PresetComparable, 'sql'>,
 ): boolean {
   if (current.traceOrderBy !== (preset.traceOrderBy ?? '')) return false;
+  if (
+    !experimentFiltersEqual(current.experimentFilter, preset.experimentFilter)
+  ) {
+    return false;
+  }
   // Compared by canonical key-sorted encoding, so a different key order in an
   // otherwise identical filter still matches.
   if (

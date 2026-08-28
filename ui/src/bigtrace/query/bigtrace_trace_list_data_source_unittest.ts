@@ -17,6 +17,7 @@ import m from 'mithril';
 import {BigtraceTraceListDataSource} from './bigtrace_trace_list_data_source';
 import {
   type BigtraceQueryClient,
+  type ExperimentFilterSpec,
   QueryCancelledError,
   type QueryResultPage,
 } from './bigtrace_query_client';
@@ -43,6 +44,7 @@ interface Recorded {
   orderBy?: string;
   filter?: ReadonlyArray<Filter>;
   columns?: ReadonlyArray<string>;
+  experimentFilter?: ExperimentFilterSpec;
 }
 
 function fakeClient(opts?: {page?: QueryResultPage; reject?: Error}) {
@@ -56,8 +58,17 @@ function fakeClient(opts?: {page?: QueryResultPage; reject?: Error}) {
       orderBy?: string,
       filter?: ReadonlyArray<Filter>,
       columns?: ReadonlyArray<string>,
+      experimentFilter?: ExperimentFilterSpec,
     ) => {
-      calls.push({settings, limit, offset, orderBy, filter, columns});
+      calls.push({
+        settings,
+        limit,
+        offset,
+        orderBy,
+        filter,
+        columns,
+        experimentFilter,
+      });
       if (opts?.reject) throw opts.reject;
       return opts?.page ?? PAGE;
     },
@@ -336,5 +347,85 @@ describe('BigtraceTraceListDataSource', () => {
     await flush();
     expect(calls).toHaveLength(2);
     expect(calls[1]).toBe(S3);
+  });
+
+  test('the initial fetch carries the experiment filter', async () => {
+    const {client, calls} = fakeClient();
+    const ds = new BigtraceTraceListDataSource(
+      client,
+      () => SETTINGS,
+      undefined,
+      undefined,
+      () => ({experimentId: 1, controlId: 2, isTreatment: true}),
+    );
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].experimentFilter).toEqual({
+      experimentId: 1,
+      controlId: 2,
+      isTreatment: true,
+    });
+  });
+
+  test('picking, switching arm, and clearing each refetch once', async () => {
+    const {client, calls} = fakeClient();
+    let filter: ExperimentFilterSpec | undefined = undefined;
+    const ds = new BigtraceTraceListDataSource(
+      client,
+      () => SETTINGS,
+      undefined,
+      undefined,
+      () => filter,
+    );
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(1);
+
+    filter = {experimentId: 1, controlId: 2, isTreatment: true};
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(2);
+    expect(calls[1].experimentFilter).toEqual(filter);
+
+    filter = {experimentId: 1, controlId: 2, isTreatment: false};
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(3);
+    expect(calls[2].experimentFilter?.isTreatment).toBe(false);
+
+    filter = undefined;
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(4);
+    expect(calls[3].experimentFilter).toBeUndefined();
+
+    // Nothing changed since: the grid stays put.
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(4);
+  });
+
+  test('names arriving for the chosen experiment do not refetch', async () => {
+    const {client, calls} = fakeClient();
+    // The thunk hands over the wire triple, so display names — which reach
+    // the tab moments later — are invisible here.
+    let filter = {experimentId: 1, controlId: 2, isTreatment: true};
+    const ds = new BigtraceTraceListDataSource(
+      client,
+      () => SETTINGS,
+      undefined,
+      undefined,
+      () => filter,
+    );
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(1);
+
+    filter = {...filter};
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(1);
   });
 });

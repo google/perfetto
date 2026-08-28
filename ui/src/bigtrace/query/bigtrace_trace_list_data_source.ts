@@ -23,6 +23,7 @@ import type {AsyncMemoResult} from '../../base/async_memo';
 import type {SettingFilter} from '../settings/settings_types';
 import {
   type BigtraceQueryClient,
+  type ExperimentFilterSpec,
   QueryCancelledError,
 } from './bigtrace_query_client';
 import {encodeFilters} from './filter_encoding';
@@ -38,6 +39,12 @@ type ModelWithColumns = DataSourceModel & {
 // on those alone — editing another setting leaves the trace set unchanged. The
 // full settings array is still sent on each fetch; this only narrows change
 // detection.
+function experimentFilterKey(filter: ExperimentFilterSpec | undefined): string {
+  return filter === undefined
+    ? ''
+    : `${filter.experimentId}/${filter.controlId}/${filter.isTreatment}`;
+}
+
 function traceSourceSettingsKey(
   settings: ReadonlyArray<SettingFilter>,
 ): string {
@@ -67,6 +74,7 @@ export class BigtraceTraceListDataSource implements DataSource {
   // Settings key at the last fetch. A change (e.g. editing the trace source)
   // invalidates the previous result.
   private lastSettingsKey = '';
+  private lastExperimentKey = '';
   // Visible-column projection at the last fetch — both a change trigger and
   // the `columns` field-mask shipped on the next request.
   private currentColumns: readonly string[] = [];
@@ -86,6 +94,10 @@ export class BigtraceTraceListDataSource implements DataSource {
     private readonly getSettings: () => ReadonlyArray<SettingFilter>,
     private readonly signal?: AbortSignal,
     private readonly onOrderByChange?: (orderBy: string) => void,
+    // Read on every render and every fetch, so the grid shows exactly the
+    // corpus a run would see.
+    private readonly getExperimentFilter?: () =>
+      ExperimentFilterSpec | undefined,
   ) {}
 
   useRows(model: DataSourceModel): DataSourceRows {
@@ -101,6 +113,11 @@ export class BigtraceTraceListDataSource implements DataSource {
     const wantedColumns =
       (model as ModelWithColumns).columns?.map((c) => c.field) ?? [];
     const wantedColumnsKey = JSON.stringify(wantedColumns);
+    // Keyed on the wire triple alone, so names arriving from the catalog
+    // never cost a refetch.
+    const wantedExperimentKey = experimentFilterKey(
+      this.getExperimentFilter?.(),
+    );
 
     const sortChanged = wantedOrderBy !== this.currentOrderBy;
     const filterChanged = wantedFilterKey !== this.currentFilterKey;
@@ -114,6 +131,9 @@ export class BigtraceTraceListDataSource implements DataSource {
     const columnsChanged =
       this.hasInitialFetchCompleted &&
       wantedColumnsKey !== this.currentColumnsKey;
+    const experimentChanged =
+      this.hasInitialFetchCompleted &&
+      wantedExperimentKey !== this.lastExperimentKey;
     const needsInitial = !this.hasInitialFetchCompleted && wantedLimit > 0;
     if (
       (sortChanged ||
@@ -121,6 +141,7 @@ export class BigtraceTraceListDataSource implements DataSource {
         rangeChanged ||
         settingsChanged ||
         columnsChanged ||
+        experimentChanged ||
         needsInitial) &&
       !this.isFetching
     ) {
@@ -177,6 +198,8 @@ export class BigtraceTraceListDataSource implements DataSource {
     this.error = null;
     this.isFetching = true;
     this.lastSettingsKey = traceSourceSettingsKey(settings);
+    const experimentFilter = this.getExperimentFilter?.();
+    this.lastExperimentKey = experimentFilterKey(experimentFilter);
     m.redraw();
     try {
       const result = await this.queryClient.listTraceMetadata(
@@ -188,6 +211,7 @@ export class BigtraceTraceListDataSource implements DataSource {
         this.currentFilter,
         // Empty projection → omit (backend returns its schema defaults).
         this.currentColumns.length > 0 ? this.currentColumns : undefined,
+        experimentFilter,
       );
       this.loadedRows = [...result.rows];
       this.loadedOffset = offset;
