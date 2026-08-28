@@ -12,6 +12,11 @@ Unreleased:
   SDK:
    *
 
+v58.3 - 2026-08-27:
+  Misc:
+    * Fix trace sharing issue where traces with a single selection failed
+      to restore.
+
 v58.2 - 2026-08-21:
   Misc:
     * Fixed additional Windows build and test failures.

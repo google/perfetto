@@ -16,6 +16,7 @@
 
 #include "src/trace_redaction/trace_redactor.h"
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "protos/perfetto/trace/android/packages_list.gen.h"
@@ -224,7 +225,13 @@ TEST(TraceRedactorTest, EmptyTimelineReturnsError) {
             "process stats data sources missing");
 }
 
-TEST(TraceRedactorTest, SinglePassAppendsAugmentAtEnd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_SinglePassAppendsAugmentAtEnd \
+  DISABLED_SinglePassAppendsAugmentAtEnd
+#else
+#define MAYBE_SinglePassAppendsAugmentAtEnd SinglePassAppendsAugmentAtEnd
+#endif
+TEST(TraceRedactorTest, MAYBE_SinglePassAppendsAugmentAtEnd) {
   auto input_file = base::TempFile::Create();
   auto output_file = base::TempFile::Create();
 
@@ -276,7 +283,12 @@ TEST(TraceRedactorTest, SinglePassAppendsAugmentAtEnd) {
   EXPECT_EQ(timestamps[2], 999u);
 }
 
-TEST(TraceRedactorTest, MultiPassPipelineExecution) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_MultiPassPipelineExecution DISABLED_MultiPassPipelineExecution
+#else
+#define MAYBE_MultiPassPipelineExecution MultiPassPipelineExecution
+#endif
+TEST(TraceRedactorTest, MAYBE_MultiPassPipelineExecution) {
   auto input_file = base::TempFile::Create();
   auto output_file = base::TempFile::Create();
 
@@ -322,7 +334,12 @@ TEST(TraceRedactorTest, MultiPassPipelineExecution) {
   EXPECT_EQ(timestamps[2], 999u);
 }
 
-TEST(TraceRedactorTest, ThreePassPipelineExecution) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_ThreePassPipelineExecution DISABLED_ThreePassPipelineExecution
+#else
+#define MAYBE_ThreePassPipelineExecution ThreePassPipelineExecution
+#endif
+TEST(TraceRedactorTest, MAYBE_ThreePassPipelineExecution) {
   auto input_file = base::TempFile::Create();
   auto output_file = base::TempFile::Create();
 

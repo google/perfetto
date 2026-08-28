@@ -12,58 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-"use strict";
-
 // Builds the client-side full-text search index (search_index.json.gz) consumed
 // by setupSearch() in assets/script.js.
 //
-// Inputs (wired up in BUILD.gn):
-//   --full     <md>   Hand-written docs: title, headings and body are indexed.
-//   --gen-dir  <dir>  Generated reference pages (SQL tables, stdlib, protos):
-//                     every *.md is indexed by title + headings only (bodies are
-//                     huge), with its URL from toc.md's `.autogen` entry.
+// Hand-written docs are indexed in full; the huge auto-generated reference pages
+// (SQL tables, stdlib, protos) are indexed by title + headings only to keep the
+// shipped index small.
 //
-// A --full doc's URL is derived from its path relative to --doc-root, mirroring
-// the out_html mapping in BUILD.gn (docs/foo/bar.md -> /docs/foo/bar,
-// README.md -> /docs/).
+// This used to be a CLI that globbed the generated-markdown directory and
+// reverse-engineered each page's URL from its filename via toc.md's `.autogen`
+// entries -- which is why BUILD.gn had to force it to run last, and why editing
+// a generated page's source needed a clean build to re-index. build.mjs now
+// hands it the in-memory page list with URLs already attached, so both problems
+// are gone.
 
-const fs = require("fs");
-const zlib = require("zlib");
-const path = require("path");
-const marked = require("marked");
-const argv = require("yargs").argv;
-const {headingAnchor} = require("./md_utils");
-
-// Normalizes a yargs option that may be absent, a single value, or (for a
-// repeated flag) an array, into a plain array.
-function toArray(v) {
-  if (v === undefined) return [];
-  return Array.isArray(v) ? v : [v];
-}
+import zlib from "node:zlib";
+import { lexer, parseInline } from "marked";
+import { headingAnchor } from "./md_utils.mjs";
 
 // Strips markdown/inline syntax down to readable plain text for indexing and
 // snippets.
 function stripInline(s) {
   return s
-    .replace(/{[#.][^}]*}/g, "")             // {#anchor} and {.tag-foo} attributes.
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")   // Images.
+    .replace(/{[#.][^}]*}/g, "") // {#anchor} and {.tag-foo} attributes.
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // Images.
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // Links -> link text.
-    .replace(/`([^`]*)`/g, "$1")             // Inline code.
-    .replace(/[*_~]+/g, "")                  // Emphasis markers.
+    .replace(/`([^`]*)`/g, "$1") // Inline code.
+    .replace(/[*_~]+/g, "") // Emphasis markers.
     .replace(/\s+/g, " ")
     .trim();
 }
 
 // Extracts {title, headings, body} from a Markdown doc. We tokenize with
-// marked's block lexer -- the same parser markdown_render.js renders the page
-// with -- so the indexer and the page agree on what is a heading vs. code, and
-// heading anchors line up for deep-links even around gnarly constructs like
-// fenced code inside a list.
+// marked's block lexer -- the same parser render.mjs renders the page with -- so
+// the indexer and the page agree on what is a heading vs. code, and heading
+// anchors line up for deep-links even around gnarly constructs like fenced code
+// inside a list.
 function parseMarkdown(md) {
   let title = "";
   const headings = []; // {t, a}
   const bodyParts = [];
-  const pushText = (s) => { const t = stripInline(s); if (t) bodyParts.push(t); };
+  const pushText = (s) => {
+    const t = stripInline(s);
+    if (t) bodyParts.push(t);
+  };
 
   const walk = (tokens) => {
     for (const tok of tokens) {
@@ -75,14 +67,18 @@ function parseMarkdown(md) {
           } else if (text) {
             // Anchor from the inline-rendered heading, matching what the page
             // emits so deep-links land, e.g. "Using `foo`" -> "using-code-foo-code".
-            headings.push({t: text, a: headingAnchor(marked.parseInline(tok.text), tok.depth)});
+            headings.push({
+              t: text,
+              a: headingAnchor(parseInline(tok.text), tok.depth),
+            });
           }
           if (text) bodyParts.push(text);
           break;
         }
         case "table":
           for (const cell of tok.header) pushText(cell.text);
-          for (const row of tok.rows) for (const cell of row) pushText(cell.text);
+          for (const row of tok.rows)
+            for (const cell of row) pushText(cell.text);
           break;
         case "list":
           walk(tok.items);
@@ -91,64 +87,38 @@ function parseMarkdown(md) {
         case "blockquote":
           walk(tok.tokens);
           break;
-        case "code":  // Index code too: people search config keys and API names.
+        case "code": // Index code too: people search config keys and API names.
           pushText(tok.text || "");
           break;
-        case "html":  // Raw HTML and blank/rule tokens carry no prose.
+        case "html": // Raw HTML and blank/rule tokens carry no prose.
         case "space":
         case "hr":
           break;
-        default:      // paragraph, loose text, etc.
+        default: // paragraph, loose text, etc.
           pushText(tok.text || "");
       }
     }
   };
-  walk(marked.lexer(md));
-  return {title, headings, body: bodyParts.join(" ")};
-}
-
-function urlForFullDoc(mdPath, docRoot) {
-  let rel = path.relative(docRoot, mdPath).split(path.sep).join("/");
-  rel = rel.replace(/\.md$/, "");
-  if (rel === "README") return "/docs/";
-  return "/docs/" + rel;
+  walk(lexer(md));
+  return { title, headings, body: bodyParts.join(" ") };
 }
 
 // Maps doc URL -> its nav label from toc.md. These curated labels ("Boot
 // Tracing") are often what people search, while the on-page H1 is a fuller
 // sentence ("Recording traces on Android boot"), so they're worth indexing.
-function parseTocLabels(tocPath) {
+function parseTocLabels(tocMd) {
   const map = new Map();
-  const md = fs.readFileSync(tocPath, "utf8");
+  // Deliberately .md only: the generated reference pages are linked as
+  // `.autogen` and have never carried a nav label in the index.
   const re = /\[([^\]]+)\]\(([^)]+?\.md)\)/g; // [Label](relative/path.md)
   let m;
-  while ((m = re.exec(md)) !== null) {
+  while ((m = re.exec(tocMd)) !== null) {
     const label = stripInline(m[1]);
     const rel = m[2].replace(/^\.\//, "").replace(/\.md$/, "");
     const url = rel === "README" ? "/docs/" : "/docs/" + rel;
     if (label) map.set(url, label);
   }
   return map;
-}
-
-// Slug -> URL for generated pages, from toc.md's ".autogen" links -- where a
-// globbed .md, which carries no URL of its own, gets one.
-function parseGenUrls(tocPath) {
-  const map = new Map();
-  const md = fs.readFileSync(tocPath, "utf8");
-  const re = /\[[^\]]+\]\(([^)]+?)\.autogen\)/g;
-  let m;
-  while ((m = re.exec(md)) !== null) {
-    const rel = m[1].replace(/^\.\//, "");     // "reference/trace-config-proto"
-    map.set(rel.split("/").pop(), "/docs/" + rel); // slug -> url
-  }
-  return map;
-}
-
-// A generated .md's filename to its toc slug, e.g. gen_trace_config_proto.md ->
-// "trace-config-proto", stdlib_docs.md -> "stdlib-docs".
-function genFileSlug(file) {
-  return file.replace(/\.md$/, "").replace(/^gen_/, "").replace(/_/g, "-");
 }
 
 // Lowercase alphanumeric tokens, keeping a trailing "++"/"#" so "c++" and "c#"
@@ -172,8 +142,8 @@ function searchTokenize(str) {
 //   titleTokens -- per-doc tokenized title, for the title boost
 //   navTokens   -- per-doc tokenized nav label, or null; also for the title boost
 function buildInvertedIndex(docs) {
-  const FIELD_BOOST = {title: 8, heading: 4, body: 1};
-  const postings = new Map();  // token -> Map(docIdx -> weight)
+  const FIELD_BOOST = { title: 8, heading: 4, body: 1 };
+  const postings = new Map(); // token -> Map(docIdx -> weight)
   const docLen = new Array(docs.length).fill(0);
   const titleTokens = new Array(docs.length);
   const navTokens = new Array(docs.length).fill(null);
@@ -215,56 +185,50 @@ function buildInvertedIndex(docs) {
     }
     return flat;
   });
-  return {terms, post, docLen, titleTokens, navTokens};
+  return { terms, post, docLen, titleTokens, navTokens };
 }
 
-function main() {
-  const outFile = argv["out"];
-  const docRoot = argv["doc-root"];
-  if (!outFile) throw new Error("Missing --out");
-  const navLabels = argv["toc"] ? parseTocLabels(argv["toc"]) : new Map();
-  const docs = [];
+// True for pages that build to HTML but aren't real search targets: the docsify
+// cover image and the agent-facing contributor guides.
+export function isIndexable(url) {
+  return url !== "/docs/_coverpage" && !url.startsWith("/docs/AGENTS");
+}
 
-  // Attaches the toc.md nav label as `n`, unless it just repeats the title.
-  const withNav = (doc) => {
+// Lexes one document into its indexable parts. Split out from the index build
+// so build.mjs can memoize it per document on content hash -- re-lexing all
+// ~150 docs to reindex after a one-word edit was the slowest thing left in the
+// incremental path.
+//
+// `full` indexes the body too; otherwise only title + headings are indexed
+// (used for the huge generated reference dumps).
+// TODO: indexing the generated pages' bodies too grows the gzipped index ~60%
+// and lets these dumps dominate generic queries -- so it'd want a separate,
+// lazily-loaded index.
+export function parseSearchDoc(url, markdown, full) {
+  const parsed = parseMarkdown(markdown);
+  if (full && !parsed.title) return null; // Skip empty redirect stubs.
+  const doc = { u: url, t: parsed.title || url, h: parsed.headings };
+  if (full) doc.b = parsed.body;
+  return doc;
+}
+
+// parsedDocs: parseSearchDoc() results with nulls already filtered out.
+export function assembleSearchIndex(parsedDocs, tocMd) {
+  const navLabels = parseTocLabels(tocMd);
+  const docs = [];
+  for (const parsed of parsedDocs) {
+    // Copy: parsed docs are memoized, so they must not accumulate an `n` field
+    // across builds.
+    const doc = { ...parsed };
     const nav = navLabels.get(doc.u);
     if (nav && nav !== doc.t) doc.n = nav;
-    return doc;
-  };
-
-  for (const mdPath of toArray(argv["full"])) {
-    const url = urlForFullDoc(mdPath, docRoot);
-    // These build to HTML but aren't real search targets: the docsify cover
-    // image and the agent-facing contributor guides.
-    if (url === "/docs/_coverpage" || url.startsWith("/docs/AGENTS")) continue;
-    const parsed = parseMarkdown(fs.readFileSync(mdPath, "utf8"));
-    if (!parsed.title) continue; // Skip empty redirect stubs (src/empty.md).
-    docs.push(withNav({u: url, t: parsed.title, h: parsed.headings, b: parsed.body}));
-  }
-
-  // Generated reference pages: index title + headings only (bodies are huge).
-  // The URL comes from toc.md; a .md with no `.autogen` entry there isn't a page.
-  // TODO: indexing their bodies too grows the gzipped index ~60% and lets these
-  // dumps dominate generic queries -- so it'd want a separate, lazily-loaded index.
-  const genDir = argv["gen-dir"];
-  if (genDir) {
-    const genUrls = parseGenUrls(argv["toc"]);
-    for (const file of fs.readdirSync(genDir)) {
-      if (!file.endsWith(".md")) continue;
-      const url = genUrls.get(genFileSlug(file));
-      if (!url) continue;
-      const parsed = parseMarkdown(fs.readFileSync(path.join(genDir, file), "utf8"));
-      docs.push(withNav({u: url, t: parsed.title || url, h: parsed.headings}));
-    }
+    docs.push(doc);
   }
 
   docs.sort((a, b) => a.u.localeCompare(b.u)); // Deterministic output.
   const index = buildInvertedIndex(docs);
   // The docs-site proxy serves this file uncompressed, so gzip it here and let
   // script.js inflate it. Level 9: built once, so size wins over speed.
-  const json = JSON.stringify({docs, ...index});
-  fs.mkdirSync(path.dirname(outFile), {recursive: true});
-  fs.writeFileSync(outFile, zlib.gzipSync(json, {level: 9}));
+  const json = JSON.stringify({ docs, ...index });
+  return zlib.gzipSync(json, { level: 9 });
 }
-
-main();

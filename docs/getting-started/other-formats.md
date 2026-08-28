@@ -1168,16 +1168,24 @@ involves collecting CPU profiles from Go programs or converting `perf.data` file
     `runtime/pprof` package to programmatically collect a profile or use the
     `net/http/pprof` package to expose a profiling endpoint on a running server.
 
-    To collect a profile from a running server, you can use the `go tool pprof`
-    command:
+    To collect a profile from a running server, fetch the profiling endpoint
+    directly:
+
+    ```bash
+    curl -o cpu.pprof 'http://localhost:6060/debug/pprof/profile?seconds=30'
+    ```
+
+    `go tool pprof <url>` collects the same 30-second profile: it saves a copy
+    under `$HOME/pprof/`, prints the path it used and then enters interactive
+    mode. From there, the `proto` command writes the profile out again:
 
     ```bash
     go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+    (pprof) proto >cpu.pprof
     ```
 
-    This will collect a 30-second CPU profile and open it in the pprof tool.
-    You can then save the profile to a file using the `save` command in the
-    pprof tool.
+    The resulting file is gzip-compressed; the Perfetto UI and trace processor
+    read it as-is, without decompressing it first.
 
 2.  **Convert Linux `perf.data` to pprof format:** Use the `perf_to_profile`
     tool from the `perf_data_converter` package.

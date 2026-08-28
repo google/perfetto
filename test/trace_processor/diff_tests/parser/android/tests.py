@@ -366,3 +366,55 @@ class AndroidParser(TestSuite):
           "trigger_type","hosting_type"
           "TRIGGER_TYPE_JOB","HOSTING_TYPE_SERVICE"
         """))
+
+  def test_android_process_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.reason,
+          t.is_initial
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.reason;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","reason","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"[NULL]",1
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",0
+          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"OOM_ADJ_REASON_BIND_SERVICE",0
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]",1
+          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"[NULL]",1
+          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"OOM_ADJ_REASON_BIND_SERVICE",0
+          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"OOM_ADJ_REASON_START_RECEIVER",0
+        """))
+
+  def test_android_freezer_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.unfrozen_dur_ms,
+          t.frozen_dur_ms,
+          t.unfreeze_reason,
+          t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","is_initial"
+          "[NULL]",100,"[NULL]","[NULL]","UFR_ACTIVITY",1
+          3000,200,100,300,"UFR_BIND_SERVICE",0
+          "[NULL]",600,"[NULL]","[NULL]","UFR_PING",1
+          "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
+        """))

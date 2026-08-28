@@ -394,9 +394,3 @@ if (enable_perfetto_ui) {
     deps = [ "ui" ]
   }
 }
-
-if (enable_perfetto_site) {
-  group("site") {
-    deps = [ "infra/perfetto.dev:site" ]
-  }
-}
