@@ -151,9 +151,10 @@ base::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
       // We have enough bytes to complete the partial record. Create a new
       // buffer for that record.
       TraceBlob buf = TraceBlob::Allocate(record_len_bytes);
-      memcpy(buf.data(), leftover_bytes_.data(), leftover_bytes_.size());
-      memcpy(buf.data() + leftover_bytes_.size(), blob.data() + byte_offset,
-             missing_bytes);
+      memcpy(buf.mutable_data(), leftover_bytes_.data(),
+             leftover_bytes_.size());
+      memcpy(buf.mutable_data() + leftover_bytes_.size(),
+             blob.data() + byte_offset, missing_bytes);
       byte_offset += missing_bytes;
       size -= missing_bytes;
       leftover_bytes_.clear();

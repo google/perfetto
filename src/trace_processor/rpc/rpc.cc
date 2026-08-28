@@ -43,6 +43,8 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
 
@@ -384,7 +386,8 @@ void Rpc::ParseRpcRequest(Stream& stream, const uint8_t* data, size_t len) {
         result->set_error(kErrFieldNotSet);
       } else {
         protozero::ConstBytes byte_range = req.append_trace_data();
-        base::Status res = Parse(byte_range.data, byte_range.size);
+        base::Status res = Parse(TraceBlobView(
+            TraceBlob::CopyFrom(byte_range.data, byte_range.size)));
         if (!res.ok()) {
           result->set_error(res.message());
         }
@@ -707,7 +710,8 @@ void Rpc::ParseRpcRequest(Stream& stream, const uint8_t* data, size_t len) {
   }  // switch(req_type)
 }
 
-base::Status Rpc::Parse(const uint8_t* data, size_t len) {
+base::Status Rpc::Parse(TraceBlobView blob) {
+  const size_t len = blob.size();
   PERFETTO_TP_TRACE(
       metatrace::Category::API_TIMELINE, "RPC_PARSE",
       [&](metatrace::Record* r) { r->AddArg("length", std::to_string(len)); });
@@ -724,10 +728,7 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   if (len == 0)
     return base::OkStatus();
 
-  // TraceProcessor needs take ownership of the memory chunk.
-  std::unique_ptr<uint8_t[]> data_copy(new uint8_t[len]);
-  memcpy(data_copy.get(), data, len);
-  return trace_processor_->Parse(std::move(data_copy), len);
+  return trace_processor_->Parse(std::move(blob));
 }
 
 base::Status Rpc::NotifyEndOfFile() {

@@ -32,6 +32,8 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/httpd.h"
 #include "src/trace_processor/rpc/rpc.h"
@@ -243,8 +245,18 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/parse") {
-    base::Status status = global_trace_processor_rpc_.Parse(
-        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    // The body lives in |state.payload| (see OnHttpRequestBody()), so hand the
+    // buffer over rather than copying it; the next body gets a fresh one.
+    ConnState& state = conns_[&conn];
+    TraceBlobView blob;
+    if (!req.body.empty()) {
+      PERFETTO_DCHECK(reinterpret_cast<const uint8_t*>(req.body.data()) ==
+                      state.payload.get());
+      blob = TraceBlobView(
+          TraceBlob::TakeOwnership(std::move(state.payload), req.body.size()));
+      state.payload_size = 0;
+    }
+    base::Status status = global_trace_processor_rpc_.Parse(std::move(blob));
     protozero::HeapBuffered<protos::pbzero::AppendTraceDataResult> result;
     if (!status.ok()) {
       result->set_error(status.c_message());

@@ -45,18 +45,30 @@ namespace trace_processor {
 // TraceBlob becomes refcounted (TBV handles the inc/dec of refcount).
 // TraceBlobView allows to have multiple instances pointing at (different
 // sub-offsets of) the same TraceBlob.
-// The neat thing about TraceBlob is that it deals transparently with owned
-// memory (in the case of Allocate and TakeOwnership) and memory-mapped memory.
+// The neat thing about TraceBlob is that it deals transparently with whoever
+// owns the memory: a heap buffer, an mmap region or any other object. All it
+// keeps is a callback to run once the last view onto the blob goes away, and
+// every factory below is a thin wrapper over Adopt().
 class PERFETTO_EXPORT_COMPONENT TraceBlob : public RefCounted {
  public:
+  // Called with |ctx| when the blob and every TraceBlobView onto it are gone.
+  using Deleter = void (*)(void* ctx);
+
   static TraceBlob Allocate(size_t size);
   static TraceBlob CopyFrom(const void*, size_t size);
   static TraceBlob TakeOwnership(std::unique_ptr<uint8_t[]>, size_t size);
   static TraceBlob FromMmap(base::ScopedMmap);
 
-  // DEPRECATED: does not work on Windows.
-  // Takes ownership of the mmap region. Will call munmap() on destruction.
-  static TraceBlob FromMmap(void* data, size_t size);
+  // Wraps memory which stays valid until |deleter| is invoked with |ctx|.
+  static TraceBlob Adopt(const uint8_t* data, size_t size, void* ctx, Deleter);
+
+  // Wraps memory kept alive by |owner|, which is destroyed once the blob and
+  // every TraceBlobView onto it are gone.
+  template <typename T>
+  static TraceBlob Adopt(const uint8_t* data, size_t size, T owner) {
+    return Adopt(data, size, new T(std::move(owner)),
+                 [](void* ctx) { delete static_cast<T*>(ctx); });
+  }
 
   ~TraceBlob();
 
@@ -68,18 +80,26 @@ class PERFETTO_EXPORT_COMPONENT TraceBlob : public RefCounted {
   TraceBlob(const TraceBlob&) = delete;
   TraceBlob& operator=(const TraceBlob&) = delete;
 
-  uint8_t* data() const { return data_; }
+  const uint8_t* data() const { return data_; }
   size_t size() const { return size_; }
 
+  // Only valid for blobs from Allocate() and TakeOwnership().
+  uint8_t* mutable_data() const;
+
  private:
-  enum class Ownership { kNullOrMmapped = 0, kHeapBuf };
+  TraceBlob(const uint8_t* data,
+            uint8_t* mutable_data,
+            size_t size,
+            void* ctx,
+            Deleter deleter);
 
-  TraceBlob(Ownership ownership, uint8_t* data, size_t size);
+  static TraceBlob FromHeapBuf(uint8_t* buf, size_t size);
 
-  Ownership ownership_ = Ownership::kNullOrMmapped;
-  uint8_t* data_ = nullptr;
+  const uint8_t* data_ = nullptr;
+  uint8_t* mutable_data_ = nullptr;
   size_t size_ = 0;
-  std::unique_ptr<base::ScopedMmap> mapping_;
+  void* ctx_ = nullptr;
+  Deleter deleter_ = nullptr;
 };
 
 }  // namespace trace_processor

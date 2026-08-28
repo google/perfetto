@@ -145,7 +145,7 @@ std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
     }
 
     static void AddSlice(TraceBlob& blob, size_t offset, TraceBlobView tbv) {
-      memcpy(blob.data() + offset, tbv.data(), tbv.size());
+      memcpy(blob.mutable_data() + offset, tbv.data(), tbv.size());
     }
 
     static std::optional<TraceBlobView> Finalize(TraceBlob blob) {
