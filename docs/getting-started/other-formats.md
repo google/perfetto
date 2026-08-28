@@ -802,7 +802,7 @@ primarily useful for extracting CPU profiling data (stack samples).
   - The primary focus of this import is on **CPU stack samples**.
   - Data such as call stacks, sample timestamps, and thread information is
     extracted and loaded into Perfetto's profiling tables, specifically
-    `cpu_profile_stack_sample` for the samples themselves, and
+    `instruments_sample` for the samples themselves, and
     `stack_profile_callsite`, `stack_profile_frame`, `stack_profile_mapping` for
     the call stack information.
   - This enables the visualization of the CPU profile as a flamegraph within the
@@ -816,10 +816,34 @@ primarily useful for extracting CPU profiling data (stack samples).
 
 **How to Generate:** Traces are originally collected using the Instruments
 application in Xcode or the `xctrace` command-line utility, which produce a
-`.trace` package. The XML file that Perfetto ingests is an export from such a
-trace. (The specific steps for exporting to this XML format from Instruments
-would need to be followed within the Instruments tool itself; Perfetto then
-consumes the resulting XML file).
+`.trace` package. The XML file that Perfetto ingests is an export of that
+package, which `xctrace` can produce directly:
+
+```bash
+# Record a CPU profile of a command (requires the full Xcode, not just the
+# command line tools).
+xcrun xctrace record --template 'CPU Profiler' --output profile.trace \
+    --launch -- /path/to/binary
+
+# Export the samples as XML.
+xcrun xctrace export --input profile.trace \
+    --xpath '//trace-toc/run/data/table[@schema="cpu-profile"]' \
+    --output profile.xml
+
+# Open profile.xml in ui.perfetto.dev.
+```
+
+Timestamps in such an export are relative to the start of the recording. If a
+Perfetto trace was recorded in parallel and the two need to share a clock,
+export the points-of-interest signpost table alongside the samples: Perfetto
+emits `dev.perfetto.clock_sync` signposts while tracing, and the importer uses
+them to convert the Instruments timestamps to the Perfetto boottime clock.
+
+```bash
+xcrun xctrace export --input profile.trace \
+    --xpath '//trace-toc/run/data/table[@schema="os-signpost" and @category="PointsOfInterest"] | //trace-toc/run/data/table[@schema="cpu-profile"]' \
+    --output profile.xml
+```
 
 **External Resources:**
 

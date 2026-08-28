@@ -79,7 +79,7 @@ std::string MakeTrimmed(const char* chars, int len) {
 // The Instruments XML tokenizer reads instruments traces exported with:
 //
 //   xctrace export --input /path/to/profile.trace --xpath
-//     '//trace-toc/run/data/table[@schema="os-signpost and
+//     '//trace-toc/run/data/table[@schema="os-signpost" and
 //        @category="PointsOfInterest"] |
 //      //trace-toc/run/data/table[@schema="cpu-profile"]'
 //
