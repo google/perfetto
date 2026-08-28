@@ -21,7 +21,6 @@
 #include <stdint.h>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/ext/base/paged_memory.h"
 
 namespace protozero {
 
@@ -96,17 +95,46 @@ namespace protozero {
 // 2. If still there isn't enough space, we expand the buffer.
 // Given that each message is expected to be at most kMaxMsgSize (64 MB), the
 // expansion is bound at 2 * kMaxMsgSize.
+//
+// All of the above is only possible while no Message still points into the
+// buffer. Messages hold a reference to it, so if the caller retains one (e.g.
+// to hand it to another thread) the next write moves onto another buffer and
+// the last Message releases the old one. The buffer left behind is picked up
+// again by the following switch, so retaining a message per write ping-pongs
+// between two buffers rather than allocating on each of them.
 
 class ProtoRingBuffer {
+ private:
+  class Buffer;
+
  public:
   static constexpr size_t kMaxMsgSize = 64 * 1024 * 1024;
-  struct Message {
-    const uint8_t* start = nullptr;
-    uint32_t len = 0;
-    uint32_t field_id = 0;
-    bool fatal_framing_error = false;
-    const uint8_t* end() const { return start + len; }
-    inline bool valid() const { return !!start; }
+  // The payload of one field, without its preamble. Keeps the buffer it points
+  // into alive, so it stays valid across further writes and can be moved to
+  // another thread.
+  class Message {
+   public:
+    Message() = default;
+    ~Message();
+    Message(Message&&) noexcept;
+    Message& operator=(Message&&) noexcept;
+    Message(const Message&) = delete;
+    Message& operator=(const Message&) = delete;
+
+    const uint8_t* data() const { return start_; }
+    const uint8_t* end() const { return start_ + len_; }
+    uint32_t size() const { return len_; }
+    uint32_t field_id() const { return field_id_; }
+    bool valid() const { return !!start_; }
+    bool fatal_framing_error() const { return fatal_framing_error_; }
+
+   private:
+    friend class ProtoRingBuffer;
+    Buffer* buf_ = nullptr;
+    const uint8_t* start_ = nullptr;
+    uint32_t len_ = 0;
+    uint32_t field_id_ = 0;
+    bool fatal_framing_error_ = false;
   };
 
   ProtoRingBuffer();
@@ -155,24 +183,27 @@ class ProtoRingBuffer {
   // If a message can be read, it returns the boundaries of the message
   // (without including the preamble) and advances the read cursor.
   // If no message is available, returns a null range.
-  // The returned pointer is only valid until the next call to BeginWrite(),
-  // as that can recompact or resize the underlying buffer.
   Message ReadMessage();
 
-  // Exposed for testing.
-  size_t capacity() const { return buf_.size(); }
-  size_t avail() const { return buf_.size() - (wr_ - rd_); }
+  // Exposed for testing: buffers allocated over the lifetime of the reader.
+  uint32_t num_buffers_for_testing() const { return num_buffers_; }
 
  private:
   friend class WriteHandle;
 
+  void SwitchToFreshBuffer(size_t capacity);
   void FinishWrite(size_t size_written);
 
-  perfetto::base::PagedMemory buf_;
+  // Refcounted; the ring buffer holds one reference, each Message another.
+  Buffer* buf_ = nullptr;
+  // The buffer left behind by the last SwitchToFreshBuffer(), reused once the
+  // Messages pinning it are released.
+  Buffer* spare_ = nullptr;
   bool failed_ = false;  // Set in case of an unrecoverable framing faiulre.
   size_t rd_ = 0;        // Offset of the read cursor in |buf_|.
   size_t wr_ = 0;        // Offset of the write cursor in |buf_|.
   bool write_in_flight_ = false;
+  uint32_t num_buffers_ = 1;
 };
 
 }  // namespace protozero

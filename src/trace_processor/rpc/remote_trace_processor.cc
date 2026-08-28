@@ -293,10 +293,10 @@ base::Status RemoteTraceProcessor::SendStream(
 base::Status RemoteTraceProcessor::ReadResponse(std::vector<uint8_t>* out) {
   for (;;) {
     auto msg = rxbuf_.ReadMessage();
-    if (msg.fatal_framing_error)
+    if (msg.fatal_framing_error())
       return base::ErrStatus("RPC framing error from session");
     if (msg.valid()) {
-      out->assign(msg.start, msg.start + msg.len);
+      out->assign(msg.data(), msg.end());
       return base::OkStatus();
     }
     constexpr size_t kReadSize = 4096;
