@@ -34,18 +34,22 @@ using testing::ElementsAre;
 
 namespace protozero {
 
+struct ExpectedMessage {
+  const uint8_t* start = nullptr;
+  uint32_t len = 0;
+  uint32_t field_id = 0;
+};
+
 // For ASSERT_EQ()
 inline bool operator==(const ProtoRingBuffer::Message& a,
-                       const ProtoRingBuffer::Message& b) {
-  if (a.field_id != b.field_id || a.len != b.len || a.valid() != b.valid())
+                       const ExpectedMessage& b) {
+  if (a.field_id() != b.field_id || a.size() != b.len || !a.valid())
     return false;
-  if (!a.valid())
-    return true;
-  return memcmp(a.start, b.start, a.len) == 0;
+  return memcmp(a.data(), b.start, b.len) == 0;
 }
 
 inline std::ostream& operator<<(std::ostream& stream,
-                                const ProtoRingBuffer::Message& msg) {
+                                const ExpectedMessage& msg) {
   stream << "Message{field_id:" << msg.field_id << ", len:" << msg.len;
   stream << ", payload: \"";
   static constexpr uint32_t kTruncLen = 16;
@@ -55,6 +59,11 @@ inline std::ostream& operator<<(std::ostream& stream,
     stream << "...";
   stream << "\"}";
   return stream;
+}
+
+inline std::ostream& operator<<(std::ostream& stream,
+                                const ProtoRingBuffer::Message& msg) {
+  return stream << ExpectedMessage{msg.data(), msg.size(), msg.field_id()};
 }
 
 namespace {
@@ -71,10 +80,10 @@ void Write(ProtoRingBuffer* buf, const void* data, size_t len) {
 
 class ProtoRingBufferTest : public ::testing::Test {
  public:
-  ProtoRingBuffer::Message MakeProtoMessage(uint32_t field_id,
-                                            uint32_t len,
-                                            bool append = false) {
-    ProtoRingBuffer::Message msg{};
+  ExpectedMessage MakeProtoMessage(uint32_t field_id,
+                                   uint32_t len,
+                                   bool append = false) {
+    ExpectedMessage msg{};
     namespace proto_utils = protozero::proto_utils;
     const uint8_t* initial_ptr = last_msg_.data();
     if (!append)
@@ -109,7 +118,7 @@ class ProtoRingBufferTest : public ::testing::Test {
 TEST_F(ProtoRingBufferTest, CoalescingStream) {
   ProtoRingBuffer buf;
   last_msg_.reserve(1024);
-  std::list<ProtoRingBuffer::Message> expected;
+  std::list<ExpectedMessage> expected;
 
   // Build 6 messages of 100 bytes each (100 does not include preambles).
   for (uint32_t i = 1; i <= 6; i++)
@@ -132,7 +141,7 @@ TEST_F(ProtoRingBufferTest, CoalescingStream) {
       if (!msg.valid())
         break;
       ASSERT_FALSE(expected.empty());
-      ASSERT_EQ(expected.front(), msg);
+      ASSERT_EQ(msg, expected.front());
       expected.pop_front();
     }
   }
@@ -144,7 +153,7 @@ TEST_F(ProtoRingBufferTest, RandomSizes) {
   std::minstd_rand0 rnd(0);
 
   last_msg_.reserve(1024 * 1024 * 64);
-  std::list<ProtoRingBuffer::Message> expected;
+  std::list<ExpectedMessage> expected;
 
   const uint32_t kNumMsg = 100;
   for (uint32_t i = 0; i < kNumMsg; i++) {
@@ -171,7 +180,7 @@ TEST_F(ProtoRingBufferTest, RandomSizes) {
       if (!msg.valid())
         break;
       ASSERT_FALSE(expected.empty());
-      ASSERT_EQ(expected.front(), msg);
+      ASSERT_EQ(msg, expected.front());
       expected.pop_front();
     }
   }
@@ -187,7 +196,7 @@ TEST_F(ProtoRingBufferTest, HandleProtoErrorsGracefully) {
   Write(&buf, last_msg_.data(), last_msg_.size() - 1);
   auto msg = buf.ReadMessage();
   EXPECT_FALSE(msg.valid());
-  EXPECT_FALSE(msg.fatal_framing_error);
+  EXPECT_FALSE(msg.fatal_framing_error());
 
   uint8_t invalid[] = {0x7f, 0x7f, 0x7f, 0x7f};
   invalid[0] = last_msg_.back();
@@ -201,7 +210,7 @@ TEST_F(ProtoRingBufferTest, HandleProtoErrorsGracefully) {
   for (int i = 0; i < 3; i++) {
     msg = buf.ReadMessage();
     EXPECT_FALSE(msg.valid());
-    EXPECT_TRUE(msg.fatal_framing_error);
+    EXPECT_TRUE(msg.fatal_framing_error());
 
     Write(&buf, invalid, sizeof(invalid));
   }
@@ -270,6 +279,162 @@ TEST_F(ProtoRingBufferTest, GivingUpDoesNotAbort) {
     handle.EndWrite(kChunk);
     buf.ReadMessage();
   }
+}
+
+TEST_F(ProtoRingBufferTest, SteadyStateDoesNotAllocate) {
+  ProtoRingBuffer buf;
+  auto expected = MakeProtoMessage(/*field_id=*/1, /*len=*/512);
+  for (int i = 0; i < 1000; i++) {
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    ASSERT_EQ(buf.ReadMessage(), expected);
+    ASSERT_FALSE(buf.ReadMessage().valid());
+  }
+  // The buffer is recycled every time the read cursor catches up with the
+  // write one, so half a megabyte never gets past the first allocation.
+  EXPECT_EQ(buf.num_buffers_for_testing(), 1u);
+}
+
+TEST_F(ProtoRingBufferTest, RetainedMessagesKeepTheirBufferAlive) {
+  ProtoRingBuffer buf;
+  auto expected = MakeProtoMessage(/*field_id=*/5, /*len=*/100 * 1024);
+  std::vector<ProtoRingBuffer::Message> retained;
+  for (int i = 0; i < 16; i++) {
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    retained.push_back(buf.ReadMessage());
+    ASSERT_TRUE(retained.back().valid());
+  }
+  // Messages pinning the buffer push writes onto fresh ones, rather than
+  // clobbering payloads the caller is still holding.
+  EXPECT_GT(buf.num_buffers_for_testing(), 1u);
+  for (const auto& msg : retained)
+    EXPECT_EQ(msg, expected);
+}
+
+TEST_F(ProtoRingBufferTest, MessageOutlivesTheBuffer) {
+  auto expected = MakeProtoMessage(/*field_id=*/3, /*len=*/64);
+  ProtoRingBuffer::Message msg;
+  {
+    ProtoRingBuffer buf;
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    msg = buf.ReadMessage();
+  }
+  EXPECT_EQ(msg, expected);
+}
+
+TEST_F(ProtoRingBufferTest, RetainedMessageWithIncompleteMessageGrowing) {
+  ProtoRingBuffer buf;
+  last_msg_.reserve(512 * 1024);
+  auto first = MakeProtoMessage(/*field_id=*/1, /*len=*/32 * 1024);
+  const size_t first_size = last_msg_.size();
+  auto second = MakeProtoMessage(/*field_id=*/2, /*len=*/256 * 1024,
+                                 /*append=*/true);
+  const size_t split = first_size + 64 * 1024;
+  Write(&buf, last_msg_.data(), split);
+  auto retained = buf.ReadMessage();
+  ASSERT_EQ(retained, first);
+  ASSERT_FALSE(buf.ReadMessage().valid());
+
+  Write(&buf, last_msg_.data() + split, last_msg_.size() - split);
+  EXPECT_EQ(retained, first);
+  EXPECT_EQ(buf.ReadMessage(), second);
+  EXPECT_FALSE(buf.ReadMessage().valid());
+  // Grow directly to the final capacity, without an intermediate allocation.
+  EXPECT_EQ(buf.num_buffers_for_testing(), 2u);
+  EXPECT_EQ(buf.cached_capacity_for_testing(), 0u);
+}
+
+TEST_F(ProtoRingBufferTest, RetainedMessageWithIncompleteMessageReplacing) {
+  ProtoRingBuffer buf;
+  last_msg_.reserve(256 * 1024);
+  auto first = MakeProtoMessage(/*field_id=*/1, /*len=*/64 * 1024);
+  const size_t first_size = last_msg_.size();
+  auto second = MakeProtoMessage(/*field_id=*/2, /*len=*/96 * 1024,
+                                 /*append=*/true);
+  const size_t split = first_size + 32 * 1024;
+  Write(&buf, last_msg_.data(), split);
+  auto retained = buf.ReadMessage();
+  ASSERT_EQ(retained, first);
+  ASSERT_FALSE(buf.ReadMessage().valid());
+
+  Write(&buf, last_msg_.data() + split, last_msg_.size() - split);
+  EXPECT_EQ(retained, first);
+  EXPECT_EQ(buf.ReadMessage(), second);
+  EXPECT_FALSE(buf.ReadMessage().valid());
+  // The pending message fits the original capacity, but cannot overwrite the
+  // retained message. Keep the old allocation for reuse after its release.
+  EXPECT_EQ(buf.num_buffers_for_testing(), 2u);
+  EXPECT_EQ(buf.cached_capacity_for_testing(), 128u * 1024);
+}
+
+TEST_F(ProtoRingBufferTest, GrowthDropsUndersizedSpare) {
+  ProtoRingBuffer buf;
+  MakeProtoMessage(/*field_id=*/1, /*len=*/100 * 1024);
+  Write(&buf, last_msg_.data(), last_msg_.size());
+  auto retained = buf.ReadMessage();
+  Write(&buf, last_msg_.data(), last_msg_.size());
+  ASSERT_TRUE(buf.ReadMessage().valid());
+  ASSERT_GT(buf.cached_capacity_for_testing(), 0u);
+  retained = {};
+
+  auto expected = MakeProtoMessage(/*field_id=*/2, /*len=*/256 * 1024);
+  Write(&buf, last_msg_.data(), last_msg_.size());
+  EXPECT_EQ(buf.ReadMessage(), expected);
+  EXPECT_EQ(buf.cached_capacity_for_testing(), 0u);
+  EXPECT_EQ(buf.num_buffers_for_testing(), 3u);
+}
+
+TEST_F(ProtoRingBufferTest, RetainedMessageSurvivesFramingError) {
+  ProtoRingBuffer buf;
+  auto expected = MakeProtoMessage(/*field_id=*/1, /*len=*/100 * 1024);
+  Write(&buf, last_msg_.data(), last_msg_.size());
+  auto retained = buf.ReadMessage();
+  ASSERT_EQ(retained, expected);
+  const uint8_t invalid = 0;
+  Write(&buf, &invalid, 1);
+  ASSERT_TRUE(buf.ReadMessage().fatal_framing_error());
+
+  for (int i = 0; i < 3; ++i) {
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    EXPECT_TRUE(buf.ReadMessage().fatal_framing_error());
+    EXPECT_EQ(retained, expected);
+  }
+  EXPECT_EQ(buf.num_buffers_for_testing(), 2u);
+}
+
+TEST_F(ProtoRingBufferTest, MovedMessageKeepsOwnership) {
+  auto expected = MakeProtoMessage(/*field_id=*/3, /*len=*/64);
+  ProtoRingBuffer::Message retained;
+  {
+    ProtoRingBuffer buf;
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    auto original = buf.ReadMessage();
+    auto moved = std::move(original);
+    EXPECT_FALSE(original.valid());
+    EXPECT_EQ(original.size(), 0u);
+    EXPECT_EQ(original.field_id(), 0u);
+    EXPECT_EQ(moved, expected);
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    retained = buf.ReadMessage();
+    retained = std::move(moved);
+    EXPECT_FALSE(moved.valid());
+    EXPECT_EQ(moved.size(), 0u);
+    EXPECT_EQ(moved.field_id(), 0u);
+  }
+  EXPECT_EQ(retained, expected);
+}
+
+TEST_F(ProtoRingBufferTest, RetainingOneMessageRecyclesBuffers) {
+  ProtoRingBuffer buf;
+  auto expected = MakeProtoMessage(/*field_id=*/9, /*len=*/100 * 1024);
+  ProtoRingBuffer::Message inflight;
+  for (int i = 0; i < 1000; i++) {
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    inflight = buf.ReadMessage();  // Releases the previous one.
+    ASSERT_EQ(inflight, expected);
+  }
+  // Each message takes up nearly a whole buffer, so every write has to move
+  // onto another one. Handing them off must still not allocate per message.
+  EXPECT_EQ(buf.num_buffers_for_testing(), 2u);
 }
 
 }  // namespace
