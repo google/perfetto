@@ -865,6 +865,12 @@ occasionally adding fields.
   - Log format versions 5 to 7 are read. ninja bumped the version to v6 in
     1.12 and to v7 in 1.13 without changing the layout of a log line; a
     version outside that range is rejected rather than guessed at.
+  - A `.ninja_log` accumulates the logs of every build run in that output
+    directory, and each build restarts its timestamps from zero. Builds are
+    laid one after the other on the timeline rather than on top of each other,
+    so the number of synthesized worker tracks stays close to the build's `-j`
+    level instead of growing with the number of builds in the log. Build
+    boundaries are lost once `ninja -t recompact` has rewritten the log.
   - This allows the build process to be visualized in the Perfetto UI, showing
     the duration and concurrency of various compilation, linking, and other
     build tasks, which can be very helpful for understanding the build's

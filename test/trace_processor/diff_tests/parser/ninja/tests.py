@@ -62,3 +62,49 @@ class NinjaParser(TestSuite):
           order by slice.ts, slice.name
         """,
         out=Csv(_JOBS))
+
+  # A ninja log accumulates the logs of every invocation in that output
+  # directory, and each invocation restarts its timestamps from zero. The
+  # importer must not lay them on top of each other: it infers parallelism
+  # from overlapping timestamps, so superimposed builds look like one build
+  # with several times the real number of workers. Here the second build (the
+  # last line, which is what breaks the monotonicity of the end timestamps) is
+  # shifted past the end of the first, and its job lands back on the worker
+  # that ran obj/a.o rather than on a fourth one.
+  def test_ninja_log_two_builds(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_two_builds.ninja_log'),
+        query="""
+          select thread.name as worker, slice.ts, slice.dur, slice.name
+          from slice
+          join thread_track on slice.track_id = thread_track.id
+          join thread using(utid)
+          order by slice.ts, slice.name
+        """,
+        out=Csv("""
+          "worker","ts","dur","name"
+          "Worker 1",0,100000000,"obj/a.o"
+          "Worker 2",0,100000000,"obj/b.o"
+          "Worker 1",100000000,100000000,"obj/c.o"
+          "Worker 1",200000000,50000000,"obj/a.o"
+        """))
+
+  # A rule with several outputs is written as one line per output, all with
+  # the same command hash and the same timestamps. Those are one invocation of
+  # one tool and must become a single slice, not one slice per output on a
+  # worker of its own.
+  def test_ninja_log_multi_output(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_multi_output.ninja_log'),
+        query="""
+          select thread.name as worker, slice.ts, slice.dur, slice.name
+          from slice
+          join thread_track on slice.track_id = thread_track.id
+          join thread using(utid)
+          order by slice.ts, slice.name
+        """,
+        out=Csv("""
+          "worker","ts","dur","name"
+          "Worker 1",0,100000000,"gen/foo.pb.h, gen/foo.pb.cc"
+          "Worker 1",120000000,60000000,"obj/foo.o"
+        """))
