@@ -38,13 +38,14 @@
 namespace perfetto::trace_processor {
 
 base::Status RunStdioRpcServer(Rpc& rpc) {
-  char buffer[4096];
+  constexpr size_t kReadSize = 4096;
   for (;;) {
-    auto ret = base::Read(STDIN_FILENO, buffer, base::ArraySize(buffer));
-    if (ret == -1) {
-      return base::ErrStatus("Failed while reading the buffer");
-    }
-    if (ret == 0) {
+    Rpc::RequestHandle req = rpc.BeginRpcRequest(kReadSize);
+    auto ret = base::Read(STDIN_FILENO, req.data(), req.size());
+    if (ret <= 0) {
+      req.AbortRequest();
+      if (ret == -1)
+        return base::ErrStatus("Failed while reading the buffer");
       return base::OkStatus();
     }
     rpc.SetRpcResponseFunction([](const void* ptr, uint32_t size) {
@@ -53,7 +54,7 @@ base::Status RunStdioRpcServer(Rpc& rpc) {
         PERFETTO_FATAL("Failed to write response");
       }
     });
-    rpc.OnRpcRequest(buffer, static_cast<size_t>(ret));
+    req.EndRequest(static_cast<size_t>(ret));
     rpc.SetRpcResponseFunction(nullptr);
   }
 }

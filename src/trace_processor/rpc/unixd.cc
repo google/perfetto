@@ -32,8 +32,6 @@
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/ext/protozero/proto_ring_buffer.h"
-#include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/session_lifecycle.h"
 #include "src/trace_processor/rpc/session_paths.h"
@@ -120,11 +118,9 @@ class UnixRpcServer : public base::UnixSocket::EventListener {
  private:
   struct ClientConn {
     std::unique_ptr<base::UnixSocket> sock;
-    protozero::ProtoRingBuffer rxbuf;
   };
 
   ClientConn* FindConn(base::UnixSocket* self);
-  void DispatchMessage(base::UnixSocket* sock, const uint8_t* data, size_t len);
   void Shutdown();
 
   Rpc& rpc_;
@@ -291,54 +287,33 @@ UnixRpcServer::ClientConn* UnixRpcServer::FindConn(base::UnixSocket* self) {
 }
 
 void UnixRpcServer::OnDataAvailable(base::UnixSocket* self) {
-  ClientConn* conn = FindConn(self);
-  if (!conn)
+  if (!FindConn(self))
     return;
-
-  // Drain everything currently readable into this connection's framing buffer.
-  char buf[4096];
-  for (;;) {
-    size_t n = self->Receive(buf, sizeof(buf));
-    if (n == 0)
-      break;
-    conn->rxbuf.Append(buf, n);
-  }
-
-  // Forward only *whole* TraceProcessorRpc messages to the shared Rpc. Each is
-  // re-wrapped in its TraceProcessorRpcStream framing so Rpc's own tokenizer
-  // never sees a partial frame, even if a different connection disconnects
-  // mid-message.
-  for (;;) {
-    auto msg = conn->rxbuf.ReadMessage();
-    if (!msg.valid()) {
-      if (msg.fatal_framing_error)
-        self->Shutdown(/*notify=*/false);
-      break;
-    }
-    DispatchMessage(self, msg.start, msg.len);
-  }
-}
-
-void UnixRpcServer::DispatchMessage(base::UnixSocket* sock,
-                                    const uint8_t* data,
-                                    size_t len) {
-  namespace pu = protozero::proto_utils;
-  uint8_t preamble[16];
-  uint8_t* preamble_end = preamble;
-  preamble_end = pu::WriteVarInt(pu::MakeTagLengthDelimited(1), preamble_end);
-  preamble_end = pu::WriteVarInt(len, preamble_end);
 
   if (reaper_)
     reaper_->set_query_in_flight(true);
-  rpc_.SetRpcResponseFunction([sock](const void* resp, uint32_t resp_len) {
+
+  // A framing error makes Rpc emit a fatal_error message and then call the
+  // response function with nullptr, which tears the connection down below.
+  rpc_.SetRpcResponseFunction([self](const void* resp, uint32_t resp_len) {
     if (resp == nullptr) {
-      sock->Shutdown(/*notify=*/false);
+      self->Shutdown(/*notify=*/false);
       return;
     }
-    sock->Send(resp, resp_len);
+    self->Send(resp, resp_len);
   });
-  rpc_.OnRpcRequest(preamble, static_cast<size_t>(preamble_end - preamble));
-  rpc_.OnRpcRequest(data, len);
+
+  // A session serves one client at a time, so no second byte stream can
+  // interleave with this one inside Rpc's tokenizer.
+  for (;;) {
+    constexpr size_t kReadSize = 4096;
+    Rpc::RequestHandle req = rpc_.BeginRpcRequest(kReadSize);
+    size_t rx_bytes = self->Receive(req.data(), req.size());
+    req.EndRequest(rx_bytes);
+    if (rx_bytes == 0)
+      break;
+  }
+
   rpc_.SetRpcResponseFunction(nullptr);
   if (reaper_) {
     reaper_->set_query_in_flight(false);

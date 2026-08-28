@@ -16,6 +16,10 @@
 
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 
+#include <new>
+#include <utility>
+
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -76,40 +80,47 @@ RingBufferMessageReader::RingBufferMessageReader()
     : buf_(perfetto::base::PagedMemory::Allocate(kGrowBytes)) {}
 RingBufferMessageReader::~RingBufferMessageReader() = default;
 
-void RingBufferMessageReader::Append(const void* data_void, size_t data_len) {
-  if (failed_)
-    return;
-  const uint8_t* data = static_cast<const uint8_t*>(data_void);
+RingBufferMessageReader::WriteHandle::~WriteHandle() {
+  PERFETTO_CHECK(reader_ == nullptr);
+}
+
+RingBufferMessageReader::WriteHandle::WriteHandle(WriteHandle&& other) noexcept
+    : reader_(other.reader_), data_(other.data_), size_(other.size_) {
+  other.reader_ = nullptr;
+}
+
+RingBufferMessageReader::WriteHandle&
+RingBufferMessageReader::WriteHandle::operator=(WriteHandle&& other) noexcept {
+  this->~WriteHandle();  // CHECKs that any reservation held was consumed.
+  new (this) WriteHandle(std::move(other));
+  return *this;
+}
+
+RingBufferMessageReader::WriteHandle RingBufferMessageReader::BeginWrite(
+    size_t data_len) {
+  PERFETTO_CHECK(data_len <= kMaxMsgSize);
+  // A second reservation could recompact or grow the buffer under the first.
+  PERFETTO_CHECK(!write_in_flight_);
   PERFETTO_DCHECK(wr_ <= buf_.size());
   PERFETTO_DCHECK(wr_ >= rd_);
+
+  // Nothing can be tokenized any more, so recycle the whole buffer for the
+  // bytes EndWrite() is about to drop.
+  if (PERFETTO_UNLIKELY(failed_))
+    rd_ = wr_ = 0;
 
   // If the last call to ReadMessage() consumed all the data in the buffer and
   // there are no incomplete messages pending, restart from the beginning rather
   // than keep ringing. This is the most common case.
-  if (rd_ == wr_)
+  if (PERFETTO_LIKELY(rd_ == wr_))
     rd_ = wr_ = 0;
-
-  // The caller is expected to always issue a ReadMessage() after each Append().
-  PERFETTO_CHECK(!fastpath_.valid());
-  if (rd_ == wr_) {
-    auto msg = TryReadMessage(data, data + data_len);
-    if (msg.valid() && msg.end() == (data + data_len)) {
-      // Fastpath: in many cases, the underlying stream will effectively
-      // preserve the atomicity of messages for most small messages.
-      // In this case we can avoid the extra buf_ roundtrip and just pass a
-      // pointer to |data| + (proto preamble len).
-      // The next call to ReadMessage)= will return |fastpath_|.
-      fastpath_ = std::move(msg);
-      return;
-    }
-  }
 
   size_t avail = buf_.size() - wr_;
   if (data_len > avail) {
     // This whole section should be hit extremely rarely.
 
     // Try first just recompacting the buffer by moving everything to the left.
-    // This can happen if we received "a message and a bit" on each Append call
+    // This can happen if we received "a message and a bit" on each write call
     // so we ended pup in a situation like:
     // buf_: [unused space] [msg1 incomplete]
     //                      ^rd_             ^wr_
@@ -133,21 +144,65 @@ void RingBufferMessageReader::Append(const void* data_void, size_t data_len) {
       while (data_len > new_size - wr_)
         new_size += kGrowBytes;
       if (new_size > kMaxMsgSize * 2) {
+        // These bytes can never amount to a message (e.g. a never-ending
+        // varint). |buf_| exceeds kMaxMsgSize by now, so dropping them leaves
+        // room for the write, which EndWrite() will then discard.
         failed_ = true;
-        return;
+        rd_ = wr_ = 0;
+        write_in_flight_ = true;
+        return WriteHandle(this, static_cast<uint8_t*>(buf_.Get()), data_len);
       }
       auto new_buf = perfetto::base::PagedMemory::Allocate(new_size);
       memcpy(new_buf.Get(), buf_.Get(), buf_.size());
       buf_ = std::move(new_buf);
-      avail = new_size - wr_;
       // No need to touch rd_ / wr_ cursors.
     }
   }
 
-  // Append the received data at the end of the ring buffer.
-  uint8_t* buf = static_cast<uint8_t*>(buf_.Get());
-  memcpy(&buf[wr_], data, data_len);
-  wr_ += data_len;
+  write_in_flight_ = true;
+  return WriteHandle(this, static_cast<uint8_t*>(buf_.Get()) + wr_, data_len);
+}
+
+void RingBufferMessageReader::WriteHandle::EndWrite(size_t size_written) {
+  PERFETTO_CHECK(reader_ != nullptr);
+  PERFETTO_CHECK(size_written <= size_);
+  std::exchange(reader_, nullptr)->FinishWrite(size_written);
+}
+
+void RingBufferMessageReader::WriteHandle::AbortWrite() {
+  PERFETTO_CHECK(reader_ != nullptr);
+  std::exchange(reader_, nullptr)->FinishWrite(0);
+}
+
+void RingBufferMessageReader::FinishWrite(size_t size_written) {
+  write_in_flight_ = false;
+  if (PERFETTO_LIKELY(!failed_))
+    wr_ += size_written;
+}
+
+void RingBufferMessageReader::Append(const void* data_void, size_t data_len) {
+  if (failed_)
+    return;
+  const uint8_t* data = static_cast<const uint8_t*>(data_void);
+
+  // The caller is expected to always issue a ReadMessage() after each Append().
+  PERFETTO_CHECK(!fastpath_.valid());
+  if (rd_ == wr_) {
+    auto msg = TryReadMessage(data, data + data_len);
+    if (msg.valid() && msg.end() == (data + data_len)) {
+      // Fastpath: in many cases, the underlying stream will effectively
+      // preserve the atomicity of messages for most small messages.
+      // In this case we can avoid the extra buf_ roundtrip and just pass a
+      // pointer to |data| + (proto preamble len).
+      // The next call to ReadMessage)= will return |fastpath_|.
+      fastpath_ = std::move(msg);
+      return;
+    }
+  }
+
+  WriteHandle handle = BeginWrite(data_len);
+  memcpy(handle.data(), data, data_len);
+  handle.EndWrite(data_len);
 }
 
 RingBufferMessageReader::Message RingBufferMessageReader::ReadMessage() {
