@@ -40,8 +40,12 @@ class RootMessage : public T {
   RootMessage& operator=(RootMessage&&) = delete;
 
   void Reset(ScatteredStreamWriter* writer) {
+    Reset(writer, NestedMessageEncoding::kLengthDelimited);
+  }
+
+  void Reset(ScatteredStreamWriter* writer, NestedMessageEncoding encoding) {
     root_arena_.Reset();
-    Message::Reset(writer, &root_arena_);
+    Message::Reset(writer, &root_arena_, encoding);
   }
 
  private:
