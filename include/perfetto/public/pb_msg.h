@@ -18,7 +18,9 @@
 #define INCLUDE_PERFETTO_PUBLIC_PB_MSG_H_
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "perfetto/public/abi/stream_writer_abi.h"
@@ -31,34 +33,128 @@
 // proto_utils.h.
 #define PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE 4
 
+// Encoding used for nested messages. The root picks it when it is initialized
+// and all its children use the same one.
+enum PerfettoPbMsgEncoding {
+  // Normal protobuf. The nested-message length is filled in on finalization.
+  PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED = 0,
+
+  // Append-only proto-group encoding used by tracing v2.
+  // - Supports scalars, whole string/bytes/packed values and nested messages.
+  // - Incremental STRING/PACKED builders abort before writing a start tag.
+  // See PERFETTO_PB_PROTO_GROUP_END_BYTE in pb_utils.h for the wire format.
+  PERFETTO_PB_MSG_ENCODING_PROTO_GROUP = 1,
+};
+
+// The top two bits of PerfettoPbMsg::size store proto-group state. Keeping it
+// here preserves the public struct layout: adding a field would grow both
+// PerfettoPbMsg and the generated messages that embed it on 32-bit targets,
+// which have no spare padding.
+//
+// These are bits in the in-memory size member, not bytes in the packet:
+//
+//       bit 31          bit 30             bits 29..0
+//   +---------------+---------------+------------------------+
+//   | proto-group   | end written   | byte count             |
+//   +---------------+---------------+------------------------+
+//
+// - Proto-group: this message and its children use proto-group encoding.
+// - End written: this nested message has already appended its closing byte.
+//   Finalize() checks this bit to avoid appending it again. The root has no
+//   closing byte, so its bit stays clear even after finalization.
+// - Byte count: the size without either flag, read with PerfettoPbMsgSize().
+//   Both flags stay clear for length-delimited messages.
+//
+// The flags sit above the supported size range. The existing four-byte
+// nested-message length limit still applies; the 30 count bits do not raise it.
+#define PERFETTO_PB_MSG_PROTO_GROUP_BIT (UINT32_C(1) << 31)
+#define PERFETTO_PB_MSG_PROTO_GROUP_END_WRITTEN_BIT (UINT32_C(1) << 30)
+#define PERFETTO_PB_MSG_SIZE_MASK ((UINT32_C(1) << 30) - 1)
+
+static_assert(PERFETTO_PB_MSG_SIZE_MASK >=
+                  (UINT32_C(1) << (PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE * 7)) -
+                      1,
+              "The size bits must cover every length the four-byte "
+              "nested-message length field can hold");
+
 // Points to the memory used by a `PerfettoPbMsg` for writing.
 struct PerfettoPbMsgWriter {
   struct PerfettoStreamWriter writer;
 };
 
 struct PerfettoPbMsg {
-  // Pointer to a non-aligned pre-reserved var-int slot of
-  // PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE bytes. If not NULL,
-  // protozero_length_buf_finalize() will write the size of proto-encoded
-  // message in the pointed memory region.
+  // Reserved length field for a length-delimited nested message. It may be
+  // unaligned and has PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE bytes.
+  // PerfettoPbMsgFinalize() fills in the length, then clears this pointer.
+  //
+  // In proto-group mode, a nested message ends with a closing byte and the
+  // root ends at the packet boundary. Neither reserves a length before its
+  // contents, so this pointer stays NULL.
   uint8_t* size_field;
 
-  // Current size of the buffer.
+  // Byte count and proto-group flags (see above).
+  // Use PerfettoPbMsgSize() to read the byte count.
   uint32_t size;
 
   struct PerfettoPbMsgWriter* writer;
 
   struct PerfettoPbMsg* nested;
+
+  // NULL for the root; otherwise the message that opened this child.
+  // Both use the same encoding, but in proto-group mode they end differently:
+  //
+  // - Root: the caller supplies the packet's boundaries to the rewriter.
+  //   There is no start-group tag for the root, so Finalize() must not append
+  //   an end byte. The rewriter would reject it as an unmatched closing byte.
+  // - Nested message: the parent writes a start-group tag. Finalize() appends
+  //   an end byte so the rewriter knows where this child's fields stop and
+  //   the parent's fields can resume.
   struct PerfettoPbMsg* parent;
 };
 
-static inline void PerfettoPbMsgInit(struct PerfettoPbMsg* msg,
-                                     struct PerfettoPbMsgWriter* writer) {
+// Returns the number of bytes written into |msg|.
+static inline uint32_t PerfettoPbMsgSize(const struct PerfettoPbMsg* msg) {
+  return msg->size & PERFETTO_PB_MSG_SIZE_MASK;
+}
+
+static inline bool PerfettoPbMsgIsProtoGroup(const struct PerfettoPbMsg* msg) {
+  return (msg->size & PERFETTO_PB_MSG_PROTO_GROUP_BIT) != 0;
+}
+
+static inline bool PerfettoPbMsgHasWrittenProtoGroupEnd(
+    const struct PerfettoPbMsg* msg) {
+  return (msg->size & PERFETTO_PB_MSG_PROTO_GROUP_END_WRITTEN_BIT) != 0;
+}
+
+// Initializes a root message. See PerfettoPbMsgEncoding for supported
+// operations.
+static inline void PerfettoPbMsgInitWithEncoding(
+    struct PerfettoPbMsg* msg,
+    struct PerfettoPbMsgWriter* writer,
+    enum PerfettoPbMsgEncoding encoding) {
   msg->size_field = PERFETTO_NULL;
-  msg->size = 0;
   msg->writer = writer;
   msg->nested = PERFETTO_NULL;
   msg->parent = PERFETTO_NULL;
+  switch (encoding) {
+    case PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED:
+      msg->size = 0;
+      return;
+    case PERFETTO_PB_MSG_ENCODING_PROTO_GROUP:
+      msg->size = PERFETTO_PB_MSG_PROTO_GROUP_BIT;
+      return;
+  }
+
+  // This header cannot interpret an unknown encoding. Choosing another
+  // framing would corrupt the packet.
+  abort();
+}
+
+// Existing callers continue to write normal length-delimited protobuf.
+static inline void PerfettoPbMsgInit(struct PerfettoPbMsg* msg,
+                                     struct PerfettoPbMsgWriter* writer) {
+  PerfettoPbMsgInitWithEncoding(msg, writer,
+                                PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED);
 }
 
 static inline void PerfettoPbMsgPatch(struct PerfettoPbMsg* msg) {
@@ -72,7 +168,8 @@ static inline void PerfettoPbMsgPatch(struct PerfettoPbMsg* msg) {
 static inline void PerfettoPbMsgPatchStack(struct PerfettoPbMsg* msg) {
   uint8_t* const cur_range_end = msg->writer->writer.end;
   uint8_t* const cur_range_begin = msg->writer->writer.begin;
-  while (msg && cur_range_begin <= msg->size_field &&
+  // Stop at the root or a proto-group message; neither has a length field.
+  while (msg && msg->size_field && cur_range_begin <= msg->size_field &&
          msg->size_field < cur_range_end) {
     PerfettoPbMsgPatch(msg);
     msg = msg->parent;
@@ -203,22 +300,45 @@ static inline void PerfettoPbMsgAppendCStrField(struct PerfettoPbMsg* msg,
 static inline void PerfettoPbMsgBeginNested(struct PerfettoPbMsg* parent,
                                             struct PerfettoPbMsg* nested,
                                             int32_t field_id) {
-  PerfettoPbMsgAppendVarInt(
-      parent, PerfettoPbMakeTag(field_id, PERFETTO_PB_WIRE_TYPE_DELIMITED));
-
-  PerfettoPbMsgInit(nested, parent->writer);
-  if (PERFETTO_UNLIKELY(
-          PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE >
-          PerfettoStreamWriterAvailableBytes(&parent->writer->writer))) {
-    PerfettoPbMsgPatchStack(parent);
+  if (PERFETTO_UNLIKELY(PerfettoPbMsgIsProtoGroup(parent))) {
+    PerfettoPbMsgAppendVarInt(parent, PerfettoPbMakeStartGroupTag(field_id));
+    PerfettoPbMsgInitWithEncoding(nested, parent->writer,
+                                  PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  } else {
+    PerfettoPbMsgAppendVarInt(
+        parent, PerfettoPbMakeTag(field_id, PERFETTO_PB_WIRE_TYPE_DELIMITED));
+    PerfettoPbMsgInit(nested, parent->writer);
+    if (PERFETTO_UNLIKELY(
+            PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE >
+            PerfettoStreamWriterAvailableBytes(&parent->writer->writer))) {
+      PerfettoPbMsgPatchStack(parent);
+    }
+    nested->size_field = PERFETTO_REINTERPRET_CAST(
+        uint8_t*,
+        PerfettoStreamWriterReserveBytes(&nested->writer->writer,
+                                         PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE));
+    parent->size += PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE;
   }
-  nested->size_field = PERFETTO_REINTERPRET_CAST(
-      uint8_t*,
-      PerfettoStreamWriterReserveBytes(&nested->writer->writer,
-                                       PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE));
   nested->parent = parent;
-  parent->size += PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE;
   parent->nested = nested;
+}
+
+// STRING and PACKED fields use the begin/end API too, but their payload is a
+// length-delimited value rather than a nested message.
+// - Length-delimited: reserve the length and backfill it when the field closes.
+// - Proto-group: abort before writing the tag. PerfettoPbMsgAppendBytes() may
+//   publish the payload before its length is known, so a reserved length could
+//   not be patched later.
+// TODO(sashwinbalaji): Buffer the value and emit it when the field closes if a
+// tracing v2 caller needs incremental fields.
+static inline void PerfettoPbMsgBeginLengthDelimitedField(
+    struct PerfettoPbMsg* parent,
+    struct PerfettoPbMsg* nested,
+    int32_t field_id) {
+  if (PERFETTO_UNLIKELY(PerfettoPbMsgIsProtoGroup(parent)))
+    abort();
+
+  PerfettoPbMsgBeginNested(parent, nested, field_id);
 }
 
 static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg);
@@ -231,6 +351,17 @@ static inline void PerfettoPbMsgEndNested(struct PerfettoPbMsg* parent) {
 static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg) {
   if (msg->nested)
     PerfettoPbMsgEndNested(msg);
+
+  if (PERFETTO_UNLIKELY(PerfettoPbMsgIsProtoGroup(msg))) {
+    // A child writes its end byte once. The root only finalizes its children;
+    // its packet boundary takes the place of an end byte (see |parent| above).
+    if (msg->parent && !PerfettoPbMsgHasWrittenProtoGroupEnd(msg)) {
+      PerfettoPbMsgAppendByte(
+          msg, PERFETTO_STATIC_CAST(uint8_t, PERFETTO_PB_PROTO_GROUP_END_BYTE));
+      msg->size |= PERFETTO_PB_MSG_PROTO_GROUP_END_WRITTEN_BIT;
+    }
+    return PerfettoPbMsgSize(msg);
+  }
 
   // Write the length of the nested message a posteriori, using a leading-zero
   // redundant varint encoding.
@@ -245,7 +376,7 @@ static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg) {
     msg->size_field = PERFETTO_NULL;
   }
 
-  return msg->size;
+  return PerfettoPbMsgSize(msg);
 }
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PB_MSG_H_

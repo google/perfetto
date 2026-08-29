@@ -31,11 +31,36 @@ enum PerfettoPbWireType {
   PERFETTO_PB_WIRE_TYPE_FIXED32 = 5,
 };
 
+// The low bits of a protobuf tag hold its wire type.
+enum { PERFETTO_PB_FIELD_TYPE_NUM_BITS = 3 };
+
 // Creates a field tag, which encodes the field type and the field id.
 static inline uint32_t PerfettoPbMakeTag(int32_t field_id,
                                          enum PerfettoPbWireType wire_type) {
-  return ((PERFETTO_STATIC_CAST(uint32_t, field_id)) << 3) |
+  return ((PERFETTO_STATIC_CAST(uint32_t, field_id))
+          << PERFETTO_PB_FIELD_TYPE_NUM_BITS) |
          PERFETTO_STATIC_CAST(uint32_t, wire_type);
+}
+
+// Constants for the append-only nested-message encoding used by tracing v2:
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: 0x04
+//   root:                 no wrapper and no close byte
+//
+// Opens carry the field number. 0x04 is field-zero/end-group, which cannot be
+// an ordinary field, and closes the innermost message. Packet framing bounds
+// the root, so it needs neither marker.
+enum {
+  PERFETTO_PB_PROTO_GROUP_START_WIRE_TYPE = 3,
+  PERFETTO_PB_PROTO_GROUP_END_BYTE = 0x04,
+};
+
+static inline uint32_t PerfettoPbMakeStartGroupTag(int32_t field_id) {
+  return ((PERFETTO_STATIC_CAST(uint32_t, field_id))
+          << PERFETTO_PB_FIELD_TYPE_NUM_BITS) |
+         PERFETTO_STATIC_CAST(uint32_t,
+                              PERFETTO_PB_PROTO_GROUP_START_WIRE_TYPE);
 }
 
 enum {
