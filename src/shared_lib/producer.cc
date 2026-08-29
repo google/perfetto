@@ -40,6 +40,7 @@ void ResetForTesting() {
 struct PerfettoProducerBackendInitArgs {
   uint32_t shmem_size_hint_kb = 0;
   uint32_t machine_id = 0;
+  bool enable_tracing_v2 = false;
 };
 
 struct PerfettoProducerBackendInitArgs*
@@ -59,6 +60,12 @@ void PerfettoProducerBackendInitArgsSetMachineId(
   backend_args->machine_id = machine_id;
 }
 
+void PerfettoProducerBackendInitArgsSetTracingV2Enabled(
+    struct PerfettoProducerBackendInitArgs* backend_args,
+    bool enabled) {
+  backend_args->enable_tracing_v2 = enabled;
+}
+
 void PerfettoProducerBackendInitArgsDestroy(
     struct PerfettoProducerBackendInitArgs* backend_args) {
   delete backend_args;
@@ -70,6 +77,7 @@ void PerfettoProducerInProcessInit(
   args.backends = perfetto::kInProcessBackend;
   args.shmem_size_hint_kb = backend_args->shmem_size_hint_kb;
   args.machine_id = backend_args->machine_id;
+  args.enable_tracing_v2 = backend_args->enable_tracing_v2;
   perfetto::Tracing::Initialize(args);
 }
 
@@ -78,6 +86,7 @@ void PerfettoProducerSystemInit(
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
   args.shmem_size_hint_kb = backend_args->shmem_size_hint_kb;
+  args.enable_tracing_v2 = backend_args->enable_tracing_v2;
   perfetto::Tracing::Initialize(args);
 }
 

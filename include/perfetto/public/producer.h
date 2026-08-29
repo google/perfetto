@@ -36,10 +36,17 @@ struct PerfettoProducerInitArgs {
   // If set, the value must be a multiple of 4KB. The value can be ignored if
   // larger than kMaxShmSize (32MB) or not a multiple of 4KB.
   uint32_t shmem_size_hint_kb;
+
+  // [Optional] Experimental, default off. Routes every TraceWriter in this
+  // producer through the tracing v2 ring. Every data source must then use the
+  // current C or C++ SDK; older C headers and the Rust SDK are not supported.
+  // Wider rollout needs per-data-source capability negotiation.
+  bool enable_tracing_v2;
 };
 
 // Initializes a PerfettoProducerInitArgs struct.
-#define PERFETTO_PRODUCER_INIT_ARGS_INIT() {0, 0}
+#define PERFETTO_PRODUCER_INIT_ARGS_INIT() \
+  {/*backends=*/0, /*shmem_size_hint_kb=*/0, /*enable_tracing_v2=*/false}
 
 // Initializes the global perfetto producer.
 //
@@ -51,6 +58,8 @@ static inline void PerfettoProducerInit(struct PerfettoProducerInitArgs args) {
 
   PerfettoProducerBackendInitArgsSetShmemSizeHintKb(backend_args,
                                                     args.shmem_size_hint_kb);
+  PerfettoProducerBackendInitArgsSetTracingV2Enabled(backend_args,
+                                                     args.enable_tracing_v2);
 
   if (args.backends & PERFETTO_BACKEND_IN_PROCESS) {
     PerfettoProducerInProcessInit(backend_args);

@@ -53,6 +53,11 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/public",
       "../../base",
+
+      # The tracing v2 tests drive the C SDK through a v2 writer: the gate and
+      # the platform check come from here.
+      "../../tracing:client_api_without_backends",
+      "../../tracing/v2",
       "protos",
     ]
     sources = [ "api_integrationtest.cc" ]

@@ -215,7 +215,8 @@ class TracingMuxerImpl : public TracingMuxer {
     ProducerImpl(TracingMuxerImpl*,
                  TracingBackendId,
                  uint32_t shmem_batch_commits_duration_ms,
-                 bool shmem_direct_patching_enabled);
+                 bool shmem_direct_patching_enabled,
+                 const TracingV2EndpointFunctions*);
     ~ProducerImpl() override;
 
     void Initialize(std::unique_ptr<ProducerEndpoint> endpoint);
@@ -257,6 +258,8 @@ class TracingMuxerImpl : public TracingMuxer {
 
     const uint32_t shmem_batch_commits_duration_ms_ = 0;
     const bool shmem_direct_patching_enabled_ = false;
+    const TracingV2EndpointFunctions* const tracing_v2_endpoint_functions_ =
+        nullptr;
 
     // Set of data sources that have been actually registered on this producer.
     // This can be a subset of the global |data_sources_|, because data sources
@@ -274,6 +277,10 @@ class TracingMuxerImpl : public TracingMuxer {
     std::list<std::pair<std::string, base::TimeMillis>> on_connect_triggers_;
 
     std::map<FlushRequestID, std::set<DataSourceInstanceID>> pending_flushes_;
+
+    // Non-owning v2 view of |service_| for function-table teardown calls.
+    // Muxer thread only.
+    ProducerEndpoint* tracing_v2_endpoint_ = nullptr;
 
     // The currently active service endpoint is maintained as an atomic shared
     // pointer so it won't get deleted from underneath threads that are creating
@@ -498,20 +505,24 @@ class TracingMuxerImpl : public TracingMuxer {
 
   struct FindDataSourceRes {
     FindDataSourceRes() = default;
-    FindDataSourceRes(DataSourceStaticState* a,
-                      DataSourceState* b,
-                      uint32_t c,
-                      bool d)
-        : static_state(a),
-          internal_state(b),
-          instance_idx(c),
-          requires_callbacks_under_lock(d) {}
+    FindDataSourceRes(DataSourceStaticState* static_state,
+                      DataSourceState* internal_state,
+                      uint32_t instance_idx,
+                      bool requires_callbacks_under_lock,
+                      bool no_flush)
+        : static_state(static_state),
+          internal_state(internal_state),
+          instance_idx(instance_idx),
+          requires_callbacks_under_lock(requires_callbacks_under_lock),
+          no_flush(no_flush) {}
     explicit operator bool() const { return !!internal_state; }
 
     DataSourceStaticState* static_state = nullptr;
     DataSourceState* internal_state = nullptr;
     uint32_t instance_idx = 0;
     bool requires_callbacks_under_lock = false;
+    // The registered no_flush value, even if v2 clears the service-side copy.
+    bool no_flush = false;
   };
   FindDataSourceRes FindDataSource(TracingBackendId, DataSourceInstanceID);
 
@@ -544,6 +555,9 @@ class TracingMuxerImpl : public TracingMuxer {
 
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
+  // Shared v2-ring relay. Declared before backends so it is destroyed after
+  // them; like |task_runner_|, it survives ResetForTesting().
+  std::unique_ptr<base::TaskRunner> tracing_v2_relay_task_runner_;
   std::vector<RegisteredDataSource> data_sources_;
   // These lists can only have one backend per BackendType. The elements are
   // sorted by BackendType priority (see BackendTypePriority). They always
