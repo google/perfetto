@@ -80,7 +80,8 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   void SetupSharedMemory(std::unique_ptr<SharedMemory>,
                          size_t page_size_bytes,
                          bool provided_by_producer,
-                         SharedMemoryABI::ShmemMode shmem_mode);
+                         SharedMemoryABI::ShmemMode shmem_mode,
+                         uint32_t tracing_v2_chunk_size_bytes);
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID,
       BufferExhaustedPolicy) override;
@@ -91,6 +92,7 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   SharedMemory* shared_memory() const override;
   size_t shared_buffer_page_size_kb() const override;
+  uint32_t tracing_v2_chunk_size_bytes() const override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
 
@@ -134,6 +136,7 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   Producer* producer_;
   std::unique_ptr<SharedMemory> shared_memory_;
   size_t shared_buffer_page_size_kb_ = 0;
+  uint32_t tracing_v2_chunk_size_bytes_ = 0;
   SharedMemoryABI shmem_abi_;
   size_t shmem_size_hint_bytes_ = 0;
   size_t shmem_page_size_hint_bytes_ = 0;

@@ -571,12 +571,14 @@ void ProducerEndpointImpl::SetupSharedMemory(
     std::unique_ptr<SharedMemory> shared_memory,
     size_t page_size_bytes,
     bool provided_by_producer,
-    SharedMemoryABI::ShmemMode shmem_mode) {
+    SharedMemoryABI::ShmemMode shmem_mode,
+    uint32_t tracing_v2_chunk_size_bytes) {
   PERFETTO_DCHECK(!shared_memory_ && !shmem_abi_.is_valid());
   PERFETTO_DCHECK(page_size_bytes % 1024 == 0);
 
   shared_memory_ = std::move(shared_memory);
   shared_buffer_page_size_kb_ = page_size_bytes / 1024;
+  tracing_v2_chunk_size_bytes_ = tracing_v2_chunk_size_bytes;
   is_shmem_provided_by_producer_ = provided_by_producer;
 
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
@@ -601,6 +603,10 @@ SharedMemory* ProducerEndpointImpl::shared_memory() const {
 
 size_t ProducerEndpointImpl::shared_buffer_page_size_kb() const {
   return shared_buffer_page_size_kb_;
+}
+
+uint32_t ProducerEndpointImpl::tracing_v2_chunk_size_bytes() const {
+  return tracing_v2_chunk_size_bytes_;
 }
 
 void ProducerEndpointImpl::ActivateTriggers(

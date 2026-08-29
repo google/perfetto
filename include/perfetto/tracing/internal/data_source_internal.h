@@ -115,6 +115,17 @@ struct DataSourceState {
   // when it's stopped.
   bool will_notify_on_stop = false;
 
+  // Copy of DataSourceDescriptor.no_flush. FlushDataSource_AsyncBegin() only
+  // has the instance state, not the descriptor, and needs this to skip
+  // OnFlush() when the service flushes a v2 instance just to drain the ring.
+  bool no_flush = false;
+
+  // Copy of DataSourceConfig.use_tracing_v2. Set before this instance is
+  // published through |valid_instances| and unchanged while it remains
+  // published. Trace-writer threads read it without |lock| and cannot use
+  // |config|, which is replaced on setup and cleared on stop.
+  bool use_tracing_v2 = false;
+
   // The wanted behavior for this data source instance when a TraceWriter runs
   // out of space in the shared memory buffer.
   BufferExhaustedPolicy buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
