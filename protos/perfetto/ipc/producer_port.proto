@@ -309,6 +309,11 @@ message GetAsyncCommandResponse {
     // memory region that can be attached by the other process by name.
     // Introduced in v13.
     optional string shm_key_windows = 2;
+
+    // Chunk size for the tracing v2 writers of this producer, from
+    // TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes. 0 or absent
+    // means default.
+    optional uint32 tracing_v2_chunk_size_bytes = 3;
   }
 
   message Flush {

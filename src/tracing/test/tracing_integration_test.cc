@@ -206,13 +206,23 @@ class TracingIntegrationTest : public ::testing::Test {
   MockConsumer consumer_;
 };
 
-TEST_F(TracingIntegrationTest, WithIPCTransport) {
+class TracingIntegrationTestWithChunkSize
+    : public TracingIntegrationTest,
+      public testing::WithParamInterface<uint32_t> {};
+
+TEST_P(TracingIntegrationTestWithChunkSize, WithIPCTransport) {
   // Start tracing.
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(4096 * 10);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("perfetto.test");
   ds_config->set_target_buffer(0);
+  if (GetParam() != 0) {
+    auto* producer_config = trace_config.add_producers();
+    producer_config->set_producer_name("perfetto.mock_producer");
+    producer_config->set_tracing_v2_chunk_size_bytes(GetParam());
+  }
+  EXPECT_EQ(producer_endpoint_->tracing_v2_chunk_size_bytes(), 0u);
   consumer_endpoint_->EnableTracing(trace_config);
 
   // At this point, the Producer should be asked to turn its data source on.
@@ -221,7 +231,9 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   BufferID global_buf_id = 0;
   auto on_create_ds_instance =
       task_runner_->CreateCheckpoint("on_create_ds_instance");
-  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, OnTracingSetup()).WillOnce([this] {
+    EXPECT_EQ(producer_endpoint_->tracing_v2_chunk_size_bytes(), GetParam());
+  });
 
   // Store the arguments passed to SetupDataSource() and later check that they
   // match the ones passed to StartDataSource().
@@ -328,6 +340,12 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
       .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
+
+// 0 leaves the field out of the config. 255 is invalid for v2 but must be
+// harmless for a producer that only creates v1 writers.
+INSTANTIATE_TEST_SUITE_P(ChunkSize,
+                         TracingIntegrationTestWithChunkSize,
+                         testing::Values(0u, 1024u, 255u));
 
 // Regression test for b/172950370.
 TEST_F(TracingIntegrationTest, ValidErrorOnDisconnection) {

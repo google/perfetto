@@ -459,7 +459,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
           shm_size / 1024, endpoint->name_.c_str());
       auto shmem_mode = GetShmemMode(client_identity, in_process);
       endpoint->SetupSharedMemory(std::move(shm), page_size,
-                                  /*provided_by_producer=*/true, shmem_mode);
+                                  /*provided_by_producer=*/true, shmem_mode,
+                                  /*tracing_v2_chunk_size_bytes=*/0);
     } else {
       PERFETTO_LOG(
           "Discarding incorrectly sized producer-provided SMB for producer "
@@ -2133,7 +2134,7 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
   for (const auto& [producer_id, ds_inst] :
        tracing_session->data_source_instances) {
-    if (!ds_inst.no_flush) {
+    if (ds_inst.RequiresProducerFlush()) {
       data_source_instances[producer_id].push_back(ds_inst.instance_id);
       continue;
     }
@@ -3295,7 +3296,7 @@ void TracingServiceImpl::StopDataSourceInstance(ProducerEndpointImpl* producer,
         static_cast<int>(producer->pid()));
     disable_immediately = true;
   }
-  if (instance->will_notify_on_stop && !disable_immediately) {
+  if (instance->RequiresProducerStopAck() && !disable_immediately) {
     instance->state = DataSourceInstance::STOPPING;
   } else {
     instance->state = DataSourceInstance::STOPPED;
@@ -3569,7 +3570,8 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     auto shmem_mode =
         GetShmemMode(producer->client_identity(), producer->in_process_);
     producer->SetupSharedMemory(std::move(shared_memory), page_size,
-                                /*provided_by_producer=*/false, shmem_mode);
+                                /*provided_by_producer=*/false, shmem_mode,
+                                producer_config.tracing_v2_chunk_size_bytes());
   }
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;
@@ -4811,7 +4813,7 @@ TracingServiceImpl::GetFlushableDataSourceInstancesForBuffers(
   for (const auto& [producer_id, ds_inst] : session->data_source_instances) {
     // TODO(ddiproietto): Consider if we should skip instances if ds_inst.state
     // != DataSourceInstance::STARTED
-    if (ds_inst.no_flush) {
+    if (!ds_inst.RequiresProducerFlush()) {
       continue;
     }
     if (!bufs.count(static_cast<BufferID>(ds_inst.config.target_buffer()))) {
