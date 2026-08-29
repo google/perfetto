@@ -4836,7 +4836,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 145
+// Next id: 151
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4942,6 +4942,26 @@ message DataSourceConfig {
   // Once the config store (b/482305876) exists we should move protovm programs
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
+
+  // Experimental. Writes this data source instance through the tracing v2 ring
+  // instead of the v1 shared memory buffer. Off by default.
+  //
+  // Only enable this for a producer known to support tracing v2. A producer
+  // that understands the field but cannot honor it aborts instead of falling
+  // back to v1.
+  //
+  // The service also changes how it handles this instance:
+  // - It sends flush requests even if the data source declared no_flush (see
+  //   DataSourceDescriptor.no_flush).
+  // - It waits for the producer to ack the stop, even if the data source did
+  //   not declare will_notify_on_stop.
+  //
+  // Older producers ignore this field. If the data source did not declare
+  // will_notify_on_stop, stopping waits for data_source_stop_timeout_ms.
+  //
+  // The producer must support writer waits. Startup tracing and interceptors
+  // are not supported and abort when this field is enabled.
+  optional bool use_tracing_v2 = 13;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
@@ -5323,6 +5343,16 @@ message TraceConfig {
     // Specifies the preferred size of each page in the shared memory buffer.
     // Must be an integer multiple of 4K.
     optional uint32 page_size_kb = 3;
+
+    // Chunk size, in bytes, used by tracing v2 writers for this producer.
+    //
+    // Zero or absent selects 256. Other values must be a multiple of 4 between
+    // 256 and 32768 (the current v1 SMB page-size limit). At least one chunk
+    // must fit in the shared memory buffer.
+    //
+    // The value is fixed when shared memory is set up. Changing it requires the
+    // producer to reconnect. It has no effect on v1 writers.
+    optional uint32 tracing_v2_chunk_size_bytes = 4;
   }
 
   repeated ProducerConfig producers = 6;

@@ -382,6 +382,8 @@ void ProducerIPCClientImpl::OnServiceRequest(
       PERFETTO_CHECK(is_shmem_provided_by_producer_ && shared_memory_ &&
                      shared_memory_arbiter_);
     }
+    tracing_v2_chunk_size_bytes_ =
+        cmd.setup_tracing().tracing_v2_chunk_size_bytes();
     producer_->OnTracingSetup();
     return;
   }
@@ -628,6 +630,10 @@ SharedMemory* ProducerIPCClientImpl::shared_memory() const {
 
 size_t ProducerIPCClientImpl::shared_buffer_page_size_kb() const {
   return shared_buffer_page_size_kb_;
+}
+
+uint32_t ProducerIPCClientImpl::tracing_v2_chunk_size_bytes() const {
+  return tracing_v2_chunk_size_bytes_;
 }
 
 }  // namespace perfetto

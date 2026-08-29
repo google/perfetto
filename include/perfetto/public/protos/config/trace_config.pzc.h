@@ -618,6 +618,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_ProducerConfig,
                   uint32_t,
                   page_size_kb,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_ProducerConfig,
+                  VARINT,
+                  uint32_t,
+                  tracing_v2_chunk_size_bytes,
+                  4);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BuiltinDataSource);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BuiltinDataSource,

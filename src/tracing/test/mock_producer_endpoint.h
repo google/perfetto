@@ -43,6 +43,7 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
               (override));
   MOCK_METHOD(SharedMemory*, shared_memory, (), (const, override));
   MOCK_METHOD(size_t, shared_buffer_page_size_kb, (), (const, override));
+  MOCK_METHOD(uint32_t, tracing_v2_chunk_size_bytes, (), (const, override));
   MOCK_METHOD(std::unique_ptr<TraceWriter>,
               CreateTraceWriter,
               (BufferID, BufferExhaustedPolicy),

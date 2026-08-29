@@ -50,6 +50,39 @@ source_set("v2") {
   ]
 }
 
+# Temporary SDK-side forwarding through v1 until traced reads the ring itself.
+source_set("in_process_adapter") {
+  public_deps = [ ":v2" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/trace:zero",
+    "../../base",
+  ]
+  sources = [
+    "in_process_tracing_v2_bridge.cc",
+    "in_process_tracing_v2_bridge.h",
+    "relay_sequence.h",
+  ]
+}
+
+perfetto_unittest_source_set("in_process_adapter_unittests") {
+  testonly = true
+  deps = [
+    ":in_process_adapter",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/trace:cpp",
+    "../../../protos/perfetto/trace:zero",
+    "../../base",
+    "../../base:test_support",
+    "../../protozero",
+  ]
+  sources = [
+    "in_process_tracing_v2_bridge_unittest.cc",
+    "shared_ring_buffer_test_utils.h",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
@@ -59,6 +92,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../base",
+    "../../base:test_support",
+    "../../protozero",
   ]
   sources = [
     "proto_rewriter_unittest.cc",

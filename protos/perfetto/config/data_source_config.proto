@@ -69,7 +69,7 @@ import "protos/perfetto/config/linux/journald_config.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 145
+// Next id: 151
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -175,6 +175,26 @@ message DataSourceConfig {
   // Once the config store (b/482305876) exists we should move protovm programs
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
+
+  // Experimental. Writes this data source instance through the tracing v2 ring
+  // instead of the v1 shared memory buffer. Off by default.
+  //
+  // Only enable this for a producer known to support tracing v2. A producer
+  // that understands the field but cannot honor it aborts instead of falling
+  // back to v1.
+  //
+  // The service also changes how it handles this instance:
+  // - It sends flush requests even if the data source declared no_flush (see
+  //   DataSourceDescriptor.no_flush).
+  // - It waits for the producer to ack the stop, even if the data source did
+  //   not declare will_notify_on_stop.
+  //
+  // Older producers ignore this field. If the data source did not declare
+  // will_notify_on_stop, stopping waits for data_source_stop_timeout_ms.
+  //
+  // The producer must support writer waits. Startup tracing and interceptors
+  // are not supported and abort when this field is enabled.
+  optional bool use_tracing_v2 = 13;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.

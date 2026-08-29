@@ -96,7 +96,24 @@ class DataSourceInternalForTest {
 class TracingMuxerImplInternalsForTest {
  public:
   static bool DoesSystemBackendHaveSMB();
+  static bool SupportsTracingV2();
   static void ClearIncrementalState();
+
+  // Whether the v2 relay sequence exists. It is created by the first v2
+  // instance and only closed by Tracing::Shutdown(), so a test can only check
+  // that its own config did not create it. The handle is read atomically, so
+  // this is safe from any thread, as long as the muxer itself is alive.
+  static bool HasTracingV2Relay();
+
+  // Posts |task| to the v2 relay sequence. Tests use it to block the relay and
+  // check what does (not) happen while the ring cannot drain. Returns false if
+  // there is no relay or it is closed, which is how a test can tell that
+  // Shutdown() has closed it. Safe from any thread while the muxer is alive.
+  static bool PostToTracingV2Relay(std::function<void()> task);
+
+  // Posts |task| to the muxer thread. Useful as a checkpoint: once |task| has
+  // run, everything the muxer had queued before it has run too.
+  static void PostToMuxerSequence(std::function<void()> task);
 
   template <typename DerivedDataSource>
   static void ClearDataSourceTlsStateOnReset() {
