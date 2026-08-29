@@ -38,6 +38,25 @@ static inline uint32_t PerfettoPbMakeTag(int32_t field_id,
          PERFETTO_STATIC_CAST(uint32_t, wire_type);
 }
 
+// Append-only nested-message encoding used by tracing v2:
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: 0x04
+//   root:                 no wrapper and no close byte
+//
+// Opens carry the field number. 0x04 is field-zero/end-group, which cannot be
+// an ordinary field, and closes the innermost message. Packet framing bounds
+// the root, so it needs neither marker.
+enum {
+  PERFETTO_PB_WIRE_TYPE_START_GROUP = 3,
+  PERFETTO_PB_PROTO_GROUP_END_BYTE = 0x04,
+};
+
+static inline uint32_t PerfettoPbMakeStartGroupTag(int32_t field_id) {
+  return ((PERFETTO_STATIC_CAST(uint32_t, field_id)) << 3) |
+         PERFETTO_STATIC_CAST(uint32_t, PERFETTO_PB_WIRE_TYPE_START_GROUP);
+}
+
 enum {
   // Maximum bytes size of a 64-bit integer encoded as a VarInt.
   PERFETTO_PB_VARINT_MAX_SIZE_64 = 10,

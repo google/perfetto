@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <memory>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
@@ -140,6 +141,86 @@ void BM_Shlib_DataSource_DifferentPacketSize(benchmark::State& state) {
 
   // Just compute the PacketSize counter.
   state.counters["PacketSize"] = static_cast<double>(DecodePacketSizes(data));
+}
+
+void BM_Shlib_ProtoGroupWholeString(benchmark::State& state) {
+  const size_t payload_size = static_cast<size_t>(state.range(0));
+  const std::vector<uint8_t> payload(payload_size, 0xab);
+  std::vector<uint8_t> output(payload_size + 16);
+
+  for (auto _ : state) {
+    struct PerfettoPbMsgWriter writer = {};
+    writer.writer.begin = output.data();
+    writer.writer.end = output.data() + output.size();
+    writer.writer.write_ptr = output.data();
+
+    struct perfetto_protos_TestEvent msg;
+    PerfettoPbMsgInitWithEncoding(&msg.msg, &writer,
+                                  PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+    perfetto_protos_TestEvent_set_str(&msg, payload.data(), payload.size());
+    PerfettoPbMsgFinalize(&msg.msg);
+    benchmark::DoNotOptimize(writer.writer.write_ptr);
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(payload_size));
+}
+
+void BM_Shlib_LengthDelimitedIncrementalString(benchmark::State& state) {
+  const size_t payload_size = static_cast<size_t>(state.range(0));
+  const std::vector<uint8_t> payload(payload_size, 0xab);
+  std::vector<uint8_t> output(payload_size + 16);
+
+  for (auto _ : state) {
+    struct PerfettoPbMsgWriter writer = {};
+    writer.writer.begin = output.data();
+    writer.writer.end = output.data() + output.size();
+    writer.writer.write_ptr = output.data();
+
+    struct perfetto_protos_TestEvent msg;
+    PerfettoPbMsgInit(&msg.msg, &writer);
+    struct PerfettoPbMsg str;
+    perfetto_protos_TestEvent_begin_str(&msg, &str);
+    const size_t first_part_size = payload_size / 2;
+    PerfettoPbMsgAppendBytes(&str, payload.data(), first_part_size);
+    PerfettoPbMsgAppendBytes(&str, payload.data() + first_part_size,
+                             payload_size - first_part_size);
+    perfetto_protos_TestEvent_end_str(&msg, &str);
+    PerfettoPbMsgFinalize(&msg.msg);
+    benchmark::DoNotOptimize(writer.writer.write_ptr);
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(payload_size));
+}
+
+void BM_Shlib_ProtoGroupIncrementalString(benchmark::State& state) {
+  const size_t payload_size = static_cast<size_t>(state.range(0));
+  const std::vector<uint8_t> payload(payload_size, 0xab);
+  std::vector<uint8_t> output(payload_size + 16);
+
+  for (auto _ : state) {
+    struct PerfettoPbMsgWriter writer = {};
+    writer.writer.begin = output.data();
+    writer.writer.end = output.data() + output.size();
+    writer.writer.write_ptr = output.data();
+
+    struct perfetto_protos_TestEvent msg;
+    PerfettoPbMsgInitWithEncoding(&msg.msg, &writer,
+                                  PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+    struct PerfettoPbMsg str;
+    perfetto_protos_TestEvent_begin_str(&msg, &str);
+    const size_t first_part_size = payload_size / 2;
+    PerfettoPbMsgAppendBytes(&str, payload.data(), first_part_size);
+    PerfettoPbMsgAppendBytes(&str, payload.data() + first_part_size,
+                             payload_size - first_part_size);
+    perfetto_protos_TestEvent_end_str(&msg, &str);
+    PerfettoPbMsgFinalize(&msg.msg);
+    benchmark::DoNotOptimize(writer.writer.write_ptr);
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                          static_cast<int64_t>(payload_size));
 }
 
 void BM_Shlib_TeDisabled(benchmark::State& state) {
@@ -447,6 +528,13 @@ void BM_Shlib_TeLlCustomProto(benchmark::State& state) {
 
 BENCHMARK(BM_Shlib_DataSource_Disabled);
 BENCHMARK(BM_Shlib_DataSource_DifferentPacketSize)->Range(1, 1000);
+BENCHMARK(BM_Shlib_ProtoGroupWholeString)->RangeMultiplier(16)->Range(16, 4096);
+BENCHMARK(BM_Shlib_LengthDelimitedIncrementalString)
+    ->RangeMultiplier(16)
+    ->Range(16, 4096);
+BENCHMARK(BM_Shlib_ProtoGroupIncrementalString)
+    ->RangeMultiplier(16)
+    ->Range(16, 4096);
 BENCHMARK(BM_Shlib_TeDisabled);
 BENCHMARK(BM_Shlib_TeBasic);
 BENCHMARK(BM_Shlib_TeBasicNoIntern);

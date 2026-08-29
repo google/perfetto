@@ -175,10 +175,14 @@ class HeapBuffered {
     return shb_.GetSlices();
   }
 
-  void Reset() {
+  void Reset() { Reset(NestedMessageEncoding::kLengthDelimited); }
+
+  // Selects the encoding for this message and all its children. Reset() without
+  // an argument retains the existing length-delimited behavior.
+  void Reset(NestedMessageEncoding encoding) {
     shb_.Reset();
     writer_.Reset(protozero::ContiguousMemoryRange{});
-    msg_.Reset(&writer_);
+    msg_.Reset(&writer_, encoding);
     PERFETTO_DCHECK(empty());
   }
 

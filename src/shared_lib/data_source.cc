@@ -575,17 +575,38 @@ void PerfettoDsImplTraceIterateBreak(
   ds_impl->cpp_type.TraceEpilogue(tls);
 }
 
-struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+struct PerfettoDsPacketBeginResult PerfettoDsTracerImplPacketBeginWithEncoding(
     struct PerfettoDsTracerImpl* tracer) {
   auto* tls_inst =
       reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
 
   auto message_handle = tls_inst->trace_writer->NewTracePacket();
-  struct PerfettoStreamWriter ret;
+  // TakeStreamWriter() consumes the handle, so read the encoding first.
+  const protozero::NestedMessageEncoding encoding =
+      message_handle->nested_message_encoding();
   protozero::ScatteredStreamWriter* sw = message_handle.TakeStreamWriter();
-  ret.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
-  perfetto::UpdateStreamWriter(*sw, &ret);
-  return ret;
+  struct PerfettoDsPacketBeginResult result;
+  result.writer.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
+  perfetto::UpdateStreamWriter(*sw, &result.writer);
+  switch (encoding) {
+    case protozero::NestedMessageEncoding::kLengthDelimited:
+      result.encoding = PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED;
+      return result;
+    case protozero::NestedMessageEncoding::kProtoGroup:
+      result.encoding = PERFETTO_DS_PACKET_ENCODING_PROTO_GROUP;
+      return result;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer) {
+  const struct PerfettoDsPacketBeginResult result =
+      PerfettoDsTracerImplPacketBeginWithEncoding(tracer);
+  // The legacy entry point cannot tell its caller to use proto-group encoding.
+  PERFETTO_CHECK(result.encoding ==
+                 PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED);
+  return result.writer;
 }
 
 void PerfettoDsTracerImplPacketEnd(struct PerfettoDsTracerImpl* tracer,

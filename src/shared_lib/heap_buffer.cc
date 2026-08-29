@@ -16,7 +16,11 @@
 
 #include "perfetto/public/abi/heap_buffer.h"
 
+#include <algorithm>
+#include <cstring>
+
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/public/stream_writer.h"
 #include "src/shared_lib/stream_writer.h"
 
 struct PerfettoHeapBuffer* PerfettoHeapBufferCreate(
@@ -48,6 +52,19 @@ void PerfettoHeapBufferCopyInto(struct PerfettoHeapBuffer* buf,
     memcpy(dst_ptr, used_range.begin, to_copy);
     dst_ptr += to_copy;
     size -= to_copy;
+  }
+}
+
+void PerfettoHeapBufferAppendToStream(struct PerfettoHeapBuffer* buf,
+                                      struct PerfettoStreamWriter* heap_writer,
+                                      struct PerfettoStreamWriter* dst) {
+  auto* shb = reinterpret_cast<protozero::ScatteredHeapBuffer*>(buf);
+  auto* sw =
+      reinterpret_cast<protozero::ScatteredStreamWriter*>(heap_writer->impl);
+  sw->set_write_ptr(heap_writer->write_ptr);
+  for (const protozero::ScatteredHeapBuffer::Slice& slice : shb->GetSlices()) {
+    const protozero::ContiguousMemoryRange range = slice.GetUsedRange();
+    PerfettoStreamWriterAppendBytes(dst, range.begin, range.size());
   }
 }
 

@@ -45,8 +45,17 @@ std::atomic<uint32_t> g_generation;
 // Do NOT put any code in the constructor or use default initialization.
 // Use the Reset() method below instead.
 
-// This method is called to initialize both root and nested messages.
+// Keep the original exported overload for callers built before
+// NestedMessageEncoding was added.
 void Message::Reset(ScatteredStreamWriter* stream_writer, MessageArena* arena) {
+  Reset(stream_writer, arena, NestedMessageEncoding::kLengthDelimited);
+}
+
+// This method is called to initialize both root and nested messages. Every
+// member must be assigned before any generated setter can observe the object.
+void Message::Reset(ScatteredStreamWriter* stream_writer,
+                    MessageArena* arena,
+                    NestedMessageEncoding nested_message_encoding) {
 // Older versions of libstdcxx don't have is_trivially_constructible.
 #if !defined(__GLIBCXX__) || __GLIBCXX__ >= 20170516
   static_assert(std::is_trivially_constructible<Message>::value,
@@ -55,12 +64,22 @@ void Message::Reset(ScatteredStreamWriter* stream_writer, MessageArena* arena) {
 
   static_assert(std::is_trivially_destructible<Message>::value,
                 "Message must be trivially destructible");
+
+  // An unknown encoding must fail in release builds too, or it silently
+  // becomes length-delimited framing and is misread. The C API aborts on the
+  // same input.
+  PERFETTO_CHECK(nested_message_encoding ==
+                     NestedMessageEncoding::kLengthDelimited ||
+                 nested_message_encoding == NestedMessageEncoding::kProtoGroup);
+
   stream_writer_ = stream_writer;
   arena_ = arena;
   size_ = 0;
   size_field_ = nullptr;
   nested_message_ = nullptr;
   message_state_ = MessageState::kNotFinalized;
+  nested_message_encoding_ = nested_message_encoding;
+  needs_proto_group_end_ = false;
 #if PERFETTO_DCHECK_IS_ON()
   handle_ = nullptr;
   generation_ = g_generation.fetch_add(1, std::memory_order_relaxed);
@@ -125,11 +144,17 @@ uint32_t Message::Finalize() {
   if (nested_message_)
     EndNestedMessage();
 
-  // Write the length of the nested message a posteriori, using a leading-zero
-  // redundant varint encoding. This can be nullptr for the root message, among
-  // many reasons, because the TraceWriterImpl delegate is keeping track of the
-  // root fragment size independently.
-  if (size_field_) {
+  PERFETTO_DCHECK(!(needs_proto_group_end_ && size_field_));
+
+  if (PERFETTO_UNLIKELY(needs_proto_group_end_)) {
+    const uint8_t end = proto_utils::kProtoGroupEndByte;
+    WriteToStream(&end, &end + 1);
+    message_state_ = MessageState::kFinalized;
+  } else if (size_field_) {
+    // Write the length of the nested message a posteriori, using a leading-zero
+    // redundant varint encoding. This can be nullptr for the root message,
+    // among many reasons, because the TraceWriterImpl delegate is keeping track
+    // of the root fragment size independently.
     PERFETTO_DCHECK(!is_finalized());
     PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);
     //
@@ -188,20 +213,28 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
   if (nested_message_)
     EndNestedMessage();
 
-  // Write the proto preamble for the nested message.
+  const bool use_proto_group =
+      nested_message_encoding_ == NestedMessageEncoding::kProtoGroup;
   uint8_t data[proto_utils::kMaxTagEncodedSize];
-  uint8_t* data_end = proto_utils::WriteVarInt(
-      proto_utils::MakeTagLengthDelimited(field_id), data);
+  const uint32_t tag = use_proto_group
+                           ? proto_utils::MakeTagStartGroup(field_id)
+                           : proto_utils::MakeTagLengthDelimited(field_id);
+  uint8_t* data_end = proto_utils::WriteVarInt(tag, data);
   WriteToStream(data, data_end);
 
   Message* message = arena_->NewMessage();
-  message->Reset(stream_writer_, arena_);
+  message->Reset(stream_writer_, arena_, nested_message_encoding_);
 
-  // The length of the nested message cannot be known upfront. So right now
-  // just reserve the bytes to encode the size after the nested message is done.
-  message->set_size_field(
-      stream_writer_->ReserveBytes(proto_utils::kMessageLengthFieldSize));
-  size_ += proto_utils::kMessageLengthFieldSize;
+  if (PERFETTO_UNLIKELY(use_proto_group)) {
+    message->needs_proto_group_end_ = true;
+  } else {
+    // The length of the nested message cannot be known upfront. So right now
+    // just reserve the bytes to encode the size after the nested message is
+    // done.
+    message->set_size_field(
+        stream_writer_->ReserveBytes(proto_utils::kMessageLengthFieldSize));
+    size_ += proto_utils::kMessageLengthFieldSize;
+  }
 
   nested_message_ = message;
   return message;
