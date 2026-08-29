@@ -66,6 +66,7 @@ class UnsupportedProducerEndpoint : public ProducerEndpoint {
 
   SharedMemory* shared_memory() const override { return nullptr; }
   size_t shared_buffer_page_size_kb() const override { return 0; }
+  uint32_t tracing_v2_chunk_size_bytes() const override { return 0; }
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID /*target_buffer*/,

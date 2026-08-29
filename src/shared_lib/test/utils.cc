@@ -73,6 +73,9 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
 
       perfetto_protos_DataSourceConfig_set_cstr_name(&ds_cfg,
                                                      data_source_name_.c_str());
+      if (use_tracing_v2_) {
+        perfetto_protos_DataSourceConfig_set_use_tracing_v2(&ds_cfg, true);
+      }
       if (enable_protovm_config_) {
         struct perfetto_protos_ProtoVmConfig protovm_cfg;
         perfetto_protos_DataSourceConfig_begin_protovm_config(&ds_cfg,

@@ -23,6 +23,8 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
+#include "src/tracing/v2/relay_sequence.h"
+#include "src/tracing/v2/shared_ring_buffer.h"
 
 #include <sstream>
 
@@ -198,6 +200,40 @@ bool TracingMuxerImplInternalsForTest::DoesSystemBackendHaveSMB() {
 }
 
 // static
+bool TracingMuxerImplInternalsForTest::SupportsTracingV2() {
+  return tracing_v2::SharedRingBuffer::SupportsWriterWait();
+}
+
+// static
+bool TracingMuxerImplInternalsForTest::HasTracingV2Relay() {
+  auto* muxer =
+      reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
+  return std::atomic_load(&muxer->tracing_v2_relay_) != nullptr;
+}
+
+// static
+bool TracingMuxerImplInternalsForTest::PostToTracingV2Relay(
+    std::function<void()> task) {
+  auto* muxer =
+      reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
+  // Same discipline as the muxer: a non-muxer thread reads the handle
+  // atomically and works on its own strong reference. Whether the sequence is
+  // still open is up to PostTask().
+  std::shared_ptr<tracing_v2::RelaySequence> relay =
+      std::atomic_load(&muxer->tracing_v2_relay_);
+  if (!relay)
+    return false;
+  return relay->PostTask(std::move(task));
+}
+
+// static
+void TracingMuxerImplInternalsForTest::PostToMuxerSequence(
+    std::function<void()> task) {
+  auto* muxer =
+      reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
+  muxer->task_runner_->PostTask(std::move(task));
+}
+
 void TracingMuxerImplInternalsForTest::ClearIncrementalState() {
   auto* muxer =
       reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
