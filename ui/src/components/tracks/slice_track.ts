@@ -55,7 +55,6 @@ import {
   LONG_NULL,
   NUM_NULL,
   type IterResultFor,
-  type RowIterator,
 } from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
@@ -807,7 +806,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return result.maybeFirstRow({rowCount: NUM})?.rowCount ?? 0;
   }
 
-  private useData(trackCtx: TrackRenderContext): DataFrame<IterResultFor<T>> | undefined {
+  private useData(
+    trackCtx: TrackRenderContext,
+  ): DataFrame<IterResultFor<T>> | undefined {
     const {resolution, visibleWindow} = trackCtx;
 
     const dataset = this.getDataset();
@@ -913,41 +914,46 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     // Initialize buffers
     const count = queryResult.numRows();
-    const xs = new Float32Array(count);
-    const depths = new Uint16Array(count);
     const instants = new Array<Instant<IterResultFor<T>>>(count);
 
-    const it = queryResult.iter({
+    const cols = queryResult.decodeColumns({
       __id: NUM,
       __ts: NUM,
       __count: NUM,
       __depth: NUM,
       ...dataset.schema,
     });
+    const idCol = cols.__id;
+    const tsCol = cols.__ts;
+    const countCol = cols.__count;
+    const depthCol = cols.__depth;
+    const schemaKeys = Object.keys(dataset.schema);
+    const schemaCols = schemaKeys.map((k) => cols[k]);
+    const xs = new Float32Array(tsCol);
+    const depths = new Uint16Array(depthCol);
 
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    for (let i = 0; i < count; i++) {
       if (i % 64 === 0) {
         if (signal.isCancelled) throw TASK_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
-      const id = it.__id;
-      const ts = it.__ts;
-      const count = it.__count;
-      const depth = it.__depth;
-      const title = this.getTitle(it);
-      const subtitle = this.getSubtitle(it);
-      const colorScheme = this.getColor(it, title);
-      const row = this.extractKeys(it, dataset.schema);
+      // Building the row object for every row is inefficient but we need to do
+      // it for compatibility with the various callbacks, and changing these
+      // would change the track API.
+      // TODO(stevegolton): Change the getTitle(), getSubtitle(), getColor()
+      // callbacks to avoid having to build a row object for every row.
+      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const title = this.getTitle(row);
+      const subtitle = this.getSubtitle(row);
+      const colorScheme = this.getColor(row, title);
 
-      xs[i] = ts;
-      depths[i] = depth;
       instants[i] = {
-        id,
+        id: idCol[i],
         title,
         subtitle,
         colorScheme,
-        count,
+        count: countCol[i],
         row,
       };
     }
@@ -1014,13 +1020,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const task = await this.deferChunkedTask();
 
     const count = sliceQueryRes.numRows();
-    const starts = new Float32Array(count);
-    const ends = new Float32Array(count);
-    const depths = new Uint16Array(count);
-    const patterns = new Uint8Array(count);
-    const slices = new Array<Slice<IterResultFor<T>>>(count);
 
-    const it = sliceQueryRes.iter({
+    const cols = sliceQueryRes.decodeColumns({
       __id: NUM,
       __start: NUM,
       __end: NUM_NULL,
@@ -1029,38 +1030,46 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       __incomplete: NUM,
       ...dataset.schema,
     });
+    const idCol = cols.__id;
+    const startCol = cols.__start;
+    const endCol = cols.__end;
+    const countCol = cols.__count;
+    const depthCol = cols.__depth;
+    const incompleteCol = cols.__incomplete;
+    const schemaKeys = Object.keys(dataset.schema);
+    const schemaCols = schemaKeys.map((k) => cols[k]);
 
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    const starts = new Float32Array(startCol);
+    const ends = new Float32Array(count);
+    const depths = new Uint16Array(depthCol);
+    const patterns = new Uint8Array(count);
+    const slices = new Array<Slice<IterResultFor<T>>>(count);
+
+    for (let i = 0; i < count; i++) {
       if (i % 64 === 0) {
         if (signal.isCancelled) throw TASK_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
-      const count = it.__count;
-      const id = it.__id;
-      const start = it.__start;
-      const end = it.__end;
-      const depth = it.__depth;
-      const title = this.getTitle(it);
-      const subtitle = this.getSubtitle(it);
-      const colorScheme = this.getColor(it, title);
-      const isIncomplete = it.__incomplete === 1;
-      const row = this.extractKeys(it, dataset.schema);
+      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const title = this.getTitle(row);
+      const subtitle = this.getSubtitle(row);
+      const colorScheme = this.getColor(row, title);
+      const end = endCol[i];
+      const isIncomplete = incompleteCol[i] === 1;
 
-      starts[i] = start;
       // Incomplete slices are assigned a +Infinity end
       ends[i] = end === null ? Number.POSITIVE_INFINITY : end;
-      depths[i] = depth;
       patterns[i] = isIncomplete
         ? RECT_PATTERN_FADE_RIGHT
-        : (this.attrs.slicePattern?.(it) ?? 0);
+        : (this.attrs.slicePattern?.(row) ?? 0);
       slices[i] = {
-        id,
+        id: idCol[i],
         title,
         subtitle,
         colorScheme,
-        count,
-        fillRatio: this.attrs.fillRatio?.(it) ?? 1,
+        count: countCol[i],
+        fillRatio: this.attrs.fillRatio?.(row) ?? 1,
         row,
       };
     }
@@ -1075,19 +1084,18 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     };
   }
 
-  // Efficiently copy a sebset of keys from a raw value based on some template.
-  // Note: Only the template's keys are used, the values are ignored (hence the
-  // unknown value types).
-  private extractKeys(
-    from: RowIterator<T>,
-    template: Record<string, unknown>,
+  // Reads the dataset.schema columns out of the decoded columnar arrays (cols[k]
+  // holds the data for schema key k) into a per-row object for the callbacks.
+  private buildSchemaRow(
+    keys: readonly string[],
+    cols: readonly ArrayLike<SqlValue>[],
+    i: number,
   ): IterResultFor<T> {
-    const result: Record<string, SqlValue> = {};
-    // eslint-disable-next-line guard-for-in
-    for (const k in template) {
-      result[k] = from[k] as SqlValue;
+    const row: Record<string, SqlValue> = {};
+    for (let k = 0; k < keys.length; k++) {
+      row[keys[k]] = cols[k][i];
     }
-    return result as unknown as IterResultFor<T>;
+    return row as IterResultFor<T>;
   }
 
   private async deferChunkedTask() {
@@ -1108,7 +1116,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return '';
   }
 
-  private getColor(row: IterResultFor<T>, title: string | undefined): ColorScheme {
+  private getColor(
+    row: IterResultFor<T>,
+    title: string | undefined,
+  ): ColorScheme {
     if (this.attrs.colorizer) return this.attrs.colorizer(row);
     if (title) return getColorForSlice(title);
     return getColorForSlice(`${row.id}`);
