@@ -1105,10 +1105,14 @@ TEST(ExtensionProtoMergerTest, MergeExtensionsEndToEnd) {
   EXPECT_THAT(out,
               HasSubstr("optional AppWakelockBundle app_wakelock = 1100;"));
 
-  // Verify relocated helper types
+  // Verify relocated helper types appear BEFORE their target message
   EXPECT_THAT(out, HasSubstr("enum ReceiverType {"));
   EXPECT_THAT(out, HasSubstr("message AndroidMessageQueue {"));
   EXPECT_THAT(out, HasSubstr("message AppWakelockBundle {"));
+  EXPECT_LT(out.find("message AndroidMessageQueue {"),
+            out.find("message TrackEvent {"));
+  EXPECT_LT(out.find("message AppWakelockBundle {"),
+            out.find("message TracePacket {"));
 }
 
 TEST(ExtensionProtoMergerTest, CrossFileExtensionDependency) {
@@ -1156,6 +1160,50 @@ TEST(ExtensionProtoMergerTest, CrossFileExtensionDependency) {
   EXPECT_THAT(out, HasSubstr("message TrackEvent {"));
   EXPECT_THAT(out, HasSubstr("optional SharedMeta shared_meta = 3000;"));
   EXPECT_THAT(out, HasSubstr("message SharedMeta {"));
+  EXPECT_LT(out.find("message SharedMeta {"), out.find("message TrackEvent {"));
+}
+
+TEST(ExtensionProtoMergerTest, UnassociatedHelpersAreOmitted) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string base_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message TrackEvent {
+      optional string name = 1;
+      extensions 1000 to 9999;
+    }
+  )";
+
+  std::string ext_content = R"(
+    syntax = "proto2";
+    package com.android.unassociated;
+    import "base.proto";
+
+    message UnusedHelper {
+      optional string data = 1;
+    }
+
+    message OtherMessage {
+      extensions 100 to 200;
+    }
+
+    extend OtherMessage {
+      optional UnusedHelper unused = 101;
+    }
+  )";
+
+  TempProtoFile temp_base(temp_dir.path(), "base.proto", base_content);
+  TempProtoFile temp_ext(temp_dir.path(), "ext.proto", ext_content);
+
+  std::string out;
+  base::Status status =
+      MergeExtensions("base.proto", temp_dir.path(), {"ext.proto"}, &out);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  EXPECT_THAT(out, HasSubstr("message TrackEvent {"));
+  EXPECT_THAT(out, Not(HasSubstr("UnusedHelper")));
+  EXPECT_THAT(out, Not(HasSubstr("OtherMessage")));
 }
 }  // namespace
 }  // namespace proto_merger
