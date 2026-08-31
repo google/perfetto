@@ -18,6 +18,7 @@
     top: 0;
     display: flex;
     align-content: baseline;
+    gap: 8px;
     background-color: var(--pf-color-background-secondary);
     font-size: var(--pf-font-size-l);
     font-weight: 400;
@@ -25,6 +26,21 @@
     vertical-align: middle;
     border-bottom: 1px solid var(--pf-color-border);
     z-index: 1;
+  }
+
+  &__filter {
+    margin-left: auto;
+    padding: 2px 6px;
+    font-size: var(--pf-font-size-m);
+    background: var(--pf-color-background-primary);
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    color: var(--pf-color-text-primary);
+    outline: none;
+
+    &:focus {
+      border-color: var(--pf-color-primary);
+    }
   }
 
   &__item {

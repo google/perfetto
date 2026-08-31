@@ -14,12 +14,14 @@
 
 import './query_history.scss';
 import m from 'mithril';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Icons} from '../../base/semantic_icons';
 import {assertTrue} from '../../base/assert';
 import {z} from 'zod';
 import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
 import {Stack} from '../../widgets/stack';
+import {EmptyState} from '../../widgets/empty_state';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -31,17 +33,40 @@ export interface QueryHistoryComponentAttrs {
 }
 
 export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryComponentAttrs> {
+  private filterText = '';
+
   view({attrs}: m.CVnode<QueryHistoryComponentAttrs>) {
     const {trace, runQuery, setQuery, ...rest} = attrs;
+
+    // Fuzzy-filter the entries
+    const results = fuzzySearch(
+      queryHistoryStorage.data,
+      (entry) => entry.query,
+      this.filterText,
+    );
+
     const unstarred: HistoryItemComponentAttrs[] = [];
     const starred: HistoryItemComponentAttrs[] = [];
     // Items are stored with most recent first (index 0)
     // Iterate forward and separate starred from unstarred
-    for (let i = 0; i < queryHistoryStorage.data.length; i++) {
-      const entry = queryHistoryStorage.data[i];
+    for (const result of results) {
+      const entry = result.item;
       const arr = entry.starred ? starred : unstarred;
-      arr.push({trace, index: i, entry, runQuery, setQuery});
+      // Find the original index in the storage data
+      const index = queryHistoryStorage.data.indexOf(entry);
+      arr.push({
+        trace,
+        index,
+        entry,
+        runQuery,
+        setQuery,
+        segments: result.segments,
+      });
     }
+
+    const totalQueries = queryHistoryStorage.data.length;
+    const matchCount = results.length;
+
     return m(
       '.pf-query-history',
       {
@@ -49,10 +74,26 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
       },
       m(
         '.pf-query-history__header',
-        `Query history (${queryHistoryStorage.data.length} queries)`,
+        `Query history (${totalQueries} queries)`,
+        m('input.pf-query-history__filter', {
+          type: 'text',
+          placeholder: 'Filter...',
+          value: this.filterText,
+          oninput: (e: Event) => {
+            this.filterText = (e.target as HTMLInputElement).value;
+          },
+        }),
       ),
-      starred.map((attrs) => m(HistoryItemComponent, attrs)),
-      unstarred.map((attrs) => m(HistoryItemComponent, attrs)),
+      matchCount === 0 && totalQueries > 0
+        ? m(EmptyState, {
+            title: 'No matching queries',
+            icon: 'search',
+            fillHeight: true,
+          })
+        : [
+            starred.map((itemAttrs) => m(HistoryItemComponent, itemAttrs)),
+            unstarred.map((itemAttrs) => m(HistoryItemComponent, itemAttrs)),
+          ],
     );
   }
 }
@@ -63,11 +104,14 @@ export interface HistoryItemComponentAttrs {
   entry: QueryHistoryEntry;
   runQuery: (query: string) => void;
   setQuery: (query: string) => void;
+  segments?: readonly FuzzySegment[];
 }
 
 export class HistoryItemComponent implements m.ClassComponent<HistoryItemComponentAttrs> {
   view(vnode: m.Vnode<HistoryItemComponentAttrs>): m.Child {
     const query = vnode.attrs.entry.query;
+    const segments = vnode.attrs.segments;
+
     return m(
       '.pf-query-history__item',
       m(
@@ -109,7 +153,11 @@ export class HistoryItemComponent implements m.ClassComponent<HistoryItemCompone
           onclick: () => vnode.attrs.setQuery(query),
           ondblclick: () => vnode.attrs.runQuery(query),
         },
-        query,
+        segments
+          ? segments.map(({matching, value}) =>
+              matching ? m('b', value) : value,
+            )
+          : query,
       ),
     );
   }
