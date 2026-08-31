@@ -900,6 +900,90 @@ TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
   EXPECT_NE(merged_desc, nullptr);
 }
 
+TEST(ProtoFileSerializerTest,
+     ReservedUpstreamFieldWithDeletedTypeIsPlacedInDeletedFields) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Message note_msg{};
+    note_msg.name = "Note";
+    note_msg.fields.push_back(MakeField("string", "key", 1));
+    note_msg.fields.push_back(MakeField("string", "value", 2));
+    message.nested_messages.push_back(note_msg);
+
+    ProtoFile::Field notes_field = MakeField("Note", "notes", 46);
+    notes_field.is_repeated = true;
+    message.fields.push_back(notes_field);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.reserved_numbers.insert(46);
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  size_t pos_note_msg = out.find("message Note {");
+  size_t pos_notes_field = out.find("repeated Note notes = 46");
+
+  EXPECT_NE(pos_note_msg, std::string::npos);
+  EXPECT_NE(pos_notes_field, std::string::npos);
+  EXPECT_LT(pos_note_msg, pos_notes_field)
+      << "message Note must be defined before repeated Note notes is used:\n"
+      << out;
+
+  EXPECT_THAT(out, HasSubstr("repeated Note notes = 46 [deprecated = true];"));
+}
+
+TEST(ProtoFileSerializerTest,
+     DeletedOneofFieldWithDeletedTypeIsMarkedDeprecated) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Message note_msg{};
+    note_msg.name = "Note";
+    note_msg.fields.push_back(MakeField("string", "key", 1));
+    message.nested_messages.push_back(note_msg);
+
+    ProtoFile::Oneof oneof{};
+    oneof.name = "data";
+    oneof.fields.push_back(MakeField("Note", "note", 1));
+    message.oneofs.push_back(oneof);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Oneof oneof{};
+    oneof.name = "data";
+    message.oneofs.push_back(oneof);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("Note note = 1 [deprecated = true];"));
+}
+
 TEST(ProtoFileSerializerTest, ExtensionProtoMergerInlinesAllExtensions) {
   base::TempDir temp_dir = base::TempDir::Create();
   std::string base_content = R"(
