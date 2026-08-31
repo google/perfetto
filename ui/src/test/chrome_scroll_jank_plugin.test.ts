@@ -21,6 +21,7 @@ import {
   type TrackSpec,
 } from '../plugins/org.chromium.ChromeScrollJank/tracks';
 import {Time, type time} from '../base/time';
+import {NUM} from '../trace_processor/query_result';
 
 let pth: PerfettoTestHelper;
 let page: Page;
@@ -66,7 +67,7 @@ async function selectPluginSlice(
       if (result.numRows() > 1) {
         throw new Error('Multiple slices match');
       }
-      const id = result.firstRow({id: Number()}).id;
+      const id = result.firstRow({id: NUM}).id;
 
       // Step 2: Select the slice.
       trace.selection.selectTrackEvent(trackUri, id);

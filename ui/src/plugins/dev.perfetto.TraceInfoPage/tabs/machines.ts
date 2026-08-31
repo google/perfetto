@@ -14,7 +14,11 @@
 
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
-import {NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
+import {
+  NUM_NULL,
+  STR_NULL,
+  type IterResultFor,
+} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 
@@ -33,7 +37,7 @@ const machineRowSpec = {
   androidSdkVersion: NUM_NULL,
 };
 
-type MachineRow = typeof machineRowSpec;
+type MachineRow = IterResultFor<typeof machineRowSpec>;
 
 export interface MachinesData {
   machines: MachineRow[];

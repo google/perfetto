@@ -58,20 +58,23 @@ import {Duration, type duration, Time, type time} from '../base/time';
 export type SqlValue =
   string | number | bigint | null | Uint8Array<ArrayBuffer>;
 
-export const UNKNOWN: SqlValue = null;
-export const NUM = 0;
-export const STR = 'str';
-export const NUM_NULL: number | null = 1;
-export const STR_NULL: string | null = 'str_null';
-export const BLOB: Uint8Array<ArrayBuffer> = new Uint8Array();
-export const BLOB_NULL: Uint8Array<ArrayBuffer> | null = new Uint8Array();
-export const LONG: bigint = 0n;
-export const LONG_NULL: bigint | null = 1n;
+// The column type constants are branded with unique string-literal types so
+// that each is uniquely identifiable at the type level (via typeof). This
+// allows mapped types like DecodeIterType to distinguish them.
+export const UNKNOWN = {__brand: 'UNKNOWN'} as const;
+export const NUM = {__brand: 'NUM', __nonNullish: true} as const;
+export const STR = {__brand: 'STR', __nonNullish: true} as const;
+export const NUM_NULL = {__brand: 'NUM'} as const;
+export const STR_NULL = {__brand: 'STR'} as const;
+export const BLOB = {__brand: 'BLOB', __nonNullish: true} as const;
+export const BLOB_NULL = {__brand: 'BLOB'} as const;
+export const LONG = {__brand: 'LONG', __nonNullish: true} as const;
+export const LONG_NULL = {__brand: 'LONG'} as const;
 
 const SHIFT_32BITS = 32n;
 
 // Describes the inheritance tree of the above types.
-const inheritanceTree = new Map<SqlValue, {readonly extends?: SqlValue}>([
+const inheritanceTree = new Map<SpecValue, {readonly extends?: SpecValue}>([
   [NUM, {extends: NUM_NULL}],
   [NUM_NULL, {extends: UNKNOWN}],
   [LONG, {extends: LONG_NULL}],
@@ -90,7 +93,7 @@ const inheritanceTree = new Map<SqlValue, {readonly extends?: SqlValue}>([
  * @param actual - The type to test.
  * @returns - True if `actual` extends `required`.
  */
-export function checkExtends(required: SqlValue, actual: SqlValue): boolean {
+export function checkExtends(required: SpecValue, actual: SpecValue): boolean {
   // If the types are the same, just return true
   if (required === actual) return true;
 
@@ -102,9 +105,9 @@ export function checkExtends(required: SqlValue, actual: SqlValue): boolean {
  * Returns the closest common ancestor of two types.
  */
 export function unionTypes(
-  typeA: SqlValue,
-  typeB: SqlValue,
-): SqlValue | undefined {
+  typeA: SpecValue,
+  typeB: SpecValue,
+): SpecValue | undefined {
   // If the types are the same, just return the same type
   if (typeA === typeB) return typeA;
 
@@ -125,8 +128,8 @@ export function unionTypes(
 /**
  * Returns the ancestry path from the given type to the root, inclusive.
  */
-function getAncestryPath(type: SqlValue): SqlValue[] {
-  const path: SqlValue[] = [type];
+function getAncestryPath(type: SpecValue): SpecValue[] {
+  const path: SpecValue[] = [type];
   let current = inheritanceTree.get(type);
 
   while (current && current.extends !== undefined) {
@@ -269,6 +272,49 @@ export interface Row {
   [key: string]: SqlValue;
 }
 
+export type SpecValue =
+  | typeof UNKNOWN
+  | typeof NUM
+  | typeof LONG
+  | typeof NUM_NULL
+  | typeof LONG_NULL
+  | typeof STR
+  | typeof STR_NULL
+  | typeof BLOB
+  | typeof BLOB_NULL;
+
+export interface SpecType {
+  [key: string]: SpecValue;
+}
+
+// Maps a spec value to the concrete row type produced when the value at that
+// column is read by iter()/firstRow().
+export type DecodeIterType<V> = V extends typeof UNKNOWN
+  ? SqlValue
+  : V extends typeof NUM
+    ? number
+    : V extends typeof LONG
+      ? bigint
+      : V extends typeof NUM_NULL
+        ? number | null
+        : V extends typeof LONG_NULL
+          ? bigint | null
+          : V extends typeof STR
+            ? string
+            : V extends typeof STR_NULL
+              ? string | null
+              : V extends typeof BLOB
+                ? Uint8Array<ArrayBuffer>
+                : V extends typeof BLOB_NULL
+                  ? Uint8Array<ArrayBuffer> | null
+                  : never;
+
+// The fully-typed row produced when reading a query result with the given
+// spec.
+export type IterResultFor<T extends SpecType> = {
+  readonly [K in keyof T]: DecodeIterType<T[K]>;
+};
+
 // The methods that any iterator has to implement.
 export interface RowIteratorBase {
   valid(): boolean;
@@ -291,9 +337,10 @@ export interface RowIteratorBase {
 // const iter = queryResult.iter({name: STR, surname: STR, id: NUM});
 // for (; iter.valid(); iter.next())
 //  console.log(iter.name, iter.surname);
-export type RowIterator<T extends Row> = RowIteratorBase & T;
+export type RowIterator<T extends SpecType> = RowIteratorBase &
+  IterResultFor<T>;
 
-function columnTypeToString(t: SqlValue): string {
+function columnTypeToString(t: SpecValue): string {
   switch (t) {
     case NUM:
       return 'NUM';
@@ -318,7 +365,7 @@ function columnTypeToString(t: SqlValue): string {
   }
 }
 
-function isCompatible(actual: CellType, expected: SqlValue): boolean {
+function isCompatible(actual: CellType, expected: SpecValue): boolean {
   switch (actual) {
     case CellType.CELL_NULL:
       return (
@@ -381,15 +428,15 @@ export interface QueryResult {
   // keep the data around so they can redraw them on each animation frame. For
   // now we keep everything in memory in the QueryResultImpl object.
   // iter<T extends Row>(spec: T): RowIterator<T>;
-  iter<T extends Row>(spec: T): RowIterator<T>;
+  iter<T extends SpecType>(spec: T): RowIterator<T>;
 
   // Like iter() for queries that expect only one row. It embeds the valid()
   // check (i.e. throws if no rows are available) and returns directly the
   // first result.
-  firstRow<T extends Row>(spec: T): T;
+  firstRow<T extends SpecType>(spec: T): IterResultFor<T>;
 
   // Like firstRow() but returns undefined if no rows are available.
-  maybeFirstRow<T extends Row>(spec: T): T | undefined;
+  maybeFirstRow<T extends SpecType>(spec: T): IterResultFor<T> | undefined;
 
   // If != undefined the query errored out and error() contains the message.
   error(): string | undefined;
@@ -440,16 +487,16 @@ export interface QueryResult {
 // the array-materializing counterpart to iter(): use it when you want every row
 // up front rather than streaming through them.
 // Example: const rows = materializeRows(result, {id: NUM, name: STR});
-export function materializeRows<T extends Row>(
+export function materializeRows<T extends SpecType>(
   result: QueryResult,
   spec: T,
-): T[] {
-  const rows: T[] = [];
+): IterResultFor<T>[] {
+  const rows: IterResultFor<T>[] = [];
   const cols = Object.keys(spec);
   for (const it = result.iter(spec); it.valid(); it.next()) {
     const row: Record<string, SqlValue> = {};
     for (const col of cols) row[col] = it.get(col);
-    rows.push(row as T);
+    rows.push(row as IterResultFor<T>);
   }
   return rows;
 }
@@ -537,23 +584,23 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     return this._elapsedTimeMs;
   }
 
-  iter<T extends Row>(spec: T): RowIterator<T> {
+  iter<T extends SpecType>(spec: T): RowIterator<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
     return impl as {} as RowIterator<T>;
   }
 
-  firstRow<T extends Row>(spec: T): T {
+  firstRow<T extends SpecType>(spec: T): IterResultFor<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
     assertTrue(impl.valid());
-    return impl as {} as RowIterator<T> as T;
+    return impl as {} as RowIterator<T> as IterResultFor<T>;
   }
 
-  maybeFirstRow<T extends Row>(spec: T): T | undefined {
+  maybeFirstRow<T extends SpecType>(spec: T): IterResultFor<T> | undefined {
     const impl = new RowIteratorImplWithRowData(spec, this);
     if (!impl.valid()) {
       return undefined;
     }
-    return impl as {} as RowIterator<T> as T;
+    return impl as {} as RowIterator<T> as IterResultFor<T>;
   }
 
   // Can be called only once.
@@ -828,7 +875,7 @@ class RowIteratorImpl implements RowIteratorBase {
   // The spec passed to the iter call containing the expected types, e.g.:
   // {'colA': NUM, 'colB': NUM_NULL, 'colC': STRING}.
   // This doesn't ever change.
-  readonly rowSpec: Row;
+  readonly rowSpec: SpecType;
 
   // The object that holds the current row. This points to the parent
   // RowIteratorImplWithRowData instance that created this class.
@@ -847,7 +894,7 @@ class RowIteratorImpl implements RowIteratorBase {
   private batchBytes = new Uint8Array();
   private columnNames: string[] = [];
   // rowSpec resolved by column position; see tryMoveToNextBatch().
-  private colTypes: Array<SqlValue | undefined> = [];
+  private colTypes: Array<SpecValue | undefined> = [];
   private numColumns = 0;
   private cellTypesEnd = -1; // -1 so the 1st next() hits tryMoveToNextBatch().
   private float64Cells = new Float64Array();
@@ -865,7 +912,7 @@ class RowIteratorImpl implements RowIteratorBase {
   private nextBlobCell = 0;
   private isValid = false;
 
-  constructor(querySpec: Row, rowData: Row, res: QueryResultImpl) {
+  constructor(querySpec: SpecType, rowData: Row, res: QueryResultImpl) {
     Object.assign(this, querySpec);
     this.rowData = rowData;
     this.rowSpec = {...querySpec}; // ... -> Copy all the key/value pairs.
@@ -1063,7 +1110,7 @@ class RowIteratorImpl implements RowIteratorBase {
   // one, so the thrown error can name the offending row.
   private checkColumnCellTypes(
     col: number,
-    expType: SqlValue,
+    expType: SpecValue,
     numColumns: number,
   ): void {
     for (
@@ -1103,7 +1150,7 @@ class RowIteratorImplWithRowData implements RowIteratorBase {
   valid: () => boolean;
   get: (columnName: string) => SqlValue;
 
-  constructor(querySpec: Row, res: QueryResultImpl) {
+  constructor(querySpec: SpecType, res: QueryResultImpl) {
     const thisAsRow = this as {} as Row;
     Object.assign(thisAsRow, querySpec);
     this._impl = new RowIteratorImpl(querySpec, thisAsRow, res);
@@ -1130,13 +1177,13 @@ class WaitableQueryResultImpl
   }
 
   // QueryResult implementation. Proxies all calls to the impl object.
-  iter<T extends Row>(spec: T) {
+  iter<T extends SpecType>(spec: T) {
     return this.impl.iter(spec);
   }
-  firstRow<T extends Row>(spec: T) {
+  firstRow<T extends SpecType>(spec: T) {
     return this.impl.firstRow(spec);
   }
-  maybeFirstRow<T extends Row>(spec: T) {
+  maybeFirstRow<T extends SpecType>(spec: T) {
     return this.impl.maybeFirstRow(spec);
   }
   waitAllRows() {

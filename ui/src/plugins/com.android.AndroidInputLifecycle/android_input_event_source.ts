@@ -17,8 +17,7 @@ import {
   LONG_NULL,
   NUM_NULL,
   STR_NULL,
-  type Row,
-  type SqlValue,
+  type SpecType,
   type QueryResult as DbQueryResult,
 } from '../../trace_processor/query_result';
 import {type duration, Time, Duration} from '../../base/time';
@@ -43,11 +42,10 @@ export interface InputChainRow {
   allTrackUris: string[];
 }
 
-interface InputLifecycleSpec extends Row {
-  input_id: string | null;
-  channel: string | null;
-  total_latency: bigint | null;
-  [key: string]: SqlValue;
+interface InputLifecycleSpec extends SpecType {
+  readonly input_id: typeof STR_NULL;
+  readonly channel: typeof STR_NULL;
+  readonly total_latency: typeof LONG_NULL;
 }
 
 export class AndroidInputEventSource {
@@ -290,12 +288,14 @@ export class AndroidInputEventSource {
 
       // TODO(ivankc) Consider how to properly handle this in the context of extensions.
       const totalLatency =
-        it.total_latency !== null ? Duration.fromRaw(it.total_latency) : null;
+        it.get('total_latency') !== null
+          ? Duration.fromRaw(it.get('total_latency') as bigint)
+          : null;
 
       rows.push({
         uiRowId: `row-${index++}`,
-        inputEventId: it.input_id,
-        channel: it.channel ?? '',
+        inputEventId: it.get('input_id') as string | null,
+        channel: (it.get('channel') as string | null) ?? '',
         totalLatency,
         stagesData,
         allTrackUris,

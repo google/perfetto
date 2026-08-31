@@ -17,6 +17,8 @@ import {getOrCreate} from '../base/utils';
 import {
   checkExtends,
   NUM,
+  type SpecType,
+  type SpecValue,
   type SqlValue,
   unionTypes,
   UNKNOWN,
@@ -66,9 +68,10 @@ export interface Dataset<T extends DatasetSchema = DatasetSchema> {
 
 /**
  * Defines a list of columns and types that define the shape of the data
- * represented by a dataset.
+ * represented by a dataset. Uses the same type as the query result spec
+ * so that dataset schemas can be passed directly to iter()/decodeColumns().
  */
-export type DatasetSchema = Readonly<Record<string, SqlValue>>;
+export type DatasetSchema = SpecType;
 
 /**
  * A filter used to express that a column must equal a value.
@@ -300,14 +303,14 @@ export class UnionDataset<
   get schema(): T {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
-    let unionSchema: Record<string, SqlValue> | undefined = undefined;
+    let unionSchema: Record<string, SpecValue> | undefined = undefined;
     this.union.forEach((ds) => {
       const dsSchema = ds.schema;
       if (unionSchema === undefined) {
         // First time just use this one
         unionSchema = dsSchema;
       } else {
-        const newSch: Record<string, SqlValue> = {};
+        const newSch: Record<string, SpecValue> = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
             const commonType = unionTypes(value, dsSchema[key]);
@@ -584,13 +587,13 @@ export class UnionDatasetWithLineage<
 
   get schema(): T {
     // Compute union schema from all datasets
-    let unionSchema: Record<string, SqlValue> | undefined = undefined;
+    let unionSchema: Record<string, SpecValue> | undefined = undefined;
     this.sourceDatasets.forEach((ds) => {
       const dsSchema = ds.schema;
       if (unionSchema === undefined) {
         unionSchema = dsSchema;
       } else {
-        const newSch: Record<string, SqlValue> = {};
+        const newSch: Record<string, SpecValue> = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
             const commonType = unionTypes(value, dsSchema[key]);
@@ -709,7 +712,10 @@ ${indent(chunk.join('\nUNION ALL\n'), 2)}
    * @param row - A row object containing __groupid and __partition values
    * @returns The source dataset(s) that produced this row
    */
-  resolveLineage(row: typeof lineageSchema): readonly Dataset[] {
+  resolveLineage(row: {
+    __groupid: number;
+    __partition: SqlValue;
+  }): readonly Dataset[] {
     const groupId = row.__groupid as number;
     const partitionValue = row.__partition;
 

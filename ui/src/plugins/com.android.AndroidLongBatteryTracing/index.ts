@@ -22,7 +22,7 @@ import {
   NUM_NULL,
   STR_NULL,
   UNKNOWN,
-  type SqlValue,
+  type SpecValue,
   LONG_NULL,
 } from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -798,7 +798,7 @@ export default class implements PerfettoPlugin {
       }
 
       // Add schema entries for dynamic columns
-      const argsSchema: Record<string, SqlValue> = {};
+      const argsSchema: Record<string, SpecValue> = {};
       for (const arg of args) {
         argsSchema[safeArg(arg)] = UNKNOWN;
       }

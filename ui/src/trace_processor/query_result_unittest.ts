@@ -27,6 +27,7 @@ import {
   STR_NULL,
   unionTypes,
   UNKNOWN,
+  type SpecValue,
 } from './query_result';
 
 const T = protos.QueryResult.CellsBatch.CellType;
@@ -516,7 +517,7 @@ describe('checkExtends', () => {
   });
 
   it('should handle non-existent types gracefully', () => {
-    const CUSTOM = 'CUSTOM';
+    const CUSTOM = 'CUSTOM' as unknown as SpecValue;
     // Type doesn't exist in the colTypes map
     expect(() => checkExtends(CUSTOM, NUM)).not.toThrow();
     expect(checkExtends(CUSTOM, NUM)).toBe(false);

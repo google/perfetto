@@ -54,6 +54,8 @@ import {
   NUM,
   LONG_NULL,
   NUM_NULL,
+  type IterResultFor,
+  type RowIterator,
 } from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
@@ -241,7 +243,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   /**
    * Override the color scheme for each event.
    */
-  colorizer?(row: T): ColorScheme;
+  colorizer?(row: IterResultFor<T>): ColorScheme;
 
   /**
    * Optional function returning a key for invalidating cached slice data frames when track attributes/modes change.
@@ -251,32 +253,32 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   /**
    * Override the text displayed on each event (title).
    */
-  sliceName?(row: T): string;
+  sliceName?(row: IterResultFor<T>): string;
 
   /**
    * Override the subtitle displayed on each event.
    */
-  sliceSubtitle?(row: T): string;
+  sliceSubtitle?(row: IterResultFor<T>): string;
 
   /**
    * Override the tooltip content for each event.
    */
-  tooltip?(slice: SliceOrInstant<T>): m.Children;
+  tooltip?(slice: SliceOrInstant<IterResultFor<T>>): m.Children;
 
   /**
    * Customize the details panel for events on this track.
    */
-  detailsPanel?(row: T): TrackEventDetailsPanel;
+  detailsPanel?(row: IterResultFor<T>): TrackEventDetailsPanel;
 
   /**
    * Define the fill ratio for slices (0.0 to 1.0).
    */
-  fillRatio?(row: T): number;
+  fillRatio?(row: IterResultFor<T>): number;
 
   /**
    * Override the pattern for each slice (e.g., RECT_PATTERN_HATCHED for RT threads).
    */
-  slicePattern?(row: T): number;
+  slicePattern?(row: IterResultFor<T>): number;
 
   /**
    * Define buttons displayed on the track shell.
@@ -287,22 +289,24 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * Called once per render cycle before drawing. Return an array of
    * ColorVariant values (one per slice) to control each slice's color.
    */
-  onUpdatedSlices?(slices: readonly SliceOrInstant<T>[]): ColorVariant[];
+  onUpdatedSlices?(
+    slices: readonly SliceOrInstant<IterResultFor<T>>[],
+  ): ColorVariant[];
 
   /**
    * Called when a slice is hovered.
    */
-  onSliceOver?(args: OnSliceOverArgs<T>): void;
+  onSliceOver?(args: OnSliceOverArgs<IterResultFor<T>>): void;
 
   /**
    * Called when hover leaves a slice.
    */
-  onSliceOut?(args: OnSliceOutArgs<T>): void;
+  onSliceOut?(args: OnSliceOutArgs<IterResultFor<T>>): void;
 
   /**
    * Called when a slice is clicked. Overrides the default selection behavior.
    */
-  onSliceClick?(args: OnSliceClickArgs<T>): void;
+  onSliceClick?(args: OnSliceClickArgs<IterResultFor<T>>): void;
 }
 
 interface Tables extends AsyncDisposable {
@@ -312,11 +316,11 @@ interface Tables extends AsyncDisposable {
 }
 
 export type RowSchema = {
-  readonly id?: number;
-  readonly ts: bigint;
-  readonly dur?: bigint | null;
-  readonly depth?: number;
-  readonly layer?: number;
+  readonly id?: typeof NUM;
+  readonly ts: typeof LONG;
+  readonly dur?: typeof LONG_NULL;
+  readonly depth?: typeof NUM;
+  readonly layer?: typeof NUM;
 } & DatasetSchema;
 
 function getDataset<T extends DatasetSchema>(
@@ -335,14 +339,16 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly instantWidthPx: number;
   private readonly queue = new AtomicTaskQueue();
   private readonly tablesSlot = new AsyncMemo<Tables>(this.queue);
-  private readonly dataFrameSlot = new AsyncMemo<DataFrame<T>>(this.queue);
+  private readonly dataFrameSlot = new AsyncMemo<DataFrame<IterResultFor<T>>>(
+    this.queue,
+  );
   private readonly bufferedBounds = new BufferedBounds();
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
-  private hoveredSlice?: SliceOrInstant<T>;
+  private hoveredSlice?: SliceOrInstant<IterResultFor<T>>;
   private charWidth = {title: -1, subtitle: -1};
   private computedTrackHeight = 0;
-  private currentDataFrame?: DataFrame<T>;
+  private currentDataFrame?: DataFrame<IterResultFor<T>>;
   private rowCount: number;
 
   /**
@@ -469,7 +475,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private renderSlices(
     trackCtx: TrackRenderContext,
-    sliceBuffers: SliceBuffers<T>,
+    sliceBuffers: SliceBuffers<IterResultFor<T>>,
     xTransform: Transform1D,
     pxEnd: number,
     pxPerNs: number,
@@ -643,7 +649,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private renderInstants(
     trackCtx: TrackRenderContext,
-    instantBuffers: InstantBuffers<T>,
+    instantBuffers: InstantBuffers<IterResultFor<T>>,
     xTransform: Transform1D,
     pxPerNs: number,
     baseOffsetPx: number,
@@ -801,7 +807,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return result.maybeFirstRow({rowCount: NUM})?.rowCount ?? 0;
   }
 
-  private useData(trackCtx: TrackRenderContext): DataFrame<T> | undefined {
+  private useData(trackCtx: TrackRenderContext): DataFrame<IterResultFor<T>> | undefined {
     const {resolution, visibleWindow} = trackCtx;
 
     const dataset = this.getDataset();
@@ -881,7 +887,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     resolution: duration,
     signal: CancellationSignal,
     dataset: SourceDataset<T>,
-  ): Promise<InstantBuffers<T>> {
+  ): Promise<InstantBuffers<IterResultFor<T>>> {
     const sqlSource = generateRenderQuery(dataset);
     const extraCols = Object.keys(dataset.schema)
       .map((c) => `s.${c} as ${c}`)
@@ -909,7 +915,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const count = queryResult.numRows();
     const xs = new Float32Array(count);
     const depths = new Uint16Array(count);
-    const instants = new Array<Instant<T>>(count);
+    const instants = new Array<Instant<IterResultFor<T>>>(count);
 
     const it = queryResult.iter({
       __id: NUM,
@@ -962,7 +968,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     resolution: duration,
     signal: CancellationSignal,
     dataset: SourceDataset<T>,
-  ): Promise<SliceBuffers<T>> {
+  ): Promise<SliceBuffers<IterResultFor<T>>> {
     const engine = this.trace.engine;
     const sqlSource = generateRenderQuery(dataset);
     const extraCols = Object.keys(dataset.schema)
@@ -1012,7 +1018,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const ends = new Float32Array(count);
     const depths = new Uint16Array(count);
     const patterns = new Uint8Array(count);
-    const slices = new Array<Slice<T>>(count);
+    const slices = new Array<Slice<IterResultFor<T>>>(count);
 
     const it = sliceQueryRes.iter({
       __id: NUM,
@@ -1072,13 +1078,16 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   // Efficiently copy a sebset of keys from a raw value based on some template.
   // Note: Only the template's keys are used, the values are ignored (hence the
   // unknown value types).
-  private extractKeys(from: T, template: Record<keyof T, unknown>): T {
-    const result = {} as T;
+  private extractKeys(
+    from: RowIterator<T>,
+    template: Record<string, unknown>,
+  ): IterResultFor<T> {
+    const result: Record<string, SqlValue> = {};
     // eslint-disable-next-line guard-for-in
     for (const k in template) {
-      result[k] = from[k];
+      result[k] = from[k] as SqlValue;
     }
-    return result;
+    return result as unknown as IterResultFor<T>;
   }
 
   private async deferChunkedTask() {
@@ -1088,25 +1097,25 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return await deferChunkedTask({priority});
   }
 
-  private getTitle(row: T): string {
+  private getTitle(row: IterResultFor<T>): string {
     if (this.attrs.sliceName) return this.attrs.sliceName(row);
     if ('name' in row && typeof row.name === 'string') return row.name;
     return '';
   }
 
-  private getSubtitle(row: T): string {
+  private getSubtitle(row: IterResultFor<T>): string {
     if (this.attrs.sliceSubtitle) return this.attrs.sliceSubtitle(row);
     return '';
   }
 
-  private getColor(row: T, title: string | undefined): ColorScheme {
+  private getColor(row: IterResultFor<T>, title: string | undefined): ColorScheme {
     if (this.attrs.colorizer) return this.attrs.colorizer(row);
     if (title) return getColorForSlice(title);
     return getColorForSlice(`${row.id}`);
   }
 
   private onUpdatedSlices(
-    slices: readonly SliceOrInstant<T>[],
+    slices: readonly SliceOrInstant<IterResultFor<T>>[],
   ): readonly ColorVariant[] {
     if (this.attrs.onUpdatedSlices) {
       return this.attrs.onUpdatedSlices(slices);
@@ -1116,7 +1125,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   private highlightHoveredAndSameTitle(
-    slices: readonly SliceOrInstant<T>[],
+    slices: readonly SliceOrInstant<IterResultFor<T>>[],
   ): readonly ColorVariant[] {
     const hoveredSlice = this.hoveredSlice;
     const highlightedSliceName = this.attrs.trace.timeline.highlightedSliceName;
@@ -1221,7 +1230,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     x,
     y,
     timescale,
-  }: TrackMouseEvent): undefined | SliceOrInstant<T> {
+  }: TrackMouseEvent): undefined | SliceOrInstant<IterResultFor<T>> {
     if (!this.currentDataFrame) return undefined;
 
     const trackHeight = this.computedTrackHeight;
@@ -1382,13 +1391,13 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel | undefined {
     if (this.attrs.detailsPanel) {
-      return this.attrs.detailsPanel(sel as unknown as T);
+      return this.attrs.detailsPanel(sel as unknown as IterResultFor<T>);
     } else {
       const dataset = getDataset(this.attrs);
       return new SliceTrackDetailsPanel(
         this.trace,
         dataset,
-        sel as unknown as T,
+        sel as unknown as IterResultFor<T>,
       );
     }
   }
@@ -1457,9 +1466,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
 // Helper functions
 
-export function renderTooltip(
+export function renderTooltip<T extends RowSchema>(
   trace: Trace,
-  slice: SliceOrInstant<RowSchema>,
+  slice: SliceOrInstant<IterResultFor<T>>,
   opts: {readonly title?: string; readonly extras?: m.Children} = {},
 ): m.Children {
   const durationFormatted = formatDurationForTooltip(trace, slice.row.dur);
