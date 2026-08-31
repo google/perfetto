@@ -16,6 +16,8 @@ import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import type {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
+import {executePinIntents} from './handlers/executor';
+import {parsePinIntents, type PinIntent} from './handlers/pinIntent';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
 import Wattson from '../org.kernel.Wattson';
 
@@ -79,6 +81,24 @@ export default class implements PerfettoPlugin {
         this.callHandlers(metricList, ctx);
       },
     });
+
+    /**
+     * Generic entry point for other clients (e.g. Perfetto startup commands)
+     * that provide parameter dictionaries directly.
+     *
+     * Example URL usage:
+     * https://ui.perfetto.dev/#!/?startupCommands=[{"id":"com.android.PinPerfMetrics","args":["{\"cuj\":\"SHADE_EXPAND\",\"process\":\"systemui\"}"]}]
+     */
+    ctx.commands.registerCommand({
+      id: 'com.android.PinPerfMetrics',
+      name: 'Pin performance tracks from parameter dictionaries',
+      callback: async (...args: unknown[]): Promise<PinIntent[]> => {
+        const intents = parsePinIntents(args);
+        await executePinIntents(ctx, intents);
+        return intents;
+      },
+    });
+
     if (metrics.length !== 0) {
       const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
       await plugin.pinJankCujs(ctx);
