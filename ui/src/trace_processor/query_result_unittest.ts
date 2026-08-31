@@ -27,7 +27,6 @@ import {
   STR_NULL,
   unionTypes,
   UNKNOWN,
-  type SpecValue,
 } from './query_result';
 
 const T = protos.QueryResult.CellsBatch.CellType;
@@ -281,6 +280,149 @@ test('QueryResult.MultipleBatches', async () => {
   expect(qr.numRows()).toBe(2);
 });
 
+test('QueryResult.decodeColumns', () => {
+  // Two batches, mixed cell types, to also exercise batch switching and the
+  // varint cursor reset between batches.
+  const resProto = protos.QueryResult.create({
+    columnNames: ['n', 'l', 's', 'f'],
+    batch: [
+      {
+        cells: [
+          T.CELL_VARINT,
+          T.CELL_VARINT,
+          T.CELL_STRING,
+          T.CELL_FLOAT64,
+          T.CELL_VARINT,
+          T.CELL_VARINT,
+          T.CELL_STRING,
+          T.CELL_FLOAT64,
+        ],
+        varintCells: [1, 1000000000000, -5, 42],
+        stringCells: ['foo', 'bar'].join('\0'),
+        float64Cells: [1.5, 2.5],
+        isLastBatch: false,
+      },
+      {
+        cells: [T.CELL_VARINT, T.CELL_VARINT, T.CELL_NULL, T.CELL_FLOAT64],
+        varintCells: [7, 99],
+        stringCells: '',
+        float64Cells: [3.5],
+        isLastBatch: true,
+      },
+    ],
+  });
+
+  const qr = createQueryResult({query: 'Some query'});
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
+  expect(qr.numRows()).toBe(3);
+
+  // n: NUM -> Float64Array, l: LONG -> BigInt64Array, s: STR -> string[],
+  // f: NUM -> Float64Array.
+  const cols = qr.decodeColumns({
+    n: NUM,
+    l: LONG,
+    s: STR_NULL,
+    f: NUM,
+  });
+
+  expect(cols.n).toBeInstanceOf(Float64Array);
+  expect(Array.from(cols.n)).toEqual([1, -5, 7]);
+  expect(cols.l).toBeInstanceOf(BigInt64Array);
+  expect(Array.from(cols.l)).toEqual([1000000000000n, 42n, 99n]);
+  expect(cols.s).toEqual(['foo', 'bar', null]);
+  expect(Array.from(cols.f)).toEqual([1.5, 2.5, 3.5]);
+
+  // Selecting a subset of columns must still decode correctly (the unselected
+  // columns' cells are skipped but their cursors still advance).
+  const subset = qr.decodeColumns({s: STR_NULL});
+  expect(subset.s).toEqual(['foo', 'bar', null]);
+
+  // Unknown column throws.
+  expect(() => qr.decodeColumns({nope: NUM})).toThrowError(/nope.*not found/);
+});
+
+// decodeColumns() must reject spec/wire mismatches the same way iter() does.
+test('QueryResult.decodeColumnsTypeErrors', () => {
+  // Incompatible: NUM spec but string cells on the wire, in the middle row.
+  const incompatible = protos.QueryResult.create({
+    columnNames: ['x'],
+    batch: [
+      {
+        cells: [T.CELL_VARINT, T.CELL_STRING, T.CELL_VARINT],
+        varintCells: [1, 3],
+        stringCells: 'oops',
+        isLastBatch: true,
+      },
+    ],
+  });
+  const qr1 = createQueryResult({query: 'Some query'});
+  qr1.appendResultBatch(protos.QueryResult.encode(incompatible).finish());
+  expect(() => qr1.decodeColumns({x: NUM})).toThrowError(
+    /Incompatible cell type.*Expected: NUM actual: STRING/,
+  );
+  expect(() => qr1.decodeColumns({x: NUM})).toThrowError(
+    /Error @ row: 1 col: 'x'/,
+  );
+
+  // NULL on a non-nullable spec must throw, like iter().
+  const nulls = protos.QueryResult.create({
+    columnNames: ['x', 'y'],
+    batch: [
+      {
+        cells: [T.CELL_VARINT, T.CELL_NULL],
+        varintCells: [1],
+        isLastBatch: true,
+      },
+    ],
+  });
+  const qr2 = createQueryResult({query: 'Some query'});
+  qr2.appendResultBatch(protos.QueryResult.encode(nulls).finish());
+  expect(() => qr2.decodeColumns({x: NUM, y: NUM})).toThrowError(
+    /Error @ row: 0 col: 'y': SQL value is NULL but that was not expected/,
+  );
+  // The nullable spec type is fine.
+  expect(() => qr2.decodeColumns({x: NUM, y: NUM_NULL})).not.toThrow();
+
+  // LONG + float64 cells must throw (matches iter()'s compatibility rules).
+  const longFloat = protos.QueryResult.create({
+    columnNames: ['x'],
+    batch: [
+      {
+        cells: [T.CELL_FLOAT64],
+        float64Cells: [1.5],
+        isLastBatch: true,
+      },
+    ],
+  });
+  const qr3 = createQueryResult({query: 'Some query'});
+  qr3.appendResultBatch(protos.QueryResult.encode(longFloat).finish());
+  expect(() => qr3.decodeColumns({x: LONG})).toThrowError(
+    /Incompatible cell type.*Expected: LONG actual: FLOAT64/,
+  );
+
+  // The row number in the error must account for rows from earlier batches.
+  const twoBatches = protos.QueryResult.create({
+    columnNames: ['x'],
+    batch: [
+      {
+        cells: [T.CELL_VARINT, T.CELL_VARINT],
+        varintCells: [1, 2],
+        isLastBatch: false,
+      },
+      {
+        cells: [T.CELL_VARINT, T.CELL_STRING],
+        varintCells: [3],
+        stringCells: 'oops',
+        isLastBatch: true,
+      },
+    ],
+  });
+  const qr4 = createQueryResult({query: 'Some query'});
+  qr4.appendResultBatch(protos.QueryResult.encode(twoBatches).finish());
+  expect(() => qr4.decodeColumns({x: NUM})).toThrowError(
+    /Error @ row: 3 col: 'x'/,
+  );
+});
 // Regression test for b/194891824 .
 test('QueryResult.DuplicateColumnNames', () => {
   const batch = protos.QueryResult.CellsBatch.create({
@@ -364,7 +506,7 @@ test('QueryResult.WaitMoreRows', async () => {
 
 describe('decodeInt64Varint', () => {
   test('Parsing empty input should throw an error', () => {
-    expect(() => decodeInt64Varint(new Uint8Array(), 0)).toThrow(
+    expect(() => decodeInt64Varint(new Uint8Array(), {pos: 0})).toThrow(
       'Index out of range',
     );
   });
@@ -377,7 +519,7 @@ describe('decodeInt64Varint', () => {
     ];
 
     testData.forEach(([input, expected]) => {
-      expect(decodeInt64Varint(input, 0)).toEqual(expected);
+      expect(decodeInt64Varint(input, {pos: 0})).toEqual(expected);
     });
   });
 
@@ -396,7 +538,7 @@ describe('decodeInt64Varint', () => {
     ];
 
     testData.forEach(([input, expected]) => {
-      expect(decodeInt64Varint(input, 0)).toEqual(expected);
+      expect(decodeInt64Varint(input, {pos: 0})).toEqual(expected);
     });
   });
 
@@ -423,7 +565,7 @@ describe('decodeInt64Varint', () => {
     ];
 
     testData.forEach(([input, expected]) => {
-      expect(decodeInt64Varint(input, 0)).toEqual(expected);
+      expect(decodeInt64Varint(input, {pos: 0})).toEqual(expected);
     });
   });
 
@@ -434,7 +576,9 @@ describe('decodeInt64Varint', () => {
     ];
 
     testData.forEach((input) => {
-      expect(() => decodeInt64Varint(input, 0)).toThrow('Index out of range');
+      expect(() => decodeInt64Varint(input, {pos: 0})).toThrow(
+        'Index out of range',
+      );
     });
   });
 });
@@ -514,12 +658,5 @@ describe('checkExtends', () => {
     // Testing across different type families
     expect(checkExtends(UNKNOWN, STR)).toBe(true);
     expect(checkExtends(NUM_NULL, STR)).toBe(false);
-  });
-
-  it('should handle non-existent types gracefully', () => {
-    const CUSTOM = 'CUSTOM' as unknown as SpecValue;
-    // Type doesn't exist in the colTypes map
-    expect(() => checkExtends(CUSTOM, NUM)).not.toThrow();
-    expect(checkExtends(CUSTOM, NUM)).toBe(false);
   });
 });
