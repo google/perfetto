@@ -16,6 +16,12 @@ import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import type {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
+import {executePinIntents} from './handlers/executor';
+import {
+  parsePinIntents,
+  type PinIntent,
+  type PinRequestsInput,
+} from './handlers/pinIntent';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
 import Wattson from '../org.kernel.Wattson';
 
@@ -79,6 +85,27 @@ export default class implements PerfettoPlugin {
         this.callHandlers(metricList, ctx);
       },
     });
+
+    const pinCallback = async (arg?: unknown): Promise<PinIntent[]> => {
+      const intents = parsePinIntents(arg as PinRequestsInput);
+      await executePinIntents(ctx, intents);
+      return intents;
+    };
+
+    // Generic entry point for other clients (e.g. Perfetto startup commands)
+    // that provide parameter dictionaries directly.
+    ctx.commands.registerCommand({
+      id: 'com.android.PinAndroidPerfMetrics#pinRequests',
+      name: 'Pin performance tracks from parameter dictionaries',
+      callback: pinCallback,
+    });
+
+    ctx.commands.registerCommand({
+      id: 'com.android.PinAndroidPerfMetrics#pinRequestsFromFilter',
+      name: 'Pin performance tracks from filter dictionary',
+      callback: pinCallback,
+    });
+
     if (metrics.length !== 0) {
       const plugin = ctx.plugins.getPlugin(AndroidCujsPlugin);
       await plugin.pinJankCujs(ctx);
