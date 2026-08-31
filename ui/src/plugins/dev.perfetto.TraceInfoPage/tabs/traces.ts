@@ -17,7 +17,7 @@ import type {Engine} from '../../../trace_processor/engine';
 import {
   NUM_NULL,
   STR_NULL,
-  type IterResultFor,
+  type InferRowType,
 } from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
@@ -33,7 +33,7 @@ const traceRowSpec = {
   machines: STR_NULL,
 };
 
-type TraceRow = IterResultFor<typeof traceRowSpec>;
+type TraceRow = InferRowType<typeof traceRowSpec>;
 
 export interface TracesData {
   readonly traces: TraceRow[];

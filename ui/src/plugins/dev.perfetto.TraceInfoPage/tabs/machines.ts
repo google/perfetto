@@ -17,7 +17,7 @@ import type {Engine} from '../../../trace_processor/engine';
 import {
   NUM_NULL,
   STR_NULL,
-  type IterResultFor,
+  type InferRowType,
 } from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
@@ -37,7 +37,7 @@ const machineRowSpec = {
   androidSdkVersion: NUM_NULL,
 };
 
-type MachineRow = IterResultFor<typeof machineRowSpec>;
+type MachineRow = InferRowType<typeof machineRowSpec>;
 
 export interface MachinesData {
   machines: MachineRow[];

@@ -24,7 +24,7 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 import type {RowSchema} from './slice_track';
-import type {IterResultFor} from '../../trace_processor/query_result';
+import type {InferRowType} from '../../trace_processor/query_result';
 import {exists} from '../../base/utils';
 import {Time} from '../../base/time';
 
@@ -43,7 +43,7 @@ export class SliceTrackDetailsPanel<
   constructor(
     private readonly trace: Trace,
     private readonly dataset: SourceDataset<T>,
-    private readonly data: IterResultFor<T>,
+    private readonly data: InferRowType<T>,
   ) {}
 
   render() {

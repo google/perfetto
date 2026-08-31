@@ -288,14 +288,12 @@ export class AndroidInputEventSource {
 
       // TODO(ivankc) Consider how to properly handle this in the context of extensions.
       const totalLatency =
-        it.get('total_latency') !== null
-          ? Duration.fromRaw(it.get('total_latency') as bigint)
-          : null;
+        it.total_latency !== null ? Duration.fromRaw(it.total_latency) : null;
 
       rows.push({
         uiRowId: `row-${index++}`,
-        inputEventId: it.get('input_id') as string | null,
-        channel: (it.get('channel') as string | null) ?? '',
+        inputEventId: it.input_id,
+        channel: it.channel ?? '',
         totalLatency,
         stagesData,
         allTrackUris,

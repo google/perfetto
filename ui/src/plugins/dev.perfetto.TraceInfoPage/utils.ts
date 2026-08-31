@@ -17,7 +17,7 @@ import type {Engine} from '../../trace_processor/engine';
 import {
   NUM_NULL,
   STR,
-  type IterResultFor,
+  type InferRowType,
 } from '../../trace_processor/query_result';
 import {Icon} from '../../widgets/icon';
 import {Tooltip} from '../../widgets/tooltip';
@@ -61,7 +61,7 @@ export const statsSpec = {
   traceId: NUM_NULL,
 };
 
-export type StatsSectionRow = IterResultFor<typeof statsSpec>;
+export type StatsSectionRow = InferRowType<typeof statsSpec>;
 
 export interface TraceInfo {
   readonly id: number;

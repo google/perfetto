@@ -15,7 +15,7 @@
 import m from 'mithril';
 import type {Engine} from '../../../trace_processor/engine';
 import {
-  type IterResultFor,
+  type InferRowType,
   LONG,
   NUM_NULL,
   STR,
@@ -38,7 +38,7 @@ const packageDataSpec = {
   profileableFromShell: NUM_NULL,
 };
 
-type PackageData = IterResultFor<typeof packageDataSpec>;
+type PackageData = InferRowType<typeof packageDataSpec>;
 
 const androidGameInterventionRowSpec = {
   package_name: STR,
@@ -58,7 +58,7 @@ const androidGameInterventionRowSpec = {
   battery_mode_fps: NUM_NULL,
 };
 
-type AndroidGameInterventionRow = IterResultFor<
+type AndroidGameInterventionRow = InferRowType<
   typeof androidGameInterventionRowSpec
 >;
 
@@ -73,7 +73,7 @@ const aflagRowSpec = {
   valuePickedFrom: STR_NULL,
 };
 
-type AflagRow = IterResultFor<typeof aflagRowSpec>;
+type AflagRow = InferRowType<typeof aflagRowSpec>;
 
 export interface AndroidData {
   packageList: PackageData[];

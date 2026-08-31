@@ -376,17 +376,16 @@ export class GroupSummaryTrack implements TrackRenderer {
       utid: NUM,
     });
 
-    const counts = new Uint32Array(it.count);
     const starts = it.ts;
+    const counts = new Uint32Array(it.count);
     const lanes = new Uint32Array(it.lane);
     const depths = new Uint16Array(it.lane);
     const utids = new Int32Array(it.utid);
-
     const ends = new BigInt64Array(numRows);
     const startRelNs = new Float32Array(numRows);
     const endRelNs = new Float32Array(numRows);
     const colorSchemes = new Array(numRows);
-    let finalSample = end;
+    let frameEnd = end;
 
     for (let row = 0; row < numRows; row++) {
       // Periodically check for cancellation during iteration
@@ -405,7 +404,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       const endTs = ts + dur;
 
       ends[row] = endTs;
-      finalSample = Time.max(Time.fromRaw(endTs), finalSample);
+      frameEnd = Time.max(Time.fromRaw(endTs), frameEnd);
 
       // Store relative timestamps as floats for fast rendering
       // TODO(stevegolton): Calculate these in SQL.
@@ -421,7 +420,7 @@ export class GroupSummaryTrack implements TrackRenderer {
 
     const slices: Data = {
       start,
-      end: finalSample,
+      end: frameEnd,
       resolution,
       length: numRows,
       maxLanes,

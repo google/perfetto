@@ -20,7 +20,7 @@ import type {
   QueryResult,
   Row,
   SpecType,
-  IterResultFor,
+  InferRowType,
 } from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
@@ -147,14 +147,14 @@ export function infoTooltip(text: string): m.Child {
 export function rows<R extends SpecType>(
   queryResult: QueryResult,
   spec: R,
-): IterResultFor<R>[] {
-  const results: IterResultFor<R>[] = [];
+): InferRowType<R>[] {
+  const results: InferRowType<R>[] = [];
   for (const it = queryResult.iter(spec); it.valid(); it.next()) {
     const row: Row = {};
     for (const key of Object.keys(spec)) {
       row[key] = it[key];
     }
-    results.push(row as IterResultFor<R>);
+    results.push(row as InferRowType<R>);
   }
   return results;
 }

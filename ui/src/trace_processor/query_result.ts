@@ -62,15 +62,15 @@ export type SqlValue =
 // that each is uniquely identifiable at the type level (via typeof). This
 // allows mapped types like DecodeColumnType to distinguish them. The brands
 // are erased at runtime; the constants retain their original values.
-export const UNKNOWN = {__brand: 'UNKNOWN'} as const;
 export const NUM = {__brand: 'NUM', __nonNullish: true} as const;
 export const STR = {__brand: 'STR', __nonNullish: true} as const;
+export const BLOB = {__brand: 'BLOB', __nonNullish: true} as const;
+export const LONG = {__brand: 'LONG', __nonNullish: true} as const;
 export const NUM_NULL = {__brand: 'NUM'} as const;
 export const STR_NULL = {__brand: 'STR'} as const;
-export const BLOB = {__brand: 'BLOB', __nonNullish: true} as const;
 export const BLOB_NULL = {__brand: 'BLOB'} as const;
-export const LONG = {__brand: 'LONG', __nonNullish: true} as const;
 export const LONG_NULL = {__brand: 'LONG'} as const;
+export const UNKNOWN = {} as const;
 
 // One decoded column produced by QueryResult.decodeColumns(). The runtime type
 // depends on the requested column type:
@@ -92,21 +92,11 @@ export type ColumnarColumn =
 // Maps a spec value to the concrete column type produced by decodeColumns().
 // Uses the branded types on the constants so each is uniquely distinguishable
 // regardless of TypeScript literal widening.
-export type DecodeColumnType<V> = V extends typeof UNKNOWN
-  ? Array<SqlValue>
-  : V extends typeof NUM
-    ? Float64Array
-    : V extends typeof LONG
-      ? BigInt64Array
-      : V extends typeof NUM_NULL
-        ? Array<number | null>
-        : V extends typeof LONG_NULL
-          ? Array<bigint | null>
-          : V extends typeof STR
-            ? Array<string | null>
-            : V extends typeof STR_NULL
-              ? Array<string | null>
-              : Array<SqlValue>;
+export type DecodeColumnType<V> = V extends typeof NUM
+  ? Float64Array
+  : V extends typeof LONG
+    ? BigInt64Array
+    : Array<DecodeRowType<V>>;
 
 // The fully-typed result of decodeColumns() for a given spec.
 export type ColumnarResultFor<T extends SpecType> = {
@@ -120,28 +110,28 @@ export interface ColumnarResult {
 // Maps a spec value to the concrete row type produced by iter().
 // Uses the branded types on the constants so each is uniquely distinguishable
 // regardless of TypeScript literal widening.
-export type DecodeIterType<V> = V extends typeof UNKNOWN
-  ? SqlValue
-  : V extends typeof NUM
-    ? number
-    : V extends typeof LONG
-      ? bigint
-      : V extends typeof NUM_NULL
-        ? number | null
-        : V extends typeof LONG_NULL
-          ? bigint | null
-          : V extends typeof STR
-            ? string
-            : V extends typeof STR_NULL
-              ? string | null
-              : V extends typeof BLOB
-                ? Uint8Array<ArrayBuffer>
-                : V extends typeof BLOB_NULL
-                  ? Uint8Array<ArrayBuffer> | null
+export type DecodeRowType<V> = V extends typeof NUM
+  ? number
+  : V extends typeof LONG
+    ? bigint
+    : V extends typeof NUM_NULL
+      ? number | null
+      : V extends typeof LONG_NULL
+        ? bigint | null
+        : V extends typeof STR
+          ? string
+          : V extends typeof STR_NULL
+            ? string | null
+            : V extends typeof BLOB
+              ? Uint8Array<ArrayBuffer>
+              : V extends typeof BLOB_NULL
+                ? Uint8Array<ArrayBuffer> | null
+                : V extends typeof UNKNOWN
+                  ? SqlValue
                   : never;
 
-export type IterResultFor<T extends SpecType> = {
-  readonly [K in keyof T]: DecodeIterType<T[K]>;
+export type InferRowType<T extends SpecType> = {
+  readonly [K in keyof T]: DecodeRowType<T[K]>;
 };
 
 const SHIFT_32BITS = 32n;
@@ -443,8 +433,7 @@ export interface RowIteratorBase {
 // const iter = queryResult.iter({name: STR, surname: STR, id: NUM});
 // for (; iter.valid(); iter.next())
 //  console.log(iter.name, iter.surname);
-export type RowIterator<T extends SpecType> = RowIteratorBase &
-  IterResultFor<T>;
+export type RowIterator<T extends SpecType> = RowIteratorBase & InferRowType<T>;
 
 function columnTypeToString(t: SpecValue): string {
   switch (t) {
@@ -632,10 +621,10 @@ export interface QueryResult {
   // Like iter() for queries that expect only one row. It embeds the valid()
   // check (i.e. throws if no rows are available) and returns directly the
   // first result.
-  firstRow<T extends SpecType>(spec: T): IterResultFor<T>;
+  firstRow<T extends SpecType>(spec: T): InferRowType<T>;
 
   // Like firstRow() but returns undefined if no rows are available.
-  maybeFirstRow<T extends SpecType>(spec: T): IterResultFor<T> | undefined;
+  maybeFirstRow<T extends SpecType>(spec: T): InferRowType<T> | undefined;
 
   // If != undefined the query errored out and error() contains the message.
   error(): string | undefined;
@@ -689,13 +678,13 @@ export interface QueryResult {
 export function materializeRows<T extends SpecType>(
   result: QueryResult,
   spec: T,
-): IterResultFor<T>[] {
-  const rows: IterResultFor<T>[] = [];
+): InferRowType<T>[] {
+  const rows: InferRowType<T>[] = [];
   const cols = Object.keys(spec);
   for (const it = result.iter(spec); it.valid(); it.next()) {
     const row: Record<string, SqlValue> = {};
     for (const col of cols) row[col] = it.get(col);
-    rows.push(row as IterResultFor<T>);
+    rows.push(row as InferRowType<T>);
   }
   return rows;
 }
@@ -987,18 +976,18 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     return out as ColumnarResultFor<T>;
   }
 
-  firstRow<T extends SpecType>(spec: T): IterResultFor<T> {
+  firstRow<T extends SpecType>(spec: T): InferRowType<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
     assertTrue(impl.valid());
-    return impl as {} as RowIterator<T> as IterResultFor<T>;
+    return impl as {} as RowIterator<T> as InferRowType<T>;
   }
 
-  maybeFirstRow<T extends SpecType>(spec: T): IterResultFor<T> | undefined {
+  maybeFirstRow<T extends SpecType>(spec: T): InferRowType<T> | undefined {
     const impl = new RowIteratorImplWithRowData(spec, this);
     if (!impl.valid()) {
       return undefined;
     }
-    return impl as {} as RowIterator<T> as IterResultFor<T>;
+    return impl as {} as RowIterator<T> as InferRowType<T>;
   }
 
   // Can be called only once.

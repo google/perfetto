@@ -18,7 +18,6 @@ import {
   checkExtends,
   NUM,
   type SpecType,
-  type SpecValue,
   type SqlValue,
   unionTypes,
   UNKNOWN,
@@ -303,14 +302,14 @@ export class UnionDataset<
   get schema(): T {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
-    let unionSchema: Record<string, SpecValue> | undefined = undefined;
+    let unionSchema: SpecType | undefined = undefined;
     this.union.forEach((ds) => {
       const dsSchema = ds.schema;
       if (unionSchema === undefined) {
         // First time just use this one
         unionSchema = dsSchema;
       } else {
-        const newSch: Record<string, SpecValue> = {};
+        const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
             const commonType = unionTypes(value, dsSchema[key]);
@@ -587,13 +586,13 @@ export class UnionDatasetWithLineage<
 
   get schema(): T {
     // Compute union schema from all datasets
-    let unionSchema: Record<string, SpecValue> | undefined = undefined;
+    let unionSchema: SpecType | undefined = undefined;
     this.sourceDatasets.forEach((ds) => {
       const dsSchema = ds.schema;
       if (unionSchema === undefined) {
         unionSchema = dsSchema;
       } else {
-        const newSch: Record<string, SpecValue> = {};
+        const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
             const commonType = unionTypes(value, dsSchema[key]);
