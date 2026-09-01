@@ -235,11 +235,17 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
               (e.target as HTMLSelectElement).value,
             );
             const newProfile = attrs.profiles[selectedIndex];
-            attrs.onStateChange({
-              ...attrs.state,
-              selectedProfileId: newProfile.id,
-            });
-            this.createFlamegraph(attrs, newProfile);
+            // createFlamegraph derives its update from `attrs.state`, the
+            // state as of the last render, so it must be given one that
+            // already carries the new selection: updating separately here
+            // would be undone by it writing the old profile back.
+            this.createFlamegraph(
+              {
+                ...attrs,
+                state: {...attrs.state, selectedProfileId: newProfile.id},
+              },
+              newProfile,
+            );
           },
         },
         attrs.profiles.map((profile, index) =>
