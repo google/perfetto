@@ -15,7 +15,6 @@
 import {test, expect} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 import {STARTUP_COMMAND_ALLOWLIST} from '../core/startup_command_allowlist';
-import {NUM} from '../trace_processor/query_result';
 
 interface CommandTestCase {
   id: string;
@@ -243,9 +242,10 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
 
       // Verify we got the expected constant value (cannot use NUM here as
       // we are inside the puppeteer context).
-      const row = result.firstRow({test_value: NUM});
-      if (row.test_value !== 42) {
-        throw new Error(`Expected test_value=42, got: ${row.test_value}`);
+      const row = result.firstRow({});
+      const testValue = row.get('test_value');
+      if (Number(testValue) !== 42) {
+        throw new Error(`Expected test_value=42, got: ${testValue}`);
       }
     },
   },

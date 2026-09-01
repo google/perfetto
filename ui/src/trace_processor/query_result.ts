@@ -426,6 +426,12 @@ export interface RowIteratorBase {
   get(columnName: string): SqlValue;
 }
 
+// Has all the types available on it directly + the column getter
+export type RowWithGetter<T extends SpecType> = InferRowType<T> &
+  Row & {
+    get(columnName: string): SqlValue;
+  };
+
 // A RowIterator is a type that has all the fields defined in the query spec
 // plus the valid() and next() operators. This is to ultimately allow the
 // clients to do:
@@ -621,10 +627,10 @@ export interface QueryResult {
   // Like iter() for queries that expect only one row. It embeds the valid()
   // check (i.e. throws if no rows are available) and returns directly the
   // first result.
-  firstRow<T extends SpecType>(spec: T): InferRowType<T>;
+  firstRow<T extends SpecType>(spec: T): RowWithGetter<T>;
 
   // Like firstRow() but returns undefined if no rows are available.
-  maybeFirstRow<T extends SpecType>(spec: T): InferRowType<T> | undefined;
+  maybeFirstRow<T extends SpecType>(spec: T): RowWithGetter<T> | undefined;
 
   // If != undefined the query errored out and error() contains the message.
   error(): string | undefined;
@@ -976,18 +982,18 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     return out as ColumnarResultFor<T>;
   }
 
-  firstRow<T extends SpecType>(spec: T): InferRowType<T> {
+  firstRow<T extends SpecType>(spec: T): RowWithGetter<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
     assertTrue(impl.valid());
-    return impl as {} as RowIterator<T> as InferRowType<T>;
+    return impl as {} as Row as RowWithGetter<T>;
   }
 
-  maybeFirstRow<T extends SpecType>(spec: T): InferRowType<T> | undefined {
+  maybeFirstRow<T extends SpecType>(spec: T): RowWithGetter<T> | undefined {
     const impl = new RowIteratorImplWithRowData(spec, this);
     if (!impl.valid()) {
       return undefined;
     }
-    return impl as {} as RowIterator<T> as InferRowType<T>;
+    return impl as {} as Row as RowWithGetter<T>;
   }
 
   // Can be called only once.
