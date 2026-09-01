@@ -689,34 +689,6 @@ export default class CoreCommands implements PerfettoPlugin {
       defaultHotkey: 'Escape',
     });
 
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.NextFlow',
-      name: 'Next flow',
-      callback: () => ctx.flows.focusOtherFlow('Forward'),
-      defaultHotkey: 'Mod+]',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.PrevFlow',
-      name: 'Prev flow',
-      callback: () => ctx.flows.focusOtherFlow('Backward'),
-      defaultHotkey: 'Mod+[',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.MoveNextFlow',
-      name: 'Move next flow',
-      callback: () => ctx.flows.moveByFocusedFlow('Forward'),
-      defaultHotkey: ']',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.MovePrevFlow',
-      name: 'Move prev flow',
-      callback: () => ctx.flows.moveByFocusedFlow('Backward'),
-      defaultHotkey: '[',
-    });
-
     // Provides a test bed for resolving events using a SQL table name and ID
     // which is used in deep-linking, amongst other places.
     ctx.commands.registerCommand({

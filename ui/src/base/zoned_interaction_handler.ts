@@ -44,6 +44,7 @@
  * different data.
  */
 
+import m from 'mithril';
 import {removeFalsyValues} from './array_utils';
 import {DisposableStack} from './disposable_stack';
 import {bindEventListener, type CSSCursor} from './dom_utils';
@@ -204,6 +205,8 @@ export class ZonedInteractionHandler implements Disposable {
   }
 
   private onMouseDown(e: MouseEvent) {
+    m.redraw();
+
     // Clear shouldClick flag in case onclick was cancelled
     this.shouldClick = false;
 
@@ -261,6 +264,8 @@ export class ZonedInteractionHandler implements Disposable {
   }
 
   private onMouseUp(e: MouseEvent) {
+    m.redraw();
+
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
 
@@ -292,6 +297,8 @@ export class ZonedInteractionHandler implements Disposable {
   }
 
   private onClick(e: MouseEvent) {
+    m.redraw();
+
     // If the onMouseUp event left the shouldClick flag set then we should emit
     // a click event here, as long as no other handler further up the bubble
     // chain has called e.preventDefault() in the meantime.
