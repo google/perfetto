@@ -31,6 +31,7 @@ import {
 import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {SourceDataset} from '../../trace_processor/dataset';
+import type {LONG, NUM} from '../../trace_processor/query_result';
 
 /**
  * Configuration for creating a profiling track (CPU profile, perf samples, etc)
@@ -41,9 +42,9 @@ export interface ProfilingTrackConfig {
    * Must have schema: {id: NUM, ts: LONG, callsiteId: NUM}
    */
   readonly dataset: SourceDataset<{
-    id: number;
-    ts: bigint;
-    callsiteId: number;
+    id: typeof NUM;
+    ts: typeof LONG;
+    callsiteId: typeof NUM;
   }>;
 
   /**

@@ -242,9 +242,10 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
 
       // Verify we got the expected constant value (cannot use NUM here as
       // we are inside the puppeteer context).
-      const row = result.firstRow({test_value: Number()});
-      if (row.test_value !== 42) {
-        throw new Error(`Expected test_value=42, got: ${row.test_value}`);
+      const row = result.firstRow({});
+      const testValue = row.get('test_value');
+      if (Number(testValue) !== 42) {
+        throw new Error(`Expected test_value=42, got: ${testValue}`);
       }
     },
   },

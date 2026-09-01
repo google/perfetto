@@ -51,11 +51,11 @@ interface PathPart {
 }
 
 type GpuSliceDataset = SourceDataset<{
-  id: number;
-  name: string;
-  ts: bigint;
-  dur: bigint;
-  depth: number;
+  id: typeof NUM;
+  name: typeof STR;
+  ts: typeof LONG;
+  dur: typeof LONG;
+  depth: typeof NUM;
 }>;
 
 // A GPU-by-process leaf can combine slices from multiple global GPU hardware

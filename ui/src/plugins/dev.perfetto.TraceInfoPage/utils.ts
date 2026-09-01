@@ -14,7 +14,11 @@
 
 import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
-import {NUM_NULL, STR} from '../../trace_processor/query_result';
+import {
+  NUM_NULL,
+  STR,
+  type InferRowType,
+} from '../../trace_processor/query_result';
 import {Icon} from '../../widgets/icon';
 import {Tooltip} from '../../widgets/tooltip';
 import {Card} from '../../widgets/card';
@@ -57,7 +61,7 @@ export const statsSpec = {
   traceId: NUM_NULL,
 };
 
-export type StatsSectionRow = typeof statsSpec;
+export type StatsSectionRow = InferRowType<typeof statsSpec>;
 
 export interface TraceInfo {
   readonly id: number;
