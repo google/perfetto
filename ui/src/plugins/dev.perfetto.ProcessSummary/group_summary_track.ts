@@ -24,10 +24,10 @@ import {assertExists, assertTrue} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   type CancellationSignal,
-  QUERY_CANCELLED,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../base/query_slot';
+  TASK_CANCELLED,
+  AsyncMemo,
+  AtomicTaskQueue,
+} from '../../base/async_memo';
 import type {RowLayout} from '../../base/renderer';
 import {type duration, type time, Time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
@@ -145,9 +145,9 @@ export class GroupSummaryTrack implements TrackRenderer {
   ]);
 
   // QuerySlot infrastructure
-  private readonly queue = new SerialTaskQueue();
-  private readonly tableSlot = new QuerySlot<MipmapTable>(this.queue);
-  private readonly dataSlot = new QuerySlot<Data>(this.queue);
+  private readonly queue = new AtomicTaskQueue();
+  private readonly tableSlot = new AsyncMemo<MipmapTable>(this.queue);
+  private readonly dataSlot = new AsyncMemo<Data>(this.queue);
 
   // Cached data for rendering (populated from dataSlot)
   private data?: Data;
@@ -359,7 +359,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     const queryRes = await this.queryData(tableName, start, end, resolution);
 
     // Check cancellation after query completes
-    if (signal.isCancelled) throw QUERY_CANCELLED;
+    if (signal.isCancelled) throw TASK_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -401,7 +401,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       // Periodically check for cancellation during iteration
       if (row % 50 === 0) {
         if (signal.isCancelled) {
-          throw QUERY_CANCELLED;
+          throw TASK_CANCELLED;
         }
 
         if (task.shouldYield()) {
@@ -526,7 +526,7 @@ export class GroupSummaryTrack implements TrackRenderer {
     const tableResult = this.tableSlot.use({
       // Key is constant - table only needs to be created once
       key: {mode: this.mode, upid: this.config.upid, utid: this.config.utid},
-      queryFn: () => this.createMipmapTable(trackNode),
+      compute: () => this.createMipmapTable(trackNode),
     });
 
     // Update sliceTracks from table result for tooltip rendering
@@ -545,7 +545,7 @@ export class GroupSummaryTrack implements TrackRenderer {
         end: bounds.end,
         resolution: bounds.resolution,
       },
-      queryFn: async (signal) => {
+      compute: async (signal) => {
         const result = await this.trace.taskTracker.track(
           this.fetchData(
             tableResult.data!.tableName,

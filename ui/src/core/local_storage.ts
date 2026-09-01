@@ -22,7 +22,7 @@ export class LocalStorage implements Storage {
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(s ?? '{}');
-    } catch (e) {
+    } catch {
       return {};
     }
     if (typeof parsed !== 'object' || parsed === null) {

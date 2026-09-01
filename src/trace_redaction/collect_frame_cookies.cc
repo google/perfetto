@@ -23,14 +23,17 @@
 #include "src/trace_redaction/proto_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
-#include "protos/perfetto/trace/android/frame_timeline_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
 namespace {
 
-using FrameTimelineEvent = protos::pbzero::FrameTimelineEvent;
+using FrameTimelineEvent = com::android::internal::pbzero::FrameTimelineEvent;
+
+constexpr uint32_t kFrameTimelineEventFieldNumber = com::android::internal::
+    pbzero::FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber;
 
 struct Frame {
   uint32_t id;
@@ -84,7 +87,15 @@ base::Status CollectFrameCookies::Collect(
     Context* context) const {
   // A frame cookie needs a time and pid for a timeline query. Ignore packets
   // without a timestamp.
-  if (!packet.has_timestamp() || !packet.has_frame_timeline_event()) {
+  if (!packet.has_timestamp()) {
+    return base::OkStatus();
+  }
+
+  protozero::ProtoDecoder packet_decoder(
+      packet.begin(), static_cast<size_t>(packet.end() - packet.begin()));
+  auto frame_timeline_field =
+      packet_decoder.FindField(kFrameTimelineEventFieldNumber);
+  if (!frame_timeline_field.valid()) {
     return base::OkStatus();
   }
 
@@ -100,7 +111,7 @@ base::Status CollectFrameCookies::Collect(
   };
 
   // Timeline Event Decoder.
-  protozero::ProtoDecoder decoder(packet.frame_timeline_event());
+  protozero::ProtoDecoder decoder(frame_timeline_field.as_bytes());
 
   // If no handler worked, cookie will not get added to the global cookie field.
   for (const auto& handler : handlers) {
@@ -170,10 +181,7 @@ base::Status FilterFrameEvents::Transform(const Context& context,
 
   protozero::ProtoDecoder decoder(*packet);
 
-  if (!decoder
-           .FindField(
-               protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber)
-           .valid()) {
+  if (!decoder.FindField(kFrameTimelineEventFieldNumber).valid()) {
     return base::OkStatus();
   }
 
@@ -181,8 +189,7 @@ base::Status FilterFrameEvents::Transform(const Context& context,
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    if (field.id() ==
-        protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber) {
+    if (field.id() == kFrameTimelineEventFieldNumber) {
       if (KeepField(context, field)) {
         proto_util::AppendField(field, message.get());
       }
@@ -198,8 +205,7 @@ base::Status FilterFrameEvents::Transform(const Context& context,
 
 bool FilterFrameEvents::KeepField(const Context& context,
                                   const protozero::Field& field) const {
-  PERFETTO_DCHECK(field.id() ==
-                  protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber);
+  PERFETTO_DCHECK(field.id() == kFrameTimelineEventFieldNumber);
 
   protozero::ProtoDecoder timeline_event_decoder(field.as_bytes());
 

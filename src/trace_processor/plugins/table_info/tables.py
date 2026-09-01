@@ -14,24 +14,20 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppString
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 TABLE_INFO_TABLE = Table(
     python_module=__file__,
     class_name="PerfettoTableInfoTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="perfetto_table_info",
     columns=[
-        C("table_name",
-          CppString(),
-          flags=ColumnFlag.HIDDEN,
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C('name', CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C('col_type',
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("table_name", CppString(), flags=ColumnFlag.HIDDEN),
+        C('name', CppString()),
+        C('col_type', CppString()),
         C('nullable', CppInt64()),
         C('sorted', CppInt64()),
     ])

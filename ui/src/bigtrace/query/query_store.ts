@@ -19,8 +19,8 @@ export const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
   'CANCELLED',
 ]);
 
-// UI-display label for a wire status. Backend uses IN_PROGRESS; the UI shows
-// "Running" (shorter, no underscore). Transient UNKNOWN reads as "Starting".
+// UI-display label for a wire status. IN_PROGRESS shows as "Running" (shorter,
+// no underscore); transient UNKNOWN reads as "Starting".
 export function statusDisplayLabel(status: string): string {
   if (status === 'IN_PROGRESS') return 'Running';
   if (status === 'UNKNOWN') return 'Starting';
@@ -45,8 +45,7 @@ const COMPACT_SUFFIX_MULTIPLIER: Readonly<Record<string, number>> = {
 };
 export function formatCompact(n: number): string {
   const compact = COMPACT_FORMATTER.format(n);
-  // Reconstruct the numeric value implied by the compact form and check
-  // whether it matches the input — if not, the compact form is rounded.
+  // Reconstruct the value implied by the compact form; mismatch means rounded.
   let numericPart = '';
   let suffix = '';
   for (const p of COMPACT_FORMATTER.formatToParts(n)) {
@@ -85,9 +84,9 @@ export interface QueryExecution {
   tableLink?: string;
 }
 
-// Merges live polling (`getStatus`) with bulk history (`listQueryExecutions`).
-// Without the rule below, a history refresh during IN_PROGRESS would rewind
-// processedRows: keep live progress unless incoming is terminal or higher.
+// Merges live polling with bulk history. Without the rule below, a history
+// refresh during IN_PROGRESS would rewind processedRows: keep live progress
+// unless incoming is terminal or higher.
 export class QueryStore {
   private queries = new Map<string, QueryExecution>();
 

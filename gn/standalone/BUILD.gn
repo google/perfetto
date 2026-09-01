@@ -104,6 +104,39 @@ config("extra_warnings") {
       "-Wno-unknown-warning-option",
       "-Wno-unsafe-buffer-usage",
 
+      # clang's lifetime-safety analysis (enabled by -Weverything) is
+      # experimental and fires on hundreds of well-established patterns across
+      # the codebase, e.g. getters returning references to members, move
+      # constructors moving from by-value parameters or vectors being resized
+      # before a pointer into their buffer is taken. It is not enabled by
+      # default (not even in -Wall) and is too noisy to adopt. See
+      # https://reviews.llvm.org/D111469 for the design of the analysis.
+      "-Wno-lifetime-safety-intra-tu-suggestions",
+      "-Wno-lifetime-safety-cross-tu-suggestions",
+      "-Wno-lifetime-safety-invalidation",
+      "-Wno-lifetime-safety-lifetimebound-violation",
+      "-Wno-lifetime-safety-intra-tu-misplaced-lifetimebound",
+      "-Wno-lifetime-safety-return-stack-addr",
+      "-Wno-lifetime-safety-return-stack-addr-moved",
+      "-Wno-lifetime-safety-dangling-field-moved",
+      "-Wno-lifetime-safety-use-after-scope-moved",
+      "-Wno-lifetime-safety-dangling-global",
+
+      # TODO(lalitm): fires on function-local statics (and thread_locals) in
+      # inline functions defined in headers, a pattern used in several hot
+      # paths (e.g. tp_metatrace's RingBuffer, the C SDK's GlobalState,
+      # absl's raw_hash_set). The statics would only be duplicated if the same
+      # header were compiled into multiple shared libraries loaded in one
+      # process, which no Perfetto build does today; the proper fix would be
+      # moving the statics into .cc files (keeping the inline functions), but
+      # that has to be balanced against the performance cost of outlining.
+      "-Wno-unique-object-duplication",
+
+      # Fires on any function returning a std::string by value with multiple
+      # return paths (NRVO cannot apply). At -O3 the compiler usually elides
+      # the copy anyway, so this is only a style nit.
+      "-Wno-nrvo",
+
       # TODO(primiano): -Wswitch-default could be useful but will require a mass
       # codebase cleanup.
       "-Wno-switch-default",
@@ -327,23 +360,15 @@ config("default") {
     cflags += [ "-fno-omit-frame-pointer" ]
   } else if (current_cpu == "x64") {
     cflags += [ "-fno-omit-frame-pointer" ]  # For perf profiling.
-    if (enable_perfetto_x64_cpu_opt) {
-      # When updating these flags, the CheckCpuOptimizations() in utils.cc must
-      # be updated accordingly.
-      cflags += [
-        "-mbmi",
-        "-mbmi2",
-        "-mavx2",
-        "-mpopcnt",
-        "-mlzcnt",
-        "-msse4.2",
-      ]
-    }
   }
 
   if (is_wasm) {
-    # -msimd128 enables WASM SIMD128 and is safe for all WASM targets.
-    cflags += [ "-msimd128" ]
+    # -msimd128 enables WASM SIMD128 and is safe for all WASM targets. -mavx2
+    # lets x86 AVX2 intrinsics compile, emulated on top of SIMD128.
+    cflags += [
+      "-msimd128",
+      "-mavx2",
+    ]
   }
 
   if (is_wasm_memory64) {
@@ -433,6 +458,21 @@ config("default") {
       "-static-libstdc++",
     ]
     lib_dirs = [ android_lib_dir ]
+  }
+}
+
+# x64 CPU optimization flags (SSE4.2, AVX2, BMI2, LZCNT). Separate config so the
+# startup CPU check can opt out of it. Keep in sync with CheckCpuOptimizations().
+config("x64_cpu_opt") {
+  if (current_cpu == "x64" && enable_perfetto_x64_cpu_opt) {
+    cflags = [
+      "-mbmi",
+      "-mbmi2",
+      "-mavx2",
+      "-mpopcnt",
+      "-mlzcnt",
+      "-msse4.2",
+    ]
   }
 }
 
@@ -550,17 +590,4 @@ perfetto_check_build_deps("check_build_deps_android") {
     "--no-dev-tools",
     "--android",
   ]
-}
-
-# TODO(https://github.com/google/perfetto/issues/5353): Remove this after
-# updating emscripten.
-config("wasm_avx2") {
-  # Opt-in config for targets that use x86 AVX2 hand-rolled SIMD compiled for
-  # WASM. Apply explicitly via configs += ["//gn/standalone:wasm_avx2"]; do NOT
-  # add to default_configs — third-party code (e.g. Abseil CRC) uses AVX2
-  # intrinsics with types incompatible with Emscripten's strict AVX2 headers.
-  # See https://github.com/emscripten-core/emscripten/issues/24076.
-  if (is_wasm) {
-    cflags = [ "-mavx2" ]
-  }
 }

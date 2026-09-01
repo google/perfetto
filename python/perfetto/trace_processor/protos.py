@@ -63,6 +63,7 @@ class ProtoFactory:
         'perfetto.protos.TraceSummaryResult')
     self.QueryArgs = create_message_factory('perfetto.protos.QueryArgs')
     self.QueryResult = create_message_factory('perfetto.protos.QueryResult')
+    self.ExportArgs = create_message_factory('perfetto.protos.ExportArgs')
     self.TraceMetrics = create_message_factory('perfetto.protos.TraceMetrics')
     self.TraceSummary = create_message_factory('perfetto.protos.TraceSummary')
     self.TraceSummarySpec = create_message_factory(

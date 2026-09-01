@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
 
-#include "protos/perfetto/trace/android/graphics/rect.gen.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.gen.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -41,19 +41,19 @@ TEST(WinscopeGeometryRect, BuildsFromLTRB) {
 }
 
 TEST(WinscopeGeometryRect, BuildsFromRectProto) {
-  protos::gen::RectProto rect_proto;
+  com::android::internal::gen::RectProto rect_proto;
   UpdateRect(&rect_proto, test_rect);
   auto blob = rect_proto.SerializeAsString();
-  protos::pbzero::RectProto::Decoder rect_decoder(blob);
+  com::android::internal::pbzero::RectProto::Decoder rect_decoder(blob);
   Rect rect_from_proto(rect_decoder);
   CheckRectEquality(rect_from_proto, test_rect);
 }
 
 TEST(WinscopeGeometryRect, BuildsFromFloatRectProto) {
-  protos::gen::FloatRectProto rect_proto;
+  com::android::internal::gen::FloatRectProto rect_proto;
   UpdateRect(&rect_proto, test_rect);
   auto blob = rect_proto.SerializeAsString();
-  protos::pbzero::FloatRectProto::Decoder rect_decoder(blob);
+  com::android::internal::pbzero::FloatRectProto::Decoder rect_decoder(blob);
   Rect rect_from_proto(rect_decoder);
   CheckRectEquality(rect_from_proto, test_rect);
 }

@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/android/viewcapture.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/viewcapture.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::viewcapture::test {
 
@@ -74,7 +74,8 @@ class SnapshotProtoBuilder {
   }
 
   std::string Build() {
-    protozero::HeapBuffered<protos::pbzero::ViewCapture> snapshot_proto;
+    protozero::HeapBuffered<com::android::internal::pbzero::ViewCapture>
+        snapshot_proto;
 
     int32_t i = 0;
     for (const auto& view : views_) {

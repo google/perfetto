@@ -42,5 +42,6 @@ source_set("art_method") {
     "../../storage",
     "../../types",
     "../../util:trace_blob_view_reader",
+    "../../util:trace_type",
   ]
 }

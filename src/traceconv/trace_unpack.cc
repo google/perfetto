@@ -20,6 +20,7 @@
 #include <iterator>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "src/traceconv/utils.h"
 
@@ -28,18 +29,19 @@ namespace trace_to_text {
 
 // Naive: puts multiple copies of the trace in memory, but good enough for
 // manual workflows.
-bool UnpackCompressedPackets(std::istream* input, std::ostream* output) {
+base::Status UnpackCompressedPackets(std::istream* input,
+                                     std::ostream* output) {
   std::vector<char> packed(std::istreambuf_iterator<char>{*input},
                            std::istreambuf_iterator<char>{});
   std::vector<uint8_t> unpacked;
   auto status = trace_processor::DecompressTrace(
       reinterpret_cast<uint8_t*>(packed.data()), packed.size(), &unpacked);
   if (!status.ok())
-    return false;
+    return status;
 
   TraceWriter trace_writer(output);
   trace_writer.Write(reinterpret_cast<char*>(unpacked.data()), unpacked.size());
-  return true;
+  return base::OkStatus();
 }
 
 }  // namespace trace_to_text

@@ -15,17 +15,17 @@
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {
+  getSharedMsgChannelTargetRegistry,
   type MsgChannelTarget,
-  MsgChannelTargetRegistry,
 } from './msgchannel_target_registry';
 import {advancedRecordSection} from './pages/advanced';
-import {androidRecordSection} from './pages/android';
 import {rdkRecordSection} from './pages/rdk';
 import {perfettoSDKRecordSection} from './pages/perfetto_sdk';
 import {bufferConfigPage} from './pages/buffer_config_page';
 import {cpuRecordSection} from './pages/cpu';
 import {gpuRecordSection} from './pages/gpu';
 import {instructionsPage} from './pages/instructions_page';
+import {linuxRecordSection} from './pages/linux';
 import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
@@ -74,7 +74,7 @@ export default class implements PerfettoPlugin {
     // Create a MsgChannelProviderRegistry that installs a listener on
     // window posted events, and if someone has posted us a message channel to
     // use for traced data then we're notified.
-    const msgChannelRegistry = new MsgChannelTargetRegistry();
+    const msgChannelRegistry = getSharedMsgChannelTargetRegistry();
     msgChannelRegistry.onProviderRegistered.addListener((provider) => {
       this.registerMsgChannelTarget(provider);
     });
@@ -112,7 +112,7 @@ export default class implements PerfettoPlugin {
         gpuRecordSection(),
         powerRecordSection(),
         memoryRecordSection(),
-        androidRecordSection(),
+        linuxRecordSection(),
         rdkRecordSection(),
         perfettoSDKRecordSection(),
         stackSamplingRecordSection(),

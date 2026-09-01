@@ -22,7 +22,7 @@ import {type SqlColumn, sqlColumnId, SqlExpression} from '../table/sql_column';
 import type {TableColumn} from '../table/table_column';
 import type {SqlTableDescription} from '../table/table_description';
 import {moveArrayItem} from '../../../../base/array_utils';
-import {assertExists} from '../../../../base/assert';
+import {ensureExists} from '../../../../base/assert';
 import type {SortDirection} from '../../../../base/comparison_utils';
 import {type Aggregation, expandAggregations} from './aggregations';
 import {PivotTreeNode} from './pivot_tree_node';
@@ -341,7 +341,7 @@ export class PivotTableState {
     for (const it = res.iter({}); it.valid(); it.next()) {
       const row: Row = {};
       for (const column of res.columns()) {
-        row[assertExists(aliasToIds.get(column))] = it.get(column);
+        row[ensureExists(aliasToIds.get(column))] = it.get(column);
       }
       rows.push(row);
     }

@@ -98,7 +98,7 @@ export interface SelectionManager {
     trackUri: string,
     eventId: number,
     opts?: SelectionOpts,
-  ): void;
+  ): Promise<void>;
 
   /**
    * Select a track.

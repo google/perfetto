@@ -15,6 +15,7 @@
 import './tab_strip.scss';
 import m from 'mithril';
 import {Icon} from './icon';
+import type {Tabs, TabsAttrs, TabsTab} from './tabs';
 
 /** @deprecated Use {@link TabsTab} from `./tabs` instead. */
 export interface TabOption {
@@ -29,7 +30,7 @@ export interface TabStripAttrs {
   readonly className?: string;
   readonly tabs: ReadonlyArray<TabOption>;
   readonly currentTabKey: string;
-  onTabChange(key: string): void;
+  readonly onTabChange: (key: string) => void;
 }
 
 /** @deprecated Use {@link Tabs} from `./tabs` instead. */

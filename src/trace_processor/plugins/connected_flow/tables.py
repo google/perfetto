@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
@@ -25,16 +25,13 @@ from src.trace_processor.tables.slice_tables import SLICE_TABLE
 CONNECTED_FLOW_TABLE = Table(
     python_module=__file__,
     class_name="ConnectedFlowTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="not_exposed_to_sql",
     columns=[
         C('slice_out', CppTableId(SLICE_TABLE)),
         C('slice_in', CppTableId(SLICE_TABLE)),
-        C('trace_id',
-          CppOptional(CppInt64()),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C('arg_set_id',
-          CppOptional(CppUint32()),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('trace_id', CppOptional(CppInt64())),
+        C('arg_set_id', CppOptional(CppUint32())),
     ],
 )
 

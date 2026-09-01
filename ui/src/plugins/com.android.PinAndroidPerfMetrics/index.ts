@@ -20,7 +20,9 @@ import AndroidCujsPlugin from '../com.android.AndroidCujs';
 import Wattson from '../org.kernel.Wattson';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
-  SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
+  INCLUDE PERFETTO MODULE android.cujs.frames;
+  INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+  INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 `;
 
 function getMetricsFromHash(): string[] {

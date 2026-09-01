@@ -93,10 +93,10 @@ export interface DrawerPanelAttrs {
   readonly activeTabKey?: string;
 
   // Called when a tab is clicked.
-  onTabChange?(key: string): void;
+  readonly onTabChange?: (key: string) => void;
 
   // Called when a tab's close button is clicked.
-  onTabClose?(key: string): void;
+  readonly onTabClose?: (key: string) => void;
 
   // ===== Common options =====
   // Whether the drawer is currently visible or not (when in controlled mode).
@@ -109,7 +109,7 @@ export interface DrawerPanelAttrs {
   readonly startingHeight?: number;
 
   // Called when the drawer visibility is changed.
-  onVisibilityChange?(visibility: DrawerPanelVisibility): void;
+  readonly onVisibilityChange?: (visibility: DrawerPanelVisibility) => void;
 }
 
 /**
@@ -202,7 +202,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = isTabsMode
-      ? activeTabKey ?? this.internalActiveTab ?? tabs[0].key
+      ? (activeTabKey ?? this.internalActiveTab ?? tabs[0].key)
       : undefined;
 
     // Render tabs UI and drawer content based on mode

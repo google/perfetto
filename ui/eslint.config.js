@@ -12,28 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const {FlatCompat} = require('@eslint/eslintrc');
 const fs = require('fs');
 const globals = require('globals');
-const js = require('@eslint/js');
 const jsdoc = require('eslint-plugin-jsdoc');
 const path = require('node:path');
 const tsParser = require('@typescript-eslint/parser');
 const typescriptEslint = require('@typescript-eslint/eslint-plugin');
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-  allConfig: js.configs.all,
-});
-
-// The eslint-config-google uses deprecated jsdoc options that break with the
-// latest version of eslint. This has been fixed upstram [1] but no npm package
-// has been released since then. Hence patching the config manually.
-// [1] https://github.com/google/eslint-config-google/pull/72.
-const googleCfg = compat.extends('google');
-delete googleCfg[0].rules['valid-jsdoc'];
-delete googleCfg[0].rules['require-jsdoc'];
 
 const ignorePath = path.resolve(__dirname, '.prettierignore');
 const ignores = fs
@@ -43,11 +27,8 @@ const ignores = fs
 
 module.exports = [
   // `ignores` has to go on a standalone block at the start otherwise gets
-  // overridden by the googleCfg and jsdoc.configs, because the new eslint
-  // flat config is so clever.
+  // overridden by configs, because the new eslint flat config is so clever.
   {ignores: ignores},
-
-  ...googleCfg,
 
   jsdoc.configs['flat/recommended'],
 
@@ -72,14 +53,22 @@ module.exports = [
     },
 
     rules: {
-      'indent': 'off',
-      'max-len': 'off',
-      'operator-linebreak': 'off',
-      'quotes': 'off',
-      'brace-style': 'off',
-      'space-before-function-paren': 'off',
-      'generator-star-spacing': 'off',
-      'semi-spacing': 'off',
+      'curly': ['error', 'multi-line'],
+      'guard-for-in': 'error',
+      'no-caller': 'error',
+      'no-extend-native': 'error',
+      'no-extra-bind': 'error',
+      'no-invalid-this': 'error',
+      'no-multi-str': 'error',
+      'no-new-wrappers': 'error',
+      'no-throw-literal': 'error',
+      'no-with': 'error',
+      'prefer-promise-reject-errors': 'error',
+      'no-var': 'error',
+      'prefer-const': ['error', {destructuring: 'all'}],
+      'prefer-spread': 'error',
+      'one-var': ['error', {var: 'never', let: 'never', const: 'never'}],
+      'spaced-comment': ['error', 'always'],
 
       'no-multi-spaces': [
         'error',
@@ -116,6 +105,12 @@ module.exports = [
       'jsdoc/require-returns': 'off',
       'jsdoc/require-returns-type': 'off',
       'jsdoc/tag-lines': 'off',
+      'jsdoc/check-tag-names': [
+        'error',
+        {
+          definedTags: ['experimental'],
+        },
+      ],
 
       '@typescript-eslint/no-explicit-any': 'error',
 

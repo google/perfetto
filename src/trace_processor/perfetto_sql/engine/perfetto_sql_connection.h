@@ -151,6 +151,18 @@ class PerfettoSqlConnection {
   // no valid SQL to run.
   base::StatusOr<ExecutionResult> ExecuteUntilLastStatement(SqlSource sql);
 
+  // Executes only the first statement in |sql| and returns a |ExecutionResult|
+  // object containing a |ScopedStmt| for that statement (which has been
+  // stepped once). Returns std::nullopt if |sql| contains no statements (i.e.
+  // only whitespace/comments).
+  //
+  // |*end_offset| is set to the byte offset into |sql.sql()| just past the
+  // executed statement (or to the end of |sql.sql()| when returning
+  // std::nullopt). It is not modified if an error is returned.
+  base::StatusOr<std::optional<ExecutionResult>> ExecuteNextStatement(
+      SqlSource sql,
+      uint32_t* end_offset);
+
   // Prepares a single SQLite statement in |sql| and returns a
   // |PreparedStatement| object.
   //
@@ -281,9 +293,6 @@ class PerfettoSqlConnection {
                                       typename Function::Context* ctx,
                                       bool deterministic = true);
 
-  // Enables memoization for the given SQL function.
-  base::Status EnableSqlFunctionMemoization(const std::string& name);
-
   SqliteConnection* sqlite_connection() { return connection_.get(); }
 
   // Test-only accessor for the |PerfettoSqlDatabase| backing this connection.
@@ -319,6 +328,10 @@ class PerfettoSqlConnection {
   sql_modules::RegisteredPackage* FindPackageForModule(const std::string& key) {
     return database_->FindPackageForModule(key);
   }
+  const sql_modules::RegisteredPackage* FindPackageForModule(
+      const std::string& key) const {
+    return database_->FindPackageForModule(key);
+  }
 
   // Returns the number of objects (tables, views, functions etc) registered
   // with SQLite.
@@ -347,14 +360,13 @@ class PerfettoSqlConnection {
   // Find dataframe registered with this connection with provided name.
   const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
 
-  // Registers a function with the prototype |prototype| which returns a value
-  // of |return_type| and is implemented by executing the SQL statement |sql|.
+  // Registers a function with the prototype |prototype| implemented by
+  // executing the SQL statement |sql|.
   //
   // LEGACY: This function uses SQL-based function definitions. For new code,
   // prefer RegisterFunction() which uses C++ implementations.
   base::Status RegisterLegacyRuntimeFunction(bool replace,
                                              const FunctionPrototype& prototype,
-                                             sql_argument::Type return_type,
                                              SqlSource sql);
 
  private:
@@ -362,9 +374,11 @@ class PerfettoSqlConnection {
 
   // Result of processing a single frame iteration.
   enum class FrameResult {
-    kContinue,     // Frame still has work, continue processing it
-    kFrameDone,    // Frame completed, should be popped
-    kReturnResult  // Root frame completed with result
+    kContinue,      // Frame still has work, continue processing it
+    kFrameDone,     // Frame completed, should be popped
+    kReturnResult,  // Root frame completed with result
+    kNoStatement    // Root frame in stop-after-statement mode found no
+                    // statement to execute (whitespace/comments only)
   };
 
   // Auxiliary state for kInclude / kWildcard frames. Held via unique_ptr so
@@ -391,6 +405,14 @@ class PerfettoSqlConnection {
     ExecutionStats accumulated_stats;
     std::optional<SqliteConnection::PreparedStatement> current_stmt;
     std::unique_ptr<ExecutionFrameAux> aux;
+    // kRoot only: stop after the first statement instead of executing all of
+    // them (ExecuteNextStatement).
+    bool stop_after_statement = false;
+    // True if |current_stmt| is the dummy statement of a transpiled
+    // PerfettoSQL statement (INCLUDE, CREATE PERFETTO ...) rather than real
+    // SQLite SQL. Such statements have no result set, so the reported column
+    // count is forced to zero.
+    bool current_stmt_is_dummy = false;
   };
 
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
@@ -482,9 +504,19 @@ class PerfettoSqlConnection {
   // would form an include cycle.
   bool IsKeyOnIncludeStack(const std::string& key) const;
 
-  // Implementation of ExecuteUntilLastStatement. Separated to handle
-  // re-entrant Execute() calls from statement handlers.
-  base::StatusOr<ExecutionResult> ExecuteUntilLastStatementImpl(SqlSource);
+  // Shared implementation of ExecuteUntilLastStatement (|end_offset| ==
+  // nullptr) and ExecuteNextStatement (|end_offset| != nullptr, which stops
+  // after the first statement). Unwinds the execution stack on the error
+  // path; separated from ExecuteStatementsImpl to handle re-entrant Execute()
+  // calls from statement handlers.
+  base::StatusOr<std::optional<ExecutionResult>> ExecuteStatements(
+      SqlSource,
+      uint32_t* end_offset);
+
+  // Implementation of ExecuteStatements.
+  base::StatusOr<std::optional<ExecutionResult>> ExecuteStatementsImpl(
+      SqlSource,
+      uint32_t* end_offset);
 
   // Processes a single iteration of the frame at the given index.
   // May push new frames onto the stack (for includes/wildcards).
@@ -568,7 +600,7 @@ class PerfettoSqlConnection {
   //    intrinsic's context with a CreatedFunction::State.
   //
   // 2) Teardown: scalar function contexts can hold prepared statements
-  //    (CreatedFunction::State::stmts_); those must be finalized before the
+  //    (CreatedFunction::State::stmt_); those must be finalized before the
   //    underlying sqlite3* is closed. The destructor walks this map and
   //    explicitly unregisters every entry, which triggers SQLite to invoke
   //    each entry's |FnCtxDestructor| in turn.

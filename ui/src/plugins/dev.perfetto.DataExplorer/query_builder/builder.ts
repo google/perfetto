@@ -118,7 +118,6 @@ import {
   DrawerPanelVisibility,
 } from '../../../widgets/drawer_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {QueryResponse} from '../../../components/query_table/queries';
 import QueryPagePlugin from '../../dev.perfetto.QueryPage';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -403,7 +402,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           })
-        : selectedNode?.customResultsPanel?.() ??
+        : (selectedNode?.customResultsPanel?.() ??
           (selectedNode
             ? m(ResultsPanel, {
                 trace: this.trace,
@@ -448,7 +447,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             : m(ResultsPanelEmptyState, {
                 icon: 'info',
                 title: 'Select a node to see the data',
-              })),
+              }))),
       mainContent: [
         m(
           '.pf-qb-node-graph',
@@ -639,8 +638,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
     this.dataSource = new SQLDataSource({
       engine,
-      sqlSchema: createSimpleSchema(result.tableName),
-      rootSchemaName: 'query',
+      tableOrSubquery: result.tableName,
     });
     this.isQueryRunning = false;
 

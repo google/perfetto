@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
@@ -39,76 +40,90 @@ using BoundInserter = ArgsTracker::BoundInserter;
 ArgsParser::ArgsParser(int64_t packet_timestamp,
                        BoundInserter& inserter,
                        TraceStorage& storage,
+                       ProcessTracker& process_tracker,
                        PacketSequenceStateGeneration* sequence_state,
                        bool support_json)
     : support_json_(support_json),
       packet_timestamp_(packet_timestamp),
       sequence_state_(sequence_state),
       inserter_(inserter),
-      storage_(storage) {}
+      storage_(storage),
+      process_tracker_(process_tracker) {}
 
 ArgsParser::~ArgsParser() = default;
 
-void ArgsParser::AddInteger(const Key& key, int64_t value) {
-  inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                   storage_.InternString(base::StringView(key.key)),
-                   Variadic::Integer(value));
+ArgsParser::Id ArgsParser::InternString(base::StringView s) {
+  return storage_.InternString(s);
 }
 
-void ArgsParser::AddUnsignedInteger(const Key& key, uint64_t value) {
-  inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                   storage_.InternString(base::StringView(key.key)),
-                   Variadic::UnsignedInteger(value));
+void ArgsParser::AddInteger(Id flat_key, Id key, int64_t value) {
+  inserter_.AddArg(flat_key, key, Variadic::Integer(value));
 }
 
-void ArgsParser::AddString(const Key& key, const protozero::ConstChars& value) {
-  inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                   storage_.InternString(base::StringView(key.key)),
+void ArgsParser::AddUnsignedInteger(Id flat_key, Id key, uint64_t value) {
+  inserter_.AddArg(flat_key, key, Variadic::UnsignedInteger(value));
+}
+
+void ArgsParser::AddString(Id flat_key,
+                           Id key,
+                           const protozero::ConstChars& value) {
+  inserter_.AddArg(flat_key, key,
                    Variadic::String(storage_.InternString(value)));
 }
 
-void ArgsParser::AddString(const Key& key, const std::string& value) {
+void ArgsParser::AddString(Id flat_key, Id key, const std::string& value) {
   inserter_.AddArg(
-      storage_.InternString(base::StringView(key.flat_key)),
-      storage_.InternString(base::StringView(key.key)),
+      flat_key, key,
       Variadic::String(storage_.InternString(base::StringView(value))));
 }
 
-void ArgsParser::AddDouble(const Key& key, double value) {
-  inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                   storage_.InternString(base::StringView(key.key)),
-                   Variadic::Real(value));
+void ArgsParser::AddDouble(Id flat_key, Id key, double value) {
+  inserter_.AddArg(flat_key, key, Variadic::Real(value));
 }
 
-void ArgsParser::AddPointer(const Key& key, uint64_t value) {
-  inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                   storage_.InternString(base::StringView(key.key)),
-                   Variadic::Pointer(value));
+void ArgsParser::AddPointer(Id flat_key, Id key, uint64_t value) {
+  inserter_.AddArg(flat_key, key, Variadic::Pointer(value));
 }
 
-void ArgsParser::AddBoolean(const Key& key, bool value) {
-  inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                   storage_.InternString(base::StringView(key.key)),
-                   Variadic::Boolean(value));
+void ArgsParser::AddBoolean(Id flat_key, Id key, bool value) {
+  inserter_.AddArg(flat_key, key, Variadic::Boolean(value));
 }
 
-void ArgsParser::AddBytes(const Key& key, const protozero::ConstBytes& value) {
+void ArgsParser::AddUpid(Id flat_key, Id key, int64_t pid) {
+  if (auto upid = process_tracker_.GetProcessOrNull(pid)) {
+    inserter_.AddArg(flat_key, key, Variadic::Integer(*upid));
+  }
+}
+
+void ArgsParser::AddUtid(Id flat_key, Id key, int64_t tid) {
+  if (auto utid = process_tracker_.GetThreadOrNull(tid)) {
+    inserter_.AddArg(flat_key, key, Variadic::Integer(*utid));
+  }
+}
+
+void ArgsParser::AddBytes(Id flat_key,
+                          Id key,
+                          const protozero::ConstBytes& value) {
   std::string b64_data = base::Base64Encode(value.data, value.size);
-  AddString(key, b64_data);
+  AddString(flat_key, key, b64_data);
 }
 
-bool ArgsParser::AddJson(const Key& key, const protozero::ConstChars& value) {
+bool ArgsParser::AddJson(Id flat_key,
+                         Id key,
+                         const protozero::ConstChars& value) {
   if (!support_json_)
     PERFETTO_FATAL("Unexpected JSON value when parsing data");
   json::Iterator iterator;
+  // json::AddJsonValueToArgs builds nested keys from the flat_key/key strings,
+  // so resolve the interned ids back to strings here (the JSON path is rare).
   return json::AddJsonValueToArgs(iterator, value.data, value.data + value.size,
-                                  key.flat_key, key.key, &storage_, &inserter_);
+                                  storage_.GetString(flat_key).ToStdString(),
+                                  storage_.GetString(key).ToStdString(),
+                                  &storage_, &inserter_);
 }
 
-void ArgsParser::AddNull(const Key& key) {
-  inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                   storage_.InternString(base::StringView(key.key)),
-                   Variadic::Null());
+void ArgsParser::AddNull(Id flat_key, Id key) {
+  inserter_.AddArg(flat_key, key, Variadic::Null());
 }
 
 size_t ArgsParser::GetArrayEntryIndex(const std::string& array_key) {

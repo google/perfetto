@@ -18,12 +18,17 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import {
   STR,
   LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
   UNKNOWN,
   type SqlValue,
   LONG_NULL,
 } from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
+import {TrackNode} from '../../public/workspace';
+import {getMachineCount, getTrackName} from '../../public/utils';
 
 const PACKAGE_LOOKUP = `
   create or replace perfetto table package_name_lookup as
@@ -176,22 +181,6 @@ const NETWORK_SUMMARY = `
       group by 1, 2, 3
   )
   select * from final where ts is not null`;
-
-const SUSPEND_RESUME_DATASET = new SourceDataset({
-  src: `
-    SELECT
-      ts,
-      dur,
-      'Suspended' AS name
-    FROM android_suspend_state
-    WHERE power_state = 'suspended'
-  `,
-  schema: {
-    ts: LONG,
-    dur: LONG_NULL,
-    name: STR,
-  },
-});
 
 const THERMAL_THROTTLING_DATASET = new SourceDataset({
   src: `
@@ -374,6 +363,7 @@ export default class implements PerfettoPlugin {
     track: string,
     groupName: string,
     features: Set<string>,
+    machineId?: number,
   ) {
     if (!features.has(`track.${track}`)) {
       return;
@@ -389,6 +379,7 @@ export default class implements PerfettoPlugin {
             value_name AS name
           FROM android_battery_stats_state
           WHERE track_name = "${track}"
+            ${machineId === undefined ? '' : `AND machine_id = ${machineId}`}
         `,
         schema: {
           ts: LONG,
@@ -407,6 +398,7 @@ export default class implements PerfettoPlugin {
     track: string,
     groupName: string,
     features: Set<string>,
+    machineId?: number,
   ) {
     if (!features.has(`track.${track}`)) {
       return;
@@ -423,6 +415,7 @@ export default class implements PerfettoPlugin {
             str_value AS name
           FROM android_battery_stats_event_slices
           WHERE track_name = "${track}"
+            ${machineId === undefined ? '' : `AND machine_id = ${machineId}`}
         `,
         schema: {
           ts: LONG,
@@ -449,9 +442,6 @@ export default class implements PerfettoPlugin {
       .getOrCreateStandardGroup(ctx.defaultWorkspace, 'DEVICE_STATE');
     support.groups.set(groupName, deviceStateGroup);
 
-    const query = (name: string, track: string) =>
-      this.addBatteryStatsEvent(ctx, support, name, track, groupName, features);
-
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
     await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
@@ -459,100 +449,172 @@ export default class implements PerfettoPlugin {
     await e.query(`INCLUDE PERFETTO MODULE android.battery.doze;`);
     await e.query(`INCLUDE PERFETTO MODULE android.screen_state;`);
 
-    await support.addSliceTrack(
-      ctx,
-      'Screen state',
-      new SourceDataset({
-        src: `
+    const numMachines = await getMachineCount(e);
+    const machinesResult = await e.query(`
+      SELECT DISTINCT
+        machine.id,
+        machine.name,
+        machine.label_index AS labelIndex
+      FROM machine
+      JOIN track ON track.machine_id = machine.id
+      WHERE track.name GLOB 'battery_stats.*'
+         OR track.name IN (
+           'ScreenState',
+           'BatteryStatus',
+           'DozeLightState',
+           'DozeDeepState',
+           'Suspend/Resume Minimal',
+           'Suspend/Resume Latency'
+         )
+      ORDER BY machine.id
+    `);
+    const machines: Array<{
+      id: number;
+      name: string | null;
+      labelIndex: number | null;
+    }> = [];
+    const machinesIt = machinesResult.iter({
+      id: NUM,
+      name: STR_NULL,
+      labelIndex: NUM_NULL,
+    });
+    for (; machinesIt.valid(); machinesIt.next()) {
+      machines.push({
+        id: machinesIt.id,
+        name: machinesIt.name,
+        labelIndex: machinesIt.labelIndex,
+      });
+    }
+
+    for (const machine of machines) {
+      const displayName = (name: string) =>
+        getTrackName({
+          name,
+          machineName: machine.name,
+          machineLabelIndex: machine.labelIndex,
+          numMachines,
+        });
+      const query = (name: string, track: string) =>
+        this.addBatteryStatsEvent(
+          ctx,
+          support,
+          displayName(name),
+          track,
+          groupName,
+          features,
+          machine.id,
+        );
+
+      await support.addSliceTrack(
+        ctx,
+        displayName('Screen state'),
+        new SourceDataset({
+          src: `
           SELECT
             ts,
             dur,
             screen_state AS name
           FROM android_screen_state
+          WHERE machine_id = ${machine.id}
         `,
-        schema: {
-          ts: LONG,
-          dur: LONG_NULL,
-          name: STR,
-        },
-      }),
-      groupName,
-    );
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+        }),
+        groupName,
+      );
 
-    await support.addSliceTrack(
-      ctx,
-      'Charging',
-      new SourceDataset({
-        src: `
+      await support.addSliceTrack(
+        ctx,
+        displayName('Charging'),
+        new SourceDataset({
+          src: `
           SELECT
             ts,
             dur,
             charging_state AS name
           FROM android_charging_states
+          WHERE machine_id = ${machine.id}
         `,
-        schema: {
-          ts: LONG,
-          dur: LONG_NULL,
-          name: STR,
-        },
-      }),
-      groupName,
-    );
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+        }),
+        groupName,
+      );
 
-    await support.addSliceTrack(
-      ctx,
-      'Suspend / resume',
-      SUSPEND_RESUME_DATASET,
-      groupName,
-    );
+      await support.addSliceTrack(
+        ctx,
+        displayName('Suspend / resume'),
+        new SourceDataset({
+          src: `
+          SELECT ts, dur, 'Suspended' AS name
+          FROM android_suspend_state
+          WHERE power_state = 'suspended'
+            AND machine_id = ${machine.id}
+        `,
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+        }),
+        groupName,
+      );
 
-    await support.addSliceTrack(
-      ctx,
-      'Doze light state',
-      new SourceDataset({
-        src: `
+      await support.addSliceTrack(
+        ctx,
+        displayName('Doze light state'),
+        new SourceDataset({
+          src: `
           SELECT
             ts,
             dur,
             light_idle_state AS name
           FROM android_light_idle_state
+          WHERE machine_id = ${machine.id}
         `,
-        schema: {
-          ts: LONG,
-          dur: LONG_NULL,
-          name: STR,
-        },
-      }),
-      groupName,
-    );
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+        }),
+        groupName,
+      );
 
-    await support.addSliceTrack(
-      ctx,
-      'Doze deep state',
-      new SourceDataset({
-        src: `
+      await support.addSliceTrack(
+        ctx,
+        displayName('Doze deep state'),
+        new SourceDataset({
+          src: `
           SELECT
             ts,
             dur,
             deep_idle_state AS name
           FROM android_deep_idle_state
+          WHERE machine_id = ${machine.id}
         `,
-        schema: {
-          ts: LONG,
-          dur: LONG_NULL,
-          name: STR,
-        },
-      }),
-      groupName,
-    );
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+          },
+        }),
+        groupName,
+      );
 
-    query('Top app', 'battery_stats.top');
+      await query('Top app', 'battery_stats.top');
 
-    await support.addSliceTrack(
-      ctx,
-      'Long wakelocks',
-      new SourceDataset({
-        src: `
+      await support.addSliceTrack(
+        ctx,
+        displayName('Long wakelocks'),
+        new SourceDataset({
+          src: `
           SELECT
             -- Clamp start time to > 0 to avoid negative timestamps.
             MAX(0, ts - 60000000000) AS ts,
@@ -567,19 +629,21 @@ export default class implements PerfettoPlugin {
               int_value AS uid
             FROM android_battery_stats_event_slices
             WHERE track_name = "battery_stats.longwake"
+              AND machine_id = ${machine.id}
           ))
         `,
-        schema: {
-          ts: LONG,
-          dur: LONG_NULL,
-          name: STR,
-          package: STR,
-        },
-      }),
-      groupName,
-    );
+          schema: {
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+            package: STR,
+          },
+        }),
+        groupName,
+      );
 
-    query('Foreground apps', 'battery_stats.fg');
+      await query('Foreground apps', 'battery_stats.fg');
+    }
 
     if (
       features.has('atom.scheduled_job_state_changed') &&
@@ -609,7 +673,23 @@ export default class implements PerfettoPlugin {
         groupName,
       );
     } else {
-      query('Jobs', 'battery_stats.job');
+      for (const machine of machines) {
+        const name = getTrackName({
+          name: 'Jobs',
+          machineName: machine.name,
+          machineLabelIndex: machine.labelIndex,
+          numMachines,
+        });
+        await this.addBatteryStatsEvent(
+          ctx,
+          support,
+          name,
+          'battery_stats.job',
+          groupName,
+          features,
+          machine.id,
+        );
+      }
     }
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
@@ -759,6 +839,19 @@ export default class implements PerfettoPlugin {
     }
 
     const groupName = 'Network Summary';
+    const networkGroup = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'NETWORK');
+    // Render the summary tracks directly inside the Network group, sorted above
+    // the raw kernel network tracks.
+    const summaryGroup = new TrackNode({
+      name: groupName,
+      isSummary: true,
+      headless: true,
+      sortOrder: -1,
+    });
+    networkGroup.addChildInOrder(summaryGroup);
+    support.groups.set(groupName, summaryGroup);
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);

@@ -40,5 +40,14 @@ std::string GetTestDataPath(const std::string& path) {
   return path;
 }
 
+std::string GetGenDataPath(const std::string& path) {
+  std::string self_path = GetCurExecutableDir();
+  std::string full_path = self_path + "/gen/" + path;
+  if (FileExists(full_path))
+    return full_path;
+  // Fall back to relative to root dir.
+  return path;
+}
+
 }  // namespace base
 }  // namespace perfetto

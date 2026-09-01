@@ -77,8 +77,8 @@ export class SelectionManagerImpl implements SelectionManager {
     trackUri: string,
     eventId: number,
     opts?: SelectionOpts,
-  ) {
-    this.selectTrackEventInternal(trackUri, eventId, opts);
+  ): Promise<void> {
+    await this.selectTrackEventInternal(trackUri, eventId, opts);
   }
 
   selectTrack(uri: string, opts?: SelectionOpts) {
@@ -145,7 +145,7 @@ export class SelectionManagerImpl implements SelectionManager {
             trackUris: serialized.trackUris,
           });
       }
-    } catch (ex) {
+    } catch {
       showModal({
         title: 'Failed to restore the selected event',
         content: m(

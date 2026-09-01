@@ -49,6 +49,14 @@ declare namespace Wasm {
   export interface Module {
     callMain(args: string[]): void;
     addFunction(f: any, argTypes: string): void;
+    FS_mkdir(path: string, mode?: number): any;
+    FS_mount(type: Wasm.FileSystemType, opts: any, mountpoint: string): any;
+    FS_lookupPath(path: string): { path: string; node: Wasm.FileSystemNode };
+    FS_unlink(path: string): void;
+    // Entries of a directory, including '.' and '..'.
+    FS_readdir(path: string): string[];
+    FS_readFile(path: string): Uint8Array;
+    WORKERFS: Wasm.FileSystemType;
     ccall(
       ident: string,
       returnType: string,

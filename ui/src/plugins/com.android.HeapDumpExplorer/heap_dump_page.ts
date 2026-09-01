@@ -23,16 +23,17 @@ import {formatDuration} from '../../components/time_utils';
 import type {NavState, NavView} from './nav_state';
 import type {OverviewData} from './types';
 import type * as queries from './queries';
-import OverviewView from './views/overview_view';
-import DominatorsView from './views/dominators_view';
-import ObjectView from './views/object_view';
-import AllObjectsView from './views/all_objects_view';
-import BitmapGalleryView from './views/bitmap_gallery_view';
-import ClassesView from './views/classes_view';
-import StringsView from './views/strings_view';
-import ArraysView from './views/arrays_view';
-import FlamegraphObjectsView from './views/flamegraph_objects_view';
-import FlamegraphView from './views/flamegraph_view';
+import {OverviewView} from './views/overview_view';
+import {DominatorsView} from './views/dominators_view';
+import {ObjectView} from './views/object_view';
+import {AllObjectsView} from './views/all_objects_view';
+import {BitmapGalleryView} from './views/bitmap_gallery_view';
+import {ClassesView} from './views/classes_view';
+import {StringsView} from './views/strings_view';
+import {ArraysView} from './views/arrays_view';
+import {FlamegraphObjectsView} from './views/flamegraph_objects_view';
+import {FlamegraphView} from './views/flamegraph_view';
+import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 
 interface HeapDumpPageAttrs {
@@ -43,65 +44,39 @@ interface HeapDumpPageAttrs {
 const FG_KEY_PREFIX = 'fg-';
 const INSTANCE_KEY_PREFIX = 'inst-';
 
-function fgTabKey(id: number): string {
-  return `${FG_KEY_PREFIX}${id}`;
+function fgTabKey(pathHashes: string, isDominator: boolean): string {
+  return `${FG_KEY_PREFIX}${isDominator ? 'd' : 'n'}:${pathHashes}`;
 }
 
-function instanceTabKey(id: number): string {
-  return `${INSTANCE_KEY_PREFIX}${id}`;
-}
-
-function parseFgTabKey(key: string): number | undefined {
-  if (!key.startsWith(FG_KEY_PREFIX)) return undefined;
-  return parseInt(key.slice(FG_KEY_PREFIX.length), 10);
-}
-
-function parseInstanceTabKey(key: string): number | undefined {
-  if (!key.startsWith(INSTANCE_KEY_PREFIX)) return undefined;
-  return parseInt(key.slice(INSTANCE_KEY_PREFIX.length), 10);
+function instanceTabKey(objId: number): string {
+  return `${INSTANCE_KEY_PREFIX}${objId}`;
 }
 
 function activeTabKey(session: HeapDumpExplorerSession): string {
   const tabs = session.flamegraphTabs;
   if (session.nav.view === 'flamegraph-objects' && tabs.length > 0) {
-    const active = tabs.find((t) => t.id === session.activeFlamegraphId);
-    return fgTabKey(active ? active.id : tabs[tabs.length - 1].id);
+    const active = session.activeFlamegraph;
+    const tab =
+      (active &&
+        tabs.find(
+          (t) =>
+            t.pathHashes === active.pathHashes &&
+            t.isDominator === active.isDominator,
+        )) ||
+      tabs[tabs.length - 1];
+    return fgTabKey(tab.pathHashes, tab.isDominator);
   }
-  if (session.activeInstanceId !== null) {
-    return instanceTabKey(session.activeInstanceId);
+  const objId = session.activeInstanceObjId;
+  if (objId !== null) {
+    return instanceTabKey(objId);
   }
   return session.nav.view;
 }
 
-function handleTabChange(session: HeapDumpExplorerSession, key: string): void {
-  const fgId = parseFgTabKey(key);
-  if (fgId !== undefined) {
-    session.setActiveFlamegraphTab(fgId);
-    session.navigate('flamegraph-objects');
-    return;
-  }
-  const instId = parseInstanceTabKey(key);
-  if (instId !== undefined) {
-    session.setActiveInstanceTab(instId);
-    const tab = session.instanceTabs.find((t) => t.id === instId);
-    if (tab) session.navigate('object', {id: tab.objId});
-    return;
-  }
-  session.clearActiveFlamegraphTab();
-  session.clearActiveInstanceTab();
-  session.navigate(key as NavView);
-}
-
-function handleTabClose(session: HeapDumpExplorerSession, key: string): void {
-  const fgId = parseFgTabKey(key);
-  if (fgId !== undefined) {
-    session.closeFlamegraph(fgId);
-    return;
-  }
-  const instId = parseInstanceTabKey(key);
-  if (instId !== undefined) {
-    session.closeInstanceTab(instId);
-  }
+// Per-tab select/close actions, looked up by key.
+interface TabActions {
+  select(): void;
+  close?(): void;
 }
 
 function buildTabs(
@@ -109,10 +84,11 @@ function buildTabs(
   activeDump: queries.HeapDump,
   state: NavState,
   overview: OverviewData,
-): TabsTab[] {
+): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
   const {engine, trace, navigateWithTabs, clearNavParam} = session;
   const hideExplanationSetting = session.hideDefaultChangedHint;
   const hideHint = hideExplanationSetting.get();
+  const actions = new Map<string, TabActions>();
   const tabs: TabsTab[] = [
     {
       key: 'overview',
@@ -132,7 +108,7 @@ function buildTabs(
       content: m(FlamegraphView, {
         trace,
         upid: activeDump.upid,
-        ts: Time.fromRaw(activeDump.ts),
+        ts: activeDump.ts,
         state: session.flamegraphPanelState,
         onStateChange: session.setFlamegraphPanelState,
         onShowObjects: (pathHashes, isDominator) =>
@@ -214,11 +190,27 @@ function buildTabs(
         hasFieldValues: overview.hasFieldValues,
       }),
     },
+    {
+      key: 'callstack',
+      title: 'Callstack',
+      content: m(CallstackView, {
+        trace,
+        dump: activeDump,
+        state: session.callstackPanelState,
+        onStateChange: session.setCallstackPanelState,
+      }),
+    },
   ];
 
+  // Static tab keys are view names.
+  for (const tab of tabs) {
+    actions.set(tab.key, {select: () => session.navigate(tab.key as NavView)});
+  }
+
   for (const fg of session.flamegraphTabs) {
+    const key = fgTabKey(fg.pathHashes, fg.isDominator);
     tabs.push({
-      key: fgTabKey(fg.id),
+      key,
       title:
         fg.count !== null
           ? `Flamegraph objects (${fg.count.toLocaleString()})`
@@ -232,11 +224,20 @@ function buildTabs(
         onBackToTimeline: () => trace.navigate('#!/viewer'),
       }),
     });
+    actions.set(key, {
+      select: () =>
+        session.navigate('flamegraph-objects', {
+          pathHashes: fg.pathHashes,
+          isDominator: fg.isDominator,
+        }),
+      close: () => session.closeFlamegraph(fg.pathHashes, fg.isDominator),
+    });
   }
 
   for (const obj of session.instanceTabs) {
+    const key = instanceTabKey(obj.objId);
     tabs.push({
-      key: instanceTabKey(obj.id),
+      key,
       title: obj.label,
       closeButton: true,
       content: m(ObjectView, {
@@ -248,9 +249,13 @@ function buildTabs(
         params: {id: obj.objId},
       }),
     });
+    actions.set(key, {
+      select: () => session.navigate('object', {id: obj.objId}),
+      close: () => session.closeInstanceTab(obj.objId),
+    });
   }
 
-  return tabs;
+  return {tabs, actions};
 }
 
 function processLabel(d: queries.HeapDump): string {
@@ -280,10 +285,7 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
         }),
       },
       allDumps.map((d) => {
-        const offset = Time.diff(
-          Time.fromRaw(d.ts),
-          session.trace.traceInfo.start,
-        );
+        const offset = Time.diff(d.ts, session.trace.traceInfo.start);
         return m(MenuItem, {
           label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
           active: d === active,
@@ -310,6 +312,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     const {session, subpage} = attrs;
     session.syncFromSubpage(subpage);
     session.syncInstanceTabFromNav();
+    session.syncFlamegraphTabFromNav();
 
     const active = session.activeDump;
     const overview = session.cachedOverview;
@@ -325,6 +328,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     // Keyed so Mithril remounts views (and their SQLDataSources) on
     // dump switch.
     const tabsKey = `${active.upid}:${active.ts}`;
+    const {tabs, actions} = buildTabs(session, active, session.nav, overview);
 
     return m(
       'div',
@@ -335,10 +339,10 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
         {class: 'pf-hde-main'},
         m(Tabs, {
           key: tabsKey,
-          tabs: buildTabs(session, active, session.nav, overview),
+          tabs,
           activeTabKey: activeTabKey(session),
-          onTabChange: (key: string) => handleTabChange(session, key),
-          onTabClose: (key: string) => handleTabClose(session, key),
+          onTabChange: (key: string) => actions.get(key)?.select(),
+          onTabClose: (key: string) => actions.get(key)?.close?.(),
         }),
       ),
     );

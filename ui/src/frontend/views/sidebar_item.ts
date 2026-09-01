@@ -86,6 +86,8 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
         className: 'pf-sidebar__button-icon',
         icon: valueOrCallback(item.icon),
       });
+    const badge = valueOrCallback(item.badge);
+    const badgeEl = badge !== undefined && m('span.pf-sidebar__badge', badge);
     const spinnerEl =
       this.pending && m(Spinner, {className: 'pf-sidebar__spinner'});
     const cssClass = valueOrCallback(item.cssClass);
@@ -109,6 +111,7 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
             },
             iconEl,
             text,
+            badgeEl,
             target === '_blank' &&
               m(Icon, {
                 className: 'pf-sidebar__external-link-icon',
@@ -126,6 +129,7 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
             },
             iconEl,
             text,
+            badgeEl,
             spinnerEl,
           ),
     );

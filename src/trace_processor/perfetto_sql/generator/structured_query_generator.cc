@@ -560,11 +560,11 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   }
 
   std::string cols_str = "*";
-  if (sql.column_names()->size() != 0) {
-    std::vector<std::string> cols;
-    for (auto it = sql.column_names(); it; ++it) {
-      cols.push_back(it->as_std_string());
-    }
+  std::vector<std::string> cols;
+  for (auto it = sql.column_names(); it; ++it) {
+    cols.push_back(it->as_std_string());
+  }
+  if (!cols.empty()) {
     cols_str = base::Join(cols, ", ");
   }
 
@@ -1325,25 +1325,37 @@ base::StatusOr<std::string> GeneratorImpl::SingleFilter(
   }
 
   std::string sql = column_name + " " + op_str + " ";
+  bool multi_value = false;
 
   if (auto srhs = filter.string_rhs(); srhs) {
     sql += "'" + (*srhs++).ToStdString() + "'";
     for (; srhs; ++srhs) {
+      multi_value = true;
       sql += " OR " + column_name + " " + op_str + " '" +
              (*srhs).ToStdString() + "'";
     }
   } else if (auto drhs = filter.double_rhs(); drhs) {
     sql += std::to_string((*drhs++));
     for (; drhs; ++drhs) {
+      multi_value = true;
       sql += " OR " + column_name + " " + op_str + " " + std::to_string(*drhs);
     }
   } else if (auto irhs = filter.int64_rhs(); irhs) {
     sql += std::to_string(*irhs++);
     for (; irhs; ++irhs) {
+      multi_value = true;
       sql += " OR " + column_name + " " + op_str + " " + std::to_string(*irhs);
     }
   } else {
     return base::ErrStatus("Filter must specify a right-hand side");
+  }
+
+  // When a filter has multiple RHS values they are ORed together. Wrap the
+  // disjunction in parentheses so that surrounding ANDs (between filters) or
+  // the operator of an enclosing ExperimentalFilterGroup do not bind tighter
+  // than the OR and change the intended (CNF) semantics.
+  if (multi_value) {
+    return "(" + sql + ")";
   }
   return sql;
 }

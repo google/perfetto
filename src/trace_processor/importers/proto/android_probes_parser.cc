@@ -56,13 +56,13 @@
 #include "protos/perfetto/trace/android/android_game_intervention_list.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/android_system_property.pbzero.h"
-#include "protos/perfetto/trace/android/bluetooth_trace.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/packages/modules/bluetooth/tracing/bluetooth_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -309,7 +309,6 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
       power_rails_args_tracker_->AddArgsTo(*maybe_counter_id)
           .AddArg(rail_packet_timestamp_id_,
                   Variadic::UnsignedInteger(trace_packet_ts));
-      power_rails_args_tracker_->Flush();
     }
   } else {
     context_->stats_tracker->IncrementStats(stats::power_rail_unknown_index);
@@ -605,6 +604,15 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       continue;
     }
 
+    if (name == "debug.tracing.wallpaper.package_name" ||
+        name == "debug.tracing.wallpaper.class_name") {
+      StringId name_id = context_->storage->InternString(name);
+      StringId value_id = context_->storage->InternString(kv.value());
+      context_->metadata_tracker->SetDynamicMetadata(
+          name_id, Variadic::String(value_id));
+      continue;
+    }
+
     std::optional<int32_t> state =
         base::StringToInt32(kv.value().ToStdString());
     if (!state) {
@@ -673,7 +681,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
 }
 
 void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::BluetoothTraceEvent::Decoder evt(blob);
+  bluetooth::tracing::pbzero::BluetoothTraceEvent::Decoder evt(blob);
 
   static constexpr auto kBluetoothTraceEventBlueprint = tracks::SliceBlueprint(
       "bluetooth_trace_event", tracks::DimensionBlueprints(),
@@ -687,9 +695,9 @@ void AndroidProbesParser::ParseBtTraceEvent(int64_t ts, ConstBytes blob) {
       [&evt, this](ArgsTracker::BoundInserter* inserter) {
         if (evt.has_packet_type()) {
           StringId packet_type_str = context_->storage->InternString(
-              protos::pbzero::BluetoothTracePacketType_Name(
+              bluetooth::tracing::pbzero::BluetoothTracePacketType_Name(
                   static_cast<
-                      ::perfetto::protos::pbzero::BluetoothTracePacketType>(
+                      ::bluetooth::tracing::pbzero::BluetoothTracePacketType>(
                       evt.packet_type())));
           inserter->AddArg(bt_packet_type_id_,
                            Variadic::String(packet_type_str));
@@ -774,14 +782,21 @@ StringId AndroidProbesParser::ToFlagTypeId(int32_t type) {
 }
 
 void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
+  auto sanitize_and_intern = [&](base::StringView sv) {
+    if (!base::CheckAsciiAndRemoveInvalidUTF8(sv, temp_string_utf8_)) {
+      sv = base::StringView(temp_string_utf8_);
+    }
+    return context_->storage->InternString(sv);
+  };
+
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
-    context_->import_logs_tracker->RecordCollectionError(
+    context_->import_logs_tracker->RecordCollectionLog(
         stats::android_aflags_errors, ts,
         [&](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(context_->storage->InternString("error"),
-                          Variadic::String(context_->storage->InternString(
-                              decoder.error())));
+          inserter.AddArg(
+              context_->storage->InternString("error"),
+              Variadic::String(sanitize_and_intern(decoder.error())));
         });
     return;
   }
@@ -791,13 +806,13 @@ void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
 
     tables::AndroidAflagsTable::Row row;
     row.ts = ts;
-    row.package = context_->storage->InternString(flag.pkg());
-    row.name = context_->storage->InternString(flag.name());
-    row.flag_namespace = context_->storage->InternString(flag.flag_namespace());
-    row.container = context_->storage->InternString(flag.container());
-    row.value = context_->storage->InternString(flag.value());
+    row.package = sanitize_and_intern(flag.pkg());
+    row.name = sanitize_and_intern(flag.name());
+    row.flag_namespace = sanitize_and_intern(flag.flag_namespace());
+    row.container = sanitize_and_intern(flag.container());
+    row.value = sanitize_and_intern(flag.value());
     if (flag.has_staged_value()) {
-      row.staged_value = context_->storage->InternString(flag.staged_value());
+      row.staged_value = sanitize_and_intern(flag.staged_value());
     }
     row.permission = ToPermissionId(flag.permission());
     row.value_picked_from = ToValuePickedFromId(flag.value_picked_from());

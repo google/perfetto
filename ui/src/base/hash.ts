@@ -26,7 +26,7 @@ export function hash(s: string, max: number): number {
  * @param data a string or ArrayBuffer to hash.
  */
 export async function sha1(data: string | ArrayBuffer): Promise<string> {
-  let buffer: ArrayBuffer;
+  let buffer: BufferSource;
   if (typeof data === 'string') {
     buffer = new TextEncoder().encode(data);
   } else {

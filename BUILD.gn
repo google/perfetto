@@ -51,7 +51,7 @@ if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
   }
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
   if (perfetto_build_standalone) {
-    all_targets += [ "src/trace_processor/perfetto_sql/pfsql" ]
+    all_targets += [ "src/tools/pfsql" ]
   }
 }
 
@@ -129,6 +129,7 @@ if (enable_perfetto_integration_tests) {
       "test:integrationtest_main",
     ]
     deps += perfetto_integrationtests_targets
+    data_deps = perfetto_integrationtests_data_targets
   }
   all_targets += [
     ":perfetto_integrationtests",
@@ -391,11 +392,5 @@ group("default") {
 if (enable_perfetto_ui) {
   group("ui") {
     deps = [ "ui" ]
-  }
-}
-
-if (enable_perfetto_site) {
-  group("site") {
-    deps = [ "infra/perfetto.dev:site" ]
   }
 }

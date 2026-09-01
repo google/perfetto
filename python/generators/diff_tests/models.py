@@ -147,7 +147,12 @@ class TestResult:
     expected_content = self.expected.replace('\r\n', '\n')
 
     actual_content = self.actual.replace('\r\n', '\n')
-    self.passed = (expected_content == actual_content)
+    if test.blueprint.is_out_expected_error():
+      # The test expects the trace load to fail: pass iff trace_processor
+      # exited with an error and stderr contains the expected message.
+      self.passed = (self.exit_code != 0 and expected_content in self.stderr)
+    else:
+      self.passed = (expected_content == actual_content)
 
     if self.exit_code == 0:
       self.perf_result = PerfResult(self.test, perf_lines)

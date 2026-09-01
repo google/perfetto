@@ -26,7 +26,7 @@ jobs:
       PERFETTO_CI_JOB_NAME: repochecks
       CI: 1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Fetches the merge commit and its parents, which is required for
           # the presubmit script to parse the commit message (for

@@ -1,17 +1,239 @@
 Unreleased:
   Tracing service and probes:
+   *
+  Trace Processor:
+   * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
+     all_data_source_started_ns, ...) to trace time when primary_trace_clock
+     is not BOOTTIME. They were previously stored unconverted, which could
+     also cause ftrace events to be dropped when preserve_ftrace_buffer is
+     disabled.
+  UI:
+    * Double-clicking a timeline slice now selects and zooms into it.
+  SDK:
+   *
+
+v58.3 - 2026-08-27:
+  Misc:
+    * Fix trace sharing issue where traces with a single selection failed
+      to restore.
+
+v58.2 - 2026-08-21:
+  Misc:
+    * Fixed additional Windows build and test failures.
+
+v58.1 - 2026-08-21:
+  Misc:
+    * Fixed builds on Windows.
+
+v58.0 - 2026-08-06:
+  Tracing service and probes:
+    * Added optional recording of the state changes of other concurrent
+      tracing sessions, as ConcurrentSessionEvent packets. Opt-in via
+      TraceConfig.BuiltinDataSource.enable_concurrent_session_events. Trace
+      Processor and the UI show them as one state track per session.
+    * Added Zstd as a trace compression option alongside deflate, selected via
+      the new TraceConfig.compression field (which supersedes compression_type).
+    * The procfs scraper (process_stats data source) now writes an explicit
+      Thread message for a process' main thread, instead of leaving it implied
+      by the process entry. This fixes missing main thread names when a trace
+      is recorded using procfs alone.
+    * Replaced TraceConfig.notes and `perfetto --add-note` with
+      TraceConfig.trace_attributes and `--add-attribute`.
+  Trace Processor:
+    * Added trace merging: a ZIP or TAR archive containing several traces
+      imports as one merged trace on a single timeline, with per-machine
+      attribution. An optional `perfetto_manifest` JSON file in the archive
+      configures the merge (machine names, clock relations, fixed offsets).
+      See https://perfetto.dev/docs/analysis/merging-traces.
+    * Added `trace_processor_shell util merge`: packs traces and an optional
+      manifest into a merged-trace archive and sanity-checks the result.
+    * Added a client-server mode to `trace_processor_shell`: start a server
+      over a unix socket (`server unix`) or WebSocket (`server http`) and
+      connect a thin client with `--remote`.
+    * Added a common stack sampling format that any profiler can emit: the
+      new TracePacket.stack_sample attributes a callstack to a thread,
+      process or async context (goroutine, fiber, ...), measured against an
+      explicit counter timebase (wall-time, cycles, bytes, ...) with
+      optional follower counters. Callstacks can be interned or fully
+      inline; per-sequence StackSampleDefaults declare the profiler source
+      and common counters. Samples are parsed into the stack sample tables
+      and share the existing stack_profile_* callstack tables.
+    * Introduced common stack_sample, stack_sample_session,
+      stack_sample_task_context, stack_sample_execution_context,
+      stack_sample_async_context, stack_sample_counter_track and
+      stack_sample_counter tables shared by all callstack profiler sources.
+      Async contexts keep their parent relationships. The Linux perf-specific
+      perf_sample, perf_session and perf_counter_track tables continue to
+      expose all perf data, including counter-only samples.
+    * Added `trace_processor_shell export arrow_tar`, which writes the
+      built-in tables as a tar of Arrow files for other tools to read. The
+      format is stable across versions, but the archive cannot be loaded
+      back into Trace Processor.
+    * Added `trace_processor_shell export perfetto`, which writes an archive
+      that another Trace Processor of the same version can load, so a large
+      trace only has to be parsed once.
+    * Added an embedder-provided filesystem interface. The interface is
+      disabled by default; trace_processor_shell allows SQL file access only
+      with --allow-sql-file-access. SQL file writes no longer require --dev,
+      and the integer file descriptor form of EXPORT_JSON has been removed.
+    * Breaking change: the inline callstack message `TrackEvent.Callstack`
+      moved to the top-level `InlineCallstack` message in
+      trace/profiling/inline_callstack.proto, so track events and stack
+      samples share one inline callstack definition.
+      The wire format is unchanged; code referencing the generated
+      `TrackEvent.Callstack` / `TrackEvent::Callstack` types must switch to
+      `InlineCallstack`.
+    * `regexp()` now takes an optional third argument for matching flags:
+      `i` for case-insensitive matching, `c` for case-sensitive.
+    * Fixed negative timestamps wrapping around to large positive values and
+      crashing the UI, a crash on empty CpuInfo packets, a hang when
+      skipping an oversized proto field, and Apple Instruments Xcode 27
+      traces losing their call stacks.
+  UI:
+    * Improved flamegraphs with clearer direction and filter controls, frame
+      highlighting, and case-insensitive regular expression filtering.
+    * Callstack sample tracks and flamegraphs now share one implementation
+      over the stack_sample table. Tracks and area-selection flamegraph tabs
+      remain separate per profiler source, while every source with recorded
+      counters supports counter-weighted flamegraphs.
+    * Opening multiple trace files is now supported by default: the "Open
+      multiple trace files" sidebar item (or multi-selecting / dropping
+      several files) opens a dialog to configure how the traces merge onto
+      a shared timeline, warns if any events would be dropped, and can
+      export the merged set as a self-contained .tar archive.
+    * Add list of recently opened traces to the homepage.
+    * Remap OpenCommandPalette command hotkey to F1 on Firefox.
+    * Ftrace plugin: now handles area selections and multi-machine traces.
+    * Update node to v22.23.1 and pnpm to 10.34.5.
+    * Allow pivoting on arg values in slice aggregation table.
+    * Bump to vite v8.1.5 and typescript v7.0.2, vastly improving build times.
+    * Add memory tooling:
+      * Memscope: a live memory profiler that guides you through connecting
+        an Android/Linux device and recording memory traces.
+      * Memory overview: opens by default on traces containing smaps dumps
+        and shows a high-level breakdown of where memory is being used,
+        drawing on smaps, ART, and native memory data recorded in the trace.
+  SDK:
+    * Reworked the C SDK shared library export macros: static linking (the
+      default) no longer needs any macros. Define
+      PERFETTO_SDK_SHLIB_IMPLEMENTATION (renamed from
+      PERFETTO_SHLIB_SDK_IMPLEMENTATION) when building the SDK into a shared
+      library, and PERFETTO_SDK_SHLIB when consuming it as one. This applies
+      to the amalgamated SDK too. PERFETTO_SDK_DISABLE_SHLIB_EXPORT is
+      removed.
+    * Added PerfettoDsGetTimestamp() and PerfettoDsGetDefaultClockId() to
+      the C data source ABI. These return the current timestamp in the
+      preferred trace clock, so callers no longer need to pick the OS
+      specific clock themselves. Also added DataSourceTimestamp::now() in
+      the Rust SDK.
+    * `dev.perfetto.clock_sync` signpost events now fire on iOS as well as
+      macOS, so Instruments traces from iOS can be synchronized with
+      Perfetto traces.
+  Tools:
+    * Deprecated `traceconv`. Please use `trace_processor_shell`, which does
+      the same conversions as subcommands. The `traceconv` wrapper script
+      now fetches `trace_processor_shell` and runs it under the `traceconv`
+      name, so existing invocations keep working unchanged. The standalone
+      binary still ships for now.
+  AI:
+    * Much faster repeated queries with skills: the skill now loads a trace
+      once into a `trace_processor` session and reuses it, instead of
+      reparsing on every call.
+    * Added a `TraceConfig` reference and exemplar configs an agent can start
+      from when it needs a custom recording setup.
+    * Every analysis now ends by saving a markdown report with the question,
+      the findings and the queries that worked.
+    * Releases now include a skill zip for machines that cannot reach
+      github.com at install time.
+
+v57.2 - 2026-07-07:
+  Trace Processor:
+    * Fixed trace_processor failing to parse traces that embed their own
+      proto descriptors after wire-compatible schema changes (widened
+      previous_packet_dropped bool->uint32, and removed AndroidCamera*
+      fields).
+
+v57.1 - 2026-07-02:
+  AI:
+    * Fixed the AI skill missing its bundled `trace_processor` wrapper.
+      The wrapper now ships inside the skill directory itself, for every
+      install method and agent.
+
+v57.0 - 2026-06-19:
+  Tracing service and probes:
     * Scoped the RelayPort IPC service so it is only exposed on producer
       sockets explicitly opted-in. Added `--enable-relay-endpoint-on=<sock>`
       as a narrower variant of `--enable-relay-endpoint` that turns RelayPort
       on only for the named producer sockets listed in
       `PERFETTO_PRODUCER_SOCK_NAME`. `--enable-relay-endpoint` retains its
       existing semantics for the common single-socket multi-machine setup.
+    * Allocation profiling (heapprofd): added partial wildcard matching support
+      to HeapprofdConfig.process_cmdline. The main limitation is that it is
+      incompatible with from-startup profiling on android, and therefore the
+      config should specify no_startup=true if any wildcard patterns are
+      included in process_cmdline. Otherwise the matching semantics are the same
+      as the perf profiling and java heap dump data sources.
+    * Added support for listing the `psci_domain_idle_enter` and
+      `psci_domain_idle_exit` ftrace events, giving finer-grained insight into
+      which CPU power states are entered than `cpu_idle` alone.
+    * Added support for the `disp_dpu_line_underrun` and panel settings ftrace
+      events.
+    * Added `system_io_provider_events` to the Windows ETW data source.
+    * Added a `linux.journald` data source for capturing systemd journald logs.
   Trace Processor:
-   *
+    * Added support for explicit thread and process ordering in track
+      descriptors.
+    * Added support for "state tracks": a new track type for recording the
+      state of a system or subsystem over time, ingested into a new `state` SQL
+      table.
+    * Added support for ingesting systemd journald logs, stored alongside
+      Android logs in a unified log table with a new `log_source` column.
+    * Added parsing of the Adreno GPU `adreno_cmdbatch_retired` and
+      `adreno_cmdbatch_sync` ftrace events into GPU timeline slices.
+    * `trace_processor_shell` can now load traces directly from URLs and
+      ui.perfetto.dev permalinks.
+    * The `perfetto` Python package now defaults to the pinned `trace_processor`
+      binary shipped with the package instead of downloading the latest build at
+      runtime. The old behavior is available by opting in via the new
+      `TraceProcessorConfig.fetch_latest_trace_processor` flag.
   UI:
-   *
+    * Added shift + mouse-wheel to scroll the timeline horizontally.
+    * Added an smaps plugin with an instants track and a datagrid details panel.
+    * Added a JournaldLog plugin to display logs from the `linux.journald` data
+      source.
+    * Added the ability to re-open and edit saved custom textproto record
+      configs.
+    * Improved the Heap Dump Explorer: it now opens by default on more traces,
+      its state is preserved in shared permalinks, and the overview shows
+      `oom_score_adj`.
+    * Improved the query results grid with column sort, reorder, and hide, a
+      collapsible sidebar, and proper surfacing of SQL errors.
+    * Adjacent slices that start and end at the same timestamp now render with a
+      1px gap, making it possible to distinguish consecutive instances of the
+      same slice.
+    * Added support for the Arm Telemetry Solution: a new (non-default,
+      opt-in) plugin adding an Arm CPU page under Support for loading Arm CPU
+      telemetry specs, which surface derived per-CPU performance metrics
+      (e.g. IPC, cache misses) as tracks computed from raw PMU counters.
   SDK:
-   *
+    * Added nested track support with sibling ordering and merging to the C SDK
+      high-level ABI and the Android Java SDK (`PerfettoTrack`).
+    * Added track event correlation ids to the C SDK high-level ABI
+      (`PERFETTO_TE_CORRELATION_ID()` / `PERFETTO_TE_CORRELATION_ID_STR()`) and
+      the Android Java SDK (`PerfettoTrackEventBuilder.setCorrelationId()`).
+    * Added the `TRACE_STATE` API for recording the state of a system or
+      subsystem over time as a dedicated "state track".
+  AI:
+    * Perfetto now ships a single installable AI skill that teaches coding
+      agents how to record, query, and analyze traces. It is loadable by any
+      Agent Skills-compatible agent (Claude Code, OpenAI Codex, Gemini CLI, and
+      others) and is installed via https://get.perfetto.dev/agents-install.
+
+v56.1 - 2026-06-04:
+  SDK:
+    * Fixed C++ SDK build failure on aarch64 with recent libstdc++ versions
+      (e.g. 12.5.0) caused by `CircularQueue::Iterator` not being default
+      constructible.
 
 v56.0 - 2026-05-21:
   Tracing service and probes:

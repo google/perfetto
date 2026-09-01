@@ -1279,7 +1279,7 @@ export class AddColumnsNode implements QueryNode {
     const suggestions = this.getJoinSuggestions();
     const selectedTable = this.attrs.selectedSuggestionTable;
     const selectedColumns = selectedTable
-      ? this.attrs.suggestionSelections?.[selectedTable] ?? []
+      ? (this.attrs.suggestionSelections?.[selectedTable] ?? [])
       : [];
 
     return m(AddColumnsSuggestionModal, {

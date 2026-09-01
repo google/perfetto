@@ -17,6 +17,10 @@
 #ifndef SRC_TRACE_REDACTION_REDACT_SCHED_EVENTS_H_
 #define SRC_TRACE_REDACTION_REDACT_SCHED_EVENTS_H_
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "src/trace_redaction/filtering.h"
 #include "src/trace_redaction/modify.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
@@ -102,13 +106,15 @@ class RedactSchedEvents : public TransformPrimitive {
       const Context& context,
       int32_t cpu,
       protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
-      InternTable* intern_table,
+      InternTable* source_intern_table,
+      std::unordered_map<std::string, int32_t>* target_intern_table,
       protos::pbzero::FtraceEventBundle::CompactSched* message) const;
 
   base::Status OnCompactSchedWaking(
       const Context& context,
       protos::pbzero::FtraceEventBundle::CompactSched::Decoder& compact_sched,
-      InternTable* intern_table,
+      InternTable* source_intern_table,
+      std::unordered_map<std::string, int32_t>* target_intern_table,
       protos::pbzero::FtraceEventBundle::CompactSched* compact_sched_message)
       const;
 

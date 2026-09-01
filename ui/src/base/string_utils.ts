@@ -44,14 +44,14 @@ export function hexEncode(bytes: Uint8Array): string {
   );
 }
 
-export function utf8Encode(str: string): Uint8Array {
+export function utf8Encode(str: string): Uint8Array<ArrayBuffer> {
   textEncoder = textEncoder ?? new TextEncoder();
   return textEncoder.encode(str);
 }
 
 // Note: not all byte sequences can be converted to<>from UTF8. This can be
 // used only with valid unicode strings, not arbitrary byte buffers.
-export function utf8Decode(buffer: Uint8Array | ArrayBuffer): string {
+export function utf8Decode(buffer: AllowSharedBufferSource): string {
   textDecoder = textDecoder ?? new TextDecoder();
   return textDecoder.decode(buffer);
 }

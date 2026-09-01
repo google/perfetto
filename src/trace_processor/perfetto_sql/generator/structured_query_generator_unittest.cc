@@ -2460,7 +2460,7 @@ TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithMultipleValues) {
   ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
     WITH sq_0 AS (
       SELECT * FROM slice
-      WHERE name = 'foo' OR name = 'bar' OR name = 'baz' OR name GLOB 'test*'
+      WHERE (name = 'foo' OR name = 'bar' OR name = 'baz') OR name GLOB 'test*'
     )
     SELECT * FROM sq_0
   )"));
@@ -2659,7 +2659,7 @@ TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithInt64AndDouble) {
   ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
     WITH sq_0 AS (
       SELECT * FROM slice
-      WHERE dur > 1000 OR dur > 5000 OR cpu < 50.500000
+      WHERE (dur > 1000 OR dur > 5000) OR cpu < 50.500000
     )
     SELECT * FROM sq_0
   )"));
@@ -2782,6 +2782,42 @@ TEST(StructuredQueryGeneratorTest, FilterWithoutRhsFails) {
   ASSERT_FALSE(ret.ok());
   ASSERT_THAT(ret.status().c_message(),
               testing::HasSubstr("must specify a right-hand side"));
+}
+
+TEST(StructuredQueryGeneratorTest, MultiValueFilterAndedIsParenthesized) {
+  // A filter with multiple RHS values is an OR. When ANDed with another filter
+  // it must be parenthesized, otherwise SQL operator precedence (AND binds
+  // tighter than OR) breaks the intended CNF semantics:
+  //   a = 0 AND (b = 0 OR b = 1)
+  // would otherwise become (a = 0 AND b = 0) OR b = 1.
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    table: {
+      table_name: "slice"
+      column_names: "a"
+      column_names: "b"
+    }
+    filters: {
+      column_name: "a"
+      op: EQUAL
+      int64_rhs: 0
+    }
+    filters: {
+      column_name: "b"
+      op: EQUAL
+      int64_rhs: 0
+      int64_rhs: 1
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM slice
+      WHERE a = 0 AND (b = 0 OR b = 1)
+    )
+    SELECT * FROM sq_0
+  )"));
 }
 
 TEST(StructuredQueryGeneratorTest, ExperimentalFilterGroupWithSqlExpression) {

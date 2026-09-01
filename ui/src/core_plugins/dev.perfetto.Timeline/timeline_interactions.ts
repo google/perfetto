@@ -41,6 +41,12 @@ export function shiftDragPanInteraction(
         trace.timeline.pan(timescale.pxToDuration(-e.deltaSinceLastEvent.x));
       },
     },
+    onWheel: (e) => {
+      // We know shift is held so we translate Y scrolling into X scrolling instead
+      const tDelta = timescale.pxToDuration(e.deltaY);
+      trace.timeline.pan(tDelta);
+      return true; // Return true to prevent vertical scroll
+    },
   };
 }
 

@@ -22,21 +22,24 @@ import {TrackNode} from '../../public/workspace';
 import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {
+  TREE_EXPLORER_STATE_SCHEMA,
+  updateTreeExplorerState,
+} from '../../widgets/tree_explorer';
 import {
   metricsFromTableOrSubquery,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+  type TreeExplorerQueryMetric,
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 import type {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
 const DAY_EXPLORER_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
 });
 
 type DayExplorerPluginState = z.infer<typeof DAY_EXPLORER_PLUGIN_STATE_SCHEMA>;
@@ -100,11 +103,13 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       `;
       const groupKey = `_day_explorer_ui_hierarchy_under_${parentId}`;
       const trackName = `${childIter.display_name} - ${childIter.energy_mwh}mWh`;
+
       const node = await this.createDayExplorerTrack(
         ctx,
         trackName,
         groupKey,
         query,
+        childIter.track_id,
       );
       parent.addChildInOrder(node);
       await this.addDayExplorerRecursive(ctx, node, limit, childIter.track_id);
@@ -116,6 +121,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     name: string,
     groupKey: string,
     query: string,
+    trackId: bigint,
   ): Promise<TrackNode> {
     const uri = `/day_explorer_${uuidv4()}`;
     const renderer = await CounterTrack.createMaterialized({
@@ -130,6 +136,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       renderer,
       tags: {
         kinds: [DAY_EXPLORER_TRACK_KIND],
+        trackId: Number(trackId),
       },
     });
 
@@ -141,7 +148,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
 
   private createDayExplorerFlameGraphPanel(trace: Trace) {
     let previousSelection: AreaSelection | undefined;
-    let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
+    let flamegraphMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
     return {
       id: 'day_explorer_flamegraph_selection',
       name: 'Day Explorer Flamegraph',
@@ -156,10 +163,10 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         if (flamegraphMetrics === undefined) {
           return undefined;
         }
-        const store = assertExists(this.store);
+        const store = ensureExists(this.store);
         return {
           isLoading: false,
-          content: m(FlamegraphPanel, {
+          content: m(TreeExplorerPanel, {
             trace,
             metrics: flamegraphMetrics,
             state: store.state.areaSelectionFlamegraphState,
@@ -176,29 +183,49 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
 
   private computeDayExplorerFlameGraph(
     currentSelection: AreaSelection,
-  ): ReadonlyArray<QueryFlamegraphMetric> | undefined {
+  ): ReadonlyArray<TreeExplorerQueryMetric> | undefined {
     // The flame graph will be shown when any day explorer track is in the area
-    // selection. The selection is used to filter by time, but not by track. All
-    // day explorer tracks are considered for the graph.
-    let hasDayExplorer = false;
+    // selection. The selection is used to filter by time, and we filter the graph
+    // to only include energy from the selected tracks and their recursive descendants.
+    // If a physical track is selected, we exclude label roots to avoid double-counting.
+    const selectedTrackIds: bigint[] = [];
+
     for (const trackInfo of currentSelection.tracks) {
-      if (trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND)) {
-        hasDayExplorer = true;
-        break;
+      if (
+        trackInfo?.tags?.kinds?.includes(DAY_EXPLORER_TRACK_KIND) &&
+        trackInfo.tags.trackId !== undefined
+      ) {
+        const trackId = trackInfo.tags.trackId;
+        if (typeof trackId === 'string' || typeof trackId === 'number') {
+          selectedTrackIds.push(BigInt(trackId));
+        }
       }
     }
-    if (!hasDayExplorer) {
+
+    if (selectedTrackIds.length === 0) {
       return undefined;
     }
+
     const metrics = metricsFromTableOrSubquery({
       tableOrSubquery: `
         (
-          WITH
+          WITH RECURSIVE
+            selected_roots(track_id) AS (
+              SELECT column1 FROM (VALUES ${selectedTrackIds.map((id) => `(${id})`).join(',')})
+            ),
+            descendants(track_id) AS (
+              SELECT track_id FROM selected_roots
+              UNION
+              SELECT child.track_id
+              FROM day_explorer_ui_hierarchy child
+              JOIN descendants parent ON child.parent_id = parent.track_id
+            ),
             total_energy AS (
               SELECT track_id, parent_id, display_name, SUM(energy_uws) AS energy_uws
               FROM day_explorer_ui_hierarchy_per_ts
               WHERE ts >= ${currentSelection.start}
                 AND ts <= ${currentSelection.end}
+                AND track_id IN (SELECT track_id FROM descendants)
               GROUP BY 1, 2, 3
             ),
             with_child AS (
@@ -213,7 +240,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
             )
           SELECT
             track_id AS id,
-            parent_id AS parentId,
+            CASE WHEN parent_id IN (SELECT track_id FROM total_energy) THEN parent_id ELSE NULL END AS parentId,
             display_name AS name,
             cast(round((energy_uws - child_energy) / 1000) as int) AS self_count
           FROM with_child
@@ -228,9 +255,9 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Component',
     });
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+      draft.areaSelectionFlamegraphState = updateTreeExplorerState(
         draft.areaSelectionFlamegraphState,
         metrics,
       );

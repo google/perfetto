@@ -10,3 +10,5 @@ eslint.config.js
 **/*.grammar.js
 **/*.grammar.terms.js
 **/vite.d.ts
+playwright.config.ts
+vitest.setup.ts

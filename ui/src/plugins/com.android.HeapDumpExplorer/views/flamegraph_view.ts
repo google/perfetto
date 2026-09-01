@@ -13,15 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {download} from '../../../base/download_utils';
 import type {Trace} from '../../../public/trace';
 import type {time} from '../../../base/time';
-import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../../components/flamegraph_panel';
+import type {TreeExplorerQueryMetric} from '../../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../../components/tree_explorer_panel';
 import {
-  Flamegraph,
-  type FlamegraphState,
-  type FlamegraphOptionalAction,
-} from '../../../widgets/flamegraph';
+  createDefaultTreeExplorerState,
+  type TreeExplorerState,
+  type TreeExplorerOptionalAction,
+} from '../../../widgets/tree_explorer';
+import {AsyncMemo} from '../../../base/async_memo';
+import {
+  isHeapGraphIncomplete,
+  incompleteFlamegraphModal,
+} from '../../dev.perfetto.HeapProfile/incomplete_flamegraph';
+import {
+  convertTrace,
+  type PprofProfileType,
+} from '../../../base/trace_converter';
+
+import {showModal} from '../../../widgets/modal';
+import {NUM} from '../../../trace_processor/query_result';
 
 // Referenced by session.openFlamegraphPivotedAt.
 export const METRIC_OBJECT_SIZE = 'Object Size';
@@ -31,8 +44,8 @@ interface FlamegraphViewAttrs {
   readonly trace: Trace;
   readonly upid: number;
   readonly ts: time;
-  readonly state: FlamegraphState | undefined;
-  readonly onStateChange: (state: FlamegraphState) => void;
+  readonly state: TreeExplorerState | undefined;
+  readonly onStateChange: (state: TreeExplorerState) => void;
   // Open the flamegraph-objects tab for `pathHashes` (CSV).
   readonly onShowObjects: (pathHashes: string, isDominator: boolean) => void;
 }
@@ -67,8 +80,8 @@ function buildMetric(
   unit: string,
   valueColumn: 'self_size' | 'self_count',
   isDominator: boolean,
-  showObjectsAction: FlamegraphOptionalAction,
-): QueryFlamegraphMetric {
+  showObjectsAction: TreeExplorerOptionalAction,
+): TreeExplorerQueryMetric {
   const tree = isDominator
     ? '_heap_graph_dominator_class_tree'
     : '_heap_graph_class_tree';
@@ -84,7 +97,7 @@ function buildMetric(
       select
         id,
         parent_id as parentId,
-        ifnull(name, '[Unknown]') as name,
+        ifnull(name, 'unknown') as name,
         root_type,
         heap_type,
         ${valueColumn} as value,
@@ -138,11 +151,14 @@ function buildHeapGraphMetrics(
   upid: number,
   ts: time,
   onShowObjects: (pathHashes: string, isDominator: boolean) => void,
-): ReadonlyArray<QueryFlamegraphMetric> {
+): ReadonlyArray<TreeExplorerQueryMetric> {
   const showObjectsAction = (
     isDominator: boolean,
-  ): FlamegraphOptionalAction => ({
+  ): TreeExplorerOptionalAction => ({
     name: 'Show objects from this class',
+    icon: 'data_object',
+    category: 'DRILL',
+    description: 'List the individual objects of this class.',
     execute: async ({properties}) => {
       const pathHashes = properties.get('path_hash_stable');
       if (pathHashes === undefined) return;
@@ -162,9 +178,18 @@ function buildHeapGraphMetrics(
   );
 }
 
-const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
-  let cachedMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
+export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
+  let cachedMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
   let cachedKey: string | undefined;
+
+  // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
+  // the flamegraph behind a dismissible warning modal. Keyed by dump so it
+  // re-arms when the dump changes; the check runs (and the modal is shown) only
+  // when this view is rendered, i.e. when the flamegraph tab is active.
+  const incompleteSlot = new AsyncMemo<{
+    isIncomplete: boolean;
+    dismissed: boolean;
+  }>();
 
   return {
     view({attrs}) {
@@ -179,27 +204,83 @@ const FlamegraphView: m.ClosureComponent<FlamegraphViewAttrs> = () => {
       }
       const metrics = cachedMetrics;
 
+      const incomplete = incompleteSlot.use({
+        key: {upid: attrs.upid, ts: attrs.ts},
+        compute: async () => ({
+          isIncomplete: await isHeapGraphIncomplete(attrs.trace),
+          dismissed: false,
+        }),
+      }).data;
+
       // First render or after a dump-change reset: create a default
       // state so the panel renders meaningfully on the same frame.
 
       let state = attrs.state;
       if (state === undefined) {
-        state = Flamegraph.createDefaultState(metrics);
+        state = createDefaultTreeExplorerState(metrics);
         attrs.onStateChange(state);
       }
 
       return m(
         'div',
         {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
-        m(FlamegraphPanel, {
+        incomplete !== undefined &&
+          incomplete.isIncomplete &&
+          !incomplete.dismissed &&
+          incompleteFlamegraphModal(attrs.trace, () => {
+            incomplete.dismissed = true;
+          }),
+        m(TreeExplorerPanel, {
           trace: attrs.trace,
           metrics,
           state,
           onStateChange: attrs.onStateChange,
+          extraDownloadItems: [
+            {
+              label: 'Pprof profile (.pb)',
+              icon: 'file_download',
+              description:
+                'Whole snapshot, converted from the trace: filters, the ' +
+                'selected measure and the view direction are not applied.',
+              title:
+                'Download the full profile as pprof, for use with pprof tools',
+              onDownload: () =>
+                downloadPprof(attrs.trace, attrs.upid, attrs.ts),
+            },
+          ],
         }),
       );
     },
   };
-};
+}
 
-export default FlamegraphView;
+const HEAP_PPROFILE_TYPE: PprofProfileType = 'java-heap';
+
+async function downloadPprof(trace: Trace, upid: number, ts: time) {
+  const pid = await trace.engine.query(
+    `select pid from process where upid = ${upid}`,
+  );
+  if (!trace.traceInfo.downloadable) {
+    showModal({
+      title: 'Download not supported',
+      content: m('div', 'This trace file does not support downloads'),
+    });
+    return;
+  }
+  const blob = await trace.getTraceFile();
+  const result = await convertTrace(blob, {
+    format: 'pprof',
+    profileType: HEAP_PPROFILE_TYPE,
+    pid: pid.firstRow({pid: NUM}).pid,
+    ts,
+    onStatus: (s) => trace.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    showModal({
+      title: 'Pprof conversion failed',
+      content: m('div', result.error.message),
+    });
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
+}

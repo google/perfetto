@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "./typefaces";
+@use "./typefaces" as *;
 
 $border-radius: 2px;
 $border-radius-large: 4px;

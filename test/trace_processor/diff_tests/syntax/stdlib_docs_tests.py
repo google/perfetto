@@ -20,17 +20,18 @@ from python.generators.diff_tests.testing import TestSuite
 
 class StdlibDocs(TestSuite):
 
-  def test_stdlib_modules_slices(self):
+  def test_stdlib_objects_modules(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
         SELECT module, package
-        FROM __intrinsic_stdlib_modules()
-        WHERE module IN (
-          'slices.with_context',
-          'slices.flat_slices',
-          'slices.hierarchy'
-        )
+        FROM __intrinsic_stdlib_objects
+        WHERE object_type = 'MODULE'
+          AND module IN (
+            'slices.with_context',
+            'slices.flat_slices',
+            'slices.hierarchy'
+          )
         ORDER BY module;
         """,
         out=Csv("""
@@ -40,276 +41,171 @@ class StdlibDocs(TestSuite):
         "slices.with_context","slices"
         """))
 
-  def test_stdlib_modules_nonempty(self):
+  def test_stdlib_objects_all_kinds(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
-        SELECT COUNT(*) > 0 AS has_modules,
-               COUNT(DISTINCT package) > 0 AS has_packages
-        FROM __intrinsic_stdlib_modules();
+        SELECT object_type, COUNT(*) > 0 AS present
+        FROM __intrinsic_stdlib_objects
+        WHERE object_type IN ('MODULE', 'TABLE', 'VIEW', 'FUNCTION',
+                              'TABLE_FUNCTION', 'MACRO')
+        GROUP BY object_type
+        ORDER BY object_type;
         """,
         out=Csv("""
-        "has_modules","has_packages"
-        1,1
+        "object_type","present"
+        "FUNCTION",1
+        "MACRO",1
+        "MODULE",1
+        "TABLE",1
+        "TABLE_FUNCTION",1
+        "VIEW",1
         """))
 
-  def test_stdlib_tables_slices_with_context(self):
+  def test_stdlib_objects_self_join(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
-        SELECT name, type, exposed
-        FROM __intrinsic_stdlib_tables('slices.with_context')
-        ORDER BY name;
+        SELECT module.qualified_name, function.qualified_name
+        FROM __intrinsic_stdlib_objects AS module
+        JOIN __intrinsic_stdlib_objects AS function
+          ON function.module = module.module
+        WHERE module.qualified_name = 'time.conversion'
+          AND function.qualified_name = 'time.conversion.time_from_ns';
         """,
         out=Csv("""
-        "name","type","exposed"
-        "process_slice","VIEW",1
-        "thread_or_process_slice","VIEW",1
-        "thread_slice","VIEW",1
+        "qualified_name","qualified_name"
+        "time.conversion","time.conversion.time_from_ns"
         """))
 
-  def test_stdlib_tables_include_internal(self):
+  def test_stdlib_objects_table(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
-        SELECT name, type, exposed
-        FROM __intrinsic_stdlib_tables('slices.flat_slices')
-        WHERE name = '_slice_flattened';
+        SELECT qualified_name, object_type, exposed, short_description
+        FROM __intrinsic_stdlib_objects
+        WHERE module = 'slices.with_context'
+          AND name = 'thread_slice';
         """,
         out=Csv("""
-        "name","type","exposed"
+        "qualified_name","object_type","exposed","short_description"
+        "slices.with_context.thread_slice","VIEW",1,"All thread slices with data about thread, thread track and process."
+        """))
+
+  def test_stdlib_objects_internal_table(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT name, object_type, exposed
+        FROM __intrinsic_stdlib_objects
+        WHERE module = 'slices.flat_slices'
+          AND name = '_slice_flattened';
+        """,
+        out=Csv("""
+        "name","object_type","exposed"
         "_slice_flattened","TABLE",0
         """))
 
-  def test_stdlib_tables_columns(self):
+  def test_stdlib_objects_columns(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
         SELECT
           c.value ->> 'name' AS col_name,
-          c.value ->> 'type' AS col_type
-        FROM __intrinsic_stdlib_tables('slices.with_context') t,
-             json_each(t.cols) c
-        WHERE t.name = 'thread_slice'
-        LIMIT 4;
-        """,
-        out=Csv("""
-        "col_name","col_type"
-        "id","ID(slice.id)"
-        "ts","TIMESTAMP"
-        "dur","DURATION"
-        "category","STRING"
-        """))
-
-  def test_stdlib_tables_column_description(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT
-          c.value ->> 'name' AS col_name,
-          c.value ->> 'description' AS col_desc
-        FROM __intrinsic_stdlib_tables('slices.with_context') t,
-             json_each(t.cols) c
-        WHERE t.name = 'thread_slice'
+          c.value ->> 'type' AS col_type,
+          c.value ->> 'description' AS col_description
+        FROM __intrinsic_stdlib_objects AS o,
+             json_each(o.cols) AS c
+        WHERE o.qualified_name = 'slices.with_context.thread_slice'
           AND c.value ->> 'name' = 'tid';
         """,
         out=Csv("""
-        "col_name","col_desc"
-        "tid","Alias for `thread.tid`."
+        "col_name","col_type","col_description"
+        "tid","LONG","Alias for `thread.tid`."
         """))
 
-  def test_stdlib_tables_description(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT name, description
-        FROM __intrinsic_stdlib_tables('slices.with_context')
-        WHERE name = 'thread_slice';
-        """,
-        out=Csv("""
-        "name","description"
-        "thread_slice","All thread slices with data about thread, thread track and process."
-        """))
-
-  def test_stdlib_functions_scalar(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT name, is_table_function, return_type, exposed
-        FROM __intrinsic_stdlib_functions('time.conversion')
-        WHERE name = 'time_from_ns';
-        """,
-        out=Csv("""
-        "name","is_table_function","return_type","exposed"
-        "time_from_ns",0,"TIMESTAMP",1
-        """))
-
-  def test_stdlib_functions_args(self):
+  def test_stdlib_objects_function(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
         SELECT
-          f.name,
-          a.value ->> 'name' AS arg_name,
-          a.value ->> 'type' AS arg_type,
-          a.value ->> 'description' AS arg_desc
-        FROM __intrinsic_stdlib_functions('time.conversion') f,
-             json_each(f.args) a
-        WHERE f.name = 'time_from_ns';
-        """,
-        out=Csv("""
-        "name","arg_name","arg_type","arg_desc"
-        "time_from_ns","nanos","LONG","Time duration in nanoseconds."
-        """))
-
-  def test_stdlib_functions_internal_table_function(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT name, is_table_function, return_type, exposed
-        FROM __intrinsic_stdlib_functions('slices.hierarchy')
-        WHERE name = '_slice_ancestor_and_self';
-        """,
-        out=Csv("""
-        "name","is_table_function","return_type","exposed"
-        "_slice_ancestor_and_self",1,"TABLE",0
-        """))
-
-  def test_stdlib_macros(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT name, return_type, exposed
-        FROM __intrinsic_stdlib_macros('intervals.intersect')
-        WHERE name = '_ii_df_agg';
-        """,
-        out=Csv("""
-        "name","return_type","exposed"
-        "_ii_df_agg","_ProjectionFragment",0
-        """))
-
-  def test_stdlib_macro_args(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT
-          m.name,
+          o.object_type,
+          o.return_type,
+          o.return_description,
           a.value ->> 'name' AS arg_name,
           a.value ->> 'type' AS arg_type
-        FROM __intrinsic_stdlib_macros('intervals.intersect') m,
-             json_each(m.args) a
-        WHERE m.name = '_ii_df_agg'
+        FROM __intrinsic_stdlib_objects AS o,
+             json_each(o.args) AS a
+        WHERE o.qualified_name = 'time.conversion.time_from_ns';
+        """,
+        out=Csv("""
+        "object_type","return_type","return_description","arg_name","arg_type"
+        "FUNCTION","TIMESTAMP","Time duration in nanoseconds.","nanos","LONG"
+        """))
+
+  def test_stdlib_objects_table_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT object_type, return_type, exposed
+        FROM __intrinsic_stdlib_objects
+        WHERE qualified_name =
+          'slices.hierarchy._slice_ancestor_and_self';
+        """,
+        out=Csv("""
+        "object_type","return_type","exposed"
+        "TABLE_FUNCTION","TABLE",0
+        """))
+
+  def test_stdlib_objects_macro(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT
+          o.return_type,
+          o.exposed,
+          a.value ->> 'name' AS arg_name,
+          a.value ->> 'type' AS arg_type
+        FROM __intrinsic_stdlib_objects AS o,
+             json_each(o.args) AS a
+        WHERE o.qualified_name = 'intervals.intersect._ii_df_agg'
         ORDER BY arg_name;
         """,
         out=Csv("""
-        "name","arg_name","arg_type"
-        "_ii_df_agg","x","ColumnName"
-        "_ii_df_agg","y","ColumnName"
+        "return_type","exposed","arg_name","arg_type"
+        "_ProjectionFragment",0,"x","ColumnName"
+        "_ProjectionFragment",0,"y","ColumnName"
         """))
 
-  def test_stdlib_tables_description_non_first_stmt(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT name, description
-        FROM __intrinsic_stdlib_tables('slices.with_context')
-        WHERE name = 'process_slice';
-        """,
-        out=Csv("""
-        "name","description"
-        "process_slice","All process slices with data about process track and process."
-        """))
-
-  def test_stdlib_tables_column_description_non_first_stmt(self):
+  def test_stdlib_objects_summary(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
         SELECT
-          c.value ->> 'name' AS col_name,
-          c.value ->> 'description' AS col_desc
-        FROM __intrinsic_stdlib_tables('slices.with_context') t,
-             json_each(t.cols) c
-        WHERE t.name = 'process_slice'
-          AND c.value ->> 'name' = 'pid';
+          summary GLOB '*Kind: public FUNCTION*' AS has_kind,
+          summary GLOB '*Arguments:*nanos (LONG)*' AS has_arg,
+          summary GLOB '*Returns: TIMESTAMP*' AS has_return,
+          summary GLOB '*Search aliases: time time conversion time from ns*'
+            AS has_alias
+        FROM __intrinsic_stdlib_objects
+        WHERE qualified_name = 'time.conversion.time_from_ns';
         """,
         out=Csv("""
-        "col_name","col_desc"
-        "pid","Alias for `process.pid`."
+        "has_kind","has_arg","has_return","has_alias"
+        1,1,1,1
         """))
 
-  def test_stdlib_functions_return_description(self):
+  def test_stdlib_objects_case_insensitive_search(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
-        SELECT name, return_description
-        FROM __intrinsic_stdlib_functions('time.conversion')
-        WHERE name = 'time_from_ns';
+        SELECT qualified_name
+        FROM __intrinsic_stdlib_objects
+        WHERE exposed = 1
+          AND regexp('TIME.TO.MS|MILLISECONDS', summary, 'i')
+          AND qualified_name = 'time.conversion.time_to_ms';
         """,
         out=Csv("""
-        "name","return_description"
-        "time_from_ns","Time duration in nanoseconds."
-        """))
-
-  def test_stdlib_functions_return_description_non_first_stmt(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT name, return_description
-        FROM __intrinsic_stdlib_functions('time.conversion')
-        WHERE name = 'time_from_us';
-        """,
-        out=Csv("""
-        "name","return_description"
-        "time_from_us","Time duration in nanoseconds."
-        """))
-
-  def test_stdlib_functions_args_non_first_stmt(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT
-          f.name,
-          a.value ->> 'name' AS arg_name,
-          a.value ->> 'type' AS arg_type,
-          a.value ->> 'description' AS arg_desc
-        FROM __intrinsic_stdlib_functions('time.conversion') f,
-             json_each(f.args) a
-        WHERE f.name = 'time_from_us';
-        """,
-        out=Csv("""
-        "name","arg_name","arg_type","arg_desc"
-        "time_from_us","micros","LONG","Time duration in microseconds."
-        """))
-
-  def test_stdlib_tables_null_module(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT COUNT(*) AS c FROM __intrinsic_stdlib_tables(NULL);
-        """,
-        out=Csv("""
-        "c"
-        0
-        """))
-
-  def test_stdlib_functions_null_module(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT COUNT(*) AS c FROM __intrinsic_stdlib_functions(NULL);
-        """,
-        out=Csv("""
-        "c"
-        0
-        """))
-
-  def test_stdlib_macros_null_module(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT COUNT(*) AS c FROM __intrinsic_stdlib_macros(NULL);
-        """,
-        out=Csv("""
-        "c"
-        0
+        "qualified_name"
+        "time.conversion.time_to_ms"
         """))

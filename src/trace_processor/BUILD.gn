@@ -99,6 +99,24 @@ if (is_perfetto_build_generator) {
   _demangle_target_type = "source_set"
 }
 
+source_set("io") {
+  sources = [ "io.cc" ]
+  deps = [ "../../gn:default_deps" ]
+  public_deps = [ "../../include/perfetto/trace_processor:io" ]
+}
+
+source_set("local_file_system") {
+  sources = [
+    "local_file_system.cc",
+    "local_file_system.h",
+  ]
+  deps = [
+    ":io",
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/base",
+  ]
+}
+
 target(_demangle_target_type, "demangle") {
   sources = [ "demangle.cc" ]
   deps = [
@@ -144,8 +162,8 @@ source_set("storage_minimal") {
     "types",
     "util:blob",
     "util:clock",
+    "util:decompressor",
     "util:descriptors",
-    "util:gzip",
     "util:proto_to_args_parser",
     "util:trace_type",
   ]
@@ -160,11 +178,14 @@ if (enable_perfetto_trace_processor_sqlite) {
       "read_trace.cc",
       "read_trace_internal.cc",
       "read_trace_internal.h",
+      "sqlite_iterator_impl.cc",
+      "sqlite_iterator_impl.h",
       "trace_processor.cc",
       "trace_processor_impl.cc",
       "trace_processor_impl.h",
     ]
     deps = [
+      ":io",
       ":metatrace",
       ":storage_minimal",
       "../../gn:default_deps",
@@ -191,7 +212,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/json",
       "importers/ninja",
       "importers/perf",
-      "importers/perf_text",
       "importers/pprof",
       "importers/primes",
       "importers/proto:full",
@@ -203,8 +223,11 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/generator",
       "perfetto_sql/stdlib",
       "plugins/ancestor",
+      "plugins/android_framework_track_event",
+      "plugins/android_process_state",
       "plugins/args",
       "plugins/art_heap_graph_functions",
+      "plugins/art_process_metadata_importer",
       "plugins/base64_functions",
       "plugins/connected_flow",
       "plugins/core_functions",
@@ -224,6 +247,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/experimental_flamegraph",
       "plugins/experimental_flat_slice",
       "plugins/experimental_slice_layout",
+      "plugins/flamegraph:intrinsics",
       "plugins/graph_scan",
       "plugins/graph_traversal",
       "plugins/import",
@@ -233,13 +257,17 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/metadata",
       "plugins/package_lookup",
       "plugins/perf_counter",
+      "plugins/perf_text",
+      "plugins/perfetto_manifest",
       "plugins/pprof_functions",
       "plugins/slice_mipmap_operator",
       "plugins/span_join_operator",
       "plugins/sql_stats_table",
       "plugins/stack_functions",
+      "plugins/stack_sample_importer",
       "plugins/stdlib_docs",
       "plugins/storage_tables",
+      "plugins/strace",
       "plugins/string_functions",
       "plugins/structural_tree_partition",
       "plugins/symbolize",
@@ -247,11 +275,14 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/table_pointer_module",
       "plugins/time_functions",
       "plugins/to_ftrace",
+      "plugins/trace_export",
       "plugins/tree_functions",
       "plugins/type_builder_functions",
       "plugins/utils_functions",
+      "plugins/video_frame_importer",
       "plugins/wattson",
       "plugins/window_operator",
+      "plugins/zstd_functions",
       "sqlite",
       "storage",
       "tables",
@@ -259,7 +290,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_summary:gen_cc_trace_summary_descriptor",
       "types",
       "util:clock",
-      "util:gzip",
+      "util:decompressor",
       "util:json_parser",
       "util:protozero_to_json",
       "util:protozero_to_text",
@@ -282,7 +313,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
 
     public_deps = [
-      "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
+      "../../gn:sqlite",  # sqlite_iterator_impl.h includes sqlite3.h.
       "../../include/perfetto/trace_processor",
     ]
     if (enable_perfetto_trace_processor_mac_instruments) {
@@ -296,6 +327,7 @@ if (enable_perfetto_trace_processor_sqlite) {
   static_library("trace_processor_shell_lib") {
     deps = [
       ":lib",
+      ":local_file_system",
       "../../gn:default_deps",
       "../../gn:protobuf_full",
       "../../include/perfetto/ext/trace_processor:trace_processor_shell",
@@ -365,14 +397,24 @@ perfetto_unittest_source_set("top_level_unittests") {
 
   sources = [
     "forwarding_trace_parser_unittest.cc",
+    "local_file_system_unittest.cc",
     "ref_counted_unittest.cc",
     "trace_blob_unittest.cc",
   ]
   deps = [
+    ":local_file_system",
     ":storage_minimal",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../include/perfetto/ext/base",
     "../../include/perfetto/trace_processor",
+    "../base:test_support",
+    "importers/common",
+    "importers/fuchsia:full",
+    "importers/json",
+    "importers/ninja",
+    "importers/proto:minimal",
+    "importers/systrace:full",
     "util:trace_type",
   ]
 
@@ -404,6 +446,7 @@ perfetto_unittest_source_set("unittests") {
     "containers:unittests",
     "core/dataframe:unittests",
     "core/interpreter:unittests",
+    "core/tree:unittests",
     "core/util:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
@@ -425,6 +468,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
+      "../perfetto_sql/analysis:unittests",
       "perfetto_sql/engine:unittests",
       "perfetto_sql/parser:unittests",
       "perfetto_sql/tokenizer:unittests",
@@ -433,8 +477,11 @@ perfetto_unittest_source_set("unittests") {
       "plugins/descendant:unittests",
       "plugins/experimental_flat_slice:unittests",
       "plugins/experimental_slice_layout:unittests",
+      "plugins/flamegraph:unittests",
       "plugins/span_join_operator:unittests",
+      "plugins/strace:unittests",
       "plugins/string_functions:unittests",
+      "plugins/video_frame_importer:unittests",
       "sqlite:unittests",
     ]
   }
@@ -460,16 +507,26 @@ if (enable_perfetto_integration_tests) {
       ]
       deps += [
         ":lib",
+        ":local_file_system",
         "../../gn:default_deps",
         "../../gn:gtest_and_gmock",
+        "../../include/perfetto/ext/base",
+        "../../include/perfetto/protozero",
+        "../../include/perfetto/trace_processor:io",
         "../../protos/perfetto/common:zero",
         "../../protos/perfetto/trace:zero",
+        "../../protos/perfetto/trace/track_event:zero",
         "../../protos/perfetto/trace_processor:zero",
         "../base",
         "../base:test_support",
+        "../protozero",
+        "rpc",
         "sqlite",
         "trace_summary:integrationtests",
       ]
+      if (enable_perfetto_zstd) {
+        deps += [ "../../gn:zstd" ]
+      }
     }
   }
 }

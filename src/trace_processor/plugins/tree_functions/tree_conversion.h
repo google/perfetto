@@ -37,6 +37,17 @@ struct TreeFromTable : public sqlite::AggregateFunction<TreeFromTable> {
 struct TreeToTable : public sqlite::Function<TreeToTable> {
   static constexpr char kName[] = "__intrinsic_tree_to_table";
   static constexpr int kArgCount = 1;
+  using UserData = StringPool;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+};
+
+// Scalar function that computes dominator tree summary (depth & subtree
+// aggregates) from a Tree.
+struct TreeDominatorSummary : public sqlite::Function<TreeDominatorSummary> {
+  static constexpr char kName[] = "__intrinsic_tree_dominator_summary";
+  static constexpr int kArgCount = 1;
+  using UserData = StringPool;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };

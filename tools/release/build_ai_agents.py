@@ -14,40 +14,59 @@
 # limitations under the License.
 """Assembles the `ai-agents` release branch tree from main.
 
-Reads the source-of-truth manifests under ai/extensions/ and the skills
-under ai/skills/, and writes the namespace-distinct branch layout each
-supported agent's loader expects. See ai/extensions/README.md and
-RFC-0026 for the design.
+Reads the source-of-truth manifests under ai/extensions/ and the single
+consolidated `perfetto` skill under ai/skills/, and writes the
+namespace-distinct branch layout each supported agent's loader expects.
+See ai/extensions/README.md and RFC-0026 for the design.
 
 The branch layout produced:
 
     .claude-plugin/marketplace.json     ← Claude marketplace
     .agents/plugins/marketplace.json    ← Codex marketplace
-    bin/trace_processor                 ← bundled Python wrapper
     plugins/perfetto/
         .claude-plugin/plugin.json      ← Claude plugin manifest
         .codex-plugin/plugin.json       ← Codex plugin manifest
-        skills/<dashed-slug>/SKILL.md   ← plugin-target skill set
-    skills/
-        index.json                      ← OpenCode discovery
-        <dashed-slug>/SKILL.md          ← fallback-target skill set
+        skills/
+            index.json                  ← OpenCode discovery
+            perfetto/SKILL.md           ← the skill
+            perfetto/bin/trace_processor  ← bundled wrapper
     BRANCH_METADATA.json                ← main_sha, tag, built_at
 
-Two skill sets are produced because plugin-style agents (Claude, Codex)
-consume the in-tree subdirectory while fallback-style agents (Pi,
-OpenCode, Antigravity, and generic fallback installs) consume the root
-`skills/`. Antigravity is intentionally treated as a fallback consumer,
-not a plugin consumer, because the release branch cannot currently pin
-`agy plugin install` to a non-default git ref. The split is driven by
-`ai/skills/targets.json`, which lists every skill explicitly with the
-targets it ships to.
+The fallback installer is not bundled here: get.perfetto.dev/agents-install
+serves it straight from main's `tools/agents-install`.
 
-Local usage:
+There is one skill, `ai/skills/perfetto/`, whose entry point is
+`SKILL-template.md` (not a loadable `SKILL.md`, so the source tree is a
+build input, never a drop-in). The bundler renames it to `SKILL.md` and
+copies the `tools/trace_processor` wrapper into the skill's `bin/`.
+
+The skill is emitted exactly once, into `plugins/perfetto/skills/`.
+Plugin-style agents (Claude, Codex) install the `plugins/perfetto/`
+subdir; every other consumer (Pi, OpenCode, Antigravity, generic
+fallback installs via tools/agents-install) reads the same tree at its
+full `plugins/perfetto/skills/` path. The wrapper at
+`<skill root>/bin/trace_processor` is what the skill's
+`environment-references/setup.md` points `$SKILL_ROOT`-based invocations
+at. Antigravity is intentionally treated as a fallback consumer, not a
+plugin consumer, because the release branch cannot currently pin
+`agy plugin install` to a non-default git ref.
+
+This script does no stamping: the release version is written into the
+source manifests and `tools/agents-install` by tools/release/
+roll-prebuilts (alongside the prebuilt binary roll), so this just copies
+already-versioned files. At release time the finalize-release GitHub
+Action rolls the prebuilts, checks the release tag out into a separate
+worktree, runs this with `--skills-src <worktree>/ai/skills` (so the
+bundle ships the tag's skills, not main's), then opens a PR (base:
+ai-agents) for a maintainer to review and merge — the bundle is never
+pushed to ai-agents directly.
+
+Local usage (builds the tree only, skills from this checkout):
     tools/release/build_ai_agents.py --output /tmp/ai-agents-tree
-        [--version v0.0.0-prototype] [--commit-and-git-init]
 
-To push a locally-built tree to a remote ai-agents branch:
-    git -C <output> push <remote> --force HEAD:refs/heads/ai-agents
+`--commit-and-git-init` additionally inits a throwaway orphan repo in the
+output dir for ad-hoc testing against a personal fork. It is not how the
+release branch is published; the Action opens a reviewable PR.
 """
 
 import argparse
@@ -58,79 +77,43 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
-TARGETS_JSON = SKILLS_SRC / 'targets.json'
+DEFAULT_SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
+SKILL_NAME = 'perfetto'
 EXTENSIONS_SRC = REPO_ROOT / 'ai' / 'extensions'
 TRACE_PROCESSOR_SRC = REPO_ROOT / 'tools' / 'trace_processor'
-VERSION_SENTINEL = '0.0.0-dev'
+# The manifest whose `version` field we treat as the bundle's version (all
+# manifests carry the same value, stamped by roll-prebuilts).
+VERSION_MANIFEST = EXTENSIONS_SRC / 'claude-code' / 'marketplace.json'
 
-PLUGIN_TARGETS = ('claude-code', 'codex')
-FALLBACK_TARGETS = ('fallback',)
-VALID_TARGETS = frozenset(PLUGIN_TARGETS + FALLBACK_TARGETS)
-
-
-def _skill_slugs() -> List[str]:
-  out = []
-  for d in sorted(os.listdir(SKILLS_SRC)):
-    if (SKILLS_SRC / d / 'SKILL.md').is_file():
-      out.append(d)
-  return out
+# The router entry point is a template in source control so the source tree is
+# never mistaken for a loadable skill; the bundler renames it to SKILL.md.
+SKILL_TEMPLATE = 'SKILL-template.md'
+# Source-only files that must never ship to the release branch: the template
+# (re-emitted as SKILL.md) and dev/test metadata.
+_EMIT_IGNORE = shutil.ignore_patterns(SKILL_TEMPLATE, 'OWNERS', 'TEST.md',
+                                      'BUILD')
 
 
-def _load_targets() -> dict:
-  data = json.loads(TARGETS_JSON.read_text())
-  entries = data.get('skills')
-  if not isinstance(entries, list):
-    raise RuntimeError(f'{TARGETS_JSON}: top-level "skills" must be an array')
-  out = {}
-  for i, entry in enumerate(entries):
-    name = entry.get('name')
-    targets = entry.get('targets')
-    if not isinstance(name, str) or not name:
-      raise RuntimeError(f'{TARGETS_JSON}: skills[{i}] missing "name"')
-    if name in out:
-      raise RuntimeError(f'{TARGETS_JSON}: duplicate entry for {name!r}')
-    if not isinstance(targets, list) or not targets:
-      raise RuntimeError(
-          f'{TARGETS_JSON}: skills[{i}] ({name}) "targets" must be a '
-          f'non-empty array')
-    bad = [t for t in targets if t not in VALID_TARGETS]
-    if bad:
-      raise RuntimeError(
-          f'{TARGETS_JSON}: skills[{i}] ({name}) has unknown targets {bad}; '
-          f'valid: {sorted(VALID_TARGETS)}')
-    out[name] = list(targets)
+def _emit_skill(skill_src: Path, dest_dir: Path) -> str:
+  """Emit the single `perfetto` skill into dest_dir.
 
-  available = {slug.replace('_', '-') for slug in _skill_slugs()}
-  declared = set(out)
-  missing = available - declared
-  extra = declared - available
-  if missing or extra:
-    raise RuntimeError(f'{TARGETS_JSON} is out of sync with ai/skills/: '
-                       f'missing entries for {sorted(missing)}; '
-                       f'unknown entries {sorted(extra)}')
-  return out
-
-
-def _emit_skills(targets_map: dict, build_targets: Sequence[str],
-                 dest_dir: Path) -> List[str]:
-  emitted = []
-  for slug in _skill_slugs():
-    dashed = slug.replace('_', '-')
-    if not any(t in build_targets for t in targets_map[dashed]):
-      continue
-    out_dir = dest_dir / dashed
-    out_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(SKILLS_SRC / slug / 'SKILL.md', out_dir / 'SKILL.md')
-    for extra in ('references', 'assets', 'scripts'):
-      src_extra = SKILLS_SRC / slug / extra
-      if src_extra.is_dir():
-        shutil.copytree(src_extra, out_dir / extra)
-    emitted.append(dashed)
-  return emitted
+  Copies the skill tree verbatim except for the source-only transform
+  SKILL-template.md -> SKILL.md (rename), and adds the trace_processor
+  wrapper at bin/trace_processor so `$SKILL_ROOT/bin/trace_processor`
+  resolves in every install. Returns the emitted skill name.
+  """
+  out_dir = dest_dir / SKILL_NAME
+  shutil.copytree(skill_src, out_dir, ignore=_EMIT_IGNORE)
+  # Router: SKILL-template.md -> SKILL.md (verbatim, no content rewrite).
+  shutil.copy(skill_src / SKILL_TEMPLATE, out_dir / 'SKILL.md')
+  # The bundled wrapper, inside the skill so it survives every install
+  # method (plugin subdir, agents-install copytree, index.json fetch).
+  (out_dir / 'bin').mkdir()
+  shutil.copy(TRACE_PROCESSOR_SRC, out_dir / 'bin' / 'trace_processor')
+  (out_dir / 'bin' / 'trace_processor').chmod(0o755)
+  return SKILL_NAME
 
 
 def _write_index(skills_dir: Path) -> None:
@@ -150,11 +133,8 @@ def _write_index(skills_dir: Path) -> None:
    'index.json').write_text(json.dumps({'skills': skills}, indent=2) + '\n')
 
 
-def _rewrite_version(manifest_path: Path, new_version: str) -> None:
-  data = json.loads(manifest_path.read_text())
-  if 'version' in data:
-    data['version'] = new_version
-  manifest_path.write_text(json.dumps(data, indent=2) + '\n')
+def _bundle_version() -> str:
+  return json.loads(VERSION_MANIFEST.read_text()).get('version', '')
 
 
 def _main_sha() -> str:
@@ -162,63 +142,54 @@ def _main_sha() -> str:
       ['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD']).decode().strip()
 
 
-def build(output: Path, version: str) -> None:
+def build(output: Path, skills_src: Path) -> None:
+  skill_src = skills_src / SKILL_NAME
+  if not (skill_src / SKILL_TEMPLATE).is_file():
+    sys.exit(f'error: {skill_src / SKILL_TEMPLATE} not found. The skills '
+             'source must use the single-skill layout (#6156); release tags '
+             'from before that migration cannot be bundled.')
   if output.exists():
     shutil.rmtree(output)
   output.mkdir(parents=True)
 
   # Manifests → their namespace-distinct destinations.
+  plugin_dir = output / 'plugins' / 'perfetto'
   copies = [
       (EXTENSIONS_SRC / 'claude-code' / 'marketplace.json',
        output / '.claude-plugin' / 'marketplace.json'),
       (EXTENSIONS_SRC / 'claude-code' / 'plugin.json',
-       output / 'plugins' / 'perfetto' / '.claude-plugin' / 'plugin.json'),
+       plugin_dir / '.claude-plugin' / 'plugin.json'),
       (EXTENSIONS_SRC / 'codex' / 'marketplace.json',
        output / '.agents' / 'plugins' / 'marketplace.json'),
       (EXTENSIONS_SRC / 'codex' / 'plugin.json',
-       output / 'plugins' / 'perfetto' / '.codex-plugin' / 'plugin.json'),
-      (TRACE_PROCESSOR_SRC, output / 'bin' / 'trace_processor'),
+       plugin_dir / '.codex-plugin' / 'plugin.json'),
   ]
   for src, dst in copies:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(src, dst)
-  (output / 'bin' / 'trace_processor').chmod(0o755)
 
-  targets_map = _load_targets()
-  plugin_skills = _emit_skills(targets_map, PLUGIN_TARGETS,
-                               output / 'plugins' / 'perfetto' / 'skills')
-  fallback_skills = _emit_skills(targets_map, FALLBACK_TARGETS,
-                                 output / 'skills')
-  _write_index(output / 'skills')
+  _emit_skill(skill_src, plugin_dir / 'skills')
+  _write_index(plugin_dir / 'skills')
 
-  # Branch metadata.
+  # Branch metadata. The version is read from the source manifests, which
+  # roll-prebuilts already stamped — this script does not rewrite it.
+  version = _bundle_version()
   meta = {
       'main_sha':
           _main_sha(),
       'tag':
           version,
       'built_at':
-          datetime.datetime.now(datetime.UTC
+          datetime.datetime.now(datetime.timezone.utc
                                ).isoformat().replace('+00:00', 'Z'),
   }
   (output /
    'BRANCH_METADATA.json').write_text(json.dumps(meta, indent=2) + '\n')
 
-  # Rewrite the version sentinel in every manifest that carries one.
-  manifest_paths = [
-      output / '.claude-plugin' / 'marketplace.json',
-      output / 'plugins' / 'perfetto' / '.claude-plugin' / 'plugin.json',
-      output / 'plugins' / 'perfetto' / '.codex-plugin' / 'plugin.json',
-      output / '.agents' / 'plugins' / 'marketplace.json',
-  ]
-  for p in manifest_paths:
-    _rewrite_version(p, version)
-
   print(f'Built ai-agents tree at {output}')
-  print(
-      f'  plugin skills ({len(plugin_skills)}):    {", ".join(plugin_skills)}')
-  print(f'  fallback skills ({len(fallback_skills)}): '
-        f'{", ".join(fallback_skills)}')
+  print(f'  skills src:     {skills_src}')
+  print(f'  skill:     {SKILL_NAME} (emitted to skills/, wrapper at '
+        f'bin/trace_processor)')
   print(f'  main_sha:  {meta["main_sha"]}')
   print(f'  version:   {version}')
 
@@ -248,19 +219,21 @@ def main() -> int:
       help='Directory to write the assembled tree into '
       '(will be removed if it exists).')
   ap.add_argument(
-      '--version',
-      default=VERSION_SENTINEL,
-      help='Value to write into every manifest version field. '
-      'Use the release tag (e.g. v54.0) at release time.')
+      '--skills-src',
+      type=Path,
+      default=DEFAULT_SKILLS_SRC,
+      help='ai/skills tree to bundle, e.g. from a worktree of the release '
+      'tag (default: this checkout\'s ai/skills). Everything else (manifests, '
+      'trace_processor wrapper, installer) always comes from this checkout.')
   ap.add_argument(
       '--commit-and-git-init',
       action='store_true',
       help='After assembling, initialize the output as a fresh git repo '
-      'with one commit on an `ai-agents` branch (so it can be pushed '
-      'directly via `git push <remote> --force HEAD:refs/heads/ai-agents`).')
+      'with one commit on an `ai-agents` branch (for ad-hoc local testing '
+      'against a personal fork).')
   args = ap.parse_args()
 
-  build(args.output, args.version)
+  build(args.output, args.skills_src.resolve())
   if args.commit_and_git_init:
     commit(args.output, f'RFC-0026 ai-agents branch (built from {_main_sha()})')
     print(f'  committed to {args.output}/.git (branch: ai-agents)')

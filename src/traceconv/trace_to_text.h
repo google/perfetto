@@ -19,6 +19,8 @@
 
 #include <iostream>
 
+#include "perfetto/base/status.h"
+
 namespace perfetto {
 namespace trace_to_text {
 
@@ -27,10 +29,10 @@ struct TraceToTextOptions {
   bool skip_unknown_fields = false;
 };
 
-// Returns true in case of success.
-bool TraceToText(std::istream* input,
-                 std::ostream* output,
-                 const TraceToTextOptions& options);
+// Returns OkStatus() on success.
+base::Status TraceToText(std::istream* input,
+                         std::ostream* output,
+                         const TraceToTextOptions& options);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

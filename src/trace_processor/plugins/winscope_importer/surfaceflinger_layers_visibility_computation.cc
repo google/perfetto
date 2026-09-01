@@ -17,15 +17,15 @@
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h"
 #include <optional>
 #include "perfetto/ext/base/string_view.h"
-#include "protos/perfetto/trace/android/graphics/rect.pbzero.h"
-#include "protos/perfetto/trace/android/surfaceflinger_common.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_common.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
 // Layer helper methods only used by this computation.
 
 namespace {
-using ColorDecoder = protos::pbzero::ColorProto::Decoder;
+using ColorDecoder = com::android::internal::pbzero::ColorProto::Decoder;
 
 bool IsHiddenByParent(
     const LayerDecoder& layer,
@@ -42,7 +42,8 @@ bool IsActiveBufferEmpty(const LayerDecoder& layer) {
   if (!layer.has_active_buffer()) {
     return true;
   }
-  protos::pbzero::ActiveBufferProto::Decoder buffer(layer.active_buffer());
+  com::android::internal::pbzero::ActiveBufferProto::Decoder buffer(
+      layer.active_buffer());
   return buffer.format() <= 0 && buffer.height() <= 0 && buffer.stride() <= 0 &&
          buffer.width() <= 0;
 }
@@ -77,11 +78,11 @@ bool HasEmptyVisibleRegion(const LayerDecoder& layer) {
   if (!layer.has_visible_region()) {
     return true;
   }
-  const auto region =
-      protos::pbzero::RegionProto::Decoder(layer.visible_region());
+  const auto region = com::android::internal::pbzero::RegionProto::Decoder(
+      layer.visible_region());
   if (region.has_rect()) {
     for (auto it = region.rect(); it; ++it) {
-      protos::pbzero::RectProto::Decoder rect(*it);
+      com::android::internal::pbzero::RectProto::Decoder rect(*it);
       if (!geometry::Rect(rect).IsEmpty()) {
         return false;
       }
@@ -105,13 +106,15 @@ bool LayerContains(const LayerDecoder& layer,
                    const std::optional<geometry::Rect> crop) {
   auto transform_type_layer = 0;
   if (layer.has_transform()) {
-    protos::pbzero::TransformProto::Decoder transform(layer.transform());
+    com::android::internal::pbzero::TransformProto::Decoder transform(
+        layer.transform());
     transform_type_layer = transform.type();
   }
 
   auto transform_type_other = 0;
   if (layer.has_transform()) {
-    protos::pbzero::TransformProto::Decoder transform(layer.transform());
+    com::android::internal::pbzero::TransformProto::Decoder transform(
+        layer.transform());
     transform_type_other = transform.type();
   }
   if (transform::IsInvalidRotation(transform_type_layer) ||
@@ -164,11 +167,12 @@ bool IsColorEmpty(const LayerDecoder& layer) {
 
 geometry::Rect GetDisplayCrop(
     const LayerDecoder& layer,
-    const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder) {
+    const com::android::internal::pbzero::LayersSnapshotProto::Decoder&
+        snapshot_decoder) {
   geometry::Rect display_crop = geometry::Rect();
   auto layer_stack = layer.layer_stack();
   for (auto it = snapshot_decoder.displays(); it; ++it) {
-    protos::pbzero::DisplayProto::Decoder display(*it);
+    com::android::internal::pbzero::DisplayProto::Decoder display(*it);
     if (display.layer_stack() != layer_stack) {
       continue;
     }
@@ -182,7 +186,8 @@ geometry::Rect GetDisplayCrop(
 }  // namespace
 
 VisibilityComputation::VisibilityComputation(
-    const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder,
+    const com::android::internal::pbzero::LayersSnapshotProto::Decoder&
+        snapshot_decoder,
     const std::vector<LayerDecoder>& layers_top_to_bottom,
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
     StringPool* pool)

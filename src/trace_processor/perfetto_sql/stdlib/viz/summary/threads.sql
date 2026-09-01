@@ -35,21 +35,14 @@ JOIN _slice_track_summary USING (id)
 GROUP BY
   utid;
 
-CREATE PERFETTO TABLE _perf_sample_summary AS
-SELECT utid, count() AS perf_sample_cnt
-FROM perf_sample
+CREATE PERFETTO TABLE _stack_sample_summary AS
+SELECT tc.utid, count() AS sample_count
+FROM stack_sample AS ss
+JOIN stack_sample_task_context AS tc ON tc.id = ss.task_context_id
 WHERE
-  callsite_id IS NOT NULL
+  tc.utid IS NOT NULL
 GROUP BY
-  utid;
-
-CREATE PERFETTO TABLE _instruments_sample_summary AS
-SELECT utid, count() AS instruments_sample_cnt
-FROM instruments_sample
-WHERE
-  callsite_id IS NOT NULL
-GROUP BY
-  utid;
+  tc.utid;
 
 CREATE PERFETTO TABLE _thread_available_info_summary AS
 WITH
@@ -60,13 +53,7 @@ WITH
       ss.sum_running_dur,
       ss.running_count,
       (SELECT slice_count FROM _thread_track_summary WHERE utid = t.utid) AS slice_count,
-      (SELECT perf_sample_cnt FROM _perf_sample_summary WHERE utid = t.utid) AS perf_sample_count,
-      (
-        SELECT instruments_sample_cnt
-        FROM _instruments_sample_summary
-        WHERE
-          utid = t.utid
-      ) AS instruments_sample_count
+      (SELECT sample_count FROM _stack_sample_summary WHERE utid = t.utid) AS stack_sample_count
     FROM thread AS t
     LEFT JOIN _sched_summary AS ss USING (utid)
   )
@@ -76,15 +63,13 @@ SELECT
   coalesce(sum_running_dur, 0) AS sum_running_dur,
   coalesce(running_count, 0) AS running_count,
   coalesce(slice_count, 0) AS slice_count,
-  coalesce(perf_sample_count, 0) AS perf_sample_count,
-  coalesce(instruments_sample_count, 0) AS instruments_sample_count
+  coalesce(stack_sample_count, 0) AS stack_sample_count
 FROM raw AS r
 WHERE
   NOT (r.max_running_dur IS NULL
   AND r.sum_running_dur IS NULL
   AND r.running_count IS NULL
   AND r.slice_count IS NULL
-  AND r.perf_sample_count IS NULL
-  AND r.instruments_sample_count IS NULL)
-  OR utid IN (SELECT utid FROM cpu_profile_stack_sample)
+  AND r.stack_sample_count IS NULL)
+  OR utid IN (SELECT utid FROM _stack_sample_summary)
   OR utid IN (SELECT utid FROM thread_counter_track);

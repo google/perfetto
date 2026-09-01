@@ -34,7 +34,6 @@ class ProfilingLlvmSymbolizer(TestSuite):
         trace=DataPath('callstack_sampling.pftrace'),
         query="""
         SELECT
-          ef.id,
           ef.ts,
           ef.depth,
           ef.name,
@@ -47,7 +46,6 @@ class ProfilingLlvmSymbolizer(TestSuite):
           cumulative_alloc_count,
           alloc_size,
           cumulative_alloc_size,
-          ef.parent_id,
           ef.source_file,
           ef.line_number
         FROM process
@@ -60,20 +58,22 @@ class ProfilingLlvmSymbolizer(TestSuite):
           NULL
         ) ef
         WHERE pid = 1728
+        ORDER BY ef.depth, ef.name, ef.map_name, ef.cumulative_size,
+                 ef.cumulative_count
         LIMIT 10;
         """,
         out=Csv('''
-          "id","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
-          0,7689491063351,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,"[NULL]","[NULL]","[NULL]"
-          1,7689491063351,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,0,"[NULL]","[NULL]"
-          2,7689491063351,2,"_ZN3art6Thread14CreateCallbackEPv","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,1,"[NULL]","[NULL]"
-          3,7689491063351,3,"_ZN3art35InvokeVirtualOrInterfaceWithJValuesIPNS_9ArtMethodEEENS_6JValueERKNS_33ScopedObjectAccessAlreadyRunnableEP8_jobjectT_PK6jvalue","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,2,"[NULL]","[NULL]"
-          4,7689491063351,4,"_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,3,"[NULL]","[NULL]"
-          5,7689491063351,5,"art_quick_invoke_stub","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,4,"[NULL]","[NULL]"
-          6,7689491063351,6,"android.os.HandlerThread.run","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,5,"[NULL]","[NULL]"
-          7,7689491063351,7,"android.os.Looper.loop","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,6,"[NULL]","[NULL]"
-          8,7683950792832,8,"android.os.Looper.loopOnce","/system/framework/arm64/boot-framework.oat",1,43,1,43,0,0,0,0,7,"[NULL]","[NULL]"
-          9,7689491063351,9,"android.os.Handler.dispatchMessage","/system/framework/arm64/boot-framework.oat",0,35,0,35,0,0,0,0,8,"[NULL]","[NULL]"
+          "ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","source_file","line_number"
+          7689491063351,0,"ERROR INVALID_MAP","/ERROR",0,1,0,1,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,0,"__libc_init","/apex/com.android.runtime/lib64/bionic/libc.so",0,10,0,10,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,0,"clone","/apex/com.android.runtime/lib64/bionic/libc.so",0,1,0,1,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,1,"","",0,1,0,1,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,1,"__bionic_clone","/apex/com.android.runtime/lib64/bionic/libc.so",0,1,0,1,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,1,"main","/system/bin/app_process64",0,10,0,10,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,1,"main","/system/bin/surfaceflinger",0,0,0,0,0,0,0,0,"[NULL]","[NULL]"
+          7689491063351,2,"_ZN13thread_data_t10trampolineEPKS_","/system/lib64/libutils.so",0,246,0,246,0,0,0,0,"[NULL]","[NULL]"
         '''))
 
   def test_callstack_sampling_flamegraph_multi_process(self):

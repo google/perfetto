@@ -15,8 +15,8 @@ packet {
 packet {
   first_packet_on_sequence: true
   timestamp: 448881087865
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.viewcapture] {
       package_name_iid: 1
       window_name_iid: 1
       views {
@@ -48,34 +48,34 @@ packet {
   }
   sequence_flags: 3
   interned_data {
-    viewcapture_class_name {
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_class_name] {
       iid: 1
       str: "com.android.internal.policy.PhoneWindow@6cec234"
     }
-    viewcapture_class_name {
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_class_name] {
       iid: 2
       str: "com.android.internal.policy.DecorView"
     }
-    viewcapture_package_name {
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_package_name] {
       iid: 1
       str: "com.google.android.apps.nexuslauncher"
     }
-    viewcapture_window_name { iid: 2 str: "PhoneWindow" }
-    viewcapture_view_id { iid: 1 str: "NO_ID" }
-    viewcapture_view_id { iid: 2 str: "TEST_VIEW_ID" }
-    viewcapture_content_description { iid: 1 str: "Content Description 1" }
-    viewcapture_text { iid: 1 str: "Text 1" }
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_window_name] { iid: 2 str: "PhoneWindow" }
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_view_id] { iid: 1 str: "NO_ID" }
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_view_id] { iid: 2 str: "TEST_VIEW_ID" }
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_content_description] { iid: 1 str: "Content Description 1" }
+    [com.android.internal.FrameworksBaseInternedData.viewcapture_text] { iid: 1 str: "Text 1" }
   }
   trusted_uid: 10230
   trusted_packet_sequence_id: 2
   trusted_pid: 2688
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
 }
 
 packet {
   timestamp: 448883575576
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.viewcapture] {
       package_name_iid: 1
       window_name_iid: 1
       views {
@@ -116,8 +116,8 @@ packet {
 
 packet {
   timestamp: 448883575876
-  winscope_extensions {
-    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksBaseWinscopeExtensions.viewcapture] {
       window_name_iid: 2
       views {
         parent_id: -1

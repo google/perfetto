@@ -96,6 +96,10 @@ class EventTracker {
   std::vector<PendingUpidResolutionCounter> pending_upid_resolution_counter_;
 
   TraceProcessorContext* const context_;
+
+  // "utid" arg recording the thread responsible for a process-scoped counter
+  // change (e.g. rss_stat), which otherwise only survives as the upid.
+  const StringId thread_arg_key_;
 };
 }  // namespace perfetto::trace_processor
 

@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
+
 namespace perfetto::trace_to_text {
 
 // ProGuard/R8 mapping specification.
@@ -61,10 +63,14 @@ struct BundleContext {
 // Creates a bundle from the input trace with symbolization,
 // deobfuscation, and potentially other enhancements. Outputs a TAR file
 // containing everything needed for the trace to be self-contained.
-// Returns 0 on success, non-zero on failure.
-int TraceToBundle(const std::string& input_file_path,
-                  const std::string& output_file_path,
-                  const BundleContext& context);
+//
+// Returns OkStatus() if the bundle was created, even when some enrichment
+// was not possible (the details are printed to stderr). Returns an error
+// only for genuine failures: unreadable input, unwritable output, or an
+// explicitly-provided ProGuard/R8 map that could not be read.
+base::Status TraceToBundle(const std::string& input_file_path,
+                           const std::string& output_file_path,
+                           const BundleContext& context);
 
 }  // namespace perfetto::trace_to_text
 

@@ -15,12 +15,7 @@
 import {createSDFTexture, generatePolygonSDF} from './sdf';
 import type {Point2D, Transform1D, Transform2D} from '../geom';
 import type {MarkerBuffers, RowLayout} from '../renderer';
-import {
-  createBuffer,
-  createProgram,
-  getAttribLocation,
-  getUniformLocation,
-} from './gl';
+import {createProgram, getAttribLocation, getUniformLocation} from './gl';
 
 // Static quad geometry shared by all sprite batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
@@ -215,18 +210,18 @@ export class ChevronBatch {
     this.chevronTexture = createChevronTexture(gl);
 
     // Create static quad buffers
-    this.quadCornerBuffer = createBuffer(gl);
+    this.quadCornerBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, QUAD_CORNERS, gl.STATIC_DRAW);
 
-    this.quadIndexBuffer = createBuffer(gl);
+    this.quadIndexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
     // Create dynamic instance buffers
-    this.xBuffer = createBuffer(gl);
-    this.depthBuffer = createBuffer(gl);
-    this.colorBuffer = createBuffer(gl);
+    this.xBuffer = gl.createBuffer();
+    this.depthBuffer = gl.createBuffer();
+    this.colorBuffer = gl.createBuffer();
   }
 
   /**

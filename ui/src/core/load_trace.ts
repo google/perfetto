@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {type time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
@@ -53,6 +53,7 @@ import {
   StartupCommandNotAllowedError,
 } from './command_manager';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import {GUTTER_FRACTION} from './timeline';
 import {sha1} from '../base/hash';
 import {showModal} from '../widgets/modal';
 import m from 'mithril';
@@ -103,6 +104,13 @@ const FORCE_FULL_SORT_FLAG = featureFlags.register({
   name: 'Force full sort',
   description:
     'Forces the trace processor into performing a full sort ignoring any windowing logic',
+  defaultValue: false,
+});
+const KEEP_CURRENT_PAGE_ON_TRACE_LOAD_FLAG = featureFlags.register({
+  id: 'keepCurrentPageOnTraceLoad',
+  name: 'Keep current page on trace load',
+  description:
+    'When loading a new trace, stay on the current page instead of navigating to the default landing page',
   defaultValue: false,
 });
 
@@ -174,7 +182,7 @@ async function createEngine(
   engine.onResponseReceived = () => raf.scheduleFullRedraw();
 
   if (isMetatracingEnabled()) {
-    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
+    engine.enableMetatrace(ensureExists(getEnabledMetatracingCategories()));
   }
   return engine;
 }
@@ -247,10 +255,14 @@ async function loadTraceIntoEngine(
     engine,
   );
 
+  // Pad the initial viewport by a gutter on each side so that content at the
+  // very edges of the trace isn't flush against the screen edge.
+  const gutterPad =
+    Number(visibleTimeSpan.end - visibleTimeSpan.start) * GUTTER_FRACTION;
   const newViewport = HighPrecisionTimeSpan.fromTime(
     visibleTimeSpan.start,
     visibleTimeSpan.end,
-  );
+  ).pad(gutterPad);
   trace.timeline.setVisibleWindow(newViewport);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
@@ -270,7 +282,7 @@ async function loadTraceIntoEngine(
 
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
   // request that the app navigate somewhere other than /viewer.
-  const initialRoute = trace.initialPage.getWinner() ?? '/viewer';
+  const initialRoute = getInitialRoute(trace);
   Router.navigate(`#!${initialRoute}?local_cache_key=${cacheUuid}`);
 
   decideTabs(trace);
@@ -292,6 +304,11 @@ async function loadTraceIntoEngine(
   }
 
   // notify() will await that all listeners' promises have resolved.
+  //
+  // Annoyingly, since listeners are registered through an event interface we
+  // don't know which plugins we are calling so we cannot display the name of
+  // the plugin in the status bar or collect stats about a particular plugin.
+  updateStatus(app, 'Notifying onTraceReady listeners');
   await trace.onTraceReady.notify();
 
   if (serializedAppState !== undefined) {
@@ -364,6 +381,15 @@ async function loadTraceIntoEngine(
   }
 
   return trace;
+}
+
+function getInitialRoute(trace: TraceImpl) {
+  if (KEEP_CURRENT_PAGE_ON_TRACE_LOAD_FLAG.get()) {
+    const currentRoute = Router.getCurrentRoute();
+    return `${currentRoute.page}${currentRoute.subpage}`;
+  } else {
+    return trace.initialPage.getWinner() ?? '/viewer';
+  }
 }
 
 function showStartupCommandIssuesDialog(
@@ -552,7 +578,7 @@ async function getTraceInfo(
   // The max() is so the query returns NULL if the tz info doesn't exist.
   const queryTz = `select max(int_value) as tzOffMin from metadata
         where name = 'timezone_off_mins'`;
-  const resTz = await assertExists(engine).query(queryTz);
+  const resTz = await ensureExists(engine).query(queryTz);
   const tzOffMin = resTz.firstRow({tzOffMin: NUM_NULL}).tzOffMin ?? 0;
 
   // This is the offset between the unix epoch and ts in the ts domain.
@@ -624,10 +650,17 @@ async function getTraceInfo(
   updateStatus(app, 'Caching trace...');
   const cached = await cacheTrace(traceSource, uuid);
 
-  const downloadable =
-    (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
+  const shareable =
     traceSource.type === 'FILE' ||
-    traceSource.type === 'URL';
+    traceSource.type === 'URL' ||
+    traceSource.type === 'MULTIPLE_FILES' ||
+    (traceSource.type === 'ARRAY_BUFFER' && traceSource.shareable !== false);
+
+  const downloadable =
+    traceSource.type === 'FILE' ||
+    traceSource.type === 'URL' ||
+    traceSource.type === 'MULTIPLE_FILES' ||
+    (traceSource.type === 'ARRAY_BUFFER' && traceSource.downloadable !== false);
 
   return {
     ...traceTime,
@@ -641,6 +674,7 @@ async function getTraceInfo(
     hasFtrace,
     uuid,
     cached,
+    shareable,
     downloadable,
   };
 }
@@ -672,31 +706,38 @@ async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
 }
 
 async function getTraceErrors(engine: Engine): Promise<number> {
-  const sql = `SELECT sum(value) as errs FROM stats WHERE severity != 'info'`;
+  const sql = `SELECT sum(value) as errs FROM stats WHERE severity IN ('error', 'data_loss')`;
   const result = await engine.query(sql);
   return result.firstRow({errs: NUM}).errs;
 }
 
 async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
-  const queryRes = await engine.query(`select
-       name,
-       int_value as intValue
-       from metadata
-       where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
-       or name = 'all_data_source_started_ns'`);
-  let startBound = Time.MIN;
-  let endBound = Time.MAX;
-  const it = queryRes.iter({name: STR, intValue: LONG_NULL});
-  for (; it.valid(); it.next()) {
-    const columnName = it.name;
-    const timestamp = it.intValue;
-    if (timestamp === null) continue;
-    if (columnName === 'tracing_disabled_ns') {
-      endBound = Time.min(endBound, Time.fromRaw(timestamp));
-    } else {
-      startBound = Time.max(startBound, Time.fromRaw(timestamp));
-    }
-  }
-
+  // The tracing window metadata is recorded per (machine, trace):
+  // tracing_started_ns / all_data_source_started_ns mark when that trace's
+  // tracing became fully active, tracing_disabled_ns when it stopped. Compute
+  // each trace's active window (start = the later of its start timestamps, end =
+  // its disabled timestamp) and take the union across all of them. This way a
+  // multi-machine session or several traces loaded together yields a window
+  // spanning all of them, instead of the intersection of the per-trace windows
+  // (which is empty when those windows are disjoint).
+  const queryRes = await engine.query(`
+    select
+      min(start_ns) as startBound,
+      max(end_ns) as endBound
+    from (
+      select
+        max(iif(
+          name in ('tracing_started_ns', 'all_data_source_started_ns'),
+          int_value, null)) as start_ns,
+        max(iif(name = 'tracing_disabled_ns', int_value, null)) as end_ns
+      from metadata
+      where name in (
+        'tracing_started_ns', 'all_data_source_started_ns', 'tracing_disabled_ns')
+      group by machine_id, trace_id
+    )`);
+  const it = queryRes.iter({startBound: LONG_NULL, endBound: LONG_NULL});
+  const startBound =
+    it.startBound === null ? Time.MIN : Time.fromRaw(it.startBound);
+  const endBound = it.endBound === null ? Time.MAX : Time.fromRaw(it.endBound);
   return new TimeSpan(startBound, endBound);
 }

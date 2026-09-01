@@ -31,7 +31,7 @@ source_set("winscope_surfaceflinger_hierarchy_paths") {
     ":tables",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
-    "../../../../protos/perfetto/trace/android:winscope_regular_zero",
+    "../../../../protos/third_party/android/frameworks/native/tracing/winscope:winscope_regular_zero",
     "../../../base",
     "../../../protozero",
     "../../containers",

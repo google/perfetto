@@ -21,20 +21,15 @@ import type {QueryExecution} from './query_store';
 import {historyStore} from './history_store';
 import {renderHistoryItem, type OpenQueryFn} from './query_history_item';
 
-export type {OpenQueryFn} from './query_history_item';
-
 interface QueryHistoryComponentAttrs {
   readonly className?: string;
   openQuery: OpenQueryFn;
   readonly refreshSignal?: number;
 }
 
-// Re-export for existing consumers.
 export {setHistoryActiveTab} from './history_store';
 
-export class QueryHistoryComponent
-  implements m.ClassComponent<QueryHistoryComponentAttrs>
-{
+export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryComponentAttrs> {
   oninit(vnode: m.CVnode<QueryHistoryComponentAttrs>) {
     historyStore.requestRefresh(vnode.attrs.refreshSignal ?? 0);
   }

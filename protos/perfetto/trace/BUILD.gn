@@ -36,7 +36,6 @@ proto_sources_non_minimal = [
   "extension_descriptor.proto",
   "memory_graph.proto",
   "ui_state.proto",
-  "evdev.proto",
 ]
 
 proto_sources_minimal = [
@@ -135,6 +134,23 @@ perfetto_proto_library("test_extensions_@TYPE@") {
   sources = [ "test_extensions.proto" ]
   generate_descriptor = "test_extensions.descriptor"
   descriptor_root_source = "test_extensions.proto"
+}
+
+# Extends google.protobuf.FieldOptions, so it needs the real descriptor.proto on
+# the import path and is generated protozero-only.
+perfetto_proto_library("field_options_@TYPE@") {
+  proto_generators = [ "zero" ]
+  sources = [ "field_options.proto" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+}
+
+perfetto_proto_library("test_extensions_slim_@TYPE@") {
+  proto_generators = []
+  deps = [ "track_event:@TYPE@" ]
+  sources = [ "test_extensions.proto" ]
+  generate_descriptor = "test_extensions_slim.descriptor"
+  descriptor_root_source = "test_extensions.proto"
+  exclude_imports = true
 }
 
 if (enable_perfetto_merged_protos_check) {

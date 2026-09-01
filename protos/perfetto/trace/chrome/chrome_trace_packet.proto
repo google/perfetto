@@ -62,7 +62,7 @@ message ChromeTracePacket {
   InternedData interned_data = 12;
 
   bool incremental_state_cleared = 41;
-  bool previous_packet_dropped = 42;
+  uint32 previous_packet_dropped = 42;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 55;

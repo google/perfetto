@@ -125,3 +125,9 @@ class StartupMetrics(TestSuite):
         trace=Path('android_startup_powrails.py'),
         query=Metric('android_powrails'),
         out=Path('android_startup_powrails.out'))
+
+  def test_android_startup_hsc(self):
+    return DiffTestBlueprint(
+        trace=Path('android_startup_hsc.py'),
+        query=Metric('android_startup'),
+        out=Path('android_startup_hsc.out'))

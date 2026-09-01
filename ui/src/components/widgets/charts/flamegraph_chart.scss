@@ -1,0 +1,95 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-flamechart {
+  position: relative;
+  width: 100%;
+  // Guard against sub-pixel rounding pushing the rightmost segment past the
+  // chart box. Tooltips are portaled, so they're unaffected.
+  overflow: hidden;
+}
+
+.pf-flamechart-segment {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-width: 1px;
+  border-radius: 4px;
+  overflow: hidden;
+  // Hairline gap between adjacent segments without eating into the colour.
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 25%);
+  transition: filter 0.12s ease;
+
+  &:hover {
+    filter: brightness(1.08);
+  }
+}
+
+.pf-flamechart-segment__label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 8px;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pf-flamechart-segment__name {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--pf-font-size-xs, 11px);
+  font-weight: 600;
+  text-shadow: 0 0 2px rgb(0 0 0 / 25%);
+}
+
+.pf-flamechart-segment__value {
+  flex-shrink: 0;
+  font-size: var(--pf-font-size-xs, 11px);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 2px rgb(0 0 0 / 25%);
+  opacity: 0.85;
+}
+
+.pf-flamechart-tooltip {
+  &__name {
+    font-weight: 600;
+    font-size: var(--pf-font-size-s, 12px);
+    color: var(--pf-color-text, rgb(0 0 0 / 85%));
+  }
+
+  &__value {
+    margin-top: 2px;
+    font-size: var(--pf-font-size-xs, 11px);
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted, rgb(0 0 0 / 60%));
+  }
+
+  &__desc {
+    margin-top: 6px;
+    max-width: 280px;
+    white-space: normal;
+    font-size: var(--pf-font-size-xs, 11px);
+    line-height: 1.4;
+    color: var(--pf-color-text-muted, rgb(0 0 0 / 60%));
+  }
+}
+
+// Note: __desc is available for custom tooltip content via the segment's
+// tooltip prop; the default tooltip only uses __name and __value.

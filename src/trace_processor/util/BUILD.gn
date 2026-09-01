@@ -44,7 +44,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     deps = [
       "../../../gn:default_deps",
       "../../base",
-      "../perfetto_sql/syntaqlite",
+      "../../perfetto_sql/syntaqlite",
     ]
   }
 }
@@ -60,19 +60,45 @@ source_set("bump_allocator") {
   ]
 }
 
-source_set("gzip") {
+# Codec-agnostic streaming decompressor (gzip, zstd). Consumers use
+# CreateDecompressor() / DecompressToBuffer() from decompressor.h; the concrete
+# codec headers are an implementation detail (zip_reader uses GzipDecompressor
+# directly for raw-deflate zip entries).
+source_set("decompressor") {
   sources = [
-    "gzip_utils.cc",
-    "gzip_utils.h",
+    "decompressor.cc",
+    "decompressor.h",
+    "gzip_decompressor.cc",
+    "gzip_decompressor.h",
+    "zstd_decompressor.cc",
+    "zstd_decompressor.h",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
   ]
-
-  # gzip_utils optionally depends on zlib.
   if (enable_perfetto_zlib) {
     deps += [ "../../../gn:zlib" ]
+  }
+  if (enable_perfetto_zstd) {
+    deps += [ "../../../gn:zstd" ]
+  }
+}
+
+# One-shot compressors, the counterpart of ":decompressor". Kept separate so the
+# decompressor target stays decompression-only.
+source_set("compressor") {
+  sources = [
+    "zstd_compressor.cc",
+    "zstd_compressor.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base:base",
+  ]
+  if (enable_perfetto_zstd) {
+    deps += [ "../../../gn:zstd" ]
   }
 }
 
@@ -200,6 +226,7 @@ source_set("proto_to_args_parser") {
     ":descriptors",
     ":interned_message_view",
     "../../base",
+    "../containers",
   ]
 }
 
@@ -211,7 +238,7 @@ source_set("zip_reader") {
     "zip_reader.h",
   ]
   deps = [
-    ":gzip",
+    ":decompressor",
     ":trace_blob_view_reader",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor:storage",
@@ -290,8 +317,8 @@ source_set("json_parser") {
   ]
 }
 
-# Header-only JSON streaming parser. No external dependencies.
-source_set("simple_json_parser") {
+# JSON streaming parser.
+perfetto_component("simple_json_parser") {
   sources = [
     "simple_json_parser.cc",
     "simple_json_parser.h",
@@ -412,14 +439,11 @@ source_set("trace_type") {
     "trace_type.h",
   ]
   deps = [
+    ":decompressor",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
-    "../../../protos/third_party/pprof:zero",
     "../../protozero",
-    "../importers/android_bugreport:android_dumpstate_event",
-    "../importers/android_bugreport:android_log_event",
-    "../importers/perf_text:perf_text_sample_line_parser",
   ]
 }
 
@@ -435,10 +459,33 @@ source_set("tar_writer") {
   ]
 }
 
+source_set("flatbuffer_writer") {
+  sources = [
+    "flatbuffer_writer.cc",
+    "flatbuffer_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
+source_set("flatbuffer_reader") {
+  sources = [
+    "flatbuffer_reader.cc",
+    "flatbuffer_reader.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "descriptors_unittest.cc",
+    "flatbuffer_reader_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
@@ -460,10 +507,12 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
+    ":decompressor",
     ":descriptors",
+    ":flatbuffer_reader",
+    ":flatbuffer_writer",
     ":galloping_search",
     ":glob",
-    ":gzip",
     ":json_parser",
     ":json_serializer",
     ":json_value",
@@ -502,8 +551,12 @@ source_set("unittests") {
     ]
   }
   if (enable_perfetto_zlib) {
-    sources += [ "gzip_utils_unittest.cc" ]
+    sources += [ "gzip_decompressor_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]
+  }
+  if (enable_perfetto_zstd) {
+    sources += [ "zstd_decompressor_unittest.cc" ]
+    deps += [ "../../../gn:zstd" ]
   }
   if (enable_perfetto_trace_processor_sqlite) {
     sources += [ "sql_module_doc_parser_unittest.cc" ]
@@ -515,12 +568,21 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [
+      ":descriptors",
       ":glob",
+      ":proto_to_args_parser",
+      "..:gen_cc_test_messages_descriptor",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
       "../../../gn:sqlite",
       "../../base",
+      "../../protozero",
+      "../../protozero:testing_messages_zero",
+      "../containers",
     ]
-    sources = [ "glob_benchmark.cc" ]
+    sources = [
+      "glob_benchmark.cc",
+      "proto_to_args_parser_benchmark.cc",
+    ]
   }
 }

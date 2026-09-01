@@ -157,7 +157,7 @@ export default class implements PerfettoPlugin {
               google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
       );
       features.add('google3');
-    } catch (e) {}
+    } catch {}
 
     return features;
   }

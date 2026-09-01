@@ -153,8 +153,19 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
+  static base::ScopedFile WaitForUploadCompleteAndCreatePersistentTmpFile(
+      const std::string& session_name,
+      std::string* out_file_path);
+  static int UploadPersistentTracesAfterReboot();
+  static size_t TruncateAndAnnotatePersistentTrace(
+      int fd,
+      const base::ScopedMmap& mmap,
+      const std::string& file_name);
+  static void WaitForPreviousRebootTraceUpload(
+      const std::string& session_name,
+      const std::string& target_file_path);
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
-      base::ScopedMmap mmapped_trace);
+      const base::ScopedMmap& mmapped_trace);
   void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
   static base::Status ReportTraceToAndroidFramework(
@@ -174,8 +185,12 @@ class PerfettoCmd : public Consumer {
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
-  std::optional<PacketWriter> packet_writer_;
+  // |trace_out_stream_| must be declared before |packet_writer_|: the
+  // PacketWriter holds the FILE* owned by |trace_out_stream_| and flushes it in
+  // its destructor. Members are destroyed in reverse declaration order, so the
+  // PacketWriter must be torn down (fflush) before the FILE* is fclose()d.
   base::ScopedFstream trace_out_stream_;
+  std::optional<PacketWriter> packet_writer_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
@@ -206,6 +221,10 @@ class PerfettoCmd : public Consumer {
   bool clone_for_bugreport_ = false;
   std::function<void()> on_session_cloned_;
   bool cloned_session_was_write_into_file_ = false;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  std::string persistent_file_path_;
+#endif
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;

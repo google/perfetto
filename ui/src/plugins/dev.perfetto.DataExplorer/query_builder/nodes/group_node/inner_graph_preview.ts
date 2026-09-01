@@ -32,9 +32,7 @@ interface InnerGraphPreviewAttrs {
  * Owns its own view-layer state (recenter tracking) so that GroupNode
  * remains a pure data model.
  */
-export class InnerGraphPreview
-  implements m.ClassComponent<InnerGraphPreviewAttrs>
-{
+export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttrs> {
   private recentered = false;
   private lastInnerNodeCount = 0;
 

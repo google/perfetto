@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
+INCLUDE PERFETTO MODULE android.surfaceflinger;
+
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE slices.with_context;
@@ -69,14 +71,12 @@ WITH
     SELECT
       name,
       str_split(str_split(str_split(name, 'id=', 1), ',', 0), ')', 0) AS input_event_id,
-      str_split(str_split(name, 'eventTime=', 1), ')', 0) AS event_time_str,
       ts AS read_time
     FROM slice
     WHERE
       name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
   )
-SELECT name, input_event_id, cast_int!(event_time_str) AS event_time, read_time
-FROM _extracted_input_read_args;
+SELECT name, input_event_id, read_time FROM _extracted_input_read_args;
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
 WITH
@@ -110,16 +110,14 @@ FROM _send_message_events;
 
 CREATE PERFETTO TABLE _clean_android_frames AS
 SELECT
-  f.ts,
-  f.dur,
   do_frame_slice.id AS do_frame_id,
   do_frame_slice.ts AS do_frame_ts,
   do_frame_slice.dur AS do_frame_dur,
   cast_int!(ui_thread_utid) AS utid,
   frame_id
-FROM android_frames AS f
+FROM android_frames_choreographer_do_frame AS f
 JOIN slice AS do_frame_slice
-  ON f.do_frame_id = do_frame_slice.id;
+  ON f.id = do_frame_slice.id;
 
 CREATE PERFETTO TABLE _clean_deliver_events AS
 SELECT
@@ -130,7 +128,8 @@ SELECT
   cast_int!(t.upid) AS upid,
   t.process_name,
   str_split(s.name, '=', 3) AS extracted_input_event_id,
-  str_split(str_split(parent.name, '_', 1), ' ', 0) AS event_action,
+  str_split(str_split(parent.name, ' ', 2), ' ', 0) AS event_action,
+  cast_int!(str_split(str_split(s.name, ' ', 2), '=', 1)) AS event_time,
   parent.ts AS consume_time,
   parent.ts + parent.dur AS finish_time
 FROM slice AS s
@@ -201,13 +200,14 @@ CREATE PERFETTO TABLE _input_event_id_to_android_frame AS
 SELECT
   dev.extracted_input_event_id AS input_event_id,
   dev.event_action,
+  dev.event_time,
   dev.consume_time,
   dev.finish_time,
   dev.utid,
   dev.upid,
   dev.process_name,
   af.frame_id,
-  af.ts AS frame_ts,
+  af.do_frame_ts AS frame_ts,
   map.event_channel,
   CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
 FROM _input_event_frame_association AS assoc
@@ -237,7 +237,6 @@ CREATE PERFETTO TABLE _first_non_dropped_frame_after_input AS
 SELECT
   _input_read_time.input_event_id,
   _input_read_time.read_time,
-  _input_read_time.event_time,
   (
     SELECT surface_flinger_ts + surface_flinger_dur
     FROM _app_frame_to_surface_flinger_frame AS sf_frames
@@ -247,17 +246,10 @@ SELECT
       AND sf_frames.upid = _input_event_id_to_android_frame.upid
     LIMIT 1
   ) AS present_time,
-  (
-    SELECT app_surface_frame_token
-    FROM _app_frame_to_surface_flinger_frame AS sf_frames
-    WHERE
-      sf_frames.app_ts >= _input_event_id_to_android_frame.frame_ts
-      -- App frame should belong to the process the input is delivered to.
-      AND sf_frames.upid = _input_event_id_to_android_frame.upid
-    LIMIT 1
-  ) AS frame_id,
+  _input_event_id_to_android_frame.frame_id,
   event_seq,
   event_action,
+  event_time,
   _input_event_id_to_android_frame.is_speculative_match
 FROM _input_event_id_to_android_frame
 RIGHT JOIN _event_seq_to_input_event_id
@@ -412,8 +404,8 @@ SELECT
   dispatch.event_seq,
   dispatch.event_channel,
   _normalize_event_channel(dispatch.event_channel) AS normalized_event_channel,
-  frame.input_event_id,
-  frame.read_time,
+  seq_map.input_event_id,
+  read_time.read_time,
   dispatch.track_id AS dispatch_track_id,
   dispatch.ts AS dispatch_ts,
   dispatch.dur AS dispatch_dur,
@@ -434,7 +426,12 @@ JOIN finish_ack
   ON finish_ack.event_channel = dispatch.event_channel
   AND dispatch.event_seq = finish_ack.event_seq
 LEFT JOIN _first_non_dropped_frame_after_input AS frame
-  ON frame.event_seq = dispatch.event_seq;
+  ON frame.event_seq = dispatch.event_seq
+LEFT JOIN _event_seq_to_input_event_id AS seq_map
+  ON seq_map.event_seq = dispatch.event_seq
+  AND seq_map.event_channel = dispatch.event_channel
+LEFT JOIN _input_read_time AS read_time
+  ON read_time.input_event_id = seq_map.input_event_id;
 
 -- Key events processed by the Android framework (from android.input.inputevent data source).
 CREATE PERFETTO VIEW android_key_events(
@@ -555,7 +552,6 @@ RETURNS TABLE(
   ts_dispatch LONG,
   ts_receive LONG,
   ts_consume LONG,
-  ts_frame LONG,
   -- InputReader Stage
   id_reader LONG,
   track_reader LONG,
@@ -572,10 +568,6 @@ RETURNS TABLE(
   id_consume LONG,
   track_consume LONG,
   dur_consume LONG,
-  -- Choreographer Frame Stage
-  id_frame LONG,
-  track_frame LONG,
-  dur_frame LONG,
   is_speculative_frame BOOL
 )
 AS
@@ -587,7 +579,6 @@ SELECT
   e.dispatch_ts AS ts_dispatch,
   e.receive_ts AS ts_receive,
   s_cons.ts AS ts_consume,
-  s_frame.ts AS ts_frame,
   s_read.id AS id_reader,
   s_read.track_id AS track_reader,
   s_read.dur AS dur_reader,
@@ -600,9 +591,6 @@ SELECT
   s_cons.id AS id_consume,
   s_cons.track_id AS track_consume,
   s_cons.dur AS dur_consume,
-  s_frame.id AS id_frame,
-  s_frame.track_id AS track_frame,
-  s_frame.dur AS dur_frame,
   e.is_speculative_frame
 FROM android_input_events AS e
 LEFT JOIN slice AS s_read
@@ -616,7 +604,68 @@ LEFT JOIN slice AS s_recv
   AND s_recv.track_id = e.receive_track_id
 LEFT JOIN _input_consumers_lookup AS s_cons
   ON s_cons.cookie = e.event_seq
-LEFT JOIN _frame_choreographer_lookup AS s_frame
-  ON s_frame.frame_id = CAST(e.frame_id AS LONG)
 WHERE
-  $slice_id IN (s_read.id, s_disp.id, s_recv.id, s_cons.id, s_frame.id);
+  $slice_id IN (s_read.id, s_disp.id, s_recv.id, s_cons.id);
+
+CREATE PERFETTO TABLE _input_sf_composite AS
+SELECT
+  s.id,
+  s.track_id,
+  s.ts,
+  s.dur,
+  cast_int!(STR_SPLIT(s.name, ' ', 1)) AS vsync_id
+FROM slice AS s
+JOIN thread_track AS t
+  ON s.track_id = t.id
+JOIN thread USING (utid)
+JOIN process USING (upid)
+WHERE
+  process.name = '/system/bin/surfaceflinger'
+  AND thread.is_main_thread
+  AND s.name GLOB 'composite *';
+
+CREATE PERFETTO INDEX _input_sf_composite_idx ON _input_sf_composite(vsync_id);
+
+CREATE PERFETTO TABLE _input_sf_resolved AS
+SELECT m.app_upid, m.app_vsync, s.id, s.track_id, s.ts, s.dur
+FROM android_app_to_sf_frame_timeline_match AS m
+JOIN _input_sf_composite AS s ON s.vsync_id = m.sf_vsync;
+
+CREATE PERFETTO INDEX _input_sf_resolved_idx ON _input_sf_resolved(id);
+
+CREATE PERFETTO VIEW _android_input_frames AS
+WITH
+  all_frame_keys AS (
+    SELECT frame_id, upid FROM android_frames_choreographer_do_frame
+    UNION
+    SELECT frame_id, upid FROM android_frames_draw_frame
+    UNION
+    SELECT app_vsync AS frame_id, app_upid AS upid FROM _input_sf_resolved
+  )
+SELECT
+  k.upid,
+  k.frame_id,
+  chor.id AS id_do_frame,
+  s_chor.track_id AS track_do_frame,
+  chor.ts AS ts_do_frame,
+  s_chor.dur AS dur_do_frame,
+  d.id AS id_draw_frames,
+  s_draw.track_id AS track_draw_frames,
+  s_draw.ts AS ts_draw_frames,
+  s_draw.dur AS dur_draw_frames,
+  sf.id AS id_sf,
+  sf.track_id AS track_sf,
+  sf.ts AS ts_sf,
+  sf.dur AS dur_sf
+FROM all_frame_keys AS k
+LEFT JOIN android_frames_choreographer_do_frame AS chor
+  ON chor.frame_id = k.frame_id
+  AND chor.upid = k.upid
+LEFT JOIN slice AS s_chor ON s_chor.id = chor.id
+LEFT JOIN android_frames_draw_frame AS d
+  ON d.frame_id = k.frame_id
+  AND d.upid = k.upid
+LEFT JOIN slice AS s_draw ON s_draw.id = d.id
+LEFT JOIN _input_sf_resolved AS sf
+  ON sf.app_vsync = k.frame_id
+  AND sf.app_upid = k.upid;

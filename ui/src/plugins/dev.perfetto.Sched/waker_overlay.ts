@@ -14,7 +14,7 @@
 
 import {canvasSave, drawDoubleHeadedArrow} from '../../base/canvas_utils';
 import type {Size2D} from '../../base/geom';
-import {QuerySlot} from '../../base/query_slot';
+import {AsyncMemo} from '../../base/async_memo';
 import {Duration, type time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
@@ -36,7 +36,7 @@ const ARROW_HEIGHT = 12;
 
 export class WakerOverlay implements Overlay {
   private readonly trace: Trace;
-  private readonly wakeupSlot = new QuerySlot<SchedWakeupInfo | undefined>();
+  private readonly wakeupSlot = new AsyncMemo<SchedWakeupInfo | undefined>();
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -59,7 +59,7 @@ export class WakerOverlay implements Overlay {
     // Declaratively fetch wakeup info - QuerySlot handles caching and scheduling
     const result = this.wakeupSlot.use({
       key: {eventId: selection.eventId},
-      queryFn: () => this.loadWakeupInfo(selection),
+      compute: () => this.loadWakeupInfo(selection),
     });
 
     const wakeup = result.data;

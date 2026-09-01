@@ -58,7 +58,7 @@ import {
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
-import {assertExists, assertIsInstance} from '../../../base/assert';
+import {ensureExists, ensureIsInstance} from '../../../base/assert';
 import {classNames} from '../../../base/classnames';
 import {SimpleResizeObserver} from '../../../base/resize_observer';
 import {Spinner} from '../../../widgets/spinner';
@@ -262,12 +262,9 @@ function autoAdjustGridSpacing(
       const labels = collectYAxisLabels(opt);
       if (labels.length > 0) {
         const axisLabel = yAxis.axisLabel as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const formatter = axisLabel?.formatter as
-          | LabelFormatter
-          | string
-          | undefined;
+          LabelFormatter | string | undefined;
         let maxWidth = 0;
         for (const l of labels) {
           const text = formatLabel(l, formatter);
@@ -309,8 +306,7 @@ function themeHash(colors: ChartThemeColors): string {
 export interface EChartBrushEndParams {
   readonly areas?: ReadonlyArray<{
     readonly coordRange?:
-      | [number, number]
-      | [[number, number], [number, number]];
+      [number, number] | [[number, number], [number, number]];
   }>;
 }
 
@@ -453,8 +449,8 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
   private initChart(attrs: EChartViewAttrs, dom: Element): void {
     if (attrs.option === undefined) return;
 
-    const container = assertIsInstance(
-      assertExists(dom.querySelector('.pf-echart-view__canvas')),
+    const container = ensureIsInstance(
+      ensureExists(dom.querySelector('.pf-echart-view__canvas')),
       HTMLElement,
     );
 

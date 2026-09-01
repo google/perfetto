@@ -27,7 +27,8 @@ namespace {
 
 void CheckExtractionTopToBottom(const std::string& snapshot,
                                 const std::vector<int32_t> expected) {
-  protos::pbzero::ViewCapture::Decoder snapshot_decoder(snapshot);
+  com::android::internal::pbzero::ViewCapture::Decoder snapshot_decoder(
+      snapshot);
   const auto& result = ExtractViewsTopToBottom(snapshot_decoder);
 
   std::vector<int32_t> layer_ids;

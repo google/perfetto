@@ -176,8 +176,8 @@ export default class AndroidAnr implements PerfettoPlugin {
 
     const query = `
       SELECT
-        anr.ts - coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS ts,
-        coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS dur,
+        anr.ts - coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms, 0) * 1000000 AS ts,
+        coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms, 0) * 1000000 AS dur,
         anr.upid,
         tt.id AS main_thread_track_id
       FROM

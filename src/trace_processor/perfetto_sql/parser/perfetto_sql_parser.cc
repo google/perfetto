@@ -33,9 +33,9 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/perfetto_sql/intrinsic_macro_expansion.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
-#include "src/trace_processor/perfetto_sql/parser/intrinsic_macro_expansion.h"
-#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -543,8 +543,7 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 struct PerfettoSqlParser::Impl {
   explicit Impl(const base::FlatHashMap<std::string, Macro>& m)
       : source(SqlSource::FromTraceProcessorImplementation("")), macros(m) {
-    synq = syntaqlite_parser_create_with_dialect(nullptr,
-                                                 syntaqlite_perfetto_dialect());
+    synq = syntaqlite_parser_create_perfetto(nullptr);
     PERFETTO_CHECK(synq != nullptr);
     PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
     syntaqlite_parser_set_macro_lookup(synq, &Impl::LookupMacro, this);
@@ -582,13 +581,13 @@ struct PerfettoSqlParser::Impl {
     std::string_view name_sv(name, name_len);
 
     auto status = self->intrinsic_expander.TryExpand(name_sv, args, arg_count);
-    if (status == perfetto_sql::ExpandStatus::kExpanded) {
+    if (status == ::perfetto::perfetto_sql::ExpandStatus::kExpanded) {
       std::string_view body = self->intrinsic_expander.body();
       syntaqlite_macro_expansion_set_result(
           parser, body.data(), static_cast<uint32_t>(body.size()), 0, 0);
       return 0;
     }
-    if (status == perfetto_sql::ExpandStatus::kExpansionFailed)
+    if (status == ::perfetto::perfetto_sql::ExpandStatus::kExpansionFailed)
       return -2;
 
     const Macro* macro = self->macros.Find(name_sv);
@@ -622,7 +621,7 @@ struct PerfettoSqlParser::Impl {
   const base::FlatHashMap<std::string, Macro>& macros;
   base::Status status;
   std::optional<Statement> current_statement;
-  perfetto_sql::IntrinsicMacroExpander intrinsic_expander;
+  ::perfetto::perfetto_sql::IntrinsicMacroExpander intrinsic_expander;
   // Scratch buffers for LookupMacro, reused across user-macro lookups.
   std::vector<const char*> param_names;
   std::vector<uint32_t> param_name_lens;
@@ -697,6 +696,14 @@ bool PerfettoSqlParser::Next() {
 const PerfettoSqlParser::Statement& PerfettoSqlParser::statement() const {
   PERFETTO_DCHECK(impl_->current_statement.has_value());
   return *impl_->current_statement;
+}
+
+uint32_t PerfettoSqlParser::statement_end_offset() const {
+  PERFETTO_DCHECK(impl_->current_statement.has_value());
+  uint32_t doc_offset = 0;
+  uint32_t len = 0;
+  syntaqlite_parser_text(impl_->synq, &doc_offset, &len);
+  return doc_offset + len;
 }
 
 const base::Status& PerfettoSqlParser::status() const {

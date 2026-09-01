@@ -136,8 +136,9 @@ export interface Zone {
   onClick?(e: ClickEvent): void;
 
   // Optional: If present, this function will be called when the wheel is
-  // scrolled while hovering over this zone.
-  onWheel?(e: InteractionWheelEvent): void;
+  // scrolled while hovering over this zone. If the return value is truthy
+  // then we call e.preventDefault() on the underlying event.
+  onWheel?(e: InteractionWheelEvent): boolean | void;
 }
 
 interface InProgressGesture {
@@ -153,11 +154,13 @@ export class ZonedInteractionHandler implements Disposable {
   private zones: ReadonlyArray<Zone> = [];
   private currentGesture?: InProgressGesture;
   private shiftHeld = false;
+  private shouldClick = false;
 
   constructor(readonly target: HTMLElement) {
     this.bindEvent(this.target, 'mousedown', this.onMouseDown.bind(this));
     this.bindEvent(document, 'mousemove', this.onMouseMove.bind(this));
     this.bindEvent(document, 'mouseup', this.onMouseUp.bind(this));
+    this.bindEvent(document, 'click', this.onClick.bind(this));
     this.bindEvent(document, 'keydown', this.onKeyDown.bind(this));
     this.bindEvent(document, 'keyup', this.onKeyUp.bind(this));
     this.bindEvent(this.target, 'wheel', this.handleWheel.bind(this));
@@ -201,6 +204,9 @@ export class ZonedInteractionHandler implements Disposable {
   }
 
   private onMouseDown(e: MouseEvent) {
+    // Clear shouldClick flag in case onclick was cancelled
+    this.shouldClick = false;
+
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
     const zone = this.findZone(
@@ -272,13 +278,29 @@ export class ZonedInteractionHandler implements Disposable {
         } else {
           // Check we're still the zone the click was started in
           if (this.hitTestZone(zone, mouse)) {
-            this.handleClick(this.target, e);
+            // This is a click (rather than a drag) - set a flag so that the
+            // onClick callback can be called from the onclick dom event rather
+            // than here in the mouseup event.
+            this.shouldClick = true;
           }
         }
       }
 
       this.currentGesture = undefined;
       this.updateCursor();
+    }
+  }
+
+  private onClick(e: MouseEvent) {
+    // If the onMouseUp event left the shouldClick flag set then we should emit
+    // a click event here, as long as no other handler further up the bubble
+    // chain has called e.preventDefault() in the meantime.
+    if (this.shouldClick) {
+      this.shouldClick = false;
+
+      if (!e.defaultPrevented) {
+        this.handleClick(this.target, e);
+      }
     }
   }
 
@@ -296,12 +318,15 @@ export class ZonedInteractionHandler implements Disposable {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
     const zone = this.findZone((z) => z.onWheel && this.hitTestZone(z, mouse));
-    zone?.onWheel?.({
+    const handled = zone?.onWheel?.({
       position: mouse,
       deltaX: e.deltaX,
       deltaY: e.deltaY,
       ctrlKey: e.ctrlKey,
     });
+    if (handled) {
+      e.preventDefault();
+    }
   }
 
   private handleDrag(

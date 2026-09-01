@@ -268,7 +268,7 @@ export default class MemoryViz implements PerfettoPlugin {
           0 AS dur,
           upid,
           pid,
-          COALESCE(process_name, 'Unknown') AS process_name,
+          COALESCE(process_name, 'Unknown') AS name,
           oom_score_adj,
           android_oom_adj_score_to_bucket_name(oom_score_adj) AS oom_bucket,
           kill_reason
@@ -277,10 +277,11 @@ export default class MemoryViz implements PerfettoPlugin {
     });
 
     const buckets = await ctx.engine.query(`
-      SELECT DISTINCT oom_bucket
+      SELECT oom_bucket
       FROM ${tableName}
       WHERE oom_bucket IS NOT NULL
-      ORDER BY oom_bucket
+      GROUP BY oom_bucket
+      ORDER BY MIN(oom_score_adj) ASC
     `);
     if (buckets.numRows() === 0) {
       return undefined;
@@ -303,13 +304,12 @@ export default class MemoryViz implements PerfettoPlugin {
             dur: LONG,
             upid: NUM_NULL,
             pid: NUM_NULL,
-            process_name: STR,
+            name: STR,
             oom_score_adj: NUM,
             oom_bucket: STR,
             kill_reason: STR_NULL,
           },
         }),
-        sliceName: (row) => row.process_name,
       }),
     });
     const lmkGroup = new TrackNode({
@@ -336,14 +336,13 @@ export default class MemoryViz implements PerfettoPlugin {
               dur: LONG,
               upid: NUM_NULL,
               pid: NUM_NULL,
-              process_name: STR,
+              name: STR,
               oom_score_adj: NUM,
               oom_bucket: STR,
               kill_reason: STR_NULL,
             },
             filter: {col: 'oom_bucket', eq: bucket},
           }),
-          sliceName: (row) => row.process_name,
         }),
       });
       lmkGroup.addChildInOrder(new TrackNode({uri, name: bucket}));

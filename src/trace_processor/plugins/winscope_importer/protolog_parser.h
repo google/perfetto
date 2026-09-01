@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "protos/perfetto/trace/android/protolog.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/protolog.pbzero.h"
 #include "src/trace_processor/plugins/winscope_importer/protolog_message_decoder.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_context.h"
 #include "src/trace_processor/storage/trace_storage.h"

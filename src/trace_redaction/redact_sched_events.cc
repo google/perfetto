@@ -369,9 +369,12 @@ base::Status RedactSchedEvents::OnCompSched(
       comp_sched.has_switch_next_comm_index(),
   };
 
+  // The final intern table that will only contain referenced entries.
+  std::unordered_map<std::string, int32_t> dest_intern_table;
+
   if (std::any_of(has_switch_fields.begin(), has_switch_fields.end(), IsTrue)) {
-    RETURN_IF_ERROR(
-        OnCompSchedSwitch(context, cpu, comp_sched, &intern_table, message));
+    RETURN_IF_ERROR(OnCompSchedSwitch(context, cpu, comp_sched, &intern_table,
+                                      &dest_intern_table, message));
   }
 
   std::array<bool, 6> has_waking_fields = {
@@ -381,14 +384,19 @@ base::Status RedactSchedEvents::OnCompSched(
   };
 
   if (std::any_of(has_waking_fields.begin(), has_waking_fields.end(), IsTrue)) {
-    RETURN_IF_ERROR(
-        OnCompactSchedWaking(context, comp_sched, &intern_table, message));
+    RETURN_IF_ERROR(OnCompactSchedWaking(context, comp_sched, &intern_table,
+                                         &dest_intern_table, message));
   }
 
   // IMPORTANT: The intern table can only be added after switch and waking
   // because switch and/or waking can/will modify the intern table.
-  for (auto view : intern_table.values()) {
-    message->add_intern_table(view.data(), view.size());
+  std::vector<std::string_view> ordered_intern_table(dest_intern_table.size());
+  for (const auto& it : dest_intern_table) {
+    ordered_intern_table[static_cast<size_t>(it.second)] = it.first;
+  }
+
+  for (std::string_view str : ordered_intern_table) {
+    message->add_intern_table(str.data(), str.size());
   }
 
   return base::OkStatus();
@@ -398,7 +406,8 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
     const Context& context,
     int32_t cpu,
     protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
-    InternTable* intern_table,
+    InternTable* source_intern_table,
+    std::unordered_map<std::string, int32_t>* target_intern_table,
     protos::pbzero::FtraceEventBundle::CompactSched* message) const {
   PERFETTO_DCHECK(modifier_);
   PERFETTO_DCHECK(message);
@@ -439,20 +448,23 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
     auto pid = *it_pid;
 
     auto comm_index = *it_comm;
-    auto comm = intern_table->Find(comm_index);
+    auto comm = source_intern_table->Find(comm_index);
 
     scratch_str.assign(comm);
 
     modifier_->Modify(context, ts, cpu, &pid, &scratch_str);
 
-    auto found = intern_table->Push(scratch_str.data(), scratch_str.size());
-
-    if (found < 0) {
-      return base::ErrStatus(
-          "RedactSchedEvents: failed to insert string into intern table.");
+    // Add the string to the intern table if it is not already there, otherwise,
+    // reuse it.
+    auto found = target_intern_table->find(scratch_str);
+    if (found == target_intern_table->end()) {
+      auto index = static_cast<int32_t>(target_intern_table->size());
+      target_intern_table->emplace(scratch_str, index);
+      packed_comm.Append(index);
+    } else {
+      packed_comm.Append(found->second);
     }
 
-    packed_comm.Append(found);
     packed_pid.Append(pid);
 
     ++it_ts;
@@ -516,7 +528,8 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
 base::Status RedactSchedEvents::OnCompactSchedWaking(
     const Context& context,
     protos::pbzero::FtraceEventBundle::CompactSched::Decoder& compact_sched,
-    InternTable* intern_table,
+    InternTable* source_intern_table,
+    std::unordered_map<std::string, int32_t>* target_intern_table,
     protos::pbzero::FtraceEventBundle::CompactSched* compact_sched_message)
     const {
   protozero::PackedVarInt var_comm_index;
@@ -552,44 +565,41 @@ base::Status RedactSchedEvents::OnCompactSchedWaking(
 
   std::string comm;
 
-  std::array<bool, 7> parse_errors = {!compact_sched.has_intern_table(),
-                                      false,
-                                      false,
-                                      false,
-                                      false,
-                                      false,
-                                      false};
-
+  std::array<bool, 6> parse_errors = {false, false, false, false, false, false};
   // A note on readability, because the waking iterators are the primary focus,
   // they won't have a "waking" prefix.
-  auto it_comm_index = compact_sched.waking_comm_index(&parse_errors.at(1));
-  auto it_common_flags = compact_sched.waking_common_flags(&parse_errors.at(2));
-  auto it_pid = compact_sched.waking_pid(&parse_errors.at(3));
-  auto it_prio = compact_sched.waking_prio(&parse_errors.at(4));
-  auto it_target_cpu = compact_sched.waking_target_cpu(&parse_errors.at(5));
-  auto it_timestamp = compact_sched.waking_timestamp(&parse_errors.at(6));
+  auto it_comm_index = compact_sched.waking_comm_index(&parse_errors.at(0));
+  auto it_common_flags = compact_sched.waking_common_flags(&parse_errors.at(1));
+  auto it_pid = compact_sched.waking_pid(&parse_errors.at(2));
+  auto it_prio = compact_sched.waking_prio(&parse_errors.at(3));
+  auto it_target_cpu = compact_sched.waking_target_cpu(&parse_errors.at(4));
+  auto it_timestamp = compact_sched.waking_timestamp(&parse_errors.at(5));
 
   while (it_comm_index && it_common_flags && it_pid && it_prio &&
          it_target_cpu && it_timestamp) {
     ts_bucket += *it_timestamp;  // add time to the bucket
     ts_absolute += *it_timestamp;
-
     if (waking_filter_->Includes(context, ts_absolute, *it_pid)) {
       // Now that the waking event will be kept, it can be modified using the
       // same rules as switch events.
       auto pid = *it_pid;
-      comm.assign(intern_table->Find(*it_comm_index));
+      comm.assign(source_intern_table->Find(*it_comm_index));
       modifier_->Modify(context, ts_absolute, *it_target_cpu, &pid, &comm);
 
-      auto comm_it = intern_table->Push(comm.data(), comm.size());
+      auto found = target_intern_table->find(comm);
+      if (found == target_intern_table->end()) {
+        auto index = static_cast<int32_t>(target_intern_table->size());
+        target_intern_table->emplace(comm, index);
+        var_comm_index.Append(index);
+      } else {
+        var_comm_index.Append(found->second);
+      }
 
-      var_comm_index.Append(comm_it);
       var_common_flags.Append(*it_common_flags);
       var_pid.Append(pid);
       var_prio.Append(*it_prio);
       var_target_cpu.Append(*it_target_cpu);
       var_timestamp.Append(ts_bucket);
-
       ts_bucket = 0;  // drain the whole bucket.
     }
 

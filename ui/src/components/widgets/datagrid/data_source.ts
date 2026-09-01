@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {QueryResult} from '../../../base/query_slot';
+import type {AsyncMemoResult} from '../../../base/async_memo';
 import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import type {AggregateFunction, Filter, GroupPath, IdBasedTree} from './model';
 
@@ -21,7 +21,7 @@ import type {AggregateFunction, Filter, GroupPath, IdBasedTree} from './model';
  *
  * Uses a slot-like API where each use* method:
  * - Takes the current model/parameters
- * - Returns the current state (data, isPending, isFresh)
+ * - Returns the current state (data, isPending)
  * - Automatically schedules fetches when parameters change
  *
  * Call these methods on every render cycle - they handle caching internally.
@@ -37,7 +37,7 @@ export interface DataSource {
    * Fetch aggregate summaries (aggregates across all filtered rows).
    * Returns summaries for columns with aggregate functions or pivot aggregates.
    */
-  useAggregateSummaries(model: DataSourceModel): QueryResult<Row>;
+  useAggregateSummaries(model: DataSourceModel): AsyncMemoResult<Row>;
 
   /**
    * Fetch distinct values for a column (for filter dropdowns).
@@ -45,13 +45,15 @@ export interface DataSource {
    */
   useDistinctValues(
     column: string | undefined,
-  ): QueryResult<readonly SqlValue[]>;
+  ): AsyncMemoResult<readonly SqlValue[]>;
 
   /**
    * Fetch parameter keys for a parameterized column prefix (e.g., 'args' -> ['foo', 'bar']).
    * Pass undefined to skip fetching.
    */
-  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]>;
+  useParameterKeys(
+    prefix: string | undefined,
+  ): AsyncMemoResult<readonly string[]>;
 
   /**
    * Export all data with current filters/sorting applied (no pagination).

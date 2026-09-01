@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 
-// Hash-based router (#!/query, #!/settings). Replaces m.route() because
-// m.route bypasses the raf scheduler and breaks portal-based popups.
+// Hash-based router (#!/query, #!/settings). Not m.route(): it bypasses the
+// raf scheduler and breaks portal-based popups.
 
 export function getCurrentRoute(): string {
   const hash = window.location.hash;

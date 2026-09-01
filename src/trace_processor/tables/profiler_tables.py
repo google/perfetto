@@ -27,6 +27,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppUint32 as CppBool
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import SqlAccess
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
@@ -370,6 +371,12 @@ STACK_PROFILE_FRAME_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'type',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -388,7 +395,10 @@ STACK_PROFILE_FRAME_TABLE = Table(
                 '''If the profile was offline symbolized, the offline
                 symbol information of this frame.''',
             'deobfuscated_name':
-                '''Deobfuscated name of the function this location is in.'''
+                '''Deobfuscated name of the function this location is in.''',
+            'type':
+                '''The kind of frame (e.g. "native", "kernel", "interpreted",
+                "jit", "gc", "runtime") if reported by the producer, else NULL.'''
         }))
 
 STACK_PROFILE_CALLSITE_TABLE = Table(
@@ -431,52 +441,94 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
                 '''Frame at this position in the callstack.'''
         }))
 
-CPU_PROFILE_STACK_SAMPLE_TABLE = Table(
+PROFILER_ASYNC_CONTEXT_TABLE = Table(
     python_module=__file__,
-    class_name='CpuProfileStackSampleTable',
-    sql_name='__intrinsic_cpu_profile_stack_sample',
-    wrapping_sql_view=WrappingSqlView('cpu_profile_stack_sample'),
+    class_name='ProfilerAsyncContextTable',
+    sql_name='__intrinsic_profiler_async_context',
+    columns=[
+        C('name', CppOptional(CppString())),
+        C('kind', CppOptional(CppString())),
+        C('parent_id', CppOptional(CppSelfTableId())),
+    ],
+    tabledoc=TableDoc(
+        doc='''A stackful asynchronous execution context, such as a goroutine,
+               fiber or coroutine.''',
+        group='Callstack profilers',
+        columns={
+            'name':
+                '''Human-readable name of this asynchronous context.''',
+            'kind':
+                '''Kind of asynchronous context, e.g. goroutine or fiber.''',
+            'parent_id':
+                '''Structural parent of this asynchronous context.''',
+        }))
+
+PROFILER_TASK_CONTEXT_TABLE = Table(
+    python_module=__file__,
+    class_name='ProfilerTaskContextTable',
+    sql_name='__intrinsic_profiler_task_context',
     columns=[
         C(
-            'ts',
-            CppInt64(),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
-            'callsite_id',
-            CppTableId(STACK_PROFILE_CALLSITE_TABLE),
+            'upid',
+            CppOptional(CppUint32()),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'utid',
-            CppUint32(),
+            CppOptional(CppUint32()),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
-            'process_priority',
-            CppInt32(),
+            'async_context_id',
+            CppOptional(CppTableId(PROFILER_ASYNC_CONTEXT_TABLE)),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
-        doc='Table containing stack samples from CPU profiling.',
+        doc='''The task a profiler sample is attributed to: an OS process,
+               thread and/or stackful asynchronous context.''',
         group='Callstack profilers',
         columns={
-            'ts': '''timestamp of the sample.''',
-            'callsite_id': '''unwound callstack.''',
-            'utid': '''thread that was active when the sample was taken.''',
-            'process_priority': ''''''
+            'upid':
+                '''Process the sample is attributed to, if known.''',
+            'utid':
+                '''Thread the sample is attributed to, if known.''',
+            'async_context_id':
+                '''Stackful asynchronous context the sample is
+                                   attributed to, if any.''',
         }))
 
-PERF_SESSION_TABLE = Table(
+PROFILER_EXECUTION_CONTEXT_TABLE = Table(
     python_module=__file__,
-    class_name='PerfSessionTable',
-    sql_name='__intrinsic_perf_session',
+    class_name='ProfilerExecutionContextTable',
+    sql_name='__intrinsic_profiler_execution_context',
     columns=[
+        C('ucpu', CppOptional(CppUint32())),
+        C('cpu_mode', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''The execution state in which a profiler sample was captured.''',
+        group='Callstack profilers',
+        columns={
+            'ucpu': '''CPU the sample was captured on, if known.''',
+            'cpu_mode': '''Privilege mode at the sample point, if known.''',
+        }))
+
+PROFILER_SESSION_TABLE = Table(
+    python_module=__file__,
+    class_name='ProfilerSessionTable',
+    sql_name='__intrinsic_profiler_session',
+    columns=[
+        C('source', CppString()),
+        C(
+            'timebase_unit',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'cmdline',
             CppOptional(CppString()),
@@ -484,21 +536,30 @@ PERF_SESSION_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
-    wrapping_sql_view=WrappingSqlView('perf_session'),
     tabledoc=TableDoc(
-        doc='''Perf sessions.''',
+        doc='''Profiler sessions: one row per data source instance of a
+               sampling profiler (a perf session, a StackSample stream, ...).
+            ''',
         group='Callstack profilers',
         columns={
-            'cmdline': '''Command line used to collect the data.''',
+            'source':
+                '''The profiler that produced this session's samples (e.g.
+                   "linux.perf"). Matches profiler_sample.source.''',
+            'timebase_unit':
+                '''Unit of the quantity the profiler sampled on: the session's
+                   primary (timebase) counter (e.g. "ns", "cycles",
+                   "instructions", "count"). NULL if unknown.''',
+            'cmdline':
+                '''Command line used to collect the data.''',
         }))
 
-PERF_COUNTER_SET_TABLE = Table(
+PROFILER_COUNTER_SET_TABLE = Table(
     python_module=__file__,
-    class_name='PerfCounterSetTable',
-    sql_name='__intrinsic_perf_counter_set',
+    class_name='ProfilerCounterSetTable',
+    sql_name='__intrinsic_profiler_counter_set',
     columns=[
         C(
-            'perf_counter_set_id',
+            'counter_set_id',
             CppUint32(),
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
             sql_access=SqlAccess.HIGH_PERF,
@@ -514,23 +575,22 @@ PERF_COUNTER_SET_TABLE = Table(
         ),
     ],
     tabledoc=TableDoc(
-        doc='''Associates perf counter values with perf samples via set IDs.
-               Each set contains one or more counter values recorded at the
-               same sample point.''',
+        doc='''Associates counter values with profiler samples via set IDs.
+               Each set contains the counter values (timebase and followers)
+               recorded at a single sample point.''',
         group='Callstack profilers',
         columns={
-            'perf_counter_set_id':
+            'counter_set_id':
                 '''Set ID that groups counter values for a single sample.
                    Multiple rows share the same ID to form a set.''',
             'counter_id':
                 '''Reference to the counter value in the counter table.''',
         }))
 
-PERF_SAMPLE_TABLE = Table(
+PROFILER_SAMPLE_TABLE = Table(
     python_module=__file__,
-    class_name='PerfSampleTable',
-    wrapping_sql_view=WrappingSqlView('perf_sample'),
-    sql_name='__intrinsic_perf_sample',
+    class_name='ProfilerSampleTable',
+    sql_name='__intrinsic_profiler_sample',
     columns=[
         C(
             'ts',
@@ -539,14 +599,19 @@ PERF_SAMPLE_TABLE = Table(
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C('source', CppString()),
         C(
-            'utid',
-            CppUint32(),
+            'task_context_id',
+            CppOptional(CppTableId(PROFILER_TASK_CONTEXT_TABLE)),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('cpu', CppOptional(CppUint32())),
-        C('cpu_mode', CppString()),
+        C(
+            'execution_context_id',
+            CppOptional(CppTableId(PROFILER_EXECUTION_CONTEXT_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'callsite_id',
             CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
@@ -554,7 +619,7 @@ PERF_SAMPLE_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('unwind_error', CppOptional(CppString())),
-        C('perf_session_id', CppTableId(PERF_SESSION_TABLE)),
+        C('session_id', CppOptional(CppTableId(PROFILER_SESSION_TABLE))),
         C(
             'counter_set_id',
             CppOptional(CppUint32()),
@@ -564,65 +629,192 @@ PERF_SAMPLE_TABLE = Table(
         ),
     ],
     tabledoc=TableDoc(
-        doc='''Samples from the traced_perf profiler.''',
+        doc='''The generic sampler table: one row per sample from any
+               profiler source (linux perf, chrome, macOS instruments, the
+               StackSample packet, ...). A sample usually carries a callstack;
+               samples without one (counter-only samples, or samples whose
+               stack could not be unwound) have a null callsite_id. Counter
+               values recorded at the sample point are linked via
+               counter_set_id. Public per-source views (perf_sample, ...) and
+               the stack_sample view are defined over this table.''',
         group='Callstack profilers',
         columns={
             'ts':
                 '''Timestamp of the sample.''',
-            'utid':
-                '''Sampled thread.''',
-            'cpu':
-                '''Core the sampled thread was running on.''',
-            'cpu_mode':
-                '''Execution state (userspace/kernelspace) of the sampled
-                thread.''',
+            'source':
+                '''The profiler that produced the sample (e.g. "linux.perf",
+                   "chrome", "instruments").''',
+            'task_context_id':
+                '''The process, thread and/or stackful asynchronous context
+                   this sample is attributed to.''',
+            'execution_context_id':
+                '''The CPU and privilege mode in which this sample was
+                   captured, if known.''',
             'callsite_id':
-                '''If set, unwound callstack of the sampled thread.''',
+                '''If set, the captured callstack.''',
             'unwind_error':
                 '''If set, indicates that the unwinding for this sample
-                encountered an error. Such samples still reference the
-                best-effort result via the callsite_id, with a synthetic error
-                frame at the point where unwinding stopped.''',
-            'perf_session_id':
-                '''Distinguishes samples from different profiling
-                streams (i.e. multiple data sources).''',
+                   encountered an error. Such samples can still reference a
+                   best-effort callstack via callsite_id, with a synthetic
+                   error frame at the point where unwinding stopped.''',
+            'session_id':
+                '''The profiler session (data source instance) this sample
+                   came from. Distinguishes samples from concurrent sampling
+                   streams.''',
             'counter_set_id':
-                '''References the set of counter values associated with this
-                   sample in __intrinsic_perf_counter_set.'''
+                '''References the set of counter values recorded at this
+                   sample point in __intrinsic_profiler_counter_set.''',
         }))
 
-INSTRUMENTS_SAMPLE_TABLE = Table(
+CHROME_STACK_SAMPLE_EXTRAS_TABLE = Table(
     python_module=__file__,
-    class_name='InstrumentsSampleTable',
-    sql_name='__intrinsic_instruments_sample',
-    wrapping_sql_view=WrappingSqlView('instruments_sample'),
+    class_name='ChromeStackSampleExtrasTable',
+    sql_name='__intrinsic_chrome_stack_sample_extras',
+    columns=[
+        C(
+            'profiler_sample_id',
+            CppTableId(PROFILER_SAMPLE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'process_priority',
+            CppInt32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''Chrome-specific attributes of a profiler sample. One row per
+               chrome streaming profile sample with a non-default process
+               priority.''',
+        group='Callstack profilers',
+        columns={
+            'profiler_sample_id':
+                '''The profiler sample these attributes belong to.''',
+            'process_priority':
+                '''Priority of the process when the sample was taken.''',
+        }))
+
+HEAP_GRAPH_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphTable',
+    sql_name='__intrinsic_heap_graph',
+    wrapping_sql_view=WrappingSqlView('heap_graph'),
     columns=[
         C(
             'ts',
             CppInt64(),
-            flags=ColumnFlag.SORTED,
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('utid', CppUint32()),
-        C('callsite_id', CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE))),
-        C('cpu', CppOptional(CppUint32())),
+        C(
+            'upid',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'dump_reason',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'heap_size',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'truncated',
+            CppBool(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
-        doc='''
-          Samples from MacOS Instruments.
-        ''',
+        doc='A list of heap graphs (heap dumps) captured during the trace.',
         group='Callstack profilers',
         columns={
             'ts':
-                '''Timestamp of the sample.''',
+                'Timestamp of the heap dump in nanoseconds.',
+            'upid':
+                'Unique ID of the process whose heap was dumped. Joinable with process.upid.',
+            'dump_reason':
+                'Reason why the heap graph was dumped (e.g. OOME, periodic, manual).',
+            'heap_size':
+                'Total bytes allocated in the heap as reported by the VM.',
+            'truncated':
+                'True if the heap dump was incomplete (missing packets).',
+        }),
+)
+
+HEAP_GRAPH_THREAD_CALLSITE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphThreadCallsiteTable',
+    sql_name='__intrinsic_heap_graph_thread_callsite',
+    wrapping_sql_view=WrappingSqlView('heap_graph_thread_callsite'),
+    columns=[
+        C(
+            'heap_graph_id',
+            CppTableId(HEAP_GRAPH_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'utid',
+            CppUint32(),
+        ),
+        C(
+            'callsite_id',
+            CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='Callstack profiles of threads at the time the heap graph was collected.',
+        group='Callstack profilers',
+        columns={
+            'heap_graph_id':
+                'The heap graph instance. Joinable with heap_graph.id.',
             'utid':
-                '''Sampled thread.''',
+                'The thread ID. Joinable with thread.utid.',
             'callsite_id':
-                '''If set, unwound callstack of the sampled thread.''',
-            'cpu':
-                '''Core the sampled thread was running on.''',
-        }))
+                '''The callsite of the leaf frame of the stacktrace.
+                              Joinable with stack_profile_callsite.id''',
+        }),
+)
+
+HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphJavaOomeDetailsTable',
+    sql_name='__intrinsic_heap_graph_java_oome_details',
+    wrapping_sql_view=WrappingSqlView('android_heap_graph_java_oome_details'),
+    columns=[
+        C(
+            'heap_graph_id',
+            CppTableId(HEAP_GRAPH_TABLE),
+        ),
+        C('allocation_size_bytes', CppInt64()),
+        C('total_bytes_free', CppInt64()),
+        C('free_bytes_until_oom', CppInt64()),
+        C('error_msg', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='Details of Java OutOfMemoryError exceptions that triggered heap dumps.',
+        group='Callstack profilers',
+        columns={
+            'heap_graph_id':
+                'The heap graph instance this OOM trigger details belongs to. Joinable with heap_graph.id.',
+            'allocation_size_bytes':
+                'Number of bytes that triggered the OOME.',
+            'total_bytes_free':
+                'Total free bytes in the Java heap at OOME time.',
+            'free_bytes_until_oom':
+                'Free bytes remaining until OOME.',
+            'error_msg':
+                'Error message associated with the OOME exception.',
+        }),
+)
 
 SYMBOL_TABLE = Table(
     python_module=__file__,
@@ -700,6 +892,46 @@ SYMBOL_TABLE = Table(
                 ''''''
         }))
 
+HEAP_PROFILE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapProfileTable',
+    sql_name='__intrinsic_heap_profile',
+    wrapping_sql_view=WrappingSqlView('heap_profile'),
+    columns=[
+        C('ts', CppInt64()),
+        C('ts_end', CppInt64()),
+        C('dur', CppInt64()),
+        C('upid', CppUint32()),
+        C('heap_name', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          A list of heap profiles (heapprofd dumps) captured during the trace.
+          Each row describes the profiling window a single dump represents for a
+          single heap (e.g. the native "libc.malloc" heap or an ART heap).
+        ''',
+        group='Callstack profilers',
+        columns={
+            'ts':
+                '''Timestamp of the start of the profiling window in
+                nanoseconds.''',
+            'ts_end':
+                '''Timestamp of the end of the profiling window (i.e. when the
+                dump was taken) in nanoseconds. This is the timestamp the
+                allocations are recorded at, so heap_profile_allocation joins
+                this table via (upid, heap_profile_allocation.ts = ts_end).''',
+            'dur':
+                '''Duration of the profiling window in nanoseconds
+                (ts_end - ts).''',
+            'upid':
+                '''Unique ID of the process whose heap was dumped. Joinable with
+                process.upid.''',
+            'heap_name':
+                '''Name of the heap this dump is for (e.g. "libc.malloc" for the
+                native heap), or NULL if the producer did not report one.''',
+        }),
+)
+
 HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
@@ -753,7 +985,9 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
             'ts':
                 '''The timestamp the allocations happened at. heapprofd batches
                 allocations and frees, and all data from a dump will have the
-                same timestamp.''',
+                same timestamp. This is the end of the dump's profiling window,
+                so it is joinable with heap_profile via
+                (upid, ts = heap_profile.ts_end).''',
             'upid':
                 '''The unique PID of the allocating process.''',
             'callsite_id':
@@ -896,7 +1130,8 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
         C(
             'object_data_id',
             CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            flags=ColumnFlag.DENSE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
     ],
     tabledoc=TableDoc(
@@ -1301,6 +1536,7 @@ GpuRenderStageEvent packets.''',
 EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
     python_module=__file__,
     class_name='ExperimentalFlamegraphTable',
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name='experimental_flamegraph',
     columns=[
         C(
@@ -1418,22 +1654,28 @@ EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
 ALL_TABLES = [
     AGGREGATE_PROFILE_TABLE,
     AGGREGATE_SAMPLE_TABLE,
-    CPU_PROFILE_STACK_SAMPLE_TABLE,
+    CHROME_STACK_SAMPLE_EXTRAS_TABLE,
     EXPERIMENTAL_FLAMEGRAPH_TABLE,
     GPU_CONTEXT_TABLE,
     GPU_COUNTER_GROUP_TABLE,
     HEAP_GRAPH_CLASS_TABLE,
+    HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE,
     HEAP_GRAPH_OBJECT_DATA_TABLE,
     HEAP_GRAPH_PRIMITIVE_TABLE,
     HEAP_GRAPH_OBJECT_TABLE,
     HEAP_GRAPH_REFERENCE_TABLE,
+    HEAP_GRAPH_TABLE,
+    HEAP_GRAPH_THREAD_CALLSITE_TABLE,
+    HEAP_PROFILE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
-    INSTRUMENTS_SAMPLE_TABLE,
     PACKAGE_LIST_TABLE,
-    PERF_COUNTER_SET_TABLE,
-    PERF_SAMPLE_TABLE,
-    PERF_SESSION_TABLE,
+    PROFILER_ASYNC_CONTEXT_TABLE,
+    PROFILER_COUNTER_SET_TABLE,
+    PROFILER_EXECUTION_CONTEXT_TABLE,
+    PROFILER_SAMPLE_TABLE,
+    PROFILER_SESSION_TABLE,
     PROFILER_SMAPS_TABLE,
+    PROFILER_TASK_CONTEXT_TABLE,
     STACK_PROFILE_CALLSITE_TABLE,
     STACK_PROFILE_FRAME_TABLE,
     STACK_PROFILE_MAPPING_TABLE,

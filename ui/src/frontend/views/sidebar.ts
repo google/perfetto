@@ -21,9 +21,10 @@ import {isMetatracingEnabled} from '../../core/metatracing';
 import {raf} from '../../core/raf_scheduler';
 import type {SidebarMenuItemInternal} from '../../core/sidebar_manager';
 import type {TraceImpl} from '../../core/trace_impl';
-import {SCM_REVISION, VERSION} from '../../gen/perfetto_version';
+import {SCM_REVISION, VERSION} from '../../virtual/version';
 import type {App} from '../../public/app';
 import {SIDEBAR_SECTIONS, type SidebarSections} from '../../public/sidebar';
+import {getBugReportUrl} from '../../public/utils';
 import {Icon} from '../../widgets/icon';
 import {Animation} from '../animation';
 import {toggleHelp} from '../help_modal';
@@ -213,7 +214,7 @@ function getCurrentTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
     section: 'current_trace',
     sortOrder: 51,
     text: 'Download',
-    action: () => downloadTrace(trace),
+    action: async () => await downloadTrace(trace),
     icon: 'file_download',
     disabled: downloadDisabled,
   });
@@ -279,14 +280,6 @@ function getSupportGlobalItems(app: App): SidebarMenuItemInternal[] {
       icon: 'bug_report',
     },
   ];
-}
-
-function getBugReportUrl(app: App): string {
-  if (app.isInternalUser) {
-    return 'https://goto.google.com/perfetto-ui-bug';
-  } else {
-    return 'https://github.com/google/perfetto/issues/new';
-  }
 }
 
 // Returns trace-specific menu items for the 'support' section.

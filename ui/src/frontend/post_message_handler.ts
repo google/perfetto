@@ -22,6 +22,7 @@ import type {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
 import {BUCKET_NAME, isValidGcsFileName} from '../base/gcs_uploader';
 import {notifyPostMessageBus} from '../public/post_message_bus';
+import {toArrayBuffer} from '../base/utils';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -34,8 +35,11 @@ interface PostedTrace {
   // The hash of the app state to load from GCS after the trace is loaded
   appStateHash?: string;
 
-  // if |localOnly| is true then the trace should not be shared or downloaded.
-  localOnly?: boolean;
+  // Whether the UI may share the trace externally (e.g. upload it to GCS
+  // as a permalink) and/or download it to disk. Both default to false:
+  // traces pushed via postMessage are local-only unless the sender opts in.
+  shareable?: boolean;
+  downloadable?: boolean;
   keepApiOpen?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
@@ -49,8 +53,21 @@ interface PostedTrace {
   pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }
 
+// The raw, un-sanitized trace as received over postMessage(). Senders routinely
+// pass a view (e.g. Uint8Array) for |buffer| despite PostedTrace typing it as a
+// pure ArrayBuffer, so model that here. sanitizePostedTrace() normalizes it.
+interface RawPostedTrace extends Omit<PostedTrace, 'buffer'> {
+  buffer: ArrayBuffer | ArrayBufferView;
+
+  // Legacy field: senders that predate the shareable/downloadable split may
+  // still pass |localOnly|. localOnly: false opts into both sharing and
+  // downloading; anything else (or absent) keeps the trace local-only.
+  // Translated in sanitizePostedTrace().
+  localOnly?: boolean;
+}
+
 interface PostedTraceWrapped {
-  perfetto: PostedTrace;
+  perfetto: RawPostedTrace;
 }
 
 interface PostedScrollToRangeWrapped {
@@ -121,6 +138,25 @@ function saveUserTrustedOrigin(hostname: string) {
 // the 'perfettoIgnore' field in the event data.
 function shouldGracefullyIgnoreMessage(messageEvent: MessageEvent) {
   return messageEvent.data.perfettoIgnore === true;
+}
+
+export function parsePostedTrace(
+  data: MessageEvent['data'],
+): PostedTrace | undefined {
+  if (isPostedTraceWrapped(data)) {
+    return sanitizePostedTrace(data.perfetto);
+  } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    return {
+      title: 'External trace',
+      // A bare buffer gives the sender no way to opt into sharing or
+      // downloading, so both default to false (matching the wrapped path).
+      shareable: false,
+      downloadable: false,
+      buffer: toArrayBuffer(data),
+    };
+  } else {
+    return undefined;
+  }
 }
 
 // The message handler supports loading traces from an ArrayBuffer.
@@ -200,22 +236,15 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     return;
   }
 
-  let postedTrace: PostedTrace;
-  let keepApiOpen = false;
-  if (isPostedTraceWrapped(messageEvent.data)) {
-    postedTrace = sanitizePostedTrace(messageEvent.data.perfetto);
-    if (postedTrace.keepApiOpen) {
-      keepApiOpen = true;
-    }
-  } else if (messageEvent.data instanceof ArrayBuffer) {
-    postedTrace = {title: 'External trace', buffer: messageEvent.data};
-  } else {
-    // Broadcast the event on the public post-message bus so plugins (which are
-    // not allowed to import from /frontend) can react to messages. We do this
-    // after the early-exit guards above so plugins only see messages from
-    // legitimate sources, after the document is ready, and that weren't
-    // gracefully ignored. We fire-and-forget; listener exceptions must not
-    // affect the built-in routing below.
+  const postedTrace = parsePostedTrace(messageEvent.data);
+  if (!postedTrace) {
+    // If not a standard posted trace then broadcast the event on the public
+    // post-message bus so plugins (which are not allowed to import from
+    // /frontend) can react to messages. We do this after the early-exit guards
+    // above so plugins only see messages from legitimate sources, after the
+    // document is ready, and that weren't gracefully ignored. We
+    // fire-and-forget; listener exceptions must not affect the built-in
+    // routing below.
     void notifyPostMessageBus(messageEvent);
     return;
   }
@@ -224,7 +253,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     throw new Error('Incoming message trace buffer is empty');
   }
 
-  if (!keepApiOpen) {
+  if (!postedTrace.keepApiOpen) {
     /* Removing this event listener to avoid callers posting the trace multiple
      * times. If the callers add an event listener which upon receiving 'PONG'
      * posts the trace to ui.perfetto.dev, the callers can receive multiple
@@ -303,17 +332,27 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   });
 }
 
-function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
+function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
+  // Translate the legacy |localOnly| field. Absent localOnly defaults to true
+  // (local-only); localOnly: false opts into both sharing and downloading.
+  // Explicit shareable/downloadable fields win over the legacy field.
+  const localOnly = postedTrace.localOnly ?? true;
   const result: PostedTrace = {
     title: sanitizeString(postedTrace.title),
-    buffer: postedTrace.buffer,
+    // Senders routinely pass a view (e.g. Uint8Array) despite the static type;
+    // normalize to a pure ArrayBuffer at the boundary. See b/390473162.
+    buffer: toArrayBuffer(postedTrace.buffer),
     keepApiOpen: postedTrace.keepApiOpen,
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace, unless the caller allows it.
-    localOnly: postedTrace.localOnly ?? true,
+    shareable: postedTrace.shareable ?? !localOnly,
+    downloadable: postedTrace.downloadable ?? !localOnly,
     appStateHash: postedTrace.appStateHash,
     pluginArgs: postedTrace.pluginArgs,
   };
+  if (postedTrace.fileName !== undefined) {
+    result.fileName = sanitizeString(postedTrace.fileName);
+  }
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);
   }
@@ -372,8 +411,13 @@ function isPostedTraceWrapped(obj: any): obj is PostedTraceWrapped {
   if (wrapped.perfetto === undefined) {
     return false;
   }
+  // Senders routinely pass a view (e.g. Uint8Array) for |buffer| despite the
+  // static ArrayBuffer type, so accept either. Anything else (string, number,
+  // undefined) is rejected here rather than slipping through and being treated
+  // as an ArrayBuffer downstream.
+  const buffer = wrapped.perfetto.buffer;
   return (
-    wrapped.perfetto.buffer !== undefined &&
-    wrapped.perfetto.title !== undefined
+    (buffer instanceof ArrayBuffer || ArrayBuffer.isView(buffer)) &&
+    typeof wrapped.perfetto.title === 'string'
   );
 }

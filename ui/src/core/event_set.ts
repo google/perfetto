@@ -192,9 +192,9 @@ export interface Sort {
 // Together this means in the minimal case subclasses only *have* to
 // implement the single abstract method: materialise(). Everything else
 // is handled for you.
-export abstract class OptimisingEventSet<P extends KeySet>
-  implements EventSet<P>
-{
+export abstract class OptimisingEventSet<
+  P extends KeySet,
+> implements EventSet<P> {
   abstract readonly keys: P;
 
   // OptimisingEventSet provides the synchronous refinement methods.
@@ -293,7 +293,7 @@ class NaiveFilterEventSet<P extends KeySet>
     const events = concreteParent.events;
     let total = 0;
     for (const e of events) {
-      if (this.filters.every((f) => f.execute(e))) {
+      if (this.filters.every((f) => Boolean(f.execute(e)))) {
         total += 1;
       }
     }
@@ -305,7 +305,7 @@ class NaiveFilterEventSet<P extends KeySet>
     const concreateParent = await this.parent.materialise(keys);
     const events = concreateParent.events;
     for (const e of events) {
-      if (this.filters.every((f) => f.execute(e))) {
+      if (this.filters.every((f) => Boolean(f.execute(e)))) {
         return false;
       }
     }
@@ -321,7 +321,7 @@ class NaiveFilterEventSet<P extends KeySet>
     const concreateParent = await this.parent.materialise(combined);
     let events = concreateParent.events;
     for (const filter of this.filters) {
-      events = events.filter((e) => filter.execute(e));
+      events = events.filter((e) => Boolean(filter.execute(e)));
     }
     return new ConcreteEventSet(combined, events).materialise(
       keys,

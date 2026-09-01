@@ -14,7 +14,7 @@
 
 import type {ErrorDetails} from '../base/logging';
 import {getCurrentChannel} from './channels';
-import {VERSION} from '../gen/perfetto_version';
+import {VERSION} from '../virtual/version';
 import {Router} from './router';
 import type {Analytics, TraceCategories} from '../public/analytics';
 
@@ -24,7 +24,7 @@ function isValidUrl(s: string) {
   let url;
   try {
     url = new URL(s);
-  } catch (_) {
+  } catch {
     return false;
   }
   return url.protocol === 'http:' || url.protocol === 'https:';

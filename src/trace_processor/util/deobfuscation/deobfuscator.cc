@@ -15,9 +15,12 @@
  */
 
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
+#include "src/trace_processor/util/simple_json_parser.h"
 
 #include <stdlib.h>
 
+#include <cerrno>
+#include <cstring>
 #include <optional>
 #include <set>
 
@@ -25,6 +28,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
@@ -34,6 +38,18 @@
 namespace perfetto {
 namespace profiling {
 namespace {
+
+using SimpleJsonParser = perfetto::trace_processor::json::SimpleJsonParser;
+using FieldResult = perfetto::trace_processor::json::FieldResult;
+
+// Json keys used to parse merged classes.
+constexpr std::string_view kMergedClassesId =
+    "com.android.tools.r8.mergedClasses";
+constexpr std::string_view kIdKey = "id";
+constexpr std::string_view kClassNameKey = "name";
+constexpr std::string_view kClassIdKey = "classId";
+constexpr std::string_view kClassIdFieldKey = "classIdField";
+constexpr std::string_view kMergedClassesKey = "mergedClasses";
 
 struct ProguardClass {
   std::string obfuscated_name;
@@ -76,6 +92,111 @@ std::optional<ProguardClass> ParseClass(std::string line) {
   }
   return ProguardClass{std::move(obfuscated_name),
                        std::move(deobfuscated_name)};
+}
+
+// Forward declaration.
+base::Status ParseMergedClass(SimpleJsonParser& parser,
+                              ObfuscatedClass::MergedClass& out);
+
+// Parses common fields for MergedClasses (classIdField and mergedClasses).
+FieldResult ParseMergedClassesField(SimpleJsonParser& parser,
+                                    std::string_view key,
+                                    ObfuscatedClass::MergedClasses& mcs) {
+  if (key == kClassIdFieldKey) {
+    if (auto val = parser.GetString()) {
+      mcs.class_id_field_name = std::string(*val);
+    } else {
+      return base::Status("Expected class id field name.");
+    }
+    return FieldResult::Handled{};
+  }
+  if (key == kMergedClassesKey) {
+    if (!parser.IsArray()) {
+      return base::Status("Expected array for mergedClasses.");
+    }
+    base::Status array_status =
+        parser.ForEachArrayElement([&]() -> base::Status {
+          ObfuscatedClass::MergedClass mc;
+          RETURN_IF_ERROR(ParseMergedClass(parser, mc));
+          mcs.merged_classes.push_back(std::move(mc));
+          return base::OkStatus();
+        });
+    return FieldResult(array_status);
+  }
+  return FieldResult::Skip{};
+}
+
+// Parses a single MergedClass entry from R8 mergedClasses JSON.
+base::Status ParseMergedClass(SimpleJsonParser& parser,
+                              ObfuscatedClass::MergedClass& out) {
+  return parser.ForEachField([&](std::string_view key) -> FieldResult {
+    if (key == kClassNameKey) {
+      if (auto val = parser.GetString()) {
+        out.name = std::string(*val);
+      } else {
+        return base::Status("Expected class name.");
+      }
+      return FieldResult::Handled{};
+    }
+    if (key == kClassIdKey) {
+      if (auto val_str = parser.GetString()) {
+        if (auto parsed_val = base::StringViewToInt32(*val_str)) {
+          out.class_id = *parsed_val;
+        } else {
+          return base::Status("Invalid class id format in string.");
+        }
+      } else if (auto val_int = parser.GetInt64();
+                 val_int.has_value() &&
+                 val_int.value() >= std::numeric_limits<int32_t>::min() &&
+                 val_int.value() <= std::numeric_limits<int32_t>::max()) {
+        out.class_id = static_cast<int32_t>(*val_int);
+      } else {
+        return base::Status("Expected class id.");
+      }
+      return FieldResult::Handled{};
+    }
+    FieldResult res =
+        ParseMergedClassesField(parser, key, out.nested_merged_classes);
+    if (!res.handled) {
+      PERFETTO_DLOG("Unknown field in merged class JSON: %.*s",
+                    static_cast<int>(key.size()), key.data());
+    }
+    return res;
+  });
+}
+
+// Parses R8 `com.android.tools.r8.mergedClasses` JSON comment string in
+// Proguard mapping.
+base::Status ParseMergedClassesComment(std::string_view json_str,
+                                       ObfuscatedClass& target_class) {
+  if (json_str.find(kMergedClassesKey) == std::string_view::npos) {
+    // Avoid full parsing if possible.
+    return base::OkStatus();
+  }
+  SimpleJsonParser parser(json_str);
+  RETURN_IF_ERROR(parser.Parse());
+
+  bool is_merged_classes_id = false;
+  ObfuscatedClass::MergedClasses mcs;
+
+  base::Status s =
+      parser.ForEachField([&](std::string_view key) -> FieldResult {
+        if (key == kIdKey) {
+          if (auto val = parser.GetString()) {
+            if (*val == kMergedClassesId) {
+              is_merged_classes_id = true;
+            }
+          }
+          return FieldResult::Handled{};
+        }
+        return ParseMergedClassesField(parser, key, mcs);
+      });
+  RETURN_IF_ERROR(s);
+
+  if (is_merged_classes_id) {
+    *target_class.mutable_merged_classes() = std::move(mcs);
+  }
+  return base::OkStatus();
 }
 
 enum class ProguardMemberType {
@@ -332,8 +453,24 @@ std::map<std::string, std::string> ObfuscatedClass::deobfuscated_methods()
 // file format we are parsing.
 base::Status ProguardParser::AddLine(std::string line) {
   auto first_ch_pos = line.find_first_not_of(" \t");
-  if (first_ch_pos == std::string::npos || line[first_ch_pos] == '#')
+  if (first_ch_pos == std::string::npos)
     return base::Status();
+
+  if (line[first_ch_pos] == '#') {
+    if (current_class_ == nullptr) {
+      return base::Status();
+    }
+    size_t json_start = line.find('{');
+    if (json_start != std::string::npos) {
+      std::string_view json_sv = std::string_view(line).substr(json_start);
+      base::Status s = ParseMergedClassesComment(json_sv, *current_class_);
+      if (!s.ok()) {
+        PERFETTO_ELOG("Failed to parse merged classes comment: %s\non line %s",
+                      s.message().c_str(), line.c_str());
+      }
+    }
+    return base::Status();
+  }
 
   bool is_member = line[0] == ' ';
   if (is_member && !current_class_) {
@@ -405,6 +542,35 @@ bool ProguardParser::AddLines(std::string contents) {
   return true;
 }
 
+static void SerializeMergedClasses(
+    const profiling::ObfuscatedClass::MergedClasses& src,
+    perfetto::protos::pbzero::ObfuscatedClass::MergedClasses* dest) {
+  if (!src.class_id_field_name.empty()) {
+    dest->set_class_id_field_name(src.class_id_field_name);
+  }
+  for (const auto& mc : src.merged_classes) {
+    auto* dest_mc = dest->add_merged_classes();
+    if (!mc.name.empty()) {
+      dest_mc->set_name(mc.name);
+    }
+    if (mc.class_id.has_value()) {
+      dest_mc->set_class_id(*mc.class_id);
+    }
+    if (!mc.nested_merged_classes.merged_classes.empty()) {
+      SerializeMergedClasses(mc.nested_merged_classes,
+                             dest_mc->set_merged_classes());
+    }
+  }
+}
+
+static void SerializeTopLevelMergedClasses(
+    const profiling::ObfuscatedClass::MergedClasses& src,
+    perfetto::protos::pbzero::ObfuscatedClass* dest) {
+  if (!src.merged_classes.empty()) {
+    SerializeMergedClasses(src, dest->set_merged_classes());
+  }
+}
+
 void MakeDeobfuscationPackets(
     const std::string& package_name,
     const std::map<std::string, profiling::ObfuscatedClass>& mapping,
@@ -447,26 +613,30 @@ void MakeDeobfuscationPackets(
         proto_member->set_source_line_end(*method.source_line_end);
       }
     }
+    SerializeTopLevelMergedClasses(cls.merged_classes(), proto_class);
   }
   callback(trace.SerializeAsString());
 }
 
-bool ReadProguardMapsToDeobfuscationPackets(
+base::Status ReadProguardMapsToDeobfuscationPackets(
     const std::vector<ProguardMap>& maps,
     std::function<void(std::string)> fn) {
   for (const ProguardMap& map : maps) {
     const char* filename = map.filename.c_str();
     base::ScopedFstream f = base::OpenFstream(filename, base::kFopenReadFlag);
     if (!f) {
-      PERFETTO_ELOG("Failed to open %s", filename);
-      return false;
+      return base::ErrStatus("failed to open ProGuard map %s (errno: %d, %s)",
+                             filename, errno, strerror(errno));
     }
     profiling::ProguardParser parser;
     std::string contents;
-    PERFETTO_CHECK(base::ReadFileStream(*f, &contents));
+    if (!base::ReadFileStream(*f, &contents)) {
+      return base::ErrStatus("failed to read ProGuard map %s", filename);
+    }
     if (!parser.AddLines(std::move(contents))) {
-      PERFETTO_ELOG("Failed to parse %s", filename);
-      return false;
+      return base::ErrStatus(
+          "failed to parse ProGuard map %s (not a valid mapping.txt)",
+          filename);
     }
     std::map<std::string, profiling::ObfuscatedClass> obfuscation_map =
         parser.ConsumeMapping();
@@ -476,7 +646,7 @@ bool ReadProguardMapsToDeobfuscationPackets(
     // profile.
     MakeDeobfuscationPackets(map.package, obfuscation_map, fn);
   }
-  return true;
+  return base::OkStatus();
 }
 
 std::vector<ProguardMap> GetPerfettoProguardMapPath() {

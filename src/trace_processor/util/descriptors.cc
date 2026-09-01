@@ -40,6 +40,24 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+// Types deleted from the schema that an old trace's embedded descriptor may
+// still reference (e.g. https://github.com/google/perfetto/pull/6308). Such
+// fields are skipped rather than failing the trace.
+// TODO(b/524094370): harden this once traces predating the removals age out.
+bool IsIntentionallyRemovedType(const std::string& raw_type_name) {
+  static const char* const kRemovedTypes[] = {
+      ".perfetto.protos.AndroidCameraFrameEvent",
+      ".perfetto.protos.AndroidCameraSessionStats",
+  };
+  for (const char* removed : kRemovedTypes) {
+    if (raw_type_name == removed) {
+      return true;
+    }
+  }
+  return false;
+}
+
 FieldDescriptor CreateFieldFromDecoder(
     const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
     bool is_extension) {
@@ -83,15 +101,26 @@ base::Status CheckExtensionField(
     return base::OkStatus();
   }
 
-  if (field.type() != existing_field->type()) {
+  // A re-declared scalar is fine as long as its wire type is unchanged (e.g.
+  // bool -> uint32, https://github.com/google/perfetto/pull/6082): the bytes
+  // stay decodable. Reject only wire-type changes.
+  // TODO(b/524094370): harden this once traces predating the widening age out.
+  using protozero::proto_utils::ProtoSchemaToWireType;
+  using protozero::proto_utils::ProtoSchemaType;
+  if (ProtoSchemaToWireType(static_cast<ProtoSchemaType>(field.type())) !=
+      ProtoSchemaToWireType(
+          static_cast<ProtoSchemaType>(existing_field->type()))) {
     return base::ErrStatus("Field %s is re-introduced with different type",
                            field.name().c_str());
   }
 
-  const bool is_msg_or_enum =
-      field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
-      field.type() == FieldDescriptorProto::TYPE_ENUM;
-  if (is_msg_or_enum &&
+  const bool both_messages =
+      field.type() == FieldDescriptorProto::TYPE_MESSAGE &&
+      existing_field->type() == FieldDescriptorProto::TYPE_MESSAGE;
+  const bool both_enums =
+      field.type() == FieldDescriptorProto::TYPE_ENUM &&
+      existing_field->type() == FieldDescriptorProto::TYPE_ENUM;
+  if ((both_messages || both_enums) &&
       field.raw_type_name() != existing_field->raw_type_name()) {
     // Same tag, same fundamental type, but the message/enum is named
     // differently (e.g. a package rename during an out-of-tree migration).
@@ -141,6 +170,13 @@ bool AreEnumValuesCompatible(const ProtoDescriptor& existing,
     }
   }
   return true;
+}
+
+// True if the bool option |option_number| is set on |field|.
+bool FieldBoolOption(const FieldDescriptor& field, uint32_t option_number) {
+  protozero::ProtoDecoder opt(field.options().data(), field.options().size());
+  auto f = opt.FindField(option_number);
+  return f.valid() && f.as_bool();
 }
 
 }  // namespace
@@ -444,6 +480,9 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         auto opt_desc =
             ResolveShortType(descriptor.full_name(), field.raw_type_name());
         if (!opt_desc.has_value()) {
+          if (IsIntentionallyRemovedType(field.raw_type_name())) {
+            continue;
+          }
           return base::ErrStatus(
               "Unable to find short type %s in field inside message %s",
               field.raw_type_name().c_str(), descriptor.full_name().c_str());
@@ -457,16 +496,30 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
   // Fourth pass: verify deferred type checks are structurally compatible
   // now that all field types have been resolved.
   for (const auto& check : extension_type_checks) {
+    if (check.existing_raw_type.empty() || check.new_raw_type.empty()) {
+      continue;
+    }
     std::optional<uint32_t> opt_existing_idx =
         ResolveShortType(check.extendee_full_name, check.existing_raw_type);
     std::optional<uint32_t> opt_new_idx =
         ResolveShortType(check.extendee_full_name, check.new_raw_type);
+    // Both types must resolve before we can compare; either can be absent.
+    //  - existing: TP's pool may reference a type whose definition wasn't
+    //  loaded.
+    //  - new: trace's descriptor may name a type without including its
+    //  definition.
     if (!opt_existing_idx.has_value() || !opt_new_idx.has_value()) {
-      return base::ErrStatus(
-          "Field %s re-introduced as %s (was %s): cannot verify "
-          "compatibility because a type could not be resolved",
+      // A type isn't in the pool: normal for a trace recorded before an
+      // out-of-tree migration renamed it. Can't compare structurally, but the
+      // tag and wire type already matched and the existing definition is kept,
+      // so the field still decodes. Tolerate rather than reject the trace.
+      // TODO(b/524094370): harden this once OOT migrations stabilize.
+      PERFETTO_DLOG(
+          "Field %s re-introduced as %s (was %s): unresolved type, "
+          "skipping compatibility check",
           check.field_name.c_str(), check.new_raw_type.c_str(),
           check.existing_raw_type.c_str());
+      continue;
     }
     std::set<CanonicalDescriptorPair> comparisons_in_progress;
     if (!DescriptorsStructurallyEqual(opt_existing_idx.value(),
@@ -480,7 +533,8 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     }
   }
 
-  // Fifth pass: resolve all "uninterpreted" options to real options.
+  // Fifth pass: interpret options and resolve Perfetto's custom field options.
+  const CustomOptionNumbers option_numbers = FindCustomOptionNumbers();
   for (ProtoDescriptor& descriptor : descriptors_) {
     for (auto& entry : *descriptor.mutable_fields()) {
       FieldDescriptor& field = entry.second;
@@ -488,6 +542,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
         continue;
       }
       ResolveUninterpretedOption(descriptor, field, *field.mutable_options());
+      ResolveCustomFieldOptions(descriptor, option_numbers, &field);
     }
   }
   return base::OkStatus();
@@ -577,6 +632,55 @@ base::Status DescriptorPool::ResolveUninterpretedOption(
   return base::OkStatus();
 }
 
+void DescriptorPool::ResolveFlagsEnumOption(const ProtoDescriptor& descriptor,
+                                            uint32_t option_number,
+                                            FieldDescriptor* field) {
+  protozero::ProtoDecoder opt(field->options().data(), field->options().size());
+  auto f = opt.FindField(option_number);
+  if (!f.valid()) {
+    return;
+  }
+  if (auto enum_idx =
+          ResolveShortType(descriptor.full_name(), f.as_std_string())) {
+    field->set_flags_enum_descriptor_idx(*enum_idx);
+  }
+}
+
+DescriptorPool::CustomOptionNumbers DescriptorPool::FindCustomOptionNumbers()
+    const {
+  CustomOptionNumbers numbers;
+  auto idx = FindDescriptorIdx(".google.protobuf.FieldOptions");
+  if (!idx) {
+    return numbers;
+  }
+  const ProtoDescriptor& field_options = descriptors_[*idx];
+  if (const auto* opt = field_options.FindFieldByName("flags_enum")) {
+    numbers.flags_enum = opt->number();
+  }
+  if (const auto* opt = field_options.FindFieldByName("is_pid")) {
+    numbers.pid = opt->number();
+  }
+  if (const auto* opt = field_options.FindFieldByName("is_tid")) {
+    numbers.tid = opt->number();
+  }
+  return numbers;
+}
+
+void DescriptorPool::ResolveCustomFieldOptions(
+    const ProtoDescriptor& descriptor,
+    const CustomOptionNumbers& numbers,
+    FieldDescriptor* field) {
+  if (numbers.flags_enum) {
+    ResolveFlagsEnumOption(descriptor, *numbers.flags_enum, field);
+  }
+  if (numbers.pid && FieldBoolOption(*field, *numbers.pid)) {
+    field->set_is_pid(true);
+  }
+  if (numbers.tid && FieldBoolOption(*field, *numbers.tid)) {
+    field->set_is_tid(true);
+  }
+}
+
 std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
     const std::string& full_name) const {
   auto it = full_name_to_descriptor_index_.find(full_name);
@@ -584,6 +688,44 @@ std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
     return std::nullopt;
   }
   return it->second;
+}
+
+std::optional<std::string> DescriptorPool::FindEnumString(
+    CachedDescriptor& cache,
+    std::string_view enum_name,
+    int32_t value) const {
+  if (!cache.descriptor_idx_) {
+    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
+  }
+  if (!cache.descriptor_idx_) {
+    return std::nullopt;
+  }
+  return descriptors_[*cache.descriptor_idx_].FindEnumString(value);
+}
+
+int64_t DescriptorPool::FlagSetToViews(
+    uint32_t enum_descriptor_idx,
+    int64_t mask,
+    std::vector<std::string_view>* out) const {
+  const ProtoDescriptor& desc = descriptors_[enum_descriptor_idx];
+  if (desc.type() != ProtoDescriptor::Type::kEnum) {
+    return mask;
+  }
+  const auto& names_by_value = desc.enum_values_by_number();
+  uint64_t unmatched = 0;
+  for (auto bits = static_cast<uint64_t>(mask); bits != 0; bits &= bits - 1) {
+    uint64_t flag = bits & ~(bits - 1);  // lowest set bit
+    // int32 enum values: only bits 0..31 can match (bit 31 = INT32_MIN).
+    auto it = flag < (uint64_t{1} << 32)
+                  ? names_by_value.find(static_cast<int32_t>(flag))
+                  : names_by_value.end();
+    if (it != names_by_value.end()) {
+      out->push_back(it->second);
+    } else {
+      unmatched |= flag;
+    }
+  }
+  return static_cast<int64_t>(unmatched);
 }
 
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {

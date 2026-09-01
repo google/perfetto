@@ -1883,6 +1883,8 @@ source_set("zstd") {
     "zstd/lib/compress/zstd_ldm_geartab.h",
     "zstd/lib/compress/zstd_opt.c",
     "zstd/lib/compress/zstd_opt.h",
+    "zstd/lib/compress/zstd_preSplit.c",
+    "zstd/lib/compress/zstd_preSplit.h",
     "zstd/lib/compress/zstdmt_compress.c",
     "zstd/lib/compress/zstdmt_compress.h",
     "zstd/lib/decompress/huf_decompress.c",
@@ -1915,7 +1917,7 @@ config("zstd_config") {
   visibility = _buildtools_visibility
   cflags = [
     perfetto_isystem_cflag,
-    rebase_path("zstd", root_build_dir),
+    rebase_path("zstd/lib", root_build_dir),
   ]
   if (current_cpu == "x64") {
     defines = [ "ZSTD_DISABLE_ASM" ]
@@ -2325,9 +2327,14 @@ if (enable_perfetto_re2) {
     defines = [ "RE2_USE_ABSL" ]
 
     # On Windows, NULL expands to 0 (not nullptr), which triggers this
-    # warning in re2 headers included from our code.
-    if (is_win && is_clang) {
-      cflags = [ "-Wno-zero-as-null-pointer-constant" ]
+    # warning in re2 headers included from our code. The MS ABI bit-field
+    # packing warning fires on the intentional bit-fields in re2/re2/re2.h
+    # and is a false positive on non-Windows targets.
+    if (is_clang) {
+      cflags = [ "-Wno-ms-bitfield-padding" ]
+      if (is_win) {
+        cflags += [ "-Wno-zero-as-null-pointer-constant" ]
+      }
     }
   }
 

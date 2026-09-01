@@ -38,6 +38,7 @@ export class GridFilterChip implements m.ClassComponent<GridFilterChipAttrs> {
       removable: attrs.onRemove !== undefined,
       onRemove: attrs.onRemove,
       removeButtonTitle: 'Remove filter',
+      removeButtonAriaLabel: 'Remove filter',
     });
   }
 }

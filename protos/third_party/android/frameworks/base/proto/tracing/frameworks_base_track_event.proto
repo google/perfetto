@@ -21,6 +21,8 @@
 syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
+import "protos/perfetto/trace/field_options.proto";
+import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.proto";
 
 package com.android.internal;
 
@@ -196,17 +198,90 @@ enum ProcessStateEnum {
   PROCESS_STATE_NONEXISTENT = 1019;
 }
 
+// A bitmask (see the cpu_time_reasons field).
+enum CpuTimeReason {
+  CPU_TIME_REASON_NONE = 0;
+  CPU_TIME_REASON_OTHER = 0x1;               // 1 << 0
+  CPU_TIME_REASON_TRANSMITTED = 0x2;         // 1 << 1
+  CPU_TIME_REASON_TRANSMITTED_LEGACY = 0x4;  // 1 << 2
+  CPU_TIME_REASON_ALLOW_LIST = 0x8;          // 1 << 3
+}
+
+// A bitmask (see the freeze_policy_flags field).
+enum FreezerPolicyFlag {
+  FREEZER_FLAG_UNKNOWN = 0;
+  FREEZER_FLAG_IS_FROZEN = 0x1;             // 1 << 0
+  FREEZER_FLAG_IS_PENDING_FREEZE = 0x2;     // 1 << 1
+  FREEZER_FLAG_FREEZE_IMMEDIATELY = 0x4;    // 1 << 2
+  FREEZER_FLAG_FREEZE_POLICY = 0x8;         // 1 << 3
+  FREEZER_FLAG_AGGRESSIVE_FREEZING = 0x10;  // 1 << 4
+}
+
+// A bitmask; values are the capability flag bits, matching
+// ActivityManager.PROCESS_CAPABILITY_* (see cur_capability_flags field).
 enum ProcessCapabilityEnum {
   PROCESS_CAPABILITY_UNKNOWN = 0;
-  PROCESS_CAPABILITY_FOREGROUND_LOCATION = 1;
-  PROCESS_CAPABILITY_FOREGROUND_CAMERA = 2;
-  PROCESS_CAPABILITY_FOREGROUND_MICROPHONE = 3;
-  PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK = 4;
-  PROCESS_CAPABILITY_BFSL = 5;
-  PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK = 6;
-  PROCESS_CAPABILITY_FOREGROUND_AUDIO_CONTROL = 7;
-  PROCESS_CAPABILITY_CPU_TIME = 8;
-  PROCESS_CAPABILITY_IMPLICIT_CPU_TIME = 9;
+  PROCESS_CAPABILITY_FOREGROUND_LOCATION = 0x1;        // 1 << 0
+  PROCESS_CAPABILITY_FOREGROUND_CAMERA = 0x2;          // 1 << 1
+  PROCESS_CAPABILITY_FOREGROUND_MICROPHONE = 0x4;      // 1 << 2
+  PROCESS_CAPABILITY_POWER_RESTRICTED_NETWORK = 0x8;   // 1 << 3
+  PROCESS_CAPABILITY_BFSL = 0x10;                      // 1 << 4
+  PROCESS_CAPABILITY_USER_RESTRICTED_NETWORK = 0x20;   // 1 << 5
+  PROCESS_CAPABILITY_FOREGROUND_AUDIO_CONTROL = 0x40;  // 1 << 6
+  PROCESS_CAPABILITY_CPU_TIME = 0x80;                  // 1 << 7
+  PROCESS_CAPABILITY_IMPLICIT_CPU_TIME = 0x100;        // 1 << 8
+}
+
+// Bitmask representing various process state flags.
+// See com.android.server.am.psc.ProcStateController.Tracer.TraceFlags for
+// definition. It is used at the flags field of the AndroidProcStateUpdateEvent
+// message.
+enum ProcStateControllerTraceFlags {
+  PROC_STATE_CONTROLLER_TRACE_FLAG_NONE = 0;
+  PROC_STATE_CONTROLLER_TRACE_FLAG_IS_RUNNING = 0x1;                 // 1 << 0
+  PROC_STATE_CONTROLLER_TRACE_FLAG_SYSTEM_PROCESS = 0x2;             // 1 << 1
+  PROC_STATE_CONTROLLER_TRACE_FLAG_PENDING_FINISH_ATTACH = 0x4;      // 1 << 2
+  PROC_STATE_CONTROLLER_TRACE_FLAG_RUNNING_REMOTE_ANIMATION = 0x8;   // 1 << 3
+  PROC_STATE_CONTROLLER_TRACE_FLAG_HAS_ACTIVITIES = 0x10;            // 1 << 4
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVITY_VISIBLE = 0x20;          // 1 << 5
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVITY_PAUSED = 0x40;           // 1 << 6
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVITY_STOPPING = 0x80;         // 1 << 7
+  PROC_STATE_CONTROLLER_TRACE_FLAG_ACTIVE_INSTRUMENTATION = 0x100;   // 1 << 8
+  PROC_STATE_CONTROLLER_TRACE_FLAG_FOREGROUND_SERVICES = 0x200;      // 1 << 9
+  PROC_STATE_CONTROLLER_TRACE_FLAG_NON_SHORT_FGS = 0x400;            // 1 << 10
+  PROC_STATE_CONTROLLER_TRACE_FLAG_EXTERNAL_PROCESS_HANDLE = 0x800;  // 1 << 11
+  PROC_STATE_CONTROLLER_TRACE_FLAG_OVERLAY_UI = 0x1000;              // 1 << 12
+  PROC_STATE_CONTROLLER_TRACE_FLAG_FORCED_TO_IMPORTANT = 0x2000;     // 1 << 13
+  PROC_STATE_CONTROLLER_TRACE_FLAG_TOAST_ACTIVE = 0x4000;            // 1 << 14
+  PROC_STATE_CONTROLLER_TRACE_FLAG_BACKUP_PROCESS = 0x8000;          // 1 << 15
+  PROC_STATE_CONTROLLER_TRACE_FLAG_STARTED_SERVICES = 0x10000;       // 1 << 16
+  PROC_STATE_CONTROLLER_TRACE_FLAG_EXECUTING_SERVICES = 0x20000;     // 1 << 17
+  PROC_STATE_CONTROLLER_TRACE_FLAG_RECEIVING_BROADCAST = 0x40000;    // 1 << 18
+  PROC_STATE_CONTROLLER_TRACE_FLAG_HEAVY_WEIGHT_PROCESS = 0x80000;   // 1 << 19
+  PROC_STATE_CONTROLLER_TRACE_FLAG_HOME_PROCESS = 0x100000;          // 1 << 20
+  PROC_STATE_CONTROLLER_TRACE_FLAG_PROVIDER_RETAIN_TIME = 0x200000;  // 1 << 21
+  PROC_STATE_CONTROLLER_TRACE_FLAG_PREVIOUS_PROCESS = 0x400000;      // 1 << 22
+  PROC_STATE_CONTROLLER_TRACE_FLAG_TREAT_LIKE_ACTIVITY = 0x800000;   // 1 << 23
+  PROC_STATE_CONTROLLER_TRACE_FLAG_CLIENT_ACTIVITIES = 0x1000000;    // 1 << 24
+  PROC_STATE_CONTROLLER_TRACE_FLAG_RECENT_TASKS = 0x2000000;         // 1 << 25
+}
+
+// Bitmask representing known inconsistent behaviors.
+// See com.android.server.am.psc.ProcStateController.Tracer.InconsistentBehavior
+// for definition. It is used at the known_inconsistent_behavior field of the
+// AndroidProcStateUpdateEvent message.
+enum ProcStateControllerInconsistentBehavior {
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_NONE = 0;
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_OTHER_ACTIVITY = 0x1;  // 1 << 0
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_ATTACHING_TOP = 0x2;   // 1 << 1
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_FORCE_IMP = 0x4;       // 1 << 2
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_BACKUP = 0x8;          // 1 << 3
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_CLIENT_ACT_TREAT_LIKE_ACT =
+      0x10;  // 1 << 4
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_PERSISTENT_POLICY =
+      0x20;  // 1 << 5
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_INITIALIZATION_IF_ELSE =
+      0x40;  // 1 << 6
 }
 
 enum AppExitReasonCode {
@@ -227,6 +302,19 @@ enum AppExitReasonCode {
   APP_EXIT_REASON_FREEZER = 14;
   APP_EXIT_REASON_PACKAGE_STATE_CHANGE = 15;
   APP_EXIT_REASON_PACKAGE_UPDATED = 16;
+  APP_EXIT_REASON_MEMORY_LIMITER = 17;
+}
+
+// Bitfield flags for AndroidCapabilityUpdateEvent.flags.
+// Multiple flags may be bitwise-ORed together.
+enum CapabilityUpdateFlag {
+  CAPABILITY_UPDATE_FLAG_UNKNOWN = 0;
+  CAPABILITY_UPDATE_FLAG_ACTIVE_INSTRUMENTATION = 0x1;    // 1 << 0
+  CAPABILITY_UPDATE_FLAG_RUNNING_REMOTE_ANIMATION = 0x2;  // 1 << 1
+  CAPABILITY_UPDATE_FLAG_FOREGROUND_SERVICES = 0x4;       // 1 << 2
+  CAPABILITY_UPDATE_FLAG_NON_SHORT_FGS = 0x8;             // 1 << 3
+  CAPABILITY_UPDATE_FLAG_PENDING_FINISH_ATTACH = 0x10;    // 1 << 4
+  CAPABILITY_UPDATE_FLAG_FOREGROUND_ACTIVITIES = 0x20;    // 1 << 5
 }
 
 enum AppExitSubReasonCode {
@@ -268,17 +356,33 @@ enum AppExitSubReasonCode {
   APP_EXIT_SUBREASON_ANR_TYPE_BROADCAST_OF_INTENT = 35;
   APP_EXIT_SUBREASON_ANR_TYPE_CONTENT_PROVIDER_NOT_RESPONDING = 36;
   APP_EXIT_SUBREASON_ANR_TYPE_EXECUTING_SERVICE = 37;
+  APP_EXIT_SUBREASON_ANR_TYPE_FOREGROUND_SERVICE_TIMEOUT = 38;
   APP_EXIT_SUBREASON_ANR_TYPE_FOREGROUND_SHORT_SERVICE_TIMEOUT = 39;
+  APP_EXIT_SUBREASON_ANR_TYPE_GPU_HANG = 40;
   APP_EXIT_SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT = 41;
   APP_EXIT_SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW = 42;
+  APP_EXIT_SUBREASON_ANR_TYPE_JOB_SERVICE_BIND = 43;
+  APP_EXIT_SUBREASON_ANR_TYPE_JOB_SERVICE_NOTIFICATION_NOT_PROVIDED = 44;
   APP_EXIT_SUBREASON_ANR_TYPE_JOB_SERVICE_START = 45;
+  APP_EXIT_SUBREASON_ANR_TYPE_JOB_SERVICE_STOP = 46;
   APP_EXIT_SUBREASON_ANR_TYPE_START_FOREGROUND_SERVICE = 47;
+  APP_EXIT_SUBREASON_ANR_TYPE_SYSTEM_SERVER_WATCHDOG_TIMEOUT = 48;
   APP_EXIT_SUBREASON_EXCESSIVE_ENQUEUED_BROADCASTS_COUNT = 49;
+  APP_EXIT_SUBREASON_VOLUME_MOUNT = 50;
+  APP_EXIT_SUBREASON_VOLUME_UNMOUNT = 51;
+  APP_EXIT_SUBREASON_PACKAGE_HIDDEN = 52;
+  APP_EXIT_SUBREASON_PACKAGE_DELETED = 53;
+  APP_EXIT_SUBREASON_PACKAGE_MOVED = 54;
+  APP_EXIT_SUBREASON_APP_DATA_CLEARED = 55;
+  APP_EXIT_SUBREASON_STORAGE_SESSION_RESET = 56;
+  APP_EXIT_SUBREASON_ACTIVITY_LAUNCH_FAILURE = 57;
+  APP_EXIT_SUBREASON_RESTART_ACTIVITY_PROCESS_TIMEOUT = 58;
+  APP_EXIT_SUBREASON_RAPID_ACTIVITY_LAUNCH = 59;
+  APP_EXIT_SUBREASON_CONFIG_RESET_RESTART = 60;
+  APP_EXIT_SUBREASON_PROVIDER_CLIENT_REPORTED_DEATH = 61;
 }
 
 enum Importance {
-  option allow_alias = true;
-
   IMPORTANCE_UNKNOWN = 0;
   IMPORTANCE_FOREGROUND = 100;
   IMPORTANCE_FOREGROUND_SERVICE = 125;
@@ -291,25 +395,25 @@ enum Importance {
   IMPORTANCE_TOP_SLEEPING = 325;
   IMPORTANCE_CANT_SAVE_STATE = 350;
   IMPORTANCE_CACHED = 400;
-  IMPORTANCE_BACKGROUND = 400;
   IMPORTANCE_EMPTY = 500;
   IMPORTANCE_GONE = 1000;
 }
 
+// A bitmask (see the broadcast_type field).
 enum BroadcastType {
   BROADCAST_TYPE_NONE = 0;
-  BROADCAST_TYPE_BACKGROUND = 1;
-  BROADCAST_TYPE_FOREGROUND = 2;
-  BROADCAST_TYPE_ALARM = 4;
-  BROADCAST_TYPE_INTERACTIVE = 8;
-  BROADCAST_TYPE_ORDERED = 16;
-  BROADCAST_TYPE_PRIORITIZED = 32;
-  BROADCAST_TYPE_RESULT_TO = 64;
-  BROADCAST_TYPE_DEFERRABLE_UNTIL_ACTIVE = 128;
-  BROADCAST_TYPE_PUSH_MESSAGE = 256;
-  BROADCAST_TYPE_PUSH_MESSAGE_OVER_QUOTA = 512;
-  BROADCAST_TYPE_STICKY = 1024;
-  BROADCAST_TYPE_INITIAL_STICKY = 2048;
+  BROADCAST_TYPE_BACKGROUND = 0x1;                 // 1 << 0
+  BROADCAST_TYPE_FOREGROUND = 0x2;                 // 1 << 1
+  BROADCAST_TYPE_ALARM = 0x4;                      // 1 << 2
+  BROADCAST_TYPE_INTERACTIVE = 0x8;                // 1 << 3
+  BROADCAST_TYPE_ORDERED = 0x10;                   // 1 << 4
+  BROADCAST_TYPE_PRIORITIZED = 0x20;               // 1 << 5
+  BROADCAST_TYPE_RESULT_TO = 0x40;                 // 1 << 6
+  BROADCAST_TYPE_DEFERRABLE_UNTIL_ACTIVE = 0x80;   // 1 << 7
+  BROADCAST_TYPE_PUSH_MESSAGE = 0x100;             // 1 << 8
+  BROADCAST_TYPE_PUSH_MESSAGE_OVER_QUOTA = 0x200;  // 1 << 9
+  BROADCAST_TYPE_STICKY = 0x400;                   // 1 << 10
+  BROADCAST_TYPE_INITIAL_STICKY = 0x800;           // 1 << 11
 }
 
 enum HostingTypeId {
@@ -328,42 +432,8 @@ enum HostingTypeId {
   HOSTING_TYPE_SYSTEM = 12;
   HOSTING_TYPE_TOP_ACTIVITY = 13;
   HOSTING_TYPE_EMPTY = 14;
-}
-
-enum UnfreezeReason {
-  UFR_NONE = 0;
-  UFR_ACTIVITY = 1;
-  UFR_FINISH_RECEIVER = 2;
-  UFR_START_RECEIVER = 3;
-  UFR_BIND_SERVICE = 4;
-  UFR_UNBIND_SERVICE = 5;
-  UFR_START_SERVICE = 6;
-  UFR_GET_PROVIDER = 7;
-  UFR_REMOVE_PROVIDER = 8;
-  UFR_UI_VISIBILITY = 9;
-  UFR_ALLOWLIST = 10;
-  UFR_PROCESS_BEGIN = 11;
-  UFR_PROCESS_END = 12;
-  UFR_TRIM_MEMORY = 13;
-  UFR_PING = 15;
-  UFR_FILE_LOCKS = 16;
-  UFR_FILE_LOCK_CHECK_FAILURE = 17;
-  UFR_BINDER_TXNS = 18;
-  UFR_FEATURE_FLAGS = 19;
-  UFR_SHORT_FGS_TIMEOUT = 20;
-  UFR_SYSTEM_INIT = 21;
-  UFR_BACKUP = 22;
-  UFR_SHELL = 23;
-  UFR_REMOVE_TASK = 24;
-  UFR_UID_IDLE = 25;
-  UFR_STOP_SERVICE = 26;
-  UFR_EXECUTING_SERVICE = 27;
-  UFR_RESTRICTION_CHANGE = 28;
-  UFR_COMPONENT_DISABLED = 29;
-  UFR_OOM_ADJ_FOLLOW_UP = 30;
-  UFR_OOM_ADJ_RECONFIGURATION = 31;
-  UFR_OOM_ADJ_REASON_SERVICE_BINDER_CALL = 32;
-  UFR_OOM_ADJ_REASON_BATCH_UPDATE_REQUEST = 33;
+  HOSTING_TYPE_STARTED_SERVICE = 15;
+  HOSTING_TYPE_BOUND_SERVICE = 16;
 }
 
 enum TriggerType {
@@ -372,6 +442,12 @@ enum TriggerType {
   TRIGGER_TYPE_PUSH_MESSAGE = 2;
   TRIGGER_TYPE_PUSH_MESSAGE_OVER_QUOTA = 3;
   TRIGGER_TYPE_JOB = 4;
+}
+
+enum HostingZygoteVariant {
+  HOSTING_ZYGOTE_VARIANT_UNKNOWN = 0;
+  HOSTING_ZYGOTE_VARIANT_LEGACY = 1;
+  HOSTING_ZYGOTE_VARIANT_NATIVE = 2;
 }
 
 enum OomChangeReasonEnum {
@@ -404,18 +480,101 @@ enum OomChangeReasonEnum {
   OOM_ADJ_REASON_BATCH_UPDATE_REQUEST = 26;
 }
 
+enum ServiceRestartReason {
+  SERVICE_RESTART_REASON_UNKNOWN = 0;
+  SERVICE_RESTART_REASON_START_REQUESTED = 1;
+  SERVICE_RESTART_REASON_CONNECTION = 2;
+  SERVICE_RESTART_REASON_FORCED = 3;
+  SERVICE_RESTART_REASON_PERSISTENT = 4;
+}
+
+// A bitmask (see the intent_flags field).
+enum BroadcastIntentFlag {
+  BROADCAST_INTENT_FLAG_UNKNOWN = 0;
+  BROADCAST_INTENT_FLAG_RECEIVER_OFFLOAD_FOREGROUND = 0x00000800;  // 1 << 11
+  BROADCAST_INTENT_FLAG_RECEIVER_VISIBLE_TO_INSTANT_APPS =
+      0x00200000;                                                  // 1 << 21
+  BROADCAST_INTENT_FLAG_RECEIVER_FROM_SHELL = 0x00400000;          // 1 << 22
+  BROADCAST_INTENT_FLAG_RECEIVER_EXCLUDE_BACKGROUND = 0x00800000;  // 1 << 23
+  BROADCAST_INTENT_FLAG_RECEIVER_INCLUDE_BACKGROUND = 0x01000000;  // 1 << 24
+  BROADCAST_INTENT_FLAG_RECEIVER_BOOT_UPGRADE = 0x02000000;        // 1 << 25
+  BROADCAST_INTENT_FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT =
+      0x04000000;                                               // 1 << 26
+  BROADCAST_INTENT_FLAG_RECEIVER_NO_ABORT = 0x08000000;         // 1 << 27
+  BROADCAST_INTENT_FLAG_RECEIVER_FOREGROUND = 0x10000000;       // 1 << 28
+  BROADCAST_INTENT_FLAG_RECEIVER_REPLACE_PENDING = 0x20000000;  // 1 << 29
+  BROADCAST_INTENT_FLAG_RECEIVER_REGISTERED_ONLY = 0x40000000;  // 1 << 30
+  BROADCAST_INTENT_FLAG_RECEIVER_OFFLOAD = -2147483648;         // 1 << 31
+}
+
+// A bitmask (see the bind_flags field).
+enum ServiceBindFlag {
+  SERVICE_BIND_FLAG_UNKNOWN = 0;
+  SERVICE_BIND_FLAG_AUTO_CREATE = 0x0001;                         // 1 << 0
+  SERVICE_BIND_FLAG_DEBUG_UNBIND = 0x0002;                        // 1 << 1
+  SERVICE_BIND_FLAG_NOT_FOREGROUND = 0x0004;                      // 1 << 2
+  SERVICE_BIND_FLAG_ABOVE_CLIENT = 0x0008;                        // 1 << 3
+  SERVICE_BIND_FLAG_ALLOW_OOM_MANAGEMENT = 0x0010;                // 1 << 4
+  SERVICE_BIND_FLAG_WAIVE_PRIORITY = 0x0020;                      // 1 << 5
+  SERVICE_BIND_FLAG_IMPORTANT = 0x0040;                           // 1 << 6
+  SERVICE_BIND_FLAG_ADJUST_WITH_ACTIVITY = 0x0080;                // 1 << 7
+  SERVICE_BIND_FLAG_NOT_PERCEPTIBLE = 0x0100;                     // 1 << 8
+  SERVICE_BIND_FLAG_ALLOW_ACTIVITY_STARTS = 0x0200;               // 1 << 9
+  SERVICE_BIND_FLAG_INCLUDE_CAPABILITIES = 0x1000;                // 1 << 12
+  SERVICE_BIND_FLAG_SHARED_ISOLATED_PROCESS = 0x2000;             // 1 << 13
+  SERVICE_BIND_FLAG_PACKAGE_ISOLATED_PROCESS = 0x4000;            // 1 << 14
+  SERVICE_BIND_FLAG_NOT_APP_COMPONENT_USAGE = 0x8000;             // 1 << 15
+  SERVICE_BIND_FLAG_ALMOST_PERCEPTIBLE = 0x10000;                 // 1 << 16
+  SERVICE_BIND_FLAG_BYPASS_POWER_NETWORK_RESTRICTIONS = 0x20000;  // 1 << 17
+  SERVICE_BIND_FLAG_ALLOW_FOREGROUND_SERVICE_STARTS_FROM_BACKGROUND =
+      0x40000;                                                    // 1 << 18
+  SERVICE_BIND_FLAG_SCHEDULE_LIKE_TOP_APP = 0x80000;              // 1 << 19
+  SERVICE_BIND_FLAG_ALLOW_BACKGROUND_ACTIVITY_STARTS = 0x100000;  // 1 << 20
+  SERVICE_BIND_FLAG_RESTRICT_ASSOCIATIONS = 0x200000;             // 1 << 21
+  SERVICE_BIND_FLAG_ALLOW_INSTANT = 0x400000;                     // 1 << 22
+  SERVICE_BIND_FLAG_IMPORTANT_BACKGROUND = 0x800000;              // 1 << 23
+  SERVICE_BIND_FLAG_ALLOW_WHITELIST_MANAGEMENT = 0x1000000;       // 1 << 24
+  SERVICE_BIND_FLAG_FOREGROUND_SERVICE_WHILE_AWAKE = 0x2000000;   // 1 << 25
+  SERVICE_BIND_FLAG_FOREGROUND_SERVICE = 0x4000000;               // 1 << 26
+  SERVICE_BIND_FLAG_TREAT_LIKE_ACTIVITY = 0x8000000;              // 1 << 27
+  SERVICE_BIND_FLAG_VISIBLE = 0x10000000;                         // 1 << 28
+  SERVICE_BIND_FLAG_SHOWING_UI = 0x20000000;                      // 1 << 29
+  SERVICE_BIND_FLAG_NOT_VISIBLE = 0x40000000;                     // 1 << 30
+  SERVICE_BIND_FLAG_EXTERNAL_SERVICE = -2147483648;               // 1 << 31
+}
+
+// A bitmask (see the foreground_service_type field).
+enum ForegroundServiceTypeFlag {
+  FOREGROUND_SERVICE_TYPE_NONE = 0;
+  FOREGROUND_SERVICE_TYPE_DATA_SYNC = 0x00000001;         // 1 << 0
+  FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK = 0x00000002;    // 1 << 1
+  FOREGROUND_SERVICE_TYPE_PHONE_CALL = 0x00000004;        // 1 << 2
+  FOREGROUND_SERVICE_TYPE_LOCATION = 0x00000008;          // 1 << 3
+  FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE = 0x00000010;  // 1 << 4
+  FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION = 0x00000020;  // 1 << 5
+  FOREGROUND_SERVICE_TYPE_CAMERA = 0x00000040;            // 1 << 6
+  FOREGROUND_SERVICE_TYPE_MICROPHONE = 0x00000080;        // 1 << 7
+  FOREGROUND_SERVICE_TYPE_HEALTH = 0x00000100;            // 1 << 8
+  FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING = 0x00000200;  // 1 << 9
+  FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED = 0x00000400;   // 1 << 10
+  FOREGROUND_SERVICE_TYPE_SHORT_SERVICE = 0x00000800;     // 1 << 11
+  FOREGROUND_SERVICE_TYPE_FILE_MANAGEMENT = 0x00001000;   // 1 << 12
+  FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING = 0x00002000;  // 1 << 13
+  FOREGROUND_SERVICE_TYPE_SPECIAL_USE = 0x40000000;       // 1 << 30
+}
+
 message AndroidBroadcastEvent {
   // The package uid of the broadcast receiver.
   optional int32 receiver_uid = 1;
 
   // The pid of the broadcast receiver.
-  optional int32 receiver_pid = 2;
+  optional int32 receiver_pid = 2 [(perfetto.protos.is_pid) = true];
 
   // The package uid of the broadcast sender.
   optional int32 sender_uid = 3;
 
   // The pid of the broadcast sender.
-  optional int32 sender_pid = 4;
+  optional int32 sender_pid = 4 [(perfetto.protos.is_pid) = true];
 
   // The action name of the broadcast.
   optional string action_name = 5;
@@ -441,13 +600,16 @@ message AndroidBroadcastEvent {
   optional PackageStoppedState package_stopped_state = 11;
 
   // The type of the broadcast. It's a mask of BroadcastType.
-  optional int32 broadcast_type = 12;
+  optional int32 broadcast_type = 12
+      [(perfetto.protos.flags_enum) = ".com.android.internal.BroadcastType"];
 
   // Delivery group policy set for the broadcast.
   optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
 
   // Flags set in the broadcast intent.
-  optional int32 intent_flags = 14;
+  optional int32 intent_flags = 14
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.BroadcastIntentFlag"];
 
   // The intent filter priority of the broadcast receiver.
   optional int32 filter_priority = 15;
@@ -467,7 +629,7 @@ message AndroidFreezerEvent {
   optional int32 uid = 1;
 
   // The pid of the process being frozen or unfrozen.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
 
   // Time since last unfrozen.
   optional int64 unfrozen_dur_ms = 3;
@@ -480,11 +642,11 @@ message AndroidFreezerEvent {
 }
 
 message AndroidProcessStartEvent {
-  // The uid of the ProcessRecord.
+  // Real (kernel) uid of the ProcessRecord.
   optional int32 uid = 1;
 
   // The process pid.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
 
   // The process name.
   optional string process_name = 3;
@@ -503,16 +665,31 @@ message AndroidProcessStartEvent {
 
   // The trigger type for the process start.
   optional TriggerType trigger_type = 8;
+
+  // Whether the process was spawned from the native or legacy zygote variant.
+  optional HostingZygoteVariant hosting_zygote_variant = 9;
+
+  // start sequence id which is assigned to a process during start update
+  optional int64 start_seq_id = 10;
+
+  // The host package uid.
+  optional int32 package_uid = 11;
+
+  // The caller uid. See HostingRecord#getCallerUid.
+  optional int32 caller_uid = 12;
+
+  // The defining uid. See HostingRecord#getDefiningUid.
+  optional int32 defining_uid = 13;
 }
 
 // This can be delayed for up to 15s in some cases. It should typically
 // be paired with AndroidBinderDiedEvent which has less latency.
 message AndroidProcessDiedEvent {
-  // Uid of the package of the dying process.
+  // Real (kernel) uid of the dying process.
   optional int32 uid = 1;
 
   // Pid of the dying process.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
 
   // The process name of the dying process.
   optional string process_name = 3;
@@ -531,27 +708,40 @@ message AndroidProcessDiedEvent {
 
   // Whether or not this process is hosting one or more foreground services.
   optional int32 has_foreground_services = 8;
+
+  // start sequence id which is assigned to a process during start update
+  optional int64 start_seq_id = 9;
+
+  // The host package uid.
+  optional int32 package_uid = 10;
+
+  // The defining uid. See HostingRecord#getDefiningUid.
+  optional int32 defining_uid = 11;
 }
 
 // This is expected to come earlier than AndroidProcessDiedEvent.
 // For death reasons, see AndroidProcessDiedEvent.
 message AndroidBinderDiedEvent {
-  // Uid of the package of the dying process.
+  // The real (kernel) uid of the dying process.
   optional int32 uid = 1;
 
   // Pid of the dying process.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
 
   // The process name of the dying process.
   optional string process_name = 3;
+
+  // start sequence id which is assigned to a process during start update
+  optional int64 start_seq_id = 4;
 }
 
+// See AndroidProcessStateSnapshot in frameworks_base_trace_packet.proto
 message AndroidProcessStateChangedEvent {
   // Uid of the package of the process changing state.
   optional int32 uid = 1;
 
   // Pid of the process changing state.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
 
   // Previous proc state.
   optional ProcessStateEnum prev_proc_state = 3;
@@ -560,10 +750,14 @@ message AndroidProcessStateChangedEvent {
   optional ProcessStateEnum cur_proc_state = 4;
 
   // Previous capability flags.
-  optional int32 prev_capability_flags = 5;
+  optional int32 prev_capability_flags = 5
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
 
   // Current capability flags.
-  optional int32 cur_capability_flags = 6;
+  optional int32 cur_capability_flags = 6
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
 
   // Previous oom score.
   optional int32 prev_oom_score = 7;
@@ -580,20 +774,24 @@ message AndroidProcessStateChangedEvent {
   optional int64 seq_id = 10;
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME.
-  optional int32 cpu_time_reasons = 11;
+  optional int32 cpu_time_reasons = 11
+      [(perfetto.protos.flags_enum) = ".com.android.internal.CpuTimeReason"];
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
-  optional int32 implicit_cpu_time_reasons = 12;
+  optional int32 implicit_cpu_time_reasons = 12
+      [(perfetto.protos.flags_enum) = ".com.android.internal.CpuTimeReason"];
 
   // Bitfield to represent boolean freeze policy states.
-  optional int32 freeze_policy_flags = 13;
+  optional int32 freeze_policy_flags = 13
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.FreezerPolicyFlag"];
 }
 
 message AndroidServiceStateChangedEvent {
   // UID of the app hosting the service.
   optional int32 uid = 1;
   // PID of the app hosting the service.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
   // Component name of the service.
   optional string component_name = 3;
   // Intent action used to bind/start the service.
@@ -601,27 +799,183 @@ message AndroidServiceStateChangedEvent {
   // Identifier for the binding.
   optional int32 bind_id = 5;
   // Type of foreground service.
-  optional int32 foreground_service_type = 6;
+  optional int32 foreground_service_type = 6
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ForegroundServiceTypeFlag"];
+  // UID of the app accessing the service.
+  optional int32 caller_uid = 7;
+  // PID of the app accessing the service.
+  optional int32 caller_pid = 8 [(perfetto.protos.is_pid) = true];
+  optional ServiceRestartReason reason_enum = 9;
+  // Bitmask of flags used in the service binding.
+  optional int32 bind_flags = 10
+      [(perfetto.protos.flags_enum) = ".com.android.internal.ServiceBindFlag"];
 }
 
 message AndroidProviderStateChangedEvent {
   // UID of the app hosting the provider.
   optional int32 uid = 1;
   // PID of the app hosting the provider.
-  optional int32 pid = 2;
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
   // Authority of the content provider.
   optional string authority = 3;
   // UID of the app accessing the provider.
   optional int32 caller_uid = 4;
   // PID of the app accessing the provider.
-  optional int32 caller_pid = 5;
+  optional int32 caller_pid = 5 [(perfetto.protos.is_pid) = true];
   // Whether the connection is stable.
   optional int32 is_stable = 6;
 }
 
+message AndroidCapabilitySummaryEvent {
+  // Whether the update is a full update.
+  optional bool is_full_update = 1;
+
+  // Reason for the OOM adjustment.
+  optional OomChangeReasonEnum reason = 2;
+
+  // The total number of processes evaluated during the update.
+  optional int32 total_processes = 3;
+
+  // The number of processes with discrepancies.
+  optional int32 discrepant_processes = 4;
+}
+
+message AndroidCapabilityUpdateEvent {
+  // Whether the update is a full update.
+  optional bool is_full_update = 1;
+
+  // Reason for the OOM adjustment.
+  optional OomChangeReasonEnum reason = 2;
+
+  // Pid of the process.
+  optional int32 pid = 3 [(perfetto.protos.is_pid) = true];
+
+  // The capabilities computed by CapabilityController.
+  optional int32 capability = 4;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME.
+  optional int32 cpu_reasons = 5;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
+  optional int32 implicit_cpu_reasons = 6;
+
+  // The capabilities computed by the legacy OomAdjuster.
+  optional int32 legacy_capability = 7;
+
+  // The CPU time reasons computed by the legacy OomAdjuster.
+  optional int32 legacy_cpu_reasons = 8;
+
+  // The implicit CPU time reasons computed by the legacy OomAdjuster.
+  optional int32 legacy_implicit_cpu_reasons = 9;
+
+  // The OOM adjustment score.
+  optional int32 oom_adj = 10;
+
+  // The process state.
+  optional ProcessStateEnum proc_state = 11;
+
+  // Bitfield representing various process state flags (see
+  // CapabilityUpdateFlag).
+  optional int32 flags = 12 [(perfetto.protos.flags_enum) =
+                                 ".com.android.internal.CapabilityUpdateFlag"];
+}
+
+// Trace event representing a summary of a process state update run.
+// It's sent by
+// com.android.server.am.psc.ProcStateController.Tracer.emitUpdateSummary().
+message AndroidProcStateSummaryEvent {
+  // Whether the update is a full update.
+  optional bool is_full_update = 1;
+
+  // Reason for the OOM adjustment.
+  optional OomChangeReasonEnum reason = 2;
+
+  // The total number of processes evaluated during the update.
+  optional int32 total_processes = 3;
+
+  // The number of processes with discrepancies.
+  optional int32 discrepant_processes = 4;
+
+  // The number of processes with known/expected discrepancies.
+  optional int32 known_discrepant_processes = 5;
+}
+
+// Trace event representing a process state update discrepancy for a specific
+// process. It's sent by
+// com.android.server.am.psc.ProcStateController.Tracer.emitNodeUpdate().
+message AndroidProcStateUpdateEvent {
+  // Whether the update is a full update.
+  optional bool is_full_update = 1;
+
+  // Reason for the OOM adjustment.
+  optional OomChangeReasonEnum reason = 2;
+
+  // Pid of the process.
+  optional int32 pid = 3 [(perfetto.protos.is_pid) = true];
+
+  // The process state computed by ProcStateController.
+  optional ProcessStateEnum proc_state = 4;
+
+  // The process state computed by the legacy OomAdjuster.
+  optional ProcessStateEnum legacy_proc_state = 5;
+
+  // The OOM adjustment score.
+  optional int32 oom_adj = 6;
+
+  // Bitfield representing various process state flags.
+  // See com.android.server.am.psc.ProcStateController.Tracer.TraceFlags for
+  // definition. Also see the ProcStateControllerTraceFlags enum proto.
+  optional int32 flags = 7
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcStateControllerTraceFlags"];
+
+  // Bitfield representing known inconsistent behaviors.
+  // See
+  // com.android.server.am.psc.ProcStateController.Tracer.InconsistentBehavior
+  // for definition. Also see the ProcStateControllerInconsistentBehavior enum
+  // proto.
+  optional int32 known_inconsistent_behavior = 8
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcStateControllerInconsistentBehavior"];
+}
+
+message AndroidSelfBroadcastEvent {
+  // Sender/Receiver PID (since it's self-broadcast, they are the same)
+  optional int32 pid = 1;
+
+  // Sender/Receiver UID
+  optional int32 uid = 2;
+
+  // The action name of the broadcast.
+  optional string action_name = 3;
+
+  // The procstate of the process.
+  optional ProcessStateEnum process_state = 4;
+
+  // The type of the broadcast. It's a mask of BroadcastType.
+  optional int32 broadcast_type = 5;
+
+  // Flags set in the broadcast intent.
+  optional int32 intent_flags = 6;
+
+  // Number of registered receivers for this broadcast.
+  optional int32 registered_receiver_count = 7;
+
+  // Number of manifest receivers for this broadcast.
+  optional int32 manifest_receiver_count = 8;
+
+  // Delivery group policy set for the broadcast.
+  optional int32 delivery_group_policy = 9;
+
+  // Unique cookie for this broadcast, used to correlate server and client
+  // traces.
+  optional int64 trace_cookie = 10;
+}
+
 message FrameworksBaseTrackEvent {
-  // Usable range: [2004, 2006], [2008, 2099].
-  // Next id: 2017.
+  // Usable range: [2004, 2006], [2008, 2099]
+  // Next id: 2022
   extend perfetto.protos.TrackEvent {
     // MessageQueue messages.
     optional AndroidMessageQueue message_queue = 2004;
@@ -652,5 +1006,15 @@ message FrameworksBaseTrackEvent {
     // Foreground service state changed event.
     optional AndroidServiceStateChangedEvent fg_service_state_changed_event =
         2016;
+    // Capability summary event.
+    optional AndroidCapabilitySummaryEvent capability_summary_event = 2017;
+    // Capability update event.
+    optional AndroidCapabilityUpdateEvent capability_update_event = 2018;
+    // ProcState summary event.
+    optional AndroidProcStateSummaryEvent proc_state_summary_event = 2019;
+    // ProcState update event.
+    optional AndroidProcStateUpdateEvent proc_state_update_event = 2020;
+    // Self broadcast event.
+    optional AndroidSelfBroadcastEvent self_broadcast_event = 2021;
   }
 }

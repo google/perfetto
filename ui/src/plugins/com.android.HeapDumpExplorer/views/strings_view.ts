@@ -19,8 +19,7 @@ import {Spinner} from '../../../widgets/spinner';
 import {EmptyState} from '../../../widgets/empty_state';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {StringListRow} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import type {Filter} from '../../../components/widgets/datagrid/model';
@@ -65,94 +64,90 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): SchemaRegistry {
+function makeUiSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      id: {
-        title: 'Object',
-        columnType: 'identifier',
-        cellRenderer: (value: SqlValue, row) => {
-          const id = Number(value);
-          const str = row.value != null ? String(row.value) : null;
-          const display = `String ${fmtHex(id)}`;
-          return m(
-            'button',
+    id: {
+      title: 'Object',
+      columnType: 'identifier',
+      cellRenderer: (value: SqlValue, row) => {
+        const id = Number(value);
+        const str = row.value != null ? String(row.value) : null;
+        const display = `String ${fmtHex(id)}`;
+        return m(
+          'button',
+          {
+            class: 'pf-hde-link',
+            onclick: () =>
+              navigate('object', {
+                id,
+                label: str
+                  ? `"${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`
+                  : display,
+              }),
+          },
+          m(
+            'span',
             {
-              class: 'pf-hde-link',
-              onclick: () =>
-                navigate('object', {
-                  id,
-                  label: str
-                    ? `"${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`
-                    : display,
-                }),
+              class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
             },
-            m(
-              'span',
-              {
-                class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
-              },
-              str
-                ? '"' +
-                    (str.length > 300 ? str.slice(0, 300) + '\u2026' : str) +
-                    '"'
-                : display,
-            ),
-          );
-        },
+            str
+              ? '"' +
+                  (str.length > 300 ? str.slice(0, 300) + '\u2026' : str) +
+                  '"'
+              : display,
+          ),
+        );
       },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      len: {
-        title: 'Length',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      heap: {
-        title: 'Heap',
-        columnType: 'text',
-      },
-      value: {
-        title: 'Value',
-        columnType: 'text',
-      },
-      self_size: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_size: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable native', COL_INFO.reachableNative),
-        titleString: 'Reachable native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable count', COL_INFO.reachableCount),
-        titleString: 'Reachable count',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    len: {
+      title: 'Length',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    heap: {
+      title: 'Heap',
+      columnType: 'text',
+    },
+    value: {
+      title: 'Value',
+      columnType: 'text',
+    },
+    self_size: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_size: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable native', COL_INFO.reachableNative),
+      titleString: 'Reachable native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable count', COL_INFO.reachableCount),
+      titleString: 'Reachable count',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
     },
   };
 }
 
-const SUMMARY_SCHEMA: SchemaRegistry = {
-  query: {
-    property: {title: 'Property', columnType: 'text'},
-    value: {title: 'Value', columnType: 'text'},
-  },
+const SUMMARY_SCHEMA: ColumnSchema = {
+  property: {title: 'Property', columnType: 'text'},
+  value: {title: 'Value', columnType: 'text'},
 };
 
 // --- StringsView -------------------------------------------------------------
@@ -166,7 +161,7 @@ interface StringsViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-function StringsView(): m.Component<StringsViewAttrs> {
+export function StringsView(): m.Component<StringsViewAttrs> {
   let allRows: StringListRow[] | null = null;
   let alive = true;
   let dataSource: SQLDataSource | null = null;
@@ -189,8 +184,7 @@ function StringsView(): m.Component<StringsViewAttrs> {
       const query = buildQuery(activeDump);
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(query),
-        rootSchemaName: 'query',
+        tableOrSubquery: query,
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, query, SQL_PREAMBLE);
@@ -247,7 +241,6 @@ function StringsView(): m.Component<StringsViewAttrs> {
         m('div', {class: 'pf-hde-card pf-hde-mb-4 pf-hde-flex-none'}, [
           m(DataGrid, {
             schema: SUMMARY_SCHEMA,
-            rootSchema: 'query',
             data: summaryRows,
             initialColumns: [
               {id: 'property', field: 'property'},
@@ -259,7 +252,6 @@ function StringsView(): m.Component<StringsViewAttrs> {
         dataSource
           ? m(DataGrid, {
               schema: makeUiSchema(navigate),
-              rootSchema: 'query',
               data: dataSource,
               fillHeight: true,
               initialColumns: [
@@ -284,5 +276,3 @@ function StringsView(): m.Component<StringsViewAttrs> {
     },
   };
 }
-
-export default StringsView;

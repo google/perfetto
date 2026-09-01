@@ -155,9 +155,9 @@ interface SourceDatasetConfig<T extends DatasetSchema> {
  * Defines a dataset with a source SQL select statement of table name, a
  * schema describing the columns, and an optional filter.
  */
-export class SourceDataset<T extends DatasetSchema = DatasetSchema>
-  implements Dataset<T>
-{
+export class SourceDataset<
+  T extends DatasetSchema = DatasetSchema,
+> implements Dataset<T> {
   readonly src: string;
   readonly schema: T;
   readonly filter?: Filter;
@@ -277,9 +277,9 @@ const MAX_SUBQUERIES_PER_UNION = 500;
 /**
  * A dataset that represents the union of multiple datasets.
  */
-export class UnionDataset<T extends DatasetSchema = DatasetSchema>
-  implements Dataset<T>
-{
+export class UnionDataset<
+  T extends DatasetSchema = DatasetSchema,
+> implements Dataset<T> {
   /**
    * This factory method creates a new union dataset but retains the specific
    * types of the input datasets. It's a factory function because it's not
@@ -538,9 +538,9 @@ interface PartitionMapWithUnfiltered<T> {
  * }
  * ```
  */
-export class UnionDatasetWithLineage<T extends DatasetSchema>
-  implements Dataset<T>
-{
+export class UnionDatasetWithLineage<
+  T extends DatasetSchema,
+> implements Dataset<T> {
   readonly sourceDatasets: ReadonlyArray<Dataset>;
   private readonly sourceGroupArray: Array<[string, Array<{dataset: Dataset}>]>;
   private readonly partitionMaps: Map<

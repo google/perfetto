@@ -32,21 +32,16 @@ export function isTyped(obj: object): obj is Typed {
 }
 
 export interface ReadBuffersResponse
-  extends Typed,
-    protos.IReadBuffersResponse {}
+  extends Typed, protos.IReadBuffersResponse {}
 export interface EnableTracingResponse
-  extends Typed,
-    protos.IEnableTracingResponse {}
+  extends Typed, protos.IEnableTracingResponse {}
 export interface GetTraceStatsResponse
-  extends Typed,
-    protos.IGetTraceStatsResponse {}
+  extends Typed, protos.IGetTraceStatsResponse {}
 export interface FreeBuffersResponse
-  extends Typed,
-    protos.IFreeBuffersResponse {}
+  extends Typed, protos.IFreeBuffersResponse {}
 export interface GetCategoriesResponse extends Typed {}
 export interface DisableTracingResponse
-  extends Typed,
-    protos.IDisableTracingResponse {}
+  extends Typed, protos.IDisableTracingResponse {}
 
 export type ConsumerPortResponse =
   | EnableTracingResponse

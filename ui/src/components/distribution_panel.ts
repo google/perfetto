@@ -14,7 +14,7 @@
 
 import './distribution_panel.scss';
 import m from 'mithril';
-import {QuerySlot} from '../base/query_slot';
+import {AsyncMemo} from '../base/async_memo';
 import {Icons} from '../base/semantic_icons';
 import type {Trace} from '../public/trace';
 import type {Dataset, DatasetSchema} from '../trace_processor/dataset';
@@ -26,6 +26,7 @@ import {
 } from '../trace_processor/sql_utils';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
+import {CopyToClipboardButton} from '../widgets/copy_to_clipboard_button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Icon} from '../widgets/icon';
 import {Section} from '../widgets/section';
@@ -41,15 +42,9 @@ import {
 } from './widgets/charts/histogram_loader';
 import {DataGrid, renderCell} from './widgets/datagrid/datagrid';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
-import type {
-  ColumnSchema,
-  SchemaRegistry,
-} from './widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from './widgets/datagrid/datagrid_schema';
 import type {Column, Filter} from './widgets/datagrid/model';
-import type {
-  SQLSchemaRegistry,
-  SQLTableSchema,
-} from './widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from './widgets/datagrid/sql_schema';
 import {formatDuration} from './time_utils';
 
 export function helpIcon(help: m.Children): m.Children {
@@ -197,12 +192,10 @@ export interface DistributionSummaryAttrs extends DistributionInputs {
 // Reusable left-half: histogram (with brush) + percentile stats. Materializes
 // the filtered dataset as a Perfetto table so the histogram and stats share
 // a single aggregation source.
-export class DistributionSummary
-  implements m.ClassComponent<DistributionSummaryAttrs>
-{
-  private readonly tableSlot = new QuerySlot<DisposableSqlEntity>();
-  private readonly boundsSlot = new QuerySlot<NiceBuckets>();
-  private readonly statsSlot = new QuerySlot<DistributionStats>();
+export class DistributionSummary implements m.ClassComponent<DistributionSummaryAttrs> {
+  private readonly tableSlot = new AsyncMemo<DisposableSqlEntity>();
+  private readonly boundsSlot = new AsyncMemo<NiceBuckets>();
+  private readonly statsSlot = new AsyncMemo<DistributionStats>();
 
   private histogramLoader?: SQLHistogramLoader;
   private histogramLoaderTableName?: string;
@@ -215,11 +208,11 @@ export class DistributionSummary
     const tableName = tableEntity.name;
     const bounds = this.boundsSlot.use({
       key: {tableName, valueColumn: attrs.valueColumn},
-      queryFn: () => fetchBounds(attrs, tableName),
+      compute: () => fetchBounds(attrs, tableName),
     });
     const stats = this.statsSlot.use({
       key: {tableName, brush: attrs.brush},
-      queryFn: () => fetchStats(attrs, tableName),
+      compute: () => fetchStats(attrs, tableName),
       retainOn: ['brush'],
     });
     const histogram = this.useHistogramLoader(attrs, tableName, bounds.data);
@@ -245,7 +238,7 @@ export class DistributionSummary
     const sourceQuery = buildSourceQuery(attrs, [attrs.valueColumn]);
     return this.tableSlot.use({
       key: {sourceQuery},
-      queryFn: () =>
+      compute: () =>
         createPerfettoTable({engine: attrs.trace.engine, as: sourceQuery}),
     }).data;
   }
@@ -370,10 +363,8 @@ export interface DistributionPanelAttrs extends DistributionInputs {
 
 // Two-pane "value distribution" tab: instances grid + histogram summary,
 // both reading from a single materialized Perfetto table.
-export class DistributionPanel
-  implements m.ClassComponent<DistributionPanelAttrs>
-{
-  private readonly tableSlot = new QuerySlot<DisposableSqlEntity>();
+export class DistributionPanel implements m.ClassComponent<DistributionPanelAttrs> {
+  private readonly tableSlot = new AsyncMemo<DisposableSqlEntity>();
 
   private dataSource?: SQLDataSource;
   private dataSourceTableName?: string;
@@ -381,13 +372,17 @@ export class DistributionPanel
 
   view({attrs}: m.CVnode<DistributionPanelAttrs>): m.Children {
     const tableEntity = this.materializeSourceTable(attrs);
+    const title = panelTitle(attrs);
     return m(
       DetailsShell,
       {
-        title: panelTitle(attrs),
+        className: 'pf-distribution-shell',
+        // Wrap in a span carrying the full text as a native tooltip, since the
+        // header clips long titles with an ellipsis (see the SCSS).
+        title: m('span', {title}, title),
         description: attrs.sqlTable,
         fillHeight: true,
-        buttons: this.renderAddDebugTrackButton(attrs),
+        buttons: this.renderButtons(attrs),
       },
       m(
         '.pf-distribution-panel',
@@ -397,28 +392,38 @@ export class DistributionPanel
     );
   }
 
-  private renderAddDebugTrackButton(attrs: DistributionPanelAttrs): m.Children {
-    return m(Button, {
-      label: 'Add debug track',
-      onclick: () => {
-        const baseQuery = buildSourceQuery(attrs, [
-          attrs.idColumn,
-          attrs.valueColumn,
-          ...attrs.displayColumns,
-        ]);
-        const brush = this.brush;
-        const sqlSource =
-          brush === undefined
-            ? baseQuery
-            : `SELECT * FROM (${baseQuery}) WHERE ${attrs.valueColumn} ` +
-              `BETWEEN ${brush.start} AND ${brush.end}`;
-        extensions.addDebugSliceTrack({
-          trace: attrs.trace,
-          data: {sqlSource},
-          title: panelTitle(attrs),
-        });
-      },
-    });
+  private renderButtons(attrs: DistributionPanelAttrs): m.Children {
+    return [
+      m(Button, {
+        label: 'Add debug track',
+        onclick: () =>
+          extensions.addDebugSliceTrack({
+            trace: attrs.trace,
+            data: {sqlSource: this.buildInstancesQuery(attrs)},
+            title: panelTitle(attrs),
+          }),
+      }),
+      m(CopyToClipboardButton, {
+        label: 'Copy SQL query',
+        title: 'Copy the SQL query backing this table to the clipboard',
+        textToCopy: () => this.buildInstancesQuery(attrs),
+      }),
+    ];
+  }
+
+  // The query that produces the instances grid, narrowed to the brushed range
+  // when the histogram has an active selection.
+  private buildInstancesQuery(attrs: DistributionPanelAttrs): string {
+    const baseQuery = buildSourceQuery(attrs, [
+      attrs.idColumn,
+      attrs.valueColumn,
+      ...attrs.displayColumns,
+    ]);
+    const brush = this.brush;
+    return brush === undefined
+      ? baseQuery
+      : `SELECT * FROM (${baseQuery}) WHERE ${attrs.valueColumn} ` +
+          `BETWEEN ${brush.start} AND ${brush.end}`;
   }
 
   onremove(): void {
@@ -436,7 +441,7 @@ export class DistributionPanel
     ]);
     return this.tableSlot.use({
       key: {sourceQuery},
-      queryFn: () =>
+      compute: () =>
         createPerfettoTable({engine: attrs.trace.engine, as: sourceQuery}),
     }).data;
   }
@@ -490,7 +495,6 @@ export class DistributionPanel
     const dataSource = this.useDataSource(attrs, tableEntity.name);
     return m(DataGrid, {
       schema: buildGridSchema(attrs, this.renderIdCell.bind(this)),
-      rootSchema: 'root',
       data: dataSource,
       filters: brushFilters(attrs.valueColumn, this.brush),
       initialColumns: gridColumns(attrs),
@@ -508,8 +512,7 @@ export class DistributionPanel
       ds?.dispose();
       ds = new SQLDataSource({
         engine: attrs.trace.engine,
-        sqlSchema: buildSqlSchema(attrs, tableName),
-        rootSchemaName: 'root',
+        ...buildSqlSchema(attrs, tableName),
       });
       this.dataSource = ds;
       this.dataSourceTableName = tableName;
@@ -552,7 +555,7 @@ function buildGridSchema(
     attrs: DistributionPanelAttrs,
     value: Row[string],
   ) => m.Children,
-): SchemaRegistry {
+): ColumnSchema {
   const rootSchema: ColumnSchema = {};
   for (const col of [attrs.idColumn, ...attrs.displayColumns]) {
     const cellRenderer =
@@ -561,19 +564,17 @@ function buildGridSchema(
         : attrs.cellRenderers?.[col];
     rootSchema[col] = {title: col, cellRenderer};
   }
-  return {root: rootSchema};
+  return rootSchema;
 }
 
 function gridColumns(attrs: DistributionPanelAttrs): Column[] {
   return [
     {id: attrs.idColumn, field: attrs.idColumn},
-    ...attrs.displayColumns.map(
-      (field): Column => ({
-        id: field,
-        field,
-        sort: field === attrs.valueColumn ? 'DESC' : undefined,
-      }),
-    ),
+    ...attrs.displayColumns.map((field): Column => ({
+      id: field,
+      field,
+      sort: field === attrs.valueColumn ? 'DESC' : undefined,
+    })),
   ];
 }
 
@@ -629,7 +630,7 @@ function requiredSchema(
 function buildSqlSchema(
   attrs: DistributionPanelAttrs,
   tableName: string,
-): SQLSchemaRegistry {
+): SQLTableSchema {
   const columns: SQLTableSchema['columns'] = {};
   columns[attrs.idColumn] = {};
   columns[attrs.valueColumn] = {};
@@ -637,11 +638,9 @@ function buildSqlSchema(
     columns[col] = {};
   }
   return {
-    root: {
-      table: tableName,
-      primaryKey: attrs.idColumn,
-      columns,
-    },
+    tableOrSubquery: tableName,
+    primaryKey: attrs.idColumn,
+    columns,
   };
 }
 

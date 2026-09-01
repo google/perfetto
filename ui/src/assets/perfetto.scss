@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "typefaces";
-@import "common";
-@import "details";
-@import "perf_monitor";
+@use "typefaces" as *;
+@use "common" as *;
+@use "details" as *;
+@use "perf_monitor" as *;

@@ -16,6 +16,8 @@
 
 #include "src/tools/proto_merger/proto_file.h"
 
+#include <algorithm>
+
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
 #include <google/protobuf/dynamic_message.h>
@@ -65,50 +67,83 @@ std::optional<std::string> MinimizeType(const std::string& a,
   return std::nullopt;
 }
 
-std::string SimpleFieldTypeFromDescriptor(
-    const google::protobuf::Descriptor& parent,
+bool IsExtensionFile(const google::protobuf::FileDescriptor* file,
+                     const std::vector<const google::protobuf::FileDescriptor*>&
+                         extension_files) {
+  return std::find(extension_files.begin(), extension_files.end(), file) !=
+         extension_files.end();
+}
+
+template <typename DescriptorType>
+std::string TypeNameInScope(
+    const std::string& base_package,
+    const std::string& scope_full_name,
     const google::protobuf::FieldDescriptor& desc,
-    bool packageless_type) {
+    const DescriptorType* type,
+    bool packageless_type,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
+  std::string full_name = std::string(type->full_name());
+  if (type->file() != desc.containing_type()->file() &&
+      IsExtensionFile(type->file(), extension_files)) {
+    std::string pkg(type->file()->package());
+    std::string relative_name =
+        pkg.empty() ? full_name : base::StripPrefix(full_name, pkg + ".");
+    if (packageless_type) {
+      return relative_name;
+    }
+    full_name = base_package + "." + relative_name;
+  } else {
+    if (packageless_type) {
+      return base::StripPrefix(full_name,
+                               std::string(type->file()->package()) + ".");
+    }
+  }
+  return MinimizeType(full_name, scope_full_name)
+      .value_or(std::string(type->name()));
+}
+
+std::string SimpleFieldTypeInScope(
+    const std::string& base_package,
+    const std::string& scope_full_name,
+    const google::protobuf::FieldDescriptor& desc,
+    bool packageless_type,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
   switch (desc.type()) {
     case google::protobuf::FieldDescriptor::TYPE_MESSAGE:
-      if (packageless_type) {
-        return base::StripPrefix(
-            std::string(desc.message_type()->full_name()),
-            std::string(desc.message_type()->file()->package()) + ".");
-      } else {
-        return MinimizeType(std::string(desc.message_type()->full_name()),
-                            std::string(parent.full_name()))
-            .value_or(std::string(desc.message_type()->name()));
-      }
+      return TypeNameInScope(base_package, scope_full_name, desc,
+                             desc.message_type(), packageless_type,
+                             extension_files);
     case google::protobuf::FieldDescriptor::TYPE_ENUM:
-      if (packageless_type) {
-        return base::StripPrefix(
-            std::string(desc.enum_type()->full_name()),
-            std::string(desc.enum_type()->file()->package()) + ".");
-      } else {
-        return MinimizeType(std::string(desc.enum_type()->full_name()),
-                            std::string(parent.full_name()))
-            .value_or(std::string(desc.enum_type()->name()));
-      }
+      return TypeNameInScope(base_package, scope_full_name, desc,
+                             desc.enum_type(), packageless_type,
+                             extension_files);
     default:
       return kTypeToName[desc.type()];
   }
 }
 
-std::string FieldTypeFromDescriptor(
-    const google::protobuf::Descriptor& parent,
+std::string FieldTypeInScope(
+    const std::string& base_package,
+    const std::string& scope_full_name,
     const google::protobuf::FieldDescriptor& desc,
-    bool packageless_type) {
+    bool packageless_type,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
   if (!desc.is_map())
-    return SimpleFieldTypeFromDescriptor(parent, desc, packageless_type);
+    return SimpleFieldTypeInScope(base_package, scope_full_name, desc,
+                                  packageless_type, extension_files);
 
   std::string field_type;
   field_type += "map<";
-  field_type += FieldTypeFromDescriptor(parent, *desc.message_type()->field(0),
-                                        packageless_type);
+  field_type += FieldTypeInScope(base_package, scope_full_name,
+                                 *desc.message_type()->field(0),
+                                 packageless_type, extension_files);
   field_type += ",";
-  field_type += FieldTypeFromDescriptor(parent, *desc.message_type()->field(1),
-                                        packageless_type);
+  field_type += FieldTypeInScope(base_package, scope_full_name,
+                                 *desc.message_type()->field(1),
+                                 packageless_type, extension_files);
   field_type += ">";
   return field_type;
 }
@@ -190,17 +225,27 @@ Output InitFromDescriptor(const Descriptor& desc) {
 
 ProtoFile::Field FieldFromDescriptor(
     const google::protobuf::Descriptor& parent,
-    const google::protobuf::FieldDescriptor& desc) {
+    const google::protobuf::FieldDescriptor& desc,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files = {}) {
   auto field = InitFromDescriptor<ProtoFile::Field>(desc);
-  field.is_repeated = desc.is_repeated();
-  field.packageless_type = FieldTypeFromDescriptor(parent, desc, true);
-  field.type = FieldTypeFromDescriptor(parent, desc, false);
+  field.is_repeated = desc.is_repeated() && !desc.is_map();
+  std::string base_package(parent.file()->package());
+  field.packageless_type =
+      FieldTypeInScope(base_package, std::string(parent.full_name()), desc,
+                       true, extension_files);
+  field.type = FieldTypeInScope(base_package, std::string(parent.full_name()),
+                                desc, false, extension_files);
   field.name = desc.name();
   field.number = desc.number();
   field.options = OptionsFromMessage(*desc.file()->pool(), desc.options());
 
-  // Protobuf editions: packed fields are no longer an option, but have the same
-  // syntax as far as writing the merged .proto file is concerned.
+  // Protobuf editions: replace legacy "packed" option.
+  field.options.erase(std::remove_if(field.options.begin(), field.options.end(),
+                                     [](const ProtoFile::Option& opt) {
+                                       return opt.key == "packed";
+                                     }),
+                      field.options.end());
   if (desc.is_packed()) {
     field.options.push_back(
         ProtoFile::Option{"features.repeated_field_encoding", "PACKED"});
@@ -230,51 +275,158 @@ ProtoFile::Enum EnumFromDescriptor(
 
 ProtoFile::Oneof OneOfFromDescriptor(
     const google::protobuf::Descriptor& parent,
-    const google::protobuf::OneofDescriptor& desc) {
+    const google::protobuf::OneofDescriptor& desc,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
   auto oneof = InitFromDescriptor<ProtoFile::Oneof>(desc);
   oneof.name = desc.name();
   for (int i = 0; i < desc.field_count(); ++i) {
-    oneof.fields.emplace_back(FieldFromDescriptor(parent, *desc.field(i)));
+    oneof.fields.emplace_back(
+        FieldFromDescriptor(parent, *desc.field(i), extension_files));
   }
   return oneof;
 }
 
 ProtoFile::Message MessageFromDescriptor(
-    const google::protobuf::Descriptor& desc) {
+    const google::protobuf::Descriptor& desc,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files = {}) {
   auto message = InitFromDescriptor<ProtoFile::Message>(desc);
   message.name = desc.name();
+
+  for (int i = 0; i < desc.reserved_range_count(); ++i) {
+    const auto* range = desc.reserved_range(i);
+    for (int num = range->start; num < range->end; ++num) {
+      message.reserved_numbers.insert(num);
+    }
+  }
+
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     message.enums.emplace_back(EnumFromDescriptor(*desc.enum_type(i)));
   }
   for (int i = 0; i < desc.nested_type_count(); ++i) {
+    if (desc.nested_type(i)->options().map_entry())
+      continue;
     message.nested_messages.emplace_back(
-        MessageFromDescriptor(*desc.nested_type(i)));
+        MessageFromDescriptor(*desc.nested_type(i), extension_files));
   }
   for (int i = 0; i < desc.oneof_decl_count(); ++i) {
-    message.oneofs.emplace_back(OneOfFromDescriptor(desc, *desc.oneof_decl(i)));
+    message.oneofs.emplace_back(
+        OneOfFromDescriptor(desc, *desc.oneof_decl(i), extension_files));
   }
   for (int i = 0; i < desc.field_count(); ++i) {
     auto* field = desc.field(i);
     if (field->containing_oneof())
       continue;
-    message.fields.emplace_back(FieldFromDescriptor(desc, *field));
+    message.fields.emplace_back(
+        FieldFromDescriptor(desc, *field, extension_files));
   }
+
+  // Inlined extension fields that extend this message from the extension files.
+  for (const auto* ext_file : extension_files) {
+    const auto* ext_pool = ext_file->pool();
+    const auto* ext_containing_type =
+        ext_pool->FindMessageTypeByName(desc.full_name());
+    if (ext_containing_type) {
+      std::vector<const google::protobuf::FieldDescriptor*> pool_extensions;
+      ext_pool->FindAllExtensions(ext_containing_type, &pool_extensions);
+      for (const auto* ext_field : pool_extensions) {
+        if (ext_field->file() == ext_file) {
+          message.fields.emplace_back(
+              FieldFromDescriptor(desc, *ext_field, extension_files));
+        }
+      }
+    }
+  }
+
   return message;
+}
+
+template <typename T>
+const T* FindByName(const std::vector<T>& items, const std::string& name) {
+  for (const auto& item : items) {
+    if (item.name == name)
+      return &item;
+  }
+  return nullptr;
+}
+
+bool IsMessageEmpty(const ProtoFile::Message& msg) {
+  return msg.fields.empty() && msg.enums.empty() &&
+         msg.nested_messages.empty() && msg.oneofs.empty();
 }
 
 }  // namespace
 
 ProtoFile ProtoFileFromDescriptor(
     std::string preamble,
-    const google::protobuf::FileDescriptor& desc) {
+    const google::protobuf::FileDescriptor& desc,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_files) {
   ProtoFile file;
   file.preamble = std::move(preamble);
+  file.is_proto2 =
+      (file.preamble.find("syntax = \"proto2\"") != std::string::npos);
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     file.enums.push_back(EnumFromDescriptor(*desc.enum_type(i)));
   }
+  std::unordered_set<const google::protobuf::FileDescriptor*> relocated_files;
+  auto relocate_helpers =
+      [&](const google::protobuf::FileDescriptor* ext_file_desc,
+          auto& self) -> void {
+    if (!ext_file_desc || ext_file_desc == &desc ||
+        ext_file_desc->name() == desc.name() ||
+        !relocated_files.insert(ext_file_desc).second) {
+      return;
+    }
+    for (int d = 0; d < ext_file_desc->dependency_count(); ++d) {
+      const auto* dep = ext_file_desc->dependency(d);
+      if (dep != &desc && dep->name() != desc.name() &&
+          std::find(extension_files.begin(), extension_files.end(), dep) !=
+              extension_files.end()) {
+        self(dep, self);
+      }
+    }
+    for (int i = 0; i < ext_file_desc->enum_type_count(); ++i) {
+      auto en = EnumFromDescriptor(*ext_file_desc->enum_type(i));
+      if (!FindByName(file.enums, en.name)) {
+        file.enums.push_back(std::move(en));
+      }
+    }
+    for (int i = 0; i < ext_file_desc->message_type_count(); ++i) {
+      auto msg = MessageFromDescriptor(*ext_file_desc->message_type(i),
+                                       extension_files);
+      if (!IsMessageEmpty(msg) && !FindByName(file.messages, msg.name)) {
+        file.messages.push_back(std::move(msg));
+      }
+    }
+  };
+
   for (int i = 0; i < desc.message_type_count(); ++i) {
-    file.messages.push_back(MessageFromDescriptor(*desc.message_type(i)));
+    const auto* base_msg_desc = desc.message_type(i);
+
+    // Relocate helper messages and enums from extension files that extend
+    // this base message, placing them immediately before the target message.
+    for (const auto* ext_file_desc : extension_files) {
+      const auto* ext_pool = ext_file_desc->pool();
+      const auto* ext_containing_type =
+          ext_pool->FindMessageTypeByName(base_msg_desc->full_name());
+      if (ext_containing_type) {
+        std::vector<const google::protobuf::FieldDescriptor*> pool_extensions;
+        ext_pool->FindAllExtensions(ext_containing_type, &pool_extensions);
+        for (const auto* ext_field : pool_extensions) {
+          if (ext_field->file() == ext_file_desc) {
+            relocate_helpers(ext_file_desc, relocate_helpers);
+            break;
+          }
+        }
+      }
+    }
+
+    file.messages.push_back(
+        MessageFromDescriptor(*base_msg_desc, extension_files));
   }
+
   return file;
 }
 

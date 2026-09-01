@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -71,6 +72,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/types/version_number.h"
+#include "src/trace_processor/util/interned_message_view.h"
 
 #include "protos/perfetto/trace/ftrace/android_fs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/bcl_exynos.pbzero.h"
@@ -767,36 +769,36 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
     }
   }
 
-  // Compute atrace + ftrace setup errors. We do two things here:
-  // 1. We add up all the errors and put the counter in the stats table (which
-  //    can hold only numerals).
-  // 2. We concatenate together all the errors in a string and put that in the
-  //    medatata table.
-  // Both will be reported in the 'Info & stats' page in the UI.
+  // Record atrace + ftrace setup errors reported by the producer. Each error
+  // bumps the ftrace_setup_errors stat and adds a row to the trace import logs
+  // with a human-readable message. These surface on the Notices tab in the UI.
   if (is_start) {
     if (seen_errors_for_sequence_id_.count(packet_sequence_id) == 0) {
-      std::string error_str;
+      StringId message_key = storage->InternString("message");
+      bool any_errors = false;
+      auto record = [&](const std::string& message) {
+        any_errors = true;
+        StringId message_id = storage->InternString(base::StringView(message));
+        context_->import_logs_tracker->RecordCollectionLog(
+            stats::ftrace_setup_errors,
+            [&](ArgsTracker::BoundInserter& inserter) {
+              inserter.AddArg(message_key, Variadic::String(message_id));
+            });
+      };
       for (auto it = evt.failed_ftrace_events(); it; ++it) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+        record("Ftrace event failed: " + it->as_std_string());
       }
       for (auto it = evt.unknown_ftrace_events(); it; ++it) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+        record("Ftrace event unknown: " + it->as_std_string());
       }
       if (evt.atrace_errors().size > 0) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
+        record("Atrace failures: " + evt.atrace_errors().ToStdString());
       }
       if (evt.exclusive_feature_error().size > 0) {
-        context_->stats_tracker->IncrementStats(stats::ftrace_setup_errors, 1);
-        error_str += "Ftrace exclusive feature error: " +
-                     evt.exclusive_feature_error().ToStdString();
+        record("Ftrace exclusive feature error: " +
+               evt.exclusive_feature_error().ToStdString());
       }
-      if (!error_str.empty()) {
-        auto error_str_id = storage->InternString(base::StringView(error_str));
-        context_->metadata_tracker->AppendMetadata(
-            metadata::ftrace_setup_errors, Variadic::String(error_str_id));
+      if (any_errors) {
         seen_errors_for_sequence_id_.insert(packet_sequence_id);
       }
     }
@@ -1843,18 +1845,13 @@ void FtraceParser::ParseTypedFtraceToRaw(
     if (it != kKernelFunctionFields.end()) {
       PERFETTO_CHECK(type == ProtoSchemaType::kUint64);
 
-      auto* interned_string = seq_state->LookupInternedMessage<
-          protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
-          protos::pbzero::InternedString>(fld.as_uint64());
-
       // If we don't have the string for this field (can happen if
       // symbolization wasn't enabled, if reading the symbols errored out or
       // on legacy traces) then just add the field as a normal arg.
-      if (interned_string) {
-        protozero::ConstBytes str = interned_string->str();
-        StringId str_id = context_->storage->InternString(base::StringView(
-            reinterpret_cast<const char*>(str.data), str.size));
-        inserter.AddArg(name_id, Variadic::String(str_id));
+      if (auto str_id = seq_state->InternedStringId(
+              protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
+              fld.as_uint64())) {
+        inserter.AddArg(name_id, Variadic::String(*str_id));
         continue;
       }
     }
@@ -3283,16 +3280,8 @@ void FtraceParser::ParseSchedBlockedReason(
   uint32_t pid = static_cast<uint32_t>(event.pid());
   auto utid = context_->process_tracker->GetOrCreateThread(pid);
   uint32_t caller_iid = static_cast<uint32_t>(event.caller());
-  auto* interned_string = seq_state->LookupInternedMessage<
-      protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
-      protos::pbzero::InternedString>(caller_iid);
-
-  std::optional<StringId> blocked_function_str_id = std::nullopt;
-  if (interned_string) {
-    protozero::ConstBytes str = interned_string->str();
-    blocked_function_str_id = context_->storage->InternString(
-        base::StringView(reinterpret_cast<const char*>(str.data), str.size));
-  }
+  std::optional<StringId> blocked_function_str_id = seq_state->InternedStringId(
+      protos::pbzero::InternedData::kKernelSymbolsFieldNumber, caller_iid);
 
   ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
       utid, event.io_wait(), blocked_function_str_id);
@@ -4419,19 +4408,12 @@ void FtraceParser::ParsePanelWriteGeneric(int64_t timestamp,
 StringId FtraceParser::InternedKernelSymbolOrFallback(
     uint64_t key,
     PacketSequenceStateGeneration* seq_state) {
-  auto* interned_string = seq_state->LookupInternedMessage<
-      protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
-      protos::pbzero::InternedString>(key);
-  StringId name_id;
-  if (interned_string) {
-    protozero::ConstBytes str = interned_string->str();
-    name_id = context_->storage->InternString(
-        base::StringView(reinterpret_cast<const char*>(str.data), str.size));
-  } else {
-    base::StackString<255> slice_name("%#" PRIx64, key);
-    name_id = context_->storage->InternString(slice_name.string_view());
+  if (std::optional<StringId> name_id = seq_state->InternedStringId(
+          protos::pbzero::InternedData::kKernelSymbolsFieldNumber, key)) {
+    return *name_id;
   }
-  return name_id;
+  base::StackString<255> slice_name("%#" PRIx64, key);
+  return context_->storage->InternString(slice_name.string_view());
 }
 
 void FtraceParser::ParseDeviceFrequency(int64_t ts,

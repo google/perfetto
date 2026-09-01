@@ -491,11 +491,12 @@ base::StatusOr<std::vector<Registry>> ParseRegistryFile(
 base::Status ValidateRegistry(const Registry& reg) {
   if (reg.scope != "perfetto.protos.TrackEvent" &&
       reg.scope != "perfetto.protos.TracePacket" &&
-      reg.scope != "perfetto.protos.InternedData") {
+      reg.scope != "perfetto.protos.InternedData" &&
+      reg.scope != "perfetto.protos.TrackEvent.State") {
     return base::ErrStatus(
         "Invalid scope '%s' in '%s'; expected one of: "
         "perfetto.protos.TrackEvent, perfetto.protos.TracePacket, "
-        "perfetto.protos.InternedData",
+        "perfetto.protos.InternedData, perfetto.protos.TrackEvent.State",
         reg.scope.c_str(), reg.source_path.c_str());
   }
 

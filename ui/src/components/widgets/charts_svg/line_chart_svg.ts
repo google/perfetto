@@ -95,16 +95,24 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
   }
 
   view({attrs}: m.Vnode<LineChartAttrs>) {
-    const {data} = attrs;
+    const {
+      data,
+      legendPosition = 'bottom',
+      showLegend = data !== undefined && data.series.length > 1,
+      formatYValue = defaultFmt,
+      formatXValue = defaultFmt,
+      stacked,
+      height = 200,
+      fillParent,
+      className,
+    } = attrs;
+
     const isLoading = data === undefined;
     const isEmpty =
       data !== undefined &&
       (data.series.length === 0 ||
         data.series.every((s) => s.points.length === 0));
-    const showLegend =
-      attrs.showLegend ?? (data !== undefined && data.series.length > 1);
 
-    const fmtYLegend = attrs.formatYValue ?? defaultFmt;
     const legend =
       showLegend &&
       data !== undefined &&
@@ -116,7 +124,7 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
           const hidden = this.hiddenSeries.has(s.name);
           return m(ChartLegend.Entry, {
             name: s.name,
-            value: last !== undefined ? fmtYLegend(last) : undefined,
+            value: last !== undefined ? formatYValue(last) : undefined,
             swatch: s.color ?? chartColorVar(i),
             hidden,
             onToggle: () => this.toggleSeries(s.name),
@@ -139,9 +147,7 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
 
     const tooltip = (() => {
       if (this.hover === undefined || seriesHover === undefined) return false;
-      const ordered = attrs.stacked ? [...seriesHover].reverse() : seriesHover;
-      const fmtX = attrs.formatXValue ?? defaultFmt;
-      const fmtY = attrs.formatYValue ?? defaultFmt;
+      const ordered = stacked ? [...seriesHover].reverse() : seriesHover;
       const idx = this.hover.index;
       // X value comes from the first series with a point at `idx`.
       let xValue: number | undefined;
@@ -152,13 +158,13 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         }
       }
       return m(ChartTooltip, [
-        exists(xValue) && m(ChartTooltip.Header, fmtX(xValue)),
+        exists(xValue) && m(ChartTooltip.Header, formatXValue(xValue)),
         ordered.map((s, i) => {
           const p = s.series.points[idx];
           if (p === undefined) return undefined;
           return m(ChartTooltip.Row, {
             name: s.series.name,
-            value: fmtY(p.y),
+            value: formatYValue(p.y),
             swatch: s.series.color ?? chartColorVar(i),
             tweak:
               s.style === 'emphasis' || s.style === 'muted'
@@ -169,19 +175,15 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
       ]);
     })();
 
-    const legendPosition = attrs.legendPosition ?? 'top';
-
     return m(
       '.pf-chart-svg',
       {
         className: classNames(
-          attrs.fillParent && 'pf-chart-svg--fill-parent',
+          fillParent && 'pf-chart-svg--fill-parent',
           `pf-chart-svg--legend-${legendPosition}`,
-          attrs.className,
+          className,
         ),
-        style: attrs.fillParent
-          ? undefined
-          : {height: `${attrs.height ?? 200}px`},
+        style: fillParent ? undefined : {height: `${height}px`},
       },
       m(SvgChartFrame, {
         isLoading,
@@ -295,7 +297,7 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
         width: width,
         height: height,
         viewBox: `0 0 ${width} ${height}`,
-        style: attrs.onBrush && {cursor: 'crosshair'},
+        style: (attrs.onBrush || attrs.onPointClick) && {cursor: 'crosshair'},
         oncontextmenu: (e: Event) => {
           // Chrome has a bug where right click to bring up the context menu
           // breaks pointer capture - simply disable context menus for the
@@ -303,14 +305,15 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
           e.preventDefault();
         },
         onpointerdown:
-          attrs.onBrush &&
+          (attrs.onBrush || attrs.onPointClick) &&
           ((e: PointerEvent) =>
             this.handleBrushDown(e, padLeft, plotW, xRange)),
         onpointermove: (e: PointerEvent) =>
           this.handlePointerMove(e, seriesPlots, padLeft, plotW, xRange),
         onpointerup:
-          attrs.onBrush &&
-          ((e: PointerEvent) => this.handleBrushUp(e, attrs.onBrush!)),
+          (attrs.onBrush || attrs.onPointClick) &&
+          ((e: PointerEvent) =>
+            this.handleBrushUp(e, attrs.onBrush, attrs.onPointClick)),
         onpointerleave: () => {
           if (this.brushing) return; // capture keeps the drag alive.
           if (this.hover !== undefined) {
@@ -563,14 +566,21 @@ export class LineChartSvg implements m.ClassComponent<LineChartAttrs> {
 
   private handleBrushUp(
     e: PointerEvent,
-    onBrush: (range: {start: number; end: number}) => void,
+    onBrush?: (range: {start: number; end: number}) => void,
+    onPointClick?: (x: number) => void,
   ) {
     if (!this.brushing || this.brushing.pointerId !== e.pointerId) return;
     const {start, current} = this.brushing;
     const lo = Math.min(start, current);
     const hi = Math.max(start, current);
     this.brushing = undefined;
-    if (hi > lo) onBrush({start: lo, end: hi});
+    // A drag (the cursor moved more than a tiny threshold) is a range select;
+    // movement within the dead-zone is treated as a click on a single point.
+    if (hi - lo > 1e-9) {
+      onBrush?.({start: lo, end: hi});
+    } else {
+      onPointClick?.(start);
+    }
   }
 
   private handlePointerMove(

@@ -14,7 +14,7 @@
 
 import '../frontend/help_modal.scss';
 import m from 'mithril';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
 import {BigTraceApp} from './bigtrace_app';
@@ -47,6 +47,11 @@ class BigTraceHelpContent implements m.ClassComponent {
           m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
           m('td', 'Execute selected text (when text is selected)'),
         ),
+        m(
+          'tr',
+          m('td', keycap('Alt'), ' + ', keycap('Shift'), ' + ', keycap('F')),
+          m('td', 'Format query'),
+        ),
       ),
       m('h2', 'Running commands'),
       m(
@@ -71,7 +76,7 @@ class BigTraceHelpContent implements m.ClassComponent {
                 'td',
                 m(HotkeyGlyphs, {
                   spacing: 'large',
-                  hotkey: assertExists(defaultHotkey),
+                  hotkey: ensureExists(defaultHotkey),
                 }),
               ),
               m('td', name),

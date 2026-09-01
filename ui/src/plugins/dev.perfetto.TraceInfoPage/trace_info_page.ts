@@ -18,11 +18,8 @@ import {TabStrip, type TabOption} from '../../widgets/tab_strip';
 import {EmptyState} from '../../widgets/empty_state';
 import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';
-import {
-  OverviewTab,
-  type OverviewData,
-  loadOverviewData,
-} from './tabs/overview';
+import {OverviewTab} from './tabs/overview';
+import {type OverviewData, loadOverviewData} from './tabs/overview_data';
 import {ConfigTab, type ConfigData, loadConfigData} from './tabs/config';
 import {
   AndroidTab,
@@ -51,11 +48,23 @@ import {
   type TraceErrorsData,
   loadTraceErrorsData,
 } from './tabs/trace_errors';
+import {NoticesTab, type NoticesData, loadNoticesData} from './tabs/notices';
 import {
   UiLoadingErrorsTab,
   type UiLoadingErrorsData,
 } from './tabs/ui_loading_errors';
 import {StatsTab, type StatsData, loadStatsData} from './tabs/stats';
+import {
+  TraceDoctorTab,
+  type Diagnostic,
+  loadTraceDiagnostics,
+} from './diagnostics';
+import {
+  MetadataTab,
+  type MetadataData,
+  loadMetadataData,
+  hasMetadataData,
+} from './tabs/metadata';
 
 export interface TraceInfoPageAttrs {
   readonly trace: Trace;
@@ -64,13 +73,16 @@ export interface TraceInfoPageAttrs {
 
 interface AllTabData {
   overview: OverviewData;
+  diagnostics: ReadonlyArray<Diagnostic>;
   config: ConfigData;
   android: AndroidData;
   machines: MachinesData;
   traces: TracesData;
+  metadata: MetadataData;
   importErrors: ImportErrorsData;
   traceErrors: TraceErrorsData;
   dataLosses: DataLossesData;
+  notices: NoticesData;
   uiLoadingErrors: UiLoadingErrorsData;
   stats: StatsData;
 }
@@ -126,9 +138,15 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         return m(OverviewTab, {
           trace,
           data: this.tabData.overview,
+          diagnostics: this.tabData.diagnostics,
           onTabChange: (key: TabKey) => {
             this.currentTab = key;
           },
+        });
+      case 'trace_doctor':
+        return m(TraceDoctorTab, {
+          diagnostics: this.tabData.diagnostics,
+          isMultiTrace: this.tabData.overview.traceCount > 1,
         });
       case 'config':
         return m(ConfigTab, {
@@ -146,6 +164,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         return m(MachinesTab, {
           data: this.tabData.machines,
         });
+      case 'metadata':
+        return m(MetadataTab, {
+          data: this.tabData.metadata,
+        });
       case 'import_errors':
         return m(ImportErrorsTab, {
           data: this.tabData.importErrors,
@@ -157,6 +179,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
       case 'data_losses':
         return m(DataLossesTab, {
           data: this.tabData.dataLosses,
+        });
+      case 'notices':
+        return m(NoticesTab, {
+          data: this.tabData.notices,
         });
       case 'ui_loading_errors':
         return m(UiLoadingErrorsTab, {
@@ -173,13 +199,16 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     const engine = trace.engine;
     this.tabData = {
       overview: await loadOverviewData(trace),
+      diagnostics: await loadTraceDiagnostics(engine),
       config: await loadConfigData(engine),
       android: await loadAndroidData(engine),
       machines: await loadMachinesData(engine),
       traces: await loadTracesData(engine),
+      metadata: await loadMetadataData(engine),
       importErrors: await loadImportErrorsData(engine),
       traceErrors: await loadTraceErrorsData(engine),
       dataLosses: await loadDataLossesData(engine),
+      notices: await loadNoticesData(engine),
       uiLoadingErrors: {errors: trace.loadingErrors},
       stats: await loadStatsData(engine),
     };
@@ -197,8 +226,14 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     if ((this.tabData?.traceErrors?.errors?.length ?? 0) > 0) {
       tabs.push({key: 'trace_errors', title: 'Trace Errors'});
     }
+    if ((this.tabData?.diagnostics?.length ?? 0) > 0) {
+      tabs.push({key: 'trace_doctor', title: 'Trace Doctor'});
+    }
     if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
       tabs.push({key: 'data_losses', title: 'Data Losses'});
+    }
+    if ((this.tabData?.notices?.categories?.length ?? 0) > 0) {
+      tabs.push({key: 'notices', title: 'Notices'});
     }
     if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
       tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
@@ -212,7 +247,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
       tabs.push({key: 'machines', title: 'Machines'});
     }
-    tabs.push({key: 'stats', title: 'Info and Stats (advanced)'});
+    if (hasMetadataData(this.tabData?.metadata)) {
+      tabs.push({key: 'metadata', title: 'Metadata'});
+    }
+    tabs.push({key: 'stats', title: 'Statistics'});
     return tabs;
   }
 }

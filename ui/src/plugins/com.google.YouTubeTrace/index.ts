@@ -90,7 +90,7 @@ export default class implements PerfettoPlugin {
         `INCLUDE PERFETTO MODULE google3.video.youtube.analytics.client_apps.system_health.tools.trace.perfetto_module.local_director`,
       );
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   }

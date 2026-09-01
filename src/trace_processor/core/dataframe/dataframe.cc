@@ -21,43 +21,57 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/bytecode_lowering.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_to_string.h"
-#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/ops.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 namespace {
 
-template <typename T>
-void GatherInPlace(T& storage, const uint32_t* indices, uint32_t count) {
-  // Since indices are sorted, indices[i] >= i, so we can gather in-place
-  // without overwriting unread data.
-  for (uint32_t i = 0; i < count; ++i) {
-    storage[i] = storage[indices[i]];
+// Estimates the distinct-value count of a finalized column, or 0 if unknown.
+// Only computed for HasDuplicates columns: unique columns select at most one
+// row regardless, and the planner already handles them exactly.
+uint32_t EstimateDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
+                          const Column& c) {
+  if (!c.duplicate_state.Is<HasDuplicates>()) {
+    return 0;
   }
-  storage.resize(count);
-}
-
-void GatherBitsInPlace(core::BitVector& bv,
-                       const uint32_t* indices,
-                       uint32_t count) {
-  // Since indices are sorted, indices[i] >= i, so we can gather in-place.
-  for (uint32_t i = 0; i < count; ++i) {
-    bv.change(i, bv.is_set(indices[i]));
+  switch (c.storage.type().index()) {
+    case StorageType::GetTypeIndex<Uint32>(): {
+      const auto& values = c.storage.unchecked_get<Uint32>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
+    case StorageType::GetTypeIndex<Int32>(): {
+      const auto& values = c.storage.unchecked_get<Int32>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
+    case StorageType::GetTypeIndex<Int64>(): {
+      const auto& values = c.storage.unchecked_get<Int64>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
+    case StorageType::GetTypeIndex<String>(): {
+      const auto& values = c.storage.unchecked_get<String>();
+      return core::ops::EstimateDistinctCount(&counts, values.span());
+    }
+    case StorageType::GetTypeIndex<Double>():
+    case StorageType::GetTypeIndex<Id>():
+      return 0;
+    default:
+      PERFETTO_FATAL("Invalid storage type");
   }
-  bv.resize(count);
 }
 
 }  // namespace
@@ -97,11 +111,22 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
-  ASSIGN_OR_RETURN(auto plan,
-                   QueryPlanBuilder::Build(row_count_, columns_, indexes_,
-                                           filter_specs, distinct_specs,
-                                           sort_specs, limit_spec, cols_used));
-  return QueryPlan(std::move(plan));
+  ASSIGN_OR_RETURN(
+      LogicalPlan logical,
+      LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
+                           distinct_specs, sort_specs, limit_spec, cols_used));
+  return QueryPlan(BytecodeLowering::Lower(logical, columns_, indexes_));
+}
+
+base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogicalForTesting(
+    std::vector<FilterSpec>& filter_specs,
+    const std::vector<DistinctSpec>& distinct_specs,
+    const std::vector<SortSpec>& sort_specs,
+    const LimitSpec& limit_spec,
+    uint64_t cols_used) const {
+  return LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
+                              distinct_specs, sort_specs, limit_spec,
+                              cols_used);
 }
 
 void Dataframe::Clear() {
@@ -197,6 +222,9 @@ void Dataframe::Finalize() {
     return;
   }
   finalized_ = true;
+  // Reused across columns; Clear() keeps its capacity so it allocates at most
+  // once for the whole dataframe.
+  base::FlatHashMap<int64_t, uint32_t> distinct_counts;
   for (const auto& c : columns_) {
     switch (c->storage.type().index()) {
       case StorageType::GetTypeIndex<Uint32>():
@@ -245,6 +273,7 @@ void Dataframe::Finalize() {
       default:
         PERFETTO_FATAL("Invalid nullability type");
     }
+    c->estimated_distinct = EstimateDistinct(distinct_counts, *c);
   }
   // Bump the mutation counter so that any cursors with cached pointers
   // know to refresh them: shrink_to_fit() may have reallocated the internal
@@ -318,109 +347,6 @@ std::vector<std::shared_ptr<Column>> Dataframe::CreateColumnVector(
     }));
   }
   return columns;
-}
-
-// static
-base::StatusOr<Dataframe> Dataframe::HorizontalConcat(Dataframe&& left,
-                                                      Dataframe&& right) {
-  PERFETTO_CHECK(left.finalized_);
-  PERFETTO_CHECK(right.finalized_);
-  if (left.row_count_ != right.row_count_) {
-    return base::ErrStatus(
-        "HorizontalConcat: row count mismatch. Left has %u rows, right has %u "
-        "rows.",
-        left.row_count_, right.row_count_);
-  }
-
-  std::vector<std::string> column_names;
-  std::vector<std::shared_ptr<Column>> columns;
-  bool had_auto_id = false;
-
-  // Add columns from left, excluding _auto_id.
-  for (uint32_t i = 0; i < left.column_names_.size(); ++i) {
-    if (left.column_names_[i] == "_auto_id") {
-      had_auto_id = true;
-    } else {
-      column_names.emplace_back(std::move(left.column_names_[i]));
-      columns.emplace_back(std::move(left.columns_[i]));
-    }
-  }
-
-  // Add columns from right, excluding _auto_id.
-  for (uint32_t i = 0; i < right.column_names_.size(); ++i) {
-    if (right.column_names_[i] == "_auto_id") {
-      had_auto_id = true;
-    } else {
-      column_names.emplace_back(std::move(right.column_names_[i]));
-      columns.emplace_back(std::move(right.columns_[i]));
-    }
-  }
-
-  // Check for duplicate column names.
-  {
-    std::unordered_set<std::string> seen;
-    for (const auto& name : column_names) {
-      if (!seen.insert(name).second) {
-        return base::ErrStatus("HorizontalConcat: duplicate column name '%s'.",
-                               name.c_str());
-      }
-    }
-  }
-
-  // Add a new _auto_id column only if either input had one.
-  if (had_auto_id) {
-    column_names.emplace_back("_auto_id");
-    columns.emplace_back(std::make_shared<Column>(
-        Column{Storage{Storage::Id{left.row_count_}}, NullStorage::NonNull{},
-               IdSorted{}, NoDuplicates{}}));
-  }
-
-  return Dataframe(true, std::move(column_names), std::move(columns),
-                   left.row_count_, left.string_pool_);
-}
-
-Dataframe Dataframe::SelectRows(const uint32_t* indices, uint32_t count) && {
-  PERFETTO_CHECK(finalized_);
-  // Check that the indices must be sorted and duplicate-free.
-  for (uint32_t i = 1; i < count; ++i) {
-    PERFETTO_DCHECK(indices[i - 1] < indices[i]);
-  }
-  for (auto& col : columns_) {
-    auto type = col->storage.type();
-    if (type.Is<Id>()) {
-      col->storage.unchecked_get<Id>().size = count;
-    } else if (type.Is<Uint32>()) {
-      GatherInPlace(col->storage.unchecked_get<Uint32>(), indices, count);
-    } else if (type.Is<Int32>()) {
-      GatherInPlace(col->storage.unchecked_get<Int32>(), indices, count);
-    } else if (type.Is<Int64>()) {
-      GatherInPlace(col->storage.unchecked_get<Int64>(), indices, count);
-    } else if (type.Is<Double>()) {
-      GatherInPlace(col->storage.unchecked_get<Double>(), indices, count);
-    } else if (type.Is<String>()) {
-      GatherInPlace(col->storage.unchecked_get<String>(), indices, count);
-    } else {
-      PERFETTO_FATAL("Invalid storage type");
-    }
-    auto nullability = col->null_storage.nullability();
-    if (nullability.Is<NonNull>()) {
-      // Nothing to do.
-    } else if (nullability.Is<DenseNull>()) {
-      GatherBitsInPlace(col->null_storage.unchecked_get<DenseNull>().bit_vector,
-                        indices, count);
-    } else {
-      auto& sparse = col->null_storage.unchecked_get<SparseNull>();
-      GatherBitsInPlace(sparse.bit_vector, indices, count);
-      if (nullability.Is<SparseNullWithPopcountAlways>()) {
-        sparse.prefix_popcount_for_cell_get =
-            sparse.bit_vector.PrefixPopcountFlexVector();
-      } else {
-        PERFETTO_CHECK(sparse.prefix_popcount_for_cell_get.empty());
-      }
-    }
-  }
-  row_count_ = count;
-  return std::move(*this);
 }
 
 std::vector<std::string> Dataframe::QueryPlan::BytecodeToString() const {

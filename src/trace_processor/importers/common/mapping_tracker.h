@@ -86,6 +86,10 @@ class MappingTracker {
   UserMemoryMapping* FindUserMappingForAddress(UniquePid upid,
                                                uint64_t address) const;
 
+  // Given an absolute address find the JIT cache where this address
+  // belongs to. Returns `nullptr` if none is found.
+  JitCache* FindJitCacheForAddress(UniquePid upid, uint64_t address) const;
+
   std::vector<VirtualMemoryMapping*> FindMappings(
       base::StringView name,
       const std::optional<BuildId>& build_id) const;

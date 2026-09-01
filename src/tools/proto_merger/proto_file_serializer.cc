@@ -26,9 +26,7 @@ std::string DeletedComment(const std::string& prefix) {
   std::string output;
   output += "\n";
   output += prefix + "  //\n";
-  output += prefix;
-  output +=
-      "  // The following enums/messages/fields are not present upstream\n";
+  output += prefix + "  // " + kDeletedCommentWarning + "\n";
   output += prefix + "  //\n";
   return output;
 }
@@ -106,6 +104,12 @@ std::string SerializeEnum(size_t indent, const ProtoFile::Enum& en) {
   for (const auto& value : en.values) {
     output += SerializeEnumValue(indent, value);
   }
+  if (!en.deleted_values.empty()) {
+    output += DeletedComment(prefix);
+    for (const auto& value : en.deleted_values) {
+      output += SerializeEnumValue(indent, value);
+    }
+  }
   output += prefix + "}\n";
 
   output += SerializeTrailingComments(prefix, en);
@@ -114,15 +118,21 @@ std::string SerializeEnum(size_t indent, const ProtoFile::Enum& en) {
 
 std::string SerializeField(size_t indent,
                            const ProtoFile::Field& field,
-                           bool write_label) {
+                           bool write_label,
+                           bool is_proto2) {
   std::string prefix(indent * 2, ' ');
 
   std::string output;
   output += SerializeLeadingComments(prefix, field);
 
   output += prefix;
-  if (write_label && field.is_repeated)
-    output += "repeated ";
+  if (write_label && !base::StartsWith(field.type, "map<")) {
+    if (field.is_repeated) {
+      output += "repeated ";
+    } else if (is_proto2) {
+      output += "optional ";
+    }
+  }
   output +=
       field.type + " " + field.name + " = " + std::to_string(field.number);
 
@@ -133,7 +143,9 @@ std::string SerializeField(size_t indent,
   return output;
 }
 
-std::string SerializeOneof(size_t indent, const ProtoFile::Oneof& oneof) {
+std::string SerializeOneof(size_t indent,
+                           const ProtoFile::Oneof& oneof,
+                           bool is_proto2) {
   std::string prefix(indent * 2, ' ');
   ++indent;
 
@@ -142,7 +154,13 @@ std::string SerializeOneof(size_t indent, const ProtoFile::Oneof& oneof) {
 
   output += prefix + "oneof " + oneof.name + " {\n";
   for (const auto& field : oneof.fields) {
-    output += SerializeField(indent, field, false);
+    output += SerializeField(indent, field, false, is_proto2);
+  }
+  if (!oneof.deleted_fields.empty()) {
+    output += DeletedComment(prefix);
+    for (const auto& field : oneof.deleted_fields) {
+      output += SerializeField(indent, field, false, is_proto2);
+    }
   }
   output += prefix + "}\n";
 
@@ -150,7 +168,9 @@ std::string SerializeOneof(size_t indent, const ProtoFile::Oneof& oneof) {
   return output;
 }
 
-std::string SerializeMessage(size_t indent, const ProtoFile::Message& message) {
+std::string SerializeMessage(size_t indent,
+                             const ProtoFile::Message& message,
+                             bool is_proto2) {
   std::string prefix(indent * 2, ' ');
   ++indent;
 
@@ -162,13 +182,13 @@ std::string SerializeMessage(size_t indent, const ProtoFile::Message& message) {
     output += SerializeEnum(indent, en);
   }
   for (const auto& nested : message.nested_messages) {
-    output += SerializeMessage(indent, nested);
+    output += SerializeMessage(indent, nested, is_proto2);
   }
   for (const auto& oneof : message.oneofs) {
-    output += SerializeOneof(indent, oneof);
+    output += SerializeOneof(indent, oneof, is_proto2);
   }
   for (const auto& field : message.fields) {
-    output += SerializeField(indent, field, true);
+    output += SerializeField(indent, field, true, is_proto2);
   }
 
   if (!message.deleted_enums.empty() || !message.deleted_fields.empty() ||
@@ -179,13 +199,13 @@ std::string SerializeMessage(size_t indent, const ProtoFile::Message& message) {
       output += SerializeEnum(indent, en);
     }
     for (const auto& nested : message.deleted_nested_messages) {
-      output += SerializeMessage(indent, nested);
+      output += SerializeMessage(indent, nested, is_proto2);
     }
     for (const auto& oneof : message.deleted_oneofs) {
-      output += SerializeOneof(indent, oneof);
+      output += SerializeOneof(indent, oneof, is_proto2);
     }
     for (const auto& field : message.deleted_fields) {
-      output += SerializeField(indent, field, true);
+      output += SerializeField(indent, field, true, is_proto2);
     }
   }
 
@@ -205,7 +225,7 @@ std::string ProtoFileToDotProto(const ProtoFile& proto_file) {
     output += SerializeEnum(0, en);
   }
   for (const auto& message : proto_file.messages) {
-    output += SerializeMessage(0, message);
+    output += SerializeMessage(0, message, proto_file.is_proto2);
   }
 
   if (!proto_file.deleted_enums.empty() ||
@@ -216,7 +236,7 @@ std::string ProtoFileToDotProto(const ProtoFile& proto_file) {
       output += SerializeEnum(0, en);
     }
     for (const auto& nested : proto_file.deleted_messages) {
-      output += SerializeMessage(0, nested);
+      output += SerializeMessage(0, nested, proto_file.is_proto2);
     }
   }
   return output;

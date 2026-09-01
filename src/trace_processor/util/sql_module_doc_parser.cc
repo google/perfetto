@@ -24,8 +24,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/perfetto_sql/syntaqlite/utils.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/perfetto_sql/syntaqlite/utils.h"
 
 namespace perfetto::trace_processor::stdlib_doc {
 
@@ -121,8 +121,10 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
         syntaqlite_parser_node(p, item->arg_name));
 
     Entry entry;
-    entry.name = SyntaqliteSpanText(p, name_node->ident_name.source);
-    entry.type = SyntaqliteSpanText(p, item->arg_type);
+    entry.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(
+        p, name_node->ident_name.source);
+    entry.type =
+        ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
     // Locate the token for the arg name by its source offset, then fetch
     // the leading comments attached to that token.
@@ -176,8 +178,8 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
     }
 
     Arg arg;
-    arg.name = SyntaqliteSpanText(p, item->arg_name);
-    arg.type = SyntaqliteSpanText(p, item->arg_type);
+    arg.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_name);
+    arg.type = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
     uint32_t c_count = 0;
     const auto* cs = syntaqlite_node_leading_comments(p, item_id, &c_count);
@@ -221,8 +223,7 @@ using ScopedParser = std::unique_ptr<SyntaqliteParser, SyntaqliteParserDeleter>;
 ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
   ParsedModule result;
 
-  ScopedParser owned(syntaqlite_parser_create_with_dialect(
-      nullptr, syntaqlite_perfetto_dialect()));
+  ScopedParser owned(syntaqlite_parser_create_perfetto(nullptr));
   PERFETTO_CHECK(owned != nullptr);
   SyntaqliteParser* p = owned.get();
 
@@ -273,7 +274,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT: {
         const auto& n = node->create_perfetto_table_stmt;
         TableOrView tv;
-        tv.name = SyntaqliteSpanText(p, n.table_name);
+        tv.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.table_name);
         tv.type = "TABLE";
         tv.exposed = !IsInternal(tv.name);
         tv.description = get_stmt_desc();
@@ -285,7 +286,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT: {
         const auto& n = node->create_perfetto_view_stmt;
         TableOrView tv;
-        tv.name = SyntaqliteSpanText(p, n.view_name);
+        tv.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.view_name);
         tv.type = "VIEW";
         tv.exposed = !IsInternal(tv.name);
         tv.description = get_stmt_desc();
@@ -312,7 +313,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         }
 
         Function fn;
-        fn.name = SyntaqliteSpanText(p, fn_name_span);
+        fn.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, fn_name_span);
         fn.exposed = !IsInternal(fn.name);
         fn.description = get_stmt_desc();
         fn.args = ExtractArgs(p, args_list_id, stmt_ptr);
@@ -325,7 +326,8 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
             fn.return_type = "TABLE";
             fn.columns = ExtractColumns(p, rt->table_columns, stmt_ptr);
           } else {
-            fn.return_type = SyntaqliteSpanText(p, rt->scalar_type);
+            fn.return_type = ::perfetto::perfetto_sql::SyntaqliteSpanText(
+                p, rt->scalar_type);
           }
           fn.return_description =
               GetReturnDescription(p, return_type_id, stmt_ptr);
@@ -338,10 +340,12 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT: {
         const auto& n = node->create_perfetto_macro_stmt;
         Macro macro;
-        macro.name = SyntaqliteSpanText(p, n.macro_name);
+        macro.name =
+            ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.macro_name);
         macro.exposed = !IsInternal(macro.name);
         macro.description = get_stmt_desc();
-        macro.return_type = SyntaqliteSpanText(p, n.return_type);
+        macro.return_type =
+            ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.return_type);
         macro.args = ExtractMacroArgs(p, n.args, stmt_ptr);
 
         // Return description: leading comments on the RETURNS keyword.

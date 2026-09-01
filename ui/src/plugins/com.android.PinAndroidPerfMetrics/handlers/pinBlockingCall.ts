@@ -26,11 +26,7 @@ import {
   addDebugSliceTrack,
   type DebugSliceTrackArgs,
 } from '../../../components/tracks/debug_tracks';
-import {
-  LONG,
-  type QueryResult,
-  type Row,
-} from '../../../trace_processor/query_result';
+import {LONG, type QueryResult} from '../../../trace_processor/query_result';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -74,7 +70,9 @@ class BlockingCallMetricHandler implements MetricHandler {
         ctx,
         metricData,
       );
-      addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
+      if (frameConfigArgs !== undefined) {
+        addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
+      }
     }
   }
 
@@ -95,21 +93,29 @@ class BlockingCallMetricHandler implements MetricHandler {
     }
   }
 
-  private blockingCallTrackConfig(metricData: BlockingCallMetricData) {
+  private blockingCallWhereClause(metricData: BlockingCallMetricData): string {
     const cuj = metricData.cujName;
     const processName = metricData.process;
     const blockingCallName = metricData.blockingCallName;
-
-    // TODO: b/296349525 - Migrate jank tables from run metrics to stdlib
-    const blockingCallDuringCujQuery = `
-  SELECT name, ts, dur
-  FROM blocking_call_slices_scoped_to_cujs
-  WHERE process_name = "${processName}"
+    // Some lab pipelines replace spaces with underscores in metric names (e.g.
+    // 'drawLayer_[StatusBarIconView]'), whereas standardized slice names
+    // in PerfettoSQL tables retain spaces ('drawLayer [StatusBarIconView]').
+    const normalizedName = blockingCallName.replaceAll('_', ' ');
+    return `
+      process_name = "${processName}"
       AND cuj_name = "${cuj}"
-      AND name = "${blockingCallName}"
-  `;
+      AND name IN ("${blockingCallName}", "${normalizedName}")
+    `;
+  }
 
-    const trackName = 'Blocking calls in ' + processName;
+  private blockingCallTrackConfig(metricData: BlockingCallMetricData) {
+    const blockingCallDuringCujQuery = `
+      SELECT name, ts, dur
+      FROM android_cuj_blocking_calls
+      WHERE ${this.blockingCallWhereClause(metricData)}
+    `;
+
+    const trackName = 'Blocking calls in ' + metricData.process;
     return {
       data: {
         sqlSource: blockingCallDuringCujQuery,
@@ -125,10 +131,6 @@ class BlockingCallMetricHandler implements MetricHandler {
     ctx: Trace,
     metricData: BlockingCallMetricData,
   ): Promise<QueryResult> {
-    const cuj = metricData.cujName;
-    const processName = metricData.process;
-    const blockingCallName = metricData.blockingCallName;
-
     // Fetch the frame_id of the frame with the max duration blocking call.
     return ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
@@ -136,10 +138,7 @@ class BlockingCallMetricHandler implements MetricHandler {
       SELECT
         frame_id
       FROM _blocking_calls_frame_cuj
-      WHERE
-        process_name = '${processName}'
-        AND name = '${blockingCallName}'
-        AND cuj_name = '${cuj}'
+      WHERE ${this.blockingCallWhereClause(metricData)}
       -- select frame_id for the metric with the maximum duration.
       ORDER BY dur DESC
       LIMIT 1`);
@@ -148,24 +147,22 @@ class BlockingCallMetricHandler implements MetricHandler {
     ctx: Trace,
     metricData: BlockingCallMetricData,
   ): Promise<
-    Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'rawColumns' | 'title'>
+    | Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'rawColumns' | 'title'>
+    | undefined
   > {
-    let row: Row = {
-      frame_id: null,
-    };
-
-    try {
-      row = (
-        await this.getFrameIdWithMaxDurationBlockingCall(ctx, metricData)
-      ).firstRow({frame_id: LONG});
-    } catch (e) {
-      throw new Error(
-        `${e.message} caused by: No frame found for:
-          process: ${metricData.process}
-          CUJ: ${metricData.cujName}
-          blocking call: ${metricData.blockingCallName}`,
+    const result = await this.getFrameIdWithMaxDurationBlockingCall(
+      ctx,
+      metricData,
+    );
+    if (result.numRows() === 0) {
+      console.warn(
+        `No frame found for: process=${metricData.process},` +
+          ` CUJ=${metricData.cujName},` +
+          ` blocking_call=${metricData.blockingCallName}`,
       );
+      return undefined;
     }
+    const row = result.firstRow({frame_id: LONG});
 
     // Fetch the ts and dur for the extended frame boundary corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `

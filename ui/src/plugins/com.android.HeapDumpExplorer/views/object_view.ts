@@ -22,7 +22,7 @@ import {
 import {Spinner} from '../../../widgets/spinner';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {
-  SchemaRegistry,
+  ColumnSchema,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
 import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
@@ -197,344 +197,333 @@ const METRIC_INFO: Record<string, string> = {
     'shortest-path tree. Includes objects also reachable via other paths.',
 };
 
-const SIZE_SCHEMA: SchemaRegistry = {
-  query: {
-    metric: {
-      title: 'Metric',
-      columnType: 'text',
-      cellRenderer: (value: SqlValue): CellRenderResult => {
-        const label = String(value ?? '');
-        const info = METRIC_INFO[label];
-        return {content: info ? colHeader(label, info) : label};
-      },
+const SIZE_SCHEMA: ColumnSchema = {
+  metric: {
+    title: 'Metric',
+    columnType: 'text',
+    cellRenderer: (value: SqlValue): CellRenderResult => {
+      const label = String(value ?? '');
+      const info = METRIC_INFO[label];
+      return {content: info ? colHeader(label, info) : label};
     },
-    java: {
-      title: 'Java',
-      columnType: 'quantitative',
-      cellRenderer: nullableSizeRenderer,
-    },
-    native: {
-      title: 'Native',
-      columnType: 'quantitative',
-      cellRenderer: nullableSizeRenderer,
-    },
-    count: {
-      title: 'Count',
-      columnType: 'quantitative',
-      cellRenderer: (value: SqlValue): CellRenderResult => {
-        if (value === null) {
-          return {
-            content: m(
-              'span',
-              {class: 'pf-hde-mono pf-hde-opacity-60'},
-              '\u2026',
-            ),
-            align: 'right',
-          };
-        }
+  },
+  java: {
+    title: 'Java',
+    columnType: 'quantitative',
+    cellRenderer: nullableSizeRenderer,
+  },
+  native: {
+    title: 'Native',
+    columnType: 'quantitative',
+    cellRenderer: nullableSizeRenderer,
+  },
+  count: {
+    title: 'Count',
+    columnType: 'quantitative',
+    cellRenderer: (value: SqlValue): CellRenderResult => {
+      if (value === null) {
         return {
           content: m(
             'span',
-            {class: 'pf-hde-mono'},
-            Number(value).toLocaleString(),
+            {class: 'pf-hde-mono pf-hde-opacity-60'},
+            '\u2026',
           ),
           align: 'right',
         };
-      },
+      }
+      return {
+        content: m(
+          'span',
+          {class: 'pf-hde-mono'},
+          Number(value).toLocaleString(),
+        ),
+        align: 'right',
+      };
     },
   },
 };
 
-function makeInstanceSchema(navigate: NavFn): SchemaRegistry {
+function makeInstanceSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      id: {
-        title: 'Object',
-        columnType: 'identifier',
-        cellRenderer: (value: SqlValue, row) => {
-          const id = Number(value);
-          const cls = String(row.cls ?? '');
-          const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-          const str = row.str != null ? String(row.str) : null;
-          return m('span', [
-            m(
-              'button',
-              {
-                class: 'pf-hde-link',
-                onclick: () =>
-                  navigate('object', {id, label: str ? `"${str}"` : display}),
-              },
-              display,
-            ),
-            str
-              ? m(
-                  'span',
-                  {class: 'pf-hde-str-badge'},
-                  ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
-                )
-              : null,
-          ]);
-        },
+    id: {
+      title: 'Object',
+      columnType: 'identifier',
+      cellRenderer: (value: SqlValue, row) => {
+        const id = Number(value);
+        const cls = String(row.cls ?? '');
+        const display = `${shortClassName(cls)} ${fmtHex(id)}`;
+        const str = row.str != null ? String(row.str) : null;
+        return m('span', [
+          m(
+            'button',
+            {
+              class: 'pf-hde-link',
+              onclick: () =>
+                navigate('object', {id, label: str ? `"${str}"` : display}),
+            },
+            display,
+          ),
+          str
+            ? m(
+                'span',
+                {class: 'pf-hde-str-badge'},
+                ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
+              )
+            : null,
+        ]);
       },
-      self_size: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      native_size: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_count: {
-        title: colHeader('Retained #', COL_INFO.retainedCount),
-        titleString: 'Retained #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      reachable_size: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable Native', COL_INFO.reachableNative),
-        titleString: 'Reachable Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable #', COL_INFO.reachableCount),
-        titleString: 'Reachable #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      heap: {
-        title: 'Heap',
-        columnType: 'text',
-      },
-      cls: {
-        title: 'Class',
-        columnType: 'text',
-      },
-      str: {
-        title: 'String Value',
-        columnType: 'text',
-      },
+    },
+    self_size: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    native_size: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_count: {
+      title: colHeader('Retained #', COL_INFO.retainedCount),
+      titleString: 'Retained #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    reachable_size: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable Native', COL_INFO.reachableNative),
+      titleString: 'Reachable Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable #', COL_INFO.reachableCount),
+      titleString: 'Reachable #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    heap: {
+      title: 'Heap',
+      columnType: 'text',
+    },
+    cls: {
+      title: 'Class',
+      columnType: 'text',
+    },
+    str: {
+      title: 'String Value',
+      columnType: 'text',
     },
   };
 }
 
-function makeFieldSchema(navigate: NavFn): SchemaRegistry {
+function makeFieldSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      name: {
-        title: 'Name',
-        columnType: 'text',
-        cellRenderer: (value: SqlValue, row) => {
-          if (row.value_kind === 'ref' && row.ref_id !== null) {
-            return m(
-              'button',
-              {
-                class: 'pf-hde-link',
-                onclick: () =>
-                  navigate('object', {
-                    id: Number(row.ref_id),
-                    label: String(row.value_display ?? ''),
-                  }),
-              },
-              String(value),
-            );
-          }
-          return m('span', String(value ?? ''));
-        },
+    name: {
+      title: 'Name',
+      columnType: 'text',
+      cellRenderer: (value: SqlValue, row) => {
+        if (row.value_kind === 'ref' && row.ref_id !== null) {
+          return m(
+            'button',
+            {
+              class: 'pf-hde-link',
+              onclick: () =>
+                navigate('object', {
+                  id: Number(row.ref_id),
+                  label: String(row.value_display ?? ''),
+                }),
+            },
+            String(value),
+          );
+        }
+        return m('span', String(value ?? ''));
       },
-      type_name: {
-        title: 'Type',
-        columnType: 'text',
+    },
+    type_name: {
+      title: 'Type',
+      columnType: 'text',
+    },
+    value_display: {
+      title: 'Value',
+      columnType: 'text',
+      cellRenderer: (value: SqlValue, row) => {
+        if (row.value_kind === 'ref' && row.ref_id !== null) {
+          return m(PrimOrRefCell, {
+            v: {
+              kind: 'ref',
+              id: Number(row.ref_id),
+              display: String(value),
+              str: row.ref_str != null ? String(row.ref_str) : null,
+            },
+            navigate,
+          });
+        }
+        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
       },
-      value_display: {
-        title: 'Value',
-        columnType: 'text',
-        cellRenderer: (value: SqlValue, row) => {
-          if (row.value_kind === 'ref' && row.ref_id !== null) {
-            return m(PrimOrRefCell, {
-              v: {
-                kind: 'ref',
-                id: Number(row.ref_id),
-                display: String(value),
-                str: row.ref_str != null ? String(row.ref_str) : null,
-              },
-              navigate,
-            });
-          }
-          return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
-        },
-      },
-      shallow: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      shallow_native: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable Native', COL_INFO.reachableNative),
-        titleString: 'Reachable Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable #', COL_INFO.reachableCount),
-        titleString: 'Reachable #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      value_kind: {
-        title: 'Kind',
-        columnType: 'text',
-      },
-      ref_id: {
-        title: 'Ref ID',
-        columnType: 'identifier',
-      },
-      ref_str: {
-        title: 'Ref String',
-        columnType: 'text',
-      },
+    },
+    shallow: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    shallow_native: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable Native', COL_INFO.reachableNative),
+      titleString: 'Reachable Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable #', COL_INFO.reachableCount),
+      titleString: 'Reachable #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    value_kind: {
+      title: 'Kind',
+      columnType: 'text',
+    },
+    ref_id: {
+      title: 'Ref ID',
+      columnType: 'identifier',
+    },
+    ref_str: {
+      title: 'Ref String',
+      columnType: 'text',
     },
   };
 }
 
-function makeArraySchema(
-  navigate: NavFn,
-  elemTypeName: string,
-): SchemaRegistry {
+function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
   return {
-    query: {
-      idx: {
-        title: 'Index',
-        columnType: 'quantitative',
-        cellRenderer: (value: SqlValue): CellRenderResult => ({
-          content: m('span', {class: 'pf-hde-mono'}, String(value ?? 0)),
-          align: 'right',
-        }),
+    idx: {
+      title: 'Index',
+      columnType: 'quantitative',
+      cellRenderer: (value: SqlValue): CellRenderResult => ({
+        content: m('span', {class: 'pf-hde-mono'}, String(value ?? 0)),
+        align: 'right',
+      }),
+    },
+    value_display: {
+      title: `Value (${elemTypeName})`,
+      columnType: 'text',
+      cellRenderer: (value: SqlValue, row) => {
+        if (row.value_kind === 'ref' && row.ref_id !== null) {
+          return m(PrimOrRefCell, {
+            v: {
+              kind: 'ref',
+              id: Number(row.ref_id),
+              display: String(value),
+              str: row.ref_str != null ? String(row.ref_str) : null,
+            },
+            navigate,
+          });
+        }
+        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
       },
-      value_display: {
-        title: `Value (${elemTypeName})`,
-        columnType: 'text',
-        cellRenderer: (value: SqlValue, row) => {
-          if (row.value_kind === 'ref' && row.ref_id !== null) {
-            return m(PrimOrRefCell, {
-              v: {
-                kind: 'ref',
-                id: Number(row.ref_id),
-                display: String(value),
-                str: row.ref_str != null ? String(row.ref_str) : null,
-              },
-              navigate,
-            });
-          }
-          return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
-        },
-      },
-      shallow: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      shallow_native: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable Native', COL_INFO.reachableNative),
-        titleString: 'Reachable Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable #', COL_INFO.reachableCount),
-        titleString: 'Reachable #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      value_kind: {
-        title: 'Kind',
-        columnType: 'text',
-      },
-      ref_id: {
-        title: 'Ref ID',
-        columnType: 'identifier',
-      },
-      ref_str: {
-        title: 'Ref String',
-        columnType: 'text',
-      },
+    },
+    shallow: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    shallow_native: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable Native', COL_INFO.reachableNative),
+      titleString: 'Reachable Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable #', COL_INFO.reachableCount),
+      titleString: 'Reachable #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    value_kind: {
+      title: 'Kind',
+      columnType: 'text',
+    },
+    ref_id: {
+      title: 'Ref ID',
+      columnType: 'identifier',
+    },
+    ref_str: {
+      title: 'Ref String',
+      columnType: 'text',
     },
   };
 }
 
-function ObjectView(): m.Component<ObjectViewAttrs> {
+export function ObjectView(): m.Component<ObjectViewAttrs> {
   let detail: InstanceDetail | null | 'loading' = 'loading';
   let prevId: number | undefined;
   let alive = true;
@@ -815,7 +804,6 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
             ];
             return m(DataGrid, {
               schema: SIZE_SCHEMA,
-              rootSchema: 'query',
               data: sizeRows,
               initialColumns: [
                 {id: 'metric', field: 'metric'},
@@ -902,7 +890,6 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
           detail.reverseRefs.length > 0
             ? m(DataGrid, {
                 schema: makeInstanceSchema(navigate),
-                rootSchema: 'query',
                 data: detail.reverseRefs.map(instanceRowToRow),
                 initialColumns: [
                   {id: 'id', field: 'id'},
@@ -935,7 +922,6 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
           detail.dominated.length > 0
             ? m(DataGrid, {
                 schema: makeInstanceSchema(navigate),
-                rootSchema: 'query',
                 data: detail.dominated.map(instanceRowToRow),
                 initialColumns: [
                   {id: 'id', field: 'id'},
@@ -970,7 +956,6 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
   }
   return m(DataGrid, {
     schema: makeFieldSchema(navigate),
-    rootSchema: 'query',
     data: fields.map(fieldRowToRow),
     initialColumns: [
       {id: 'type_name', field: 'type_name'},
@@ -1029,7 +1014,6 @@ function renderArrayGrid(
       : null,
     m(DataGrid, {
       schema: makeArraySchema(navigate, elemTypeName),
-      rootSchema: 'query',
       data: elems.map((e) => arrayElemToRow(e, elemTypeName)),
       initialColumns: [
         {id: 'idx', field: 'idx'},
@@ -1124,5 +1108,3 @@ function renderClassHierarchy(
     ),
   );
 }
-
-export default ObjectView;

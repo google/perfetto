@@ -65,6 +65,17 @@ class ArtHprofParser(TestSuite):
           25919
         '''))
 
+  def test_art_hprof_heap_graph_metadata(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT id, ts, upid FROM heap_graph
+        """,
+        out=Csv('''
+          "id","ts","upid"
+          0,1740172787560,1
+        '''))
+
   def test_art_hprof_object_examples_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('test-dump.hprof'),

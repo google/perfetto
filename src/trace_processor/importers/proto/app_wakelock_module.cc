@@ -60,21 +60,14 @@ AppWakelockModule::AppWakelockModule(ProtoImporterModuleContext* module_context,
   RegisterForField(FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber);
 }
 
-ModuleResult AppWakelockModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t ts,
-    RefPtr<PacketSequenceStateGeneration> state,
-    uint32_t field_id) {
-  if (field_id != FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber) {
+ModuleResult AppWakelockModule::TokenizePacket(const TokenizePacketArgs& args) {
+  if (args.field.id() !=
+      FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber) {
     return ModuleResult::Ignored();
   }
 
   AppWakelockBundle::Decoder evt(
-      decoder
-          .GetExtensionSlowly<
-              FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber>()
-          .as_bytes());
+      args.field.Cast<FrameworksBaseTracePacket::kAppWakelockBundle>());
 
   bool parse_error = false;
   auto iid_iter = evt.intern_id(&parse_error);
@@ -88,10 +81,10 @@ ModuleResult AppWakelockModule::TokenizePacket(
     uint64_t encoded_ts = *timestamp_iter;
     uint32_t intern_id = *iid_iter;
 
-    int64_t real_ts = ts + static_cast<int64_t>(encoded_ts >> 1);
+    int64_t real_ts = args.ts + static_cast<int64_t>(encoded_ts >> 1);
     bool acquired = encoded_ts & 0x1;
 
-    auto* interned = state->LookupInternedMessage<
+    auto* interned = args.state->LookupInternedMessage<
         FrameworksBaseInternedData::kAppWakelockInfoFieldNumber,
         AppWakelockInfo>(intern_id);
     if (interned == nullptr) {
@@ -109,25 +102,18 @@ ModuleResult AppWakelockModule::TokenizePacket(
           event->set_info()->AppendRawProtoBytes(interned->begin(), length);
           event->set_acquired(acquired);
         });
-    PushPacketBufferForSort(real_ts, std::move(tbv), state);
+    PushPacketBufferForSort(real_ts, std::move(tbv), args.state);
   }
 
   return ModuleResult::Handled();
 }
 
-void AppWakelockModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void AppWakelockModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber:
       ParseWakelockBundle(
-          ts,
-          decoder
-              .GetExtensionSlowly<
-                  FrameworksBaseTracePacket::kAppWakelockBundleFieldNumber>()
-              .as_bytes());
+          args.ts,
+          args.field.Cast<FrameworksBaseTracePacket::kAppWakelockBundle>());
       return;
   }
 }

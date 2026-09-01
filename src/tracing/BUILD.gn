@@ -21,10 +21,10 @@ import("../../gn/test.gni")
 # The backends are designed to be dead-code-eliminated via linker's gc-section
 # when not use. See comments in Tracing::Initialize() in tracing.h.
 group("client_api") {
+  deps = [ "../../gn:default_deps" ]
   public_deps = [
     ":client_api_without_backends",
     ":in_process_backend",
-    "../../gn:default_deps",
     "../../include/perfetto/tracing",
     "../../include/perfetto/tracing/core",
   ]
@@ -71,6 +71,7 @@ source_set("common") {
 # than the unsupported one.
 source_set("client_api_without_backends") {
   deps = [
+    "../../gn:default_deps",
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:cpp",
@@ -79,10 +80,7 @@ source_set("client_api_without_backends") {
     "../base",
     "core",
   ]
-  public_deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/tracing",
-  ]
+  public_deps = [ "../../include/perfetto/tracing" ]
   sources = [
     "console_interceptor.cc",
     "data_source.cc",
@@ -205,9 +203,6 @@ source_set("in_process_backend") {
     "core",
     "service",
   ]
-  if (enable_perfetto_zlib) {
-    deps += [ "service:zlib_compressor" ]
-  }
   sources = [ "internal/in_process_tracing_backend.cc" ]
 }
 

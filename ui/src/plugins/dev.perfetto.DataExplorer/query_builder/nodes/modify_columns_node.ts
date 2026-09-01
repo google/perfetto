@@ -311,7 +311,8 @@ export class ModifyColumnsNode implements QueryNode {
     if (this.primaryInput === undefined) return undefined;
 
     const hasModification = this.attrs.selectedColumns.some(
-      (col) => !col.checked || (col.alias && col.alias.trim() !== ''),
+      (col) =>
+        !col.checked || (col.alias !== undefined && col.alias.trim() !== ''),
     );
 
     if (!hasModification) {

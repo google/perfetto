@@ -13,12 +13,8 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import type {
-  SettingDescriptor,
-  SettingCategory,
-  SettingFilter,
-} from './settings_types';
-import {endpointStorage} from './endpoint_storage';
+import type {SettingDescriptor, SettingCategory} from './settings_types';
+import {getBigtraceEndpoint} from './endpoint_storage';
 
 interface BackendSettingOption {
   value?: string;
@@ -46,12 +42,8 @@ function toSettingDescriptor(
   const {id = '', name = '', description = '', disabled, category} = option;
 
   let type:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array' = 'string';
+    'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array' =
+    'string';
   let schema: z.ZodType<unknown> = z.any();
   let defaultValue: unknown = undefined;
   let optionsList: {value: string; label: string}[] | undefined = undefined;
@@ -117,8 +109,7 @@ function toSettingDescriptor(
 
 // Resolves the current BigTrace endpoint or throws a user-facing message.
 function getEndpoint(): string {
-  const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-  const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
+  const endpoint = getBigtraceEndpoint();
   if (endpoint.trim() === '') {
     throw new Error(
       'Set the BigTrace Endpoint above to load backend settings.',
@@ -129,61 +120,25 @@ function getEndpoint(): string {
 
 class BigTraceSettingsService {
   private execConfigAbortController: AbortController | null = null;
-  private metadataAbortController: AbortController | null = null;
-
-  abortAll(): void {
-    this.execConfigAbortController?.abort();
-    this.metadataAbortController?.abort();
-  }
 
   async getExecutionSettings(): Promise<SettingDescriptor<unknown>[]> {
     const endpoint = getEndpoint();
     this.execConfigAbortController?.abort();
     this.execConfigAbortController = new AbortController();
-
-    const settings = await this.fetchSettings(
-      endpoint,
-      '/bigtrace_execution_config',
-      '{}',
-      this.execConfigAbortController,
-    );
+    const settings = await this.fetchSettings(endpoint);
     return settings.map(toSettingDescriptor);
   }
 
-  async getMetadataSettings(
-    filters: SettingFilter[],
-  ): Promise<SettingDescriptor<unknown>[]> {
-    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
-    if (endpoint.trim() === '') return [];
-
-    this.metadataAbortController?.abort();
-    this.metadataAbortController = new AbortController();
-
-    const settings = await this.fetchSettings(
-      endpoint,
-      '/trace_metadata_settings',
-      JSON.stringify({settings: filters}),
-      this.metadataAbortController,
-    );
-    return settings.map(toSettingDescriptor);
-  }
-
-  // Shared fetch+parse logic for both settings endpoints.
-  private async fetchSettings(
-    endpoint: string,
-    path: string,
-    body: string,
-    controller: AbortController,
-  ): Promise<BackendSetting[]> {
+  // Fetch + parse the backend execution-settings response.
+  private async fetchSettings(endpoint: string): Promise<BackendSetting[]> {
     try {
-      const response = await fetch(`${endpoint}${path}`, {
+      const response = await fetch(`${endpoint}/bigtrace_execution_config`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body,
+        body: '{}',
         credentials: 'include',
         mode: 'cors',
-        signal: controller.signal,
+        signal: this.execConfigAbortController?.signal,
       });
 
       if (!response.ok) {

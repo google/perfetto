@@ -152,6 +152,8 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS = 17,
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK = 18,
   PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS = 19,
+  PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID = 20,
+  PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR = 21,
 };
 
 // An extra event parameter. Each type of parameter should embed this as its
@@ -287,6 +289,29 @@ struct PerfettoTeHlExtraFlow {
   uint64_t id;
 };
 
+// PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID
+struct PerfettoTeHlExtraCorrelationId {
+  struct PerfettoTeHlExtra header;
+  // Opaque id correlating this event with other events that are part of the
+  // same logical operation. Emitted as TrackEvent's `correlation_id`.
+  uint64_t id;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR
+struct PerfettoTeHlExtraCorrelationIdStr {
+  struct PerfettoTeHlExtra header;
+  // Null terminated string correlating this event with other events that are
+  // part of the same logical operation. Emitted as TrackEvent's
+  // `correlation_id_str`.
+  const char* str;
+};
+
+// Union over all possible correlation id types.
+union PerfettoTeHlExtraCorrelationIdUnion {
+  struct PerfettoTeHlExtraCorrelationId correlation_id;
+  struct PerfettoTeHlExtraCorrelationIdStr correlation_id_str;
+};
+
 // PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS
 struct PerfettoTeHlExtraProtoFields {
   struct PerfettoTeHlExtra header;
@@ -316,12 +341,51 @@ struct PerfettoTeHlNestedTrack {
   uint32_t type;
 };
 
+// How a track orders its direct children. Values mirror
+// TrackDescriptor.ChildTracksOrdering; UNKNOWN (0) leaves it unset.
+enum PerfettoTeHlChildOrdering {
+  PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN = 0,
+  PERFETTO_TE_HL_CHILD_ORDERING_LEXICOGRAPHIC = 1,
+  PERFETTO_TE_HL_CHILD_ORDERING_CHRONOLOGICAL = 2,
+  PERFETTO_TE_HL_CHILD_ORDERING_EXPLICIT = 3,
+};
+
+// How analysis tools merge a track with its eligible siblings. Values mirror
+// TrackDescriptor.SiblingMergeBehavior; UNSPECIFIED (0) leaves it unset.
+enum PerfettoTeHlSiblingMergeBehavior {
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_UNSPECIFIED = 0,
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME = 1,
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_NONE = 2,
+  PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY = 3,
+};
+
 // PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED
 struct PerfettoTeHlNestedTrackNamed {
   struct PerfettoTeHlNestedTrack header;
   const char* name;
   // Partially identifies the track, along `name` and the parent hierarchy.
   uint64_t id;
+  // If true, `name` is a compile-time constant and is emitted as static_name.
+  bool is_name_static;
+  // This track's rank among its siblings (lower sorts first). Honored only
+  // when the parent's `child_ordering` is EXPLICIT. 0 leaves it unset.
+  int32_t sibling_order_rank;
+  // enum PerfettoTeHlChildOrdering. How this track orders its own children;
+  // UNKNOWN (0) leaves it unset.
+  uint32_t child_ordering;
+  // enum PerfettoTeHlSiblingMergeBehavior. How this track is merged with
+  // eligible siblings; UNSPECIFIED (0) leaves it unset.
+  uint32_t sibling_merge_behavior;
+  // Null terminated string key selecting which siblings this track is merged
+  // with. Only meaningful when `sibling_merge_behavior` is
+  // BY_SIBLING_MERGE_KEY; emitted as the TrackDescriptor `sibling_merge_key`.
+  // NULL leaves it unset, in which case `sibling_merge_key_int` is emitted
+  // instead (the two map onto a protobuf oneof).
+  const char* sibling_merge_key_str;
+  // Integer key selecting which siblings this track is merged with. Only
+  // emitted (as `sibling_merge_key_int`) when `sibling_merge_behavior` is
+  // BY_SIBLING_MERGE_KEY and `sibling_merge_key_str` is NULL.
+  uint64_t sibling_merge_key_int;
 };
 
 struct PerfettoTeHlNestedTrackProto {

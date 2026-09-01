@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path, DataPath
+from python.generators.diff_tests.testing import Path, DataPath, TextProto
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
@@ -29,15 +29,15 @@ class StdlibSched(TestSuite):
       SELECT * FROM sched_runnable_thread_count;
       """,
         out=Csv("""
-      "ts","runnable_thread_count"
-      1,1
-      50,1
-      100,2
-      115,2
-      120,2
-      170,3
-      250,2
-      390,2
+      "ts","machine_id","runnable_thread_count"
+      1,0,1
+      50,0,1
+      100,0,2
+      115,0,2
+      120,0,2
+      170,0,3
+      250,0,2
+      390,0,2
       """))
 
   def test_active_cpu_count(self):
@@ -49,16 +49,138 @@ class StdlibSched(TestSuite):
       SELECT * FROM sched_active_cpu_count;
       """,
         out=Csv("""
-      "ts","active_cpu_count"
-      1,1
-      50,2
-      100,2
-      115,2
-      120,2
-      170,1
-      250,2
-      390,2
+      "ts","machine_id","active_cpu_count"
+      1,0,1
+      50,0,2
+      100,0,2
+      115,0,2
+      120,0,2
+      170,0,1
+      250,0,2
+      390,0,2
       """))
+
+  def test_thread_level_parallelism_is_partitioned_by_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100
+              pid: 0
+              sched_switch {
+                prev_comm: "swapper/0"
+                prev_pid: 0
+                prev_prio: 120
+                prev_state: 0
+                next_comm: "shared_pid"
+                next_pid: 10
+                next_prio: 120
+              }
+            }
+            event {
+              timestamp: 200
+              pid: 10
+              sched_switch {
+                prev_comm: "shared_pid"
+                prev_pid: 10
+                prev_prio: 120
+                prev_state: 0
+                next_comm: "swapper/0"
+                next_pid: 0
+                next_prio: 120
+              }
+            }
+            event {
+              timestamp: 400
+              pid: 0
+              sched_switch {
+                prev_comm: "swapper/0"
+                prev_pid: 0
+                prev_prio: 120
+                prev_state: 0
+                next_comm: "shared_pid"
+                next_pid: 10
+                next_prio: 120
+              }
+            }
+          }
+        }
+        packet {
+          machine_id: 1001
+          remote_clock_sync {
+            synced_clocks {
+              client_clocks { clocks { clock_id: 6 timestamp: 0 } }
+              host_clocks { clocks { clock_id: 6 timestamp: 0 } }
+            }
+          }
+        }
+        packet {
+          machine_id: 1001
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100
+              pid: 0
+              sched_switch {
+                prev_comm: "swapper/0"
+                prev_pid: 0
+                prev_prio: 120
+                prev_state: 0
+                next_comm: "shared_pid"
+                next_pid: 10
+                next_prio: 120
+              }
+            }
+            event {
+              timestamp: 250
+              pid: 10
+              sched_switch {
+                prev_comm: "shared_pid"
+                prev_pid: 10
+                prev_prio: 120
+                prev_state: 0
+                next_comm: "swapper/0"
+                next_pid: 0
+                next_prio: 120
+              }
+            }
+            event {
+              timestamp: 350
+              pid: 0
+              sched_switch {
+                prev_comm: "swapper/0"
+                prev_pid: 0
+                prev_prio: 120
+                prev_state: 0
+                next_comm: "shared_pid"
+                next_pid: 10
+                next_prio: 120
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE sched.thread_level_parallelism;
+
+        SELECT
+          m.raw_id AS raw_machine_id,
+          max(runnable_thread_count) AS max_runnable,
+          (SELECT max(active_cpu_count)
+           FROM sched_active_cpu_count a
+           WHERE a.machine_id = r.machine_id) AS max_active_cpus
+        FROM sched_runnable_thread_count r
+        JOIN machine m ON m.id = r.machine_id
+        GROUP BY r.machine_id
+        ORDER BY r.machine_id;
+        """,
+        out=Csv("""
+        "raw_machine_id","max_runnable","max_active_cpus"
+        0,1,1
+        1001,1,1
+        """))
 
   def test_sched_time_in_state_for_thread(self):
     return DiffTestBlueprint(

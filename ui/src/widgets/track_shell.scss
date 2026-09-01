@@ -13,7 +13,7 @@
 // limitations under the License.
 
 @use "sass:math";
-@import "../assets/theme";
+@use "../assets/theme" as *;
 
 .pf-track {
   --indent-size: 8px;
@@ -81,6 +81,16 @@
     border-width: 0 0 1px 0; // Borders on bottom and right
     border-style: solid;
     border-color: var(--pf-color-border-secondary);
+
+    // A subtle tint to indicate this track is part of the current selection.
+    // Declared before --highlight so that highlighting wins.
+    &--selected {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-accent) 12%,
+        transparent
+      );
+    }
 
     &--highlight {
       background-color: var(--pf-color-highlight);

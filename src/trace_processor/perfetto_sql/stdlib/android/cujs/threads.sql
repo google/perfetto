@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.cujs.base;
 
+INCLUDE PERFETTO MODULE android.surfaceflinger;
+
 -- Returns a table with all CUJs and an additional column for the track id of thread_name
 -- passed as parameter, if present in the same process of the cuj.
 CREATE PERFETTO FUNCTION android_jank_cuj_app_thread(
@@ -56,3 +58,98 @@ CREATE PERFETTO TABLE android_jank_cuj_render_thread(
 )
 AS
 SELECT * FROM android_jank_cuj_app_thread('RenderThread');
+
+-- Private table capturing thread information for main/UI thread for all CUJs.
+CREATE PERFETTO TABLE _android_jank_cuj_main_thread(
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- thread id of the main/UI thread.
+  utid JOINID(thread.id),
+  -- thread name.
+  name STRING,
+  -- track_id for the thread.
+  track_id JOINID(track.id)
+)
+AS
+SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id
+FROM thread
+JOIN android_jank_cuj AS cuj USING (upid)
+JOIN thread_track USING (utid)
+WHERE
+  (cuj.ui_thread IS NULL AND thread.is_main_thread)
+  -- Some CUJs use a ui thread different than the main thread. We get the ui
+  -- thread thanks to an instant event. If that is not available, we use the app
+  -- main thread (typically pid == tid).
+  OR (cuj.ui_thread = thread.utid);
+
+-- Private table capturing thread information for 'GPU completion' thread for all CUJs.
+CREATE PERFETTO TABLE _android_jank_cuj_gpu_completion_thread(
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- thread id of the thread.
+  utid JOINID(thread.id),
+  -- thread name.
+  name STRING,
+  -- track_id for the thread.
+  track_id JOINID(track.id)
+)
+AS
+SELECT * FROM android_jank_cuj_app_thread('GPU completion');
+
+-- Private table capturing thread information for 'HWC release' thread for all CUJs.
+CREATE PERFETTO TABLE _android_jank_cuj_hwc_release_thread(
+  -- Unique incremental ID for each CUJ.
+  cuj_id LONG,
+  -- process id.
+  upid JOINID(process.id),
+  -- thread id of the thread.
+  utid JOINID(thread.id),
+  -- thread name.
+  name STRING,
+  -- track_id for the thread.
+  track_id JOINID(track.id)
+)
+AS
+SELECT * FROM android_jank_cuj_app_thread('HWC release');
+
+-- Private table capturing the SurfaceFlinger process.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_process(
+  -- process id.
+  upid JOINID(process.id),
+  -- process name.
+  name STRING
+)
+AS
+SELECT upid, name FROM _android_sf_process;
+
+-- Private table capturing the SurfaceFlinger 'GPU completion' thread.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_gpu_completion_thread(
+  -- process id.
+  upid JOINID(process.id),
+  -- thread id of the thread.
+  utid JOINID(thread.id),
+  -- thread name.
+  name STRING,
+  -- track_id for the thread.
+  track_id JOINID(track.id)
+)
+AS
+SELECT * FROM _android_sf_thread('GPU completion');
+
+-- Private table capturing the SurfaceFlinger 'RenderEngine' thread.
+CREATE PERFETTO TABLE _android_jank_cuj_sf_render_engine_thread(
+  -- process id.
+  upid JOINID(process.id),
+  -- thread id of the thread.
+  utid JOINID(thread.id),
+  -- thread name.
+  name STRING,
+  -- track_id for the thread.
+  track_id JOINID(track.id)
+)
+AS
+SELECT * FROM _android_sf_thread('RenderEngine');

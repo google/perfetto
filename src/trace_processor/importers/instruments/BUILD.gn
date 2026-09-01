@@ -41,10 +41,12 @@ if (enable_perfetto_trace_processor_mac_instruments) {
       "../../../../include/perfetto/public",
       "../../../../include/perfetto/trace_processor:trace_processor",
       "../../../../protos/perfetto/trace:zero",
+      "../../../base",
       "../../sorter",
       "../../storage",
       "../../types",
       "../../util:build_id",
+      "../../util:trace_type",
       "../common",
     ]
   }

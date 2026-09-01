@@ -22,9 +22,7 @@ export interface DataExplorerHelpAttrs {
   onTableClick: (tableName: string, event: MouseEvent) => void;
 }
 
-export class DataExplorerHelp
-  implements m.ClassComponent<DataExplorerHelpAttrs>
-{
+export class DataExplorerHelp implements m.ClassComponent<DataExplorerHelpAttrs> {
   private searchQuery = '';
 
   view({attrs}: m.CVnode<DataExplorerHelpAttrs>) {

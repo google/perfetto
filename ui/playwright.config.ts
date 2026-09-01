@@ -92,7 +92,7 @@ export default defineConfig({
   webServer: {
     // Just run the server without building
     command:
-      './run-dev-server --no-build --no-depscheck ' +
+      './build --serve --no-build --no-depscheck ' +
       (process.env.DEV_SERVER_ARGS ?? ''),
     url: 'http://127.0.0.1:10000',
     reuseExistingServer: true,

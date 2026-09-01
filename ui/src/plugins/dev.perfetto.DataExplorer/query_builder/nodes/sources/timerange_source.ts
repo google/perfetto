@@ -312,7 +312,7 @@ export class TimeRangeSourceNode implements QueryNode {
               const parsed = BigInt(value.trim());
               this.start = Time.fromRaw(parsed);
               this.attrs.start = value.trim();
-            } catch (e) {
+            } catch {
               // Keep current value if invalid
             }
             this.context.onchange?.();
@@ -340,7 +340,7 @@ export class TimeRangeSourceNode implements QueryNode {
               const parsed = BigInt(value.trim());
               this.end = Time.fromRaw(parsed);
               this.attrs.end = value.trim();
-            } catch (e) {
+            } catch {
               // Keep current value if invalid
             }
             this.context.onchange?.();
@@ -371,7 +371,7 @@ export class TimeRangeSourceNode implements QueryNode {
                   this.end = Time.fromRaw(this.start + parsed);
                   this.attrs.end = this.end.toString();
                 }
-              } catch (e) {
+              } catch {
                 // Keep current value if invalid
               }
               this.context.onchange?.();

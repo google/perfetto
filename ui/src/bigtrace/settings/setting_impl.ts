@@ -17,26 +17,19 @@ import m from 'mithril';
 import type {LocalStorage} from '../../core/local_storage';
 import type {Setting, SettingDescriptor, EnumOption} from './settings_types';
 
-// Minimal interface both LocalSettingsStorage and BigTraceSettingsStorageImpl
-// satisfy. Decouples SettingImpl from a specific storage class.
+// Decouples SettingImpl from any specific storage class.
 export interface ValueStorage {
   getStoredValue(id: string): unknown;
   setStoredValue(id: string, value: unknown): void;
 }
 
-// Single implementation of Setting<T>, used by both LocalSettingsStorage and
-// BigTraceSettingsStorageImpl. Consolidates the two prior duplicate classes.
+// Single implementation of Setting<T> over any ValueStorage.
 export class SettingImpl<T> implements Setting<T> {
   public readonly id: string;
   public readonly name: string;
   public readonly description: string;
   public readonly type:
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'enum'
-    | 'multi-select'
-    | 'string-array';
+    'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array';
   public readonly schema: z.ZodType<T>;
   public readonly defaultValue: T;
   public readonly category?: string;
@@ -64,8 +57,8 @@ export class SettingImpl<T> implements Setting<T> {
     this.format = descriptor.format;
     this.disabled = descriptor.disabled ?? false;
 
-    // When the backend marks a setting as disabled by default, persist that
-    // on first encounter so the toggle starts in the off position.
+    // Persist a disabled-by-default setting on first encounter so its toggle
+    // starts off.
     if (this.disabled && this.disabledStateStorage) {
       const storedState = this.disabledStateStorage.load()[this.id];
       if (storedState === undefined) {
@@ -95,6 +88,9 @@ export class SettingImpl<T> implements Setting<T> {
   }
 
   isDisabled(): boolean {
+    // Boolean settings have no separate enable/disable — the value control IS
+    // the on/off — so they're never disabled.
+    if (this.type === 'boolean') return false;
     if (!this.disabledStateStorage) return false;
     return Boolean(this.disabledStateStorage.load()[this.id]);
   }
@@ -108,6 +104,6 @@ export class SettingImpl<T> implements Setting<T> {
   }
 
   [Symbol.dispose](): void {
-    // No resources owned — values live in LocalStorage.
+    // Nothing to dispose — values live in storage.
   }
 }

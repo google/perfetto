@@ -69,6 +69,7 @@ using ArgSetId = uint32_t;
 using TrackId = tables::TrackTable_Id;
 
 using CounterId = tables::CounterTable_Id;
+using StateId = tables::StateTable_Id;
 
 using SliceId = tables::SliceTable_Id;
 
@@ -313,6 +314,12 @@ class TraceStorage {
   tables::CounterTable* mutable_counter_table() {
     return mutable_table<tables::CounterTable>();
   }
+  const tables::StateTable& state_table() const {
+    return table<tables::StateTable>();
+  }
+  tables::StateTable* mutable_state_table() {
+    return mutable_table<tables::StateTable>();
+  }
 
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
@@ -322,6 +329,13 @@ class TraceStorage {
   }
   tables::StatsTable* mutable_stats_table() {
     return mutable_table<tables::StatsTable>();
+  }
+
+  const tables::TraceDiagnosticsTable& trace_diagnostics_table() const {
+    return table<tables::TraceDiagnosticsTable>();
+  }
+  tables::TraceDiagnosticsTable* mutable_trace_diagnostics_table() {
+    return mutable_table<tables::TraceDiagnosticsTable>();
   }
 
   const tables::AndroidAflagsTable& android_aflags_table() const {
@@ -502,6 +516,13 @@ class TraceStorage {
     return mutable_table<tables::HeapProfileAllocationTable>();
   }
 
+  const tables::HeapProfileTable& heap_profile_table() const {
+    return table<tables::HeapProfileTable>();
+  }
+  tables::HeapProfileTable* mutable_heap_profile_table() {
+    return mutable_table<tables::HeapProfileTable>();
+  }
+
   const tables::PackageListTable& package_list_table() const {
     return table<tables::PackageListTable>();
   }
@@ -514,6 +535,31 @@ class TraceStorage {
   }
   tables::AndroidUserListTable* mutable_user_list_table() {
     return mutable_table<tables::AndroidUserListTable>();
+  }
+
+  const tables::HeapGraphTable& heap_graph_table() const {
+    return table<tables::HeapGraphTable>();
+  }
+  tables::HeapGraphTable* mutable_heap_graph_table() {
+    return mutable_table<tables::HeapGraphTable>();
+  }
+
+  const tables::HeapGraphThreadCallsiteTable& heap_graph_thread_callsite_table()
+      const {
+    return table<tables::HeapGraphThreadCallsiteTable>();
+  }
+  tables::HeapGraphThreadCallsiteTable*
+  mutable_heap_graph_thread_callsite_table() {
+    return mutable_table<tables::HeapGraphThreadCallsiteTable>();
+  }
+
+  const tables::HeapGraphJavaOomeDetailsTable&
+  heap_graph_java_oome_details_table() const {
+    return table<tables::HeapGraphJavaOomeDetailsTable>();
+  }
+  tables::HeapGraphJavaOomeDetailsTable*
+  mutable_heap_graph_java_oome_details_table() {
+    return mutable_table<tables::HeapGraphJavaOomeDetailsTable>();
   }
 
   const tables::AndroidGameInterventionListTable&
@@ -539,40 +585,58 @@ class TraceStorage {
     return mutable_table<tables::TraceFileTable>();
   }
 
-  const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
+  const tables::ChromeStackSampleExtrasTable& chrome_stack_sample_extras_table()
       const {
-    return table<tables::CpuProfileStackSampleTable>();
+    return table<tables::ChromeStackSampleExtrasTable>();
   }
-  tables::CpuProfileStackSampleTable* mutable_cpu_profile_stack_sample_table() {
-    return mutable_table<tables::CpuProfileStackSampleTable>();
-  }
-
-  const tables::PerfSessionTable& perf_session_table() const {
-    return table<tables::PerfSessionTable>();
-  }
-  tables::PerfSessionTable* mutable_perf_session_table() {
-    return mutable_table<tables::PerfSessionTable>();
+  tables::ChromeStackSampleExtrasTable*
+  mutable_chrome_stack_sample_extras_table() {
+    return mutable_table<tables::ChromeStackSampleExtrasTable>();
   }
 
-  const tables::PerfSampleTable& perf_sample_table() const {
-    return table<tables::PerfSampleTable>();
+  const tables::ProfilerAsyncContextTable& profiler_async_context_table()
+      const {
+    return table<tables::ProfilerAsyncContextTable>();
   }
-  tables::PerfSampleTable* mutable_perf_sample_table() {
-    return mutable_table<tables::PerfSampleTable>();
-  }
-
-  const tables::PerfCounterSetTable& perf_counter_set_table() const {
-    return table<tables::PerfCounterSetTable>();
-  }
-  tables::PerfCounterSetTable* mutable_perf_counter_set_table() {
-    return mutable_table<tables::PerfCounterSetTable>();
+  tables::ProfilerAsyncContextTable* mutable_profiler_async_context_table() {
+    return mutable_table<tables::ProfilerAsyncContextTable>();
   }
 
-  const tables::InstrumentsSampleTable& instruments_sample_table() const {
-    return table<tables::InstrumentsSampleTable>();
+  const tables::ProfilerTaskContextTable& profiler_task_context_table() const {
+    return table<tables::ProfilerTaskContextTable>();
   }
-  tables::InstrumentsSampleTable* mutable_instruments_sample_table() {
-    return mutable_table<tables::InstrumentsSampleTable>();
+  tables::ProfilerTaskContextTable* mutable_profiler_task_context_table() {
+    return mutable_table<tables::ProfilerTaskContextTable>();
+  }
+
+  const tables::ProfilerExecutionContextTable&
+  profiler_execution_context_table() const {
+    return table<tables::ProfilerExecutionContextTable>();
+  }
+  tables::ProfilerExecutionContextTable*
+  mutable_profiler_execution_context_table() {
+    return mutable_table<tables::ProfilerExecutionContextTable>();
+  }
+
+  const tables::ProfilerSessionTable& profiler_session_table() const {
+    return table<tables::ProfilerSessionTable>();
+  }
+  tables::ProfilerSessionTable* mutable_profiler_session_table() {
+    return mutable_table<tables::ProfilerSessionTable>();
+  }
+
+  const tables::ProfilerSampleTable& profiler_sample_table() const {
+    return table<tables::ProfilerSampleTable>();
+  }
+  tables::ProfilerSampleTable* mutable_profiler_sample_table() {
+    return mutable_table<tables::ProfilerSampleTable>();
+  }
+
+  const tables::ProfilerCounterSetTable& profiler_counter_set_table() const {
+    return table<tables::ProfilerCounterSetTable>();
+  }
+  tables::ProfilerCounterSetTable* mutable_profiler_counter_set_table() {
+    return mutable_table<tables::ProfilerCounterSetTable>();
   }
 
   const tables::SymbolTable& symbol_table() const {
@@ -1049,11 +1113,21 @@ class TraceStorage {
     return static_cast<Variadic::Type>(idx);
   }
 
+  // Set by the display.video importer when it emits a frame; read by trace
+  // doctor to tell "no capture" from a producer error. A flag not a stat, to
+  // keep per-event counts out of stats. TODO(lalitm): drop once trace doctor
+  // is pluginized and can read __intrinsic_video_frames directly.
+  bool has_android_video_frames() const { return has_android_video_frames_; }
+  void set_has_android_video_frames() { has_android_video_frames_ = true; }
+
  private:
   using StringHash = uint64_t;
 
   TraceStorage(const TraceStorage&) = delete;
   TraceStorage& operator=(const TraceStorage&) = delete;
+
+  // See has_android_video_frames().
+  bool has_android_video_frames_ = false;
 
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;

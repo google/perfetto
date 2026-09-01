@@ -15,7 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 
-import type {QueryFlamegraphMetric} from '../../components/query_flamegraph';
+import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
@@ -25,7 +25,7 @@ import {
   AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
 } from './types';
 import type {Store} from '../../base/store';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';
@@ -44,7 +44,7 @@ export default class implements PerfettoPlugin {
     if (profiles.length === 0) {
       return;
     }
-    const store = assertExists(this.store);
+    const store = ensureExists(this.store);
     trace.pages.registerPage({
       route: '/aggregateprofiles',
       render: () =>
@@ -103,7 +103,7 @@ export default class implements PerfettoPlugin {
   private async getProfileMetrics(
     trace: Trace,
     scope: string,
-  ): Promise<QueryFlamegraphMetric[]> {
+  ): Promise<TreeExplorerQueryMetric[]> {
     const result = await trace.engine.query(`
       SELECT
         id,
@@ -114,7 +114,7 @@ export default class implements PerfettoPlugin {
       WHERE scope = '${scope}'
       ORDER BY sample_type_type
     `);
-    const metrics: QueryFlamegraphMetric[] = [];
+    const metrics: TreeExplorerQueryMetric[] = [];
     for (
       const it = result.iter({
         id: NUM,

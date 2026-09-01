@@ -479,16 +479,36 @@ void DeobfuscationTracker::GuessPackages(
                             frames_needing_package_guess);
   }
 
-  const auto& perf_sample_table = context_->storage->perf_sample_table();
-  for (auto sample = perf_sample_table.IterateRows(); sample; ++sample) {
-    auto thread = context_->storage
-                      ->thread_table()[tables::ThreadTable::Id(sample.utid())];
-    if (!thread.upid().has_value() || !sample.callsite_id().has_value()) {
+  const auto& profiler_sample_table =
+      context_->storage->profiler_sample_table();
+  const auto& task_context_table =
+      context_->storage->profiler_task_context_table();
+  for (auto sample = profiler_sample_table.IterateRows(); sample; ++sample) {
+    if (!sample.task_context_id() || !sample.callsite_id()) {
+      continue;
+    }
+    auto task_context = task_context_table[*sample.task_context_id()];
+    if (!task_context.upid()) {
       continue;
     }
     GuessPackageForCallsite(
-        java_frames_for_name, tables::ProcessTable::Id(*thread.upid()),
+        java_frames_for_name, tables::ProcessTable::Id(*task_context.upid()),
         *sample.callsite_id(), frames_needing_package_guess);
+  }
+
+  const auto& callsite_table =
+      context_->storage->heap_graph_thread_callsite_table();
+  const auto& heap_graph_table = context_->storage->heap_graph_table();
+  for (auto it = callsite_table.IterateRows(); it; ++it) {
+    auto heap_graph_id = it.heap_graph_id();
+    auto upid_val = heap_graph_table[heap_graph_id].upid();
+    auto upid = tables::ProcessTable::Id(upid_val);
+    auto callsite_id = it.callsite_id();
+    if (!callsite_id.has_value()) {
+      continue;
+    }
+    GuessPackageForCallsite(java_frames_for_name, upid, *callsite_id,
+                            frames_needing_package_guess);
   }
 }
 

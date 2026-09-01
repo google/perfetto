@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
@@ -27,16 +27,16 @@ import {
 import {EmptyState} from '../../widgets/empty_state';
 
 interface FilteredTable {
-  table: SqlTable;
-  segments: FuzzySegment[];
+  readonly table: SqlTable;
+  readonly segments: readonly FuzzySegment[];
 }
 
-// Single source so run-query, body, title, and Copy text stay in sync.
+// Single source so run-query, title, and Copy text stay in sync.
 function includeStatement(includeKey: string): string {
   return `INCLUDE PERFETTO MODULE ${includeKey};`;
 }
 
-function renderHighlightedName(segments: FuzzySegment[]): m.Children {
+function renderHighlightedName(segments: readonly FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('span.pf-bt-simple-table-list__highlight', value) : value,
   );
@@ -63,11 +63,12 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         segments: [{matching: false, value: table.name}],
       }));
     } else {
-      const finder = new FuzzyFinder(tables, (t) => t.name);
-      filteredTables = finder.find(searchTerm).map((result) => ({
-        table: result.item,
-        segments: result.segments,
-      }));
+      filteredTables = fuzzySearch(tables, (t) => t.name, searchTerm).map(
+        (result) => ({
+          table: result.item,
+          segments: result.segments,
+        }),
+      );
     }
 
     return m(
@@ -132,13 +133,11 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
   private generateQuery(table: SqlTable): string {
     const lines: string[] = [];
 
-    // Add INCLUDE statement if needed
     if (table.includeKey) {
       lines.push(includeStatement(table.includeKey));
       lines.push('');
     }
 
-    // Build SELECT with all columns
     const columns =
       table.columns.length > 0
         ? table.columns.map((c) => c.name).join(',\n  ')
@@ -157,14 +156,13 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
     onQueryTable?: (tableName: string, query: string) => void,
   ): m.Children {
     return [
-      // Description
       table.description &&
         m('.pf-bt-simple-table-list__description', table.description),
 
       m(
         '.pf-bt-simple-table-list__detail-row',
         m('span.pf-bt-simple-table-list__detail-label', 'Table name'),
-        // Ellipsis-truncated; tooltip reveals the full name without copying.
+        // Ellipsis-truncated; tooltip reveals the full name.
         m(
           'code.pf-bt-simple-table-list__detail-value',
           {title: table.name},
@@ -184,10 +182,8 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             onclick: () => onQueryTable(table.name, this.generateQuery(table)),
           }),
       ),
-      // Module
       table.includeKey && this.renderIncludeRow(table.includeKey),
 
-      // Columns
       table.columns.length > 0 &&
         m(
           '.pf-bt-simple-table-list__columns',

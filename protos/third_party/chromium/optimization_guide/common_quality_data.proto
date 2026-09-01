@@ -376,22 +376,22 @@ message ContentAttributes {
 }
 
 // The geometry of the content, in the page coordinate system.
-// Next ID: 8
-// NOTE: If `visual_bounding_box` is empty, i.e., the content is offscreen and
+// Next ID: 9
+// NOTE: If `visible_bounding_box` is empty, i.e., the content is offscreen and
 // it's in an iframe, the `outer_bounding_box` may be incorrect. See crbug.com/384996050
 // for details.
 //
 // Only populated for ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS.
 message Geometry {
   // The bounding box of the content node mapped to the viewport ignoring any
-  // ancestor clips (including the viewport clip). This can be thought of as the
+  // ancestor clips (including the viewport clip). This can be thought of as
   // where the element would be relative to the viewport if it "popped out" of
   // the page and was painted on top of all the content. A few use-case for this
   // are:
   //
   // - If empty, this implies the node is not hit-testable, even once
   //   scrolled onscreen.
-  // - The rect's origin indicates whether whether it starts above or below the
+  // - The rect's origin indicates whether it starts above or below the
   //   viewport. A negative y-coordinate means the node's content starts above
   //   the viewport.
   BoundingRect outer_bounding_box = 1 [features = { field_presence: EXPLICIT }];
@@ -400,14 +400,6 @@ message Geometry {
   // ancestor clipping. These are the element bounds visible to the user and
   // hit-testable in the DOM.
   BoundingRect visible_bounding_box = 2 [features = { field_presence: EXPLICIT }];
-
-  // The bounding box of the content node relative to the viewport including all
-  // ancestor clipping. This is conceptually the same as `visible_bounding_box`,
-  // but with coordinates calculated by the compositor on the client side. This
-  // geometry should be more in sync with the browser screenshot, and should be
-  // used for screenshot redaction when present. See crbug.com/441532128 for more
-  // details.
-  BoundingRect compositor_bounding_box = 7 [features = { field_presence: EXPLICIT }];
 
   // Multiple boxes are used when there are multiple rectangles belonging to
   // the same node, e.g.: across multiple lines, columns or pages. In layout
@@ -425,7 +417,10 @@ message Geometry {
     features = { field_presence: EXPLICIT }
   ];
 
-  reserved 4, 5;
+  // The computed CSS position property.
+  CssPosition css_position = 8 [features = { field_presence: EXPLICIT }];
+
+  reserved 4, 5, 7;
 }
 
 message BoundingRect {
@@ -436,6 +431,10 @@ message BoundingRect {
   int32 width = 3 [features = { field_presence: EXPLICIT }];
 
   int32 height = 4 [features = { field_presence: EXPLICIT }];
+
+  // If true, the bounding box is in the coordinate space of the screenshot
+  // bounds as specified in ScreenshotInfo > screenshot_size.
+  bool is_screenshot_relative = 5 [features = { field_presence: EXPLICIT }];
 }
 
 // The interaction information for the content node. This indicates whether the
@@ -522,16 +521,28 @@ message InteractionInfo {
   // may be triggered by clicking or hovering on the element.
   repeated ClickabilityReason clickability_reasons = 15;
 
-  // Whether the content node is explicitly disabled from being actionable. For
-  // example, a `select` element with the `disabled` or `aria-disabled`
-  // attribute. Disabled nodes are still valid action targets and can consume
-  // events. This is not set for nodes which are not hit-testable and will
-  // ignore events, for example with `pointer-events: none`.
+  // Whether the node is in a strong disabled state. When this is true, attempts
+  // to generate a click action for the node are rejected.
+  //
+  // This is true for:
+  // - A native control with `disabled`, such as `<button disabled>`.
+  //
+  // Some `interaction_disabled_reasons` are advisory and leave this false:
+  // - A node with `aria-disabled="true"`, or a node inside such an ancestor.
+  // - A node styled with `cursor: not-allowed`.
+  // - A node hidden from the accessibility tree with `aria-hidden="true"`.
+  // - A node with `role="presentation"` or `role="none"`.
+  //
+  // Advisory reasons tell consumers that an interaction on this node is likely
+  // to be a no-op, but they do not prevent the action from being dispatched if
+  // the node is targeted.
+  //
+  // A disabled node may still be hit-testable and consume events. Nodes that
+  // cannot be hit-tested, such as those with `pointer-events: none`, do not
+  // receive interaction info.
   bool is_disabled = 16 [features = { field_presence: EXPLICIT }];
 
   // Hints on why the interaction with the node is disabled.
-  //
-  // TODO(linnan): Deprecate is_disabled in favour of the list of reasons.
   repeated InteractionDisabledReason interaction_disabled_reasons = 17;
 
   // Whether the content node is tabbable. This is determined by whether the
@@ -605,12 +616,16 @@ message TextStyle {
 }
 
 // Information about the image. In the future, this may include a pixmap.
-// Next ID: 5
+// Next ID: 6
 message ImageInfo {
   string image_caption = 2 [features = { field_presence: EXPLICIT }];
 
   // Provides the source origin for the image.
   SecurityOrigin security_origin = 4 [features = { field_presence: EXPLICIT }];
+
+  // The image's source (`src`) URL. If redirected, this remains the original
+  // URL, not the final resolved destination.
+  string url = 5 [features = { field_presence: EXPLICIT }];
 
   reserved 1, 3;
 }
@@ -782,7 +797,7 @@ message IframeData {
 
 // The data for a frame in the web page. This is the common data structure for
 // both the root frame and embedded iframes.
-// Next ID: 12
+// Next ID: 13
 message FrameData {
   // The security origin of the frame.
   SecurityOrigin security_origin = 1 [features = { field_presence: EXPLICIT }];
@@ -816,6 +831,10 @@ message FrameData {
   // TODO: crbug.com/489841640 - Remove this field once all consumers move to using
   // the field in ActionsResult.
   repeated ScriptToolResult script_tool_results = 11;
+
+  // Positive used line height in CSS px. Needed for scaling-proof
+  // geometry rules (e.g. menu popup heuristics expecting a minimum size).
+  uint32 default_line_height_px = 12 [features = { field_presence: EXPLICIT }];
 
   reserved 7, 10;
 }
@@ -979,6 +998,7 @@ message PageInteractionInfo {
 
   // The content node ID of the content node that is currently focused by a
   // screen reader. If this is set, it means that a screen reader is being used.
+  // This is only tracked for the main frame.
   // TODO(linnan): Deprecate this field in favor of
   // FrameInteractionInfo.accessibility_focused_node_id.
   int32 accessibility_focused_node_id = 2 [features = { field_presence: EXPLICIT }];
@@ -991,7 +1011,7 @@ message PageInteractionInfo {
 
   // The identifier of the frame that currently has accessibility focus. If the
   // field is present but the identifier is empty, it means no frame has
-  // accessibility focus.
+  // accessibility focus. This could be main frame or an iframe.
   DocumentIdentifier accessibility_focused_frame = 5 [features = { field_presence: EXPLICIT }];
 }
 
@@ -1061,10 +1081,30 @@ message GeminiInChromePageMetadata {
 // The screenshot information for the page. While the screenshot is not
 // conveyed in the parent message, this metadata should be used to inform the
 // model about the screenshot.
-// Next ID: 2
+// Next ID: 4
 message ScreenshotInfo {
   // Whether the screenshot contains a selection region.
   bool has_selection_region_in_screenshot = 1 [features = { field_presence: EXPLICIT }];
+
+  // Information about the iframes in the screenshot.
+  repeated IframeInfo iframe_info = 2;
+
+  // The size of the screenshot in pixels, when it was originally captured.
+  BoundingSize screenshot_size = 3 [features = { field_presence: EXPLICIT }];
+}
+
+// Information about an iframe in the screenshot.
+// Next ID: 4
+message IframeInfo {
+  // The security origin of the iframe.
+  SecurityOrigin security_origin = 1 [features = { field_presence: EXPLICIT }];
+
+  // The URL of the iframe.
+  string url = 2 [features = { field_presence: EXPLICIT }];
+
+  // The bounding box of the iframe node in the coordinate space of the
+  // screenshot, including all ancestor clipping.
+  BoundingRect bounding_box = 3 [features = { field_presence: EXPLICIT }];
 }
 
 // Uniquely identifies a DOM elements across all frames.
@@ -1158,16 +1198,20 @@ message TableRow {
   repeated ContentNode cells = 1;
 }
 
-message UserAnnotationsEntry {
-  // The row ID of this entry from the user annotations database. This is
-  // immutable except when retrieving the row from the database.
-  int64 entry_id = 1 [features = { field_presence: EXPLICIT }];
+// The minimal representation of a tab group.
+// Next ID: 5
+message TabGroupMinimal {
+  // The label that describes this tab group.
+  string label = 1 [features = { field_presence: EXPLICIT }];
 
-  // The key for this entry. Not necessarily unique.
-  string key = 2 [features = { field_presence: EXPLICIT }];
+  // The ids of the tabs that belong in this group.
+  repeated int64 tab_ids = 2;
 
-  // The value for this entry.
-  string value = 3 [features = { field_presence: EXPLICIT }];
+  // The id of the pre-existing tab group this corresponds to, if any.
+  string group_id = 3 [features = { field_presence: EXPLICIT }];
+
+  // The emoji that represents this tab group, encoded in UTF-8.
+  string emoji = 4 [features = { field_presence: EXPLICIT }];
 }
 
 message TabGroup {
@@ -1181,6 +1225,7 @@ message TabGroup {
   string group_id = 3 [features = { field_presence: EXPLICIT }];
 }
 
+// Next ID: 7
 message Tab {
   // A unique identifier for the tab.
   int64 tab_id = 1 [features = { field_presence: EXPLICIT }];
@@ -1193,6 +1238,12 @@ message Tab {
 
   // The page context of the tab.
   PageContext page_context = 4 [features = { field_presence: EXPLICIT }];
+
+  // Timestamp of when the tab was last active (in milliseconds since epoch).
+  int64 last_active_timestamp_ms = 5 [features = { field_presence: EXPLICIT }];
+
+  // Duration in milliseconds the tab spent in the foreground.
+  int64 last_foreground_duration_ms = 6 [features = { field_presence: EXPLICIT }];
 }
 
 // The site engagement information for a single site.
@@ -1240,6 +1291,81 @@ message Coordinate {
     // content root node.
     PIXEL_TYPE_PHYSICAL_PIXELS = 2;
   }
+}
+
+// This is a mirror of google.protobuf.Duration.
+// Next ID: 3
+message TimeDuration {
+  // Signed seconds of the span of time. Must be from -315,576,000,000
+  // to +315,576,000,000 inclusive. Note: these bounds are computed from:
+  // 60 sec/min * 60 min/hr * 24 hr/day * 365.25 days/year * 10000 years
+  int64 seconds = 1 [features = { field_presence: EXPLICIT }];
+
+  // Signed fractions of a second at nanosecond resolution of the span
+  // of time. Durations less than one second are represented with a 0
+  // `seconds` field and a positive or negative `nanos` field. For durations
+  // of one second or more, a non-zero value for the `nanos` field must be
+  // of the same sign as the `seconds` field. Must be from -999,999,999
+  // to +999,999,999 inclusive.
+  int32 nanos = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// Represents a time zone from the
+// [IANA Time Zone Database](https://www.iana.org/time-zones).
+//
+// This is a mirror of google.type.TimeZone.
+// Next ID: 3
+message TimeZone {
+  // IANA Time Zone Database time zone. For example "America/New_York".
+  string id = 1 [features = { field_presence: EXPLICIT }];
+
+  // Optional. IANA Time Zone Database version number. For example "2019a".
+  string version = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// Represents civil time (or occasionally physical time).
+//
+// This is a mirror of google.type.DateTime.
+// Next ID: 10
+message DateTime {
+  // Optional. Specifies either the UTC offset or the time zone of the DateTime.
+  oneof time_offset {
+    // UTC offset. Must be whole seconds, between -18 hours and +18 hours.
+    // For example, a UTC offset of -4:00 would be represented as
+    // { seconds: -14400 }.
+    TimeDuration utc_offset = 8;
+
+    // Time zone.
+    TimeZone time_zone = 9;
+  }
+
+  // Optional. Year of date. Must be from 1 to 9999, or 0 if specifying a
+  // datetime without a year.
+  int32 year = 1 [features = { field_presence: EXPLICIT }];
+
+  // Optional. Month of year. Must be from 1 to 12, or 0 if specifying a
+  // datetime without a month.
+  int32 month = 2 [features = { field_presence: EXPLICIT }];
+
+  // Optional. Day of month. Must be from 1 to 31 and valid for the year and
+  // month, or 0 if specifying a datetime without a day.
+  int32 day = 3 [features = { field_presence: EXPLICIT }];
+
+  // Optional. Hours of day in 24 hour format. Should be from 0 to 23, defaults
+  // to 0 (midnight). An API may choose to allow the value "24:00:00" for
+  // scenarios like business closing time.
+  int32 hours = 4 [features = { field_presence: EXPLICIT }];
+
+  // Optional. Minutes of hour of day. Must be from 0 to 59, defaults to 0.
+  int32 minutes = 5 [features = { field_presence: EXPLICIT }];
+
+  // Optional. Seconds of minutes of the time. Must normally be from 0 to 59,
+  // defaults to 0. An API may allow the value 60 if it allows leap-seconds.
+  int32 seconds = 6 [features = { field_presence: EXPLICIT }];
+
+  // Optional. Fractions of seconds in nanoseconds. Must be from 0 to
+  // 999,999,999, defaults to 0.
+  int32 nanos = 7 [features = { field_presence: EXPLICIT }];
 }
 
 // A meta tag (https://developer.mozilla.org/en-US/docs/Wecrbug.com/HTML/Element/meta).
@@ -1835,7 +1961,7 @@ enum AXRole {
 }
 
 // AX String attribute enum.
-// Next ID: 43
+// Next ID: 47
 enum AXStringAttribute {
   AX_SA_NONE = 0;
 
@@ -1922,6 +2048,14 @@ enum AXStringAttribute {
   AX_SA_DATETIME = 41;
 
   AX_SA_HTMLINPUTNAME = 42;
+
+  AX_SA_MATHARG = 43;
+
+  AX_SA_MATHINTENT = 44;
+
+  AX_SA_CANVASANNOTATION = 45;
+
+  AX_SA_ARIAVALUETEXT = 46;
 }
 
 // AX Int attribute enum.
@@ -2262,7 +2396,7 @@ enum AnnotatedPageContentMode {
 // When adding new types, please also update AIPageContentAttributeType in
 // third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.
 // See crrev.com/c/6072788 for an example.
-// Next ID: 28
+// Next ID: 30
 enum ContentAttributeType {
   // Unknown is not a valid attribute type and should never be used by the
   // client. You can consider discarding ContentNodes with this attribute type.
@@ -2310,7 +2444,25 @@ enum ContentAttributeType {
 
   CONTENT_ATTRIBUTE_TABLE_CELL = 11;
 
+  // Dialog/modal containers.
+  CONTENT_ATTRIBUTE_DIALOG_MODAL = 28;
+
+  CONTENT_ATTRIBUTE_DIALOG_MODELESS = 29;
+
   reserved 12, 13, 14, 15, 16, 17, 18, 19;
+}
+
+// CSS position property values.
+enum CssPosition {
+  CSS_POSITION_STATIC_DEFAULT = 0;
+
+  CSS_POSITION_RELATIVE = 1;
+
+  CSS_POSITION_ABSOLUTE = 2;
+
+  CSS_POSITION_FIXED = 3;
+
+  CSS_POSITION_STICKY = 4;
 }
 
 // The reason why a node is clickable.

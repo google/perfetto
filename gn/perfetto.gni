@@ -389,6 +389,22 @@ declare_args() {
   enable_perfetto_zlib =
       enable_perfetto_trace_processor || enable_perfetto_platform_services
 
+  # Enables Zstd support. This is used to compress traces (by the tracing
+  # service) and to decompress traces (by trace_processor), as an alternative
+  # to Zlib/deflate.
+  #
+  # Only on builds that have zstd in buildtools/ (standalone, Android tree,
+  # generators). GN embedders have no common zstd target, see //gn:zstd.
+  # Chromium does have one (//third_party/zstd:{compress,decompress}) but is
+  # left out on purpose: Chrome only ever linked the zstd *decoder*, so turning
+  # this on made the tracing service the first thing to pull the *encoder* into
+  # size-optimized Android, adding ~235 KB to Trichrome. See the size increase
+  # on the Chromium roll: https://crrev.com/c/8065805
+  enable_perfetto_zstd =
+      (perfetto_build_standalone || perfetto_build_with_android ||
+       is_perfetto_build_generator) &&
+      (enable_perfetto_trace_processor || enable_perfetto_platform_services)
+
   # Enables PCRE2 support. Individual modules that should not pull libpcre2
   # in (e.g. libperfetto_client_experimental) can opt out by setting
   # -DPERFETTO_REGEX_FORCE_STD on their compile, which makes base::Regex
@@ -442,12 +458,6 @@ declare_args() {
       perfetto_build_standalone && enable_perfetto_trace_processor_sqlite &&
       host_os != "win"
 
-  # Allows to build the perfetto.dev website.
-  # WARNING: if this flag is enabled, the build performs globbing at generation
-  # time. Incremental builds that add/remove files will not be supported without
-  # rerunning gn.
-  enable_perfetto_site = false
-
   # Check that the merged perfetto_trace.proto can be translated to a C++ lite
   # proto and compiled. This is disabled by default because it's expensive (it
   # can take a couple of minutes).
@@ -467,11 +477,19 @@ declare_args() {
   # from /usr/include instead of the hermetic one.
   perfetto_use_system_protobuf = false
 
+  # Used by NixOS system builds. Uses the system version of re2
+  # from pkg-config instead of the hermetic one.
+  perfetto_use_system_re2 = false
+
   # Used by CrOS system builds. Uses the system version of sqlite
   # from /usr/include instead of the hermetic one.
   perfetto_use_system_sqlite = false
 
   perfetto_use_system_zlib = false
+
+  # Used by NixOS system builds. Uses the system version of zstd
+  # from pkg-config instead of the hermetic one.
+  perfetto_use_system_zstd = false
 
   # Set by the amalgamated SDK build. Defaults the optional zlib/re2 features
   # to off; the consumer opts in via perfetto_sdk_config.h (see build_config.h).

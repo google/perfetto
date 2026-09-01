@@ -80,7 +80,7 @@ SELECT AndroidBlockingCallsUnagg(
                 'total_dur_ns', d.total_dur_ns,
                 'max_dur_ns', d.max_dur_ns,
                 'min_dur_ns', d.min_dur_ns
-              )
+              ) ORDER BY d.total_dur_ns DESC, d.name
             ) FROM (
             SELECT b.name,
               b.occurrences,
@@ -90,7 +90,6 @@ SELECT AndroidBlockingCallsUnagg(
               b.min_dur_ns
             FROM android_blocking_calls_unagg_calls b INNER JOIN filtered_processes_with_non_zero_blocking_calls c
             ON b.upid = c.upid WHERE b.upid = e.upid
-            ORDER BY total_dur_ns DESC
             ) d
          )
        )

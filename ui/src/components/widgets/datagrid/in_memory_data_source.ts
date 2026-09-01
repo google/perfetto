@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {QueryResult} from '../../../base/query_slot';
+import type {AsyncMemoResult} from '../../../base/async_memo';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
 import {assertUnreachable} from '../../../base/assert';
 import type {Row, SqlValue} from '../../../trace_processor/query_result';
@@ -23,6 +23,7 @@ import type {
   FlatModel,
 } from './data_source';
 import type {Filter} from './model';
+import {splitPath} from './datagrid_schema';
 
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];
@@ -53,7 +54,16 @@ export class InMemoryDataSource implements DataSource {
       return {isPending: false};
     }
 
-    const columns = model.columns;
+    const columns = model.columns.map((col) => {
+      // Split the paths (unescapes dots) and re-join. In-memory datasource
+      // doesn't haev the concept of paths really, so we just index using dots
+      // directly into the datasource.
+      const path = splitPath(col.field).join('.');
+      return {
+        field: path,
+        alias: col.alias,
+      };
+    });
     const filters = model.filters ?? [];
     const sort = model.sort;
 
@@ -96,9 +106,9 @@ export class InMemoryDataSource implements DataSource {
    */
   useDistinctValues(
     column: string | undefined,
-  ): QueryResult<readonly SqlValue[]> {
+  ): AsyncMemoResult<readonly SqlValue[]> {
     if (column === undefined) {
-      return {data: undefined, isPending: false, isFresh: true};
+      return {data: [], isPending: false};
     }
 
     if (!this.distinctValuesCache.has(column)) {
@@ -134,18 +144,19 @@ export class InMemoryDataSource implements DataSource {
     }
 
     return {
-      data: this.distinctValuesCache.get(column),
+      data: this.distinctValuesCache.get(column) ?? [],
       isPending: false,
-      isFresh: true,
     };
   }
 
   /**
    * Fetch parameter keys for a parameterized column prefix.
    */
-  useParameterKeys(prefix: string | undefined): QueryResult<readonly string[]> {
+  useParameterKeys(
+    prefix: string | undefined,
+  ): AsyncMemoResult<readonly string[]> {
     if (prefix === undefined) {
-      return {data: undefined, isPending: false, isFresh: true};
+      return {data: [], isPending: false};
     }
 
     if (!this.parameterKeysCache.has(prefix)) {
@@ -173,26 +184,21 @@ export class InMemoryDataSource implements DataSource {
     }
 
     return {
-      data: this.parameterKeysCache.get(prefix),
+      data: this.parameterKeysCache.get(prefix) ?? [],
       isPending: false,
-      isFresh: true,
     };
   }
 
   /**
    * Fetch aggregate summaries (aggregates across all filtered rows).
    */
-  useAggregateSummaries(_model: DataSourceModel): QueryResult<Row> {
+  useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {
     // Aggregates are computed in useRows, just return the cache
-    const data =
-      Object.keys(this.aggregateSummariesCache).length > 0
-        ? this.aggregateSummariesCache
-        : undefined;
+    const data = this.aggregateSummariesCache;
 
     return {
       data,
       isPending: false,
-      isFresh: true,
     };
   }
 

@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -29,22 +30,21 @@
 namespace perfetto {
 namespace trace_to_text {
 
-int DeobfuscateProfile(std::istream* input, std::ostream* output) {
+base::Status DeobfuscateProfile(std::istream* input, std::ostream* output) {
   base::ignore_result(input);
   base::ignore_result(output);
   auto maybe_map = profiling::GetPerfettoProguardMapPath();
   if (maybe_map.empty()) {
-    PERFETTO_ELOG("No PERFETTO_PROGUARD_MAP specified.");
-    return 1;
+    return base::ErrStatus(
+        "no PERFETTO_PROGUARD_MAP specified: set it to a "
+        "colon-separated list of package=path entries pointing at the "
+        "ProGuard/R8 mapping.txt files and try again");
   }
-  if (!profiling::ReadProguardMapsToDeobfuscationPackets(
-          maybe_map, [output](const std::string& trace_proto) {
-            *output << trace_proto;
-          })) {
-    return 1;
-  }
+  RETURN_IF_ERROR(profiling::ReadProguardMapsToDeobfuscationPackets(
+      maybe_map,
+      [output](const std::string& trace_proto) { *output << trace_proto; }));
 
-  return 0;
+  return base::OkStatus();
 }
 
 }  // namespace trace_to_text

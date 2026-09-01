@@ -19,6 +19,7 @@
 
 #include <fcntl.h>  // For mode_t & O_RDONLY/RDWR. Exists also on Windows.
 #include <stddef.h>
+#include <stdint.h>
 
 #include <functional>
 #include <memory>
@@ -100,14 +101,33 @@ int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);
 
 bool FlushFile(int fd);
 
+// Moves the file offset to |offset| bytes from the beginning of the file.
+// Returns false if |offset| cannot be represented by the platform or the seek
+// fails.
+bool SeekFile(int fd, uint64_t offset);
+
+// Changes the size of an open file to |size| bytes.
+// Returns false if |size| cannot be represented by the platform or truncation
+// fails.
+bool TruncateFile(int fd, uint64_t size);
+
 // Returns true if mkdir succeeds, false if it fails (see errno in that case).
-bool Mkdir(const std::string& path);
+// `mode` is the permission bits for the new directory; it is ignored on
+// Windows.
+bool Mkdir(const std::string& path, uint32_t mode = 0755);
 
 // Calls rmdir() on UNIX, _rmdir() on Windows.
 bool Rmdir(const std::string& path);
 
+// Removes a file: unlink() on UNIX, _unlink() on Windows. Takes a const char*
+// and is async-signal-safe on POSIX, so it's callable from a signal handler.
+bool Unlink(const char* path);
+
 // Wrapper around access(path, F_OK).
 bool FileExists(const std::string& path);
+
+// Returns true if the path exists and is a directory.
+bool DirectoryExists(const std::string& path);
 
 // Gets the extension for a filename. If the file has two extensions, returns
 // only the last one (foo.pb.gz => .gz). Returns empty string if there is no
@@ -138,6 +158,22 @@ std::string Basename(const std::string& path);
 //   Dirname("C:\\Windows\\System32") => "C:\\Windows"
 std::string Dirname(const std::string& path);
 
+// Returns the length of the leading root component of a path: "/" on UNIX,
+// "C:\" or "\\" (UNC) on Windows. Returns 0 if the path is relative. Like
+// Basename() and Dirname(), both '/' and '\' are recognized on all platforms.
+// Stripping the returned prefix turns the path into a relative one.
+// Examples:
+//   PathRootPrefixLength("/usr/bin/ls") => 1
+//   PathRootPrefixLength("//usr/bin") => 2
+//   PathRootPrefixLength("C:\\Windows") => 3
+//   PathRootPrefixLength("C:foo") => 0 (relative to the current dir of drive
+//   C:) PathRootPrefixLength("foo/bar") => 0
+size_t PathRootPrefixLength(const std::string& path);
+
+// Returns true if the path starts with a root component. See
+// PathRootPrefixLength().
+bool IsAbsolutePath(const std::string& path);
+
 // Puts the path to all files under |dir_path| in |output|, recursively walking
 // subdirectories. File paths are relative to |dir_path|. Only files are
 // included, not directories. Path separator is always '/', even on windows (not
@@ -162,6 +198,13 @@ std::optional<uint64_t> GetFileSize(const std::string& path);
 
 // Returns the size of the open file |fd|, or nullopt in case of error.
 std::optional<uint64_t> GetFileSize(PlatformHandle fd);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// On Windows PlatformHandle is a HANDLE, not a file descriptor. This overload
+// accepts the CRT file descriptors returned by base::OpenFile(). On other
+// platforms PlatformHandle is an int, so the overload above already covers it.
+std::optional<uint64_t> GetFileSize(int fd);
+#endif
 
 // This class uses inotify (on Linux/Android) to watch for the creation of
 // files in the filesystem. When the specified file is created, it triggers a

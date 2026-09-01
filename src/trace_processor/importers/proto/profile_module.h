@@ -18,12 +18,17 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <utility>
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -37,19 +42,14 @@ class ProfileModule : public ProtoImporterModule {
                          TraceProcessorContext* context);
   ~ProfileModule() override;
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData& data,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
   void OnEventsFullyExtracted() override;
+
+  // chrome stack sampling: sink callback for per-sample sorter events.
+  void ParseStreamingProfileSample(int64_t ts, StreamingProfileSampleEvent);
 
  private:
   // chrome stack sampling:
@@ -57,15 +57,12 @@ class ProfileModule : public ProtoImporterModule {
       RefPtr<PacketSequenceStateGeneration>,
       TraceBlobView* packet,
       protozero::ConstBytes streaming_profile_packet);
-  void ParseStreamingProfilePacket(
-      int64_t timestamp,
-      PacketSequenceStateGeneration*,
-      protozero::ConstBytes streaming_profile_packet);
 
   // perf event profiling:
   void ParsePerfSample(int64_t ts,
                        PacketSequenceStateGeneration* sequence_state,
-                       const protos::pbzero::TracePacket::Decoder& decoder);
+                       const SelectiveTracePacketDecoder& decoder,
+                       const TracePacketField& field);
 
   // heap profiling:
   void ParseProfilePacket(int64_t ts,
@@ -75,8 +72,37 @@ class ProfileModule : public ProtoImporterModule {
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
   void ParsePackedSmaps(int64_t ts, UniquePid upid, protozero::ConstBytes);
 
+  // Identifies a heap_profile row: a (process, dump end ts, heap) triple. The
+  // heap name is absent for older producers that don't emit one.
+  struct SeenHeapProfile {
+    UniquePid upid;
+    int64_t window_end;
+    std::optional<StringPool::Id> heap_name;
+
+    bool operator==(const SeenHeapProfile& o) const {
+      return upid == o.upid && window_end == o.window_end &&
+             heap_name == o.heap_name;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const SeenHeapProfile& s) {
+      return H::Combine(std::move(h), s.upid, s.window_end,
+                        s.heap_name.has_value(),
+                        s.heap_name ? s.heap_name->raw_id() : 0u);
+    }
+  };
+
   TraceProcessorContext* context_;
+  const StringPool::Id chrome_source_id_;
+  const StringPool::Id linux_perf_source_id_;
   PerfSampleTracker perf_sample_tracker_;
+  std::unique_ptr<TraceSorter::Stream<StreamingProfileSampleEvent>>
+      streaming_profile_stream_;
+
+  // heap_profile rows already emitted, so the per-dump row is written once per
+  // heap despite the dump header repeating across continued ProfilePackets.
+  // Used as a set: the value is unused.
+  base::FlatHashMap<SeenHeapProfile, std::nullptr_t> seen_heap_profiles_;
 };
 
 }  // namespace perfetto::trace_processor

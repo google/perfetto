@@ -36,13 +36,13 @@ test('multiple callstack tracks', async () => {
   });
 
   const processGrp = pth.locateTrack(
-    'surfaceflinger 558/Process callstacks',
+    'surfaceflinger 558/Perf Process Callstacks',
     grp,
   );
   await processGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(processGrp);
   const threadGrp = pth.locateTrack(
-    'surfaceflinger 558/Thread 558 callstacks',
+    'surfaceflinger 558/Thread 558 Perf Callstacks',
     grp,
   );
   await threadGrp.scrollIntoViewIfNeeded();

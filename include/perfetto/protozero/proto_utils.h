@@ -23,6 +23,7 @@
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_utils.h"
 
 // Helper macro for the constexpr functions containing
@@ -307,6 +308,58 @@ inline const uint8_t* ParseVarInt(const uint8_t* start,
                                   const uint8_t* end,
                                   uint64_t* out_value) {
   return PerfettoPbParseVarInt(start, end, out_value);
+}
+
+// Unrolled multi-byte varint decode. Avoids the per-byte bounds-check + loop
+// branch of ParseVarInt, which matters for long varints (e.g. ftrace
+// timestamps are 8-10 bytes). The caller must guarantee at least 10 readable
+// bytes at |p| and that p[0] has the continuation bit set. Returns nullptr on
+// an overlong (> 10 byte) varint. The 10th byte contributes only its low bit
+// (matching ParseVarInt).
+PERFETTO_ALWAYS_INLINE inline const uint8_t* ParseVarIntUnrolled(
+    const uint8_t* p,
+    uint64_t* out) {
+  uint64_t value = p[0] & 0x7Fu;
+  const uint8_t* res = nullptr;
+  // One decode step for byte |i|: accumulates the payload bits and, if the
+  // continuation bit is clear, finishes the decode. Returns true while more
+  // bytes are needed, so the chain below stops at the terminating byte.
+  auto step = [&](uint64_t i) PERFETTO_ALWAYS_INLINE {
+    value |= static_cast<uint64_t>(p[i] & 0x7Fu) << (7 * i);
+    if (PERFETTO_LIKELY(!(p[i] & 0x80))) {
+      *out = value;
+      res = p + i + 1;
+      return false;
+    }
+    return true;
+  };
+  if (step(1) && step(2) && step(3) && step(4) && step(5) && step(6) &&
+      step(7) && step(8) && step(9)) {
+    return nullptr;  // Overlong (> 10 byte) varint.
+  }
+  return res;
+}
+
+// Decodes a varint at |pos|: single-byte fastpath, then the unrolled decode
+// when there is enough headroom, then the bounded byte-loop near the end of the
+// buffer. Returns nullptr on a truncated/overlong varint (note: unlike
+// ParseVarInt, which returns |pos| on failure).
+//
+// Prefer ParseVarInt() in non-hot code. This is force-inlined and expands the
+// unrolled decoder at every call site (~415 vs ~80 bytes for a ParseVarInt call
+// in our measurements), so widespread use bloats the binary. Use it only inside
+// perf-critical decode loops.
+PERFETTO_ALWAYS_INLINE inline const uint8_t* ParseVarIntFast(const uint8_t* pos,
+                                                             const uint8_t* end,
+                                                             uint64_t* out) {
+  if (PERFETTO_LIKELY(pos < end && *pos < 0x80)) {
+    *out = *pos;
+    return pos + 1;
+  }
+  if (PERFETTO_LIKELY(end - pos >= 10))
+    return ParseVarIntUnrolled(pos, out);
+  const uint8_t* next = ParseVarInt(pos, end, out);
+  return next == pos ? nullptr : next;
 }
 
 enum class RepetitionType {

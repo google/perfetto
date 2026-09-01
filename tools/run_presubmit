@@ -262,6 +262,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.pb',
           '*.png',
           '*.jpg',
+          '*.gif',
           '*/test/data/*',
           'Makefile',
           'rules',
@@ -458,6 +459,29 @@ def CheckTpPluginDeps(changed_files: List[str]) -> List[str]:
     return [
         f'{tool} failed:\n{e.stdout}'
         f'\nSee {tool} for the rules being enforced.'
+    ]
+  return []
+
+
+def CheckTraceProcessorDeps(changed_files: List[str]) -> List[str]:
+  if sys.platform == 'win32':
+    return []
+  tool_rel_path = 'tools/check_trace_processor_deps'
+  implementation_rel_path = 'python/tools/check_trace_processor_deps.py'
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'BUILD.gn',
+          implementation_rel_path,
+          tool_rel_path,
+      ])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool_rel_path], cwd=REPO_ROOT)
+  except (FileNotFoundError, subprocess.CalledProcessError) as error:
+    return [
+        f'{tool_rel_path} failed: {error}\nSee {tool_rel_path} for the rule.'
     ]
   return []
 
@@ -696,9 +720,11 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
     return []
 
   try:
-    run_command(
-        [sys.executable, tool, '--check-includes', '--check-new-packages'],
-        cwd=REPO_ROOT)
+    run_command([
+        sys.executable, tool, '--check-includes', '--check-new-packages',
+        '--check-layering'
+    ],
+                cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError as e:
@@ -1048,6 +1074,7 @@ def main():
       (CheckIncludePaths, [changed_files]),
       (CheckProtoComments, [changed_files]),
       (CheckTpPluginDeps, [changed_files]),
+      (CheckTraceProcessorDeps, [changed_files]),
       (CheckBuild, [changed_files]),
       (CheckAndroidBlueprint, [changed_files]),
       (CheckBinaryDescriptors, [changed_files]),

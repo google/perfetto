@@ -34,7 +34,7 @@ declare global {
 }
 
 // A representation of some content that can be downloaded.
-type Content = string | Uint8Array | File | Blob;
+type Content = string | Uint8Array<ArrayBuffer> | ArrayBuffer | File | Blob;
 
 export type FilePickerOptions = {
   types?: FilePickerAcceptType[];

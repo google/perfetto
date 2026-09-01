@@ -14,11 +14,15 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import type {ColumnDef} from '../../components/aggregation';
-import type {Aggregator} from '../../components/aggregation_adapter';
+import {
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
+} from '../../components/aggregation_adapter';
 import type {Area, AreaSelection} from '../../public/selection';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlValue} from '../../trace_processor/query_result';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {RadioGroup} from '../../widgets/radio_group';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
@@ -45,14 +49,14 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     if (estimateTracks.length === 0) return undefined;
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
-        await engine.query(`drop view if exists ${this.id};`);
-        const query = this.getEstimateTracksQuery(area, estimateTracks);
-        await engine.query(query);
-
-        return {
-          tableName: this.id,
-        };
+        await engine.query(`INCLUDE PERFETTO MODULE wattson.estimates`);
+        const table = await createPerfettoTable({
+          engine,
+          as: this.getEstimateTracksQuery(area, estimateTracks),
+        });
+        return createAggregationData(table);
       },
     };
   }
@@ -63,9 +67,6 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
   ): string {
     const duration = area.end - area.start;
     let query = `
-      INCLUDE PERFETTO MODULE wattson.estimates;
-
-      CREATE PERFETTO VIEW ${this.id} AS
       WITH window_stats AS (
         SELECT * FROM _wattson_base_components_avg_mw!(
           (SELECT ${area.start} AS ts, ${duration} AS dur, 0 AS period_id)
@@ -87,8 +88,6 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
         FROM window_stats
       `;
     });
-    query += `;`;
-
     return query;
   }
 
@@ -109,10 +108,6 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     );
   }
 
-  private powerUnits(): string {
-    return this.scaleNumericData ? 'µW' : 'mW';
-  }
-
   private renderMilliwatts(value: SqlValue): m.Children {
     if (this.scaleNumericData && typeof value === 'number') {
       return value * 1000;
@@ -120,26 +115,30 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     return String(value);
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Name',
-        columnId: 'name',
-        sort: 'ASC',
+  private getGridConfig(): AggregatorGridConfig {
+    const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
+    const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
+
+    return {
+      schema: {
+        name: {title: 'Name', columnType: 'text'},
+        power_mw: {
+          title: `Power (estimated ${powerUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        energy_mws: {
+          title: `Energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
       },
-      {
-        title: `Power (estimated ${this.powerUnits()})`,
-        columnId: 'power_mw',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: `Energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'energy_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-    ];
+      initialColumns: [
+        {id: 'name', field: 'name', sort: 'ASC'},
+        {id: 'power_mw', field: 'power_mw', aggregate: 'SUM'},
+        {id: 'energy_mws', field: 'energy_mws', aggregate: 'SUM'},
+      ],
+    };
   }
 
   getTabName() {

@@ -66,7 +66,9 @@
         },
         {
           "name": "unallocated",
-          "comment": ["The next allocation goes here. Shrink and take from here."],
+          "comment": [
+            "The next allocation goes here. Shrink and take from here."
+          ],
           "range": [3100, 4999]
         },
         {
@@ -88,38 +90,81 @@
     },
     {
       "scope": "perfetto.protos.TracePacket",
-      "ranges": [[116, 116], [1000, 1999]],
+      "ranges": [
+        [56, 56],
+        [76, 76],
+        [88, 88],
+        [92, 92],
+        [93, 94],
+        [96, 97],
+        [104, 105],
+        [112, 112],
+        [114, 114],
+        [116, 116],
+        [121, 121],
+        [1000, 9999]
+      ],
       "allocations": [
         {
-          "name": "android_frameworks_base",
-          "description": "frameworks/base TracePacket extensions",
+          "name": "android_system",
+          "description": "Android OS platform (System image)",
           "comment": [
-            "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto.",
-            "Wrapper: FrameworksBaseTracePacket."
+            "Sub-registry lives in the Android tree. Wrappers span multiple",
+            "components (ART, Bluetooth, Connectivity, frameworks/base,",
+            "frameworks/native, Winscope), aggregated into the descriptor zip",
+            "installed at the path below. See",
+            "https://github.com/google/perfetto/discussions/4783."
           ],
-          "range": [116, 116],
+          "ranges": [
+            [56, 56],
+            [76, 76],
+            [88, 88],
+            [92, 92],
+            [93, 94],
+            [96, 97],
+            [104, 105],
+            [112, 112],
+            [114, 114],
+            [116, 116],
+            [121, 121],
+            [1000, 1999]
+          ],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },
         {
           "name": "unallocated",
-          "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1000, 1999]
+          "comment": [
+            "The next allocation goes here. Shrink and take from here."
+          ],
+          "range": [2000, 9999]
         }
       ]
     },
     {
       "scope": "perfetto.protos.InternedData",
-      "ranges": [[42, 42], [1000, 9999]],
+      "ranges": [
+        [30, 30],
+        [36, 42],
+        [44, 46],
+        [1000, 9999]
+      ],
       "allocations": [
         {
-          "name": "android_frameworks_base",
-          "description": "frameworks/base InternedData extensions",
+          "name": "android_system",
+          "description": "Android OS platform (System image)",
           "comment": [
-            "Defined in third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto.",
-            "Wrapper: FrameworksBaseInternedData."
+            "Sub-registry lives in the Android tree. Wrappers span",
+            "frameworks/base (42, 44) and Connectivity (30), aggregated into",
+            "the descriptor zip installed at the path below. See",
+            "https://github.com/google/perfetto/discussions/4783."
           ],
-          "range": [42, 42],
+          "ranges": [
+            [30, 30],
+            [36, 42],
+            [44, 46],
+            [1100, 1999]
+          ],
           "registry": "/system/extras/tracing/system_tracing_protos.json",
           "repo": "android-internal"
         },
@@ -132,8 +177,10 @@
         },
         {
           "name": "unallocated",
-          "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [1100, 9999]
+          "comment": [
+            "The next allocation goes here. Shrink and take from here."
+          ],
+          "range": [2000, 9999]
         }
       ]
     }

@@ -16,10 +16,53 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
 class GraphPartitionTests(TestSuite):
+
+  def test_rejects_negative_parent_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.partition;
+          WITH tree AS (
+            SELECT 0 AS id, NULL AS parent_id, 1 AS group_key
+            UNION ALL
+            SELECT 1, -1, 1
+          )
+          SELECT * FROM tree_structural_partition_by_group!(tree);
+        """,
+        out=ExpectedError(
+            'tree_partition: node ids must be non-negative 32-bit integers'))
+
+  def test_rejects_negative_root_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.partition;
+          WITH tree AS (
+            SELECT -1 AS id, NULL AS parent_id, 1 AS group_key
+            UNION ALL
+            SELECT 1, -1, 1
+          )
+          SELECT * FROM tree_structural_partition_by_group!(tree);
+        """,
+        out=ExpectedError(
+            'tree_partition: node ids must be non-negative 32-bit integers'))
+
+  def test_rejects_negative_group_key(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.partition;
+          SELECT * FROM tree_structural_partition_by_group!(
+            (SELECT 0 AS id, NULL AS parent_id, -1 AS group_key)
+          );
+        """,
+        out=ExpectedError(
+            'tree_partition: group keys must be non-negative 32-bit integers'))
 
   def test_tree_structural_partition(self):
     return DiffTestBlueprint(

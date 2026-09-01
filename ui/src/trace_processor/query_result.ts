@@ -51,19 +51,20 @@
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
 import {defer, type Deferred} from '../base/deferred';
-import {assertExists, assertFalse, assertTrue} from '../base/assert';
+import {ensureExists, assertFalse, assertTrue} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, type duration, Time, type time} from '../base/time';
 
-export type SqlValue = string | number | bigint | null | Uint8Array;
+export type SqlValue =
+  string | number | bigint | null | Uint8Array<ArrayBuffer>;
 
 export const UNKNOWN: SqlValue = null;
 export const NUM = 0;
 export const STR = 'str';
 export const NUM_NULL: number | null = 1;
 export const STR_NULL: string | null = 'str_null';
-export const BLOB: Uint8Array = new Uint8Array();
-export const BLOB_NULL: Uint8Array | null = new Uint8Array();
+export const BLOB: Uint8Array<ArrayBuffer> = new Uint8Array();
+export const BLOB_NULL: Uint8Array<ArrayBuffer> | null = new Uint8Array();
 export const LONG: bigint = 0n;
 export const LONG_NULL: bigint | null = 1n;
 
@@ -134,6 +135,46 @@ function getAncestryPath(type: SqlValue): SqlValue[] {
   }
 
   return path;
+}
+
+// Decodes an int64 varint as a JS number and advances the cursor. This is the
+// same algorithm as protobuf.js's Reader.int64() followed by
+// LongBits.toNumber(), but it does not allocate a LongBits object per cell,
+// which measured at ~6ns per cell over a large result set. The byte loops are
+// bounded (4 + 1 + 5), so malformed input cannot spin.
+function readVarIntAsNumber(buf: Uint8Array, cursor: {pos: number}): number {
+  let pos = cursor.pos;
+  let lo = 0;
+  let hi = 0;
+  let b = 0;
+  let i = 0;
+  for (; i < 4; ++i) {
+    b = buf[pos++];
+    lo = (lo | ((b & 127) << (i * 7))) >>> 0;
+    if (b < 128) {
+      cursor.pos = pos;
+      return lo;
+    }
+  }
+  b = buf[pos++];
+  lo = (lo | ((b & 127) << 28)) >>> 0;
+  hi = (hi | ((b & 127) >> 4)) >>> 0;
+  if (b >= 128) {
+    for (i = 0; i < 5; ++i) {
+      b = buf[pos++];
+      hi = (hi | ((b & 127) << (i * 7 + 3))) >>> 0;
+      if (b < 128) break;
+    }
+  }
+  cursor.pos = pos;
+  if (hi >>> 31) {
+    // Negative: two's complement, matching LongBits.toNumber(false).
+    const nlo = (~lo + 1) >>> 0;
+    let nhi = ~hi >>> 0;
+    if (nlo === 0) nhi = (nhi + 1) >>> 0;
+    return -(nlo + nhi * 4294967296);
+  }
+  return lo + hi * 4294967296;
 }
 
 // Fast decode varint int64 into a bigint
@@ -395,6 +436,24 @@ export interface QueryResult {
   elapsedTimeMs(): number;
 }
 
+// Drains a QueryResult into an array of typed rows described by `spec`. This is
+// the array-materializing counterpart to iter(): use it when you want every row
+// up front rather than streaming through them.
+// Example: const rows = materializeRows(result, {id: NUM, name: STR});
+export function materializeRows<T extends Row>(
+  result: QueryResult,
+  spec: T,
+): T[] {
+  const rows: T[] = [];
+  const cols = Object.keys(spec);
+  for (const it = result.iter(spec); it.valid(); it.next()) {
+    const row: Record<string, SqlValue> = {};
+    for (const col of cols) row[col] = it.get(col);
+    rows.push(row as T);
+  }
+  return rows;
+}
+
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
 export interface WritableQueryResult {
   // |resBytes| is a proto-encoded trace_processor.QueryResult message.
@@ -530,7 +589,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   // It is fine to retain the resBytes without slicing a copy, because
   // ProtoRingBuffer does the slice() for us (or passes through the buffer
   // coming from postMessage() (Wasm case) of fetch() (HTTP+RPC case).
-  appendResultBatch(resBytes: Uint8Array) {
+  appendResultBatch(resBytes: Uint8Array<ArrayBuffer>) {
     const reader = protobuf.Reader.create(resBytes);
     assertTrue(reader.pos === 0);
     const columnNamesEmptyAtStartOfBatch = this.columnNames.length === 0;
@@ -624,7 +683,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this.allRowsPromise === undefined) {
       this.waitAllRows(); // Will populate |this.allRowsPromise|.
     }
-    return assertExists(this.allRowsPromise);
+    return ensureExists(this.allRowsPromise);
   }
 
   get errorInfo(): QueryErrorInfo {
@@ -653,17 +712,17 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
 // referencing the same batch. The batch must be immutable.
 class ResultBatch {
   readonly isLastBatch: boolean = false;
-  readonly batchBytes: Uint8Array;
+  readonly batchBytes: Uint8Array<ArrayBuffer>;
   readonly cellTypesOff: number = 0;
   readonly cellTypesLen: number = 0;
   readonly varintOff: number = 0;
   readonly varintLen: number = 0;
   readonly float64Cells = new Float64Array();
-  readonly blobCells: Uint8Array[] = [];
+  readonly blobCells: Uint8Array<ArrayBuffer>[] = [];
   readonly stringCells: string[] = [];
 
   // batchBytes is a trace_processor.QueryResult.CellsBatch proto.
-  constructor(batchBytes: Uint8Array) {
+  constructor(batchBytes: Uint8Array<ArrayBuffer>) {
     this.batchBytes = batchBytes;
     const reader = protobuf.Reader.create(batchBytes);
     assertTrue(reader.pos === 0);
@@ -787,11 +846,15 @@ class RowIteratorImpl implements RowIteratorBase {
   private batchIdx = -1; // The batch index within |result.batches[]|.
   private batchBytes = new Uint8Array();
   private columnNames: string[] = [];
+  // rowSpec resolved by column position; see tryMoveToNextBatch().
+  private colTypes: Array<SqlValue | undefined> = [];
   private numColumns = 0;
   private cellTypesEnd = -1; // -1 so the 1st next() hits tryMoveToNextBatch().
   private float64Cells = new Float64Array();
-  private varIntReader = protobuf.Reader.create(this.batchBytes);
-  private blobCells: Uint8Array[] = [];
+  // Cursor into |batchBytes| over the packed varint_cells region. This replaces
+  // a protobuf.Reader, whose int64() allocates per cell.
+  private varintCursor = {pos: 0};
+  private blobCells: Uint8Array<ArrayBuffer>[] = [];
   private stringCells: string[] = [];
 
   // These members instead are incremented as we read cells from next(). They
@@ -855,12 +918,15 @@ class RowIteratorImpl implements RowIteratorBase {
 
     const rowData = this.rowData;
     const numColumns = this.numColumns;
+    const batchBytes = this.batchBytes;
+    const colTypes = this.colTypes;
+    const varintCursor = this.varintCursor;
 
     // Read the current row.
     for (let i = 0; i < numColumns; i++) {
-      const cellType = this.batchBytes[this.nextCellTypeOff++];
+      const cellType = batchBytes[this.nextCellTypeOff++];
       const colName = this.columnNames[i];
-      const expType = this.rowSpec[colName];
+      const expType = colTypes[i];
 
       switch (cellType) {
         case CellType.CELL_NULL:
@@ -869,20 +935,16 @@ class RowIteratorImpl implements RowIteratorBase {
 
         case CellType.CELL_VARINT:
           if (expType === NUM || expType === NUM_NULL) {
-            // This is very subtle. The return type of int64 can be either a
-            // number or a Long.js {high:number, low:number} if Long.js is
-            // installed. The default state seems different in node and browser.
-            // We force-disable Long.js support in the top of this source file.
-            const val = this.varIntReader.int64();
-            rowData[colName] = val as {} as number;
+            rowData[colName] = readVarIntAsNumber(batchBytes, varintCursor);
           } else {
             // LONG, LONG_NULL, or unspecified - return as bigint
-            const value = decodeInt64Varint(
-              this.batchBytes,
-              this.varIntReader.pos,
-            );
-            rowData[colName] = value;
-            this.varIntReader.skip(); // Skips a varint
+            let varintPos = varintCursor.pos;
+            rowData[colName] = decodeInt64Varint(batchBytes, varintPos);
+            // Skip past the varint just decoded.
+            while (batchBytes[varintPos++] >= 128) {
+              /* advance */
+            }
+            varintCursor.pos = varintPos;
           }
           break;
 
@@ -914,18 +976,19 @@ class RowIteratorImpl implements RowIteratorBase {
 
     this.columnNames = this.resultObj.columnNames;
     this.numColumns = this.columnNames.length;
+    // Resolve the expected type once per column rather than doing a
+    // string-keyed lookup into rowSpec for every cell, both here and in next().
+    this.colTypes = this.columnNames.map((name) => this.rowSpec[name]);
 
     this.batchIdx = nextBatchIdx;
-    const batch = assertExists(this.resultObj.batches[nextBatchIdx]);
+    const batch = ensureExists(this.resultObj.batches[nextBatchIdx]);
     this.batchBytes = batch.batchBytes;
     this.nextCellTypeOff = batch.cellTypesOff;
     this.cellTypesEnd = batch.cellTypesOff + batch.cellTypesLen;
     this.float64Cells = batch.float64Cells;
     this.blobCells = batch.blobCells;
     this.stringCells = batch.stringCells;
-    this.varIntReader = protobuf.Reader.create(batch.batchBytes);
-    this.varIntReader.pos = batch.varintOff;
-    this.varIntReader.len = batch.varintOff + batch.varintLen;
+    this.varintCursor.pos = batch.varintOff;
     this.nextFloat64Cell = 0;
     this.nextStringCell = 0;
     this.nextBlobCell = 0;
@@ -954,36 +1017,77 @@ class RowIteratorImpl implements RowIteratorBase {
     }
 
     assertTrue(numColumns > 0);
-    for (let i = this.nextCellTypeOff; i < this.cellTypesEnd; i++) {
-      const col = (i - this.nextCellTypeOff) % numColumns;
-      const colName = this.columnNames[col];
-      const actualType = this.batchBytes[i] as CellType;
-      const expType = this.rowSpec[colName];
 
+    // Collect, per column, the set of cell types present in this batch. This is
+    // the same walk over every cell as before, but the body is one array read
+    // and two ORs rather than a modulo, a lookup and a call into isCompatible.
+    // The per-cell checking only happens if a column turns out to hold
+    // something unexpected, so the error messages are unchanged.
+    const seen = new Uint32Array(numColumns);
+    let typeUnion = 0;
+    let col = 0;
+    for (let i = this.nextCellTypeOff; i < this.cellTypesEnd; i++) {
+      const t = this.batchBytes[i];
+      seen[col] |= 1 << t;
+      typeUnion |= t;
+      if (++col === numColumns) col = 0;
+    }
+
+    // A type outside the known range would alias in the bitmask above (JS
+    // shifts are mod 32), so fall back to checking every cell in that case.
+    const trustMasks = typeUnion <= CellType.CELL_BLOB;
+    for (let c = 0; c < numColumns; c++) {
+      const expType = this.colTypes[c];
       // If undefined, the caller doesn't want to read this column at all, so
       // it can be whatever.
       if (expType === undefined) continue;
-
-      let err = '';
-      if (!isCompatible(actualType, expType)) {
-        if (actualType === CellType.CELL_NULL) {
-          err =
-            'SQL value is NULL but that was not expected' +
-            ` (expected type: ${columnTypeToString(expType)}). ` +
-            'Did you mean NUM_NULL, LONG_NULL, STR_NULL or BLOB_NULL?';
-        } else {
-          err = `Incompatible cell type. Expected: ${columnTypeToString(
-            expType,
-          )} actual: ${CELL_TYPE_NAMES[actualType]}`;
+      if (trustMasks) {
+        let mask = seen[c];
+        let ok = true;
+        while (mask !== 0) {
+          const t = 31 - Math.clz32(mask & -mask);
+          mask &= mask - 1;
+          if (!isCompatible(t as CellType, expType)) {
+            ok = false;
+            break;
+          }
         }
+        if (ok) continue;
       }
-      if (err.length > 0) {
-        const row = Math.floor(i / numColumns);
-        const message = `Error @ row: ${row} col: '${colName}': ${err}`;
-        throw this.makeError(message);
-      }
+      this.checkColumnCellTypes(c, expType, numColumns);
     }
     return true;
+  }
+
+  // Slow path: walks the cells of one column to find the first incompatible
+  // one, so the thrown error can name the offending row.
+  private checkColumnCellTypes(
+    col: number,
+    expType: SqlValue,
+    numColumns: number,
+  ): void {
+    for (
+      let i = this.nextCellTypeOff + col;
+      i < this.cellTypesEnd;
+      i += numColumns
+    ) {
+      const actualType = this.batchBytes[i] as CellType;
+      if (isCompatible(actualType, expType)) continue;
+      let err;
+      if (actualType === CellType.CELL_NULL) {
+        err =
+          'SQL value is NULL but that was not expected' +
+          ` (expected type: ${columnTypeToString(expType)}). ` +
+          'Did you mean NUM_NULL, LONG_NULL, STR_NULL or BLOB_NULL?';
+      } else {
+        err = `Incompatible cell type. Expected: ${columnTypeToString(
+          expType,
+        )} actual: ${CELL_TYPE_NAMES[actualType]}`;
+      }
+      const row = Math.floor(i / numColumns);
+      const colName = this.columnNames[col];
+      throw this.makeError(`Error @ row: ${row} col: '${colName}': ${err}`);
+    }
   }
 }
 
@@ -1067,7 +1171,7 @@ class WaitableQueryResultImpl
   }
 
   // WritableQueryResult implementation.
-  appendResultBatch(resBytes: Uint8Array) {
+  appendResultBatch(resBytes: Uint8Array<ArrayBuffer>) {
     return this.impl.appendResultBatch(resBytes);
   }
 

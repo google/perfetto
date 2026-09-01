@@ -113,7 +113,7 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,
       decoder.has_issuing_thread_id()
           ? std::optional(decoder.issuing_thread_id())
           : std::nullopt;
-  SliceTracker::SetArgsCallback set_args =
+  std::function<void(ArgsTracker::BoundInserter*)> set_args =
       [this, disk_number, irp_flags, transfer_size, byte_offset, file_object,
        irp, response_time,
        issuing_thread_id](ArgsTracker::BoundInserter* inserter) {

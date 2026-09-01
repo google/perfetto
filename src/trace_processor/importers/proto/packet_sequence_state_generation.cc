@@ -16,10 +16,52 @@
 
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
+#include <cstdint>
+#include <optional>
+
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/proto/incremental_state.h"
 #include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
+
+namespace {
+// For all "string-like" interned messages (InternedString and the EventName /
+// EventCategory / DebugAnnotationName / ... family) the iid is field 1 and the
+// string value is field 2.
+constexpr uint32_t kInternedStringValueFieldNumber = 2;
+
+// Decodes the value field directly from the raw interned message: this works
+// for any string-like interned message regardless of its proto type, and
+// avoids touching the entry's typed decoder cache (which other code may use).
+base::StringView DecodeInternedStringValue(InternedMessageView* view) {
+  protozero::ProtoDecoder decoder(view->message().data(),
+                                  view->message().length());
+  protozero::Field value = decoder.FindField(kInternedStringValueFieldNumber);
+  return value.valid() ? value.as_string() : base::StringView();
+}
+}  // namespace
+
+std::optional<base::StringView>
+PacketSequenceStateGeneration::InternedStringView(uint32_t field_id,
+                                                  uint64_t iid) {
+  InternedMessageView* view = GetInternedMessageView(field_id, iid);
+  if (!view) {
+    return std::nullopt;
+  }
+  return DecodeInternedStringValue(view);
+}
+
+StringPool::Id PacketSequenceStateGeneration::InternAndCacheStringValue(
+    InternedMessageView* view) {
+  StringId id = incremental_state_->context_->storage->InternString(
+      DecodeInternedStringValue(view));
+  view->set_cached_value(id.raw_id());
+  return id;
+}
 
 // static
 RefPtr<PacketSequenceStateGeneration>

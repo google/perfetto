@@ -22,14 +22,14 @@ import type {
   Transform1D,
   VerticalBounds,
 } from '../../base/geom';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   type CancellationSignal,
-  QuerySlot,
-  QUERY_CANCELLED,
-  SerialTaskQueue,
-} from '../../base/query_slot';
+  AsyncMemo,
+  TASK_CANCELLED,
+  AtomicTaskQueue,
+} from '../../base/async_memo';
 import {type duration, Time, type time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
 import {clamp, floatEqual} from '../../base/math_utils';
@@ -244,6 +244,11 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   colorizer?(row: T): ColorScheme;
 
   /**
+   * Optional function returning a key for invalidating cached slice data frames when track attributes/modes change.
+   */
+  readonly getKey?: () => string;
+
+  /**
    * Override the text displayed on each event (title).
    */
   sliceName?(row: T): string;
@@ -295,7 +300,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   onSliceOut?(args: OnSliceOutArgs<T>): void;
 
   /**
-   * Called when a slice is clicked. Return false to prevent default selection.
+   * Called when a slice is clicked. Overrides the default selection behavior.
    */
   onSliceClick?(args: OnSliceClickArgs<T>): void;
 }
@@ -328,9 +333,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private sliceLayout: SliceLayout;
   private readonly attrs: SliceTrackAttrs<T>;
   private readonly instantWidthPx: number;
-  private readonly queue = new SerialTaskQueue();
-  private readonly tablesSlot = new QuerySlot<Tables>(this.queue);
-  private readonly dataFrameSlot = new QuerySlot<DataFrame<T>>(this.queue);
+  private readonly queue = new AtomicTaskQueue();
+  private readonly tablesSlot = new AsyncMemo<Tables>(this.queue);
+  private readonly dataFrameSlot = new AsyncMemo<DataFrame<T>>(this.queue);
   private readonly bufferedBounds = new BufferedBounds();
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
@@ -805,7 +810,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // 1. Create the mipmap tables which only depend on the sql query source
     const {data: tables} = this.tablesSlot.use({
       key: {sqlSource},
-      queryFn: () => this.createTables(sqlSource),
+      compute: () => this.createTables(sqlSource),
     });
 
     // Can't do anything until we have the tables.
@@ -817,12 +822,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const bounds = this.bufferedBounds.update(visibleSpan, resolution);
 
     const {data: dataFrame} = this.dataFrameSlot.use({
+      // sqlSource is constant for most tracks with a static dataset, but
+      // there are cases (e.g. raw ftrace tracks) where the query can
+      // change dynamically.
       key: {
+        sqlSource,
         start: bounds.start,
         end: bounds.end,
         resolution: bounds.resolution,
+        key: this.attrs.getKey?.(),
       },
-      queryFn: async (signal) => {
+      compute: async (signal) => {
         const promise = (async () => {
           // Load complete and incomplete slices in a single query
           const instants = await this.getInstantBuffers(
@@ -892,7 +902,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       CROSS JOIN (${sqlSource}) s using (id)
     `);
 
-    if (signal.isCancelled) throw QUERY_CANCELLED;
+    if (signal.isCancelled) throw TASK_CANCELLED;
     const task = await this.deferChunkedTask();
 
     // Initialize buffers
@@ -911,7 +921,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     for (let i = 0; it.valid(); it.next(), ++i) {
       if (i % 64 === 0) {
-        if (signal.isCancelled) throw QUERY_CANCELLED;
+        if (signal.isCancelled) throw TASK_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
@@ -994,7 +1004,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       WHERE i.ts < ${end} AND IFNULL(i.next_ts, ${end}) > ${start}
     `);
 
-    if (signal.isCancelled) throw QUERY_CANCELLED;
+    if (signal.isCancelled) throw TASK_CANCELLED;
     const task = await this.deferChunkedTask();
 
     const count = sliceQueryRes.numRows();
@@ -1016,7 +1026,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     for (let i = 0; it.valid(); it.next(), ++i) {
       if (i % 64 === 0) {
-        if (signal.isCancelled) throw QUERY_CANCELLED;
+        if (signal.isCancelled) throw TASK_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
@@ -1037,7 +1047,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       depths[i] = depth;
       patterns[i] = isIncomplete
         ? RECT_PATTERN_FADE_RIGHT
-        : this.attrs.slicePattern?.(it) ?? 0;
+        : (this.attrs.slicePattern?.(it) ?? 0);
       slices[i] = {
         id,
         title,
@@ -1273,7 +1283,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       this.trace.timeline.highlightedSliceName = this.hoveredSlice?.title;
       if (this.hoveredSlice === undefined) {
         if (this.attrs.onSliceOut) {
-          this.attrs.onSliceOut({slice: assertExists(prevHoveredSlice)});
+          this.attrs.onSliceOut({slice: ensureExists(prevHoveredSlice)});
         }
       } else {
         if (this.attrs.onSliceOver) {
@@ -1307,6 +1317,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     } else {
       this.trace.selection.selectTrackEvent(this.uri, slice.id);
     }
+    return true;
+  }
+
+  onMouseDoubleClick(event: TrackMouseEvent): boolean {
+    const slice = this.findSlice(event);
+    if (slice === undefined) {
+      return false;
+    }
+    void this.trace.selection
+      .selectTrackEvent(this.uri, slice.id)
+      .then(() => this.trace.selection.scrollToSelection('focus'));
     return true;
   }
 

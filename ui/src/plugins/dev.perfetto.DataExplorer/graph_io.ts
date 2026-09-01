@@ -195,8 +195,11 @@ export async function createDataExplorerGraph(
         }
 
         const tableNode = tableDescriptor.factory(
-          {sqlTable, sqlModules, trace},
-          {allNodes: [...coreNodes, ...rightNodes]},
+          {sqlTable: sqlTable.name},
+          {
+            allNodes: [...coreNodes, ...rightNodes],
+            context: {sqlModules, trace},
+          },
         );
         target.push(tableNode);
       } catch (error) {

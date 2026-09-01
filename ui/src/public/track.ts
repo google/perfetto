@@ -256,6 +256,7 @@ export interface TrackRenderer {
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
+  onMouseDoubleClick?(event: TrackMouseEvent): boolean;
   onMouseOut?(): void;
 
   /**

@@ -23,35 +23,3 @@ export function fmtSize(n: number): string {
 export function fmtHex(id: number): string {
   return '0x' + id.toString(16).padStart(8, '0');
 }
-
-export function deltaBgClass(deltaKb: number): string {
-  if (deltaKb === 0) return '';
-  const abs = Math.abs(deltaKb);
-  if (deltaKb > 0) {
-    if (abs >= 50_000) return 'pf-hde-delta-bg-pos-heavy';
-    if (abs >= 10_000) return 'pf-hde-delta-bg-pos-medium';
-    if (abs >= 1_000) return 'pf-hde-delta-bg-pos-light';
-    return '';
-  }
-  if (abs >= 50_000) return 'pf-hde-delta-bg-neg-heavy';
-  if (abs >= 10_000) return 'pf-hde-delta-bg-neg-medium';
-  if (abs >= 1_000) return 'pf-hde-delta-bg-neg-light';
-  return '';
-}
-
-export function fmtDelta(deltaKb: number): string {
-  if (deltaKb === 0) return '';
-  const sign = deltaKb > 0 ? '+' : '\u2212';
-  return `${sign}${fmtSize(Math.abs(deltaKb) * 1024)}`;
-}
-
-/** Format a byte-level delta (inspired by Android ahat's %+,d format). */
-export function fmtSizeDelta(bytes: number): string {
-  if (bytes === 0) return '';
-  const sign = bytes > 0 ? '+' : '\u2212';
-  return `${sign}${fmtSize(Math.abs(bytes))}`;
-}
-
-export function deltaBgClassBytes(bytes: number): string {
-  return deltaBgClass(bytes / 1024);
-}

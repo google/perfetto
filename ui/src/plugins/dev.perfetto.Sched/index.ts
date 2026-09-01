@@ -25,7 +25,11 @@ import {
   CPU_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
 } from '../../public/track_kinds';
-import {getThreadUriPrefix, getTrackName} from '../../public/utils';
+import {
+  getMachineCount,
+  getThreadUriPrefix,
+  getTrackName,
+} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import type {Engine} from '../../trace_processor/engine';
 import {
@@ -42,7 +46,6 @@ import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {uriForSchedTrack} from './common';
-import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
 import {createCpuSliceTrack} from './cpu_slice_track';
 import {
@@ -53,16 +56,20 @@ import {ThreadStateSelectionAggregator} from './thread_state_selection_aggregato
 import {createThreadStateTrack} from './thread_state_track';
 import {WakerOverlay} from './waker_overlay';
 import {Cpu} from '../../components/cpu';
-import {ThreadStateByCpuAggregator} from './thread_state_by_cpu_aggregator';
 import type {App} from '../../public/app';
-import type {Flag} from '../../public/feature_flag';
+import type {Setting} from '../../public/settings';
+import {z} from 'zod';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
 }
 
-function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
-  const prefix = `/active_cpus`;
+function uriForActiveCPUCountTrack(
+  machineId: number,
+  cpuType?: CPUType,
+): string {
+  const prefix =
+    machineId === 0 ? `/active_cpus` : `/active_cpus_m${machineId}`;
   if (cpuType !== undefined) {
     return `${prefix}_${cpuType}`;
   } else {
@@ -73,15 +80,27 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
 export default class SchedPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sched';
   static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
-  static threadStateByCpuFlag: Flag;
+  static taskColorModeSetting: Setting<'process' | 'priority'>;
 
   static onActivate(app: App) {
-    SchedPlugin.threadStateByCpuFlag = app.featureFlags.register({
-      id: 'threadStateByCpu',
-      name: 'Thread State by CPU Aggregation',
+    SchedPlugin.taskColorModeSetting = app.settings.register({
+      id: 'dev.perfetto.Sched#taskColorMode',
+      name: 'Task slice color mode',
       description:
-        'Add a new area selection aggregation tab showing thread states broken down by CPU.',
-      defaultValue: true,
+        'Color scheme used for task (CPU scheduling) slices: by process/thread or by priority (realtime & niceness).',
+      schema: z.enum(['process', 'priority']),
+      defaultValue: 'process',
+    });
+
+    app.commands.registerCommand({
+      id: 'dev.perfetto.Sched#toggleTaskColorMode',
+      name: 'Toggle task slice color mode (Process vs Priority)',
+      defaultHotkey: 'Shift+C',
+      callback: () => {
+        const current = SchedPlugin.taskColorModeSetting.get();
+        const next = current === 'process' ? 'priority' : 'process';
+        SchedPlugin.taskColorModeSetting.set(next);
+      },
     });
   }
 
@@ -92,7 +111,8 @@ export default class SchedPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const cpus = await getSchedCpus(ctx);
+    const numMachines = await getMachineCount(ctx.engine);
+    const cpus = await getSchedCpus(ctx, numMachines);
     this._schedCpus = cpus;
 
     const hasSched = await this.hasSched(ctx.engine);
@@ -103,7 +123,7 @@ export default class SchedPlugin implements PerfettoPlugin {
     await this.addCpuSliceTracks(ctx, cpus);
     await this.addThreadStateTracks(ctx);
     await this.addMinimapProvider(ctx);
-    this.addSchedulingSummaryTracks(ctx);
+    this.addSchedulingSummaryTracks(ctx, cpus);
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.SelectAllThreadStateTracks',
@@ -156,9 +176,6 @@ export default class SchedPlugin implements PerfettoPlugin {
   async addCpuSliceTracks(ctx: Trace, cpus: ReadonlyArray<Cpu>): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new CpuSliceSelectionAggregator(ctx)),
-    );
-    ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator(ctx)),
     );
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
@@ -276,12 +293,6 @@ export default class SchedPlugin implements PerfettoPlugin {
       createAggregationTab(ctx, new ThreadStateSelectionAggregator(ctx)),
     );
 
-    if (SchedPlugin.threadStateByCpuFlag.get()) {
-      ctx.selection.registerAreaSelectionTab(
-        createAggregationTab(ctx, new ThreadStateByCpuAggregator()),
-      );
-    }
-
     const result = await engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.summary.threads;
@@ -338,6 +349,7 @@ export default class SchedPlugin implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
+          ...(isMainThread === 1 && {isMainThread: true}),
         },
         renderer: createThreadStateTrack(ctx, uri, utid),
       });
@@ -446,85 +458,110 @@ export default class SchedPlugin implements PerfettoPlugin {
     return result.numRows() > 0;
   }
 
-  private addSchedulingSummaryTracks(ctx: Trace) {
+  private addSchedulingSummaryTracks(ctx: Trace, cpus: ReadonlyArray<Cpu>) {
     const summaryGroup = new TrackNode({name: 'Scheduler', isSummary: true});
     ctx.defaultWorkspace.addChildInOrder(summaryGroup);
 
-    const runnableThreadCountTitle = 'Runnable thread count';
-    const runnableThreadCountUri = `/runnable_thread_count`;
-    ctx.tracks.registerTrack({
-      uri: runnableThreadCountUri,
-      renderer: new RunnableThreadCountTrack(ctx, runnableThreadCountUri),
-    });
-    const runnableThreadCountTrackNode = new TrackNode({
-      name: runnableThreadCountTitle,
-      uri: runnableThreadCountUri,
-    });
-    summaryGroup.addChildLast(runnableThreadCountTrackNode);
-    // This command only pins the track but the name remains for legacy reasons
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.Sched.AddRunnableThreadCountTrackCommand',
-      name: `Add track: ${runnableThreadCountTitle.toLowerCase()}`,
-      callback: () => runnableThreadCountTrackNode.pin(),
-    });
+    const machines = new Map<number, Cpu>();
+    for (const cpu of cpus) {
+      if (!machines.has(cpu.machine)) machines.set(cpu.machine, cpu);
+    }
 
-    const uninterruptibleSleepThreadCountUri =
-      '/uninterruptible_sleep_thread_count';
-    const uninterruptibleSleepThreadCountTitle =
-      'Uninterruptible Sleep thread count';
-    ctx.tracks.registerTrack({
-      uri: uninterruptibleSleepThreadCountUri,
-      renderer: new UninterruptibleSleepThreadCountTrack(
-        ctx,
-        uninterruptibleSleepThreadCountUri,
-      ),
-    });
-    const uninterruptibleSleepThreadCountTrackNode = new TrackNode({
-      name: uninterruptibleSleepThreadCountTitle,
-      uri: uninterruptibleSleepThreadCountUri,
-    });
-    summaryGroup.addChildLast(uninterruptibleSleepThreadCountTrackNode);
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.Sched.AddUninterruptibleSleepThreadCountTrackCommand',
-      name: 'Add track: uninterruptible sleep thread count',
-      callback: () => uninterruptibleSleepThreadCountTrackNode.pin(),
-    });
+    for (const machine of machines.values()) {
+      const suffix = machine.maybeMachineLabel();
+      const uriSuffix = machine.machine === 0 ? '' : `_m${machine.machine}`;
 
-    const activeCpuCountUri = uriForActiveCPUCountTrack();
-    const activeCpuCountTitle = 'Active CPU count';
-    ctx.tracks.registerTrack({
-      uri: activeCpuCountUri,
-      renderer: new ActiveCPUCountTrack(activeCpuCountUri, ctx),
-    });
-    const activeCpuCountTrackNode = new TrackNode({
-      name: activeCpuCountTitle,
-      uri: activeCpuCountUri,
-    });
-    summaryGroup.addChildLast(activeCpuCountTrackNode);
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.Sched.AddActiveCPUCountTrackCommand',
-      name: 'Add track: active CPU count',
-      callback: () => activeCpuCountTrackNode.pin(),
-    });
-
-    for (const cpuType of Object.values(CPUType)) {
-      const activeCpuTypeCountUri = uriForActiveCPUCountTrack(cpuType);
-      const activeCpuTypeCountTitle = `Active CPU count: ${cpuType}`;
+      const runnableThreadCountTitle = `Runnable thread count${suffix}`;
+      const runnableThreadCountUri = `/runnable_thread_count${uriSuffix}`;
       ctx.tracks.registerTrack({
-        uri: activeCpuTypeCountUri,
-        renderer: new ActiveCPUCountTrack(activeCpuTypeCountUri, ctx, cpuType),
+        uri: runnableThreadCountUri,
+        renderer: new RunnableThreadCountTrack(
+          ctx,
+          runnableThreadCountUri,
+          machine.machine,
+        ),
       });
-      const activeCpuTypeCountTrackNode = new TrackNode({
-        name: activeCpuTypeCountTitle,
-        uri: activeCpuTypeCountUri,
+      const runnableThreadCountTrackNode = new TrackNode({
+        name: runnableThreadCountTitle,
+        uri: runnableThreadCountUri,
       });
-      activeCpuCountTrackNode.addChildLast(activeCpuTypeCountTrackNode);
-
+      summaryGroup.addChildLast(runnableThreadCountTrackNode);
+      // This command only pins the track but the name remains for legacy reasons.
       ctx.commands.registerCommand({
-        id: `dev.perfetto.Sched.AddActiveCPUCountTrackCommand.${cpuType}`,
-        name: `Add track: active ${cpuType} CPU count`,
-        callback: () => activeCpuTypeCountTrackNode.pin(),
+        id: `dev.perfetto.Sched.AddRunnableThreadCountTrackCommand${uriSuffix}`,
+        name: `Add track: ${runnableThreadCountTitle.toLowerCase()}`,
+        callback: () => runnableThreadCountTrackNode.pin(),
       });
+
+      const uninterruptibleSleepThreadCountUri = `/uninterruptible_sleep_thread_count${uriSuffix}`;
+      const uninterruptibleSleepThreadCountTitle = `Uninterruptible Sleep thread count${suffix}`;
+      ctx.tracks.registerTrack({
+        uri: uninterruptibleSleepThreadCountUri,
+        renderer: new UninterruptibleSleepThreadCountTrack(
+          ctx,
+          uninterruptibleSleepThreadCountUri,
+          machine.machine,
+        ),
+      });
+      const uninterruptibleSleepThreadCountTrackNode = new TrackNode({
+        name: uninterruptibleSleepThreadCountTitle,
+        uri: uninterruptibleSleepThreadCountUri,
+      });
+      summaryGroup.addChildLast(uninterruptibleSleepThreadCountTrackNode);
+      ctx.commands.registerCommand({
+        id: `dev.perfetto.Sched.AddUninterruptibleSleepThreadCountTrackCommand${uriSuffix}`,
+        name: `Add track: ${uninterruptibleSleepThreadCountTitle.toLowerCase()}`,
+        callback: () => uninterruptibleSleepThreadCountTrackNode.pin(),
+      });
+
+      const activeCpuCountUri = uriForActiveCPUCountTrack(machine.machine);
+      const activeCpuCountTitle = `Active CPU count${suffix}`;
+      ctx.tracks.registerTrack({
+        uri: activeCpuCountUri,
+        renderer: new ActiveCPUCountTrack(
+          activeCpuCountUri,
+          ctx,
+          machine.machine,
+        ),
+      });
+      const activeCpuCountTrackNode = new TrackNode({
+        name: activeCpuCountTitle,
+        uri: activeCpuCountUri,
+      });
+      summaryGroup.addChildLast(activeCpuCountTrackNode);
+      ctx.commands.registerCommand({
+        id: `dev.perfetto.Sched.AddActiveCPUCountTrackCommand${uriSuffix}`,
+        name: `Add track: ${activeCpuCountTitle.toLowerCase()}`,
+        callback: () => activeCpuCountTrackNode.pin(),
+      });
+
+      for (const cpuType of Object.values(CPUType)) {
+        const activeCpuTypeCountUri = uriForActiveCPUCountTrack(
+          machine.machine,
+          cpuType,
+        );
+        const activeCpuTypeCountTitle = `Active CPU count: ${cpuType}${suffix}`;
+        ctx.tracks.registerTrack({
+          uri: activeCpuTypeCountUri,
+          renderer: new ActiveCPUCountTrack(
+            activeCpuTypeCountUri,
+            ctx,
+            machine.machine,
+            cpuType,
+          ),
+        });
+        const activeCpuTypeCountTrackNode = new TrackNode({
+          name: activeCpuTypeCountTitle,
+          uri: activeCpuTypeCountUri,
+        });
+        activeCpuCountTrackNode.addChildLast(activeCpuTypeCountTrackNode);
+
+        ctx.commands.registerCommand({
+          id: `dev.perfetto.Sched.AddActiveCPUCountTrackCommand.${cpuType}${uriSuffix}`,
+          name: `Add track: active ${cpuType} CPU count${suffix}`,
+          callback: () => activeCpuTypeCountTrackNode.pin(),
+        });
+      }
     }
   }
 }
@@ -532,24 +569,42 @@ export default class SchedPlugin implements PerfettoPlugin {
 /**
  * Get the list of unique cpus in the sched table.
  */
-async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
+async function getSchedCpus(ctx: Trace, numMachines: number): Promise<Cpu[]> {
   const queryRes = await ctx.engine.query(`
     SELECT DISTINCT
       ucpu,
       cpu.machine_id AS machine_id,
-      cpu.cpu AS cpu
+      cpu.cpu AS cpu,
+      machine.name AS machine_name,
+      machine.label_index AS machine_label_index
     FROM sched
     JOIN cpu USING (ucpu)
+    LEFT JOIN machine ON machine.id = cpu.machine_id
     ORDER BY ucpu
   `);
 
   const ucpus: Cpu[] = [];
   for (
-    const it = queryRes.iter({ucpu: NUM, machine_id: NUM, cpu: NUM});
+    const it = queryRes.iter({
+      ucpu: NUM,
+      machine_id: NUM,
+      cpu: NUM,
+      machine_name: STR_NULL,
+      machine_label_index: NUM_NULL,
+    });
     it.valid();
     it.next()
   ) {
-    ucpus.push(new Cpu(it.ucpu, it.cpu, it.machine_id));
+    ucpus.push(
+      new Cpu(
+        it.ucpu,
+        it.cpu,
+        it.machine_id,
+        it.machine_name ?? undefined,
+        it.machine_label_index ?? undefined,
+        numMachines,
+      ),
+    );
   }
 
   return ucpus;

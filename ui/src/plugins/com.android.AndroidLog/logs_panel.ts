@@ -45,7 +45,7 @@ import type {Store} from '../../base/store';
 import type {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {MenuItem} from '../../widgets/menu';
-import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
+import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
 
 const ROW_H = 24;
 
@@ -60,6 +60,7 @@ export interface LogFilteringCriteria {
 
 export interface LogPanelCache {
   readonly uniqueMachineIds: number[];
+  readonly machineNames: ReadonlyMap<number, string>;
 }
 
 export interface LogPanelAttrs {
@@ -90,9 +91,9 @@ interface LogEntries {
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly trace: Trace;
-  private readonly executor = new SerialTaskQueue();
-  private readonly viewQuery = new QuerySlot<AsyncDisposable>(this.executor);
-  private readonly entriesQuery = new QuerySlot<LogEntries>(this.executor);
+  private readonly executor = new AtomicTaskQueue();
+  private readonly viewQuery = new AsyncMemo<AsyncDisposable>(this.executor);
+  private readonly entriesQuery = new AsyncMemo<LogEntries>(this.executor);
   private pagination: Pagination = {
     offset: 0,
     count: 0,
@@ -116,7 +117,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     // Query 1: Create the filtered_logs table (no staleOn = always-fresh)
     const viewResult = this.viewQuery.use({
       key: {filters},
-      queryFn: () => updateLogView(engine, filters),
+      compute: () => updateLogView(engine, filters),
     });
 
     // Query 2: Read from the table (staleOn=['pagination'] for smooth scrolling)
@@ -127,7 +128,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         pagination,
       },
       retainOn: ['pagination', 'viewport'],
-      queryFn: () => updateLogEntries(engine, visibleSpan, pagination),
+      compute: () => updateLogEntries(engine, visibleSpan, pagination),
       enabled: !!viewResult.data,
     });
 
@@ -183,7 +184,12 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         className: 'pf-logs-panel',
         columns,
         rowData: {
-          data: this.renderRows(entries, hasMachineIds, hasProcessNames),
+          data: this.renderRows(
+            entries,
+            hasMachineIds,
+            hasProcessNames,
+            cache.machineNames,
+          ),
           total: entries?.totalEvents ?? 0,
           offset: entries?.offset ?? 0,
           onLoadData: (offset, count) => {
@@ -216,6 +222,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     entries: LogEntries,
     hasMachineIds: boolean | undefined,
     hasProcessNames: boolean | undefined,
+    machineNames: ReadonlyMap<number, string>,
   ): ReadonlyArray<GridRow> {
     const trace = this.trace;
     const ids = entries.ids;
@@ -243,7 +250,11 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
       const row = [
         hasMachineIds &&
-          m(GridCell, {className, align: 'right'}, machineIds[i]),
+          m(
+            GridCell,
+            {className, align: 'right'},
+            machineNames.get(machineIds[i]) ?? machineIds[i],
+          ),
         m(
           GridCell,
           {
@@ -449,7 +460,8 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
       (uMachineId) => {
         return {
           id: String(uMachineId),
-          name: `Machine ${uMachineId}`,
+          name:
+            attrs.cache.machineNames.get(uMachineId) ?? `Machine ${uMachineId}`,
           checked: !machineExcludeList.some(
             (excluded: number) => excluded === uMachineId,
           ),
@@ -574,7 +586,7 @@ async function updateLogView(
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
   let selectedRows = `select android_logs.id, prio, ts, pid, tid, tag, msg,
       process.name as process_name,
-      process.machine_id as machine_id, ${globMatch}
+      thread.machine_id as machine_id, ${globMatch}
       from android_logs
       left join thread using(utid)
       left join process using(upid)
@@ -590,7 +602,7 @@ async function updateLogView(
     }
   }
   if (filter.machineExcludeList.length) {
-    selectedRows += ` and process.machine_id not in (${filter.machineExcludeList.join(',')})`;
+    selectedRows += ` and thread.machine_id not in (${filter.machineExcludeList.join(',')})`;
   }
 
   // We extract only the rows which will be visible.

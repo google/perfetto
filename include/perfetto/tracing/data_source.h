@@ -359,6 +359,15 @@ class DataSource : public DataSourceBase {
     // This can be useful for splitting protos that might grow very large.
     uint64_t written() { return tls_inst_->trace_writer->written(); }
 
+    // Returns the number of times the trace writer for the current thread and
+    // data source instance entered a mode in which it started dropping data
+    // (e.g. because the shared memory buffer was exhausted and the buffer
+    // exhausted policy is kDrop). Note that this does *not* necessarily
+    // correspond to the number of dropped packets, as multiple packets can be
+    // dropped on each entry into the drop mode. A non-zero (or increased)
+    // value indicates that some data written on this thread was lost.
+    uint64_t drop_count() { return tls_inst_->trace_writer->drop_count(); }
+
     // Returns a RAII handle to access the data source instance, guaranteeing
     // that it won't be deleted on another thread (because of trace stopping)
     // while accessing it from within the Trace() lambda.

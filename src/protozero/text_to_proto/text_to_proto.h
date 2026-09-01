@@ -38,7 +38,8 @@ perfetto::base::StatusOr<std::vector<uint8_t>> TextToProto(
     size_t descriptor_set_size,
     const std::string& root_type,
     const std::string& file_name,
-    std::string_view input);
+    std::string_view input,
+    bool allow_unknown_fields = false);
 
 }  // namespace protozero
 

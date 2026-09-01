@@ -30,14 +30,15 @@ import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {FuzzyFinder, type FuzzySegment} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Popup} from '../../widgets/popup';
 import {Box} from '../../widgets/box';
 import {Icons} from '../../base/semantic_icons';
-import {GateDetector} from '../../base/mithril_utils';
+import {GateDetector, renderSegments} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
 
 const SEARCH_BOX_REF = 'settings-search-box';
+const CORE_GROUP = 'Core';
 
 export interface SettingsPageAttrs {
   readonly subpage?: string;
@@ -59,10 +60,10 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       : this.getAllSettingsGrouped(settingsManager);
     const groupedSettings = this.groupSettingsByPlugin(settings);
 
-    // Sort plugin IDs: CORE_PLUGIN_ID first, then alphabetically
+    // Sort plugin IDs: CORE_GROUP first, then alphabetically
     const sortedPluginIds = Array.from(groupedSettings.keys()).sort((a, b) => {
-      if (!a) return -1;
-      if (!b) return 1;
+      if (a === CORE_GROUP) return -1;
+      if (b === CORE_GROUP) return 1;
       return a.localeCompare(b);
     });
 
@@ -160,26 +161,44 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   }
 
   private getAllSettingsGrouped(settingsManager: SettingsManagerImpl) {
-    return settingsManager
-      .getAllSettings()
-      .map((item) => ({item, segments: []}));
+    return settingsManager.getAllSettings().map((item) => ({
+      item,
+      nameSegments: item.name,
+      descriptionSegments: item.description.trim(),
+    }));
   }
 
   private getFilteredSettingsGrouped(settingsManager: SettingsManagerImpl) {
     const allSettings = settingsManager.getAllSettings();
-    const finder = new FuzzyFinder(allSettings, (s) => {
-      return `${s.name} ${s.description ?? ''}`;
-    });
-    return finder.find(this.filterText);
+    return fuzzySearch(
+      allSettings,
+      [
+        (s: SettingImpl<unknown>) => s.name,
+        (s: SettingImpl<unknown>) => s.description ?? '',
+      ],
+      this.filterText,
+    ).map((res) => ({
+      item: res.item,
+      nameSegments: res.segments[0],
+      descriptionSegments: res.segments[1],
+    }));
   }
 
   private groupSettingsByPlugin(
-    settings: Array<{item: SettingImpl<unknown>; segments: FuzzySegment[]}>,
+    settings: Array<{
+      item: SettingImpl<unknown>;
+      nameSegments: readonly FuzzySegment[] | string;
+      descriptionSegments: readonly FuzzySegment[] | string;
+    }>,
   ) {
     const app = AppImpl.instance;
     const grouped = new Map<
       string,
-      Array<{item: Setting<unknown>; segments: FuzzySegment[]}>
+      {
+        item: Setting<unknown>;
+        nameSegments: readonly FuzzySegment[] | string;
+        descriptionSegments: readonly FuzzySegment[] | string;
+      }[]
     >();
     for (const result of settings) {
       const setting = result.item;
@@ -187,7 +206,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       const isCore =
         setting.pluginId === undefined ||
         app.plugins.isCorePlugin(setting.pluginId);
-      const targetGroup = isCore ? 'Core' : setting.pluginId;
+      const targetGroup = isCore ? CORE_GROUP : setting.pluginId;
 
       const existing = grouped.get(targetGroup) ?? [];
       existing.push(result);
@@ -198,7 +217,11 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
 
   private renderPluginSection(
     pluginId: string,
-    settings: Array<{item: Setting<unknown>; segments: FuzzySegment[]}>,
+    settings: readonly {
+      item: Setting<unknown>;
+      nameSegments: readonly FuzzySegment[] | string;
+      descriptionSegments: readonly FuzzySegment[] | string;
+    }[],
     subpage: string,
   ) {
     return m(
@@ -207,8 +230,13 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       m('h2.pf-settings-page__plugin-title', pluginId),
       m(
         CardStack,
-        settings.map(({item}) => {
-          return this.renderSettingCard(item, subpage);
+        settings.map(({item, nameSegments, descriptionSegments}) => {
+          return this.renderSettingCard(
+            item,
+            subpage,
+            nameSegments,
+            descriptionSegments,
+          );
         }),
       ),
     );
@@ -239,11 +267,18 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
     }
   }
 
-  private renderSettingCard(setting: Setting<unknown>, subpage: string) {
+  private renderSettingCard(
+    setting: Setting<unknown>,
+    subpage: string,
+    nameSegments?: readonly FuzzySegment[] | string,
+    descriptionSegments?: readonly FuzzySegment[] | string,
+  ) {
     return m(SettingsCard, {
       id: setting.id,
-      title: setting.name,
-      description: setting.description.trim(),
+      title: renderSegments(nameSegments ?? setting.name),
+      description: renderSegments(
+        descriptionSegments ?? setting.description.trim(),
+      ),
       focused: subpage === `/${setting.id}`,
       controls: m('.pf-settings-page__controls', [
         !setting.isDefault &&

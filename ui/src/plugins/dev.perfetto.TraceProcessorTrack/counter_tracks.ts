@@ -336,7 +336,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   {
     type: 'screen_state',
     topLevelGroup: 'SYSTEM',
-    group: 'Screen State',
+    group: undefined,
   },
   {
     type: 'smaps',

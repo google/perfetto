@@ -64,9 +64,9 @@ export class ChromeExtensionTracingSession implements TracingSession {
     return promise;
   }
 
-  getTraceData(): Uint8Array | undefined {
+  getTraceData(): ArrayBuffer | undefined {
     if (this._state !== 'FINISHED') return undefined;
-    const buf = this.traceBuf.get();
+    const buf = this.traceBuf.getBuffer();
     return buf;
   }
 

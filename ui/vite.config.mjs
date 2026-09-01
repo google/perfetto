@@ -22,6 +22,7 @@
 import {defineConfig} from 'vite';
 import path from 'node:path';
 import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {SourceMapConsumer, SourceMapGenerator} from 'source-map';
 import {lezer} from '@lezer/generator/rollup';
@@ -37,6 +38,21 @@ const ENABLE_BIGTRACE = process.env.ENABLE_BIGTRACE === 'true';
 const ENABLE_OPEN_PERFETTO_TRACE =
   process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
 const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
+
+// Unlike Rollup, Rolldown does not polyfill import.meta.url in IIFE bundles.
+// Some dependencies use it at module initialization time, so provide the
+// browser equivalent explicitly. This works both in documents and workers.
+const IMPORT_META_URL = '__perfetto_import_meta_url__';
+const IMPORT_META_URL_INTRO = `
+var _documentCurrentScript =
+  typeof document !== 'undefined' ? document.currentScript : null;
+var ${IMPORT_META_URL} =
+  typeof document === 'undefined'
+    ? location.href
+    : (_documentCurrentScript &&
+       _documentCurrentScript.tagName.toUpperCase() === 'SCRIPT' &&
+       _documentCurrentScript.src) || document.baseURI;
+`;
 
 // IIFE bundles go to dist_version (the symlink to dist/v1.2.3). The service
 // worker and chrome extension go elsewhere; for the minimum migration we keep
@@ -105,86 +121,67 @@ function pluginEmbedMinimalSourceMap() {
   };
 }
 
-// Generates barrel modules that import every plugin under ui/src/plugins (or
-// ui/src/core_plugins) and default-export an array of their default exports.
-// Replaces the on-disk barrels that tools/gen_ui_imports used to produce.
+// Shared helper for plugins that synthesise a module's source on the fly but
+// expose it via a normal relative import (typed by a colocated .d.ts).
 //
-// Exposed as virtual modules so consumers do:
-//   import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
-//   import CORE_PLUGINS     from 'virtual:perfetto/all_core_plugins';
-//
-// Types live in ui/src/types/virtual-modules.d.ts.
-function pluginAllPluginsBarrel() {
-  const VIRTUALS = {
-    'virtual:perfetto/all_plugins': path.join(SRC, 'plugins'),
-    'virtual:perfetto/all_core_plugins': path.join(SRC, 'core_plugins'),
-  };
-  const toCamelCase = (s) => {
-    const [first, ...rest] = s.split(/[._]/);
-    return (
-      first + rest.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join('')
-    );
-  };
-  const generate = (dir) => {
-    const entries = fs
-      .readdirSync(dir)
-      .map((name) => ({name, full: path.join(dir, name)}))
-      .filter(({full}) => {
-        try {
-          return (
-            fs.statSync(full).isDirectory() &&
-            fs.existsSync(path.join(full, 'index.ts'))
-          );
-        } catch (_) {
-          return false;
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const imports = entries
-      .map(({name, full}) => `import ${toCamelCase(name)} from '${full}';`)
-      .join('\n');
-    const arr = entries.map(({name}) => `  ${toCamelCase(name)},`).join('\n');
-    return `${imports}\n\nexport default [\n${arr}\n];\n`;
-  };
-  let server = null;
+// `modules` maps an absolute path (no extension) — e.g. <SRC>/plugins/index —
+// to a function that returns the module source. resolveId intercepts both
+// file-style imports ('../base/version') and directory-style imports
+// ('../plugins' → '../plugins/index') before Vite's filesystem resolver runs.
+function makeSynthModulePlugin({name, modules}) {
+  const PREFIX = '\0' + name + ':';
   return {
-    name: 'perfetto:all-plugins-barrel',
-    configureServer(s) {
-      server = s;
-      // Watch the parent dirs so adding/removing a plugin dir invalidates
-      // the barrel even before any file inside it changes. addWatchFile in
-      // load() only covers index.ts files that already exist at load time.
-      for (const dir of Object.values(VIRTUALS)) s.watcher.add(dir);
-    },
-    resolveId(id) {
-      if (id in VIRTUALS) return '\0' + id;
+    name,
+    enforce: 'pre',
+    resolveId(source, importer) {
+      if (!importer || !source.startsWith('.')) return null;
+      const stripped = source.replace(/\.(ts|js)$/, '');
+      const abs = path.resolve(path.dirname(importer), stripped);
+      for (const candidate of [abs, path.join(abs, 'index')]) {
+        if (!(candidate in modules)) continue;
+        // A real implementation next to the .d.ts would be silently shadowed
+        // by this plugin. Fail loudly instead.
+        for (const ext of ['.ts', '.js']) {
+          if (fs.existsSync(candidate + ext)) {
+            throw new Error(
+              `${path.relative(ROOT_DIR, candidate + ext)} shadows a ` +
+                `synthesised module (see ${name} in ui/vite.config.mjs); ` +
+                `delete the file.`,
+            );
+          }
+        }
+        return PREFIX + candidate;
+      }
     },
     load(id) {
-      if (!id.startsWith('\0virtual:perfetto/')) return;
-      const realId = id.slice(1);
-      const dir = VIRTUALS[realId];
-      if (!dir) return;
-      // Tell Rollup we depend on every index.ts so edits/deletes trigger
-      // a rebuild in `vite build --watch`.
-      for (const name of fs.readdirSync(dir)) {
-        const idx = path.join(dir, name, 'index.ts');
-        if (fs.existsSync(idx)) this.addWatchFile(idx);
-      }
-      return generate(dir);
-    },
-    handleHotUpdate(ctx) {
-      // Invalidate the matching barrel when any file under one of the
-      // plugin parent dirs is added/changed/removed (catches new plugin
-      // dirs being dropped in). Edits to existing plugin source don't need
-      // to invalidate the barrel itself — Vite handles those normally.
-      if (!server) return;
-      for (const [realId, dir] of Object.entries(VIRTUALS)) {
-        if (!ctx.file.startsWith(dir + path.sep)) continue;
-        const mod = server.moduleGraph.getModuleById('\0' + realId);
-        if (mod) server.moduleGraph.invalidateModule(mod);
-      }
+      if (!id.startsWith(PREFIX)) return;
+      const gen = modules[id.slice(PREFIX.length)];
+      if (gen) return gen(this);
     },
   };
+}
+
+// The plugin barrels (ui/src/virtual/plugins.ts) are no longer synthesised
+// here: that module now uses Vite's import.meta.glob directly, which discovers
+// plugin dirs and re-evaluates on add/remove without manual file-watching.
+
+// Exposes VERSION and SCM_REVISION via ui/src/virtual/version (typed by
+// version.d.ts). Replaces the on-disk ui/src/gen/perfetto_version.ts that
+// build.mjs used to generate via tools/write_version_header.py.
+export function pluginPerfettoVersion() {
+  const SCRIPT = path.join(ROOT_DIR, 'tools/write_version_header.py');
+  const generate = () => {
+    const out = execFileSync('python3', [SCRIPT, '--json'], {encoding: 'utf8'});
+    const {version, sha1} = JSON.parse(out);
+    return (
+      `export const VERSION = ${JSON.stringify(version)};\n` +
+      `export const SCM_REVISION = ${JSON.stringify(sha1)};\n`
+    );
+  };
+  return makeSynthModulePlugin({
+    name: 'perfetto:version',
+    modules: {[path.join(SRC, 'virtual', 'version')]: generate},
+  });
 }
 
 function pluginGenRelativeImports() {
@@ -284,7 +281,7 @@ export default defineConfig(({command}) => {
     // magic "publicDir" handling so it doesn't try to serve it at /.
     publicDir: false,
     plugins: [
-      pluginAllPluginsBarrel(),
+      pluginPerfettoVersion(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
@@ -352,13 +349,17 @@ export default defineConfig(({command}) => {
             MINIFY_JS === 'preserve_comments'
               ? {format: {comments: 'all'}}
               : undefined,
-          rollupOptions: {
+          rolldownOptions: {
             input: {[BUNDLE]: inputPath},
             treeshake: NO_TREESHAKE ? false : undefined,
+            transform: {
+              define: {'import.meta.url': IMPORT_META_URL},
+            },
             output: {
               format: 'iife',
               name: BUNDLE,
               entryFileNames,
+              intro: IMPORT_META_URL_INTRO,
               // With cssCodeSplit:false Vite emits the CSS as "style.css" by
               // default. Rename it to <bundle>.css so that index.html's preload
               // and the assetSrc('frontend.css') call match.
@@ -367,13 +368,17 @@ export default defineConfig(({command}) => {
                 if (name.endsWith('.css')) return `${BUNDLE}.css`;
                 return '[name][extname]';
               },
-              inlineDynamicImports: true,
             },
             onwarn(warning, warn) {
               if (warning.code === 'CIRCULAR_DEPENDENCY') {
                 if ((warning.message || '').includes('node_modules')) return;
+                // Rollup >=4 reports the cycle in `warning.ids` (older versions
+                // used `warning.importer`/`warning.cycle`, which are now
+                // undefined). `warning.message` already contains a formatted
+                // "a -> b -> a" chain, so prefer it and fall back to `ids`.
+                const cycle = warning.ids ?? warning.cycle ?? [];
                 throw new Error(
-                  `Circular dependency: ${warning.importer}\n  ${(warning.cycle || []).join('\n  ')}`,
+                  `${warning.message ?? 'Circular dependency'}\n  ${cycle.join('\n  ')}`,
                 );
               }
               warn(warning);

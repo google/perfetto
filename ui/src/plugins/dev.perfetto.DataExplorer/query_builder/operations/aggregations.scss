@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../common";
+@use "../../../../assets/theme" as *;
+@use "../common" as *;
 
 .pf-exp-multi-select-container {
   display: flex;

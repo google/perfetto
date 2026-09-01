@@ -14,10 +14,12 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {Time} from '../../base/time';
 import {
-  type AggregatePivotModel,
   type Aggregation,
   type Aggregator,
+  type AggregatorGridPreset,
+  createAggregationData,
   createIITable,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
@@ -31,8 +33,19 @@ import {
   UnionDatasetWithLineage,
 } from '../../trace_processor/dataset';
 import type {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, UNKNOWN} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  type SqlValue,
+  UNKNOWN,
+} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
+import {
+  formatDurationValue,
+  formatPercentValue,
+} from '../../components/aggregation_panel';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {Timestamp} from '../../components/widgets/timestamp';
 
 const CPU_SLICE_SPEC = {
   id: NUM,
@@ -46,8 +59,6 @@ export class CpuSliceSelectionAggregator implements Aggregator {
   readonly id = 'cpu_aggregation';
 
   private readonly trace: Trace;
-  private trackDatasetMap?: Map<Dataset, Track>;
-  private unionDataset?: UnionDatasetWithLineage<DatasetSchema>;
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -67,29 +78,33 @@ export class CpuSliceSelectionAggregator implements Aggregator {
 
     if (cpuTracks.length === 0) return undefined;
 
+    // Build track-to-dataset mapping synchronously
+    const trackDatasetMap = new Map<Dataset, Track>();
+    const datasets: Dataset[] = [];
+    for (const track of cpuTracks) {
+      const dataset = track.renderer.getDataset?.();
+      if (dataset) {
+        datasets.push(dataset);
+        trackDatasetMap.set(dataset, track);
+      }
+    }
+
+    // Create union dataset with lineage tracking
+    const unionDataset = UnionDatasetWithLineage.create(datasets);
+
     return {
+      getGridConfig: () =>
+        this.getGridConfig((groupId, partition) =>
+          this.resolveTrack(groupId, partition, trackDatasetMap, unionDataset),
+        ),
       prepareData: async (engine: Engine) => {
-        // Build track-to-dataset mapping
-        this.trackDatasetMap = new Map();
-        const datasets: Dataset[] = [];
-        for (const track of cpuTracks) {
-          const dataset = track.renderer.getDataset?.();
-          if (dataset) {
-            datasets.push(dataset);
-            this.trackDatasetMap.set(dataset, track);
-          }
-        }
-
-        // Create union dataset with lineage tracking
-        this.unionDataset = UnionDatasetWithLineage.create(datasets);
-
         // Query with needed columns for II table
         const iiQuerySchema = {
           ...CPU_SLICE_SPEC,
           __groupid: NUM,
           __partition: UNKNOWN,
         };
-        const sql = this.unionDataset.query(iiQuerySchema);
+        const sql = unionDataset.query(iiQuerySchema);
 
         // Create interval-intersect table for time filtering
         await using iiTable = await createIITable(
@@ -99,139 +114,176 @@ export class CpuSliceSelectionAggregator implements Aggregator {
           area.end,
         );
 
-        await engine.query(`
-          create or replace perfetto table ${this.id} as
-          select
-            json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
-            utid,
-            process.name as process_name,
-            pid,
-            thread.name as thread_name,
-            tid,
-            sched.dur,
-            sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
-            sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
-            ucpu
-          from ${iiTable.name} as sched
-          join thread using (utid)
-          left join process using (upid)
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            select
+              json_object('id', sched.id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
+              utid,
+              process.name as process_name,
+              pid,
+              thread.name as thread_name,
+              tid,
+              sched.ts,
+              sched.dur,
+              sched.dur * 1.0 / sum(sched.dur) OVER () as fraction_of_total,
+              sched.dur * 1.0 / ${area.end - area.start} as fraction_of_selection,
+              ucpu
+            from ${iiTable.name} as sched
+            join thread using (utid)
+            left join process using (upid)
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }
 
   getTabName() {
-    return `CPU by thread`;
+    return 'CPU Slices';
   }
 
-  getColumnDefinitions(): AggregatePivotModel {
-    return {
-      groupBy: [
-        {id: 'process_name', field: 'process_name'},
-        {id: 'thread_name', field: 'thread_name'},
-      ],
-      aggregates: [
-        {id: 'count', function: 'COUNT'},
-        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
-        {
-          id: 'fraction_of_total_sum',
-          field: 'fraction_of_total',
-          function: 'SUM',
-        },
-        {id: 'dur_avg', field: 'dur', function: 'AVG'},
-      ],
-      columns: [
-        {
-          title: 'ID',
-          columnId: 'id_with_lineage',
-          formatHint: 'ID',
-          cellRenderer: (value: unknown) => {
-            // Value is a JSON object {id, groupid, partition}
-            if (typeof value !== 'string') {
-              return String(value);
-            }
+  private getGridConfig(
+    resolveTrack: (groupId: number, partition: SqlValue) => Track | undefined,
+  ): ReadonlyArray<AggregatorGridPreset> {
+    const schema = {
+      id_with_lineage: {
+        title: 'ID',
+        columnType: 'identifier' as const,
+        cellRenderer: (value: unknown) => {
+          // Value is a JSON object {id, groupid, partition}
+          if (typeof value !== 'string') {
+            return String(value);
+          }
 
-            const parsed = JSON.parse(value) as {
-              id: number;
-              groupid: number;
-              partition: unknown;
-            };
-            const {id, groupid, partition} = parsed;
+          const parsed = JSON.parse(value) as {
+            id: number;
+            groupid: number;
+            partition: SqlValue;
+          };
+          const {id, groupid, partition} = parsed;
 
-            // Resolve track from lineage
-            const track = this.resolveTrack(groupid, partition);
-            if (!track) {
-              return String(id);
-            }
+          // Resolve track from lineage
+          const track = resolveTrack(groupid, partition);
+          if (!track) {
+            return String(id);
+          }
 
-            return m(
-              Anchor,
-              {
-                title: 'Go to sched slice',
-                icon: Icons.UpdateSelection,
-                onclick: () => {
-                  this.trace.selection.selectTrackEvent(track.uri, id, {
-                    scrollToSelection: true,
-                  });
-                },
+          return m(
+            Anchor,
+            {
+              title: 'Go to sched slice',
+              icon: Icons.UpdateSelection,
+              onclick: () => {
+                this.trace.selection.selectTrackEvent(track.uri, id, {
+                  scrollToSelection: true,
+                  switchToCurrentSelectionTab: false,
+                });
               },
-              String(id),
-            );
+            },
+            String(id),
+          );
+        },
+      },
+      pid: {title: 'PID', columnType: 'identifier' as const},
+      process_name: {title: 'Process Name', columnType: 'text' as const},
+      tid: {title: 'TID', columnType: 'identifier' as const},
+      thread_name: {title: 'Thread Name', columnType: 'text' as const},
+      ts: {
+        title: 'Timestamp',
+        columnType: 'quantitative' as const,
+        cellRenderer: (value: unknown) => {
+          if (typeof value === 'bigint') {
+            return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+          }
+          return String(value ?? '');
+        },
+      },
+      dur: {
+        title: 'CPU Time',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatDurationValue,
+      },
+      fraction_of_total: {
+        title: 'CPU Time %',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatPercentValue,
+      },
+      fraction_of_selection: {
+        title: 'CPU Time / Wall Time',
+        columnType: 'quantitative' as const,
+        cellRenderer: formatPercentValue,
+      },
+      ucpu: {title: 'CPU', columnType: 'quantitative' as const},
+    };
+
+    const aggregates = [
+      {id: 'count', function: 'COUNT' as const},
+      {
+        id: 'dur_sum',
+        field: 'dur',
+        function: 'SUM' as const,
+        sort: 'DESC' as const,
+      },
+      {
+        id: 'fraction_of_total_sum',
+        field: 'fraction_of_total',
+        function: 'SUM' as const,
+      },
+      {id: 'dur_avg', field: 'dur', function: 'AVG' as const},
+    ];
+
+    const initialColumns = [
+      {id: 'id_with_lineage', field: 'id_with_lineage'},
+      {id: 'process_name', field: 'process_name'},
+      {id: 'pid', field: 'pid'},
+      {id: 'thread_name', field: 'thread_name'},
+      {id: 'tid', field: 'tid'},
+      {id: 'ts', field: 'ts'},
+      {id: 'dur', field: 'dur'},
+      {id: 'ucpu', field: 'ucpu'},
+    ];
+
+    return [
+      {
+        displayName: 'By Thread',
+        config: {
+          schema,
+          initialColumns,
+          initialPivot: {
+            groupBy: [
+              {id: 'process_name', field: 'process_name'},
+              {id: 'thread_name', field: 'thread_name'},
+            ],
+            aggregates,
           },
         },
-        {
-          title: 'PID',
-          columnId: 'pid',
-          formatHint: 'NUMERIC',
+      },
+      {
+        displayName: 'By Process',
+        config: {
+          schema,
+          initialColumns,
+          initialPivot: {
+            groupBy: [{id: 'process_name', field: 'process_name'}],
+            aggregates,
+          },
         },
-        {
-          title: 'Process Name',
-          columnId: 'process_name',
-          formatHint: 'STRING',
-        },
-        {
-          title: 'TID',
-          columnId: 'tid',
-          formatHint: 'NUMERIC',
-        },
-        {
-          title: 'Thread Name',
-          columnId: 'thread_name',
-          formatHint: 'STRING',
-        },
-        {
-          title: 'CPU Time',
-          formatHint: 'DURATION_NS',
-          columnId: 'dur',
-        },
-        {
-          title: 'CPU Time %',
-          columnId: 'fraction_of_total',
-          formatHint: 'PERCENT',
-        },
-        {
-          title: 'CPU Time / Wall Time',
-          columnId: 'fraction_of_selection',
-          formatHint: 'PERCENT',
-        },
-        {
-          title: 'CPU',
-          columnId: 'ucpu',
-          formatHint: 'NUMERIC',
-        },
-      ],
-    };
+      },
+    ];
   }
 
   /**
    * Resolve a track from lineage information.
    */
-  private resolveTrack(groupId: number, partition: unknown): Track | undefined {
-    if (!this.trackDatasetMap || !this.unionDataset) return undefined;
+  private resolveTrack(
+    groupId: number,
+    partition: SqlValue,
+    trackDatasetMap: Map<Dataset, Track>,
+    unionDataset?: UnionDatasetWithLineage<DatasetSchema>,
+  ): Track | undefined {
+    if (!unionDataset) return undefined;
 
     // Ensure partition is a valid SqlValue
     const partitionValue =
@@ -243,13 +295,13 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         ? partition
         : null;
 
-    const datasets = this.unionDataset.resolveLineage({
+    const datasets = unionDataset.resolveLineage({
       __groupid: groupId,
       __partition: partitionValue,
     });
 
     for (const dataset of datasets) {
-      const track = this.trackDatasetMap.get(dataset);
+      const track = trackDatasetMap.get(dataset);
       if (track) return track;
     }
 

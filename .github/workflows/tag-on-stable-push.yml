@@ -55,7 +55,7 @@ jobs:
           private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
 
       - name: Checkout stable
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: stable
           fetch-depth: 0

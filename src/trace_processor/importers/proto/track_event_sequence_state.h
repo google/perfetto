@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
 namespace perfetto::trace_processor {
@@ -69,19 +70,20 @@ class TrackEventSequenceState final
 
   int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns) {
     PERFETTO_DCHECK(timestamps_valid());
-    timestamp_ns_ += delta_ns;
+    timestamp_ns_ = base::SaturatingAdd(timestamp_ns_, delta_ns);
     return timestamp_ns_;
   }
 
   int64_t IncrementAndGetTrackEventThreadTimeNs(int64_t delta_ns) {
     PERFETTO_DCHECK(timestamps_valid());
-    thread_timestamp_ns_ += delta_ns;
+    thread_timestamp_ns_ = base::SaturatingAdd(thread_timestamp_ns_, delta_ns);
     return thread_timestamp_ns_;
   }
 
   int64_t IncrementAndGetTrackEventThreadInstructionCount(int64_t delta) {
     PERFETTO_DCHECK(timestamps_valid());
-    thread_instruction_count_ += delta;
+    thread_instruction_count_ =
+        base::SaturatingAdd(thread_instruction_count_, delta);
     return thread_instruction_count_;
   }
 

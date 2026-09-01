@@ -38,6 +38,7 @@ import type {PluginManagerImpl} from './plugin_manager';
 import type {RouteArgs} from '../public/route_schema';
 import type {Analytics} from '../public/analytics';
 import {fetchWithProgress} from '../base/http_utils';
+import {tarFileListToBlob} from './trace_stream';
 import type {TraceInfoImpl} from './trace_info_impl';
 import type {PageHandler, PageManager} from '../public/page';
 import {createProxy} from '../base/utils';
@@ -56,6 +57,7 @@ import type {TraceStream} from '../public/stream';
 import type {OmniboxModeDescriptor} from '../public/omnibox';
 import type {SidePanelManagerImpl} from './side_panel_manager';
 import type {SidePanelTabDescriptor} from '../public/side_panel';
+import type {Route} from '../public/app';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -243,6 +245,10 @@ export class TraceImpl implements Trace, Disposable {
             `Downloading trace ${progressPercent}%`,
           ),
         );
+      } else if (src.type === 'MULTIPLE_FILES') {
+        // Re-materialize the merged TAR (manifest + traces) from the retained
+        // file list; reopening it reproduces the merge.
+        return await tarFileListToBlob(src.files);
       }
     }
     // Not available in HTTP+RPC mode. Rather than propagating an undefined,
@@ -315,6 +321,10 @@ export class TraceImpl implements Trace, Disposable {
 
   navigate(newHash: string): void {
     this.app.navigate(newHash);
+  }
+
+  getCurrentRoute(): Route {
+    return this.app.getCurrentRoute();
   }
 
   openTraceFromFile(file: File) {

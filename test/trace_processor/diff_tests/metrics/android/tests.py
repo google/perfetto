@@ -33,7 +33,7 @@ class AndroidMetrics(TestSuite):
         trace=TextProto(r"""
         packet {
           timestamp: 0
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_EGRESS
               network_interface: "wlan"
@@ -51,7 +51,7 @@ class AndroidMetrics(TestSuite):
         }
         packet {
           timestamp: 1005
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_EGRESS
               network_interface: "wlan"
@@ -64,7 +64,7 @@ class AndroidMetrics(TestSuite):
         }
         packet {
           timestamp: 2015
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_EGRESS
               network_interface: "wlan"
@@ -77,7 +77,7 @@ class AndroidMetrics(TestSuite):
         }
         packet {
           timestamp: 0
-          network_packet_bundle {
+          [android.net.connectivity.tracing.ConnectivityTracePacket.network_packet_bundle] {
             ctx {
               direction: DIR_INGRESS
               network_interface: "loopback"

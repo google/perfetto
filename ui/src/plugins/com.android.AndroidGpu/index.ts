@@ -36,7 +36,6 @@ export default class implements PerfettoPlugin {
     const gpuCounterTracks = ctx.tracks
       .getAllTracks()
       .filter((t) => t.tags?.type === 'gpu_counter');
-    console.log(gpuCounterTracks);
 
     for (const track of gpuCounterTracks) {
       const trackIds = track.tags?.trackIds;

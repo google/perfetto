@@ -33,10 +33,7 @@ class HeapGraphModule : public ProtoImporterModule {
   explicit HeapGraphModule(ProtoImporterModuleContext* module_context,
                            TraceProcessorContext* context);
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
   void OnEventsFullyExtracted() override;
 

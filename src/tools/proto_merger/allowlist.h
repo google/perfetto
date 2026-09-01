@@ -54,6 +54,11 @@ base::Status AllowlistFromFieldList(
     const std::vector<std::string>& allowed_fields,
     Allowlist& allowlist);
 
+base::Status AllowlistFromPassthrough(
+    const google::protobuf::FileDescriptor& input_file,
+    const google::protobuf::FileDescriptor& upstream_file,
+    Allowlist& allowlist);
+
 }  // namespace proto_merger
 }  // namespace perfetto
 

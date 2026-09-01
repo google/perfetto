@@ -29,11 +29,24 @@
 
 namespace perfetto::trace_processor {
 
+class PerfettoSqlConnection;
+
 // Represents a time boundary for a column.
 struct TimeConstraints {
   dataframe::Op op;
   int64_t value;
 };
+
+// Builds the heap graph ('graph') flamegraph for the dump (ts, upid): expands
+// the shortest-path object tree with SQL (graphs.search + heap graph tables)
+// and runs it through the shared __intrinsic_flamegraph pipeline. Returns an
+// empty table when the dump has no roots and was not truncated; the caller
+// treats that as an error.
+std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapGraphFlamegraph(
+    PerfettoSqlConnection* connection,
+    TraceStorage* storage,
+    int64_t ts,
+    UniquePid upid);
 
 std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapProfileFlamegraph(
     TraceStorage* storage,

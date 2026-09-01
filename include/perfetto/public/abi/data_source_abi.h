@@ -374,6 +374,26 @@ PERFETTO_SDK_EXPORT void PerfettoDsTracerImplPacketEnd(
 // Called when a flush request is complete.
 typedef void (*PerfettoDsTracerOnFlushCb)(void* user_arg);
 
+enum PerfettoDsClockId {
+  // Builtin clock ids (see perfetto.common.BuiltinClock).
+  PERFETTO_DS_CLOCK_MONOTONIC = 3,
+  PERFETTO_DS_CLOCK_BOOTTIME = 6,
+};
+
+// Returns the clock id for the default trace clock.
+PERFETTO_SDK_EXPORT uint32_t PerfettoDsGetDefaultClockId(void);
+
+struct PerfettoDsTimestamp {
+  // PerfettoDsClockId
+  uint32_t clock_id;
+  uint64_t value;
+};
+
+// Returns the current timestamp in the preferred trace clock. The returned
+// clock_id indicates which clock was used and should be set on
+// TracePacket.timestamp_clock_id.
+PERFETTO_SDK_EXPORT struct PerfettoDsTimestamp PerfettoDsGetTimestamp(void);
+
 // Forces a commit of the thread-local tracing data written so far to the
 // service.
 //
@@ -387,6 +407,17 @@ PERFETTO_SDK_EXPORT void PerfettoDsTracerImplFlush(
     struct PerfettoDsTracerImpl* tracer,
     PerfettoDsTracerOnFlushCb cb,
     void* user_arg);
+
+// Returns the number of times `tracer` entered a mode in which it started
+// dropping data (e.g. because the shared memory buffer was exhausted and the
+// buffer exhausted policy is PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP).
+//
+// Note that this does *not* necessarily correspond to the number of dropped
+// packets, as multiple packets can be dropped on each entry into the drop
+// mode. A non-zero (or increased) value indicates that some data written on
+// this tracer was lost.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsTracerImplGetDropCount(struct PerfettoDsTracerImpl* tracer);
 
 #ifdef __cplusplus
 }

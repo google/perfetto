@@ -33,7 +33,6 @@
 #include "perfetto/trace_processor/trace_processor.h"
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
-#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -64,9 +63,8 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
 
   for (int i = 0;; i++) {
     if (i % kStderrRate == 0) {
-      fprintf(stderr, "Loading trace %.2f MB%c",
-              static_cast<double>(file_size) / 1.0e6, kProgressChar);
-      fflush(stderr);
+      ProgressLine("Loading trace %.2f MB",
+                   static_cast<double>(file_size) / 1.0e6);
     }
 
     std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
@@ -83,8 +81,8 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
     tp->Parse(std::move(buf), static_cast<size_t>(rsize));
   }
 
-  fprintf(stderr, "Loaded trace%c", kProgressChar);
-  fflush(stderr);
+  ProgressLine("Loaded trace");
+  EndProgressLine();
   return true;
 }
 

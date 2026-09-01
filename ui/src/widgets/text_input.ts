@@ -40,12 +40,14 @@ export class TextInput implements m.ClassComponent<TextInputAttrs> {
   }
 
   view({attrs}: m.CVnode<TextInputAttrs>) {
-    const {leftIcon, className, onInput, onChange, ...inputAttrs} = attrs;
+    const {leftIcon, className, style, onInput, onChange, ...inputAttrs} =
+      attrs;
 
     return m(
       '.pf-text-input',
       {
         className,
+        style,
       },
       leftIcon &&
         m(Icon, {icon: leftIcon, className: 'pf-text-input__left-icon'}),

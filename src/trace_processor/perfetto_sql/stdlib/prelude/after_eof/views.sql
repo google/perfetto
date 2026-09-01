@@ -31,6 +31,27 @@ CREATE PERFETTO VIEW counter(
 AS
 SELECT id, ts, track_id, value, arg_set_id FROM __intrinsic_counter;
 
+-- Contains state from userspace which reads like a symbolic counter with
+-- literals rather than numbers.
+CREATE PERFETTO VIEW state(
+  -- Unique id of a state slice
+  id ID,
+  -- The start timestamp of the state slice in nanoseconds.
+  ts TIMESTAMP,
+  -- The duration of the state slice in nanoseconds.
+  dur DURATION,
+  -- The track this state slice belongs to.
+  track_id JOINID(track.id),
+  -- The category of the state.
+  category STRING,
+  -- The string value/name of the state.
+  value STRING,
+  -- Additional information about the state.
+  arg_set_id ARGSETID
+)
+AS
+SELECT id, ts, dur, track_id, category, value, arg_set_id FROM __intrinsic_state;
+
 -- Contains slices from userspace which explains what threads were doing
 -- during the trace.
 CREATE PERFETTO VIEW slice(
@@ -249,7 +270,8 @@ SELECT
   END AS display_value
 FROM __intrinsic_args;
 
--- Contains the Linux perf sessions in the trace.
+-- Contains all Linux perf sessions in the trace, including sessions which
+-- only recorded counters and did not capture any callstacks.
 CREATE PERFETTO VIEW perf_session(
   -- The id of the perf session. Prefer using `perf_session_id` instead.
   id LONG,
@@ -259,7 +281,10 @@ CREATE PERFETTO VIEW perf_session(
   cmdline STRING
 )
 AS
-SELECT *, id AS perf_session_id FROM __intrinsic_perf_session;
+SELECT id, id AS perf_session_id, cmdline
+FROM __intrinsic_profiler_session
+WHERE
+  source = 'linux.perf';
 
 -- Log entries from all sources (Android logcat, systemd_journald, etc.).
 --
@@ -548,7 +573,10 @@ CREATE PERFETTO VIEW stack_profile_frame(
   -- If the profile was offline symbolized, the offline symbol information.
   symbol_set_id LONG,
   -- Deobfuscated name of the function this location is in.
-  deobfuscated_name STRING
+  deobfuscated_name STRING,
+  -- The kind of frame (e.g. "native", "kernel", "interpreted", "jit", "gc",
+  -- "runtime") if reported by the producer, else NULL.
+  type STRING
 )
 AS
 SELECT * FROM __intrinsic_stack_profile_frame;
@@ -569,7 +597,7 @@ SELECT * FROM __intrinsic_stack_profile_callsite;
 
 -- Table containing stack samples from CPU profiling.
 CREATE PERFETTO VIEW cpu_profile_stack_sample(
-  -- The id of the row.
+  -- The id of the row. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -581,11 +609,23 @@ CREATE PERFETTO VIEW cpu_profile_stack_sample(
   process_priority LONG
 )
 AS
-SELECT * FROM __intrinsic_cpu_profile_stack_sample;
+SELECT
+  ps.id,
+  ps.ts,
+  ps.callsite_id,
+  tc.utid,
+  coalesce(x.process_priority, 0) AS process_priority
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_chrome_stack_sample_extras AS x
+  ON x.profiler_sample_id = ps.id
+WHERE
+  ps.source IN ('chrome', 'legacy_v8', 'gecko', 'simpleperf', 'perf_text');
 
 -- Samples from MacOS Instruments.
 CREATE PERFETTO VIEW instruments_sample(
-  -- The id of the row.
+  -- The id of the row. Joinable with stack_sample.id.
   id ID,
   -- Timestamp of the sample.
   ts TIMESTAMP,
@@ -597,7 +637,16 @@ CREATE PERFETTO VIEW instruments_sample(
   cpu LONG
 )
 AS
-SELECT * FROM __intrinsic_instruments_sample;
+SELECT ps.id, ps.ts, tc.utid, ps.callsite_id, c.cpu
+FROM __intrinsic_profiler_sample AS ps
+LEFT JOIN __intrinsic_profiler_task_context AS tc
+  ON tc.id = ps.task_context_id
+LEFT JOIN __intrinsic_profiler_execution_context AS ec
+  ON ec.id = ps.execution_context_id
+LEFT JOIN __intrinsic_cpu AS c
+  ON c.id = ec.ucpu
+WHERE
+  ps.source = 'instruments';
 
 -- Symbolization data for a frame.
 CREATE PERFETTO VIEW stack_profile_symbol(
@@ -713,6 +762,9 @@ CREATE PERFETTO VIEW machine(
   id ID,
   -- Raw machine identifier in the trace packet.
   raw_id LONG,
+  -- Human-readable name of the machine (e.g. from a perfetto_manifest
+  -- override), used as its label in the UI.
+  name STRING,
   -- The name of the operating system.
   sysname STRING,
   -- The current release of the operating system.
@@ -732,10 +784,21 @@ CREATE PERFETTO VIEW machine(
   -- Total system RAM in bytes.
   system_ram_bytes LONG,
   -- Total system RAM in gigabytes (rounded).
-  system_ram_gb LONG
+  system_ram_gb LONG,
+  -- 1-based index of this machine among the non-host machines, used by the UI
+  -- to label tracks (e.g. "(machine 1)"). The host machine (raw_id 0) gets 0,
+  -- so it is never labelled.
+  label_index LONG
 )
 AS
-SELECT * FROM __intrinsic_machine;
+SELECT
+  *,
+  -- A dense 1-based rank among the non-host machines, ordered by id. We rank by
+  -- position rather than arithmetic on id because the host does not always take
+  -- the lowest id: the perfetto_manifest reader pre-allocates named machine rows
+  -- before the host row is created lazily, so a named machine can precede it.
+  iif(raw_id = 0, 0, sum(iif(raw_id = 0, 0, 1)) OVER (ORDER BY id)) AS label_index
+FROM __intrinsic_machine;
 
 -- Contains information of filedescriptors collected during the trace.
 CREATE PERFETTO VIEW filedescriptor(
@@ -953,7 +1016,7 @@ CREATE PERFETTO VIEW _trace_import_logs(
   ts TIMESTAMP,
   -- The byte offset in the trace file where the error occurred (if available).
   byte_offset LONG,
-  -- The severity of the log entry ('info', 'data_loss', or 'error').
+  -- The severity of the log entry ('info', 'notice', 'data_loss', or 'error').
   severity STRING,
   -- The name of the stat/error type.
   name STRING,

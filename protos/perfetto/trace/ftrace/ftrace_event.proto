@@ -70,6 +70,7 @@ import "protos/perfetto/trace/ftrace/net.proto";
 import "protos/perfetto/trace/ftrace/oom.proto";
 import "protos/perfetto/trace/ftrace/panel.proto";
 import "protos/perfetto/trace/ftrace/perf_trace_counters.proto";
+import "protos/perfetto/trace/ftrace/pixel_metrics.proto";
 import "protos/perfetto/trace/ftrace/pixel_mm.proto";
 import "protos/perfetto/trace/ftrace/power.proto";
 import "protos/perfetto/trace/ftrace/printk.proto";
@@ -765,5 +766,9 @@ message FtraceEvent {
     PanelSettingsFullFtraceEvent panel_settings_full = 611;
     PanelSettingsLiteFtraceEvent panel_settings_lite = 612;
     DpuDispDpuLineUnderrunFtraceEvent dpu_disp_dpu_line_underrun = 613;
+    PsciDomainIdleExitFtraceEvent psci_domain_idle_exit = 614;
+    PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
+    LongIrqFtraceEvent long_irq = 616;
+    LongSoftirqFtraceEvent long_softirq = 617;
   }
 }

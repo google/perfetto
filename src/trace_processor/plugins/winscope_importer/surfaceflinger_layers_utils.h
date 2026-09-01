@@ -18,10 +18,10 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_LAYERS_UTILS_H_
 
 #include <optional>
-#include "protos/perfetto/trace/android/graphics/corner_radii.pbzero.h"
-#include "protos/perfetto/trace/android/graphics/rect.pbzero.h"
-#include "protos/perfetto/trace/android/surfaceflinger_common.pbzero.h"
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/corner_radii.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_common.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
 
 // Used to manipulate SurfaceFlinger layer data to perform various computations
@@ -30,7 +30,8 @@
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
 namespace {
-using TransformDecoder = protos::pbzero::TransformProto::Decoder;
+using TransformDecoder =
+    com::android::internal::pbzero::TransformProto::Decoder;
 using TransformMatrix = geometry::TransformMatrix;
 using Rect = geometry::Rect;
 }  // namespace
@@ -116,7 +117,7 @@ inline TransformMatrix GetTransformMatrix(int type, double x, double y) {
 
 namespace layer {
 namespace {
-using LayerDecoder = protos::pbzero::LayerProto::Decoder;
+using LayerDecoder = com::android::internal::pbzero::LayerProto::Decoder;
 
 const int LAYER_FLAG_HIDDEN = 0x01;
 const int OFFSCREEN_LAYER_ROOT_ID = 0x7ffffffd;
@@ -132,7 +133,8 @@ inline bool IsHiddenByPolicy(const LayerDecoder& layer) {
 }
 
 inline Rect GetBounds(const LayerDecoder& layer) {
-  auto bounds = protos::pbzero::FloatRectProto::Decoder(layer.bounds());
+  auto bounds =
+      com::android::internal::pbzero::FloatRectProto::Decoder(layer.bounds());
   return Rect(bounds);
 }
 
@@ -144,8 +146,8 @@ inline std::optional<geometry::Rect> GetCroppedScreenBounds(
   if (!layer.has_screen_bounds()) {
     return std::nullopt;
   }
-  auto screen_bounds =
-      protos::pbzero::FloatRectProto::Decoder(layer.screen_bounds());
+  auto screen_bounds = com::android::internal::pbzero::FloatRectProto::Decoder(
+      layer.screen_bounds());
   auto screen_bounds_rect = Rect(screen_bounds);
 
   if (crop.has_value() && !(crop->IsEmpty())) {
@@ -159,7 +161,8 @@ inline TransformMatrix GetTransformMatrix(const LayerDecoder& layer_decoder) {
   TransformMatrix matrix;
 
   if (layer_decoder.has_position()) {
-    protos::pbzero::PositionProto::Decoder position(layer_decoder.position());
+    com::android::internal::pbzero::PositionProto::Decoder position(
+        layer_decoder.position());
     matrix.tx = static_cast<double>(position.x());
     matrix.ty = static_cast<double>(position.y());
   }
@@ -190,7 +193,7 @@ inline geometry::CornerRadii GetCornerRadii(const LayerDecoder& layer) {
 
   bool has_corner_radii = false;
   if (layer.has_corner_radii()) {
-    protos::pbzero::CornerRadiiProto::Decoder radii_decoder(
+    com::android::internal::pbzero::CornerRadiiProto::Decoder radii_decoder(
         layer.corner_radii());
     if (radii_decoder.tl() > 0 || radii_decoder.tr() > 0 ||
         radii_decoder.bl() > 0 || radii_decoder.br() > 0) {
@@ -215,7 +218,7 @@ inline geometry::CornerRadii GetCornerRadii(const LayerDecoder& layer) {
   // effective_radii field is populated and should be added to any existing
   // corner radii data.
   if (layer.has_effective_radii()) {
-    protos::pbzero::CornerRadiiProto::Decoder radii_decoder(
+    com::android::internal::pbzero::CornerRadiiProto::Decoder radii_decoder(
         layer.effective_radii());
     corner_radii.tl += static_cast<double>(radii_decoder.tl());
     corner_radii.tr += static_cast<double>(radii_decoder.tr());
@@ -229,11 +232,11 @@ inline geometry::CornerRadii GetCornerRadii(const LayerDecoder& layer) {
 
 namespace display {
 namespace {
-using DisplayDecoder = protos::pbzero::DisplayProto::Decoder;
+using DisplayDecoder = com::android::internal::pbzero::DisplayProto::Decoder;
 }
 
 inline Rect MakeLayerStackSpaceRect(const DisplayDecoder& display_decoder) {
-  protos::pbzero::RectProto::Decoder layer_stack_space_rect(
+  com::android::internal::pbzero::RectProto::Decoder layer_stack_space_rect(
       display_decoder.layer_stack_space_rect());
   return Rect(layer_stack_space_rect);
 }
@@ -282,7 +285,8 @@ inline geometry::Size GetDisplaySize(const DisplayDecoder& display_decoder) {
   if (!display_decoder.has_size()) {
     return geometry::Size{0, 0};
   }
-  protos::pbzero::SizeProto::Decoder size_decoder(display_decoder.size());
+  com::android::internal::pbzero::SizeProto::Decoder size_decoder(
+      display_decoder.size());
   auto w = static_cast<double>(size_decoder.w());
   auto h = static_cast<double>(size_decoder.h());
 

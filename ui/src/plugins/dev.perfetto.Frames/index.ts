@@ -54,7 +54,7 @@ export default class FramesPlugin implements PerfettoPlugin {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new FrameSelectionAggregator(), 10),
+      createAggregationTab(ctx, new FrameSelectionAggregator(ctx), 10),
     );
   }
 

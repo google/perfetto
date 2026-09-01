@@ -50,4 +50,10 @@ MetadataId MetadataTracker::SetDynamicMetadata(StringId key, Variadic value) {
       context_->machine_id(), context_->trace_id(), key, value);
 }
 
+MetadataId MetadataTracker::AppendDynamicMetadataLegacy(StringId key,
+                                                        Variadic value) {
+  return context_->global_metadata_tracker->AppendDynamicMetadataLegacy(
+      context_->machine_id(), context_->trace_id(), key, value);
+}
+
 }  // namespace perfetto::trace_processor

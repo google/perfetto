@@ -14,9 +14,9 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
-import type {App} from '../public/app';
+import type {App, Route} from '../public/app';
 import type {SqlPackage} from '../public/extra_sql_packages';
 import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import type {Raf} from '../public/raf';
@@ -128,7 +128,7 @@ export class AppImpl implements App {
   // Singleton.
   private static _instance: AppImpl;
   static get instance(): AppImpl {
-    return assertExists(AppImpl._instance);
+    return ensureExists(AppImpl._instance);
   }
 
   readonly timestampFormat: Setting<TimestampFormat>;
@@ -242,24 +242,6 @@ export class AppImpl implements App {
   }
 
   private async openTrace(src: TraceSource): Promise<TraceImpl> {
-    if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
-      // Even though the type of `buffer` is ArrayBuffer, it's possible to
-      // accidentally pass a Uint8Array here, because the interface of
-      // Uint8Array is compatible with ArrayBuffer. That can cause subtle bugs
-      // in TraceStream when creating chunks out of it (see b/390473162).
-      // So if we get a Uint8Array in input, convert it into an actual
-      // ArrayBuffer, as various parts of the codebase assume that this is a
-      // pure ArrayBuffer, and not a logical view of it with a byteOffset > 0.
-      if (
-        src.buffer.byteOffset === 0 &&
-        src.buffer.byteLength === src.buffer.buffer.byteLength
-      ) {
-        src = {...src, buffer: src.buffer.buffer};
-      } else {
-        src = {...src, buffer: src.buffer.slice().buffer};
-      }
-    }
-
     const result = defer<TraceImpl>();
 
     // Rationale for asyncLimiter: openTrace takes several seconds and involves
@@ -302,6 +284,10 @@ export class AppImpl implements App {
 
   navigate(newHash: string): void {
     Router.navigate(newHash);
+  }
+
+  getCurrentRoute(): Route {
+    return Router.getCurrentRoute();
   }
 
   addSqlPackages(

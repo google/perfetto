@@ -58,16 +58,27 @@ class ProtoTraceReader;
 class RegisteredFileTracker;
 class SchedEventTracker;
 class SliceTracker;
+class StateTracker;
 class SliceTranslationTable;
+class SparseCounterTracker;
 class StackProfileTracker;
+class ProfilerSampleTracker;
 class SymbolTracker;
+class TraceDiagnosticsTracker;
 class TraceFileTracker;
+class TraceImporterRegistry;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
+class TraceProcessor_PlatformInterface;
+
+namespace io {
+class FileSystem;
+}
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TraceManifestState;
 struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
 
@@ -99,6 +110,22 @@ class TraceProcessorContext {
 
   struct TraceState {
     TraceId trace_id;
+
+    // True when a perfetto_manifest override pinned this trace onto a single
+    // private clock. The trace must then stay single-clock and single-machine,
+    // so ClockSnapshots and remote machine ids are rejected on it.
+    bool has_clock_override = false;
+
+    // Set when a perfetto_manifest entry attributed this file to a single
+    // machine; lets readers reject it later if it proves to be multi-machine.
+    bool has_machine_override = false;
+
+    // For a multi-machine proto file described by a manifest `machines` block:
+    // points at that entry's embedded machine_id -> raw machine id map (owned
+    // by the manifest state, which outlives parsing). The proto dispatcher
+    // forks remote machines onto these instead of rejecting. Null for other
+    // files.
+    const base::FlatHashMap<uint32_t, int64_t>* machine_remap = nullptr;
   };
 
   struct UuidState {
@@ -117,8 +144,10 @@ class TraceProcessorContext {
 
   // Creates the root TraceProcessorContext. Should only be called by
   // TraceProcessor top level class.
-  static TraceProcessorContext CreateRootContext(const Config& config) {
-    return TraceProcessorContext(config);
+  static TraceProcessorContext CreateRootContext(
+      const Config& config,
+      TraceProcessor_PlatformInterface* platform = nullptr) {
+    return TraceProcessorContext(config, platform);
   }
 
   // Destroys all state related to parsing the trace, keeping only state
@@ -130,12 +159,12 @@ class TraceProcessorContext {
   // id.
   TraceProcessorContext* ForkContextForTrace(
       TraceId trace_id,
-      uint32_t default_raw_machine_id) const;
+      int64_t default_raw_machine_id) const;
 
   // Forks the current TraceProcessorContext into a context for parsing a new
   // machine on the same as the current trace.
   TraceProcessorContext* ForkContextForMachineInCurrentTrace(
-      uint32_t raw_machine_id) const;
+      int64_t raw_machine_id) const;
 
   // Global State
   // ============
@@ -145,9 +174,19 @@ class TraceProcessorContext {
   // then shared between all machines.
 
   Config config;
+  TraceProcessor_PlatformInterface* platform = nullptr;
+  // The filesystem obtained from `platform` at construction. Cached so that
+  // each Trace Processor instance uses a stable snapshot of its platform's
+  // filesystem for its whole lifetime. Borrowed; must outlive this instance.
+  io::FileSystem* file_system = nullptr;
   GlobalPtr<TraceStorage> storage;
   GlobalPtr<TraceSorter> sorter;
   GlobalPtr<TraceReaderRegistry> reader_registry;
+  // Non-owning view of the trace-type metadata + plugin importers owned by
+  // `reader_registry`. Exposed here so low-layer code (trace_file_tracker,
+  // archive readers) can query per-type metadata without depending on the
+  // reader registry header.
+  TraceImporterRegistry* trace_importer_registry = nullptr;
   GlobalPtr<GlobalArgsTracker> global_args_tracker;
   GlobalPtr<GlobalMetadataTracker> global_metadata_tracker;
   GlobalPtr<GlobalStatsTracker> global_stats_tracker;
@@ -156,8 +195,13 @@ class TraceProcessorContext {
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
   GlobalPtr<TraceTimeState> trace_time_state;
+  // One clock graph for the whole import. Clocks are isolated per-(machine,
+  // file) via ClockId, so cross-machine/cross-file syncs are ordinary edges.
+  GlobalPtr<ClockSynchronizer> clock_sync;
+  GlobalPtr<TraceManifestState> trace_manifest_state;
   GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
   GlobalPtr<StackProfileTracker> stack_profile_tracker;
+  GlobalPtr<ProfilerSampleTracker> profiler_sample_tracker;
   GlobalPtr<Destructible> deobfuscation_tracker;  // DeobfuscationTracker
   GlobalPtr<BlobPacketWriter> blob_packet_writer;
 
@@ -197,6 +241,7 @@ class TraceProcessorContext {
   PerTracePtr<TraceState> trace_state;
   PerTracePtr<Destructible> content_analyzer;
   PerTracePtr<ImportLogsTracker> import_logs_tracker;
+  PerTracePtr<TraceDiagnosticsTracker> trace_diagnostics_tracker;
 
   // Per-Machine State
   // =================
@@ -206,7 +251,6 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
-  PerMachinePtr<ClockSynchronizer> primary_clock_sync;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
@@ -226,12 +270,14 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;
+  PerTraceAndMachinePtr<StateTracker> state_tracker;
   PerTraceAndMachinePtr<FileIoTracker> file_io_tracker;
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;
   PerTraceAndMachinePtr<SchedEventTracker> sched_event_tracker;
   PerTraceAndMachinePtr<MetadataTracker> metadata_tracker;
   PerTraceAndMachinePtr<StatsTracker> stats_tracker;
+  PerTraceAndMachinePtr<SparseCounterTracker> sparse_counter_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -250,8 +296,22 @@ class TraceProcessorContext {
   MachineId machine_id() const;
   TraceId trace_id() const;
 
+  // True when a perfetto_manifest clock override constrains this trace to a
+  // single clock and machine. False for root/container contexts that have no
+  // per-trace state.
+  bool has_clock_override() const {
+    return trace_state && trace_state->has_clock_override;
+  }
+
+  // True when a perfetto_manifest entry attributed this trace to a single
+  // machine. False for root/container contexts that have no per-trace state.
+  bool has_machine_override() const {
+    return trace_state && trace_state->has_machine_override;
+  }
+
  private:
-  explicit TraceProcessorContext(const Config& config);
+  TraceProcessorContext(const Config& config,
+                        TraceProcessor_PlatformInterface* platform);
 
   TraceProcessorContext(TraceProcessorContext&&) = default;
   TraceProcessorContext& operator=(TraceProcessorContext&&) = default;
@@ -259,13 +319,13 @@ class TraceProcessorContext {
 
 class TraceProcessorContext::ForkedContextState {
  public:
-  using TraceIdAndMachineId = std::pair<uint32_t, uint32_t>;
+  using TraceIdAndMachineId = std::pair<uint32_t, int64_t>;
   base::FlatHashMap<TraceIdAndMachineId,
                     std::unique_ptr<TraceProcessorContext>,
                     base::MurmurHash<TraceIdAndMachineId>>
       trace_and_machine_to_context;
   base::FlatHashMap<uint32_t, TraceProcessorContext*> trace_to_context;
-  base::FlatHashMap<uint32_t, TraceProcessorContext*> machine_to_context;
+  base::FlatHashMap<int64_t, TraceProcessorContext*> machine_to_context;
 };
 
 }  // namespace perfetto::trace_processor

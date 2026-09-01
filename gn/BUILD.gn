@@ -101,6 +101,7 @@ action("gen_buildflags") {
     "PERFETTO_TP_INSTRUMENTS=$enable_perfetto_trace_processor_mac_instruments",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
+    "PERFETTO_ZSTD=$enable_perfetto_zstd",
     "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
     "PERFETTO_HEAPPROFD=$enable_perfetto_heapprofd",
     "PERFETTO_STDERR_CRASH_DUMP=$enable_perfetto_stderr_crash_dump",
@@ -460,6 +461,37 @@ if (enable_perfetto_zlib) {
   }
 }
 
+# Zstd is used both by trace_processor and by the tracing service.
+if (enable_perfetto_zstd) {
+  # pkg_deps selects the appropriate pkg-config based on current_toolchain and
+  # this is a no-op if |perfetto_use_pkgconfig| is false.
+  pkg_config("pkgconfig_zstd") {
+    pkg_deps = [ "libzstd" ]
+  }
+
+  config("system_zstd") {
+    if (perfetto_use_pkgconfig) {
+      configs = [ ":pkgconfig_zstd" ]
+    } else {
+      # Fallback if pkg-config isn't enabled.
+      libs = [ "libzstd" ]
+    }
+  }
+
+  group("zstd") {
+    if (perfetto_use_system_zstd) {
+      public_configs = [ ":system_zstd" ]
+    } else if (perfetto_root_path == "//") {
+      public_configs = [ "//buildtools:zstd_config" ]
+      public_deps = [ "//buildtools:zstd" ]
+    } else {
+      assert(false,
+             "Zstd is unsupported in embedder builds. Set " +
+                 "enable_perfetto_zstd=false or override //gn:zstd.")
+    }
+  }
+}
+
 if (enable_perfetto_llvm_demangle) {
   group("llvm_demangle") {
     public_deps = [ "//buildtools:llvm_demangle" ]
@@ -517,8 +549,27 @@ if (enable_perfetto_pcre2) {
 }
 
 if (enable_perfetto_re2) {
+  # pkg_deps selects the appropriate pkg-config based on current_toolchain and
+  # this is a no-op if |perfetto_use_pkgconfig| is false.
+  pkg_config("pkgconfig_re2") {
+    pkg_deps = [ "re2" ]
+  }
+
+  config("system_re2") {
+    # The system re2 is built against abseil, so its headers need this.
+    defines = [ "RE2_USE_ABSL" ]
+    if (perfetto_use_pkgconfig) {
+      configs = [ ":pkgconfig_re2" ]
+    } else {
+      # Fallback if pkg-config isn't enabled.
+      libs = [ "re2" ]
+    }
+  }
+
   group("re2") {
-    if (perfetto_root_path == "//") {
+    if (perfetto_use_system_re2) {
+      public_configs = [ ":system_re2" ]
+    } else if (perfetto_root_path == "//") {
       public_deps = [ "//buildtools:re2" ]
     } else {
       # This part will be overridden by the various build generators (Android.bp,

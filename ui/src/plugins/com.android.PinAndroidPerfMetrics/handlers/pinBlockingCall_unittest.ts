@@ -83,6 +83,16 @@ const validMetricsTest: {
       aggregation: 'mean_dur_per_frame_ns-max',
     },
   },
+  {
+    inputMetric:
+      'perfetto_android_blocking_call_per_frame-cuj-name-com.android.systemui-name-NOTIFICATION_HEADS_UP_APPEAR-blocking_calls-name-drawLayer_[StatusBarIconView]-max_dur_per_frame_ns-mean',
+    expectedOutput: {
+      process: 'com.android.systemui',
+      cujName: 'NOTIFICATION_HEADS_UP_APPEAR',
+      blockingCallName: 'drawLayer_[StatusBarIconView]',
+      aggregation: 'max_dur_per_frame_ns-mean',
+    },
+  },
 ];
 
 const invalidMetricsTest: string[] = [

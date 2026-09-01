@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {splitLinesNonEmpty} from '../../../base/string_utils';
 import type {RecordSubpage, RecordProbe} from '../config/config_interfaces';
 import {
   FTRACE_DS,
@@ -19,6 +20,7 @@ import {
 } from '../config/trace_config_builder';
 import {TypedMultiselect} from './widgets/multiselect';
 import {Slider} from './widgets/slider';
+import {Textarea} from './widgets/textarea';
 import {Toggle} from './widgets/toggle';
 
 export const ADV_PROC_ASSOC_PROBE_ID = 'adv_proc_thread_assoc';
@@ -38,6 +40,12 @@ export function advancedRecordSection(): RecordSubpage {
 }
 
 function ftraceCfg(): RecordProbe {
+  const additionalEvents = new Toggle({
+    title: 'Record additional ftrace events',
+    descr:
+      'Capture individual ftrace events by name, in addition to those ' +
+      'enabled by the presets below and by other probes.',
+  });
   const settings = {
     ksyms: new Toggle({
       title: 'Resolve kernel symbols',
@@ -47,11 +55,11 @@ function ftraceCfg(): RecordProbe {
         'sched_blocked_reason and other events ' +
         '(userdebug/eng builds only).',
     }),
-    genericEvents: new Toggle({
-      title: 'Enable generic events (slow)',
-      descr:
-        'Enables capture of ftrace events that are not known at build time ' +
-        'by perfetto as key-value string pairs. This is slow and expensive.',
+    additionalEvents,
+    customEvents: new Textarea({
+      title: 'Additional ftrace events',
+      placeholder: 'e.g. myfs/my_event\nsched/sched_wakeup_new',
+      disabled: () => !additionalEvents.enabled,
     }),
     bufSize: new Slider({
       title: 'Buf size',
@@ -110,9 +118,14 @@ function ftraceCfg(): RecordProbe {
       cfg.bufferSizeKb = settings.bufSize.value || undefined;
       cfg.drainPeriodMs = settings.drainRate.value || undefined;
       cfg.symbolizeKsyms = settings.ksyms.enabled ? true : undefined;
-      cfg.disableGenericEvents = !settings.genericEvents.enabled;
+      cfg.disableGenericEvents = !settings.additionalEvents.enabled;
       cfg.ftraceEvents ??= [];
       cfg.ftraceEvents.push(...settings.groups.selectedValues());
+      if (settings.additionalEvents.enabled) {
+        cfg.ftraceEvents.push(
+          ...splitLinesNonEmpty(settings.customEvents.text),
+        );
+      }
     },
   };
 }

@@ -154,10 +154,14 @@ if (enable_perfetto_benchmarks) {
       ":testing_messages_zero",
       "../../gn:benchmark",
       "../../gn:default_deps",
+      "../../protos/perfetto/trace:zero",
+      "../../protos/perfetto/trace/ftrace:zero",
+      "../../protos/perfetto/trace/track_event:zero",
       "../base",
       "../base:test_support",
     ]
     sources = [
+      "test/proto_decoder_benchmark.cc",
       "test/proto_ring_buffer_benchmark.cc",
       "test/protozero_benchmark.cc",
     ]

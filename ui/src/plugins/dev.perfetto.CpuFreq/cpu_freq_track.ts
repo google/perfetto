@@ -23,10 +23,10 @@ import {assertTrue} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   type CancellationSignal,
-  QUERY_CANCELLED,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../base/query_slot';
+  TASK_CANCELLED,
+  AsyncMemo,
+  AtomicTaskQueue,
+} from '../../base/async_memo';
 import type {StepAreaBuffers} from '../../base/renderer';
 import {type duration, type time, Time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
@@ -122,9 +122,9 @@ export class CpuFreqTrack implements TrackRenderer {
   ]);
 
   // QuerySlot infrastructure
-  private readonly queue = new SerialTaskQueue();
-  private readonly tableSlot = new QuerySlot<MipmapTables>(this.queue);
-  private readonly dataSlot = new QuerySlot<Data>(this.queue);
+  private readonly queue = new AtomicTaskQueue();
+  private readonly tableSlot = new AsyncMemo<MipmapTables>(this.queue);
+  private readonly dataSlot = new AsyncMemo<Data>(this.queue);
 
   // Cached data for rendering (populated from dataSlot)
   private data?: Data;
@@ -238,7 +238,7 @@ export class CpuFreqTrack implements TrackRenderer {
     end: time,
     resolution: duration,
     signal: CancellationSignal,
-  ): Promise<Data | typeof QUERY_CANCELLED> {
+  ): Promise<Data | typeof TASK_CANCELLED> {
     // The resolution should always be a power of two for the logic of this
     // function to make sense.
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
@@ -256,7 +256,7 @@ export class CpuFreqTrack implements TrackRenderer {
       );
     `);
 
-    if (signal.isCancelled) return QUERY_CANCELLED;
+    if (signal.isCancelled) return TASK_CANCELLED;
 
     const idleResult = await this.trace.engine.query(`
       SELECT last_value as lastIdle
@@ -267,7 +267,7 @@ export class CpuFreqTrack implements TrackRenderer {
       );
     `);
 
-    if (signal.isCancelled) return QUERY_CANCELLED;
+    if (signal.isCancelled) return TASK_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -304,7 +304,7 @@ export class CpuFreqTrack implements TrackRenderer {
     });
     for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
       if (i % 50 === 0) {
-        if (signal.isCancelled) return QUERY_CANCELLED;
+        if (signal.isCancelled) return TASK_CANCELLED;
         if (task.shouldYield()) {
           await task.yield();
         }
@@ -396,7 +396,7 @@ export class CpuFreqTrack implements TrackRenderer {
         freqTrackId: this.config.freqTrackId,
         idleTrackId: this.config.idleTrackId,
       },
-      queryFn: () => this.createMipmapTables(),
+      compute: () => this.createMipmapTables(),
     });
 
     // Step 2: Declaratively fetch data from the tables with buffered bounds
@@ -410,7 +410,7 @@ export class CpuFreqTrack implements TrackRenderer {
         end: bounds.end,
         resolution: bounds.resolution,
       },
-      queryFn: async (signal) => {
+      compute: async (signal) => {
         const result = await this.trace.taskTracker.track(
           this.fetchData(
             tableResult.data!.freqTableName,

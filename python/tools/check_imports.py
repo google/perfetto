@@ -36,7 +36,7 @@ DEPS_ALLOWLIST = [
     # Everything can depend on base/, protos and NPM packages.
     ('*', [
         '/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES,
-        'virtual:*'
+        '/virtual/*'
     ]),
 
     # Integration tests can depend on everything.
@@ -141,7 +141,6 @@ DEPS_ALLOWLIST = [
 
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),
-    ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
 ]
 
 

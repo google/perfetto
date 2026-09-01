@@ -19,10 +19,10 @@ import {formatDuration} from '../../components/time_utils';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import type {
   CellRenderResult,
-  SchemaRegistry,
+  ColumnSchema,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import type {SQLSchemaRegistry} from '../../components/widgets/datagrid/sql_schema';
+import type {SQLTableSchema} from '../../components/widgets/datagrid/sql_schema';
 import {
   type AreaSelection,
   areaSelectionsEqual,
@@ -48,17 +48,15 @@ import {
 import {PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
 
-const V8_RCS_SQL_SCHEMA: SQLSchemaRegistry = {
-  v8_rcs: {
-    table: 'v8_rcs_view',
-    columns: {
-      v8_rcs_group: {},
-      v8_rcs_name: {},
-      v8_rcs_count: {},
-      v8_rcs_dur: {},
-      v8_rcs_count_percent: {},
-      v8_rcs_dur_percent: {},
-    },
+const V8_RCS_SQL_SCHEMA: SQLTableSchema = {
+  tableOrSubquery: 'v8_rcs_view',
+  columns: {
+    v8_rcs_group: {},
+    v8_rcs_name: {},
+    v8_rcs_count: {},
+    v8_rcs_dur: {},
+    v8_rcs_count_percent: {},
+    v8_rcs_dur_percent: {},
   },
 };
 
@@ -128,7 +126,6 @@ export class V8RuntimeCallStatsTab implements Tab {
 
     return m(DataGrid, {
       schema: this.getUiSchema(),
-      rootSchema: 'v8_rcs',
       toolbarItemsLeft: this.renderGroupFilter(),
       toolbarItemsRight: this.renderExportButton(),
       data: this.dataSource,
@@ -162,38 +159,36 @@ export class V8RuntimeCallStatsTab implements Tab {
     });
   }
 
-  private getUiSchema(): SchemaRegistry {
+  private getUiSchema(): ColumnSchema {
     return {
-      v8_rcs: {
-        v8_rcs_group: {
-          title: 'Group',
-          columnType: 'text',
+      v8_rcs_group: {
+        title: 'Group',
+        columnType: 'text',
+      },
+      v8_rcs_name: {
+        title: 'Name',
+        columnType: 'text',
+      },
+      v8_rcs_dur: {
+        title: 'RCS Duration',
+        columnType: 'quantitative',
+        cellRenderer: (value) => {
+          return formatDuration(this.trace, value as duration);
         },
-        v8_rcs_name: {
-          title: 'Name',
-          columnType: 'text',
-        },
-        v8_rcs_dur: {
-          title: 'RCS Duration',
-          columnType: 'quantitative',
-          cellRenderer: (value) => {
-            return formatDuration(this.trace, value as duration);
-          },
-        },
-        v8_rcs_dur_percent: {
-          title: 'Duration %',
-          columnType: 'quantitative',
-          cellRenderer: (value, row) => this.renderPercentCell(value, row),
-        },
-        v8_rcs_count: {
-          title: 'RCS Count',
-          columnType: 'quantitative',
-        },
-        v8_rcs_count_percent: {
-          title: 'Count %',
-          columnType: 'quantitative',
-          cellRenderer: (value, row) => this.renderPercentCell(value, row),
-        },
+      },
+      v8_rcs_dur_percent: {
+        title: 'Duration %',
+        columnType: 'quantitative',
+        cellRenderer: (value, row) => this.renderPercentCell(value, row),
+      },
+      v8_rcs_count: {
+        title: 'RCS Count',
+        columnType: 'quantitative',
+      },
+      v8_rcs_count_percent: {
+        title: 'Count %',
+        columnType: 'quantitative',
+        cellRenderer: (value, row) => this.renderPercentCell(value, row),
       },
     };
   }
@@ -337,8 +332,7 @@ export class V8RuntimeCallStatsTab implements Tab {
       if (this.previousSelection === selection) {
         this.dataSource = new SQLDataSource({
           engine: this.trace.engine,
-          sqlSchema: V8_RCS_SQL_SCHEMA,
-          rootSchemaName: 'v8_rcs',
+          ...V8_RCS_SQL_SCHEMA,
         });
       }
     }
