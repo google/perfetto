@@ -129,6 +129,14 @@ WITH
   )
 SELECT * FROM data;
 
+-- Mapping for SoC model aliases (i.e. different name for same SoC)
+CREATE PERFETTO TABLE _wattson_soc_aliases AS
+WITH
+  data(alias, wattson_device) AS (
+    SELECT * FROM (VALUES ("SAR1130P", "neo")) AS _values
+  )
+SELECT * FROM data;
+
 CREATE PERFETTO TABLE _wattson_device AS
 WITH
   soc_model AS (
@@ -136,18 +144,22 @@ WITH
       coalesce(
         -- Get guest model from metadata, which takes precedence if set
         (
-          SELECT str_value
-          FROM metadata
+          SELECT coalesce(map.wattson_device, m.str_value)
+          FROM metadata AS m
+          LEFT JOIN _wattson_soc_aliases AS map
+            ON map.alias = m.str_value
           WHERE
-            name = 'android_guest_soc_model'
+            m.name = 'android_guest_soc_model'
           LIMIT 1
         ),
         -- Get model from metadata
         (
-          SELECT str_value
-          FROM metadata
+          SELECT coalesce(map.wattson_device, m.str_value)
+          FROM metadata AS m
+          LEFT JOIN _wattson_soc_aliases AS map
+            ON map.alias = m.str_value
           WHERE
-            name = 'android_soc_model'
+            m.name = 'android_soc_model'
           LIMIT 1
         ),
         -- Get device name from metadata and map it to model
