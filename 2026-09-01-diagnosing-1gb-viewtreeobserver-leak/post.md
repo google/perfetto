@@ -1,6 +1,6 @@
 ---
 title: "Under the Hood: Diagnosing a 1 GB ViewTreeObserver Memory Leak with Perfetto"
-author: @goldenluk
+author: "@goldenluk"
 summary: "How a single background scrim view silently leaked nearly 1 GB of UI hierarchies in production, and how we diagnosed and fixed it using Perfetto."
 ---
 
@@ -18,7 +18,7 @@ Before diving into heap dumps or traps, it's crucial to understand a fundamental
 
 > A ViewTreeObserver isn't owned by the individual View. Once attached, all views in the same ViewRoot share the hierarchy's ViewTreeObserver. Therefore, registering a listener from a short-lived object (such as a [Fragment](https://developer.android.com/reference/androidx/fragment/app/Fragment)) effectively stores that callback in a potentially much longer-lived ViewRoot. If the listener captures the Fragment and isn't unregistered during teardown, the ViewRoot will retain the destroyed Fragment for as long as that window hierarchy remains alive.
 
-![Figure 1: Retention path showing how ViewTreeObserver at the ViewRootImpl window root retains a destroyed Fragment and its view hierarchy.][path.svg]
+![Figure 1: Retention path showing how ViewTreeObserver at the ViewRootImpl window root retains a destroyed Fragment and its view hierarchy.](path.png)
 
 ## Gathering Data: The Warning Signs
 
@@ -41,7 +41,7 @@ When telemetry alerts flag high memory retention, diagnosing the root cause requ
 
 Navigating to the **Heapdump Explorer** in the left sidebar and opening the **Flamegraph** tab (set to **Top Down** view) immediately revealed the smoking gun. 
 
-![Figure 2: Perfetto Heap Profile Flamegraph (Top Down view) showing *ViewTreeObserver* leading into *ScrimView$$ExternalSyntheticLambda0* taking up \~95% of the heap.][flamegraph.png] 
+![Figure 2: Perfetto Heap Profile Flamegraph (Top Down view) showing *ViewTreeObserver* leading into *ScrimView$$ExternalSyntheticLambda0* taking up \~95% of the heap.](flamegraph.png)
 
 Instead of memory being distributed across various features, nearly **100% of the *\~1 GB* retained footprint** formed a solid, uninterrupted column flowing straight down through the window hierarchy: `View$AttachInfo` ➡️ `ViewTreeObserver` ➡️ `ViewTreeObserver$CopyOnWriteArray` ➡️ `…` ➡️ **`ScrimView$$ExternalSyntheticLambda0 [58 instances]`** ➡️ **`ScrimView [58 instances]`**. When a single leak site accumulates dozens of dead View hierarchies spanning the entire width of your application's flamegraph, you know you've found the culprit.
 
@@ -128,7 +128,7 @@ WHERE COALESCE(src_cls.deobfuscated_name, src_cls.name) LIKE '%ScrimView%Externa
 GROUP BY 1, 2;
 ```
 
-![Figure 3: Running a custom query on heap\_graph\_reference in the Perfetto SQL editor verifies that all 58 synthetic lambda instances hold references back to ScrimView.][perfettosql.png]  
+![Figure 3: Running a custom query on heap\_graph\_reference in the Perfetto SQL editor verifies that all 58 synthetic lambda instances hold references back to ScrimView.](perfettosql.png) 
 
 ### Step 4: The Immediate Fix
 
