@@ -4,8 +4,6 @@ author: "@goldenluk"
 summary: "How a single background scrim view silently leaked nearly 1 GB of UI hierarchies in production, and how we diagnosed and fixed it using Perfetto."
 ---
 
-# Under the Hood: Diagnosing a 1 GB ViewTreeObserver Memory Leak with Perfetto
-
 ## Motivation
 
 How does a single background scrim view end up retaining nearly a gigabyte of memory in a production application? Memory leaks in Android are common, but few are as destructive as those involving [ViewTreeObserver](https://developer.android.com/reference/kotlin/android/view/ViewTreeObserver).
@@ -93,8 +91,6 @@ When `ScrimView.onDetachedFromWindow()` executed:
 4. Because `isRecomputeScrimListenerAttached` was already `true`, execution silently did nothing.
 
 The listener was never unregistered and remained attached to the window's `ViewTreeObserver` indefinitely.
-
-### 
 
 ### Step 3: Uncovering the Retention Path (The Chain of Blame)
 
