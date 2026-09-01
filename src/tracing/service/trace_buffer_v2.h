@@ -21,8 +21,11 @@
 #include <string.h>
 
 #include <limits>
+#include <memory>
 #include <optional>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
@@ -478,6 +481,8 @@ class TraceBufferV2 : public TraceBuffer {
   // No other calls to any other method should be interleaved between
   // BeginRead() and ReadNextTracePacket().
   // Reads in the TraceBufferV2 are NOT idempotent.
+  // BeginRead() can also compact the buffer, which moves chunks and hence
+  // invalidates any TracePacket slices returned by a previous read pass.
   void BeginRead() override;
 
   // Returns the next packet in the buffer, if any, and the producer/writer
@@ -541,7 +546,7 @@ class TraceBufferV2 : public TraceBuffer {
   friend class internal::ChunkSeqReader;
   friend class internal::ChunkSeqIterator;
 
-  explicit TraceBufferV2(OverwritePolicy);
+  TraceBufferV2(OverwritePolicy, bool compaction_enabled);
   TraceBufferV2(const TraceBufferV2&) = delete;
   TraceBufferV2& operator=(const TraceBufferV2&) = delete;
 
@@ -553,13 +558,15 @@ class TraceBufferV2 : public TraceBuffer {
   bool Initialize(size_t size);
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
+  void MaybeCompact();
 
   void DcheckIsAlignedAndWithinBounds(size_t off) const {
     PERFETTO_DCHECK((off & (alignof(TBChunk) - 1)) == 0);
     PERFETTO_DCHECK(off <= size_ - sizeof(TBChunk));
   }
 
-  // This should only be used when followed by a placement new.
+  // This should only be used when followed by a placement new, or by
+  // MaybeCompact() on chunks whose checksum is stale and about to be restamped.
   TBChunk* GetTBChunkAtUnchecked(size_t off) {
     DcheckIsAlignedAndWithinBounds(off);
     return reinterpret_cast<TBChunk*>(begin() + off);
@@ -599,10 +606,14 @@ class TraceBufferV2 : public TraceBuffer {
   base::PagedMemory data_;
   size_t size_ = 0;  // Size in bytes of |data_|.
 
-  // High watermark. The number of bytes (<= |size_|) written into the buffer
-  // before the first wraparound. This increases as data is written into the
-  // buffer and then saturates at |size_|.
+  // End offset of the initialized part of the buffer. This increases as data
+  // is written, saturates at |size_| after wrapping, and shrinks when the live
+  // chunks are compacted.
   size_t used_size_ = 0;
+
+  // Total outer size of the padding chunks in [0, used_size_). Maintaining
+  // this incrementally avoids scanning the whole buffer on every BeginRead().
+  size_t reclaimable_bytes_ = 0;
 
   size_t wr_ = 0;  // Write cursor (offset since start()).
   size_t rd_ = 0;  // Read cursor. Reset to wr_ on every BeginRead().
@@ -615,6 +626,10 @@ class TraceBufferV2 : public TraceBuffer {
   WriterStats writer_stats_;
 
   OverwritePolicy overwrite_policy_ = kOverwrite;
+
+  // Enables MaybeCompact(). Only ever true when |overwrite_policy_| ==
+  // kOverwrite (enforced by the ctor).
+  const bool compaction_enabled_ = false;
 
   // Note: we need stable pointers for SequenceState, as they get cached in
   // BufIterator.

@@ -16,11 +16,14 @@
 
 #include <string.h>
 
+#include <algorithm>
 #include <initializer_list>
+#include <memory>
 #include <random>
 #include <sstream>
 #include <vector>
 
+#include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
@@ -74,6 +77,15 @@ class TraceBufferV2Test : public testing::Test {
       TraceBuffer::OverwritePolicy policy = TraceBuffer::kOverwrite) {
     trace_buffer_ = TraceBufferV2::Create(size_, policy);
     ASSERT_TRUE(trace_buffer_);
+  }
+
+  void ResetBufferWithCompaction(
+      size_t size,
+      TraceBuffer::OverwritePolicy policy = TraceBuffer::kOverwrite) {
+    std::unique_ptr<TraceBufferV2> buffer(
+        new TraceBufferV2(policy, /*compaction_enabled=*/true));
+    ASSERT_TRUE(buffer->Initialize(size));
+    trace_buffer_ = std::move(buffer);
   }
 
   bool TryPatchChunkContents(ProducerID p,
@@ -130,6 +142,22 @@ class TraceBufferV2Test : public testing::Test {
 
   uint8_t* GetBufData(const TraceBuffer& buf) {
     return static_cast<const TraceBufferV2&>(buf).begin();
+  }
+
+  size_t CountReclaimableBytesByScan() {
+    TraceBufferV2* buffer = trace_buffer();
+    size_t reclaimable_bytes = 0;
+    for (size_t offset = 0; offset < buffer->used_size_;) {
+      internal::TBChunk* chunk = buffer->GetTBChunkAt(offset);
+      if (chunk->is_padding())
+        reclaimable_bytes += chunk->outer_size();
+      offset += chunk->outer_size();
+    }
+    return reclaimable_bytes;
+  }
+
+  size_t reclaimable_bytes() const {
+    return static_cast<TraceBufferV2*>(trace_buffer_.get())->reclaimable_bytes_;
   }
 
   size_t size_to_end() { return trace_buffer()->size_to_end(); }
@@ -3529,6 +3557,404 @@ TEST_F(TraceBufferV2Test, ScrapeWithLateRecommitAfterRead) {
   ASSERT_THAT(ReadPacket(&psp, &dropped),
               ElementsAre(FakePacketFragment(10, 'c')));
   ASSERT_FALSE(dropped);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// ----------------------
+// Shift-left compaction tests
+// ----------------------
+
+TEST_F(TraceBufferV2Test, Compaction_FlatBuffer) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    ASSERT_EQ(4 * 1024u,
+              CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+                  .AddPacket(4 * 1024 - 16, static_cast<char>(chunk_id))
+                  .CopyIntoTraceBuffer());
+  }
+
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(
+                                  4 * 1024 - 16, static_cast<char>(chunk_id))));
+  }
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  ASSERT_EQ(64u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(20))
+                     .AddPacket(64 - 16, 'f')
+                     .CopyIntoTraceBuffer());
+  ASSERT_EQ(80 * 1024u + 64, trace_buffer()->used_size());
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(64u, trace_buffer()->used_size());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+  // Consumed chunks are already reflected in bytes_read. Compaction must not
+  // count them again as cleared alignment padding.
+  EXPECT_EQ(0u, trace_buffer()->stats().padding_bytes_cleared());
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'f')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_WrappedBufferPreservesRingOrder) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 30; ++chunk_id) {
+    ASSERT_EQ(4 * 1024u,
+              CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+                  .AddPacket(4 * 1024 - 16, static_cast<char>(chunk_id))
+                  .CopyIntoTraceBuffer());
+  }
+
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 30; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  for (ChunkID chunk_id = 30; chunk_id < 33; ++chunk_id) {
+    ASSERT_EQ(4 * 1024u,
+              CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+                  .AddPacket(4 * 1024 - 16, static_cast<char>(chunk_id))
+                  .CopyIntoTraceBuffer());
+  }
+  ASSERT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(12 * 1024u, trace_buffer()->used_size());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+  for (ChunkID chunk_id = 30; chunk_id < 33; ++chunk_id) {
+    ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(
+                                  4 * 1024 - 16, static_cast<char>(chunk_id))));
+  }
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_PreservesOutOfOrderSequenceIndex) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
+      .AddPacket(64 - 16, 'y')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(64 - 16, 'x')
+      .CopyIntoTraceBuffer();
+  ASSERT_EQ(1u, trace_buffer()->stats().chunks_committed_out_of_order());
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(128u, trace_buffer()->used_size());
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'x')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'y')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_PreservesStalledChunks) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(16, 'p', kChunkNeedsPatching | kContOnNextChunk)
+      .ClearBytes(1, 4)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
+      .AddPacket(16, 'q', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(3), ChunkID(0))
+      .AddPacket(50, 'f')
+      .AddPacket(50, 'g')
+      .AddPacket(50, 'h')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'f')));
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(576u, trace_buffer()->used_size());
+  ASSERT_TRUE(TryPatchChunkContents(ProducerID(1), WriterID(2), ChunkID(0),
+                                    {{1, {{'P', 'A', 'T', 'C'}}}}));
+  CreateChunk(ProducerID(1), WriterID(3), ChunkID(0))
+      .AddPacket(50, 'f')
+      .AddPacket(50, 'g')
+      .AddPacket(50, 'h')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(),
+              ElementsAre(FakePacketFragment("PATCp01-p02-p03", 15),
+                          FakePacketFragment(16, 'q')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'g')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'h')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_ReassemblesFragmentedPacket) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(30, 'b', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(48u, trace_buffer()->used_size());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
+      .AddPacket(20, 'c', kContFromPrevChunk)
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b'),
+                                        FakePacketFragment(20, 'c')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  EXPECT_EQ(1u, trace_buffer()->stats().readaheads_succeeded());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_DefaultsOff) {
+  ResetBuffer(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(80 * 1024u, trace_buffer()->used_size());
+  EXPECT_EQ(0u, trace_buffer()->stats().compactions());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_WaitsForSmallLiveSet) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 16; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 16; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  for (ChunkID chunk_id = 16; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'b')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(80 * 1024u, trace_buffer()->used_size());
+  EXPECT_EQ(0u, trace_buffer()->stats().compactions());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_ReadOnlyCloneKeepsSnapshotGeometry) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(20))
+      .AddPacket(64 - 16, 'b')
+      .CopyIntoTraceBuffer();
+
+  std::unique_ptr<TraceBuffer> clone = trace_buffer()->CloneReadOnly();
+  ASSERT_TRUE(clone);
+  clone->BeginRead();
+  EXPECT_EQ(80 * 1024u + 64, clone->used_size());
+  EXPECT_EQ(0u, clone->stats().compactions());
+  ASSERT_THAT(ReadPacket(clone), ElementsAre(FakePacketFragment(64 - 16, 'b')));
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(64u, trace_buffer()->used_size());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_DiscardBufferKeepsLegacyGeometry) {
+  ResetBufferWithCompaction(128 * 1024, TraceBuffer::kDiscard);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(80 * 1024u, trace_buffer()->used_size());
+  EXPECT_EQ(0u, trace_buffer()->stats().compactions());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_StreamingBoundsUsedSize) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 200; ++chunk_id) {
+    const char seed = static_cast<char>(chunk_id);
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, seed)
+        .CopyIntoTraceBuffer();
+    trace_buffer()->BeginRead();
+    ASSERT_THAT(ReadPacket(),
+                ElementsAre(FakePacketFragment(4 * 1024 - 16, seed)));
+    ASSERT_THAT(ReadPacket(), IsEmpty());
+    ASSERT_LE(trace_buffer()->used_size(), 68 * 1024u);
+  }
+  EXPECT_EQ(0u, trace_buffer()->stats().write_wrap_count());
+  EXPECT_GT(trace_buffer()->stats().compactions(), 10u);
+}
+
+TEST_F(TraceBufferV2Test, Compaction_ReleasesUnusedPages) {
+  const size_t page_size = base::GetSysPageSize();
+  base::PagedMemory probe = base::PagedMemory::Allocate(page_size);
+  if (!probe.AdviseDontNeed(probe.Get(), page_size))
+    GTEST_SKIP() << "AdviseDontNeed not supported on this platform";
+
+  constexpr size_t kChunkSize = 4 * 1024;
+  const size_t drain_bytes =
+      base::AlignUp(std::max<size_t>(80 * 1024, 2 * page_size), kChunkSize);
+  const size_t num_chunks = drain_bytes / kChunkSize;
+  ResetBufferWithCompaction(drain_bytes + 2 * page_size);
+  for (size_t i = 0; i < num_chunks; ++i) {
+    CreateChunk(ProducerID(1), WriterID(1), ChunkID(i))
+        .AddPacket(kChunkSize - 16, static_cast<char>(i))
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (size_t i = 0; i < num_chunks; ++i)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(num_chunks))
+      .AddPacket(64 - 16, 'z')
+      .CopyIntoTraceBuffer();
+
+  const size_t released_begin = page_size;
+  const size_t released_end =
+      base::AlignDown(trace_buffer()->used_size(), page_size);
+  ASSERT_LT(released_begin, released_end);
+  using base::vm_test_utils::IsMapped;
+  if (!IsMapped(GetBufData(*trace_buffer()) + released_begin,
+                released_end - released_begin)) {
+    GTEST_SKIP() << "VM commit detection not supported";
+  }
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(64u, trace_buffer()->used_size());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+  EXPECT_FALSE(IsMapped(GetBufData(*trace_buffer()) + released_begin,
+                        released_end - released_begin));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'z')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_TracksReclaimableBytes) {
+  ResetBufferWithCompaction(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(512 - 16, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(1024 - 16, 'b')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(2048 - 16, 'c')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(0u, reclaimable_bytes());
+
+  trace_buffer()->BeginRead();
+  ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  EXPECT_EQ(3584u, reclaimable_bytes());
+  EXPECT_EQ(CountReclaimableBytesByScan(), reclaimable_bytes());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(512 - 16, 'd')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(3584u, reclaimable_bytes());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(4))
+      .AddPacket(1024 - 16, 'e')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(2560u, reclaimable_bytes());
+  EXPECT_EQ(CountReclaimableBytesByScan(), reclaimable_bytes());
+
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(50, 'x')
+      .AddPacket(50, 'y')
+      .PadTo(256)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+  EXPECT_EQ(2304u, reclaimable_bytes());
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(50, 'x')
+      .AddPacket(50, 'y')
+      .AddPacket(50, 'z')
+      .PadTo(256)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+  EXPECT_EQ(2304u, reclaimable_bytes());
+  EXPECT_EQ(CountReclaimableBytesByScan(), reclaimable_bytes());
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(512 - 16, 'd')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1024 - 16, 'e')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'x')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'y')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'z')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  EXPECT_EQ(trace_buffer()->used_size(), reclaimable_bytes());
+  EXPECT_EQ(CountReclaimableBytesByScan(), reclaimable_bytes());
+  EXPECT_EQ(0u, trace_buffer()->stats().compactions());
+}
+
+TEST_F(TraceBufferV2Test, Compaction_FullyDrainedBuffer) {
+  ResetBufferWithCompaction(128 * 1024);
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(4 * 1024 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  trace_buffer()->BeginRead();
+  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
+    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  trace_buffer()->BeginRead();
+  EXPECT_EQ(0u, trace_buffer()->used_size());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(20))
+      .AddPacket(64 - 16, 'b')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'b')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 

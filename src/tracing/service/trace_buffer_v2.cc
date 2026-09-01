@@ -18,9 +18,12 @@
 
 #include <algorithm>
 #include <memory>
+#include <type_traits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -274,6 +277,8 @@ void ChunkSeqIterator::EraseCurrentChunk() {
   uint16_t old_payload_size = chunk_->payload_size;
   TBChunk* cleared_chunk = buf_->CreateTBChunk(chunk_off, chunk_size);
   cleared_chunk->payload_size = old_payload_size;
+  if (buf_->compaction_enabled_)
+    buf_->reclaimable_bytes_ += cleared_chunk->outer_size();
 
   // NOTE Stats are NOT updated here. The right place to update stat is in the
   // callers, specifically DeleteNextChunksFor (when we overwrite) and
@@ -592,13 +597,16 @@ std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
   // efficiency.
   static_assert(sizeof(TBChunk) == 16);
   static_assert(alignof(TBChunk) == 4);
-  std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
+  std::unique_ptr<TraceBufferV2> trace_buffer(
+      new TraceBufferV2(pol, PERFETTO_FLAGS(TBV2_SHIFT_LEFT_COMPACTION)));
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
   return trace_buffer;
 }
 
-TraceBufferV2::TraceBufferV2(OverwritePolicy pol) : overwrite_policy_(pol) {}
+TraceBufferV2::TraceBufferV2(OverwritePolicy pol, bool compaction_enabled)
+    : overwrite_policy_(pol),
+      compaction_enabled_(compaction_enabled && pol == kOverwrite) {}
 
 bool TraceBufferV2::Initialize(size_t size) {
   size = base::AlignUp(std::max(size, size_t(1)), 4096);
@@ -614,19 +622,167 @@ bool TraceBufferV2::Initialize(size_t size) {
   size_ = size;
   wr_ = 0;
   used_size_ = 0;
+  reclaimable_bytes_ = 0;
   stats_.set_buffer_size(size);
   return true;
 }
 
 void TraceBufferV2::BeginRead() {
+  TRACE_BUFFER_V2_DLOG("BeginRead(), wr_=%zu", wr_);
+  chunk_seq_reader_.reset();
+
+  // This is the only safe point to move chunks. The slices returned by the
+  // preceding read pass can alias |data_|, but callers must release them before
+  // starting another pass.
+  MaybeCompact();
+
   // Start the read at the first chunk after the write cursor. However, if
   // due to out-of-order commits there is another chunk in the same sequence
   // prior to that (even if it's physically after in the buffer) start there
   // to respect sequence FIFO-ness.
-  TRACE_BUFFER_V2_DLOG("BeginRead(), wr_=%zu", wr_);
   rd_ = wr_ == used_size_ ? 0 : wr_;
-  chunk_seq_reader_.reset();
   ++read_generation_;
+}
+
+void TraceBufferV2::MaybeCompact() {
+  constexpr size_t kMinReclaimableBytes = 64 * 1024;
+
+  // Note: compaction_enabled_ is only ever true for kOverwrite buffers.
+  if (!compaction_enabled_ || read_only_ ||
+      reclaimable_bytes_ < kMinReclaimableBytes) {
+    return;
+  }
+
+  PERFETTO_CHECK(reclaimable_bytes_ <= used_size_);
+  const size_t live_bytes = used_size_ - reclaimable_bytes_;
+
+  // ReadBuffersIntoConsumer() can start a new read pass every few packets. If
+  // the live set is still large, moving it on every pass would make draining a
+  // buffer quadratic in its size. Waiting until at most one eighth is live
+  // bounds both the copy cost and the temporary space needed below.
+  if (live_bytes > used_size_ / 8)
+    return;
+
+  static_assert(std::is_trivially_copyable_v<TBChunk>);
+
+#if PERFETTO_DCHECK_IS_ON()
+  size_t reclaimable_bytes_from_scan = 0;
+  for (size_t off = 0; off < used_size_;) {
+    TBChunk* chunk = GetTBChunkAt(off);
+    if (chunk->is_padding())
+      reclaimable_bytes_from_scan += chunk->outer_size();
+    off += chunk->outer_size();
+  }
+  PERFETTO_DCHECK(reclaimable_bytes_from_scan == reclaimable_bytes_);
+#endif
+
+  // In ring order [wr_, used_size_) precedes [0, wr_). Measure the first
+  // segment before moving anything so the per-sequence offsets can be updated
+  // directly to their final values during the packing pass.
+  size_t tail_live_bytes = 0;
+  for (size_t off = wr_; off < used_size_;) {
+    TBChunk* chunk = GetTBChunkAt(off);
+    if (!chunk->is_padding())
+      tail_live_bytes += chunk->outer_size();
+    off += chunk->outer_size();
+  }
+
+  // SequenceState::chunks is the authoritative index of live chunks. Sorting
+  // pointers to its offset slots avoids a hash table and lets the physical
+  // scan below validate the one-to-one relationship while remapping in place.
+  base::SmallVector<size_t*, 64> chunk_offsets;
+  for (auto& seq_entry : sequences_) {
+    for (size_t& chunk_off : seq_entry.second.chunks)
+      chunk_offsets.emplace_back(&chunk_off);
+  }
+  std::sort(chunk_offsets.begin(), chunk_offsets.end(),
+            [](const size_t* lhs, const size_t* rhs) { return *lhs < *rhs; });
+
+  const size_t old_used_size = used_size_;
+  size_t packed_bytes = 0;
+  size_t packed_head_bytes = 0;
+  size_t packed_tail_bytes = 0;
+  auto chunk_offset_it = chunk_offsets.begin();
+  for (size_t off = 0; off < old_used_size;) {
+    TBChunk* chunk = GetTBChunkAt(off);
+    const size_t outer_size = chunk->outer_size();
+    if (!chunk->is_padding()) {
+      PERFETTO_CHECK(chunk_offset_it != chunk_offsets.end() &&
+                     **chunk_offset_it == off);
+      if (off < wr_) {
+        **chunk_offset_it = tail_live_bytes + packed_head_bytes;
+        packed_head_bytes += outer_size;
+      } else {
+        **chunk_offset_it = packed_tail_bytes;
+        packed_tail_bytes += outer_size;
+      }
+      ++chunk_offset_it;
+
+      // Pack in physical order first. Destinations never extend beyond the
+      // current source chunk, so this cannot clobber an unvisited header.
+      if (packed_bytes != off)
+        memmove(begin() + packed_bytes, chunk, outer_size);
+      packed_bytes += outer_size;
+    }
+    off += outer_size;
+  }
+  PERFETTO_CHECK(chunk_offset_it == chunk_offsets.end());
+  PERFETTO_CHECK(packed_bytes == live_bytes);
+  PERFETTO_DCHECK(packed_tail_bytes == tail_live_bytes);
+
+  // The physical pass produced [head, tail], while ring order is [tail, head].
+  // The compaction gate guarantees that [live_bytes, old_used_size) is large
+  // enough to hold the head temporarily, avoiding a separate allocation.
+  if (packed_head_bytes > 0 && packed_tail_bytes > 0) {
+    PERFETTO_CHECK(live_bytes + packed_head_bytes <= old_used_size);
+    memcpy(begin() + live_bytes, begin(), packed_head_bytes);
+    memmove(begin(), begin() + packed_head_bytes, packed_tail_bytes);
+    memcpy(begin() + packed_tail_bytes, begin() + live_bytes,
+           packed_head_bytes);
+  }
+
+  // Moving a TBChunk invalidates its checksum because the offset is part of
+  // the hash. Restamping also verifies that live chunks tile the packed range.
+  for (size_t off = 0; off < live_bytes;) {
+    TBChunk* chunk = GetTBChunkAtUnchecked(off);
+    chunk->checksum = TBChunk::Checksum(off, chunk->size);
+    off += chunk->outer_size();
+    PERFETTO_CHECK(off <= live_bytes);
+  }
+
+  TRACE_BUFFER_V2_DLOG("Compacted %zu -> %zu bytes (%zu live chunks)",
+                       old_used_size, live_bytes, chunk_offsets.size());
+
+  wr_ = live_bytes;
+  used_size_ = live_bytes;
+  reclaimable_bytes_ = 0;
+  stats_.set_compactions(stats_.compactions() + 1);
+
+  // The freed range [live_bytes, old_used_size) must read back as zeros: after
+  // a full drain the read path expects the bytes at offset 0 to form a valid
+  // zeroed padding chunk (see the empty-buffer note in ReadNextTracePacket()).
+  // AdviseDontNeed() preserves the address range and, where supported, releases
+  // the physical pages, which then refault as zeros. Only whole pages can be
+  // released, so a live chunk never shares a discarded page; the sub-page
+  // slivers at the edges are zeroed by hand. Where the advise is a no-op
+  // (e.g. Windows), fall back to zeroing the whole range instead.
+  // These bytes are deliberately not added to padding_bytes_cleared: consumed
+  // and overwritten chunks were already accounted in bytes_read or
+  // bytes_overwritten.
+  const size_t page_size = base::GetSysPageSize();
+  const size_t unused_pages_begin = base::AlignUp(live_bytes, page_size);
+  const size_t unused_pages_end = base::AlignDown(old_used_size, page_size);
+  bool pages_released = false;
+  if (unused_pages_begin < unused_pages_end) {
+    pages_released = data_.AdviseDontNeed(
+        begin() + unused_pages_begin, unused_pages_end - unused_pages_begin);
+  }
+  if (pages_released) {
+    memset(begin() + live_bytes, 0, unused_pages_begin - live_bytes);
+    memset(begin() + unused_pages_end, 0, old_used_size - unused_pages_end);
+  } else {
+    memset(begin() + live_bytes, 0, old_used_size - live_bytes);
+  }
 }
 
 bool TraceBufferV2::ReadNextTracePacket(
@@ -957,6 +1113,16 @@ void TraceBufferV2::CopyChunkUntrusted(
   // over the chunk list twice in most cases.
   if (PERFETTO_UNLIKELY(chunk_list.size() != chunk_list_size_before_remove)) {
     std::tie(insert_pos, std::ignore) = compute_insert_position();
+  }
+
+  // DeleteNextChunksFor() turned the initialized part of the write range into
+  // padding. Account only the bytes that are about to be replaced; bytes past
+  // used_size_ have never been reclaimable.
+  if (compaction_enabled_ && wr_ < used_size_) {
+    const size_t reclaimed_bytes =
+        std::min(wr_ + tbchunk_outer_size, used_size_) - wr_;
+    PERFETTO_CHECK(reclaimed_bytes <= reclaimable_bytes_);
+    reclaimable_bytes_ -= reclaimed_bytes;
   }
 
   TBChunk* tbchunk = CreateTBChunk(wr_, tbchunk_size);

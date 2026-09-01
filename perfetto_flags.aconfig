@@ -56,3 +56,10 @@ flag {
   bug: "503864690"
   is_fixed_read_only: true
 }
+flag {
+  name: "tbv2_shift_left_compaction"
+  namespace: "perfetto"
+  description: "Compacts live TraceBufferV2 chunks after a read pass and releases the unused tail of the buffer. This bounds the resident memory of long streaming traces."
+  bug: "536851377"
+  is_fixed_read_only: true
+}

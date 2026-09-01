@@ -24,7 +24,7 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 22.
+  // Next id: 23.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -126,6 +126,12 @@ message TraceStats {
     // indicating this loss to the service -- packets lost for other reasons are
     // not reflected in this stat.
     optional uint64 trace_writer_packet_loss = 19;
+
+    // TraceBufferV2 only. Num. times live chunks were compacted after a read
+    // pass to release unused buffer pages.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions = 22;
 
     // Was shadow_buffer_stats (ShadowBufferStats), a testing-only stat used
     // to validate TraceBufferV2 against V1.

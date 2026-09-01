@@ -266,6 +266,9 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
                                           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_compactions,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "TraceBufferV2 only. Num. times live chunks were compacted after a "     \
+    "read pass to release unused buffer pages."),                            \
   F(traced_buf_padding_bytes_cleared,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_padding_bytes_written,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_patches_failed,            kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
