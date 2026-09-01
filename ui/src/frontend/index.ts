@@ -162,6 +162,7 @@ function setupContentSecurityPolicy() {
       'https://*.googleusercontent.com',
       'https://www.googletagmanager.com',
       'https://*.google-analytics.com',
+      'https://accounts.google.com/',
     ],
     'object-src': [`'none'`],
     'connect-src': [
@@ -171,6 +172,8 @@ function setupContentSecurityPolicy() {
       'https:', // Allow any HTTPS; service worker firewall adds granular filtering.
       'blob:',
       'data:',
+      'https://drive.google.com',
+      'https://play.google.com',
     ].concat(rpcPolicy),
     'img-src': [
       `'self'`,
@@ -179,8 +182,15 @@ function setupContentSecurityPolicy() {
       'https://*.google-analytics.com',
       'https://www.googletagmanager.com',
       'https://*.googleapis.com',
+      'https://ssl.gstatic.com',
     ],
     'style-src': [`'self'`, `'unsafe-inline'`],
+    'frame-src': [
+      'https://content.googleapis.com',
+      'https://accounts.google.com/',
+      'https://docs.google.com',
+      'https://drive.google.com',
+    ],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';

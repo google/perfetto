@@ -111,6 +111,15 @@ importers:
       '@types/color-convert':
         specifier: ^2.0.3
         version: 2.0.4
+      '@types/gapi':
+        specifier: ^0.0.47
+        version: 0.0.47
+      '@types/gapi.client.drive-v3':
+        specifier: ^0.0.5
+        version: 0.0.5
+      '@types/google.picker':
+        specifier: ^0.0.51
+        version: 0.0.51
       '@types/markdown-it':
         specifier: ^14.1.2
         version: 14.1.2
@@ -506,6 +515,12 @@ packages:
   '@marijn/find-cluster-break@1.0.3':
     resolution: {integrity: sha512-FY+MKLBoTsLNJF/eLWaOsXGdz6uh3Iu1axjPf6TUq92IYumcTcXWHoS747JARLkcdlJ/Waiaxc5wQfFO8jC6NA==}
 
+  '@maxim_mazurok/gapi.client.discovery-v1@0.6.20200806':
+    resolution: {integrity: sha512-QN6aGmIbLXcJW0SEf8tz9UWCpQTBMy2u4xSuZ04YofzMGknhWwMeUecySLntCZYAEstHzDoSgwxCf5Gb8GqIRQ==}
+
+  '@maxim_mazurok/gapi.client.drive-v3@0.3.20260810':
+    resolution: {integrity: sha512-J8IA28ANqiCD0E1oUkrRcFjaaAZOV2kU+MY/0wU13fMfin2d7+QJ9PnhTqB8cLU+WWOg+FtWt/FRnHUbpZr5bA==}
+
   '@oxc-project/types@0.143.0':
     resolution: {integrity: sha512-u6JZdLBTLotrNC9Vd6vPssINdzcCzleKAH6EJKImQb7GtYvX5keN2dxkoK44stCc4tffE6QQRtZTXVSzsLUlWA==}
 
@@ -765,6 +780,21 @@ packages:
 
   '@types/filewriter@0.0.33':
     resolution: {integrity: sha512-xFU8ZXTw4gd358lb2jw25nxY9QAgqn2+bKKjKOYfNCzN4DKCFetK7sPtrlpg66Ywe3vWY9FNxprZawAh9wfJ3g==}
+
+  '@types/gapi.client.discovery-v1@0.0.4':
+    resolution: {integrity: sha512-uevhRumNE65F5mf2gABLaReOmbFSXONuzFZjNR3dYv6BmkHg+wciubHrfBAsp3554zNo3Dcg6dUAlwMqQfpwjQ==}
+
+  '@types/gapi.client.drive-v3@0.0.5':
+    resolution: {integrity: sha512-yYBxiqMqJVBg4bns4Q28+f2XdJnd3tVA9dxQX1lXMVmzT2B+pZdyCi1u9HLwGveVlookSsAXuqfLfS9KO6MF6w==}
+
+  '@types/gapi.client@1.0.8':
+    resolution: {integrity: sha512-qJQUmmumbYym3Amax0S8CVzuSngcXsC1fJdwRS2zeW5lM63zXkw4wJFP+bG0jzgi0R6EsJKoHnGNVTDbOyG1ng==}
+
+  '@types/gapi@0.0.47':
+    resolution: {integrity: sha512-/ZsLuq6BffMgbKMtZyDZ8vwQvTyKhKQ1G2K6VyWCgtHHhfSSXbk4+4JwImZiTjWNXfI2q1ZStAwFFHSkNoTkHA==}
+
+  '@types/google.picker@0.0.51':
+    resolution: {integrity: sha512-z6o2J4PQTcXvlW1rtgQx65d5uEF+rMI1hzrnazKQxBONdEuYAr4AeOSH2KZy12WHPmqMX+aWYyfcZ0uktBBhhA==}
 
   '@types/har-format@1.2.16':
     resolution: {integrity: sha512-fluxdy7ryD3MV6h8pTfTYpy/xQzCFC7m89nOH9y94cNqJ1mDIDPut7MnRHI3F6qRmh/cT2fUjG1MLdCNb4hE9A==}
@@ -2406,6 +2436,16 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.3': {}
 
+  '@maxim_mazurok/gapi.client.discovery-v1@0.6.20200806':
+    dependencies:
+      '@types/gapi.client': 1.0.8
+      '@types/gapi.client.discovery-v1': 0.0.4
+
+  '@maxim_mazurok/gapi.client.drive-v3@0.3.20260810':
+    dependencies:
+      '@types/gapi.client': 1.0.8
+      '@types/gapi.client.discovery-v1': 0.0.4
+
   '@oxc-project/types@0.143.0': {}
 
   '@parcel/watcher-android-arm64@2.5.6':
@@ -2583,6 +2623,20 @@ snapshots:
       '@types/filewriter': 0.0.33
 
   '@types/filewriter@0.0.33': {}
+
+  '@types/gapi.client.discovery-v1@0.0.4':
+    dependencies:
+      '@maxim_mazurok/gapi.client.discovery-v1': 0.6.20200806
+
+  '@types/gapi.client.drive-v3@0.0.5':
+    dependencies:
+      '@maxim_mazurok/gapi.client.drive-v3': 0.3.20260810
+
+  '@types/gapi.client@1.0.8': {}
+
+  '@types/gapi@0.0.47': {}
+
+  '@types/google.picker@0.0.51': {}
 
   '@types/har-format@1.2.16': {}
 
