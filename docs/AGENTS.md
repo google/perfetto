@@ -192,15 +192,6 @@ For example, to run `test_my_cool_test`, use the filter `MyTestSuite.my_cool_tes
   
 - **Remove `test_` prefix for diff tests.** When using the `--name-filter` flag for diff tests, do not include `test_` in the filter. The test runner automatically drops this prefix. For example, to run `test_my_cool_test`, use the filter `MyTestSuite.my_cool_test`.
 
-## Getting Diffs
-
-When asked to "get a diff" or "read the current diff", run the following
-command:
-
-```sh
-git diff $(git config branch.$(git rev-parse --abbrev-ref HEAD).parent)
-```
-
 ## Fixing GN Dependencies
 
 When asked to fix GN dependencies, run the following command and fix any errors

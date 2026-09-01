@@ -370,14 +370,23 @@ ProtoFile ProtoFileFromDescriptor(
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     file.enums.push_back(EnumFromDescriptor(*desc.enum_type(i)));
   }
-  for (int i = 0; i < desc.message_type_count(); ++i) {
-    file.messages.push_back(
-        MessageFromDescriptor(*desc.message_type(i), extension_files));
-  }
-
-  // Relocate helper messages and enums from the extension files to the top
-  // level of the output.
-  for (const auto* ext_file_desc : extension_files) {
+  std::unordered_set<const google::protobuf::FileDescriptor*> relocated_files;
+  auto relocate_helpers =
+      [&](const google::protobuf::FileDescriptor* ext_file_desc,
+          auto& self) -> void {
+    if (!ext_file_desc || ext_file_desc == &desc ||
+        ext_file_desc->name() == desc.name() ||
+        !relocated_files.insert(ext_file_desc).second) {
+      return;
+    }
+    for (int d = 0; d < ext_file_desc->dependency_count(); ++d) {
+      const auto* dep = ext_file_desc->dependency(d);
+      if (dep != &desc && dep->name() != desc.name() &&
+          std::find(extension_files.begin(), extension_files.end(), dep) !=
+              extension_files.end()) {
+        self(dep, self);
+      }
+    }
     for (int i = 0; i < ext_file_desc->enum_type_count(); ++i) {
       auto en = EnumFromDescriptor(*ext_file_desc->enum_type(i));
       if (!FindByName(file.enums, en.name)) {
@@ -391,6 +400,31 @@ ProtoFile ProtoFileFromDescriptor(
         file.messages.push_back(std::move(msg));
       }
     }
+  };
+
+  for (int i = 0; i < desc.message_type_count(); ++i) {
+    const auto* base_msg_desc = desc.message_type(i);
+
+    // Relocate helper messages and enums from extension files that extend
+    // this base message, placing them immediately before the target message.
+    for (const auto* ext_file_desc : extension_files) {
+      const auto* ext_pool = ext_file_desc->pool();
+      const auto* ext_containing_type =
+          ext_pool->FindMessageTypeByName(base_msg_desc->full_name());
+      if (ext_containing_type) {
+        std::vector<const google::protobuf::FieldDescriptor*> pool_extensions;
+        ext_pool->FindAllExtensions(ext_containing_type, &pool_extensions);
+        for (const auto* ext_field : pool_extensions) {
+          if (ext_field->file() == ext_file_desc) {
+            relocate_helpers(ext_file_desc, relocate_helpers);
+            break;
+          }
+        }
+      }
+    }
+
+    file.messages.push_back(
+        MessageFromDescriptor(*base_msg_desc, extension_files));
   }
 
   return file;
