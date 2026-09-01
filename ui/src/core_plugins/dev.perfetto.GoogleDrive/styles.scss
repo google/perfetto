@@ -1,0 +1,362 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use "../../assets/theme" as *;
+
+.pf-gdrive-share {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 420px;
+  margin: 0 auto;
+  width: 100%;
+
+  // ─── Header ────────────────────────────────────────────────────────────────
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  &__header-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--pf-color-accent) 12%, transparent);
+    color: var(--pf-color-accent);
+    flex-shrink: 0;
+  }
+
+  &__header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 2px;
+  }
+
+  &__header-title {
+    margin: 0;
+    font-size: var(--pf-font-size-l);
+    font-weight: 600;
+    color: var(--pf-color-text);
+    line-height: 1.3;
+  }
+
+  &__header-desc {
+    margin: 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+
+  // ─── Form fields ───────────────────────────────────────────────────────────
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__label {
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    color: var(--pf-color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: var(--pf-font-size-m);
+    font-family: var(--pf-font-monospace);
+    color: var(--pf-color-text);
+    background: var(--pf-color-background-secondary);
+    border: 1.5px solid var(--pf-color-border);
+    border-radius: 8px;
+    outline: none;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      background-color 0.15s ease;
+
+    &::placeholder {
+      color: var(--pf-color-text-muted);
+      opacity: 0.6;
+    }
+
+    &:hover {
+      border-color: var(--pf-color-border-secondary);
+    }
+
+    &:focus {
+      border-color: var(--pf-color-accent);
+      box-shadow: 0 0 0 3px
+        color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+      background: var(--pf-color-background);
+    }
+  }
+
+  // ─── Location picker ───────────────────────────────────────────────────────
+
+  &__location {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--pf-color-background-secondary);
+    border: 1.5px solid var(--pf-color-border);
+    border-radius: 8px;
+    transition: border-color 0.15s ease;
+
+    &:hover {
+      border-color: var(--pf-color-border-secondary);
+    }
+  }
+
+  &__location-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    font-size: var(--pf-font-size-m);
+    color: var(--pf-color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__location-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  &__location-change {
+    padding: 4px 10px;
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    color: var(--pf-color-accent);
+    background: transparent;
+    border: 1px solid
+      color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+
+    &:hover {
+      background: color-mix(in srgb, var(--pf-color-accent) 8%, transparent);
+      border-color: var(--pf-color-accent);
+    }
+
+    &:active {
+      background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+    }
+  }
+
+  // ─── Upload button ─────────────────────────────────────────────────────────
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &__upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    font-size: var(--pf-font-size-m);
+    font-weight: 600;
+    color: var(--pf-color-text-on-accent, #fff);
+    background: var(--pf-color-accent);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+      background-color 0.15s ease,
+      box-shadow 0.15s ease,
+      transform 0.1s ease,
+      opacity 0.15s ease;
+    box-shadow: 0 1px 3px
+      color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--pf-color-accent) 85%, black);
+      box-shadow: 0 4px 12px
+        color-mix(in srgb, var(--pf-color-accent) 35%, transparent);
+    }
+
+    &:active:not(:disabled) {
+      box-shadow: 0 1px 3px
+        color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &--loading {
+      pointer-events: none;
+      opacity: 0.85;
+    }
+  }
+
+  &__upload-btn-icon {
+    display: flex;
+    align-items: center;
+  }
+
+  &__spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid
+      color-mix(in srgb, var(--pf-color-text-on-accent, #fff) 30%, transparent);
+    border-top-color: var(--pf-color-text-on-accent, #fff);
+    border-radius: 50%;
+    animation: pf-gdrive-spin 0.7s linear infinite;
+  }
+
+  // ─── Success state ─────────────────────────────────────────────────────────
+
+  &__success {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  &__success-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: color-mix(
+      in srgb,
+      var(--pf-color-success, #4caf50) 15%,
+      transparent
+    );
+    color: var(--pf-color-success, #4caf50);
+    flex-shrink: 0;
+  }
+
+  &__success-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 2px;
+  }
+
+  &__success-title {
+    margin: 0;
+    font-size: var(--pf-font-size-m);
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__success-desc {
+    margin: 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  // ─── Action buttons (success state) ────────────────────────────────────────
+
+  &__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 16px;
+    font-size: var(--pf-font-size-m);
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      transform 0.1s ease,
+      box-shadow 0.15s ease;
+
+    &--primary {
+      color: var(--pf-color-text-on-accent, #fff);
+      background: var(--pf-color-accent);
+      border: none;
+      box-shadow: 0 1px 3px
+        color-mix(in srgb, var(--pf-color-accent) 25%, transparent);
+
+      &:hover {
+        background: color-mix(in srgb, var(--pf-color-accent) 85%, black);
+        box-shadow: 0 4px 12px
+          color-mix(in srgb, var(--pf-color-accent) 30%, transparent);
+      }
+    }
+
+    &--secondary {
+      color: var(--pf-color-text);
+      background: var(--pf-color-background-secondary);
+      border: 1.5px solid var(--pf-color-border);
+
+      &:hover {
+        background: var(--pf-color-background-hover);
+        border-color: var(--pf-color-border-secondary);
+      }
+    }
+
+    &--ghost {
+      color: var(--pf-color-text-muted);
+      background: transparent;
+      border: 1.5px solid transparent;
+
+      &:hover {
+        color: var(--pf-color-text);
+        background: var(--pf-color-background-secondary);
+        border-color: var(--pf-color-border);
+      }
+    }
+  }
+
+  &__btn-icon {
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+@keyframes pf-gdrive-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

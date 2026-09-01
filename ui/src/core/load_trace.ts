@@ -587,13 +587,13 @@ async function getTraceInfo(
   const unixOffset = Time.sub(snapshot.ts, snapshot.clockValue);
 
   let traceTitle = '';
+  let fileSizeBytes: number | undefined;
   let traceUrl = '';
   switch (traceSource.type) {
     case 'FILE':
       // Split on both \ and / (because C:\Windows\paths\are\like\this).
       traceTitle = traceSource.file.name.split(/[/\\]/).pop()!;
-      const fileSizeMB = Math.ceil(traceSource.file.size / 1e6);
-      traceTitle += ` (${fileSizeMB} MB)`;
+      fileSizeBytes = traceSource.file.size;
       break;
     case 'URL':
       traceUrl = traceSource.url;
@@ -602,8 +602,7 @@ async function getTraceInfo(
     case 'ARRAY_BUFFER':
       traceTitle = traceSource.title;
       traceUrl = traceSource.url ?? '';
-      const arrayBufferSizeMB = Math.ceil(traceSource.buffer.byteLength / 1e6);
-      traceTitle += ` (${arrayBufferSizeMB} MB)`;
+      fileSizeBytes = traceSource.buffer.byteLength;
       break;
     case 'HTTP_RPC':
       traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;
@@ -665,6 +664,7 @@ async function getTraceInfo(
   return {
     ...traceTime,
     traceTitle,
+    fileSizeBytes,
     traceUrl,
     tzOffMin,
     unixOffset,

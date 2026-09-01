@@ -139,6 +139,23 @@ export class GoogleDriveClient {
     return pickerResult?.docs;
   }
 
+  // Pick a folder using the Google Drive file picker.
+  async pickFolder(
+    token: string,
+  ): Promise<google.picker.DocumentObject | undefined> {
+    await this.gapiLoad('picker');
+    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+      .setMode(google.picker.DocsViewMode.LIST)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(true)
+      .setMimeTypes('application/vnd.google-apps.folder');
+    const pickerResult = await this.picker(token, {
+      view,
+      title: 'Select folder',
+    });
+    return pickerResult?.docs[0]!;
+  }
+
   async openFile(
     fileId: string,
     name?: string,
@@ -171,6 +188,68 @@ export class GoogleDriveClient {
       });
     } catch (error) {
       return errResult(error);
+    }
+  }
+
+  async openSharingDialog(token: string, fileId: string) {
+    await this.gapiLoad('drive-share');
+
+    const shareClient = new gapi.drive.share.ShareClient();
+    shareClient.setOAuthToken(token);
+    shareClient.setItemIds([fileId]);
+    shareClient.showSettingsDialog();
+  }
+
+  async uploadFile(
+    token: string,
+    traceBlob: Blob,
+    parentId: string = 'root',
+    fileName: string,
+  ): Promise<Result<string>> {
+    const traceBuffer = await traceBlob.arrayBuffer();
+
+    const metadata = {
+      name: fileName,
+      mimeType: 'application/octet-stream',
+      parents: [parentId],
+    };
+
+    const boundary = '-------314159265358979323846';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelim = `\r\n--${boundary}--`;
+
+    const metadataPart =
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata);
+
+    const mediaPart =
+      delimiter + 'Content-Type: application/octet-stream\r\n\r\n';
+
+    const body = new Blob([
+      new TextEncoder().encode(metadataPart),
+      new TextEncoder().encode(mediaPart),
+      traceBuffer,
+      new TextEncoder().encode(closeDelim),
+    ]);
+
+    try {
+      const response = await fetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+            'Authorization': `Bearer ${token}`,
+          },
+          body,
+        },
+      );
+      const result = await response.json();
+      const fileId = result.id;
+      return okResult(fileId);
+    } catch {
+      return errResult('Upload failed');
     }
   }
 

@@ -152,10 +152,14 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
       case 'current_trace':
         if (trace !== undefined) {
           items.push(...getCurrentTraceItems(trace));
-          if (trace.traceInfo.traceTitle) {
+          const traceTitle = trace.traceInfo.traceTitle;
+          const fileSizeBytes = trace.traceInfo.fileSizeBytes;
+
+          if (traceTitle) {
             leading = m(
               'span.pf-sidebar__trace-file-name',
-              trace.traceInfo.traceTitle,
+              traceTitle,
+              fileSizeBytes && ` (${Math.ceil(fileSizeBytes / 1e6)} MB)`,
             );
           }
         }
