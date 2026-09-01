@@ -1,12 +1,12 @@
 ---
-title: "Under the Hood: Diagnosing a 1 GB ViewTreeObserver Memory Leak with Perfetto"
+title: "Diagnosing a 1 GB ViewTreeObserver Memory Leak with Perfetto"
 author: "@goldenluk"
 summary: "How a single background scrim view silently leaked nearly 1 GB of UI hierarchies in production, and how we diagnosed and fixed it using Perfetto."
 ---
 
 ## Motivation
 
-How does a single background scrim view end up retaining nearly a gigabyte of memory in a production application? Memory leaks in Android are common, but few are as destructive as those involving [ViewTreeObserver](https://developer.android.com/reference/kotlin/android/view/ViewTreeObserver).
+How does a single background scrim view (a semi-transparent overlay that dims background content to focus attention on a modal or drawer) end up retaining nearly a gigabyte of memory in a production application? Memory leaks in Android are common, but few are as destructive as those involving [ViewTreeObserver](https://developer.android.com/reference/kotlin/android/view/ViewTreeObserver).
 
 In this article, we will walk through a common but often misunderstood pattern: memory leaks caused by `ViewTreeObserver` listeners. We will look at how these leaks manifest, use Perfetto to identify them, and see how to implement safe engineering patterns to fix them.
 
