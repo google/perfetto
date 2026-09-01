@@ -2975,7 +2975,7 @@ void TracingServiceImpl::MaybeCompressPackets(
   if (!is_compression_enabled)
     return;
 
-  auto compress_fn = [&](std::vector<TracePacket>* target) {
+  auto compress_fn = [&]([[maybe_unused]] std::vector<TracePacket>* target) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
     if (compression.has_zstd()) {
       ZstdCompressFn(target, compression.zstd().level());
