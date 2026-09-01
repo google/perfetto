@@ -26,6 +26,7 @@ namespace perfetto {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 void ZlibCompressFn(std::vector<TracePacket>*);
+std::vector<uint8_t> ZlibDecompress(const uint8_t* src, size_t size);
 #endif
 
 }  // namespace perfetto

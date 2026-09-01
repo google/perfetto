@@ -23,8 +23,13 @@
 #include <cinttypes>
 #include <thread>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include "src/tracing/service/zlib_compressor.h"
+#endif
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
@@ -530,26 +535,56 @@ std::optional<TraceConfig> PerfettoCmd::ParseTraceConfigFromMmapedTrace(
 
     protozero::ProtoDecoder packet_decoder(packet.as_bytes());
 
+    // 1. Direct uncompressed TraceConfig
     auto trace_config_field = packet_decoder.FindField(
         protos::pbzero::TracePacket::kTraceConfigFieldNumber);
-    if (!trace_config_field)
-      continue;
-
     auto trusted_uid_field = packet_decoder.FindField(
         protos::pbzero::TracePacket::kTrustedUidFieldNumber);
-    if (!trusted_uid_field)
-      continue;
-
-    int32_t uid_value = trusted_uid_field.as_int32();
-
-    if (uid_value != kTrustedUid)
-      continue;
-
-    TraceConfig trace_config;
-    if (trace_config.ParseFromArray(trace_config_field.data(),
-                                    trace_config_field.size())) {
-      return trace_config;
+    if (trace_config_field && trusted_uid_field &&
+        trusted_uid_field.as_int32() == kTrustedUid) {
+      TraceConfig trace_config;
+      if (trace_config.ParseFromArray(trace_config_field.data(),
+                                      trace_config_field.size())) {
+        return trace_config;
+      }
     }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+    // 2. Compressed packets: decompress first chunk to find TraceConfig
+    auto compressed_field = packet_decoder.FindField(
+        protos::pbzero::TracePacket::kCompressedPacketsFieldNumber);
+    if (!compressed_field)
+      continue;
+
+    std::vector<uint8_t> out =
+        ZlibDecompress(compressed_field.data(), compressed_field.size());
+    if (out.empty())
+      continue;
+
+    protozero::ProtoDecoder decomp_decoder(out.data(), out.size());
+    for (auto p = decomp_decoder.ReadField(); p;
+         p = decomp_decoder.ReadField()) {
+      if (p.id() != protos::pbzero::Trace::kPacketFieldNumber ||
+          p.type() != protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+        continue;
+      }
+
+      protozero::ProtoDecoder p_dec(p.as_bytes());
+      auto cfg_field =
+          p_dec.FindField(protos::pbzero::TracePacket::kTraceConfigFieldNumber);
+      if (!cfg_field)
+        continue;
+
+      auto uid_field =
+          p_dec.FindField(protos::pbzero::TracePacket::kTrustedUidFieldNumber);
+      if (!uid_field || uid_field.as_int32() != kTrustedUid)
+        continue;
+
+      TraceConfig trace_config;
+      if (trace_config.ParseFromArray(cfg_field.data(), cfg_field.size()))
+        return trace_config;
+    }
+#endif
   }
 
   return std::nullopt;

@@ -1585,10 +1585,13 @@ cc_binary {
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_service_packet_compressor_common",
+        ":perfetto_src_tracing_service_zlib_compressor",
         "src/perfetto_cmd/main.cc",
     ],
     shared_libs: [
         "liblog",
+        "libz",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -1666,6 +1669,9 @@ cc_binary {
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+    cflags: [
+        "-DZLIB_IMPLEMENTATION",
     ],
     required: [
         "perfetto_persistent_cfg.pbtxt",

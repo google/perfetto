@@ -77,6 +77,9 @@ source_set("perfetto_cmd") {
       "../../protos/perfetto/trace/android:zero",
       "../android_internal:lazy_library_loader",
     ]
+    if (enable_perfetto_zlib) {
+      deps += [ "../tracing/service:zlib_compressor" ]
+    }
     sources += [ "perfetto_cmd_android.cc" ]
   }
 
@@ -157,6 +160,9 @@ perfetto_unittest_source_set("unittests") {
     "../tracing/core",
     "../tracing/test:test_support",
   ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../tracing/service:zlib_compressor" ]
+  }
   sources = [
     "config_unittest.cc",
     "packet_writer_unittest.cc",

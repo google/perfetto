@@ -23,9 +23,14 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
+#include "perfetto/base/build_config.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
 #include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include "src/tracing/service/zlib_compressor.h"
+#endif
 #endif
 
 #include "perfetto/protozero/proto_decoder.h"
@@ -276,6 +281,40 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
         result->android_report_config().use_pipe_in_framework_for_testing(),
         true);
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+  // Compressed trace (ZLIB / DEFLATE).
+  {
+    base::TempFile trace_file = base::TempFile::Create();
+    {
+      std::vector<perfetto::TracePacket> packets;
+      packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+        msg->set_trusted_uid(9999);
+        auto config = msg->mutable_trace_config();
+        config->set_trace_uuid_lsb(1234);
+        config->set_trace_uuid_msb(5678);
+        config->set_unique_session_name("compressed_session");
+        config->mutable_android_report_config()->set_reporter_service_class(
+            "compressed_reporter");
+      }));
+      packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+        msg->mutable_for_testing()->set_str("payload");
+      }));
+
+      ZlibCompressFn(&packets);
+      WritePacketsToFile(packets, trace_file.path());
+    }
+
+    base::ScopedMmap mmaped = base::ReadMmapWholeFile(trace_file.path());
+    std::optional result = ParseTraceConfigFromMmapedTrace(std::move(mmaped));
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->trace_uuid_lsb(), 1234);
+    EXPECT_EQ(result->trace_uuid_msb(), 5678);
+    EXPECT_EQ(result->unique_session_name(), "compressed_session");
+    EXPECT_EQ(result->android_report_config().reporter_service_class(),
+              "compressed_reporter");
+  }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 }
 
 TEST_F(PerfettoCmdlineUnitTest,
@@ -378,6 +417,96 @@ TEST_F(PerfettoCmdlineUnitTest,
   EXPECT_EQ(test_payloads[1], "packet_C");
   EXPECT_TRUE(found_recovered_trace_info);
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+TEST_F(PerfettoCmdlineUnitTest,
+       TruncatesIncompleteTrailingPacketAndAppendsAfterRebootEventCompressed) {
+  base::TempFile trace_file = base::TempFile::Create();
+  {
+    std::vector<perfetto::TracePacket> packets;
+    // Packet A: Config
+    packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+      msg->set_trusted_uid(9999);
+      auto* config = msg->mutable_trace_config();
+      config->set_unique_session_name("compressed_session_A");
+      config->mutable_android_report_config()->set_reporter_service_class(
+          "com.google.android.gms.westworld.perfetto.PerfettoReportService");
+    }));
+    // Packet B: Payload 1
+    packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+      msg->mutable_for_testing()->set_str("packet_B");
+    }));
+    // Packet C: Payload 2
+    packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
+      msg->mutable_for_testing()->set_str("packet_C");
+    }));
+
+    ZlibCompressFn(&packets);
+    WritePacketsToFile(packets, trace_file.path());
+  }
+
+  auto orig_size = base::GetFileSize(trace_file.path());
+  ASSERT_TRUE(orig_size.has_value());
+  uint64_t valid_bytes = *orig_size;
+
+  // Append incomplete trailing garbage bytes (simulating partial compressed
+  // chunk)
+  const char garbage[] = {0x7f, 0x7f, 0x7f, 0x7f, 0x7f};
+  lseek(trace_file.fd(), 0, SEEK_END);
+  base::WriteAll(trace_file.fd(), garbage, sizeof(garbage));
+
+  uint64_t file_with_garbage_size = valid_bytes + sizeof(garbage);
+
+  base::ScopedMmap mmaped = base::ReadMmapWholeFile(trace_file.path());
+  ASSERT_TRUE(mmaped.IsValid());
+
+  // Call TruncateAndAnnotatePersistentTrace
+  size_t final_offset = TruncateAndAnnotatePersistentTrace(
+      trace_file.fd(), mmaped, "compressed_test.tmp");
+
+  EXPECT_GT(final_offset, valid_bytes);
+
+  // 1. Verify ParseTraceConfigFromMmapedTrace extracts TraceConfig from the
+  // recovered file
+  base::ScopedMmap updated_mmaped = base::ReadMmapWholeFile(trace_file.path());
+  ASSERT_TRUE(updated_mmaped.IsValid());
+
+  std::optional<TraceConfig> recovered_config =
+      ParseTraceConfigFromMmapedTrace(std::move(updated_mmaped));
+  ASSERT_TRUE(recovered_config.has_value());
+  EXPECT_EQ(recovered_config->unique_session_name(), "compressed_session_A");
+  EXPECT_EQ(recovered_config->android_report_config().reporter_service_class(),
+            "com.google.android.gms.westworld.perfetto.PerfettoReportService");
+
+  // 2. Verify RecoveredTraceInfo packet is present at the end
+  base::ScopedMmap check_mmaped = base::ReadMmapWholeFile(trace_file.path());
+  ASSERT_TRUE(check_mmaped.IsValid());
+
+  bool found_recovered_trace_info = false;
+  protozero::ProtoDecoder updated_decoder(check_mmaped.data(),
+                                          check_mmaped.length());
+  for (auto p = updated_decoder.ReadField(); p;
+       p = updated_decoder.ReadField()) {
+    if (p.id() == protos::pbzero::Trace::kPacketFieldNumber) {
+      protozero::ProtoDecoder packet_decoder(p.as_bytes());
+      auto evt_field = packet_decoder.FindField(
+          protos::pbzero::TracePacket::kRecoveredTraceInfoFieldNumber);
+      if (evt_field) {
+        found_recovered_trace_info = true;
+        protos::pbzero::RecoveredTraceInfo::Decoder evt_decoder(
+            evt_field.data(), evt_field.size());
+        EXPECT_EQ(evt_decoder.reason(),
+                  protos::pbzero::RecoveredTraceInfo::REASON_UNEXPECTED_REBOOT);
+        EXPECT_EQ(evt_decoder.original_file_size_bytes(),
+                  file_with_garbage_size);
+        EXPECT_EQ(evt_decoder.bytes_truncated(), sizeof(garbage));
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_recovered_trace_info);
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 TEST_F(PerfettoCmdlineUnitTest,
        TruncateAndAnnotatePersistentTraceCleanFileHasZeroTruncatedBytes) {

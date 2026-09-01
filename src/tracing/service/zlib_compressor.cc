@@ -152,6 +152,32 @@ void ZlibCompressFn(std::vector<TracePacket>* packets) {
   packets->push_back(std::move(packet));
 }
 
+std::vector<uint8_t> ZlibDecompress(const uint8_t* src, size_t size) {
+  std::vector<uint8_t> out;
+  z_stream stream{};
+  if (inflateInit(&stream) != Z_OK) {
+    return out;
+  }
+  stream.next_in = const_cast<Bytef*>(src);
+  stream.avail_in = static_cast<uInt>(size);
+  uint8_t buf[4096];
+  int ret = Z_OK;
+  while (ret != Z_STREAM_END) {
+    stream.next_out = buf;
+    stream.avail_out = sizeof(buf);
+    ret = inflate(&stream, Z_NO_FLUSH);
+    if (ret != Z_OK && ret != Z_STREAM_END) {
+      break;
+    }
+    out.insert(out.end(), buf, buf + sizeof(buf) - stream.avail_out);
+  }
+  inflateEnd(&stream);
+  if (ret != Z_STREAM_END) {
+    out.clear();
+  }
+  return out;
+}
+
 }  // namespace perfetto
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
