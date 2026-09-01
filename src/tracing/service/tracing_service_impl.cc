@@ -2712,6 +2712,14 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
+  }
+
+  // All packets emitted above will not be compressed, regardless of the config.
+  // This is to allow services that consume the trace on-device to take
+  // decisions based on the metadata of the trace, without having to uncompress.
+  skip_compression_of_first_n_packets = packets.size();
+
+  if (!tracing_session->did_emit_initial_packets) {
     if (!tracing_session->config.builtin_data_sources()
              .disable_extension_descriptors()) {
       EmitExtensionDescriptors(tracing_session, &packets);
@@ -2724,11 +2732,6 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     }
   }
   tracing_session->did_emit_initial_packets = true;
-
-  // All packets emitted above will not be compressed, regardless of the config.
-  // This is to allow services that consume the trace on-device to take
-  // decisions based on the metadata of the trace, without having to uncompress.
-  skip_compression_of_first_n_packets = packets.size();
 
   // Note that in the proto comment, we guarantee that the tracing_started
   // lifecycle event will be emitted before any data packets so make sure to
@@ -2946,7 +2949,7 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
 
 void TracingServiceImpl::MaybeCompressPackets(
     TracingSession* tracing_session,
-    [[maybe_unused]] std::vector<TracePacket>* packets,
+    std::vector<TracePacket>* packets,
     size_t skip_compression_of_first_n_packets) {
   // Compress with the codec the config selects, preferring the newest (highest
   // proto field number) this build supports. Leaves the packets uncompressed if
@@ -2956,6 +2959,21 @@ void TracingServiceImpl::MaybeCompressPackets(
   // goes at the top.
   [[maybe_unused]] const auto& compression =
       tracing_session->config.compression();
+
+  bool is_compression_enabled = false;
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  if (compression.has_zstd()) {
+    is_compression_enabled = true;
+  }
+#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+  if (compression.has_deflate() || tracing_session->config.compression_type() ==
+                                       TraceConfig::COMPRESSION_TYPE_DEFLATE) {
+    is_compression_enabled = true;
+  }
+#endif
+  if (!is_compression_enabled)
+    return;
 
   auto compress_fn = [&](std::vector<TracePacket>* target) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
