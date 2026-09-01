@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlValue} from '../../../trace_processor/query_result';
+import type {SqlValue} from '../../../trace_processor/query_result';
 
 type PercentileAggregation = 'P25' | 'P50' | 'P75' | 'P90' | 'P95' | 'P99';
 
@@ -110,6 +110,16 @@ export interface Pivot {
   readonly expandedGroups?: readonly GroupPath[];
   // Denylist mode: all nodes expanded except these group paths
   readonly collapsedGroups?: readonly GroupPath[];
+}
+
+export function getPivotDrillDownFilters(
+  pivot: Pivot | undefined,
+): readonly Filter[] {
+  return (
+    pivot?.drillDown?.map(({field, value}): Filter => {
+      return value === null ? {field, op: 'is null'} : {field, op: '=', value};
+    }) ?? []
+  );
 }
 
 // ID-based tree configuration for displaying hierarchical data using

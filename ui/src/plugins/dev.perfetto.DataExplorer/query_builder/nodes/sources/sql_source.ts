@@ -14,22 +14,22 @@
 
 import m from 'mithril';
 import {
-  QueryNode,
+  type QueryNode,
   NodeType,
   nextNodeId,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../../query_node';
 import {notifyNextNodes} from '../../graph_utils';
-import protos from '../../../../../protos';
+import type protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
 import {
   StructuredQueryBuilder,
-  SqlDependency,
+  type SqlDependency,
 } from '../../structured_query_builder';
-import {ColumnInfo} from '../../column_info';
+import type {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
-import {NodeDetailsAttrs} from '../../../node_types';
+import type {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 

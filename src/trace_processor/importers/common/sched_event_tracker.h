@@ -53,7 +53,7 @@ class SchedEventTracker : public Destructible {
     auto row_and_id = sched->Insert(
         {ts, /* duration */ -1, next_utid, kNullStringId, next_prio, ucpu});
     SchedId sched_id = row_and_id.id;
-    return sched->FindById(sched_id)->ToRowNumber().row_number();
+    return (*sched)[sched_id].ToRowNumber().row_number();
   }
 
   PERFETTO_ALWAYS_INLINE

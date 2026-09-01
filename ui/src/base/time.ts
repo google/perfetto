@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from './bigint_math';
-import {Brand} from './brand';
+import type {Brand} from './brand';
 import {assertTrue} from './assert';
 
 // The |time| type represents trace time in the same units and domain as trace

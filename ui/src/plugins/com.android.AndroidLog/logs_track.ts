@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {makeColorScheme} from '../../components/colorizer';
@@ -26,7 +26,7 @@ import {Time} from '../../base/time';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Spinner} from '../../widgets/spinner';
-import {ColorScheme} from '../../base/color_scheme';
+import type {ColorScheme} from '../../base/color_scheme';
 
 const PRIO_TO_COLOR: Record<number, ColorScheme> = {
   2: makeColorScheme(new HSLColor({h: 0, s: 0, l: 60})), // V - grey

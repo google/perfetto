@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './resize_handle.scss';
 import m from 'mithril';
-import {HTMLAttrs} from './common';
-import {MithrilEvent} from '../base/mithril_utils';
+import type {HTMLAttrs} from './common';
+import type {MithrilEvent} from '../base/mithril_utils';
 
 export interface ResizeHandleAttrs extends HTMLAttrs {
   // Called with delta (relative change)
-  onResize?(deltaPx: number): void;
+  readonly onResize?: (deltaPx: number) => void;
   // Called with absolute position relative to offsetParent
-  onResizeAbsolute?(positionPx: number): void;
-  onResizeStart?(): void;
-  onResizeEnd?(): void;
+  readonly onResizeAbsolute?: (positionPx: number) => void;
+  readonly onResizeStart?: () => void;
+  readonly onResizeEnd?: () => void;
   // Direction of the resize handle:
   // - 'vertical' (default): horizontal bar that can be dragged up/down
   // - 'horizontal': vertical bar that can be dragged left/right

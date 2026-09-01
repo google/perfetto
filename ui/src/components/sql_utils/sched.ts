@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {assertTrue} from '../../base/assert';
-import {duration, Time, time} from '../../base/time';
-import {Engine} from '../../trace_processor/engine';
+import {type duration, Time, type time} from '../../base/time';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
@@ -23,17 +23,17 @@ import {
 } from '../../trace_processor/query_result';
 import {
   constraintsToQuerySuffix,
-  SQLConstraints,
+  type SQLConstraints,
 } from '../../trace_processor/sql_utils';
 import {
   asSchedSqlId,
   asThreadStateSqlId,
   asUtid,
-  SchedSqlId,
-  ThreadStateSqlId,
-  Utid,
+  type SchedSqlId,
+  type ThreadStateSqlId,
+  type Utid,
 } from './core_types';
-import {getThreadInfo, ThreadInfo} from './thread';
+import {getThreadInfo, type ThreadInfo} from './thread';
 import {getThreadState, getThreadStateFromConstraints} from './thread_state';
 
 // Representation of a single thread state object, corresponding to

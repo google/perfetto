@@ -34,14 +34,11 @@ ChromeSystemProbesModule::ChromeSystemProbesModule(
   RegisterForField(TracePacket::kProcessStatsFieldNumber);
 }
 
-void ChromeSystemProbesModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void ChromeSystemProbesModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kProcessStatsFieldNumber:
-      parser_.ParseProcessStats(ts, decoder.process_stats());
+      parser_.ParseProcessStats(args.ts,
+                                args.field.Cast<TracePacket::kProcessStats>());
       return;
   }
 }

@@ -16,8 +16,8 @@ import {
   addDebugCounterTrack,
   addDebugSliceTrack,
 } from '../../components/tracks/debug_tracks';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {exists} from '../../base/utils';
 
 export default class implements PerfettoPlugin {

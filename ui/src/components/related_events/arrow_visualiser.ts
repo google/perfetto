@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {drawBezierArrow} from '../../base/bezier_arrow';
-import {time, Time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
-import {Trace} from '../../public/trace';
-import {TrackBounds} from '../../public/track';
+import {type time, Time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
+import type {Trace} from '../../public/trace';
+import type {TrackBounds} from '../../public/track';
 
 /**
  * Represents a specific point in time and space (track + vertical depth)

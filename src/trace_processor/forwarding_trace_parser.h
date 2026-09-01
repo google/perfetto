@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -41,10 +42,14 @@ class ForwardingTraceParser : public ChunkedTraceReader {
   [[nodiscard]] base::Status OnPushDataToSorter() override;
   void OnEventsFullyExtracted() override;
 
-  TraceType trace_type() const { return trace_type_; }
+  TraceImporterId trace_type() const { return trace_type_; }
 
  private:
   base::Status Init(const TraceBlobView&);
+
+  // Returns the perfetto_manifest entry matching this file's path, or
+  // nullptr if none.
+  TraceManifestState::FileEntry* FindManifestEntry() const;
 
   TraceProcessorContext* const input_context_;
 
@@ -52,7 +57,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
   size_t trace_size_ = 0;
   TraceProcessorContext* trace_context_;
   std::unique_ptr<ChunkedTraceReader> reader_;
-  TraceType trace_type_ = kUnknownTraceType;
+  TraceImporterId trace_type_;
 };
 
 }  // namespace perfetto::trace_processor

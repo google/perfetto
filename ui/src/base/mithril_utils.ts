@@ -13,7 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertIsInstance} from './assert';
+import {ensureIsInstance} from './assert';
+import type {FuzzySegment} from './fuzzy';
+
+export function renderSegments(
+  text: readonly FuzzySegment[] | string,
+): m.Children {
+  if (typeof text === 'string') {
+    return text;
+  }
+  return text.map(({matching, value}) => (matching ? m('b', value) : value));
+}
 
 // Check if a mithril component vnode has children
 export function hasChildren<T>({children}: m.Vnode<T>): boolean {
@@ -369,7 +379,7 @@ export function startDragGesture(options: DragOptions): void {
     onDrag,
     onDragEnd,
   } = options;
-  const el = assertIsInstance(e.currentTarget, HTMLElement);
+  const el = ensureIsInstance(e.currentTarget, HTMLElement);
   const startX = e.clientX;
   const startY = e.clientY;
   el.setPointerCapture(e.pointerId);

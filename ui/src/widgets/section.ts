@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './section.scss';
 import m from 'mithril';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 
 export interface SectionAttrs extends Omit<HTMLAttrs, 'title'> {
   // The content of the section header (string or custom content)
-  title: string | m.Children;
+  readonly title: string | m.Children;
   // Optional description/subtitle for the section
-  subtitle?: string;
+  readonly subtitle?: string;
 }
 
 export class Section implements m.ClassComponent<SectionAttrs> {

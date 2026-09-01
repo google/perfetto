@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {InsightsPage} from './insights_page';
 
 export default class implements PerfettoPlugin {

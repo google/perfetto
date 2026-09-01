@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../../protos';
-import {errResult, okResult, Result} from '../../../../base/result';
-import {PreflightCheck} from '../../interfaces/connection_check';
-import {RecordingTarget} from '../../interfaces/recording_target';
-import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
+import type protos from '../../../../protos';
+import {errResult, okResult, type Result} from '../../../../base/result';
+import type {PreflightCheck} from '../../interfaces/connection_check';
+import type {RecordingTarget} from '../../interfaces/recording_target';
+import type {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {
   createAdbTracingSession,
@@ -24,7 +24,7 @@ import {
 } from '../adb_tracing_session';
 import {AdbWebsocketDevice} from '../websocket/adb_websocket_device';
 import {AsyncLazy} from '../../../../base/async_lazy';
-import {WdpDevice} from './wdp_schema';
+import type {WdpDevice} from './wdp_schema';
 import {showPopupWindow} from '../../../../base/popup_window';
 import {defer} from '../../../../base/deferred';
 

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Button, ButtonBar, ButtonVariant} from '../../../widgets/button';
-import {errResult, okResult, Result} from '../../../base/result';
+import {errResult, okResult, type Result} from '../../../base/result';
 
 export interface ImportConfigDialogAttrs {
   readonly config: string;

@@ -345,41 +345,61 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
   return packages_list
 
 
-def format_full(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
-  """Format parsed modules with full information (for check_sql_modules.py).
+def format_metadata(modules: List[Tuple[str, str, str, ParsedModule]]) -> dict:
+  """Format only the metadata not available from the TP table functions.
 
-  Includes raw SQL and parsed module data for validation.
+  The TP exposes module names, packages, table/function/macro names,
+  descriptions, types, columns and args. This function emits only the
+  complementary metadata that lives outside the SQL syntax:
+    - tags and data-availability check SQL (module level)
+    - includes (INCLUDE PERFETTO MODULE directives)
+    - importance and data-availability check SQL (table level)
+
+  Output (keyed by module name so the UI can look up by key):
+  {
+    "android.memory": {
+      "tags": ["android"],
+      "includes": ["android.memory.heap"],
+      "data_check_sql": "SELECT EXISTS(...) AS has_data",  // null if absent
+      "tables": {                                          // omitted if empty
+        "android_heap_profile_allocation": {
+          "importance": "high",                           // null if absent
+          "data_check_sql": "SELECT EXISTS(...) AS has_data"  // null if absent
+        }
+      }
+    },
+    ...
+  }
   """
-  modules_list = []
+  result = {}
 
-  for abs_path, rel_path, module_name, parsed in modules:
-    # Read raw SQL
-    with open(abs_path, 'r', encoding='utf-8') as f:
-      sql = f.read()
+  for _, _, module_name, parsed in modules:
+    tags = get_tags(module_name)
+    includes = [inc.module for inc in parsed.includes]
+    data_check_sql = (
+        check_to_query(MODULE_DATA_CHECK_SQL[module_name])
+        if module_name in MODULE_DATA_CHECK_SQL else None)
 
-    # Extract includes in the format needed
-    includes = [{
-        'package':
-            inc.package,
-        'module':
-            inc.module,
-        'full_name':
-            f"{inc.package}.{inc.module}" if inc.package else inc.module
-    } for inc in parsed.includes]
+    tables = {}
+    for table in parsed.table_views:
+      importance = get_table_importance(table.name)
+      table_check = (
+          check_to_query(TABLE_DATA_CHECK_SQL[table.name])
+          if table.name in TABLE_DATA_CHECK_SQL else None)
+      if importance is not None or table_check is not None:
+        tables[table.name] = {
+            'importance': importance,
+            'data_check_sql': table_check,
+        }
 
-    module_dict = {
-        'path': abs_path,
-        'rel_path': rel_path,
-        'module_name': module_name,
-        'package_name': parsed.package_name,
-        'sql': sql,
+    entry = {
+        'tags': tags,
         'includes': includes,
-        'errors': parsed.errors,
-        'functions_count': len(parsed.functions),
-        'table_functions_count': len(parsed.table_functions),
-        'table_views_count': len(parsed.table_views),
-        'macros_count': len(parsed.macros),
+        'data_check_sql': data_check_sql,
     }
-    modules_list.append(module_dict)
+    if tables:
+      entry['tables'] = tables
 
-  return {'modules': modules_list}
+    result[module_name] = entry
+
+  return result

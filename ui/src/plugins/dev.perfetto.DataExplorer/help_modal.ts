@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../../frontend/help_modal.scss';
 import m from 'mithril';
-import {Hotkey} from '../../base/hotkeys';
+import type {Hotkey} from '../../base/hotkeys';
 import {HotkeyGlyphs, Keycap} from '../../widgets/hotkey_glyphs';
 import {showModal} from '../../widgets/modal';
 import {nodeRegistry} from './query_builder/node_registry';
@@ -46,7 +47,7 @@ function hotkey(combo: Hotkey): m.Children {
 function getNodeCreationEntries(): HelpEntry[] {
   return nodeRegistry
     .list()
-    .filter(([_, desc]) => desc.type === 'source' && desc.hotkey)
+    .filter(([_, desc]) => desc.type === 'source' && desc.hotkey !== undefined)
     .sort((a, b) => a[1].name.localeCompare(b[1].name))
     .flatMap(([_, desc]) => {
       const hk = desc.hotkey;

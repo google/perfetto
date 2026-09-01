@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {BigintMath} from './bigint_math';
-import {HighPrecisionTimeSpan} from './high_precision_time_span';
-import {errResult, okResult, Result} from './result';
-import {duration} from './time';
+import type {HighPrecisionTimeSpan} from './high_precision_time_span';
+import {errResult, okResult, type Result} from './result';
+import type {duration} from './time';
 
 /**
  * Work out an appropriate "resolution" for a given time span stretched over a

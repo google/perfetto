@@ -92,7 +92,7 @@ message AndroidJankCujMetric {
     optional bool hwui_callback_missed = 9;
   }
 
-  // Next id: 21
+  // Next id: 22
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -105,6 +105,9 @@ message AndroidJankCujMetric {
 
     // Number of frames missed due to SF.
     optional int64 missed_sf_frames = 4;
+
+    // Weighted number of missed frames.
+    optional double weighted_missed_frames = 21;
 
     // Weighted number of frames missed due to the app missing the deadline.
     optional double weighted_missed_app_frames = 19;

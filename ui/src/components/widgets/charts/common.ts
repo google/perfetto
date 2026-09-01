@@ -12,4 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './charts.scss';
 export type LegendPosition = 'top' | 'right' | 'bottom';

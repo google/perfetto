@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {getThreadInfo, ThreadInfo} from '../../components/sql_utils/thread';
+import {
+  getThreadInfo,
+  type ThreadInfo,
+} from '../../components/sql_utils/thread';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
-import {PerfettoPlugin} from '../../public/plugin';
-import {asUtid, Utid} from '../../components/sql_utils/core_types';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {asUtid, type Utid} from '../../components/sql_utils/core_types';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {showModal} from '../../widgets/modal';
 import {

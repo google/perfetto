@@ -68,13 +68,12 @@ struct EnrichmentConfig {
 };
 
 // Error codes for enrichment operations.
+// Only kExplicitMapsFailed is a hard failure: it means an explicitly-provided
+// ProGuard/R8 map could not be read. All other outcomes still produce a
+// bundle; `details` explains what could not be enriched and how to fix it.
 enum class EnrichmentError {
   kOk,
-  kPartialSuccess,      // Some optional enrichment failed
-  kExplicitMapsFailed,  // Explicitly provided ProGuard maps couldn't be read
-  kSymbolizerNotAvailable,
-  kDeobfuscationFailed,
-  kAllFailed,
+  kExplicitMapsFailed,
 };
 
 // Result of enrichment operation.

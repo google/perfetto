@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../../trace_processor/engine';
+import type {Engine} from '../../../trace_processor/engine';
 import {
   NUM,
   STR_NULL,
-  QueryResult,
+  type QueryResult,
 } from '../../../trace_processor/query_result';
-import {BarChartData, BarChartItem, BarChartSeries} from './bar_chart';
+import type {BarChartData, BarChartItem, BarChartSeries} from './bar_chart';
 import {
   ChartSource,
-  ColumnType,
+  type ColumnType,
   SQLChartLoader,
-  QueryConfig,
-  ChartLoaderResult,
+  type QueryConfig,
+  type ChartLoaderResult,
   inFilter,
 } from './chart_sql_source';
-import {ChartAggregation} from './chart_utils';
+import type {ChartAggregation} from './chart_utils';
 
 /**
  * Configuration for SQLBarChartLoader.

@@ -90,4 +90,22 @@ PERFETTO_PB_EXTENSION_FIELD(protozero_test_protos_BrowserExtension,
                             protozero_test_protos_SystemB,
                             extension_b,
                             11);
+PERFETTO_PB_EXTENSION_FIELD(protozero_test_protos_ScalarBrowserExtension,
+                            protozero_test_protos_RealFakeEvent,
+                            VARINT,
+                            uint32_t,
+                            ext_uint,
+                            12);
+PERFETTO_PB_EXTENSION_FIELD(protozero_test_protos_ScalarBrowserExtension,
+                            protozero_test_protos_RealFakeEvent,
+                            STRING,
+                            const char*,
+                            ext_string,
+                            13);
+PERFETTO_PB_EXTENSION_FIELD(protozero_test_protos_ScalarBrowserExtension,
+                            protozero_test_protos_RealFakeEvent,
+                            VARINT,
+                            bool,
+                            ext_bool,
+                            14);
 #endif  // SRC_SHARED_LIB_TEST_PROTOS_EXTENSIONS_PZC_H_

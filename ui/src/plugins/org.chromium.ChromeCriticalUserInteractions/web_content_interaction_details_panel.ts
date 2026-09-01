@@ -27,8 +27,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, Time, time} from '../../base/time';
-import {asUpid, Upid} from '../../components/sql_utils/core_types';
+import {type duration, Time, type time} from '../../base/time';
+import {asUpid, type Upid} from '../../components/sql_utils/core_types';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
@@ -37,8 +37,8 @@ import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 
 interface Data {
   ts: time;

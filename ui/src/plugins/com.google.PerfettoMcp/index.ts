@@ -12,31 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
-import {Client} from '@modelcontextprotocol/sdk/client/index.js';
-import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
-import {
-  CallableTool,
-  FunctionCallingConfigMode,
-  GoogleGenAI,
-  mcpToTool,
-} from '@google/genai';
+import './styles.scss';
+import type {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
 import {registerTraceTools} from './tracetools';
 import {z} from 'zod';
-import {Setting} from 'src/public/settings';
+import type {Setting} from 'src/public/settings';
 import {ChatPage} from './chat_page';
 import m from 'mithril';
 import {registerUiTools} from './uitools';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
+import {ToolRegistry} from './tool_registry';
+import {GeminiChat} from './gemini_client';
 
 export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
   static readonly dependencies = [QueryPagePlugin];
   static readonly description = `
-    This plugin adds support for a AI Chat window. 
+    This plugin adds support for a AI Chat window.
     This is backed by Gemini and implement MCP (Model Context Protocol).
     While Gemini can understand and generate SQL queries, the tools allow Gemini to interact with the trace data directly
     to answer your queries.
@@ -125,51 +119,17 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    const mcpServer = new McpServer({
-      name: 'PerfettoMcp',
-      version: '1.0.0',
-    });
+    const tools = new ToolRegistry();
+    registerTraceTools(tools, trace.engine);
+    registerUiTools(tools, trace);
 
-    registerTraceTools(mcpServer, trace.engine);
-    registerUiTools(mcpServer, trace);
-
-    const client = new Client({
-      name: 'PerfettoMcpClient',
-      version: '1.0',
-    });
-
-    const [clientTransport, serverTransport] =
-      InMemoryTransport.createLinkedPair();
-
-    await Promise.all([
-      client.connect(clientTransport),
-      mcpServer.server.connect(serverTransport),
-    ]);
-
-    const tool: CallableTool = mcpToTool(client);
-
-    const ai = new GoogleGenAI({apiKey: PerfettoMcpPlugin.tokenSetting.get()});
-
-    const chat = await ai.chats.create({
+    const chat = new GeminiChat({
+      apiKey: PerfettoMcpPlugin.tokenSetting.get(),
       model: PerfettoMcpPlugin.modelNameSetting.get(),
-      config: {
-        systemInstruction:
-          'You are an expert in analyzing perfetto traces. \n\n' +
-          PerfettoMcpPlugin.promptSetting.get(),
-        tools: [tool],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO,
-          },
-        },
-        thinkingConfig: {
-          includeThoughts: true,
-          thinkingBudget: -1, // Automatic
-        },
-        automaticFunctionCalling: {
-          maximumRemoteCalls: 20,
-        },
-      },
+      systemPrompt:
+        'You are an expert in analyzing perfetto traces. \n\n' +
+        PerfettoMcpPlugin.promptSetting.get(),
+      tools,
     });
 
     trace.pages.registerPage({

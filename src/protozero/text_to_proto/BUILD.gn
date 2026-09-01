@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/test.gni")
+
 source_set("text_to_proto") {
   sources = [
     "text_to_proto.cc",
@@ -22,5 +24,19 @@ source_set("text_to_proto") {
     "../../../gn:default_deps",
     "../../../protos/perfetto/common:cpp",
     "../../base",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "text_to_proto_unittest.cc" ]
+  deps = [
+    ":text_to_proto",
+    "..:protozero",
+    "..:testing_messages_zero",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../base",
+    "../../trace_processor:gen_cc_test_messages_descriptor",
   ]
 }

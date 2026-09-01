@@ -12,22 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 import {z} from 'zod';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
+import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
+import HeapProfilePlugin, {
+  traceHasTimelineData,
+} from '../dev.perfetto.HeapProfile';
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
+import {migrateHdeState} from './persisted_state';
 
-export default class implements PerfettoPlugin {
-  static readonly id = 'com.android.HeapDumpExplorer';
+const PLUGIN_ID = 'com.android.HeapDumpExplorer';
+
+export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
+  static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
+  private static defaultFlamegraphSetting: Setting<boolean>;
+
+  static onActivate(app: App) {
+    HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
+      id: 'com.android.HeapDumpExplorerDefaultFlamegraph',
+      name: 'Heap Dump Explorer: Default to Flamegraph',
+      description:
+        'Make the flamegraph the first selected tab rather than the overview page in Heap Dump Explorer',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.settings.register({
-      id: 'hideHeapDumpExplorerDefaultChangedHint',
+    const hideDefaultChangedHint = ctx.settings.register({
+      id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
       name: 'Hide Heap Dump Explorer Explanation',
       description:
         'Hide the explanation about default changes in Heap Dump Explorer',
@@ -35,18 +55,43 @@ export default class implements PerfettoPlugin {
       defaultValue: false,
     });
 
+    const defaultFlamegraph = HeapDumpExplorerPlugin.defaultFlamegraphSetting;
+
     const res = await ctx.engine.query(
-      'SELECT count(*) AS cnt FROM heap_graph_object LIMIT 1',
+      'SELECT count(*) AS cnt FROM heap_graph LIMIT 1',
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
-    const session = new HeapDumpExplorerSession(ctx, ctx.engine);
-    await session.loadDumps();
+    // The core restores this store (phase 1) before plugins run, so the session
+    // reads any shared-link state straight from it.
+    const store = ctx.mountStore(PLUGIN_ID, migrateHdeState);
+
+    const session = new HeapDumpExplorerSession(
+      ctx,
+      ctx.engine,
+      hideDefaultChangedHint,
+      defaultFlamegraph,
+      store,
+    );
+    const restored = await session.loadDumps();
 
     ctx.pages.registerPage({
       route: '/heapdump',
       render: (subpage) => m(HeapDumpPage, {session, subpage}),
     });
+
+    if (restored) {
+      // Restored from a shared link: land on the saved tab (beats the
+      // default-open hint below).
+      const sub = session.navPath;
+      ctx.initialPage.suggest(sub ? `/heapdump/${sub}` : '/heapdump', 200);
+    } else if (
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(ctx))
+    ) {
+      session.autoNavigated = true;
+      ctx.initialPage.suggest('/heapdump', 100);
+    }
 
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
@@ -61,17 +106,5 @@ export default class implements PerfettoPlugin {
       href: '#!/heapdump',
       icon: 'memory',
     });
-
-    if (!(await traceHasTimelineData(ctx))) {
-      session.autoNavigated = true;
-      ctx.onTraceReady.addListener(() => ctx.navigate('#!/heapdump'));
-    }
   }
-}
-
-async function traceHasTimelineData(ctx: Trace): Promise<boolean> {
-  const res = await ctx.engine.query(
-    `SELECT EXISTS(SELECT 1 FROM slice) OR EXISTS(SELECT 1 FROM sched) AS res`,
-  );
-  return res.firstRow({res: NUM}).res > 0;
 }

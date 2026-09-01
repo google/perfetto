@@ -18,7 +18,7 @@ import {assertTrue} from '../../base/assert';
 import {Card, CardStack} from '../../widgets/card';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 import {serializeState} from './json_handler';
 import {getAllNodes} from './query_builder/graph_utils';
 
@@ -407,9 +407,7 @@ class RecentGraphCard implements m.ClassComponent<RecentGraphCardAttrs> {
  * Starred graphs appear first, followed by unstarred graphs.
  * Always shows the section header, even when empty.
  */
-export class RecentGraphsSection
-  implements m.ClassComponent<RecentGraphsSectionAttrs>
-{
+export class RecentGraphsSection implements m.ClassComponent<RecentGraphsSectionAttrs> {
   view({attrs}: m.CVnode<RecentGraphsSectionAttrs>): m.Children {
     const recentGraphs = recentGraphsStorage.data;
 

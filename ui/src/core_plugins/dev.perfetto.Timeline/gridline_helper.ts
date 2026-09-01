@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../../base/assert';
-import {duration, time, Time, TimeSpan} from '../../base/time';
+import {type duration, type time, Time, type TimeSpan} from '../../base/time';
 
 const micros = 1000n;
 const millis = 1000n * micros;

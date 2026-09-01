@@ -14,6 +14,8 @@
 
 INCLUDE PERFETTO MODULE counters.intervals;
 
+INCLUDE PERFETTO MODULE intervals.fill_gaps;
+
 -- Table of the screen state - on, off or doze (always on display).
 CREATE PERFETTO TABLE android_screen_state(
   -- ID.
@@ -22,6 +24,8 @@ CREATE PERFETTO TABLE android_screen_state(
   ts TIMESTAMP,
   -- Duration.
   dur DURATION,
+  -- Machine whose screen state is described.
+  machine_id JOINID(machine.id),
   -- Simplified screen state: 'unknown', 'off', 'doze' (AoD) or 'on'
   simple_screen_state STRING,
   -- Full screen state, adding VR and suspended-while-displaying states.
@@ -34,88 +38,76 @@ WITH
   screen_state_span AS (
     SELECT *
     FROM counter_leading_intervals!((
-        SELECT counter.id, ts, 0 AS track_id, value
+        SELECT counter.id, ts, counter.track_id, value
         FROM counter
         JOIN counter_track ON counter_track.id = counter.track_id
         WHERE
           name = 'ScreenState'
       ))
+  ),
+  mapped_names AS (
+    SELECT
+      screen_state_span.id,
+      screen_state_span.ts,
+      screen_state_span.dur,
+      counter_track.machine_id,
+      -- Should be kept in sync with the enums in Display.java
+      CASE screen_state_span.value
+        -- Display.STATE_OFF
+        WHEN 1 THEN 'off'
+        -- Display.STATE_ON
+        WHEN 2 THEN 'on'
+        -- Display.STATE_DOZE
+        WHEN 3 THEN 'doze'
+        -- Display.STATE_DOZE_SUSPEND
+        WHEN 4 THEN 'doze'
+        -- Display.STATE_VR
+        WHEN 5 THEN 'on'
+        -- Display.STATE_ON_SUSPEND
+        WHEN 6 THEN 'on'
+      END AS simple_screen_state,
+      CASE screen_state_span.value
+        -- Display.STATE_OFF
+        WHEN 1 THEN 'off'
+        -- Display.STATE_ON
+        WHEN 2 THEN 'on'
+        -- Display.STATE_DOZE
+        WHEN 3 THEN 'doze'
+        -- Display.STATE_DOZE_SUSPEND
+        WHEN 4 THEN 'doze-suspend'
+        -- Display.STATE_VR
+        WHEN 5 THEN 'on-vr'
+        -- Display.STATE_ON_SUSPEND
+        WHEN 6 THEN 'on-suspend'
+      END AS short_screen_state,
+      CASE screen_state_span.value
+        -- Display.STATE_OFF
+        WHEN 1 THEN 'Screen off'
+        -- Display.STATE_ON
+        WHEN 2 THEN 'Screen on'
+        -- Display.STATE_DOZE
+        WHEN 3 THEN 'Always-on display (doze)'
+        -- Display.STATE_DOZE_SUSPEND
+        WHEN 4 THEN 'Always-on display (doze-suspend)'
+        -- Display.STATE_VR
+        WHEN 5 THEN 'Screen on (VR)'
+        -- Display.STATE_ON_SUSPEND
+        WHEN 6 THEN 'Screen on (suspend)'
+      END AS screen_state
+    FROM screen_state_span
+    JOIN counter_track
+      ON counter_track.id = screen_state_span.track_id
+    WHERE
+      dur > 0
   )
--- Case when we have data.
 SELECT
-  id,
+  ROW_NUMBER() OVER () AS id,
   ts,
   dur,
-  -- Should be kept in sync with the enums in Display.java
-  CASE value
-    -- Display.STATE_OFF
-    WHEN 1 THEN 'off'
-    -- Display.STATE_ON
-    WHEN 2 THEN 'on'
-    -- Display.STATE_DOZE
-    WHEN 3 THEN 'doze'
-    -- Display.STATE_DOZE_SUSPEND
-    WHEN 4 THEN 'doze'
-    -- Display.STATE_VR
-    WHEN 5 THEN 'on'
-    -- Display.STATE_ON_SUSPEND
-    WHEN 6 THEN 'on'
-    ELSE 'unknown'
-  END AS simple_screen_state,
-  CASE value
-    -- Display.STATE_OFF
-    WHEN 1 THEN 'off'
-    -- Display.STATE_ON
-    WHEN 2 THEN 'on'
-    -- Display.STATE_DOZE
-    WHEN 3 THEN 'doze'
-    -- Display.STATE_DOZE_SUSPEND
-    WHEN 4 THEN 'doze-suspend'
-    -- Display.STATE_VR
-    WHEN 5 THEN 'on-vr'
-    -- Display.STATE_ON_SUSPEND
-    WHEN 6 THEN 'on-suspend'
-    ELSE 'unknown'
-  END AS short_screen_state,
-  CASE value
-    -- Display.STATE_OFF
-    WHEN 1 THEN 'Screen off'
-    -- Display.STATE_ON
-    WHEN 2 THEN 'Screen on'
-    -- Display.STATE_DOZE
-    WHEN 3 THEN 'Always-on display (doze)'
-    -- Display.STATE_DOZE_SUSPEND
-    WHEN 4 THEN 'Always-on display (doze-suspend)'
-    -- Display.STATE_VR
-    WHEN 5 THEN 'Screen on (VR)'
-    -- Display.STATE_ON_SUSPEND
-    WHEN 6 THEN 'Screen on (suspend)'
-    ELSE 'Unknown'
-  END AS screen_state
-FROM screen_state_span
-WHERE
-  dur > 0
-UNION
--- Unknown period until the first counter.
-SELECT
-  (SELECT max(id) + 1 FROM screen_state_span) AS id,
-  trace_start() AS ts,
-  (SELECT min(ts) FROM screen_state_span) - trace_start() AS dur,
-  'unknown' AS simple_screen_state,
-  'unknown' AS short_screen_state,
-  'Unknown' AS screen_state
-WHERE
-  trace_start() < (SELECT min(ts) FROM screen_state_span)
-  AND EXISTS (SELECT * FROM screen_state_span)
-UNION
--- Case when we do not have data.
-SELECT
-  1,
-  trace_start() AS ts,
-  trace_dur() AS dur,
-  'unknown' AS simple_screen_state,
-  'unknown' AS short_screen_state,
-  'Unknown' AS screen_state
-WHERE
-  NOT EXISTS (SELECT * FROM screen_state_span)
-  AND trace_dur() > 0;
+  machine_id,
+  COALESCE(simple_screen_state, 'unknown') AS simple_screen_state,
+  COALESCE(short_screen_state, 'unknown') AS short_screen_state,
+  COALESCE(screen_state, 'Unknown') AS screen_state
+FROM _intervals_fill_gaps!((machine_id), (simple_screen_state,
+  short_screen_state,
+  screen_state), mapped_names);

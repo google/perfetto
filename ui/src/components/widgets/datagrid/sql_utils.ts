@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../base/assert';
-import {SqlValue} from '../../../trace_processor/query_result';
-import {AggregateFunction, Filter} from './model';
+import type {SqlValue} from '../../../trace_processor/query_result';
+import type {AggregateFunction, Filter} from './model';
 
 /**
  * Converts a SqlValue to its SQL string representation.
@@ -39,10 +39,11 @@ export function sqlValue(value: SqlValue): string {
 }
 
 /**
- * Converts a string to a valid SQL alias by wrapping in double quotes.
+ * Converts a string to a valid SQL identifier (e.g. column, table, or alias
+ * name) by wrapping in double quotes.
  * Escapes internal double quotes by doubling them (SQL standard).
  */
-export function toAlias(id: string): string {
+export function quoteIdentifier(id: string): string {
   return `"${id.replace(/"/g, '""')}"`;
 }
 

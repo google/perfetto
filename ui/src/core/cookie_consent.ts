@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './cookie_consent.scss';
 import m from 'mithril';
 import {AppImpl} from './app_impl';
 

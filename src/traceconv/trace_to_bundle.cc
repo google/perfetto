@@ -21,6 +21,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/tar_writer.h"
@@ -34,24 +35,35 @@
 
 namespace perfetto::trace_to_text {
 
-int TraceToBundle(const std::string& input_file_path,
-                  const std::string& output_file_path,
-                  const BundleContext& context) {
+base::Status TraceToBundle(const std::string& input_file_path,
+                           const std::string& output_file_path,
+                           const BundleContext& context) {
   auto tp = trace_processor::TraceProcessor::CreateInstance({});
-  auto status = trace_processor::ReadTrace(tp.get(), input_file_path.c_str());
-  if (!status.ok()) {
-    PERFETTO_ELOG("Failed to read trace: %s", status.c_message());
-    return 1;
-  }
 
-  // Add original trace file directly (memory efficient).
+  // Report reading progress to stderr, like the interactive shell does, so
+  // long-running bundles don't look frozen.
+  double loaded_mb = 0;
+  auto status = trace_processor::ReadTrace(
+      tp.get(), input_file_path.c_str(), [&loaded_mb](uint64_t parsed_size) {
+        loaded_mb = static_cast<double>(parsed_size) / 1E6;
+        fprintf(stderr, "\rReading trace: %.2f MB", loaded_mb);
+      });
+  if (!status.ok()) {
+    fprintf(stderr, "\n");
+    return base::ErrStatus("failed to read trace: %s", status.c_message());
+  }
+  fprintf(stderr, "\rRead trace: %.2f MB.\n", loaded_mb);
+
+  // Add original trace file directly (memory efficient). If the output path
+  // cannot be opened, TarWriter fails gracefully and this propagates a
+  // descriptive error instead of crashing.
+  fprintf(stderr, "Adding trace to bundle...\n");
   trace_processor::util::TarWriter tar(output_file_path);
   auto add_trace_status =
       tar.AddFileFromPath("trace.perfetto", input_file_path);
   if (!add_trace_status.ok()) {
-    PERFETTO_ELOG("Failed to add trace to TAR archive: %s",
-                  add_trace_status.c_message());
-    return 1;
+    return base::ErrStatus("failed to create bundle: %s",
+                           add_trace_status.c_message());
   }
 
   // Build enrichment configuration from context.
@@ -76,16 +88,17 @@ int TraceToBundle(const std::string& input_file_path,
   }
 
   // Perform trace enrichment (symbolization + deobfuscation).
+  fprintf(stderr, "Symbolizing and deobfuscating...\n");
   auto enrich_result =
       trace_processor::util::EnrichTrace(tp.get(), enrich_config);
+  fprintf(stderr, "Enrichment done.\n");
 
   // Add symbols if available.
   if (!enrich_result.native_symbols.empty()) {
     auto add_status = tar.AddFile("symbols.pb", enrich_result.native_symbols);
     if (!add_status.ok()) {
-      PERFETTO_ELOG("Failed to add symbols to TAR archive: %s",
-                    add_status.c_message());
-      return 1;
+      return base::ErrStatus("failed to add symbols to bundle: %s",
+                             add_status.c_message());
     }
   }
 
@@ -94,9 +107,8 @@ int TraceToBundle(const std::string& input_file_path,
     auto add_status =
         tar.AddFile("deobfuscation.pb", enrich_result.deobfuscation_data);
     if (!add_status.ok()) {
-      PERFETTO_ELOG("Failed to add deobfuscation data to TAR: %s",
-                    add_status.c_message());
-      return 1;
+      return base::ErrStatus("failed to add deobfuscation data to bundle: %s",
+                             add_status.c_message());
     }
   }
 
@@ -105,15 +117,21 @@ int TraceToBundle(const std::string& input_file_path,
     fprintf(stderr, "%s", enrich_result.details.c_str());
   }
 
-  // Explicit user-provided paths must succeed.
+  // Explicitly-provided resources that fail to load are the only hard
+  // errors: the user asked for them, so silently producing a bundle without
+  // them would hide the problem. Everything else (no matching symbols found,
+  // kernel addresses that cannot be symbolized offline, ...) is advisory and
+  // has already been printed above; the bundle is still produced with the
+  // trace and whatever enrichment was possible.
   if (enrich_result.error ==
-          trace_processor::util::EnrichmentError::kExplicitMapsFailed ||
-      enrich_result.error ==
-          trace_processor::util::EnrichmentError::kAllFailed) {
-    return 1;
+      trace_processor::util::EnrichmentError::kExplicitMapsFailed) {
+    return base::ErrStatus(
+        "bundle: one or more explicitly-provided ProGuard/R8 maps could not "
+        "be read; see the details above. Refusing to produce a bundle without "
+        "the requested deobfuscation data.");
   }
 
-  return 0;
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_to_text

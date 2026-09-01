@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -33,6 +34,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 // Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
 #define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
@@ -77,6 +79,37 @@ struct MovePointer {
   T value_;
   bool taken_ = false;
 };
+
+// Extracts a movable pointer value created by MovePointerResult.
+template <typename T>
+MovePointer<T>* MovePointerValue(sqlite3_value* value, const char* type) {
+  return sqlite::value::Pointer<MovePointer<T>>(value, type);
+}
+
+// Extracts and consumes a movable pointer value, returning an error if the
+// SQLite value has the wrong pointer type or was already consumed.
+template <typename T>
+base::StatusOr<T> TakeMovePointerValue(sqlite3_value* value,
+                                       const char* type,
+                                       const char* context) {
+  MovePointer<T>* ptr = MovePointerValue<T>(value, type);
+  if (!ptr) {
+    return base::ErrStatus("%s: expected pointer of type %s", context, type);
+  }
+  if (ptr->taken()) {
+    return base::ErrStatus("%s: pointer of type %s has already been consumed",
+                           context, type);
+  }
+  return ptr->Take();
+}
+
+// Returns a value through SQLite's pointer API while allowing the receiver to
+// take ownership with MovePointer::Take.
+template <typename T>
+void MovePointerResult(sqlite3_context* ctx, T value, const char* type) {
+  sqlite::result::UniquePointer(
+      ctx, std::make_unique<MovePointer<T>>(std::move(value)), type);
+}
 
 const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
 const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);

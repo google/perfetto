@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Label} from '../../../../widgets/nodegraph';
+import type {Label} from '../../../../widgets/nodegraph';
 
 // Helper function to auto-resize textarea to fit content
 function autoResizeTextarea(textarea: HTMLTextAreaElement) {

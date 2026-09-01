@@ -166,13 +166,13 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # tools/clang/scripts/update.py.
     Dependency(
         'buildtools/linux64/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-19-init-2941-ga0b3dbaf-22.tgz',
-        '6741cc1083f935795330b6e04617ac891a7b5d2b5647b664c5b0fccc354adb43',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-23-init-19482-g53d18800-22.tar.xz',
+        'a1f881d528ffd8f67a752cdcbad35595dafcf89c177b33931ec2c802280392e1',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-19-init-2941-ga0b3dbaf-22.tgz',
-        'f627080ed53d4c156f089323e04fa3690c8bb459110b62cd1952b0e1f0755987',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-23-init-19482-g53d18800-22.tar.xz',
+        '8d05e0bf6cd31580e457ceddbbf249f73e1d0a784e96d3101495b28a4833904e',
         'windows', 'x64'),
 ]
 
@@ -282,10 +282,10 @@ BUILD_DEPS_HOST = [
         '4b59ea8471e89d01300481a92de3230b79b6d7c7', 'all', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
-               '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all', 'all'),
+               'da4d6df49d1d6c971be508dcde18e8b00bb74581', 'all', 'all'),
     Dependency('buildtools/android-libbase',
                'https://android.googlesource.com/platform/system/libbase.git',
-               '78f1c2f83e625bdf66d55b48bdb3a301c20d2fb3', 'all', 'all'),
+               '18c2bd4f3607cb300bb96e543df91dfdda6a9655', 'all', 'all'),
     Dependency(
         'buildtools/android-libprocinfo',
         'https://android.googlesource.com/platform/system/libprocinfo.git',
@@ -293,20 +293,21 @@ BUILD_DEPS_HOST = [
     Dependency('buildtools/lzma',
                'https://android.googlesource.com/platform/external/lzma.git',
                '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all', 'all'),
-    Dependency('buildtools/zstd',
-               'https://android.googlesource.com/platform/external/zstd.git',
-               '77211fcc5e08c781734a386402ada93d0d18d093', 'all', 'all'),
     Dependency('buildtools/bionic',
                'https://android.googlesource.com/platform/bionic.git',
                'a0d0355105cb9d4a4b5384897448676133d7b8e2', 'all', 'all'),
 
-    # Zlib used both in the tracing binaries, as well as the trace processor and
-    # assorted tools.
-    # If updating the version, also update bazel/deps.bzl.
+    # Zlib and Zstd, the compression libraries used both in the tracing binaries
+    # and in the trace processor and assorted tools.
+    # If updating either version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/zlib',
         'https://chromium.googlesource.com/chromium/src/third_party/zlib.git',
         '6f9b4e61924021237d474569027cfb8ac7933ee6', 'all', 'all'),
+    Dependency(
+        'buildtools/zstd',
+        'https://chromium.googlesource.com/external/github.com/facebook/zstd.git',
+        'f8745da6ff1ad1e7bab384bd1f9d742439278e99', 'all', 'all'),
 
     # Linenoise, used only by trace_processor in standalone builds.
     # If updating the version, also update bazel/deps.bzl.
@@ -437,33 +438,33 @@ TYPEFACES_SHA256 = '2325f6ee28898f3c04b76ea6e27e5e0109eec20c7338d58808cba84212ed
 UI_DEPS = [
     Dependency(
         'buildtools/mac/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/20.11.0/5b5681e12a21cda986410f69e03e6220a21dd4d2',
-        'cecb99fbb369a9090dddc27e228b66335cd72555b44fa8839ef78e56c51682c5',
+        'https://storage.googleapis.com/perfetto/node-22.23.1-mac.tgz',
+        '159be6a4001b7dd51ce3bb31cee84da2bdbe9d6825deab7ea487e803f4ae45d9',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/mac/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/20.11.0/e3c0fd53caae857309815f3f8de7c2dce49d7bca',
-        '20affacca2480c368b75a1d91ec1a2720604b325207ef0cf39cfef3c235dad19',
+        'https://storage.googleapis.com/perfetto/node-22.23.1-mac-x64.tgz',
+        'cb1793557bf072a898023cc6bc25f6e45deba651ccde65d7927f8e468a69bf06',
         'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/20.11.0/f9a337cfa0e2b92d3e5c671c26b454bd8e99769e',
-        '0ba9cc91698c1f833a1fdc1fe0cb392d825ad484c71b0d84388ac80bfd3d6079',
+        'https://storage.googleapis.com/perfetto/node-22.23.1-linux.tgz',
+        '3f5bbb3b56e2a9d069eadba8a22c427577f135ccdc04af69db216bcf25f115e6',
         'linux', 'x64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac.tgz',
-        '2682c43580ae2265b4c7f3c7963629f7f501eb24a8ffa01be0059f9f5b3b8cd0',
+        'https://storage.googleapis.com/perfetto/emscripten-5.0.3-mac.tgz',
+        '1e7e137902c819ec10b3a1b8af618ebcdcf28b5de958e88ed04dff7d942d5989',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac-x64.tgz',
-        'e1b2e6d4797338ed884f9d8a8419f93fc42cfcdea5e8a8b29fe13c6fd3fe7f7a',
+        'https://storage.googleapis.com/perfetto/emscripten-5.0.3-mac-x64.tgz',
+        '67f4e3792c1787f9b9f546a2c32b3f9ec2650b89d89220086c9bdf71b930679f',
         'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-linux.tgz',
-        '2fd3e39b5e233bad39799c31029b6d6d5295135cb00c1bb2fd9a4b2c4b7c264b',
+        'https://storage.googleapis.com/perfetto/emscripten-5.0.3-linux.tgz',
+        '0096c64fc528b35c14a370459f35e09dab1773af8aa63d4540fea60441623dc1',
         'linux', 'x64'),
     Dependency(
         'buildtools/catapult_trace_viewer.tgz',
@@ -475,23 +476,23 @@ UI_DEPS = [
         TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-8.6.3',
-        'ac76e9ab6a770479f93c1a2bf978d72636dbcb02608554378cf30075a78a22ac',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-10.34.5',
+        '22391362c31edf522fd698d0b43d38fe9228e28d5b5e32124ffd0038fb60f9f0',
         'linux', 'arm64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-8.6.3',
-        '5a58ccd78d44faac138d901976a7a8917c0f2a2f83743cfdd895fcd0bb6aa135',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-10.34.5',
+        '69a535476f407fb0f64427913c2b592ca2ed6bf93f92e2cb82a32349e31f36eb',
         'linux', 'x64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-8.6.3',
-        'f527713d3183e30cfbfd7fd6403ceed730831c53649e50c979961eab3b2cf866',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-10.34.5',
+        '888389e8dd5ed45279043c1d3383c0942a8248b3d29ce614b302f468191f7659',
         'darwin', 'arm64'),
     Dependency(
         'third_party/pnpm/pnpm',
-        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-8.6.3',
-        '6b425f7f0342341e9ee9427a9a2be2c89936c4a04efe6125f7af667eb02b10c1',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-10.34.5',
+        '4deaaaf1c0246fc4230f6450959f932dbc2abfd2686f8515dabf97b0717cb9b1',
         'darwin', 'x64'),
 ]
 
@@ -509,38 +510,38 @@ BIGTRACE_DEPS = [
 
 # Syntaqlite CLI prebuilt binaries. Used by tools/format-sql-sources to format
 # `.sql` files (via `syntaqlite fmt`) and by tools/gen_syntaqlite_parser to
-# regenerate src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
+# regenerate src/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
 # from the canonical perfetto.y + perfetto.synq grammar files.
 SYNTAQLITE_DEPS = [
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.7/syntaqlite-linux-x64.tar.gz',
-        '96a74ca6f63182124b94c133bde1767f2b74dd5050bfa538ad1cf2664c2b3418',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-linux-x64.tar.gz',
+        'fb5d23bb64d8a29c0dbda4fbbbfb3176cfd812107863438b4d09816952962ed1',
         'linux', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.7/syntaqlite-linux-arm64.tar.gz',
-        'c06b1dd57a92cf0ad0ce7c1ccc38dd982cd08285fcfb5a267b6edc5cd3d86b92',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-linux-arm64.tar.gz',
+        'a8bb7a2de8760c496d03d04e896edbbe3caf7ac3e65aa71d0fad7983dec13409',
         'linux', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.7/syntaqlite-macos-x64.tar.gz',
-        'b5ab08ecc6e3ea823eeb7b1c174d707d630ec647c23e440d2c9135352fb48f37',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-macos-x64.tar.gz',
+        'c4ee5ce813985278335b42d92aba5956abe8b7563212706e746b17f72e2490c5',
         'darwin', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.7/syntaqlite-macos-arm64.tar.gz',
-        '7956532e1d48252ac8b96a9d17ba316d7e43a1721b89c6997d2c157f31e27b8f',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-macos-arm64.tar.gz',
+        'd55cd20ee94c3fec9a79f9369a5b409ace3bc463c9e1ea2fd3d7f919706698ce',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.7/syntaqlite-windows-x64.zip',
-        '676760dd6eeec9a29ae48ccc59ad127ad4eed05a7464dbe061772ff609ffb1ed',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-windows-x64.zip',
+        'fd05298eaff8e72eff1a0104951a4747e9912b3ae4b62dc5f6077a38056b6ec8',
         'windows', 'x64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.7/syntaqlite-windows-arm64.zip',
-        'edd37f6144e71d8327fffe9ed25f4fe99d40f73054ff164824aaecebdfa31143',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.7.1/syntaqlite-windows-arm64.zip',
+        '3655abd1cb66615eb985a3534cbd6b336d705fcaba8252bded677d7499078243',
         'windows', 'arm64'),
 ]
 
@@ -549,6 +550,42 @@ BUILD_DEPS_RUST = [
     Dependency(
         'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
         '6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf',
+        'all', 'all'),
+]
+
+# Maven jars used when building / testing the perfetto Java SDK on host.
+# Opt-in via --java-sdk; the standard build does not download or link
+# against any of these.
+JAVA_SDK_DEPS = [
+    Dependency(
+        'buildtools/java_sdk/junit-4.13.2.jar',
+        'https://repo1.maven.org/maven2/junit/junit/4.13.2/junit-4.13.2.jar',
+        '8e495b634469d64fb8acfa3495a065cbacc8a0fff55ce1e31007be4c16dc57d3',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk/hamcrest-2.2.jar',
+        'https://repo1.maven.org/maven2/org/hamcrest/hamcrest/2.2/hamcrest-2.2.jar',
+        '5e62846a89f05cd78cd9c1a553f340d002458380c320455dd1f8fc5497a8a1c1',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk/truth-1.4.4.jar',
+        'https://repo1.maven.org/maven2/com/google/truth/truth/1.4.4/truth-1.4.4.jar',
+        '52c86cddadc31bc8457c1e15689fc6b75e2e97ce2a83d8b54b795d556d489f8c',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk/guava-33.4.0-jre.jar',
+        'https://repo1.maven.org/maven2/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar',
+        'b918c98a7e44dbe94ebd9fe3e40cddaadb5a93e6a78eb6008b42df237241e538',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk/protobuf-java-4.31.1.jar',
+        'https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/4.31.1/protobuf-java-4.31.1.jar',
+        'd60dfe7c68a0d38a248cca96924f289dc7e1966a887ee7cae397701af08575ae',
+        'all', 'all'),
+    Dependency(
+        'buildtools/java_sdk/error_prone_annotations-2.36.0.jar',
+        'https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotations/2.36.0/error_prone_annotations-2.36.0.jar',
+        '77440e270b0bc9a249903c5a076c36a722c4886ca4f42675f2903a1c53ed61a5',
         'all', 'all'),
 ]
 
@@ -727,9 +764,7 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info(
-      "Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}"
-      .format(UI_DIR))
+  logging.info("Running `pnpm install --frozen-lockfile` in {0}".format(UI_DIR))
 
   # Some node modules have postinstall scripts (already bad) but worse
   # sometimes they are in the form: "postinstall: 'node ./scripts/foo'"
@@ -738,12 +773,10 @@ def InstallNodeModules(force_clean=False):
   env = os.environ.copy()
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
-  subprocess.check_call([
-      os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--shamefully-hoist',
-      '--frozen-lockfile'
-  ],
-                        cwd=UI_DIR,
-                        env=env)
+  subprocess.check_call(
+      [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile'],
+      cwd=UI_DIR,
+      env=env)
   # pbjs has the bad habit of installing extra packages on its first
   # run. Run it here, so we avoid fetches while building.
   pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
@@ -944,6 +977,10 @@ def Main():
       help='Override the autodetected build CPU architecture')
   parser.add_argument(
       '--rust', action='store_true', help='Rust toolchain to build Rust SDK')
+  parser.add_argument(
+      '--java-sdk',
+      action='store_true',
+      help='Maven jars used to build/test the perfetto Java SDK on host')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -977,6 +1014,8 @@ def Main():
     deps += BIGTRACE_DEPS
   if args.rust:
     deps += BUILD_DEPS_RUST
+  if args.java_sdk:
+    deps += JAVA_SDK_DEPS
   deps += SYNTAQLITE_DEPS
   deps_updated = False
   nodejs_updated = False

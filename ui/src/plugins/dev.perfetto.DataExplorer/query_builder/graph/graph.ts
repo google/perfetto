@@ -45,16 +45,16 @@ import {
   PopupMenu,
 } from '../../../../widgets/menu';
 import {
-  Connection,
-  Label,
-  Node,
+  type Connection,
+  type Label,
+  type Node,
   NodeGraph,
-  NodeGraphApi,
-  NodeGraphAttrs,
-  NodePort,
+  type NodeGraphApi,
+  type NodeGraphAttrs,
+  type NodePort,
 } from '../../../../widgets/nodegraph';
 import {createEditableTextLabels} from './text_label';
-import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
+import {type QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {NodeBox} from './node_box';
 import {buildMenuItems} from './menu_utils';
 import {nodeRegistry} from '../node_registry';

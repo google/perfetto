@@ -15,13 +15,13 @@
 import m from 'mithril';
 import protos from '../../../protos';
 import {base64Decode} from '../../../base/string_utils';
-import {defer, Deferred} from '../../../base/deferred';
-import {errResult, okResult, Result} from '../../../base/result';
+import {defer, type Deferred} from '../../../base/deferred';
+import {errResult, okResult, type Result} from '../../../base/result';
 import {binaryEncode} from '../../../base/string_utils';
 import {exists} from '../../../base/utils';
-import {PreflightCheck} from '../interfaces/connection_check';
-import {RecordingTarget} from '../interfaces/recording_target';
-import {TargetPlatformId} from '../interfaces/target_platform';
+import type {PreflightCheck} from '../interfaces/connection_check';
+import type {RecordingTarget} from '../interfaces/recording_target';
+import type {TargetPlatformId} from '../interfaces/target_platform';
 import {ChromeExtensionTracingSession} from './chrome_extension_tracing_session';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';

@@ -21,6 +21,7 @@
 /expat/src/
 /googletest/
 /grpc/src/
+/java_sdk/
 /jsoncpp/
 /libbacktrace/
 /libbase/

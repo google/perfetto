@@ -19,15 +19,13 @@ import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
 import {Tooltip} from '../../widgets/tooltip';
 import {ALL_CATEGORIES, getFlowCategories} from '../../core/flow_types';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 
 export interface FlowEventsAreaSelectedPanelAttrs {
   trace: TraceImpl;
 }
 
-export class FlowEventsAreaSelectedPanel
-  implements m.ClassComponent<FlowEventsAreaSelectedPanelAttrs>
-{
+export class FlowEventsAreaSelectedPanel implements m.ClassComponent<FlowEventsAreaSelectedPanelAttrs> {
   view({attrs}: m.CVnode<FlowEventsAreaSelectedPanelAttrs>) {
     const selection = attrs.trace.selection.selection;
     if (selection.kind !== 'area') {

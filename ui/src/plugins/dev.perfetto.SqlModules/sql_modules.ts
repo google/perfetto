@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import type {TableColumn} from '../../components/widgets/sql/table/table_column';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 
 // Handles the access to all of the Perfetto SQL modules accessible to Trace
 //  Processor.

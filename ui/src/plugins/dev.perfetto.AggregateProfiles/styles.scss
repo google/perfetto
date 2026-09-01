@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
+@use "../../assets/theme" as *;
 
 .pf-pprof-page {
   overflow: auto;
@@ -22,22 +22,6 @@
   &__view-explanation {
     p {
       margin: 0;
-    }
-  }
-
-  &__tabs {
-    margin: 0;
-
-    .pf-tabs__tab {
-      margin-top: 0;
-    }
-  }
-
-  &__help-icon {
-    cursor: pointer;
-
-    &:hover {
-      opacity: 0.7;
     }
   }
 

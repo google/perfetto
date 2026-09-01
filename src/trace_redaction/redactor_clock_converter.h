@@ -37,12 +37,6 @@ class RedactorClockSynchronizerListenerImpl
   base::Status OnClockSyncCacheMiss() override;
 
   base::Status OnInvalidClockSnapshot() override;
-
-  void RecordConversionError(trace_processor::ClockSyncErrorType,
-                             trace_processor::ClockId,
-                             trace_processor::ClockId,
-                             int64_t,
-                             std::optional<size_t>) override;
 };
 
 using RedactorClockSynchronizer = trace_processor::ClockSynchronizer;

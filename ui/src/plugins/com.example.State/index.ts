@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createStore, Store} from '../../base/store';
+import {createStore, type Store} from '../../base/store';
 import {exists} from '../../base/utils';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 
 interface State {

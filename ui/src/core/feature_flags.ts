@@ -17,9 +17,13 @@
 // at import time) if this file starts importing anything we will quickly run
 // into issues with initialization order which will be a pain.
 import {z} from 'zod';
-import {Flag, FlagSettings, OverrideState} from '../public/feature_flag';
+import {
+  type Flag,
+  type FlagSettings,
+  OverrideState,
+} from '../public/feature_flag';
 import {LocalStorage} from './local_storage';
-import {Storage} from './storage';
+import type {Storage} from './storage';
 
 // Stored state for a number of flags.
 interface FlagOverrides {

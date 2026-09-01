@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {Time} from '../../base/time';
 import {renderArguments} from '../../components/details/args';
-import {ArgsDict, parseArgs} from '../../components/sql_utils/args';
+import {type ArgsDict, parseArgs} from '../../components/sql_utils/args';
 import {Timestamp} from '../../components/widgets/timestamp';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';

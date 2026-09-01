@@ -18,6 +18,8 @@ source_set("util") {
   sources = [
     "bit_vector.h",
     "flex_vector.h",
+    "ops.cc",
+    "ops.h",
     "range.h",
     "slab.h",
     "sort.h",
@@ -26,7 +28,9 @@ source_set("util") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
     "../../../base",
+    "../../containers",
   ]
 }
 
@@ -35,15 +39,19 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "bit_vector_unittest.cc",
     "flex_vector_unittest.cc",
+    "ops_unittest.cc",
     "slab_unittest.cc",
     "sort_unittest.cc",
+    "span_unittest.cc",
     "type_set_unittest.cc",
   ]
   deps = [
     ":util",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/ext/base",
     "../../../base",
+    "../../containers",
   ]
 }
 

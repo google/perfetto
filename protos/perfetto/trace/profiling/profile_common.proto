@@ -164,6 +164,25 @@ message Frame {
   // is available at trace collection time. If not set, line numbers may be
   // added later via offline symbolization (see ModuleSymbols).
   optional uint32 line_number = 6;
+
+  // The kind of code this frame represents, for categorization (e.g. coloring
+  // a flamegraph, or telling interpreted Python frames apart from native and
+  // GC frames in one mixed stack). Set the well-known `kind` when one fits,
+  // otherwise set `kind_str` to a custom label. The well-known enum is
+  // append-only and language-neutral; language-specific labels go in kind_str.
+  enum Kind {
+    KIND_UNKNOWN = 0;
+    KIND_NATIVE = 1;
+    KIND_KERNEL = 2;
+    KIND_INTERPRETED = 3;
+    KIND_JIT = 4;
+    KIND_GC = 5;
+    KIND_RUNTIME = 6;
+  }
+  oneof kind_field {
+    Kind kind = 7;
+    string kind_str = 8;
+  }
 }
 
 message Callstack {

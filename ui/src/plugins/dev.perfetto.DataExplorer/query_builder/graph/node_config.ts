@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Node, NodePort} from '../../../../widgets/nodegraph';
-import {QueryNode, NodeType, singleNodeOperation} from '../../query_node';
+import type {Node, NodePort} from '../../../../widgets/nodegraph';
+import {type QueryNode, NodeType, singleNodeOperation} from '../../query_node';
 
 function getPortName(
   portNames: string[] | ((portIndex: number) => string),

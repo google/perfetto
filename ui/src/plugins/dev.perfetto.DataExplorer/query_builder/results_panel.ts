@@ -13,41 +13,41 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryResponse} from '../../../components/query_table/queries';
+import type {QueryResponse} from '../../../components/query_table/queries';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
-import {
+import {escapePath} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {
   CellRenderer,
   ColumnSchema,
-  SchemaRegistry,
 } from '../../../components/widgets/datagrid/datagrid_schema';
-import {Column} from '../../../components/widgets/datagrid/model';
+import type {Column} from '../../../components/widgets/datagrid/model';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
-import {Query, QueryNode} from '../query_node';
-import {FilterNode} from './nodes/filter_node';
+import type {Query, QueryNode} from '../query_node';
+import type {FilterNode} from './nodes/filter_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {findErrors, isAQuery} from './query_builder_utils';
-import {UIFilter, normalizeDataGridFilter} from './operations/filter';
+import {type UIFilter, normalizeDataGridFilter} from './operations/filter';
 import {ResultsPanelEmptyState} from './widgets';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 import {Timestamp} from '../../../components/widgets/timestamp';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
-import {ColumnInfo} from './column_info';
+import type {ColumnInfo} from './column_info';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {DataSource} from '../../../components/widgets/datagrid/data_source';
+import type {DataSource} from '../../../components/widgets/datagrid/data_source';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   isIdType,
 } from '../../../trace_processor/perfetto_sql_type';
-import {ColumnType} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnType} from '../../../components/widgets/datagrid/datagrid_schema';
 import {renderCell} from '../../../components/widgets/datagrid/datagrid';
-import {QueryExecutionService} from './query_execution_service';
+import type {QueryExecutionService} from './query_execution_service';
 import {VisualisationNode} from './nodes/visualisation_node';
 import {ChartView} from './charts/chart_view';
 
@@ -433,8 +433,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           : null;
 
       // Build schema directly
-      const columnSchema: ColumnSchema = {};
-      const schema: SchemaRegistry = {data: columnSchema};
+      const schema: ColumnSchema = {};
 
       // Get sqlModules from attrs (centralized, not from node state)
       const {sqlModules} = attrs;
@@ -476,7 +475,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           }
         }
 
-        columnSchema[c] = {cellRenderer, columnType};
+        schema[escapePath(c)] = {cellRenderer, columnType};
       }
 
       // Build menu items for joinid columns (add columns from related tables)
@@ -579,19 +578,18 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
       const sortDir = this.columns.find((c) => c.sort)?.sort;
       this.columns = attrs.response.columns.map((col) => ({
         id: col,
-        field: col,
-        ...(col === sortedColId ? {sort: sortDir} : {}),
+        field: escapePath(col),
+        ...(escapePath(col) === sortedColId ? {sort: sortDir} : {}),
       }));
 
       return [
         warning,
         m(DataGrid, {
           schema,
-          rootSchema: 'data',
           columns: this.columns,
           fillHeight: true,
           data: attrs.dataSource,
-          enablePivotControls: false,
+          disablePivotControls: true,
           structuredQueryCompatMode: true,
           canAddColumns: false,
           canRemoveColumns: false,

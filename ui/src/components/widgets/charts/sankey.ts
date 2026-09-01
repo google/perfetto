@@ -18,8 +18,8 @@ import {formatNumber} from './chart_utils';
 import {
   type ThemeColors,
   EChartView,
-  EChartEventHandler,
-  EChartClickParams,
+  type EChartEventHandler,
+  type EChartClickParams,
 } from './echart_view';
 import {buildTooltipOption} from './chart_option_builder';
 

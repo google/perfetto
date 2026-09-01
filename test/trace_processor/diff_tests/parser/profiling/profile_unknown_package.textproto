@@ -71,7 +71,7 @@ packet {
     }
   }
   sequence_flags: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 28644
   first_packet_on_sequence: true
 }
@@ -207,7 +207,7 @@ packet {
     }
   }
   sequence_flags: 1
-  previous_packet_dropped: true
+  previous_packet_dropped: 1
   trusted_pid: 28644
   first_packet_on_sequence: true
 }

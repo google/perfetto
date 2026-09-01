@@ -327,7 +327,9 @@ message ChildProcessLauncherPriority {
     IMPORTANCE_NORMAL = 1;
     IMPORTANCE_MODERATE = 2;
     IMPORTANCE_IMPORTANT = 3;
-    IMPORTANCE_PERCEPTIBLE = 4;
+    IMPORTANCE_PERCEPTIBLE =
+        4;  // Deprecated. Use IMPORTANCE_NOT_PERCEPTIBLE instead.
+    IMPORTANCE_NOT_PERCEPTIBLE = 5;
   }
   optional Importance importance = 3;
 }
@@ -425,6 +427,7 @@ message UrlInfo {
   optional bool is_prefetch_with_cross_site_contamination = 7;
   optional WebExposedIsolationInfo web_exposed_isolation_info = 8;
   optional string storage_partition_config = 9;
+  optional bool is_ad_tagged_for_site_keying = 10;
 }
 
 // Next ID: 7
@@ -728,6 +731,10 @@ message BackForwardCacheCanStoreDocumentResult {
     SHARED_WORKER_WITH_NO_ACTIVE_CLIENT = 69;
     WEB_LOCKS_CONTENTION = 70;
     FORWARD_CACHE_DISABLED = 71;
+    RFH_ENFORCE_INSECURE_REQUEST_POLICY = 72;
+    RFH_ENFORCE_INSECURE_NAVIGATIONS_SET = 73;
+    RFH_HAD_STICKY_USER_ACTIVATION_BEFORE_NAVIGATION_CHANGED = 74;
+    RFH_UPDATE_IS_AD_FRAME = 75;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -909,7 +916,7 @@ message EventLatency {
   // documentation for more information.
   //
   message ScrollJankV4Result {
-    // Next ID: 15
+    // Next ID: 16
 
     // This field is a new version of `EventLatency.is_janky_scrolled_frame`
     // based on the Event.ScrollJank.DelayedFramesPercentage4.FixedWindow
@@ -1014,14 +1021,22 @@ message EventLatency {
         // be joined with EventLatency.event_latency_id.
         optional int64 first_event_latency_id = 1;
 
+        // Deprecated in favor of `total_raw_delta_pixels`.
+        //
         // The absolute total raw (unpredicted) delta of all real scroll updates
-        // included in this frame (in pixels).
-        optional float abs_total_raw_delta_pixels = 2;
+        // included in this frame (in pixels). Non-negative regardless of
+        // whether the user scrolled up or down.
+        optional float abs_total_raw_delta_pixels = 2 [deprecated = true];
 
         // The maximum absolute raw (unpredicted) delta out of all inertial
         // (fling) scroll updates included in this frame (in pixels). Empty if
         // there were no inertial scroll updates in this frame.
         optional float max_abs_inertial_raw_delta_pixels = 3;
+
+        // The total raw (unpredicted) delta of all real scroll updates included
+        // in this frame (in pixels). Negative if the user scrolled down (swiped
+        // finger up). Positive if the user scrolled up (swiped finger down).
+        optional float total_raw_delta_pixels = 4;
       }
       optional Real real = 1;
 
@@ -1077,7 +1092,7 @@ message EventLatency {
 
       // The timestamp of when the scroll begin event which started the scroll
       // containing this frame's scroll updates arrived in the renderer
-      // compositor.
+      // compositor. Zero if those updates arrived before any scroll begin.
       //
       // This value effectively serves as the ID of the scroll that this frame
       // belongs to. Can be joined with `EventLatency.scroll_begin_arrival_us`.
@@ -1133,8 +1148,8 @@ message EventLatency {
     }
     optional DamageType damage_type = 11;
 
-    // The VSync interval that this frame was produced for according to the
-    // BeginFrameArgs.
+    // The VSync interval that was used to evaluate this frame for scroll jank.
+    // See `vsync_interval_type`.
     optional int64 vsync_interval_us = 12;
 
     // The ID of this frame's result. Used to associate sub-slices (e.g.
@@ -1163,10 +1178,25 @@ message EventLatency {
         // The calculator has seen a GSE for the most recent scroll.
         END = 3;
       }
-      // LINT.ThenChange(//cc/metrics/scroll_jank_v4_frame_stage_calculator.cc:HasSeen)
+      // LINT.ThenChange(//cc/metrics/scroll_jank_v4_frame_stage_calculator.h:HasSeen)
       optional HasSeen has_seen_in_current_scroll = 2;
     }
     optional FrameStageCalculation frame_stage_calculation = 14;
+
+    // The type of the VSync interval that was used to evaluate this frame for
+    // scroll jank.
+    // LINT.IfChange(ScrollJankV4VsyncIntervalType)
+    enum VsyncIntervalType {
+      VSYNC_INTERVAL_TYPE_UNSPECIFIED = 0;
+      // VSync interval that the OS provided to Chrome for the current frame (or
+      // most recently before the current frame).
+      CURRENT_OS_PROVIDED = 1;
+      // VSync interval which Chrome derived from possible deadlines for the
+      // previous frame.
+      PREVIOUS_DEADLINE_DERIVED = 2;
+    }
+    // LINT.ThenChange(//cc/metrics/scroll_jank_v4_result.h:ScrollJankV4Result.VsyncIntervalType)
+    optional VsyncIntervalType vsync_interval_type = 15;
   }
 
   // Deprecated in favor of top-level `ChromeTrackEvent.scroll_jank_v4`.
@@ -1860,6 +1890,9 @@ message StartUp {
     SHARE_INTENT = 17;
     NFC = 18;
     AUTH_TAB = 19;
+    RECREATION = 20;
+    HANDOFF = 21;
+    DEV_TOOLS = 22;
   }
 
   optional int64 activity_id = 1;
@@ -2322,18 +2355,51 @@ message WebViewStartup {
     STATIC_GET_SAFE_BROWSING_PRIVACY_POLICY_URL = 100;
     STATIC_IS_MULTI_PROCESS_ENABLED = 101;
     STATIC_GET_VARIATIONS_HEADER = 102;
-    reserved 103, 104;
+    reserved 103, 104, 105, 106;
     reserved "STATIC_SET_DEFAULT_TRAFFIC_STATS_TAG", "STATIC_SET_DEFAULT_TRAFFIC_STATS_UID";
-    STATIC_SET_RENDERER_LIBRARY_PREFETCH_MODE = 105;
-    STATIC_GET_RENDERER_LIBRARY_PREFETCH_MODE = 106;
+    reserved "STATIC_SET_RENDERER_LIBRARY_PREFETCH_MODE", "STATIC_GET_RENDERER_LIBRARY_PREFETCH_MODE";
     GET_DEFAULT_COOKIE_MANAGER = 107;
     GET_PROFILE_STORE = 108;
     WEBVIEW_INSTANCE_GET_SETTINGS = 109;
     WEBVIEW_INSTANCE_GET_AW_CONTENTS = 110;
+    PROFILE_STORE_GET_PROFILE = 111;
+    PROFILE_STORE_GET_OR_CREATE_PROFILE = 112;
+    PROFILE_STORE_GET_ALL_PROFILE_NAMES = 113;
+    PROFILE_STORE_DELETE_PROFILE = 114;
+    PROFILE_PRECONNECT = 115;
+    PROFILE_GET_COOKIE_MANAGER = 116;
+    PROFILE_GET_WEB_STORAGE = 117;
+    PROFILE_GET_GEOLOCATION_PERMISSIONS = 118;
+    PROFILE_GET_SERVICE_WORKER_CONTROLLER = 119;
+    PROFILE_PREFETCH_URL = 120;
+    PROFILE_PREFETCH_URL_ASYNC = 121;
+    PROFILE_CANCEL_PREFETCH = 122;
+    PROFILE_SET_MAX_PRERENDERS = 123;
+    PROFILE_CLEAR_MAX_PRERENDERS = 124;
+    PROFILE_GET_MAX_PRERENDERS = 125;
+    PROFILE_SET_MAX_PREFETCHES = 126;
+    PROFILE_CLEAR_MAX_PREFETCHES = 127;
+    PROFILE_GET_MAX_PREFETCHES = 128;
+    PROFILE_SET_PREFETCH_TTL_SECONDS = 129;
+    PROFILE_CLEAR_PREFETCH_TTL = 130;
+    PROFILE_GET_PREFETCH_TTL_SECONDS = 131;
+    PROFILE_SET_SPECULATIVE_LOADING_CONFIG = 132;
+    PROFILE_GET_BROWSER_CONTEXT = 133;
+    PROFILE_WARM_UP_RENDERER_PROCESS = 134;
+    PROFILE_SET_ORIGIN_MATCHED_HEADER = 135;
+    PROFILE_ADD_ORIGIN_MATCHED_HEADER = 136;
+    PROFILE_HAS_ORIGIN_MATCHED_HEADER = 137;
+    PROFILE_FIND_ORIGIN_MATCHED_HEADERS = 138;
+    PROFILE_CLEAR_ORIGIN_MATCHED_HEADER = 139;
+    PROFILE_CLEAR_ALL_ORIGIN_MATCHED_HEADERS = 140;
+    PROFILE_ADD_QUIC_HINTS = 141;
+    PROFILE_GET_HTTP_CACHE_MANAGER = 142;
+    PROFILE_SET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST = 143;
+    PROFILE_GET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST = 144;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }
-  // LINT.ThenChange(//android_webview/glue/java/src/com/android/webview/chromium/WebViewChromiumAwInit.java:CallSite)
+  // LINT.ThenChange(//android_webview/java/src/org/chromium/android_webview/StartupCallSite.java:StartupCallSite,//tools/metrics/histograms/metadata/android/enums.xml:WebViewStartupCallSite)
 
   // LINT.IfChange(WebViewChromiumStartupMode)
   enum StartupMode {
@@ -2968,6 +3034,23 @@ message FrameIntervalDecider {
   optional FrameIntervalMatcherType matcher_type = 2;
 }
 
+message FrameDeadlineDecider {
+  // LINT.IfChange(SelectionReason)
+  enum SelectionReason {
+    SELECTION_REASON_UNSPECIFIED = 0;
+    SELECTION_REASON_PLATFORM_PREFERRED = 1;
+    SELECTION_REASON_ONGOING_SEQUENCE = 2;
+    SELECTION_REASON_CHROME_PREFERRED_NEW_SEQUENCE = 3;
+    SELECTION_REASON_OS_PREFERRED_NO_DEADLINE_WITHIN_TARGET = 4;
+    SELECTION_REASON_OS_PREFERRED_CHROME_PREFERRED_SOONER = 5;
+  }
+  // LINT.ThenChange(//components/viz/service/display/frame_deadline_decider.h:SelectionReason)
+
+  optional AndroidChoreographerFrameCallbackData.FrameTimeline
+      chrome_preferred_frame_timeline = 1;
+  optional SelectionReason selection_reason = 2;
+}
+
 message ChromeAccessibilityWinNotifyWinEvent {
   // The DWORD `event` parameter to ::NotifyWinEvent(). See
   // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-notifywinevent
@@ -2976,11 +3059,96 @@ message ChromeAccessibilityWinNotifyWinEvent {
   optional uint32 native_event = 1;
 }
 
+// Data about the state of a thread when a Mac QoS voucher is released.
+message MacVoucherRelease {
+  enum ProcessPriority {
+    PROCESS_PRIORITY_BEST_EFFORT = 0;
+    PROCESS_PRIORITY_USER_VISIBLE = 1;
+    PROCESS_PRIORITY_USER_BLOCKING = 2;
+  };
+
+  enum ThreadType {
+    THREAD_TYPE_BACKGROUND = 0;
+    THREAD_TYPE_UTILITY = 1;
+    THREAD_TYPE_DEFAULT = 2;
+    THREAD_TYPE_PRESENTATION = 3;
+    THREAD_TYPE_AUDIO_PROCESSING = 4;
+    THREAD_TYPE_REALTIME_AUDIO = 5;
+  };
+
+  enum QoSClass {
+    QOS_CLASS_UNSPECIFIED = 0;
+    QOS_CLASS_BACKGROUND = 1;
+    QOS_CLASS_UTILITY = 2;
+    QOS_CLASS_DEFAULT = 3;
+    QOS_CLASS_USER_INITIATED = 4;
+    QOS_CLASS_USER_INTERACTIVE = 5;
+  };
+
+  // Reference count of the voucher's port before it's released.
+  optional uint32 ref_count = 1;
+  // Value of Process::Current().GetPriority().
+  optional ProcessPriority process_priority = 2;
+  // Value of Process::Current().GetOSPriority().
+  optional int32 process_os_priority = 3;
+  // Value of PlatformThread::GetCurrentThreadType().
+  optional ThreadType thread_type = 4;
+  // Value of PlatformThread::CurrentThreadHasLeases().
+  optional bool thread_has_leases = 5;
+  // Values returned from pthread_get_qos_class_np().
+  optional QoSClass thread_qos_class = 6;
+  optional int32 thread_relative_priority = 7;
+}
+
+message AndroidVsyncIntervalDecision {
+  // Source of the VSync interval (aka VSync period) that
+  // `ExternalBeginFrameSourceAndroid::AChoreographerImpl` provides to
+  // `ExternalBeginFrameSourceAndroid`, together with the reason for choosing
+  // the particular source.
+  enum VsyncIntervalSource {
+    UNKNOWN = 0;
+    OS_PROVIDED_TIMELINE_DERIVED_NOT_SUPPORTED = 1;
+    OS_PROVIDED_ONLY_ONE_TIMELINE = 2;
+    OS_PROVIDED_ALWAYS = 3;
+    OS_PROVIDED_TIMELINE_DERIVED_TOO_SHORT = 4;
+    OS_PROVIDED_LONGER_THAN_OR_EQUAL_TO_TIMELINE_DERIVED = 5;
+    SNAPPED_TIMELINE_DERIVED_LONGER_THAN_OS_PROVIDED = 6;
+    UNSNAPPED_TIMELINE_DERIVED_LONGER_THAN_OS_PROVIDED = 7;
+    SNAPPED_TIMELINE_DERIVED_ALWAYS = 8;
+    UNSNAPPED_TIMELINE_DERIVED_ALWAYS = 9;
+  }
+  optional VsyncIntervalSource source = 1 [deprecated = true];
+
+  // The VSync interval that the OS provided to
+  // `ExternalBeginFrameSourceAndroid::AChoreographerImpl::RefreshRateCallback`
+  // (registered via `AChoreographer_registerRefreshRateCallback`) in
+  // microseconds.
+  optional int64 os_provided_interval_us = 2 [deprecated = true];
+
+  // The VSync interval that `AChoreographerImpl` derived from the frame
+  // timelines that the OS provided to
+  // `ExternalBeginFrameSourceAndroid::AChoreographerImpl::VsyncCallback`
+  // (posted via `AChoreographer_postVsyncCallback`) by taking the difference
+  // between the presentation timestamps of the first two timelines.
+  optional int64 timeline_derived_interval_us = 3 [deprecated = true];
+
+  // The supported VSync interval that the OS provided via
+  // `Display.getSupportedRefreshRates()` that was the closest to
+  // `timeline_derived_interval_us` and was within an implementation-specific
+  // threshold.
+  optional int64 snapped_supported_interval_us = 4 [deprecated = true];
+
+  // VSync intervals supported by the display, sorted by increasing duration.
+  // For example, if the display supports 60 Hz and 120 Hz, this vector will
+  // contain 8,333 and 16,666 (in that order).
+  repeated int64 supported_intervals_us = 5 [deprecated = true];
+}
+
 message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1083
+  // Next ID: 1086
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -3158,5 +3326,12 @@ message ChromeTrackEvent {
     optional FrameIntervalDecider frame_interval_decider = 1081;
 
     optional BeginFrameArgsV2 begin_frame_args = 1082;
+
+    optional MacVoucherRelease mac_voucher_release = 1083;
+
+    optional AndroidVsyncIntervalDecision android_vsync_interval_decision = 1084
+        [deprecated = true];
+
+    optional FrameDeadlineDecider frame_deadline_decider = 1085;
   }
 }

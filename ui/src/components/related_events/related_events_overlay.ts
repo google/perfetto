@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
-import {Overlay, TrackBounds} from '../../public/track';
-import {TimeScale} from '../../base/time_scale';
-import {Size2D} from '../../base/geom';
+import type {Trace} from '../../public/trace';
+import {type ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
+import type {Overlay, TrackBounds} from '../../public/track';
+import type {TimeScale} from '../../base/time_scale';
+import type {Size2D} from '../../base/geom';
 
 export class RelatedEventsOverlay implements Overlay {
   private readonly visualiser: ArrowVisualiser;

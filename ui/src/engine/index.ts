@@ -21,14 +21,16 @@ const wasmBridge = new WasmBridge();
 // 1. The Worker (self.onmessage) handler.
 // 2. The MessagePort handler.
 // The sequence of actions is the following:
-// 1. The frontend does one postMessage({port: MessagePort}) on the Worker
-//    scope. This message transfers the MessagePort.
-//    This is the only postMessage we'll ever receive here.
+// 1. The frontend does one postMessage({port, wasmModule}) on the Worker
+//    scope. The wasmModule is precompiled on the main thread and shared so
+//    V8 can reuse the same tiered-up wasm code across workers.
 // 2. All the other messages (i.e. the TraceProcessor RPC binary pipe) will be
 //    received on the MessagePort.
 
-// Receives the boostrap message from the frontend with the MessagePort.
 selfWorker.onmessage = (msg: MessageEvent) => {
-  const port = msg.data as MessagePort;
-  wasmBridge.initialize(port);
+  const data = msg.data as {
+    port: MessagePort;
+    wasmModule: WebAssembly.Module;
+  };
+  wasmBridge.initialize(data.port, data.wasmModule);
 };

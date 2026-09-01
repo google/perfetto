@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time, duration} from '../base/time';
-import {SliceSqlId} from '../components/sql_utils/core_types';
+import type {time, duration} from '../base/time';
+import type {SliceSqlId} from '../components/sql_utils/core_types';
 
 export interface Flow {
   id: number;

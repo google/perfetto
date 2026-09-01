@@ -121,7 +121,7 @@ test('ProtoRingBufferTest.RandomSizes', () => {
     mergedLen += msg.length;
   }
 
-  for (let fragSum = 0; fragSum < mergedLen /**/; ) {
+  for (let fragSum = 0; fragSum < mergedLen /**/;) {
     let fragLen = 1 + Rnd(1024 * 32);
     fragLen = Math.min(fragLen, mergedLen - fragSum);
     buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));

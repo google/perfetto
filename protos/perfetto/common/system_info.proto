@@ -25,7 +25,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 17
+// Next id: 18
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -90,4 +90,12 @@ message SystemInfo {
   //
   // Introduced in perfetto v54 / Android 26Q1+.
   optional uint64 system_ram_bytes = 16;
+
+  // Human-readable name of the machine this SystemInfo describes, used as the
+  // machine's label in the UI (falling back to "machine <id>" when unset).
+  //
+  // A producer attributing its data to a non-host machine can set this by
+  // emitting a SystemInfo packet to give that machine a name. Only meaningful
+  // when the packet carries a non-zero machine_id.
+  optional string machine_name = 17;
 }

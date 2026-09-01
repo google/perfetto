@@ -55,6 +55,36 @@ const option* LookupShortOpt(const std::vector<option>& opts, char c) {
   return nullptr;
 }
 
+// Returns true if |token| is an option-bearing argv element whose argument
+// is supplied by the next argv element (rather than embedded or absent).
+// Used by the GNU-style permutation logic in getopt_long().
+bool TokenConsumesNextArg(const char* token, const std::vector<option>& opts) {
+  if (token[0] != '-' || token[1] == '\0')
+    return false;
+  if (token[1] == '-') {
+    // Long option: "--name" needs a separate arg if it's required_argument
+    // and there is no embedded "=value".
+    if (token[2] == '\0')
+      return false;  // "--" alone.
+    if (strchr(token + 2, '=') != nullptr)
+      return false;
+    size_t len = strlen(token + 2);
+    const option* opt = LookupLongOpt(opts, token + 2, len);
+    return opt && opt->has_arg == required_argument;
+  }
+  // Short option chain: "-abc" / "-aXYZ". Walk until we find an option that
+  // requires an argument; if it is the last character of the token, the next
+  // argv element is the argument. Anything after it would be the embedded arg.
+  for (size_t i = 1; token[i] != '\0'; ++i) {
+    const option* opt = LookupShortOpt(opts, token[i]);
+    if (!opt)
+      return false;
+    if (opt->has_arg == required_argument)
+      return token[i + 1] == '\0';
+  }
+  return false;
+}
+
 bool ParseOpts(const char* shortopts,
                const option* longopts,
                std::vector<option>* res) {
@@ -109,6 +139,37 @@ int getopt_long(int argc,
 
   if (!ParseOpts(shortopts, longopts, &opts))
     return '?';
+
+  // GNU-style permutation: if we're at a non-option, move the next option
+  // (and its separate argument, if any) into position |optind|, shifting any
+  // intervening non-options to the right. This matches the default behavior
+  // of GNU getopt(3) so positional args can be freely interleaved with flags.
+  // We only permute when |nextchar| is null (i.e. we're not in the middle of
+  // a "-abc" short-option chain).
+  if (!nextchar) {
+    int scan = optind;
+    while (scan < argc) {
+      const char* s = argv[scan];
+      // Stop at the next option-bearing token ("-x", "--long", or "--").
+      if (s[0] == '-' && s[1] != '\0')
+        break;
+      ++scan;
+    }
+    // No permutation if there's nothing before the next option, or if the
+    // next token is "--" (the explicit end-of-options marker).
+    if (scan < argc && scan > optind && strcmp(argv[scan], "--") != 0) {
+      bool takes_next = TokenConsumesNextArg(argv[scan], opts);
+      int count = (takes_next && scan + 1 < argc) ? 2 : 1;
+      char* opt_token = argv[scan];
+      char* opt_arg = count == 2 ? argv[scan + 1] : nullptr;
+      // Shift argv[optind..scan) right by |count| to make room.
+      for (int k = scan - 1; k >= optind; --k)
+        argv[k + count] = argv[k];
+      argv[optind] = opt_token;
+      if (count == 2)
+        argv[optind + 1] = opt_arg;
+    }
+  }
 
   char* arg = argv[optind];
   optopt = 0;

@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NodeType, QueryNode} from './query_node';
+import {NodeType, type QueryNode} from './query_node';
 import {
   parseJoinidColumnField,
   findMatchingAddColumnsNode,
   addFilter,
-  DatagridNodeCreationDeps,
+  type DatagridNodeCreationDeps,
 } from './datagrid_node_creation';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 import {FilterNode} from './query_builder/nodes/filter_node';
 import {AddColumnsNode} from './query_builder/nodes/add_columns_node';
 import {
@@ -27,10 +27,10 @@ import {
   createColumnInfo,
   connectNodes,
 } from './query_builder/testing/test_utils';
-import {ColumnInfo} from './query_builder/column_info';
-import {Trace} from '../../public/trace';
-import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-import {UIFilter} from './query_builder/operations/filter';
+import type {ColumnInfo} from './query_builder/column_info';
+import type {Trace} from '../../public/trace';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import type {UIFilter} from './query_builder/operations/filter';
 
 describe('datagrid_node_creation', () => {
   // Helper to create a joinid column for testing

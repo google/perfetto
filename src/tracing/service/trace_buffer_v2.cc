@@ -29,20 +29,24 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/protovm/vm.h"
 
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
 // Set manually when debugging test failures.
 // TRACE_BUFFER_V2_DLOG is too verbose, even for debug builds.
 #define TRACE_BUFFER_V2_VERBOSE_LOGGING() 0
 
-#if TRACE_BUFFER_V2_VERBOSE_LOGGING()
-#define TRACE_BUFFER_V2_DLOG PERFETTO_DLOG
-#else
-#define TRACE_BUFFER_V2_DLOG(...) base::ignore_result(__VA_ARGS__)
-#endif
+#define TRACE_BUFFER_V2_DLOG(...)                    \
+  do {                                               \
+    if constexpr (TRACE_BUFFER_V2_VERBOSE_LOGGING()) \
+      PERFETTO_DLOG(__VA_ARGS__);                    \
+  } while (0)
 
 using protozero::proto_utils::ParseVarInt;
 namespace proto_utils = ::protozero::proto_utils;
 
 namespace perfetto {
+
+using DataLossReason = protos::pbzero::TracePacket_DataLossReason;
 
 namespace {
 
@@ -87,6 +91,14 @@ constexpr size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
 }  // namespace.
 
 namespace internal {
+
+namespace {
+void AddSeqDataLoss(SequenceState* seq, uint32_t reason) {
+  PERFETTO_DCHECK(reason != 0);
+  // DATA_LOSS_PRESENT is always set so any nonzero value reads as "dropped".
+  seq->data_loss_reasons |= DataLossReason::DATA_LOSS_PRESENT | reason;
+}
+}  // namespace
 
 SequenceState::SequenceState(ProducerID p, WriterID w, ClientIdentity c)
     : producer_id(p),
@@ -299,7 +311,7 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
     // TraceBufferV2::CopyChunkUntrusted.
     bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
     if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
-      seq_->data_loss = true;
+      AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
     }
   }
 }
@@ -327,7 +339,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
       bool end_reached = iter_ == end_;
 
       if (frag_iter_.chunk_corrupted()) {
-        seq_->data_loss = true;
+        AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
       }
 
       // If a chunk is incomplete, this is the point where we stop processing
@@ -375,15 +387,15 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         // should iterate over the Continue/End in ReassembleFragmentedPacket(),
         // which performs the lookahead. If we hit this code path, either a
         // producer emitted a chunk sequence like [kWholePacket],[kFragEnd]
-        // or, more realistically, we had a data losss and missed the chunk with
+        // or, more realistically, we had a data loss and missed the chunk with
         // the kFragBegin.
-        seq_->data_loss = true;
+        AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_ORPHAN_CONTINUATION);
         ConsumeFragment(iter_, &frag);
         break;  // Break the switch, continue the loop.
 
       case Frag::kFragBegin:
-        auto reassembly_res = ReassembleFragmentedPacket(out_packet, &frag);
-        if (reassembly_res == FragReassemblyResult::kSuccess) {
+        auto reassembly = ReassembleFragmentedPacket(out_packet, &frag);
+        if (reassembly.result == FragReassemblyResult::kSuccess) {
           buf_->stats_.set_readaheads_succeeded(
               buf_->stats_.readaheads_succeeded() + 1);
 
@@ -398,12 +410,12 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
           return true;
         }
 
-        // If we get here reassembly_res is either kNotEnoughData or kDataLoss.
+        // Reassembly failed: kNotEnoughData or kDataLoss.
 
         buf_->stats_.set_readaheads_failed(buf_->stats_.readaheads_failed() +
                                            1);
 
-        if (reassembly_res == FragReassemblyResult::kNotEnoughData &&
+        if (reassembly.result == FragReassemblyResult::kNotEnoughData &&
             mode_ == kReadMode) {
           // If we got no more chunks, there is no point insisting with this
           // chunk, give up and let the caller try other chunks in buffer order.
@@ -421,8 +433,8 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         // In either case we want to continue the loop and let the prologue of
         // the next loop iteration do EraseCurrentChunk().
         PERFETTO_DCHECK(
-            reassembly_res == FragReassemblyResult::kDataLoss ||
-            (reassembly_res == FragReassemblyResult::kNotEnoughData &&
+            reassembly.result == FragReassemblyResult::kDataLoss ||
+            (reassembly.result == FragReassemblyResult::kNotEnoughData &&
              mode_ == kEraseMode));
 
         // If we detect a data loss, ReassembleFragmentedPacket() consumes all
@@ -435,7 +447,13 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         //   so we rewind (we go back on the sequence's chunk list).
         // - Then we find that, in this sequence, there is a "broken" packet.
         // We should keep going on the same sequence and mark the data loss.
-        seq_->data_loss = true;
+        if (reassembly.result == FragReassemblyResult::kDataLoss) {
+          AddSeqDataLoss(seq_, reassembly.reason);
+        } else {
+          // kNotEnoughData + kEraseMode: begin fragment evicted by ring-buffer
+          // wrap while its continuation chunks were missing or unpatched.
+          AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_OVERWRITE);
+        }
         break;  // case kFragBegin
     }  // switch(frag.type)
   }  // for(;;)
@@ -469,9 +487,9 @@ void ChunkSeqReader::ConsumeFragment(TBChunk* chunk, Frag* frag) {
 // Tries to reassemble the packet following the chunks in sequence order (by
 // cloning the ChunkSeqIterator). If there is a data loss, it consumes anyways
 // the fragments. If there isn't enough data, leaves the fragments untouched.
-ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
-    TracePacket* out_packet,
-    Frag* initial_frag) {
+ChunkSeqReader::FragReassemblyOutcome
+ChunkSeqReader::ReassembleFragmentedPacket(TracePacket* out_packet,
+                                           Frag* initial_frag) {
   PERFETTO_DCHECK(initial_frag->type == Frag::kFragBegin);
   TBChunk* initial_chunk = seq_iter_.chunk();
 
@@ -485,19 +503,20 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
   ChunkSeqIterator chunk_iter = seq_iter_;  // Make copy.
 
   // Iterate over chunks using the linked list, unless the chunk needs patching
-  // in which case we skip down with res = kNotEnoughData.
-  FragReassemblyResult res = FragReassemblyResult::kNotEnoughData;
+  // in which case we skip down leaving the default outcome (kNotEnoughData).
+  FragReassemblyOutcome outcome;
   const bool chunk_needs_patching = initial_chunk->flags & kChunkNeedsPatch;
   while (!chunk_needs_patching) {
     PERFETTO_DCHECK((chunk_iter.valid()));
     TBChunk* next_chunk = chunk_iter.NextChunkInSequence();
     if (!next_chunk || next_chunk->flags & kChunkNeedsPatch) {
-      res = FragReassemblyResult::kNotEnoughData;
+      outcome.result = FragReassemblyResult::kNotEnoughData;
       break;
     }
     if (chunk_iter.sequence_gap_detected()) {
       // There is a gap in the sequence ID.
-      res = FragReassemblyResult::kDataLoss;
+      outcome.result = FragReassemblyResult::kDataLoss;
+      outcome.reason = DataLossReason::DATA_LOSS_REASSEMBLY_GAP;
       break;
     }
     FragIterator frag_iter = FragIterator(next_chunk);
@@ -512,7 +531,8 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     std::optional<Frag> frag = frag_iter.NextFragmentInChunk();
     if (!frag.has_value()) {
       if (frag_iter.chunk_corrupted()) {
-        res = FragReassemblyResult::kDataLoss;
+        outcome.result = FragReassemblyResult::kDataLoss;
+        outcome.reason = DataLossReason::DATA_LOSS_CHUNK_CORRUPTED;
         break;
       }
       // This can happen if a chunk in the middle of a sequence is empty. Rare
@@ -528,7 +548,7 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     if (frag_type == Frag::kFragEnd) {
       frags.emplace_back(*frag, next_chunk);
 
-      res = FragReassemblyResult::kSuccess;
+      outcome.result = FragReassemblyResult::kSuccess;
       break;
     }
     // else: kFragBegin or kFragWholePacket
@@ -538,10 +558,12 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
     // to us. The next ReadNextPacketInSeqOrder calls will deal with them. Our
     // job here is to consume only fragments for the packet we are trying to
     // reassemble.
-    res = FragReassemblyResult::kDataLoss;
+    outcome.result = FragReassemblyResult::kDataLoss;
+    outcome.reason = DataLossReason::DATA_LOSS_REASSEMBLY_BROKEN_CHAIN;
     break;
   }  // for (chunk in list)
 
+  const auto& res = outcome.result;
   for (FragAndChunk& fc : frags) {
     Frag& f = fc.frag;
     if (res == FragReassemblyResult::kSuccess && f.size > 0) {
@@ -554,7 +576,7 @@ ChunkSeqReader::FragReassemblyResult ChunkSeqReader::ReassembleFragmentedPacket(
       ConsumeFragment(fc.chunk, &f);
     }
   }
-  return res;
+  return outcome;
 }
 
 }  // namespace internal
@@ -610,9 +632,9 @@ void TraceBufferV2::BeginRead() {
 bool TraceBufferV2::ReadNextTracePacket(
     TracePacket* out_packet,
     PacketSequenceProperties* sequence_properties,
-    bool* previous_packet_on_sequence_dropped) {
+    uint32_t* previous_packet_on_sequence_dropped) {
   *sequence_properties = {0, ClientIdentity(), 0};
-  *previous_packet_on_sequence_dropped = false;
+  *previous_packet_on_sequence_dropped = 0;
 
   // When reading back chunks, we visit the buffer in two layers
   // (see /docs/design-docs/trace-buffer.md):
@@ -650,8 +672,8 @@ bool TraceBufferV2::ReadNextTracePacket(
       if (chunk_seq_reader_->ReadNextPacketInSeqOrder(out_packet)) {
         SequenceState& s = *chunk_seq_reader_->seq();
         *sequence_properties = {s.producer_id, s.client_identity, s.writer_id};
-        *previous_packet_on_sequence_dropped = s.data_loss;
-        s.data_loss = false;
+        *previous_packet_on_sequence_dropped = s.data_loss_reasons;
+        s.data_loss_reasons = 0;
         return true;
       }
       // If ReadNextPacketInSeqOrder rans out of data, skip to the block below
@@ -717,9 +739,13 @@ void TraceBufferV2::CopyChunkUntrusted(
     std::optional<Frag> maybe_frag = frag_iter.NextFragmentInChunk();
     if (!maybe_frag.has_value()) {
       // Either we found less fragments than what the header said, or some
-      // fragment is out of bounds.
-      stats_.set_abi_violations(stats_.abi_violations() + 1);
-      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      // fragment is out of bounds. The exception is a TraceWriter that
+      // deliberately aborted the packet (kPacketSizeDropPacket), which is not
+      // an ABI violation and is accounted via trace_writer_packet_loss.
+      if (!frag_iter.trace_writer_data_drop()) {
+        stats_.set_abi_violations(stats_.abi_violations() + 1);
+        PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      }
       break;
     }
     Frag& f = *maybe_frag;
@@ -762,7 +788,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   SequenceState& seq = seq_it->second;
   if (trace_writer_data_drop) {
     stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() + 1);
-    seq.data_loss = true;
+    internal::AddSeqDataLoss(&seq, DataLossReason::DATA_LOSS_WRITER_ABORT);
   }
 
   // Don't allow re-commit of chunks that have been consumed already, unless
@@ -837,24 +863,69 @@ void TraceBufferV2::CopyChunkUntrusted(
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
-    // Only clear kChunkIncomplete on real IPC recommits (chunk_complete=true).
-    // During scraping the producer may still be writing, so the chunk should
-    // remain incomplete until the producer explicitly commits it.
-    if (chunk_complete)
-      recommit_chunk->flags &= ~kChunkIncomplete;
-    if (all_frags_size == recommit_chunk->payload_size) {
-      TRACE_BUFFER_V2_DLOG("  skipping recommit of identical chunk");
+
+    // Decide whether to relocate this re-commit rather than rewrite it in
+    // place. A scraped chunk that has been fully read keeps its copy at the
+    // offset where it was scraped, which can sit arbitrarily close to the
+    // write cursor, so the recovered packets could be overwritten before the
+    // next read. Relocating skips the already-consumed payload as in the
+    // re-admit of evicted chunks above. See b/518755701 for more details.
+
+    // The copy came from a scrape, so more payload may still be coming.
+    const bool copy_is_scraped = recommit_chunk->flags & kChunkIncomplete;
+
+    // Nothing for the erase to lose, nothing for the relocation to duplicate.
+    const bool copy_fully_consumed = recommit_chunk->payload_avail == 0;
+
+    // Any re-commit with new fragments, whether the producer's final commit or
+    // a later scrape of the same still-open chunk.
+    const bool commit_adds_new_data =
+        all_frags_size > recommit_chunk->payload_size;
+
+    // EraseCurrentChunk() only supports the first chunk of a sequence. Later
+    // chunks may stay physically ahead of the relocated one, which is fine:
+    // reads follow chunk_list, which is ordered by ChunkID and not by offset.
+    const bool copy_is_first_chunk_of_seq =
+        *chunk_list.begin() == OffsetOf(recommit_chunk);
+
+    // Only a ring buffer laps, so only there can the stale copy be overwritten.
+    // On kDiscard, routing the commit through the write path below could also
+    // hit the end-of-buffer DiscardWrite(), dropping the very fragments we are
+    // recovering and sealing the buffer for good.
+    const bool buffer_can_lap = overwrite_policy_ == kOverwrite;
+
+    const bool should_relocate_chunk =
+        copy_is_scraped && copy_fully_consumed && commit_adds_new_data &&
+        copy_is_first_chunk_of_seq && buffer_can_lap;
+
+    if (PERFETTO_LIKELY(!should_relocate_chunk)) {
+      // Only clear kChunkIncomplete on real IPC recommits
+      // (chunk_complete=true). During scraping the producer may still be
+      // writing, so the chunk should remain incomplete until the producer
+      // explicitly commits it.
+      if (chunk_complete)
+        recommit_chunk->flags &= ~kChunkIncomplete;
+      if (all_frags_size == recommit_chunk->payload_size) {
+        TRACE_BUFFER_V2_DLOG("  skipping recommit of identical chunk");
+        return;
+      }
+      uint16_t payload_consumed =
+          recommit_chunk->payload_size - recommit_chunk->payload_avail;
+      recommit_chunk->payload_size = all_frags_size_u16;
+      recommit_chunk->payload_avail = all_frags_size_u16 - payload_consumed;
+      memcpy(recommit_chunk->fragments_begin(), src, all_frags_size);
+      recommit_chunk->flags |= chunk_flags;
+      stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
       return;
     }
-    uint16_t payload_consumed =
-        recommit_chunk->payload_size - recommit_chunk->payload_avail;
-    recommit_chunk->payload_size = all_frags_size_u16;
-    recommit_chunk->payload_avail = all_frags_size_u16 - payload_consumed;
-    memcpy(recommit_chunk->fragments_begin(), src, all_frags_size);
-    recommit_chunk->flags |= chunk_flags;
-    stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
-    return;
-  }
+
+    // Erase the stale copy and fall through to the write path below, which
+    // re-creates the chunk at the write cursor.
+    TRACE_BUFFER_V2_DLOG("  Relocating consumed scraped chunk %u", chunk_id);
+    stats_.set_chunks_relocated(stats_.chunks_relocated() + 1);
+    previously_consumed_payload = recommit_chunk->payload_size;
+    internal::ChunkSeqIterator(this, &seq).EraseCurrentChunk();
+  }  // if (recommit_chunk)
 
   // If there isn't enough room from the given write position: write a padding
   // record to clear the end of the buffer, wrap and start at offset 0.
@@ -878,8 +949,9 @@ void TraceBufferV2::CopyChunkUntrusted(
   // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
   DeleteNextChunksFor(tbchunk_outer_size);
 
-  // If the DeleteNextChunksFor happens to delete a chunk in the same sequence,
-  // the insert_pos becomes invalid and we need to recompute that.
+  // |insert_pos| is invalid if any chunk was removed from this sequence since
+  // it was computed: either by the DeleteNextChunksFor above, or by the
+  // relocation erase.
   // Why don't we compute the insert_pos here? Because we also need to check
   // for re-commits (which are rare, but possible) and don't want to iterate
   // over the chunk list twice in most cases.
@@ -1009,7 +1081,7 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     // In future this branch should become "&& !protovm_has_consumed_packet"
     // We shouldn't report a data loss if ProtoVM merged the outgoing packet.
     if (has_cleared_unconsumed_fragments) {
-      csr.seq()->data_loss = true;
+      internal::AddSeqDataLoss(csr.seq(), DataLossReason::DATA_LOSS_OVERWRITE);
     }
 
     // ChunkSeqReader(kEraseMode) must delete the chunk once
@@ -1231,8 +1303,8 @@ void TraceBufferV2::DumpForTesting() {
       PERFETTO_DLOG(
           "[%06zu-%06zu] size=%05u(%05u) id=%05u pr_wr=%08x flags=%08x", rd,
           rd + c->outer_size(), c->payload_size,
-          c->payload_size - c->payload_avail, c->chunk_id, c->pri_wri_id,
-          c->flags);
+          static_cast<unsigned>(c->payload_size - c->payload_avail),
+          c->chunk_id, c->pri_wri_id, c->flags);
       rd += c->outer_size();
       continue;
     }

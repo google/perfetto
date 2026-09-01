@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE android.monitor_contention;
-
 INCLUDE PERFETTO MODULE std.metasql.unparenthesize;
 
 -- Compute the distribution of the overlap of the given intervals over time.
@@ -215,7 +213,7 @@ AS (
       WHERE
         dur > 0
     ),
-    _children AS (
+    _child_intervals AS (
       SELECT
         *
       FROM (
@@ -231,17 +229,17 @@ AS (
       EXCEPT
       SELECT DISTINCT
         parent_id AS root_id
-      FROM _children
+      FROM _child_intervals
     )
   SELECT
     _roots.root_id,
     _roots.root_ts,
     _roots.root_dur,
-    _children.id,
-    _children.parent_id,
-    _children.ts,
-    _children.dur
-  FROM _children
+    _child_intervals.id,
+    _child_intervals.parent_id,
+    _child_intervals.ts,
+    _child_intervals.dur
+  FROM _child_intervals
   JOIN _roots
     USING (root_id)
   UNION ALL
@@ -287,7 +285,7 @@ AS (
       ORDER BY
         ts
     ),
-    _children AS (
+    _child_intervals AS (
       SELECT
         *
       FROM $children_table
@@ -299,15 +297,15 @@ AS (
   SELECT
     ii.ts,
     ii.dur,
-    _children.id,
-    iif(_children.parent_id IS NULL, id_1, _children.parent_id) AS parent_id,
+    _child_intervals.id,
+    iif(_child_intervals.parent_id IS NULL, id_1, _child_intervals.parent_id) AS parent_id,
     _roots.id AS root_id,
     _roots.ts AS root_ts,
     _roots.dur AS root_dur,
     ii.$key
-  FROM _interval_intersect!((_children, _roots), ($key)) AS ii
-  JOIN _children
-    ON _children.id = id_0
+  FROM _interval_intersect!((_child_intervals, _roots), ($key)) AS ii
+  JOIN _child_intervals
+    ON _child_intervals.id = id_0
   JOIN _roots
     ON _roots.id = id_1
 );

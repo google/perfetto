@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './select.scss';
 import m from 'mithril';
-import {HTMLInputAttrs} from './common';
+import type {HTMLInputAttrs} from './common';
 
 export class Select implements m.ClassComponent<HTMLInputAttrs> {
   view({attrs, children}: m.CVnode<HTMLInputAttrs>) {

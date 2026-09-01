@@ -15,7 +15,7 @@
 import {uuidv4} from '../../base/uuid';
 import {NUM} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {createVisualizedArgsTrack} from './visualized_args_track';
 

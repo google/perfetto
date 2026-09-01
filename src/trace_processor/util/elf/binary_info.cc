@@ -23,7 +23,6 @@
 #include <optional>
 #include <string>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/utils.h"
@@ -47,13 +46,11 @@ template <typename E>
 std::optional<uint64_t> GetElfLoadBias(const void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<const typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
     return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_phnum; ++i) {
     const typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
       return std::nullopt;
     }
     if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
@@ -67,13 +64,11 @@ template <typename E>
 std::optional<std::string> GetElfBuildId(const void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<const typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
     return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_shnum; ++i) {
     const typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
       return std::nullopt;
     }
 
@@ -86,13 +81,11 @@ std::optional<std::string> GetElfBuildId(const void* mem, size_t size) {
           static_cast<const char*>(mem) + offset);
 
       if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
-        PERFETTO_ELOG("Corrupted ELF.");
         return std::nullopt;
       }
       if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
         const char* name = reinterpret_cast<const char*>(nhdr) + sizeof(*nhdr);
         if (!InRange(mem, size, name, 4)) {
-          PERFETTO_ELOG("Corrupted ELF.");
           return std::nullopt;
         }
         if (memcmp(name, "GNU", 3) == 0) {
@@ -100,7 +93,6 @@ std::optional<std::string> GetElfBuildId(const void* mem, size_t size) {
                               sizeof(*nhdr) + base::AlignUp<4>(nhdr->n_namesz);
 
           if (!InRange(mem, size, value, nhdr->n_descsz)) {
-            PERFETTO_ELOG("Corrupted ELF.");
             return std::nullopt;
           }
           return std::string(value, nhdr->n_descsz);

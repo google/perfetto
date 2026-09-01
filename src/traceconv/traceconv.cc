@@ -31,9 +31,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/profiling/pprof_builder.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
+#include "src/traceconv/android_extension.descriptor.h"
 #include "src/traceconv/deobfuscate_profile.h"
 #include "src/traceconv/symbolize_profile.h"
 #include "src/traceconv/trace.descriptor.h"
@@ -48,12 +50,18 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <fcntl.h>
 #include <io.h>
-#else
-#include <unistd.h>
 #endif
 
 namespace perfetto::traceconv {
 namespace {
+
+// Maps a base::Status to the process exit code, logging the failure reason.
+int ToExitCode(const base::Status& status) {
+  if (status.ok())
+    return 0;
+  PERFETTO_ELOG("%s", status.c_message());
+  return 1;
+}
 
 int Usage(const char* argv0) {
   fprintf(stderr, R"(
@@ -139,8 +147,15 @@ uint64_t StringToUint64OrDie(const char* str) {
 int TextToTrace(std::istream* input, std::ostream* output) {
   std::string trace_text(std::istreambuf_iterator<char>{*input},
                          std::istreambuf_iterator<char>{});
+  std::vector<uint8_t> descriptors;
+  descriptors.reserve(kTraceDescriptor.size() +
+                      kAndroidExtensionDescriptor.size());
+  descriptors.insert(descriptors.end(), kTraceDescriptor.begin(),
+                     kTraceDescriptor.end());
+  descriptors.insert(descriptors.end(), kAndroidExtensionDescriptor.begin(),
+                     kAndroidExtensionDescriptor.end());
   auto proto_status =
-      protozero::TextToProto(kTraceDescriptor.data(), kTraceDescriptor.size(),
+      protozero::TextToProto(descriptors.data(), descriptors.size(),
                              ".perfetto.protos.Trace", "trace", trace_text);
   if (!proto_status.ok()) {
     PERFETTO_ELOG("Failed to parse trace: %s",
@@ -255,14 +270,12 @@ int Main(int argc, char** argv) {
       PERFETTO_FATAL("Could not open %s", file_path);
     input_stream = &file_istream;
   } else {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    if (isatty(STDIN_FILENO)) {
+    if (base::IsTty(stdin)) {
       PERFETTO_ELOG("Reading from stdin but it's connected to a TTY");
       PERFETTO_LOG("It is unlikely that you want to type in some binary.");
       PERFETTO_LOG("Either pass a file path to the cmdline or pipe stdin");
       return Usage(argv[0]);
     }
-#endif
     input_stream = &std::cin;
   }
 
@@ -270,6 +283,8 @@ int Main(int argc, char** argv) {
   // We don't want the runtime to replace "\n" with "\r\n" on `std::cout`.
   _setmode(_fileno(stdout), _O_BINARY);
 #endif
+
+  std::string format(positional_args[0]);
 
   std::ostream* output_stream;
   std::ofstream file_ostream;
@@ -281,10 +296,18 @@ int Main(int argc, char** argv) {
       PERFETTO_FATAL("Could not open %s", file_path);
     output_stream = &file_ostream;
   } else {
+    // Binary formats would corrupt an interactive terminal if printed on it.
+    if ((format == "binary" || format == "ctrace" ||
+         format == "decompress_packets" || format == "symbolize" ||
+         format == "deobfuscate") &&
+        base::IsTty(stdout)) {
+      PERFETTO_ELOG(
+          "Refusing to write binary output to a terminal. Pass an output "
+          "file path or redirect stdout.");
+      return 1;
+    }
     output_stream = &std::cout;
   }
-
-  std::string format(positional_args[0]);
 
   if ((format != "profile" && format != "java_heap_profile") &&
       (pid != 0 || !timestamps.empty())) {
@@ -307,19 +330,19 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "json")
-    return trace_to_text::TraceToJson(input_stream, output_stream,
-                                      /*compress=*/false, truncate_keep,
-                                      full_sort);
+    return ToExitCode(trace_to_text::TraceToJson(input_stream, output_stream,
+                                                 /*compress=*/false,
+                                                 truncate_keep, full_sort));
 
   if (format == "systrace")
-    return trace_to_text::TraceToSystrace(input_stream, output_stream,
-                                          /*ctrace=*/false, truncate_keep,
-                                          full_sort);
+    return ToExitCode(trace_to_text::TraceToSystrace(
+        input_stream, output_stream, /*ctrace=*/false, truncate_keep,
+        full_sort));
 
   if (format == "ctrace")
-    return trace_to_text::TraceToSystrace(input_stream, output_stream,
-                                          /*ctrace=*/true, truncate_keep,
-                                          full_sort);
+    return ToExitCode(trace_to_text::TraceToSystrace(
+        input_stream, output_stream, /*ctrace=*/true, truncate_keep,
+        full_sort));
 
   if (truncate_keep != trace_to_text::Keep::kAll) {
     PERFETTO_ELOG(
@@ -338,8 +361,8 @@ int Main(int argc, char** argv) {
   if (format == "text") {
     trace_to_text::TraceToTextOptions options;
     options.skip_unknown_fields = skip_unknown_fields;
-    return trace_to_text::TraceToText(input_stream, output_stream, options) ? 0
-                                                                            : 1;
+    return ToExitCode(
+        trace_to_text::TraceToText(input_stream, output_stream, options));
   }
 
   if (format == "profile") {
@@ -349,30 +372,33 @@ int Main(int argc, char** argv) {
           "instead");
       return Usage(argv[0]);
     }
-    return trace_to_text::TraceToProfile(input_stream, pid, timestamps,
-                                         !profile_no_annotations, output_dir,
-                                         profile_type, verbose);
+    return ToExitCode(trace_to_text::TraceToProfile(
+        input_stream, pid, timestamps, !profile_no_annotations, output_dir,
+        profile_type, verbose));
   }
 
   if (format == "java_heap_profile") {
     // legacy alias for "profile --java-heap"
-    return trace_to_text::TraceToProfile(
+    return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        trace_to_text::ConversionMode::kJavaHeapProfile, verbose);
+        trace_to_text::ConversionMode::kJavaHeapProfile, verbose));
   }
 
   if (format == "symbolize")
-    return trace_to_text::SymbolizeProfile(input_stream, output_stream,
-                                           verbose);
+    return ToExitCode(
+        trace_to_text::SymbolizeProfile(input_stream, output_stream, verbose));
 
   if (format == "deobfuscate")
-    return trace_to_text::DeobfuscateProfile(input_stream, output_stream);
+    return ToExitCode(
+        trace_to_text::DeobfuscateProfile(input_stream, output_stream));
 
   if (format == "firefox")
-    return trace_to_text::TraceToFirefoxProfile(input_stream, output_stream);
+    return ToExitCode(
+        trace_to_text::TraceToFirefoxProfile(input_stream, output_stream));
 
   if (format == "decompress_packets")
-    return trace_to_text::UnpackCompressedPackets(input_stream, output_stream);
+    return ToExitCode(
+        trace_to_text::UnpackCompressedPackets(input_stream, output_stream));
 
   if (format == "bundle") {
     // Bundle mode requires both input and output file paths
@@ -415,7 +441,8 @@ int Main(int argc, char** argv) {
       context.home_dir = val;
     }
     context.root_dir = "/";
-    return trace_to_text::TraceToBundle(input_file, output_file, context);
+    return ToExitCode(
+        trace_to_text::TraceToBundle(input_file, output_file, context));
   }
 
   return Usage(argv[0]);

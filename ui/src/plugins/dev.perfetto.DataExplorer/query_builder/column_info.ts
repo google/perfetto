@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
-import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
+import type {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 
 export interface ColumnInfo {
   name: string;

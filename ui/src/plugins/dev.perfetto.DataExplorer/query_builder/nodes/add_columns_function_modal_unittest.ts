@@ -18,12 +18,12 @@ import {
   isFunctionModalValid,
   createFunctionColumn,
   createFunctionModalState,
-  FunctionModalState,
+  type FunctionModalState,
 } from './add_columns_function_modal';
-import {FunctionWithModule} from '../function_list';
-import {FunctionArgBinding} from './add_columns_types';
-import {ColumnInfo} from '../column_info';
-import {
+import type {FunctionWithModule} from '../function_list';
+import type {FunctionArgBinding} from './add_columns_types';
+import type {ColumnInfo} from '../column_info';
+import type {
   SqlModules,
   SqlModule,
   SqlFunction,
@@ -31,7 +31,7 @@ import {
 } from '../../../dev.perfetto.SqlModules/sql_modules';
 import {
   PerfettoSqlTypes,
-  PerfettoSqlType,
+  type PerfettoSqlType,
 } from '../../../../trace_processor/perfetto_sql_type';
 
 // Helper to create a mock function

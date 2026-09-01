@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, time} from '../base/time';
-import {FilterExpression, SearchProvider} from '../public/search';
-import {Track} from '../public/track';
-import {Dataset, UnionDatasetWithLineage} from '../trace_processor/dataset';
-import {Engine} from '../trace_processor/engine';
+import {Time, type time} from '../base/time';
+import type {FilterExpression, SearchProvider} from '../public/search';
+import type {Track} from '../public/track';
+import {
+  type Dataset,
+  UnionDatasetWithLineage,
+} from '../trace_processor/dataset';
+import type {Engine} from '../trace_processor/engine';
 import {LONG, NUM, NUM_NULL} from '../trace_processor/query_result';
 
 // Type alias for search results

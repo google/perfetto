@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {StatusbarItem, StatusbarManager} from '../public/statusbar';
+import type {StatusbarItem, StatusbarManager} from '../public/statusbar';
 
 /**
  * Manages the state for a simple status bar that can display one piece of

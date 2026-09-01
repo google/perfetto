@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './accordion.scss';
 import m from 'mithril';
 import {Icon} from './icon';
 import {shortUuid} from '../base/uuid';
@@ -48,9 +49,7 @@ export interface AccordionSectionAttrs {
   readonly defaultOpen?: boolean;
 }
 
-export class AccordionSection
-  implements m.ClassComponent<AccordionSectionAttrs>
-{
+export class AccordionSection implements m.ClassComponent<AccordionSectionAttrs> {
   private isOpen = false;
   private pendingScrollOpen = false;
 

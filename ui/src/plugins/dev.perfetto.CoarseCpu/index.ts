@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Icons} from '../../base/semantic_icons';
 import {Cpu} from '../../components/cpu';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import {getMachineCount} from '../../public/utils';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -110,6 +111,7 @@ export default class implements PerfettoPlugin {
   ];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const numMachines = await getMachineCount(ctx.engine);
     const result = await ctx.engine.query(`
       include perfetto module viz.summary.counters;
 
@@ -118,12 +120,15 @@ export default class implements PerfettoPlugin {
         extract_arg(ct.dimension_arg_set_id, 'cpu') as cpu,
         extract_arg(ct.dimension_arg_set_id, 'cpustat_key') as metric,
         ct.machine_id as machineId,
+        machine.name as machineName,
+        machine.label_index as machineLabelIndex,
         ifnull(cpu.ucpu, extract_arg(ct.dimension_arg_set_id, 'cpu')) as ucpu
       from counter_track ct
       join _counter_track_summary using (id)
       left join cpu
         on cpu.cpu = extract_arg(ct.dimension_arg_set_id, 'cpu')
        and cpu.machine_id = ct.machine_id
+      left join machine on machine.id = ct.machine_id
       where ct.type = 'cpustat'
       order by metric, ucpu
     `);
@@ -133,6 +138,8 @@ export default class implements PerfettoPlugin {
       cpu: NUM,
       metric: STR,
       machineId: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
       ucpu: NUM,
     });
     if (!it.valid()) return;
@@ -144,9 +151,17 @@ export default class implements PerfettoPlugin {
     const metricGroups = new Map<string, TrackNode>();
 
     for (; it.valid(); it.next()) {
-      const {trackId, cpu, metric, machineId, ucpu} = it;
+      const {
+        trackId,
+        cpu,
+        metric,
+        machineId,
+        machineName,
+        machineLabelIndex,
+        ucpu,
+      } = it;
 
-      const info = assertExists(METRICS[metric]);
+      const info = ensureExists(METRICS[metric]);
 
       let metricGroup = metricGroups.get(metric);
       if (metricGroup === undefined) {
@@ -159,7 +174,7 @@ export default class implements PerfettoPlugin {
         cpuStandardGroup.addChildInOrder(metricGroup);
       }
 
-      const trackName = `${info.groupName} (CPU ${new Cpu(ucpu, cpu, machineId).toString()})`;
+      const trackName = `${info.groupName} (CPU ${new Cpu(ucpu, cpu, machineId, machineName ?? undefined, machineLabelIndex ?? undefined, numMachines).toString()})`;
       const uri = `/coarse_cpu_${trackId}`;
 
       ctx.tracks.registerTrack({

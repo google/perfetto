@@ -24,6 +24,8 @@ on:
     branches:
       - dev/**/*
 
+permissions: {}
+
 jobs:
   pr-branch-check:
     if: startsWith(github.base_ref, 'dev/')

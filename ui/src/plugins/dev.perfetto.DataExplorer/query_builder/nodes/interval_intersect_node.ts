@@ -14,17 +14,17 @@
 
 import m from 'mithril';
 import {
-  QueryNode,
+  type QueryNode,
   nextNodeId,
   NodeType,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../query_node';
 import {notifyNextNodes} from '../graph_utils';
 import protos from '../../../../protos';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
   perfettoSqlTypeToString,
   typesEqual,
@@ -39,10 +39,10 @@ import {
   ListItem,
   OutlinedMultiSelect,
   OutlinedField,
-  MultiSelectOption,
-  MultiSelectDiff,
+  type MultiSelectOption,
+  type MultiSelectDiff,
 } from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {getCommonColumns} from '../utils';

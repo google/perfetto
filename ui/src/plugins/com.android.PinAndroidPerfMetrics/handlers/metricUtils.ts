@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 
 /**
  * Represents data for a Full trace metric
@@ -84,13 +84,21 @@ export interface CujMetricData {
   cujName: string;
 }
 
+export interface ProcessMetricData {
+  process: string;
+}
+
+export interface GlobalDmaHeapMetricData {}
+
 // Common MetricData for all handler. If new needed then add here.
 export type MetricData =
   | FullTraceMetricData
   | CujScopedMetricData
   | BlockingCallMetricData
   | NotificationsBlockingCallMetricData
-  | CujMetricData;
+  | CujMetricData
+  | ProcessMetricData
+  | GlobalDmaHeapMetricData;
 
 // Common JankType for cujScoped and fullTrace metrics
 export type JankType = 'sf_frames' | 'app_frames' | 'frames';

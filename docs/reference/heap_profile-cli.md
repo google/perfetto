@@ -41,7 +41,7 @@ usage: heap_profile android [-h] [-i INTERVAL] [-d DURATION] [--no-start]
                             [--no-block-client] [--idle-allocations]
                             [--dump-at-max] [--disable-fork-teardown]
                             [--simpleperf]
-                            [--traceconv-binary TRACECONV_BINARY]
+                            [--trace-processor-binary TRACE_PROCESSOR_BINARY]
                             [--no-annotations] [--print-config] [-o DIRECTORY]
 ```
 
@@ -53,7 +53,7 @@ usage: heap_profile host [-h] [-i INTERVAL] [-d DURATION] [--no-start]
                          [--block-client-timeout BLOCK_CLIENT_TIMEOUT]
                          [--no-block-client] [--idle-allocations]
                          [--dump-at-max] [--disable-fork-teardown]
-                         [--traceconv-binary TRACECONV_BINARY]
+                         [--trace-processor-binary TRACE_PROCESSOR_BINARY]
                          [--no-annotations] [--print-config] [-o DIRECTORY]
                          [--preload-library PRELOAD_LIBRARY]
                          [--tracebox-binary TRACEBOX_BINARY]
@@ -122,8 +122,8 @@ These flags apply to both `android` and `host` subcommands.
 `--shmem-size`
 :    Size of buffer between client and heapprofd. Default 8MiB. Needs to be a power of two multiple of 4096, at least 8192.
 
-`--traceconv-binary`
-:    Path to local traceconv. For debugging.
+`--trace-processor-binary`
+:    Path to local trace_processor. For debugging.
 
 `-h`, `--help`
 :    Show help message and exit.

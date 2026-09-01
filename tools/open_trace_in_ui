@@ -19,6 +19,7 @@ import os
 import socketserver
 import sys
 import webbrowser
+import urllib
 
 
 class ANSI:
@@ -71,7 +72,14 @@ def open_trace(path, open_browser, origin):
 
     httpd.expected_fname = fname
     httpd.fname_get_completed = None
-    httpd.allow_origin = origin
+
+    # In case the user's `--origin` has a path component, strip it out
+    def strip_url_path(url):
+      url_parsed = urllib.parse.urlparse(url)
+      return urllib.parse.urlunparse(
+          url_parsed._replace(path='', query='', fragment='', params=''))
+
+    httpd.allow_origin = strip_url_path(origin)
     while httpd.fname_get_completed is None:
       httpd.handle_request()
 

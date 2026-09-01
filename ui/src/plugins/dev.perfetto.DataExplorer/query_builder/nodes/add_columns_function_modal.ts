@@ -16,12 +16,12 @@ import m from 'mithril';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Form, FormSection} from '../../../../widgets/form';
-import {FunctionList, FunctionWithModule} from '../function_list';
-import {FunctionArgBinding, NewColumn} from './add_columns_types';
-import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnInfo} from '../column_info';
+import {FunctionList, type FunctionWithModule} from '../function_list';
+import type {FunctionArgBinding, NewColumn} from './add_columns_types';
+import type {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
+import type {ColumnInfo} from '../column_info';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   parsePerfettoSqlTypeFromString,
   isQuantitativeType,
 } from '../../../../trace_processor/perfetto_sql_type';
@@ -191,9 +191,7 @@ export interface FunctionSelectStepAttrs {
 /**
  * Component for the function selection step
  */
-export class FunctionSelectStep
-  implements m.ClassComponent<FunctionSelectStepAttrs>
-{
+export class FunctionSelectStep implements m.ClassComponent<FunctionSelectStepAttrs> {
   view({attrs}: m.CVnode<FunctionSelectStepAttrs>) {
     return m(
       '.pf-exp-node-panel-help',
@@ -225,9 +223,7 @@ export interface FunctionConfigureStepAttrs {
 /**
  * Component for the function configuration step
  */
-export class FunctionConfigureStep
-  implements m.ClassComponent<FunctionConfigureStepAttrs>
-{
+export class FunctionConfigureStep implements m.ClassComponent<FunctionConfigureStepAttrs> {
   view({attrs}: m.CVnode<FunctionConfigureStepAttrs>) {
     const {
       selectedFunctionWithModule,

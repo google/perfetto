@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {time} from '../base/time';
-import {ScrollToArgs} from '../public/scroll_helper';
-import {WorkspaceManager} from '../public/workspace';
+import type {time} from '../base/time';
+import type {ScrollToArgs} from '../public/scroll_helper';
+import type {WorkspaceManager} from '../public/workspace';
 import {raf} from './raf_scheduler';
-import {TimelineImpl} from './timeline';
-import {TrackManagerImpl} from './track_manager';
+import type {TimelineImpl} from './timeline';
+import type {TrackManagerImpl} from './track_manager';
 
 // A helper class to help jumping to tracks and time ranges.
 // This class must NOT alter in any way the selection status. That

@@ -17,8 +17,8 @@
 --    entire duration of the trace.
 -- 2. Otherwise, the thread data is reliable from the first thread event till the end of the trace.
 -- 3. The "reliable range" is an intersection of reliable thread ranges for all threads such that:
---   a. The number of events on the thread is at or above 25p.
---   b. The event rate for the thread is at or above 75p.
+--   a. The number of events on the thread is at or above 50p.
+--   b. The event rate for the thread is at or above 95p.
 -- Note: this metric considers only chrome processes and their threads, i.e. the ones coming
 -- from track_event's.
 
@@ -30,12 +30,21 @@ CREATE OR REPLACE PERFETTO FUNCTION _extract_int_metadata(
 RETURNS LONG AS
 SELECT int_value FROM metadata WHERE name = ($name) LIMIT 1;
 
+SELECT RUN_METRIC('chrome/chrome_browser_main_thread_duration.sql');
+
 DROP VIEW IF EXISTS chrome_event_stats_per_thread;
 
 CREATE PERFETTO VIEW chrome_event_stats_per_thread
 AS
 SELECT
-  COUNT(*) AS cnt, CAST(COUNT(*) AS DOUBLE) / (MAX(ts + dur) - MIN(ts)) AS rate, utid
+  COUNT(*) AS cnt,
+  COALESCE(
+    CAST(COUNT(*) AS DOUBLE) / (
+      SELECT duration_ms FROM chrome_browser_main_thread_duration
+    ),
+    0
+  ) AS rate,
+  utid
 FROM thread_track
 JOIN slice
   ON thread_track.id = slice.track_id
@@ -44,8 +53,8 @@ GROUP BY utid;
 
 DROP VIEW IF EXISTS chrome_event_cnt_cutoff;
 
--- Ignore the bottom 25% of threads by event count. 25% is a somewhat arbitrary number. It creates a
--- cutoff at around 10 events for a typical trace, and threads with fewer events are usually:
+-- Ignore the bottom 50% of threads by event count. 50% is a somewhat arbitrary number. It creates a
+-- cutoff at around 100 events for a typical trace, and threads with fewer events are usually:
 -- 1. Not particularly interesting for the reliable range definition.
 -- 2. Create a lot of noise for other metrics, such as event rate.
 CREATE PERFETTO VIEW chrome_event_cnt_cutoff
@@ -58,11 +67,11 @@ ORDER BY
 LIMIT
   1
   OFFSET(
-    (SELECT COUNT(*) FROM chrome_event_stats_per_thread) / 4);
+    (SELECT COUNT(*) FROM chrome_event_stats_per_thread) * 50 / 100);
 
 DROP VIEW IF EXISTS chrome_event_rate_cutoff;
 
--- Choose the top 25% event rate. 25% is a somewhat arbitrary number. The goal is to strike
+-- Choose the top 5% event rate. 95% is a somewhat arbitrary number. The goal is to strike
 -- balance between not cropping too many events and making sure that the chance of data loss in the
 -- range declared "reliable" is low.
 CREATE PERFETTO VIEW chrome_event_rate_cutoff
@@ -75,7 +84,7 @@ ORDER BY
 LIMIT
   1
   OFFSET(
-    (SELECT COUNT(*) FROM chrome_event_stats_per_thread) * 3 / 4);
+    (SELECT COUNT(*) FROM chrome_event_stats_per_thread) * 95 / 100);
 
 DROP VIEW IF EXISTS chrome_reliable_range_per_thread;
 
@@ -149,8 +158,12 @@ FROM
     -- entire duration of the trace.
     SELECT upid, NULL AS reliable_from
     FROM chrome_processes_with_missing_main
+    UNION ALL
+    -- If the browser main thread duration is null or 0, the entire trace is unreliable.
+    SELECT NULL AS upid, NULL AS reliable_from
+    WHERE (SELECT duration_ms FROM chrome_browser_main_thread_duration) IS NULL
   )
-ORDER BY start DESC, upid
+ORDER BY start DESC, upid IS NOT NULL DESC, upid
 LIMIT 1;
 
 DROP VIEW IF EXISTS chrome_reliable_range;

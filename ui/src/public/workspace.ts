@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/assert';
-import {errResult, okResult, Result} from '../base/result';
+import {errResult, okResult, type Result} from '../base/result';
 
 export interface WorkspaceManager {
   // This is the same of ctx.workspace, exposed for consistency also here.

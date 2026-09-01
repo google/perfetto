@@ -35,12 +35,7 @@ class TranslationTableModule : public ProtoImporterModule {
 
   ~TranslationTableModule() override;
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket_Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
  private:
   void ParseChromeHistogramRules(protozero::ConstBytes bytes);

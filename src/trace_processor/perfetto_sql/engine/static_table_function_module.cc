@@ -56,10 +56,25 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
   }
 }
 
-std::string CreateTableStmt(uint32_t args_count,
+std::string CreateTableStmt(const char* table_name,
+                            uint32_t args_count,
                             const dataframe::DataframeSpec& spec) {
   std::string create_stmt = "CREATE TABLE x(";
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
+    // The columns of a static table function are read by random access
+    // (Dataframe::GetCell), which the scan-only SparseNull layout does not
+    // support. Catch such a column here with a clear error rather than
+    // aborting deep inside a query. Backing tables defined via the Python
+    // generator should be marked with Purpose.STATIC_TABLE_FUNCTION, which
+    // forces nullable columns to DenseNull.
+    if (spec.column_specs[i].nullability.Is<dataframe::SparseNull>()) {
+      PERFETTO_FATAL(
+          "static table function '%s' column '%s' uses the SparseNull layout, "
+          "which does not support random access; use a DenseNull (or popcount) "
+          "layout, e.g. by marking the backing table with "
+          "Purpose.STATIC_TABLE_FUNCTION",
+          table_name, spec.column_names[i].c_str());
+    }
     create_stmt += spec.column_names[i] + " " +
                    ToSqliteCreateTableType(spec.column_specs[i].type);
     create_stmt += ", ";
@@ -88,7 +103,7 @@ int StaticTableFunctionModule::Create(sqlite3* db,
 
   uint32_t args_count = state->function->GetArgumentCount();
   auto spec = state->function->CreateSpec();
-  std::string create_stmt = CreateTableStmt(args_count, spec);
+  std::string create_stmt = CreateTableStmt(argv[2], args_count, spec);
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
     *err = sqlite3_mprintf("failed to declare vtab %s", create_stmt.c_str());
     return r;
@@ -128,7 +143,7 @@ int StaticTableFunctionModule::Connect(sqlite3* db,
       vtab_state);
   uint32_t args_count = state->function->GetArgumentCount();
   auto spec = state->function->CreateSpec();
-  std::string create_stmt = CreateTableStmt(args_count, spec);
+  std::string create_stmt = CreateTableStmt(argv[2], args_count, spec);
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
     return r;
   }

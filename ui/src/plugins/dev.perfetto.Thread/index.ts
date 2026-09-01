@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
-import {
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {
   ProcessDesc,
   ThreadDesc,
   ThreadMap,
@@ -26,7 +26,7 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 
 async function listThreads(trace: Trace) {
   const query = `
@@ -147,6 +147,6 @@ export default class implements PerfettoPlugin {
   }
 
   getThreadMap() {
-    return assertExists(this.threads);
+    return ensureExists(this.threads);
   }
 }

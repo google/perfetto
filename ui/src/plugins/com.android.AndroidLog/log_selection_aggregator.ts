@@ -14,15 +14,19 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {Time} from '../../base/time';
 import {
-  AggregatePivotModel,
-  Aggregation,
-  Aggregator,
+  type Aggregation,
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
 } from '../../components/aggregation_adapter';
-import {AreaSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
+import {Timestamp} from '../../components/widgets/timestamp';
+import type {AreaSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 
 export class AndroidLogSelectionAggregator implements Aggregator {
@@ -40,33 +44,41 @@ export class AndroidLogSelectionAggregator implements Aggregator {
     const utids = logTracks
       .map((t) => t.tags?.utid as number | undefined)
       .filter((u): u is number => u !== undefined);
+    const machineIds = logTracks
+      .map((t) => t.tags?.machineId as number | undefined)
+      .filter((id): id is number => id !== undefined);
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         let whereClause = `al.ts >= ${area.start} AND al.ts <= ${area.end}`;
         if (utids.length > 0) {
           whereClause += ` AND al.utid IN (${utids.join(', ')})`;
+        } else if (machineIds.length > 0) {
+          whereClause += ` AND t.machine_id IN (${machineIds.join(', ')})`;
         }
 
-        await engine.query(`
-          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-          SELECT
-            al.id,
-            al.ts,
-            al.prio,
-            al.tag,
-            al.msg,
-            t.tid,
-            t.name AS thread_name,
-            p.pid,
-            p.name AS process_name
-          FROM android_logs al
-          LEFT JOIN thread t ON al.utid = t.utid
-          LEFT JOIN process p ON t.upid = p.upid
-          WHERE ${whereClause}
-        `);
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              al.id,
+              al.ts,
+              al.prio,
+              al.tag,
+              al.msg,
+              t.tid,
+              t.name AS thread_name,
+              p.pid,
+              p.name AS process_name
+            FROM android_logs al
+            LEFT JOIN thread t ON al.utid = t.utid
+            LEFT JOIN process p ON t.upid = p.upid
+            WHERE ${whereClause}
+          `,
+        });
 
-        return {tableName: this.id};
+        return createAggregationData(table);
       },
     };
   }
@@ -75,19 +87,13 @@ export class AndroidLogSelectionAggregator implements Aggregator {
     return 'Android Logs';
   }
 
-  getColumnDefinitions(): AggregatePivotModel {
+  private getGridConfig(): AggregatorGridConfig {
     return {
-      groupBy: [
-        {id: 'tag', field: 'tag'},
-        {id: 'prio', field: 'prio'},
-      ],
-      aggregates: [{id: 'count', function: 'COUNT'}],
-      columns: [
-        {
+      schema: {
+        id: {
           title: 'ID',
-          columnId: 'id',
-          formatHint: 'NUMERIC',
-          cellRenderer: (value) => {
+          columnType: 'identifier',
+          cellRenderer: (value: unknown) => {
             const id = typeof value === 'bigint' ? Number(value) : value;
             if (typeof id !== 'number') return String(value);
             return m(
@@ -104,15 +110,40 @@ export class AndroidLogSelectionAggregator implements Aggregator {
             );
           },
         },
-        {title: 'Timestamp', columnId: 'ts', formatHint: 'TIMESTAMP_NS'},
-        {title: 'Priority', columnId: 'prio', formatHint: 'NUMERIC'},
-        {title: 'Tag', columnId: 'tag', formatHint: 'STRING'},
-        {title: 'Message', columnId: 'msg', formatHint: 'STRING'},
-        {title: 'TID', columnId: 'tid', formatHint: 'NUMERIC'},
-        {title: 'Thread', columnId: 'thread_name', formatHint: 'STRING'},
-        {title: 'PID', columnId: 'pid', formatHint: 'NUMERIC'},
-        {title: 'Process', columnId: 'process_name', formatHint: 'STRING'},
+        ts: {
+          title: 'Timestamp',
+          columnType: 'quantitative',
+          cellRenderer: (value: unknown) => {
+            if (typeof value === 'bigint') {
+              return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
+            }
+            return String(value ?? '');
+          },
+        },
+        prio: {title: 'Priority', columnType: 'quantitative'},
+        tag: {title: 'Tag', columnType: 'text'},
+        msg: {title: 'Message', columnType: 'text'},
+        tid: {title: 'TID', columnType: 'quantitative'},
+        thread_name: {title: 'Thread', columnType: 'text'},
+        pid: {title: 'PID', columnType: 'quantitative'},
+        process_name: {title: 'Process', columnType: 'text'},
+      },
+      initialColumns: [
+        {id: 'id', field: 'id'},
+        {id: 'ts', field: 'ts'},
+        {id: 'prio', field: 'prio'},
+        {id: 'tag', field: 'tag'},
+        {id: 'msg', field: 'msg'},
+        {id: 'process_name', field: 'process_name'},
+        {id: 'thread_name', field: 'thread_name'},
       ],
+      initialPivot: {
+        groupBy: [
+          {id: 'tag', field: 'tag'},
+          {id: 'prio', field: 'prio'},
+        ],
+        aggregates: [{id: 'count', function: 'COUNT'}],
+      },
     };
   }
 }

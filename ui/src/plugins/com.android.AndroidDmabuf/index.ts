@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {CounterTrack} from '../../components/tracks/counter_track';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
@@ -45,6 +45,9 @@ export default class implements PerfettoPlugin {
         const uri = `/android_process_dmabuf_upid_${it.upid}`;
         ctx.tracks.registerTrack({
           uri,
+          tags: {
+            upid: it.upid,
+          },
           renderer: CounterTrack.create({
             trace: ctx,
             uri,
@@ -63,6 +66,9 @@ export default class implements PerfettoPlugin {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
         ctx.tracks.registerTrack({
           uri,
+          tags: {
+            utid: it.utid,
+          },
           renderer: CounterTrack.create({
             trace: ctx,
             uri,

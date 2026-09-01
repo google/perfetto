@@ -18,7 +18,7 @@ import {getColorForSlice} from '../../components/colorizer';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';

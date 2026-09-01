@@ -49,9 +49,9 @@ describe('startDragGesture', () => {
 
   test('invokes onDragFailed when released inside deadzone', () => {
     const el = makeTarget();
-    const onDrag = jest.fn();
-    const onDragEnd = jest.fn();
-    const onDragFailed = jest.fn();
+    const onDrag = vi.fn();
+    const onDragEnd = vi.fn();
+    const onDragFailed = vi.fn();
 
     const down = makePointerEvent('pointerdown', {clientX: 100, clientY: 100});
     Object.defineProperty(down, 'currentTarget', {value: el});
@@ -68,10 +68,10 @@ describe('startDragGesture', () => {
 
   test('top-level onDrag/onDragEnd fire after deadzone is crossed', () => {
     const el = makeTarget();
-    const onDrag = jest.fn();
-    const onDragEnd = jest.fn();
-    const onDragFailed = jest.fn();
-    const onDragStart = jest.fn();
+    const onDrag = vi.fn();
+    const onDragEnd = vi.fn();
+    const onDragFailed = vi.fn();
+    const onDragStart = vi.fn();
 
     const down = makePointerEvent('pointerdown', {clientX: 0, clientY: 0});
     Object.defineProperty(down, 'currentTarget', {value: el});
@@ -112,8 +112,8 @@ describe('startDragGesture', () => {
 
   test('works with no onDragStart at all (direct mode)', () => {
     const el = makeTarget();
-    const onDrag = jest.fn();
-    const onDragEnd = jest.fn();
+    const onDrag = vi.fn();
+    const onDragEnd = vi.fn();
 
     const down = makePointerEvent('pointerdown');
     Object.defineProperty(down, 'currentTarget', {value: el});
@@ -133,10 +133,10 @@ describe('startDragGesture', () => {
 
   test('per-gesture handlers from onDragStart override top-level ones', () => {
     const el = makeTarget();
-    const topOnDrag = jest.fn();
-    const topOnDragEnd = jest.fn();
-    const perOnDrag = jest.fn();
-    const perOnDragEnd = jest.fn();
+    const topOnDrag = vi.fn();
+    const topOnDragEnd = vi.fn();
+    const perOnDrag = vi.fn();
+    const perOnDragEnd = vi.fn();
 
     const down = makePointerEvent('pointerdown');
     Object.defineProperty(down, 'currentTarget', {value: el});
@@ -163,8 +163,8 @@ describe('startDragGesture', () => {
 
   test('listeners are removed after gesture ends', () => {
     const el = makeTarget();
-    const onDrag = jest.fn();
-    const onDragEnd = jest.fn();
+    const onDrag = vi.fn();
+    const onDragEnd = vi.fn();
 
     const down = makePointerEvent('pointerdown');
     Object.defineProperty(down, 'currentTarget', {value: el});
@@ -188,10 +188,10 @@ describe('startDragGesture', () => {
 
   test('deadzonePx: 0 starts the drag immediately on pointerdown', () => {
     const el = makeTarget();
-    const onDragStart = jest.fn();
-    const onDrag = jest.fn();
-    const onDragEnd = jest.fn();
-    const onDragFailed = jest.fn();
+    const onDragStart = vi.fn();
+    const onDrag = vi.fn();
+    const onDragEnd = vi.fn();
+    const onDragFailed = vi.fn();
 
     const down = makePointerEvent('pointerdown', {clientX: 10, clientY: 10});
     Object.defineProperty(down, 'currentTarget', {value: el});
@@ -215,8 +215,8 @@ describe('startDragGesture', () => {
 
   test('pointercancel ends the gesture like pointerup', () => {
     const el = makeTarget();
-    const onDragEnd = jest.fn();
-    const onDragFailed = jest.fn();
+    const onDragEnd = vi.fn();
+    const onDragFailed = vi.fn();
 
     const down = makePointerEvent('pointerdown');
     Object.defineProperty(down, 'currentTarget', {value: el});

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 import {serializeState, deserializeState} from './json_handler';
-import {Trace} from '../../public/trace';
-import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import type {Trace} from '../../public/trace';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 const MAX_HISTORY_SIZE = 10;
 

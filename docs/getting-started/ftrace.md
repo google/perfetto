@@ -34,8 +34,9 @@ per-thread scheduling tracks in the UI, backed by queryable SQL tables.
 
 TIP: if you simply want to visualise the execution of kernel functions, perfetto
 has built-in visualisation for the `function_graph` tracer built into ftrace,
-which does not require any additional instrumentation. See [these config
-options][funcgraph-cfg-link] for more details.
+which does not require any additional instrumentation. See the
+[function graph data source](/docs/data-sources/funcgraph.md) page (or [these
+config options][funcgraph-cfg-link]) for more details.
 
 This page is split into three sections:
 - [Part A][section-a-link]: covers creating an example kernel module with a

@@ -16,7 +16,7 @@ import m from 'mithril';
 import {HSLColor} from '../../base/color';
 import {clamp} from '../../base/math_utils';
 import {makeColorScheme} from '../../components/colorizer';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {DurationWidget} from '../../components/widgets/duration';

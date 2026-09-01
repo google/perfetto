@@ -14,16 +14,14 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 
 interface DurationPrecisionMenuItemAttrs {
   trace: Trace;
 }
 
-export class DurationPrecisionMenuItem
-  implements m.ClassComponent<DurationPrecisionMenuItemAttrs>
-{
+export class DurationPrecisionMenuItem implements m.ClassComponent<DurationPrecisionMenuItemAttrs> {
   view({attrs}: m.Vnode<DurationPrecisionMenuItemAttrs>) {
     function renderMenuItem(value: DurationPrecision, label: string) {
       return m(MenuItem, {

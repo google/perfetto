@@ -15,9 +15,9 @@
 import {Monitor} from './monitor';
 
 test('callback is called when state changes', () => {
-  const reducer = jest.fn().mockReturnValue('foo');
+  const reducer = vi.fn().mockReturnValue('foo');
   const monitor = new Monitor([reducer]);
-  const mockCallback = jest.fn();
+  const mockCallback = vi.fn();
 
   monitor.ifStateChanged(mockCallback);
   expect(mockCallback).toHaveBeenCalledTimes(1);

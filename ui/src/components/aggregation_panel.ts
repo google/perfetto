@@ -14,26 +14,28 @@
 
 import m from 'mithril';
 import {Duration} from '../base/time';
-import {SqlValue} from '../trace_processor/query_result';
+import type {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
-import {BarChartData, ColumnDef} from './aggregation';
-import {DataGrid, renderCell, DataGridApi} from './widgets/datagrid/datagrid';
-import {defaultValueFormatter} from './widgets/datagrid/export_utils';
-import {AggregatePivotModel, DataGridState} from './aggregation_adapter';
+import type {BarChartData} from './aggregation';
 import {
+  DataGrid,
+  renderCell,
+  type DataGridApi,
+} from './widgets/datagrid/datagrid';
+import {defaultValueFormatter} from './widgets/datagrid/export_utils';
+import type {AggregatorGridConfig, DataGridState} from './aggregation_adapter';
+import type {
   CellRenderer,
-  ColumnSchema,
   ColumnType,
-  SchemaRegistry,
 } from './widgets/datagrid/datagrid_schema';
-import {DataSource} from './widgets/datagrid/data_source';
+import type {DataSource} from './widgets/datagrid/data_source';
 import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 
 export interface AggregationPanelAttrs {
   readonly dataSource: DataSource;
-  readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
+  readonly gridConfig: AggregatorGridConfig;
   readonly barChartData?: ReadonlyArray<BarChartData>;
   readonly onReady?: (api: DataGridApi) => void;
   readonly dataGridState?: DataGridState;
@@ -41,13 +43,11 @@ export interface AggregationPanelAttrs {
   readonly controls?: m.Children;
 }
 
-export class AggregationPanel
-  implements m.ClassComponent<AggregationPanelAttrs>
-{
+export class AggregationPanel implements m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     const {
       dataSource,
-      columns,
+      gridConfig,
       barChartData,
       onReady,
       dataGridState,
@@ -62,7 +62,7 @@ export class AggregationPanel
         this.renderTable(
           controls,
           dataSource,
-          columns,
+          gridConfig,
           onReady,
           dataGridState,
           onClearGridState,
@@ -74,32 +74,14 @@ export class AggregationPanel
   private renderTable(
     controls: m.Children | undefined,
     dataSource: DataSource,
-    model: ReadonlyArray<ColumnDef> | AggregatePivotModel,
+    gridConfig: AggregatorGridConfig,
     onReady?: (api: DataGridApi) => void,
     dataGridState?: DataGridState,
     onClearGridState?: () => void,
   ) {
-    // Get column definitions - either from pivot model or flat model
-    const columnDefs = 'groupBy' in model ? model.columns : model;
-
-    // Build schema from column definitions
-    const columnSchema: ColumnSchema = {};
-    for (const c of columnDefs) {
-      columnSchema[c.columnId] = {
-        title: c.title,
-        titleString: c.title,
-        columnType: filterTypeForColumnDef(c.formatHint),
-        cellRenderer:
-          c.cellRenderer ?? getCellRenderer(c.formatHint, c.columnId),
-        cellFormatter: getValueFormatter(c.formatHint),
-      };
-    }
-    const schema: SchemaRegistry = {data: columnSchema};
-
     return m(DataGrid, {
       fillHeight: true,
-      schema,
-      rootSchema: 'data',
+      schema: gridConfig.schema,
       data: dataSource,
       onReady,
       // Spread controlled state props (columns, filters, pivot and callbacks)
@@ -139,7 +121,7 @@ export class AggregationPanel
   }
 }
 
-function filterTypeForColumnDef(
+export function filterTypeForFormatHint(
   formatHint: string | undefined,
 ): ColumnType | undefined {
   switch (formatHint) {
@@ -157,7 +139,7 @@ function filterTypeForColumnDef(
   }
 }
 
-function getValueFormatter(
+export function getValueFormatter(
   formatHint: string | undefined,
 ): (value: SqlValue) => string {
   switch (formatHint) {
@@ -170,7 +152,7 @@ function getValueFormatter(
   }
 }
 
-function getCellRenderer(
+export function getCellRenderer(
   formatHint: string | undefined,
   columnName: string,
 ): CellRenderer {
@@ -186,7 +168,7 @@ function getCellRenderer(
   }
 }
 
-function formatDurationValue(value: SqlValue): string {
+export function formatDurationValue(value: SqlValue): string {
   if (typeof value === 'bigint') {
     return Duration.humanise(value);
   } else if (typeof value === 'number') {
@@ -196,7 +178,7 @@ function formatDurationValue(value: SqlValue): string {
   }
 }
 
-function formatPercentValue(value: SqlValue): string {
+export function formatPercentValue(value: SqlValue): string {
   if (typeof value === 'number') {
     return `${(value * 100).toFixed(2)}%`;
   } else {

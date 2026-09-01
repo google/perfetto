@@ -15,28 +15,33 @@
 import m from 'mithril';
 import {BigintMath} from '../../base/bigint_math';
 import {exists} from '../../base/utils';
-import {SliceDetails} from '../sql_utils/slice';
+import type {SliceDetails} from '../sql_utils/slice';
 import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {
-  BreakdownByThreadState,
+  type BreakdownByThreadState,
   BreakdownByThreadStateTreeNode,
 } from './thread_state';
 import {DurationWidget} from '../widgets/duration';
 import {renderProcessRef} from '../widgets/process';
 import {renderThreadRef} from '../widgets/thread';
 import {Timestamp} from '../widgets/timestamp';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {
-  DistributionPanelAttrs,
+  type DistributionPanelAttrs,
   openDistributionTab,
 } from '../distribution_panel';
-import {LONG, NUM, Row, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  type Row,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {Time} from '../../base/time';
-import {Dataset, UnionDataset} from '../../trace_processor/dataset';
+import {type Dataset, UnionDataset} from '../../trace_processor/dataset';
 
 export type DistributionScope = 'track' | 'all';
 

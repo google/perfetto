@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {StandardGroup} from '../dev.perfetto.StandardGroups';
+import type {StandardGroup} from '../dev.perfetto.StandardGroups';
 
 export type TopLevelTrackGroup =
-  | 'PROCESS'
-  | 'THREAD'
-  | StandardGroup
-  | undefined;
+  'PROCESS' | 'THREAD' | StandardGroup | undefined;
 
 export interface TrackGroupSchema {
   name: string;

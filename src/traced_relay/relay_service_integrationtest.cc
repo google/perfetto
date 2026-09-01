@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/unix_socket.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced_relay/relay_service.h"
 
@@ -26,6 +27,7 @@
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
+#include "protos/perfetto/common/trace_stats.gen.h"
 #include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
@@ -329,6 +331,108 @@ TEST(TracedRelayIntegrationTest, RelayClient) {
   ASSERT_EQ(system_info_counts.begin()->second, 1u);
   ASSERT_EQ(system_info_counts.rbegin()->second, 1u);
   ASSERT_TRUE(clock_sync_packet_seen);
+}
+
+// Drives the shmem-emulation commit path with enough volume that the
+// producer's emulated SMB page indices exceed the (smaller) service-side SMB.
+// Pre-#6051 this caused ~75% of chunks to be silently rejected.
+TEST(TracedRelayIntegrationTest, HighVolumeProducer) {
+  base::TestTaskRunner task_runner;
+
+  std::string sock_name;
+  {
+    base::UnixSocket::EventListener event_listener;
+    auto srv = base::UnixSocket::Listen("127.0.0.1:0", &event_listener,
+                                        &task_runner, base::SockFamily::kInet,
+                                        base::SockType::kStream);
+    ASSERT_TRUE(srv->is_listening());
+    sock_name = srv->GetSockAddr();
+  }
+
+  TestHelper helper(&task_runner, TestHelper::Mode::kStartDaemons,
+                    sock_name.c_str(), /*enable_relay_endpoint=*/true);
+  ASSERT_EQ(helper.num_producers(), 1u);
+  helper.StartServiceIfRequired();
+
+  auto producer_connected =
+      task_runner.CreateCheckpoint("perfetto.FakeProducer.connected");
+  auto producer_enabled =
+      task_runner.CreateCheckpoint("perfetto.FakeProducer.enabled");
+  auto noop = []() {};
+  auto connected = [&]() { task_runner.PostTask(producer_connected); };
+  auto on_enabled = [&]() { task_runner.PostTask(producer_enabled); };
+
+  auto producer_thread = std::make_unique<FakeProducerThread>(
+      sock_name, connected, noop, on_enabled, "perfetto.FakeProducer");
+  producer_thread->runner()->PostTaskAndWaitForTesting([&] {
+    producer_thread->producer()->set_buffer_exhausted_policy(
+        BufferExhaustedPolicy::kDrop);
+  });
+  producer_thread->Connect();
+  task_runner.RunUntilCheckpoint("perfetto.FakeProducer.connected");
+
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  // Sized to comfortably exceed the service-side SMB's 64-page count
+  // (1000 * 1 KiB packets ≈ 250 chunks at default 4 KiB chunk size) while
+  // still finishing well under the test timeout on slow debug builds.
+  constexpr uint32_t kMessagesPerBatch = 100;
+  constexpr uint32_t kIterations = 10;
+  constexpr uint32_t kMessageSize = 1024;
+  constexpr uint32_t kSeed = 42;
+
+  TraceConfig trace_config;
+  trace_config.set_trace_all_machines(true);
+  auto* buf_cfg = trace_config.add_buffers();
+  buf_cfg->set_size_kb(8 * 1024);
+  buf_cfg->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("perfetto.FakeProducer");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_for_testing()->set_seed(kSeed);
+  ds_config->mutable_for_testing()->set_message_count(kMessagesPerBatch);
+  ds_config->mutable_for_testing()->set_message_size(kMessageSize);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+
+  helper.StartTracing(trace_config);
+  task_runner.RunUntilCheckpoint("perfetto.FakeProducer.enabled");
+
+  for (uint32_t i = 1; i < kIterations; i++) {
+    auto cp = "batch.done." + std::to_string(i);
+    auto done = task_runner.CreateCheckpoint(cp);
+    producer_thread->producer()->ProduceEventBatch(
+        [&task_runner, done] { task_runner.PostTask(done); });
+    task_runner.RunUntilCheckpoint(cp);
+  }
+
+  auto sync_done = task_runner.CreateCheckpoint("perfetto.FakeProducer.sync");
+  producer_thread->producer()->Sync(
+      [&task_runner, sync_done] { task_runner.PostTask(sync_done); });
+  task_runner.RunUntilCheckpoint("perfetto.FakeProducer.sync");
+
+  helper.FlushAndWait(5000);
+  helper.DisableTracing();
+  helper.WaitForTracingDisabled();
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  size_t packets_received = 0;
+  for (const auto& packet : helper.trace()) {
+    if (packet.has_for_testing())
+      packets_received++;
+  }
+  EXPECT_EQ(packets_received, kIterations * kMessagesPerBatch);
+
+  uint64_t trace_writer_packet_loss = 0;
+  for (const auto& packet : helper.full_trace()) {
+    if (!packet.has_trace_stats())
+      continue;
+    for (const auto& buf : packet.trace_stats().buffer_stats())
+      trace_writer_packet_loss += buf.trace_writer_packet_loss();
+  }
+  EXPECT_EQ(trace_writer_packet_loss, 0u);
 }
 
 }  // namespace

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Duration, duration, Time, time} from '../../base/time';
+import {Duration, type duration, Time, type time} from '../../base/time';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -22,11 +22,11 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Anchor} from '../../widgets/anchor';
-import {Engine} from '../../trace_processor/engine';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import type {Engine} from '../../trace_processor/engine';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackEventSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {ThreadMap} from '../dev.perfetto.Thread/threads';
 
 interface SuspendResumeEventDetails {
   ts: time;

@@ -21,6 +21,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
@@ -45,6 +46,7 @@ class PrunePackageListIntegrationTest
 
     trace_redactor_.emplace_collect<FindPackageUid>();
     trace_redactor_.emplace_transform<PrunePackageList>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
   }
 
   std::vector<protos::gen::PackagesList::PackageInfo> GetPackageInfo(

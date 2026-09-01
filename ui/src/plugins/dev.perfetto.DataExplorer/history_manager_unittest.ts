@@ -13,16 +13,19 @@
 // limitations under the License.
 
 import {HistoryManager} from './history_manager';
-import {DataExplorerState} from './data_explorer';
-import {Trace} from '../../public/trace';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import type {DataExplorerState} from './data_explorer';
+import type {Trace} from '../../public/trace';
+import type {
+  SqlModules,
+  SqlTable,
+} from '../dev.perfetto.SqlModules/sql_modules';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {FilterNode} from './query_builder/nodes/filter_node';
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import {addConnection, removeConnection} from './query_builder/graph_utils';
-import {UIFilter} from './query_builder/operations/filter';
-import {ColumnInfo} from './query_builder/column_info';
+import type {UIFilter} from './query_builder/operations/filter';
+import type {ColumnInfo} from './query_builder/column_info';
 import {registerCoreNodes} from './query_builder/core_nodes';
 
 registerCoreNodes();

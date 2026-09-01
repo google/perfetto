@@ -33,6 +33,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/httpd.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "src/trace_processor/rpc/session_lifecycle.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -56,7 +57,9 @@ class Httpd : public base::HttpRequestHandler {
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
-           const std::vector<std::string>& additional_cors_origins);
+           const std::vector<std::string>& additional_cors_origins,
+           uint32_t idle_timeout_ms,
+           IdleStart idle_start);
 
  private:
   // HttpRequestHandler implementation.
@@ -68,6 +71,7 @@ class Httpd : public base::HttpRequestHandler {
   Rpc& global_trace_processor_rpc_;
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
+  std::unique_ptr<IdleReaper> reaper_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -101,7 +105,9 @@ Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
                 int port,
-                const std::vector<std::string>& additional_cors_origins) {
+                const std::vector<std::string>& additional_cors_origins,
+                uint32_t idle_timeout_ms,
+                IdleStart idle_start) {
   for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
     http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
   }
@@ -114,10 +120,16 @@ void Httpd::Run(const std::string& listen_ip,
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
+  reaper_ =
+      std::make_unique<IdleReaper>(&task_runner_, idle_timeout_ms, idle_start,
+                                   [this] { task_runner_.Quit(); });
+  reaper_->Start();
   task_runner_.Run();
 }
 
 void Httpd::OnHttpRequest(const base::HttpRequest& req) {
+  if (reaper_)
+    reaper_->OnActivity();
   base::HttpServerConnection& conn = *req.conn;
   if (req.uri == "/") {
     // If a user tries to open http://127.0.0.1:9001/ show a minimal help page.
@@ -255,10 +267,51 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
+  if (req.uri == "/export") {
+    protos::pbzero::ExportArgs::Decoder args(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    std::optional<TraceProcessor::ExportFormat> format =
+        Rpc::ParseExportFormat(args.format());
+    if (!format) {
+      return conn.SendResponseAndClose("400 Bad Request", default_headers,
+                                       "Export format is required");
+    }
+
+    // Stream raw export bytes directly, using the same framing as /query.
+    conn.SendResponseHeaders("200 OK", chunked_headers,
+                             base::HttpServerConnection::kOmitContentLength);
+    auto on_chunk = [&](const uint8_t* buf, size_t len,
+                        bool has_more) -> base::Status {
+      PERFETTO_DLOG("Sending export chunk, len=%zu eof=%d", len, !has_more);
+      if (buf && len > 0) {
+        base::StackString<32> chunk_hdr("%zx\r\n", len);
+        if (!conn.SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len()) ||
+            !conn.SendResponseBody(buf, len) ||
+            !conn.SendResponseBody("\r\n", 2)) {
+          return base::ErrStatus("HTTP client disconnected during export");
+        }
+      }
+      if (!has_more && !conn.SendResponseBody("0\r\n\r\n", 5)) {
+        return base::ErrStatus("HTTP client disconnected during export");
+      }
+      return base::OkStatus();
+    };
+    base::Status status = global_trace_processor_rpc_.Export(*format, on_chunk);
+    if (!status.ok()) {
+      // The 200 response has already started, so a second HTTP response cannot
+      // be sent. Leave the chunked body incomplete to signal the failure.
+      PERFETTO_DLOG("Export failed: %s", status.c_message());
+      return conn.Close();
+    }
+    return;
+  }
+
   return conn.SendResponseAndClose("404 Not Found", default_headers);
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
+  if (reaper_)
+    reaper_->OnActivity();
   global_trace_processor_rpc_.SetRpcResponseFunction(
       [&](const void* data, uint32_t len) {
         SendRpcChunk(msg.conn, data, len);
@@ -273,12 +326,14 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 void RunHttpRPCServer(Rpc& rpc,
                       const std::string& listen_ip,
                       const std::string& port_number,
-                      const std::vector<std::string>& additional_cors_origins) {
+                      const std::vector<std::string>& additional_cors_origins,
+                      uint32_t idle_timeout_ms,
+                      IdleStart idle_start) {
   Httpd srv(rpc);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port, additional_cors_origins);
+  srv.Run(ip, port, additional_cors_origins, idle_timeout_ms, idle_start);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {

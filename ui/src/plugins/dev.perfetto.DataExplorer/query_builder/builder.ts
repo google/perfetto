@@ -105,33 +105,32 @@ import {classNames} from '../../../base/classnames';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Icon} from '../../../widgets/icon';
-import {Trace} from '../../../public/trace';
-import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, Query} from '../query_node';
+import type {Trace} from '../../../public/trace';
+import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import type {QueryNode, Query} from '../query_node';
 import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodePanel} from './node_panel';
-import {Graph, GraphCallbacks} from './graph/graph';
+import {Graph, type GraphCallbacks} from './graph/graph';
 import {ResultsPanel} from './results_panel';
 import {
   DrawerPanel,
   DrawerPanelVisibility,
 } from '../../../widgets/drawer_panel';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import {QueryResponse} from '../../../components/query_table/queries';
+import type {QueryResponse} from '../../../components/query_table/queries';
 import QueryPagePlugin from '../../dev.perfetto.QueryPage';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
 import {ResultsPanelEmptyState, RoundActionButton} from './widgets';
-import {UIFilter} from './operations/filter';
-import {QueryExecutionService} from './query_execution_service';
-import {Column} from '../../../components/widgets/datagrid/model';
+import type {UIFilter} from './operations/filter';
+import type {QueryExecutionService} from './query_execution_service';
+import type {Column} from '../../../components/widgets/datagrid/model';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {getAllDownstreamNodes, getAllNodes} from './graph_utils';
 import {Popup, PopupPosition} from '../../../widgets/popup';
-import {DataSource} from '../../../components/widgets/datagrid/data_source';
+import type {DataSource} from '../../../components/widgets/datagrid/data_source';
 import {NavigationSidePanel} from './navigation_sidepanel';
 
 // Side panel width - must match --pf-qb-side-panel-width in builder.scss
@@ -403,7 +402,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           })
-        : selectedNode?.customResultsPanel?.() ??
+        : (selectedNode?.customResultsPanel?.() ??
           (selectedNode
             ? m(ResultsPanel, {
                 trace: this.trace,
@@ -448,7 +447,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             : m(ResultsPanelEmptyState, {
                 icon: 'info',
                 title: 'Select a node to see the data',
-              })),
+              }))),
       mainContent: [
         m(
           '.pf-qb-node-graph',
@@ -639,8 +638,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
     this.dataSource = new SQLDataSource({
       engine,
-      sqlSchema: createSimpleSchema(result.tableName),
-      rootSchemaName: 'query',
+      tableOrSubquery: result.tableName,
     });
     this.isQueryRunning = false;
 

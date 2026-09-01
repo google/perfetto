@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlTableDefinition} from './table/table_description';
+import type {SqlTableDefinition} from './table/table_description';
 import {PerfettoSqlTypes} from '../../../trace_processor/perfetto_sql_type';
 
 // Opinionated definitions of commonly used SQL tables.

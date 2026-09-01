@@ -16,8 +16,8 @@
 // it. If a render option is already provided, it is used instead of the default
 // rendering logic.
 
-import m from 'mithril';
-import {TrackSettingDescriptor} from '../public/track';
+import type m from 'mithril';
+import type {TrackSettingDescriptor} from '../public/track';
 
 /**
  * Infers the type of the setting from its descriptor and renders a suitable

@@ -201,6 +201,44 @@ TEST_F(VmTest, CloneReadOnly) {
   ASSERT_EQ(cloned_state.elements(1).value(), 11);
 }
 
+TEST_F(VmTest, ApplyPatch_DelAliasedRoot) {
+  auto program = SamplePrograms::DelAliasedRoot().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  ASSERT_TRUE(status.IsOk());
+}
+
+TEST_F(VmTest, ApplyPatch_DelAliasedDstAborts1) {
+  auto program =
+      SamplePrograms::DelAliasedDstInsideSrcSelect().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  ASSERT_TRUE(status.IsAbort());
+}
+
+TEST_F(VmTest, ApplyPatch_DelAliasedDstAborts2) {
+  auto program = SamplePrograms::DelAliasedDstInsideEmptyPathDstSelect()
+                     .SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  ASSERT_TRUE(status.IsAbort());
+}
+
+TEST_F(VmTest, ApplyPatch_AccessDeletedDstAborts) {
+  auto program = SamplePrograms::DelAndNestedDel().SerializeAsString();
+  Vm vm{AsConstBytes(program), MEMORY_LIMIT_BYTES};
+
+  auto patch = SamplePackets::PatchWithInitialState().SerializeAsString();
+  auto status = vm.ApplyPatch(AsConstBytes(patch));
+  ASSERT_TRUE(status.IsAbort());
+}
+
 TEST_F(VmTest, GetMemoryUsage) {
   auto program =
       SamplePrograms::IncrementalTraceInstructions().SerializeAsString();

@@ -15,21 +15,21 @@
 import m from 'mithril';
 import {Icons} from '../../../../../base/semantic_icons';
 import {MenuItem} from '../../../../../widgets/menu';
-import {
+import type {
   TableColumn,
   RenderedCell,
   RenderCellContext,
   ListColumnsContext,
 } from '../table_column';
-import {SqlTableState} from '../state';
+import type {SqlTableState} from '../state';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
   typesEqual,
   underlyingSqlType,
 } from '../../../../../trace_processor/perfetto_sql_type';
-import {SqlColumn, sqlColumnId, SqlExpression} from '../sql_column';
-import {SqlValue} from '../../../../../trace_processor/query_result';
+import {type SqlColumn, sqlColumnId, SqlExpression} from '../sql_column';
+import type {SqlValue} from '../../../../../trace_processor/query_result';
 import {createTableColumn} from '../columns';
 
 type CastParams = {

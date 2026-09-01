@@ -14,9 +14,9 @@
 
 import {
   MetricsNode,
-  MetricsNodeAttrs,
-  MetricsNodeState,
-  ValueColumnConfig,
+  type MetricsNodeAttrs,
+  type MetricsNodeState,
+  type ValueColumnConfig,
 } from './metrics_node';
 import {parseMetricBundleForValue} from './metrics_export_modal';
 import {NodeType} from '../../query_node';
@@ -28,7 +28,6 @@ import {
   createMockNodeWithStructuredQuery,
   expectValidationSuccess,
 } from '../testing/test_utils';
-import {isColumnDef} from '../../../../components/widgets/datagrid/datagrid_schema';
 import protos from '../../../../protos';
 
 // Helper to build a minimal valid state with one value column.
@@ -994,7 +993,7 @@ describe('MetricsNode', () => {
     });
 
     it('should preserve onchange callback', () => {
-      const onchange = jest.fn();
+      const onchange = vi.fn();
       const node = new MetricsNode(makeState(), {onchange});
 
       const cloned = node.clone() as MetricsNode;
@@ -1418,18 +1417,18 @@ describe('parseMetricBundleForValue', () => {
 
     expect(result).toBeDefined();
     if (result !== undefined) {
-      const schema = result.schema[result.metricId];
+      const schema = result.schema;
       const processEntry = schema['process'];
       const threadEntry = schema['thread'];
       const cpuEntry = schema['cpu'];
       // Schema values for leaf columns are ColumnDef objects with columnType.
       expect(
-        isColumnDef(processEntry) ? processEntry.columnType : undefined,
+        'columnType' in processEntry ? processEntry.columnType : undefined,
       ).toBe('text');
       expect(
-        isColumnDef(threadEntry) ? threadEntry.columnType : undefined,
+        'columnType' in threadEntry ? threadEntry.columnType : undefined,
       ).toBe('text');
-      expect(isColumnDef(cpuEntry) ? cpuEntry.columnType : undefined).toBe(
+      expect('columnType' in cpuEntry ? cpuEntry.columnType : undefined).toBe(
         'quantitative',
       );
     }

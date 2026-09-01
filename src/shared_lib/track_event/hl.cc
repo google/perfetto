@@ -41,6 +41,8 @@ protos::pbzero::TrackEvent::Type EventType(int32_t type) {
       return Type::TYPE_INSTANT;
     case PERFETTO_TE_TYPE_COUNTER:
       return Type::TYPE_COUNTER;
+    case PERFETTO_TE_TYPE_STATE:
+      return Type::TYPE_STATE;
   }
   return Type::TYPE_UNSPECIFIED;
 }
@@ -269,6 +271,20 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
 
   for (const auto* it = extra_data; *it != nullptr; it++) {
     const struct PerfettoTeHlExtra& extra = **it;
+    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID) {
+      event->set_correlation_id(
+          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationId&>(extra)
+              .id);
+    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR) {
+      event->set_correlation_id_str(
+          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationIdStr&>(
+              extra)
+              .str);
+    }
+  }
+
+  for (const auto* it = extra_data; *it != nullptr; it++) {
+    const struct PerfettoTeHlExtra& extra = **it;
     if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS) {
       const auto* fields =
           reinterpret_cast<const struct PerfettoTeHlExtraProtoFields&>(extra)
@@ -278,15 +294,15 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
   }
 }
 
+// Emits (once per sequence) the track descriptor for the named track described
+// by `track` (its `header` is ignored) and returns the derived track uuid.
 uint64_t EmitNamedTrack(uint64_t parent_uuid,
-                        const char* name,
-                        uint64_t id,
-                        bool is_name_static,
+                        const PerfettoTeHlNestedTrackNamed& track,
                         perfetto::shlib::TrackEventIncrementalState* incr_state,
                         perfetto::TraceWriterBase* trace_writer) {
   uint64_t uuid = parent_uuid;
-  uuid ^= PerfettoFnv1a(name, strlen(name));
-  uuid ^= id;
+  uuid ^= PerfettoFnv1a(track.name, strlen(track.name));
+  uuid ^= track.id;
   if (incr_state->seen_track_uuids.insert(uuid).second) {
     auto packet = trace_writer->NewTracePacket();
     auto* track_descriptor = packet->set_track_descriptor();
@@ -294,10 +310,33 @@ uint64_t EmitNamedTrack(uint64_t parent_uuid,
     if (parent_uuid) {
       track_descriptor->set_parent_uuid(parent_uuid);
     }
-    if (is_name_static) {
-      track_descriptor->set_static_name(name);
+    if (track.is_name_static) {
+      track_descriptor->set_static_name(track.name);
     } else {
-      track_descriptor->set_name(name);
+      track_descriptor->set_name(track.name);
+    }
+    if (track.sibling_order_rank != 0) {
+      track_descriptor->set_sibling_order_rank(track.sibling_order_rank);
+    }
+    if (track.child_ordering != PERFETTO_TE_HL_CHILD_ORDERING_UNKNOWN) {
+      track_descriptor->set_child_ordering(
+          static_cast<protos::pbzero::TrackDescriptor::ChildTracksOrdering>(
+              track.child_ordering));
+    }
+    if (track.sibling_merge_behavior !=
+        PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_UNSPECIFIED) {
+      track_descriptor->set_sibling_merge_behavior(
+          static_cast<protos::pbzero::TrackDescriptor::SiblingMergeBehavior>(
+              track.sibling_merge_behavior));
+    }
+    if (track.sibling_merge_behavior ==
+        PERFETTO_TE_HL_SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY) {
+      if (track.sibling_merge_key_str) {
+        track_descriptor->set_sibling_merge_key(track.sibling_merge_key_str);
+      } else {
+        track_descriptor->set_sibling_merge_key_int(
+            track.sibling_merge_key_int);
+      }
     }
   }
   return uuid;
@@ -464,9 +503,12 @@ void InstanceOp(internal::DataSourceType* ds,
   } else if (std::holds_alternative<const PerfettoTeHlExtraNamedTrack*>(
                  track)) {
     auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
-    track_uuid = EmitNamedTrack(named_track->parent_uuid, named_track->name,
-                                named_track->id, named_track->is_name_static,
-                                incr_state, trace_writer);
+    PerfettoTeHlNestedTrackNamed named{};
+    named.name = named_track->name;
+    named.id = named_track->id;
+    named.is_name_static = named_track->is_name_static;
+    track_uuid = EmitNamedTrack(named_track->parent_uuid, named, incr_state,
+                                trace_writer);
   } else if (std::holds_alternative<const PerfettoTeHlExtraProtoTrack*>(
                  track)) {
     auto* proto_track = std::get<const PerfettoTeHlExtraProtoTrack*>(track);
@@ -487,10 +529,7 @@ void InstanceOp(internal::DataSourceType* ds,
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED: {
           auto* named_track =
               reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
-          // Currently static names for nested tracks is not supported.
-          uuid = EmitNamedTrack(uuid, named_track->name, named_track->id,
-                                /*is_name_static_=*/false, incr_state,
-                                trace_writer);
+          uuid = EmitNamedTrack(uuid, *named_track, incr_state, trace_writer);
         } break;
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {
           uuid = perfetto_te_process_track_uuid;

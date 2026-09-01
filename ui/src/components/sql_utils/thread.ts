@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {fromNumNull} from '../../trace_processor/sql_utils';
-import {ProcessInfo, getProcessInfo, getProcessName} from './process';
-import {Upid, Utid} from './core_types';
+import {type ProcessInfo, getProcessInfo, getProcessName} from './process';
+import type {Upid, Utid} from './core_types';
 
 // TODO(altimin): We should consider implementing some form of cache rather than querying
 // the data from trace processor each time.

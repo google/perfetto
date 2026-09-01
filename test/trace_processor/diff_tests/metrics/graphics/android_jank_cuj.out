@@ -154,6 +154,7 @@ android_jank_cuj {
       anim_duration: 500000000
       weighted_missed_app_frames: 0.1125
       weighted_missed_sf_frames: 0.2105
+      weighted_missed_frames: 0.26
     }
     timeline_metrics {
       total_frames: 6
@@ -174,6 +175,7 @@ android_jank_cuj {
       hwui_callback_missed_frames: 0
       weighted_missed_app_frames: 26.0
       weighted_missed_sf_frames: 10.0
+      weighted_missed_frames: 26.0
     }
     trace_metrics {
       total_frames: 6
@@ -194,6 +196,7 @@ android_jank_cuj {
       hwui_callback_missed_frames: 0
       weighted_missed_app_frames: 26.0
       weighted_missed_sf_frames: 10.0
+      weighted_missed_frames: 26.0
     }
   }
   cuj {
@@ -445,6 +448,7 @@ android_jank_cuj {
       anim_duration: 250000000
       weighted_missed_app_frames: 0.25625
       weighted_missed_sf_frames: 0.0355
+      weighted_missed_frames: 0.45
     }
     timeline_metrics {
       total_frames: 13
@@ -465,6 +469,7 @@ android_jank_cuj {
       hwui_callback_missed_frames: 1
       weighted_missed_app_frames: 38.0
       weighted_missed_sf_frames: 17.0
+      weighted_missed_frames: 45.0
     }
     trace_metrics {
       total_frames: 13
@@ -485,6 +490,7 @@ android_jank_cuj {
       hwui_callback_missed_frames: 1
       weighted_missed_app_frames: 38.0
       weighted_missed_sf_frames: 17.0
+      weighted_missed_frames: 45.0
     }
   }
 }

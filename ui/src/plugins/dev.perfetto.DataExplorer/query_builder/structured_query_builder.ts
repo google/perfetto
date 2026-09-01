@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {nextNodeId, QueryNode} from '../query_node';
+import {nextNodeId, type QueryNode} from '../query_node';
 
 /**
  * ARCHITECTURE: Query Building Strategy - Reference vs. Embedding
@@ -47,9 +47,7 @@ import {nextNodeId, QueryNode} from '../query_node';
  * Builder methods accept nodes or structured queries and extract/use them internally.
  */
 export type QuerySource =
-  | QueryNode
-  | protos.PerfettoSqlStructuredQuery
-  | undefined;
+  QueryNode | protos.PerfettoSqlStructuredQuery | undefined;
 
 /**
  * Helper function to extract a structured query from a QuerySource.

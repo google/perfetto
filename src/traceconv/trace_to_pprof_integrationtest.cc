@@ -43,11 +43,13 @@ pprof::PprofProfileReader ConvertTraceToPprof(
   base::TempDir temp_dir = base::TempDir::Create();
   std::string out_dirname = temp_dir.path();
 
-  trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
-                                /*timestamps=*/{},
-                                /*annotate_frames=*/false, out_dirname,
-                                /*conversion_mode=*/std::nullopt,
-                                /*verbose=*/false);
+  auto profile_status =
+      trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
+                                    /*timestamps=*/{},
+                                    /*annotate_frames=*/false, out_dirname,
+                                    /*conversion_mode=*/std::nullopt,
+                                    /*verbose=*/false);
+  PERFETTO_CHECK(profile_status.ok());
   std::vector<std::string> filenames;
   base::ListFilesRecursive(out_dirname, filenames);
   // assumption: all test inputs contain exactly one profile
@@ -134,11 +136,12 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
   base::TempDir temp_dir = base::TempDir::Create();
   std::string output_dir = temp_dir.path() + "/my_profiles";
 
-  trace_to_text::TraceToProfile(&file_istream, /*pid=*/0,
-                                /*timestamps=*/{},
-                                /*annotate_frames=*/false, output_dir,
-                                ConversionMode::kJavaHeapProfile,
-                                /*verbose=*/false);
+  auto profile_status = trace_to_text::TraceToProfile(
+      &file_istream, /*pid=*/0,
+      /*timestamps=*/{},
+      /*annotate_frames=*/false, output_dir, ConversionMode::kJavaHeapProfile,
+      /*verbose=*/false);
+  ASSERT_TRUE(profile_status.ok()) << profile_status.c_message();
 
   // Check files exist
   std::vector<std::string> filenames;

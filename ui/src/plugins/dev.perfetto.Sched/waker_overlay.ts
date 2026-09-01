@@ -13,21 +13,21 @@
 // limitations under the License.
 
 import {canvasSave, drawDoubleHeadedArrow} from '../../base/canvas_utils';
-import {Size2D} from '../../base/geom';
-import {QuerySlot} from '../../base/query_slot';
-import {Duration, time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
+import type {Size2D} from '../../base/geom';
+import {AsyncMemo} from '../../base/async_memo';
+import {Duration, type time} from '../../base/time';
+import type {TimeScale} from '../../base/time_scale';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {asSchedSqlId} from '../../components/sql_utils/core_types';
 import {
   getSched,
   getSchedWakeupInfo,
-  SchedWakeupInfo,
+  type SchedWakeupInfo,
 } from '../../components/sql_utils/sched';
-import {CanvasColors} from '../../public/canvas_colors';
-import {Selection, TrackEventSelection} from '../../public/selection';
-import {Trace} from '../../public/trace';
-import {Overlay, TrackBounds} from '../../public/track';
+import type {CanvasColors} from '../../public/canvas_colors';
+import type {Selection, TrackEventSelection} from '../../public/selection';
+import type {Trace} from '../../public/trace';
+import type {Overlay, TrackBounds} from '../../public/track';
 import {CPU_SLICE_URI_PREFIX, uriForSchedTrack} from './common';
 
 const MARGIN = 3;
@@ -36,7 +36,7 @@ const ARROW_HEIGHT = 12;
 
 export class WakerOverlay implements Overlay {
   private readonly trace: Trace;
-  private readonly wakeupSlot = new QuerySlot<SchedWakeupInfo | undefined>();
+  private readonly wakeupSlot = new AsyncMemo<SchedWakeupInfo | undefined>();
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -59,7 +59,7 @@ export class WakerOverlay implements Overlay {
     // Declaratively fetch wakeup info - QuerySlot handles caching and scheduling
     const result = this.wakeupSlot.use({
       key: {eventId: selection.eventId},
-      queryFn: () => this.loadWakeupInfo(selection),
+      compute: () => this.loadWakeupInfo(selection),
     });
 
     const wakeup = result.data;

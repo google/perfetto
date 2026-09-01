@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, Page} from '@playwright/test';
+import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
 test.describe.configure({mode: 'serial'});
@@ -36,13 +36,13 @@ test('multiple callstack tracks', async () => {
   });
 
   const processGrp = pth.locateTrack(
-    'surfaceflinger 558/Process callstacks',
+    'surfaceflinger 558/Perf Process Callstacks',
     grp,
   );
   await processGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(processGrp);
   const threadGrp = pth.locateTrack(
-    'surfaceflinger 558/Thread 558 callstacks',
+    'surfaceflinger 558/Thread 558 Perf Callstacks',
     grp,
   );
   await threadGrp.scrollIntoViewIfNeeded();

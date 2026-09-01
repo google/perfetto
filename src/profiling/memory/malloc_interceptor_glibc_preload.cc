@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/heap_profile.h"
 #include "src/profiling/memory/wrap_allocators.h"
 
@@ -28,10 +29,6 @@ namespace {
 #pragma GCC diagnostic ignored "-Wglobal-constructors"
 uint32_t g_heap_id = AHeapProfile_registerHeap(AHeapInfo_create("libc.malloc"));
 #pragma GCC diagnostic pop
-
-bool IsPowerOfTwo(size_t v) {
-  return (v != 0 && ((v & (v - 1)) == 0));
-}
 
 // The code inside the perfetto::profiling::wrap_ functions has been designed to
 // avoid calling malloc/free functions, but, in some rare cases, this happens
@@ -58,8 +55,8 @@ extern "C" {
 // Prototypes for the C23 size-aware deallocation entry points. <stdlib.h>
 // only declares them on glibc >= 2.41 and we may compile against older SDK
 // headers, so we declare them ourselves.
-void free_sized(void*, size_t);
-void free_aligned_sized(void*, size_t, size_t);
+void free_sized(void*, size_t) noexcept;
+void free_aligned_sized(void*, size_t, size_t) noexcept;
 
 // These are exported by GLibc to be used by functions overwriting malloc
 // to call back to the real implementation. Note: glibc does not export
@@ -103,11 +100,13 @@ void free(void* ptr) {
 // https://elixir.bootlin.com/glibc/glibc-2.43/source/malloc/malloc.c#L3550.
 // Calling free() from here resolves back to our own free() override above
 // via the LD_PRELOAD chain, so the deallocation is still reported.
-void free_sized(void* ptr, size_t /*size*/) {
+void free_sized(void* ptr, size_t /*size*/) noexcept {
   free(ptr);
 }
 
-void free_aligned_sized(void* ptr, size_t /*alignment*/, size_t /*size*/) {
+void free_aligned_sized(void* ptr,
+                        size_t /*alignment*/,
+                        size_t /*size*/) noexcept {
   free(ptr);
 }
 
@@ -132,7 +131,8 @@ void* realloc(void* ptr, size_t size) {
 }
 
 int posix_memalign(void** memptr, size_t alignment, size_t size) {
-  if (alignment % sizeof(void*) || !IsPowerOfTwo(alignment / sizeof(void*))) {
+  if (alignment % sizeof(void*) ||
+      !perfetto::base::IsPowerOfTwo(alignment / sizeof(void*))) {
     return EINVAL;
   }
 

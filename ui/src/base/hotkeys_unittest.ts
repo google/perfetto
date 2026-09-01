@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {checkHotkey, formatHotkey, Hotkey, parseHotkey} from './hotkeys';
+import {checkHotkey, formatHotkey, type Hotkey, parseHotkey} from './hotkeys';
 
 test('parseHotkey', () => {
   expect(parseHotkey('A')).toEqual({
@@ -88,6 +88,13 @@ describe('checkHotkey', () => {
 
     expect(checkHotkey('X', {key: 'x', target: el})).toBe(false);
     expect(checkHotkey('!X', {key: 'x', target: el})).toBe(true);
+  });
+
+  // Quick sanity check on function keys parsing.
+  test('function keys', () => {
+    expect(checkHotkey('F1', {key: 'F1'})).toBe(true);
+    expect(checkHotkey('!F1', {key: 'F1'})).toBe(true);
+    expect(checkHotkey('!F1', {key: 'F'})).toBe(false);
   });
 });
 

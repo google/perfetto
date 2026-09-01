@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {YMode} from '../../components/tracks/counter_track';
-import {TopLevelTrackGroup, TrackGroupSchema} from './types';
+import type m from 'mithril';
+import type {YMode} from '../../components/tracks/counter_track';
+import type {TopLevelTrackGroup, TrackGroupSchema} from './types';
 
 type CounterMode = YMode;
 
@@ -336,7 +336,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   {
     type: 'screen_state',
     topLevelGroup: 'SYSTEM',
-    group: 'Screen State',
+    group: undefined,
   },
   {
     type: 'smaps',

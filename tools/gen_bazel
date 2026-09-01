@@ -103,6 +103,7 @@ public_targets = [
 # These targets will be exported with visibility only to our allowlist.
 allowlist_public_targets = [
     '//src/shared_lib:libperfetto_c',
+    '//src/shared_lib:libperfetto_c_headers',
     '//src/traceconv:libpprofbuilder',
 ]
 
@@ -118,6 +119,7 @@ default_targets = [
     '//src/tools/proto_filter:proto_filter',
     '//src/tools/proto_merger:proto_merger',
     '//src/trace_processor:trace_processor_shell_lib',
+    '//src/tools/pfsql:pfsql',
     '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets + allowlist_public_targets
@@ -143,18 +145,18 @@ proto_groups = {
         ],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
     },
-    'winscope': {
-        'sources': [
-            '//protos/perfetto/trace/android:winscope_extensions_source_set',
-        ],
-        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
-    },
     'metrics': {
         'sources': ['//protos/perfetto/metrics:source_set',],
         'visibility': ['//visibility:public'],
     },
     'chromium': {
         'sources': ['//protos/third_party/chromium:source_set',],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
+    'android_extensions': {
+        'sources': [
+            '//protos/third_party/android:android_extensions_source_set',
+        ],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
     },
     'chrome_metrics': {
@@ -169,14 +171,12 @@ proto_groups = {
         'sources': ['//protos/perfetto/trace_summary:source_set',],
         'visibility': ['//visibility:public'],
     },
-    'trace_android_track_event_extension': {
-        'sources': [
-            '//protos/perfetto/trace/android:android_track_event_source_set',
-        ],
-        'visibility': [],
-    },
     'proto_filter_options': {
         'sources': ['//protos/perfetto/proto_filtering:source_set'],
+        'visibility': [],
+    },
+    'passthrough': {
+        'sources': ['//protos/perfetto/common:passthrough_source_set'],
         'visibility': [],
     },
 }
@@ -205,6 +205,7 @@ external_deps = {
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
+    '//gn:zstd': ['PERFETTO_CONFIG.deps.zstd'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
     '//src/trace_processor:demangle': ['PERFETTO_CONFIG.deps.demangle_wrapper'],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
@@ -247,7 +248,6 @@ external_java_android_sdk_deps: Dict[str, List[str]] = {
 additional_java_android_sdk_deps: Dict[str, List[str]] = {
     '//src/android_sdk/java/test:perfetto_trace_test_lib': [
         ':trace_java_proto_lite',
-        ':trace_android_track_event_extension_java_proto_lite',
     ],
 }
 
@@ -260,7 +260,16 @@ target_overrides = {
 }
 
 # Defines required for Bazel.
-bazel_required_defines = ["PERFETTO_SHLIB_SDK_IMPLEMENTATION"]
+# PERFETTO_SDK_SHLIB_IMPLEMENTATION makes the C SDK objects export the ABI
+# symbols (see include/perfetto/public/abi/export.h). Bazel cc_library defines
+# propagate to all dependent targets, which is intentional here: Bazel cannot
+# inject defines from a leaf target into a dependency's compilation, and
+# downstream users wrap libperfetto_c into their own shared library and
+# re-export the SDK ABI from it, so the export annotation must come from this
+# target. See b/535183253 for the breakage caused by removing this define.
+bazel_required_defines = [
+    "PERFETTO_SDK_SHLIB_IMPLEMENTATION",
+]
 
 # Targets with the "avoid_dep" tag;
 avoid_dep_targets = set([

@@ -92,6 +92,18 @@ void LogStacktraceMessage(Stacktrace& stacktrace,
     }                                                                   \
   } while (0)
 
+#define PROTOVM_INTERNAL_CONCAT_IMPL(x, y) x##y
+#define PROTOVM_INTERNAL_MACRO_CONCAT(x, y) PROTOVM_INTERNAL_CONCAT_IMPL(x, y)
+
+// Evaluates |rhs| which should return a StatusOr<T> and assigns this
+// to |lhs|. If the status is an error status, returns the status from the
+// current function.
+#define PROTOVM_ASSIGN_OR_RETURN(lhs, rhs)                       \
+  PROTOVM_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs; \
+  PROTOVM_RETURN_IF_NOT_OK(                                      \
+      PROTOVM_INTERNAL_MACRO_CONCAT(status_or, __LINE__));       \
+  lhs = std::move(PROTOVM_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
+
 enum class Status : uint8_t {
   kOk,
   kError,

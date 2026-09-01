@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ProbeSetting} from '../../config/config_interfaces';
+import type {ProbeSetting} from '../../config/config_interfaces';
 import {assertTrue} from '../../../../base/assert';
 import {exists} from '../../../../base/utils';
 import {Icon} from '../../../../widgets/icon';
@@ -60,7 +60,7 @@ export class Slider implements ProbeSetting {
     // otherwise fall back on the first value of the fixed range... otherwise 0.
     this._value = exists(value)
       ? value
-      : this.attrs.default ?? this.attrs.values[0] ?? 0;
+      : (this.attrs.default ?? this.attrs.values[0] ?? 0);
     return this._value;
   }
 

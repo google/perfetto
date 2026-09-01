@@ -19,7 +19,7 @@ import {StartupDetailsPanel} from './startup_details_panel';
 import {WebContentInteractionPanel} from './web_content_interaction_details_panel';
 import {GenericSliceDetailsTab} from './generic_slice_details_tab';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 export function createCriticalUserInteractionTrack(trace: Trace, uri: string) {
   return SliceTrack.create({

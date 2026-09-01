@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './anchor.scss';
 import m from 'mithril';
-import {HTMLAnchorAttrs} from './common';
+import type {HTMLAnchorAttrs} from './common';
 import {Icon} from './icon';
 
 interface AnchorAttrs extends HTMLAnchorAttrs {

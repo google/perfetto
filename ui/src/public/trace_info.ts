@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../base/time';
+import type {time} from '../base/time';
 
 export interface TraceInfo {
   readonly traceTitle: string; // File name and size of the current trace.
@@ -48,6 +48,11 @@ export interface TraceInfo {
 
   // Wheteher the current trace has been successfully stored into cache storage.
   readonly cached: boolean;
+
+  // Whether the UI may re-share the current trace externally (e.g. upload
+  // it to GCS as a permalink). It is false when the trace was pushed via
+  // postMessage and the caller did not opt into sharing.
+  readonly shareable: boolean;
 
   // Returns true if the current trace can be downloaded via getTraceFile().
   // The trace isn't downloadable in the following cases:

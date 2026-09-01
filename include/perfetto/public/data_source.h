@@ -302,4 +302,18 @@ static inline void PerfettoDsTracerFlush(
   PerfettoDsTracerImplFlush(iterator->impl.tracer, cb, ctx);
 }
 
+// Returns the number of times the data source instance pointed by `iterator`
+// entered a mode in which it started dropping data (e.g. because the shared
+// memory buffer was exhausted and the buffer exhausted policy is
+// PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP).
+//
+// Note that this does *not* necessarily correspond to the number of dropped
+// packets, as multiple packets can be dropped on each entry into the drop
+// mode. A non-zero (or increased) value indicates that some data written on
+// this thread was lost.
+static inline uint64_t PerfettoDsTracerGetDropCount(
+    struct PerfettoDsTracerIterator* iterator) {
+  return PerfettoDsTracerImplGetDropCount(iterator->impl.tracer);
+}
+
 #endif  // INCLUDE_PERFETTO_PUBLIC_DATA_SOURCE_H_

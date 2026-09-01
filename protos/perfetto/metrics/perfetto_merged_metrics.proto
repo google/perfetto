@@ -506,6 +506,7 @@ message AndroidFrameTimelineMetric {
     optional int64 missed_frames = 5;
     optional int64 missed_app_frames = 6;
     optional int64 missed_sf_frames = 7;
+    optional double weighted_missed_frames = 22;
     optional double weighted_missed_app_frames = 20;
     optional double weighted_missed_sf_frames = 21;
 
@@ -1776,7 +1777,7 @@ message AndroidJankCujMetric {
     optional bool hwui_callback_missed = 9;
   }
 
-  // Next id: 21
+  // Next id: 22
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -1789,6 +1790,9 @@ message AndroidJankCujMetric {
 
     // Number of frames missed due to SF.
     optional int64 missed_sf_frames = 4;
+
+    // Weighted number of missed frames.
+    optional double weighted_missed_frames = 21;
 
     // Weighted number of frames missed due to the app missing the deadline.
     optional double weighted_missed_app_frames = 19;
@@ -1953,6 +1957,17 @@ message JavaHeapStats {
     optional int64 oom_score_adj = 10;
     // Process uptime in millis at the time of the heap dump
     optional int64 process_uptime_ms = 11;
+
+    // ART's internal view of allocated bytes.
+    optional int64 art_bytes_allocated = 13;
+    // Whether this is an OOME
+    optional bool is_out_of_memory_error = 14;
+    // The size of the allocation that resulted in the OOME.
+    // Optional
+    optional int64 oome_failing_allocation_size = 15;
+    // How much was the actual ART heap size left
+    // Optional
+    optional int64 oome_remaining_art_free_bytes = 16;
   }
 
   // Heap stats per process. One sample per dump (can be > 1 if continuous
@@ -3278,7 +3293,7 @@ message CloneDuration {
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
-// Next id: 21
+// Next id: 22
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
@@ -3300,6 +3315,7 @@ message TraceMetadata {
   optional int64 suspend_count = 13;
   optional int64 data_loss_count = 14;
   optional int64 error_count = 15;
+  optional string trace_recovery_reason = 21;
 }
 
 // Stats counters for the trace.

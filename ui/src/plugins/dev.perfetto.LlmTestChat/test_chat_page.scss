@@ -1,0 +1,128 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-llm-test-chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+  gap: 12px;
+  box-sizing: border-box;
+  font-family: var(--pf-font-family, sans-serif);
+
+  &__header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+  }
+
+  &__model {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--pf-color-text-muted, #666);
+    font-size: 13px;
+  }
+
+  &__model--none {
+    color: var(--pf-color-danger);
+    font-size: 13px;
+  }
+
+  &__transcript {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px;
+    border: 1px solid var(--pf-color-border, #ddd);
+    border-radius: 4px;
+    background: var(--pf-color-surface, #fafafa);
+  }
+
+  &__empty {
+    color: #999;
+    font-style: italic;
+    margin: auto;
+  }
+
+  &__msg {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 8px;
+    align-items: start;
+
+    &--user .pf-llm-test-chat__role {
+      color: #1565c0;
+    }
+    &--model .pf-llm-test-chat__role {
+      color: #2e7d32;
+    }
+  }
+
+  &__role {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding-top: 2px;
+  }
+
+  &__text {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__spinner {
+    align-self: center;
+  }
+
+  &__thought {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 8px;
+    align-items: start;
+    opacity: 0.6;
+    font-style: italic;
+
+    .pf-llm-test-chat__role {
+      color: #6a1b9a;
+    }
+    .pf-llm-test-chat__text {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  }
+
+  &__error {
+    color: #b71c1c;
+    font-size: 13px;
+    white-space: pre-wrap;
+  }
+
+  &__composer {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &__input {
+    flex: 1;
+  }
+}

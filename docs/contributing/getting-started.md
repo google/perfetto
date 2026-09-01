@@ -8,6 +8,19 @@ Follow those steps if you are new to contributing to Perfetto.
 
 **Prerequisites:** git and python3.
 
+On a fresh Debian/Ubuntu install (including WSL 2) a few extra system packages
+are needed. `tools/install-build-deps` uses `curl` to download toolchains and
+`python3 -m venv` to set up its Python environment, and the hermetic clang
+toolchain compiles against the system libc headers:
+
+```sh
+sudo apt install curl python3-venv build-essential
+```
+
+Without `build-essential` (specifically `libc6-dev`) the build fails with
+`fatal error: 'features.h' file not found`
+(see [#405](https://github.com/google/perfetto/issues/405)).
+
 ```sh
 # Clone the Perfetto repo and enter the directory
 git clone https://github.com/google/perfetto.git
@@ -112,7 +125,7 @@ You might want to contribute to the UI, Trace Processor, SDK or various data imp
 - If you want to add a new functionality to the UI, most likely the next step is the [UI getting started](ui-getting-started).
 - If you want to edit the core functionality of the UI: it's a much bigger change which would require in depth understanding of Perfetto UI. Most requests/bugs now are related to various plugins, not the core.
 - If you want to add a new ftrace event take a look at [common tasks page](common-tasks).
-- If you want to add a new table/view/function to Perfetto SQL standard library you need to first undestand [the Perfetto SQL syntax](/docs/analysis/perfetto-sql-syntax.md), and then read the details of updating the standard library at [common tasks page](common-tasks).
+- If you want to add a new table/view/function to Perfetto SQL standard library you need to first understand [the Perfetto SQL syntax](/docs/analysis/perfetto-sql-syntax.md), and then read the details of updating the standard library at [common tasks page](common-tasks).
 - If you want to add a support of a new file type into Perfetto, you need to add a new `importer` to Trace Processor C++ code.
 
 ## {#community} Communication

@@ -16,16 +16,16 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_component.gni")
 
 perfetto_component("regex") {
+  # The headers are listed unconditionally: each one self-guards via a
+  # PERFETTO_BUILDFLAG #if, and regex.cc includes all of them unconditionally
+  # so the amalgamator can see through. The actual backend deps below stay
+  # conditional.
   sources = [
     "regex.cc",
+    "regex_pcre2.h",
+    "regex_re2.h",
     "regex_std.h",
   ]
-  if (enable_perfetto_re2) {
-    sources += [ "regex_re2.h" ]
-  }
-  if (enable_perfetto_pcre2) {
-    sources += [ "regex_pcre2.h" ]
-  }
   deps = [ "../../../gn:default_deps" ]
   public_deps = [
     "../../../include/perfetto/base",

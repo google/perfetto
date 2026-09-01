@@ -144,12 +144,7 @@ void PrintEnumField(const FieldDescriptor& fd,
 std::string FormattedFieldDescriptorName(
     const FieldDescriptor& field_descriptor) {
   if (field_descriptor.is_extension()) {
-    // Libprotobuf formatter always formats extension field names as fully
-    // qualified names.
-    // TODO(b/197625974): Assuming for now all our extensions will belong to the
-    // perfetto.protos package. Update this if we ever want to support extendees
-    // in different package.
-    return "[perfetto.protos." + field_descriptor.name() + "]";
+    return "[" + field_descriptor.extension_full_name() + "]";
   }
   return field_descriptor.name();
 }

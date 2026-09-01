@@ -25,15 +25,15 @@ import {asSchedSqlId} from '../../components/sql_utils/core_types';
 import {
   getSched,
   getSchedWakeupInfo,
-  Sched,
-  SchedWakeupInfo,
+  type Sched,
+  type SchedWakeupInfo,
 } from '../../components/sql_utils/sched';
 import {exists} from '../../base/utils';
 import {translateState} from '../../components/sql_utils/thread_state';
-import {Trace} from '../../public/trace';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventSelection} from '../../public/selection';
-import {ThreadDesc, ThreadMap} from '../dev.perfetto.Thread/threads';
+import type {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackEventSelection} from '../../public/selection';
+import type {ThreadDesc, ThreadMap} from '../dev.perfetto.Thread/threads';
 
 const MIN_NORMAL_SCHED_PRIORITY = 100;
 

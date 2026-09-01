@@ -13,12 +13,12 @@
 // limitations under the License.
 
 import {
-  UIFilter,
+  type UIFilter,
   createFiltersProto,
   createExperimentalFiltersProto,
   createAutoGroupedFiltersProto,
 } from './filter';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 
 describe('filter operations', () => {

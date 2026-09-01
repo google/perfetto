@@ -15,13 +15,8 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
-import {
-  HistogramBucket,
-  HistogramData,
-  HistogramConfig,
-  computeHistogram,
-} from './histogram_loader';
-import {EChartView, EChartEventHandler} from './echart_view';
+import type {HistogramBucket, HistogramData} from './histogram_loader';
+import {EChartView, type EChartEventHandler} from './echart_view';
 import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
 import type {ChartThemeColors} from './chart_theme';
 
@@ -38,8 +33,7 @@ function resolveBucketColors(
   if (series === undefined) return option;
   for (const s of series) {
     const data = s.data as
-      | ReadonlyArray<{itemStyle?: Record<string, unknown>}>
-      | undefined;
+      ReadonlyArray<{itemStyle?: Record<string, unknown>}> | undefined;
     if (data === undefined) continue;
     for (const item of data) {
       const style = item.itemStyle;
@@ -54,9 +48,6 @@ function resolveBucketColors(
   }
   return option;
 }
-
-// Re-export data types for convenience
-export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
 
 export interface HistogramAttrs {
   /**

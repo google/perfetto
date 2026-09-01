@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import type m from 'mithril';
 import {
-  QueryNode,
+  type QueryNode,
   NodeType,
   nextNodeId,
-  NodeContext,
+  type NodeContext,
 } from '../../../query_node';
 import {
-  ColumnInfo,
+  type ColumnInfo,
   columnInfoFromSqlColumn,
   newColumnInfo,
 } from '../../column_info';
-import protos from '../../../../../protos';
-import {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
+import type protos from '../../../../../protos';
+import type {SqlColumn} from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
-import {NodeDetailsAttrs} from '../../../node_types';
+import type {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 

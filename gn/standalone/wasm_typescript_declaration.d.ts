@@ -14,12 +14,14 @@
 
 export = Wasm;
 
-declare function Wasm(_: Wasm.ModuleArgs): Wasm.Module;
+// WASM_ASYNC_COMPILATION=1 is set in gn/standalone/wasm.gni, so the loader
+// always returns a Promise that resolves to the initialized Module.
+declare function Wasm(_: Wasm.ModuleArgs): Promise<Wasm.Module>;
 
 // See https://kripken.github.io/emscripten-site/docs/api_reference/module.html
 declare namespace Wasm {
   export interface InitWasm {
-    (_: ModuleArgs): Module;
+    (_: ModuleArgs): Promise<Module>;
   }
 
   export interface FileSystemType {}
@@ -47,6 +49,14 @@ declare namespace Wasm {
   export interface Module {
     callMain(args: string[]): void;
     addFunction(f: any, argTypes: string): void;
+    FS_mkdir(path: string, mode?: number): any;
+    FS_mount(type: Wasm.FileSystemType, opts: any, mountpoint: string): any;
+    FS_lookupPath(path: string): { path: string; node: Wasm.FileSystemNode };
+    FS_unlink(path: string): void;
+    // Entries of a directory, including '.' and '..'.
+    FS_readdir(path: string): string[];
+    FS_readFile(path: string): Uint8Array;
+    WORKERFS: Wasm.FileSystemType;
     ccall(
       ident: string,
       returnType: string,
@@ -65,5 +75,14 @@ declare namespace Wasm {
     onRuntimeInitialized(): void;
     onAbort?(): void;
     wasmBinary?: ArrayBuffer;
+    // Optional Emscripten hook. When provided, the loader skips its own
+    // fetch + compile and invokes this callback to obtain the instance.
+    instantiateWasm?(
+      imports: WebAssembly.Imports,
+      successCallback: (
+        instance: WebAssembly.Instance,
+        mod: WebAssembly.Module,
+      ) => void,
+    ): WebAssembly.Exports;
   }
 }

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../protos';
-import m from 'mithril';
-import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-import {ColumnInfo} from './query_builder/column_info';
-import {NodeIssues} from './query_builder/node_issues';
-import {Trace} from '../../public/trace';
-import {NodeDetailsAttrs} from './node_types';
+import type protos from '../../protos';
+import type m from 'mithril';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import type {ColumnInfo} from './query_builder/column_info';
+import type {NodeIssues} from './query_builder/node_issues';
+import type {Trace} from '../../public/trace';
+import type {NodeDetailsAttrs} from './node_types';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {

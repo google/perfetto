@@ -17,11 +17,11 @@ import {classNames} from '../../base/classnames';
 import {formatHotkey} from '../../base/hotkeys';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
-import {AppImpl} from '../../core/app_impl';
+import type {AppImpl} from '../../core/app_impl';
 import {raf} from '../../core/raf_scheduler';
 import {Router} from '../../core/router';
-import {SidebarMenuItemInternal} from '../../core/sidebar_manager';
-import {Command} from '../../public/commands';
+import type {SidebarMenuItemInternal} from '../../core/sidebar_manager';
+import type {Command} from '../../public/commands';
 import {Icon} from '../../widgets/icon';
 import {Spinner} from '../../widgets/spinner';
 
@@ -86,6 +86,8 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
         className: 'pf-sidebar__button-icon',
         icon: valueOrCallback(item.icon),
       });
+    const badge = valueOrCallback(item.badge);
+    const badgeEl = badge !== undefined && m('span.pf-sidebar__badge', badge);
     const spinnerEl =
       this.pending && m(Spinner, {className: 'pf-sidebar__spinner'});
     const cssClass = valueOrCallback(item.cssClass);
@@ -109,6 +111,7 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
             },
             iconEl,
             text,
+            badgeEl,
             target === '_blank' &&
               m(Icon, {
                 className: 'pf-sidebar__external-link-icon',
@@ -126,6 +129,7 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
             },
             iconEl,
             text,
+            badgeEl,
             spinnerEl,
           ),
     );

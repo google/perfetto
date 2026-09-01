@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ConsumerPortResponse} from './consumer_port_types';
+import type {ConsumerPortResponse} from './consumer_port_types';
 
 export type ErrorCallback = (_: string) => void;
 export type StatusCallback = (_: string) => void;

@@ -22,7 +22,7 @@
 // This follows the same pattern as {@link ./section} and
 // {@link ./terminology}.
 
-import m from 'mithril';
+import type m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
 import type {MetricSection, KernelMetricData} from './details';
 

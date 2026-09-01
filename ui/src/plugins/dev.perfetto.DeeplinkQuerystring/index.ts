@@ -17,12 +17,12 @@
 // trace is loaded. This plugin deals with kicking off the relevant logic
 // once the trace has loaded.
 
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {Time} from '../../base/time';
-import {RouteArgs} from '../../public/route_schema';
-import {App} from '../../public/app';
+import type {RouteArgs} from '../../public/route_schema';
+import type {App} from '../../public/app';
 import {exists} from '../../base/utils';
 import {NUM} from '../../trace_processor/query_result';
 
@@ -78,13 +78,11 @@ export default class implements PerfettoPlugin {
 function zoomPendingDeeplink(trace: Trace, visStart: string, visEnd: string) {
   const visualStart = Time.fromRaw(BigInt(visStart));
   const visualEnd = Time.fromRaw(BigInt(visEnd));
-  if (
-    !(
-      visualStart < visualEnd &&
-      trace.traceInfo.start <= visualStart &&
-      visualEnd <= trace.traceInfo.end
-    )
-  ) {
+  if (!(
+    visualStart < visualEnd &&
+    trace.traceInfo.start <= visualStart &&
+    visualEnd <= trace.traceInfo.end
+  )) {
     return;
   }
   trace.timeline.panSpanIntoView(visualStart, visualEnd, {align: 'zoom'});

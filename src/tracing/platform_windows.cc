@@ -71,6 +71,9 @@ PlatformWindows::PlatformWindows() {
 }
 
 PlatformWindows::~PlatformWindows() {
+  // TlsFree doesn't call destructors, so do it manually for the calling
+  // thread.
+  OnThreadExit();
   ::TlsFree(tls_key_);
   instance = nullptr;
 }

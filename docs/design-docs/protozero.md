@@ -85,7 +85,7 @@ In order to generate ProtoZero stubs from proto you need to:
 
 ## Proto serialization
 
-The quickest way to undestand ProtoZero design principles is to start from a
+The quickest way to understand ProtoZero design principles is to start from a
 small example and compare the generated code between libprotobuf and ProtoZero.
 
 ```protobuf

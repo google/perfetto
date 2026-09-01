@@ -20,6 +20,8 @@ INCLUDE PERFETTO MODULE android.oom_adjuster;
 
 INCLUDE PERFETTO MODULE android.memory.dmabuf_spans;
 
+INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
+
 -- Returns either the value for the span matching ts exactly, or a data point
 -- up to 500ms in the future.
 CREATE PERFETTO MACRO _closest_value(
@@ -79,7 +81,15 @@ CREATE PERFETTO TABLE android_heap_graph_stats(
   -- The anon RSS + swap size of the process (in bytes) at the time of the heap graph dump.
   anon_rss_and_swap_size LONG,
   -- The dmabuf size of the process (in bytes) at the time of the heap graph dump.
-  dmabuf_rss_size LONG
+  dmabuf_rss_size LONG,
+  -- ART's view of cumulative heap memory usage
+  art_bytes_allocated LONG,
+  -- Whether this is an OutOfMemoryError heap dump
+  is_out_of_memory_error BOOL,
+  -- For OOME, what was the size of the allocation that resulted in the exception
+  oome_failing_allocation_size LONG,
+  -- For OOME, what was the actual heap size left
+  oome_remaining_art_free_bytes LONG
 )
 AS
 WITH
@@ -99,7 +109,7 @@ WITH
       2
   )
 SELECT
-  upid,
+  base_stats.upid,
   graph_sample_ts,
   graph_sample_ts - process.start_ts AS process_uptime,
   total_heap_size,
@@ -110,6 +120,17 @@ SELECT
   reachable_obj_count,
   _closest_value!(base_stats.upid, graph_sample_ts, android_oom_adj_intervals, score) AS oom_score_adj,
   _closest_value!(base_stats.upid, graph_sample_ts, memory_rss_and_swap_per_process, anon_rss_and_swap) AS anon_rss_and_swap_size,
-  _closest_value!(base_stats.upid, graph_sample_ts, _dmabuf_spans, dmabuf_rss) AS dmabuf_rss_size
+  _closest_value!(base_stats.upid, graph_sample_ts, _dmabuf_spans, dmabuf_rss) AS dmabuf_rss_size,
+  heap_graph.heap_size AS art_bytes_allocated,
+  (heap_graph.dump_reason = 'OOME'
+  OR (SELECT str_value FROM metadata WHERE name = 'trace_trigger')
+  = 'com.android.telemetry.art-outofmemory') AS is_out_of_memory_error,
+  oome_details.allocation_size_bytes AS oome_failing_allocation_size,
+  oome_details.free_bytes_until_oom AS oome_remaining_art_free_bytes
 FROM base_stats
-JOIN process USING (upid);
+JOIN process USING (upid)
+LEFT JOIN heap_graph
+  ON (base_stats.upid = heap_graph.upid
+  AND base_stats.graph_sample_ts = heap_graph.ts)
+LEFT JOIN android_heap_graph_java_oome_details AS oome_details
+  ON heap_graph.id = oome_details.heap_graph_id;

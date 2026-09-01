@@ -162,7 +162,11 @@ THREAD_STATE_TABLE = Table(
             CppOptional(CppUint32()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('waker_id', CppOptional(CppSelfTableId())),
+        C(
+            'waker_id',
+            CppOptional(CppSelfTableId()),
+            cpp_access=CppAccess.READ,
+        ),
         C(
             'irq_context',
             CppOptional(CppUint32()),

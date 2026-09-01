@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SqlValue} from '../../../../trace_processor/query_result';
-import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
+import type {SqlValue} from '../../../../trace_processor/query_result';
+import type {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import {renderStandardCell} from './render_cell_utils';
-import {SqlColumn} from './sql_column';
-import {TableColumn, TableManager} from './table_column';
+import type {SqlColumn} from './sql_column';
+import type {TableColumn, TableManager} from './table_column';
 
 export class SimpleColumn implements TableColumn {
   public readonly type: PerfettoSqlType | undefined = undefined;

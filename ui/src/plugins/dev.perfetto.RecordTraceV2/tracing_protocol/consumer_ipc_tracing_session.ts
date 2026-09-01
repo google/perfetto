@@ -15,13 +15,13 @@
 import protos from '../../../protos';
 import {EvtSource} from '../../../base/events';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
-import {
+import type {
   TracingSession,
   TracingSessionLogEntry,
   TracingSessionState,
 } from '../interfaces/tracing_session';
-import {TracingProtocol} from './tracing_protocol';
-import {errResult, okResult, Result} from '../../../base/result';
+import type {TracingProtocol} from './tracing_protocol';
+import {errResult, okResult, type Result} from '../../../base/result';
 
 /**
  * A concrete implementation of {@link TracingSession} over a
@@ -51,6 +51,7 @@ export class ConsumerIpcTracingSession implements TracingSession {
    * Starts a fresh tracing session: opens a consumer connection, sends
    * EnableTracing, and drives the lifecycle through to FINISHED.
    *
+   * @param args Arguments for creating the tracing session.
    * @param args.ipcFactory Opens a consumer-side TracingProtocol channel.
    *   Called once here for the recording itself, and again later by snapshot()
    *   if invoked, since CloneSession requires a separate consumer connection.
@@ -58,12 +59,10 @@ export class ConsumerIpcTracingSession implements TracingSession {
    *   `uniqueSessionName` (if any) is captured so a later snapshot() call
    *   knows which session to snapshot.
    */
-  static async create({
-    ipcFactory,
-    traceConfig,
-  }: ConsumerIpcTracingSessionArgs): Promise<
-    Result<ConsumerIpcTracingSession>
-  > {
+  static async create(
+    args: ConsumerIpcTracingSessionArgs,
+  ): Promise<Result<ConsumerIpcTracingSession>> {
+    const {ipcFactory, traceConfig} = args;
     const ipcStatus = await ipcFactory();
     if (!ipcStatus.ok) return ipcStatus;
     const session = new ConsumerIpcTracingSession(
@@ -151,9 +150,9 @@ export class ConsumerIpcTracingSession implements TracingSession {
     stream.onTraceData = this.onTraceData.bind(this);
   }
 
-  getTraceData(): Uint8Array | undefined {
+  getTraceData(): ArrayBuffer | undefined {
     if (this._state !== 'FINISHED') return undefined;
-    const buf = this.traceBuf.get();
+    const buf = this.traceBuf.getBuffer();
     return buf;
   }
 

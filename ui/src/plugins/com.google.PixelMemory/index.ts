@@ -14,15 +14,15 @@
 
 import {addDebugCounterTrack} from '../../components/tracks/debug_tracks';
 import {Time} from '../../base/time';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import {randomColor} from '../../components/colorizer';
 import {
   createView,
   createVirtualTable,
   createPerfettoTable,
-  DisposableSqlEntity,
+  type DisposableSqlEntity,
 } from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 

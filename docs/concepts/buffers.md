@@ -221,11 +221,12 @@ blocked.
 At the trace proto level, losses in this path are recorded:
 
 * In [`TraceStats.BufferStats.trace_writer_packet_loss`][BufferStats].
-* In [`TracePacket.previous_packet_dropped`][TracePacket].
+* In [`TracePacket.previous_packet_dropped`][TracePacket]. This is a
+  `DataLossReason` bitmask: a nonzero value means the preceding packets on the
+  sequence were dropped, and (for TraceBufferV2) the bits identify the cause.
   Caveat: the very first packet emitted by every data source is also marked as
-  `previous_packet_dropped=true`. This is because the service has no way to
-  tell if that was the truly first packet or everything else before that was
-  lost.
+  dropped (value 1). This is because the service has no way to tell if that was
+  the truly first packet or everything else before that was lost.
 
 At the TraceProcessor SQL level, this data is available in the `stats` table:
 ```sql
@@ -259,6 +260,22 @@ name                 idx                  severity             source  value
 traced_buf_chunks_di                    0 info                 trace       0
 traced_buf_chunks_ov                    0 data_loss            trace       0
 ```
+
+When using [streaming mode] an overwrite is also a data loss: the overwritten
+data is never written into the file, so the trace has a gap. This data is
+available in the `stats` table, one entry per affected central buffer, where
+`idx` is the buffer and `value` is the number of bytes it overwrote:
+
+```sql
+> select * from stats where name = 'long_trace_mode_bytes_overwritten'
+name                 idx                  severity             source  value
+-------------------- -------------------- -------------------- ------- -----
+long_trace_mode_byte                    0 data_loss            trace    2048
+```
+
+Traces with a `file_write_period_ms` of a day or more do not get this stat: a
+write that far out never really happens, so the buffer is a plain ring buffer
+again. Traceur does this because detached mode forces `write_into_file` on it.
 
 Summary: the best way to detect and debug data losses is to use Trace Processor
 and issue the query:

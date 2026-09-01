@@ -474,6 +474,14 @@ TEST(PerfettoTracedIntegrationTest, TestMultipleProducerSockets) {
       temp_dir.path() + "/producer2.sock",
   };
   auto producer_sock_name = base::Join(producer_socket_names, ",");
+
+  // Clean up on every exit path (an early ASSERT included): TempDir's
+  // destructor aborts the binary if the dir isn't empty.
+  auto remove_sockets = base::OnScopeExit([&] {
+    for (const auto& sock_name : producer_socket_names)
+      remove(sock_name.c_str());
+  });
+
   // We need to start the service thread for multiple producer sockets.
   TestHelper helper(&task_runner, TestHelper::Mode::kStartDaemons,
                     producer_sock_name.c_str());
@@ -518,14 +526,10 @@ TEST(PerfettoTracedIntegrationTest, TestMultipleProducerSockets) {
   for (const auto& packet : packets) {
     ASSERT_TRUE(packet.has_for_testing());
   }
-
-  for (const auto& sock_name : producer_socket_names)
-    remove(sock_name.c_str());
 }
 
 TEST(PerfettoTracedIntegrationTest, TestShmemEmulation) {
   base::TestTaskRunner task_runner;
-  auto temp_dir = base::TempDir::Create();
 
   std::string sock_name;
   {

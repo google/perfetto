@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {QueryResponse} from '../../../components/query_table/queries';
+import type {QueryResponse} from '../../../components/query_table/queries';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
-import {Query, QueryNode} from '../query_node';
+import type {Query, QueryNode} from '../query_node';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 
 export function findErrors(

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {
+import type {
   SqlModules,
   SqlColumn,
   SqlFunction,
@@ -24,12 +24,12 @@ import {
   SqlTable,
   SqlTableFunction,
 } from './sql_modules';
-import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
-import {TableColumn} from '../../components/widgets/sql/table/table_column';
-import {Trace} from '../../public/trace';
+import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import type {TableColumn} from '../../components/widgets/sql/table/table_column';
+import type {Trace} from '../../public/trace';
 import {
   parsePerfettoSqlTypeFromString,
-  PerfettoSqlType,
+  type PerfettoSqlType,
 } from '../../trace_processor/perfetto_sql_type';
 import {unwrapResult} from '../../base/result';
 import {createTableColumn} from '../../components/widgets/sql/table/columns';
@@ -47,7 +47,7 @@ async function runDataCheck(trace: Trace, sql: string): Promise<boolean> {
     return typeof hasDataValue === 'bigint'
       ? hasDataValue !== 0n
       : Number(hasDataValue) !== 0;
-  } catch (_e) {
+  } catch {
     // If query fails, assume no data
     return false;
   }
@@ -462,7 +462,7 @@ class StdlibFunctionArgImpl implements SqlArgument {
   }
 }
 
-const ARG_OR_COL_SCHEMA = z.object({
+export const ARG_OR_COL_SCHEMA = z.object({
   name: z.string(),
   type: z.string(),
   desc: z.string(),
@@ -471,7 +471,7 @@ const ARG_OR_COL_SCHEMA = z.object({
 });
 type DocsArgOrColSchemaType = z.infer<typeof ARG_OR_COL_SCHEMA>;
 
-const DATA_OBJECT_SCHEMA = z.object({
+export const DATA_OBJECT_SCHEMA = z.object({
   name: z.string(),
   desc: z.string(),
   summary_desc: z.string(),
@@ -482,7 +482,7 @@ const DATA_OBJECT_SCHEMA = z.object({
 });
 type DocsDataObjectSchemaType = z.infer<typeof DATA_OBJECT_SCHEMA>;
 
-const FUNCTION_SCHEMA = z.object({
+export const FUNCTION_SCHEMA = z.object({
   name: z.string(),
   desc: z.string(),
   summary_desc: z.string(),
@@ -492,7 +492,7 @@ const FUNCTION_SCHEMA = z.object({
 });
 type DocsFunctionSchemaType = z.infer<typeof FUNCTION_SCHEMA>;
 
-const TABLE_FUNCTION_SCHEMA = z.object({
+export const TABLE_FUNCTION_SCHEMA = z.object({
   name: z.string(),
   desc: z.string(),
   summary_desc: z.string(),
@@ -501,7 +501,7 @@ const TABLE_FUNCTION_SCHEMA = z.object({
 });
 type DocsTableFunctionSchemaType = z.infer<typeof TABLE_FUNCTION_SCHEMA>;
 
-const MACRO_SCHEMA = z.object({
+export const MACRO_SCHEMA = z.object({
   name: z.string(),
   desc: z.string(),
   summary_desc: z.string(),

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {TimestampFormat} from '../../public/timeline';
 import {formatTimezone, timezoneOffsetMap} from '../../base/time';
 
@@ -22,9 +22,7 @@ interface TimestampFormatMenuItemAttrs {
   trace: Trace;
 }
 
-export class TimestampFormatMenuItem
-  implements m.ClassComponent<TimestampFormatMenuItemAttrs>
-{
+export class TimestampFormatMenuItem implements m.ClassComponent<TimestampFormatMenuItemAttrs> {
   view({attrs}: m.Vnode<TimestampFormatMenuItemAttrs>) {
     const timeline = attrs.trace.timeline;
     function renderMenuItem(value: TimestampFormat, label: string) {

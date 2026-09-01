@@ -19,10 +19,10 @@ import {exists} from '../../base/utils';
 import {getColorForSlice} from '../../components/colorizer';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {SliceTrack, renderTooltip} from '../../components/tracks/slice_track';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {Engine} from '../../trace_processor/engine';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   LONG_NULL,

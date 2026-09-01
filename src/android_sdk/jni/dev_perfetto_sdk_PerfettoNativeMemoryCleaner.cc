@@ -28,7 +28,7 @@ typedef void (*FreeFunction)(void*);
 // Copied from
 // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/jni/platform/host/HostRuntime.cpp;l=56;drc=9a629e24776b648be56188aa3364e7d3953dae11
 static void dev_perfetto_sdk_PerfettoTrackEventExtra_applyNativeFunction(
-    jlong freeFunction,
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong freeFunction,
     jlong ptr) {
   void* nativePtr = reinterpret_cast<void*>(static_cast<uintptr_t>(ptr));
   FreeFunction nativeFreeFunction =

@@ -19,8 +19,8 @@ import {exists} from '../../base/utils';
 import {Anchor} from '../../widgets/anchor';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {TreeNode} from '../../widgets/tree';
-import {Args, ArgsDict, ArgValue} from '../sql_utils/args';
-import {Trace} from '../../public/trace';
+import type {Args, ArgsDict, ArgValue} from '../sql_utils/args';
+import type {Trace} from '../../public/trace';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(

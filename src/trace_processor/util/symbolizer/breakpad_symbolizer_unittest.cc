@@ -38,8 +38,8 @@ TEST(BreakpadSymbolizerTest, NonExistentFile) {
   symbolizer.SetBreakpadFileForTesting(kBadFilePath);
   std::vector<uint64_t> addresses = {0x1010u, 0x1040u, 0x10d0u, 0x1140u};
   Symbolizer::Environment env;
-  SymbolizeResult result =
-      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
+  UnsymbolizedMapping mapping{"build", "mapping", 0, 0, 0};
+  SymbolizeResult result = symbolizer.Symbolize(env, mapping, addresses);
   EXPECT_TRUE(result.frames.empty());
   // Should report the failed attempt.
   EXPECT_FALSE(result.attempts.empty());
@@ -79,8 +79,8 @@ TEST(BreakpadSymbolizerTest, SymbolFrames) {
   std::vector<uint64_t> addresses = {0x1010u, 0x1040u, 0x10d0u, 0x1140u,
                                      0xeu,    0x1036u, 0x30d0u, 0x113eu};
   Symbolizer::Environment env;
-  SymbolizeResult result =
-      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
+  UnsymbolizedMapping mapping{"build", "mapping", 0, 0, 0};
+  SymbolizeResult result = symbolizer.Symbolize(env, mapping, addresses);
   ASSERT_EQ(result.frames.size(), 8u);
   EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
   EXPECT_EQ(result.frames[1][0].function_name, "bar_bar_bar()");
@@ -124,8 +124,8 @@ TEST(BreakpadSymbolizerTest, SourceLocationInFrames) {
   // Test addresses that fall within line record ranges.
   std::vector<uint64_t> addresses = {0x1010u, 0x1050u, 0x10e0u};
   Symbolizer::Environment env;
-  SymbolizeResult result =
-      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
+  UnsymbolizedMapping mapping{"build", "mapping", 0, 0, 0};
+  SymbolizeResult result = symbolizer.Symbolize(env, mapping, addresses);
   ASSERT_EQ(result.frames.size(), 3u);
 
   // First frame: address 0x1010 maps to foo.cc line 10.
@@ -157,8 +157,8 @@ TEST(BreakpadSymbolizerTest, SourceLocationNotFound) {
   // empty even when the function name is found.
   std::vector<uint64_t> addresses = {0x1010u};
   Symbolizer::Environment env;
-  SymbolizeResult result =
-      symbolizer.Symbolize(env, "mapping", "build", 0, addresses);
+  UnsymbolizedMapping mapping{"build", "mapping", 0, 0, 0};
+  SymbolizeResult result = symbolizer.Symbolize(env, mapping, addresses);
   ASSERT_EQ(result.frames.size(), 1u);
   EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
   EXPECT_TRUE(result.frames[0][0].file_name.empty());

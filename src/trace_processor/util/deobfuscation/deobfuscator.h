@@ -46,6 +46,22 @@ struct MethodMapping {
 
 class ObfuscatedClass {
  public:
+  struct MergedClass;
+
+  // Represents R8 merged classes mapping information for an obfuscated class.
+  struct MergedClasses {
+    std::string class_id_field_name;
+    std::vector<MergedClass> merged_classes;
+  };
+
+  // Represents an individual class merged by R8 into an obfuscated target
+  // class.
+  struct MergedClass {
+    std::string name;
+    std::optional<int32_t> class_id;
+    MergedClasses nested_merged_classes;
+  };
+
   explicit ObfuscatedClass(std::string d) : deobfuscated_name_(std::move(d)) {}
 
   const std::string& deobfuscated_name() const { return deobfuscated_name_; }
@@ -73,10 +89,15 @@ class ObfuscatedClass {
     return method_mappings_;
   }
 
+  const MergedClasses& merged_classes() const { return merged_classes_; }
+
+  MergedClasses* mutable_merged_classes() { return &merged_classes_; }
+
  private:
   std::string deobfuscated_name_;
   std::map<std::string, std::string> deobfuscated_fields_;
   std::vector<MethodMapping> method_mappings_;
+  MergedClasses merged_classes_;
 };
 
 class ProguardParser {
@@ -107,7 +128,7 @@ void MakeDeobfuscationPackets(
 
 std::vector<ProguardMap> GetPerfettoProguardMapPath();
 
-bool ReadProguardMapsToDeobfuscationPackets(
+base::Status ReadProguardMapsToDeobfuscationPackets(
     const std::vector<ProguardMap>& maps,
     std::function<void(std::string)> fn);
 

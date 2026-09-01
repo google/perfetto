@@ -13,16 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TableColumn, ListColumnsContext, tableColumnId} from '../table_column';
+import {
+  type TableColumn,
+  type ListColumnsContext,
+  tableColumnId,
+} from '../table_column';
 import {MenuDivider, MenuItem} from '../../../../../widgets/menu';
 import {raf} from '../../../../../core/raf_scheduler';
 import {uuidv4} from '../../../../../base/uuid';
 import {hasModKey, modKey} from '../../../../../base/hotkeys';
 import {TextInput} from '../../../../../widgets/text_input';
 import {Spinner} from '../../../../../widgets/spinner';
-import {Filters} from '../filters';
-import {Trace} from '../../../../../public/trace';
-import {SqlColumn} from '../sql_column';
+import type {Filters} from '../filters';
+import type {Trace} from '../../../../../public/trace';
+import type {SqlColumn} from '../sql_column';
 
 export type SelectColumnMenuAttrs = {
   columns:
@@ -75,9 +79,7 @@ function onColumnSelectedClickHandler(
 }
 
 // Core implementation of the selectable column list.
-class SelectColumnMenuImpl
-  implements m.ClassComponent<SelectColumnMenuImplAttrs>
-{
+class SelectColumnMenuImpl implements m.ClassComponent<SelectColumnMenuImplAttrs> {
   // When the menu elements are updated (e.g. when filtering), the popup
   // can flicker a lot. To prevent that, we fix the size of the popup
   // after the first layout.
@@ -144,9 +146,7 @@ class SelectColumnMenuImpl
   }
 }
 
-export class SelectColumnMenu
-  implements m.ClassComponent<SelectColumnMenuAttrs>
-{
+export class SelectColumnMenu implements m.ClassComponent<SelectColumnMenuAttrs> {
   private searchText = '';
   columns?: {key: string; column: TableColumn}[];
 

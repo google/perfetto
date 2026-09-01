@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import type m from 'mithril';
 
 export interface TabManager {
   registerTab(tab: TabDescriptor): void;

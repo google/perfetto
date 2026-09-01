@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {SliceTrack} from './slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';

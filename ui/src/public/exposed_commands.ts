@@ -24,3 +24,5 @@
 
 export const CRITICAL_PATH_CMD = 'dev.perfetto.CriticalPath';
 export const CRITICAL_PATH_LITE_CMD = 'dev.perfetto.CriticalPathLite';
+export const OPEN_MULTIPLE_TRACES_CMD =
+  'dev.perfetto.MultiTraceOpen#openMultipleTraces';

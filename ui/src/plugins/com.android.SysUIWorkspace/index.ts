@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {NUM, STR} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {PerfettoPlugin} from '../../public/plugin';
-import {TrackNode, Workspace} from '../../public/workspace';
+import type {Trace} from '../../public/trace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import {TrackNode, type Workspace} from '../../public/workspace';
 
 const TRACKS_TO_COPY: string[] = [
   'L<',

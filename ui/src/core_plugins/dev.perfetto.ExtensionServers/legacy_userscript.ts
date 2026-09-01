@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 import {defer} from '../../base/deferred';
-import {AppImpl} from '../../core/app_impl';
-import {CommandInvocation} from '../../core/command_manager';
+import type {AppImpl} from '../../core/app_impl';
+import type {CommandInvocation} from '../../core/command_manager';
 import {raf} from '../../core/raf_scheduler';
-import {SqlPackage} from '../../public/extra_sql_packages';
+import type {SqlPackage} from '../../public/extra_sql_packages';
 import {Anchor} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
 

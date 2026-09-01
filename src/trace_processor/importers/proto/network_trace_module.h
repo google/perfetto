@@ -29,8 +29,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/third_party/android/connectivity/network_trace.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -45,24 +45,17 @@ class NetworkTraceModule : public ProtoImporterModule {
   // details (packet_timestamps and packet_lengths) into one NetworkTraceEvent
   // per packet. Bundles with aggregates (i.e. total_packets) are forwarded
   // after de-interning the packet context.
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t ts,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
  private:
   void ParseGenericEvent(int64_t ts,
                          int64_t dur,
                          int64_t length,
                          int64_t count,
-                         protos::pbzero::NetworkPacketEvent::Decoder& evt);
+                         ::android::net::connectivity::tracing::pbzero::
+                             NetworkPacketEvent::Decoder& evt);
 
   void ParseNetworkPacketEvent(int64_t ts, protozero::ConstBytes blob);
   void ParseNetworkPacketBundle(int64_t ts, protozero::ConstBytes blob);
@@ -72,7 +65,8 @@ class NetworkTraceModule : public ProtoImporterModule {
                                TraceBlobView tbv,
                                RefPtr<PacketSequenceStateGeneration> state);
 
-  StringId GetIpProto(protos::pbzero::NetworkPacketEvent::Decoder& evt);
+  StringId GetIpProto(::android::net::connectivity::tracing::pbzero::
+                          NetworkPacketEvent::Decoder& evt);
 
   TraceProcessorContext* context_;
 

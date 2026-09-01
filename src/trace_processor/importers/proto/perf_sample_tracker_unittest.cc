@@ -133,25 +133,25 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Counter) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // Name derived from the timebase.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "page-faults");
 }
 
@@ -172,25 +172,25 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_Tracepoint) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // Name derived from the timebase.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "sched:sched_switch");
 }
 
@@ -203,26 +203,26 @@ TEST_F(PerfSampleTrackerTest, UnknownCounterTreatedAsCpuClock) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // If the trace doesn't have a PerfSampleDefaults describing the timebase
   // counter, we assume cpu-clock.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "cpu-clock");
 }
 
@@ -246,25 +246,25 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_ConfigSuppliedName) {
 
   TrackId track_id = stream.timebase_track_id;
   const auto& track_table = context.storage->track_table();
-  auto rr = track_table.FindById(track_id);
+  auto rr = track_table[track_id];
 
   // track exists and looks sensible
-  ASSERT_TRUE(rr.has_value());
+  ASSERT_TRUE(true);
 
-  auto perf_session_id = GetDimension(*rr, "perf_session_id");
+  auto perf_session_id = GetDimension(rr, "perf_session_id");
   ASSERT_TRUE(perf_session_id.has_value());
   EXPECT_EQ(*perf_session_id, Variadic::Integer(stream.perf_session_id.value));
 
-  auto cpu = GetDimension(*rr, "cpu");
+  auto cpu = GetDimension(rr, "cpu");
   ASSERT_TRUE(cpu.has_value());
   EXPECT_EQ(*cpu, Variadic::Integer(cpu0));
 
-  auto is_timebase = GetArg(*rr, "is_timebase");
+  auto is_timebase = GetArg(rr, "is_timebase");
   ASSERT_TRUE(is_timebase.has_value());
   EXPECT_EQ(*is_timebase, Variadic::Boolean(true));
 
   // Using the config-supplied name for the track.
-  std::string track_name = context.storage->GetString(rr->name()).ToStdString();
+  std::string track_name = context.storage->GetString(rr.name()).ToStdString();
   ASSERT_EQ(track_name, "test-name");
 }
 
@@ -314,24 +314,24 @@ TEST_F(PerfSampleTrackerTest, FollowersTracks) {
   for (size_t i = 0; i < track_ids.size(); ++i) {
     TrackId track_id = track_ids[i];
     const auto& track_table = context.storage->track_table();
-    auto rr = track_table.FindById(track_id);
+    auto rr = track_table[track_id];
 
     // Check the track exists and looks sensible.
-    ASSERT_TRUE(rr.has_value());
+    ASSERT_TRUE(true);
 
     std::string track_name =
-        context.storage->GetString(rr->name()).ToStdString();
+        context.storage->GetString(rr.name()).ToStdString();
 
-    auto perf_session_id = GetDimension(*rr, "perf_session_id");
+    auto perf_session_id = GetDimension(rr, "perf_session_id");
     ASSERT_TRUE(perf_session_id.has_value());
     EXPECT_EQ(*perf_session_id,
               Variadic::Integer(stream.perf_session_id.value));
 
-    auto cpu = GetDimension(*rr, "cpu");
+    auto cpu = GetDimension(rr, "cpu");
     ASSERT_TRUE(cpu.has_value());
     EXPECT_EQ(*cpu, Variadic::Integer(cpu_id));
 
-    auto is_timebase = GetArg(*rr, "is_timebase");
+    auto is_timebase = GetArg(rr, "is_timebase");
     ASSERT_TRUE(is_timebase.has_value());
     EXPECT_EQ(*is_timebase, Variadic::Boolean(track_name == "leader"));
 

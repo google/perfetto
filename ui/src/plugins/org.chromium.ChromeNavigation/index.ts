@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
-import {TrackNode} from '../../public/workspace';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {TrackNode} from '../../public/workspace';
 
 // Name patterns for tracks which will be pinned in the current workspace.
 // It is useful when using the default workspace which contains a lot of tracks

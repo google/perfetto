@@ -102,4 +102,22 @@ bool TracingSession::AllDataSourceInstancesStopped() {
                      });
 }
 
+void TracingSession::AddConcurrentSessionEventWithLimit(
+    const TracingSession& src) {
+  static constexpr size_t kMaxConcurrentSessionEvents = 4096;
+
+  if (concurrent_session_events.size() >= kMaxConcurrentSessionEvents)
+    return;
+
+  ConcurrentSessionEvent event{};
+  event.timestamp = src.current_state_start_ns;
+  event.session_id = src.id;
+  event.state = src.state;
+  event.consumer_uid = src.consumer_uid;
+  event.num_data_sources =
+      static_cast<uint32_t>(src.data_source_instances.size());
+  event.name = src.config.unique_session_name();
+  concurrent_session_events.emplace_back(std::move(event));
+}
+
 }  // namespace perfetto::tracing_service

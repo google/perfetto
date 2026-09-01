@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './overlay_container.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 
@@ -20,9 +21,7 @@ export interface OverlayContainerAttrs {
   readonly fillHeight?: boolean;
 }
 
-export class OverlayContainer
-  implements m.ClassComponent<OverlayContainerAttrs>
-{
+export class OverlayContainer implements m.ClassComponent<OverlayContainerAttrs> {
   view({attrs, children}: m.Vnode<OverlayContainerAttrs>) {
     const {fillHeight = false} = attrs as OverlayContainerAttrs;
     return m(

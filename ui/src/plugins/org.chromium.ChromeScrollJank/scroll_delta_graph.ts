@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, Time, time} from '../../base/time';
-import {Engine} from '../../trace_processor/engine';
+import {type duration, Time, type time} from '../../base/time';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {EChartView} from '../../components/widgets/charts/echart_view';
 import type {EChartsCoreOption} from 'echarts/core';

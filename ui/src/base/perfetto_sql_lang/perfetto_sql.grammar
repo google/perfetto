@@ -146,4 +146,4 @@ Null {
 @detectDelim
 
 //! To build, run:
-//! lezer-generator ui/src/base/perfetto_sql_lang/perfetto_sql.grammar -o ui/src/base/perfetto_sql_lang/perfetto_sql.grammar.js
+//! lezer-generator ui/src/base/perfetto_sql_lang/perfetto_sql.grammar -o ui/src/base/perfetto_sql_lang/gen/perfetto_sql.grammar.js

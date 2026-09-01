@@ -15,6 +15,8 @@
  */
 
 #include "perfetto/ext/base/utils.h"
+#include <cstdint>
+#include <limits>
 
 #include "perfetto/base/build_config.h"
 
@@ -193,7 +195,30 @@ TEST(UtilsTest, EintrWrapper) {
 }
 #endif  // LINUX | ANDROID | APPLE
 
-TEST(UtilsTest, Align) {
+TEST(UtilsTest, IsPowerOfTwo) {
+  EXPECT_FALSE(IsPowerOfTwo(0u));
+  EXPECT_TRUE(IsPowerOfTwo(1u));
+  EXPECT_TRUE(IsPowerOfTwo(2u));
+  EXPECT_FALSE(IsPowerOfTwo(3u));
+  EXPECT_TRUE(IsPowerOfTwo(4u));
+
+  constexpr uint64_t max_pow2 = static_cast<uint64_t>(1) << 63;
+  EXPECT_FALSE(IsPowerOfTwo(max_pow2 - 1));
+  EXPECT_TRUE(IsPowerOfTwo(max_pow2));
+  EXPECT_FALSE(IsPowerOfTwo(max_pow2 + 1));
+}
+
+TEST(UtilsTest, RoundUpToPowerOfTwo) {
+  EXPECT_EQ(RoundUpToPowerOfTwo(0u), 0u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(1u), 1u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(2u), 2u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(3u), 4u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(5u), 8u);
+  EXPECT_EQ(RoundUpToPowerOfTwo(uint32_t{1} << 31), uint32_t{1} << 31);
+  EXPECT_EQ(RoundUpToPowerOfTwo((uint32_t{1} << 31) + 1), 0u);
+}
+
+TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
   EXPECT_EQ(4u, AlignUp<4>(3));
@@ -205,6 +230,16 @@ TEST(UtilsTest, Align) {
   EXPECT_EQ(16u, AlignUp<16>(16));
   EXPECT_EQ(32u, AlignUp<16>(17));
   EXPECT_EQ(0xffffff00u, AlignUp<16>(0xffffff00 - 1));
+}
+
+TEST(UtilsTest, AlignDown) {
+  EXPECT_EQ(0u, AlignDown(0, 4));
+  EXPECT_EQ(0u, AlignDown(1, 4));
+  EXPECT_EQ(0u, AlignDown(3, 4));
+  EXPECT_EQ(4u, AlignDown(4, 4));
+  EXPECT_EQ(4u, AlignDown(5, 4));
+
+  EXPECT_EQ(12345u, AlignDown(12345, 1));
 }
 
 TEST(UtilsTest, HexDump) {
@@ -329,6 +364,44 @@ TEST(UtilsTest, CopyFileContents) {
 #endif
 }
 
+TEST(UtilsTest, SeekFile) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
+
+  ASSERT_TRUE(SeekFile(*file, 3));
+  char data[3] = {};
+  ASSERT_EQ(Read(*file, data, sizeof(data)), 3);
+  EXPECT_EQ(std::string(data, sizeof(data)), "def");
+}
+
+TEST(UtilsTest, TruncateFile) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
+
+  ASSERT_TRUE(TruncateFile(*file, 3));
+  EXPECT_EQ(GetFileSize(*file), 3u);
+
+  std::string contents;
+  ASSERT_TRUE(ReadFile(file.path(), &contents));
+  EXPECT_EQ(contents, "abc");
+
+  ASSERT_TRUE(TruncateFile(*file, 8));
+  EXPECT_EQ(GetFileSize(*file), 8u);
+  contents.clear();
+  ASSERT_TRUE(ReadFile(file.path(), &contents));
+  EXPECT_EQ(contents, std::string("abc\0\0\0\0\0", 8));
+}
+
+TEST(UtilsTest, SeekAndTruncateFileErrors) {
+  EXPECT_FALSE(SeekFile(-1, 0));
+  EXPECT_FALSE(TruncateFile(-1, 0));
+
+  constexpr uint64_t kTooLarge = std::numeric_limits<uint64_t>::max();
+  TempFile file = TempFile::Create();
+  EXPECT_FALSE(SeekFile(*file, kTooLarge));
+  EXPECT_FALSE(TruncateFile(*file, kTooLarge));
+}
+
 TEST(UtilsTest, GetFileSize) {
   TempFile file = TempFile::Create();
   // Explicitly set the string size, we want to write all data to the file.
@@ -355,8 +428,8 @@ TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
 }
 
 TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
-  auto tmp = TempDir::Create();
-  std::string tmp_path = tmp.path() + "/temp.txt";
+  TempFile tmp_file = TempFile::Create();
+  const std::string& tmp_path = tmp_file.path();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
   ASSERT_EQ(payload.size(), static_cast<size_t>(16));
@@ -376,7 +449,6 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
       ASSERT_TRUE(ReadFile(tmp_path, &actual));
       ASSERT_EQ(actual, payload);
     }
-    ASSERT_EQ(remove(tmp_path.c_str()), 0);
   }
 
   {
@@ -392,6 +464,56 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
   }
 }
 #endif
+
+TEST(UtilsTest, SaturatingAdd) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+
+  EXPECT_EQ(SaturatingAdd(0, 0), 0);
+  EXPECT_EQ(SaturatingAdd(123, 456), 579);
+  EXPECT_EQ(SaturatingAdd(-123, -456), -579);
+  EXPECT_EQ(SaturatingAdd(kMax, 0), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, 0), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMax, 1), kMax);
+  EXPECT_EQ(SaturatingAdd(kMax - 1, 2), kMax);
+  EXPECT_EQ(SaturatingAdd(kMin, -1), kMin);
+  EXPECT_EQ(SaturatingAdd(kMin + 1, -2), kMin);
+}
+
+TEST(UtilsTest, SaturatingMultiply) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+
+  // No overflow: behaves like a normal multiply.
+  EXPECT_EQ(SaturatingMultiply(0, 1000), 0);
+  EXPECT_EQ(SaturatingMultiply(1000, 0), 0);
+  EXPECT_EQ(SaturatingMultiply(123, 1000), 123000);
+  EXPECT_EQ(SaturatingMultiply(-123, 1000), -123000);
+  EXPECT_EQ(SaturatingMultiply(123, -1000), -123000);
+  EXPECT_EQ(SaturatingMultiply(-123, -1000), 123000);
+  EXPECT_EQ(SaturatingMultiply(kMax, 1), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMin, 1), kMin);
+
+  // Positive overflow saturates to kMax (same-sign operands).
+  EXPECT_EQ(SaturatingMultiply(kMax, 1000), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMax, 2), kMax);
+  EXPECT_EQ(SaturatingMultiply(kMin, -1), kMax);
+  EXPECT_EQ(SaturatingMultiply(-kMax, -2), kMax);
+
+  // Just-in-range products near kMin are not saturated.
+  EXPECT_EQ(SaturatingMultiply(kMin / 1000, 1000), -9223372036854775000);
+
+  // Negative overflow saturates to kMin (opposite-sign operands). Notably a
+  // value near INT64_MIN scaled by a positive factor must stay negative rather
+  // than wrapping to a large positive value.
+  EXPECT_EQ(SaturatingMultiply(kMin, 1000), kMin);
+  EXPECT_EQ(SaturatingMultiply(kMin, 2), kMin);
+  EXPECT_EQ(SaturatingMultiply(kMax, -2), kMin);
+  EXPECT_EQ(SaturatingMultiply(-9223372036854776, 1000), kMin);
+  EXPECT_EQ(SaturatingMultiply(1000, -9223372036854776), kMin);
+}
 
 }  // namespace
 }  // namespace base

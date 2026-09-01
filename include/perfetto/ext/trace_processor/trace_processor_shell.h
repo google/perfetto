@@ -65,9 +65,10 @@ class TraceProcessorShell {
 };
 
 // Abstract class for platform specific operations.
-class TraceProcessorShell_PlatformInterface {
+class TraceProcessorShell_PlatformInterface
+    : public TraceProcessor::PlatformInterface {
  public:
-  virtual ~TraceProcessorShell_PlatformInterface();
+  ~TraceProcessorShell_PlatformInterface() override;
 
   // Returns the default config struct for creating a new instance of
   // TraceProcessor.

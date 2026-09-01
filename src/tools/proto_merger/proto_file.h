@@ -18,6 +18,7 @@
 #define SRC_TOOLS_PROTO_MERGER_PROTO_FILE_H_
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 // We include this intentionally instead of forward declaring to allow
@@ -69,6 +70,8 @@ struct ProtoFile {
     std::vector<Oneof> oneofs;
     std::vector<Field> fields;
 
+    std::unordered_set<int> reserved_numbers;
+
     std::vector<Enum> deleted_enums;
     std::vector<Message> deleted_nested_messages;
     std::vector<Oneof> deleted_oneofs;
@@ -76,6 +79,7 @@ struct ProtoFile {
   };
 
   std::string preamble;
+  bool is_proto2 = false;
 
   std::vector<Message> messages;
   std::vector<Enum> enums;
@@ -85,8 +89,11 @@ struct ProtoFile {
 };
 
 // Creates a ProtoFile struct from a libprotobuf-full descriptor clas.
-ProtoFile ProtoFileFromDescriptor(std::string preamble,
-                                  const google::protobuf::FileDescriptor&);
+ProtoFile ProtoFileFromDescriptor(
+    std::string preamble,
+    const google::protobuf::FileDescriptor&,
+    const std::vector<const google::protobuf::FileDescriptor*>&
+        extension_descriptors = {});
 
 }  // namespace proto_merger
 }  // namespace perfetto

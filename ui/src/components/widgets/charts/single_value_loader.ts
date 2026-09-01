@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../../trace_processor/engine';
-import {NUM, QueryResult} from '../../../trace_processor/query_result';
+import type {Engine} from '../../../trace_processor/engine';
+import {NUM, type QueryResult} from '../../../trace_processor/query_result';
 import {
   ChartSource,
   DEFAULT_MEASURE_ALIAS,
-  QueryConfig,
+  type QueryConfig,
   SQLChartLoader,
 } from './chart_sql_source';
-import {ChartAggregation} from './chart_utils';
+import type {ChartAggregation} from './chart_utils';
 
 /** A single aggregated numeric value, used by both Gauge and Scorecard. */
 export interface SingleValueData {

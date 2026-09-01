@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ErrorStackEntry} from './logging';
+import type {ErrorStackEntry} from './logging';
 
 export interface SourceMap {
   version: number;

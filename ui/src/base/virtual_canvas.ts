@@ -33,7 +33,7 @@
  */
 
 import {DisposableStack} from './disposable_stack';
-import {Bounds2D, Rect2D, Size2D} from './geom';
+import {type Bounds2D, Rect2D, type Size2D} from './geom';
 
 export type LayoutShiftListener = (
   canvas: HTMLCanvasElement,

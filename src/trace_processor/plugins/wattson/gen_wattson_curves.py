@@ -66,6 +66,7 @@ SCHEMAS = {
         ('active', 'double'),
         ('idle0', 'double'),
         ('idle1', 'double'),
+        ('interconnect', 'double'),
     ],
     'gpu': [
         ('device', 'string'),

@@ -36,7 +36,7 @@ class QueryResult;
 namespace trace_processor {
 
 class Iterator;
-class IteratorImpl;
+class SqliteIteratorImpl;
 
 // This class serializes a TraceProcessor query result (i.e. an Iterator)
 // into batches of QueryResult (trace_processor.proto). This class
@@ -83,7 +83,7 @@ class QueryResultSerializer {
   void SerializeBatch(protos::pbzero::QueryResult*);
   void MaybeSerializeError(protos::pbzero::QueryResult*);
 
-  std::unique_ptr<IteratorImpl> iter_;
+  std::unique_ptr<SqliteIteratorImpl> iter_;
   const uint32_t num_cols_;
   const std::optional<base::TimeNanos> t_start_;
   bool did_write_metadata_ = false;

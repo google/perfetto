@@ -50,7 +50,8 @@ std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
     const ConnectProducerArgs& args) {
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
   return GetOrCreateService(args.task_runner)
-      ->ConnectProducer(args.producer, ClientIdentity(/*uid=*/0, /*pid=*/0),
+      ->ConnectProducer(args.producer,
+                        ClientIdentity(/*uid=*/0, /*pid=*/0, args.machine_id),
                         args.producer_name, args.shmem_size_hint_bytes,
                         /*in_process=*/true,
                         TracingService::ProducerSMBScrapingMode::kEnabled,
@@ -68,7 +69,9 @@ TracingService* InProcessTracingBackend::GetOrCreateService(
   if (!service_) {
     std::unique_ptr<InProcessSharedMemory::Factory> shm(
         new InProcessSharedMemory::Factory());
-    service_ = TracingService::CreateInstance(std::move(shm), task_runner);
+    TracingService::InitOpts init_opts = {};
+    service_ =
+        TracingService::CreateInstance(std::move(shm), task_runner, init_opts);
     service_->SetSMBScrapingEnabled(true);
   }
   return service_.get();

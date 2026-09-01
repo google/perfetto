@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {assertTrue} from '../../../../base/assert';
-import {Result, okResult, errResult} from '../../../../base/result';
-import {AsyncWebsocket} from '../../websocket/async_websocket';
+import {type Result, okResult, errResult} from '../../../../base/result';
+import type {AsyncWebsocket} from '../../websocket/async_websocket';
 import {prefixWithHexLen} from '../../websocket/websocket_utils';
 
 /**

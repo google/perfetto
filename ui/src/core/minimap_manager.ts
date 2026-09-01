@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {time} from '../base/time';
+import type {time} from '../base/time';
 import {calculateResolution} from '../base/resolution';
-import {
+import type {
   MinimapContentProvider,
   MinimapManager,
   MinimapRow,

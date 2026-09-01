@@ -16,9 +16,9 @@ import m from 'mithril';
 import {singleNodeOperation} from '../../../query_node';
 import {
   NodeGraph,
-  Node as GraphNode,
-  Connection,
-  NodeGraphApi,
+  type Node as GraphNode,
+  type Connection,
+  type NodeGraphApi,
 } from '../../../../../widgets/nodegraph';
 import {buildReadOnlyNodeConfig} from '../../graph/node_config';
 import type {GroupNode} from '.';
@@ -32,9 +32,7 @@ interface InnerGraphPreviewAttrs {
  * Owns its own view-layer state (recenter tracking) so that GroupNode
  * remains a pure data model.
  */
-export class InnerGraphPreview
-  implements m.ClassComponent<InnerGraphPreviewAttrs>
-{
+export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttrs> {
   private recentered = false;
   private lastInnerNodeCount = 0;
 

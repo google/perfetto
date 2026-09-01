@@ -72,7 +72,7 @@ TEST(PerfInvocationTest, OneAttrAndNoIdBuildSucceeds) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = false;
   attr.sample_type = PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
   builder.AddAttrAndIds(attr, {1});
@@ -97,7 +97,7 @@ TEST(PerfInvocationTest, MultipleAttrsAndNoIdBuildFails) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
   builder.AddAttrAndIds(attr, {1});
@@ -117,7 +117,7 @@ TEST(PerfInvocationTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
   builder.AddAttrAndIds(attr, {1, 2, 3});
@@ -151,7 +151,7 @@ TEST(PerfInvocationTest, NoCommonSampleIdAllBuildFails) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER;
   builder.AddAttrAndIds(attr, {1});
@@ -177,7 +177,7 @@ TEST(PerfInvocationTest, NoCommonOffsetForSampleBuildFails) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
   builder.AddAttrAndIds(attr, {1});
@@ -198,7 +198,7 @@ TEST(PerfInvocationTest, NoCommonOffsetForNonSampleBuildFails) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_ID | PERF_SAMPLE_TID;
   builder.AddAttrAndIds(attr, {1});
@@ -225,7 +225,7 @@ TEST(PerfInvocationTest,
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = false;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_TID;
   builder.AddAttrAndIds(attr, {1});
@@ -246,7 +246,7 @@ TEST(PerfInvocationTest, MultiplesessionBuildSucceeds) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
   builder.AddAttrAndIds(attr, {1});
@@ -266,7 +266,7 @@ TEST(PerfInvocationTest, FindAttrInRecordWithId) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
   attr.read_format = 1;
@@ -311,7 +311,7 @@ TEST(PerfInvocationTest, FindAttrInRecordWithIdentifier) {
           TraceProcessorContext::TraceState{TraceId{0}});
   context.stats_tracker = std::make_unique<StatsTracker>(&context);
   PerfInvocation::Builder builder(&context);
-  perf_event_attr attr;
+  perf_event_attr attr{};
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_IP;
   attr.read_format = 1;

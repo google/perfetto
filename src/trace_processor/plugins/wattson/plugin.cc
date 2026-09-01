@@ -24,14 +24,14 @@
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/plugins/wattson/cpu_1d_curves.h"
 #include "src/trace_processor/plugins/wattson/cpu_2d_curves.h"
 #include "src/trace_processor/plugins/wattson/gpu_curves.h"
 #include "src/trace_processor/plugins/wattson/l3_curves.h"
-#include "src/trace_processor/plugins/wattson/register.h"
 #include "src/trace_processor/plugins/wattson/table_function.h"
 #include "src/trace_processor/plugins/wattson/tpu_curves.h"
+#include "src/trace_processor/plugins/wattson/wattson.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -69,6 +69,7 @@ class WattsonPlugin : public Plugin<WattsonPlugin> {
   ~WattsonPlugin() override;
 
   void RegisterStaticTableFunctions(
+      PerfettoSqlConnection*,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns) override {
     StringPool* pool = trace_context_->storage->mutable_string_pool();
     fns.emplace_back(std::make_unique<WattsonCurvesTableFunction>(
@@ -91,7 +92,8 @@ class WattsonPlugin : public Plugin<WattsonPlugin> {
                   {"static", kDouble},
                   {"active", kDouble},
                   {"idle0", kDouble},
-                  {"idle1", kDouble}}),
+                  {"idle1", kDouble},
+                  {"interconnect", kDouble}}),
         kCpu2DCurvesData.data(), kCpu2DCurvesData.size()));
     fns.emplace_back(std::make_unique<WattsonCurvesTableFunction>(
         pool, "__intrinsic_wattson_curves_gpu",

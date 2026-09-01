@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -45,6 +46,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/simple_json_parser.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::gecko_importer {
 
@@ -464,8 +466,7 @@ base::StatusOr<GeckoProfile> ParseGeckoProfile(std::string_view json) {
 GeckoTraceTokenizer::GeckoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(
-          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))),
-      trace_file_clock_(ClockId::TraceFile(ctx->trace_id().value)) {}
+          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))) {}
 GeckoTraceTokenizer::~GeckoTraceTokenizer() = default;
 
 base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
@@ -638,7 +639,7 @@ void GeckoTraceTokenizer::ProcessLegacySamples(
 
     auto ts = static_cast<int64_t>(time_val * 1000 * 1000);
     std::optional<int64_t> converted =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (!converted) {
       continue;
     }
@@ -717,7 +718,7 @@ void GeckoTraceTokenizer::ProcessSamples(
 
     auto ts = static_cast<int64_t>(t.sample_times[i] * 1000 * 1000);
     std::optional<int64_t> converted =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (!converted) {
       continue;
     }
@@ -783,7 +784,7 @@ void GeckoTraceTokenizer::ProcessMarkers(
     double end_ms = t.marker_end_times[i];
     int64_t ts = MarkerEventTimeNs(phase, start_ms, end_ms);
     std::optional<int64_t> converted =
-        context_->clock_tracker->ToTraceTime(trace_file_clock_, ts);
+        context_->clock_tracker->ConvertDefaultClockToTraceTime(ts);
     if (!converted) {
       continue;
     }
@@ -820,3 +821,48 @@ void GeckoTraceTokenizer::ProcessMarkers(
 }
 
 }  // namespace perfetto::trace_processor::gecko_importer
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Firefox Gecko / simpleperf-to-gecko JSON profile.
+class GeckoImporter : public TraceImporter<GeckoImporter> {
+ public:
+  GeckoImporter() : TraceImporter(MakeDescriptor()) {}
+  ~GeckoImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
+                start.end());
+    return base::StartsWith(start, "{\"meta\"") ||
+           base::StartsWith(start, "{\"libs\"");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<gecko_importer::GeckoTraceTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "gecko";
+    d.clock_policy = TraceClockPolicy::kTraceFile;
+    d.detection_priority = 100;
+    return d;
+  }
+};
+
+GeckoImporter::~GeckoImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateGeckoImporter() {
+  return std::make_unique<GeckoImporter>();
+}
+
+}  // namespace perfetto::trace_processor

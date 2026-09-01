@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../../base/assert';
+import {ensureExists} from '../../../base/assert';
 import {splitLinesNonEmpty} from '../../../base/string_utils';
 import protos from '../../../protos';
 import {
@@ -20,8 +20,8 @@ import {
   ADV_PROC_ASSOC_PROBE_ID,
   PROC_STATS_DS_NAME,
 } from './advanced';
-import {RecordProbe, RecordSubpage} from '../config/config_interfaces';
-import {TraceConfigBuilder} from '../config/trace_config_builder';
+import type {RecordProbe, RecordSubpage} from '../config/config_interfaces';
+import type {TraceConfigBuilder} from '../config/trace_config_builder';
 import {TypedMultiselect} from './widgets/multiselect';
 import {POLL_INTERVAL_SLIDER, Slider} from './widgets/slider';
 import {Textarea} from './widgets/textarea';
@@ -170,7 +170,7 @@ function heapDumps(): RecordProbe {
   };
   return {
     id: 'mem_heapdumps',
-    title: 'Java heap dumps',
+    title: 'ART heap dumps',
     image: 'rec_java_heap_dump.png',
     description:
       'Dump information about the Java object graph of an ' +
@@ -341,7 +341,7 @@ function polledProcStats(): RecordProbe {
       const ds = tc.addDataSource(PROC_STATS_DS_NAME, ADV_PROC_ASSOC_BUF_ID);
       // Because of the dependency on ADV_PROC_ASSOC_PROBE_ID, we expect
       // procThreadAssociation() to create the config first.
-      const cfg = assertExists(ds.processStatsConfig);
+      const cfg = ensureExists(ds.processStatsConfig);
       cfg.procStatsPollMs = settings.pollMs.value || undefined;
       cfg.recordProcessAge = settings.procAge.enabled || undefined;
       cfg.recordProcessRuntime = settings.procRuntime.enabled || undefined;

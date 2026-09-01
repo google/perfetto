@@ -14,12 +14,12 @@
 
 import {
   expandProcessName,
-  CujScopedMetricData,
-  MetricHandler,
-  JankType,
+  type CujScopedMetricData,
+  type MetricHandler,
+  type JankType,
 } from './metricUtils';
 import {NUM} from '../../../trace_processor/query_result';
-import {Trace} from '../../../public/trace';
+import type {Trace} from '../../../public/trace';
 
 // TODO(primiano): make deps check stricter, we shouldn't allow plugins to
 // depend on each other.
@@ -98,7 +98,7 @@ class PinCujScopedJank implements MetricHandler {
         f.ts AS ts,
         f.dur as dur,
         f.jank_score as jank_score
-      FROM android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
+      FROM _android_jank_cuj_frame f LEFT JOIN android_jank_cuj cuj USING (cuj_id)
       WHERE cuj.process_name = "${processName}"
       AND cuj_name = "${cuj}" ${jankTypeFilter}
     `;

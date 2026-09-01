@@ -13,9 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, Time, time} from '../../base/time';
+import {type duration, Time, type time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {Grid, GridColumn, GridHeaderCell, GridCell} from '../../widgets/grid';
+import {
+  Grid,
+  type GridColumn,
+  GridHeaderCell,
+  GridCell,
+} from '../../widgets/grid';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
@@ -39,8 +44,8 @@ import {
   getPresentedScrollDeltas,
 } from './scroll_delta_graph';
 import {JANKS_TRACK_URI, renderSliceRef} from './utils';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {Trace} from '../../public/trace';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {Trace} from '../../public/trace';
 
 interface Data {
   // Scroll ID.

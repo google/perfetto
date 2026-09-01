@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Protocol} from 'devtools-protocol';
-import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
+import type {Protocol} from 'devtools-protocol';
+import type {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
 import {Client} from 'noice-json-rpc';
 
 import {base64Encode} from '../base/string_utils';
-import {
+import type {
   ConsumerPortResponse,
   GetTraceStatsResponse,
   ReadBuffersResponse,

@@ -50,6 +50,18 @@ void MarkOpen(uint64_t ts,
 void MarkOpen(uint64_t ts,
               const ProcessTree::Thread::Decoder& thread,
               ProcessThreadTimeline* timeline) {
+  if (thread.tid() == thread.tgid()) {
+    // This is the main thread of a process, we can ignore it given this thread
+    // can't be used to reach the root parent and the process entry which can
+    // perform that task already exists in the timeline. Furthermore, keeping
+    // this entry would cause a bug where the timeline discards every packet as
+    // threads do not link to a UID, they need to go up to an actual process for
+    // that test, so they always fail and having the same parent causes an
+    // infinite loop that kicks the built-in safeguard of 10 max parent lookup,
+    // wasting resources and causing entire processes or threads to be dropped
+    // in the final redacted trace.
+    return;
+  }
   auto e = ProcessThreadTimeline::Event::Open(ts, thread.tid(), thread.tgid());
   timeline->Append(e);
 }

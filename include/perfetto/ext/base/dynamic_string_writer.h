@@ -19,6 +19,14 @@
 
 #include <string.h>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdlib>
+#include <limits>
+#include <memory>
+#include <type_traits>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -31,6 +39,8 @@ namespace base {
 // sprintf is too slow.
 class DynamicStringWriter {
  public:
+  using ScopedCString = std::unique_ptr<char, void (*)(void*)>;
+
   // Creates a string buffer from a char buffer and length.
   DynamicStringWriter() {}
 
@@ -60,10 +70,60 @@ class DynamicStringWriter {
     AppendString(buf.string_view());
   }
 
+  // Appends an integer to the buffer, padding with |padchar| if the number of
+  // digits of the integer is less than |padding|.
+  template <char padchar, uint64_t padding>
+  void AppendPaddedInt(int64_t sign_value) {
+    const bool negate = std::signbit(static_cast<double>(sign_value));
+    uint64_t absolute_value;
+    if (sign_value == std::numeric_limits<int64_t>::min()) {
+      absolute_value =
+          static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + 1;
+    } else {
+      absolute_value = static_cast<uint64_t>(std::abs(sign_value));
+    }
+    AppendPaddedIntImpl<padchar, padding>(absolute_value, negate);
+  }
+
   void AppendUnsignedInt(uint64_t value) {
     constexpr size_t STACK_BUFFER_SIZE = 32;
     StackString<STACK_BUFFER_SIZE> buf("%" PRIu64, value);
     AppendString(buf.string_view());
+  }
+
+  template <char padchar, uint64_t padding>
+  void AppendPaddedUnsignedInt(uint64_t value) {
+    AppendPaddedIntImpl<padchar, padding>(value, false);
+  }
+
+  template <typename IntType>
+  void AppendPaddedHexInt(IntType value, char padchar, uint64_t padding) {
+    using UnsignedType = std::make_unsigned_t<IntType>;
+    constexpr size_t kMaxHexDigits = sizeof(IntType) * 2;
+    constexpr size_t kBufferSize = 32;
+    auto size_needed =
+        kMaxHexDigits > padding ? kMaxHexDigits : static_cast<size_t>(padding);
+    PERFETTO_DCHECK(size_needed <= kBufferSize);
+
+    std::array<char, kBufferSize> data;
+    constexpr char hex_asc[] = "0123456789abcdef";
+
+    size_t idx = size_needed - 1;
+    auto uvalue = static_cast<UnsignedType>(value);
+    do {
+      data[idx--] = hex_asc[uvalue & 0xF];
+      uvalue >>= 4;
+    } while (uvalue != 0);
+
+    if (padding > 0) {
+      const auto num_digits = static_cast<uint64_t>(size_needed - 1 - idx);
+      // std::max() needed to work around GCC not being able to tell that
+      // padding > 0.
+      for (auto i = num_digits; i < std::max(uint64_t{1u}, padding); i++) {
+        data[idx--] = padchar;
+      }
+    }
+    AppendString(&data[idx + 1], size_needed - idx - 1);
   }
 
   // Appends a hex integer to the buffer.
@@ -72,6 +132,13 @@ class DynamicStringWriter {
     constexpr size_t STACK_BUFFER_SIZE = 64;
     StackString<STACK_BUFFER_SIZE> buf("%" PRIx64, value);
     AppendString(buf.string_view());
+  }
+
+  void AppendHexString(const uint8_t* data, size_t size, char separator);
+
+  void AppendHexString(StringView data, char separator) {
+    AppendHexString(reinterpret_cast<const uint8_t*>(data.data()), data.size(),
+                    separator);
   }
 
   // Appends a double to the buffer.
@@ -93,9 +160,52 @@ class DynamicStringWriter {
     return StringView(buffer_.c_str(), buffer_.size());
   }
 
+  ScopedCString CreateStringCopy() const {
+    size_t n = buffer_.size();
+    char* dup = reinterpret_cast<char*>(malloc(n + 1));
+    if (dup) {
+      memcpy(dup, buffer_.data(), n);
+      dup[n] = '\0';
+    }
+    return {dup, free};
+  }
+
+  size_t pos() const { return buffer_.size(); }
+
   void Clear() { buffer_.clear(); }
 
  private:
+  template <char padchar, uint64_t padding>
+  void AppendPaddedIntImpl(uint64_t absolute_value, bool negate) {
+    // Need to add 2 to the number of digits to account for minus sign and
+    // rounding down of digits10.
+    constexpr auto kMaxDigits = std::numeric_limits<uint64_t>::digits10 + 2;
+    constexpr auto kSizeNeeded = kMaxDigits > padding ? kMaxDigits : padding;
+
+    char data[kSizeNeeded];
+
+    size_t idx;
+    for (idx = kSizeNeeded - 1; absolute_value >= 10;) {
+      char digit = absolute_value % 10;
+      absolute_value /= 10;
+      data[idx--] = digit + '0';
+    }
+    data[idx--] = static_cast<char>(absolute_value) + '0';
+
+    if (padding > 0) {
+      size_t num_digits = kSizeNeeded - 1 - idx;
+      // std::max() needed to work around GCC not being able to tell that
+      // padding > 0.
+      for (size_t i = num_digits; i < std::max(uint64_t{1u}, padding); i++) {
+        data[idx--] = padchar;
+      }
+    }
+
+    if (negate)
+      AppendChar('-');
+    AppendString(&data[idx + 1], kSizeNeeded - idx - 1);
+  }
+
   std::string buffer_;
 };
 

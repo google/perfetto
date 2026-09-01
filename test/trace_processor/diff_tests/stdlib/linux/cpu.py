@@ -468,6 +468,7 @@ class LinuxCpu(TestSuite):
               megacycles
              FROM cpu_cycles_per_thread_slice
              WHERE millicycles IS NOT NULL
+             ORDER BY id
              LIMIT 10
              """),
         out=Csv("""
@@ -497,6 +498,7 @@ class LinuxCpu(TestSuite):
               megacycles
              FROM cpu_cycles_per_thread_slice_in_interval(TRACE_START(), TRACE_DUR() / 10)
              WHERE millicycles IS NOT NULL
+             ORDER BY id
              LIMIT 10
              """),
         out=Csv("""

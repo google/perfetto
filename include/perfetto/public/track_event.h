@@ -31,6 +31,7 @@
 #include "perfetto/public/protos/trace/interned_data/interned_data.pzc.h"
 #include "perfetto/public/protos/trace/trace_packet.pzc.h"
 #include "perfetto/public/protos/trace/track_event/counter_descriptor.pzc.h"
+#include "perfetto/public/protos/trace/track_event/state_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/track_event/track_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
 #include "perfetto/public/thread_utils.h"
@@ -243,6 +244,58 @@ static inline void PerfettoTeCounterTrackRegister(
   uuid = PerfettoTeCounterTrackUuid(name, parent_track_uuid);
   PerfettoTeCounterTrackFillDesc(&desc, name, parent_track_uuid, uuid,
                                  is_name_static);
+  PerfettoTeRegisteredTrackFillImpl(track, hb, &writer, uuid);
+}
+
+// Computes the track uuid for a state track named `name` whose parent track
+// has `parent_uuid`.
+static inline uint64_t PerfettoTeStateTrackUuid(const char* name,
+                                                uint64_t parent_uuid) {
+  const uint64_t kStateMagic = 0x9b6c5d2f1e3a47c8ul;
+  uint64_t uuid = kStateMagic;
+  uuid ^= parent_uuid;
+  uuid ^= PerfettoFnv1a(name, strlen(name));
+  return uuid;
+}
+
+// Serializes the descriptor for a state track named `name` with `parent_uuid`.
+// `track_uuid` must be the return value of PerfettoTeStateTrackUuid().
+static inline void PerfettoTeStateTrackFillDesc(
+    struct perfetto_protos_TrackDescriptor* desc,
+    const char* name,
+    uint64_t parent_track_uuid,
+    uint64_t track_uuid,
+    bool is_name_static) {
+  perfetto_protos_TrackDescriptor_set_uuid(desc, track_uuid);
+  if (parent_track_uuid) {
+    perfetto_protos_TrackDescriptor_set_parent_uuid(desc, parent_track_uuid);
+  }
+  if (is_name_static) {
+    perfetto_protos_TrackDescriptor_set_cstr_static_name(desc, name);
+  } else {
+    perfetto_protos_TrackDescriptor_set_cstr_name(desc, name);
+  }
+  {
+    struct perfetto_protos_StateDescriptor state;
+    perfetto_protos_TrackDescriptor_begin_state(desc, &state);
+    perfetto_protos_TrackDescriptor_end_state(desc, &state);
+  }
+}
+
+// Registers a state track named `name` with `parent_uuid` into `track`.
+static inline void PerfettoTeStateTrackRegister(
+    struct PerfettoTeRegisteredTrack* track,
+    const char* name,
+    uint64_t parent_track_uuid,
+    bool is_name_static) {
+  uint64_t uuid;
+  struct PerfettoPbMsgWriter writer;
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct perfetto_protos_TrackDescriptor desc;
+  PerfettoPbMsgInit(&desc.msg, &writer);
+  uuid = PerfettoTeStateTrackUuid(name, parent_track_uuid);
+  PerfettoTeStateTrackFillDesc(&desc, name, parent_track_uuid, uuid,
+                               is_name_static);
   PerfettoTeRegisteredTrackFillImpl(track, hb, &writer, uuid);
 }
 

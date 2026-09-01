@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
 import {z} from 'zod';
 import {runQueryForQueryTable} from '../../components/query_table/queries';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {DataSource} from '../../components/widgets/datagrid/data_source';
-import {Row} from '../../trace_processor/query_result';
 import {QueryResultsTab} from './query_result_tab';
-import {ResultsData, ResultsTable} from './results_table';
+import {type ResultsData, ResultsTable} from './results_table';
 import {undoCommonChatAppReplacements} from '../../base/string_utils';
-import {App} from '../../public/app';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Setting} from '../../public/settings';
-import {Trace} from '../../public/trace';
-import {QueryPage, QueryEditorTab} from './query_page';
+import type {App} from '../../public/app';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
+import type {Trace} from '../../public/trace';
+import {QueryPage, type QueryEditorTab} from './query_page';
+import type {Extension} from '@codemirror/state';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {shortUuid} from '../../base/uuid';
@@ -35,6 +34,7 @@ import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
 
 const QUERY_TABS_STORAGE_KEY = 'perfettoQueryTabs';
+let queryCounter = 0;
 
 const persistedTabSchema = z.object({
   id: z.string(),
@@ -92,8 +92,21 @@ export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly dependencies = [SqlModulesPlugin];
 
   private static queryTabPersistenceSetting: Setting<boolean>;
+  private static sidebarVisibleSetting: Setting<boolean>;
 
   constructor(private readonly trace: Trace) {}
+
+  // Optional per-tab editor extensions injected by another plugin (e.g. the
+  // SqlLsp plugin's language-server integration); undefined => plain editor.
+  // Called per editor tab with a stable document id, since a language server
+  // needs each tab to be a separate document.
+  private editorExtensions?: (docId: string) => Extension;
+
+  setEditorExtensions(
+    extensions: ((docId: string) => Extension) | undefined,
+  ): void {
+    this.editorExtensions = extensions;
+  }
 
   addQueryResultsTab(
     config: {query: string; title: string},
@@ -119,6 +132,15 @@ export default class QueryPagePlugin implements PerfettoPlugin {
         'Experimental: stored queries may be lost during version upgrades.',
       schema: z.boolean(),
       defaultValue: false,
+    });
+
+    QueryPagePlugin.sidebarVisibleSetting = app.settings.register({
+      id: `${QueryPagePlugin.id}#sidebarVisible`,
+      name: 'Query Page: Sidebar Visible',
+      description: 'Show the History/Tables sidebar on the Query page.',
+      schema: z.boolean(),
+      defaultValue: true,
+      headless: true,
     });
   }
 
@@ -192,17 +214,6 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       return editorTabs.find((t) => t.id === activeTabId);
     }
 
-    // Simple cache: returns a stable DataSource for a given QueryResponse.
-    let prevCachedResp: unknown;
-    let cachedDs: DataSource | undefined;
-    function getCachedDataSource(resp: {rows: ReadonlyArray<Row>}): DataSource {
-      if (prevCachedResp !== resp) {
-        prevCachedResp = resp;
-        cachedDs = new InMemoryDataSource(resp.rows);
-      }
-      return cachedDs!;
-    }
-
     async function onExecute(tabId: string, text: string) {
       if (!text) return;
 
@@ -210,6 +221,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
       if (!tab) return;
 
       tab.queryResult = undefined;
+      tab.queryId = queryCounter++;
       queryHistoryStorage.saveQuery(text);
 
       tab.isLoading = true;
@@ -337,6 +349,8 @@ export default class QueryPagePlugin implements PerfettoPlugin {
           onTabAdd,
           onTabRename,
           onTabReorder,
+          sidebarVisibleSetting: QueryPagePlugin.sidebarVisibleSetting,
+          editorExtensions: this.editorExtensions,
         }),
     });
 
@@ -369,7 +383,6 @@ export default class QueryPagePlugin implements PerfettoPlugin {
                 kind: 'success',
                 columns: resp.columns,
                 rows: resp.rows,
-                dataSource: getCachedDataSource(resp),
                 rowCount: resp.totalRowCount,
                 queryTimeMs: resp.durationMs,
                 query: resp.query,
@@ -387,6 +400,7 @@ export default class QueryPagePlugin implements PerfettoPlugin {
                 : resp.query,
             },
             m(ResultsTable, {
+              key: activeTab.queryId,
               data,
               fillHeight: true,
               trace,

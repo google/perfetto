@@ -26,6 +26,9 @@ package perfetto.protos;
 // gradle_version = "9.0.10-alpha01"
 // java_major_version = 24
 ///
+// Attributes can be written as a TracePacket or set in
+// `TraceConfig.trace_attributes` (e.g. via `perfetto --add-attribute`).
+///
 // All keys get prefixed with `trace_attribute.` in the UI and in
 // `traceprocessor`. If there are multiple trace attribute packets that use the
 // same key, then the latest value wins.

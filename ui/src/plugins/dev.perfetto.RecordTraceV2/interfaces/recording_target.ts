@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../../protos';
-import {Result} from '../../../base/result';
-import {PreflightCheck, WithPreflightChecks} from './connection_check';
-import {TargetPlatformId} from './target_platform';
-import {TracingSession} from './tracing_session';
+import type protos from '../../../protos';
+import type {Result} from '../../../base/result';
+import type {PreflightCheck, WithPreflightChecks} from './connection_check';
+import type {TargetPlatformId} from './target_platform';
+import type {TracingSession} from './tracing_session';
 
 /**
  * The interface that models a device that can be used for recording a trace.

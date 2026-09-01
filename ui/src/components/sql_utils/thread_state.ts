@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {duration, Time, time} from '../../base/time';
-import {Engine} from '../../trace_processor/engine';
+import {type duration, Time, type time} from '../../base/time';
+import type {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   NUM,
@@ -23,16 +23,16 @@ import {
 import {
   constraintsToQuerySuffix,
   fromNumNull,
-  SQLConstraints,
+  type SQLConstraints,
 } from '../../trace_processor/sql_utils';
 import {
   asThreadStateSqlId,
   asUtid,
-  SchedSqlId,
-  ThreadStateSqlId,
-  Utid,
+  type SchedSqlId,
+  type ThreadStateSqlId,
+  type Utid,
 } from './core_types';
-import {getThreadInfo, ThreadInfo} from './thread';
+import {getThreadInfo, type ThreadInfo} from './thread';
 
 const states: {[key: string]: string} = {
   'R': 'Runnable',

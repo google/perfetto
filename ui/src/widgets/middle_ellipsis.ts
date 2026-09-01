@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './middle_ellipsis.scss';
 import m from 'mithril';
 
 export interface MiddleEllipsisAttrs {
-  text: string;
-  endChars?: number;
-  className?: string;
+  readonly text: string;
+  readonly endChars?: number;
+  readonly className?: string;
 }
 
 function replaceLeadingTrailingSpacesWithNbsp(text: string) {

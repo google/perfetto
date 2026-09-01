@@ -140,7 +140,7 @@ export function renderPercentBar(
     }),
     m(
       '.pf-gpu-compute__pct-bar-label',
-      showPctVal ? currentPctLabel : customLabel ?? '',
+      showPctVal ? currentPctLabel : (customLabel ?? ''),
     ),
   ]);
 }
@@ -428,14 +428,12 @@ function buildMetricSectionData(
         .filter((tableDecl) => isTableVisible(tableDecl, availableMetrics))
         .map((tableDecl) => ({
           table_desc: tableDecl.description(terminology),
-          data: tableDecl.rows.map(
-            (row): MetricRow => ({
-              metric_id: row.id,
-              metric_label: row.label(terminology),
-              metric_unit: row.unit(terminology),
-              metric_value: getMetric(row.id),
-            }),
-          ),
+          data: tableDecl.rows.map((row): MetricRow => ({
+            metric_id: row.id,
+            metric_label: row.label(terminology),
+            metric_unit: row.unit(terminology),
+            metric_value: getMetric(row.id),
+          })),
         })),
     }))
     .filter((section) => section.tables.length > 0);
@@ -847,8 +845,7 @@ export const KernelMetricsSection: m.Component<
     if (!state.kernelTableData) return null;
 
     const baselineLookup:
-      | Map<string, {unit: string; value: number | string}>
-      | undefined = (() => {
+      Map<string, {unit: string; value: number | string}> | undefined = (() => {
       const baseline = attrs.baseline;
       if (!baseline) return undefined;
 

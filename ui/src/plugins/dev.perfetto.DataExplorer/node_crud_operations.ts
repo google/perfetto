@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {CleanupManager} from './query_builder/cleanup_manager';
 import type {NodeActionHandlers} from './node_actions';
 import {createDeferredNodeActions} from './node_actions';
-import {QueryNode, NodeType, singleNodeOperation} from './query_node';
+import {type QueryNode, NodeType, singleNodeOperation} from './query_node';
 import {nodeRegistry, type PreCreateState} from './query_builder/node_registry';
 import {
   getAllNodes,
@@ -32,7 +32,7 @@ import {
   notifyNextNodes,
   captureAllChildConnections,
 } from './query_builder/graph_utils';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 
 // Dependencies needed by node CRUD operations.
 export interface NodeCrudDeps {

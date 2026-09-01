@@ -15,12 +15,9 @@
 import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
 import {assertUnreachable} from '../../base/assert';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Form, FormGrid, FormLabel, FormSection} from '../../widgets/form';
-import {
-  SegmentedButton,
-  SegmentedButtons,
-} from '../../widgets/segmented_buttons';
+import {RadioGroup} from '../../widgets/radio_group';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import {addDebugCounterTrack, addDebugSliceTrack} from './debug_tracks';
@@ -29,6 +26,8 @@ interface AddDebugTrackMenuAttrs {
   readonly trace: Trace; // Required for adding new tracks and modifying the workspace.
   // A list of available columns in the query results - used to work out sensible defaults for each field.
   readonly availableColumns: ReadonlyArray<string>;
+  // Optional human-readable names keyed by the query result column name.
+  readonly columnDisplayNames?: Readonly<Record<string, string>>;
   // The actual query used to define the debug track.
   readonly query: string;
 
@@ -41,13 +40,20 @@ const TRACK_NAME_FIELD_REF = 'TRACK_NAME_FIELD';
 function chooseDefaultColumn(
   columns: ReadonlyArray<string>,
   name: string,
+  columnDisplayNames: Readonly<Record<string, string>> = {},
 ): string | undefined {
+  const getName = (column: string) => columnDisplayNames[column] ?? column;
+
   // Search for exact match
-  const exactMatch = columns.find((col) => col === name);
+  const exactMatch = columns.find(
+    (col) => col === name || getName(col) === name,
+  );
   if (exactMatch) return exactMatch;
 
   // Search for partial match
-  const partialMatch = columns.find((col) => col.endsWith(`_${name}`));
+  const partialMatch = columns.find(
+    (col) => col.endsWith(`_${name}`) || getName(col).endsWith(`_${name}`),
+  );
   if (partialMatch) return partialMatch;
 
   // Debug tracks support data without dur, in which case it's treated as 0.
@@ -70,23 +76,27 @@ interface ConfigurationOptions {
   color: string;
 }
 
-export class AddDebugTrackMenu
-  implements m.ClassComponent<AddDebugTrackMenuAttrs>
-{
+export class AddDebugTrackMenu implements m.ClassComponent<AddDebugTrackMenuAttrs> {
   private trackName = '';
   private trackType: TrackType = 'slice';
   private readonly options: Partial<ConfigurationOptions>;
+  private columnDisplayNames: Readonly<Record<string, string>>;
 
   constructor({attrs}: m.Vnode<AddDebugTrackMenuAttrs>) {
     const columns = attrs.availableColumns;
+    this.columnDisplayNames = attrs.columnDisplayNames ?? {};
 
     // Initialize the settings to some sensible defaults.
     this.options = {
-      ts: chooseDefaultColumn(columns, 'ts'),
-      dur: chooseDefaultColumn(columns, 'dur'),
-      name: chooseDefaultColumn(columns, 'name'),
-      value: chooseDefaultColumn(columns, 'value'),
-      argSetId: chooseDefaultColumn(columns, 'arg_set_id'),
+      ts: chooseDefaultColumn(columns, 'ts', this.columnDisplayNames),
+      dur: chooseDefaultColumn(columns, 'dur', this.columnDisplayNames),
+      name: chooseDefaultColumn(columns, 'name', this.columnDisplayNames),
+      value: chooseDefaultColumn(columns, 'value', this.columnDisplayNames),
+      argSetId: chooseDefaultColumn(
+        columns,
+        'arg_set_id',
+        this.columnDisplayNames,
+      ),
       pivot: undefined,
       color: '', // Empty string means "from slice name"
     };
@@ -106,6 +116,7 @@ export class AddDebugTrackMenu
   }
 
   view({attrs}: m.Vnode<AddDebugTrackMenuAttrs>) {
+    this.columnDisplayNames = attrs.columnDisplayNames ?? {};
     return m(
       Form,
       {
@@ -137,15 +148,15 @@ export class AddDebugTrackMenu
       ),
       m(FormLabel, {for: 'track_type'}, 'Track type'),
       m(
-        SegmentedButtons,
+        RadioGroup,
         {
           fillWidth: true,
           selectedValue: this.trackType,
-          onOptionSelected: (value) => (this.trackType = value as TrackType),
+          onValueChange: (value) => (this.trackType = value as TrackType),
         },
         [
-          m(SegmentedButton, {value: 'slice'}, 'Slice Track'),
-          m(SegmentedButton, {value: 'counter'}, 'Counter Track'),
+          m(RadioGroup.Button, {value: 'slice'}, 'Slice Track'),
+          m(RadioGroup.Button, {value: 'counter'}, 'Counter Track'),
         ],
       ),
       m(
@@ -215,7 +226,11 @@ export class AddDebugTrackMenu
           'Automatic (from slice name)',
         ),
         availableColumns.map((col) =>
-          m('option', {selected: this.options.color === col, value: col}, col),
+          m(
+            'option',
+            {selected: this.options.color === col, value: col},
+            this.columnDisplayNames[col] ?? col,
+          ),
         ),
       ),
     ];
@@ -265,7 +280,7 @@ export class AddDebugTrackMenu
           m(
             'option',
             {selected: this.options[optionKey] === opt, value: opt},
-            opt,
+            this.columnDisplayNames[opt] ?? opt,
           ),
         ),
       ),

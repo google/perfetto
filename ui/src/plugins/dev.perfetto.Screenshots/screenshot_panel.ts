@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import {Engine} from '../../trace_processor/engine';
-import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {TrackEventSelection} from '../../public/selection';
+import type {Engine} from '../../trace_processor/engine';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackEventSelection} from '../../public/selection';
 import {STR} from '../../trace_processor/query_result';
 
 export class ScreenshotDetailsPanel implements TrackEventDetailsPanel {

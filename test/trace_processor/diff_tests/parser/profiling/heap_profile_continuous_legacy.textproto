@@ -1,0 +1,102 @@
+# Old-producer trace: two continuous dumps for one process/heap without
+# start_timestamp. Verifies a dump's interval falls back to the previous dump;
+# the first dump has none, so it collapses to a point at the trace start.
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+
+packet {
+  clock_snapshot {
+    clocks: {
+      clock_id: 6 # BOOTTIME
+      timestamp: 0
+    }
+    clocks: {
+      clock_id: 4 # MONOTONIC_COARSE
+      timestamp: 0
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 999
+  previous_packet_dropped: 1
+  incremental_state_cleared: true
+  timestamp: 40
+  profile_packet {
+    strings {
+      iid: 1
+      str: "f1"
+    }
+    strings {
+      iid: 2
+      str: "liblib.so"
+    }
+    strings {
+      iid: 3
+      str: "build-id"
+    }
+    frames {
+      iid: 1
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 0x1000
+    }
+    frames {
+      iid: 2
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 0x2000
+    }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+    }
+    callstacks {
+      iid: 2
+      frame_ids: 2
+    }
+    mappings {
+      iid: 1
+      path_string_ids: 2
+      build_id: 3
+    }
+    # First dump: MONOTONIC_COARSE 20 -> trace ts 20. No start_timestamp.
+    process_dumps {
+      pid: 2
+      timestamp: 20
+      orig_sampling_interval_bytes: 1024
+      sampling_interval_bytes: 1024
+      samples {
+        callstack_id: 1
+        self_allocated: 100
+        alloc_count: 1
+      }
+    }
+    # Second dump: MONOTONIC_COARSE 40 -> trace ts 40. No start_timestamp.
+    process_dumps {
+      pid: 2
+      timestamp: 40
+      orig_sampling_interval_bytes: 1024
+      sampling_interval_bytes: 1024
+      samples {
+        callstack_id: 2
+        self_allocated: 100
+        alloc_count: 1
+      }
+    }
+  }
+}

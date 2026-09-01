@@ -62,3 +62,8 @@ message DpuDispFrameStartMissingFtraceEvent {
   optional int32 frames_pending = 3;
   optional int32 te_count = 4;
 }
+message DpuDispDpuLineUnderrunFtraceEvent {
+  optional int32 id = 1;
+  optional int32 frames_pending = 2;
+  optional int32 vsync_count = 3;
+}

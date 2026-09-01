@@ -49,7 +49,7 @@ jobs:
       UI_ONLY_CHANGE: ${{ steps.ui_only.outputs.UI_ONLY_CHANGE }}
       BIGTRACE_CHANGE: ${{ steps.bigtrace.outputs.BIGTRACE_CHANGE }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 1
 

@@ -17,11 +17,11 @@
  */
 
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   isQuantitativeType,
   typesEqual,
 } from '../../../trace_processor/perfetto_sql_type';
-import {ColumnInfo} from './column_info';
+import type {ColumnInfo} from './column_info';
 
 /**
  * Checks if a column type is numeric/quantitative.

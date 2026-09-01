@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {produce, Draft} from 'immer';
-import {getPath, Path, setPath} from './object_utils';
+import {produce, type Draft} from 'immer';
+import {getPath, type Path, setPath} from './object_utils';
 
 export type Migrate<T> = (init: unknown) => T;
 export type Edit<T> = (draft: Draft<T>) => void;

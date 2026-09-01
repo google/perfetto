@@ -17,6 +17,7 @@
 #ifndef SRC_PROTOVM_ALLOCATOR_H_
 #define SRC_PROTOVM_ALLOCATOR_H_
 
+#include <algorithm>
 #include <cstdlib>
 
 #include "perfetto/protozero/field.h"
@@ -33,13 +34,34 @@ namespace protovm {
 // the overall proto VM's memory footprint.
 class Allocator {
  public:
+  static constexpr size_t kNodeSize = std::max(sizeof(Node), sizeof(MapNode));
+  static constexpr size_t kNodeAlign =
+      std::max(alignof(Node), alignof(MapNode));
+
   explicit Allocator(size_t memory_limit_bytes);
+
+  template <class T, class... Args>
+  StatusOr<OwnedPtr<Node>> CreateNode(Args&&... args) {
+    auto p = Allocate();
+    PROTOVM_RETURN_IF_NOT_OK(p);
+
+    // 1. Construct node's inner value T passing args (struct aggregate
+    // initialization)
+    // 2. Construct node passing T (struct aggregate initialization)
+    new (*p) Node{T{std::forward<Args>(args)...}};
+
+    return OwnedPtr<Node>(static_cast<Node*>(*p));
+  }
+
+  StatusOr<OwnedPtr<MapNode>> CreateMapNode(uint64_t key, OwnedPtr<Node> value);
+
   StatusOr<Node::Bytes> AllocateAndCopyBytes(protozero::ConstBytes data);
 
   // Deeply delete a node and all the referenced data. E.g. if the node holds a
   // Node::Message, recursively delete the message fields and finally delete the
   // node.
   void Delete(Node* node);
+  void Delete(MapNode* node);
 
   // Deeply delete a node's referenced data, but do not delete the node itself.
   // E.g. if the node holds a Node::Message, recursively delete the message
@@ -54,39 +76,15 @@ class Allocator {
   // struct itself.
   void DeleteReferencedData(Node::Bytes* bytes);
 
-  template <class T, class... Args>
-  StatusOr<OwnedPtr<Node>> CreateNode(Args&&... args) {
-    if (used_memory_bytes_ + sizeof(Node) > memory_limit_bytes_) {
-      PROTOVM_ABORT(
-          "Failed to allocate node (%zu bytes). Memory limit: %zu [bytes]. "
-          "Used: %zu "
-          "[bytes].)",
-          sizeof(Node), memory_limit_bytes_, used_memory_bytes_);
-    }
-
-    auto* p = slab_allocator_.Allocate();
-    if (!p) {
-      PROTOVM_ABORT("Failed to allocate node");
-    }
-
-    used_memory_bytes_ += sizeof(Node);
-
-    // 1. Construct node's inner value T passing args (struct aggregate
-    // initialization)
-    // 2. Construct node passing T (struct aggregate initialization)
-    new (p) Node{T{std::forward<Args>(args)...}};
-
-    return OwnedPtr<Node>(static_cast<Node*>(p));
-  }
-
   size_t GetMemoryUsageBytes() const { return used_memory_bytes_; }
 
  private:
   void DeallocateBytes(OwnedPtr<void> p, size_t size);
+  StatusOr<void*> Allocate();
 
   size_t memory_limit_bytes_{0};
   size_t used_memory_bytes_{0};
-  SlabAllocator<sizeof(Node), alignof(Node)> slab_allocator_;
+  SlabAllocator<kNodeSize, kNodeAlign> slab_allocator_;
 };
 
 }  // namespace protovm

@@ -17,6 +17,8 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <utility>
 
 #include "test/gtest_and_gmock.h"
 
@@ -199,6 +201,51 @@ TEST(FlexVectorTest, ResizeShrink) {
   for (size_t i = 0; i < 5; ++i) {
     EXPECT_EQ(vec[i], static_cast<int>(i * 10));
   }
+}
+
+TEST(FlexVectorTest, CreateFilled) {
+  auto vec = FlexVector<uint32_t>::CreateFilled(100, 0xffffffffu);
+  ASSERT_EQ(vec.size(), 100u);
+  for (uint64_t i = 0; i < vec.size(); ++i) {
+    EXPECT_EQ(vec[i], 0xffffffffu);
+  }
+}
+
+TEST(FlexVectorTest, TransfersBackingSlabAsBytes) {
+  auto vec = FlexVector<int64_t>::CreateWithCapacity(64);
+  vec.push_back(10);
+  vec.push_back(20);
+  int64_t* original_data = vec.data();
+
+  Slab<int64_t> slab = std::move(vec).TakeSlab();
+  ASSERT_EQ(slab.size(), 2u);
+  EXPECT_EQ(slab.data(), original_data);
+  EXPECT_EQ(slab[0], 10);
+  EXPECT_EQ(slab[1], 20);
+
+  Slab<uint8_t> bytes = std::move(slab).TakeAsBytes();
+  ASSERT_EQ(bytes.size(), 2u * sizeof(int64_t));
+  EXPECT_EQ(bytes.data(), reinterpret_cast<uint8_t*>(original_data));
+  const int64_t* values = reinterpret_cast<const int64_t*>(bytes.data());
+  EXPECT_EQ(values[0], 10);
+  EXPECT_EQ(values[1], 20);
+}
+
+TEST(FlexVectorTest, Reserve) {
+  FlexVector<int> vec;
+  vec.push_back(1);
+  vec.push_back(2);
+
+  vec.reserve(1000);
+  EXPECT_GE(vec.capacity(), 1000u);
+  EXPECT_EQ(vec.size(), 2u);
+  EXPECT_EQ(vec[0], 1);
+  EXPECT_EQ(vec[1], 2);
+
+  // Reserving less than the current capacity is a no-op.
+  uint64_t capacity = vec.capacity();
+  vec.reserve(10);
+  EXPECT_EQ(vec.capacity(), capacity);
 }
 
 // Test resize to grow

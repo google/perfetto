@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {Mock} from 'vitest';
 import {
   bindEventListener,
   elementIsEditable,
@@ -125,11 +126,11 @@ describe('elementIsEditable', () => {
 
 describe('bindEventListener', () => {
   let element: HTMLElement;
-  let handler: jest.Mock;
+  let handler: Mock;
 
   beforeEach(() => {
     element = document.createElement('div');
-    handler = jest.fn();
+    handler = vi.fn();
   });
 
   test('adds the event listener and triggers the handler', () => {

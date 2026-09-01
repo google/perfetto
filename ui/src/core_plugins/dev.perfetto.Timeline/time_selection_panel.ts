@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
-import {Size2D} from '../../base/geom';
+import type {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/assert';
-import {time, Time} from '../../base/time';
+import {type time, Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {formatDuration} from '../../components/time_utils';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {
   COLOR_BACKGROUND,

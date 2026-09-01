@@ -131,7 +131,9 @@ class DiffTestsRunner:
 
         if not result or not result.passed:
           failures.append(test_name)
-        else:
+        elif result.perf_result:
+          # Passed expected-error tests have no perf result: trace_processor
+          # exits before the query runs.
           perf_results.append(result.perf_result)
     test_time_ms = int(
         (datetime.datetime.now() - test_run_start).total_seconds() * 1000)
@@ -229,7 +231,23 @@ class DiffTestsRunner:
 
     run_str = f"{colors.yellow('[ RUN      ]')} {result.test.name}\n"
     run_diagnostics = [f"trace_path: {trace_path}"] if print_trace_path else []
-    if result.exit_code != 0 or not result.passed:
+    if result.test.blueprint.is_out_expected_error():
+      # Expected-error tests pass when trace_processor fails: a non-zero exit
+      # code is part of the expectation, not a test harness failure.
+      if result.passed:
+        run_str += f"{colors.green('[       OK ]')} {result.test.name}"
+      else:
+        run_str += result.stderr
+        if result.exit_code == 0:
+          run_str += (f"Expected trace_processor to fail with an error "
+                      f"containing '{result.expected}' but it exited "
+                      f"successfully.\n")
+        else:
+          run_str += (f"trace_processor failed as expected but stderr did not "
+                      f"contain '{result.expected}'.\n")
+        run_str += write_cmdlines()
+        run_str += (f"{colors.red('[  FAILED  ]')} {result.test.name}")
+    elif result.exit_code != 0 or not result.passed:
       result.passed = False
       run_str += result.stderr
 

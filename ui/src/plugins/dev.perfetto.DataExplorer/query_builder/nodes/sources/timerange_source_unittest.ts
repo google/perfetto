@@ -14,9 +14,9 @@
 
 import {
   TimeRangeSourceNode,
-  TimeRangeSourceNodeAttrs,
+  type TimeRangeSourceNodeAttrs,
 } from './timerange_source';
-import {Trace} from '../../../../../public/trace';
+import type {Trace} from '../../../../../public/trace';
 import {Time, TimeSpan} from '../../../../../base/time';
 import {expectValidationSuccess} from '../../testing/test_utils';
 
@@ -405,23 +405,23 @@ describe('TimeRangeSourceNode', () => {
 
   describe('dispose', () => {
     beforeEach(() => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
     });
 
     afterEach(() => {
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('should clean up interval when dispose is called on dynamic node', () => {
       const node = makeNode({start: '100', end: '500', isDynamic: true});
 
       // Verify interval is set up
-      expect(jest.getTimerCount()).toBeGreaterThan(0);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
 
       node.dispose();
 
       // Verify interval is cleared
-      expect(jest.getTimerCount()).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
     });
 
     it('should not throw when dispose is called on static node', () => {
@@ -441,7 +441,7 @@ describe('TimeRangeSourceNode', () => {
     it('should stop polling after dispose', () => {
       const mockTrace = createMockTrace();
       let callCount = 0;
-      mockTrace.selection.getTimeSpanOfSelection = jest.fn(() => {
+      mockTrace.selection.getTimeSpanOfSelection = vi.fn(() => {
         callCount++;
         return undefined;
       });
@@ -452,30 +452,30 @@ describe('TimeRangeSourceNode', () => {
       );
 
       // Advance time to trigger some polls (1 initial call + 3 from interval)
-      jest.advanceTimersByTime(600);
+      vi.advanceTimersByTime(600);
       const pollsBeforeDispose = callCount;
 
       node.dispose();
 
       // Advance time again - should not trigger more polls
-      jest.advanceTimersByTime(600);
+      vi.advanceTimersByTime(600);
       expect(callCount).toBe(pollsBeforeDispose);
     });
   });
 
   describe('dynamic mode behavior', () => {
     beforeEach(() => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
     });
 
     afterEach(() => {
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('should update times from selection in dynamic mode', () => {
       const mockTrace = createMockTrace();
       let currentTime = 100n;
-      mockTrace.selection.getTimeSpanOfSelection = jest.fn(() => {
+      mockTrace.selection.getTimeSpanOfSelection = vi.fn(() => {
         return new TimeSpan(
           Time.fromRaw(currentTime),
           Time.fromRaw(currentTime + 400n),
@@ -495,7 +495,7 @@ describe('TimeRangeSourceNode', () => {
       currentTime = 200n;
 
       // Advance timer to trigger poll
-      jest.advanceTimersByTime(200);
+      vi.advanceTimersByTime(200);
 
       // Values should be updated
       expect(node.start).toEqual(Time.fromRaw(200n));
@@ -507,7 +507,7 @@ describe('TimeRangeSourceNode', () => {
     it('should not update times in static mode', () => {
       const mockTrace = createMockTrace();
       let currentTime = 100n;
-      mockTrace.selection.getTimeSpanOfSelection = jest.fn(() => {
+      mockTrace.selection.getTimeSpanOfSelection = vi.fn(() => {
         return new TimeSpan(
           Time.fromRaw(currentTime),
           Time.fromRaw(currentTime + 400n),
@@ -527,7 +527,7 @@ describe('TimeRangeSourceNode', () => {
       currentTime = 200n;
 
       // Advance timer (should have no effect in static mode)
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
 
       // Values should still be unchanged
       expect(node.start).toEqual(Time.fromRaw(50n));
@@ -536,7 +536,7 @@ describe('TimeRangeSourceNode', () => {
 
     it('should use full trace range when no selection exists in dynamic mode', () => {
       const mockTrace = createMockTrace();
-      mockTrace.selection.getTimeSpanOfSelection = jest.fn(() => undefined);
+      mockTrace.selection.getTimeSpanOfSelection = vi.fn(() => undefined);
 
       const node = new TimeRangeSourceNode(
         {isDynamic: true},

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, Page} from '@playwright/test';
+import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
 test.describe.configure({mode: 'serial'});
@@ -33,10 +33,10 @@ test('load trace with sort_index metadata', async () => {
 });
 
 test('verify process sort order', async () => {
-  // Processes should be ordered by sort_index (highest first):
-  // HighPriorityProcess (100, sort_index=10)
+  // Processes should be ordered by sort_index (lowest first):
+  // HighPriorityProcess (100, sort_index=1)
   // MediumPriorityProcess (200, sort_index=5)
-  // LowPriorityProcess (300, sort_index=1)
+  // LowPriorityProcess (300, sort_index=10)
 
   const highPriorityProcess = pth.locateTrack('HighPriorityProcess 100');
   await highPriorityProcess.scrollIntoViewIfNeeded();
@@ -51,10 +51,10 @@ test('verify thread sort order within process', async () => {
   await highPriorityProcess.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(highPriorityProcess);
 
-  // Threads should be ordered by sort_index (highest first):
-  // HighPriorityThread (101, sort_index=100)
+  // Threads should be ordered by sort_index (lowest first):
+  // HighPriorityThread (101, sort_index=10)
   // MediumPriorityThread (102, sort_index=50)
-  // LowPriorityThread (103, sort_index=10)
+  // LowPriorityThread (103, sort_index=100)
 
   await pth.waitForIdleAndScreenshot('thread_order.png', {
     locator: page.locator('.pf-timeline-page__timeline'),

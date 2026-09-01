@@ -14,19 +14,19 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {Time} from '../base/time';
-import {
+import type {
   ResultStepEventHandler,
   SearchManager,
   SearchProvider,
 } from '../public/search';
-import {Workspace} from '../public/workspace';
-import {Engine} from '../trace_processor/engine';
+import type {Workspace} from '../public/workspace';
+import type {Engine} from '../trace_processor/engine';
 import {searchTrackEvents} from './dataset_search';
 import {featureFlags} from './feature_flags';
-import {CurrentSearchResults, SearchSource} from './search_data';
+import type {CurrentSearchResults, SearchSource} from './search_data';
 import {executeSqlSearch} from './sql_search';
-import {TimelineImpl} from './timeline';
-import {TrackManagerImpl} from './track_manager';
+import type {TimelineImpl} from './timeline';
+import type {TrackManagerImpl} from './track_manager';
 
 const DATASET_SEARCH = featureFlags.register({
   id: 'datasetSearch',

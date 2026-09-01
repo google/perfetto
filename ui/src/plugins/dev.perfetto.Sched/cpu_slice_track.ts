@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {colorForThread} from '../../components/colorizer';
+import {colorForPriority, colorForThread} from '../../components/colorizer';
 import {SliceTrack, ColorVariant} from '../../components/tracks/slice_track';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {Trace} from '../../public/trace';
-import {ThreadMap} from '../dev.perfetto.Thread/threads';
+import type {Trace} from '../../public/trace';
+import type {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {RECT_PATTERN_HATCHED} from '../../base/renderer';
 import {SchedSliceDetailsPanel} from './sched_details_tab';
+import SchedPlugin from './index';
 
 const MARGIN_TOP = 3;
 const RECT_HEIGHT = 24;
@@ -65,7 +66,12 @@ export function createCpuSliceTrack(
       sliceHeight: RECT_HEIGHT,
     },
 
+    getKey: () => SchedPlugin.taskColorModeSetting?.get(),
+
     colorizer(row) {
+      if (SchedPlugin.taskColorModeSetting?.get() === 'priority') {
+        return colorForPriority(row.priority);
+      }
       const threadInfo = threads.get(row.utid);
       return colorForThread(threadInfo);
     },

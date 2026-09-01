@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Transform2D} from '../geom';
-import {StepAreaBuffers} from '../renderer';
-import {createBuffer, createProgram, getUniformLocation} from './gl';
+import type {Transform2D} from '../geom';
+import type {StepAreaBuffers} from '../renderer';
+import {createProgram, getUniformLocation} from './gl';
 
 // Static quad geometry shared by all step area batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
@@ -230,21 +230,21 @@ export class StepAreaBatch {
     this.program = createStepAreaProgram(gl);
 
     // Create static quad buffers
-    this.quadCornerBuffer = createBuffer(gl);
+    this.quadCornerBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, QUAD_CORNERS, gl.STATIC_DRAW);
 
-    this.quadIndexBuffer = createBuffer(gl);
+    this.quadIndexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
     // Create dynamic instance buffers
-    this.xBuffer = createBuffer(gl);
-    this.nextXBuffer = createBuffer(gl);
-    this.yBuffer = createBuffer(gl);
-    this.minYBuffer = createBuffer(gl);
-    this.maxYBuffer = createBuffer(gl);
-    this.fillBuffer = createBuffer(gl);
+    this.xBuffer = gl.createBuffer();
+    this.nextXBuffer = gl.createBuffer();
+    this.yBuffer = gl.createBuffer();
+    this.minYBuffer = gl.createBuffer();
+    this.maxYBuffer = gl.createBuffer();
+    this.fillBuffer = gl.createBuffer();
   }
 
   /**

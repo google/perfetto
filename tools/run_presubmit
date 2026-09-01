@@ -262,6 +262,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.pb',
           '*.png',
           '*.jpg',
+          '*.gif',
           '*/test/data/*',
           'Makefile',
           'rules',
@@ -431,6 +432,56 @@ def CheckProtoComments(changed_files: List[str]) -> List[str]:
     return [
         f'{tool} failed:\n{e.stdout}'
         f'\nPlease run python {tool} and fix violations manually.'
+    ]
+  return []
+
+
+def CheckTpPluginDeps(changed_files: List[str]) -> List[str]:
+  if sys.platform == 'win32':
+    return []
+  tool_rel_path = 'tools/check_tp_plugin_deps'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'src/trace_processor/*BUILD.gn',
+          'src/trace_processor/plugins/*',
+          tool_rel_path,
+      ])
+  if not files_to_check_list:
+    return []
+
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT)
+  except FileNotFoundError:
+    return [f"Tool not found: {tool}"]
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nSee {tool} for the rules being enforced.'
+    ]
+  return []
+
+
+def CheckTraceProcessorDeps(changed_files: List[str]) -> List[str]:
+  if sys.platform == 'win32':
+    return []
+  tool_rel_path = 'tools/check_trace_processor_deps'
+  implementation_rel_path = 'python/tools/check_trace_processor_deps.py'
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'BUILD.gn',
+          implementation_rel_path,
+          tool_rel_path,
+      ])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool_rel_path], cwd=REPO_ROOT)
+  except (FileNotFoundError, subprocess.CalledProcessError) as error:
+    return [
+        f'{tool_rel_path} failed: {error}\nSee {tool_rel_path} for the rule.'
     ]
   return []
 
@@ -669,9 +720,11 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
     return []
 
   try:
-    run_command(
-        [sys.executable, tool, '--check-includes', '--check-new-packages'],
-        cwd=REPO_ROOT)
+    run_command([
+        sys.executable, tool, '--check-includes', '--check-new-packages',
+        '--check-layering'
+    ],
+                cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
   except subprocess.CalledProcessError as e:
@@ -905,6 +958,26 @@ def CheckShellIncludeViolations(changed_files: List[str]) -> List[str]:
   ]
 
 
+def CheckExtensionManifests(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/check_extension_manifests.py'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'ai/extensions/*', 'ai/extensions/*/*', 'ai/skills/*',
+          'ai/skills/*/*', tool_rel_path
+      ])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT)
+  except FileNotFoundError:
+    return [f'Tool not found: {tool}']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout or ""}\n{e.stderr or ""}'.rstrip()]
+  return []
+
+
 def CheckUiImports(changed_files: List[str]) -> List[str]:
   tool_rel_path = 'tools/check_imports'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
@@ -1000,6 +1073,8 @@ def main():
       (CheckIncludeViolations, [changed_files]),
       (CheckIncludePaths, [changed_files]),
       (CheckProtoComments, [changed_files]),
+      (CheckTpPluginDeps, [changed_files]),
+      (CheckTraceProcessorDeps, [changed_files]),
       (CheckBuild, [changed_files]),
       (CheckAndroidBlueprint, [changed_files]),
       (CheckBinaryDescriptors, [changed_files]),
@@ -1015,6 +1090,7 @@ def main():
       (CheckAbsolutePathsInGn, [changed_files]),
       (CheckUiImports, [changed_files]),
       (CheckUiRatchet, [changed_files]),
+      (CheckExtensionManifests, [changed_files]),
   ]
 
   with ThreadPoolExecutor() as executor:

@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {NotesManager} from './notes_manager';
-import {PerfettoPlugin} from '../../public/plugin';
-import {TraceImpl} from '../../core/trace_impl';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {TraceImpl} from '../../core/trace_impl';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Notes';

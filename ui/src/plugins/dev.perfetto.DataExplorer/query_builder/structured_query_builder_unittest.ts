@@ -14,9 +14,9 @@
 
 import protos from '../../../protos';
 import {StructuredQueryBuilder} from './structured_query_builder';
-import {QueryNode, NodeType} from '../query_node';
-import {ColumnInfo} from './column_info';
-import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
+import {type QueryNode, NodeType} from '../query_node';
+import type {ColumnInfo} from './column_info';
+import type {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
 
 describe('StructuredQueryBuilder', () => {
   describe('applyNodeColumnSelection', () => {

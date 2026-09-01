@@ -14,16 +14,16 @@
 
 import {
   expect,
-  Locator,
-  Page,
-  PageAssertionsToHaveScreenshotOptions,
+  type Locator,
+  type Page,
+  type PageAssertionsToHaveScreenshotOptions,
 } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import {IdleDetectorWindow} from '../frontend/idle_detector_interface';
-import {assertExists} from '../base/assert';
-import {Size2D} from '../base/geom';
-import {AppImpl} from '../core/app_impl';
+import type {IdleDetectorWindow} from '../frontend/idle_detector_interface';
+import {ensureExists} from '../base/assert';
+import type {Size2D} from '../base/geom';
+import type {AppImpl} from '../core/app_impl';
 
 export class PerfettoTestHelper {
   private cachedSidebarSize?: Size2D;
@@ -37,7 +37,7 @@ export class PerfettoTestHelper {
   async sidebarSize(): Promise<Size2D> {
     if (this.cachedSidebarSize === undefined) {
       const size = await this.page.locator('main > .pf-sidebar').boundingBox();
-      this.cachedSidebarSize = assertExists(size);
+      this.cachedSidebarSize = ensureExists(size);
     }
     return this.cachedSidebarSize;
   }
@@ -62,7 +62,7 @@ export class PerfettoTestHelper {
       localStorage.setItem('dismissedPanningHint', 'true'),
     );
     const tracePath = this.getTestTracePath(traceName);
-    await assertExists(file).setInputFiles(tracePath);
+    await ensureExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
     await this.applyTestingStyles();
     await this.page.mouse.move(0, 0);

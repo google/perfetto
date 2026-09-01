@@ -14,18 +14,18 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
-import {duration, Time, time} from '../../base/time';
+import {type duration, Time, type time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {SliceSqlId} from '../../components/sql_utils/core_types';
-import {Engine} from '../../trace_processor/engine';
+import type {SliceSqlId} from '../../components/sql_utils/core_types';
+import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {
   CauseProcess,
-  CauseThread,
+  type CauseThread,
   ScrollJankCauseMap,
 } from './scroll_jank_cause_map';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 
 const UNKNOWN_NAME = 'Unknown';
 

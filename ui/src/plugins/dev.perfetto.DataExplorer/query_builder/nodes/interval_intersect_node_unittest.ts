@@ -14,10 +14,10 @@
 
 import {IntervalIntersectNode} from './interval_intersect_node';
 import {ModifyColumnsNode} from './modify_columns_node';
-import {QueryNode} from '../../query_node';
+import type {QueryNode} from '../../query_node';
 import {notifyNextNodes} from '../graph_utils';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../../trace_processor/perfetto_sql_type';
 import {

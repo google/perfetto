@@ -72,6 +72,7 @@ packet {
       frequencies: 1516800
       frequencies: 1612800
       frequencies: 1708800
+      features: 1
     }
     cpus {
       processor: "AArch64 Processor rev 13 (aarch64)"
@@ -85,6 +86,7 @@ packet {
       frequencies: 1747200
       frequencies: 1843200
       frequencies: 1996800
+      features: 3
     }
     cpus {
       processor: "AArch64 Processor rev 13 (aarch64)"
@@ -98,6 +100,16 @@ packet {
       frequencies: 1747200
       frequencies: 1843200
       frequencies: 1996800
+      arm_identifier {
+        implementer: 65
+        architecture: 8
+        variant: 0
+        part: 3336
+        revision: 13
+      }
+      # Bits 0, 1 (mte, mte3) plus bit 62, which is not in the allowlist and
+      # exercises the unknown-feature fallback (cpu_features.raw_bitmap).
+      features: 4611686018427387907
     }
   }
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AppImpl} from '../core/app_impl';
+import {openTraceFiles} from '../core/open_trace_files';
 
 let lastDragTarget: EventTarget | null = null;
 
@@ -39,11 +39,7 @@ export function installFileDropHandler() {
     evt.stopPropagation();
     document.body.classList.remove('filedrag');
     if (evt.dataTransfer && dragEventHasFiles(evt)) {
-      const file = evt.dataTransfer.files[0];
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (file) {
-        AppImpl.instance.openTraceFromFile(file);
-      }
+      openTraceFiles(Array.from(evt.dataTransfer.files));
     }
     evt.preventDefault();
   };

@@ -13,12 +13,24 @@
 // limitations under the License.
 
 import {assetSrc} from '../base/assets';
-import {assertTrue} from '../base/assert';
+import {ensureExists, assertTrue} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
+import {traceProcessorWasmUrl} from './wasm_modules';
 
 let idleWasmWorker: Worker | undefined = undefined;
 
+// Compiled once on the main thread and shared with every worker we spawn so
+// V8 reuses the same tiered-up wasm code across workers. Lazy because
+// unit-test setups transitively import this file but never start a wasm
+// worker — fetching the .wasm at module-load would error there.
+let precompiledWasmModule: Promise<WebAssembly.Module> | undefined;
+
 export function warmupWasmWorker() {
+  if (precompiledWasmModule === undefined) {
+    precompiledWasmModule = WebAssembly.compileStreaming(
+      fetch(traceProcessorWasmUrl()),
+    );
+  }
   if (idleWasmWorker === undefined) {
     idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
   }
@@ -53,7 +65,11 @@ export class WasmEngineProxy extends EngineBase implements Disposable {
     this.worker = warmupWasmWorker(); // Ensures the spare instance exists.
     idleWasmWorker = new Worker(assetSrc('engine_bundle.js'));
 
-    this.worker.postMessage(port1, [port1]);
+    const worker = this.worker;
+    // warmupWasmWorker() guarantees precompiledWasmModule is set.
+    ensureExists(precompiledWasmModule).then((wasmModule) => {
+      worker.postMessage({port: port1, wasmModule}, [port1]);
+    });
     this.port.onmessage = this.onMessage.bind(this);
   }
 

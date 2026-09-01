@@ -17,7 +17,7 @@ import {MultiselectInput} from '../../../widgets/multiselect_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
 import {
   MultiSelect,
-  MultiSelectDiff,
+  type MultiSelectDiff,
   PopupMultiSelect,
 } from '../../../widgets/multiselect';
 import {PopupPosition} from '../../../widgets/popup';

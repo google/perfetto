@@ -14,13 +14,13 @@
 
 import m from 'mithril';
 import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
+import type {TraceImpl} from '../../core/trace_impl';
 import {DetailsShell} from '../../widgets/details_shell';
 import {EmptyState} from '../../widgets/empty_state';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {
+import type {
   AreaSelection,
   NoteSelection,
   TrackSelection,
@@ -34,9 +34,7 @@ export interface CurrentSelectionTabAttrs {
   readonly trace: TraceImpl;
 }
 
-export class CurrentSelectionTab
-  implements m.ClassComponent<CurrentSelectionTabAttrs>
-{
+export class CurrentSelectionTab implements m.ClassComponent<CurrentSelectionTabAttrs> {
   private readonly fadeContext = new FadeContext();
 
   view({attrs}: m.Vnode<CurrentSelectionTabAttrs>): m.Children {

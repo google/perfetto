@@ -14,8 +14,11 @@
 
 import m from 'mithril';
 import {classNames} from '../../../../base/classnames';
-import {ChartType} from '../nodes/visualisation_node';
-import {CHART_TYPES, ChartTypeDefinition} from '../nodes/chart_type_registry';
+import type {ChartType} from '../nodes/visualisation_node';
+import {
+  CHART_TYPES,
+  type ChartTypeDefinition,
+} from '../nodes/chart_type_registry';
 
 // Chart preview palette — references CSS variables from theme_provider.scss
 // so thumbnails match the actual chart colours (and adapt to dark mode).

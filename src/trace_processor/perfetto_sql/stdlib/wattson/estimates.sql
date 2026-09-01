@@ -19,6 +19,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.cpu.estimates;
 
+INCLUDE PERFETTO MODULE wattson.device_infos;
+
 INCLUDE PERFETTO MODULE wattson.gpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tpu.estimates;
@@ -34,34 +36,101 @@ CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN(_cpu_gpu
 CREATE PERFETTO TABLE _system_state_mw AS
 SELECT * FROM _cpu_gpu_tpu_system_state_mw;
 
--- API to get power from each system state in an arbitrary time window
-CREATE PERFETTO FUNCTION _windowed_system_state_mw(ts TIMESTAMP, dur LONG)
-RETURNS TABLE(
-  cpu0_mw DOUBLE,
-  cpu1_mw DOUBLE,
-  cpu2_mw DOUBLE,
-  cpu3_mw DOUBLE,
-  cpu4_mw DOUBLE,
-  cpu5_mw DOUBLE,
-  cpu6_mw DOUBLE,
-  cpu7_mw DOUBLE,
-  dsu_scu_mw DOUBLE,
-  gpu_mw DOUBLE,
-  tpu_mw DOUBLE
+-- ========================================================
+-- MACRO: _wattson_base_components_avg_mw
+--
+-- Low-level macro to calculate base power components average mW.
+--
+-- Input:
+--   window_table: A table with columns (ts, dur, period_id).
+--
+-- Output:
+--   Wide table with CPU policy, average power per core, DSU, and GPU.
+-- ========================================================
+CREATE PERFETTO MACRO _wattson_base_components_avg_mw(
+  window_table TableOrSubquery
 )
-AS
-SELECT
-  sum(ss.cpu0_mw * ii.dur) / sum(ii.dur) AS cpu0_mw,
-  sum(ss.cpu1_mw * ii.dur) / sum(ii.dur) AS cpu1_mw,
-  sum(ss.cpu2_mw * ii.dur) / sum(ii.dur) AS cpu2_mw,
-  sum(ss.cpu3_mw * ii.dur) / sum(ii.dur) AS cpu3_mw,
-  sum(ss.cpu4_mw * ii.dur) / sum(ii.dur) AS cpu4_mw,
-  sum(ss.cpu5_mw * ii.dur) / sum(ii.dur) AS cpu5_mw,
-  sum(ss.cpu6_mw * ii.dur) / sum(ii.dur) AS cpu6_mw,
-  sum(ss.cpu7_mw * ii.dur) / sum(ii.dur) AS cpu7_mw,
-  sum(ss.dsu_scu_mw * ii.dur) / sum(ii.dur) AS dsu_scu_mw,
-  sum(ss.gpu_mw * ii.dur) / sum(ii.dur) AS gpu_mw,
-  sum(ss.tpu_mw * ii.dur) / sum(ii.dur) AS tpu_mw
-FROM _interval_intersect_single!($ts, $dur, _ii_subquery!(_system_state_mw)) AS ii
-JOIN _system_state_mw AS ss
-  ON ss._auto_id = id;
+RETURNS TableOrSubquery
+AS (
+  SELECT
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 0
+    ) AS cpu0_poli,
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 1
+    ) AS cpu1_poli,
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 2
+    ) AS cpu2_poli,
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 3
+    ) AS cpu3_poli,
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 4
+    ) AS cpu4_poli,
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 5
+    ) AS cpu5_poli,
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 6
+    ) AS cpu6_poli,
+    (
+      SELECT
+        m.policy
+      FROM _dev_cpu_policy_map AS m
+      WHERE
+        m.cpu = 7
+    ) AS cpu7_poli,
+    cast_double!(sum(ii.dur * ss.cpu0_mw) / nullif(sum(ii.dur), 0)) AS cpu0_mw,
+    cast_double!(sum(ii.dur * ss.cpu1_mw) / nullif(sum(ii.dur), 0)) AS cpu1_mw,
+    cast_double!(sum(ii.dur * ss.cpu2_mw) / nullif(sum(ii.dur), 0)) AS cpu2_mw,
+    cast_double!(sum(ii.dur * ss.cpu3_mw) / nullif(sum(ii.dur), 0)) AS cpu3_mw,
+    cast_double!(sum(ii.dur * ss.cpu4_mw) / nullif(sum(ii.dur), 0)) AS cpu4_mw,
+    cast_double!(sum(ii.dur * ss.cpu5_mw) / nullif(sum(ii.dur), 0)) AS cpu5_mw,
+    cast_double!(sum(ii.dur * ss.cpu6_mw) / nullif(sum(ii.dur), 0)) AS cpu6_mw,
+    cast_double!(sum(ii.dur * ss.cpu7_mw) / nullif(sum(ii.dur), 0)) AS cpu7_mw,
+    cast_double!(sum(ii.dur * ss.dsu_scu_mw) / nullif(sum(ii.dur), 0)) AS dsu_scu_mw,
+    cast_double!(sum(ii.dur * ss.gpu_mw) / nullif(sum(ii.dur), 0)) AS gpu_mw,
+    cast_double!(sum(ii.dur * ss.tpu_mw) / nullif(sum(ii.dur), 0)) AS tpu_mw,
+    sum(ii.dur) AS period_dur,
+    ii.id_0 AS period_id
+  FROM _interval_intersect!(
+    (
+      (SELECT period_id AS id, * FROM $window_table),
+      _ii_subquery!(_system_state_mw)
+    ),
+    ()
+  ) AS ii
+  JOIN _system_state_mw AS ss
+    ON ss._auto_id = id_1
+  GROUP BY
+    period_id
+);

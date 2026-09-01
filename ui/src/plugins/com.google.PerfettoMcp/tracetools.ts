@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
-import {Engine} from 'src/trace_processor/engine';
+import type {ToolRegistry} from './tool_registry';
+import type {Engine} from 'src/trace_processor/engine';
 import {z} from 'zod';
 import {runQueryForMcp} from './query';
 
-export function registerTraceTools(server: McpServer, engine: Engine) {
+export function registerTraceTools(server: ToolRegistry, engine: Engine) {
   server.tool(
     'perfetto-execute-query',
     `

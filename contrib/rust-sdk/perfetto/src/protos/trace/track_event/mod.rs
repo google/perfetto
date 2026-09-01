@@ -103,6 +103,10 @@ pub mod screenshot;
 #[path = "source_location.pz.rs"]
 pub mod source_location;
 
+/// `state_descriptor` protos.
+#[path = "state_descriptor.pz.rs"]
+pub mod state_descriptor;
+
 /// `task_execution` protos.
 #[path = "task_execution.pz.rs"]
 pub mod task_execution;

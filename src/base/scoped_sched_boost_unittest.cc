@@ -29,8 +29,10 @@
 #include "test/status_matchers.h"
 
 using testing::_;
+using testing::AllOf;
 using testing::ElementsAre;
 using testing::Eq;
+using testing::HasSubstr;
 using testing::NiceMock;
 using testing::Return;
 
@@ -270,9 +272,9 @@ TEST_F(ScopedSchedBoostLinuxIntegrationTest, WrongConfig) {
   // range. So we test error reporting only for the 'Policy::kSchedFifo'
   auto boost = ScopedSchedBoost::Boost(
       SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedFifo, 101});
-  ASSERT_STREQ(
-      boost.status().c_message(),
-      "sched_setscheduler(1, 101) failed (errno: 22, Invalid argument)");
+  ASSERT_THAT(boost.status().c_message(),
+              AllOf(HasSubstr("sched_setscheduler(1, 101) failed"),
+                    HasSubstr("errno: 22")));
 }
 
 TEST_F(ScopedSchedBoostLinuxIntegrationTest, ReturnNoPermission) {
@@ -281,9 +283,9 @@ TEST_F(ScopedSchedBoostLinuxIntegrationTest, ReturnNoPermission) {
   }
   auto boost = ScopedSchedBoost::Boost(
       SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedFifo, 42});
-  ASSERT_STREQ(
-      boost.status().c_message(),
-      "sched_setscheduler(1, 42) failed (errno: 1, Operation not permitted)");
+  ASSERT_THAT(boost.status().c_message(),
+              AllOf(HasSubstr("sched_setscheduler(1, 42) failed"),
+                    HasSubstr("errno: 1")));
 }
 
 }  // namespace

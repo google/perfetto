@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './text_paragraph.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 
 export interface TextParagraphAttrs {
   // Paragraph text.
-  text: string;
+  readonly text: string;
   // Whether to compress multiple spaces (e.g. the string is multi-line but
   // should render with the default UI wrapping)
-  compressSpace?: boolean;
+  readonly compressSpace?: boolean;
 }
 
 export class TextParagraph implements m.ClassComponent<TextParagraphAttrs> {
@@ -41,9 +42,7 @@ interface MultiParagraphTextAttrs {
   className?: string;
 }
 
-export class MultiParagraphText
-  implements m.ClassComponent<MultiParagraphTextAttrs>
-{
+export class MultiParagraphText implements m.ClassComponent<MultiParagraphTextAttrs> {
   view({attrs, children}: m.Vnode<MultiParagraphTextAttrs>): m.Children {
     const {className = ''} = attrs;
 

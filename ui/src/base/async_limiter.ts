@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Deferred, defer} from './deferred';
+import {type Deferred, defer} from './deferred';
 
 type Callback = () => Promise<void>;
 

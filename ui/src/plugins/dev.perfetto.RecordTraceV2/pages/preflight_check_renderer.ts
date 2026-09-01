@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
+import type {
   PreflightCheck,
   PreflightCheckResult,
   WithPreflightChecks,

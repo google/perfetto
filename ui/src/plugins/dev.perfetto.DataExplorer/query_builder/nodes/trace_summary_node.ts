@@ -15,22 +15,22 @@
 import m from 'mithril';
 import protos from '../../../../protos';
 import {
-  QueryNode,
+  type QueryNode,
   nextNodeId,
   NodeType,
-  SecondaryInputSpec,
-  NodeContext,
+  type SecondaryInputSpec,
+  type NodeContext,
 } from '../../query_node';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 import {NodeIssues} from '../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
+import type {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {loadNodeDoc} from '../node_doc_loader';
 import {
   ColumnName,
   NodeDetailsMessage,
   NodeTitle,
 } from '../node_styling_widgets';
-import {MetricsNode} from './metrics_node';
+import type {MetricsNode} from './metrics_node';
 import {TraceSummaryResultsPanel} from './trace_summary_results_panel';
 import {Accordion, AccordionSection} from '../../../../widgets/accordion';
 import {enumKeyToLabel} from './metrics_enum_utils';

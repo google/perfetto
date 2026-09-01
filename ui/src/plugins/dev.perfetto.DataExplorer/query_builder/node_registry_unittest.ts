@@ -14,11 +14,11 @@
 
 import {
   NodeRegistry,
-  NodeDescriptor,
-  PreCreateContext,
-  PreCreateState,
+  type NodeDescriptor,
+  type PreCreateContext,
+  type PreCreateState,
 } from './node_registry';
-import {QueryNode, NodeType} from '../query_node';
+import {type QueryNode, NodeType} from '../query_node';
 
 describe('NodeRegistry', () => {
   function createMockNode(nodeId: string): QueryNode {

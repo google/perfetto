@@ -13,13 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
-import {ColumnInfo} from '../column_info';
-import protos from '../../../../protos';
+import {
+  type QueryNode,
+  nextNodeId,
+  NodeType,
+  type NodeContext,
+} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
+import type protos from '../../../../protos';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {InlineField} from '../widgets';
-import {NodeDetailsAttrs, NodeModifyAttrs} from '../../node_types';
+import type {NodeDetailsAttrs, NodeModifyAttrs} from '../../node_types';
 import {createErrorSections} from '../widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 

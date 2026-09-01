@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
 import m from 'mithril';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
-import {Engine} from '../../trace_processor/engine';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import type {Engine} from '../../trace_processor/engine';
 import {KernelMetricsSection, fetchSelectedKernelMetricData} from './details';
-import {TrackEventSelection} from '../../public/selection';
+import type {TrackEventSelection} from '../../public/selection';
 import {renderToolbar} from './toolbar';
 import type {InfoTab} from './toolbar';
 import type {
@@ -36,12 +37,12 @@ import {openclTerminology} from './terminology/opencl';
 import {TerminologyRegistry} from './terminology';
 import {SectionRegistry} from './section';
 import {
-  PerformanceAnalysisResult,
-  AnalysisCache,
-  AnalysisProvider,
+  type PerformanceAnalysisResult,
+  type AnalysisCache,
+  type AnalysisProvider,
   AnalysisProviderHolder,
 } from './analysis';
-import {SerialTaskQueue, QuerySlot} from '../../base/query_slot';
+import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
 
 export interface GpuComputeContext {
   humanizeMetrics: boolean;
@@ -82,8 +83,8 @@ class Compute {
   // trigger mithril redraws; render() reads the current selection and
   // polls the QuerySlot which handles deduplication, background
   // fetching, and race-condition prevention.
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly selectionSlot = new QuerySlot<{
+  private readonly taskQueue = new AtomicTaskQueue();
+  private readonly selectionSlot = new AsyncMemo<{
     hasMetrics: boolean;
     toolbar?: ToolbarInfo;
   }>(this.taskQueue);
@@ -275,7 +276,7 @@ class Compute {
 
       const result = this.selectionSlot.use({
         key: {sliceId: id},
-        queryFn: async () => {
+        compute: async () => {
           const data = await fetchSelectedKernelMetricData(
             this.ctx,
             this.engine,

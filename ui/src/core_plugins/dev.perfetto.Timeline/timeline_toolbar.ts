@@ -16,18 +16,23 @@ import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
 import {Icons} from '../../base/semantic_icons';
 import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
-import {TraceImpl} from '../../core/trace_impl';
-import {AreaSelection, Selection} from '../../public/selection';
-import {TrackSetting, TrackSettingDescriptor} from '../../public/track';
-import {TrackNode, Workspace} from '../../public/workspace';
+import type {TraceImpl} from '../../core/trace_impl';
+import type {AreaSelection, Selection} from '../../public/selection';
+import type {TrackSetting, TrackSettingDescriptor} from '../../public/track';
+import {TrackNode, type Workspace} from '../../public/workspace';
 import {Button, ButtonVariant} from '../../widgets/button';
+import {Callout} from '../../widgets/callout';
+import {Intent} from '../../widgets/common';
+import {Form, FormLabel} from '../../widgets/form';
 import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
-import {MultiSelectOption, PopupMultiSelect} from '../../widgets/multiselect';
+import {
+  type MultiSelectOption,
+  PopupMultiSelect,
+} from '../../widgets/multiselect';
 import {Popup} from '../../widgets/popup';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
-import {Intent} from '../../widgets/common';
-import {Callout} from '../../widgets/callout';
+import './timeline_toolbar.scss';
 
 const FILTER_TEXT_BOX_REF = 'filter-text-box';
 const COMPACT_BUTTONS = true;
@@ -216,8 +221,12 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         }),
       },
       m(
-        'form.pf-track-filter',
+        Form,
         {
+          className: 'pf-track-filter',
+          // Prevent Enter from implicitly submitting the form (which would
+          // reload the page) since there's no submit button.
+          onsubmit: (e: Event) => e.preventDefault(),
           oncreate({dom}) {
             // Focus & select text box when the popup opens.
             const input = findRef(dom, FILTER_TEXT_BOX_REF) as HTMLInputElement;
@@ -225,26 +234,23 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
             input.select();
           },
         },
-        m(
-          '.pf-track-filter__row',
-          m('label', {for: 'filter-name'}, 'Filter by name'),
-          m(TextInput, {
-            ref: FILTER_TEXT_BOX_REF,
-            id: 'filter-name',
-            placeholder: 'Filter by name...',
-            title: 'Filter by name (comma separated terms)',
-            value: trackFilters.nameFilter,
-            oninput: (e: Event) => {
-              const value = (e.target as HTMLInputElement).value;
-              trackFilters.nameFilter = value;
-            },
-          }),
-        ),
+        m(FormLabel, {for: 'filter-name'}, 'Filter by name'),
+        m(TextInput, {
+          ref: FILTER_TEXT_BOX_REF,
+          id: 'filter-name',
+          placeholder: 'Filter by name...',
+          title: 'Filter by name (comma separated terms)',
+          value: trackFilters.nameFilter,
+          oninput: (e: Event) => {
+            const value = (e.target as HTMLInputElement).value;
+            trackFilters.nameFilter = value;
+          },
+        }),
         trace.tracks.trackFilterCriteria.map((filter) => {
-          return m(
-            '.pf-track-filter__row',
-            m('label', 'Filter by ', filter.name),
+          return [
+            m(FormLabel, 'Filter by ', filter.name),
             m(PopupMultiSelect, {
+              variant: ButtonVariant.Filled,
               label: filter.name,
               showNumSelected: true,
               // It usually doesn't make sense to select all filters - if users
@@ -290,7 +296,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
                 })
                 .filter((f) => f.name !== ''),
             }),
-          );
+          ];
         }),
         m(Button, {
           type: 'reset',

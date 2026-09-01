@@ -82,7 +82,7 @@ int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
     triggers_to_activate.push_back(std::string(argv[i]));
 
   if (triggers_to_activate.empty()) {
-    PERFETTO_ELOG("At least one trigger must the specified.");
+    PERFETTO_ELOG("At least one trigger must be specified.");
     return PrintUsage(argv[0]);
   }
 

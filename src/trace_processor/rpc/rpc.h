@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,6 +32,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/summarizer.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
@@ -43,7 +45,6 @@ class DisableAndReadMetatraceResult;
 namespace trace_processor {
 
 class Iterator;
-class TraceProcessor;
 
 // This class handles the binary {,un}marshalling for the Trace Processor RPC
 // API (see protos/perfetto/trace_processor/trace_processor.proto).
@@ -67,6 +68,7 @@ class Rpc {
   explicit Rpc(std::unique_ptr<TraceProcessor>,
                bool has_preloaded_eof,
                Config default_config,
+               TraceProcessor::PlatformInterface* platform,
                std::function<void(TraceProcessor*)> on_trace_processor_created);
   Rpc();
   ~Rpc();
@@ -135,9 +137,19 @@ class Rpc {
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
 
+  // Streams an export using the same callback pattern as Query(): called
+  // inline, once per chunk, with |has_more| false on the last call. Returning
+  // an error aborts the export.
+  using ExportCallback = std::function<
+      base::Status(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
+  static std::optional<TraceProcessor::ExportFormat> ParseExportFormat(int32_t);
+  base::Status Export(TraceProcessor::ExportFormat, const ExportCallback&);
+
   TraceProcessor* trace_processor() const { return trace_processor_.get(); }
 
  private:
+  base::Status ExportSqlite(const ExportCallback&);
+
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);
@@ -154,6 +166,7 @@ class Rpc {
       protos::pbzero::DisableAndReadMetatraceResult*);
 
   Config default_config_;
+  TraceProcessor::PlatformInterface* platform_ = nullptr;
   std::function<void(TraceProcessor*)> on_trace_processor_created_;
 
   Config current_config_;

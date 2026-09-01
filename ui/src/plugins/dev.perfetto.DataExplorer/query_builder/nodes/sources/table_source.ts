@@ -13,29 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
+import type {
   SqlTable,
   SqlModules,
 } from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {
-  QueryNode,
+  type QueryNode,
   NodeType,
   nextNodeId,
-  NodeContext,
+  type NodeContext,
 } from '../../../query_node';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {
-  ColumnInfo,
+  type ColumnInfo,
   columnInfoFromSqlColumn,
   newColumnInfo,
 } from '../../column_info';
-import protos from '../../../../../protos';
+import type protos from '../../../../../protos';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 import {setValidationError} from '../../node_issues';
 import {TableDescription} from '../../widgets';
-import {NodeDetailsAttrs} from '../../../node_types';
+import type {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 

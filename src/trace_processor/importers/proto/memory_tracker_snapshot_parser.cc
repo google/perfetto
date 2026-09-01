@@ -301,7 +301,7 @@ MemoryTrackerSnapshotParser::EmitNode(
           .id;
 
   auto* node_table = context_->storage->mutable_memory_snapshot_node_table();
-  auto rr = *node_table->FindById(node_row_id);
+  auto rr = (*node_table)[node_row_id];
   ArgsTracker args_tracker(context_);
   ArgsTracker::BoundInserter args = args_tracker.AddArgsTo(node_row_id);
 

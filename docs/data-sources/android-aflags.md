@@ -32,7 +32,6 @@ ts | package | name | value | permission
 ---|---------|------|-------|-----------
 12345 | perfetto.flags | buffer_clone_preserve_read_iter | enabled | read-only
 12345 | perfetto.flags | save_all_traces_in_bugreport | enabled | read-write
-12345 | perfetto.flags | track_event_incremental_state_clear_not_destroy | enabled | read-only
 12345 | perfetto.flags | use_lockfree_taskrunner | enabled | read-write
 
 Below is an example of finding flags whose value was overridden from the default (useful for debugging why behavior diverges from a pristine build):
@@ -60,7 +59,7 @@ where name = 'android_aflags_errors'
 
 name | severity | source | value | description
 -----|----------|--------|-------|------------
-android_aflags_errors | error | trace | 1 | Errors occurred during the collection of Android aconfig flags by the android.aflags data source. This typically happens if the aflags tool fails or its output is malformed.
+android_aflags_errors | info | trace | 1 | Errors occurred during the collection of Android aconfig flags by the android.aflags data source. This typically happens if the aflags tool fails or its output is malformed.
 
 ### TraceConfig
 

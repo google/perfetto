@@ -14,24 +14,24 @@
 
 import {
   Bool,
-  Event,
-  EventSet,
+  type Event,
+  type EventSet,
   Id,
-  KeySet,
+  type KeySet,
   Null,
   Num,
   Str,
-  UntypedEventSet,
+  type UntypedEventSet,
 } from './event_set';
 
 export function eventMustHaveAllKeys(): Event<KeySet> {
-  const ks = {
+  const _ks = {
     id: Id,
     foo: Str,
   };
 
   // @ts-expect-error
-  const event: Event<typeof ks> = {
+  const event: Event<typeof _ks> = {
     id: 'myid',
   };
 
@@ -39,7 +39,7 @@ export function eventMustHaveAllKeys(): Event<KeySet> {
 }
 
 export function eventMustNotHaveExtraKeys(): Event<KeySet> {
-  const ks = {
+  const _ks = {
     id: Id,
     foo: Str,
     bar: Num,
@@ -47,7 +47,7 @@ export function eventMustNotHaveExtraKeys(): Event<KeySet> {
     xyzzy: Null,
   };
 
-  const event: Event<typeof ks> = {
+  const event: Event<typeof _ks> = {
     id: 'myid',
     foo: 'foo',
     bar: 32,
@@ -61,7 +61,7 @@ export function eventMustNotHaveExtraKeys(): Event<KeySet> {
 }
 
 export function eventsCanBeWellFormed(): Event<KeySet> {
-  const ks = {
+  const _ks = {
     id: Id,
     foo: Str,
     bar: Num,
@@ -69,7 +69,7 @@ export function eventsCanBeWellFormed(): Event<KeySet> {
     xyzzy: Null,
   };
 
-  const event: Event<typeof ks> = {
+  const event: Event<typeof _ks> = {
     id: 'myid',
     foo: 'foo',
     bar: 32,

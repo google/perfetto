@@ -132,10 +132,8 @@ class ServiceThread {
         {"PERFETTO_PRODUCER_SOCK_NAME", "PERFETTO_CONSUMER_SOCK_NAME"});
     runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.svc");
     runner_->PostTaskAndWaitForTesting([this]() {
-      TracingService::InitOpts init_opts = {};
-      if (enable_relay_endpoint_)
-        init_opts.enable_relay_endpoint = true;
-      svc_ = ServiceIPCHost::CreateInstance(runner_->get(), init_opts);
+      svc_ = ServiceIPCHost::CreateInstance(runner_->get(),
+                                            TracingService::InitOpts{});
       auto producer_sockets = TokenizeProducerSockets(producer_socket_.c_str());
       for (const auto& producer_socket : producer_sockets) {
         // In some cases the socket is a TCP or abstract unix.
@@ -152,8 +150,14 @@ class ServiceThread {
       }
       base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket_);
       base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket_);
-      bool res =
-          svc_->Start(producer_socket_.c_str(), consumer_socket_.c_str());
+      std::list<ListenEndpoint> producer_eps;
+      for (const auto& producer_socket : producer_sockets) {
+        ListenEndpoint ep(producer_socket);
+        ep.expose_relay_endpoint = enable_relay_endpoint_;
+        producer_eps.emplace_back(std::move(ep));
+      }
+      bool res = svc_->Start(std::move(producer_eps),
+                             ListenEndpoint(consumer_socket_));
       if (!res) {
         PERFETTO_FATAL("Failed to start service listening on %s and %s",
                        producer_socket_.c_str(), consumer_socket_.c_str());

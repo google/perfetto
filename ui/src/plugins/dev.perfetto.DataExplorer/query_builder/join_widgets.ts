@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnInfo} from './column_info';
+import type {ColumnInfo} from './column_info';
 import {OutlinedField, ResultsPanelEmptyState} from './widgets';
 import {ColumnSelector} from './column_selector';
 import {classNames} from '../../../base/classnames';
@@ -182,9 +182,7 @@ export interface JoinConditionSelectorAttrs {
   onRightColumnAlias: (index: number, alias: string) => void;
 }
 
-export class JoinConditionSelector
-  implements m.ClassComponent<JoinConditionSelectorAttrs>
-{
+export class JoinConditionSelector implements m.ClassComponent<JoinConditionSelectorAttrs> {
   view({attrs}: m.Vnode<JoinConditionSelectorAttrs>) {
     const {
       leftLabel,
@@ -247,9 +245,7 @@ export interface JoinConditionDisplayAttrs {
   operator?: string;
 }
 
-export class JoinConditionDisplay
-  implements m.ClassComponent<JoinConditionDisplayAttrs>
-{
+export class JoinConditionDisplay implements m.ClassComponent<JoinConditionDisplayAttrs> {
   view({attrs}: m.Vnode<JoinConditionDisplayAttrs>) {
     const {
       leftAlias,
@@ -280,9 +276,7 @@ export interface JoinColumnSelectorAttrs {
   onRightColumnsChange: (columns: ColumnInfo[]) => void;
 }
 
-export class JoinColumnSelector
-  implements m.ClassComponent<JoinColumnSelectorAttrs>
-{
+export class JoinColumnSelector implements m.ClassComponent<JoinColumnSelectorAttrs> {
   view({attrs}: m.Vnode<JoinColumnSelectorAttrs>) {
     const {
       leftAlias,

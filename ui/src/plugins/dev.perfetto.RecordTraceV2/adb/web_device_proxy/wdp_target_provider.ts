@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {errResult, okResult, Result} from '../../../../base/result';
-import {PreflightCheck} from '../../interfaces/connection_check';
+import {errResult, okResult, type Result} from '../../../../base/result';
+import type {PreflightCheck} from '../../interfaces/connection_check';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
-import {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
+import type {RecordingTargetProvider} from '../../interfaces/recording_target_provider';
 import {EvtSource} from '../../../../base/events';
 import {WebDeviceProxyTarget as WdpDeviceProxyTarget} from './wdp_target';
 import {showPopupWindow} from '../../../../base/popup_window';
 import {
-  WdpTrackDevicesResponse,
-  WdpDevice,
+  type WdpTrackDevicesResponse,
+  type WdpDevice,
   WDP_TRACK_DEVICES_SCHEMA,
 } from './wdp_schema';
 import {disposeWebsocket} from '../../websocket/websocket_utils';

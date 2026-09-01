@@ -41,7 +41,6 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
@@ -105,23 +104,11 @@ struct StringLessInvert {
 
 namespace ops {
 
-// Outlined implementation of SortRowLayout bytecode.
-// Sorts indices based on row layout data in buffer.
-void SortRowLayoutImpl(const Slab<uint8_t>& buffer,
-                       uint32_t stride,
-                       Span<uint32_t>& indices);
-
 // Outlined implementation of FinalizeRanksInMap bytecode.
 // Sorts string IDs and assigns ranks in the map.
 void FinalizeRanksInMapImpl(
     const StringPool* string_pool,
     std::unique_ptr<base::FlatHashMap<StringPool::Id, uint32_t>>& rank_map_ptr);
-
-// Outlined implementation of Distinct bytecode.
-// Removes duplicate rows based on row layout data.
-void DistinctImpl(const Slab<uint8_t>& buffer,
-                  uint32_t stride,
-                  Span<uint32_t>& indices);
 
 // Outlined implementation of glob filtering for strings.
 // Returns pointer past last written output index.
@@ -1630,13 +1617,13 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
                                 nbv->bv->count_set_bits_until_in_word(*ptr))
                           : std::numeric_limits<uint32_t>::max();
       uint8_t res = is_non_null ? 0xFF : 0;
-      *dest = invert ? ~res : res;
+      *dest = invert ? static_cast<uint8_t>(~res) : res;
       offset = 1;
     } else if constexpr (std::is_same_v<Nullability, DenseNull>) {
       is_non_null = nbv->bv->is_set(table_index);
       storage_index = table_index;
       uint8_t res = is_non_null ? 0xFF : 0;
-      *dest = invert ? ~res : res;
+      *dest = invert ? static_cast<uint8_t>(~res) : res;
       offset = 1;
     } else {
       static_assert(std::is_same_v<Nullability, NonNull>,
@@ -1720,17 +1707,6 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
   *indices.b = best_idx;
   indices.e = indices.b + 1;
 }
-
-// Reparents and compacts a tree based on pre-filtered indices.
-// Also compacts all column storage and null bitvectors registered in
-// the TreeState, and resets the indices span to [0..new_row_count-1].
-void FilterTreeState(InterpreterState& state, const struct FilterTreeState& bc);
-
-// Propagates column values from roots toward leaves using BFS.
-// For each parent→child edge, applies the aggregate operation from
-// TreeState::propagate_down_specs.
-void PropagateTreeDown(InterpreterState& state,
-                       const struct PropagateTreeDown& bc);
 
 }  // namespace ops
 

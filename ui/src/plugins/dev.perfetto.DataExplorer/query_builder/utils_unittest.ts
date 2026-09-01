@@ -19,7 +19,7 @@ import {
   getAggregationTypeRequirements,
 } from './utils';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../../trace_processor/perfetto_sql_type';
 

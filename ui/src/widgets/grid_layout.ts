@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './grid_layout.scss';
 import m from 'mithril';
 
 // GridLayout is a container that arranges elements into a two-column grid when

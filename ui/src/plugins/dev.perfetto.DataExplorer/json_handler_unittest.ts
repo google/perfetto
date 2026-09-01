@@ -14,14 +14,18 @@
 
 import {AggregationNode} from './query_builder/nodes/aggregation_node';
 import {ModifyColumnsNode} from './query_builder/nodes/modify_columns_node';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 import {IntervalIntersectNode} from './query_builder/nodes/interval_intersect_node';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {SqlSourceNode} from './query_builder/nodes/sources/sql_source';
 import {TableSourceNode} from './query_builder/nodes/sources/table_source';
-import {serializeState, deserializeState, SerializedNode} from './json_handler';
-import {Trace} from '../../public/trace';
 import {
+  serializeState,
+  deserializeState,
+  type SerializedNode,
+} from './json_handler';
+import type {Trace} from '../../public/trace';
+import type {
   SqlModules,
   SqlTable,
 } from '../../plugins/dev.perfetto.SqlModules/sql_modules';
@@ -32,10 +36,10 @@ import {FilterNode} from './query_builder/nodes/filter_node';
 import {JoinNode} from './query_builder/nodes/join_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {
-  PerfettoSqlType,
+  type PerfettoSqlType,
   PerfettoSqlTypes,
 } from '../../trace_processor/perfetto_sql_type';
-import {NodeType} from './query_node';
+import {NodeType, type QueryNode} from './query_node';
 import {
   addConnection,
   removeConnection,
@@ -43,7 +47,7 @@ import {
   applyGroupRewiring,
   getAllNodes,
 } from './query_builder/graph_utils';
-import {ColumnInfo} from './query_builder/column_info';
+import type {ColumnInfo} from './query_builder/column_info';
 import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
 import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
 import {Time} from '../../base/time';
@@ -113,6 +117,40 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedState.rootNodes.length).toBe(1);
     const deserializedNode = deserializedState.rootNodes[0];
     expect(deserializedNode).toBeInstanceOf(SlicesSourceNode);
+  });
+
+  test('does not crash when serializeState is called with circular references in trace', () => {
+    // Create a mock Trace object with circular references resembling the actual TraceImpl structure.
+    const circularTrace: Record<string, unknown> = {};
+    const searchManager: Record<string, unknown> = {_trackManager: {}};
+    const trackManager: Record<string, unknown> = {_overlays: []};
+    const overlay: Record<string, unknown> = {trace: circularTrace};
+
+    (trackManager._overlays as unknown[]).push(overlay);
+    searchManager._trackManager = trackManager;
+    circularTrace.search = searchManager;
+
+    // Create a node with attrs referencing the trace.
+    const node = new SlicesSourceNode({}, {});
+    (node.attrs as Record<string, unknown>).trace = circularTrace;
+
+    const initialState: DataExplorerState = {
+      rootNodes: [node],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    // This should not throw 'TypeError: Converting circular structure to JSON'.
+    let json: string | undefined;
+    expect(() => {
+      json = serializeState(initialState);
+    }).not.toThrow();
+
+    // Verify that the serialized JSON doesn't contain the trace object
+    expect(json).toBeDefined();
+    const parsed = JSON.parse(json!);
+    expect(parsed.nodes[0].state.trace).toBeUndefined();
   });
 
   test('handles multiple nodes and connections', () => {
@@ -484,7 +522,7 @@ describe('JSON serialization/deserialization', () => {
     if (filter !== undefined && 'value' in filter) {
       expect(filter.value).toBe('test');
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -532,7 +570,7 @@ describe('JSON serialization/deserialization', () => {
       expect(typeof filter.value).toBe('number');
       expect(filter.value).toBe(1000);
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -617,7 +655,7 @@ describe('JSON serialization/deserialization', () => {
       expect(typeof filter.value).toBe('number');
       expect(filter.value).toBe(Number('12345678901234567890'));
     } else {
-      fail('Filter value not found');
+      expect.fail('Filter value not found');
     }
   });
 
@@ -1030,8 +1068,7 @@ describe('JSON serialization/deserialization', () => {
     expect(deserializedTableNode.nextNodes.length).toBe(1);
 
     const deserializedModifyNode = deserializedTableNode.nextNodes[0] as
-      | ModifyColumnsNode
-      | undefined;
+      ModifyColumnsNode | undefined;
     expect(deserializedModifyNode).toBeDefined();
     expect(deserializedModifyNode?.type).toBe(NodeType.kModifyColumns);
 
@@ -1049,8 +1086,7 @@ describe('JSON serialization/deserialization', () => {
     // Verify the aggregation node still sees the aliased column
     expect(deserializedModifyNode?.nextNodes.length).toBe(1);
     const deserializedAggNode = deserializedModifyNode?.nextNodes[0] as
-      | AggregationNode
-      | undefined;
+      AggregationNode | undefined;
     expect(deserializedAggNode).toBeDefined();
     expect(deserializedAggNode?.type).toBe(NodeType.kAggregation);
     expect(deserializedAggNode?.attrs.groupByColumns.length).toBe(1);
@@ -3075,7 +3111,7 @@ describe('JSON serialization/deserialization', () => {
     const json = serializeState(initialState);
     const deserialized = deserializeState(json, trace, sqlModules);
 
-    const allNodes = new Map<string, import('./query_node').QueryNode>();
+    const allNodes = new Map<string, QueryNode>();
     const queue = [...deserialized.rootNodes];
     while (queue.length > 0) {
       const node = queue.shift()!;

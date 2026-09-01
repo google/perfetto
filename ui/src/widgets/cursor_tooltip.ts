@@ -13,24 +13,34 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {MountOptions, Portal} from './portal';
+import {type MountOptions, Portal} from './portal';
 import {bindEventListener} from '../base/dom_utils';
 import {DisposableStack} from '../base/disposable_stack';
-import {HTMLAttrs} from './common';
+import type {HTMLAttrs} from './common';
 import {
   createPopper,
-  Instance as PopperInstance,
-  VirtualElement,
+  type Instance as PopperInstance,
+  type Modifier,
+  type OptionsGeneric,
+  type VirtualElement,
 } from '@popperjs/core';
 import {classNames} from '../base/classnames';
-import {Point2D, Vector2D} from '../base/geom';
+import {type Point2D, Vector2D} from '../base/geom';
 import {PopupPosition} from './popup';
+import type {ExtendedModifiers} from './popper_utils';
 
 export interface CursorTooltipAttrs extends HTMLAttrs {
   // Which side of the cursor to place the tooltip. Defaults to Right.
   readonly position?: PopupPosition;
-  // Distance in px between the tooltip and the cursor. Default = 8.
+  // Gap in px between the tooltip and the cursor, measured along the placement
+  // axis — i.e. how far out in the `position` direction (e.g. how far to the
+  // right for the default Right placement). Default = 8.
   readonly offset?: number;
+  // Shift in px along the cross axis (perpendicular to `position`), sliding the
+  // tooltip sideways past the cursor without changing its distance. Positive
+  // values move toward the end of that axis — e.g. downward for the default
+  // Right placement. Default = 0.
+  readonly skidOffset?: number;
 }
 
 class VElement implements VirtualElement {
@@ -61,47 +71,54 @@ document.addEventListener('mousemove', (e) => {
 export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
   private readonly trash = new DisposableStack();
   private readonly virtualElement = new VElement();
+  private tooltipElement?: HTMLElement;
+  // An empty element rendered inline in the component tree (as opposed to the
+  // tooltip content, which is portalled elsewhere). Its visibility tracks that
+  // of the tooltip's parent, so we can hide the tooltip when the parent goes
+  // away (e.g. an ancestor gets display:none).
+  private canaryElement?: HTMLElement;
   private popper?: PopperInstance;
 
   view({children, attrs}: m.Vnode<CursorTooltipAttrs>) {
-    const {
-      className,
-      offset = 8,
-      position = PopupPosition.Right,
-      ...rest
-    } = attrs;
-    return m(
-      Portal,
-      {
-        ...rest,
-        className: classNames('pf-cursor-tooltip', className),
-        onBeforeContentMount: (dom: Element): MountOptions => {
-          const closestModal = dom.closest('.pf-overlay-container');
-          if (closestModal) {
-            return {container: closestModal};
-          }
-          return {container: undefined};
+    const {className, ...rest} = attrs;
+    return [
+      m('.pf-cursor-tooltip-canary', {
+        // Take up no space and don't affect layout, but keep a layout box so
+        // checkVisibility() reflects our ancestors' visibility.
+        style: {position: 'absolute', width: '0', height: '0'},
+        oncreate: (v: m.VnodeDOM) => {
+          this.canaryElement = v.dom as HTMLElement;
         },
-        onContentMount: (portal) => {
-          this.virtualElement.setPosition(globalMousePos);
-          this.popper = createPopper(this.virtualElement, portal, {
-            placement: position,
-            modifiers: [
-              {
-                name: 'offset',
-                options: {
-                  offset: [0, offset], // Shift away from cursor
-                },
-              },
-            ],
-          });
+        onremove: () => {
+          this.canaryElement = undefined;
         },
-        onContentUnmount: () => {
-          this.popper?.destroy();
+      }),
+      m(
+        Portal,
+        {
+          ...rest,
+          className: classNames('pf-cursor-tooltip', className),
+          onBeforeContentMount: (dom: Element): MountOptions => {
+            const closestModal = dom.closest('.pf-overlay-container');
+            if (closestModal) {
+              return {container: closestModal};
+            }
+            return {container: undefined};
+          },
+          onContentMount: (portal) => {
+            this.tooltipElement = portal;
+            this.virtualElement.setPosition(globalMousePos);
+            this.createOrUpdatePopper(attrs);
+          },
+          onContentUnmount: () => {
+            this.popper?.destroy();
+            this.popper = undefined;
+            this.tooltipElement = undefined;
+          },
         },
-      },
-      children,
-    );
+        children,
+      ),
+    ];
   }
 
   oncreate(_: m.VnodeDOM<CursorTooltipAttrs>) {
@@ -113,7 +130,59 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
     );
   }
 
+  onupdate({attrs}: m.VnodeDOM<CursorTooltipAttrs, this>) {
+    this.createOrUpdatePopper(attrs);
+  }
+
   onremove(_: m.VnodeDOM<CursorTooltipAttrs, this>) {
     this.trash.dispose();
+  }
+
+  private createOrUpdatePopper(attrs: CursorTooltipAttrs) {
+    const {position = PopupPosition.Right, offset = 8, skidOffset = 0} = attrs;
+
+    // Custom modifier to hide the tooltip when our canary - and hence the
+    // tooltip's parent - is not visible. This can be due to the canary or one
+    // of its ancestors having display:none.
+    const hideOnInvisible: Modifier<'hideOnInvisible', {}> = {
+      name: 'hideOnInvisible',
+      enabled: true,
+      phase: 'main',
+      fn: ({state}) => {
+        const el = this.canaryElement;
+        if (el === undefined) {
+          return;
+        }
+        const isVisible =
+          typeof el.checkVisibility === 'function'
+            ? el.checkVisibility()
+            : window.getComputedStyle(el).display !== 'none' &&
+              window.getComputedStyle(el).visibility !== 'hidden';
+        state.elements.popper.style.display = isVisible ? '' : 'none';
+      },
+    };
+
+    const options: Partial<OptionsGeneric<ExtendedModifiers>> = {
+      placement: position,
+      modifiers: [
+        {
+          name: 'offset',
+          options: {
+            offset: [skidOffset, offset],
+          },
+        },
+        hideOnInvisible,
+      ],
+    };
+
+    if (this.popper) {
+      this.popper.setOptions(options);
+    } else if (this.tooltipElement) {
+      this.popper = createPopper<ExtendedModifiers>(
+        this.virtualElement,
+        this.tooltipElement,
+        options,
+      );
+    }
   }
 }

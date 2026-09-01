@@ -14,14 +14,14 @@
 
 import protos from '../../protos';
 import {traceSummarySpecToPb} from '../../base/proto_utils_wasm';
-import {DataExplorerState} from './data_explorer';
+import type {DataExplorerState} from './data_explorer';
 import {
-  SerializedGraph,
-  SerializedNode,
+  type SerializedGraph,
+  type SerializedNode,
   deserializeState,
 } from './json_handler';
 import {NodeType, singleNodeOperation} from './query_node';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 // Counter for generating unique node IDs during import.

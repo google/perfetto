@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Row} from '../../../trace_processor/query_result';
+import type {Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../datagrid/datagrid';
-import {CellFormatter, SchemaRegistry} from '../datagrid/datagrid_schema';
+import type {CellFormatter, ColumnSchema} from '../datagrid/datagrid_schema';
 
 /**
  * Data provided to a DatagridChart.
@@ -71,7 +71,6 @@ export class DatagridChart implements m.ClassComponent<DatagridChartAttrs> {
 
     return m(DataGrid, {
       schema,
-      rootSchema: 'root',
       // DataGrid expects a mutable Row[] but our source is readonly Row[].
       // The cast is safe because DataGrid only reads from the array.
       data: data.rows as Row[],
@@ -84,23 +83,17 @@ export class DatagridChart implements m.ClassComponent<DatagridChartAttrs> {
 }
 
 /**
- * Build a minimal SchemaRegistry from column names.
+ * Build a minimal schema from column names.
  * Each column becomes a simple leaf ColumnDef.
  */
 function buildSchemaFromColumns(
   columns: readonly string[],
   cellFormatters?: Readonly<Record<string, CellFormatter>>,
-): SchemaRegistry {
-  const schema: SchemaRegistry = {
-    root: Object.fromEntries(
-      columns.map((col) => {
-        const formatter = cellFormatters?.[col];
-        return [
-          col,
-          {title: col, ...(formatter && {cellFormatter: formatter})},
-        ];
-      }),
-    ),
-  };
-  return schema;
+): ColumnSchema {
+  return Object.fromEntries(
+    columns.map((col) => {
+      const formatter = cellFormatters?.[col];
+      return [col, {title: col, ...(formatter && {cellFormatter: formatter})}];
+    }),
+  );
 }

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ThreadStateSqlId} from '../sql_utils/core_types';
+import type {ThreadStateSqlId} from '../sql_utils/core_types';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
-import {ThreadState} from '../sql_utils/thread_state';
-import {Trace} from '../../public/trace';
+import type {ThreadState} from '../sql_utils/thread_state';
+import type {Trace} from '../../public/trace';
 
 interface ThreadStateRefAttrs {
   readonly trace: Trace;

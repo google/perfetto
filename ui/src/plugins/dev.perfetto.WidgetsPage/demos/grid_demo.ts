@@ -13,7 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Grid, GridCell, GridHeaderCell, GridRow} from '../../../widgets/grid';
+import {
+  Grid,
+  GridCell,
+  GridHeaderCell,
+  type GridRow,
+} from '../../../widgets/grid';
 import {MenuItem} from '../../../widgets/menu';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 import {languages} from '../sample_data';

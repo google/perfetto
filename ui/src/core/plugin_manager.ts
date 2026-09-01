@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {Registry} from '../base/registry';
-import {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
-import {Trace} from '../public/trace';
+import type {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
+import type {Trace} from '../public/trace';
 import {featureFlags} from './feature_flags';
-import {Flag} from '../public/feature_flag';
-import {TraceImpl} from './trace_impl';
-import {AppImpl} from './app_impl';
+import type {Flag} from '../public/feature_flag';
+import type {TraceImpl} from './trace_impl';
+import type {AppImpl} from './app_impl';
 import {createProxy} from '../base/utils';
-import {RouteArgs} from '../public/route_schema';
-import {SettingsManagerImpl} from './settings_manager';
-import {PageManager} from '../public/page';
+import type {RouteArgs} from '../public/route_schema';
+import type {SettingsManagerImpl} from './settings_manager';
+import type {PageManager} from '../public/page';
 
 function makePlugin(
   desc: PerfettoPluginStatic<PerfettoPlugin>,
@@ -162,7 +162,7 @@ export class PluginManagerImpl {
     pluginDescriptor: PerfettoPluginStatic<T>,
   ): T {
     const plugin = this.registry.get(pluginDescriptor.id);
-    return assertExists(plugin.traceContext).instance as T;
+    return ensureExists(plugin.traceContext).instance as T;
   }
 
   isCorePlugin(pluginId: string): boolean {

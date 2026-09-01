@@ -182,6 +182,9 @@ message TraceMetricV2Spec {
     // A URL linking to more detailed documentation about this dimension.
     // Optional.
     optional string doc_link = 5;
+    // Whether or not the dimension is aggregatable (values are disjoint
+    // and can be aggregated without double counting). Optional.
+    optional bool is_aggregatable = 6;
   }
   repeated DimensionSpec dimensions_specs = 5;
   repeated string dimensions = 2;

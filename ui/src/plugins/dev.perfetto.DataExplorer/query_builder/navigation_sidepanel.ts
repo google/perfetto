@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Card, CardStack} from '../../../widgets/card';
 import {Icon} from '../../../widgets/icon';
-import {QueryNode} from '../query_node';
+import type {QueryNode} from '../query_node';
 import {EXAMPLE_GRAPHS} from '../example_graphs';
 import {RecentGraphsSection} from '../recent_graphs';
 
@@ -102,9 +102,7 @@ export interface NavigationSidePanelAttrs {
   readonly onLoadRecentGraph?: (json: string) => void;
 }
 
-export class NavigationSidePanel
-  implements m.ClassComponent<NavigationSidePanelAttrs>
-{
+export class NavigationSidePanel implements m.ClassComponent<NavigationSidePanelAttrs> {
   view({attrs}: m.CVnode<NavigationSidePanelAttrs>) {
     const results: m.Children[] = [];
 

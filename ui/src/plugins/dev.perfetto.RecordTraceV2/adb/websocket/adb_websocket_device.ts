@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Result, errResult, okResult} from '../../../../base/result';
+import {type Result, errResult, okResult} from '../../../../base/result';
 import {WebSocketStream} from '../../websocket/websocket_stream';
 import {AdbDevice} from '../adb_device';
 import {adbCmdAndWait} from './adb_websocket_utils';
 import {AsyncWebsocket} from '../../websocket/async_websocket';
-import {ByteStream} from '../../interfaces/byte_stream';
+import type {ByteStream} from '../../interfaces/byte_stream';
 import {WdpWebSocketStream} from '../web_device_proxy/wdp_websocket_stream ';
 import {assertUnreachable} from '../../../../base/assert';
 

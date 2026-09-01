@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import type m from 'mithril';
 import {arrayEquals} from '../base/array_utils';
-import {duration, time, TimeSpan} from '../base/time';
-import {Track} from './track';
+import type {duration, time, TimeSpan} from '../base/time';
+import type {Track} from './track';
 
 export interface ContentWithLoadingFlag {
   /**
@@ -98,7 +98,7 @@ export interface SelectionManager {
     trackUri: string,
     eventId: number,
     opts?: SelectionOpts,
-  ): void;
+  ): Promise<void>;
 
   /**
    * Select a track.

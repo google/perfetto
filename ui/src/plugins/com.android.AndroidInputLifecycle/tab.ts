@@ -14,19 +14,28 @@
 
 import m from 'mithril';
 
-import {GridColumn, GridHeaderCell, Grid, GridCell} from '../../widgets/grid';
-import {TrackPinningManager} from '../../components/related_events/utils';
+import {
+  type GridColumn,
+  GridHeaderCell,
+  Grid,
+  GridCell,
+} from '../../widgets/grid';
+import type {TrackPinningManager} from '../../components/related_events/utils';
 import {Icons} from '../../base/semantic_icons';
-import {duration} from '../../base/time';
+import type {duration} from '../../base/time';
 import {DurationWidget} from '../../components/widgets/duration';
-import {Trace} from '../../public/trace';
+import type {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {Checkbox} from '../../widgets/checkbox';
 import {EmptyState} from '../../widgets/empty_state';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Spinner} from '../../widgets/spinner';
 
-import {InputChainRow, NavTarget} from './android_input_event_source';
+import {
+  AndroidInputEventSource,
+  type InputChainRow,
+} from './android_input_event_source';
+import type {InputLifecycleExtension, NavTarget} from './extensions/interface';
 
 export interface AndroidInputLifecycleTabAttrs {
   trace: Trace;
@@ -36,11 +45,10 @@ export interface AndroidInputLifecycleTabAttrs {
   pinningManager: TrackPinningManager;
   onToggleVisibility: (rowId: string) => void;
   onToggleAllVisibility: () => void;
+  activeExtensions: InputLifecycleExtension[];
 }
 
-export class AndroidInputLifecycleTab
-  implements m.ClassComponent<AndroidInputLifecycleTabAttrs>
-{
+export class AndroidInputLifecycleTab implements m.ClassComponent<AndroidInputLifecycleTabAttrs> {
   view({attrs}: m.Vnode<AndroidInputLifecycleTabAttrs>): m.Children {
     if (attrs.loading) {
       return m(
@@ -72,6 +80,8 @@ export class AndroidInputLifecycleTab
     const allVisible =
       rows.length > 0 && rows.every((r) => visibleRowIds.has(r.uiRowId));
 
+    const specs = AndroidInputEventSource.getStageSpecs(attrs.activeExtensions);
+
     const columns: GridColumn[] = [
       {
         key: 'show',
@@ -90,72 +100,59 @@ export class AndroidInputLifecycleTab
         widthPx: 40,
         header: m(GridHeaderCell, {}, 'Pin'),
       },
-      {key: 'chan', header: m(GridHeaderCell, {}, 'Channel')},
+      {
+        key: 'chan',
+        header: m(GridHeaderCell, {}, 'Channel'),
+      },
       {
         key: 'total',
         minWidthPx: 100,
         header: m(GridHeaderCell, {}, 'Total Latency'),
       },
-      {
-        key: 'read',
+      ...specs.map((spec) => ({
+        key: spec.key,
         minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'InputReader'),
-      },
-      {
-        key: 'disp',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'Dispatcher'),
-      },
-      {
-        key: 'recv',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'App Receive'),
-      },
-      {
-        key: 'cons',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'App Consume'),
-      },
-      {
-        key: 'frame',
-        minWidthPx: 100,
-        header: m(GridHeaderCell, {}, 'App Frame'),
-      },
+        header: m(GridHeaderCell, {}, spec.headerName),
+      })),
     ];
 
     return m(Grid, {
       columns,
-      rowData: rows.map((row) => [
-        m(
-          GridCell,
-          {},
-          m(Checkbox, {
-            checked: visibleRowIds.has(row.uiRowId),
-            onchange: () => attrs.onToggleVisibility(row.uiRowId),
-          }),
-        ),
-        m(
-          GridCell,
-          {},
-          m(Checkbox, {
-            checked: isRowPinned(row, pinningManager),
-            onchange: () => togglePinning(row, pinningManager),
-          }),
-        ),
-        m(GridCell, {}, row.channel),
-        m(
-          GridCell,
-          {},
-          row.totalLatency !== null
-            ? m(DurationWidget, {dur: row.totalLatency, trace})
-            : '-',
-        ),
-        renderCell(row.durReader, row.navReader, trace),
-        renderCell(row.deltaDispatch, row.navDispatch, trace),
-        renderCell(row.deltaReceive, row.navReceive, trace),
-        renderCell(row.deltaConsume, row.navConsume, trace),
-        renderCell(row.deltaFrame, row.navFrame, trace),
-      ]),
+      rowData: rows.map((row) => {
+        const fixedCells = [
+          m(
+            GridCell,
+            {},
+            m(Checkbox, {
+              checked: visibleRowIds.has(row.uiRowId),
+              onchange: () => attrs.onToggleVisibility(row.uiRowId),
+            }),
+          ),
+          m(
+            GridCell,
+            {},
+            m(Checkbox, {
+              checked: isRowPinned(row, pinningManager),
+              onchange: () => togglePinning(row, pinningManager),
+            }),
+          ),
+          m(GridCell, {}, row.channel),
+          m(
+            GridCell,
+            {},
+            row.totalLatency !== null
+              ? m(DurationWidget, {dur: row.totalLatency, trace})
+              : '-',
+          ),
+        ];
+
+        const stageCells = specs.map((spec) => {
+          const cellData = row.stagesData.get(spec.key);
+          return renderCell(cellData?.dur ?? null, cellData?.nav, trace);
+        });
+
+        return [...fixedCells, ...stageCells];
+      }),
       emptyState: m(EmptyState, {
         title: 'No input event selected',
         description: 'Select an input event to see latency breakdown.',

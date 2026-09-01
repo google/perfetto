@@ -22,13 +22,11 @@ This is invoked by the build system and is used by the stress_test runner. The
 goal is making the stress_test binary hermetic and not depend on the repo.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-import os
-import sys
+from __future__ import absolute_import, division, print_function
+
 import argparse
-import shutil
+import os
+import re
 import subprocess
 
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -73,7 +71,7 @@ def main():
 
   # Write the C++ header file
   fout = open(args.out, 'wb')
-  include_guard = args.out.replace('/', '_').replace('.', '_').upper() + '_'
+  include_guard = re.sub(r'[^A-Z0-9_]', '_', args.out.upper()) + '_'
   fout.write("""
 #ifndef {include_guard}
 #define {include_guard}

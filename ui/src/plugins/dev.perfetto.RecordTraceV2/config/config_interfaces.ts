@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {TargetPlatformId} from '../interfaces/target_platform';
-import {TraceConfigBuilder} from './trace_config_builder';
-import {
+import type m from 'mithril';
+import type {TargetPlatformId} from '../interfaces/target_platform';
+import type {TraceConfigBuilder} from './trace_config_builder';
+import type {
   ProbesSessionSchema,
   RecordPluginSchema,
 } from '../serialization_schema';

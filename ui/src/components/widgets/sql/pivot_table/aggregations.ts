@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row, SqlValue} from '../../../../trace_processor/query_result';
-import {TableColumn} from '../table/table_column';
+import type {Row, SqlValue} from '../../../../trace_processor/query_result';
+import type {TableColumn} from '../table/table_column';
 import {aggregationId} from './ids';
 
 // Basic associative aggregation operations which can be pushed down to SQL.

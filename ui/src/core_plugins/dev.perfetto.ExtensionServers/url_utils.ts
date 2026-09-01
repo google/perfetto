@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {UserInput} from './types';
+import type {UserInput} from './types';
 
 // Returns true if two servers point to the same location (ignoring auth,
 // enabledModules, and enabled state).

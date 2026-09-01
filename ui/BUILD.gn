@@ -45,11 +45,11 @@ action("ui_build") {
   outputs = [ "$target_out_dir/never_written_always_execute_rule.stamp" ]
   inputs = [
     "../tools/node",
-    "build.js",
+    "build.mjs",
   ]
   args = [
     nodejs_bin,
-    rebase_path("build.js", root_build_dir),
+    rebase_path("build.mjs", root_build_dir),
     "--out",
     ".",
   ]

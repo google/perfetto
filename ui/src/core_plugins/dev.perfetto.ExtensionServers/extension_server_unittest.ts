@@ -17,16 +17,16 @@ import {
   initializeServers,
   buildFetchRequest,
 } from './extension_server';
-import {AppImpl} from '../../core/app_impl';
-import {Macro} from '../../core/command_manager';
-import {SqlPackage} from '../../public/extra_sql_packages';
-import {ExtensionServer, UserInput} from './types';
+import type {AppImpl} from '../../core/app_impl';
+import type {Macro} from '../../core/command_manager';
+import type {SqlPackage} from '../../public/extra_sql_packages';
+import type {ExtensionServer, UserInput} from './types';
 
 // =============================================================================
 // Test Helpers
 // =============================================================================
 
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
 
 function mockJsonResponse(data: unknown, status = 200) {
@@ -53,13 +53,13 @@ function createMockAppImpl() {
   const protoDescriptorsAdded: Array<Promise<ReadonlyArray<string>>> = [];
 
   return {
-    addMacros: jest.fn((p: Promise<ReadonlyArray<MacroWithSource>>) => {
+    addMacros: vi.fn((p: Promise<ReadonlyArray<MacroWithSource>>) => {
       macrosAdded.push(p);
     }),
-    addSqlPackages: jest.fn((p: Promise<ReadonlyArray<SqlPackage>>) => {
+    addSqlPackages: vi.fn((p: Promise<ReadonlyArray<SqlPackage>>) => {
       sqlPackagesAdded.push(p);
     }),
-    addProtoDescriptors: jest.fn((p: Promise<ReadonlyArray<string>>) => {
+    addProtoDescriptors: vi.fn((p: Promise<ReadonlyArray<string>>) => {
       protoDescriptorsAdded.push(p);
     }),
     getMacrosAdded: () => macrosAdded,

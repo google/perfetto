@@ -127,26 +127,6 @@ class MockProcessTracker : public ProcessTracker {
                ProcessNamePriority priority),
               (override));
 };
-class MockBoundInserter : public ArgsTracker::BoundInserter {
- public:
-  MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
-        tracker_(nullptr) {
-    ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
-  }
-
-  MOCK_METHOD(ArgsTracker::BoundInserter&,
-              AddArg,
-              (StringId flat_key,
-               StringId key,
-               Variadic v,
-               ArgsTracker::UpdatePolicy update_policy),
-              (override));
-
- private:
-  ArgsTracker tracker_;
-};
-
 class MockEventTracker : public EventTracker {
  public:
   explicit MockEventTracker(TraceProcessorContext* context)
@@ -211,9 +191,13 @@ class FuchsiaTraceParserTest : public ::testing::Test {
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
-        primary_sync_.get(), true);
+        &context_, primary_sync_.get(), /*is_primary=*/true);
     clock_ = context_.clock_tracker.get();
+    // ForwardingTraceParser normally sets the file's default clock; the
+    // tokenizer converts its events through it
+    // (ConvertDefaultClockToTraceTime).
+    clock_->SetTraceDefaultClock(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
@@ -441,8 +425,6 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
 
-  MockBoundInserter inserter;
-
   StringId unknown_cat = storage_->InternString("unknown(1)");
   ASSERT_NE(storage_, nullptr);
 
@@ -463,17 +445,15 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
-  auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
-  EXPECT_TRUE(rr_0);
-  EXPECT_EQ(rr_0->ts(), 1005000);
-  EXPECT_EQ(rr_0->track_id(), track);
+  auto rr_0 = storage_->slice_table()[SliceId(0u)];
+  EXPECT_EQ(rr_0.ts(), 1005000);
+  EXPECT_EQ(rr_0.track_id(), track);
 
-  auto rr_1 = storage_->slice_table().FindById(SliceId(1u));
-  EXPECT_TRUE(rr_1);
-  EXPECT_EQ(rr_1->ts(), 1010000);
-  EXPECT_EQ(rr_1->track_id(), track);
-  EXPECT_EQ(rr_1->dur(), 10000);
-  EXPECT_EQ(rr_1->category(), unknown_cat);
+  auto rr_1 = storage_->slice_table()[SliceId(1u)];
+  EXPECT_EQ(rr_1.ts(), 1010000);
+  EXPECT_EQ(rr_1.track_id(), track);
+  EXPECT_EQ(rr_1.dur(), 10000);
+  EXPECT_EQ(rr_1.category(), unknown_cat);
 }
 
 TEST_F(FuchsiaTraceParserTest, SchedulerEvents) {
@@ -615,6 +595,77 @@ TEST_F(FuchsiaTraceParserTest, SchedulerEventsWithWaker) {
   EXPECT_TRUE(found_waker);
 }
 
+TEST_F(FuchsiaTraceParserTest, SchedulerEventsWithWakerId) {
+  uint64_t thread1_tid = 0x1AAA'AAAA'AAAA'AAAA;
+  uint64_t thread2_tid = 0x2CCC'CCCC'CCCC'CCCC;
+
+  uint64_t context_switch_record_type = uint64_t{1} << 60;
+  uint64_t wakeup_record_type = uint64_t{2} << 60;
+  uint64_t cpu = 1 << 20;
+  uint64_t record_type = 8;
+  uint64_t context_switch_size = uint64_t{4} << 4;
+
+  // 1. Context switch to thread 2 (so it gets a state row)
+  uint64_t context_switch_header =
+      context_switch_record_type | cpu | record_type | context_switch_size;
+  push_word(context_switch_header);
+  // Timestamp
+  push_word(0x1);
+  // outgoing tid
+  push_word(thread1_tid);
+  // incoming tid
+  push_word(thread2_tid);
+
+  // 2. Wakeup thread 1 by thread 2
+  uint64_t argument_count = uint64_t{1} << 16;
+  uint64_t wakeup_size = uint64_t{6} << 4;
+  uint64_t wakeup_header =
+      wakeup_record_type | cpu | argument_count | record_type | wakeup_size;
+  push_word(wakeup_header);
+  // Timestamp
+  push_word(0x2);
+  // wakeup tid
+  push_word(thread1_tid);
+
+  // Waker argument
+  uint64_t arg_type = uint64_t{8};  // kKoid
+  uint64_t arg_size_words = uint64_t{3} << 4;
+  uint64_t inline_string = uint64_t{1} << 15;
+  uint64_t string_len = uint64_t{5};
+  uint64_t arg_name_ref = (inline_string | string_len) << 16;
+  uint64_t arg_header = arg_type | arg_size_words | arg_name_ref;
+  push_word(arg_header);
+  // string "waker\0\0\0"
+  push_word(0x00000072656b6177);
+  // koid value
+  push_word(thread2_tid);
+
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread1_tid), _))
+      .WillRepeatedly(testing::Return(1));
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread2_tid), _))
+      .WillRepeatedly(testing::Return(2));
+
+  EXPECT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  // Verify waker_utid and waker_id are recorded properly
+  const auto& table = storage_->thread_state_table();
+  bool found_waker = false;
+
+  auto expected_waker_utid = context_.process_tracker->GetOrCreateThread(
+      static_cast<uint32_t>(thread2_tid));
+
+  for (auto it = table.IterateRows(); it; ++it) {
+    if (it.waker_utid().has_value() &&
+        it.waker_utid().value() == expected_waker_utid) {
+      found_waker = true;
+      ASSERT_TRUE(it.waker_id().has_value());
+      EXPECT_EQ(it.waker_id().value().value, 1u);
+    }
+  }
+  EXPECT_TRUE(found_waker);
+}
+
 TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {
   uint64_t thread1_pid = 0x1AAA'AAAA'AAAA'AAAA;
   uint64_t thread1_tid = 0x1BBB'BBBB'BBBB'BBBB;
@@ -701,5 +752,460 @@ TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {
   context_.sorter->ExtractEventsForced();
 }
 
+TEST_F(FuchsiaTraceParserTest, FlowEvents) {
+  // Setup thread mapping
+  EXPECT_CALL(*process_, UpdateThread(2, 1)).WillRepeatedly(Return(1u));
+  EXPECT_CALL(*process_, UpdateThread(3, 1)).WillRepeatedly(Return(2u));
+
+  // 1. ts=10: Thread 1 (pid=1, tid=2) - Duration Begin
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_1"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 2 << 16;  // kDurationBegin
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(10);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(2);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x315f535f454d414e);  // "NAME_S_1"
+  }
+
+  // 2. ts=12: Thread 1 (pid=1, tid=2) - Flow Begin (correlation_id=100)
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "FLOW_XXX"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 8 << 16;  // kFlowBegin
+    uint64_t size = 7 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(12);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(2);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x5858585f574f4c46);  // "FLOW_XXX"
+    push_word(100);                 // correlation_id
+  }
+
+  // 3. ts=13: Thread 1 (pid=1, tid=2) - Duration End
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_1"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 3 << 16;  // kDurationEnd
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(13);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(2);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x315f535f454d414e);  // "NAME_S_1"
+  }
+
+  // 4. ts=14: Thread 2 (pid=1, tid=3) - Duration Begin
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_2"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 2 << 16;  // kDurationBegin
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(14);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(3);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x325f535f454d414e);  // "NAME_S_2"
+  }
+
+  // 5. ts=15: Thread 2 (pid=1, tid=3) - Flow End (correlation_id=100)
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "FLOW_XXX"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 10 << 16;  // kFlowEnd
+    uint64_t size = 7 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(15);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(3);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x5858585f574f4c46);  // "FLOW_XXX"
+    push_word(100);                 // correlation_id
+  }
+
+  // 6. ts=16: Thread 2 (pid=1, tid=3) - Duration End
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_2"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 3 << 16;  // kDurationEnd
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(16);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(3);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x325f535f454d414e);  // "NAME_S_2"
+  }
+
+  EXPECT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  // Verify slice table
+  const auto& slices = storage_->slice_table();
+  ASSERT_EQ(slices.row_count(), 2u);
+
+  auto slice_1 = slices[SliceId(0u)];
+  EXPECT_EQ(slice_1.ts(), 10);
+  EXPECT_EQ(slice_1.dur(), 3);
+  EXPECT_EQ(
+      storage_->GetString(slice_1.name().value_or(kNullStringId)).ToStdString(),
+      "NAME_S_1");
+
+  auto slice_2 = slices[SliceId(1u)];
+  EXPECT_EQ(slice_2.ts(), 14);
+  EXPECT_EQ(slice_2.dur(), 2);
+  EXPECT_EQ(
+      storage_->GetString(slice_2.name().value_or(kNullStringId)).ToStdString(),
+      "NAME_S_2");
+
+  // Verify flow table
+  const auto& flows = storage_->flow_table();
+  ASSERT_EQ(flows.row_count(), 1u);
+
+  auto flow = flows[0u];
+  EXPECT_EQ(flow.slice_out(), SliceId(0u));
+  EXPECT_EQ(flow.slice_in(), SliceId(1u));
+}
+
+TEST_F(FuchsiaTraceParserTest, CrossProcessFlowEvents) {
+  // Setup thread mapping
+  EXPECT_CALL(*process_, UpdateThread(2, 1)).WillRepeatedly(Return(1u));
+  EXPECT_CALL(*process_, UpdateThread(3, 2)).WillRepeatedly(Return(2u));
+
+  // 1. ts=10: Thread 1 (pid=1, tid=2) - Duration Begin
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_1"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 2 << 16;  // kDurationBegin
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(10);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(2);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x315f535f454d414e);  // "NAME_S_1"
+  }
+
+  // 2. ts=12: Thread 1 (pid=1, tid=2) - Flow Begin (correlation_id=100)
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "FLOW_XXX"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 8 << 16;  // kFlowBegin
+    uint64_t size = 7 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(12);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(2);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x5858585f574f4c46);  // "FLOW_XXX"
+    push_word(100);                 // correlation_id
+  }
+
+  // 3. ts=13: Thread 1 (pid=1, tid=2) - Duration End
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_1"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 3 << 16;  // kDurationEnd
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(13);                  // Timestamp
+    push_word(1);                   // inline thread: pid
+    push_word(2);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x315f535f454d414e);  // "NAME_S_1"
+  }
+
+  // 4. ts=14: Thread 2 (pid=2, tid=3) - Duration Begin
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_2"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 2 << 16;  // kDurationBegin
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(14);                  // Timestamp
+    push_word(2);                   // inline thread: pid
+    push_word(3);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x325f535f454d414e);  // "NAME_S_2"
+  }
+
+  // 5. ts=15: Thread 2 (pid=2, tid=3) - Flow End (correlation_id=100)
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "FLOW_XXX"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 10 << 16;  // kFlowEnd
+    uint64_t size = 7 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(15);                  // Timestamp
+    push_word(2);                   // inline thread: pid
+    push_word(3);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x5858585f574f4c46);  // "FLOW_XXX"
+    push_word(100);                 // correlation_id
+  }
+
+  // 6. ts=16: Thread 2 (pid=2, tid=3) - Duration End
+  {
+    uint64_t name_ref = uint64_t{0x8008} << 48;      // inline "NAME_S_2"
+    uint64_t category_ref = uint64_t{0x8008} << 32;  // inline "CAT_AAAA"
+    uint64_t threadref = uint64_t{0};
+    uint64_t event_type = 3 << 16;  // kDurationEnd
+    uint64_t size = 6 << 4;
+    uint64_t record_type = 4;
+
+    auto header =
+        name_ref | category_ref | threadref | event_type | size | record_type;
+    push_word(header);
+    push_word(16);                  // Timestamp
+    push_word(2);                   // inline thread: pid
+    push_word(3);                   // inline thread: tid
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x325f535f454d414e);  // "NAME_S_2"
+  }
+
+  EXPECT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  // Verify slice table
+  const auto& slices = storage_->slice_table();
+  ASSERT_EQ(slices.row_count(), 2u);
+
+  auto slice_1 = slices[SliceId(0u)];
+  EXPECT_EQ(slice_1.ts(), 10);
+  EXPECT_EQ(slice_1.dur(), 3);
+
+  auto slice_2 = slices[SliceId(1u)];
+  EXPECT_EQ(slice_2.ts(), 14);
+  EXPECT_EQ(slice_2.dur(), 2);
+
+  // Verify flow table contains the cross-process flow
+  const auto& flows = storage_->flow_table();
+  ASSERT_EQ(flows.row_count(), 1u);
+
+  auto flow = flows[0u];
+  EXPECT_EQ(flow.slice_out(), SliceId(0u));
+  EXPECT_EQ(flow.slice_in(), SliceId(1u));
+}
+
+TEST_F(FuchsiaTraceParserTest, AmbiguousFlowEvents) {
+  // Setup thread mapping
+  EXPECT_CALL(*process_, UpdateThread(2, 1)).WillRepeatedly(Return(1u));
+  EXPECT_CALL(*process_, UpdateThread(3, 2)).WillRepeatedly(Return(2u));
+  EXPECT_CALL(*process_, UpdateThread(4, 3)).WillRepeatedly(Return(3u));
+
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 2 << 16 | 6 << 4 |
+              4);  // event_type=2 (kDurationBegin), size=6, record_type=4
+    push_word(10);
+    push_word(1);                   // pid=1
+    push_word(2);                   // tid=2
+    push_word(0x414141415f544143);  // "CAT_AAAA"
+    push_word(0x315f535f454d414e);  // "NAME_S_1"
+  }
+  // Flow Begin (correlation_id=100) from PID 1
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 8 << 16 | 7 << 4 | 4);
+    push_word(12);
+    push_word(1);
+    push_word(2);
+    push_word(0x414141415f544143);
+    push_word(0x5858585f574f4c46);
+    push_word(100);
+  }
+  // Duration End
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 3 << 16 | 6 << 4 | 4);
+    push_word(13);
+    push_word(1);
+    push_word(2);
+    push_word(0x414141415f544143);
+    push_word(0x315f535f454d414e);
+  }
+
+  // 2. Process 3 (TID 4) - Duration Begin (Slice 1)
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 2 << 16 | 6 << 4 | 4);
+    push_word(10);
+    push_word(3);  // pid=3
+    push_word(4);  // tid=4
+    push_word(0x414141415f544143);
+    push_word(0x345f535f454d414e);  // "NAME_S_4"
+  }
+  // Flow Begin (correlation_id=100) from PID 3 (creates ambiguity!)
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 8 << 16 | 7 << 4 | 4);
+    push_word(12);
+    push_word(3);
+    push_word(4);
+    push_word(0x414141415f544143);
+    push_word(0x5858585f574f4c46);
+    push_word(100);
+  }
+  // Duration End
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 3 << 16 | 6 << 4 | 4);
+    push_word(13);
+    push_word(3);
+    push_word(4);
+    push_word(0x414141415f544143);
+    push_word(0x345f535f454d414e);
+  }
+
+  // 3. Process 1 (TID 2) - Same-Process Flow End (Slice 2)
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 2 << 16 | 6 << 4 | 4);
+    push_word(14);
+    push_word(1);
+    push_word(2);
+    push_word(0x414141415f544143);
+    push_word(0x335f535f454d414e);  // "NAME_S_3"
+  }
+  // Flow End (correlation_id=100) under PID 1
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 10 << 16 | 7 << 4 | 4);
+    push_word(15);
+    push_word(1);
+    push_word(2);
+    push_word(0x414141415f544143);
+    push_word(0x5858585f574f4c46);
+    push_word(100);
+  }
+  // Duration End
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 3 << 16 | 6 << 4 | 4);
+    push_word(16);
+    push_word(1);
+    push_word(2);
+    push_word(0x414141415f544143);
+    push_word(0x335f535f454d414e);
+  }
+
+  // 4. Process 2 (TID 3) - Cross-Process Flow End (Slice 3)
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 2 << 16 | 6 << 4 | 4);
+    push_word(14);
+    push_word(2);
+    push_word(3);
+    push_word(0x414141415f544143);
+    push_word(0x325f535f454d414e);  // "NAME_S_2"
+  }
+  // Flow End (correlation_id=100) under PID 2 (cross-process, should fail)
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 10 << 16 | 7 << 4 | 4);
+    push_word(15);
+    push_word(2);
+    push_word(3);
+    push_word(0x414141415f544143);
+    push_word(0x5858585f574f4c46);
+    push_word(100);
+  }
+  // Duration End
+  {
+    uint64_t name = uint64_t{0x8008} << 48;
+    uint64_t cat = uint64_t{0x8008} << 32;
+    push_word(name | cat | 3 << 16 | 6 << 4 | 4);
+    push_word(16);
+    push_word(2);
+    push_word(3);
+    push_word(0x414141415f544143);
+    push_word(0x325f535f454d414e);
+  }
+
+  EXPECT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  // Verify flow table contains ONLY the same-process flow (Slice 0 -> Slice 2)
+  // and NOT the cross-process flow (Slice 1 -> Slice 3) because ID 100 was
+  // ambiguous.
+  const auto& flows = storage_->flow_table();
+  ASSERT_EQ(flows.row_count(), 1u);
+
+  auto flow = flows[0u];
+  EXPECT_EQ(flow.slice_out(), SliceId(0u));  // Slice 0 (NAME_S_1)
+  EXPECT_EQ(flow.slice_in(), SliceId(2u));   // Slice 2 (NAME_S_3)
+}
 }  // namespace
 }  // namespace perfetto::trace_processor

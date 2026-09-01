@@ -51,26 +51,25 @@ tables::GpuTable::Id GpuTracker::SetGpuInfo(uint32_t gpu,
                                             std::string_view uuid,
                                             std::string_view pci_bdf) {
   auto id = GetOrCreateGpu(gpu);
-  auto gpu_row = context_->storage->mutable_gpu_table()->FindById(id);
-  PERFETTO_CHECK(gpu_row.has_value());
+  auto gpu_row = (*context_->storage->mutable_gpu_table())[id];
 
   if (!name.empty()) {
-    gpu_row->set_name(context_->storage->InternString(name));
+    gpu_row.set_name(context_->storage->InternString(name));
   }
   if (!vendor.empty()) {
-    gpu_row->set_vendor(context_->storage->InternString(vendor));
+    gpu_row.set_vendor(context_->storage->InternString(vendor));
   }
   if (!model.empty()) {
-    gpu_row->set_model(context_->storage->InternString(model));
+    gpu_row.set_model(context_->storage->InternString(model));
   }
   if (!architecture.empty()) {
-    gpu_row->set_architecture(context_->storage->InternString(architecture));
+    gpu_row.set_architecture(context_->storage->InternString(architecture));
   }
   if (!uuid.empty()) {
-    gpu_row->set_uuid(context_->storage->InternString(uuid));
+    gpu_row.set_uuid(context_->storage->InternString(uuid));
   }
   if (!pci_bdf.empty()) {
-    gpu_row->set_pci_bdf(context_->storage->InternString(pci_bdf));
+    gpu_row.set_pci_bdf(context_->storage->InternString(pci_bdf));
   }
   return id;
 }

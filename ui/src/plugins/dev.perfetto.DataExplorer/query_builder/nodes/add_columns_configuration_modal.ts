@@ -17,7 +17,7 @@ import {Callout} from '../../../../widgets/callout';
 import {Form, FormSection} from '../../../../widgets/form';
 import {IssueList, OutlinedField} from '../widgets';
 import {JoinSourceCard} from '../join_widgets';
-import {ColumnInfo} from '../column_info';
+import type {ColumnInfo} from '../column_info';
 
 /**
  * Modal for configuring column selection from an already-connected join source
@@ -42,9 +42,7 @@ export interface AddColumnsConfigurationModalAttrs {
   readonly onColumnAlias: (columnName: string, alias: string) => void;
 }
 
-export class AddColumnsConfigurationModal
-  implements m.ClassComponent<AddColumnsConfigurationModalAttrs>
-{
+export class AddColumnsConfigurationModal implements m.ClassComponent<AddColumnsConfigurationModalAttrs> {
   view({attrs}: m.Vnode<AddColumnsConfigurationModalAttrs>) {
     const {
       sourceCols,

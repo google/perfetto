@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CujScopedMetricData} from './metricUtils';
+import type {CujScopedMetricData} from './metricUtils';
 import {pinCujScopedJankInstance} from './pinCujScoped';
 
 const validMetricsTest: {
