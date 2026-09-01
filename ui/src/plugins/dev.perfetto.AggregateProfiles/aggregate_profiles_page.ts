@@ -66,11 +66,9 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         className: 'pf-aggregate-profiles-page',
       },
       [
-        attrs.profiles.length > 1 &&
-          m(StackFixed, this.renderControlsRow(attrs)),
         this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
           m(StackFixed, this.renderPageExplanation()),
-        this.renderHelpRow(),
+        this.renderControlsRow(attrs),
         this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
           m(StackFixed, this.renderViewExplanation()),
         m(StackAuto, [
@@ -126,18 +124,20 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     localStorage.removeItem(key);
   }
 
-  // The view tabs themselves live in the TreeExplorerPanel's own switcher;
-  // this row only hosts the help buttons that used to hang off the old
-  // single-tab strip.
-  private renderHelpRow(): m.Children {
+  // The page's controls: the profile selector on the left, the help buttons
+  // on the right. The view tabs are not here -- they live in the
+  // TreeExplorerPanel's own switcher.
+  private renderControlsRow(attrs: AggregateProfilesPageAttrs): m.Children {
     const showViewHelp = !this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY);
     const showPageHelp = this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY);
-    if (!showViewHelp && !showPageHelp) {
+    const showSelector = attrs.profiles.length > 1;
+    if (!showViewHelp && !showPageHelp && !showSelector) {
       return undefined;
     }
     return m(
       StackFixed,
       m(Stack, {orientation: 'horizontal', spacing: 'medium'}, [
+        showSelector && m(StackFixed, this.renderProfileSelector(attrs)),
         m(StackAuto),
         showViewHelp &&
           m(
@@ -200,22 +200,6 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
          hotspots in call stacks, span trees, heap dumps, and other
          hierarchical data.`,
       ),
-    );
-  }
-
-  private renderControlsRow(attrs: AggregateProfilesPageAttrs): m.Children {
-    return m(
-      Stack,
-      {
-        orientation: 'horizontal',
-        spacing: 'medium',
-        className: 'pf-aggregate-profiles-page__controls',
-      },
-      [
-        m(StackAuto),
-        m(StackFixed, this.renderProfileSelector(attrs)),
-        m(StackAuto),
-      ],
     );
   }
 
