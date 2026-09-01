@@ -5310,6 +5310,7 @@ perfetto_cpp_blob_header(
     script = ":src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     deps = [
         "src/trace_processor/plugins/wattson/data/Tensor_G5/tpu.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G6/tpu.csv",
     ],
     outs = [
         "src/trace_processor/plugins/wattson/tpu_curves.h",
