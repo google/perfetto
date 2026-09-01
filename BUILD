@@ -5270,6 +5270,7 @@ perfetto_cpp_blob_header(
     deps = [
         "src/trace_processor/plugins/wattson/data/Tensor/gpu.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G5/gpu.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G6/gpu.csv",
     ],
     outs = [
         "src/trace_processor/plugins/wattson/gpu_curves.h",
