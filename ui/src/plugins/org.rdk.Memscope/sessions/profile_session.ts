@@ -14,8 +14,8 @@
 
 import protos from '../../../protos';
 import type {TracingSession} from '../../org.rdk.RecordTrace/interfaces/tracing_session';
-import {TracedWebsocketTarget} from '../../org.rdk.RecordTrace/traced_over_websocket/traced_websocket_target';
-import {TracedMsgChannelTarget} from '../../org.rdk.RecordTrace/traced_over_msgchannel/traced_msgchannel_target';
+import type {TracedWebsocketTarget} from '../../org.rdk.RecordTrace/traced_over_websocket/traced_websocket_target';
+import type {TracedMsgChannelTarget} from '../../org.rdk.RecordTrace/traced_over_msgchannel/traced_msgchannel_target';
 
 const DUMP_INTERVAL_MS = 10_000;
 const HEAPPROFD_DUMP_INTERVAL_MS = 5_000;

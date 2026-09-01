@@ -28,8 +28,7 @@ import {NUM} from '../../trace_processor/query_result';
 
 export default class MemscopePlugin implements PerfettoPlugin {
   static readonly id = 'org.rdk.Memscope';
-  static readonly description =
-    'Live memory profiler for RDK/Linux devices';
+  static readonly description = 'Live memory profiler for RDK/Linux devices';
   static readonly dependencies = [RecordPageV2];
   private static openByDefaultSetting: Setting<boolean>;
   private static hideDefaultChangedHintSetting: Setting<boolean>;

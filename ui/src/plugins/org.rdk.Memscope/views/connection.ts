@@ -189,7 +189,10 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
         }
       }
 
-      const host = this.wsUrl.trim().replace(/^wss?:\/\//, '').split('/')[0];
+      const host = this.wsUrl
+        .trim()
+        .replace(/^wss?:\/\//, '')
+        .split('/')[0];
       this.wsConnecting = false;
       attrs.onConnected({
         linuxTarget: target,

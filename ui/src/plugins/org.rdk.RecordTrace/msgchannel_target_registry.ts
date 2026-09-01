@@ -99,4 +99,3 @@ export function getSharedMsgChannelTargetRegistry(): MsgChannelTargetRegistry {
   }
   return sharedMsgChannelTargetRegistry;
 }
-
