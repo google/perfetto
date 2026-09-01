@@ -3040,6 +3040,10 @@ TEST_F(ProtoTraceParserTest,
 }
 
 TEST_F(ProtoTraceParserTest, RecoveredTraceInfoNotPresentIsNull) {
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_timestamp(1000);
+  }
   ASSERT_TRUE(Tokenize().ok());
   context_.sorter->ExtractEventsForced();
 
