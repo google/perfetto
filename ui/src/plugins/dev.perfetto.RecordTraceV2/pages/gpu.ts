@@ -14,6 +14,7 @@
 
 import type {RecordProbe, RecordSubpage} from '../config/config_interfaces';
 import type {TraceConfigBuilder} from '../config/trace_config_builder';
+import {Slider} from './widgets/slider';
 
 export function gpuRecordSection(): RecordSubpage {
   return {
@@ -93,6 +94,15 @@ function gpuRenderStages(): RecordProbe {
 }
 
 function gpuMaliCounters(): RecordProbe {
+  const settings = {
+    samplingFreq: new Slider({
+      title: 'Sampling frequency',
+      cssClass: '.thin',
+      default: 10000,
+      values: [1, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+      unit: 'Hz',
+    }),
+  };
   return {
     id: 'gpu_mali_counters',
     title: 'Mali GPU Counters',
@@ -100,11 +110,14 @@ function gpuMaliCounters(): RecordProbe {
       'Records Mali GPU performance counters (Available on Valhall+).' +
       'To enable the event producer, run: ```adb shell gpu_counter_producer```',
     supportedPlatforms: ['ANDROID'],
+    settings,
     genConfig: function (tc: TraceConfigBuilder) {
+      const samplingPeriodNs = Math.round(
+        1_000_000_000 / settings.samplingFreq.value,
+      );
       const cfg = tc.addDataSource('gpu.counters', 'default');
       cfg.gpuCounterConfig = {
-        // Update 10 times per second
-        counterPeriodNs: 100000,
+        counterPeriodNs: samplingPeriodNs,
         // All Mali counters
         counterIds: [
           1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
