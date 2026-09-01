@@ -23,7 +23,6 @@ import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {Tree} from '../../widgets/tree';
-import type {FlowPoint} from '../../core/flow_types';
 import {hasArgs} from './args';
 import {
   type DistributionScope,
@@ -40,12 +39,10 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
-import {ensureIsInstance} from '../../base/assert';
 import type {Trace} from '../../public/trace';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
-import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
 import {SLICE_TABLE} from '../widgets/sql/table_definitions';
 import {TrackEventRef} from '../widgets/track_event_ref';
@@ -59,6 +56,11 @@ import {
   titleWithHelp,
 } from '../distribution_panel';
 import type {Dataset} from '../../trace_processor/dataset';
+import {
+  type DirectlyConnectedFlows,
+  type FlowRow,
+  getConnectedFlows,
+} from './connected_flows';
 
 interface ContextMenuItem {
   name: string;
@@ -221,17 +223,18 @@ export interface ThreadSliceDetailsPanelAttrs {
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
+  private connectedFlows: DirectlyConnectedFlows = {
+    preceding: [],
+    following: [],
+  };
   private distributionLoaded = false;
   private distributionScope: DistributionScope = 'track';
   private cachedWholeTraceDataset?: {dataset: Dataset | undefined};
-  private readonly trace: TraceImpl;
+  private readonly trace: Trace;
   private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
   constructor(trace: Trace, attrs?: ThreadSliceDetailsPanelAttrs) {
-    // Rationale for the assertIsInstance: ThreadSliceDetailsPanel requires a
-    // TraceImpl (because of flows) but here we must take a Trace interface,
-    // because this track is exposed to plugins (which see only Trace).
-    this.trace = ensureIsInstance(trace, TraceImpl);
+    this.trace = trace;
     this.attrs = attrs ?? {};
   }
 
@@ -240,16 +243,15 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     const {eventId} = selection;
     const details = await getSliceDetails(trace.engine, eventId);
 
-    if (
-      details !== undefined &&
-      details.thread !== undefined &&
-      details.dur > 0
-    ) {
-      this.breakdownByThreadState = await breakDownIntervalByThreadState(
-        trace.engine,
-        TimeSpan.fromTimeAndDuration(details.ts, details.dur),
-        details.thread.utid,
-      );
+    if (details !== undefined) {
+      this.connectedFlows = await getConnectedFlows(trace.engine, details.id);
+      if (details.thread !== undefined && details.dur > 0) {
+        this.breakdownByThreadState = await breakDownIntervalByThreadState(
+          trace.engine,
+          TimeSpan.fromTimeAndDuration(details.ts, details.dur),
+          details.thread.utid,
+        );
+      }
     }
 
     this.sliceDetails = details;
@@ -335,8 +337,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderPrecedingFlows(slice: SliceDetails): m.Children {
-    const flows = this.trace.flows.connectedFlows;
-    const inFlows = flows.filter(({end}) => end.sliceId === slice.id);
+    const inFlows = this.connectedFlows.preceding;
 
     if (inFlows.length > 0) {
       const isRunTask =
@@ -358,18 +359,18 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
               m(TrackEventRef, {
                 trace: this.trace,
                 table: 'slice',
-                id: flow.begin.sliceId,
-                name: flow.begin.sliceChromeCustomName ?? flow.begin.sliceName,
+                id: flow.sliceId,
+                name: flow.sliceChromeCustomName ?? flow.sliceName,
               }),
             ),
             m(
               GridCell,
               m(DurationWidget, {
                 trace: this.trace,
-                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+                dur: slice.ts - flow.sliceEndTs,
               }),
             ),
-            m(GridCell, this.getThreadNameForFlow(flow.begin, !isRunTask)),
+            m(GridCell, this.getThreadNameForFlow(flow, !isRunTask)),
           ]),
         }),
       );
@@ -379,8 +380,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderFollowingFlows(slice: SliceDetails): m.Children {
-    const flows = this.trace.flows.connectedFlows;
-    const outFlows = flows.filter(({begin}) => begin.sliceId === slice.id);
+    const outFlows = this.connectedFlows.following;
 
     if (outFlows.length > 0) {
       const isPostTask =
@@ -402,18 +402,18 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
               m(TrackEventRef, {
                 trace: this.trace,
                 table: 'slice',
-                id: flow.end.sliceId,
-                name: flow.end.sliceChromeCustomName ?? flow.end.sliceName,
+                id: flow.sliceId,
+                name: flow.sliceChromeCustomName ?? flow.sliceName,
               }),
             ),
             m(
               GridCell,
               m(DurationWidget, {
                 trace: this.trace,
-                dur: flow.end.sliceStartTs - flow.begin.sliceEndTs,
+                dur: flow.sliceStartTs - (slice.ts + slice.dur),
               }),
             ),
-            m(GridCell, this.getThreadNameForFlow(flow.end, !isPostTask)),
+            m(GridCell, this.getThreadNameForFlow(flow, !isPostTask)),
           ]),
         }),
       );
@@ -423,7 +423,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private getThreadNameForFlow(
-    flow: FlowPoint,
+    flow: FlowRow,
     includeProcessName: boolean,
   ): string {
     return includeProcessName
