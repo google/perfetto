@@ -21981,7 +21981,18 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_util_trace_enrichment_trace_enrichment",
     srcs: [
+        "src/trace_processor/util/trace_enrichment/disassembly.cc",
+        "src/trace_processor/util/trace_enrichment/source_files.cc",
         "src/trace_processor/util/trace_enrichment/trace_enrichment.cc",
+    ],
+}
+
+// GN: //src/trace_processor/util/trace_enrichment:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_util_trace_enrichment_unittests",
+    srcs: [
+        "src/trace_processor/util/trace_enrichment/disassembly_unittest.cc",
+        "src/trace_processor/util/trace_enrichment/source_files_unittest.cc",
     ],
 }
 
@@ -24336,6 +24347,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_tar_writer",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_enrichment_trace_enrichment",
+        ":perfetto_src_trace_processor_util_trace_enrichment_unittests",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_unittests",
         ":perfetto_src_trace_processor_util_zip_reader",

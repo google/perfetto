@@ -60,9 +60,29 @@ or in `trace_processor_shell` like any other trace, with symbols and
 deobfuscated names already applied.
 
 NOTE: As an implementation detail, the enriched trace is currently packaged as a
-TAR archive containing the original trace, native symbol packets, and
-Java/Kotlin deobfuscation packets. The UI and `trace_processor_shell` read this
-format transparently, so you normally don't need to unpack it yourself.
+TAR archive containing the original trace, native symbol packets, Java/Kotlin
+deobfuscation packets and the source files referenced by symbolized frames. The
+UI and `trace_processor_shell` read this format transparently, so you normally
+don't need to unpack it yourself.
+
+The source files are read from the absolute paths recorded in the debug info.
+When the source tree lives somewhere else on the bundling machine, map the
+build directory onto it with `--source-prefix-map FROM=TO` (repeatable):
+
+```bash
+trace_processor bundle --source-prefix-map /build/src=$HOME/src trace out.tar
+```
+
+Files over 1 MB are skipped and at most 16 MB of source is bundled. Pass
+`--no-sources` to leave source files out entirely, for example when sharing a
+bundle outside the team.
+
+The functions containing sampled addresses are also disassembled with
+`llvm-objdump` and bundled, so the UI can show per-instruction sample counts.
+This needs `llvm-nm` and `llvm-objdump` on `$PATH` and the unstripped binaries
+in `--symbol-paths`: files holding only debug info (for example the output of
+`objcopy --only-keep-debug`) carry no machine code. Pass `--no-disassembly` to
+skip this.
 
 **Requirements:**
 

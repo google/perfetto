@@ -26,6 +26,8 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
+#include "src/trace_processor/util/trace_enrichment/disassembly.h"
+#include "src/trace_processor/util/trace_enrichment/source_files.h"
 
 namespace perfetto::trace_processor::util {
 
@@ -181,6 +183,9 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
                              const EnrichmentConfig& config) {
   EnrichmentResult result;
 
+  // Binaries found by symbolization, disassembled below.
+  std::vector<DisassemblyBinary> disassembly_binaries;
+
   // === Native Symbolization ===
   {
     profiling::SymbolizerConfig sym_config;
@@ -211,6 +216,13 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
     if (sym_result.error == profiling::SymbolizerError::kOk) {
       result.native_symbols = std::move(sym_result.symbols);
+      for (const profiling::SuccessfulMapping& m :
+           sym_result.successful_mappings) {
+        if (!m.binary_path.empty()) {
+          disassembly_binaries.push_back({m.mapping_name, m.build_id,
+                                          m.binary_path, m.address_correction});
+        }
+      }
       std::string sym_summary = profiling::FormatSymbolizationSummary(
           sym_result, config.verbose, config.colorize);
       if (!sym_summary.empty()) {
@@ -219,6 +231,27 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     } else {
       result.details += "Symbolization: " + sym_result.error_details + "\n";
     }
+  }
+
+  // === Source files ===
+  // Uses the symbols produced above as well as any symbolization already in
+  // the trace, so this runs even when offline symbolization found nothing.
+  if (!config.no_source_files) {
+    std::vector<std::string> paths =
+        CollectSourcePaths(tp, result.native_symbols);
+    SourceFilesConfig files_config;
+    files_config.prefix_maps = config.source_prefix_maps;
+    SourceFilesResult files = BundleSourceFiles(paths, files_config);
+    result.source_files = std::move(files.packets);
+    result.details += FormatSourceFilesSummary(files, config.verbose);
+  }
+
+  // === Disassembly ===
+  if (!config.no_disassembly && !disassembly_binaries.empty()) {
+    DisassemblyResult disassembly =
+        BundleDisassembly(tp, disassembly_binaries, DisassemblerConfig());
+    result.disassembly = std::move(disassembly.packets);
+    result.details += FormatDisassemblySummary(disassembly, config.verbose);
   }
 
   // === Kernel ftrace events that cannot be symbolized offline ===

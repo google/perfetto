@@ -5936,6 +5936,10 @@ perfetto_cc_library(
 perfetto_filegroup(
     name = "src_trace_processor_util_trace_enrichment_trace_enrichment",
     srcs = [
+        "src/trace_processor/util/trace_enrichment/disassembly.cc",
+        "src/trace_processor/util/trace_enrichment/disassembly.h",
+        "src/trace_processor/util/trace_enrichment/source_files.cc",
+        "src/trace_processor/util/trace_enrichment/source_files.h",
         "src/trace_processor/util/trace_enrichment/trace_enrichment.cc",
         "src/trace_processor/util/trace_enrichment/trace_enrichment.h",
     ],

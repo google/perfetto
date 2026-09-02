@@ -1111,6 +1111,8 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   }
 
   SymbolizeResult result;
+  result.binary_path = binary->file_name;
+  result.address_correction = addr_correction;
   result.frames.reserve(addresses.size());
   for (uint64_t address : addresses) {
     result.frames.emplace_back(llvm_symbolizer_.Symbolize(

@@ -228,9 +228,9 @@ SymbolizationOutput SymbolizeDatabaseWithSymbolizer(
         break;
       }
     }
-    output.successful_mappings.push_back({unsymbolized_mapping.name,
-                                          unsymbolized_mapping.build_id,
-                                          symbol_path, frame_count});
+    output.successful_mappings.push_back(
+        {unsymbolized_mapping.name, unsymbolized_mapping.build_id, symbol_path,
+         frame_count, res.binary_path, res.address_correction});
 
     protozero::HeapBuffered<perfetto::protos::pbzero::Trace> trace;
     auto* packet = trace->add_packet();

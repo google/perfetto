@@ -465,6 +465,7 @@ perfetto_unittest_source_set("unittests") {
     "util:unittests",
     "util/deobfuscation:unittests",
     "util/symbolizer:unittests",
+    "util/trace_enrichment:unittests",
   ]
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
