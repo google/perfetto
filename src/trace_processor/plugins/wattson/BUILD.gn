@@ -43,6 +43,7 @@ _cpu_2d_csvs = [
 _gpu_csvs = [
   "data/Tensor/gpu.csv",
   "data/Tensor_G5/gpu.csv",
+  "data/Tensor_G6/gpu.csv",
 ]
 
 _l3_csvs = [
