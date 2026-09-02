@@ -50,7 +50,7 @@ In the rest of this document:
 | **hole** | A position that yields no data, because no writer claimed its chunk before the reader reached it. |
 
 Reserve and claim are deliberately separate. Reserving position 7 fixes where
-the data belongs in the stream; claiming gives the writer the physical chunk
+the data belongs in the stream. Claiming gives the writer the physical chunk
 that position 7 maps to. A thread can be descheduled between the two
 (section 6.1).
 
@@ -101,17 +101,17 @@ below exists for three cases: a writer descheduled between reserve and claim,
 a writer descheduled halfway through a chunk, and the reader arriving while a
 writer is still appending. In all of them:
 
-- **FIFO follows reservation order.** Writers may finish in any order; the
-  reader resolves positions in the order they were reserved.
+- **FIFO follows reservation order.** Writers may finish in any order, but
+  the reader resolves positions in the order they were reserved.
 - **The reader never waits for a writer.**
 - **A delayed writer cannot publish into a position the reader has resolved.**
-- **Published bytes do not change.** A writer appends; it never moves or
-  rewrites a published fragment.
+- **Published bytes do not change.** A writer only appends. It never moves
+  or rewrites a published fragment.
 - **The reader can take the published prefix** of a chunk whose writer is
   still working in it.
 - **Only the reader makes a chunk free.**
 - **One stopped writer pins one chunk, not the ring.** Positions that map to
-  that chunk become holes; the reader and the other chunks keep going.
+  that chunk become holes, and the reader and the other chunks keep going.
 
 The wrap count in `Free` is 16 bits, so the third guarantee has a finite
 horizon. Section 9.1 gives the bound.
@@ -152,14 +152,14 @@ Numerically, the 64-bit `rw_positions` word is:
 +-----------------------------------------+-----------------------+
 ```
 
-`write_pos` is the next position a writer may reserve; `read_pos` is the next
-position the reader has not resolved. They share one atomic so that a capacity
-check never mixes counters read at different times. In memory `read_pos` is
-the first four bytes of the word, which is the futex address used in
-section 8.
+`write_pos` is the next position a writer may reserve, and `read_pos` the
+next position the reader has not resolved. They share one atomic so that a
+capacity check never mixes counters read at different times. In memory
+`read_pos` is the first four bytes of the word, which is the futex address
+used in section 8.
 
 `num_writers_waiting` lets the reader skip the wake syscall when nobody is
-parked. It is only an optimization (section 8); it never decides capacity or
+parked. It is only an optimization (section 8) and never decides capacity or
 ownership.
 
 A zero-filled mapping is already a valid ring: `read_pos = write_pos = 0`, no
@@ -185,7 +185,7 @@ outstanding > num_chunks   invalid header
 `num_chunks` is therefore at most `2^30`. Because at most `num_chunks`
 positions are outstanding, at most one outstanding reservation maps to each
 physical chunk. That is why an exact-value compare-and-swap on the chunk's
-state word is enough to arbitrate ownership; the one exception is the alias in
+state word is enough to arbitrate ownership. The one exception is the alias in
 section 9.1.
 
 ### 3.3 Mapping a position to a chunk
@@ -226,7 +226,9 @@ has one layout while the chunk carries data and another while it is free.
 
 ### 4.1 Data-bearing states
 
-`BeingWritten`, `Complete` and `RewriteRequested` share one layout:
+`BeingWritten`, `Complete` and `RewriteRequested` share one layout. The low
+byte of the word is the control byte, which holds the state, the format and
+three flags:
 
 ```text
 31                       16 15             8 7                0
@@ -234,9 +236,9 @@ has one layout while the chunk carries data and another while it is free.
 |         WriterID          | num_fragments  |   control byte   |
 +---------------------------+----------------+------------------+
           16 bits                 8 bits            8 bits
-```
 
-```text
+control byte, bits 7..0 of the word:
+
    bit 7      bit 6      bit 5      bits 4..3     bits 2..0
 +----------+----------+----------+-------------+-------------+
 |   from   |    on    |   data   |   format    |    state    |
@@ -246,8 +248,9 @@ has one layout while the chunk carries data and another while it is free.
 
 `num_fragments` is the number of complete fragments visible to the reader.
 `data loss` means this writer dropped data before this chunk. `on next` means
-the last fragment continues in this writer's next chunk; `from previous` means
-the first fragment continues a packet from this writer's previous chunk.
+the last fragment continues in this writer's next chunk, and `from previous`
+means the first fragment continues a packet from this writer's previous
+chunk.
 
 ### 4.2 `Free` and `RewriteAcknowledged`
 
@@ -262,7 +265,7 @@ including the whole control byte, is zero:
 ```
 
 `Free(0)` is therefore the all-zero word. `RewriteAcknowledged` is state `100`
-with every other bit zero, numerically 4; the reader reclaims it by comparing
+with every other bit zero, numerically 4. The reader reclaims it by comparing
 against that exact word.
 
 ### 4.3 Bytes in memory and the initial chunk format
@@ -283,15 +286,16 @@ byte offset
 ```
 
 The writer stores the BufferID while it exclusively owns a newly claimed
-chunk; publishing the first fragment makes it visible, so a reader that sees
+chunk. Publishing the first fragment makes it visible, so a reader that sees
 `num_fragments == 0` must not read it. Format `01` is reserved for the
-per-packet routing of [RFC 0028][rfc28]; `10` and `11` are reserved.
+per-packet routing of [RFC 0028][rfc28]. Formats `10` and `11` are also
+reserved.
 
 ## 5. Payload and fragment directory
 
 The writer asks for a contiguous fragment, fills it, and closes it with the
 number of bytes used. Closing a fragment makes it part of the published
-prefix; an open fragment is invisible to the reader.
+prefix. An open fragment is invisible to the reader.
 
 ```text
 low address                                                   high address
@@ -304,7 +308,7 @@ low address                                                   high address
 Sizes live at the far end because the encoder does not know a fragment's size
 until it closes it: there is no size prefix to reserve or patch, and a varint
 size does not cap a fragment at 255 bytes. The state word carries only the
-fragment count; the reader decodes that many sizes from the end of the chunk
+fragment count. The reader decodes that many sizes from the end of the chunk
 and derives the payload ranges.
 
 Each size is a shortest-form protobuf varint, stored so that a reader walking
@@ -329,7 +333,7 @@ chunk bounds before it copies anything.
 ### 5.1 Packet boundaries
 
 A fragment is one complete packet or one part of a packet that crosses a
-chunk boundary; the two continuation flags join those parts for the same
+chunk boundary. The two continuation flags join those parts for the same
 WriterID. A writer closes the crossing fragment only in the operation that
 publishes `Complete` with `on next`. Two rules follow:
 
@@ -373,7 +377,7 @@ Every handoff is a compare-and-swap on the state word against the exact word
 last observed. A failed CAS proves that the other side's transition won. A
 writer then acts on the returned word: it abandons the position, drops its
 cached handle, or relocates its suffix. The reader discards any speculative
-copy, leaves `read_pos` unchanged, and returns `RetryLater`; a later drain
+copy, leaves `read_pos` unchanged, and returns `RetryLater`. A later drain
 pass reloads the word with acquire and resolves the same position from
 whatever it finds. Three handoffs can be contested.
 
@@ -426,8 +430,8 @@ reader wins: Free(wrap(p)) -> Free(wrap(p + num_chunks))
 
 In the example the reader changes chunk 0 from `Free(0)` to `Free(1)`, and A's
 delayed claim, which expects `Free(0)`, fails. The failed writer may reserve
-another position; it must not retry the claim for `p` against the word the
-failed CAS returned. This differs from a full ring: `Full` means nothing was
+another position, but it must not retry the claim for `p` against the word
+the failed CAS returned. This differs from a full ring: `Full` means nothing was
 reserved, whereas a failed claim leaves a position that only the reader can
 resolve, so a writer must notify the reader before it waits for space.
 
@@ -439,8 +443,8 @@ trip.
 ### 6.2 Publishing while the reader takes a prefix
 
 `BeingWritten(writer,n)` means fragments `0..n-1` are stable and the writer
-may be appending after them. The reader may copy that prefix rather than wait;
-taking the committed prefix of a live chunk is what this document calls
+may be appending after them. The reader may copy that prefix rather than
+wait. Taking the committed prefix of a live chunk is what this document calls
 scraping. The copy is speculative until the reader wins this race:
 
 ```text
@@ -460,8 +464,8 @@ space, so a waiting writer cannot keep the old chunk pinned. Flags already
 emitted with a non-empty prefix are not repeated on the suffix.
 
 If the writer never returns, the chunk stays `RewriteRequested`. Every later
-position that maps to it is a hole: the ring loses that chunk's capacity and
-nothing else.
+position that maps to it is a hole, so the ring runs with one chunk fewer
+until the writer comes back.
 
 ### 6.3 Reusing a complete chunk while the reader consumes it
 
@@ -522,8 +526,8 @@ operations are the two fences in section 8.
 A writer with a stalling policy sleeps when every position is outstanding.
 The sleep is a futex wait on the low `read_pos` half of `rw_positions`, which
 little-endian layout puts at byte offset zero. The reader publishes `read_pos`
-once per drain pass, after all its chunk transitions, and then wakes waiters;
-until then writers can only under-estimate free capacity. `num_writers_waiting`
+once per drain pass, after all its chunk transitions, and then wakes waiters.
+Until then writers can only under-estimate free capacity. `num_writers_waiting`
 avoids the wake syscall when nobody is asleep:
 
 ```text
@@ -591,7 +595,7 @@ The reader stops one producer ring when it cannot tell who may touch a chunk:
 a reserved state, a `Free` word with the wrong wrap count or nonzero reserved
 bits, a non-canonical `RewriteAcknowledged` word, or more than `num_chunks`
 outstanding positions. Other rings and sessions are unaffected. On the writer
-side, only the reader's rewrite request may change a chunk a writer owns;
+side, only the reader's rewrite request may change a chunk a writer owns, and
 anything else is a protocol error.
 
 Malformed fragment sizes and unknown formats are payload errors, not ownership
@@ -602,27 +606,29 @@ drops the bytes, and reports a data loss for the WriterID in the state word.
 
 A writer that loses data sets `data loss` on the next chunk it publishes. In
 both cases the consumer reports the gap on that writer's next packet. Durable
-loss counters in `traced` are separate work; the reserved header bytes have no
-meaning in this ABI.
+loss counters in `traced` are separate work, and the reserved header bytes
+have no meaning in this ABI.
 
 ## 10. Alternatives considered
 
-- **The same all-zero `Free` word on every trip.** An old reservation can
-  claim a later use of the chunk after the reader has passed it (section 6.1).
-- **Claim any free word, then check `read_pos`.** The reader resolves a
-  position before it publishes `read_pos`, and publishes in batches; a delayed
-  writer can claim in that window and publish stale data.
-- **Let writers make chunks free.** A delayed writer can erase state belonging
-  to a newer reservation. Only the reader knows which position it is resolving.
-- **Leave an invalid marker forever.** An ordinary deschedule between
-  reservation and claim would permanently remove that chunk from the ring.
-- **Publish a byte count instead of a fragment count.** A byte boundary cannot
+- Use the same all-zero `Free` word on every trip. An old reservation could
+  then claim a later use of the chunk after the reader has passed it
+  (section 6.1).
+- Claim any free word, then check `read_pos`. The reader resolves a position
+  before it publishes `read_pos`, and publishes in batches, so a delayed writer
+  could claim in that window and publish stale data.
+- Let writers make chunks free. A delayed writer could erase state belonging
+  to a newer reservation, because only the reader knows which position it is
+  resolving.
+- Leave an invalid marker forever. An ordinary deschedule between reservation
+  and claim would then permanently remove that chunk from the ring.
+- Publish a byte count instead of a fragment count. A byte boundary cannot
   describe the append-only fragments needed to take a prefix and relocate only
   the suffix.
-- **Move the whole active chunk after a scrape.** Already published packets
-  would wait for the writer and be copied twice.
-- **A 64-bit chunk state.** Everything fits in 32 bits; a wider word doubles
-  the per-chunk header without closing the reserve/claim gap.
+- Move the whole active chunk after a scrape. Already published packets would
+  wait for the writer and be copied twice.
+- Use a 64-bit chunk state. Everything fits in 32 bits, and a wider word would
+  double the per-chunk header without closing the reserve/claim gap.
 
 [rfc14]: 0014-tracing-protocol-redesign.md
 [rfc28]: 0028-tracing-protocol-routing.md
