@@ -62,7 +62,7 @@ TEST(WatchdogPosixTest, ParseProcStatm) {
   EXPECT_EQ(psm.lib, 0u);
   EXPECT_EQ(psm.data, 156u);
   EXPECT_EQ(psm.dt, 0u);
-  EXPECT_EQ(psm.anon_pages(), 27u);
+  EXPECT_EQ(psm.rss_anon_pages(), 27u);
 }
 
 }  // namespace

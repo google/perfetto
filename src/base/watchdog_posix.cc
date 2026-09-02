@@ -350,13 +350,13 @@ void Watchdog::ThreadMain() {
     if (!ReadProcStatm(statm_fd.get(), &statm))
       continue;
     uint64_t cpu_time = stat.utime + stat.stime;
-    uint64_t anon_bytes = statm.anon_pages() * base::GetSysPageSize();
+    uint64_t rss_anon_bytes = statm.rss_anon_pages() * base::GetSysPageSize();
 
     bool threshold_exceeded = false;
     WatchdogCrashReason crash_reason{};
     {
       std::lock_guard<std::mutex> guard(mutex_);
-      if (CheckMemory_Locked(anon_bytes) && !IsSyncMemoryTaggingEnabled()) {
+      if (CheckMemory_Locked(rss_anon_bytes) && !IsSyncMemoryTaggingEnabled()) {
         threshold_exceeded = true;
         crash_reason = WatchdogCrashReason::kMemGuardrail;
       } else if (CheckCpu_Locked(cpu_time)) {

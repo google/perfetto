@@ -53,7 +53,7 @@ struct ProcStatm {
   uint64_t data = 0;
   uint64_t dt = 0;  // dirty
 
-  uint64_t anon_pages() const {
+  uint64_t rss_anon_pages() const {
     return resident > shared ? resident - shared : 0;
   }
 };
@@ -189,7 +189,7 @@ class Watchdog {
 
   // Check each type of resource every |polling_interval_ms_| miillis.
   // Returns true if the threshold is exceeded and the process should be killed.
-  bool CheckMemory_Locked(uint64_t rss_bytes)
+  bool CheckMemory_Locked(uint64_t rss_anon_bytes)
       PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   bool CheckCpu_Locked(uint64_t cpu_time)
       PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
