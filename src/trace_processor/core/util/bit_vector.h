@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 #define SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -268,6 +269,39 @@ struct BitVector {
   // The && qualifier allows reusing the existing words_ buffer in-place.
   BitVector Compact(const BitVector& keep) && { return CompactInPlace(keep); }
 
+  // Sets bits [at, at + count) from `src` bits [from, from + count). Bits in
+  // the destination range which are unset in the source are left alone, so the
+  // range has to start clear to be a copy rather than a merge.
+  //
+  // A partial first word, whole destination words, then a partial last word:
+  // each destination word costs one read-modify-write, where a bit at a time
+  // would serialise on it.
+  void SetBitsFrom(uint64_t at,
+                   const BitVector& src,
+                   uint64_t from,
+                   uint64_t count) {
+    PERFETTO_DCHECK(at + count <= size_);
+    PERFETTO_DCHECK(from + count <= src.size_);
+    if (count == 0) {
+      return;
+    }
+    uint64_t done = 0;
+    // Up to the destination's next word boundary.
+    if (at % 64 != 0) {
+      uint64_t n = std::min(count, 64 - at % 64);
+      words_[at / 64] |= src.ReadBits(from, n) << (at % 64);
+      done = n;
+    }
+    // Whole destination words.
+    for (; count - done >= 64; done += 64) {
+      words_[(at + done) / 64] |= src.ReadBits(from + done, 64);
+    }
+    // The tail short of a word.
+    if (done < count) {
+      words_[(at + done) / 64] |= src.ReadBits(from + done, count - done);
+    }
+  }
+
   // Clears all bits in the vector, resetting it to an empty state.
   void clear() {
     words_.clear();
@@ -278,6 +312,11 @@ struct BitVector {
   void ClearAllBits() {
     memset(words_.data(), 0, words_.size() * sizeof(uint64_t));
   }
+
+  // Makes room for `new_size` bits without changing the size. Growth here is
+  // geometric where resize allocates exactly what was asked for, so anything
+  // filling a bit vector a chunk at a time has to come through here first.
+  void reserve(uint64_t new_size) { words_.reserve((new_size + 63) / 64); }
 
   // Resizes the vector to the specified size. If shrinking, bits past the new
   // size are cleared. If growing, new bits are set to the given value.
@@ -315,6 +354,17 @@ struct BitVector {
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
 
  private:
+  // Reads `n` (1..=64) bits starting at `bit`, packed at the bottom of the
+  // returned word.
+  uint64_t ReadBits(uint64_t bit, uint64_t n) const {
+    uint64_t shift = bit % 64;
+    uint64_t value = words_[bit / 64] >> shift;
+    if (shift != 0 && shift + n > 64) {
+      value |= words_[bit / 64 + 1] << (64 - shift);
+    }
+    return n == 64 ? value : value & ((uint64_t{1} << n) - 1);
+  }
+
   // Software emulation of the x64 PEXT instruction. Extracts bits from |word|
   // at positions where |mask| has set bits, packing them into the low bits.
   // See https://www.felixcloutier.com/x86/pext for details.

@@ -17700,6 +17700,35 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/core/exec:exec
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_exec",
+    srcs: [
+        "src/trace_processor/core/exec/column_view.cc",
+        "src/trace_processor/core/exec/operator.cc",
+        "src/trace_processor/core/exec/pipeline.cc",
+        "src/trace_processor/core/exec/row_batch.cc",
+        "src/trace_processor/core/exec/row_cursor.cc",
+        "src/trace_processor/core/exec/row_store.cc",
+    ],
+}
+
+// GN: //src/trace_processor/core/exec:test_utils
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_test_utils",
+}
+
+// GN: //src/trace_processor/core/exec:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_unittests",
+    srcs: [
+        "src/trace_processor/core/exec/operator_unittest.cc",
+        "src/trace_processor/core/exec/row_batch_unittest.cc",
+        "src/trace_processor/core/exec/row_store_unittest.cc",
+        "src/trace_processor/core/exec/variant_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/core/interpreter:bytecode_interpreter_test_utils
 filegroup {
     name: "perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
@@ -24135,6 +24164,9 @@ cc_test {
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
         ":perfetto_src_trace_processor_core_dataframe_unittests",
+        ":perfetto_src_trace_processor_core_exec_exec",
+        ":perfetto_src_trace_processor_core_exec_test_utils",
+        ":perfetto_src_trace_processor_core_exec_unittests",
         ":perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
         ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_interpreter_unittests",
