@@ -38,19 +38,28 @@ WITH
   screen_state_span AS (
     SELECT *
     FROM counter_leading_intervals!((
-        SELECT counter.id, ts, counter.track_id, value
+        SELECT
+        counter.id,
+        ts,
+        -- Note: counter_leading_intervals! partitions on track_id. We alias
+        -- machine_id to track_id to partition intervals by machine rather
+        -- than by individual track, merging all tracks on the same machine.
+        -- TODO(stevegolton): Fix this when PerfettoSQL supports customizable
+        -- partition columns in counter_leading_intervals!.
+        COALESCE(counter_track.machine_id, 0) AS track_id,
+        value
         FROM counter
         JOIN counter_track ON counter_track.id = counter.track_id
         WHERE
-          name = 'ScreenState'
-      ))
+        name = 'ScreenState'
+    ))
   ),
   mapped_names AS (
     SELECT
       screen_state_span.id,
       screen_state_span.ts,
       screen_state_span.dur,
-      counter_track.machine_id,
+      screen_state_span.track_id AS machine_id,
       -- Should be kept in sync with the enums in Display.java
       CASE screen_state_span.value
         -- Display.STATE_OFF
@@ -95,8 +104,6 @@ WITH
         WHEN 6 THEN 'Screen on (suspend)'
       END AS screen_state
     FROM screen_state_span
-    JOIN counter_track
-      ON counter_track.id = screen_state_span.track_id
     WHERE
       dur > 0
   )
@@ -104,7 +111,7 @@ SELECT
   ROW_NUMBER() OVER () AS id,
   ts,
   dur,
-  machine_id,
+  COALESCE(machine_id, 0) AS machine_id,
   COALESCE(simple_screen_state, 'unknown') AS simple_screen_state,
   COALESCE(short_screen_state, 'unknown') AS short_screen_state,
   COALESCE(screen_state, 'Unknown') AS screen_state

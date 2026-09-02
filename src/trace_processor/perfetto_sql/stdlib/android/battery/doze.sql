@@ -32,7 +32,16 @@ CREATE PERFETTO TABLE android_light_idle_state(
 AS
 WITH
   _counter AS (
-    SELECT counter.id, ts, counter.track_id, value
+    SELECT
+      counter.id,
+      ts,
+      -- Note: counter_leading_intervals! partitions on track_id. We alias
+      -- machine_id to track_id to partition intervals by machine rather
+      -- than by individual track, merging all tracks on the same machine.
+      -- TODO(stevegolton): Fix this when PerfettoSQL supports customizable
+      -- partition columns in counter_leading_intervals!.
+      COALESCE(counter_track.machine_id, 0) AS track_id,
+      value
     FROM counter
     JOIN counter_track
       ON counter_track.id = counter.track_id
@@ -43,7 +52,7 @@ SELECT
   intervals.id,
   intervals.ts,
   intervals.dur,
-  counter_track.machine_id,
+  intervals.track_id AS machine_id,
   CASE intervals.value
     -- device is used or on power
     WHEN 0 THEN 'active'
@@ -59,9 +68,7 @@ SELECT
     WHEN 7 THEN 'override'
     ELSE 'unmapped'
   END AS light_idle_state
-FROM counter_leading_intervals!(_counter) AS intervals
-JOIN counter_track
-  ON counter_track.id = intervals.track_id;
+FROM counter_leading_intervals!(_counter) AS intervals;
 
 -- Deep idle states. This is the state machine that more slowly detects deeper
 -- levels of device unuse and restricts background activity further.
@@ -81,7 +88,16 @@ CREATE PERFETTO TABLE android_deep_idle_state(
 AS
 WITH
   _counter AS (
-    SELECT counter.id, ts, counter.track_id, value
+    SELECT
+      counter.id,
+      ts,
+      -- Note: counter_leading_intervals! partitions on track_id. We alias
+      -- machine_id to track_id to partition intervals by machine rather
+      -- than by individual track, merging all tracks on the same machine.
+      -- TODO(stevegolton): Fix this when PerfettoSQL supports customizable
+      -- partition columns in counter_leading_intervals!.
+      COALESCE(counter_track.machine_id, 0) AS track_id,
+      value
     FROM counter
     JOIN counter_track
       ON counter_track.id = counter.track_id
@@ -92,7 +108,7 @@ SELECT
   intervals.id,
   intervals.ts,
   intervals.dur,
-  counter_track.machine_id,
+  intervals.track_id AS machine_id,
   CASE intervals.value
     WHEN 0 THEN 'active'
     WHEN 1 THEN 'inactive'
@@ -109,6 +125,4 @@ SELECT
     WHEN 7 THEN 'quick_doze_delay'
     ELSE 'unmapped'
   END AS deep_idle_state
-FROM counter_leading_intervals!(_counter) AS intervals
-JOIN counter_track
-  ON counter_track.id = intervals.track_id;
+FROM counter_leading_intervals!(_counter) AS intervals;

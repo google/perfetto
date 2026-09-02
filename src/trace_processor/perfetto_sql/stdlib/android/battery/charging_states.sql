@@ -39,7 +39,16 @@ AS
 -- union is populated but not both.
 WITH
   _counter AS (
-    SELECT counter.id, ts, counter.track_id, value
+    SELECT
+      counter.id,
+      ts,
+      -- Note: counter_leading_intervals! partitions on track_id. We alias
+      -- machine_id to track_id to partition intervals by machine rather
+      -- than by individual track, merging all tracks on the same machine.
+      -- TODO(stevegolton): Fix this when PerfettoSQL supports customizable
+      -- partition columns in counter_leading_intervals!.
+      COALESCE(counter_track.machine_id, 0) AS track_id,
+      value
     FROM counter
     JOIN counter_track
       ON counter_track.id = counter.track_id
@@ -51,7 +60,7 @@ WITH
       intervals.id,
       intervals.ts,
       intervals.dur,
-      counter_track.machine_id,
+      intervals.track_id AS machine_id,
       CASE intervals.value
         WHEN 2 THEN 'charging'
         WHEN 3 THEN 'discharging'
@@ -67,8 +76,6 @@ WITH
         WHEN 5 THEN 'Full'
       END AS charging_state
     FROM counter_leading_intervals!(_counter) AS intervals
-    JOIN counter_track
-      ON counter_track.id = intervals.track_id
     WHERE
       dur > 0
   )
@@ -80,7 +87,7 @@ SELECT
   ROW_NUMBER() OVER () AS id,
   ts,
   dur,
-  machine_id,
+  COALESCE(machine_id, 0) AS machine_id,
   COALESCE(short_charging_state, 'unknown') AS short_charging_state,
   COALESCE(charging_state, 'Unknown') AS charging_state
 FROM _intervals_fill_gaps!((machine_id), (short_charging_state, charging_state), _intervals);
