@@ -61,7 +61,7 @@ class TestCatalog : public Catalog {
     result.name = name;
     result.columns.reserve(leaf->columns.size());
     for (const std::string& column : leaf->columns) {
-      result.columns.push_back(column);
+      result.columns.push_back({column, std::nullopt});
     }
     return result;
   }

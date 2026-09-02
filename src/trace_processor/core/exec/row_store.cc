@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
@@ -38,44 +39,18 @@
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
-
-// kChunkRows rows of one column.
-struct RowStore::Chunk {
-  std::variant<FlexVector<uint32_t>,
-               FlexVector<int32_t>,
-               FlexVector<int64_t>,
-               FlexVector<double>,
-               FlexVector<StringPool::Id>,
-               FlexVector<Variant>>
-      values{FlexVector<uint32_t>()};
-  BitVector validity;
-};
-
 namespace {
 
-using Chunk = RowStore::Chunk;
 constexpr uint32_t kChunkRows = RowStore::kChunkRows;
 
-// The chunk's values, made to hold kChunkRows of T the first time it is used.
-template <typename T, typename V>
-FlexVector<T>& Values(V& values) {
-  // The default alternative is an empty vector, so holding the right type is
-  // not enough to have room in it.
-  if (!std::holds_alternative<FlexVector<T>>(values) ||
-      std::get<FlexVector<T>>(values).size() < kChunkRows) {
-    values = FlexVector<T>::CreateWithSize(kChunkRows);
-  }
-  return std::get<FlexVector<T>>(values);
-}
-
 // Copies `count` of `column`'s rows, starting at its row `from`, to `at`.
-template <typename T, typename V>
+template <typename T>
 void Copy(const ColumnView& column,
           uint32_t from,
           uint32_t at,
           uint32_t count,
-          V& values) {
-  T* dest = Values<T>(values).data() + at;
+          ColumnChunk& chunk) {
+  T* dest = chunk.Values<T>().data() + at;
   const auto* data = static_cast<const T*>(column.data());
   RowSelection selection = column.selection();
   if (selection.is_range()) {
@@ -89,13 +64,12 @@ void Copy(const ColumnView& column,
 }
 
 // An Id column has no storage: its value is the row it sits at.
-template <typename V>
 void CopyIds(const ColumnView& column,
              uint32_t from,
              uint32_t at,
              uint32_t count,
-             V& values) {
-  uint32_t* dest = Values<uint32_t>(values).data() + at;
+             ColumnChunk& chunk) {
+  uint32_t* dest = chunk.Values<uint32_t>().data() + at;
   RowSelection selection = column.selection();
   if (selection.is_range()) {
     uint32_t offset = selection.offset() + from;
@@ -139,21 +113,21 @@ void CopyValidity(const ColumnView& column,
 // Picks the rows `rows` names out of `chunks`, laying them out from zero. A
 // gather cannot be a view because the rows come from more than one chunk.
 template <typename T>
-void Gather(const std::vector<std::unique_ptr<Chunk>>& chunks,
+void Gather(const std::vector<std::unique_ptr<ColumnChunk>>& chunks,
             Span<const uint32_t> rows,
-            Chunk& into) {
-  T* dest = Values<T>(into.values).data();
+            ColumnChunk& into) {
+  T* dest = into.Values<T>().data();
   for (uint32_t i = 0; i < rows.size(); ++i) {
-    const Chunk& chunk = *chunks[rows[i] / kChunkRows];
-    dest[i] = std::get<FlexVector<T>>(chunk.values)[rows[i] % kChunkRows];
+    const ColumnChunk& chunk = *chunks[rows[i] / kChunkRows];
+    dest[i] = chunk.Values<T>()[rows[i] % kChunkRows];
   }
 }
 
-void GatherValidity(const std::vector<std::unique_ptr<Chunk>>& chunks,
+void GatherValidity(const std::vector<std::unique_ptr<ColumnChunk>>& chunks,
                     Span<const uint32_t> rows,
-                    Chunk& into) {
+                    ColumnChunk& into) {
   for (uint32_t i = 0; i < rows.size(); ++i) {
-    const Chunk& chunk = *chunks[rows[i] / kChunkRows];
+    const ColumnChunk& chunk = *chunks[rows[i] / kChunkRows];
     if (chunk.validity.is_set(rows[i] % kChunkRows)) {
       into.validity.set(i);
     }
@@ -165,12 +139,12 @@ void GatherValidity(const std::vector<std::unique_ptr<Chunk>>& chunks,
 RowStore::RowStore() = default;
 RowStore::~RowStore() = default;
 
-RowStore::Chunk& RowStore::ChunkAt(Column& column, uint32_t index) const {
+ColumnChunk& RowStore::ChunkAt(Column& column, uint32_t index) const {
   if (column.chunks.size() <= index) {
     column.chunks.resize(index + 1);
   }
   if (!column.chunks[index]) {
-    column.chunks[index] = std::make_unique<Chunk>();
+    column.chunks[index] = std::make_unique<ColumnChunk>();
   }
   return *column.chunks[index];
 }
@@ -225,21 +199,21 @@ void RowStore::AppendColumn(Column& into,
     uint32_t index = row / kChunkRows;
     uint32_t at = row % kChunkRows;
     uint32_t run = std::min(count - done, kChunkRows - at);
-    Chunk& chunk = ChunkAt(into, index);
+    ColumnChunk& chunk = ChunkAt(into, index);
     if (variant) {
-      Copy<Variant>(from, done, at, run, chunk.values);
+      Copy<Variant>(from, done, at, run, chunk);
     } else if (from.type().Is<Id>()) {
-      CopyIds(from, done, at, run, chunk.values);
+      CopyIds(from, done, at, run, chunk);
     } else if (type.Is<Uint32>()) {
-      Copy<uint32_t>(from, done, at, run, chunk.values);
+      Copy<uint32_t>(from, done, at, run, chunk);
     } else if (type.Is<Int32>()) {
-      Copy<int32_t>(from, done, at, run, chunk.values);
+      Copy<int32_t>(from, done, at, run, chunk);
     } else if (type.Is<Int64>()) {
-      Copy<int64_t>(from, done, at, run, chunk.values);
+      Copy<int64_t>(from, done, at, run, chunk);
     } else if (type.Is<Double>()) {
-      Copy<double>(from, done, at, run, chunk.values);
+      Copy<double>(from, done, at, run, chunk);
     } else {
-      Copy<StringPool::Id>(from, done, at, run, chunk.values);
+      Copy<StringPool::Id>(from, done, at, run, chunk);
     }
     if (nullable) {
       if (chunk.validity.size() == 0) {
@@ -273,22 +247,22 @@ base::Status RowStore::Append(const RowBatch& batch) {
   return base::OkStatus();
 }
 
-ColumnView RowStore::ViewOf(const Column& column, const Chunk& chunk) const {
+ColumnView RowStore::ViewOf(const Column& column,
+                            const ColumnChunk& chunk) const {
   if (column.variant) {
-    return ColumnView::Variants(
-        std::get<FlexVector<Variant>>(chunk.values).data());
+    return ColumnView::Variants(chunk.Values<Variant>().data());
   }
   const void* data = nullptr;
   if (column.type.Is<Uint32>()) {
-    data = std::get<FlexVector<uint32_t>>(chunk.values).data();
+    data = chunk.Values<uint32_t>().data();
   } else if (column.type.Is<Int32>()) {
-    data = std::get<FlexVector<int32_t>>(chunk.values).data();
+    data = chunk.Values<int32_t>().data();
   } else if (column.type.Is<Int64>()) {
-    data = std::get<FlexVector<int64_t>>(chunk.values).data();
+    data = chunk.Values<int64_t>().data();
   } else if (column.type.Is<Double>()) {
-    data = std::get<FlexVector<double>>(chunk.values).data();
+    data = chunk.Values<double>().data();
   } else {
-    data = std::get<FlexVector<StringPool::Id>>(chunk.values).data();
+    data = chunk.Values<StringPool::Id>().data();
   }
   return ColumnView::Reference(column.type, data,
                                column.nullable ? &chunk.validity : nullptr);
@@ -319,9 +293,9 @@ void RowStore::View(RowBatch* batch, Span<const uint32_t> rows) {
   batch->Reset();
   for (Column& column : columns_) {
     if (!column.gathered) {
-      column.gathered = std::make_unique<Chunk>();
+      column.gathered = std::make_unique<ColumnChunk>();
     }
-    Chunk& into = *column.gathered;
+    ColumnChunk& into = *column.gathered;
     if (column.variant) {
       Gather<Variant>(column.chunks, rows, into);
     } else if (column.type.Is<Uint32>()) {
@@ -354,7 +328,7 @@ void RowStore::Clear() {
   size_ = 0;
   for (Column& column : columns_) {
     column.nullable = false;
-    for (const std::unique_ptr<Chunk>& chunk : column.chunks) {
+    for (const std::unique_ptr<ColumnChunk>& chunk : column.chunks) {
       if (chunk) {
         chunk->validity.clear();
       }

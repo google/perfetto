@@ -14,37 +14,41 @@
 
 import("../../../../gn/test.gni")
 
-source_set("connection_catalog") {
+source_set("exec") {
   sources = [
-    "connection_catalog.cc",
-    "connection_catalog.h",
-    "type_mapping.h",
+    "sql_scan.cc",
+    "sql_scan.h",
   ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
     "../../../base",
     "../../../perfetto_sql/analysis",
+    "../../../perfetto_sql/syntaqlite",
+    "../../containers",
     "../../core/common",
-    "../../core/dataframe",
+    "../../core/exec",
+    "../../core/util",
     "../../sqlite",
-    "../engine",
+    "../lineage:connection_catalog",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "connection_catalog_unittest.cc" ]
+  sources = [ "sql_scan_unittest.cc" ]
   deps = [
-    ":connection_catalog",
+    ":exec",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../../perfetto_sql/analysis",
-    "../../../perfetto_sql/syntaqlite",
     "../../containers",
     "../../core/common",
+    "../../core/exec",
+    "../../core/exec:test_utils",
+    "../../core/util",
     "../../sqlite",
-    "../engine",
+    "../lineage:connection_catalog",
   ]
 }

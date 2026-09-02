@@ -30,6 +30,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
@@ -66,7 +67,9 @@ class ConnectionCatalogTest : public ::testing::Test {
     std::vector<std::optional<core::StorageType>> types;
     types.reserve(lineage.columns().size());
     for (const analysis::ColumnLineage& column : lineage.columns()) {
-      types.push_back(catalog_.ColumnType(column));
+      std::optional<analysis::ColumnType> type = column.type();
+      types.push_back(type ? std::make_optional(ToStorageType(*type))
+                           : std::nullopt);
     }
     return types;
   }

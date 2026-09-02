@@ -16,6 +16,7 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
+    "column_chunk.h",
     "column_view.cc",
     "column_view.h",
     "dataframe_scan.cc",

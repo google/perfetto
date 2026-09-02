@@ -22,15 +22,14 @@
 #include <string_view>
 
 #include "src/perfetto_sql/analysis/relation.h"
-#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
 namespace perfetto::trace_processor::lineage {
 
 namespace analysis = ::perfetto::perfetto_sql::analysis;
 
-// Adapts the dataframes and SQLite views of a live connection to the reusable
-// PerfettoSQL relation analyzer.
+// Adapts one trace processor connection to semantic analysis. Serves each
+// dataframe as a leaf relation whose columns carry their storage type.
 class ConnectionCatalog final : public analysis::Catalog {
  public:
   explicit ConnectionCatalog(PerfettoSqlConnection*);
@@ -38,11 +37,6 @@ class ConnectionCatalog final : public analysis::Catalog {
   std::optional<analysis::LeafRelation> FindLeafRelation(
       std::string_view name) const override;
   std::optional<std::string> FindViewSql(std::string_view name) const override;
-
-  // Maps all origins of a result column back to dataframe storage. Returns
-  // nothing unless every origin has the same storage type.
-  std::optional<core::StorageType> ColumnType(
-      const analysis::ColumnLineage&) const;
 
  private:
   PerfettoSqlConnection* connection_;

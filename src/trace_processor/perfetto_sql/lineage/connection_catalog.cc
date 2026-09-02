@@ -18,7 +18,6 @@
 
 #include <sqlite3.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -27,9 +26,9 @@
 
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/analysis/relation.h"
-#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor::lineage {
@@ -77,9 +76,11 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
   }
   analysis::LeafRelation relation;
   relation.name = name;
-  relation.columns.reserve(dataframe->column_names().size());
-  for (const std::string& column : dataframe->column_names()) {
-    relation.columns.push_back(column);
+  const std::vector<std::string>& columns = dataframe->column_names();
+  relation.columns.reserve(columns.size());
+  for (uint32_t i = 0; i < columns.size(); ++i) {
+    relation.columns.push_back(
+        {columns[i], ToAnalysisType(dataframe->column_type(i))});
   }
   return relation;
 }
@@ -95,33 +96,6 @@ std::optional<std::string> ConnectionCatalog::FindViewSql(
   sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
   const auto* sql = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   return sql ? std::make_optional(std::string(sql)) : std::nullopt;
-}
-
-std::optional<core::StorageType> ConnectionCatalog::ColumnType(
-    const analysis::ColumnLineage& column) const {
-  std::optional<core::StorageType> result;
-  for (const analysis::ColumnOrigin& origin : column.origins) {
-    const dataframe::Dataframe* dataframe =
-        connection_->GetDataframeOrNull(origin.relation_name);
-    if (!dataframe) {
-      return std::nullopt;
-    }
-    const std::vector<std::string>& names = dataframe->column_names();
-    auto found =
-        std::find_if(names.begin(), names.end(), [&](const auto& name) {
-          return base::CaseInsensitiveEqual(name, origin.column_name);
-        });
-    if (found == names.end()) {
-      return std::nullopt;
-    }
-    core::StorageType type =
-        dataframe->column_type(static_cast<uint32_t>(found - names.begin()));
-    if (result && !(*result == type)) {
-      return std::nullopt;
-    }
-    result = type;
-  }
-  return result;
 }
 
 }  // namespace perfetto::trace_processor::lineage

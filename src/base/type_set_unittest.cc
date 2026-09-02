@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/util/type_set.h"
+#include "perfetto/ext/base/type_set.h"
 
 #include <string>
 #include <type_traits>
@@ -23,7 +23,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::core::dataframe {
+namespace perfetto::base {
 namespace {
 
 // Basic type tags for testing
@@ -64,6 +64,15 @@ TEST(TypeSet, Index) {
   // Check that index values are preserved for same types in different sets
   TypeSet<C, B, A> c_first(A{});
   EXPECT_EQ(c_first.index(), 2u);
+}
+
+TEST(TypeSet, MapByIndex) {
+  // Maps to the type at the same position, not the same type.
+  using ABC = TypeSet<A, B, C>;
+  using DEC = TypeSet<D, E, C>;
+  EXPECT_TRUE(ABC(A{}).MapByIndex<DEC>().Is<D>());
+  EXPECT_TRUE(ABC(B{}).MapByIndex<DEC>().Is<E>());
+  EXPECT_TRUE(ABC(C{}).MapByIndex<DEC>().Is<C>());
 }
 
 TEST(TypeSet, IsMethod) {
@@ -269,4 +278,4 @@ TEST(TypeSet, ComplexHierarchy) {
 }
 
 }  // namespace
-}  // namespace perfetto::trace_processor::core::dataframe
+}  // namespace perfetto::base
