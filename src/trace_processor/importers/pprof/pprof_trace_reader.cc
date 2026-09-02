@@ -220,17 +220,13 @@ base::Status PprofTraceReader::ParseProfile() {
     }
 
     // Create frame
-    FrameId frame_id =
-        mapping->InternFrame(rel_pc, storage->GetString(frame_name_id));
+    auto [frame_id, is_new_frame] = mapping->InternFrameAndCheckIfNew(
+        rel_pc, storage->GetString(frame_name_id));
     location_to_frame[loc_decoder.id()] = frame_id;
 
     // Frames interned by an earlier profile already carry their symbols.
-    {
-      auto frame_row =
-          (*storage->mutable_stack_profile_frame_table())[frame_id];
-      if (frame_row.symbol_set_id().has_value()) {
-        continue;
-      }
+    if (!is_new_frame) {
+      continue;
     }
 
     // Create symbol table entries for all line entries (inlined functions)
