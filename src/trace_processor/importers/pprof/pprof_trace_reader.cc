@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
@@ -64,8 +65,10 @@ struct FunctionInfo {
   int64_t start_line;
 };
 
-PprofTraceReader::PprofTraceReader(TraceProcessorContext* context)
+PprofTraceReader::PprofTraceReader(TraceProcessorContext* context,
+                                   uint32_t file_id)
     : context_(context),
+      file_id_(file_id),
       unknown_string_id_(context->storage->InternString("[unknown]")),
       unknown_no_brackets_string_id_(context->storage->InternString("unknown")),
       count_string_id_(context->storage->InternString("count")),
@@ -74,11 +77,6 @@ PprofTraceReader::PprofTraceReader(TraceProcessorContext* context)
 PprofTraceReader::~PprofTraceReader() = default;
 
 base::Status PprofTraceReader::Parse(TraceBlobView blob) {
-  // Capture the file here: ParseProfile() runs at an arbitrary
-  // push-to-sorter point, by which time the parsing stack may have popped.
-  if (!file_id_.has_value()) {
-    file_id_ = context_->trace_file_tracker->CurrentFile();
-  }
   buffer_.insert(buffer_.end(), blob.data(), blob.data() + blob.size());
   parsed_any_data_ = true;
   return base::OkStatus();
@@ -299,21 +297,11 @@ base::Status PprofTraceReader::ParseProfile() {
   }
 
   // Scope each profile by its source file, so archive members stay
-  // distinguishable. Gzipped members parse under an unnamed decompression
-  // file, so walk up to the nearest named ancestor.
-  StringId scope_id = pprof_file_string_id_;
-  const auto& trace_files = context_->storage->trace_file_table();
-  auto cur = file_id_;
-  while (cur.has_value()) {
-    auto row = trace_files[*cur];
-    std::optional<StringId> name = row.name();
-    if (name.has_value() && !name->is_null() &&
-        storage->GetString(*name).size() > 0) {
-      scope_id = *name;
-      break;
-    }
-    cur = row.parent_id();
-  }
+  // distinguishable. A file opened directly is unnamed and keeps the
+  // generic scope.
+  StringId name = context_->trace_file_tracker->GetName(
+      tables::TraceFileTable::Id(file_id_));
+  StringId scope_id = name.is_null() ? pprof_file_string_id_ : name;
 
   // Parse sample types and create aggregate_profile entries
   std::vector<tables::AggregateProfileTable::Id> profile_ids;
@@ -458,9 +446,9 @@ class PprofImporter : public TraceImporter<PprofImporter> {
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
       TraceProcessorContext* context,
-      uint32_t) const override {
+      uint32_t file_id) const override {
     return std::unique_ptr<ChunkedTraceReader>(
-        std::make_unique<PprofTraceReader>(context));
+        std::make_unique<PprofTraceReader>(context, file_id));
   }
 
  private:

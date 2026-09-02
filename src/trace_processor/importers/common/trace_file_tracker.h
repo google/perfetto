@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -45,13 +44,12 @@ class TraceFileTracker {
   void StartParsing(tables::TraceFileTable::Id id, TraceImporterId trace_type);
   void DoneParsing(tables::TraceFileTable::Id id, size_t size);
 
-  // The file currently being parsed, so importers can attribute their rows
-  // to a source file.
-  std::optional<tables::TraceFileTable::Id> CurrentFile() const {
-    if (parsing_stack_.empty()) {
-      return std::nullopt;
-    }
-    return parsing_stack_.back();
+  // The name of `id`, or of its closest named ancestor. Decompression layers
+  // are unnamed, so the contents of a gzipped archive member resolve to the
+  // member's name. Null if nothing up the chain is named, as is the case for
+  // a file opened directly.
+  StringId GetName(tables::TraceFileTable::Id id) const {
+    return names_[id.value];
   }
 
  private:
@@ -60,6 +58,8 @@ class TraceFileTracker {
   TraceProcessorContext* const context_;
   size_t processing_order_ = 0;
   std::vector<tables::TraceFileTable::Id> parsing_stack_;
+  // Indexed by file id, holding what GetName() returns.
+  std::vector<StringId> names_;
 };
 
 }  // namespace perfetto::trace_processor

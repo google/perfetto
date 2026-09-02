@@ -18,14 +18,12 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PPROF_PPROF_TRACE_READER_H_
 
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
 
 namespace perfetto::trace_processor {
 
@@ -33,7 +31,7 @@ class TraceProcessorContext;
 
 class PprofTraceReader : public ChunkedTraceReader {
  public:
-  explicit PprofTraceReader(TraceProcessorContext* context);
+  PprofTraceReader(TraceProcessorContext* context, uint32_t file_id);
   ~PprofTraceReader() override;
 
   base::Status Parse(TraceBlobView blob) override;
@@ -44,11 +42,9 @@ class PprofTraceReader : public ChunkedTraceReader {
   base::Status ParseProfile();
 
   TraceProcessorContext* const context_;
+  const uint32_t file_id_;
   std::vector<uint8_t> buffer_;
   bool parsed_any_data_ = false;
-
-  // Captured on the first Parse(), when it is top of the parsing stack.
-  std::optional<tables::TraceFileTable::Id> file_id_;
 
   // Constant strings interned at construction time
   const StringId unknown_string_id_;
