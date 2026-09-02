@@ -30,7 +30,10 @@ import {
   type TreeExplorerData,
   type TreeExplorerMetric,
   type TreeExplorerNode,
+  type TreeExplorerOptionalAction,
 } from '../widgets/tree_explorer';
+import {Button, ButtonVariant} from '../widgets/button';
+import {MenuItem, PopupMenu} from '../widgets/menu';
 import {DataGrid} from './widgets/datagrid/datagrid';
 import {InMemoryDataSource} from './widgets/datagrid/in_memory_data_source';
 import type {
@@ -59,16 +62,19 @@ export interface TreeExplorerTreeViewAttrs {
 export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeViewAttrs> {
   private source?: TreeExplorerTreeDataSource;
   private sourceData?: TreeExplorerData;
+  private nodeById = new Map<number, TreeExplorerNode>();
   private tree?: IdBasedTree;
 
   view({attrs}: m.CVnode<TreeExplorerTreeViewAttrs>): m.Children {
     if (this.source === undefined || this.sourceData !== attrs.data) {
       this.sourceData = attrs.data;
       this.source = new TreeExplorerTreeDataSource(attrs.data);
+      this.nodeById = new Map(attrs.data.nodes.map((n) => [n.id, n]));
       this.tree = undefined;
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
+    const {nodeActions} = attrs.data;
     return m(DataGrid, {
       className: 'pf-tree-explorer__grid',
       fillHeight: true,
@@ -92,6 +98,11 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
           columnType: 'quantitative',
           cellRenderer: fmtPercent,
         },
+        nodeId: {
+          title: '',
+          cellRenderer: (value) =>
+            renderNodeActions(nodeActions, this.nodeById.get(Number(value))),
+        },
       },
       data: this.source,
       initialColumns: [
@@ -99,6 +110,7 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
         {id: 'total', field: 'total', sort: 'DESC'},
         {id: 'self', field: 'self'},
         {id: 'percent', field: 'percent'},
+        ...(nodeActions.length > 0 ? [{id: 'nodeId', field: 'nodeId'}] : []),
       ],
       tree: this.tree ?? DEFAULT_TREE,
       onTreeChanged: (tree) => {
@@ -168,6 +180,7 @@ class TreeExplorerTreeDataSource extends InMemoryDataSource {
           self: n.selfValue,
           percent:
             this.total === 0 ? 0 : (n.cumulativeValue / this.total) * 100,
+          nodeId: n.id,
           __id: n.id,
           __depth: depth,
           __has_children: children === undefined ? 0 : 1,
@@ -200,6 +213,9 @@ export interface TreeExplorerFlatFunction {
   readonly name: string;
   readonly self: number;
   readonly total: number;
+  // The node with the largest self value among those aggregated, standing
+  // in for the function where a single node is needed (e.g. node actions).
+  readonly node: TreeExplorerNode;
 }
 
 // Aggregates the tree per function name, pprof-style: `self` sums a
@@ -228,7 +244,10 @@ export function computeFlatFunctions(
     }
   }
 
-  const functions = new Map<string, {self: number; total: number}>();
+  const functions = new Map<
+    string,
+    {self: number; total: number; node: TreeExplorerNode}
+  >();
   // Number of times each name occurs on the current root-to-node path.
   // Explicit stack with exit markers: call stacks can be deep.
   const onPath = new Map<string, number>();
@@ -245,8 +264,10 @@ export function computeFlatFunctions(
       }
       let fn = functions.get(name);
       if (fn === undefined) {
-        fn = {self: 0, total: 0};
+        fn = {self: 0, total: 0, node};
         functions.set(name, fn);
+      } else if (node.selfValue > fn.node.selfValue) {
+        fn.node = node;
       }
       fn.self += node.selfValue;
       const occurrences = onPath.get(name) ?? 0;
@@ -260,7 +281,12 @@ export function computeFlatFunctions(
       }
     }
   }
-  return [...functions].map(([name, {self, total}]) => ({name, self, total}));
+  return [...functions].map(([name, {self, total, node}]) => ({
+    name,
+    self,
+    total,
+    node,
+  }));
 }
 
 export interface TreeExplorerFlatViewAttrs {
@@ -272,14 +298,17 @@ export interface TreeExplorerFlatViewAttrs {
 export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatViewAttrs> {
   private rows?: readonly Row[];
   private rowsData?: TreeExplorerData;
+  private nodeById = new Map<number, TreeExplorerNode>();
 
   view({attrs}: m.CVnode<TreeExplorerFlatViewAttrs>): m.Children {
     if (this.rows === undefined || this.rowsData !== attrs.data) {
       this.rowsData = attrs.data;
       this.rows = flatFunctionRows(attrs.data);
+      this.nodeById = new Map(attrs.data.nodes.map((n) => [n.id, n]));
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
+    const {nodeActions} = attrs.data;
     return m(DataGrid, {
       className: 'pf-tree-explorer__grid',
       fillHeight: true,
@@ -306,6 +335,11 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
           columnType: 'quantitative',
           cellRenderer: fmtPercent,
         },
+        nodeId: {
+          title: '',
+          cellRenderer: (value) =>
+            renderNodeActions(nodeActions, this.nodeById.get(Number(value))),
+        },
       },
       data: this.rows,
       initialColumns: [
@@ -314,6 +348,7 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
         {id: 'selfPercent', field: 'selfPercent'},
         {id: 'total', field: 'total'},
         {id: 'totalPercent', field: 'totalPercent'},
+        ...(nodeActions.length > 0 ? [{id: 'nodeId', field: 'nodeId'}] : []),
       ],
     });
   }
@@ -328,11 +363,52 @@ function flatFunctionRows(data: TreeExplorerData): readonly Row[] {
     selfPercent: pct(fn.self),
     total: fn.total,
     totalPercent: pct(fn.total),
+    nodeId: fn.node.id,
   }));
 }
 
 function fmtPercent(value: SqlValue): string {
   return typeof value === 'number' ? `${value.toFixed(1)}%` : '';
+}
+
+// A menu of the embedder's node actions (see TreeExplorerQueryMetric's
+// optionalNodeActions) for the row's node, matching the ones the flamegraph
+// tooltip offers.
+function renderNodeActions(
+  actions: ReadonlyArray<TreeExplorerOptionalAction>,
+  node: TreeExplorerNode | undefined,
+): m.Children {
+  if (actions.length === 0 || node === undefined) return undefined;
+  const properties = new Map(
+    [...node.properties].map(([key, {value}]) => [key, value]),
+  );
+  const item = (action: TreeExplorerOptionalAction): m.Children => {
+    if (action.subActions !== undefined && action.subActions.length > 0) {
+      return m(
+        MenuItem,
+        {label: action.name, icon: action.icon},
+        action.subActions.map(item),
+      );
+    }
+    return m(MenuItem, {
+      label: action.name,
+      icon: action.icon,
+      disabled: action.execute === undefined,
+      onclick: () => action.execute?.({properties, node}),
+    });
+  };
+  return m(
+    PopupMenu,
+    {
+      trigger: m(Button, {
+        icon: 'more_vert',
+        variant: ButtonVariant.Minimal,
+        compact: true,
+        title: 'Actions',
+      }),
+    },
+    actions.map(item),
+  );
 }
 
 // Export of the flat function table. Values are raw numbers in the metric's
