@@ -45,8 +45,8 @@ WITH
       -- Note: counter_leading_intervals! partitions on track_id. We alias
       -- machine_id to track_id to partition intervals by machine rather
       -- than by individual track, merging all tracks on the same machine.
-      -- TODO(stevegolton): Fix this when PerfettoSQL supports customizable
-      -- partition columns in counter_leading_intervals!.
+      -- TODO(stevegolton): Fix this when PerfettoSQL Next adds support for
+      -- customizable partition columns in counter_leading_intervals!.
       COALESCE(counter_track.machine_id, 0) AS track_id,
       value
     FROM counter
