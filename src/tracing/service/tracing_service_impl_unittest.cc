@@ -2804,6 +2804,9 @@ TEST_F(TracingServiceImplTest, CompressionZstdReadIpc) {
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
   EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
+  EXPECT_THAT(
+      compressed_packets,
+      Contains(Property(&protos::gen::TracePacket::has_trace_uuid, true)));
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZstd(compressed_packets);
   EXPECT_THAT(decompressed_packets,

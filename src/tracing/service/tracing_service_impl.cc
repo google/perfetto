@@ -2685,7 +2685,6 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   *has_more = false;
 
   std::vector<TracePacket> packets;
-  size_t skip_compression_of_first_n_packets = 0;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
@@ -2699,7 +2698,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   // regardless of the config. This is to allow services that consume the trace
   // on-device to take decisions based on the metadata of the trace, without
   // having to uncompress.
-  skip_compression_of_first_n_packets = packets.size();
+  const size_t skip_compression_of_first_n_packets = packets.size();
 
   if (!tracing_session->initial_clock_snapshot.empty()) {
     EmitClockSnapshot(tracing_session,
@@ -2722,7 +2721,6 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     MaybeEmitCloneTrigger(tracing_session, &packets);
     MaybeEmitReceivedTriggers(tracing_session, &packets);
   }
-
   if (!tracing_session->did_emit_initial_packets) {
     if (!tracing_session->config.builtin_data_sources()
              .disable_extension_descriptors()) {
@@ -2951,62 +2949,19 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
       static_cast<uint64_t>((end - start).count());
 }
 
-void TracingServiceImpl::MaybeCompressPackets(
-    TracingSession* tracing_session,
+// Helper to re-use logics for different compression (zlib, zstd, etc.).
+template <typename CompressFn>
+void MaybeCompressPacketsWithCompressionFn(
     std::vector<TracePacket>* packets,
-    size_t skip_compression_of_first_n_packets) {
-  // Compress with the codec the config selects, preferring the newest (highest
-  // proto field number) this build supports. Leaves the packets uncompressed if
-  // none is available.
-  //
-  // The branches below run highest-field-number-first, so a new codec's branch
-  // goes at the top.
-  [[maybe_unused]] const auto& compression =
-      tracing_session->config.compression();
-
-  bool is_compression_enabled = false;
-#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
-  if (compression.has_zstd()) {
-    is_compression_enabled = true;
-  }
-#endif
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  if (compression.has_deflate() || tracing_session->config.compression_type() ==
-                                       TraceConfig::COMPRESSION_TYPE_DEFLATE) {
-    is_compression_enabled = true;
-  }
-#endif
-  if (!is_compression_enabled)
-    return;
-
-  auto compress_fn = [&]([[maybe_unused]] std::vector<TracePacket>* target) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
-    if (compression.has_zstd()) {
-      ZstdCompressFn(target, compression.zstd().level());
-      return;
-    }
-#endif
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-    // Deflate also serves the legacy compression_type = DEFLATE, so configs
-    // predating `compression` still get compressed.
-    if (compression.has_deflate() ||
-        tracing_session->config.compression_type() ==
-            TraceConfig::COMPRESSION_TYPE_DEFLATE) {
-      ZlibCompressFn(target);
-      return;
-    }
-#endif
-  };
-
+    size_t skip_compression_of_first_n_packets,
+    CompressFn compress_fn) {
   if (skip_compression_of_first_n_packets == 0) {
     compress_fn(packets);
     return;
   }
-
   if (skip_compression_of_first_n_packets >= packets->size()) {
     return;
   }
-
   const auto nskip = static_cast<ssize_t>(skip_compression_of_first_n_packets);
   std::vector<TracePacket> packets_to_compress(
       std::make_move_iterator(packets->begin() + nskip),
@@ -3016,6 +2971,41 @@ void TracingServiceImpl::MaybeCompressPackets(
   packets->insert(packets->end(),
                   std::make_move_iterator(packets_to_compress.begin()),
                   std::make_move_iterator(packets_to_compress.end()));
+}
+
+void TracingServiceImpl::MaybeCompressPackets(
+    TracingSession* tracing_session,
+    [[maybe_unused]] std::vector<TracePacket>* packets,
+    [[maybe_unused]] size_t skip_compression_of_first_n_packets) {
+  // Compress with the codec the config selects, preferring the newest (highest
+  // proto field number) this build supports. Leaves the packets uncompressed if
+  // none is available.
+  //
+  // The branches below run highest-field-number-first, so a new codec's branch
+  // goes at the top.
+  [[maybe_unused]] const auto& compression =
+      tracing_session->config.compression();
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  if (compression.has_zstd()) {
+    MaybeCompressPacketsWithCompressionFn(
+        packets, skip_compression_of_first_n_packets,
+        [&](std::vector<TracePacket>* target) {
+          ZstdCompressFn(target, compression.zstd().level());
+        });
+    return;
+  }
+#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+  // Deflate also serves the legacy compression_type = DEFLATE, so configs
+  // predating `compression` still get compressed.
+  if (compression.has_deflate() || tracing_session->config.compression_type() ==
+                                       TraceConfig::COMPRESSION_TYPE_DEFLATE) {
+    MaybeCompressPacketsWithCompressionFn(
+        packets, skip_compression_of_first_n_packets,
+        [](std::vector<TracePacket>* target) { ZlibCompressFn(target); });
+    return;
+  }
+#endif
 }
 
 bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
