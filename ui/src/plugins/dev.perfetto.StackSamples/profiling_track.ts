@@ -19,6 +19,10 @@ import {
   type TreeExplorerQueryMetric,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
+import {
+  SOURCE_ANNOTATION_PROPERTIES,
+  sourceAnnotationNodeAction,
+} from '../../components/source_annotation/source_annotation_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
@@ -116,6 +120,7 @@ export function createProfilingTrack(
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
+      const samplesSql = config.callsiteQuery(ts);
       const metrics: ReadonlyArray<TreeExplorerQueryMetric> =
         metricsFromTableOrSubquery({
           tableOrSubquery: `
@@ -126,10 +131,11 @@ export function createProfilingTrack(
                 name,
                 mapping_name,
                 source_file || ':' || line_number as source_location,
+                source_file,
+                rel_pc,
+                mapping_id,
                 self_count
-              from _callstacks_for_callsites!((
-                ${config.callsiteQuery(ts)}
-              ))
+              from _callstacks_for_callsites!((${samplesSql}))
             )
           `,
           tableMetrics: [
@@ -149,7 +155,9 @@ export function createProfilingTrack(
               displayName: 'Source Location',
               mergeAggregation: 'ONE_OR_SUMMARY',
             },
+            ...SOURCE_ANNOTATION_PROPERTIES,
           ],
+          optionalActions: [sourceAnnotationNodeAction(trace, samplesSql)],
           nameColumnLabel: 'Symbol',
         });
       // Use provided state or create initial state once
