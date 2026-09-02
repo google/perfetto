@@ -18,6 +18,8 @@ source_set("exec") {
   sources = [
     "column_view.cc",
     "column_view.h",
+    "dataframe_scan.cc",
+    "dataframe_scan.h",
     "operator.cc",
     "operator.h",
     "pipeline.cc",
@@ -36,6 +38,7 @@ source_set("exec") {
     "../../../base",
     "../../containers",
     "../common",
+    "../dataframe",
     "../util",
   ]
 }
@@ -49,6 +52,7 @@ source_set("test_utils") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "dataframe_scan_unittest.cc",
     "operator_unittest.cc",
     "row_batch_unittest.cc",
     "row_store_unittest.cc",
@@ -62,6 +66,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../containers",
     "../common",
+    "../dataframe",
     "../util",
   ]
 }

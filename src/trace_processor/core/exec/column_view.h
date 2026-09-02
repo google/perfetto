@@ -48,8 +48,9 @@ class ColumnView {
     ColumnView view;
     view.type_ = type;
     if (type.Is<Id>()) {
-      PERFETTO_DCHECK(data == nullptr && validity == nullptr);
+      PERFETTO_DCHECK(data == nullptr);
       view.kind_ = Kind::kSequence;
+      view.validity_ = validity;
       return view;
     }
     view.kind_ = Kind::kFlat;
