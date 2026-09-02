@@ -647,6 +647,28 @@ class TraceStorage {
     return mutable_table<tables::SymbolTable>();
   }
 
+  const tables::SourceFileTable& source_file_table() const {
+    return table<tables::SourceFileTable>();
+  }
+  tables::SourceFileTable* mutable_source_file_table() {
+    return mutable_table<tables::SourceFileTable>();
+  }
+
+  const tables::DisassemblyFunctionTable& disassembly_function_table() const {
+    return table<tables::DisassemblyFunctionTable>();
+  }
+  tables::DisassemblyFunctionTable* mutable_disassembly_function_table() {
+    return mutable_table<tables::DisassemblyFunctionTable>();
+  }
+
+  const tables::DisassemblyInstructionTable& disassembly_instruction_table()
+      const {
+    return table<tables::DisassemblyInstructionTable>();
+  }
+  tables::DisassemblyInstructionTable* mutable_disassembly_instruction_table() {
+    return mutable_table<tables::DisassemblyInstructionTable>();
+  }
+
   const tables::HeapGraphObjectTable& heap_graph_object_table() const {
     return table<tables::HeapGraphObjectTable>();
   }

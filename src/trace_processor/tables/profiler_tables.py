@@ -892,6 +892,126 @@ SYMBOL_TABLE = Table(
                 ''''''
         }))
 
+SOURCE_FILE_TABLE = Table(
+    python_module=__file__,
+    class_name='SourceFileTable',
+    sql_name='__intrinsic_source_file',
+    wrapping_sql_view=WrappingSqlView('source_file'),
+    columns=[
+        C('path', CppString()),
+        C('contents', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Contents of source files bundled with the trace. Populated from
+            SourceFile packets, which `trace_processor bundle` emits for the
+            files referenced by symbolized frames.
+        ''',
+        group='Callstack profilers',
+        columns={
+            'path':
+                '''
+                    Path of the file as it appears in the debug info. Joins to
+                    stack_profile_symbol.source_file.
+                ''',
+            'contents':
+                '''Raw contents of the file.''',
+        }))
+
+DISASSEMBLY_FUNCTION_TABLE = Table(
+    python_module=__file__,
+    class_name='DisassemblyFunctionTable',
+    sql_name='__intrinsic_disassembly_function',
+    wrapping_sql_view=WrappingSqlView('disassembly_function'),
+    columns=[
+        C('path', CppString()),
+        C('build_id', CppOptional(CppString())),
+        C('name', CppString()),
+        C('start_rel_pc', CppInt64()),
+        C('size', CppInt64()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Functions for which disassembly is bundled with the trace.
+            Populated from ModuleDisassembly packets, which
+            `trace_processor bundle` emits for functions containing sampled
+            addresses.
+        ''',
+        group='Callstack profilers',
+        columns={
+            'path':
+                '''
+                    Path of the module containing the function, matching
+                    stack_profile_mapping.name.
+                ''',
+            'build_id':
+                '''
+                    Hex-encoded build id of the module, matching
+                    stack_profile_mapping.build_id.
+                ''',
+            'name':
+                '''Symbol name of the function.''',
+            'start_rel_pc':
+                '''
+                    Address of the first instruction relative to the start of
+                    the module, in the same space as stack_profile_frame.rel_pc.
+                ''',
+            'size':
+                '''Size of the function's code in bytes.''',
+        }))
+
+DISASSEMBLY_INSTRUCTION_TABLE = Table(
+    python_module=__file__,
+    class_name='DisassemblyInstructionTable',
+    sql_name='__intrinsic_disassembly_instruction',
+    wrapping_sql_view=WrappingSqlView('disassembly_instruction'),
+    columns=[
+        C('function_id', CppTableId(DISASSEMBLY_FUNCTION_TABLE)),
+        C('rel_pc', CppInt64()),
+        C('bytes', CppString()),
+        C('text', CppString()),
+        C('target_rel_pc', CppOptional(CppInt64())),
+        C('target_symbol', CppOptional(CppString())),
+        C('source_file', CppOptional(CppString())),
+        C('line_number', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Instructions of functions in disassembly_function, in address
+            order.
+        ''',
+        group='Callstack profilers',
+        columns={
+            'function_id':
+                '''The function this instruction belongs to.''',
+            'rel_pc':
+                '''
+                    Address of the instruction relative to the start of the
+                    module, in the same space as stack_profile_frame.rel_pc.
+                ''',
+            'bytes':
+                '''Hex-encoded raw bytes of the instruction.''',
+            'text':
+                '''Rendered mnemonic and operands.''',
+            'target_rel_pc':
+                '''
+                    For direct branches and calls, the module-relative address
+                    of the target instruction.
+                ''',
+            'target_symbol':
+                '''
+                    For branches and calls out of the function, the name of the
+                    target symbol if known.
+                ''',
+            'source_file':
+                '''
+                    Path of the source file the instruction was generated from.
+                    Joins to source_file.path.
+                ''',
+            'line_number':
+                '''Line in source_file the instruction was generated from.''',
+        }))
+
 HEAP_PROFILE_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileTable',
@@ -1655,6 +1775,8 @@ ALL_TABLES = [
     AGGREGATE_PROFILE_TABLE,
     AGGREGATE_SAMPLE_TABLE,
     CHROME_STACK_SAMPLE_EXTRAS_TABLE,
+    DISASSEMBLY_FUNCTION_TABLE,
+    DISASSEMBLY_INSTRUCTION_TABLE,
     EXPERIMENTAL_FLAMEGRAPH_TABLE,
     GPU_CONTEXT_TABLE,
     GPU_COUNTER_GROUP_TABLE,
@@ -1676,6 +1798,7 @@ ALL_TABLES = [
     PROFILER_SESSION_TABLE,
     PROFILER_SMAPS_TABLE,
     PROFILER_TASK_CONTEXT_TABLE,
+    SOURCE_FILE_TABLE,
     STACK_PROFILE_CALLSITE_TABLE,
     STACK_PROFILE_FRAME_TABLE,
     STACK_PROFILE_MAPPING_TABLE,

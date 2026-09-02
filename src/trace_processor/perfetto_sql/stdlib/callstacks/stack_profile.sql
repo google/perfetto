@@ -85,6 +85,7 @@ SELECT
     coalesce(s.name, f.deobfuscated_name, f.name, 'unknown')
   ) AS name,
   f.mapping AS mapping_id,
+  f.rel_pc,
   s.source_file,
   coalesce(jsf.line, s.line_number) AS line_number,
   coalesce(jsf.col, 0) AS column_number,
@@ -132,6 +133,8 @@ AS (
     f.callsite_id,
     f.name,
     m.name AS mapping_name,
+    f.mapping_id,
+    f.rel_pc,
     f.source_file,
     f.line_number,
     f.inlined,
@@ -168,6 +171,8 @@ AS (
     c.parent_id,
     c.name,
     c.mapping_name,
+    c.mapping_id,
+    c.rel_pc,
     c.source_file,
     c.line_number,
     iif(c.is_leaf_function_in_callsite_frame, coalesce(m.self_count, 0), 0) AS self_count
@@ -199,6 +204,8 @@ AS (
     c.parent_id,
     c.name,
     c.mapping_name,
+    c.mapping_id,
+    c.rel_pc,
     c.source_file,
     c.line_number,
     iif(c.is_leaf_function_in_callsite_frame, coalesce(m.self_value, 0), 0) AS self_value
