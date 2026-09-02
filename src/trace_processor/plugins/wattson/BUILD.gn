@@ -51,7 +51,10 @@ _l3_csvs = [
   "data/Tensor_G5/l3.csv",
 ]
 
-_tpu_csvs = [ "data/Tensor_G5/tpu.csv" ]
+_tpu_csvs = [
+  "data/Tensor_G5/tpu.csv",
+  "data/Tensor_G6/tpu.csv",
+]
 
 _curve_blob_targets = []
 
