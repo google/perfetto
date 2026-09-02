@@ -191,7 +191,7 @@ base::Status PprofTraceReader::ParseProfile() {
       // Interned so profiles in an archive share one mapping and their
       // frames dedupe.
       CreateMappingParams params;
-      params.name = "[unknown]";
+      params.name = "[pprof unknown]";
       mapping = &context_->mapping_tracker->InternMemoryMapping(params);
     }
 

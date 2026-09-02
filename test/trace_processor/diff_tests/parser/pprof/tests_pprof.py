@@ -45,11 +45,11 @@ def _field_bytes(field_id: int, data: bytes) -> bytes:
 def _mappingless_pprof() -> bytes:
   """A minimal gzipped pprof whose single location has no mapping.
 
-  Locations without a resolvable mapping exercise the interned '[unknown]'
-  fallback mapping in the pprof reader. Layout (profile.proto field ids):
-  string_table(6), sample_type(1) {type(1), unit(2)}, function(5) {id(1),
-  name(2)}, location(4) {id(1), line(4) {function_id(1)}}, sample(2)
-  {location_id(1), value(2)}.
+  Locations without a resolvable mapping exercise the interned
+  '[pprof unknown]' fallback mapping in the pprof reader. Layout
+  (profile.proto field ids): string_table(6), sample_type(1) {type(1),
+  unit(2)}, function(5) {id(1), name(2)}, location(4) {id(1), line(4)
+  {function_id(1)}}, sample(2) {location_id(1), value(2)}.
   """
   strings = [b'', b'cpu', b'nanoseconds', b'no_mapping_func']
   value_type = _field_varint(1, 1) + _field_varint(2, 2)
@@ -238,8 +238,9 @@ class PprofParser(TestSuite):
         2,6,3,1,3
         """))
 
-  # Locations without a resolvable mapping all share one interned '[unknown]'
-  # fallback mapping, so identical frames dedupe across archive members.
+  # Locations without a resolvable mapping all share one interned
+  # '[pprof unknown]' fallback mapping, so identical frames dedupe across
+  # archive members.
   def test_pprof_zip_unknown_mapping_interned(self):
     pprof = _mappingless_pprof()
     return DiffTestBlueprint(
@@ -250,7 +251,7 @@ class PprofParser(TestSuite):
         query="""
         SELECT
           (SELECT COUNT(*) FROM stack_profile_mapping
-           WHERE name = '[unknown]') AS unknown_mappings,
+           WHERE name = '[pprof unknown]') AS unknown_mappings,
           (SELECT COUNT(*) FROM stack_profile_frame) AS frames,
           (SELECT COUNT(DISTINCT scope) FROM __intrinsic_aggregate_profile)
               AS scopes,
