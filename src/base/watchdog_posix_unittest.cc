@@ -48,6 +48,23 @@ TEST(WatchdogPosixTest, ParseProcStat) {
   EXPECT_EQ(ps.rss_pages, 2311);
 }
 
+TEST(WatchdogPosixTest, ParseProcStatm) {
+  constexpr const char statm[] = "1469 507 480 6 0 156 0";
+  TempFile f = TempFile::CreateUnlinked();
+  WriteAll(f.fd(), statm, sizeof(statm));
+  ASSERT_NE(lseek(f.fd(), 0, SEEK_SET), -1);
+  ProcStatm psm;
+  ASSERT_TRUE(ReadProcStatm(f.fd(), &psm));
+  EXPECT_EQ(psm.size, 1469u);
+  EXPECT_EQ(psm.resident, 507u);
+  EXPECT_EQ(psm.shared, 480u);
+  EXPECT_EQ(psm.text, 6u);
+  EXPECT_EQ(psm.lib, 0u);
+  EXPECT_EQ(psm.data, 156u);
+  EXPECT_EQ(psm.dt, 0u);
+  EXPECT_EQ(psm.anon_pages(), 27u);
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

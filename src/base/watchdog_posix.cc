@@ -101,6 +101,30 @@ bool ReadProcStat(int fd, ProcStat* out) {
   return true;
 }
 
+bool ReadProcStatm(int fd, ProcStatm* out) {
+  char str[256];
+  size_t pos = 0;
+  while (pos < sizeof(str) - 1) {
+    ssize_t rd = PERFETTO_EINTR(read(fd, str + pos, sizeof(str) - pos));
+    if (rd < 0) {
+      PERFETTO_ELOG("Failed to read statm file to enforce resource limits.");
+      return false;
+    }
+    if (rd == 0)
+      break;
+    pos += static_cast<size_t>(rd);
+  }
+  PERFETTO_CHECK(pos < sizeof(str));
+  str[pos] = '\0';
+
+  if (sscanf(str, "%lu %lu %lu %lu %lu %lu %lu", &out->size, &out->resident,
+             &out->shared, &out->text, &out->lib, &out->data, &out->dt) != 7) {
+    PERFETTO_ELOG("Invalid statm format: %s", str);
+    return false;
+  }
+  return true;
+}
+
 Watchdog::Watchdog(uint32_t polling_interval_ms)
     : polling_interval_ms_(polling_interval_ms) {}
 
@@ -240,6 +264,11 @@ void Watchdog::ThreadMain() {
     PERFETTO_ELOG("Failed to open stat file to enforce resource limits.");
     return;
   }
+  base::ScopedFile statm_fd(base::OpenFile("/proc/self/statm", O_RDONLY));
+  if (!statm_fd) {
+    PERFETTO_ELOG("Failed to open statm file to enforce resource limits.");
+    return;
+  }
 
   PERFETTO_DCHECK(timer_fd_);
 
@@ -313,18 +342,21 @@ void Watchdog::ThreadMain() {
 
     // Check CPU and memory guardrails (if enabled).
     lseek(stat_fd.get(), 0, SEEK_SET);
+    lseek(statm_fd.get(), 0, SEEK_SET);
     ProcStat stat;
     if (!ReadProcStat(stat_fd.get(), &stat))
       continue;
+    ProcStatm statm;
+    if (!ReadProcStatm(statm_fd.get(), &statm))
+      continue;
     uint64_t cpu_time = stat.utime + stat.stime;
-    uint64_t rss_bytes =
-        static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize();
+    uint64_t anon_bytes = statm.anon_pages() * base::GetSysPageSize();
 
     bool threshold_exceeded = false;
     WatchdogCrashReason crash_reason{};
     {
       std::lock_guard<std::mutex> guard(mutex_);
-      if (CheckMemory_Locked(rss_bytes) && !IsSyncMemoryTaggingEnabled()) {
+      if (CheckMemory_Locked(anon_bytes) && !IsSyncMemoryTaggingEnabled()) {
         threshold_exceeded = true;
         crash_reason = WatchdogCrashReason::kMemGuardrail;
       } else if (CheckCpu_Locked(cpu_time)) {
@@ -396,13 +428,13 @@ void Watchdog::SerializeLogsAndKillThread(int tid,
   abort();
 }
 
-bool Watchdog::CheckMemory_Locked(uint64_t rss_bytes) {
+bool Watchdog::CheckMemory_Locked(uint64_t rss_anon_bytes) {
   if (memory_limit_bytes_ == 0)
     return false;
 
   // Add the current stat value to the ring buffer and check that the mean
   // remains under our threshold.
-  if (memory_window_bytes_.Push(rss_bytes)) {
+  if (memory_window_bytes_.Push(rss_anon_bytes)) {
     if (memory_window_bytes_.Mean() >
         static_cast<double>(memory_limit_bytes_)) {
       PERFETTO_ELOG(
