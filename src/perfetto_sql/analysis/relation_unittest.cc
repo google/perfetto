@@ -25,7 +25,6 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "test/gtest_and_gmock.h"
@@ -47,14 +46,7 @@ class TestCatalog : public Catalog {
   }
 
   void AddView(std::string name, std::string sql) {
-    auto source = std::make_unique<std::string>(std::move(sql));
-    ScopedParser parser(syntaqlite_parser_create_perfetto(nullptr));
-    syntaqlite_parser_reset(parser.get(), source->data(),
-                            static_cast<uint32_t>(source->size()));
-    PERFETTO_CHECK(syntaqlite_parser_next(parser.get()) == SYNTAQLITE_PARSE_OK);
-    uint32_t root = syntaqlite_result_root(parser.get());
-    relations_.Insert(std::move(name),
-                      ViewRelation{std::move(source), std::move(parser), root});
+    relations_.Insert(std::move(name), ViewRelation{std::move(sql)});
   }
 
   std::optional<LeafRelation> FindLeafRelation(
@@ -66,6 +58,7 @@ class TestCatalog : public Catalog {
       return std::nullopt;
     }
     LeafRelation result;
+    result.name = name;
     result.columns.reserve(leaf->columns.size());
     for (const std::string& column : leaf->columns) {
       result.columns.push_back(column);
@@ -73,13 +66,10 @@ class TestCatalog : public Catalog {
     return result;
   }
 
-  std::optional<ViewDefinition> FindView(std::string_view name) const override {
+  std::optional<std::string> FindViewSql(std::string_view name) const override {
     const Relation* relation = relations_.Find(std::string(name));
     const auto* view = relation ? std::get_if<ViewRelation>(relation) : nullptr;
-    if (!view || !view->source) {
-      return std::nullopt;
-    }
-    return ViewDefinition{{view->parser.get(), view->root}};
+    return view ? std::make_optional(view->sql) : std::nullopt;
   }
 
  private:
@@ -87,17 +77,14 @@ class TestCatalog : public Catalog {
     std::vector<std::string> columns;
   };
   struct ViewRelation {
-    std::unique_ptr<std::string> source;
-    ScopedParser parser;
-    uint32_t root;
+    std::string sql;
   };
   using Relation = std::variant<TestLeafRelation, ViewRelation>;
 
   base::FlatHashMap<std::string, Relation> relations_;
 };
 
-std::vector<std::string> Show(const RelationLineage& lineage,
-                              const Program& program) {
+std::vector<std::string> Show(const RelationLineage& lineage) {
   std::vector<std::string> out;
   for (const ColumnLineage& column : lineage.columns()) {
     std::string value(column.output_name);
@@ -106,7 +93,7 @@ std::vector<std::string> Show(const RelationLineage& lineage,
       if (i) {
         value += ",";
       }
-      value += program.symbol(column.origins[i].relation).name;
+      value += column.origins[i].relation_name;
       value += ".";
       value += column.origins[i].column_name;
     }
@@ -117,17 +104,9 @@ std::vector<std::string> Show(const RelationLineage& lineage,
 
 class RelationAnalyzerTest : public ::testing::Test {
  protected:
-  RelationAnalyzerTest() : program_(CreateProgram()) {
+  RelationAnalyzerTest() {
     catalog_.AddRelation("slice", {"id", "ts", "name"});
     catalog_.AddRelation("thread", {"utid", "name"});
-  }
-
-  static Program CreateProgram() {
-    ProgramBuilder builder;
-    ModuleId module = builder.AddModule("builtin", "");
-    builder.AddSymbol(module, "slice", SymbolKind::kTable);
-    builder.AddSymbol(module, "thread", SymbolKind::kTable);
-    return builder.Build();
   }
 
   base::StatusOr<RelationLineage> Analyze(const std::string& sql) {
@@ -137,7 +116,7 @@ class RelationAnalyzerTest : public ::testing::Test {
     if (syntaqlite_parser_next(parser.get()) != SYNTAQLITE_PARSE_OK) {
       return base::ErrStatus("could not parse test query");
     }
-    RelationAnalyzer analyzer(program_, catalog_);
+    RelationAnalyzer analyzer(catalog_);
     return analyzer.AnalyzeQuery(
         {parser.get(), syntaqlite_result_root(parser.get())});
   }
@@ -145,10 +124,9 @@ class RelationAnalyzerTest : public ::testing::Test {
   std::vector<std::string> Select(const std::string& sql) {
     auto result = Analyze(sql);
     EXPECT_TRUE(result.ok()) << sql << ": " << result.status().c_message();
-    return result.ok() ? Show(*result, program_) : std::vector<std::string>{};
+    return result.ok() ? Show(*result) : std::vector<std::string>{};
   }
 
-  Program program_;
   TestCatalog catalog_;
 };
 
@@ -160,16 +138,14 @@ TEST_F(RelationAnalyzerTest, ResolvesColumnsAndAliases) {
 TEST_F(RelationAnalyzerTest, ResultOutlivesParserAndAnalyzer) {
   auto lineage = Analyze("SELECT id AS slice_id FROM slice");
   ASSERT_TRUE(lineage.ok()) << lineage.status().c_message();
-  EXPECT_THAT(Show(*lineage, program_),
-              testing::ElementsAre("slice_id=slice.id"));
+  EXPECT_THAT(Show(*lineage), testing::ElementsAre("slice_id=slice.id"));
 }
 
-TEST_F(RelationAnalyzerTest, OriginsAreRelationSymbols) {
+TEST_F(RelationAnalyzerTest, OriginsNameLeafRelations) {
   auto result = Analyze("SELECT id AS harmless_name FROM slice");
   ASSERT_TRUE(result.ok());
   ASSERT_THAT(result->columns().front().origins, testing::SizeIs(1));
-  EXPECT_EQ(result->columns().front().origins.front().relation,
-            *program_.FindSymbol("slice"));
+  EXPECT_EQ(result->columns().front().origins.front().relation_name, "slice");
 }
 
 TEST_F(RelationAnalyzerTest, ExpressionsHaveUnknownOrigin) {
@@ -217,6 +193,13 @@ TEST_F(RelationAnalyzerTest, KeepsEveryOriginAcrossCompoundSelect) {
               testing::ElementsAre("id=slice.id,thread.utid"));
 }
 
+TEST_F(RelationAnalyzerTest, UntraceableCompoundArmPoisonsOrigins) {
+  EXPECT_THAT(Select("SELECT id FROM slice UNION ALL SELECT 123"),
+              testing::ElementsAre("id="));
+  EXPECT_THAT(Select("SELECT 123 AS id UNION ALL SELECT id FROM slice"),
+              testing::ElementsAre("id="));
+}
+
 TEST_F(RelationAnalyzerTest, UnknownRelationsAreConservative) {
   EXPECT_THAT(Select("SELECT id FROM unknown_table"),
               testing::ElementsAre("id="));
@@ -225,7 +208,8 @@ TEST_F(RelationAnalyzerTest, UnknownRelationsAreConservative) {
 TEST_F(RelationAnalyzerTest, IdentifiesRowOrigin) {
   auto result = Analyze("SELECT id, name FROM slice");
   ASSERT_TRUE(result.ok());
-  EXPECT_EQ(result->row_origin(), program_.FindSymbol("slice"));
+  EXPECT_EQ(result->row_origin(),
+            std::make_optional<std::string_view>("slice"));
 
   result = Analyze("SELECT s.id, t.utid FROM slice s, thread t");
   ASSERT_TRUE(result.ok());
@@ -235,15 +219,16 @@ TEST_F(RelationAnalyzerTest, IdentifiesRowOrigin) {
 TEST_F(RelationAnalyzerTest, DetectsRowPreservingViewChains) {
   catalog_.AddView("v1", "CREATE VIEW v1 AS SELECT id, name FROM slice");
   catalog_.AddView("v2", "CREATE VIEW v2 AS SELECT id AS a, name AS b FROM v1");
-  RelationAnalyzer analyzer(program_, catalog_);
+  RelationAnalyzer analyzer(catalog_);
   auto result = analyzer.AnalyzeRelation("v2");
   ASSERT_TRUE(result.ok());
-  EXPECT_EQ(result->row_origin(), program_.FindSymbol("slice"));
+  EXPECT_EQ(result->row_origin(),
+            std::make_optional<std::string_view>("slice"));
 }
 
 TEST_F(RelationAnalyzerTest, RejectsFilteredViewAsRowOrigin) {
   catalog_.AddView("v", "CREATE VIEW v AS SELECT id FROM slice WHERE ts > 5");
-  RelationAnalyzer analyzer(program_, catalog_);
+  RelationAnalyzer analyzer(catalog_);
   auto result = analyzer.AnalyzeRelation("v");
   ASSERT_TRUE(result.ok());
   EXPECT_EQ(result->row_origin(), std::nullopt);
@@ -252,7 +237,7 @@ TEST_F(RelationAnalyzerTest, RejectsFilteredViewAsRowOrigin) {
 TEST_F(RelationAnalyzerTest, RejectsOrderedViewAsRowOrigin) {
   catalog_.AddView("v",
                    "CREATE VIEW v AS SELECT id FROM slice ORDER BY ts DESC");
-  RelationAnalyzer analyzer(program_, catalog_);
+  RelationAnalyzer analyzer(catalog_);
   auto result = analyzer.AnalyzeRelation("v");
   ASSERT_TRUE(result.ok());
   EXPECT_EQ(result->row_origin(), std::nullopt);
