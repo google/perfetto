@@ -234,6 +234,9 @@ namespace perfetto::trace_processor::stats {
   F(stackprofile_invalid_mapping_id,      kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_invalid_frame_id,        kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(stackprofile_invalid_callstack_id,    kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(disassembly_invalid_mapping_id,       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,          \
+      "ModuleDisassembly packet referenced a module with no mapping in the "   \
+      "trace. Ignored"),                                                       \
   F(stackprofile_parser_error,            kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(smaps_parser_errors,                  kSingle,  kError,    kTrace, Scope::kMachineAndTrace,         \
       "Count of malformed PackedSmaps packets. Data in smaps tables unreliable."),                      \
