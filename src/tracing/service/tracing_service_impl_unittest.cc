@@ -261,10 +261,11 @@ std::vector<protos::gen::TracePacket> DecompressTraceZstd(
 // See skip_compression_of_first_n_packets in tracing_service_impl.cc .
 testing::Matcher<const protos::gen::TracePacket&> PacketIsCompressed() {
   using GenTracePacket = protos::gen::TracePacket;
-  return AnyOf(Property(&GenTracePacket::has_compressed_packets, IsTrue()),
-               Property(&GenTracePacket::has_zstd_compressed_packets, IsTrue()),
-               Property(&GenTracePacket::has_trace_uuid, IsTrue()),
-               Property(&GenTracePacket::has_trace_config, IsTrue()));
+  return AnyOf(
+      Property(&GenTracePacket::compressed_packets, Not(IsEmpty())),
+      Property(&GenTracePacket::zstd_compressed_packets, Not(IsEmpty())),
+      Property(&GenTracePacket::has_trace_uuid, IsTrue()),
+      Property(&GenTracePacket::has_trace_config, IsTrue()));
 }
 
 std::vector<std::string> GetReceivedTriggers(
@@ -2429,6 +2430,9 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
   EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
+  EXPECT_THAT(compressed_packets,
+              Contains(Property(&protos::gen::TracePacket::compressed_packets,
+                                Not(IsEmpty()))));
 
   // Test that the trace config and trace uuid are NOT compressed and can be
   // read in clear.
@@ -2804,6 +2808,10 @@ TEST_F(TracingServiceImplTest, CompressionZstdReadIpc) {
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
   EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
+  EXPECT_THAT(
+      compressed_packets,
+      Contains(Property(&protos::gen::TracePacket::zstd_compressed_packets,
+                        Not(IsEmpty()))));
   EXPECT_THAT(
       compressed_packets,
       Contains(Property(&protos::gen::TracePacket::has_trace_uuid, true)));
