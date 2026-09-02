@@ -5224,6 +5224,7 @@ perfetto_cpp_blob_header(
         "src/trace_processor/plugins/wattson/data/Tensor/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/Tensor_G5/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G6/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/monaco/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/neo/cpu_1d.csv",
     ],
