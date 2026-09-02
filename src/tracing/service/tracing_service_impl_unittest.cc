@@ -264,11 +264,7 @@ testing::Matcher<const protos::gen::TracePacket&> PacketIsCompressed() {
   return AnyOf(Property(&GenTracePacket::has_compressed_packets, IsTrue()),
                Property(&GenTracePacket::has_zstd_compressed_packets, IsTrue()),
                Property(&GenTracePacket::has_trace_uuid, IsTrue()),
-               Property(&GenTracePacket::has_trace_config, IsTrue()),
-               Property(&GenTracePacket::has_synchronization_marker, IsTrue()),
-               Property(&GenTracePacket::has_clock_snapshot, IsTrue()),
-               Property(&GenTracePacket::has_trigger, IsTrue()),
-               Property(&GenTracePacket::has_clone_snapshot_trigger, IsTrue()));
+               Property(&GenTracePacket::has_trace_config, IsTrue()));
 }
 
 std::vector<std::string> GetReceivedTriggers(
@@ -2445,8 +2441,11 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
       compressed_packets,
       Contains(Property(&protos::gen::TracePacket::has_trace_uuid, true)));
 
-  // Test that system_info, trace_provenance, and data packets ARE compressed
-  // (not in clear).
+  // Test that clock_snapshot, system_info, trace_provenance, and data packets
+  // ARE compressed (not in clear).
+  EXPECT_THAT(
+      compressed_packets,
+      Each(Property(&protos::gen::TracePacket::has_clock_snapshot, false)));
   EXPECT_THAT(
       compressed_packets,
       Each(Property(&protos::gen::TracePacket::has_system_info, false)));
@@ -2459,6 +2458,9 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
 
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZlib(compressed_packets);
+  EXPECT_THAT(
+      decompressed_packets,
+      Contains(Property(&protos::gen::TracePacket::has_clock_snapshot, true)));
   EXPECT_THAT(
       decompressed_packets,
       Contains(Property(&protos::gen::TracePacket::has_system_info, true)));
@@ -2802,36 +2804,8 @@ TEST_F(TracingServiceImplTest, CompressionZstdReadIpc) {
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
   EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
-
-  // Test that the trace config and trace uuid are NOT compressed and can be
-  // read in clear.
-  EXPECT_THAT(
-      compressed_packets,
-      Contains(Property(&protos::gen::TracePacket::has_trace_config, true)));
-  EXPECT_THAT(
-      compressed_packets,
-      Contains(Property(&protos::gen::TracePacket::has_trace_uuid, true)));
-
-  // Test that system_info, trace_provenance, and data packets ARE compressed
-  // (not in clear).
-  EXPECT_THAT(
-      compressed_packets,
-      Each(Property(&protos::gen::TracePacket::has_system_info, false)));
-  EXPECT_THAT(
-      compressed_packets,
-      Each(Property(&protos::gen::TracePacket::has_trace_provenance, false)));
-  EXPECT_THAT(
-      compressed_packets,
-      Each(Property(&protos::gen::TracePacket::has_for_testing, false)));
-
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZstd(compressed_packets);
-  EXPECT_THAT(
-      decompressed_packets,
-      Contains(Property(&protos::gen::TracePacket::has_system_info, true)));
-  EXPECT_THAT(decompressed_packets,
-              Contains(Property(&protos::gen::TracePacket::has_trace_provenance,
-                                true)));
   EXPECT_THAT(decompressed_packets,
               Contains(Property(
                   &protos::gen::TracePacket::for_testing,

@@ -2688,6 +2688,19 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   size_t skip_compression_of_first_n_packets = 0;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
+  if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
+    MaybeEmitTraceConfig(tracing_session, &packets);
+  }
+  if (!tracing_session->did_emit_initial_packets) {
+    EmitUuid(tracing_session, &packets);
+  }
+
+  // All packets emitted above (trace config, uuid) will not be compressed,
+  // regardless of the config. This is to allow services that consume the trace
+  // on-device to take decisions based on the metadata of the trace, without
+  // having to uncompress.
+  skip_compression_of_first_n_packets = packets.size();
+
   if (!tracing_session->initial_clock_snapshot.empty()) {
     EmitClockSnapshot(tracing_session,
                       std::move(tracing_session->initial_clock_snapshot),
@@ -2706,18 +2719,9 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
 
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
-    MaybeEmitTraceConfig(tracing_session, &packets);
     MaybeEmitCloneTrigger(tracing_session, &packets);
     MaybeEmitReceivedTriggers(tracing_session, &packets);
   }
-  if (!tracing_session->did_emit_initial_packets) {
-    EmitUuid(tracing_session, &packets);
-  }
-
-  // All packets emitted above will not be compressed, regardless of the config.
-  // This is to allow services that consume the trace on-device to take
-  // decisions based on the metadata of the trace, without having to uncompress.
-  skip_compression_of_first_n_packets = packets.size();
 
   if (!tracing_session->did_emit_initial_packets) {
     if (!tracing_session->config.builtin_data_sources()
