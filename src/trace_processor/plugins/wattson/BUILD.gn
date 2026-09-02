@@ -43,6 +43,7 @@ _cpu_2d_csvs = [
 _gpu_csvs = [
   "data/Tensor/gpu.csv",
   "data/Tensor_G5/gpu.csv",
+  "data/Tensor_G6/gpu.csv",
 ]
 
 _l3_csvs = [
@@ -51,7 +52,10 @@ _l3_csvs = [
   "data/Tensor_G5/l3.csv",
 ]
 
-_tpu_csvs = [ "data/Tensor_G5/tpu.csv" ]
+_tpu_csvs = [
+  "data/Tensor_G5/tpu.csv",
+  "data/Tensor_G6/tpu.csv",
+]
 
 _curve_blob_targets = []
 

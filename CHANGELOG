@@ -10,8 +10,17 @@ Unreleased:
      disabled.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
+    * ART heap dumps can now be exported as pprof from the flamegraph.
+    * Added a setting to default to the flamegraph tab in the Heap Dump
+      Explorer.
+    * The query page editor now autofocuses when a new tab is created.
+    * Fixed a flamegraph crash on heap profiles with negative allocation
+      sizes.
+    * Fixed flicker when selecting between track events.
+    * Memscope: native callstack snippet table no longer truncates frames.
+    * Intelletto: registered tools with Chrome's WebMCP API.
   SDK:
-   *
+    *
 
 v58.3 - 2026-08-27:
   Misc:

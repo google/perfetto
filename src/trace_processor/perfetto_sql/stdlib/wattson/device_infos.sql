@@ -391,6 +391,7 @@ SELECT cpu, vote_by_freq FROM base ORDER BY cpu;
 CREATE PERFETTO TABLE _gpuid_map AS
 WITH
   data(device, gpu_id) AS (
-    SELECT * FROM (VALUES ("Tensor G5", 0), ("Tensor", 1)) AS _values
+    SELECT *
+    FROM (VALUES ("Tensor G5", 0), ("Tensor G6", 0), ("Tensor", 1)) AS _values
   )
 SELECT * FROM data;
