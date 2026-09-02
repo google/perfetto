@@ -83,6 +83,11 @@ struct SuccessfulMapping {
   // Every path and server tried for the mapping, including the successful
   // one, so verbose reports can explain fallbacks.
   std::vector<SymbolPathAttempt> attempts;
+  // The binary the symbols were read from and the value to add to a
+  // mapping-relative address to obtain its link-time virtual address in it.
+  // See SymbolizeResult. Empty when symbols came from a symbol file.
+  std::string binary_path;
+  uint64_t address_correction = 0;
 };
 
 // Record of a failed symbolization attempt for a mapping.
