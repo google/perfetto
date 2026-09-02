@@ -158,9 +158,16 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       id: 'com.android.visualiseHeldLocks',
       name: 'Lock Contention: Visualise held locks',
       callback: async () => {
+        await trace.engine.query('INCLUDE PERFETTO MODULE intervals.overlap;');
         await addDebugSliceTrack({
           trace: trace,
           data: {
+            // `slice_id` + `table_name` let DebugSliceTrackDetailsPanel resolve
+            // the underlying slice and render a link to it. The merge macro only
+            // returns (ts, dur, partition columns), so the id has to be
+            // recovered by looking it up again: the merged interval's ts is the
+            // min ts of the slices it covers, so this finds the slice that
+            // starts it.
             sqlSource: `
                     WITH lock_held_slices AS (
                     SELECT ts, dur, lock_name, utid
@@ -171,13 +178,19 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
                     ), (lock_name, utid))
                     )
                     SELECT
-                    row_number() OVER () AS id,
-                    name AS thread_name,
-                    lock_name,
-                    utid,
-                    ts,
-                    MIN(LEAD(ts) OVER(PARTITION BY lock_name ORDER BY ts), ts + dur) - ts AS dur
-                    FROM lock_held_slices
+                    (
+                      SELECT s.id
+                      FROM thread_slice AS s
+                      WHERE s.ts = lhs.ts AND s.utid = lhs.utid
+                      LIMIT 1
+                    ) AS slice_id,
+                    'slice' AS table_name,
+                    thread.name AS thread_name,
+                    lhs.lock_name,
+                    lhs.utid,
+                    lhs.ts,
+                    MIN(LEAD(lhs.ts) OVER(PARTITION BY lhs.lock_name ORDER BY lhs.ts), lhs.ts + lhs.dur) - lhs.ts AS dur
+                    FROM lock_held_slices AS lhs
                     JOIN thread USING (utid)
                 `,
           },
