@@ -217,6 +217,14 @@ static base::StatusOr<dataframe::Dataframe> TreeDominatorSummaryImpl(
         "columns (id, parent_id, self_size, native_size, self_count), got %zu",
         tree.columns.size());
   }
+  constexpr uint32_t kInt64Columns[] = {0, 2, 3, 4};
+  for (uint32_t column : kInt64Columns) {
+    if (!tree.columns[column].type.Is<core::Int64>()) {
+      return base::ErrStatus(
+          "__intrinsic_tree_dominator_summary: expected id, self_size, "
+          "native_size, and self_count columns to be integers");
+    }
+  }
 
   // Pre-initialize working vectors. Nodes start at depth=1.
   std::vector<int64_t> subtree_count(N, 0);

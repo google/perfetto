@@ -510,7 +510,7 @@ BIGTRACE_DEPS = [
 
 # Syntaqlite CLI prebuilt binaries. Used by tools/format-sql-sources to format
 # `.sql` files (via `syntaqlite fmt`) and by tools/gen_syntaqlite_parser to
-# regenerate src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
+# regenerate src/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
 # from the canonical perfetto.y + perfetto.synq grammar files.
 SYNTAQLITE_DEPS = [
     Dependency(

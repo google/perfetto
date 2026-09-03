@@ -39,19 +39,6 @@ struct CreateFunction : public sqlite::Function<CreateFunction> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
-// Implementation of MEMOIZE SQL function.
-// SELECT EXPERIMENTAL_MEMOIZE('my_func') enables memoization for the results of
-// the calls to `my_func`. `my_func` must be a Perfetto SQL function created
-// through CREATE_FUNCTION that takes a single integer argument and returns a
-// int.
-struct ExperimentalMemoize : public sqlite::Function<ExperimentalMemoize> {
-  static constexpr char kName[] = "experimental_memoize";
-  static constexpr int kArgCount = 1;
-
-  using UserData = PerfettoSqlConnection;
-  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
-};
-
 }  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::create_function {

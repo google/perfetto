@@ -481,7 +481,12 @@ class TraceManifest(TestSuite):
         }),
         query='SELECT 1;',
         out=ExpectedError(
-            'clock overrides require the trace to use a single clock'))
+            'perfetto_manifest: a `clocks` override without a source `clock` '
+            'pins a clockless file to a reference timeline, but this trace '
+            'emits clock snapshots. If this is an internally-clocked trace '
+            '(e.g. Perfetto proto), specify the source clock in the `clocks` '
+            'block (e.g. "clock": "BOOTTIME"). See '
+            'https://perfetto.dev/docs/reference/perfetto-manifest#clocks'))
 
   # A pinning clocks override on a proto trace containing packets from a remote
   # machine (machine_id != 0) fails: the override applies to a single machine.

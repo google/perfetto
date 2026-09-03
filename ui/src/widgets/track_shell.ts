@@ -109,19 +109,28 @@ export interface TrackShellAttrs extends HTMLAttrs {
   readonly lite?: boolean;
 
   // Called when the track is expanded or collapsed (when the node is clicked).
-  onCollapsedChanged?(collapsed: boolean): void;
+  readonly onCollapsedChanged?: (collapsed: boolean) => void;
 
   // Mouse events within the track content element.
-  onTrackContentMouseMove?(pos: Point2D, contentSize: Bounds2D): void;
-  onTrackContentMouseOut?(): void;
-  onTrackContentClick?(pos: Point2D, contentSize: Bounds2D): boolean;
-  onTrackContentDoubleClick?(pos: Point2D, contentSize: Bounds2D): boolean;
+  readonly onTrackContentMouseMove?: (
+    pos: Point2D,
+    contentSize: Bounds2D,
+  ) => void;
+  readonly onTrackContentMouseOut?: () => void;
+  readonly onTrackContentClick?: (
+    pos: Point2D,
+    contentSize: Bounds2D,
+  ) => boolean;
+  readonly onTrackContentDoubleClick?: (
+    pos: Point2D,
+    contentSize: Bounds2D,
+  ) => boolean;
 
   // If reorderable, these functions will be called when track shells are
   // dragged and dropped.
-  onMoveBefore?(nodeId: string): void;
-  onMoveInside?(nodeId: string): void;
-  onMoveAfter?(nodeId: string): void;
+  readonly onMoveBefore?: (nodeId: string) => void;
+  readonly onMoveInside?: (nodeId: string) => void;
+  readonly onMoveAfter?: (nodeId: string) => void;
 }
 
 export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
@@ -407,14 +416,14 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             return;
           }
 
-          // Returns true if something was selected, so stop propagation.
+          // Returns true if something was selected, so prevent default.
           if (
             onTrackContentClick?.(
               currentTargetOffset(e),
               getTargetContainerSize(e),
             )
           ) {
-            e.stopPropagation();
+            e.preventDefault();
           }
         },
         ondblclick: (e: MouseEvent) => {
@@ -424,7 +433,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               getTargetContainerSize(e),
             )
           ) {
-            e.stopPropagation();
+            e.preventDefault();
           }
         },
       },

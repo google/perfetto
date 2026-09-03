@@ -92,5 +92,10 @@ SELECT TraceMetadata(
   'error_count', (
       SELECT COUNT() FROM stats
       WHERE severity = 'error' AND value > 0
+  ),
+  'trace_recovery_reason', (
+      SELECT str_value FROM metadata
+      WHERE name = 'trace_recovery_reason'
+      LIMIT 1
   )
 );

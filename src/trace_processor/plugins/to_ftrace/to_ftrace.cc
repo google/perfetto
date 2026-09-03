@@ -693,7 +693,12 @@ void ToFtrace::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
 
   auto* context = GetUserData(ctx);
-  uint32_t row = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+  int64_t raw_row = sqlite::value::Int64(argv[0]);
+  if (raw_row < 0 || static_cast<uint64_t>(raw_row) >=
+                         context->storage->ftrace_event_table().row_count()) {
+    return sqlite::utils::SetError(ctx, "to_ftrace: row id out of bounds");
+  }
+  uint32_t row = static_cast<uint32_t>(raw_row);
 
   auto str = context->serializer.SerializeToString(row);
   if (str.get() == nullptr) {

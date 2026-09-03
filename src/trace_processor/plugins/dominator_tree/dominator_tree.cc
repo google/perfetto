@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -70,7 +71,8 @@ class Graph {
 
   void AddEdge(Node source, Node dest) {
     state_by_node_.resize(std::max<size_t>(
-        state_by_node_.size(), std::max(source.id + 1, dest.id + 1)));
+        state_by_node_.size(),
+        static_cast<size_t>(std::max(source.id, dest.id)) + 1));
     GetStateForNode(source).successors.push_back(dest);
     GetStateForNode(dest).predecessors.push_back(source);
   }
@@ -305,12 +307,22 @@ void DominatorTree::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return sqlite::result::Error(
         ctx, "dominator_tree: incorrect number of arguments");
   }
+  int64_t raw_source = sqlite3_value_int64(argv[0]);
+  int64_t raw_dest = sqlite3_value_int64(argv[1]);
+  int64_t raw_start = sqlite3_value_int64(argv[2]);
+  if (raw_source < 0 || raw_source > std::numeric_limits<int32_t>::max() ||
+      raw_dest < 0 || raw_dest > std::numeric_limits<int32_t>::max() ||
+      raw_start < 0 || raw_start > std::numeric_limits<int32_t>::max()) {
+    return sqlite::result::Error(
+        ctx, "dominator_tree: node ids must be non-negative 32-bit integers");
+  }
+
   auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
-  auto source = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
-  auto dest = static_cast<uint32_t>(sqlite3_value_int64(argv[1]));
+  auto source = static_cast<uint32_t>(raw_source);
+  auto dest = static_cast<uint32_t>(raw_dest);
   agg_ctx.graph.AddEdge(Node{source}, Node{dest});
   if (PERFETTO_UNLIKELY(!agg_ctx.start_id)) {
-    agg_ctx.start_id = static_cast<uint32_t>(sqlite3_value_int64(argv[2]));
+    agg_ctx.start_id = static_cast<uint32_t>(raw_start);
   }
 }
 

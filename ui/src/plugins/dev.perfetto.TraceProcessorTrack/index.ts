@@ -27,10 +27,10 @@ import {sliceDistributionCellRenderers} from '../../components/details/slice_det
 import {openDistributionTab} from '../../components/distribution_panel';
 import {
   metricsFromTableOrSubquery,
-  type QueryFlamegraphDependency,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+  type TreeExplorerFetcherDependency,
+  type TreeExplorerQueryMetric,
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {MinimapRow} from '../../public/minimap';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
@@ -48,7 +48,10 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
-import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
+import {
+  TREE_EXPLORER_STATE_SCHEMA,
+  updateTreeExplorerState,
+} from '../../widgets/tree_explorer';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
@@ -70,7 +73,7 @@ import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_det
 import {CallstackDetailsSection} from './callstack_details_section';
 
 const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
-  areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
 });
 
 type TraceProcessorTrackPluginState = z.infer<
@@ -78,8 +81,8 @@ type TraceProcessorTrackPluginState = z.infer<
 >;
 
 interface SliceFlamegraphData extends AsyncDisposable {
-  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
-  readonly dependencies: ReadonlyArray<QueryFlamegraphDependency>;
+  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
+  readonly dependencies: ReadonlyArray<TreeExplorerFetcherDependency>;
 }
 
 function createDetailsPanel(trace: Trace, utid: number | null) {
@@ -138,6 +141,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ct.unit,
           ct.machine_id as machine,
           machine.label_index as machineLabelIndex,
+          machine.name as machineName,
           extract_arg(ct.dimension_arg_set_id, 'utid') as utid,
           extract_arg(ct.dimension_arg_set_id, 'upid') as upid,
           extract_arg(ct.dimension_arg_set_id, 'gpu') as gpu_id,
@@ -180,6 +184,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       isKernelThread: NUM,
       machine: NUM,
       machineLabelIndex: NUM_NULL,
+      machineName: STR_NULL,
       description: STR_NULL,
     });
     for (; it.valid(); it.next()) {
@@ -197,6 +202,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         isMainThread,
         isKernelThread,
         machineLabelIndex,
+        machineName,
         description,
       } = it;
       const schema = schemas.get(type);
@@ -215,6 +221,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         kind: COUNTER_TRACK_KIND,
         threadTrack: utid !== undefined,
         machineLabelIndex,
+        machineName,
         numMachines,
       });
       const uri = `/counter_${trackId}`;
@@ -264,6 +271,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   }
 
   private async addSlices(ctx: Trace) {
+    const numMachines = await getMachineCount(ctx.engine);
     await ctx.engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.track_event_callstacks;
@@ -284,6 +292,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           select
             t.id,
             t.name,
+            t.machine_id,
             extract_arg(t.dimension_arg_set_id, 'utid') as utid,
             extract_arg(t.dimension_arg_set_id, 'upid') as upid,
             extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
@@ -307,6 +316,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             t.utid,
             t.upid,
             t.gpu_id,
+            t.machine_id,
             t.description,
             min(t.id) minTrackId,
             group_concat(t.id) as trackIds,
@@ -319,7 +329,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             end as track_rank
           from tracks t
           left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
-          group by t.type, t.upid, t.utid, t.gpu_id, t.group_key
+          group by
+            t.type,
+            t.upid,
+            t.utid,
+            t.gpu_id,
+            t.machine_id,
+            t.group_key
         )
         select
           s.type,
@@ -327,6 +343,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           s.utid,
           ifnull(s.upid, tp.upid) as upid,
           s.gpu_id,
+          s.machine_id as machine,
+          machine.name as machineName,
+          machine.label_index as machineLabelIndex,
           s.minTrackId as minTrackId,
           s.trackIds as trackIds,
           s.trackCount,
@@ -346,6 +365,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         left join thread using (utid)
         left join _threads_with_kernel_flag k using (utid)
         left join process tp on thread.upid = tp.upid
+        left join machine on machine.id = s.machine_id
         order by s.track_rank, lower_name
       `,
     });
@@ -374,6 +394,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       utid: NUM_NULL,
       upid: NUM_NULL,
       gpu_id: NUM_NULL,
+      machine: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
       tid: LONG_NULL,
@@ -402,6 +425,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         isMainThread,
         isKernelThread,
         hasCallstacks,
+        machineName,
+        machineLabelIndex,
         description,
       } = it;
       const schema = schemas.get(type);
@@ -420,6 +445,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         utid,
         kind: SLICE_TRACK_KIND,
         threadTrack: utid !== undefined,
+        machineName,
+        machineLabelIndex,
+        numMachines,
       });
       const uri = `/slice_${trackIds[0]}`;
 
@@ -476,16 +504,29 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   }
 
   private async addStates(ctx: Trace) {
+    const numMachines = await getMachineCount(ctx.engine);
     const schemas = new Map(STATE_TRACK_SCHEMAS.map((x) => [x.type, x]));
     const types = STATE_TRACK_SCHEMAS.map((x) => `'${x.type}'`).join(',');
     const result = await ctx.engine.query(`
-      select t.id, t.type, t.name
+      select
+        t.id,
+        t.type,
+        t.name,
+        machine.name as machineName,
+        machine.label_index as machineLabelIndex
       from track t
+      left join machine on machine.id = t.machine_id
       where t.type in (${types})
         and exists (select 1 from state s where s.track_id = t.id)
       order by lower(t.name)
     `);
-    const it = result.iter({id: NUM, type: STR, name: STR_NULL});
+    const it = result.iter({
+      id: NUM,
+      type: STR,
+      name: STR_NULL,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
+    });
     for (; it.valid(); it.next()) {
       const {id: trackId, type, name} = it;
       const schema = schemas.get(type);
@@ -493,7 +534,12 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         continue;
       }
       const {group, topLevelGroup} = schema;
-      const trackName = name ?? `${type} ${trackId}`;
+      const trackName = getTrackName({
+        name: name ?? `${type} ${trackId}`,
+        machineName: it.machineName,
+        machineLabelIndex: it.machineLabelIndex,
+        numMachines,
+      });
       const uri = `/state_${trackId}`;
       ctx.tracks.registerTrack({
         uri,
@@ -643,7 +689,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           isLoading,
           content:
             computed &&
-            m(FlamegraphPanel, {
+            m(TreeExplorerPanel, {
               trace,
               metrics: computed.metrics,
               dependencies: computed.dependencies,
@@ -784,14 +830,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     });
     const store = ensureExists(this.store);
     store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = Flamegraph.updateState(
+      draft.areaSelectionFlamegraphState = updateTreeExplorerState(
         draft.areaSelectionFlamegraphState,
         metrics,
       );
     });
-    const dependency: QueryFlamegraphDependency = SharedAsyncDisposable.wrap(
-      disposables.move(),
-    );
+    const dependency: TreeExplorerFetcherDependency =
+      SharedAsyncDisposable.wrap(disposables.move());
     return {
       metrics,
       dependencies: [dependency],

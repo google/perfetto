@@ -3862,13 +3862,20 @@ class V8Config(_message.Message):
     def __init__(self, log_script_sources: bool = ..., log_instructions: bool = ...) -> None: ...
 
 class EtwConfig(_message.Message):
-    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events", "stack_sampling_events", "disk_provider_events", "system_io_provider_events")
+    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events", "stack_sampling_events", "disk_provider_events", "system_io_provider_events", "stack_sampling_debug_ids")
     class KernelFlag(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         CSWITCH: _ClassVar[EtwConfig.KernelFlag]
         DISPATCHER: _ClassVar[EtwConfig.KernelFlag]
     CSWITCH: EtwConfig.KernelFlag
     DISPATCHER: EtwConfig.KernelFlag
+    class DebugId(_message.Message):
+        __slots__ = ("path", "debug_id")
+        PATH_FIELD_NUMBER: _ClassVar[int]
+        DEBUG_ID_FIELD_NUMBER: _ClassVar[int]
+        path: str
+        debug_id: str
+        def __init__(self, path: _Optional[str] = ..., debug_id: _Optional[str] = ...) -> None: ...
     KERNEL_FLAGS_FIELD_NUMBER: _ClassVar[int]
     SCHEDULER_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     MEMORY_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
@@ -3876,6 +3883,7 @@ class EtwConfig(_message.Message):
     STACK_SAMPLING_EVENTS_FIELD_NUMBER: _ClassVar[int]
     DISK_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     SYSTEM_IO_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
+    STACK_SAMPLING_DEBUG_IDS_FIELD_NUMBER: _ClassVar[int]
     kernel_flags: _containers.RepeatedScalarFieldContainer[EtwConfig.KernelFlag]
     scheduler_provider_events: _containers.RepeatedScalarFieldContainer[str]
     memory_provider_events: _containers.RepeatedScalarFieldContainer[str]
@@ -3883,7 +3891,8 @@ class EtwConfig(_message.Message):
     stack_sampling_events: _containers.RepeatedScalarFieldContainer[str]
     disk_provider_events: _containers.RepeatedScalarFieldContainer[str]
     system_io_provider_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_events: _Optional[_Iterable[str]] = ..., disk_provider_events: _Optional[_Iterable[str]] = ..., system_io_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
+    stack_sampling_debug_ids: _containers.RepeatedCompositeFieldContainer[EtwConfig.DebugId]
+    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_events: _Optional[_Iterable[str]] = ..., disk_provider_events: _Optional[_Iterable[str]] = ..., system_io_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_debug_ids: _Optional[_Iterable[_Union[EtwConfig.DebugId, _Mapping]]] = ...) -> None: ...
 
 class FrozenFtraceConfig(_message.Message):
     __slots__ = ("instance_name",)
@@ -13505,18 +13514,26 @@ class SchedMigrateTaskFtraceEvent(_message.Message):
     def __init__(self, comm: _Optional[str] = ..., pid: _Optional[int] = ..., prio: _Optional[int] = ..., orig_cpu: _Optional[int] = ..., dest_cpu: _Optional[int] = ..., running: _Optional[int] = ..., load: _Optional[int] = ...) -> None: ...
 
 class SchedWakeupTaskAttrFtraceEvent(_message.Message):
-    __slots__ = ("pid", "cpu_affinity", "task_util", "uclamp_min", "vruntime")
+    __slots__ = ("pid", "cpu_affinity", "task_util", "uclamp_min", "vruntime", "sched_qos_user_defined_flag", "rampup_multiplier", "effect_rampup_multiplier", "tag_nice")
     PID_FIELD_NUMBER: _ClassVar[int]
     CPU_AFFINITY_FIELD_NUMBER: _ClassVar[int]
     TASK_UTIL_FIELD_NUMBER: _ClassVar[int]
     UCLAMP_MIN_FIELD_NUMBER: _ClassVar[int]
     VRUNTIME_FIELD_NUMBER: _ClassVar[int]
+    SCHED_QOS_USER_DEFINED_FLAG_FIELD_NUMBER: _ClassVar[int]
+    RAMPUP_MULTIPLIER_FIELD_NUMBER: _ClassVar[int]
+    EFFECT_RAMPUP_MULTIPLIER_FIELD_NUMBER: _ClassVar[int]
+    TAG_NICE_FIELD_NUMBER: _ClassVar[int]
     pid: int
     cpu_affinity: int
     task_util: int
     uclamp_min: int
     vruntime: int
-    def __init__(self, pid: _Optional[int] = ..., cpu_affinity: _Optional[int] = ..., task_util: _Optional[int] = ..., uclamp_min: _Optional[int] = ..., vruntime: _Optional[int] = ...) -> None: ...
+    sched_qos_user_defined_flag: int
+    rampup_multiplier: int
+    effect_rampup_multiplier: int
+    tag_nice: int
+    def __init__(self, pid: _Optional[int] = ..., cpu_affinity: _Optional[int] = ..., task_util: _Optional[int] = ..., uclamp_min: _Optional[int] = ..., vruntime: _Optional[int] = ..., sched_qos_user_defined_flag: _Optional[int] = ..., rampup_multiplier: _Optional[int] = ..., effect_rampup_multiplier: _Optional[int] = ..., tag_nice: _Optional[int] = ...) -> None: ...
 
 class SchedGroupTrackerFtraceEvent(_message.Message):
     __slots__ = ("comm", "pid", "group", "group_num")
@@ -18293,16 +18310,34 @@ class ObfuscatedMember(_message.Message):
     def __init__(self, obfuscated_name: _Optional[str] = ..., deobfuscated_name: _Optional[str] = ..., obfuscated_line_start: _Optional[int] = ..., obfuscated_line_end: _Optional[int] = ..., source_line_start: _Optional[int] = ..., source_line_end: _Optional[int] = ...) -> None: ...
 
 class ObfuscatedClass(_message.Message):
-    __slots__ = ("obfuscated_name", "deobfuscated_name", "obfuscated_members", "obfuscated_methods")
+    __slots__ = ("obfuscated_name", "deobfuscated_name", "obfuscated_members", "obfuscated_methods", "merged_classes")
+    class MergedClass(_message.Message):
+        __slots__ = ("name", "class_id", "merged_classes")
+        NAME_FIELD_NUMBER: _ClassVar[int]
+        CLASS_ID_FIELD_NUMBER: _ClassVar[int]
+        MERGED_CLASSES_FIELD_NUMBER: _ClassVar[int]
+        name: str
+        class_id: int
+        merged_classes: ObfuscatedClass.MergedClasses
+        def __init__(self, name: _Optional[str] = ..., class_id: _Optional[int] = ..., merged_classes: _Optional[_Union[ObfuscatedClass.MergedClasses, _Mapping]] = ...) -> None: ...
+    class MergedClasses(_message.Message):
+        __slots__ = ("class_id_field_name", "merged_classes")
+        CLASS_ID_FIELD_NAME_FIELD_NUMBER: _ClassVar[int]
+        MERGED_CLASSES_FIELD_NUMBER: _ClassVar[int]
+        class_id_field_name: str
+        merged_classes: _containers.RepeatedCompositeFieldContainer[ObfuscatedClass.MergedClass]
+        def __init__(self, class_id_field_name: _Optional[str] = ..., merged_classes: _Optional[_Iterable[_Union[ObfuscatedClass.MergedClass, _Mapping]]] = ...) -> None: ...
     OBFUSCATED_NAME_FIELD_NUMBER: _ClassVar[int]
     DEOBFUSCATED_NAME_FIELD_NUMBER: _ClassVar[int]
     OBFUSCATED_MEMBERS_FIELD_NUMBER: _ClassVar[int]
     OBFUSCATED_METHODS_FIELD_NUMBER: _ClassVar[int]
+    MERGED_CLASSES_FIELD_NUMBER: _ClassVar[int]
     obfuscated_name: str
     deobfuscated_name: str
     obfuscated_members: _containers.RepeatedCompositeFieldContainer[ObfuscatedMember]
     obfuscated_methods: _containers.RepeatedCompositeFieldContainer[ObfuscatedMember]
-    def __init__(self, obfuscated_name: _Optional[str] = ..., deobfuscated_name: _Optional[str] = ..., obfuscated_members: _Optional[_Iterable[_Union[ObfuscatedMember, _Mapping]]] = ..., obfuscated_methods: _Optional[_Iterable[_Union[ObfuscatedMember, _Mapping]]] = ...) -> None: ...
+    merged_classes: ObfuscatedClass.MergedClasses
+    def __init__(self, obfuscated_name: _Optional[str] = ..., deobfuscated_name: _Optional[str] = ..., obfuscated_members: _Optional[_Iterable[_Union[ObfuscatedMember, _Mapping]]] = ..., obfuscated_methods: _Optional[_Iterable[_Union[ObfuscatedMember, _Mapping]]] = ..., merged_classes: _Optional[_Union[ObfuscatedClass.MergedClasses, _Mapping]] = ...) -> None: ...
 
 class DeobfuscationMapping(_message.Message):
     __slots__ = ("package_name", "version_code", "obfuscated_classes")

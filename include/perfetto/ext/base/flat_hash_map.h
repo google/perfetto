@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/flat_hash_map_v1.h"
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
@@ -133,6 +134,29 @@ static constexpr uint8_t kTombstone = 0xFE;  // Deleted slot
 static constexpr int kDefaultLoadLimitPct = 75;
 
 }  // namespace flat_hash_map_v2_internal
+
+// Hash and equality functors which treat ASCII strings case-insensitively.
+// Pass as the Hasher/Eq parameters of FlatHashMapV2 for maps keyed by
+// case-insensitive identifiers (e.g. SQL object names). Transparent, so
+// lookups accept std::string_view or const char* without constructing a
+// std::string key.
+struct CaseInsensitiveHash {
+  using is_transparent = void;
+  uint64_t operator()(std::string_view value) const {
+    MurmurHashCombiner combiner;
+    for (char c : value) {
+      combiner.Combine(Lowercase(c));
+    }
+    return combiner.digest();
+  }
+};
+
+struct CaseInsensitiveEq {
+  using is_transparent = void;
+  bool operator()(std::string_view lhs, std::string_view rhs) const {
+    return CaseInsensitiveEqual(lhs, rhs);
+  }
+};
 
 template <typename Key,
           typename Value,

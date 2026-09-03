@@ -18,9 +18,9 @@ import {ensureExists} from '../../base/assert';
 import type {Store} from '../../base/store';
 import {
   metricsFromTableOrSubquery,
-  type QueryFlamegraphMetric,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+  type TreeExplorerQueryMetric,
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {
   type AreaSelection,
@@ -42,10 +42,10 @@ import {
 import {SourceDataset} from '../../trace_processor/dataset';
 import {sqlValueToSqliteString} from '../../trace_processor/sql_utils';
 import {
-  Flamegraph,
-  FLAMEGRAPH_STATE_SCHEMA,
-  type FlamegraphState,
-} from '../../widgets/flamegraph';
+  TREE_EXPLORER_STATE_SCHEMA,
+  updateTreeExplorerState,
+  type TreeExplorerState,
+} from '../../widgets/tree_explorer';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {createProfilingTrack} from './profiling_track';
 import {
@@ -59,10 +59,10 @@ const LINUX_PERF_SOURCE = 'linux.perf';
 const STACK_SAMPLES_PLUGIN_STATE_SCHEMA = z
   .object({
     areaSelectionFlamegraphStates: z
-      .record(z.string(), FLAMEGRAPH_STATE_SCHEMA)
+      .record(z.string(), TREE_EXPLORER_STATE_SCHEMA)
       .optional(),
     detailsPanelFlamegraphStates: z
-      .record(z.string(), FLAMEGRAPH_STATE_SCHEMA)
+      .record(z.string(), TREE_EXPLORER_STATE_SCHEMA)
       .optional(),
   })
   .readonly();
@@ -95,8 +95,8 @@ export interface StackSampleAreaSelectionTabConfig {
   readonly title: string;
   readonly counterNames: readonly string[];
   readonly counterNamesBySession: ReadonlyMap<number, readonly string[]>;
-  readonly getState: () => FlamegraphState | undefined;
-  readonly setState: (state: FlamegraphState) => void;
+  readonly getState: () => TreeExplorerState | undefined;
+  readonly setState: (state: TreeExplorerState) => void;
 }
 
 export function processStackSampleTrackUri(
@@ -128,8 +128,8 @@ export function createStackSampleTrack(
   trace: Trace,
   uri: string,
   config: StackSampleTrackConfig,
-  detailsPanelState: FlamegraphState | undefined,
-  onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  detailsPanelState: TreeExplorerState | undefined,
+  onDetailsPanelStateChange: (state: TreeExplorerState) => void,
 ): Track {
   const source = sqlValueToSqliteString(config.source);
   const constraints = [`ss.source = ${source}`];
@@ -200,7 +200,7 @@ export function createStackSampleAreaSelectionTab(
   config: StackSampleAreaSelectionTabConfig,
 ): AreaSelectionTab {
   let previousSelection: AreaSelection | undefined;
-  let flamegraphMetrics: ReadonlyArray<QueryFlamegraphMetric> | undefined;
+  let flamegraphMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
 
   return {
     id: `stack_sample_flamegraph_${encodeURIComponent(config.source)}`,
@@ -216,7 +216,7 @@ export function createStackSampleAreaSelectionTab(
       if (flamegraphMetrics === undefined) return undefined;
       return {
         isLoading: false,
-        content: m(FlamegraphPanel, {
+        content: m(TreeExplorerPanel, {
           trace,
           metrics: flamegraphMetrics,
           state: config.getState(),
@@ -230,7 +230,7 @@ export function createStackSampleAreaSelectionTab(
 function computeFlamegraphMetrics(
   selection: AreaSelection,
   config: StackSampleAreaSelectionTabConfig,
-): ReadonlyArray<QueryFlamegraphMetric> | undefined {
+): ReadonlyArray<TreeExplorerQueryMetric> | undefined {
   const constraints: string[] = [];
   const sessionIds = new Set<number>();
   let includesAllSessions = false;
@@ -282,7 +282,7 @@ function computeFlamegraphMetrics(
       : [...sessionIds].flatMap(
           (sessionId) => config.counterNamesBySession.get(sessionId) ?? [],
         );
-  const metrics: QueryFlamegraphMetric[] = [];
+  const metrics: TreeExplorerQueryMetric[] = [];
   for (const counterName of new Set(names)) {
     metrics.push({
       name: `${config.title} Samples (${counterName})`,
@@ -346,7 +346,7 @@ function computeFlamegraphMetrics(
     }),
   );
 
-  config.setState(Flamegraph.updateState(config.getState(), metrics));
+  config.setState(updateTreeExplorerState(config.getState(), metrics));
   return metrics;
 }
 

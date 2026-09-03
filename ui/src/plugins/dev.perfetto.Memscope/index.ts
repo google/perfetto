@@ -17,6 +17,7 @@ import m from 'mithril';
 import {z} from 'zod';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {ConnectionPage} from './views/connection';
@@ -25,13 +26,36 @@ import {LiveSession} from './sessions/live_session';
 import {MemoryOverviewPage} from './views/landing_page/landing_page';
 import {NUM} from '../../trace_processor/query_result';
 
-export default class implements PerfettoPlugin {
+export default class MemscopePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
   static readonly description =
     'Live memory profiler for Android/Linux devices';
   static readonly dependencies = [RecordPageV2];
+  private static openByDefaultSetting: Setting<boolean>;
+  private static hideDefaultChangedHintSetting: Setting<boolean>;
 
   static onActivate(app: App) {
+    MemscopePlugin.openByDefaultSetting = app.settings.register({
+      id: 'dev.perfetto.OpenMemoryOverviewByDefault',
+      name: 'Open Memory Overview by default',
+      description:
+        'Open traces containing smaps snapshots in Memory Overview instead ' +
+        'of the timeline.',
+      schema: z.boolean(),
+      defaultValue: true,
+    });
+
+    MemscopePlugin.hideDefaultChangedHintSetting = app.settings.register({
+      id: 'dev.perfetto.HideMemoryOverviewDefaultChangedHint',
+      name: 'Hide Memory Overview default-page explanation',
+      description:
+        'Do not show the explanation that Memory Overview is the default ' +
+        'page for traces containing smaps snapshots.',
+      schema: z.boolean(),
+      defaultValue: false,
+      headless: true,
+    });
+
     let session: LiveSession | undefined;
 
     app.sidebar.addMenuItem({
@@ -70,25 +94,8 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const pageRoot = '/memoryoverview';
-    const openByDefault = trace.settings.register({
-      id: 'dev.perfetto.OpenMemoryOverviewByDefault',
-      name: 'Open Memory Overview by default',
-      description:
-        'Open traces containing smaps snapshots in Memory Overview instead ' +
-        'of the timeline.',
-      schema: z.boolean(),
-      defaultValue: true,
-    });
-    const hideDefaultChangedHint = trace.settings.register({
-      id: 'dev.perfetto.HideMemoryOverviewDefaultChangedHint',
-      name: 'Hide Memory Overview default-page explanation',
-      description:
-        'Do not show the explanation that Memory Overview is the default ' +
-        'page for traces containing smaps snapshots.',
-      schema: z.boolean(),
-      defaultValue: false,
-      headless: true,
-    });
+    const openByDefault = MemscopePlugin.openByDefaultSetting;
+    const hideDefaultChangedHint = MemscopePlugin.hideDefaultChangedHintSetting;
     const availability = await this.getMemoryOverviewAvailability(trace);
     const autoNavigated = openByDefault.get() && availability.hasSmapsSnapshots;
 
@@ -132,7 +139,7 @@ export default class implements PerfettoPlugin {
     const result = await trace.engine.query(`
       SELECT
         EXISTS(SELECT 1 FROM profiler_smaps) AS hasSmapsSnapshots,
-        EXISTS(SELECT 1 FROM heap_graph_object) AS hasHeapDumps
+        EXISTS(SELECT 1 FROM heap_graph) AS hasHeapDumps
     `);
     const row = result.firstRow({
       hasSmapsSnapshots: NUM,

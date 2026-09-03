@@ -40,6 +40,10 @@ describe('ZonedInteractionHandler', () => {
     simulateMouseEvent('mousemove', x, y);
   }
 
+  function click(x: number, y: number) {
+    simulateMouseEvent('click', x, y);
+  }
+
   function simulateMouseEvent(kind: string, x: number, y: number) {
     div.dispatchEvent(
       new MouseEvent(kind, {
@@ -85,6 +89,7 @@ describe('ZonedInteractionHandler', () => {
     // Simulate a mouse click
     mousedown(50, 50);
     mouseup(50, 50);
+    click(50, 50);
 
     expect(handleMouseClick).toHaveBeenCalled();
 
@@ -93,6 +98,7 @@ describe('ZonedInteractionHandler', () => {
     // Simulate a mouse down then a mouseup outside the zone
     mousedown(50, 50);
     mouseup(80, 80);
+    click(80, 80);
 
     expect(handleMouseClick).not.toHaveBeenCalled();
   });
@@ -204,18 +210,21 @@ describe('ZonedInteractionHandler', () => {
     // Attempt click without holding the modifier key
     mousedown(50, 50);
     mouseup(50, 50);
+    click(50, 50);
     expect(handleMouseClick).not.toHaveBeenCalled();
 
     // Simulate holding down the shift key and clicking
     document.dispatchEvent(new KeyboardEvent('keydown', {shiftKey: true}));
     mousedown(50, 50);
     mouseup(50, 50);
+    click(50, 50);
     expect(handleMouseClick).toHaveBeenCalled();
 
     // Simulate releasing the shift key
     document.dispatchEvent(new KeyboardEvent('keyup', {shiftKey: false}));
     mousedown(50, 50);
     mouseup(50, 50);
+    click(50, 50);
     expect(handleMouseClick).toHaveBeenCalledTimes(1); // No additional call
   });
 
@@ -274,6 +283,7 @@ describe('ZonedInteractionHandler', () => {
     // inside the zone with the click event handler.
     mousedown(30, 30);
     mouseup(50, 50);
+    click(50, 50);
 
     expect(handleMouseClick).toHaveBeenCalled();
   });
@@ -292,6 +302,7 @@ describe('ZonedInteractionHandler', () => {
     // Simulate a mouse click where the cursor has moved outside of the zone.
     mousedown(50, 50);
     mouseup(80, 80);
+    click(80, 80);
 
     expect(handleMouseClick).not.toHaveBeenCalled();
   });

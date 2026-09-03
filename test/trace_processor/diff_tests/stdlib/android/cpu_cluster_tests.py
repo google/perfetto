@@ -21,6 +21,42 @@ from python.generators.diff_tests.testing import TestSuite
 
 class CpuClusters(TestSuite):
 
+  def test_android_cpu_cluster_mapping_is_partitioned_by_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          cpu_info {
+            cpus { processor: "host little" capacity: 100 frequencies: 100000 }
+            cpus { processor: "host big" capacity: 1000 frequencies: 200000 }
+          }
+        }
+        packet {
+          machine_id: 1001
+          cpu_info {
+            cpus { processor: "guest little" capacity: 200 frequencies: 100000 }
+            cpus { processor: "guest big" capacity: 900 frequencies: 200000 }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.cpu.cluster_type;
+
+        SELECT
+          m.raw_id AS raw_machine_id,
+          c.cpu,
+          c.cluster_type
+        FROM android_cpu_cluster_mapping c
+        JOIN machine m ON m.id = c.machine_id
+        ORDER BY c.machine_id, c.cpu;
+        """,
+        out=Csv("""
+        "raw_machine_id","cpu","cluster_type"
+        0,0,"little"
+        0,1,"big"
+        1001,0,"little"
+        1001,1,"big"
+        """))
+
   def test_android_cpu_cluster_type_one_core(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

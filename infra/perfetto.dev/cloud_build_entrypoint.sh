@@ -23,8 +23,9 @@ set -exu
 cd /workspace/
 git rev-parse HEAD
 
-# Install only NodeJS, gn and ninja no need to install the other toolchains.
-tools/install-build-deps --ui --filter=nodejs --filter=gn --filter=ninja --filter=pnpm
+# Install only NodeJS and pnpm; the docs build is pure node + python, so it
+# needs neither gn/ninja nor any of the C++ toolchains.
+tools/install-build-deps --ui --filter=nodejs --filter=pnpm
 
 # The deploy script takes care of building by invoking ./build internally.
 infra/perfetto.dev/deploy

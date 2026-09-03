@@ -415,7 +415,6 @@ TEST(UtilsTest, GetFileSize) {
   ASSERT_EQ(maybe_size.value(), payload.size());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
   auto tmp = TempDir::Create();
   std::string tmp_path = tmp.path() + "/temp.txt";
@@ -428,8 +427,8 @@ TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
 }
 
 TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
-  auto tmp = TempDir::Create();
-  std::string tmp_path = tmp.path() + "/temp.txt";
+  TempFile tmp_file = TempFile::Create();
+  const std::string& tmp_path = tmp_file.path();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
   ASSERT_EQ(payload.size(), static_cast<size_t>(16));
@@ -449,7 +448,6 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
       ASSERT_TRUE(ReadFile(tmp_path, &actual));
       ASSERT_EQ(actual, payload);
     }
-    ASSERT_EQ(remove(tmp_path.c_str()), 0);
   }
 
   {
@@ -464,7 +462,6 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
     ASSERT_EQ(actual, payload);
   }
 }
-#endif
 
 TEST(UtilsTest, SaturatingAdd) {
   constexpr int64_t kMax = std::numeric_limits<int64_t>::max();

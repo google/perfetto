@@ -14,9 +14,12 @@
 
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
-import type {QueryFlamegraphMetric} from '../../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../../components/flamegraph_panel';
-import {Flamegraph, type FlamegraphState} from '../../../widgets/flamegraph';
+import type {TreeExplorerQueryMetric} from '../../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../../components/tree_explorer_panel';
+import {
+  createDefaultTreeExplorerState,
+  type TreeExplorerState,
+} from '../../../widgets/tree_explorer';
 import {Stack} from '../../../widgets/stack';
 import {EmptyState} from '../../../widgets/empty_state';
 
@@ -34,14 +37,14 @@ import {Monitor} from '../../../base/monitor';
 interface CallstackViewAttrs {
   readonly trace: Trace;
   readonly dump: HeapDump;
-  readonly state: FlamegraphState | undefined;
-  readonly onStateChange: (state: FlamegraphState) => void;
+  readonly state: TreeExplorerState | undefined;
+  readonly onStateChange: (state: TreeExplorerState) => void;
 }
 
 export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
   private oomeData?: OomeData;
   private oomeDataLoaded = false;
-  private cachedMetrics?: ReadonlyArray<QueryFlamegraphMetric>;
+  private cachedMetrics?: ReadonlyArray<TreeExplorerQueryMetric>;
   private cachedKey?: string;
   private readonly limiter = new AsyncLimiter();
   private monitor?: Monitor;
@@ -68,7 +71,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       return m(
         'div',
         {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
-        m(FlamegraphPanel, {
+        m(TreeExplorerPanel, {
           trace: attrs.trace,
           metrics: undefined,
           state: attrs.state,
@@ -103,7 +106,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
 
     let state = attrs.state;
     if (state === undefined) {
-      state = Flamegraph.createDefaultState(metrics);
+      state = createDefaultTreeExplorerState(metrics);
       attrs.onStateChange(state);
     }
 
@@ -114,7 +117,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
         Stack,
         {orientation: 'vertical'},
         renderOomeDetails(this.oomeData?.details),
-        m(FlamegraphPanel, {
+        m(TreeExplorerPanel, {
           trace: attrs.trace,
           metrics,
           state,

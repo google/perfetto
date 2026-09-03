@@ -14,15 +14,17 @@
 
 import m from 'mithril';
 
+import {download} from '../../base/download_utils';
 import {extensions} from '../../components/extensions';
 import type {time} from '../../base/time';
 import {
-  type QueryFlamegraphMetric,
+  type TreeExplorerQueryMetric,
   metricsFromTableOrSubquery,
-} from '../../components/query_flamegraph';
-import {FlamegraphPanel} from '../../components/flamegraph_panel';
+} from '../../components/tree_explorer_fetcher';
+import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
-import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
+import {type PprofProfileType, convertTrace} from '../../base/trace_converter';
+
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {
   TrackEventDetailsPanel,
@@ -30,17 +32,17 @@ import type {
 } from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
+import type {ExportDownloadItem} from '../../widgets/export_button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {showModal} from '../../widgets/modal';
 import {incompleteFlamegraphModal} from './incomplete_flamegraph';
 import {
-  Flamegraph,
-  type FlamegraphState,
-  FLAMEGRAPH_STATE_SCHEMA,
-  type FlamegraphOptionalAction,
-} from '../../widgets/flamegraph';
+  createDefaultTreeExplorerState,
+  updateTreeExplorerState,
+  type TreeExplorerState,
+  TREE_EXPLORER_STATE_SCHEMA,
+  type TreeExplorerOptionalAction,
+} from '../../widgets/tree_explorer';
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
@@ -184,13 +186,13 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
   // We moved serialization from being attached to selections to instead being
   // attached to the plugin that loaded the panel.
   readonly serialization: TrackEventDetailsPanelSerializeArgs<
-    FlamegraphState | undefined
+    TreeExplorerState | undefined
   > = {
-    schema: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    schema: TREE_EXPLORER_STATE_SCHEMA.optional(),
     state: undefined,
   };
 
-  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
 
   constructor(
     private readonly trace: Trace,
@@ -199,8 +201,12 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
     private readonly profileDescriptor: ProfileDescriptor,
     private readonly ts: time,
     private readonly tsEnd: time,
-    private state: FlamegraphState | undefined,
-    private readonly onStateChange: (state: FlamegraphState) => void,
+    private state: TreeExplorerState | undefined,
+    private readonly onStateChange: (state: TreeExplorerState) => void,
+    // True when `ts`/`tsEnd` come from an area selection rather than from a
+    // single snapshot. traceconv can only convert a snapshot it can name by
+    // timestamp, so the pprof export is not offered in that case.
+    private readonly isAreaSelection: boolean,
     onNodeSelected?: (args: {
       pathHashes: string;
       isDominator: boolean;
@@ -221,7 +227,7 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
         : undefined,
     );
     if (this.state === undefined) {
-      this.state = Flamegraph.createDefaultState(this.metrics);
+      this.state = createDefaultTreeExplorerState(this.metrics);
       onStateChange(this.state);
     }
   }
@@ -236,7 +242,7 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
     // it.
     // TODO(lalitm): remove this in 26Q2 - see comment on `serialization`.
     if (this.serialization.state !== undefined) {
-      this.state = Flamegraph.updateState(
+      this.state = updateTreeExplorerState(
         this.serialization.state,
         this.metrics,
       );
@@ -263,30 +269,13 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
             }),
             renderOomeDetails(this.oomeDetails),
           ),
-          buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
-            m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
-            (type === ProfileType.NATIVE_HEAP_PROFILE ||
-              type === ProfileType.JAVA_HEAP_SAMPLES) &&
-              m(
-                PopupMenu,
-                {
-                  trigger: m(Button, {
-                    icon: 'file_download',
-                    label: 'Download',
-                    title: 'Download profile',
-                  }),
-                },
-                m(MenuItem, {
-                  icon: 'file_download',
-                  label: 'Pprof profile',
-                  onclick: async () => {
-                    await downloadPprof(this.trace, this.upid, ts);
-                  },
-                }),
-              ),
-          ]),
+          buttons: m(
+            'span',
+            `Snapshot time: `,
+            m(Timestamp, {trace: this.trace, ts}),
+          ),
         },
-        m(FlamegraphPanel, {
+        m(TreeExplorerPanel, {
           trace: this.trace,
           metrics: this.metrics,
           state: this.state,
@@ -294,9 +283,34 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
             this.state = state;
             this.onStateChange(state);
           },
+          extraDownloadItems: this.pprofDownloadItems(type, ts),
         }),
       ),
     );
+  }
+
+  // The pprof is produced by traceconv from the raw trace, so it always
+  // covers the whole snapshot: nothing the tree explorer does to the
+  // displayed tree can be reflected in it.
+  private pprofDownloadItems(
+    type: ProfileType,
+    ts: time,
+  ): ReadonlyArray<ExportDownloadItem> {
+    const profileType = pprofProfileType(type);
+    if (profileType === undefined || this.isAreaSelection) {
+      return [];
+    }
+    return [
+      {
+        label: 'Pprof profile (.pb)',
+        icon: 'file_download',
+        description:
+          'Whole snapshot, converted from the trace: filters, the selected ' +
+          'measure and the view direction are not applied.',
+        title: 'Download the full profile as pprof, for use with pprof tools',
+        onDownload: () => downloadPprof(this.trace, this.upid, ts, profileType),
+      },
+    ];
   }
 
   private maybeShowModal(
@@ -323,7 +337,7 @@ function flamegraphMetrics(
   tsEnd: time,
   upid: number,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
-): ReadonlyArray<QueryFlamegraphMetric> {
+): ReadonlyArray<TreeExplorerQueryMetric> {
   switch (descriptor.type) {
     case ProfileType.NATIVE_HEAP_PROFILE:
       return flamegraphMetricsForHeapProfile(
@@ -616,8 +630,8 @@ function flamegraphMetricsForHeapProfile(
         from _android_heap_profile_callstacks_for_allocations!((
           select
             callsite_id,
-            iif(positive_alloc, size, 0) as size,
-            iif(positive_alloc, count, 0) as count,
+            max(iif(positive_alloc, size, 0), 0) as size,
+            max(iif(positive_alloc, count, 0), 0) as count,
             max(size, 0) as alloc_size,
             max(count, 0) as alloc_count
           from heap_profile_allocation a
@@ -642,7 +656,30 @@ function flamegraphMetricsForHeapProfile(
   });
 }
 
-async function downloadPprof(trace: Trace, upid: number, ts: time) {
+// The traceconv conversion mode for a profile type, or undefined for the
+// types traceconv cannot emit as pprof. All heapprofd-backed heaps (native,
+// ART samples and custom allocators) are allocator profiles; the ART heap
+// dump is a heap graph. The OOME callstack is a single stack rather than a
+// profile, so it has no pprof of its own.
+function pprofProfileType(type: ProfileType): PprofProfileType | undefined {
+  switch (type) {
+    case ProfileType.NATIVE_HEAP_PROFILE:
+    case ProfileType.JAVA_HEAP_SAMPLES:
+    case ProfileType.GENERIC_HEAP_PROFILE:
+      return 'alloc';
+    case ProfileType.JAVA_HEAP_GRAPH:
+      return 'java-heap';
+    case ProfileType.OOME_CALLSTACK:
+      return undefined;
+  }
+}
+
+async function downloadPprof(
+  trace: Trace,
+  upid: number,
+  ts: time,
+  profileType: PprofProfileType,
+) {
   const pid = await trace.engine.query(
     `select pid from process where upid = ${upid}`,
   );
@@ -654,14 +691,21 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
     return;
   }
   const blob = await trace.getTraceFile();
-  // This is only reachable for heapprofd-based profiles (native heap and
-  // Java heap samples), which are both allocator profiles for traceconv.
-  await convertTraceToPprofAndDownload(
-    blob,
-    'alloc',
-    pid.firstRow({pid: NUM}).pid,
+  const result = await convertTrace(blob, {
+    format: 'pprof',
+    profileType,
+    pid: pid.firstRow({pid: NUM}).pid,
     ts,
-  );
+    onStatus: (s) => trace.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    showModal({
+      title: 'Pprof conversion failed',
+      content: m('div', result.error.message),
+    });
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 function getHeapGraphDuplicateObjectsView(
@@ -683,7 +727,7 @@ function getHeapGraphNodeOptionalActions(
   trace: Trace,
   isDominator: boolean,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
-): ReadonlyArray<FlamegraphOptionalAction> {
+): ReadonlyArray<TreeExplorerOptionalAction> {
   if (!trace.plugins.isPluginEnabled('com.android.HeapDumpExplorer')) {
     return [];
   }
@@ -712,7 +756,7 @@ function getHeapGraphNodeOptionalActions(
 function getHeapGraphRootOptionalActions(
   trace: Trace,
   isDominator: boolean,
-): ReadonlyArray<FlamegraphOptionalAction> {
+): ReadonlyArray<TreeExplorerOptionalAction> {
   return [
     {
       name: 'Reference paths by class',

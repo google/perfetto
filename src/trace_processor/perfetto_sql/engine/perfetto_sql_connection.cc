@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -39,14 +40,14 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
-#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
@@ -326,7 +327,7 @@ std::unique_ptr<PerfettoSqlConnection> PerfettoSqlConnection::Fork() {
 
 PerfettoSqlConnection::~PerfettoSqlConnection() {
   // Scalar function contexts can hold prepared statements (e.g.
-  // CreatedFunction::State::stmts_) that must be finalized before the
+  // CreatedFunction::State::stmt_) that must be finalized before the
   // underlying sqlite3* is closed. Explicitly unregister every entry now so
   // SQLite invokes each function's FnCtxDestructor while the database is
   // still alive; |connection_| is destroyed below.
@@ -880,7 +881,7 @@ PerfettoSqlConnection::ExecuteStatementsImpl(SqlSource sql_source,
 }
 
 const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
-    const std::string& name) const {
+    std::string_view name) const {
   auto* state = dataframe_context_->GetStateByName(name);
   return state ? state->dataframe : nullptr;
 }
@@ -888,7 +889,6 @@ const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
 base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     bool replace,
     const FunctionPrototype& prototype,
-    sql_argument::Type return_type,
     SqlSource sql) {
   int created_argc = static_cast<int>(prototype.arguments.size());
   // Refuse to clobber a C++ intrinsic. The reused-ctx fast path below ends in
@@ -913,11 +913,16 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
           "CREATE PERFETTO FUNCTION[prototype=%s]: function already exists",
           prototype.ToString().c_str());
     }
+    if (CreatedFunction::IsExecuting(ctx)) {
+      return base::ErrStatus(
+          "CREATE PERFETTO FUNCTION[prototype=%s]: cannot redefine a function "
+          "while it is executing",
+          prototype.ToString().c_str());
+    }
     CreatedFunction::Reset(ctx, this);
   } else {
-    // We register the function with SQLite before we prepare the statement so
-    // the statement can reference the function itself, enabling recursive
-    // calls.
+    // Register before preparing so a failed definition retains a context that
+    // can be replaced by a later valid definition.
     std::unique_ptr<CreatedFunction::UserData> created_fn_ctx =
         CreatedFunction::MakeContext(this);
     ctx = created_fn_ctx.get();
@@ -927,7 +932,7 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     RETURN_IF_ERROR(
         RegisterFunction<CreatedFunction>(std::move(created_fn_ctx), args));
   }
-  return CreatedFunction::Prepare(ctx, prototype, return_type, std::move(sql));
+  return CreatedFunction::Prepare(ctx, prototype, std::move(sql));
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateTable(
@@ -1056,28 +1061,6 @@ base::Status PerfettoSqlConnection::ExecuteCreateView(
   }
   RETURN_IF_ERROR(Execute(create_view.create_view_sql).status());
   return base::OkStatus();
-}
-
-base::Status PerfettoSqlConnection::EnableSqlFunctionMemoization(
-    const std::string& name) {
-  constexpr int kSupportedArgCount = 1;
-  // Refuse EXPERIMENTAL_MEMOIZE on intrinsics: their ctx is opaque and casting
-  // it to CreatedFunction::UserData* would walk a non-existent vtable inside
-  // EnableMemoization.
-  if (IsIntrinsicFunction(name, kSupportedArgCount)) {
-    return base::ErrStatus(
-        "EXPERIMENTAL_MEMOIZE: '%s' is a built-in function and cannot be "
-        "memoized",
-        name.c_str());
-  }
-  auto* ctx = static_cast<CreatedFunction::UserData*>(
-      GetFunctionContextOrNull(name, kSupportedArgCount));
-  if (!ctx) {
-    return base::ErrStatus(
-        "EXPERIMENTAL_MEMOIZE: Function '%s'(INT) does not exist",
-        name.c_str());
-  }
-  return CreatedFunction::EnableMemoization(ctx);
 }
 
 base::Status PerfettoSqlConnection::ExecuteInclude(
@@ -1314,8 +1297,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateFunction(
   }
 
   if (!cf.returns.is_table) {
-    return RegisterLegacyRuntimeFunction(cf.replace, cf.prototype,
-                                         cf.returns.scalar_type, cf.sql);
+    return RegisterLegacyRuntimeFunction(cf.replace, cf.prototype, cf.sql);
   }
 
   auto state = std::make_unique<RuntimeTableFunctionModule::State>(
@@ -1498,8 +1480,7 @@ base::Status PerfettoSqlConnection::RegisterFunctionAndAddToRegistry(
 
   // Track ownership / kind. This is the only place that records whether a
   // function's context is opaque (intrinsic) or a typed Destructible-derived
-  // state; the security-sensitive paths in |RegisterLegacyRuntimeFunction| and
-  // |EnableSqlFunctionMemoization| consult |IsIntrinsicFunction| before
+  // state. RegisterLegacyRuntimeFunction consults IsIntrinsicFunction before
   // downcasting. Keys are lowercased to match SQLite's case-insensitive
   // function namespace; otherwise CREATE OR REPLACE PERFETTO FUNCTION
   // IMPORT(...) (mixed-case) could bypass the intrinsic check.

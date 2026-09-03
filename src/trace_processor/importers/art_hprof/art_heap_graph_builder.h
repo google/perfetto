@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 
+#include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
@@ -30,6 +31,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -56,7 +58,10 @@ class ByteIterator {
   virtual bool ReadU4(uint32_t& value) = 0;
   virtual bool ReadId(uint64_t& value, uint32_t id_size) = 0;
   virtual bool ReadString(std::string& str, size_t length) = 0;
-  virtual bool ReadBytes(std::vector<uint8_t>& data, size_t length) = 0;
+  virtual bool ReadInto(uint8_t* dst, size_t length) = 0;
+  // Reads `length` bytes without copying them when they are contiguous in the
+  // underlying buffer.
+  virtual bool ReadView(TraceBlobView& view, size_t length) = 0;
   virtual bool SkipBytes(size_t count) = 0;
   virtual void PushBlob(TraceBlobView data) = 0;
 
@@ -106,9 +111,10 @@ class HeapGraphResolver {
  public:
   HeapGraphResolver(TraceProcessorContext* context,
                     HprofHeader& header,
-                    base::FlatHashMap<uint64_t, Object>& objects,
+                    ObjectStore& objects,
                     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
                     base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+                    ClassFieldLayouts& class_fields,
                     uint64_t string_class_id,
                     DebugStats& stats);
 
@@ -119,29 +125,37 @@ class HeapGraphResolver {
   void MarkReachableObjects();
   void ExtractArrayElementReferences(Object& obj);
   bool ExtractObjectReferences(Object& obj, const ClassDefinition& cls);
-  void ExtractFieldValues(Object& obj, const ClassDefinition& cls);
-  void ExtractPrimitiveArrayValues(Object& obj);
-  std::optional<std::string> DecodeJavaString(const Object& string_obj) const;
+  std::optional<std::string> DecodeJavaString(const Object& string_obj);
   void DecodeJavaStrings();
-  const std::vector<Field>& GetClassHierarchyFields(uint64_t class_id);
-  void ComputeSelfSizes();
+  void BuildClassFieldLayouts();
   void CalculateNativeSizes();
 
   // Data references (not owned)
   TraceProcessorContext* context_;
   HprofHeader& header_;
-  base::FlatHashMap<uint64_t, Object>& objects_;
+  ObjectStore& objects_;
   base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots_;
   base::FlatHashMap<uint64_t, ClassDefinition>& classes_;
+  ClassFieldLayouts& class_fields_;
   DebugStats& stats_;
 
-  // Cache for class hierarchy fields (avoids repeated hierarchy walks)
-  base::FlatHashMap<uint64_t, std::vector<Field>> field_cache_;
+  // Interned names of the fields the resolver needs to recognise. Comparing
+  // ids avoids string comparisons in the per-reference hot loops.
+  StringId referent_field_id_;
+  StringId string_value_field_id_;
+  StringId string_offset_field_id_;
+  StringId string_count_field_id_;
+  StringId cleaner_thunk_field_id_;
+  StringId cleaner_thunk_outer_field_id_;
+  StringId native_registry_size_field_id_;
 
   // Set during construction, used by DecodeJavaStrings().
   uint64_t string_class_id_;
   // Collected during ExtractAllObjectData() for efficient DecodeJavaStrings().
-  std::vector<uint64_t> string_object_ids_;
+  std::vector<ObjectIndex> string_object_indices_;
+  // (referent index, thunk index) of every sun.misc.Cleaner, collected during
+  // ExtractAllObjectData() and consumed by CalculateNativeSizes().
+  std::vector<std::pair<ObjectIndex, ObjectIndex>> cleaners_;
 };
 
 // Main parser class that builds a heap graph from HPROF data
@@ -215,6 +229,10 @@ class HeapGraphBuilder {
   // Look up a string by ID
   std::string LookupString(uint64_t id) const;
 
+  // Look up a string by ID, returning the interned id directly. Avoids the
+  // copy out of the string pool done by LookupString().
+  StringId LookupStringId(uint64_t id) const;
+
   void StoreString(uint64_t id, const std::string& str);
 
   // Convert JVM class name to Java format
@@ -230,12 +248,13 @@ class HeapGraphBuilder {
   HprofHeader header_;
 
   // Current heap name
-  std::string current_heap_;
+  StringId current_heap_;
 
   // Data collections
   base::FlatHashMap<uint64_t, StringId> strings_;
   base::FlatHashMap<uint64_t, ClassDefinition> classes_;
-  base::FlatHashMap<uint64_t, Object> objects_;
+  ObjectStore objects_;
+  ClassFieldLayouts class_fields_;
 
   // Type mapping and root tracking
   std::array<uint64_t, 12> prim_array_class_ids_ = {};
@@ -249,6 +268,124 @@ class HeapGraphBuilder {
   std::unique_ptr<HeapGraphResolver> resolver_;
   TraceProcessorContext* context_;
 };
+
+// Reads a big endian value of `length` bytes at `offset`. Out of bounds reads
+// yield 0 and are counted as field value errors.
+template <typename T>
+T ReadBigEndian(TraceProcessorContext* context,
+                const uint8_t* data,
+                size_t size,
+                size_t offset,
+                size_t length) {
+  if (offset + length > size) {
+    context->stats_tracker->IncrementStats(stats::hprof_field_value_errors);
+    return 0;
+  }
+  const uint8_t* p = data + offset;
+  switch (length) {
+    case 1:
+      return static_cast<T>(*p);
+    case 2: {
+      uint16_t value;
+      memcpy(&value, p, sizeof(value));
+      return static_cast<T>(base::BE16ToHost(value));
+    }
+    case 4: {
+      uint32_t value;
+      memcpy(&value, p, sizeof(value));
+      return static_cast<T>(base::BE32ToHost(value));
+    }
+    case 8: {
+      uint64_t value;
+      memcpy(&value, p, sizeof(value));
+      return static_cast<T>(base::BE64ToHost(value));
+    }
+    default:
+      break;
+  }
+  T result = 0;
+  for (size_t i = 0; i < length; ++i) {
+    result = static_cast<T>((result << 8) | static_cast<T>(p[i]));
+  }
+  return result;
+}
+
+template <typename T>
+T ReadBigEndian(TraceProcessorContext* context,
+                const uint8_t* data,
+                size_t size,
+                size_t offset) {
+  return ReadBigEndian<T>(context, data, size, offset, sizeof(T));
+}
+
+// Decodes the instance data of an object according to `fields`, the fully
+// qualified field layout of its class hierarchy, and invokes `fn` for each
+// field. Instance data is never materialised into Field objects on the heap:
+// the raw bytes stay the only copy until they are written to the tables.
+template <typename Fn>
+void ForEachFieldValue(TraceProcessorContext* context,
+                       const std::vector<Field>& fields,
+                       const uint8_t* data,
+                       size_t size,
+                       uint32_t id_size,
+                       Fn&& fn) {
+  size_t offset = 0;
+  for (const Field& field_def : fields) {
+    if (offset >= size) {
+      break;
+    }
+
+    Field field(field_def.GetName(), field_def.GetType());
+    switch (field_def.GetType()) {
+      case FieldType::kBoolean:
+        field.SetValue(data[offset] != 0);
+        offset += 1;
+        break;
+      case FieldType::kByte:
+        field.SetValue(data[offset]);
+        offset += 1;
+        break;
+      case FieldType::kChar:
+        field.SetValue(ReadBigEndian<uint16_t>(context, data, size, offset));
+        offset += 2;
+        break;
+      case FieldType::kShort:
+        field.SetValue(ReadBigEndian<int16_t>(context, data, size, offset));
+        offset += 2;
+        break;
+      case FieldType::kInt:
+        field.SetValue(ReadBigEndian<int32_t>(context, data, size, offset));
+        offset += 4;
+        break;
+      case FieldType::kLong:
+        field.SetValue(ReadBigEndian<int64_t>(context, data, size, offset));
+        offset += 8;
+        break;
+      case FieldType::kFloat: {
+        uint32_t raw = ReadBigEndian<uint32_t>(context, data, size, offset);
+        float value;
+        memcpy(&value, &raw, sizeof(float));
+        field.SetValue(value);
+        offset += 4;
+        break;
+      }
+      case FieldType::kDouble: {
+        uint64_t raw = ReadBigEndian<uint64_t>(context, data, size, offset);
+        double value;
+        memcpy(&value, &raw, sizeof(double));
+        field.SetValue(value);
+        offset += 8;
+        break;
+      }
+      case FieldType::kObject:
+        field.SetValue(
+            ReadBigEndian<uint64_t>(context, data, size, offset, id_size));
+        offset += id_size;
+        break;
+    }
+    fn(field);
+  }
+}
 
 inline size_t GetFieldTypeSize(FieldType type, size_t id_size) {
   switch (type) {

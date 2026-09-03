@@ -106,10 +106,150 @@ class AndroidStdlib(TestSuite):
         ORDER BY ts, track_name;
         """,
         out=Csv("""
-        "ts","dur","safe_dur","track_name","value","value_name"
-        1000,-1,3000,"battery_stats.audio",1,"active"
-        1000,3000,3000,"battery_stats.data_conn",13,"4G (LTE)"
-        4000,-1,0,"battery_stats.data_conn",20,"5G (NR)"
+        "ts","dur","safe_dur","machine_id","track_name","value","value_name"
+        1000,-1,3000,0,"battery_stats.audio",1,"active"
+        1000,3000,3000,0,"battery_stats.data_conn",13,"4G (LTE)"
+        4000,-1,0,0,"battery_stats.data_conn",20,"5G (NR)"
+        """))
+
+  def test_android_battery_stats_is_partitioned_by_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|battery_stats.audio|1\n" } }
+            event { timestamp: 2000 pid: 1 print { buf: "N|1|battery_stats.top|+top=42:\"same.app\"\n" } }
+            event { timestamp: 3000 pid: 1 print { buf: "C|1|battery_stats.audio|0\n" } }
+            event { timestamp: 6000 pid: 1 print { buf: "N|1|battery_stats.top|-top=42:\"same.app\"\n" } }
+          }
+        }
+        packet {
+          machine_id: 1001
+          remote_clock_sync {
+            synced_clocks {
+              client_clocks { clocks { clock_id: 6 timestamp: 0 } }
+              host_clocks { clocks { clock_id: 6 timestamp: 0 } }
+            }
+          }
+        }
+        packet {
+          machine_id: 1001
+          ftrace_events {
+            cpu: 0
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|battery_stats.audio|1\n" } }
+            event { timestamp: 2000 pid: 1 print { buf: "N|1|battery_stats.top|+top=42:\"same.app\"\n" } }
+            event { timestamp: 5000 pid: 1 print { buf: "C|1|battery_stats.audio|0\n" } }
+            event { timestamp: 8000 pid: 1 print { buf: "N|1|battery_stats.top|-top=42:\"same.app\"\n" } }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.battery_stats;
+
+        SELECT
+          'state' AS kind,
+          m.raw_id AS raw_machine_id,
+          s.ts,
+          s.dur
+        FROM android_battery_stats_state s
+        JOIN machine m ON m.id = s.machine_id
+        WHERE s.track_name = 'battery_stats.audio' AND s.value = 1
+        UNION ALL
+        SELECT
+          'event',
+          m.raw_id,
+          e.ts,
+          e.dur
+        FROM android_battery_stats_event_slices e
+        JOIN machine m ON m.id = e.machine_id
+        WHERE e.track_name = 'battery_stats.top'
+        ORDER BY kind, raw_machine_id;
+        """,
+        out=Csv("""
+        "kind","raw_machine_id","ts","dur"
+        "event",0,2000,4000
+        "event",1001,2000,6000
+        "state",0,1000,2000
+        "state",1001,1000,4000
+        """))
+
+  def test_android_device_states_are_partitioned_by_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|ScreenState|2\n" } }
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|BatteryStatus|2\n" } }
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|DozeLightState|0\n" } }
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|DozeDeepState|0\n" } }
+            event { timestamp: 3000 pid: 1 print { buf: "C|1|ScreenState|1\n" } }
+            event { timestamp: 3000 pid: 1 print { buf: "C|1|BatteryStatus|3\n" } }
+            event { timestamp: 3000 pid: 1 print { buf: "C|1|DozeLightState|4\n" } }
+            event { timestamp: 3000 pid: 1 print { buf: "C|1|DozeDeepState|5\n" } }
+          }
+        }
+        packet {
+          machine_id: 1001
+          remote_clock_sync {
+            synced_clocks {
+              client_clocks { clocks { clock_id: 6 timestamp: 0 } }
+              host_clocks { clocks { clock_id: 6 timestamp: 0 } }
+            }
+          }
+        }
+        packet {
+          machine_id: 1001
+          ftrace_events {
+            cpu: 0
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|ScreenState|2\n" } }
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|BatteryStatus|2\n" } }
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|DozeLightState|0\n" } }
+            event { timestamp: 1000 pid: 1 print { buf: "C|1|DozeDeepState|0\n" } }
+            event { timestamp: 5000 pid: 1 print { buf: "C|1|ScreenState|1\n" } }
+            event { timestamp: 5000 pid: 1 print { buf: "C|1|BatteryStatus|3\n" } }
+            event { timestamp: 5000 pid: 1 print { buf: "C|1|DozeLightState|4\n" } }
+            event { timestamp: 5000 pid: 1 print { buf: "C|1|DozeDeepState|5\n" } }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.screen_state;
+        INCLUDE PERFETTO MODULE android.battery.charging_states;
+        INCLUDE PERFETTO MODULE android.battery.doze;
+
+        SELECT 'screen' AS kind, m.raw_id AS raw_machine_id, s.ts, s.dur
+        FROM android_screen_state s
+        JOIN machine m ON m.id = s.machine_id
+        WHERE s.screen_state = 'Screen on'
+        UNION ALL
+        SELECT 'charging', m.raw_id, s.ts, s.dur
+        FROM android_charging_states s
+        JOIN machine m ON m.id = s.machine_id
+        WHERE s.charging_state = 'Charging'
+        UNION ALL
+        SELECT 'light_idle', m.raw_id, s.ts, s.dur
+        FROM android_light_idle_state s
+        JOIN machine m ON m.id = s.machine_id
+        WHERE s.light_idle_state = 'active'
+        UNION ALL
+        SELECT 'deep_idle', m.raw_id, s.ts, s.dur
+        FROM android_deep_idle_state s
+        JOIN machine m ON m.id = s.machine_id
+        WHERE s.deep_idle_state = 'active'
+        ORDER BY kind, raw_machine_id;
+        """,
+        out=Csv("""
+        "kind","raw_machine_id","ts","dur"
+        "charging",0,1000,2000
+        "charging",1001,1000,4000
+        "deep_idle",0,1000,2000
+        "deep_idle",1001,1000,4000
+        "light_idle",0,1000,2000
+        "light_idle",1001,1000,4000
+        "screen",0,1000,2000
+        "screen",1001,1000,4000
         """))
 
   def test_anrs(self):

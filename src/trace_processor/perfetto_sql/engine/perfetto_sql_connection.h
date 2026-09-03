@@ -30,14 +30,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/plugin/plugin.h"
+#include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
@@ -293,9 +292,6 @@ class PerfettoSqlConnection {
                                       typename Function::Context* ctx,
                                       bool deterministic = true);
 
-  // Enables memoization for the given SQL function.
-  base::Status EnableSqlFunctionMemoization(const std::string& name);
-
   SqliteConnection* sqlite_connection() { return connection_.get(); }
 
   // Test-only accessor for the |PerfettoSqlDatabase| backing this connection.
@@ -361,16 +357,15 @@ class PerfettoSqlConnection {
   }
 
   // Find dataframe registered with this connection with provided name.
-  const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
+  const dataframe::Dataframe* GetDataframeOrNull(std::string_view name) const;
 
-  // Registers a function with the prototype |prototype| which returns a value
-  // of |return_type| and is implemented by executing the SQL statement |sql|.
+  // Registers a function with the prototype |prototype| implemented by
+  // executing the SQL statement |sql|.
   //
   // LEGACY: This function uses SQL-based function definitions. For new code,
   // prefer RegisterFunction() which uses C++ implementations.
   base::Status RegisterLegacyRuntimeFunction(bool replace,
                                              const FunctionPrototype& prototype,
-                                             sql_argument::Type return_type,
                                              SqlSource sql);
 
  private:
@@ -604,7 +599,7 @@ class PerfettoSqlConnection {
   //    intrinsic's context with a CreatedFunction::State.
   //
   // 2) Teardown: scalar function contexts can hold prepared statements
-  //    (CreatedFunction::State::stmts_); those must be finalized before the
+  //    (CreatedFunction::State::stmt_); those must be finalized before the
   //    underlying sqlite3* is closed. The destructor walks this map and
   //    explicitly unregisters every entry, which triggers SQLite to invoke
   //    each entry's |FnCtxDestructor| in turn.

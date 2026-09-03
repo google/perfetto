@@ -57,6 +57,17 @@ struct SymbolizerConfig {
   std::vector<std::string> breakpad_paths;
 };
 
+// A group of equivalent mappings and their unique relative program counters.
+// |frame_count| retains the number of original frame rows for diagnostics.
+struct UnsymbolizedFrames {
+  UnsymbolizedMapping mapping;
+  std::vector<uint64_t> rel_pcs;
+  uint32_t frame_count = 0;
+};
+
+std::vector<UnsymbolizedFrames> CollectUnsymbolizedFrames(
+    trace_processor::TraceProcessor* tp);
+
 // Record of a successful symbolization for a mapping.
 struct SuccessfulMapping {
   std::string mapping_name;

@@ -38,6 +38,12 @@ class Parsing(TestSuite):
         query='SELECT 1;',
         out=ExpectedError('Unknown trace type provided (ERR:fmt)'))
 
+  def test_to_ftrace_rejects_out_of_bounds_row(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query='SELECT to_ftrace(-1);',
+        out=ExpectedError('to_ftrace: row id out of bounds'))
+
   # Sched
   def test_ts_desc_filter_android_sched_and_ps(self):
     return DiffTestBlueprint(
