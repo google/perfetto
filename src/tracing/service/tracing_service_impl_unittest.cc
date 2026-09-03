@@ -264,6 +264,7 @@ testing::Matcher<const protos::gen::TracePacket&> PacketIsCompressed() {
   return AnyOf(
       Property(&GenTracePacket::compressed_packets, Not(IsEmpty())),
       Property(&GenTracePacket::zstd_compressed_packets, Not(IsEmpty())),
+      Property(&GenTracePacket::has_clock_snapshot, IsTrue()),
       Property(&GenTracePacket::has_trace_uuid, IsTrue()),
       Property(&GenTracePacket::has_trace_config, IsTrue()));
 }
@@ -2434,8 +2435,11 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
               Contains(Property(&protos::gen::TracePacket::compressed_packets,
                                 Not(IsEmpty()))));
 
-  // Test that the trace config and trace uuid are NOT compressed and can be
-  // read in clear.
+  // Test that the clock snapshot, trace config and trace uuid are NOT
+  // compressed and can be read in clear.
+  EXPECT_THAT(
+      compressed_packets,
+      Contains(Property(&protos::gen::TracePacket::has_clock_snapshot, true)));
   EXPECT_THAT(
       compressed_packets,
       Contains(Property(&protos::gen::TracePacket::trace_config,
@@ -2445,11 +2449,8 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
       compressed_packets,
       Contains(Property(&protos::gen::TracePacket::has_trace_uuid, true)));
 
-  // Test that clock_snapshot, system_info, trace_provenance, and data packets
+  // Test that system_info, trace_provenance, and data packets
   // ARE compressed (not in clear).
-  EXPECT_THAT(
-      compressed_packets,
-      Each(Property(&protos::gen::TracePacket::has_clock_snapshot, false)));
   EXPECT_THAT(
       compressed_packets,
       Each(Property(&protos::gen::TracePacket::has_system_info, false)));
@@ -2462,9 +2463,6 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
 
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZlib(compressed_packets);
-  EXPECT_THAT(
-      decompressed_packets,
-      Contains(Property(&protos::gen::TracePacket::has_clock_snapshot, true)));
   EXPECT_THAT(
       decompressed_packets,
       Contains(Property(&protos::gen::TracePacket::has_system_info, true)));

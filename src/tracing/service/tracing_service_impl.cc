@@ -2687,6 +2687,12 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
+  if (!tracing_session->initial_clock_snapshot.empty()) {
+    EmitClockSnapshot(tracing_session,
+                      std::move(tracing_session->initial_clock_snapshot),
+                      &packets);
+  }
+
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
     MaybeEmitTraceConfig(tracing_session, &packets);
   }
@@ -2694,17 +2700,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     EmitUuid(tracing_session, &packets);
   }
 
-  // All packets emitted above (trace config, uuid) will not be compressed,
-  // regardless of the config. This is to allow services that consume the trace
-  // on-device to take decisions based on the metadata of the trace, without
-  // having to uncompress.
+  // All packets emitted above (clock snapshot, trace config, uuid) will not be
+  // compressed, regardless of the config. This is to allow services that
+  // consume the trace on-device to take decisions based on the metadata of the
+  // trace, without having to uncompress.
   const size_t skip_compression_of_first_n_packets = packets.size();
-
-  if (!tracing_session->initial_clock_snapshot.empty()) {
-    EmitClockSnapshot(tracing_session,
-                      std::move(tracing_session->initial_clock_snapshot),
-                      &packets);
-  }
 
   for (auto& snapshot : tracing_session->clock_snapshot_ring_buffer) {
     PERFETTO_DCHECK(!snapshot.empty());
