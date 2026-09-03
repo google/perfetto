@@ -3170,6 +3170,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/v8_tracker.h",
         "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
         "src/trace_processor/importers/proto/vulkan_memory_tracker.h",
+        "src/trace_processor/importers/proto/wattson_soc_model_module.cc",
+        "src/trace_processor/importers/proto/wattson_soc_model_module.h",
     ],
 )
 
