@@ -397,6 +397,13 @@ filegroup {
 }
 
 filegroup {
+    name: "perfetto_java_blob_emitter",
+    srcs: [
+        "python/tools/java_blob_emitter.py",
+    ],
+}
+
+filegroup {
     name: "perfetto_sdk_libcore_jarjar_rules",
     srcs: ["src/android_sdk/java/main/perfetto-sdk-libcore-jarjar-rules.txt"],
     visibility: [
