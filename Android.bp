@@ -22020,6 +22020,7 @@ filegroup {
         "src/trace_processor/util/symbolizer/breakpad_parser_unittest.cc",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer_unittest.cc",
         "src/trace_processor/util/symbolizer/local_symbolizer_unittest.cc",
+        "src/trace_processor/util/symbolizer/symbolize_database_unittest.cc",
     ],
 }
 
