@@ -67,6 +67,7 @@ source_set("base") {
     "thread_checker.h",
     "thread_task_runner.h",
     "thread_utils.h",
+    "type_set.h",
     "unix_task_runner.h",
     "utils.h",
     "uuid.h",

@@ -11,6 +11,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
 #include "src/trace_processor/core/common/null_types.h"
@@ -18,7 +19,6 @@
 #include "src/trace_processor/core/common/sort_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 

@@ -16010,6 +16010,7 @@ filegroup {
         "src/base/thread_checker_unittest.cc",
         "src/base/thread_task_runner_unittest.cc",
         "src/base/time_unittest.cc",
+        "src/base/type_set_unittest.cc",
         "src/base/unix_socket_unittest.cc",
         "src/base/utils_unittest.cc",
         "src/base/uuid_unittest.cc",
@@ -17700,6 +17701,39 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/core/exec:exec
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_exec",
+    srcs: [
+        "src/trace_processor/core/exec/assert_type.cc",
+        "src/trace_processor/core/exec/column_view.cc",
+        "src/trace_processor/core/exec/dataframe_scan.cc",
+        "src/trace_processor/core/exec/operator.cc",
+        "src/trace_processor/core/exec/pipeline.cc",
+        "src/trace_processor/core/exec/row_batch.cc",
+        "src/trace_processor/core/exec/row_cursor.cc",
+        "src/trace_processor/core/exec/row_store.cc",
+    ],
+}
+
+// GN: //src/trace_processor/core/exec:test_utils
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_test_utils",
+}
+
+// GN: //src/trace_processor/core/exec:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_unittests",
+    srcs: [
+        "src/trace_processor/core/exec/assert_type_unittest.cc",
+        "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
+        "src/trace_processor/core/exec/operator_unittest.cc",
+        "src/trace_processor/core/exec/row_batch_unittest.cc",
+        "src/trace_processor/core/exec/row_store_unittest.cc",
+        "src/trace_processor/core/exec/variant_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/core/interpreter:bytecode_interpreter_test_utils
 filegroup {
     name: "perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
@@ -17761,7 +17795,6 @@ filegroup {
         "src/trace_processor/core/util/slab_unittest.cc",
         "src/trace_processor/core/util/sort_unittest.cc",
         "src/trace_processor/core/util/span_unittest.cc",
-        "src/trace_processor/core/util/type_set_unittest.cc",
     ],
 }
 
@@ -18849,6 +18882,22 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/perfetto_sql/exec:exec
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_exec_exec",
+    srcs: [
+        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/exec:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_exec_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/exec/sql_scan_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/generator:gen_cc_perfetto_sql_descriptor
 genrule {
     name: "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor",
@@ -18883,6 +18932,22 @@ filegroup {
 // GN: //src/trace_processor/perfetto_sql/intrinsics/types:types
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+}
+
+// GN: //src/trace_processor/perfetto_sql/lineage:connection_catalog
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_lineage_connection_catalog",
+    srcs: [
+        "src/trace_processor/perfetto_sql/lineage/connection_catalog.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/lineage:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_lineage_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/lineage/connection_catalog_unittest.cc",
+    ],
 }
 
 // GN: //src/trace_processor/perfetto_sql/parser:parser
@@ -20833,6 +20898,7 @@ filegroup {
     name: "perfetto_src_trace_processor_rpc_unittests",
     srcs: [
         "src/trace_processor/rpc/query_result_serializer_unittest.cc",
+        "src/trace_processor/rpc/rpc_unittest.cc",
         "src/trace_processor/rpc/session_paths_unittest.cc",
     ],
 }
@@ -21957,6 +22023,7 @@ filegroup {
         "src/trace_processor/util/symbolizer/breakpad_parser_unittest.cc",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer_unittest.cc",
         "src/trace_processor/util/symbolizer/local_symbolizer_unittest.cc",
+        "src/trace_processor/util/symbolizer/symbolize_database_unittest.cc",
     ],
 }
 
@@ -24119,6 +24186,9 @@ cc_test {
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
         ":perfetto_src_trace_processor_core_dataframe_unittests",
+        ":perfetto_src_trace_processor_core_exec_exec",
+        ":perfetto_src_trace_processor_core_exec_test_utils",
+        ":perfetto_src_trace_processor_core_exec_unittests",
         ":perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
         ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_interpreter_unittests",
@@ -24187,9 +24257,13 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_engine_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_exec_exec",
+        ":perfetto_src_trace_processor_perfetto_sql_exec_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
         ":perfetto_src_trace_processor_perfetto_sql_generator_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
+        ":perfetto_src_trace_processor_perfetto_sql_lineage_connection_catalog",
+        ":perfetto_src_trace_processor_perfetto_sql_lineage_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_parser_parser",
         ":perfetto_src_trace_processor_perfetto_sql_parser_test_utils",
         ":perfetto_src_trace_processor_perfetto_sql_parser_unittests",

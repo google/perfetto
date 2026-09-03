@@ -260,6 +260,7 @@ perfetto_unittest_source_set("unittests") {
     "temp_file_unittest.cc",
     "thread_checker_unittest.cc",
     "time_unittest.cc",
+    "type_set_unittest.cc",
     "utils_unittest.cc",
     "uuid_unittest.cc",
     "weak_ptr_unittest.cc",
