@@ -143,6 +143,15 @@ jobs:
           # this version, and stamps the agent-skills version in lockstep.
           tools/release/roll-prebuilts "$VERSION"
 
+      # The tag predates its own roll, so the PyPI job takes these instead.
+      - name: Upload rolled prebuilt manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuilt-manifests-${{ inputs.version }}
+          path: python/perfetto/prebuilts/manifests/*.py
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Configure git
         run: |
           # Email must match the CLA-approved address for the automation app.
@@ -292,6 +301,12 @@ jobs:
           ref: ${{ inputs.version }}
           fetch-depth: 1
 
+      - name: Inject rolled prebuilt manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: prebuilt-manifests-${{ inputs.version }}
+          path: python/perfetto/prebuilts/manifests
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -301,12 +316,20 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
           REPO: ${{ github.repository }}
+          # Makes setup.py refuse a package whose prebuilt pin != its version.
+          PERFETTO_PYPI_RELEASE: '1'
         run: |
           # setup.py derives the version from the CHANGELOG's first vX.Y entry;
           # fail early if it doesn't match the tag being published.
           TOP_VER="$(grep -m1 -oE '^v[0-9]+\.[0-9]+' CHANGELOG)"
           if [[ "$TOP_VER" != "$VERSION" ]]; then
             echo "::error::CHANGELOG top release entry ($TOP_VER) != tag $VERSION. The CHANGELOG's first vX.Y entry must be $VERSION."
+            exit 1
+          fi
+          PIN="$(grep -oE "^PREBUILTS_VERSION = '[^']*'" \
+                 python/perfetto/prebuilts/manifests/version.py | cut -d"'" -f2)"
+          if [[ "$PIN" != "$VERSION" ]]; then
+            echo "::error::Prebuilt manifests pin '$PIN' but the package is $VERSION. The finalize job must roll prebuilts to $VERSION first."
             exit 1
           fi
           # download_url is PyPI metadata only; point it at this tag's archive.

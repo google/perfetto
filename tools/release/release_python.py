@@ -30,6 +30,8 @@ NC = '\033[0m'  # No Color
 
 # Constants for paths. Assumes the script is run from the repository root.
 SETUP_PY_PATH = os.path.join('python', 'setup.py')
+MANIFESTS_DIR = os.path.join('python', 'perfetto', 'prebuilts', 'manifests')
+ROLL_PREBUILTS = os.path.join('tools', 'release', 'roll-prebuilts')
 CHANGELOG_PATH = 'CHANGELOG'
 VENV_PYTHON = (
     os.path.abspath(os.path.join('.venv', 'bin', 'python')) if sys.platform
@@ -59,9 +61,12 @@ def confirm(msg: str) -> None:
     error("Aborted by user.")
 
 
-def run_cmd(*args: str, check: bool = True, cwd: Optional[str] = None) -> None:
+def run_cmd(*args: str,
+            check: bool = True,
+            cwd: Optional[str] = None,
+            env: Optional[dict] = None) -> None:
   info(f"Running command: {' '.join(args)}")
-  subprocess.run(args, check=check, cwd=cwd)
+  subprocess.run(args, check=check, cwd=cwd, env=env)
 
 
 def check_git_clean() -> None:
@@ -126,11 +131,23 @@ def publish(commit: str) -> None:
   write_setup_py_content(temp_content)
 
   try:
+    # The tag predates its own prebuilt roll, so regenerate the manifests.
+    release_tag = 'v' + new_version[len('0.'):]
+    info(f"Rolling prebuilt manifests to {release_tag}...")
+    run_cmd(ROLL_PREBUILTS, '--manifests-only', release_tag)
+
     info("Installing build dependencies into the virtual environment...")
     run_cmd(VENV_PYTHON, '-m', 'pip', 'install', 'build', 'twine')
 
     info("Building python package...")
-    run_cmd(VENV_PYTHON, '-m', 'build', cwd='python')
+    run_cmd(
+        VENV_PYTHON,
+        '-m',
+        'build',
+        cwd='python',
+        env={
+            **os.environ, 'PERFETTO_PYPI_RELEASE': '1'
+        })
 
     confirm("Ready to upload to PyPI. This is not reversible. Continue?")
     run_cmd(
@@ -151,6 +168,10 @@ def publish(commit: str) -> None:
 
     info(f"Restoring {SETUP_PY_PATH} to its state at commit {commit}...")
     write_setup_py_content(content_at_commit)
+
+    info(f"Restoring {MANIFESTS_DIR} to its state at commit {commit}...")
+    run_cmd('git', 'checkout', '--', MANIFESTS_DIR)
+    run_cmd('git', 'clean', '-fdq', '--', MANIFESTS_DIR)
 
     info(f"Returning to original branch '{original_branch}'...")
     run_cmd('git', 'checkout', original_branch)
