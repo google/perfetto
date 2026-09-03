@@ -16,6 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
+    "assert_type.cc",
+    "assert_type.h",
     "column_chunk.h",
     "column_view.cc",
     "column_view.h",
@@ -53,6 +55,7 @@ source_set("test_utils") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "assert_type_unittest.cc",
     "dataframe_scan_unittest.cc",
     "operator_unittest.cc",
     "row_batch_unittest.cc",

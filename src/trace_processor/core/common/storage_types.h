@@ -75,6 +75,9 @@ using NonStringType = base::TypeSet<Id, Uint32, Int32, Int64, Double>;
 // Set of content types that are numeric in nature.
 using IntegerOrDoubleType = base::TypeSet<Uint32, Int32, Int64, Double>;
 
+// Set of content types which hold an integer.
+using IntegerType = base::TypeSet<Id, Uint32, Int32, Int64>;
+
 // Set of content types which are backed by real storage, i.e. everything
 // except Id, whose value is the row index itself.
 using NonIdStorageType = base::TypeSet<Uint32, Int32, Int64, Double, String>;
