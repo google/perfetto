@@ -19,6 +19,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <algorithm>
+#include <cstring>
 #include <list>
 #include <ostream>
 #include <random>
@@ -262,6 +264,71 @@ TEST(RingBufferTest, FixedLengthRingBuffer) {
   EXPECT_EQ(std::string(reinterpret_cast<const char*>(msg.start),
                         static_cast<size_t>(msg.len)),
             "abc");
+}
+
+// A read(2) can come back short, so EndWrite() may report fewer bytes than
+// BeginWrite() reserved. The tests above always write what they reserve.
+TEST_F(ProtoRingBufferTest, PartialWrites) {
+  ProtoRingBuffer buf;
+  auto expected = MakeProtoMessage(/*field_id=*/7, /*len=*/4096);
+
+  buf.BeginWrite(4096).EndWrite(0);  // The socket had nothing for us.
+  EXPECT_FALSE(buf.ReadMessage().valid());
+
+  for (size_t written = 0; written < last_msg_.size();) {
+    // Reserve far more than we intend to write, as a socket reader would.
+    auto handle = buf.BeginWrite(4096);
+    size_t n = std::min<size_t>(37, last_msg_.size() - written);
+    memcpy(handle.data(), &last_msg_[written], n);
+    handle.EndWrite(n);
+    written += n;
+    if (written < last_msg_.size())
+      ASSERT_FALSE(buf.ReadMessage().valid());
+  }
+  EXPECT_EQ(buf.ReadMessage(), expected);
+}
+
+TEST_F(ProtoRingBufferTest, AbortedWriteKeepsNothing) {
+  ProtoRingBuffer buf;
+  auto expected = MakeProtoMessage(/*field_id=*/7, /*len=*/32);
+
+  auto aborted = buf.BeginWrite(4096);
+  memset(aborted.data(), 0xff, 4096);
+  aborted.AbortWrite();
+  EXPECT_FALSE(buf.ReadMessage().valid());
+
+  auto handle = buf.BeginWrite(last_msg_.size());
+  memcpy(handle.data(), last_msg_.data(), last_msg_.size());
+  handle.EndWrite(last_msg_.size());
+  EXPECT_EQ(buf.ReadMessage(), expected);
+}
+
+TEST_F(ProtoRingBufferTest, MovedHandleCommitsOnce) {
+  ProtoRingBuffer buf;
+  auto expected = MakeProtoMessage(/*field_id=*/7, /*len=*/32);
+
+  auto handle = buf.BeginWrite(last_msg_.size());
+  memcpy(handle.data(), last_msg_.data(), last_msg_.size());
+  auto moved = std::move(handle);
+  EXPECT_FALSE(static_cast<bool>(handle));
+  EXPECT_TRUE(static_cast<bool>(moved));
+  moved.EndWrite(last_msg_.size());
+  EXPECT_EQ(buf.ReadMessage(), expected);
+}
+
+// A stream that can never form a message grows the buffer until the reader
+// gives up. That path used to return without recording the reservation size,
+// so the caller's EndWrite() tripped a CHECK and took the process down.
+TEST_F(ProtoRingBufferTest, GivingUpDoesNotAbort) {
+  ProtoRingBuffer buf;
+  constexpr size_t kChunk = 64 * 1024 * 1024;
+  std::vector<uint8_t> continuation_bytes(kChunk, 0x80);
+  for (int i = 0; i < 4; i++) {
+    auto handle = buf.BeginWrite(kChunk);
+    memcpy(handle.data(), continuation_bytes.data(), kChunk);
+    handle.EndWrite(kChunk);
+    buf.ReadMessage();
+  }
 }
 
 }  // namespace

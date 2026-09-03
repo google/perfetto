@@ -253,6 +253,54 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
 
 void Rpc::OnRpcRequest(const void* data, size_t len) {
   rxbuf_.Append(data, len);
+  DrainRxBuf();
+}
+
+Rpc::RequestHandle::~RequestHandle() {
+  PERFETTO_CHECK(rpc_ == nullptr);
+}
+
+Rpc::RequestHandle::RequestHandle(RequestHandle&& other) noexcept
+    : rpc_(other.rpc_), write_(std::move(other.write_)) {
+  other.rpc_ = nullptr;
+}
+
+Rpc::RequestHandle& Rpc::RequestHandle::operator=(
+    RequestHandle&& other) noexcept {
+  this->~RequestHandle();  // CHECKs that any reservation held was consumed.
+  new (this) RequestHandle(std::move(other));
+  return *this;
+}
+
+void Rpc::RequestHandle::EndRequest(size_t size_written) {
+  PERFETTO_CHECK(rpc_ != nullptr);
+  Rpc* rpc = std::exchange(rpc_, nullptr);
+  write_.EndWrite(size_written);
+  rpc->FinishRpcRequest();
+  rpc->DrainRxBuf();
+}
+
+void Rpc::RequestHandle::AbortRequest() {
+  PERFETTO_CHECK(rpc_ != nullptr);
+  write_.AbortWrite();
+  std::exchange(rpc_, nullptr)->FinishRpcRequest();
+}
+
+Rpc::RequestHandle Rpc::BeginRpcRequest(size_t size) {
+  // The handle keeps the caller from losing a reservation, but not from
+  // holding two at once. The ring buffer has the same guard for its own
+  // handles; this one is here so the CHECK fires at the Rpc API boundary.
+  PERFETTO_CHECK(!request_in_flight_);
+  request_in_flight_ = true;
+  return RequestHandle(this, rxbuf_.BeginWrite(size));
+}
+
+void Rpc::FinishRpcRequest() {
+  PERFETTO_CHECK(request_in_flight_);
+  request_in_flight_ = false;
+}
+
+void Rpc::DrainRxBuf() {
   for (;;) {
     auto msg = rxbuf_.ReadMessage();
     if (!msg.valid()) {

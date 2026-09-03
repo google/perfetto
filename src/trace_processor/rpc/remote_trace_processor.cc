@@ -291,9 +291,6 @@ base::Status RemoteTraceProcessor::SendStream(
 }
 
 base::Status RemoteTraceProcessor::ReadResponse(std::vector<uint8_t>* out) {
-  // Hoisted out of the loop: ProtoRingBuffer's fastpath can return a message
-  // pointing into the last buffer passed to Append(), so it must stay alive.
-  uint8_t buf[4096];
   for (;;) {
     auto msg = rxbuf_.ReadMessage();
     if (msg.fatal_framing_error)
@@ -302,10 +299,16 @@ base::Status RemoteTraceProcessor::ReadResponse(std::vector<uint8_t>* out) {
       out->assign(msg.start, msg.start + msg.len);
       return base::OkStatus();
     }
-    ASSIGN_OR_RETURN(size_t n, transport_->Recv(buf, sizeof(buf)));
-    if (n == 0)
+    constexpr size_t kReadSize = 4096;
+    auto handle = rxbuf_.BeginWrite(kReadSize);
+    base::StatusOr<size_t> n = transport_->Recv(handle.data(), handle.size());
+    if (!n.ok()) {
+      handle.AbortWrite();
+      return n.status();
+    }
+    handle.EndWrite(*n);
+    if (*n == 0)
       return base::ErrStatus("Session closed the connection");
-    rxbuf_.Append(buf, n);
   }
 }
 
