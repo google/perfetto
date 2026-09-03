@@ -20,11 +20,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/analysis/program.h"
+#include "perfetto/ext/base/type_set.h"
 
 struct SyntaqliteParser;
 
@@ -36,35 +37,50 @@ struct SqlNode {
   uint32_t id;
 };
 
+// How a leaf relation column is stored, as declared by the catalog. Mirrors
+// the storage vocabulary of the engine behind the catalog without depending
+// on it.
+struct Id {};
+struct Uint32 {};
+struct Int32 {};
+struct Int64 {};
+struct Double {};
+struct String {};
+using ColumnType = base::TypeSet<Id, Uint32, Int32, Int64, Double, String>;
+
 // A leaf relation whose columns can be used as lineage origins.
+struct LeafColumn {
+  std::string_view name;
+  // Nothing when the catalog does not know how the column is stored.
+  std::optional<ColumnType> type;
+};
 struct LeafRelation {
-  std::vector<std::string_view> columns;
+  std::string_view name;
+  std::vector<LeafColumn> columns;
 };
 
-// A view definition already parsed by the caller.
-struct ViewDefinition {
-  SqlNode statement;
-};
-
-// Supplies the schema objects referenced by parsed queries. Returned strings
-// and parse trees only need to remain valid for the duration of an Analyze
-// call.
+// Supplies the schema objects referenced by parsed queries. Returned leaf
+// strings only need to remain valid for the duration of an Analyze call.
 class Catalog {
  public:
   virtual ~Catalog();
 
   virtual std::optional<LeafRelation> FindLeafRelation(
       std::string_view name) const = 0;
-  virtual std::optional<ViewDefinition> FindView(
+  virtual std::optional<std::string> FindViewSql(
       std::string_view name) const = 0;
 };
 
 struct ColumnOrigin {
-  SymbolId relation;
+  std::string_view relation_name;
   std::string_view column_name;
+  std::optional<ColumnType> type;
 
+  // Two origins naming the same column always store it the same way, so the
+  // type does not participate.
   bool operator==(const ColumnOrigin& other) const {
-    return relation == other.relation && column_name == other.column_name;
+    return relation_name == other.relation_name &&
+           column_name == other.column_name;
   }
 };
 
@@ -73,6 +89,10 @@ struct ColumnLineage {
   // Empty when the expression cannot be traced to a known leaf column. USING
   // columns and compound queries can have more than one origin.
   std::vector<ColumnOrigin> origins;
+
+  // The type every origin agrees on, or nothing when the column has no
+  // origins, an origin is untyped, or the origins disagree.
+  std::optional<ColumnType> type() const;
 };
 
 // The lineage of a query result considered as a relation. All strings are
@@ -90,7 +110,7 @@ class RelationLineage {
 
   // The leaf relation whose rows map directly to the output rows, or nothing
   // when the query filters, joins, groups, limits or computes values.
-  std::optional<SymbolId> row_origin() const;
+  std::optional<std::string_view> row_origin() const;
 
  private:
   class Storage;
@@ -105,7 +125,7 @@ class RelationLineage {
 // Computes relation and column lineage over caller-owned parse trees.
 class RelationAnalyzer {
  public:
-  RelationAnalyzer(const Program&, const Catalog&);
+  explicit RelationAnalyzer(const Catalog&);
   ~RelationAnalyzer();
 
   RelationAnalyzer(const RelationAnalyzer&) = delete;

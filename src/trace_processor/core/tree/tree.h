@@ -98,7 +98,7 @@ struct Tree {
   struct Column {
     // Null-typed columns have no payload at all; their null_bv marks every
     // row as null and their data is never read.
-    using Type = TypeSet<Int64, Double, String, Null>;
+    using Type = base::TypeSet<Int64, Double, String, Null>;
 
     // Creates a null-typed column of |rows| rows: no payload, every row null.
     static Column CreateNull(uint32_t rows) {

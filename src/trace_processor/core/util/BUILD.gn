@@ -24,7 +24,6 @@ source_set("util") {
     "slab.h",
     "sort.h",
     "span.h",
-    "type_set.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -43,7 +42,6 @@ perfetto_unittest_source_set("unittests") {
     "slab_unittest.cc",
     "sort_unittest.cc",
     "span_unittest.cc",
-    "type_set_unittest.cc",
   ]
   deps = [
     ":util",

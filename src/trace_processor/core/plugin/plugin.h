@@ -23,8 +23,8 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/core/plugin/registration.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor {
 
@@ -125,7 +125,7 @@ class Plugin : public PluginBase {
   template <typename T>
   T* dependency() {
     return static_cast<T*>(
-        resolved_deps_[core::TypeSet<Deps...>::template GetTypeIndex<T>()]);
+        resolved_deps_[base::TypeSet<Deps...>::template GetTypeIndex<T>()]);
   }
 };
 
