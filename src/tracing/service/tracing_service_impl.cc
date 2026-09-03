@@ -2949,34 +2949,30 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
       static_cast<uint64_t>((end - start).count());
 }
 
-// Helper to re-use logics for different compression (zlib, zstd, etc.).
-template <typename CompressFn>
-void MaybeCompressPacketsWithCompressionFn(
-    std::vector<TracePacket>* packets,
-    size_t skip_compression_of_first_n_packets,
-    CompressFn compress_fn) {
-  if (skip_compression_of_first_n_packets == 0) {
-    compress_fn(packets);
-    return;
-  }
-  if (skip_compression_of_first_n_packets >= packets->size()) {
-    return;
-  }
-  const auto nskip = static_cast<ssize_t>(skip_compression_of_first_n_packets);
-  std::vector<TracePacket> packets_to_compress(
-      std::make_move_iterator(packets->begin() + nskip),
-      std::make_move_iterator(packets->end()));
-  packets->erase(packets->begin() + nskip, packets->end());
-  compress_fn(&packets_to_compress);
-  packets->insert(packets->end(),
-                  std::make_move_iterator(packets_to_compress.begin()),
-                  std::make_move_iterator(packets_to_compress.end()));
-}
-
 void TracingServiceImpl::MaybeCompressPackets(
     TracingSession* tracing_session,
     [[maybe_unused]] std::vector<TracePacket>* packets,
     [[maybe_unused]] size_t skip_compression_of_first_n_packets) {
+  [[maybe_unused]] auto compress_with_fn = [&](auto compress_fn) {
+    if (skip_compression_of_first_n_packets == 0) {
+      compress_fn(packets);
+      return;
+    }
+    if (skip_compression_of_first_n_packets >= packets->size()) {
+      return;
+    }
+    const auto nskip =
+        static_cast<ssize_t>(skip_compression_of_first_n_packets);
+    std::vector<TracePacket> packets_to_compress(
+        std::make_move_iterator(packets->begin() + nskip),
+        std::make_move_iterator(packets->end()));
+    packets->erase(packets->begin() + nskip, packets->end());
+    compress_fn(&packets_to_compress);
+    packets->insert(packets->end(),
+                    std::make_move_iterator(packets_to_compress.begin()),
+                    std::make_move_iterator(packets_to_compress.end()));
+  };
+
   // Compress with the codec the config selects, preferring the newest (highest
   // proto field number) this build supports. Leaves the packets uncompressed if
   // none is available.
@@ -2987,11 +2983,9 @@ void TracingServiceImpl::MaybeCompressPackets(
       tracing_session->config.compression();
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
   if (compression.has_zstd()) {
-    MaybeCompressPacketsWithCompressionFn(
-        packets, skip_compression_of_first_n_packets,
-        [&](std::vector<TracePacket>* target) {
-          ZstdCompressFn(target, compression.zstd().level());
-        });
+    compress_with_fn([&](std::vector<TracePacket>* target) {
+      ZstdCompressFn(target, compression.zstd().level());
+    });
     return;
   }
 #endif
@@ -3000,8 +2994,7 @@ void TracingServiceImpl::MaybeCompressPackets(
   // predating `compression` still get compressed.
   if (compression.has_deflate() || tracing_session->config.compression_type() ==
                                        TraceConfig::COMPRESSION_TYPE_DEFLATE) {
-    MaybeCompressPacketsWithCompressionFn(
-        packets, skip_compression_of_first_n_packets,
+    compress_with_fn(
         [](std::vector<TracePacket>* target) { ZlibCompressFn(target); });
     return;
   }
