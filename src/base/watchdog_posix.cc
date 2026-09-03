@@ -73,29 +73,34 @@ double MeanForArray(const uint64_t array[], size_t size) {
   return static_cast<double>(total / size);
 }
 
+bool ReadFileToString(int fd, char* buf, size_t size) {
+  size_t pos = 0;
+  while (pos < size - 1) {
+    ssize_t rd = PERFETTO_EINTR(read(fd, buf + pos, size - 1 - pos));
+    if (rd < 0)
+      return false;
+    if (rd == 0)
+      break;
+    pos += static_cast<size_t>(rd);
+  }
+  buf[pos] = '\0';
+  return true;
+}
+
 }  //  namespace
 
 bool ReadProcStat(int fd, ProcStat* out) {
-  char c[512];
-  size_t c_pos = 0;
-  while (c_pos < sizeof(c) - 1) {
-    ssize_t rd = PERFETTO_EINTR(read(fd, c + c_pos, sizeof(c) - c_pos));
-    if (rd < 0) {
-      PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
-      return false;
-    }
-    if (rd == 0)
-      break;
-    c_pos += static_cast<size_t>(rd);
+  char str[512];
+  if (!ReadFileToString(fd, str, sizeof(str))) {
+    PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
+    return false;
   }
-  PERFETTO_CHECK(c_pos < sizeof(c));
-  c[c_pos] = '\0';
 
-  if (sscanf(c,
+  if (sscanf(str,
              "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu "
              "%lu %*d %*d %*d %*d %*d %*d %*u %*u %ld",
              &out->utime, &out->stime, &out->rss_pages) != 3) {
-    PERFETTO_ELOG("Invalid stat format: %s", c);
+    PERFETTO_ELOG("Invalid stat format: %s", str);
     return false;
   }
   return true;
@@ -103,19 +108,10 @@ bool ReadProcStat(int fd, ProcStat* out) {
 
 bool ReadProcStatm(int fd, ProcStatm* out) {
   char str[256];
-  size_t pos = 0;
-  while (pos < sizeof(str) - 1) {
-    ssize_t rd = PERFETTO_EINTR(read(fd, str + pos, sizeof(str) - pos));
-    if (rd < 0) {
-      PERFETTO_ELOG("Failed to read statm file to enforce resource limits.");
-      return false;
-    }
-    if (rd == 0)
-      break;
-    pos += static_cast<size_t>(rd);
+  if (!ReadFileToString(fd, str, sizeof(str))) {
+    PERFETTO_ELOG("Failed to read statm file to enforce resource limits.");
+    return false;
   }
-  PERFETTO_CHECK(pos < sizeof(str));
-  str[pos] = '\0';
 
   if (sscanf(str,
              "%" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64
