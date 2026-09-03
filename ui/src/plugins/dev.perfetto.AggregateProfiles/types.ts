@@ -30,3 +30,32 @@ export interface AggregateProfile {
   readonly displayName: string;
   readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
 }
+
+// One (profile, sample-type) total. `aggId` is what the merge query filters
+// __intrinsic_aggregate_profile on.
+export interface MergeProfileMetric {
+  readonly aggId: number;
+  readonly total: number;
+  readonly count: number;
+}
+
+// One source pprof, keyed by its file scope.
+export interface MergeProfile {
+  readonly scope: string;
+  readonly sampleTypes: ReadonlyMap<string, MergeProfileMetric>;
+}
+
+export interface SampleType {
+  readonly key: string; // "cpu (nanoseconds)"
+  readonly type: string;
+  readonly unit: string;
+}
+
+// A collection column plus the sample type it totals.
+export interface MergeColumn {
+  readonly field: string; // positional grid field id ("c0", "c1", ...)
+  readonly title: string;
+  readonly kind: 'id' | 'numeric';
+  readonly unit?: string;
+  readonly sampleKey?: string; // for sample-type columns: the SampleType.key
+}
