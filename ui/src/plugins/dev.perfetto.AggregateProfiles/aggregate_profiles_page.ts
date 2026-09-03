@@ -20,6 +20,7 @@ import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {Trace} from '../../public/trace';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
@@ -203,7 +204,14 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     );
   }
 
+  private selectedIndex(attrs: AggregateProfilesPageAttrs): number {
+    return attrs.profiles.findIndex(
+      (p) => p.id === attrs.state.selectedProfileId,
+    );
+  }
+
   private renderProfileSelector(attrs: AggregateProfilesPageAttrs): m.Children {
+    const index = this.selectedIndex(attrs);
     return m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
       m(
         'label',
@@ -243,6 +251,13 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
           ),
         ),
       ),
+      // The name is only in <option> text, which the mouse cannot select.
+      m(CopyToClipboardButton, {
+        textToCopy: () => attrs.profiles[index].displayName,
+        title: 'Copy profile name',
+        compact: true,
+        disabled: index < 0,
+      }),
     ]);
   }
 
