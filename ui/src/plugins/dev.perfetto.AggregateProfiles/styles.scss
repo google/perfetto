@@ -14,7 +14,7 @@
 
 @use "../../assets/theme" as *;
 
-.pf-pprof-page {
+.pf-aggregate-profiles-page {
   overflow: auto;
   padding: 0.25rem;
 
@@ -23,10 +23,6 @@
     p {
       margin: 0;
     }
-  }
-
-  &__controls {
-    justify-content: center;
   }
 
   &__progress {
