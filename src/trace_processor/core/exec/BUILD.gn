@@ -19,6 +19,8 @@ source_set("exec") {
   sources = [
     "assert_type.cc",
     "assert_type.h",
+    "breaker.cc",
+    "breaker.h",
     "column_chunk.h",
     "column_view.cc",
     "column_view.h",
@@ -52,13 +54,18 @@ source_set("exec") {
 source_set("test_utils") {
   testonly = true
   sources = [ "test_utils.h" ]
-  deps = [ ":exec" ]
+  deps = [
+    ":exec",
+    "../../../base",
+    "../common",
+  ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "assert_type_unittest.cc",
+    "breaker_unittest.cc",
     "dataframe_scan_unittest.cc",
     "operator_unittest.cc",
     "row_batch_unittest.cc",

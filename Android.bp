@@ -17766,6 +17766,7 @@ filegroup {
     name: "perfetto_src_trace_processor_core_exec_exec",
     srcs: [
         "src/trace_processor/core/exec/assert_type.cc",
+        "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/column_view.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/operator.cc",
@@ -17787,6 +17788,7 @@ filegroup {
     name: "perfetto_src_trace_processor_core_exec_unittests",
     srcs: [
         "src/trace_processor/core/exec/assert_type_unittest.cc",
+        "src/trace_processor/core/exec/breaker_unittest.cc",
         "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
         "src/trace_processor/core/exec/operator_unittest.cc",
         "src/trace_processor/core/exec/row_batch_unittest.cc",
