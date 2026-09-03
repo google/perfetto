@@ -117,8 +117,11 @@ bool ReadProcStatm(int fd, ProcStatm* out) {
   PERFETTO_CHECK(pos < sizeof(str));
   str[pos] = '\0';
 
-  if (sscanf(str, "%lu %lu %lu %lu %lu %lu %lu", &out->size, &out->resident,
-             &out->shared, &out->text, &out->lib, &out->data, &out->dt) != 7) {
+  if (sscanf(str,
+             "%" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64
+             " %" SCNu64 " %" SCNu64,
+             &out->size, &out->resident, &out->shared, &out->text, &out->lib,
+             &out->data, &out->dt) != 7) {
     PERFETTO_ELOG("Invalid statm format: %s", str);
     return false;
   }
