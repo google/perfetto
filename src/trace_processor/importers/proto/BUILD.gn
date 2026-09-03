@@ -205,6 +205,8 @@ source_set("full") {
     "v8_tracker.h",
     "vulkan_memory_tracker.cc",
     "vulkan_memory_tracker.h",
+    "wattson_soc_model_module.cc",
+    "wattson_soc_model_module.h",
   ]
   deps = [
     ":gen_cc_android_extension_descriptor",
@@ -232,6 +234,8 @@ source_set("full") {
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/translation:zero",
     "../../../../protos/third_party/android/art:art_heap_graph_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:wattson_soc_model_zero",
     "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../../../../protos/third_party/android/packages/modules/bluetooth/tracing:bluetooth_tracing_zero",
     "../../../base",
@@ -356,6 +360,7 @@ source_set("unittests") {
     "proto_trace_reader_unittest.cc",
     "proto_trace_tokenizer_unittest.cc",
     "string_encoding_utils_unittests.cc",
+    "wattson_soc_model_module_unittest.cc",
   ]
   deps = [
     ":full",
@@ -382,6 +387,8 @@ source_set("unittests") {
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/third_party/android/art:art_heap_graph_zero",
     "../../../../protos/third_party/android/connectivity:connectivity_network_trace_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:wattson_soc_model_zero",
     "../../../../protos/third_party/chromium:zero",
     "../../../base:test_support",
     "../../../protozero",

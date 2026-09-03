@@ -18318,6 +18318,7 @@ filegroup {
         "src/trace_processor/importers/proto/v8_sequence_state.cc",
         "src/trace_processor/importers/proto/v8_tracker.cc",
         "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
+        "src/trace_processor/importers/proto/wattson_soc_model_module.cc",
     ],
 }
 
@@ -18495,6 +18496,7 @@ filegroup {
         "src/trace_processor/importers/proto/proto_trace_reader_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_tokenizer_unittest.cc",
         "src/trace_processor/importers/proto/string_encoding_utils_unittests.cc",
+        "src/trace_processor/importers/proto/wattson_soc_model_module_unittest.cc",
     ],
 }
 
