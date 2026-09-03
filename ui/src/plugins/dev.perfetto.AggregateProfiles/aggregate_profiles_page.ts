@@ -56,8 +56,19 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         selectedProfileId: selectedProfile?.id,
       });
       if (selectedProfile) {
-        this.createFlamegraph(attrs, selectedProfile);
+        // createFlamegraph spreads the state it is given, so hand it one
+        // already carrying the selection or it writes the old one back.
+        this.createFlamegraph(
+          {
+            ...attrs,
+            state: {...attrs.state, selectedProfileId: selectedProfile.id},
+          },
+          selectedProfile,
+        );
       }
+      // Editing the store notifies nobody and `attrs.state` is this render's
+      // snapshot, so the new state only shows on the next render.
+      attrs.trace.raf.scheduleFullRedraw();
     }
     return m(
       Stack,
