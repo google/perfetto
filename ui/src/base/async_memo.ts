@@ -68,6 +68,22 @@
  * - If compute() returns an AsyncDisposable, it is automatically disposed
  *   before running the next task and when the memo is disposed. Disposal runs
  *   through the queue to stay synchronized with in-flight tasks.
+ *
+ * ## Error handling
+ *
+ * If compute() throws, the thrown value is cached for that key in place of
+ * data, and use() with the same key returns it as `error` (with
+ * `isPending: true` and no data). use() itself never throws a compute error.
+ * Like data, a cached error is not recomputed until invalidate() is called or
+ * the key changes, and it is never returned for a different key or used as
+ * stale data via retainOn.
+ *
+ * The error is also re-thrown out of the task queue so it surfaces as an
+ * unhandled promise rejection, which the app's global error handler (window
+ * 'unhandledrejection') reports on screen.
+ *
+ * Errors from tasks that were superseded (cancelled) before they failed are
+ * dropped entirely.
  */
 
 import m from 'mithril';
@@ -108,10 +124,17 @@ export class AtomicTaskQueue {
   /**
    * Schedule a task. If a task with this key is already pending,
    * it gets replaced.
+   *
+   * Returns a promise for the task started by this call, if any. It rejects if
+   * that task fails (tasks are not caught here) and resolves immediately if
+   * the queue is already busy - the scheduled task then runs later as part of
+   * the in-flight drain, and a failure there rejects a promise nobody holds.
+   * Either way, ignoring the return value means a failing task surfaces as an
+   * unhandled promise rejection reported by the global error handler.
    */
-  schedule(key: object, task: AsyncFunc<void>): void {
+  schedule(key: object, task: AsyncFunc<void>): Promise<void> {
     this.pending.set(key, task);
-    this.runNext();
+    return this.runNext();
   }
 
   /**
@@ -133,9 +156,9 @@ export class AtomicTaskQueue {
 
     this.running = true;
     try {
+      // Intentionally no catch: a failing task rejects the chain, which
+      // callers (or the global unhandledrejection handler) deal with.
       await task();
-    } catch (e) {
-      console.error('Task failed:', e);
     } finally {
       this.running = false;
       this.runNext();
@@ -160,17 +183,24 @@ export type AsyncMemoResult<T> =
   | {
       readonly isPending: true;
       readonly data?: T; // Stale data may be available.
+      // The value thrown by compute() if it failed for the current key. A
+      // failed key stays pending with no data until invalidated or changed.
+      readonly error?: unknown;
     }
   | {
       readonly isPending: false;
       readonly data: T;
     };
 
-interface Cache<T> {
+// A cache entry holds either the data from a successful compute() or the
+// error from a failed one.
+type Cache<T> = {
   readonly key: object;
   readonly keyStr: string;
-  readonly data: T;
-}
+} & (
+  | {readonly failed: false; readonly data: T}
+  | {readonly failed: true; readonly data?: undefined; readonly error: unknown}
+);
 
 /**
  * A single async memo with a single-entry cache.
@@ -186,8 +216,6 @@ export class AsyncMemo<T> {
   private pendingKey?: object;
   private disposed = false;
   private currentSignal?: {cancelled: boolean};
-  // Stores error keyed by keyStr - thrown on next use() with same key
-  private error?: {keyStr: string; error: Error};
 
   constructor(
     private readonly queue: AtomicTaskQueue = new AtomicTaskQueue(),
@@ -206,11 +234,6 @@ export class AsyncMemo<T> {
     }
     const {key, compute, enabled, retainOn = []} = options;
     const keyStr = stringifyJsonWithBigints(key);
-
-    // If we have a stored error for this key, throw it
-    if (this.error?.keyStr === keyStr) {
-      throw this.error.error;
-    }
 
     // Check if we need to schedule a new task
     const pendingKeyStr = this.pendingKey
@@ -251,8 +274,23 @@ export class AsyncMemo<T> {
           // Support both throwing and returning TASK_CANCELLED
           if (e === TASK_CANCELLED) {
             this.finaliseTask(key, TASK_CANCELLED);
+          } else if (signal.cancelled) {
+            // This task was superseded before it failed. Its result is no
+            // longer of interest, so drop the error rather than reporting a
+            // stale failure to the global error handler.
           } else {
-            this.finaliseError(key, e);
+            // Cache the error in place of data so use() returns it for this
+            // key. pendingKey is deliberately left set so the result stays
+            // pending (there is no data to return).
+            this.cache = {
+              key,
+              keyStr: stringifyJsonWithBigints(key),
+              failed: true,
+              error: e,
+            };
+            // Also let the rejection escape the queue so the app's global
+            // unhandledrejection handler reports it.
+            throw e;
           }
         } finally {
           m.redraw();
@@ -271,12 +309,19 @@ export class AsyncMemo<T> {
 
     // Check if we can use cached data
     if (this.cache.keyStr === keyStr) {
+      if (this.cache.failed) {
+        return {data: undefined, isPending: true, error: this.cache.error};
+      }
       return isPending
         ? {data: this.cache.data, isPending: true}
         : {data: this.cache.data, isPending: false};
     }
 
-    // Key differs - can we use stale data?
+    // Key differs - can we use stale data? A cached error is never reused for
+    // a different key.
+    if (this.cache.failed) {
+      return {data: undefined, isPending: true};
+    }
     const canUseStale = canUseStaleData(
       this.cache.key,
       key,
@@ -309,28 +354,7 @@ export class AsyncMemo<T> {
 
     // Cache the result (unless cancelled)
     if (result !== TASK_CANCELLED) {
-      this.cache = {key, keyStr, data: result};
-    }
-  }
-
-  /**
-   * Called when a task fails with an error. Stores the error keyed by the key -
-   * next use() with the same key will throw this error.
-   */
-  private finaliseError(key: object, e: unknown): void {
-    const keyStr = stringifyJsonWithBigints(key);
-    this.error = {
-      keyStr,
-      error: e instanceof Error ? e : new Error(String(e)),
-    };
-
-    // Clear pending if it matches (don't clear if a different task was
-    // scheduled)
-    if (
-      this.pendingKey &&
-      stringifyJsonWithBigints(this.pendingKey) === keyStr
-    ) {
-      this.pendingKey = undefined;
+      this.cache = {key, keyStr, failed: false, data: result};
     }
   }
 
@@ -344,10 +368,11 @@ export class AsyncMemo<T> {
   }
 
   /**
-   * Clear the cached result and any stored error, forcing the next use() with
-   * any key to re-run its compute function. Unlike dispose(), the memo remains
-   * usable. Cancels any in-flight task and disposes cached AsyncDisposable
-   * data through the queue to stay synchronized with pending work.
+   * Clear the cached result (data or error) and any pending state, forcing
+   * the next use() with any key to re-run its compute function.
+   * Unlike dispose(), the memo remains usable. Cancels any in-flight task and
+   * disposes cached AsyncDisposable data through the queue to stay
+   * synchronized with pending work.
    */
   invalidate(): void {
     if (this.disposed) return;
@@ -359,7 +384,6 @@ export class AsyncMemo<T> {
       this.currentSignal = undefined;
     }
     this.pendingKey = undefined;
-    this.error = undefined;
 
     // Schedule cache disposal/clearing through the queue so it runs after any
     // in-flight task settles.
