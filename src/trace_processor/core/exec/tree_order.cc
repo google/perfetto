@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -36,6 +37,7 @@ namespace perfetto::trace_processor::core::exec {
 namespace {
 
 constexpr char kChildFirst[] = "TREE ORDER CHILD FIRST";
+constexpr char kParentFirst[] = "TREE ORDER PARENT FIRST";
 
 bool IsNodeColumn(const ColumnView& column) {
   return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Uint32>();
@@ -239,6 +241,186 @@ void TreeChildFirst::Reset(Breaker::State& state) const {
   s.rows.Clear();
   s.order.clear();
   s.emitted = 0;
+}
+
+TreeParentFirst::TreeParentFirst(uint32_t node_column, uint32_t parent_column)
+    : node_column_(node_column), parent_column_(parent_column) {}
+
+TreeParentFirst::~TreeParentFirst() = default;
+TreeParentFirst::State::~State() = default;
+
+void TreeParentFirst::State::Nodes::Grow(uint32_t new_count) {
+  if (new_count <= count) {
+    return;
+  }
+  count = new_count;
+  auto size = static_cast<uint32_t>(first_waiting.size());
+  if (new_count <= size) {
+    return;
+  }
+  // Grown geometrically, as resize allocates exactly what it is asked for.
+  uint32_t new_size = std::max(new_count, size * 2);
+  has_row.resize(new_size);
+  out.resize(new_size);
+  first_waiting.resize(new_size);
+  std::fill(first_waiting.data() + size, first_waiting.data() + new_size,
+            kNoNode);
+}
+
+void TreeParentFirst::State::Nodes::Clear() {
+  count = 0;
+  has_row.clear();
+  out.clear();
+  first_waiting.clear();
+}
+
+void TreeParentFirst::State::Held::Clear() {
+  rows.Clear();
+  node.clear();
+  next_waiting.clear();
+  let_go = 0;
+}
+
+std::unique_ptr<OperatorState> TreeParentFirst::MakeState() const {
+  return std::make_unique<State>();
+}
+
+base::Status TreeParentFirst::status(const OperatorState& state) const {
+  return state.Cast<const State>().status;
+}
+
+void TreeParentFirst::Release(uint32_t node, State& s) const {
+  for (uint32_t row = s.nodes.first_waiting[node]; row != kNoNode;
+       row = s.held.next_waiting[row]) {
+    s.letting_go.push_back(row);
+  }
+  s.nodes.first_waiting[node] = kNoNode;
+}
+
+OpResult TreeParentFirst::LetGo(RowBatch& out, State& s) const {
+  auto total = static_cast<uint32_t>(s.letting_go.size());
+  uint32_t count = std::min(kMaxBatchRows, total - s.served);
+  const uint32_t* begin = s.letting_go.data() + s.served;
+  s.held.rows.View(&out, Span<const uint32_t>(begin, begin + count));
+  s.served += count;
+  if (s.served < total) {
+    return OpResult::kHaveMoreOutput;
+  }
+  s.letting_go.clear();
+  s.served = 0;
+  return OpResult::kNeedMoreInput;
+}
+
+OpResult TreeParentFirst::Execute(const RowBatch& in,
+                                  RowBatch& out,
+                                  OperatorState& state) const {
+  State& s = state.Cast<State>();
+  if (s.served < s.letting_go.size()) {
+    return LetGo(out, s);
+  }
+  uint32_t count = in.size();
+  if (count == 0) {
+    out.CopyFrom(in);
+    return OpResult::kNeedMoreInput;
+  }
+  const ColumnView* node_column;
+  const ColumnView* parent_column;
+  s.status = NodeColumns(in, node_column_, parent_column_, kParentFirst,
+                         &node_column, &parent_column);
+  if (!s.status.ok()) {
+    return OpResult::kError;
+  }
+
+  // A row passes if its parent is out, whether from an earlier batch or
+  // earlier in this one, and releases whatever was waiting on it. Otherwise
+  // it waits on its parent. Released rows only go out after the batch, so
+  // they are not marked out yet: a row arriving under one of them in this
+  // same batch has to wait too, or it would go out ahead of its parent.
+  s.passing.clear();
+  s.holding.clear();
+  for (uint32_t i = 0; i < count; ++i) {
+    uint32_t node = node_column->Value<uint32_t>(i);
+    uint32_t parent = parent_column->Value<uint32_t>(i);
+    if (node == parent) {
+      s.status = base::ErrStatus("%s: a node is its own parent", kParentFirst);
+      return OpResult::kError;
+    }
+    s.nodes.Grow(std::max(node, parent == kNoNode ? 0 : parent) + 1);
+    if (s.nodes.has_row.is_set(node)) {
+      s.status = base::ErrStatus("%s: more than one row has the same node",
+                                 kParentFirst);
+      return OpResult::kError;
+    }
+    s.nodes.has_row.set(node);
+    if (parent != kNoNode && !s.nodes.out.is_set(parent)) {
+      // The row it will be in `held` once the batch's held rows are copied.
+      auto row = static_cast<uint32_t>(s.held.node.size());
+      s.holding.push_back(i);
+      s.held.node.push_back(node);
+      s.held.next_waiting.push_back(s.nodes.first_waiting[parent]);
+      s.nodes.first_waiting[parent] = row;
+      continue;
+    }
+    s.passing.push_back(i);
+    s.nodes.out.set(node);
+    Release(node, s);
+  }
+
+  if (!s.holding.empty()) {
+    auto held = static_cast<uint32_t>(s.holding.size());
+    s.held_batch.CopyFrom(in);
+    s.held_batch.Slice(RowSelection::Indices(s.holding.span()), held);
+    s.status = s.held.rows.Append(s.held_batch);
+    if (!s.status.ok()) {
+      return OpResult::kError;
+    }
+  }
+
+  // A released row releases what waits on it in turn. Scanning `letting_go`
+  // as it grows picks up the rows held under released ones in this batch.
+  for (uint32_t i = 0; i < s.letting_go.size(); ++i) {
+    uint32_t node = s.held.node[s.letting_go[i]];
+    s.nodes.out.set(node);
+    Release(node, s);
+  }
+  s.held.let_go += static_cast<uint32_t>(s.letting_go.size());
+
+  if (s.passing.empty()) {
+    if (s.letting_go.empty()) {
+      out.CopyFrom(in);
+      out.Slice(RowSelection::Range(0), 0);
+      return OpResult::kNeedMoreInput;
+    }
+    return LetGo(out, s);
+  }
+  out.CopyFrom(in);
+  if (s.passing.size() < count) {
+    out.Slice(RowSelection::Indices(s.passing.span()),
+              static_cast<uint32_t>(s.passing.size()));
+  }
+  return s.letting_go.empty() ? OpResult::kNeedMoreInput
+                              : OpResult::kHaveMoreOutput;
+}
+
+OpResult TreeParentFirst::Finish(RowBatch& out, OperatorState& state) const {
+  State& s = state.Cast<State>();
+  out.Reset();
+  if (s.held.rows.size() != s.held.let_go) {
+    s.status = base::ErrStatus(
+        "%s: a row names a parent which is not itself a row in the input",
+        kParentFirst);
+    return OpResult::kError;
+  }
+  return OpResult::kNeedMoreInput;
+}
+
+void TreeParentFirst::Rewind(OperatorState& state) const {
+  State& s = state.Cast<State>();
+  s.nodes.Clear();
+  s.held.Clear();
+  s.letting_go.clear();
+  s.served = 0;
+  s.status = base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::core::exec
