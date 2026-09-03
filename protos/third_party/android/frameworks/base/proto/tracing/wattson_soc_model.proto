@@ -1,0 +1,144 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package com.android.internal;
+
+// Hardware topology & cluster configurations (replaces hardcoded rows in
+// device_infos.sql).
+message WattsonCpuTopology {
+  // Maps an individual physical CPU core to its cpufreq policy group.
+  message CpuMap {
+    optional int32 cpu = 1;
+    optional int32 policy = 2;
+    // Optional per-CPU override for deep idle offset (in ns).
+    optional int64 deep_idle_offset_ns = 3;
+    // Optional per-CPU override for 2D dependency vote by frequency.
+    optional bool vote_by_freq = 4;
+  }
+
+  // Properties belonging strictly to a cpufreq policy cluster.
+  message PolicyConfig {
+    optional int32 policy = 1;
+    // Deep idle time offset for this policy cluster (in nanoseconds).
+    optional int64 deep_idle_offset_ns = 2;
+    // Whether this policy cluster's 2D dependency votes by frequency.
+    optional bool vote_by_freq = 3;
+  }
+
+  // Mapping from nominal idle states to override idle states.
+  message IdleStateOverride {
+    optional int64 nominal_idle = 1;
+    optional int64 override_idle = 2;
+  }
+
+  repeated CpuMap cpu_map = 1;
+  repeated PolicyConfig policy_configs = 2;
+  repeated IdleStateOverride idle_state_map = 3;
+  optional bool use_devfreq = 4;
+}
+
+// CPU 1D Power Curve: Static, active, and idle power per policy frequency.
+message WattsonCpu1DCurve {
+  optional uint32 policy = 1;
+  optional uint32 freq_khz = 2;
+  optional double static_mw = 3;
+  optional double active_mw = 4;
+  optional double idle0_mw = 5;
+  optional double idle1_mw = 6;
+}
+
+// CPU 2D Power Curve: Power with inter-cluster frequency dependency.
+message WattsonCpu2DCurve {
+  optional uint32 policy = 1;
+  optional uint32 freq_khz = 2;
+  optional uint32 dep_policy = 3;
+  optional uint32 dep_freq_khz = 4;
+  optional double static_mw = 5;
+  optional double active_mw = 6;
+  optional double idle0_mw = 7;
+  optional double idle1_mw = 8;
+  optional double interconnect_mw = 9;
+}
+
+// GPU Power Curve: Active and multi-level idle power per GPU frequency.
+message WattsonGpuCurve {
+  optional uint32 freq_khz = 1;
+  optional double active_mw = 2;
+  optional double idle1_mw = 3;
+  optional double idle2_mw = 4;
+}
+
+// L3 Cache Power Curve: Hit/miss power per frequency and dependent CPU policy.
+message WattsonL3Curve {
+  optional uint32 freq_khz = 1;
+  optional uint32 dep_policy = 2;
+  optional uint32 dep_freq_khz = 3;
+  optional double l3_hit_mw = 4;
+  optional double l3_miss_mw = 5;
+}
+
+// TPU Power Curve: Active power per TPU cluster, frequency, and concurrent
+// requests.
+message WattsonTpuCurve {
+  optional uint32 cluster = 1;
+  optional uint32 requests = 2;
+  optional uint32 freq_khz = 3;
+  optional double active_mw = 4;
+}
+
+// Wattson SoC power model definition containing device hardware topology
+// and empirical power curves (CPU 1D/2D, GPU, L3, TPU).
+message WattsonSocModel {
+  enum ModelSource {
+    SOURCE_UNSPECIFIED = 0;
+    SOURCE_BUILTIN = 1;       // Compiled into Trace Processor binary
+    SOURCE_SOC_VENDOR = 2;    // Baseline model from SoC vendor
+    SOURCE_OEM_OVERRIDE = 3;  // OEM-calibrated / chassis-tuned model
+  }
+
+  // ===========================================================================
+  // 1–15: Metadata, Provenance, and Hardware Topology
+  // ===========================================================================
+  optional string device_name =
+      1;  // Canonical SoC model name (e.g. "Tensor G6")
+  optional string model_variant =
+      2;  // Specific SKU / chassis (e.g. "pixel11_pro")
+  optional ModelSource model_source = 3;         // Origin tier
+  optional uint32 model_version = 4;             // Monotonic version number
+  optional string vendor_name = 5;               // e.g. "Google", "Samsung"
+  optional WattsonCpuTopology cpu_topology = 6;  // Structured CPU topology
+  optional int32 gpu_id = 7;                     // GPU instance ID in trace
+
+  // ===========================================================================
+  // 16+: Subsystem Power Curves
+  // ===========================================================================
+  repeated WattsonCpu1DCurve cpu_1d_curves = 16;
+  repeated WattsonCpu2DCurve cpu_2d_curves = 17;
+  repeated WattsonGpuCurve gpu_curves = 18;
+  repeated WattsonL3Curve l3_curves = 19;
+  repeated WattsonTpuCurve tpu_curves = 20;
+
+  // ===========================================================================
+  // Backward compatibility fields for legacy flat decoders
+  // ===========================================================================
+  repeated WattsonCpu1DCurve legacy_cpu_1d_curves = 8 [deprecated = true];
+  repeated WattsonCpu2DCurve legacy_cpu_2d_curves = 9 [deprecated = true];
+  repeated WattsonL3Curve legacy_l3_curves = 10 [deprecated = true];
+  repeated WattsonGpuCurve legacy_gpu_curves = 11 [deprecated = true];
+  repeated WattsonTpuCurve legacy_tpu_curves = 12 [deprecated = true];
+}

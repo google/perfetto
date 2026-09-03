@@ -1039,6 +1039,95 @@ class TraceStorage {
     return mutable_table<tables::ProtoLogTable>();
   }
 
+  const tables::WattsonCustomDeviceInfoTable& wattson_custom_device_info_table()
+      const {
+    return table<tables::WattsonCustomDeviceInfoTable>();
+  }
+  tables::WattsonCustomDeviceInfoTable*
+  mutable_wattson_custom_device_info_table() {
+    return mutable_table<tables::WattsonCustomDeviceInfoTable>();
+  }
+
+  const tables::WattsonCustomCpuPolicyTable& wattson_custom_cpu_policy_table()
+      const {
+    return table<tables::WattsonCustomCpuPolicyTable>();
+  }
+  tables::WattsonCustomCpuPolicyTable*
+  mutable_wattson_custom_cpu_policy_table() {
+    return mutable_table<tables::WattsonCustomCpuPolicyTable>();
+  }
+
+  const tables::WattsonCustomDeepIdleOffsetTable&
+  wattson_custom_deep_idle_offset_table() const {
+    return table<tables::WattsonCustomDeepIdleOffsetTable>();
+  }
+  tables::WattsonCustomDeepIdleOffsetTable*
+  mutable_wattson_custom_deep_idle_offset_table() {
+    return mutable_table<tables::WattsonCustomDeepIdleOffsetTable>();
+  }
+
+  const tables::WattsonCustomIdleStateMapTable&
+  wattson_custom_idle_state_map_table() const {
+    return table<tables::WattsonCustomIdleStateMapTable>();
+  }
+  tables::WattsonCustomIdleStateMapTable*
+  mutable_wattson_custom_idle_state_map_table() {
+    return mutable_table<tables::WattsonCustomIdleStateMapTable>();
+  }
+
+  const tables::WattsonCustomVoteByFreqTable&
+  wattson_custom_vote_by_freq_table() const {
+    return table<tables::WattsonCustomVoteByFreqTable>();
+  }
+  tables::WattsonCustomVoteByFreqTable*
+  mutable_wattson_custom_vote_by_freq_table() {
+    return mutable_table<tables::WattsonCustomVoteByFreqTable>();
+  }
+
+  const tables::WattsonCustomCurvesCpu1DTable&
+  wattson_custom_curves_cpu_1d_table() const {
+    return table<tables::WattsonCustomCurvesCpu1DTable>();
+  }
+  tables::WattsonCustomCurvesCpu1DTable*
+  mutable_wattson_custom_curves_cpu_1d_table() {
+    return mutable_table<tables::WattsonCustomCurvesCpu1DTable>();
+  }
+
+  const tables::WattsonCustomCurvesCpu2DTable&
+  wattson_custom_curves_cpu_2d_table() const {
+    return table<tables::WattsonCustomCurvesCpu2DTable>();
+  }
+  tables::WattsonCustomCurvesCpu2DTable*
+  mutable_wattson_custom_curves_cpu_2d_table() {
+    return mutable_table<tables::WattsonCustomCurvesCpu2DTable>();
+  }
+
+  const tables::WattsonCustomCurvesL3Table& wattson_custom_curves_l3_table()
+      const {
+    return table<tables::WattsonCustomCurvesL3Table>();
+  }
+  tables::WattsonCustomCurvesL3Table* mutable_wattson_custom_curves_l3_table() {
+    return mutable_table<tables::WattsonCustomCurvesL3Table>();
+  }
+
+  const tables::WattsonCustomCurvesGpuTable& wattson_custom_curves_gpu_table()
+      const {
+    return table<tables::WattsonCustomCurvesGpuTable>();
+  }
+  tables::WattsonCustomCurvesGpuTable*
+  mutable_wattson_custom_curves_gpu_table() {
+    return mutable_table<tables::WattsonCustomCurvesGpuTable>();
+  }
+
+  const tables::WattsonCustomCurvesTpuTable& wattson_custom_curves_tpu_table()
+      const {
+    return table<tables::WattsonCustomCurvesTpuTable>();
+  }
+  tables::WattsonCustomCurvesTpuTable*
+  mutable_wattson_custom_curves_tpu_table() {
+    return mutable_table<tables::WattsonCustomCurvesTpuTable>();
+  }
+
   const tables::WinscopeTraceRectTable& winscope_trace_rect_table() const {
     return table<tables::WinscopeTraceRectTable>();
   }

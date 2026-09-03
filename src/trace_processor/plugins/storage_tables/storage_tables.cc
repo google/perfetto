@@ -42,6 +42,7 @@
 #include "src/trace_processor/tables/state_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
+#include "src/trace_processor/tables/wattson_tables_py.h"   // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -182,6 +183,16 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_memory_snapshot_node_table());
     AddDataframe(out, s->mutable_experimental_proto_path_table());
     AddDataframe(out, s->mutable_arg_table());
+    AddDataframe(out, s->mutable_wattson_custom_device_info_table());
+    AddDataframe(out, s->mutable_wattson_custom_cpu_policy_table());
+    AddDataframe(out, s->mutable_wattson_custom_deep_idle_offset_table());
+    AddDataframe(out, s->mutable_wattson_custom_idle_state_map_table());
+    AddDataframe(out, s->mutable_wattson_custom_vote_by_freq_table());
+    AddDataframe(out, s->mutable_wattson_custom_curves_cpu_1d_table());
+    AddDataframe(out, s->mutable_wattson_custom_curves_cpu_2d_table());
+    AddDataframe(out, s->mutable_wattson_custom_curves_l3_table());
+    AddDataframe(out, s->mutable_wattson_custom_curves_gpu_table());
+    AddDataframe(out, s->mutable_wattson_custom_curves_tpu_table());
     AddDataframe(out, s->mutable_heap_graph_object_table());
     AddDataframe(out, s->mutable_heap_graph_primitive_table());
     AddDataframe(out, s->mutable_heap_graph_object_data_table());

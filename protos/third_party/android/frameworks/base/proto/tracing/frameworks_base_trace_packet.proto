@@ -22,6 +22,7 @@ syntax = "proto2";
 import public "protos/perfetto/trace/trace_packet.proto";
 import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.proto";
 import "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto";
+import "protos/third_party/android/frameworks/base/proto/tracing/wattson_soc_model.proto";
 
 package com.android.internal;
 
@@ -157,5 +158,7 @@ message FrameworksBaseTracePacket {
     optional VideoFrameError video_frame_error = 1001;
     optional AndroidProcessStateSnapshot android_process_state = 1002;
     optional AndroidFreezerStateSnapshot android_freezer_state = 1003;
+    // Wattson SoC power model definition.
+    optional WattsonSocModel wattson_soc_model = 1004;
   }
 }
