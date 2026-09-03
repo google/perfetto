@@ -676,6 +676,7 @@ perfetto_cc_library(
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
+               ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero",
                ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero",
@@ -1009,6 +1010,7 @@ perfetto_cc_library(
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
+               ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero",
                ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero",
@@ -5706,6 +5708,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
         "src/trace_processor/tables/v8_tables.py",
+        "src/trace_processor/tables/wattson_tables.py",
         "src/trace_processor/tables/winscope_tables.py",
     ],
     outs = [
@@ -5742,6 +5745,8 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/track_tables_py.h",
         "src/trace_processor/tables/v8_tables_fwd.h",
         "src/trace_processor/tables/v8_tables_py.h",
+        "src/trace_processor/tables/wattson_tables_fwd.h",
+        "src/trace_processor/tables/wattson_tables_py.h",
         "src/trace_processor/tables/winscope_tables_fwd.h",
         "src/trace_processor/tables/winscope_tables_py.h",
     ],
@@ -7541,6 +7546,7 @@ perfetto_proto_library(
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_protos",
         ":protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_protos",
         ":protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_protos",
         ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
@@ -10154,6 +10160,7 @@ perfetto_proto_library(
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_protos",
         ":protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_protos",
         ":protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_protos",
         ":protos_third_party_android_frameworks_native_tracing_frameworks_native_track_event_protos",
@@ -10570,11 +10577,13 @@ perfetto_proto_library(
         ":protos_perfetto_trace_translation_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
         ":protos_perfetto_trace_non_minimal_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_protos",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_protos",
     ],
 )
 
@@ -10626,6 +10635,7 @@ perfetto_cc_protozero_library(
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_protos",
+        ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
     ],
 )
 
@@ -10658,6 +10668,25 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_trace_track_event_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_zero",
         ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_protos",
+    ],
+)
+
+# GN target: //protos/third_party/android/frameworks/base/proto/tracing:wattson_soc_model_source_set
+perfetto_proto_library(
+    name = "protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_protos",
+    srcs = [
+        "protos/third_party/android/frameworks/base/proto/tracing/wattson_soc_model.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+)
+
+# GN target: //protos/third_party/android/frameworks/base/proto/tracing:wattson_soc_model_zero
+perfetto_cc_protozero_library(
+    name = "protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
+    deps = [
+        ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_protos",
     ],
 )
 
@@ -11911,6 +11940,7 @@ perfetto_cc_library(
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
+               ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero",
                ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero",
@@ -12248,6 +12278,7 @@ perfetto_cc_binary(
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero",
                ":protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero",
+               ":protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero",
                ":protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero",
                ":protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero",
