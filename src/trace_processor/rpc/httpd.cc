@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -25,8 +26,10 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -51,6 +54,14 @@ const char* kDefaultAllowedCORSOrigins[] = {
     "http://127.0.0.1:10000",
 };
 
+// base::MurmurHash refuses raw pointers; here identity is exactly the key.
+struct ConnHasher {
+  size_t operator()(const base::HttpServerConnection* conn) const {
+    return static_cast<size_t>(
+        base::MurmurHashValue(reinterpret_cast<uintptr_t>(conn)));
+  }
+};
+
 class Httpd : public base::HttpRequestHandler {
  public:
   explicit Httpd(Rpc& rpc);
@@ -65,10 +76,19 @@ class Httpd : public base::HttpRequestHandler {
   // HttpRequestHandler implementation.
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
+  void OnHttpConnectionClosed(base::HttpServerConnection*) override;
+
+  // The RPC byte-pipe carried by |conn|, created on first use: most
+  // connections (the REST endpoints, /status polls) never carry one.
+  Rpc::Stream& GetRpcStream(base::HttpServerConnection* conn);
 
   static void ServeHelpPage(const base::HttpRequest&);
 
   Rpc& global_trace_processor_rpc_;
+  base::FlatHashMap<base::HttpServerConnection*,
+                    std::unique_ptr<Rpc::Stream>,
+                    ConnHasher>
+      streams_;
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
   std::unique_ptr<IdleReaper> reaper_;
@@ -181,13 +201,11 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Start the chunked reply.
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
-    global_trace_processor_rpc_.SetRpcResponseFunction(
-        [&](const void* data, uint32_t len) {
-          SendRpcChunk(&conn, data, len);
-        });
-    // OnRpcRequest() will call SendRpcChunk() one or more times.
-    global_trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
-    global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+    if (!req.body.empty()) {
+      auto write = GetRpcStream(&conn).BeginRequest(req.body.size());
+      memcpy(write.data(), req.body.data(), req.body.size());
+      write.EndRequest(req.body.size());
+    }
 
     // Terminate chunked stream.
     conn.SendResponseBody("0\r\n\r\n", 5);
@@ -312,13 +330,26 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
   if (reaper_)
     reaper_->OnActivity();
-  global_trace_processor_rpc_.SetRpcResponseFunction(
-      [&](const void* data, uint32_t len) {
-        SendRpcChunk(msg.conn, data, len);
-      });
-  // OnRpcRequest() will call SendRpcChunk() one or more times.
-  global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-  global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+  if (msg.data.empty())
+    return;
+  auto write = GetRpcStream(msg.conn).BeginRequest(msg.data.size());
+  memcpy(write.data(), msg.data.data(), msg.data.size());
+  write.EndRequest(msg.data.size());
+}
+
+Rpc::Stream& Httpd::GetRpcStream(base::HttpServerConnection* conn) {
+  auto& stream = streams_[conn];
+  if (!stream) {
+    stream = std::make_unique<Rpc::Stream>(
+        global_trace_processor_rpc_, [conn](const void* data, uint32_t len) {
+          SendRpcChunk(conn, data, len);
+        });
+  }
+  return *stream;
+}
+
+void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
+  streams_.Erase(conn);
 }
 
 }  // namespace
