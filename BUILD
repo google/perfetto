@@ -375,6 +375,21 @@ perfetto_cc_binary(
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
+# GN target: //src/tools/proto_merger:extension_proto_merger
+perfetto_cc_binary(
+    name = "extension_proto_merger",
+    srcs = [
+        ":src_protozero_multifile_error_collector",
+        ":src_tools_proto_merger_lib",
+        "src/tools/proto_merger/extension_proto_merger_main.cc",
+    ],
+    deps = [
+        ":protos_perfetto_common_passthrough_lite",
+        ":src_base_base",
+        ":src_base_version",
+    ] + PERFETTO_CONFIG.deps.protobuf_full,
+)
+
 # GN target: //src/tools/proto_merger:proto_merger
 perfetto_cc_binary(
     name = "proto_merger",
