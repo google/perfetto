@@ -77,15 +77,15 @@ export class TerminologyRegistry {
 export function createTerminology(
   name: string,
   terms: {
-    gpu: Term;
-    thread: Term;
-    warp: Term;
-    block: Term;
-    grid: Term;
-    sm: Term;
-    streamingMultiprocessor: Term;
-    sharedMem: Term;
-    tensor: Term;
+    readonly gpu: Term;
+    readonly thread: Term;
+    readonly warp: Term;
+    readonly block: Term;
+    readonly grid: Term;
+    readonly sm: Term;
+    readonly streamingMultiprocessor: Term;
+    readonly sharedMem: Term;
+    readonly tensor: Term;
   },
 ): Terminology {
   return {name, ...terms};

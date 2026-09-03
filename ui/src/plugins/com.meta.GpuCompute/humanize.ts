@@ -26,16 +26,16 @@ import type {Terminology} from './terminology';
 
 // Shape of a single metric row fed into the humanization pipeline.
 type RowShape = {
-  metric_id: string | null;
-  metric_label: string;
-  metric_unit: string;
-  metric_value: number | string | null;
+  readonly metric_id: string | null;
+  readonly metric_label: string;
+  readonly metric_unit: string;
+  readonly metric_value: number | string | null;
 };
 // Shape of a metric table (description + array of rows).
-type TableShape = {table_desc: string | null; data: RowShape[]};
+type TableShape = {readonly table_desc: string | null; readonly data: readonly RowShape[]};
 
 // Shape of a metric section (title + array of tables).
-type SectionShape = {section: string; tables: TableShape[]};
+type SectionShape = {readonly section: string; readonly tables: readonly TableShape[]};
 
 // Type guard: returns `true` when `v` is a finite number.
 function isNumber(v: unknown): v is number {

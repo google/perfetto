@@ -29,15 +29,15 @@ import type {MetricSection, KernelMetricData} from './details';
 // Result of a performance analysis.
 export interface PerformanceAnalysisResult {
   // The section that was analyzed
-  sectionName: string;
+  readonly sectionName: string;
   // The generated analysis
-  analysis: string;
+  readonly analysis: string;
   // Whether the analysis completed successfully
-  success: boolean;
+  readonly success: boolean;
   // Error message if analysis failed
-  error?: string;
+  readonly error?: string;
   // The name of the provider used to generate the analysis
-  providerName?: string;
+  readonly providerName?: string;
 }
 
 // Interface for analysis cache operations passed from parent component.
@@ -60,17 +60,17 @@ export interface AnalysisCache {
 export interface AnalysisProvider {
   // Renders the full Analysis tab body.
   renderAnalysisTab(attrs: {
-    engine: Engine;
-    sliceId: number;
-    analysisCache: AnalysisCache;
+    readonly engine: Engine;
+    readonly sliceId?: number;
+    readonly analysisCache: AnalysisCache;
   }): m.Children;
 
   // Renders a per-section inline analysis button.
   renderSectionAnalysis(attrs: {
-    section: MetricSection;
-    kernelData: KernelMetricData;
-    sliceId: number;
-    analysisCache: AnalysisCache;
+    readonly section: MetricSection;
+    readonly kernelData: KernelMetricData;
+    readonly sliceId?: number;
+    readonly analysisCache: AnalysisCache;
   }): m.Children;
 }
 
