@@ -8,8 +8,8 @@ is the lever. A single device-wide "GPU utilization %" cannot answer any of
 these; you need the per-kernel decomposition.
 
 It decomposes each compute kernel into four lenses — Speed of Light, Occupancy,
-Workload Analysis, and Launch Statistics — computed directly from the trace's
-GPU counters and kernel launch args.
+Compute Workload Analysis, and Launch Statistics — computed directly from the
+trace's GPU counters and kernel launch args.
 
 If the user has not yet loaded a trace into `trace_processor`, follow
 `$SKILL_ROOT/infra-references/querying.md` first, then come back here.
@@ -60,8 +60,8 @@ workflow; read the one you need.
   breakdown: [speed_of_light.md]($SKILL_ROOT/workflows/gpu/compute/speed_of_light.md).
 - **Occupancy** — is launch config / resource pressure the limit, and which
   resource: [occupancy.md]($SKILL_ROOT/workflows/gpu/compute/occupancy.md).
-- **Workload Analysis** — which execution pipeline is saturated (for
-  compute-bound kernels): [workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/workload_analysis.md).
+- **Compute Workload Analysis** — which execution pipeline is saturated (for
+  compute-bound kernels): [compute_workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/compute_workload_analysis.md).
 - **Launch Statistics** — the raw launch configuration and whether it is sane:
   [launch_statistics.md]($SKILL_ROOT/workflows/gpu/compute/launch_statistics.md).
 
