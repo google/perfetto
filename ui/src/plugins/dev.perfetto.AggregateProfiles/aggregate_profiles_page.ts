@@ -13,19 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {Monitor} from '../../base/monitor';
-import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
+import {assertExists, assertIsInstance} from '../../base/assert';
+import {Memo} from '../../base/memo';
+import {maybeUndefined} from '../../base/utils';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {Trace} from '../../public/trace';
-import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
-import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
-import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
-import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
+import {EmptyState} from '../../widgets/empty_state';
+import {Select} from '../../widgets/select';
+import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {
   createDefaultTreeExplorerState,
+  type TreeExplorerState,
   updateTreeExplorerState,
 } from '../../widgets/tree_explorer';
 import type {AggregateProfile, AggregateProfilesPageState} from './types';
@@ -36,40 +37,24 @@ const HIDE_VIEW_EXPLANATION_KEY = 'hideAggregateProfilesViewExplanation';
 export interface AggregateProfilesPageAttrs {
   readonly trace: Trace;
   readonly state: AggregateProfilesPageState;
-  readonly onStateChange: (state: AggregateProfilesPageState) => void;
   readonly profiles: ReadonlyArray<AggregateProfile>;
+  readonly onStateChange: (state: AggregateProfilesPageState) => void;
 }
 
 export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
-  private profiles?: ReadonlyArray<AggregateProfile>;
-  private readonly monitor = new Monitor([() => this.profiles]);
-  private flamegraphMetrics?: ReadonlyArray<TreeExplorerQueryMetric>;
+  private readonly memo = new Memo<TreeExplorerState>();
 
   view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
-    this.profiles = attrs.profiles;
-    if (this.monitor.ifStateChanged()) {
-      const selectedProfile =
-        attrs.profiles.find((p) => p.id === attrs.state.selectedProfileId) ||
-        (attrs.profiles.length > 0 ? attrs.profiles[0] : undefined);
-      attrs.onStateChange({
-        flamegraphState: undefined,
-        selectedProfileId: selectedProfile?.id,
-      });
-      if (selectedProfile) {
-        // createFlamegraph spreads the state it is given, so hand it one
-        // already carrying the selection or it writes the old one back.
-        this.createFlamegraph(
-          {
-            ...attrs,
-            state: {...attrs.state, selectedProfileId: selectedProfile.id},
-          },
-          selectedProfile,
-        );
-      }
-      // Editing the store notifies nobody and `attrs.state` is this render's
-      // snapshot, so the new state only shows on the next render.
-      attrs.trace.raf.scheduleFullRedraw();
+    // Use the selected profile from the state or just use the first one if none
+    // supplied, or if we can't find a match.
+    const selectedProfile =
+      attrs.profiles.find((p) => p.id === attrs.state.selectedProfileId) ??
+      maybeUndefined(attrs.profiles[0]);
+
+    if (selectedProfile === undefined) {
+      return this.renderEmptyState();
     }
+
     return m(
       Stack,
       {
@@ -80,48 +65,46 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
       [
         this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
           m(StackFixed, this.renderPageExplanation()),
-        this.renderControlsRow(attrs),
+        this.renderControlsRow(attrs, selectedProfile),
         this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
           m(StackFixed, this.renderViewExplanation()),
-        m(StackAuto, [
-          this.flamegraphMetrics &&
-            attrs.state.flamegraphState &&
-            m(TreeExplorerPanel, {
-              trace: attrs.trace,
-              metrics: this.flamegraphMetrics,
-              state: attrs.state.flamegraphState,
-              onStateChange: (state) => {
-                attrs.onStateChange({
-                  ...attrs.state,
-                  flamegraphState: state,
-                });
-              },
-            }),
-          !this.flamegraphMetrics && this.renderEmptyState(),
-        ]),
+        m(StackAuto, [this.renderFlamegraph(selectedProfile, attrs)]),
       ],
     );
   }
 
-  private createFlamegraph(
+  private renderFlamegraph(
+    selectedProfile: AggregateProfile,
     attrs: AggregateProfilesPageAttrs,
-    profile: AggregateProfile,
-  ): void {
-    if (profile.metrics.length === 0) {
-      this.flamegraphMetrics = undefined;
-      attrs.onStateChange({
-        ...attrs.state,
-        flamegraphState: undefined,
+  ): m.Children {
+    // This is a hack necessitated by two issues:
+    // 1. TreeExplorerPanel is unable to handle state=undefined despite it being
+    //    optional in the attrs interface defintion.
+    // 2. The flamegraph compares attrs by reference equality to detect changes,
+    //    so while we could simply recreate the state every frame if it's
+    //    undefined and avoid the memo entirely - this would trigger an infite
+    //    loading loop as we'd have a new object reference every frame.
+    let flamegraphState = attrs.state.flamegraphState;
+    if (flamegraphState === undefined) {
+      flamegraphState = this.memo.use({
+        key: selectedProfile.id,
+        compute: () => {
+          return createDefaultTreeExplorerState(selectedProfile.metrics);
+        },
       });
-      return;
     }
-    attrs.onStateChange({
-      ...attrs.state,
-      flamegraphState: attrs.state.flamegraphState
-        ? updateTreeExplorerState(attrs.state.flamegraphState, profile.metrics)
-        : createDefaultTreeExplorerState(profile.metrics),
+
+    return m(TreeExplorerPanel, {
+      trace: attrs.trace,
+      metrics: selectedProfile.metrics,
+      state: flamegraphState,
+      onStateChange: (state) => {
+        attrs.onStateChange({
+          ...attrs.state,
+          flamegraphState: state,
+        });
+      },
     });
-    this.flamegraphMetrics = profile.metrics;
   }
 
   private shouldShowExplanation(key: string): boolean {
@@ -139,7 +122,10 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
   // The page's controls: the profile selector on the left, the help buttons
   // on the right. The view tabs are not here -- they live in the
   // TreeExplorerPanel's own switcher.
-  private renderControlsRow(attrs: AggregateProfilesPageAttrs): m.Children {
+  private renderControlsRow(
+    attrs: AggregateProfilesPageAttrs,
+    selectedProfile: AggregateProfile,
+  ): m.Children {
     const showViewHelp = !this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY);
     const showPageHelp = this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY);
     const showSelector = attrs.profiles.length > 1;
@@ -149,7 +135,8 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     return m(
       StackFixed,
       m(Stack, {orientation: 'horizontal', spacing: 'medium'}, [
-        showSelector && m(StackFixed, this.renderProfileSelector(attrs)),
+        showSelector &&
+          m(StackFixed, this.renderProfileSelector(attrs, selectedProfile)),
         m(StackAuto),
         showViewHelp &&
           m(
@@ -215,14 +202,10 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     );
   }
 
-  private selectedIndex(attrs: AggregateProfilesPageAttrs): number {
-    return attrs.profiles.findIndex(
-      (p) => p.id === attrs.state.selectedProfileId,
-    );
-  }
-
-  private renderProfileSelector(attrs: AggregateProfilesPageAttrs): m.Children {
-    const index = this.selectedIndex(attrs);
+  private renderProfileSelector(
+    attrs: AggregateProfilesPageAttrs,
+    selectedProfile: AggregateProfile,
+  ): m.Children {
     return m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
       m(
         'label',
@@ -234,29 +217,29 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         {
           className: 'pf-aggregate-profiles-page__profile-select',
           oninput: (e: Event) => {
-            const selectedIndex = parseInt(
-              (e.target as HTMLSelectElement).value,
+            assertIsInstance(e.target, HTMLSelectElement);
+            const newProfileId = e.target.value;
+            const newProfile = attrs.profiles.find(
+              (p) => p.id === newProfileId,
             );
-            const newProfile = attrs.profiles[selectedIndex];
-            // createFlamegraph derives its update from `attrs.state`, the
-            // state as of the last render, so it must be given one that
-            // already carries the new selection: updating separately here
-            // would be undone by it writing the old profile back.
-            this.createFlamegraph(
-              {
-                ...attrs,
-                state: {...attrs.state, selectedProfileId: newProfile.id},
-              },
-              newProfile,
+            assertExists(newProfile); // Assume this profile actually exists
+            const currentFlamegraphState = attrs.state.flamegraphState;
+            const newFlamegraphState = updateTreeExplorerState(
+              currentFlamegraphState,
+              newProfile.metrics,
             );
+            attrs.onStateChange({
+              selectedProfileId: newProfileId,
+              flamegraphState: newFlamegraphState,
+            });
           },
         },
-        attrs.profiles.map((profile, index) =>
+        attrs.profiles.map((profile) =>
           m(
             'option',
             {
-              value: index.toString(),
-              selected: attrs.state.selectedProfileId === profile.id,
+              value: profile.id,
+              selected: selectedProfile.id === profile.id,
             },
             profile.displayName,
           ),
@@ -264,10 +247,8 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
       ),
       // The name is only in <option> text, which the mouse cannot select.
       m(CopyToClipboardButton, {
-        textToCopy: () => attrs.profiles[index].displayName,
-        title: 'Copy profile name',
-        compact: true,
-        disabled: index < 0,
+        textToCopy: () => selectedProfile.displayName,
+        tooltip: 'Copy profile name',
       }),
     ]);
   }
