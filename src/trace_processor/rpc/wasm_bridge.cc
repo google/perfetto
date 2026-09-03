@@ -30,6 +30,7 @@ namespace {
 using RpcResponseFn = void(const void*, uint32_t);
 
 Rpc* g_trace_processor_rpc;
+Rpc::Stream* g_rpc_stream;
 Rpc::RequestHandle* g_pending_request;
 
 uint32_t g_max_write_size;
@@ -65,11 +66,11 @@ uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
   // buffer with the response (a proto-encoded TraceProcessorRpc message) and
   // postMessage() it to the controller. See the comment in wasm_bridge.ts for
   // an overview of the JS<>Wasm callstack.
-  g_trace_processor_rpc->SetRpcResponseFunction(resp_function);
+  g_rpc_stream = new Rpc::Stream(*g_trace_processor_rpc, resp_function);
 
   g_max_write_size = max_write_size;
-  g_pending_request = new Rpc::RequestHandle(
-      g_trace_processor_rpc->BeginRpcRequest(g_max_write_size));
+  g_pending_request =
+      new Rpc::RequestHandle(g_rpc_stream->BeginRequest(g_max_write_size));
   return g_pending_request->data();
 }
 
@@ -78,7 +79,7 @@ uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
 uint8_t* EMSCRIPTEN_KEEPALIVE trace_processor_on_rpc_request(uint32_t);
 uint8_t* trace_processor_on_rpc_request(uint32_t size) {
   g_pending_request->EndRequest(size);
-  *g_pending_request = g_trace_processor_rpc->BeginRpcRequest(g_max_write_size);
+  *g_pending_request = g_rpc_stream->BeginRequest(g_max_write_size);
   return g_pending_request->data();
 }
 
