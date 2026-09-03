@@ -352,6 +352,8 @@ additional_args = {
     'libperfetto_client_experimental': [
         ('apex_available',
          {'//apex_available:platform', '//apex_available:anyapex'}),
+        ('sdk_version', 'current'),
+        ('stl', 'libc++_static'),
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
