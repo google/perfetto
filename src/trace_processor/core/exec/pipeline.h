@@ -28,6 +28,10 @@ namespace perfetto::trace_processor::core::exec {
 
 // A source followed by a chain of operators, itself exposed as a Source. Its
 // state holds the state of every node in the chain.
+//
+// Each batch of the source is pushed through the operators in turn. Once the
+// source is done, each operator in turn is finished, and what it lets go is
+// pushed through the operators above it before the next one is finished.
 class Pipeline : public Source {
  public:
   Pipeline(const Source&, std::vector<std::unique_ptr<Operator>>);
@@ -50,6 +54,10 @@ class Pipeline : public Source {
     // Operators with more output for the input they already hold, deepest
     // last, since the deepest has to be drained first.
     std::vector<uint32_t> pending;
+    bool source_done = false;
+    // Once the source is done, the operator being finished. Every operator
+    // below it has been finished and had its output pushed through.
+    uint32_t finishing = 0;
   };
 
   const Source& source_;

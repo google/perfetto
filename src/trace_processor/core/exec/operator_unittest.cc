@@ -302,6 +302,59 @@ TEST(SinkTest, ReopeningRereadsFromTheStart) {
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2));
 }
 
+// Passes every batch through, then lets `count` rows go after the last one,
+// one batch each, numbered from `first`. Stands in for an operator holding
+// rows back. A negative `first` makes Finish() fail.
+class Trailer final : public Operator {
+ public:
+  Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
+
+  std::unique_ptr<OperatorState> MakeState() const override {
+    return std::make_unique<State>();
+  }
+  OpResult Execute(const RowBatch& in,
+                   RowBatch& out,
+                   OperatorState&) const override {
+    out.CopyFrom(in);
+    return OpResult::kNeedMoreInput;
+  }
+  OpResult Finish(RowBatch& out, OperatorState& state) const override {
+    State& s = state.Cast<State>();
+    if (first_ < 0) {
+      s.status = base::ErrStatus("trailer broke");
+      return OpResult::kError;
+    }
+    out.Reset();
+    if (s.let_go == count_) {
+      return OpResult::kNeedMoreInput;
+    }
+    out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+    out.Compose(RowSelection::Range(static_cast<uint32_t>(first_) + s.let_go),
+                1);
+    out.SetCardinality(1);
+    return ++s.let_go == count_ ? OpResult::kNeedMoreInput
+                                : OpResult::kHaveMoreOutput;
+  }
+  void Rewind(OperatorState& state) const override {
+    state.Cast<State>().let_go = 0;
+  }
+  base::Status status(const OperatorState& state) const override {
+    return state.Cast<const State>().status;
+  }
+
+ private:
+  struct State : OperatorState {
+    ~State() override;
+    uint32_t let_go = 0;
+    base::Status status = base::OkStatus();
+  };
+
+  int64_t first_;
+  uint32_t count_;
+};
+
+Trailer::State::~State() = default;
+
 // One input batch can produce more than one output batch: the operator says
 // so and is called again with the same input.
 TEST(OperatorTest, AnOperatorCanFanOut) {
@@ -323,6 +376,72 @@ TEST(OperatorTest, FanOutNestsInnermostFirst) {
   Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
+}
+
+TEST(FinishTest, AnOperatorCanLetRowsGoAfterTheLastInput) {
+  ArraySource source({10, 20, 30});
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<Trailer>(99, 1));
+  Pipeline pipeline(source, std::move(ops));
+
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2, 99));
+}
+
+TEST(FinishTest, FinishCanFanOut) {
+  ArraySource source({10});
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<Trailer>(97, 3));
+  Pipeline pipeline(source, std::move(ops));
+
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 97, 98, 99));
+}
+
+// What an operator lets go at the end is pushed through the operators above
+// it, fan-out included.
+TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
+  ArraySource source({10, 20});
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<Trailer>(99, 1));
+  ops.push_back(std::make_unique<Twice>());
+  Pipeline pipeline(source, std::move(ops));
+
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 99, 99));
+}
+
+// An operator is only finished once everything below it has been, so the
+// rows the lower one lets go reach it as ordinary input first.
+TEST(FinishTest, OperatorsAreFinishedBottomUp) {
+  ArraySource source({10});
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<Trailer>(7, 1));
+  ops.push_back(std::make_unique<Trailer>(8, 1));
+  Pipeline pipeline(source, std::move(ops));
+
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 7, 8));
+}
+
+TEST(FinishTest, RewindFinishesAgain) {
+  ArraySource source({10, 20});
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<Trailer>(99, 1));
+  Pipeline pipeline(source, std::move(ops));
+
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 99));
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 99));
+}
+
+TEST(FinishTest, AFailingFinishIsReported) {
+  ArraySource source({10, 20});
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<Trailer>(-1, 1));
+  Pipeline pipeline(source, std::move(ops));
+  RowCursor cursor(pipeline);
+  std::vector<uint32_t> rows;
+  for (cursor.Open(); !cursor.eof(); cursor.Next()) {
+    rows.push_back(cursor.Value<uint32_t>(0));
+  }
+  EXPECT_THAT(rows, ElementsAre(0, 1));
+  EXPECT_EQ(cursor.status().message(), "trailer broke");
 }
 
 }  // namespace

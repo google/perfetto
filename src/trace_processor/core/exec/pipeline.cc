@@ -48,6 +48,8 @@ std::unique_ptr<OperatorState> Pipeline::MakeState() const {
 void Pipeline::Rewind(OperatorState& state) const {
   State& s = state.Cast<State>();
   s.pending.clear();
+  s.source_done = false;
+  s.finishing = 0;
   source_.Rewind(*s.source);
   for (uint32_t i = 0; i < operators_.size(); ++i) {
     operators_[i]->Rewind(*s.operators[i]);
@@ -70,30 +72,48 @@ bool Pipeline::GetData(RowBatch& out, OperatorState& state) const {
   if (operators_.empty()) {
     return source_.GetData(out, *s.source);
   }
+  auto count = static_cast<uint32_t>(operators_.size());
   // TODO(lalitm): nothing between batches checks for cancellation, so a
   // long-running pipeline cannot be interrupted; check an interrupt flag here
   // once one is plumbed through.
   for (;;) {
     uint32_t first;
-    if (s.pending.empty()) {
-      if (!source_.GetData(s.batches[0], *s.source)) {
-        return false;
-      }
-      first = 0;
-    } else {
+    bool finish = false;
+    if (!s.pending.empty()) {
       first = s.pending.back();
       s.pending.pop_back();
+    } else if (!s.source_done) {
+      if (!source_.GetData(s.batches[0], *s.source)) {
+        if (!source_.status(*s.source).ok()) {
+          return false;
+        }
+        s.source_done = true;
+        continue;
+      }
+      first = 0;
+    } else if (s.finishing < count) {
+      first = s.finishing;
+      finish = true;
+    } else {
+      return false;
     }
     bool filled = true;
-    for (uint32_t i = first; i < operators_.size(); ++i) {
-      RowBatch& dst = i + 1 == operators_.size() ? out : s.batches[i + 1];
-      OpResult result =
-          operators_[i]->Execute(s.batches[i], dst, *s.operators[i]);
+    for (uint32_t i = first; i < count; ++i) {
+      RowBatch& dst = i + 1 == count ? out : s.batches[i + 1];
+      OpResult result;
+      if (finish && i == first) {
+        result = operators_[i]->Finish(dst, *s.operators[i]);
+        if (result == OpResult::kNeedMoreInput) {
+          ++s.finishing;
+        }
+      } else {
+        result = operators_[i]->Execute(s.batches[i], dst, *s.operators[i]);
+        if (result == OpResult::kHaveMoreOutput) {
+          s.pending.push_back(i);
+        }
+      }
       if (result == OpResult::kError) {
         return false;
-      }
-      if (result == OpResult::kHaveMoreOutput) {
-        s.pending.push_back(i);
       }
       if (dst.size() == 0) {
         filled = false;

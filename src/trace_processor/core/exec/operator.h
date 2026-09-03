@@ -66,7 +66,8 @@ enum class OpResult : uint8_t {
 // One input batch can produce more than one output batch: an operator which
 // fans out returns kHaveMoreOutput and is called again with the same input.
 // This is why input and output are separate batches: the input has to survive
-// being read more than once.
+// being read more than once. Output can also come after the last input, from
+// Finish().
 class Operator {
  public:
   virtual ~Operator();
@@ -80,6 +81,15 @@ class Operator {
   virtual OpResult Execute(const RowBatch& in,
                            RowBatch& out,
                            OperatorState& state) const = 0;
+
+  // Called once after the last input batch, for an operator which holds rows
+  // back to let them go. The results mean what they do for Execute(): keep
+  // returning kHaveMoreOutput to be called again. An operator which holds
+  // nothing back leaves `out` empty.
+  virtual OpResult Finish(RowBatch& out, OperatorState&) const {
+    out.Reset();
+    return OpResult::kNeedMoreInput;
+  }
 
   // Resets `state` so the plan can be run again. An operator which carries
   // nothing between batches has nothing to do here.
