@@ -127,61 +127,50 @@ TRACE_EVENT("rendering", "DrawPlayer", "player_number", player_number);
 ```
 
 See [below](#track-event-arguments) for the other types of supported track
-event arguments. For more complex arguments, you can define [your own
-protobuf messages](/protos/perfetto/trace/track_event/track_event.proto) and
-emit them as a parameter for the event.
+event arguments. For more complex arguments, use
+[protobuf extensions](/docs/instrumentation/extensions.md) to attach your own
+strongly typed fields to `TrackEvent` without forking Perfetto or changing its
+upstream proto definitions.
 
-NOTE: Currently custom protobuf messages need to be added directly to the
-      Perfetto repository under `protos/perfetto/trace`, and Perfetto itself
-      must also be rebuilt. We are working
-      [to lift this limitation](https://github.com/google/perfetto/issues/11).
-
-As an example of a custom track event argument type, save the following as
-`protos/perfetto/trace/track_event/player_info.proto`:
+As an example of a custom track event argument type, define an extension field
+in your own `player_info_extension.proto`:
 
 ```protobuf
+syntax = "proto2";
+
+import "protos/perfetto/trace/perfetto_trace.proto";
+
 message PlayerInfo {
   optional string name = 1;
   optional uint64 score = 2;
 }
-```
 
-This new file should also be added to
-`protos/perfetto/trace/track_event/BUILD.gn`:
-
-```json
-sources = [
-  ...
-  "player_info.proto"
-]
-```
-
-Also, a matching argument should be added to the track event message
-definition in
-`protos/perfetto/trace/track_event/track_event.proto`:
-
-```protobuf
-import "protos/perfetto/trace/track_event/player_info.proto";
-
-...
-
-message TrackEvent {
-  ...
-  // New argument types go here.
-  optional PlayerInfo player_info = 1000;
+message PlayerInfoExtension {
+  extend perfetto.protos.TrackEvent {
+    optional PlayerInfo player_info = 9900;
+  }
 }
 ```
 
-The corresponding trace point could look like this:
+After generating the C++ bindings, the corresponding trace point could look
+like this:
 
 ```C++
+#include "player_info_extension.pbzero.h"
+
 Player my_player;
 TRACE_EVENT("category", "MyEvent", [&](perfetto::EventContext ctx) {
-  auto player = ctx.event()->set_player_info();
+  auto* event = ctx.event<perfetto::protos::pbzero::PlayerInfoExtension>();
+  auto* player = event->set_player_info();
   player->set_name(my_player.name());
-  player->set_player_score(my_player.score());
+  player->set_score(my_player.score());
 });
 ```
+
+See [Extending TrackEvent with Custom
+Protos](/docs/instrumentation/extensions.md) for the full setup, including
+field-number allocation, descriptor delivery to Trace Processor and the UI, and
+SQL querying.
 
 The lambda function passed to the macro is only called if tracing is enabled for
 the given category. It is always called synchronously and possibly multiple
