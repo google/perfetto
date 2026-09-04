@@ -20,6 +20,7 @@
 #include <functional>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/flags.h"
 
 // The POSIX watchdog is only supported on Linux and Android in non-embedder
 // builds.
@@ -76,8 +77,10 @@ constexpr uint32_t kWatchdogDefaultCpuWindow = 10 * 60 * 1000;  // 10 minutes.
 
 // The default memory margin we give to our processes. This is used as as a
 // constant to put on top of the trace buffers.
-constexpr uint64_t kWatchdogDefaultMemorySlack = 32 * 1024 * 1024;  // 32 MiB.
-constexpr uint32_t kWatchdogDefaultMemoryWindow = 30 * 1000;  // 30 seconds.
+constexpr uint64_t kWatchdogDefaultMemorySlack =
+    PERFETTO_FLAGS(USE_ANON_RSS_IN_WATCHDOG) ? 32 * 1024 * 1024   // 32 MiB
+                                             : 64 * 1024 * 1024;  // 64 MiB
+constexpr uint32_t kWatchdogDefaultMemoryWindow = 30 * 1000;      // 30 seconds.
 
 inline void RunTaskWithWatchdogGuard(const std::function<void()>& task) {
   // The longest duration allowed for a single task within the TaskRunner.

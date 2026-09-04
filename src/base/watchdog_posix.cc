@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <fstream>
+#include <optional>
 #include <thread>
 
 #include "perfetto/base/build_config.h"
@@ -41,6 +42,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -263,10 +265,15 @@ void Watchdog::ThreadMain() {
     PERFETTO_ELOG("Failed to open stat file to enforce resource limits.");
     return;
   }
-  base::ScopedFile statm_fd(base::OpenFile("/proc/self/statm", O_RDONLY));
-  if (!statm_fd) {
-    PERFETTO_ELOG("Failed to open statm file to enforce resource limits.");
-    return;
+
+  base::ScopedFile statm_fd;
+  if constexpr (PERFETTO_FLAGS(USE_ANON_RSS_IN_WATCHDOG)) {
+    statm_fd = (base::OpenFile("/proc/self/statm", O_RDONLY));
+    if (!statm_fd) {
+      PERFETTO_DLOG(
+          "Failed to open statm file to enforce resource limits. Using RSS for "
+          "the guardrail");
+    }
   }
 
   PERFETTO_DCHECK(timer_fd_);
@@ -341,21 +348,32 @@ void Watchdog::ThreadMain() {
 
     // Check CPU and memory guardrails (if enabled).
     lseek(stat_fd.get(), 0, SEEK_SET);
-    lseek(statm_fd.get(), 0, SEEK_SET);
     ProcStat stat;
     if (!ReadProcStat(stat_fd.get(), &stat))
       continue;
-    ProcStatm statm;
-    if (!ReadProcStatm(statm_fd.get(), &statm))
-      continue;
-    uint64_t cpu_time = stat.utime + stat.stime;
-    uint64_t rss_anon_bytes = statm.rss_anon_pages() * base::GetSysPageSize();
+
+    const uint64_t cpu_time = stat.utime + stat.stime;
+    const uint64_t rss_bytes =
+        stat.rss_pages > 0
+            ? static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize()
+            : 0;
+
+    std::optional<uint64_t> rss_anon_bytes = std::nullopt;
+    if constexpr (PERFETTO_FLAGS(USE_ANON_RSS_IN_WATCHDOG)) {
+      if (statm_fd) {
+        lseek(statm_fd.get(), 0, SEEK_SET);
+        ProcStatm statm;
+        if (ReadProcStatm(statm_fd.get(), &statm))
+          rss_anon_bytes = statm.rss_anon_pages() * base::GetSysPageSize();
+      }
+    }
 
     bool threshold_exceeded = false;
     WatchdogCrashReason crash_reason{};
     {
       std::lock_guard<std::mutex> guard(mutex_);
-      if (CheckMemory_Locked(rss_anon_bytes) && !IsSyncMemoryTaggingEnabled()) {
+      if (CheckMemory_Locked(rss_anon_bytes.value_or(rss_bytes)) &&
+          !IsSyncMemoryTaggingEnabled()) {
         threshold_exceeded = true;
         crash_reason = WatchdogCrashReason::kMemGuardrail;
       } else if (CheckCpu_Locked(cpu_time)) {
