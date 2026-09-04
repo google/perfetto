@@ -48,7 +48,7 @@ import {
   shortClassName,
   topTable,
 } from '../section_widgets';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
@@ -405,7 +405,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
           // Share of all bitmap bytes, with the change in share (percentage
           // points, this snapshot's total vs the baseline's) below in diff mode.
           deltaCell(
-            m(ShareBar, {frac: shareFrac}),
+            m(ProgressBar, {pct: shareFrac * 100}),
             comparing ? (shareFrac - baseShareFrac) * 100 : undefined,
             comparing,
             (n) =>
