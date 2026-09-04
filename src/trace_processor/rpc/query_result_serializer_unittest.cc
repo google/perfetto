@@ -154,6 +154,30 @@ TEST(QueryResultSerializerTest, ShortBatch) {
                           SqlValue::Bytes("a_blob", 6)));
 }
 
+TEST(QueryResultSerializerTest, ShortBatchFixedWidthInts) {
+  auto tp = TraceProcessor::CreateInstance(trace_processor::Config());
+
+  // Spans both the int32 bucket (small values) and the int64 bucket (values
+  // that don't fit in 32 bits, and negatives).
+  auto iter = tp->ExecuteQuery(
+      "select 1 as i8, 128 as i16, 100000 as i32, 42001001001 as i64, "
+      "-5 as neg, -42001001001 as neg64, 1e9 as f64, 'a_string' as str, "
+      "cast('a_blob' as blob) as blb");
+  QueryResultSerializer ser(std::move(iter));
+  ser.set_use_fixed_width_int_cells(true);
+  TestDeserializer deser;
+  deser.SerializeAndDeserialize(&ser);
+
+  EXPECT_THAT(deser.columns, ElementsAre("i8", "i16", "i32", "i64", "neg",
+                                         "neg64", "f64", "str", "blb"));
+  EXPECT_THAT(deser.cells,
+              ElementsAre(SqlValue::Long(1), SqlValue::Long(128),
+                          SqlValue::Long(100000), SqlValue::Long(42001001001),
+                          SqlValue::Long(-5), SqlValue::Long(-42001001001),
+                          SqlValue::Double(1e9), SqlValue::String("a_string"),
+                          SqlValue::Bytes("a_blob", 6)));
+}
+
 TEST(QueryResultSerializerTest, LongBatch) {
   auto tp = TraceProcessor::CreateInstance(trace_processor::Config());
 
@@ -330,6 +354,8 @@ TEST(QueryResultSerializerTest, RandomSizes) {
     uint32_t cells_per_batch = 1 << (rnd_engine() % 8 + 2);
     uint32_t binary_payload_size = 1 << (rnd_engine() % 8 + 8);
     ser.set_batch_size_for_testing(cells_per_batch, binary_payload_size);
+    // Exercise both the varint and the fixed-width int encodings.
+    ser.set_use_fixed_width_int_cells(rep % 2 == 0);
     TestDeserializer deser;
     deser.SerializeAndDeserialize(&ser);
     ASSERT_EQ(deser.cells.size(), expected.size());

@@ -270,6 +270,18 @@ message QueryResult {
       CELL_FLOAT64 = 3;
       CELL_STRING = 4;
       CELL_BLOB = 5;
+      // Fixed-width integer cells. These are an alternative encoding for
+      // integer values (the same values that would otherwise be CELL_VARINT)
+      // used only when the client opts in via the |use_fixed_width_int_cells|
+      // serializer flag. They trade a larger wire size for cheaper decoding on
+      // the JS side: unlike varints, the int32_cells / int64_cells buffers are
+      // fixed-width so the reader can overlay a TypedArray (copying at most
+      // once per batch) instead of decoding a varint per cell. This is used by
+      // the Wasm UI, where the "wire" is an in-process memcpy and per-cell
+      // decode CPU dominates. The HTTP+RPC path keeps using CELL_VARINT, where
+      // the smaller wire matters.
+      CELL_INT32 = 6;
+      CELL_INT64 = 7;
     }
     repeated CellType cells = 1 [packed = true];
 
@@ -288,6 +300,14 @@ message QueryResult {
 
     // Padding field. Used only to re-align and fill gaps in the binary format.
     reserved 7;
+
+    // See CELL_INT32 / CELL_INT64. Fixed-width counterparts of varint_cells,
+    // emitted (instead of varint_cells) only when the serializer is asked to
+    // use fixed-width int cells. The JS reader decodes these by overlaying an
+    // Int32Array / BigInt64Array (copying at most once per batch) instead of
+    // decoding a varint per cell.
+    repeated sfixed32 int32_cells = 8 [packed = true];
+    repeated sfixed64 int64_cells = 9 [packed = true];
   }
   repeated CellsBatch batch = 3;
 

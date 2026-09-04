@@ -54,6 +54,11 @@ import {
 const CELL_VARINT = 2;
 const CELL_FLOAT64 = 3;
 const CELL_STRING = 4;
+const CELL_INT32 = 6;
+const CELL_INT64 = 7;
+
+const INT32_MIN = -2147483648;
+const INT32_MAX = 2147483647;
 
 // --- Minimal protobuf wire encoder ---------------------------------------
 // We hand-encode the trace_processor.QueryResult bytes rather than going
@@ -79,6 +84,29 @@ function pushLenDelim(arr: number[], field: number, payload: number[]): void {
   pushTag(arr, field, 2);
   pushVarint(arr, payload.length);
   for (let i = 0; i < payload.length; i++) arr.push(payload[i]);
+}
+
+// Appends |value| as a little-endian sfixed32 (4 bytes, two's complement).
+function pushFixed32(arr: number[], value: number): void {
+  const v = value | 0;
+  arr.push(v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff);
+}
+
+// Appends |value| as a little-endian sfixed64 (8 bytes, two's complement).
+// |value| must fit in a JS number (< 2**53); it is split into two 32-bit halves.
+function pushFixed64(arr: number[], value: number): void {
+  const lo = value >>> 0;
+  const hi = Math.floor(value / 0x100000000) >>> 0;
+  arr.push(
+    lo & 0xff,
+    (lo >>> 8) & 0xff,
+    (lo >>> 16) & 0xff,
+    (lo >>> 24) & 0xff,
+    hi & 0xff,
+    (hi >>> 8) & 0xff,
+    (hi >>> 16) & 0xff,
+    (hi >>> 24) & 0xff,
+  );
 }
 
 const textEncoder = new TextEncoder();
@@ -112,11 +140,14 @@ function rowInts(r: number): [number, number, number, number, number, number] {
 }
 
 // Builds an encoded trace_processor.QueryResult with `numRows` rows split into
-// batches of ~`rowsPerBatch`. Integer cells are CELL_VARINT (what the
-// HTTP+RPC path emits, and what `main` always emits).
+// batches of ~`rowsPerBatch`. Integer cells are CELL_VARINT by default (what
+// the HTTP+RPC path emits, and what `main` always emits); pass
+// useFixedWidthInts to emit them as CELL_INT32 / CELL_INT64 instead (what the
+// Wasm UI opts into).
 function buildInstantTrackResult(
   numRows: number,
   rowsPerBatch: number,
+  useFixedWidthInts = false,
 ): Uint8Array[] {
   const out: Uint8Array[] = [];
   let row = 0;
@@ -125,11 +156,25 @@ function buildInstantTrackResult(
     const n = Math.min(rowsPerBatch, numRows - row);
     const cellTypes: number[] = []; // packed CellType per cell.
     const varints: number[] = []; // packed varint payload.
+    const int32s: number[] = []; // packed sfixed32 payload.
+    const int64s: number[] = []; // packed sfixed64 payload.
     const stringCells: string[] = [];
 
     const pushInt = (v: number) => {
-      cellTypes.push(CELL_VARINT);
-      pushVarint(varints, v);
+      if (useFixedWidthInts) {
+        // Mirror the serializer: values that fit in 32 bits go to int32_cells,
+        // the rest to int64_cells.
+        if (v >= INT32_MIN && v <= INT32_MAX) {
+          cellTypes.push(CELL_INT32);
+          pushFixed32(int32s, v);
+        } else {
+          cellTypes.push(CELL_INT64);
+          pushFixed64(int64s, v);
+        }
+      } else {
+        cellTypes.push(CELL_VARINT);
+        pushVarint(varints, v);
+      }
     };
 
     for (let i = 0; i < n; i++) {
@@ -153,6 +198,8 @@ function buildInstantTrackResult(
     for (const ct of cellTypes) pushVarint(cellsBuf, ct);
     pushLenDelim(batch, 1, cellsBuf);
     if (varints.length) pushLenDelim(batch, 2, varints);
+    if (int32s.length) pushLenDelim(batch, 8, int32s);
+    if (int64s.length) pushLenDelim(batch, 9, int64s);
     pushLenDelim(batch, 5, utf8(stringCells.join('\0')));
     pushTag(batch, 6, 0);
     pushVarint(batch, isLast ? 1 : 0);
@@ -493,6 +540,218 @@ function buildFloat64OnlyResult(
   return out;
 }
 
+// A single-column NUM variant where every value is a 64-bit integer (above
+// INT32_MAX, so the fixed-width encoding uses CELL_INT64). This isolates the
+// varint-vs-fixed-width int64 decode into a NUM (Float64Array) column: it is
+// the direct analog of the num-varint-only benchmark, but the fixed-width side
+// exercises CELL_INT64 (sfixed64) cells instead of CELL_VARINT.
+const INT64_COLUMN_NAMES = ['x'];
+const INT64_SPEC = {x: NUM} as const;
+const INT64_LONG_SPEC = {x: LONG} as const;
+
+function buildInt64OnlyResult(
+  numRows: number,
+  rowsPerBatch: number,
+  useFixedWidthInts: boolean,
+): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  let row = 0;
+  let firstBatch = true;
+  while (row < numRows) {
+    const n = Math.min(rowsPerBatch, numRows - row);
+    const cellTypes: number[] = [];
+    const varints: number[] = [];
+    const int64s: number[] = [];
+
+    for (let i = 0; i < n; i++) {
+      // 64-bit int, well above INT32_MAX but < 2**53 (exact in a double).
+      const v = 1_500_000_000_000 + (row + i) * 7919;
+      if (useFixedWidthInts) {
+        cellTypes.push(CELL_INT64);
+        pushFixed64(int64s, v);
+      } else {
+        cellTypes.push(CELL_VARINT);
+        pushVarint(varints, v);
+      }
+    }
+    const isLast = row + n >= numRows;
+
+    // CellsBatch payload. Field numbers: cells=1, varint_cells=2,
+    // int64_cells=9, is_last_batch=6.
+    const batch: number[] = [];
+    const cellsBuf: number[] = [];
+    for (const ct of cellTypes) pushVarint(cellsBuf, ct);
+    pushLenDelim(batch, 1, cellsBuf);
+    if (varints.length) pushLenDelim(batch, 2, varints);
+    if (int64s.length) pushLenDelim(batch, 9, int64s);
+    pushTag(batch, 6, 0);
+    pushVarint(batch, isLast ? 1 : 0);
+
+    // QueryResult wrapper. Field numbers: column_names=1, batch=3.
+    const top: number[] = [];
+    if (firstBatch) {
+      for (const name of INT64_COLUMN_NAMES) pushLenDelim(top, 1, utf8(name));
+    }
+    pushLenDelim(top, 3, batch);
+
+    out.push(Uint8Array.from(top));
+    firstBatch = false;
+    row += n;
+  }
+  return out;
+}
+
+// A single-column NUM variant where every value fits in a signed 32-bit int.
+// The varint encoding stores them as CELL_VARINT; the fixed-width encoding
+// stores them as CELL_INT32 (sfixed32). This is the direct int32 analog of the
+// int64 fixed-vs-varint benchmarks above, and it models the most common real
+// case: ID-like / small-counter columns that the Wasm UI routes to the int32
+// bucket. Unlike the int64 case (where a 64-bit varint is already 5-10 bytes,
+// so sfixed64 is both smaller and faster), here a 3-5 byte varint is often
+// smaller on the wire than the flat 4-byte sfixed32, so this isolates the
+// decode-speed-vs-wire-size tradeoff.
+const INT32_COLUMN_NAMES = ['x'];
+const INT32_SPEC = {x: NUM} as const;
+const INT32_LONG_SPEC = {x: LONG} as const;
+
+function buildInt32OnlyResult(
+  numRows: number,
+  rowsPerBatch: number,
+  useFixedWidthInts: boolean,
+): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  let row = 0;
+  let firstBatch = true;
+  while (row < numRows) {
+    const n = Math.min(rowsPerBatch, numRows - row);
+    const cellTypes: number[] = [];
+    const varints: number[] = [];
+    const int32s: number[] = [];
+
+    for (let i = 0; i < n; i++) {
+      // 32-bit int, well within [INT32_MIN, INT32_MAX] but large enough that
+      // the varint encoding is 4-5 bytes (a strong case for the varint path).
+      // Max value = 100_000_000 + (numRows-1) * 2000 = 2_099_998_000 < INT32_MAX.
+      const v = 100_000_000 + (row + i) * 2000;
+      if (useFixedWidthInts) {
+        cellTypes.push(CELL_INT32);
+        pushFixed32(int32s, v);
+      } else {
+        cellTypes.push(CELL_VARINT);
+        pushVarint(varints, v);
+      }
+    }
+    const isLast = row + n >= numRows;
+
+    // CellsBatch payload. Field numbers: cells=1, varint_cells=2,
+    // int32_cells=8, is_last_batch=6.
+    const batch: number[] = [];
+    const cellsBuf: number[] = [];
+    for (const ct of cellTypes) pushVarint(cellsBuf, ct);
+    pushLenDelim(batch, 1, cellsBuf);
+    if (varints.length) pushLenDelim(batch, 2, varints);
+    if (int32s.length) pushLenDelim(batch, 8, int32s);
+    pushTag(batch, 6, 0);
+    pushVarint(batch, isLast ? 1 : 0);
+
+    // QueryResult wrapper. Field numbers: column_names=1, batch=3.
+    const top: number[] = [];
+    if (firstBatch) {
+      for (const name of INT32_COLUMN_NAMES) pushLenDelim(top, 1, utf8(name));
+    }
+    pushLenDelim(top, 3, batch);
+
+    out.push(Uint8Array.from(top));
+    firstBatch = false;
+    row += n;
+  }
+  return out;
+}
+
+// Untimed verification passes (see bench()). The % 65521 keeps the accumulator
+// bounded and the per-row work identical between the two paths.
+function int64ChecksumIter(qr: QueryResult): number {
+  let checksum = 0;
+  const it = qr.iter(INT64_SPEC);
+  for (; it.valid(); it.next()) {
+    checksum += it.x % 65521;
+  }
+  return checksum;
+}
+
+function int64ChecksumColumns(qr: QueryResult): number {
+  const count = qr.numRows();
+  const cols = qr.decodeColumns(INT64_SPEC);
+  const xs = cols.x;
+  let checksum = 0;
+  for (let i = 0; i < count; i++) {
+    checksum += xs[i] % 65521;
+  }
+  return checksum;
+}
+
+// Untimed verification passes for the int64→LONG benchmark. The % 65521n keeps
+// the bigint accumulator bounded.
+function int64LongChecksumIter(qr: QueryResult): bigint {
+  let checksum = 0n;
+  const it = qr.iter(INT64_LONG_SPEC);
+  for (; it.valid(); it.next()) {
+    checksum += (it.x as bigint) % 65521n;
+  }
+  return checksum;
+}
+
+function int64LongChecksumColumns(qr: QueryResult): bigint {
+  const count = qr.numRows();
+  const cols = qr.decodeColumns(INT64_LONG_SPEC);
+  const xs = cols.x as BigInt64Array;
+  let checksum = 0n;
+  for (let i = 0; i < count; i++) {
+    checksum += xs[i] % 65521n;
+  }
+  return checksum;
+}
+
+function int32ChecksumIter(qr: QueryResult): number {
+  let checksum = 0;
+  const it = qr.iter(INT32_SPEC);
+  for (; it.valid(); it.next()) {
+    checksum += it.x % 65521;
+  }
+  return checksum;
+}
+
+function int32ChecksumColumns(qr: QueryResult): number {
+  const count = qr.numRows();
+  const cols = qr.decodeColumns(INT32_SPEC);
+  const xs = cols.x;
+  let checksum = 0;
+  for (let i = 0; i < count; i++) {
+    checksum += xs[i] % 65521;
+  }
+  return checksum;
+}
+
+function int32LongChecksumIter(qr: QueryResult): bigint {
+  let checksum = 0n;
+  const it = qr.iter(INT32_LONG_SPEC);
+  for (; it.valid(); it.next()) {
+    checksum += (it.x as bigint) % 65521n;
+  }
+  return checksum;
+}
+
+function int32LongChecksumColumns(qr: QueryResult): bigint {
+  const count = qr.numRows();
+  const cols = qr.decodeColumns(INT32_LONG_SPEC);
+  const xs = cols.x as BigInt64Array;
+  let checksum = 0n;
+  for (let i = 0; i < count; i++) {
+    checksum += xs[i] % 65521n;
+  }
+  return checksum;
+}
+
 // Plain sums (no modulo: the identical operation order in both paths keeps
 // the float results bit-identical, which doubles as a stricter equality
 // check than an integer checksum). Untimed verification passes (see bench()).
@@ -621,11 +880,25 @@ function emit(text: string) {
   }
 }
 
+// Lazily-built benchmark datasets, shared across tests so each encoding is
+// produced only once (building 1M rows of wire bytes is not free).
+let varintEncodedCache: Uint8Array[] | undefined;
+function varintEncoded(): Uint8Array[] {
+  if (varintEncodedCache === undefined) {
+    varintEncodedCache = buildInstantTrackResult(
+      NUM_ROWS,
+      ROWS_PER_BATCH,
+      false,
+    );
+  }
+  return varintEncodedCache;
+}
+
 describe('QueryResultBenchmark', () => {
   maybe(
     'instant track decode: iter() vs decodeColumns()',
     () => {
-      const encoded = buildInstantTrackResult(NUM_ROWS, ROWS_PER_BATCH);
+      const encoded = varintEncoded();
 
       const iterStats = bench(
         'iter()',
@@ -766,6 +1039,250 @@ describe('QueryResultBenchmark', () => {
       );
 
       expect(iterStats.median).toBeGreaterThan(0);
+    },
+    600_000,
+  );
+
+  maybe(
+    'fixed-width ints vs varint: iter() and decodeColumns()',
+    () => {
+      // Single NUM column, 64-bit int values. The varint encoding stores them
+      // as CELL_VARINT; the fixed-width encoding stores them as CELL_INT64
+      // (sfixed64). Both must decode to identical numbers.
+      const varint = buildInt64OnlyResult(NUM_ROWS, ROWS_PER_BATCH, false);
+      const fixed = buildInt64OnlyResult(NUM_ROWS, ROWS_PER_BATCH, true);
+
+      const iterVarint = bench(
+        'iter() [varint]',
+        varint,
+        (qr) => iterOnly(qr, INT64_SPEC),
+        int64ChecksumIter,
+      );
+      const iterFixed = bench(
+        'iter() [fixed]',
+        fixed,
+        (qr) => iterOnly(qr, INT64_SPEC),
+        int64ChecksumIter,
+      );
+      const colVarint = bench(
+        'decodeColumns() [varint]',
+        varint,
+        (qr) => decodeOnly(qr, INT64_SPEC),
+        int64ChecksumColumns,
+      );
+      const colFixed = bench(
+        'decodeColumns() [fixed]',
+        fixed,
+        (qr) => decodeOnly(qr, INT64_SPEC),
+        int64ChecksumColumns,
+      );
+
+      // Both encodings must decode to identical values.
+      expect(iterFixed.checksum).toBe(iterVarint.checksum);
+      expect(colFixed.checksum).toBe(colVarint.checksum);
+
+      const m = (s: BenchStats) => s.median;
+      const iterSpeedup = (m(iterVarint) / m(iterFixed)).toFixed(2);
+      const colSpeedup = (m(colVarint) / m(colFixed)).toFixed(2);
+
+      emit(
+        `\n[QueryResultBenchmark] fixed-width ints vs varint, ` +
+          `${fmt(NUM_ROWS)} rows (1 NUM column, 64-bit ints), ` +
+          `${ITERS} iters, median ms\n\n` +
+          report(iterVarint) +
+          report(iterFixed) +
+          `\n  Speedup varint -> fixed (iter): ${iterSpeedup}x\n\n` +
+          report(colVarint) +
+          report(colFixed) +
+          `\n  Speedup varint -> fixed (decodeColumns): ${colSpeedup}x\n`,
+      );
+
+      expect(iterFixed.median).toBeGreaterThan(0);
+      expect(colFixed.median).toBeGreaterThan(0);
+    },
+    600_000,
+  );
+
+  maybe(
+    'fixed-width ints vs varint (LONG): iter() and decodeColumns()',
+    () => {
+      // Single LONG column, 64-bit int values. The varint encoding stores them
+      // as CELL_VARINT; the fixed-width encoding stores them as CELL_INT64
+      // (sfixed64). Both must decode to identical bigints. The fixed-width
+      // path decodes by bit-copying two 32-bit words into the BigInt64Array
+      // backing buffer, avoiding per-cell BigInt allocation.
+      const varint = buildInt64OnlyResult(NUM_ROWS, ROWS_PER_BATCH, false);
+      const fixed = buildInt64OnlyResult(NUM_ROWS, ROWS_PER_BATCH, true);
+
+      const iterVarint = bench(
+        'iter() [varint]',
+        varint,
+        (qr) => iterOnly(qr, INT64_LONG_SPEC),
+        int64LongChecksumIter,
+      );
+      const iterFixed = bench(
+        'iter() [fixed]',
+        fixed,
+        (qr) => iterOnly(qr, INT64_LONG_SPEC),
+        int64LongChecksumIter,
+      );
+      const colVarint = bench(
+        'decodeColumns() [varint]',
+        varint,
+        (qr) => decodeOnly(qr, INT64_LONG_SPEC),
+        int64LongChecksumColumns,
+      );
+      const colFixed = bench(
+        'decodeColumns() [fixed]',
+        fixed,
+        (qr) => decodeOnly(qr, INT64_LONG_SPEC),
+        int64LongChecksumColumns,
+      );
+
+      // Both encodings must decode to identical values.
+      expect(iterFixed.checksum).toBe(iterVarint.checksum);
+      expect(colFixed.checksum).toBe(colVarint.checksum);
+
+      const m = (s: BenchStats) => s.median;
+      const iterSpeedup = (m(iterVarint) / m(iterFixed)).toFixed(2);
+      const colSpeedup = (m(colVarint) / m(colFixed)).toFixed(2);
+
+      emit(
+        `\n[QueryResultBenchmark] fixed-width ints vs varint (LONG), ` +
+          `${fmt(NUM_ROWS)} rows (1 LONG column, 64-bit ints), ` +
+          `${ITERS} iters, median ms\n\n` +
+          report(iterVarint) +
+          report(iterFixed) +
+          `\n  Speedup varint -> fixed (iter): ${iterSpeedup}x\n\n` +
+          report(colVarint) +
+          report(colFixed) +
+          `\n  Speedup varint -> fixed (decodeColumns): ${colSpeedup}x\n`,
+      );
+
+      expect(iterFixed.median).toBeGreaterThan(0);
+      expect(colFixed.median).toBeGreaterThan(0);
+    },
+    600_000,
+  );
+
+  maybe(
+    'fixed-width ints vs varint (INT32): iter() and decodeColumns()',
+    () => {
+      // Single NUM column, 32-bit int values. The varint encoding stores them
+      // as CELL_VARINT; the fixed-width encoding stores them as CELL_INT32
+      // (sfixed32). Both must decode to identical numbers.
+      const varint = buildInt32OnlyResult(NUM_ROWS, ROWS_PER_BATCH, false);
+      const fixed = buildInt32OnlyResult(NUM_ROWS, ROWS_PER_BATCH, true);
+
+      const iterVarint = bench(
+        'iter() [varint]',
+        varint,
+        (qr) => iterOnly(qr, INT32_SPEC),
+        int32ChecksumIter,
+      );
+      const iterFixed = bench(
+        'iter() [fixed]',
+        fixed,
+        (qr) => iterOnly(qr, INT32_SPEC),
+        int32ChecksumIter,
+      );
+      const colVarint = bench(
+        'decodeColumns() [varint]',
+        varint,
+        (qr) => decodeOnly(qr, INT32_SPEC),
+        int32ChecksumColumns,
+      );
+      const colFixed = bench(
+        'decodeColumns() [fixed]',
+        fixed,
+        (qr) => decodeOnly(qr, INT32_SPEC),
+        int32ChecksumColumns,
+      );
+
+      // Both encodings must decode to identical values.
+      expect(iterFixed.checksum).toBe(iterVarint.checksum);
+      expect(colFixed.checksum).toBe(colVarint.checksum);
+
+      const m = (s: BenchStats) => s.median;
+      const iterSpeedup = (m(iterVarint) / m(iterFixed)).toFixed(2);
+      const colSpeedup = (m(colVarint) / m(colFixed)).toFixed(2);
+
+      emit(
+        `\n[QueryResultBenchmark] fixed-width ints vs varint (INT32), ` +
+          `${fmt(NUM_ROWS)} rows (1 NUM column, 32-bit ints), ` +
+          `${ITERS} iters, median ms\n\n` +
+          report(iterVarint) +
+          report(iterFixed) +
+          `\n  Speedup varint -> fixed (iter): ${iterSpeedup}x\n\n` +
+          report(colVarint) +
+          report(colFixed) +
+          `\n  Speedup varint -> fixed (decodeColumns): ${colSpeedup}x\n`,
+      );
+
+      expect(iterFixed.median).toBeGreaterThan(0);
+      expect(colFixed.median).toBeGreaterThan(0);
+    },
+    600_000,
+  );
+
+  maybe(
+    'fixed-width ints vs varint (INT32, LONG): iter() and decodeColumns()',
+    () => {
+      // Single LONG column, 32-bit int values. The varint encoding stores them
+      // as CELL_VARINT; the fixed-width encoding stores them as CELL_INT32
+      // (sfixed32). Both must decode to identical bigints. The fixed-width
+      // path decodes by writing the sign-extended 32-bit word into the
+      // BigInt64Array backing buffer, avoiding per-cell BigInt allocation.
+      const varint = buildInt32OnlyResult(NUM_ROWS, ROWS_PER_BATCH, false);
+      const fixed = buildInt32OnlyResult(NUM_ROWS, ROWS_PER_BATCH, true);
+
+      const iterVarint = bench(
+        'iter() [varint]',
+        varint,
+        (qr) => iterOnly(qr, INT32_LONG_SPEC),
+        int32LongChecksumIter,
+      );
+      const iterFixed = bench(
+        'iter() [fixed]',
+        fixed,
+        (qr) => iterOnly(qr, INT32_LONG_SPEC),
+        int32LongChecksumIter,
+      );
+      const colVarint = bench(
+        'decodeColumns() [varint]',
+        varint,
+        (qr) => decodeOnly(qr, INT32_LONG_SPEC),
+        int32LongChecksumColumns,
+      );
+      const colFixed = bench(
+        'decodeColumns() [fixed]',
+        fixed,
+        (qr) => decodeOnly(qr, INT32_LONG_SPEC),
+        int32LongChecksumColumns,
+      );
+
+      // Both encodings must decode to identical values.
+      expect(iterFixed.checksum).toBe(iterVarint.checksum);
+      expect(colFixed.checksum).toBe(colVarint.checksum);
+
+      const m = (s: BenchStats) => s.median;
+      const iterSpeedup = (m(iterVarint) / m(iterFixed)).toFixed(2);
+      const colSpeedup = (m(colVarint) / m(colFixed)).toFixed(2);
+
+      emit(
+        `\n[QueryResultBenchmark] fixed-width ints vs varint (INT32, LONG), ` +
+          `${fmt(NUM_ROWS)} rows (1 LONG column, 32-bit ints), ` +
+          `${ITERS} iters, median ms\n\n` +
+          report(iterVarint) +
+          report(iterFixed) +
+          `\n  Speedup varint -> fixed (iter): ${iterSpeedup}x\n\n` +
+          report(colVarint) +
+          report(colFixed) +
+          `\n  Speedup varint -> fixed (decodeColumns): ${colSpeedup}x\n`,
+      );
+
+      expect(iterFixed.median).toBeGreaterThan(0);
+      expect(colFixed.median).toBeGreaterThan(0);
     },
     600_000,
   );
