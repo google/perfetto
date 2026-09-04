@@ -80,6 +80,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
@@ -3183,6 +3184,22 @@ TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
   EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
                "ARMv8 Processor rev 0 (v8l)");
   EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+}
+
+TEST_F(ProtoTraceParserTest, SystemInfoLinuxDevice) {
+  auto* packet = trace_->add_packet();
+  packet->set_trusted_packet_sequence_id(1);
+  packet->set_timestamp(1000);
+  auto* sys_info = packet->set_system_info();
+  std::string dt_compatible("google,gs101-oriole\0google,gs101\0", 32);
+  sys_info->set_linux_device(dt_compatible.data(), dt_compatible.size());
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  SqlValue value =
+      context_.metadata_tracker->GetMetadata(metadata::linux_device).value();
+  EXPECT_STREQ(value.string_value, "google,gs101-oriole");
 }
 
 }  // namespace

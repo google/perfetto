@@ -25,7 +25,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 18
+// Next id: 19
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -38,6 +38,9 @@ message SystemInfo {
 
   // The SoC model from which trace is collected
   optional string android_soc_model = 9;
+
+  // The Linux device base compatible string
+  optional string linux_device = 18;
 
   // The guest SoC model from which trace is collected in case of VMs
   optional string android_guest_soc_model = 13;

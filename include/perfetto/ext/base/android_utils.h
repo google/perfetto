@@ -57,6 +57,7 @@ struct SystemInfo {
   std::string android_storage_model;
   std::string android_ram_model;
   std::string android_serial_console;
+  std::optional<std::string> linux_device;
 };
 
 // Returns the device's utsname information.

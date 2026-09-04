@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Csv, Path, DataPath
+from python.generators.diff_tests.testing import Csv, Path, DataPath, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
@@ -31,6 +31,32 @@ class WattsonStdlib(TestSuite):
             "name"
             "monaco"
             """))
+
+  # Test that Wattson device is resolved from Linux devicetree compatible metadata.
+  def test_wattson_linux_device_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.1.0"
+              machine: "aarch64"
+            }
+            linux_device: "google,gs101-oriole\000google,gs101\000"
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.device_infos;
+        SELECT name FROM _wattson_device;
+        """,
+        out=Csv("""
+        "name"
+        "Tensor"
+        """))
 
   # Tests intermediate table
   def test_wattson_intermediate_table(self):

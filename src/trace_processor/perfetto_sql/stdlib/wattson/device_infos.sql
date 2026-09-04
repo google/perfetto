@@ -114,6 +114,69 @@ WITH
   )
 SELECT * FROM data;
 
+CREATE PERFETTO TABLE _linux_device_map AS
+WITH
+  data(linux_device, wattson_device) AS (
+    SELECT *
+    FROM (
+      VALUES
+        ("google,gs101-oriole", "Tensor"), -- Upstream compatible
+        (
+          "google,gs101-raven", -- Upstream compatible
+          "Tensor"
+        ),
+        (
+          "google,GS101 Oriole", -- Downstream compatible
+          "Tensor"
+        ),
+        (
+          "google,GS101 Raven", -- Downstream compatible
+          "Tensor"
+        ),
+        (
+          "google,GS101 BLUEJAY", -- Downstream compatible
+          "Tensor"
+        ), ("google,ZUMA PRO CAIMAN", "Tensor G4"), -- Downstream compatible
+        (
+          "google,ZUMA PRO KOMODO", -- Downstream compatible
+          "Tensor G4"
+        ),
+        (
+          "google,ZUMA PRO TOKAY", -- Downstream compatible
+          "Tensor G4"
+        ),
+        (
+          "google,ZUMA PRO TEGU", -- Downstream compatible
+          "Tensor G4"
+        ),
+        (
+          "google,ZUMA PRO COMET", -- Downstream compatible
+          "Tensor G4"
+        ),
+        (
+          "google,ZUMA PRO STALLION", -- Downstream compatible
+          "Tensor G4"
+        ),
+        (
+          "google,lga-frankel", -- Downstream compatible
+          "Tensor G5"
+        ),
+        (
+          "google,lga-blazer", -- Downstream compatible
+          "Tensor G5"
+        ),
+        (
+          "google,lga-mustang", -- Downstream compatible
+          "Tensor G5"
+        ),
+        (
+          "google,lga-rango", -- Downstream compatible
+          "Tensor G5"
+        )
+    ) AS _values -- Downstream compatible
+  )
+SELECT * FROM data;
+
 CREATE PERFETTO TABLE _wattson_device_map AS
 WITH
   data(device, wattson_device) AS (
@@ -131,6 +194,7 @@ SELECT * FROM data;
 
 CREATE PERFETTO TABLE _wattson_device AS
 WITH
+  linux_device AS (SELECT str_value FROM metadata WHERE name = 'linux_device'),
   soc_model AS (
     SELECT
       coalesce(
@@ -156,6 +220,13 @@ WITH
           FROM _wattson_device_map AS map
           JOIN android_device_name AS ad
             ON ad.name = map.device
+        ),
+        -- Get the Linux device from metadata and map it to SoC Model
+        (
+          SELECT map.wattson_device
+          FROM linux_device AS ld
+          JOIN _linux_device_map AS map
+            ON ld.str_value = map.linux_device
         )
       ) AS name
   )
