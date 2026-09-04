@@ -40,7 +40,13 @@ export function createVideoFramesTrack(
       ts,
       COALESCE(LEAD(ts) OVER (ORDER BY ts) - ts, 0) AS dur,
       0 AS depth,
-      'Frame ' || frame_number AS name
+      -- When the frame is aligned to a SurfaceFlinger composite, name it by
+      -- that vsync id; otherwise fall back to the frame number.
+      CASE
+        WHEN frame_timeline_vsync_id IS NOT NULL
+          THEN 'vsync ' || frame_timeline_vsync_id
+        ELSE 'Frame ' || frame_number
+      END AS name
     FROM __intrinsic_video_frames
     WHERE display_id = ${displayId}
       AND COALESCE(is_config, 0) = 0

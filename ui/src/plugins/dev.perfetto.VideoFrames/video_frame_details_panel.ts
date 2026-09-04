@@ -17,6 +17,8 @@ import m from 'mithril';
 import {ensureIsInstance} from '../../base/assert';
 import {Time} from '../../base/time';
 import {Timestamp} from '../../components/widgets/timestamp';
+import {LONG_NULL, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {TrackEventSelection} from '../../public/selection';
 import {Button, ButtonBar} from '../../widgets/button';
@@ -31,8 +33,21 @@ import type {VideoFramePlayer} from './video_frame_player';
 // Playback speed options, in real-time multiples.
 const PLAYBACK_RATES = [0.1, 0.2, 0.5, 1, 1.5, 2];
 
+// One app (SurfaceFrame) that was composited into this frame's DisplayFrame.
+interface AppFrame {
+  sliceId: number; // actual_frame_timeline_slice.id, to jump to
+  token?: bigint; // surface_frame_token: this app's own vsync id
+  process: string; // process name (falls back to layer name)
+}
+
 export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
   private readonly player: VideoFramePlayer;
+
+  // App frames composited into the current frame's DisplayFrame, cached per
+  // vsync id so we query at most once as long as the selection stays put.
+  private appFramesVsyncId?: bigint;
+  private appFramesLoaded = false;
+  private appFrames: AppFrame[] = [];
 
   constructor(player: VideoFramePlayer) {
     this.player = player;
@@ -64,6 +79,30 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
         right: m(Timestamp, {trace: p.trace, ts: Time.fromRaw(frame.ts)}),
       }),
     ];
+    if (frame.vsyncId !== undefined) {
+      const vsyncId = frame.vsyncId;
+      // Fetch (once per vsync id) the app frames composited into this
+      // DisplayFrame, shown nested below so you can jump straight to an app's
+      // frame timeline without the SurfaceFlinger round trip.
+      this.ensureAppFrames(vsyncId);
+      detailRows.push(
+        m(
+          TreeNode,
+          {
+            left: 'Frame timeline vsync id',
+            // Clickable (highlighted like the Timestamp): jump to the
+            // SurfaceFlinger DisplayFrame (frame-timeline slice) this frame
+            // was composited in.
+            right: m(
+              Anchor,
+              {onclick: () => this.jumpToDisplayFrame(vsyncId)},
+              `${vsyncId}`,
+            ),
+          },
+          this.renderAppFrameNodes(vsyncId),
+        ),
+      );
+    }
     for (const err of p.errors) {
       detailRows.push(m(TreeNode, {left: 'Stream error', right: err}));
     }
@@ -95,6 +134,94 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
               ),
         ),
       ),
+    );
+  }
+
+  // Selects and scrolls to the SurfaceFlinger DisplayFrame (frame-timeline
+  // slice) with this composite token, so you can jump from a captured video
+  // frame to the composite that produced it.
+  private async jumpToDisplayFrame(vsyncId: bigint) {
+    const trace = this.player.trace;
+    const res = await trace.engine.query(`
+      SELECT id
+      FROM actual_frame_timeline_slice
+      WHERE display_frame_token = ${vsyncId} AND layer_name IS NULL
+      ORDER BY ts
+      LIMIT 1
+    `);
+    if (res.numRows() === 0) return;
+    const id = res.firstRow({id: NUM}).id;
+    trace.selection.selectSqlEvent('slice', id, {scrollToSelection: true});
+  }
+
+  // Loads the app frames (SurfaceFrames) that were composited into the
+  // DisplayFrame with this token, unless already cached for this vsync id.
+  // A SurfaceFrame carries the display_frame_token of the DisplayFrame it was
+  // presented in, so this needs no round trip through SurfaceFlinger.
+  private ensureAppFrames(vsyncId: bigint) {
+    if (this.appFramesVsyncId === vsyncId) return; // already loaded or loading
+    this.appFramesVsyncId = vsyncId;
+    this.appFramesLoaded = false;
+    this.appFrames = [];
+    void this.loadAppFrames(vsyncId);
+  }
+
+  private async loadAppFrames(vsyncId: bigint) {
+    const res = await this.player.trace.engine.query(`
+      SELECT
+        s.id AS sliceId,
+        s.surface_frame_token AS token,
+        COALESCE(p.name, s.layer_name) AS process
+      FROM actual_frame_timeline_slice s
+      LEFT JOIN process p USING (upid)
+      WHERE s.display_frame_token = ${vsyncId} AND s.layer_name IS NOT NULL
+      ORDER BY process, token
+    `);
+    // A newer selection superseded us while the query was in flight.
+    if (this.appFramesVsyncId !== vsyncId) return;
+    const rows: AppFrame[] = [];
+    const it = res.iter({sliceId: NUM, token: LONG_NULL, process: STR_NULL});
+    for (; it.valid(); it.next()) {
+      rows.push({
+        sliceId: it.sliceId,
+        token: it.token ?? undefined,
+        process: it.process ?? '<unknown>',
+      });
+    }
+    this.appFrames = rows;
+    this.appFramesLoaded = true;
+    m.redraw();
+  }
+
+  // The app-frame rows shown nested under the SF vsync id: process name on the
+  // left, the app's own vsync id (surface_frame_token) as a clickable link on
+  // the right that jumps straight to that app's frame timeline slice.
+  private renderAppFrameNodes(vsyncId: bigint): m.Children {
+    if (!this.appFramesLoaded || this.appFramesVsyncId !== vsyncId) {
+      return m(TreeNode, {left: 'Loading app frames…'});
+    }
+    if (this.appFrames.length === 0) {
+      return m(TreeNode, {left: 'No app frames'});
+    }
+    return this.appFrames.map((af) =>
+      m(TreeNode, {
+        left: af.process,
+        right:
+          af.token === undefined
+            ? '(no vsync id)'
+            : m(
+                Anchor,
+                {
+                  onclick: () =>
+                    this.player.trace.selection.selectSqlEvent(
+                      'slice',
+                      af.sliceId,
+                      {scrollToSelection: true},
+                    ),
+                },
+                `${af.token}`,
+              ),
+      }),
     );
   }
 
