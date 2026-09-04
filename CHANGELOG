@@ -20,6 +20,10 @@ Unreleased:
     * Memscope: native callstack snippet table no longer truncates frames.
     * Intelletto: registered tools with Chrome's WebMCP API.
     * Serialize workspaces to permalinks.
+    * Added a "Show only direct flows" setting to the FlowEvents plugin: when
+      enabled, selecting a slice shows only the flows directly connected to it
+      (one step) instead of following the entire flow chain. Useful for traces
+      with dense flow graphs (e.g. build dependencies).
   SDK:
     *
 

@@ -13,8 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {TraceImpl} from '../../core/trace_impl';
+import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 import {renderFlows} from './flow_events_renderer';
 import {FlowManager} from './flow_manager';
@@ -28,12 +31,28 @@ export default class FlowEventsPlugin implements PerfettoPlugin {
     'Handles rendering flows on top of slice tracks originating from the ' +
     'slice table, and for the flows area selection panel.';
 
+  private static directFlowsOnlySetting: Setting<boolean>;
+
+  static onActivate(app: App): void {
+    FlowEventsPlugin.directFlowsOnlySetting = app.settings.register({
+      id: 'dev.perfetto.DirectFlowsOnly',
+      name: 'Show only direct flows',
+      description:
+        'When enabled, selecting a slice only shows flows directly connected ' +
+        'to it (one step), rather than following the entire flow chain. ' +
+        'Useful for traces with dense flow graphs (e.g. build dependencies).',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+  }
+
   async onTraceLoad(trace: TraceImpl): Promise<void> {
     const flows = new FlowManager(
       trace.engine,
       trace.tracks,
       trace.selection,
       trace.raf,
+      FlowEventsPlugin.directFlowsOnlySetting,
     );
 
     trace.tracks.registerOverlay({
