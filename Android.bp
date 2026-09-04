@@ -1376,10 +1376,12 @@ cc_library_static {
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DZLIB_IMPLEMENTATION",
     ],
+    stl: "libc++_static",
     apex_available: [
         "//apex_available:anyapex",
         "//apex_available:platform",
     ],
+    sdk_version: "current",
     min_sdk_version: "30",
     target: {
         android: {
@@ -27457,6 +27459,9 @@ aconfig_declarations {
 cc_aconfig_library {
     name: "perfetto_flags_c_lib",
     aconfig_declarations: "perfetto_flags-aconfig",
+    // All flags read from C++ are fixed read-only, and this drops the runtime
+    // deps (libbase, aconfig storage) that have no sdk variant.
+    mode: "force-read-only",
     vendor_available: true,
     product_available: true,
     apex_available: [
@@ -27464,6 +27469,9 @@ cc_aconfig_library {
         "//apex_available:platform",
         "com.android.profiling",
     ],
+    sdk_version: "current",
+    // The sdk variant would otherwise use the NDK "system" STL (no libc++).
+    stl: "libc++_static",
     min_sdk_version: "30",
 }
 
