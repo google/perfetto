@@ -92,6 +92,14 @@ const WEBGL_RENDERING = featureFlags.register({
   defaultValue: true,
 });
 
+const CONTROLLED_VERTICAL_SCROLLING = featureFlags.register({
+  id: 'dev.perfetto.TimelineControlledVerticalScrolling',
+  name: 'Controlled vertical timeline scrolling',
+  description: `Handle vertical timeline scrolling synchronously instead of
+    relying on the browser's native scrolling behavior.`,
+  defaultValue: true,
+});
+
 export const SHOW_HEADLESS_TRACKS = featureFlags.register({
   id: 'showHeadlessTracks',
   name: 'Show headless tracks',
@@ -239,9 +247,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       top += trackView.height;
 
       // Advance the sticky top position for our children, if we are sticky.
-      const childStickyTop = node.isSummary
-        ? stickyTop + trackView.height
-        : stickyTop;
+      const childStickyTop = stickyTop + trackView.height;
 
       const childNodes: m.Children = [];
       let atLeastOneChildVisible = false;
@@ -333,9 +339,17 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         className: classNames(className, 'pf-track-tree'),
         overflowY: 'auto',
         overflowX: 'hidden',
+        controlledVerticalScrolling: CONTROLLED_VERTICAL_SCROLLING.get(),
         enableWebGL: WEBGL_RENDERING.get(),
-        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, renderer}) => {
+        onCanvasRedraw: ({
+          dom,
+          ctx,
+          virtualCanvasSize,
+          canvasRect,
+          renderer,
+        }) => {
           this.drawCanvas(
+            dom,
             ctx,
             virtualCanvasSize,
             renderedTracks,
@@ -360,7 +374,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           }
         },
       },
-      m('', {ref: TRACK_CONTAINER_REF}, trackVnodes),
+      m(
+        '',
+        {style: {isolation: 'isolate'}, ref: TRACK_CONTAINER_REF},
+        trackVnodes,
+      ),
       this.hoveredTrackNode && this.renderPopup(this.hoveredTrackNode),
     );
   }
@@ -423,12 +441,36 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   }
 
   private drawCanvas(
+    dom: Element,
     ctx: CanvasRenderingContext2D,
     size: Size2D,
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
     renderer: Renderer,
   ) {
+    const container = findRef(dom, TRACK_CONTAINER_REF) ?? dom;
+    const containerRect = container.getBoundingClientRect();
+
+    const trackBoundsMap = new Map<string, VerticalBounds>();
+    const trackEls = container.querySelectorAll('.pf-track__header');
+    trackEls.forEach((el) => {
+      const trackNode = el.closest('.pf-track');
+      if (trackNode?.id) {
+        const rect = el.getBoundingClientRect();
+        const top = rect.top - containerRect.top;
+        const bottom = rect.bottom - containerRect.top;
+        trackBoundsMap.set(trackNode.id, {top, bottom});
+      }
+    });
+
+    for (const trackView of renderedTracks) {
+      const bounds = trackBoundsMap.get(trackView.node.id);
+      if (bounds) {
+        trackView.verticalBounds = bounds;
+        trackView.height = bounds.bottom - bounds.top;
+      }
+    }
+
     const timelineRect = new Rect2D({
       left: TRACK_SHELL_WIDTH,
       top: 0,
@@ -566,7 +608,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     renderer: Renderer,
   ) {
     let tracksOnCanvas = 0;
-    for (const trackView of renderedTracks) {
+    for (const trackView of renderedTracks.toReversed()) {
       const {verticalBounds} = trackView;
       if (
         floatingCanvasRect.overlaps({
@@ -575,6 +617,22 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           right: size.width,
         })
       ) {
+        // Clear any tracks rendered underneath this one. This is necessary for
+        // sticky tracks, whose content areas can overlap while scrolling.
+        using _clip = renderer.clip(
+          timelineRect.left,
+          verticalBounds.top,
+          timelineRect.width,
+          verticalBounds.bottom - verticalBounds.top,
+        );
+        ctx.clearRect(
+          timelineRect.left,
+          verticalBounds.top,
+          timelineRect.width,
+          verticalBounds.bottom - verticalBounds.top,
+        );
+        renderer.clear();
+
         trackView.drawCanvas(
           ctx,
           timelineRect,
