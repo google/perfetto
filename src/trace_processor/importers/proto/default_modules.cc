@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/proto/chrome_system_probes_module.h"
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h"
 #include "src/trace_processor/importers/proto/metadata_minimal_module.h"
+#include "src/trace_processor/importers/proto/profile_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 
@@ -49,6 +50,8 @@ void RegisterDefaultModules(ProtoImporterModuleContext* module_context,
       new ChromeSystemProbesModule(module_context, context));
   module_context->modules.emplace_back(
       new MetadataMinimalModule(module_context, context));
+  module_context->modules.emplace_back(
+      new ProfileModule(module_context, context));
 }
 
 }  // namespace perfetto::trace_processor
