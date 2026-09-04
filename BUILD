@@ -508,6 +508,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -824,6 +826,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -4285,6 +4289,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/flamechart.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/trees/table_conversion.sql",
     ],
 )
@@ -4824,6 +4829,24 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/experimental_slice_layout/all_tables_fwd.h",
         "src/trace_processor/plugins/experimental_slice_layout/tables_fwd.h",
         "src/trace_processor/plugins/experimental_slice_layout/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/flamechart:flamechart
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamechart_flamechart",
+    srcs = [
+        "src/trace_processor/plugins/flamechart/flamechart.cc",
+        "src/trace_processor/plugins/flamechart/flamechart.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/flamechart:intrinsics
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamechart_intrinsics",
+    srcs = [
+        "src/trace_processor/plugins/flamechart/flamechart_function.cc",
+        "src/trace_processor/plugins/flamechart/flamechart_function.h",
     ],
 )
 
@@ -11723,6 +11746,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -12070,6 +12095,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",

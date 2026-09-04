@@ -3180,6 +3180,8 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamechart_flamechart",
+        ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
@@ -19359,6 +19361,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
     srcs: [
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/flamechart.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/trees/table_conversion.sql",
     ],
 }
@@ -20185,6 +20188,30 @@ filegroup {
     name: "perfetto_src_trace_processor_plugins_experimental_slice_layout_unittests",
     srcs: [
         "src/trace_processor/plugins/experimental_slice_layout/experimental_slice_layout_unittest.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/flamechart:flamechart
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_flamechart_flamechart",
+    srcs: [
+        "src/trace_processor/plugins/flamechart/flamechart.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/flamechart:intrinsics
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_flamechart_intrinsics",
+    srcs: [
+        "src/trace_processor/plugins/flamechart/flamechart_function.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/flamechart:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_flamechart_unittests",
+    srcs: [
+        "src/trace_processor/plugins/flamechart/flamechart_unittest.cc",
     ],
 }
 
@@ -21383,6 +21410,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamechart_flamechart",
+        ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
@@ -24373,6 +24402,9 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_unittests",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_unittests",
+        ":perfetto_src_trace_processor_plugins_flamechart_flamechart",
+        ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
+        ":perfetto_src_trace_processor_plugins_flamechart_unittests",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_unittests",
@@ -25503,6 +25535,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamechart_flamechart",
+        ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
@@ -26212,6 +26246,8 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_experimental_flamegraph_experimental_flamegraph",
         ":perfetto_src_trace_processor_plugins_experimental_flat_slice_experimental_flat_slice",
         ":perfetto_src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
+        ":perfetto_src_trace_processor_plugins_flamechart_flamechart",
+        ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
