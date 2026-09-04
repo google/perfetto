@@ -92,7 +92,10 @@ perfetto_unittest_source_set("unittests") {
 if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
-    sources = [ "tree_number_nodes_benchmark.cc" ]
+    sources = [
+      "tree_number_nodes_benchmark.cc",
+      "tree_order_benchmark.cc",
+    ]
     deps = [
       ":exec",
       "../../../../gn:benchmark",

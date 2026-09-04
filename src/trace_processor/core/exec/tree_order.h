@@ -86,6 +86,88 @@ class TreeChildFirst : public Breaker {
   uint32_t parent_column_;
 };
 
+// TREE ORDER PARENT FIRST: puts tree rows into an order where every parent
+// precedes its children. A fold down a tree runs over this order.
+//
+// Not a breaker: a row can go out as soon as its parent has. Rows whose
+// parent is already out stream straight through as views of their batch.
+// Only a row arriving before its parent is held: copied aside and let go the
+// moment the parent arrives, together with whatever is held under it. So the
+// cost is proportional to how far out of order the input is, nothing for
+// ordered input and everything for reversed input, and the planner never
+// needs to know which. Rows once held stay copied until the next rewind.
+//
+// The order is parent first and nothing more: not a pre-order, so a fold
+// down keeps a value per node rather than a path. The input columns are node
+// numbers, which TreeNumberNodes produces. No column is added.
+class TreeParentFirst : public Operator {
+ public:
+  TreeParentFirst(uint32_t node_column, uint32_t parent_column);
+  ~TreeParentFirst() override;
+
+  std::unique_ptr<OperatorState> MakeState() const override;
+  OpResult Execute(const RowBatch& in,
+                   RowBatch& out,
+                   OperatorState& state) const override;
+  OpResult Finish(RowBatch& out, OperatorState& state) const override;
+  void Rewind(OperatorState& state) const override;
+  base::Status status(const OperatorState& state) const override;
+
+ private:
+  struct State : OperatorState {
+    ~State() override;
+
+    // What is known about each node number.
+    struct Nodes {
+      uint32_t count = 0;
+      BitVector has_row;
+      // The node's row is out, or is on its way out in `letting_go`.
+      BitVector out;
+      // The first row of `held` waiting on this node, or kNoNode.
+      FlexVector<uint32_t> first_waiting;
+
+      void Grow(uint32_t count);
+      void Clear();
+    };
+
+    // Rows which arrived before their parent. Each knows its node and the
+    // next row waiting on the same parent, which with `first_waiting` makes
+    // a list per parent. A row let go stays here, so this only grows until
+    // the next rewind.
+    struct Held {
+      RowStore rows;
+      FlexVector<uint32_t> node;
+      FlexVector<uint32_t> next_waiting;
+      uint32_t let_go = 0;
+
+      void Clear();
+    };
+
+    Nodes nodes;
+    Held held;
+
+    // Rows of `held` on their way out after the current batch, served a
+    // batch at a time from `served`.
+    FlexVector<uint32_t> letting_go;
+    uint32_t served = 0;
+
+    // Scratch for one batch: which of its rows pass straight through, which
+    // are held, and the held ones sliced out to be copied.
+    FlexVector<uint32_t> passing;
+    FlexVector<uint32_t> holding;
+    RowBatch held_batch;
+
+    base::Status status = base::OkStatus();
+  };
+
+  // Moves every row waiting on `node` to `letting_go`.
+  void Release(uint32_t node, State&) const;
+  OpResult LetGo(RowBatch& out, State&) const;
+
+  uint32_t node_column_;
+  uint32_t parent_column_;
+};
+
 }  // namespace perfetto::trace_processor::core::exec
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_ORDER_H_

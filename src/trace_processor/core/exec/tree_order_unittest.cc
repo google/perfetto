@@ -425,5 +425,179 @@ TEST(TreeChildFirstTest, IsADepthFirstPostOrder) {
   EXPECT_EQ(totals, expected);
 }
 
+// Numbers the rows, then puts them parent first.
+std::vector<std::unique_ptr<Operator>> NumberParentFirst() {
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
+  ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+  return ops;
+}
+
+// Every parent appears before all of its children.
+void ExpectParentFirst(const Output& out) {
+  std::vector<int64_t> seen;
+  for (uint32_t i = 0; i < out.node.size(); ++i) {
+    if (out.parent[i] >= 0) {
+      EXPECT_NE(std::find(seen.begin(), seen.end(), out.parent[i]), seen.end())
+          << "row " << i << " came before its parent";
+    }
+    seen.push_back(out.node[i]);
+  }
+}
+
+TEST(TreeParentFirstTest, RowsInOrderStreamThrough) {
+  RowSource source(ParentFirstRows(), 2);
+  Pipeline pipeline(source, NumberParentFirst());
+
+  Output out = Drain(pipeline);
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  EXPECT_THAT(out.payload, ElementsAre(100, 101, 102, 103));
+  EXPECT_THAT(out.node, ElementsAre(0, 1, 2, 3));
+  EXPECT_THAT(out.parent, ElementsAre(-1, 0, 0, 1));
+}
+
+// A row arriving before its parent waits for it; the rest of the batch goes
+// on ahead.
+TEST(TreeParentFirstTest, ARowBeforeItsParentWaitsForIt) {
+  std::vector<Row> rows = {
+      {1, 0, 101}, {0, std::nullopt, 100}, {2, 0, 102}, {3, 1, 103}};
+  RowSource source(rows, 4);
+  Pipeline pipeline(source, NumberParentFirst());
+
+  Output out = Drain(pipeline);
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  EXPECT_THAT(out.payload, ElementsAre(100, 102, 101, 103));
+  ExpectParentFirst(out);
+}
+
+TEST(TreeParentFirstTest, AHeldRowIsLetGoWhenItsParentArrivesLater) {
+  RowSource source(ChildFirstRows(), 2);
+  Pipeline pipeline(source, NumberParentFirst());
+
+  Output out = Drain(pipeline);
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  ExpectParentFirst(out);
+  std::vector<int64_t> payload = out.payload;
+  std::sort(payload.begin(), payload.end());
+  EXPECT_THAT(payload, ElementsAre(100, 101, 102, 103));
+}
+
+// More rows let go at once than fit in a batch come out over several.
+TEST(TreeParentFirstTest, RowsLetGoSpanBatches) {
+  std::vector<Row> rows;
+  for (int64_t id = 1; id <= kMaxBatchRows * 2 + 5; ++id) {
+    rows.push_back({id, 0, id});
+  }
+  rows.push_back({0, std::nullopt, 0});
+  RowSource source(rows, 1000);
+  Pipeline pipeline(source, NumberParentFirst());
+
+  Output out = Drain(pipeline);
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  ASSERT_EQ(out.payload.size(), rows.size());
+  EXPECT_EQ(out.payload.front(), 0);
+  std::vector<int64_t> payload = out.payload;
+  std::sort(payload.begin(), payload.end());
+  for (size_t i = 0; i < payload.size(); ++i) {
+    ASSERT_EQ(payload[i], static_cast<int64_t>(i));
+  }
+}
+
+TEST(TreeParentFirstTest, AParentWhichIsNotARowIsReported) {
+  RowSource source({{0, std::nullopt, 100}, {1, 42, 101}}, 2);
+  Pipeline pipeline(source, NumberParentFirst());
+
+  Output out = Drain(pipeline);
+  EXPECT_THAT(out.payload, ElementsAre(100));
+  EXPECT_FALSE(out.status.ok());
+  EXPECT_THAT(out.status.message(), testing::HasSubstr("not itself a row"));
+}
+
+TEST(TreeParentFirstTest, ACycleIsReported) {
+  RowSource source({{0, 1, 100}, {1, 0, 101}}, 2);
+  Pipeline pipeline(source, NumberParentFirst());
+
+  Output out = Drain(pipeline);
+  EXPECT_TRUE(out.payload.empty());
+  EXPECT_FALSE(out.status.ok());
+  EXPECT_THAT(out.status.message(), testing::HasSubstr("not itself a row"));
+}
+
+TEST(TreeParentFirstTest, ASelfParentIsReported) {
+  RowSource source({{0, 0, 100}}, 1);
+  Pipeline pipeline(source, NumberParentFirst());
+
+  Output out = Drain(pipeline);
+  EXPECT_FALSE(out.status.ok());
+  EXPECT_THAT(out.status.message(), testing::HasSubstr("own parent"));
+}
+
+TEST(TreeParentFirstTest, DuplicateNumberedNodesAreReported) {
+  NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<TreeParentFirst>(0, 1));
+  Pipeline pipeline(source, std::move(ops));
+  Execution run(pipeline);
+  while (run.Next()) {
+  }
+  EXPECT_FALSE(run.status().ok());
+  EXPECT_THAT(run.status().message(), testing::HasSubstr("same node"));
+}
+
+TEST(TreeParentFirstTest, RewindReadsTheInputAgain) {
+  RowSource source(ChildFirstRows(), 2);
+  Pipeline pipeline(source, NumberParentFirst());
+  Execution run(pipeline);
+  Output first = Drain(&run);
+  ASSERT_TRUE(first.status.ok()) << first.status.message();
+
+  source.SetRows(
+      {{3, 1, 203}, {2, 0, 202}, {1, 0, 201}, {0, std::nullopt, 200}});
+  run.Rewind();
+  Output second = Drain(&run);
+  ASSERT_TRUE(second.status.ok()) << second.status.message();
+  ExpectParentFirst(second);
+  std::vector<int64_t> payload = second.payload;
+  std::sort(payload.begin(), payload.end());
+  EXPECT_THAT(payload, ElementsAre(200, 201, 202, 203));
+}
+
+TEST(TreeParentFirstTest, RewindDiscardsHeldRows) {
+  RowSource source({{0, std::nullopt, 100}, {1, 42, 101}}, 2);
+  Pipeline pipeline(source, NumberParentFirst());
+  Execution run(pipeline);
+  Output failed = Drain(&run);
+  ASSERT_FALSE(failed.status.ok());
+
+  source.SetRows(ParentFirstRows());
+  run.Rewind();
+  Output recovered = Drain(&run);
+  ASSERT_TRUE(recovered.status.ok()) << recovered.status.message();
+  EXPECT_THAT(recovered.payload, ElementsAre(100, 101, 102, 103));
+}
+
+TEST(TreeParentFirstTest, AShuffledTreeComesOutParentFirst) {
+  std::mt19937 rng(31);
+  std::vector<Row> rows;
+  rows.push_back({0, std::nullopt, 0});
+  for (int64_t id = 1; id < 3000; ++id) {
+    int64_t parent = std::uniform_int_distribution<int64_t>(0, id - 1)(rng);
+    rows.push_back({id, parent, id});
+  }
+  std::shuffle(rows.begin(), rows.end(), rng);
+
+  RowSource source(rows, 256);
+  Pipeline pipeline(source, NumberParentFirst());
+  Output out = Drain(pipeline);
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  ASSERT_EQ(out.node.size(), rows.size());
+  ExpectParentFirst(out);
+  std::vector<int64_t> payload = out.payload;
+  std::sort(payload.begin(), payload.end());
+  for (size_t i = 0; i < payload.size(); ++i) {
+    ASSERT_EQ(payload[i], static_cast<int64_t>(i));
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec
