@@ -44,6 +44,7 @@
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/track_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
+#include "src/trace_processor/tables/wattson_tables_py.h"   // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/variadic.h"
 

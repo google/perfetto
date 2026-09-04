@@ -20,6 +20,13 @@ INCLUDE PERFETTO MODULE wattson.utils;
 -- Device specific info for deep idle time offsets
 CREATE PERFETTO TABLE _device_cpu_deep_idle_offsets AS
 WITH
+  custom_data AS (
+    SELECT
+      (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device,
+      cpu,
+      offset_ns
+    FROM __intrinsic_wattson_custom_deep_idle_offset
+  ),
   data(device, cpu, offset_ns) AS (
     SELECT *
     FROM (
@@ -112,6 +119,8 @@ WITH
         ), ("SM8750", 7, 0)
     ) AS _values
   )
+SELECT * FROM custom_data
+UNION ALL
 SELECT * FROM data;
 
 CREATE PERFETTO TABLE _wattson_device_map AS
@@ -134,6 +143,8 @@ WITH
   soc_model AS (
     SELECT
       coalesce(
+        -- Get custom dynamic model if present
+        (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1),
         -- Get guest model from metadata, which takes precedence if set
         (
           SELECT str_value
@@ -169,6 +180,13 @@ JOIN _device_cpu_deep_idle_offsets AS map
 -- Device specific mapping from CPU to policy
 CREATE PERFETTO TABLE _cpu_to_policy_map AS
 WITH
+  custom_data AS (
+    SELECT
+      (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device,
+      cpu,
+      policy
+    FROM __intrinsic_wattson_custom_cpu_policy
+  ),
   data(device, cpu, policy) AS (
     SELECT *
     FROM (
@@ -256,6 +274,8 @@ WITH
         ), ("SM8750", 5, 0), ("SM8750", 6, 6), ("SM8750", 7, 6)
     ) AS _values
   )
+SELECT * FROM custom_data
+UNION ALL
 SELECT * FROM data;
 
 -- Prefilter table based on device
@@ -302,10 +322,19 @@ FROM _dev_policies;
 -- Devices that require using devfreq
 CREATE PERFETTO TABLE _use_devfreq AS
 WITH
+  custom_data AS (
+    SELECT
+      (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device
+    FROM __intrinsic_wattson_custom_device_info
+    WHERE
+      use_devfreq = 1
+  ),
   data(device) AS (
     SELECT *
     FROM (VALUES ("Tensor G4"), ("Tensor G5"), ("Tensor G6")) AS _values
   )
+SELECT * FROM custom_data
+UNION ALL
 SELECT * FROM data;
 
 -- Creates non-empty table if device needs devfreq
@@ -324,6 +353,13 @@ WHERE
 -- Devices that require idle state mapping
 CREATE PERFETTO TABLE _idle_state_map AS
 WITH
+  custom_data AS (
+    SELECT
+      (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device,
+      nominal_idle,
+      override_idle
+    FROM __intrinsic_wattson_custom_idle_state_map
+  ),
   data(device, nominal_idle, override_idle) AS (
     SELECT *
     FROM (
@@ -361,6 +397,8 @@ WITH
         ), ("SXR2230P", 2, 1)
     ) AS _values
   )
+SELECT * FROM custom_data
+UNION ALL
 SELECT * FROM data;
 
 -- idle_mapping override filtered for device
@@ -380,6 +418,12 @@ SELECT
 -- frequency (as opposed to the default, vote by power)
 CREATE PERFETTO TABLE _vote_by_freq AS
 WITH
+  custom_data AS (
+    SELECT
+      (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device,
+      cpu
+    FROM __intrinsic_wattson_custom_vote_by_freq
+  ),
   data(device, cpu) AS (
     SELECT *
     FROM (
@@ -391,6 +435,8 @@ WITH
         ), ("Tensor G6", 4), ("Tensor G6", 5), ("Tensor G6", 6)
     ) AS _values
   )
+SELECT * FROM custom_data
+UNION ALL
 SELECT * FROM data;
 
 -- Gets all CPUs on device and whether the CPU vote is be freq or power
@@ -411,8 +457,18 @@ ORDER BY
 -- Device specific mapping to GPU ID
 CREATE PERFETTO TABLE _gpuid_map AS
 WITH
+  custom_data AS (
+    SELECT
+      (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device,
+      gpu_id
+    FROM __intrinsic_wattson_custom_device_info
+    WHERE
+      gpu_id IS NOT NULL
+  ),
   data(device, gpu_id) AS (
     SELECT *
     FROM (VALUES ("Tensor G5", 0), ("Tensor G6", 0), ("Tensor", 1)) AS _values
   )
+SELECT * FROM custom_data
+UNION ALL
 SELECT * FROM data;
