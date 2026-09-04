@@ -8054,6 +8054,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_input_event_config.proto",
         "protos/perfetto/config/android/android_log_config.proto",
         "protos/perfetto/config/android/android_polled_state_config.proto",
+        "protos/perfetto/config/android/android_process_state_config.proto",
         "protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto",
         "protos/perfetto/config/android/android_system_property_config.proto",
         "protos/perfetto/config/android/app_wakelock_config.proto",

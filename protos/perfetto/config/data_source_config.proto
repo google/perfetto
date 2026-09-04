@@ -23,6 +23,7 @@ import "protos/perfetto/config/android/android_game_intervention_list_config.pro
 import "protos/perfetto/config/android/android_input_event_config.proto";
 import "protos/perfetto/config/android/android_log_config.proto";
 import "protos/perfetto/config/android/android_polled_state_config.proto";
+import "protos/perfetto/config/android/android_process_state_config.proto";
 import "protos/perfetto/config/android/android_system_property_config.proto";
 import "protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto";
 import "protos/perfetto/config/android/app_wakelock_config.proto";
@@ -322,6 +323,10 @@ message DataSourceConfig {
   // Data source name: org.chromium.native_heap_profiler
   optional ChromiumSamplingHeapProfilerConfig chromium_sampling_heap_profiler =
       144 [lazy = true];
+
+  // Data source name: android.process_state
+  optional AndroidProcessStateConfig android_process_state_config = 145
+      [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
