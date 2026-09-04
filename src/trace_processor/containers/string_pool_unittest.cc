@@ -17,14 +17,19 @@
 #include "src/trace_processor/containers/string_pool.h"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <random>
+#include <string>
+#include <vector>
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/util/concurrency_stress_test_util.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -184,6 +189,103 @@ TEST_F(StringPoolTest, MaxSmallStringIdOnBlockBoundary) {
   StringPool::Id max_id = pool_.MaxSmallStringId();
   ASSERT_EQ(max_id.block_index(), 1u);
   ASSERT_EQ(max_id.block_offset(), 0u);
+}
+
+// Deterministic strings of varied lengths. Every 500th is large enough for the
+// |large_strings_| path.
+std::vector<std::string> MakeVariedStrings(size_t count, size_t large_size) {
+  std::minstd_rand0 rnd_engine(0);
+  std::vector<std::string> strings;
+  strings.reserve(count);
+  for (size_t i = 0; i < count; ++i) {
+    size_t length;
+    if (i % 500 == 499) {
+      length = large_size + (rnd_engine() % 4096);
+    } else {
+      length = rnd_engine() % 256;
+    }
+    std::string s;
+    s.reserve(length);
+    for (size_t j = 0; j < length; ++j)
+      s.push_back(static_cast<char>('A' + (rnd_engine() % 26)));
+    // The index prefix keeps even tiny strings unique.
+    strings.push_back(std::to_string(i) + ":" + s);
+  }
+  return strings;
+}
+
+// Reads of an otherwise immutable pool must be safe from many threads.
+TEST_F(StringPoolTest, ConcurrentReadsNoInterns) {
+  pool_.set_locking(true);
+
+  constexpr size_t kNumStrings = 4000;
+  std::vector<std::string> strings =
+      MakeVariedStrings(kNumStrings, kMinLargeStringSizeBytes);
+  std::vector<StringPool::Id> ids;
+  ids.reserve(kNumStrings);
+  for (const auto& s : strings)
+    ids.push_back(pool_.InternString(base::StringView(s)));
+
+  ConcurrentlyRun(8, 16, [&](uint32_t thread_idx) {
+    // Each thread starts at a different offset so the reads spread across
+    // blocks and large strings at once.
+    for (size_t i = 0; i < kNumStrings; ++i) {
+      size_t k = (i + thread_idx * 257) % kNumStrings;
+      const std::string& expected = strings[k];
+      NullTermStringView got = pool_.Get(ids[k]);
+      PERFETTO_CHECK(got == base::StringView(expected));
+
+      std::optional<StringPool::Id> looked_up =
+          pool_.GetId(base::StringView(expected));
+      PERFETTO_CHECK(looked_up.has_value());
+      PERFETTO_CHECK(*looked_up == ids[k]);
+    }
+  });
+}
+
+// Get() of a published id is lock-free. Concurrent interns, which allocate new
+// blocks and append large strings under the lock, must not corrupt it.
+TEST_F(StringPoolTest, ConcurrentReadsWhileLockedInterns) {
+  pool_.set_locking(true);
+
+  constexpr size_t kNumBaseStrings = 4000;
+  std::vector<std::string> base_strings =
+      MakeVariedStrings(kNumBaseStrings, kMinLargeStringSizeBytes);
+  std::vector<StringPool::Id> base_ids;
+  base_ids.reserve(kNumBaseStrings);
+  for (const auto& s : base_strings)
+    base_ids.push_back(pool_.InternString(base::StringView(s)));
+
+  constexpr size_t kReadWindow = 128;
+  constexpr uint32_t kThreadCount = 8;
+  constexpr uint32_t kIterations = 2000;
+  ConcurrentlyRun(kThreadCount, kIterations, [&](uint32_t thread_idx) {
+    // Half the threads intern new strings, the other half read existing ids.
+    if (thread_idx % 2 == 0) {
+      static std::atomic<uint64_t> counter{0};
+      uint64_t n = counter.fetch_add(1, std::memory_order_relaxed);
+      // 4 writers x kIterations x ~2KB is ~16MB, so several new 4MB blocks get
+      // allocated while the readers run. Every 1000th string is a large one.
+      std::string s = "writer-" + std::to_string(thread_idx) + "-" +
+                      std::to_string(n) + ":";
+      s.append(n % 1000 == 999 ? kMinLargeStringSizeBytes + 1 : 2048, 'x');
+      pool_.InternString(base::StringView(s));
+    } else {
+      uint64_t base = static_cast<uint64_t>(thread_idx) * 257;
+      for (size_t i = 0; i < kReadWindow; ++i) {
+        size_t k = (base + i) % kNumBaseStrings;
+        NullTermStringView got = pool_.Get(base_ids[k]);
+        PERFETTO_CHECK(got == base::StringView(base_strings[k]));
+      }
+    }
+  });
+
+  // Every base id must still resolve after the churn.
+  for (size_t i = 0; i < kNumBaseStrings; ++i)
+    ASSERT_EQ(pool_.Get(base_ids[i]), base::StringView(base_strings[i]));
+
+  // The writers must actually have forced block growth for this to mean much.
+  ASSERT_GT(pool_.MaxSmallStringId().block_index(), 0u);
 }
 
 }  // namespace
