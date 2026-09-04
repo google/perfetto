@@ -158,39 +158,22 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       id: 'com.android.visualiseHeldLocks',
       name: 'Lock Contention: Visualise held locks',
       callback: async () => {
-        await trace.engine.query('INCLUDE PERFETTO MODULE intervals.overlap;');
+        await trace.engine.query('INCLUDE PERFETTO MODULE android.lock_held;');
         await addDebugSliceTrack({
           trace: trace,
           data: {
             // `slice_id` + `table_name` let DebugSliceTrackDetailsPanel resolve
-            // the underlying slice and render a link to it. The merge macro only
-            // returns (ts, dur, partition columns), so the id has to be
-            // recovered by looking it up again: the merged interval's ts is the
-            // min ts of the slices it covers, so this finds the slice that
-            // starts it.
+            // the underlying slice and render a link to it.
             sqlSource: `
-                    WITH lock_held_slices AS (
-                    SELECT ts, dur, lock_name, utid
-                    FROM interval_merge_overlapping_partitioned!((
-                        SELECT ts, dur, name AS lock_name, utid
-                        FROM thread_slice
-                        WHERE dur > 0 AND thread_slice.name GLOB '*_lock_held'
-                    ), (lock_name, utid))
-                    )
                     SELECT
-                    (
-                      SELECT s.id
-                      FROM thread_slice AS s
-                      WHERE s.ts = lhs.ts AND s.utid = lhs.utid
-                      LIMIT 1
-                    ) AS slice_id,
-                    'slice' AS table_name,
-                    thread.name AS thread_name,
-                    lhs.lock_name,
-                    lhs.utid,
-                    lhs.ts,
-                    MIN(LEAD(lhs.ts) OVER(PARTITION BY lhs.lock_name ORDER BY lhs.ts), lhs.ts + lhs.dur) - lhs.ts AS dur
-                    FROM lock_held_slices AS lhs
+                      id AS slice_id,
+                      'slice' AS table_name,
+                      thread.name AS thread_name,
+                      lock_name,
+                      utid,
+                      ts,
+                      iif(is_incomplete, -1, dur) AS dur
+                    FROM android_lock_held
                     JOIN thread USING (utid)
                 `,
           },
