@@ -112,7 +112,7 @@ struct HashEq<double> {
 // 2. Hasher has is_transparent AND Hasher is invocable with K AND Key and K
 // are equality comparable
 template <typename K, typename Key, typename Hasher>
-static constexpr bool IsLookupKeyAllowed() {
+constexpr bool IsLookupKeyAllowed() {
   if constexpr (HasIsTransparent<Hasher>::value) {
     return std::is_invocable_v<Hasher, const K&> &&
            std::is_invocable_v<std::equal_to<>, const Key&, const K&>;
