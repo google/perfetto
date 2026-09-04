@@ -14,14 +14,16 @@
 
 import m from 'mithril';
 import type {Filter} from '../../components/widgets/datagrid/model';
+import type {ExperimentFilterState} from '../pages/query_tabs_state';
 import type {
   EnumOption,
   Setting as BigTraceSetting,
   SettingFilter,
 } from './settings_types';
 
-// Routes SettingsPage reads/writes to the per-query snapshot instead of the
-// global state modules. Used by the Query page's chip strip / +Add modal.
+// Routes the settings form's reads/writes to one tab's snapshot. There is no
+// global settings state behind it: a query is configured by its preset or by
+// its own custom setup.
 export interface SettingsBindings {
   // Effective SettingFilter[] for data source + schema requests.
   readonly getEffectiveSettings: () => ReadonlyArray<SettingFilter>;
@@ -50,12 +52,22 @@ export interface SettingsBindings {
   // Called when the trace-list data source reports a fresh filteredTotalRows
   // (traces the current filter selects). undefined = count not yet known.
   readonly onTraceMatchCount?: (count: number | undefined) => void;
-  // The tab's current SQL, used only to detect whether the tab matches a
-  // preset 1:1 (so the matching preset chip can highlight).
-  readonly getSql?: () => string;
-  // Load a preset's query text + title into the tab. Present only on the
-  // per-tab modal (which has an editor); absent on standalone /settings.
-  readonly setQueryAndTitle?: (perfettoSql: string, title: string) => void;
+  // The run's row cap and mode. They live in the editor toolbar; the form
+  // mirrors them so a preset's setup is visible in full where it's applied.
+  readonly getRowLimit: () => number;
+  readonly setRowLimit: (limit: number) => void;
+  readonly getMaterialize: () => boolean;
+  readonly setMaterialize: (materialize: boolean) => void;
+  // The trace fan-out cap — a top-level request field like the row limit,
+  // edited in the query-settings modal.
+  readonly getTraceLimit: () => number;
+  readonly setTraceLimit: (limit: number) => void;
+  // The experiment/control pair and arm the query runs over; undefined = no
+  // experiment filtering. Set from the trace grid's experiment picker.
+  readonly getExperimentFilter: () => ExperimentFilterState | undefined;
+  readonly setExperimentFilter: (
+    filter: ExperimentFilterState | undefined,
+  ) => void;
 }
 
 // Wraps a globally-registered Setting<T> so reads/writes route through per-tab
@@ -69,6 +81,8 @@ export class TabBoundSetting<T> implements BigTraceSetting<T> {
   readonly schema: BigTraceSetting<T>['schema'];
   readonly defaultValue: T;
   readonly category?: string;
+  readonly min?: number;
+  readonly max?: number;
   readonly requiresReload?: boolean;
   readonly options?: readonly (string | EnumOption)[];
   readonly placeholder?: string;
@@ -86,6 +100,8 @@ export class TabBoundSetting<T> implements BigTraceSetting<T> {
     this.schema = base.schema;
     this.defaultValue = base.defaultValue;
     this.category = base.category;
+    this.min = base.min;
+    this.max = base.max;
     this.requiresReload = base.requiresReload;
     this.options = base.options;
     this.placeholder = base.placeholder;

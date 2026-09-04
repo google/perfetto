@@ -22,6 +22,7 @@ import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {EmptyState} from '../../widgets/empty_state';
+import {HotkeyContext} from '../../widgets/hotkey_context';
 import {Select} from '../../widgets/select';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {
@@ -56,21 +57,62 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     }
 
     return m(
-      Stack,
+      HotkeyContext,
       {
         fillHeight: true,
-        spacing: 'medium',
-        className: 'pf-aggregate-profiles-page',
+        autoFocus: true,
+        hotkeys: [
+          {
+            hotkey: 'ArrowLeft',
+            callback: () => this.stepProfile(attrs, -1),
+          },
+          {
+            hotkey: 'ArrowRight',
+            callback: () => this.stepProfile(attrs, 1),
+          },
+        ],
       },
-      [
-        this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
-          m(StackFixed, this.renderPageExplanation()),
-        this.renderControlsRow(attrs, selectedProfile),
-        this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
-          m(StackFixed, this.renderViewExplanation()),
-        m(StackAuto, [this.renderFlamegraph(selectedProfile, attrs)]),
-      ],
+      m(
+        Stack,
+        {
+          fillHeight: true,
+          spacing: 'medium',
+          className: 'pf-aggregate-profiles-page',
+        },
+        [
+          this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
+            m(StackFixed, this.renderPageExplanation()),
+          this.renderControlsRow(attrs, selectedProfile),
+          this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
+            m(StackFixed, this.renderViewExplanation()),
+          m(StackAuto, [this.renderFlamegraph(selectedProfile, attrs)]),
+        ],
+      ),
     );
+  }
+
+  private stepProfile(attrs: AggregateProfilesPageAttrs, step: number): void {
+    if (attrs.profiles.length < 2) return;
+    const cur = attrs.profiles.findIndex(
+      (p) => p.id === attrs.state.selectedProfileId,
+    );
+    const next = Math.max(cur, 0) + step;
+    if (next >= 0 && next < attrs.profiles.length) {
+      this.selectProfile(attrs, attrs.profiles[next]);
+    }
+  }
+
+  private selectProfile(
+    attrs: AggregateProfilesPageAttrs,
+    profile: AggregateProfile,
+  ): void {
+    attrs.onStateChange({
+      selectedProfileId: profile.id,
+      flamegraphState: updateTreeExplorerState(
+        attrs.state.flamegraphState,
+        profile.metrics,
+      ),
+    });
   }
 
   private renderFlamegraph(
@@ -223,15 +265,7 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
               (p) => p.id === newProfileId,
             );
             assertExists(newProfile); // Assume this profile actually exists
-            const currentFlamegraphState = attrs.state.flamegraphState;
-            const newFlamegraphState = updateTreeExplorerState(
-              currentFlamegraphState,
-              newProfile.metrics,
-            );
-            attrs.onStateChange({
-              selectedProfileId: newProfileId,
-              flamegraphState: newFlamegraphState,
-            });
+            this.selectProfile(attrs, newProfile);
           },
         },
         attrs.profiles.map((profile) =>
