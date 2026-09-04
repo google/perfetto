@@ -171,6 +171,11 @@ message PerfEvents {
     // Android: the relevant sysfs paths are not allowlisted by default, so
     // this option will require a rooted device with selinux disabled.
     optional string pmu_name = 5;
+
+    // The name of an event under
+    // /sys/bus/event_source/devices/<pmu_name>/events (e.g. "l3d_cache"). If
+    // set, leave |config| unset.
+    optional string event_name = 6;
   }
 
   // Subset of clocks that is supported by perf timestamping.
