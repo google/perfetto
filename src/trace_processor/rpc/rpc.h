@@ -177,7 +177,7 @@ class Rpc {
   // The methods of this class are mirrors (modulo {un,}marshalling of args) of
   // the corresponding names in trace_processor.h . See that header for docs.
 
-  base::Status Parse(const uint8_t*, size_t);
+  base::Status Parse(TraceBlobView);
   base::Status NotifyEndOfFile();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t*, size_t);
