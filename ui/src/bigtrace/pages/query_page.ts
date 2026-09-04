@@ -14,22 +14,14 @@
 
 import m from 'mithril';
 import {Button} from '../../widgets/button';
-import {EmptyState} from '../../widgets/empty_state';
 import {SplitPanel} from '../../widgets/split_panel';
-import {Spinner} from '../../widgets/spinner';
 import {Tabs, type TabsTab} from '../../widgets/tabs';
-import {
-  QueryHistoryComponent,
-  setHistoryActiveTab,
-} from '../query/query_history';
+import {QueryHistoryComponent} from '../query/query_history';
 import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {sqlTablesLoader} from '../query/sql_tables';
-import {TableList} from '../query/table_list';
 import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
 import {QueryTabsState} from './query_tabs_state';
-import {queryState} from '../query/query_state';
 
 interface QueryPageAttrs {
   useBigtraceBackend?: boolean;
@@ -60,54 +52,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     if (this.useBigtraceBackend) {
       bigTraceSettingsStorage.loadSettings();
     }
-    // Open History on the sub-tab matching the active tab's Persistent mode;
-    // its default ('standard') otherwise wins on every mount.
-    const activeTab = this.tabsState.getActiveTab();
-    if (activeTab) {
-      setHistoryActiveTab(activeTab.materialize);
-    }
-    sqlTablesLoader.load();
   }
 
   view() {
-    // Read-and-clear initialQuery (set by home-page example buttons);
-    // consumed exactly once.
-    const initialQuery = queryState.initialQuery;
-    if (initialQuery !== undefined) {
-      queryState.initialQuery = undefined;
-      const activeTab = this.tabsState.getActiveTab();
-      if (activeTab && activeTab.editorText.trim() === '') {
-        activeTab.editorText = initialQuery;
-        this.tabsState.maybeAutoNameTab(activeTab.id, initialQuery);
-      } else {
-        this.tabsState.addNewTab(undefined, initialQuery);
-      }
-      this.tabsState.markDirty();
-    }
-
-    // Read-and-clear initialPreset (set by a home-page preset card);
-    // seeds a fresh tab with the recipe's query + trace-selection settings.
-    const initialPreset = queryState.initialPreset;
-    if (initialPreset !== undefined) {
-      queryState.initialPreset = undefined;
-      this.tabsState.addTabFromPreset(initialPreset);
-    }
-
-    // Read-and-clear the settings-page "Query" signal: open a fresh tab. With
-    // no stored snapshot it inherits the current /settings globals — the trace
-    // selection + options just configured, no SQL.
-    if (queryState.seedTabFromSettings) {
-      queryState.seedTabFromSettings = false;
-      this.tabsState.addNewTab(
-        undefined,
-        '',
-        undefined,
-        undefined,
-        undefined,
-        true, // forceNew
-      );
-    }
-
     const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({
       key: tab.id,
       title: tab.title,
@@ -183,52 +130,32 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       ],
     });
 
-    const sidebarPanel = m(Tabs, {
-      className: 'pf-bt-query-page__sidebar',
-      tabs: [
-        {
-          key: 'history',
-          // No leftIcon — spend the ~20px on the label at narrow viewports.
-          title: 'History',
-          content: m(QueryHistoryComponent, {
-            className: 'pf-bt-query-page__history',
-            refreshSignal: this.historyRefreshSignal,
-            openQuery: async (
-              query: string,
-              uuid: string,
-              materialize: boolean,
-              forceNew?: boolean,
-              limit?: number,
-              startTime?: number,
-            ) => {
-              const tab = this.tabsState.addNewTab(
-                undefined,
-                query,
-                limit,
-                uuid,
-                materialize,
-                forceNew,
-              );
-              this.tabsState.activeTabId = tab.id;
-              this.tabsState.markDirty();
-              if (startTime !== undefined && tab.execution) {
-                tab.execution.startTime = startTime;
-              }
-              await this.runner.resumeFromHistory(tab, query);
-            },
-          }),
-        },
-        {
-          key: 'tables',
-          // Hide the count until the loader settles, to avoid flashing
-          // "(0)" on mount.
-          title:
-            sqlTablesLoader.modules && !sqlTablesLoader.isLoading
-              ? `Stdlib Schemas (${sqlTablesLoader.modules.listTables().length})`
-              : 'Stdlib Schemas',
-          content: this.renderTablesTab(),
-        },
-      ],
+    const sidebarPanel = m(QueryHistoryComponent, {
+      className: 'pf-bt-query-page__history',
+      refreshSignal: this.historyRefreshSignal,
+      openQuery: async (
+        query: string,
+        uuid: string,
+        materialize: boolean,
+        forceNew?: boolean,
+        limit?: number,
+        startTime?: number,
+      ) => {
+        const tab = this.tabsState.addNewTab(
+          undefined,
+          query,
+          limit,
+          uuid,
+          materialize,
+          forceNew,
+        );
+        this.tabsState.activeTabId = tab.id;
+        this.tabsState.markDirty();
+        if (startTime !== undefined && tab.execution) {
+          tab.execution.startTime = startTime;
+        }
+        await this.runner.resumeFromHistory(tab, query);
+      },
     });
 
     if (!this.sidebarVisible) {
@@ -248,33 +175,5 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         secondPanel: sidebarPanel,
       }),
     );
-  }
-
-  private renderTablesTab(): m.Children {
-    if (sqlTablesLoader.loadError) {
-      return m(EmptyState, {
-        title: `Failed to load tables: ${sqlTablesLoader.loadError}`,
-        icon: 'error',
-        fillHeight: true,
-      });
-    }
-    const modules = sqlTablesLoader.modules;
-    if (sqlTablesLoader.isLoading || !modules) {
-      return m(
-        EmptyState,
-        {
-          title: 'Loading tables...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        },
-        m(Spinner),
-      );
-    }
-    return m(TableList, {
-      sqlModules: modules,
-      onQueryTable: (tableName, query) => {
-        this.tabsState.addNewTab(tableName, query);
-      },
-    });
   }
 }

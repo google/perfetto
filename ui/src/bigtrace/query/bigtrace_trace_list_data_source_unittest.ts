@@ -15,8 +15,10 @@
 import {beforeEach, describe, expect, test, vi} from 'vitest';
 import m from 'mithril';
 import {BigtraceTraceListDataSource} from './bigtrace_trace_list_data_source';
+import {FETCH_DEBOUNCE_MS} from './fetch_scheduler';
 import {
   type BigtraceQueryClient,
+  type ExperimentFilterSpec,
   QueryCancelledError,
   type QueryResultPage,
 } from './bigtrace_query_client';
@@ -43,6 +45,7 @@ interface Recorded {
   orderBy?: string;
   filter?: ReadonlyArray<Filter>;
   columns?: ReadonlyArray<string>;
+  experimentFilter?: ExperimentFilterSpec;
 }
 
 function fakeClient(opts?: {page?: QueryResultPage; reject?: Error}) {
@@ -56,8 +59,17 @@ function fakeClient(opts?: {page?: QueryResultPage; reject?: Error}) {
       orderBy?: string,
       filter?: ReadonlyArray<Filter>,
       columns?: ReadonlyArray<string>,
+      experimentFilter?: ExperimentFilterSpec,
     ) => {
-      calls.push({settings, limit, offset, orderBy, filter, columns});
+      calls.push({
+        settings,
+        limit,
+        offset,
+        orderBy,
+        filter,
+        columns,
+        experimentFilter,
+      });
       if (opts?.reject) throw opts.reject;
       return opts?.page ?? PAGE;
     },
@@ -86,8 +98,10 @@ function flatModel(opts: {
 }
 
 // Let the fire-and-forget fetch kicked off by useRows settle.
+// Long enough to clear the data source's fetch debounce, so a flush means
+// "everything that was going to be requested has been".
 function flush(): Promise<void> {
-  return new Promise((r) => setTimeout(r, 0));
+  return new Promise((r) => setTimeout(r, FETCH_DEBOUNCE_MS + 20));
 }
 
 describe('BigtraceTraceListDataSource', () => {
@@ -280,9 +294,9 @@ describe('BigtraceTraceListDataSource', () => {
     expect(seen).toEqual(['size_bytes desc', '']);
   });
 
-  test('coalesces settings changes during a slow in-flight fetch (only the latest refetches)', async () => {
-    // A client whose fetches stay pending until released — simulates a slow
-    // backend so we can change settings while a fetch is in flight.
+  test('settings changes inside the debounce window collapse to the last', async () => {
+    // A client whose fetches stay pending until released — a slow backend, so
+    // settings can change while a fetch is in flight.
     const calls: ReadonlyArray<SettingFilter>[] = [];
     let resolvers: Array<() => void> = [];
     const client = {
@@ -313,28 +327,145 @@ describe('BigtraceTraceListDataSource', () => {
     let settings: SettingFilter[] = S1;
     const ds = new BigtraceTraceListDataSource(client, () => settings);
 
-    // First render starts a fetch for S1 that never resolves (stays in flight).
+    // Settle the first window — until one lands the source fetches eagerly,
+    // since there is nothing on screen to wait for.
     ds.useRows(flatModel({limit: 100}));
+    await flush();
+    releaseAll();
     await flush();
     expect(calls).toHaveLength(1);
 
-    // Two settings changes while the fetch is in flight — both skipped by the
-    // !isFetching guard, so no new requests fire.
+    // Two changes in quick succession, inside one debounce window: only the
+    // last is ever asked for, so S2 never reaches the backend.
     settings = S2;
     ds.useRows(flatModel({limit: 100}));
-    await flush();
     settings = S3;
     ds.useRows(flatModel({limit: 100}));
     await flush();
+
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toBe(S3);
+  });
+
+  test('a later settings change cancels the request it supersedes', async () => {
+    const calls: ReadonlyArray<SettingFilter>[] = [];
+    const signals: Array<AbortSignal | undefined> = [];
+    const client = {
+      listTraceMetadata: vi.fn(
+        (
+          settings: ReadonlyArray<SettingFilter>,
+          _limit: number,
+          _offset: number,
+          signal?: AbortSignal,
+        ) => {
+          calls.push(settings);
+          signals.push(signal);
+          // Never resolves: the request is still in flight when the next
+          // change arrives.
+          return new Promise<QueryResultPage>(() => {});
+        },
+      ),
+    } as unknown as BigtraceQueryClient;
+
+    const S2: SettingFilter[] = [
+      {settingId: 'trace_directory', values: ['/a'], category: 'TRACE_ADDRESS'},
+    ];
+    let settings: SettingFilter[] = SETTINGS;
+    const ds = new BigtraceTraceListDataSource(client, () => settings);
+
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(false);
+
+    settings = S2;
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+
+    expect(calls).toHaveLength(2);
+    // The abandoned request is cancelled, not left to finish in front of the
+    // one the user is waiting for.
+    expect(signals[0]?.aborted).toBe(true);
+    expect(signals[1]?.aborted).toBe(false);
+  });
+
+  test('the initial fetch carries the experiment filter', async () => {
+    const {client, calls} = fakeClient();
+    const ds = new BigtraceTraceListDataSource(
+      client,
+      () => SETTINGS,
+      undefined,
+      undefined,
+      () => ({experimentId: 1, controlId: 2, isTreatment: true}),
+    );
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].experimentFilter).toEqual({
+      experimentId: 1,
+      controlId: 2,
+      isTreatment: true,
+    });
+  });
+
+  test('picking, switching arm, and clearing each refetch once', async () => {
+    const {client, calls} = fakeClient();
+    let filter: ExperimentFilterSpec | undefined = undefined;
+    const ds = new BigtraceTraceListDataSource(
+      client,
+      () => SETTINGS,
+      undefined,
+      undefined,
+      () => filter,
+    );
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
     expect(calls).toHaveLength(1);
 
-    // The slow fetch completes; the redraw-driven next render fetches ONLY the
-    // latest settings (S3) — the intermediate S2 was coalesced away.
-    releaseAll();
-    await flush();
+    filter = {experimentId: 1, controlId: 2, isTreatment: true};
     ds.useRows(flatModel({limit: 100}));
     await flush();
     expect(calls).toHaveLength(2);
-    expect(calls[1]).toBe(S3);
+    expect(calls[1].experimentFilter).toEqual(filter);
+
+    filter = {experimentId: 1, controlId: 2, isTreatment: false};
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(3);
+    expect(calls[2].experimentFilter?.isTreatment).toBe(false);
+
+    filter = undefined;
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(4);
+    expect(calls[3].experimentFilter).toBeUndefined();
+
+    // Nothing changed since: the grid stays put.
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(4);
+  });
+
+  test('names arriving for the chosen experiment do not refetch', async () => {
+    const {client, calls} = fakeClient();
+    // The thunk hands over the wire triple, so display names — which reach
+    // the tab moments later — are invisible here.
+    let filter = {experimentId: 1, controlId: 2, isTreatment: true};
+    const ds = new BigtraceTraceListDataSource(
+      client,
+      () => SETTINGS,
+      undefined,
+      undefined,
+      () => filter,
+    );
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(1);
+
+    filter = {...filter};
+    ds.useRows(flatModel({limit: 100}));
+    await flush();
+    expect(calls).toHaveLength(1);
   });
 });
