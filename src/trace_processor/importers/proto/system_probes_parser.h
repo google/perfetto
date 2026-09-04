@@ -53,6 +53,7 @@ class SystemProbesParser {
   void ParseProcessFds(int64_t ts, uint32_t pid, ConstBytes);
   void ParseCpuIdleStats(int64_t ts, ConstBytes);
   void ParseSlabInfo(int64_t ts, ConstBytes);
+  void ParseCgroup(int64_t ts, ConstBytes);
 
   TraceProcessorContext* const context_;
 
@@ -79,6 +80,7 @@ class SystemProbesParser {
 
   std::vector<const char*> meminfo_strs_;
   std::vector<const char*> vmstat_strs_;
+  std::vector<const char*> cgroup_strs_;
 
   uint32_t page_size_ = 0;
 
