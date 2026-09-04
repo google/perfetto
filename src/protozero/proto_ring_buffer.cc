@@ -76,28 +76,27 @@ ProtoRingBuffer::Message TryReadProtoMessage(const uint8_t* start,
 
 }  // namespace
 
-RingBufferMessageReader::RingBufferMessageReader()
+ProtoRingBuffer::ProtoRingBuffer()
     : buf_(perfetto::base::PagedMemory::Allocate(kGrowBytes)) {}
-RingBufferMessageReader::~RingBufferMessageReader() = default;
+ProtoRingBuffer::~ProtoRingBuffer() = default;
 
-RingBufferMessageReader::WriteHandle::~WriteHandle() {
-  PERFETTO_CHECK(reader_ == nullptr);
+ProtoRingBuffer::WriteHandle::~WriteHandle() {
+  PERFETTO_CHECK(buffer_ == nullptr);
 }
 
-RingBufferMessageReader::WriteHandle::WriteHandle(WriteHandle&& other) noexcept
-    : reader_(other.reader_), data_(other.data_), size_(other.size_) {
-  other.reader_ = nullptr;
+ProtoRingBuffer::WriteHandle::WriteHandle(WriteHandle&& other) noexcept
+    : buffer_(other.buffer_), data_(other.data_), size_(other.size_) {
+  other.buffer_ = nullptr;
 }
 
-RingBufferMessageReader::WriteHandle&
-RingBufferMessageReader::WriteHandle::operator=(WriteHandle&& other) noexcept {
+ProtoRingBuffer::WriteHandle& ProtoRingBuffer::WriteHandle::operator=(
+    WriteHandle&& other) noexcept {
   this->~WriteHandle();  // CHECKs that any reservation held was consumed.
   new (this) WriteHandle(std::move(other));
   return *this;
 }
 
-RingBufferMessageReader::WriteHandle RingBufferMessageReader::BeginWrite(
-    size_t data_len) {
+ProtoRingBuffer::WriteHandle ProtoRingBuffer::BeginWrite(size_t data_len) {
   PERFETTO_CHECK(data_len <= kMaxMsgSize);
   // A second reservation could recompact or grow the buffer under the first.
   PERFETTO_CHECK(!write_in_flight_);
@@ -163,59 +162,30 @@ RingBufferMessageReader::WriteHandle RingBufferMessageReader::BeginWrite(
   return WriteHandle(this, static_cast<uint8_t*>(buf_.Get()) + wr_, data_len);
 }
 
-void RingBufferMessageReader::WriteHandle::EndWrite(size_t size_written) {
-  PERFETTO_CHECK(reader_ != nullptr);
+void ProtoRingBuffer::WriteHandle::EndWrite(size_t size_written) {
+  PERFETTO_CHECK(buffer_ != nullptr);
   PERFETTO_CHECK(size_written <= size_);
-  std::exchange(reader_, nullptr)->FinishWrite(size_written);
+  ProtoRingBuffer* buffer = buffer_;
+  buffer_ = nullptr;
+  buffer->FinishWrite(size_written);
 }
 
-void RingBufferMessageReader::WriteHandle::AbortWrite() {
-  PERFETTO_CHECK(reader_ != nullptr);
-  std::exchange(reader_, nullptr)->FinishWrite(0);
+void ProtoRingBuffer::WriteHandle::AbortWrite() {
+  PERFETTO_CHECK(buffer_ != nullptr);
+  ProtoRingBuffer* buffer = buffer_;
+  buffer_ = nullptr;
+  buffer->FinishWrite(0);
 }
 
-void RingBufferMessageReader::FinishWrite(size_t size_written) {
+void ProtoRingBuffer::FinishWrite(size_t size_written) {
   write_in_flight_ = false;
   if (PERFETTO_LIKELY(!failed_))
     wr_ += size_written;
 }
 
-void RingBufferMessageReader::Append(const void* data_void, size_t data_len) {
-  if (failed_)
-    return;
-  const uint8_t* data = static_cast<const uint8_t*>(data_void);
-
-  // The caller is expected to always issue a ReadMessage() after each Append().
-  PERFETTO_CHECK(!fastpath_.valid());
-  if (rd_ == wr_) {
-    auto msg = TryReadMessage(data, data + data_len);
-    if (msg.valid() && msg.end() == (data + data_len)) {
-      // Fastpath: in many cases, the underlying stream will effectively
-      // preserve the atomicity of messages for most small messages.
-      // In this case we can avoid the extra buf_ roundtrip and just pass a
-      // pointer to |data| + (proto preamble len).
-      // The next call to ReadMessage)= will return |fastpath_|.
-      fastpath_ = std::move(msg);
-      return;
-    }
-  }
-
-  WriteHandle handle = BeginWrite(data_len);
-  memcpy(handle.data(), data, data_len);
-  handle.EndWrite(data_len);
-}
-
-RingBufferMessageReader::Message RingBufferMessageReader::ReadMessage() {
+ProtoRingBuffer::Message ProtoRingBuffer::ReadMessage() {
   if (failed_)
     return FramingError();
-
-  if (fastpath_.valid()) {
-    // The fastpath can only be hit when the buffer is empty.
-    PERFETTO_CHECK(rd_ == wr_);
-    auto msg = std::move(fastpath_);
-    fastpath_ = Message{};
-    return msg;
-  }
 
   uint8_t* buf = static_cast<uint8_t*>(buf_.Get());
 
@@ -223,7 +193,7 @@ RingBufferMessageReader::Message RingBufferMessageReader::ReadMessage() {
   if (rd_ >= wr_)
     return Message{};  // Completely empty.
 
-  auto msg = TryReadMessage(&buf[rd_], &buf[wr_]);
+  auto msg = TryReadProtoMessage(&buf[rd_], &buf[wr_]);
   if (!msg.valid()) {
     failed_ = failed_ || msg.fatal_framing_error;
     return msg;  // Return |msg| because it could be a framing error.
@@ -234,14 +204,6 @@ RingBufferMessageReader::Message RingBufferMessageReader::ReadMessage() {
   auto msg_outer_len = static_cast<size_t>(msg_end - &buf[rd_]);
   rd_ += msg_outer_len;
   return msg;
-}
-
-ProtoRingBuffer::ProtoRingBuffer() = default;
-ProtoRingBuffer::~ProtoRingBuffer() = default;
-
-ProtoRingBuffer::Message ProtoRingBuffer::TryReadMessage(const uint8_t* start,
-                                                         const uint8_t* end) {
-  return TryReadProtoMessage(start, end);
 }
 
 }  // namespace protozero
