@@ -19,6 +19,7 @@
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h"
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
 #include "src/android_sdk/jni/macros.h"
+#include "src/android_sdk/jni/perfetto_app_filter.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/nativehelper/utils.h"
@@ -60,6 +61,20 @@ static void dev_perfetto_sdk_PerfettoTrace_activate_trigger(JNIEnv* env,
 void dev_perfetto_sdk_PerfettoTrace_register(JNIEnv*,
                                              jclass,
                                              bool is_backend_in_process) {
+  if (!IsAppRegistrationAllowed(is_backend_in_process)) {
+    const std::string& cmdline = GetProcessCmdline();
+    __android_log_print(
+        ANDROID_LOG_INFO, "PerfettoTrace",
+        "App registration skipped: process '%s' is not allowlisted and "
+        "persist.debug.perfetto.sdk_enable_tracing_all_apps is not set",
+        cmdline.c_str());
+    __android_log_print(
+        ANDROID_LOG_INFO, "PerfettoTrace",
+        "Perfetto app registration blocked by filter. Set "
+        "persist.debug.perfetto.sdk_enable_tracing_all_apps=1 to enable for "
+        "all apps.");
+    return;
+  }
   sdk_for_jni::register_perfetto(is_backend_in_process);
 }
 

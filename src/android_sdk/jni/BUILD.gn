@@ -1,5 +1,6 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_android_sdk.gni")
+import("../../../gn/test.gni")
 
 assert(enable_perfetto_android_java_sdk)
 
@@ -10,6 +11,8 @@ SOURCE_SET_SOURCES = [
   "dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
   "dev_perfetto_sdk_PerfettoTrackEventExtra.h",
   "macros.h",
+  "perfetto_app_filter.cc",
+  "perfetto_app_filter.h",
 ]
 
 #TODO(ktimofeev): use builtin 'nativehelper' lib when building in AOSP.
@@ -24,13 +27,20 @@ SOURCE_SET_HOST_CFLAGS = []
 if (jdk_include_path != "") {
   SOURCE_SET_INCLUDE_DIRS += [
     jdk_include_path,
-    "$jdk_include_path/linux",
-    "$jdk_include_path/darwin",
 
     # Stub <android/log.h> mapping ANDROID_LOG_* + __android_log_print to
     # stderr so the JNI sources compile cleanly without liblog on host.
     "host_stubs",
   ]
+  if (is_linux) {
+    SOURCE_SET_INCLUDE_DIRS += [ "$jdk_include_path/linux" ]
+  }
+  if (is_mac) {
+    SOURCE_SET_INCLUDE_DIRS += [ "$jdk_include_path/darwin" ]
+  }
+  if (is_win) {
+    SOURCE_SET_INCLUDE_DIRS += [ "$jdk_include_path/win32" ]
+  }
 
   # The JNI sources are written against AOSP's warning profile; standalone
   # host (-Weverything) trips a handful of pedantic warnings that AOSP
@@ -107,4 +117,14 @@ static_library("libperfetto_libcore_jni") {
     "../../../gn:default_deps",
     "../../shared_lib:libperfetto_c",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":libperfetto_jni_src",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+  ]
+  sources = [ "perfetto_app_filter_unittest.cc" ]
 }

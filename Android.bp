@@ -15852,6 +15852,7 @@ filegroup {
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
+        "src/android_sdk/jni/perfetto_app_filter.cc",
     ],
 }
 
@@ -15862,6 +15863,7 @@ filegroup {
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
+        "src/android_sdk/jni/perfetto_app_filter.cc",
     ],
 }
 
@@ -15872,6 +15874,15 @@ filegroup {
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
+        "src/android_sdk/jni/perfetto_app_filter.cc",
+    ],
+}
+
+// GN: //src/android_sdk/jni:unittests
+filegroup {
+    name: "perfetto_src_android_sdk_jni_unittests",
+    srcs: [
+        "src/android_sdk/jni/perfetto_app_filter_unittest.cc",
     ],
 }
 
@@ -24154,6 +24165,9 @@ cc_test {
         ":perfetto_protos_third_party_statsd_config_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
+        ":perfetto_src_android_sdk_jni_libperfetto_jni_src",
+        ":perfetto_src_android_sdk_jni_unittests",
+        ":perfetto_src_android_sdk_nativehelper_nativehelper",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_unittests",

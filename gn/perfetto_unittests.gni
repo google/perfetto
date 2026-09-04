@@ -116,8 +116,10 @@ if (enable_perfetto_traced_relay) {
 }
 
 if (enable_perfetto_android_java_sdk) {
-  _misc_unittests_targets +=
-      [ "src/android_sdk/perfetto_sdk_for_jni:unittests" ]
+  _misc_unittests_targets += [
+    "src/android_sdk/jni:unittests",
+    "src/android_sdk/perfetto_sdk_for_jni:unittests",
+  ]
 }
 
 _trace_processor_unittests_targets += [ "src/trace_redaction:unittests" ]
