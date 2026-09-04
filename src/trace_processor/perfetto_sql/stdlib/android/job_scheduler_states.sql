@@ -1,4 +1,3 @@
---
 -- Copyright 2024 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +17,46 @@ INCLUDE PERFETTO MODULE android.battery.charging_states;
 INCLUDE PERFETTO MODULE android.screen_state;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
+
+INCLUDE PERFETTO MODULE android.battery_stats;
+
+-- Extracts the package name from a formatted job name.
+-- The job name is expected to contain the package name either before a '/'
+-- (e.g., 'com.example/Service') or after the last ':' (e.g., '...:com.example.app').
+CREATE PERFETTO FUNCTION android_job_scheduler_extract_package_name(
+  -- The formatted job name.
+  job_name STRING
+)
+-- Returns the extracted package name, or NULL if not found.
+RETURNS STRING
+AS
+SELECT
+  coalesce(
+    regexp_extract($job_name, '([a-zA-Z0-9_.-]+)/'),
+    regexp_extract($job_name, ':([a-zA-Z0-9_.-]*)$')
+  );
+
+-- Extracts the namespace from a formatted job name.
+-- The namespace is expected to be enclosed in '@' symbols (e.g., '@namespace@...').
+CREATE PERFETTO FUNCTION android_job_scheduler_extract_namespace(
+  -- The formatted job name.
+  job_name STRING
+)
+-- Returns the extracted namespace, or empty string if not found.
+RETURNS STRING
+AS
+SELECT coalesce(regexp_extract($job_name, '@(.*)@'), '');
+
+-- Extracts the trace tag from a formatted job name.
+-- The trace tag is expected to be enclosed in '#' symbols (e.g., '#tag#...').
+CREATE PERFETTO FUNCTION android_job_scheduler_extract_trace_tag(
+  -- The formatted job name.
+  job_name STRING
+)
+-- Returns the extracted trace tag, or empty string if not found.
+RETURNS STRING
+AS
+SELECT coalesce(regexp_extract($job_name, '#(.*)#'), '');
 
 CREATE PERFETTO TABLE _job_states AS
 SELECT
@@ -451,3 +490,152 @@ JOIN _charging_screen_states AS c
   ON c.id = ii.id_0
 JOIN android_job_scheduler_states AS js
   ON js.id = ii.id_1;
+
+-- View for SDK sourced JobScheduler events.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "linux.ftrace"
+--     ftrace_config: {
+--       atrace_apps: "*"
+--       atrace_categories: "jobscheduler"
+--     }
+--   }
+-- }
+CREATE PERFETTO VIEW android_job_scheduler_sdk(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+WITH
+  raw_events AS (
+    SELECT
+      s.ts,
+      s.name AS job_name,
+      extract_arg(s.arg_set_id, 'job_scheduler_job.job_id') AS job_id,
+      extract_arg(s.arg_set_id, 'job_scheduler_job.source_uid') AS uid,
+      CAST(extract_arg(s.arg_set_id, 'job_scheduler_job.state') AS INTEGER) AS state
+    FROM track AS t
+    JOIN slice AS s
+      ON s.track_id = t.id
+    WHERE
+      s.category = 'jobscheduler'
+  ),
+  states_with_lead AS (
+    SELECT
+      ts,
+      job_name,
+      state,
+      lead(state, 1) OVER job_asc AS lead_state,
+      lead(ts, 1, trace_end()) OVER job_asc AS ts_lead,
+      lead(ts, 1) OVER job_asc IS NULL AS is_end_slice
+    FROM raw_events
+    WHERE
+      state != 3 -- CANCELLED
+    WINDOW
+      job_asc AS (PARTITION BY uid, job_name, job_id ORDER BY ts)
+  )
+SELECT
+  ts,
+  ts_lead - ts AS dur,
+  job_name,
+  android_job_scheduler_extract_package_name(job_name) AS package_name
+FROM states_with_lead
+WHERE
+  is_end_slice = FALSE
+  AND (ts_lead - ts) > 0
+  AND state = 1 -- STARTED
+  AND lead_state IN (0, 2); -- FINISHED, SCHEDULED
+
+-- View for StatsD sourced JobScheduler events.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "android.statsd"
+--     statsd_config: {
+--       push_atom_id: ATOM_SCHEDULED_JOB_STATE_CHANGED
+--     }
+--   }
+-- }
+CREATE PERFETTO VIEW android_job_scheduler_statsd(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+SELECT ts, dur, job_name, package_name FROM _job_started;
+
+-- View for BatteryStats sourced JobScheduler events.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "linux.ftrace"
+--     ftrace_config: {
+--       atrace_apps: "*"
+--       atrace_categories: "power"
+--     }
+--   }
+-- }
+CREATE PERFETTO VIEW android_job_scheduler_batterystats(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+SELECT
+  ts,
+  dur,
+  str_value AS job_name,
+  android_job_scheduler_extract_package_name(str_value) AS package_name
+FROM android_battery_stats_event_slices
+WHERE
+  track_name = 'battery_stats.job';
+
+-- Provides unified access to Android JobScheduler events.
+-- Prioritizes SDK > StatsD > BatteryStats. If a higher-priority source
+-- exists in the trace, only its events will be returned.
+CREATE PERFETTO VIEW android_job_scheduler(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+-- 1. Select from SDK if it exists
+SELECT ts, dur, job_name, package_name FROM android_job_scheduler_sdk
+UNION ALL
+-- 2. Fallback to StatsD if SDK does not exist
+SELECT ts, dur, job_name, package_name
+FROM android_job_scheduler_statsd
+WHERE
+  NOT EXISTS (SELECT 1 FROM android_job_scheduler_sdk)
+UNION ALL
+-- 3. Fallback to BatteryStats if SDK and StatsD do not exist
+SELECT ts, dur, job_name, package_name
+FROM android_job_scheduler_batterystats
+WHERE
+  NOT EXISTS (SELECT 1 FROM android_job_scheduler_sdk)
+  AND NOT EXISTS (SELECT 1 FROM android_job_scheduler_statsd);

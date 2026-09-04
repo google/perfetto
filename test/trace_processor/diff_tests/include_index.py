@@ -145,6 +145,15 @@ from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
 from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
 from diff_tests.stdlib.android.tests import AndroidStdlib
+from diff_tests.stdlib.android.keyvalue_lookup_tests import KeyValueLookup
+from diff_tests.stdlib.android.job_scheduler_states_tests import JobSchedulerStates
+from diff_tests.stdlib.android.app_wakelocks_tests import AppWakelocks
+from diff_tests.stdlib.android.process_uid_state_tests import ProcessUidState
+from diff_tests.stdlib.android.standby_bucket_tests import StandbyBucket
+from diff_tests.stdlib.android.freezer_tests import Freezer
+from diff_tests.stdlib.android.audio_tests import Audio
+from diff_tests.stdlib.android.codec_tests import Codec
+
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
@@ -329,6 +338,14 @@ def fetch_all_diff_tests(
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
+      KeyValueLookup,
+      JobSchedulerStates,
+      AppWakelocks,
+      ProcessUidState,
+      StandbyBucket,
+      Freezer,
+      Audio,
+      Codec,
       ArgsFunctions,
       CpuClusters,
       Battery,
