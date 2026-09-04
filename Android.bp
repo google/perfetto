@@ -17757,6 +17757,7 @@ filegroup {
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder_unittest.cc",
         "src/trace_processor/core/dataframe/arrow_deserializer_unittest.cc",
         "src/trace_processor/core/dataframe/arrow_serializer_unittest.cc",
+        "src/trace_processor/core/dataframe/dataframe_concurrency_unittest.cc",
         "src/trace_processor/core/dataframe/dataframe_unittest.cc",
         "src/trace_processor/core/dataframe/runtime_dataframe_builder_unittest.cc",
     ],
