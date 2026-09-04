@@ -170,31 +170,40 @@ export function buildBrushOption(config: BrushConfig): Record<string, unknown> {
 export function buildLegendOption(
   position: LegendPosition = 'bottom',
 ): Record<string, unknown> {
+  const common = {
+    show: true,
+    type: 'scroll',
+    textStyle: {
+      fontSize: 10,
+      rich: {
+        name: {fontSize: 10},
+        value: {fontSize: 10, fontWeight: 'bold'},
+      },
+    },
+    icon: 'roundRect',
+    itemWidth: 8,
+    itemHeight: 8,
+  };
   switch (position) {
     case 'top':
       return {
-        show: true,
-        type: 'scroll',
+        ...common,
         top: 0,
-        textStyle: {fontSize: 10},
       };
     case 'bottom':
       return {
-        show: true,
-        type: 'scroll',
+        ...common,
         bottom: 0,
-        textStyle: {fontSize: 10},
       };
     case 'right':
       return {
-        show: true,
-        type: 'scroll',
+        ...common,
         orient: 'vertical',
         right: 0,
         top: 20,
         bottom: 20,
         textStyle: {
-          fontSize: 10,
+          ...common.textStyle,
           width: 120,
           overflow: 'truncate',
           ellipsis: '\u2026',
