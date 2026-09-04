@@ -55,6 +55,17 @@ std::string_view ToStringView(const TraceBlobView& tbv) {
   return {reinterpret_cast<const char*>(tbv.data()), tbv.size()};
 }
 
+// Whether `s` consists only of ASCII digits. Vacuously true for an empty
+// `s`, matching a `for` loop over it that never finds a non-digit; callers
+// that require at least one digit check emptiness separately.
+bool IsAllDigits(std::string_view s) {
+  for (char c : s) {
+    if (!isdigit(static_cast<unsigned char>(c)))
+      return false;
+  }
+  return true;
+}
+
 // The largest number of whole seconds since the epoch for which
 // `seconds * kNsPerSec` cannot overflow int64_t. Anything larger is
 // rejected outright rather than silently saturating/overflowing; genuine
@@ -121,14 +132,8 @@ std::optional<int64_t> ParseSyscallDuration(std::string_view s) {
 
   if (whole.empty() || whole.size() > 10 || frac.size() > 9)
     return std::nullopt;
-  for (char c : whole) {
-    if (!isdigit(static_cast<unsigned char>(c)))
-      return std::nullopt;
-  }
-  for (char c : frac) {
-    if (!isdigit(static_cast<unsigned char>(c)))
-      return std::nullopt;
-  }
+  if (!IsAllDigits(whole) || !IsAllDigits(frac))
+    return std::nullopt;
 
   auto seconds = base::StringViewToInt64(base::StringView(whole));
   // A syscall duration is a wall-clock interval, so anything near the epoch
@@ -225,13 +230,8 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
     size_t sp = rest.find(' ');
     if (sp != std::string_view::npos) {
       std::string_view head = rest.substr(0, sp);
-      bool all_digits = !head.empty() && head.size() < 10;
-      for (char c : head) {
-        if (!isdigit(static_cast<unsigned char>(c))) {
-          all_digits = false;
-          break;
-        }
-      }
+      bool all_digits =
+          !head.empty() && head.size() < 10 && IsAllDigits(head);
       if (all_digits) {
         auto pid = base::StringViewToNumber<uint32_t>(base::StringView(head));
         if (!pid)
