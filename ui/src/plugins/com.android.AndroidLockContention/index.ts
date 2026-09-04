@@ -166,15 +166,16 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
             // the underlying slice and render a link to it.
             sqlSource: `
                     SELECT
-                      id AS slice_id,
+                      h.id AS slice_id,
                       'slice' AS table_name,
-                      thread.name AS thread_name,
-                      lock_name,
+                      t.name AS thread_name,
+                      h.lock_name,
+                      h.blocking_method,
                       utid,
-                      ts,
-                      iif(is_incomplete, -1, dur) AS dur
-                    FROM android_lock_held
-                    JOIN thread USING (utid)
+                      h.ts,
+                      iif(h.is_incomplete, -1, h.dur) AS dur
+                    FROM android_lock_held AS h
+                    JOIN thread AS t USING (utid)
                 `,
           },
           title: 'Held Lock',

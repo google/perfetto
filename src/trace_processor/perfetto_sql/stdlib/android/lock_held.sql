@@ -14,6 +14,10 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.monitor_contention;
+
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE intervals.overlap;
 
 INCLUDE PERFETTO MODULE slices.with_context;
@@ -31,24 +35,9 @@ FROM thread_slice
 WHERE
   name GLOB '*_lock_held';
 
--- Intervals during which a named lock was held by a thread.
--- Overlapping holds on the same thread (recursive locks) are merged.
--- Holds on exclusive locks are truncated when acquired by a successor thread.
-CREATE PERFETTO TABLE android_lock_held(
-  -- Slice id of the slice starting this hold.
-  id JOINID(slice.id),
-  -- Timestamp at which the lock was acquired.
-  ts TIMESTAMP,
-  -- Duration for which the lock was held.
-  dur DURATION,
-  -- Whether this hold was unreleased before the end of the trace.
-  is_incomplete BOOL,
-  -- Name of the lock (matching android_monitor_contention.lock_name).
-  lock_name STRING,
-  -- Thread holding the lock.
-  utid JOINID(thread.id)
-)
-AS
+-- Raw held intervals after merging recursive holds on the same thread
+-- and truncating holds when acquired by a successor thread.
+CREATE PERFETTO TABLE _android_lock_held_raw AS
 WITH
   merged AS (
     SELECT ts, dur, lock_name, utid
@@ -73,9 +62,60 @@ WITH
 SELECT
   id,
   ts,
-  MIN(LEAD(ts, 1, ts + dur) OVER (PARTITION BY lock_name ORDER BY ts), ts + dur)
+  min(lead(ts, 1, ts + dur) OVER (PARTITION BY lock_name ORDER BY ts), ts + dur)
   - ts AS dur,
   is_incomplete,
   lock_name,
   utid
 FROM held;
+
+-- Intervals during which a named lock was held by a thread.
+-- Overlapping holds on the same thread (recursive locks) are merged.
+-- Holds on exclusive locks are truncated when acquired by a successor thread.
+CREATE PERFETTO TABLE android_lock_held(
+  -- Slice id of the slice starting this hold.
+  id JOINID(slice.id),
+  -- Timestamp at which the lock was acquired.
+  ts TIMESTAMP,
+  -- Duration for which the lock was held.
+  dur DURATION,
+  -- Whether this hold was unreleased before the end of the trace.
+  is_incomplete BOOL,
+  -- Name of the lock (matching android_monitor_contention.lock_name).
+  lock_name STRING,
+  -- Thread holding the lock.
+  utid JOINID(thread.id),
+  -- Java method executed by the holding thread during contention, if any.
+  blocking_method STRING
+)
+AS
+WITH
+  intersections AS (
+    SELECT ii.id_0 AS held_id, min(mc.short_blocking_method) AS blocking_method
+    FROM _interval_intersect!(
+      (
+        _android_lock_held_raw,
+        (
+          SELECT id, ts, dur, blocking_utid AS utid
+          FROM android_monitor_contention
+          WHERE blocking_utid IS NOT NULL
+        )
+      ),
+      (utid)
+    ) AS ii
+    JOIN android_monitor_contention AS mc
+      ON mc.id = ii.id_1
+    GROUP BY
+      held_id
+  )
+SELECT
+  raw.id,
+  raw.ts,
+  raw.dur,
+  raw.is_incomplete,
+  raw.lock_name,
+  raw.utid,
+  intersections.blocking_method
+FROM _android_lock_held_raw AS raw
+LEFT JOIN intersections
+  ON intersections.held_id = raw.id;
