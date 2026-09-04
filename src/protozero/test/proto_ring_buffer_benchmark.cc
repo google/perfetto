@@ -44,7 +44,7 @@ static void BM_ProtoRingBufferReadLargeChunks(benchmark::State& state) {
   for (auto _ : state) {
     protozero::ProtoRingBuffer::Message msg = buffer.ReadMessage();
     if (msg.valid()) {
-      total_packet_size += msg.len;
+      total_packet_size += msg.size();
     } else {
       state.PauseTiming();
       Write(&buffer, trace_data.data(), trace_data.size());
@@ -71,7 +71,7 @@ static void BM_ProtoRingBufferRead(benchmark::State& state) {
   for (auto _ : state) {
     protozero::ProtoRingBuffer::Message msg = buffer.ReadMessage();
     if (msg.valid()) {
-      total_packet_size += msg.len;
+      total_packet_size += msg.size();
     } else {
       state.PauseTiming();
       size_t sz = std::min(kChunkSize, trace_data.size() - offset);
