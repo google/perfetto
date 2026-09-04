@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <fstream>
+#include <optional>
 #include <thread>
 
 #include "perfetto/base/build_config.h"
@@ -41,6 +42,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -73,29 +75,52 @@ double MeanForArray(const uint64_t array[], size_t size) {
   return static_cast<double>(total / size);
 }
 
+bool ReadFileToString(int fd, char* buf, size_t size) {
+  size_t pos = 0;
+  while (pos < size - 1) {
+    ssize_t rd = PERFETTO_EINTR(read(fd, buf + pos, size - 1 - pos));
+    if (rd < 0)
+      return false;
+    if (rd == 0)
+      break;
+    pos += static_cast<size_t>(rd);
+  }
+  buf[pos] = '\0';
+  return true;
+}
+
 }  //  namespace
 
 bool ReadProcStat(int fd, ProcStat* out) {
-  char c[512];
-  size_t c_pos = 0;
-  while (c_pos < sizeof(c) - 1) {
-    ssize_t rd = PERFETTO_EINTR(read(fd, c + c_pos, sizeof(c) - c_pos));
-    if (rd < 0) {
-      PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
-      return false;
-    }
-    if (rd == 0)
-      break;
-    c_pos += static_cast<size_t>(rd);
+  char str[512];
+  if (!ReadFileToString(fd, str, sizeof(str))) {
+    PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
+    return false;
   }
-  PERFETTO_CHECK(c_pos < sizeof(c));
-  c[c_pos] = '\0';
 
-  if (sscanf(c,
+  if (sscanf(str,
              "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu "
              "%lu %*d %*d %*d %*d %*d %*d %*u %*u %ld",
              &out->utime, &out->stime, &out->rss_pages) != 3) {
-    PERFETTO_ELOG("Invalid stat format: %s", c);
+    PERFETTO_ELOG("Invalid stat format: %s", str);
+    return false;
+  }
+  return true;
+}
+
+bool ReadProcStatm(int fd, ProcStatm* out) {
+  char str[256];
+  if (!ReadFileToString(fd, str, sizeof(str))) {
+    PERFETTO_ELOG("Failed to read statm file to enforce resource limits.");
+    return false;
+  }
+
+  if (sscanf(str,
+             "%" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64 " %" SCNu64
+             " %" SCNu64 " %" SCNu64,
+             &out->size, &out->resident, &out->shared, &out->text, &out->lib,
+             &out->data, &out->dt) != 7) {
+    PERFETTO_ELOG("Invalid statm format: %s", str);
     return false;
   }
   return true;
@@ -241,6 +266,16 @@ void Watchdog::ThreadMain() {
     return;
   }
 
+  base::ScopedFile statm_fd;
+  if constexpr (PERFETTO_FLAGS(USE_ANON_RSS_IN_WATCHDOG)) {
+    statm_fd = (base::OpenFile("/proc/self/statm", O_RDONLY));
+    if (!statm_fd) {
+      PERFETTO_DLOG(
+          "Failed to open statm file to enforce resource limits. Using RSS for "
+          "the guardrail");
+    }
+  }
+
   PERFETTO_DCHECK(timer_fd_);
 
   constexpr uint8_t kFdCount = 1;
@@ -316,15 +351,29 @@ void Watchdog::ThreadMain() {
     ProcStat stat;
     if (!ReadProcStat(stat_fd.get(), &stat))
       continue;
-    uint64_t cpu_time = stat.utime + stat.stime;
-    uint64_t rss_bytes =
-        static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize();
+
+    const uint64_t cpu_time = stat.utime + stat.stime;
+    const uint64_t rss_bytes =
+        stat.rss_pages > 0
+            ? static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize()
+            : 0;
+
+    std::optional<uint64_t> rss_anon_bytes = std::nullopt;
+    if constexpr (PERFETTO_FLAGS(USE_ANON_RSS_IN_WATCHDOG)) {
+      if (statm_fd) {
+        lseek(statm_fd.get(), 0, SEEK_SET);
+        ProcStatm statm;
+        if (ReadProcStatm(statm_fd.get(), &statm))
+          rss_anon_bytes = statm.rss_anon_pages() * base::GetSysPageSize();
+      }
+    }
 
     bool threshold_exceeded = false;
     WatchdogCrashReason crash_reason{};
     {
       std::lock_guard<std::mutex> guard(mutex_);
-      if (CheckMemory_Locked(rss_bytes) && !IsSyncMemoryTaggingEnabled()) {
+      if (CheckMemory_Locked(rss_anon_bytes.value_or(rss_bytes)) &&
+          !IsSyncMemoryTaggingEnabled()) {
         threshold_exceeded = true;
         crash_reason = WatchdogCrashReason::kMemGuardrail;
       } else if (CheckCpu_Locked(cpu_time)) {
@@ -396,13 +445,13 @@ void Watchdog::SerializeLogsAndKillThread(int tid,
   abort();
 }
 
-bool Watchdog::CheckMemory_Locked(uint64_t rss_bytes) {
+bool Watchdog::CheckMemory_Locked(uint64_t rss_anon_bytes) {
   if (memory_limit_bytes_ == 0)
     return false;
 
   // Add the current stat value to the ring buffer and check that the mean
   // remains under our threshold.
-  if (memory_window_bytes_.Push(rss_bytes)) {
+  if (memory_window_bytes_.Push(rss_anon_bytes)) {
     if (memory_window_bytes_.Mean() >
         static_cast<double>(memory_limit_bytes_)) {
       PERFETTO_ELOG(
