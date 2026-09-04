@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/perfetto.gni")
 import("../../../../gn/test.gni")
 
 source_set("exec") {
@@ -34,6 +35,8 @@ source_set("exec") {
     "row_selection.h",
     "row_store.cc",
     "row_store.h",
+    "tree_number_nodes.cc",
+    "tree_number_nodes.h",
     "variant.h",
   ]
   deps = [
@@ -60,6 +63,7 @@ perfetto_unittest_source_set("unittests") {
     "operator_unittest.cc",
     "row_batch_unittest.cc",
     "row_store_unittest.cc",
+    "tree_number_nodes_unittest.cc",
     "variant_unittest.cc",
   ]
   deps = [
@@ -73,4 +77,19 @@ perfetto_unittest_source_set("unittests") {
     "../dataframe",
     "../util",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "tree_number_nodes_benchmark.cc" ]
+    deps = [
+      ":exec",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../containers",
+      "../common",
+      "../dataframe",
+    ]
+  }
 }
