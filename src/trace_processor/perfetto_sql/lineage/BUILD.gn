@@ -18,6 +18,7 @@ source_set("connection_catalog") {
   sources = [
     "connection_catalog.cc",
     "connection_catalog.h",
+    "type_mapping.h",
   ]
   deps = [
     "../../../../gn:default_deps",

@@ -14,12 +14,13 @@
 
 import {assertTrue} from '../base/assert';
 import {errResult, okResult, type Result} from '../base/result';
+import {uuidv4} from '../base/uuid';
 
 export interface WorkspaceManager {
   // This is the same of ctx.workspace, exposed for consistency also here.
   readonly currentWorkspace: Workspace;
   readonly all: ReadonlyArray<Workspace>;
-  createEmptyWorkspace(displayName: string): Workspace;
+  createEmptyWorkspace(displayName: string, id?: string): Workspace;
   switchWorkspace(workspace: Workspace): void;
 }
 
@@ -574,6 +575,9 @@ export class TrackNode {
  */
 export class Workspace {
   public title = '<untitled-workspace>';
+  // Unique identifier for this workspace. Must be globally unique as it is
+  // persisted in permalink state to track and restore workspaces across
+  // sessions.
   public readonly id: string;
   public userEditable: boolean = true;
 
@@ -585,8 +589,8 @@ export class Workspace {
     return this.pinnedTracksNode.children;
   }
 
-  constructor() {
-    this.id = createSessionUniqueId();
+  constructor(id?: string) {
+    this.id = id ?? uuidv4();
     this.pinnedTracksNode._workspace = this;
     this.tracks._workspace = this;
 

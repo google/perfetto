@@ -1069,6 +1069,10 @@ cc_library {
         "-DPERFETTO_SDK_SHLIB_IMPLEMENTATION",
         "-DZLIB_IMPLEMENTATION",
     ],
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+    ],
     min_sdk_version: "30",
     target: {
         android: {
@@ -1372,10 +1376,12 @@ cc_library_static {
         "-DPERFETTO_REGEX_FORCE_STD",
         "-DZLIB_IMPLEMENTATION",
     ],
+    stl: "libc++_static",
     apex_available: [
         "//apex_available:anyapex",
         "//apex_available:platform",
     ],
+    sdk_version: "current",
     min_sdk_version: "30",
     target: {
         android: {
@@ -1414,6 +1420,11 @@ cc_library_shared {
     header_libs: [
         "jni_headers",
     ],
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+    ],
+    min_sdk_version: "apex_inherit",
     target: {
         android: {
             shared_libs: [
@@ -1475,6 +1486,45 @@ cc_library_shared {
     ],
     header_libs: [
         "jni_headers",
+    ],
+}
+
+// GN: //src/android_sdk/jni:libperfetto_libcore_jni
+cc_library_static {
+    name: "libperfetto_libcore_jni",
+    srcs: [
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_abi_public",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protos_protos",
+        ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_include_perfetto_public_public",
+        ":perfetto_src_android_sdk_jni_libperfetto_libcore_jni_src",
+        ":perfetto_src_android_sdk_nativehelper_nativehelper",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+    ],
+    shared_libs: [
+        "libperfetto_c",
+    ],
+    host_supported: true,
+    defaults: [
+        "perfetto_defaults",
+    ],
+    cflags: [
+        "-DPERFETTO_JNI_ART_STATIC_INTEGRATION",
+        "-DPERFETTO_JNI_JARJAR_PREFIX=dalvik/system/",
+    ],
+    header_libs: [
+        "jni_headers",
+    ],
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+    ],
+    min_sdk_version: "apex_inherit",
+    visibility: [
+        "//libcore:__subpackages__",
     ],
 }
 
@@ -15815,6 +15865,16 @@ filegroup {
     ],
 }
 
+// GN: //src/android_sdk/jni:libperfetto_libcore_jni_src
+filegroup {
+    name: "perfetto_src_android_sdk_jni_libperfetto_libcore_jni_src",
+    srcs: [
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
+    ],
+}
+
 // GN: //src/android_sdk/nativehelper:nativehelper
 filegroup {
     name: "perfetto_src_android_sdk_nativehelper_nativehelper",
@@ -16010,6 +16070,7 @@ filegroup {
         "src/base/thread_checker_unittest.cc",
         "src/base/thread_task_runner_unittest.cc",
         "src/base/time_unittest.cc",
+        "src/base/type_set_unittest.cc",
         "src/base/unix_socket_unittest.cc",
         "src/base/utils_unittest.cc",
         "src/base/uuid_unittest.cc",
@@ -17700,6 +17761,39 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/core/exec:exec
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_exec",
+    srcs: [
+        "src/trace_processor/core/exec/assert_type.cc",
+        "src/trace_processor/core/exec/column_view.cc",
+        "src/trace_processor/core/exec/dataframe_scan.cc",
+        "src/trace_processor/core/exec/operator.cc",
+        "src/trace_processor/core/exec/pipeline.cc",
+        "src/trace_processor/core/exec/row_batch.cc",
+        "src/trace_processor/core/exec/row_cursor.cc",
+        "src/trace_processor/core/exec/row_store.cc",
+    ],
+}
+
+// GN: //src/trace_processor/core/exec:test_utils
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_test_utils",
+}
+
+// GN: //src/trace_processor/core/exec:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_core_exec_unittests",
+    srcs: [
+        "src/trace_processor/core/exec/assert_type_unittest.cc",
+        "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
+        "src/trace_processor/core/exec/operator_unittest.cc",
+        "src/trace_processor/core/exec/row_batch_unittest.cc",
+        "src/trace_processor/core/exec/row_store_unittest.cc",
+        "src/trace_processor/core/exec/variant_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/core/interpreter:bytecode_interpreter_test_utils
 filegroup {
     name: "perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
@@ -17761,7 +17855,6 @@ filegroup {
         "src/trace_processor/core/util/slab_unittest.cc",
         "src/trace_processor/core/util/sort_unittest.cc",
         "src/trace_processor/core/util/span_unittest.cc",
-        "src/trace_processor/core/util/type_set_unittest.cc",
     ],
 }
 
@@ -18846,6 +18939,22 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_engine_unittests",
     srcs: [
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection_unittest.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/exec:exec
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_exec_exec",
+    srcs: [
+        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/exec:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_exec_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/exec/sql_scan_unittest.cc",
     ],
 }
 
@@ -20849,6 +20958,7 @@ filegroup {
     name: "perfetto_src_trace_processor_rpc_unittests",
     srcs: [
         "src/trace_processor/rpc/query_result_serializer_unittest.cc",
+        "src/trace_processor/rpc/rpc_unittest.cc",
         "src/trace_processor/rpc/session_paths_unittest.cc",
     ],
 }
@@ -21973,6 +22083,7 @@ filegroup {
         "src/trace_processor/util/symbolizer/breakpad_parser_unittest.cc",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer_unittest.cc",
         "src/trace_processor/util/symbolizer/local_symbolizer_unittest.cc",
+        "src/trace_processor/util/symbolizer/symbolize_database_unittest.cc",
     ],
 }
 
@@ -23404,6 +23515,22 @@ java_defaults {
     },
 }
 
+// GN: //src/android_sdk/java/main:perfetto_trace_lib
+filegroup {
+    name: "perfetto_trace_lib_libcore_java",
+    srcs: [
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeLibrary.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+    ],
+    visibility: [
+        "//libcore:__subpackages__",
+    ],
+}
+
 // GN: //protos/perfetto/trace:perfetto_trace_protos
 cc_library_static {
     name: "perfetto_trace_protos",
@@ -24135,6 +24262,9 @@ cc_test {
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
         ":perfetto_src_trace_processor_core_dataframe_unittests",
+        ":perfetto_src_trace_processor_core_exec_exec",
+        ":perfetto_src_trace_processor_core_exec_test_utils",
+        ":perfetto_src_trace_processor_core_exec_unittests",
         ":perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
         ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_interpreter_unittests",
@@ -24203,6 +24333,8 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
         ":perfetto_src_trace_processor_perfetto_sql_engine_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_exec_exec",
+        ":perfetto_src_trace_processor_perfetto_sql_exec_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_generator_generator",
         ":perfetto_src_trace_processor_perfetto_sql_generator_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
@@ -27327,6 +27459,9 @@ aconfig_declarations {
 cc_aconfig_library {
     name: "perfetto_flags_c_lib",
     aconfig_declarations: "perfetto_flags-aconfig",
+    // All flags read from C++ are fixed read-only, and this drops the runtime
+    // deps (libbase, aconfig storage) that have no sdk variant.
+    mode: "force-read-only",
     vendor_available: true,
     product_available: true,
     apex_available: [
@@ -27334,6 +27469,9 @@ cc_aconfig_library {
         "//apex_available:platform",
         "com.android.profiling",
     ],
+    sdk_version: "current",
+    // The sdk variant would otherwise use the NDK "system" STL (no libc++).
+    stl: "libc++_static",
     min_sdk_version: "30",
 }
 
@@ -27396,5 +27534,20 @@ filegroup {
     name: "perfetto_cpp_blob_emitter",
     srcs: [
         "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+filegroup {
+    name: "perfetto_java_blob_emitter",
+    srcs: [
+        "python/tools/java_blob_emitter.py",
+    ],
+}
+
+filegroup {
+    name: "perfetto_sdk_libcore_jarjar_rules",
+    srcs: ["src/android_sdk/java/main/perfetto-sdk-libcore-jarjar-rules.txt"],
+    visibility: [
+        "//libcore:__subpackages__",
     ],
 }

@@ -276,6 +276,9 @@ class Dataframe {
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
 
+  // Returns `column`'s values and which rows hold one, for reading them
+  // without going through a cursor.
+  const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
   // Returns the type of the values in `column`.
   StorageType column_type(uint32_t column) const {
     return column_ptrs_[column]->storage.type();

@@ -2,12 +2,6 @@ package: "perfetto.flags"
 container: "system"
 
 flag {
-  name: "save_all_traces_in_bugreport"
-  namespace: "perfetto"
-  description: "This flag controls whether dumpstate invokes perfetto --save-for-bugreport (when disabled, old behavrior) or --save-all-for-bugreport (when enabled, new behavior). save-all serializes all the eligible active traces, rather than only the one with the highest bugreport score"
-  bug: "321196572"
-}
-flag {
   name: "test_read_only_flag"
   namespace: "perfetto"
   description: "A test flag for verifying that support for read-only flags in Perfetto works correctly."

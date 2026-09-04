@@ -1,0 +1,5 @@
+rule dev.perfetto.sdk.** dalvik.system.dev.perfetto.sdk.@1
+
+# ErrorProne annotations are not supported in Libcore; zap them to avoid
+# bundling compile-time annotations and prevent bootclasspath conflicts.
+zap com.google.errorprone.annotations.**

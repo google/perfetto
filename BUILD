@@ -375,6 +375,21 @@ perfetto_cc_binary(
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
+# GN target: //src/tools/proto_merger:extension_proto_merger
+perfetto_cc_binary(
+    name = "extension_proto_merger",
+    srcs = [
+        ":src_protozero_multifile_error_collector",
+        ":src_tools_proto_merger_lib",
+        "src/tools/proto_merger/extension_proto_merger_main.cc",
+    ],
+    deps = [
+        ":protos_perfetto_common_passthrough_lite",
+        ":src_base_base",
+        ":src_base_version",
+    ] + PERFETTO_CONFIG.deps.protobuf_full,
+)
+
 # GN target: //src/tools/proto_merger:proto_merger
 perfetto_cc_binary(
     name = "proto_merger",
@@ -1438,6 +1453,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/thread_checker.h",
         "include/perfetto/ext/base/thread_task_runner.h",
         "include/perfetto/ext/base/thread_utils.h",
+        "include/perfetto/ext/base/type_set.h",
         "include/perfetto/ext/base/unix_socket.h",
         "include/perfetto/ext/base/unix_task_runner.h",
         "include/perfetto/ext/base/utils.h",
@@ -2585,7 +2601,6 @@ perfetto_filegroup(
         "src/trace_processor/core/util/slab.h",
         "src/trace_processor/core/util/sort.h",
         "src/trace_processor/core/util/span.h",
-        "src/trace_processor/core/util/type_set.h",
     ],
 )
 

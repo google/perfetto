@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/type_set.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
 #include "src/trace_processor/core/dataframe/specs.h"
@@ -44,7 +45,6 @@
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -59,16 +59,16 @@ struct RegisterInit {
   struct SmallValueEqBitvector {};
   struct SmallValueEqPopcount {};
 
-  using Type = TypeSet<Id,
-                       Uint32,
-                       Int32,
-                       Int64,
-                       Double,
-                       String,
-                       NullBitvector,
-                       IndexVector,
-                       SmallValueEqBitvector,
-                       SmallValueEqPopcount>;
+  using Type = base::TypeSet<Id,
+                             Uint32,
+                             Int32,
+                             Int64,
+                             Double,
+                             String,
+                             NullBitvector,
+                             IndexVector,
+                             SmallValueEqBitvector,
+                             SmallValueEqPopcount>;
   uint32_t dest_register = 0;
   Type kind{Id{}};
   uint16_t source_index = 0;  // col_index or index_id depending on kind

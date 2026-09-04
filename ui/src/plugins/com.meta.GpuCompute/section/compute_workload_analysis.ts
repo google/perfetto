@@ -14,10 +14,12 @@
 
 import type {SectionRegistry} from './index';
 
-export function registerWorkloadAnalysisSection(reg: SectionRegistry): void {
+export function registerComputeWorkloadAnalysisSection(
+  reg: SectionRegistry,
+): void {
   reg.registerSection({
-    id: 'com.meta.GpuCompute.Section.WorkloadAnalysis',
-    title: 'Workload Analysis',
+    id: 'com.meta.GpuCompute.Section.ComputeWorkloadAnalysis',
+    title: 'Compute Workload Analysis',
     order: 3,
     launchMetrics: [],
     counterMetrics: [

@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-   *
+   * Changed compression logic to always emit clock snapshot, trace config and
+   trace UUID uncompressed for metadata inspection by on-device tools.
   Trace Processor:
    * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
      all_data_source_started_ns, ...) to trace time when primary_trace_clock
@@ -18,6 +19,11 @@ Unreleased:
     * Fixed flicker when selecting between track events.
     * Memscope: native callstack snippet table no longer truncates frames.
     * Intelletto: registered tools with Chrome's WebMCP API.
+    * Serialize workspaces to permalinks.
+    * Added a "Show only direct flows" setting to the FlowEvents plugin: when
+      enabled, selecting a slice shows only the flows directly connected to it
+      (one step) instead of following the entire flow chain. Useful for traces
+      with dense flow graphs (e.g. build dependencies).
   SDK:
     *
 
