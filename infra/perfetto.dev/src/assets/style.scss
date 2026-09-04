@@ -122,7 +122,7 @@ h3 {
     font-weight: 200;
     font-size: 28px;
     flex-grow: 1;
-    .brand-docs {
+    .brand-docs, .brand-blog {
       text-transform: uppercase;
       font-size: 14px;
       color: var(--color-accent);
@@ -323,21 +323,24 @@ h3 {
     text-decoration: none;
     color: inherit;
   }
-  .docs-footer-notice {
+  .footer-notice {
     display: none;
   }
 }
 
-// Footer overrides for the /docs/ page.
-.docs .site-footer {
+// Footer overrides for any page with a document shell (docs and blog alike):
+// the compact licence notice instead of the home page's dark bar.
+.docs .site-footer,
+.blog .site-footer {
   grid-area: footer;
+  margin-top: 40px;
   background: transparent;
   color: var(--color-text-muted);
   text-align: left;
   margin: 0 20px;
   padding: 12px 0;
 
-  .docs-footer-notice {
+  .footer-notice {
     padding: 0;
     margin: 0;
     display: block;
@@ -621,17 +624,44 @@ h3 {
 }
 
 // -----------------------------------------------------------------------------
-// Docs
+// Page shells
+//
+// Two long-form sections share one document body: the docs and the blog. What
+// differs is the column layout -- the docs have a nav sidebar, the blog does
+// not -- so the shells are separate and everything they share (.md-content, .toc, the
+// footer) lives in top-level rules rather than nested under either one.
 // -----------------------------------------------------------------------------
-.docs {
+.docs,
+.blog {
   min-height: 100vh;
   display: grid;
-  --nav-width: 260px;
+  background-color: var(--color-bg);
+
+  // Declared on the shared shell rather than on .docs, because .blog-post
+  // consumes both and would otherwise inherit nothing.
   --toc-min-width: 180px;
   --toc-max-width: 320px;
 
+}
+
+// Shells that hold a .md-content drop out of grid on mobile so the document can go
+// edge-to-edge (see .md-content's own query). The blog index has no .md-content and keeps its
+// card grid at every width.
+.docs,
+.blog-post {
+  @media #{$mobile} {
+    display: block;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Docs shell: nav | doc | toc
+// -----------------------------------------------------------------------------
+.docs {
+  --nav-width: 260px;
+
   // 1665px is the clientWidth on a macbook pro. Adjust the layout so that
-  // the max-width of the central .doc fits precisely when the browser is
+  // the max-width of the central .md-content fits precisely when the browser is
   // full-screen on a macbook.
   --max-doc-width: calc(1665px - var(--toc-min-width) - var(--nav-width));
 
@@ -640,7 +670,6 @@ h3 {
   grid-template-rows: 1fr max-content;
   grid-template-areas: "nav doc toc" "nav footer toc";
 
-  background-color: var(--color-bg);
 
   .nav {
     grid-area: nav;
@@ -812,421 +841,11 @@ h3 {
     li li li li a { padding-left: 52px; }
     li li li li li a { padding-left: 64px; }
   }
-  .doc {
-    grid-area: doc;
-    background-color: var(--color-bg-white);
-    margin: 20px;
-    padding: 36px 48px;
-    font-family: Roboto, sans-serif;
-    font-size: 1rem;
-    font-weight: 400;
-    line-height: 1.7;
-    -webkit-font-smoothing: antialiased;
-    color: var(--color-text);
-    position: relative;
-    border-radius: 8px;
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.06),
-      0 1px 2px rgba(0, 0, 0, 0.08);
-    overflow: hidden;
-
-    a {
-      text-decoration: none;
-      transition: color ease 0.1s;
-      &:link {
-        color: var(--color-link);
-      }
-      &:visited {
-        color: var(--color-link-visited);
-      }
-      &:hover {
-        color: var(--color-link-hover);
-        text-decoration: underline;
-      }
-      &[href^="http"] {
-        // External link.
-        &:after {
-          content: "open_in_new";
-          font-family: "Material Icons Round";
-          color: var(--color-text-muted);
-          text-decoration: none;
-          margin-left: 2px;
-          margin-right: 4px;
-          vertical-align: bottom;
-        }
-      }
-    }
-
-    h1,
-    h2,
-    h3 {
-      margin: 10px 0;
-      padding: 0;
-      padding-top: 30px;
-      color: var(--color-text);
-    }
-    h1 {
-      font-size: 2.25rem;
-      line-height: 2.25rem;
-      margin: 0;
-      padding: 0;
-      margin-bottom: 1.5rem;
-      font-family: "Source Sans Pro", sans-serif;
-    }
-    h2 {
-      font-size: 1.5rem;
-      border-bottom: 1px solid #e8eaed;
-      padding-bottom: 6px;
-    }
-    h3 {
-      font-size: 1.25rem;
-    }
-    * {
-      max-width: 100%;
-    }
-
-    img[alt$="screenshot"] {
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-      border-radius: 6px;
-    }
-
-    code:not(.code-block) {
-      background: #f1f5f9;
-      border: 1px solid #e8eaed;
-      border-radius: 6px;
-      padding: 1px 4px;
-    }
-    .code-block {
-      overflow-x: auto;
-      white-space: pre;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      border-top: 3px solid #8bc34a;
-    }
-    .code-block-wrapper {
-      position: relative;
-      &:hover .code-copy-button,
-      .code-copy-button:focus-visible {
-        opacity: 1;
-      }
-    }
-    .code-copy-button {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      width: 32px;
-      height: 32px;
-      padding: 0;
-      border: 1px solid #e8eaed;
-      border-radius: 6px;
-      background: #fff;
-      color: #5f6368;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity var(--anim-ease) var(--anim-time);
-      &::before {
-        content: "content_copy";
-        font-family: "Material Icons Round";
-        font-size: 18px;
-        line-height: 1;
-        vertical-align: middle;
-      }
-      &:hover {
-        background: #f1f5f9;
-      }
-      &.copied {
-        color: #4caf50;
-        &::before {
-          content: "check";
-        }
-      }
-    }
-    // Collapsible <details> blocks (e.g. the "Click to expand/collapse" code
-    // sections in the docs). Make the <summary> look and behave clickable.
-    details > summary {
-      cursor: pointer;
-      user-select: none;
-      width: fit-content;
-      &:hover {
-        color: var(--color-link);
-      }
-    }
-    // Hide mermaid graphs until they are rendered, this is to avoid showing
-    // the mermaid source while the renderer generates the SVG.
-    .mermaid {
-      transition: opacity var(--anim-ease) var(--anim-time);
-      &:not(.rendered) {
-        opacity: 0;
-      }
-    }
-    .anchor {
-      margin-left: -29px;
-      padding-right: 5px;
-      text-decoration: none;
-      position: absolute;
-      padding-top: var(--site-header-height);
-      margin-top: calc(-1 * var(--site-header-height));
-      outline: none;
-      opacity: 0;
-      transition: opacity var(--anim-ease) var(--anim-time);
-      &::before {
-        content: "insert_link";
-        font-family: "Material Icons Round";
-        color: #333;
-        font-size: 24px;
-      }
-    }
-    *:hover .anchor {
-      opacity: 1;
-    }
-    code {
-      font-family: "Roboto Mono", monospace;
-      font-size: 14px;
-    }
-    table {
-      width: 100%;
-      font-size: 14px;
-      border-spacing: 0;
-      border-collapse: collapse;
-      border-radius: 6px;
-      overflow: hidden;
-      th,
-      td {
-        padding: 10px 12px;
-        border: 0 solid var(--color-border);
-        border-top-width: 1px;
-        border-bottom-width: 1px;
-      }
-      tr {
-        height: 20px;
-      }
-      tr:target {
-        background-color: #fef3cd;
-      }
-      thead {
-        text-align: left;
-        background-color: var(--color-bg);
-        color: var(--color-text);
-        font-weight: 600;
-      }
-      tbody tr:hover {
-        background-color: #fafbfc;
-      }
-    }
-
-    &[data-md-file^="/docs/reference/"] {
-      h1,
-      h2,
-      h3 {
-        code {
-          margin-left: 20px;
-          color: var(--color-text-secondary);
-        }
-      }
-      table {
-        width: 100%;
-        font-size: 14px;
-        border-spacing: 0;
-        border-collapse: collapse;
-        th,
-        td {
-          padding: 10px 12px;
-          border: 0 solid var(--color-border);
-          border-top-width: 1px;
-          border-bottom-width: 1px;
-        }
-        tr {
-          height: 20px;
-        }
-        thead {
-          text-align: left;
-          background-color: var(--color-bg);
-          color: var(--color-text);
-        }
-        td {
-          &:first-child {
-            background: #fafbfc;
-          }
-
-          /* Not really 100% but makes sure that the description
-                     * column takes most of the width */
-          &:last-child {
-            width: 80%;
-          }
-        }
-      }
-    }
-
-    .callout {
-      padding: 1rem 1rem 1rem 2.5rem;
-      border: none;
-      border-radius: 8px;
-      margin: 1.25em auto;
-      width: 92%;
-      border-left: 4px solid transparent;
-      box-shadow:
-        0 1px 4px rgba(0, 0, 0, 0.06),
-        0 0 1px rgba(0, 0, 0, 0.08);
-      line-height: 1.6;
-
-      &:before {
-        font-family: "Material Icons Round";
-        position: absolute;
-        font-size: 1.5rem;
-        margin-left: -1.75rem;
-        margin-top: -2px;
-      }
-
-      &.note {
-        background-color: #eff6ff;
-        border-color: #3b82f6;
-        color: #1e40af;
-        &:before {
-          content: "bookmark";
-        }
-      }
-
-      &.summary {
-        background-color: #ecfeff;
-        border-color: #06b6d4;
-        color: #0e7490;
-        &:before {
-          content: "sms";
-        }
-      }
-
-      &.tip {
-        background-color: #f0fdf4;
-        border-color: #22c55e;
-        color: #166534;
-        &:before {
-          content: "star";
-        }
-      }
-
-      &.todo {
-        background-color: #f8fafc;
-        border-color: #94a3b8;
-        color: #475569;
-        &:before {
-          content: "error";
-        }
-      }
-
-      &.warning {
-        background-color: #fef2f2;
-        border-color: #ef4444;
-        color: #991b1b;
-        &:before {
-          content: "warning";
-        }
-      }
-    }
-
-    .tab-box {
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      padding: 0;
-      overflow: hidden;
-    }
-
-    .tab-buttons {
-      border-bottom: 1px solid var(--color-border);
-      background-color: var(--color-bg);
-    }
-
-    .tab-button {
-      cursor: pointer;
-      border: none;
-      background: transparent;
-      font-family: Roboto, sans-serif;
-      font-size: 1rem;
-      padding: 8px;
-      color: var(--color-text-secondary);
-      transition: color ease 0.1s, border-color ease 0.1s;
-      &:hover {
-        color: var(--color-text);
-        background-color: rgba(0, 0, 0, 0.03);
-      }
-      &.tab-button-selected {
-        color: var(--color-text);
-        border-bottom: 3px solid var(--color-accent);
-      }
-    }
-
-    .tab-content {
-      display: none;
-      padding: 12px 16px;
-
-      &.tab-content-selected {
-        display: block;
-      }
-    }
-  }
-  .toc {
-    grid-area: toc;
-    padding: 24px 16px 24px 0;
-    max-width: var(--toc-max-width);
-
-    position: sticky;
-    top: var(--site-header-height);
-    height: calc(100vh - var(--site-header-height));
-    overflow-y: auto;
-    @include minimal-scrollbar;
-
-    font-family: "Source Sans Pro", sans-serif;
-    word-break: break-word;
-    a {
-      text-decoration: none;
-      transition: color ease 0.1s;
-    }
-    a,
-    a:visited {
-      color: var(--color-text-secondary);
-    }
-    a:hover {
-      color: var(--color-text);
-    }
-    a.highlighted {
-      font-weight: 600;
-      color: #b8860b;
-    }
-    font-size: 0.875rem;
-    ul {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      li {
-        margin: 4px 0;
-        /* This make it so that a single word gets elided but if there
-                 * are multiple words they span across lines.  */
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: break-spaces;
-        word-break: normal;
-      }
-    }
-    > ul {
-      border-left: 3px solid var(--color-accent);
-      padding-left: 12px;
-      position: static; // Otherwise gets v-centered in the middle.
-      top: calc(var(--site-header-height) + 25px);
-    }
-  }
 
   @media #{$wide} {
     grid-template-columns: var(--nav-width) auto 0;
-    .toc {
-      display: none;
-    }
   }
   @media #{$mobile} {
-    display: block;
-    .doc {
-      margin: 0;
-      padding: 20px;
-      border-radius: 0;
-    }
     .nav {
       // JS will persistently toggle to .after_first_click. This is to
       // avoid spurious transitions on page load.
@@ -1258,5 +877,705 @@ h3 {
         box-shadow: 0 1px 0 100vw rgba(0, 0, 0, 0.4);
       }
     }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// .md-content -- the rendered body of a markdown file.
+//
+// Used by docs pages and blog posts alike: a post is rendered markdown, not a
+// docs page. The shell it sits in supplies its grid-area (below).
+// -----------------------------------------------------------------------------
+.md-content {
+  background-color: var(--color-bg-white);
+  margin: 20px;
+  padding: 36px 48px;
+  font-family: Roboto, sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  color: var(--color-text);
+  position: relative;
+  border-radius: 8px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+
+  a {
+    text-decoration: none;
+    transition: color ease 0.1s;
+    &:link {
+      color: var(--color-link);
+    }
+    &:visited {
+      color: var(--color-link-visited);
+    }
+    &:hover {
+      color: var(--color-link-hover);
+      text-decoration: underline;
+    }
+    &[href^="http"] {
+      // External link.
+      &:after {
+        content: "open_in_new";
+        font-family: "Material Icons Round";
+        color: var(--color-text-muted);
+        text-decoration: none;
+        margin-left: 2px;
+        margin-right: 4px;
+        vertical-align: bottom;
+      }
+    }
+  }
+
+  h1,
+  h2,
+  h3 {
+    margin: 10px 0;
+    padding: 0;
+    padding-top: 30px;
+    color: var(--color-text);
+  }
+  h1 {
+    font-size: 2.25rem;
+    line-height: 2.25rem;
+    margin: 0;
+    padding: 0;
+    margin-bottom: 1.5rem;
+    font-family: "Source Sans Pro", sans-serif;
+  }
+  h2 {
+    font-size: 1.5rem;
+    border-bottom: 1px solid #e8eaed;
+    padding-bottom: 6px;
+  }
+  h3 {
+    font-size: 1.25rem;
+  }
+  * {
+    max-width: 100%;
+  }
+
+  // Screen recordings, written as `![alt](demo.mp4)` in markdown and turned
+  // into a player by renderImage().
+  .md-video {
+    display: block;
+    width: 100%;
+    border-radius: 6px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  img[alt$="screenshot"] {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+  }
+
+  code:not(.code-block) {
+    background: #f1f5f9;
+    border: 1px solid #e8eaed;
+    border-radius: 6px;
+    padding: 1px 4px;
+  }
+  .code-block {
+    overflow-x: auto;
+    white-space: pre;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    border-top: 3px solid #8bc34a;
+  }
+  .code-block-wrapper {
+    position: relative;
+    &:hover .code-copy-button,
+    .code-copy-button:focus-visible {
+      opacity: 1;
+    }
+  }
+  .code-copy-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #e8eaed;
+    border-radius: 6px;
+    background: #fff;
+    color: #5f6368;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity var(--anim-ease) var(--anim-time);
+    &::before {
+      content: "content_copy";
+      font-family: "Material Icons Round";
+      font-size: 18px;
+      line-height: 1;
+      vertical-align: middle;
+    }
+    &:hover {
+      background: #f1f5f9;
+    }
+    &.copied {
+      color: #4caf50;
+      &::before {
+        content: "check";
+      }
+    }
+  }
+  // Collapsible <details> blocks (e.g. the "Click to expand/collapse" code
+  // sections in the docs). Make the <summary> look and behave clickable.
+  details > summary {
+    cursor: pointer;
+    user-select: none;
+    width: fit-content;
+    &:hover {
+      color: var(--color-link);
+    }
+  }
+  // Hide mermaid graphs until they are rendered, this is to avoid showing
+  // the mermaid source while the renderer generates the SVG.
+  .mermaid {
+    transition: opacity var(--anim-ease) var(--anim-time);
+    &:not(.rendered) {
+      opacity: 0;
+    }
+  }
+  .anchor {
+    margin-left: -29px;
+    padding-right: 5px;
+    text-decoration: none;
+    position: absolute;
+    padding-top: var(--site-header-height);
+    margin-top: calc(-1 * var(--site-header-height));
+    outline: none;
+    opacity: 0;
+    transition: opacity var(--anim-ease) var(--anim-time);
+    &::before {
+      content: "insert_link";
+      font-family: "Material Icons Round";
+      color: #333;
+      font-size: 24px;
+    }
+  }
+  *:hover .anchor {
+    opacity: 1;
+  }
+  code {
+    font-family: "Roboto Mono", monospace;
+    font-size: 14px;
+  }
+  table {
+    width: 100%;
+    font-size: 14px;
+    border-spacing: 0;
+    border-collapse: collapse;
+    border-radius: 6px;
+    overflow: hidden;
+    th,
+    td {
+      padding: 10px 12px;
+      border: 0 solid var(--color-border);
+      border-top-width: 1px;
+      border-bottom-width: 1px;
+    }
+    tr {
+      height: 20px;
+    }
+    tr:target {
+      background-color: #fef3cd;
+    }
+    thead {
+      text-align: left;
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      font-weight: 600;
+    }
+    tbody tr:hover {
+      background-color: #fafbfc;
+    }
+  }
+
+  &[data-md-file^="/docs/reference/"] {
+    h1,
+    h2,
+    h3 {
+      code {
+        margin-left: 20px;
+        color: var(--color-text-secondary);
+      }
+    }
+    table {
+      width: 100%;
+      font-size: 14px;
+      border-spacing: 0;
+      border-collapse: collapse;
+      th,
+      td {
+        padding: 10px 12px;
+        border: 0 solid var(--color-border);
+        border-top-width: 1px;
+        border-bottom-width: 1px;
+      }
+      tr {
+        height: 20px;
+      }
+      thead {
+        text-align: left;
+        background-color: var(--color-bg);
+        color: var(--color-text);
+      }
+      td {
+        &:first-child {
+          background: #fafbfc;
+        }
+
+        /* Not really 100% but makes sure that the description
+                   * column takes most of the width */
+        &:last-child {
+          width: 80%;
+        }
+      }
+    }
+  }
+
+  .callout {
+    padding: 1rem 1rem 1rem 2.5rem;
+    border: none;
+    border-radius: 8px;
+    margin: 1.25em auto;
+    width: 92%;
+    border-left: 4px solid transparent;
+    box-shadow:
+      0 1px 4px rgba(0, 0, 0, 0.06),
+      0 0 1px rgba(0, 0, 0, 0.08);
+    line-height: 1.6;
+
+    &:before {
+      font-family: "Material Icons Round";
+      position: absolute;
+      font-size: 1.5rem;
+      margin-left: -1.75rem;
+      margin-top: -2px;
+    }
+
+    &.note {
+      background-color: #eff6ff;
+      border-color: #3b82f6;
+      color: #1e40af;
+      &:before {
+        content: "bookmark";
+      }
+    }
+
+    &.summary {
+      background-color: #ecfeff;
+      border-color: #06b6d4;
+      color: #0e7490;
+      &:before {
+        content: "sms";
+      }
+    }
+
+    &.tip {
+      background-color: #f0fdf4;
+      border-color: #22c55e;
+      color: #166534;
+      &:before {
+        content: "star";
+      }
+    }
+
+    &.todo {
+      background-color: #f8fafc;
+      border-color: #94a3b8;
+      color: #475569;
+      &:before {
+        content: "error";
+      }
+    }
+
+    &.warning {
+      background-color: #fef2f2;
+      border-color: #ef4444;
+      color: #991b1b;
+      &:before {
+        content: "warning";
+      }
+    }
+  }
+
+  .tab-box {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .tab-buttons {
+    border-bottom: 1px solid var(--color-border);
+    background-color: var(--color-bg);
+  }
+
+  .tab-button {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    font-family: Roboto, sans-serif;
+    font-size: 1rem;
+    padding: 8px;
+    color: var(--color-text-secondary);
+    transition: color ease 0.1s, border-color ease 0.1s;
+    &:hover {
+      color: var(--color-text);
+      background-color: rgba(0, 0, 0, 0.03);
+    }
+    &.tab-button-selected {
+      color: var(--color-text);
+      border-bottom: 3px solid var(--color-accent);
+    }
+  }
+
+  .tab-content {
+    display: none;
+    padding: 12px 16px;
+
+    &.tab-content-selected {
+      display: block;
+    }
+  }
+
+  @media #{$mobile} {
+    margin: 0;
+    padding: 20px;
+    border-radius: 0;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Right-hand-side per-page table of contents. Generated by updateTOC() in
+// script.js from the .anchor elements the renderer injects into headings.
+// -----------------------------------------------------------------------------
+.toc {
+  padding: 24px 16px 24px 0;
+  max-width: var(--toc-max-width);
+
+  position: sticky;
+  top: var(--site-header-height);
+  height: calc(100vh - var(--site-header-height));
+  overflow-y: auto;
+  @include minimal-scrollbar;
+
+  font-family: "Source Sans Pro", sans-serif;
+  word-break: break-word;
+  a {
+    text-decoration: none;
+    transition: color ease 0.1s;
+  }
+  a,
+  a:visited {
+    color: var(--color-text-secondary);
+  }
+  a:hover {
+    color: var(--color-text);
+  }
+  a.highlighted {
+    font-weight: 600;
+    color: #b8860b;
+  }
+  font-size: 0.875rem;
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    li {
+      margin: 4px 0;
+      /* This make it so that a single word gets elided but if there
+               * are multiple words they span across lines.  */
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: break-spaces;
+      word-break: normal;
+    }
+  }
+  > ul {
+    border-left: 3px solid var(--color-accent);
+    padding-left: 12px;
+    position: static; // Otherwise gets v-centered in the middle.
+    top: calc(var(--site-header-height) + 25px);
+  }
+
+  @media #{$wide} {
+    display: none;
+  }
+}
+
+// grid-area belongs to the shell that positions the element, not to the element.
+.docs .md-content,
+.blog .md-content {
+  grid-area: doc;
+}
+.docs .toc,
+.blog .toc {
+  grid-area: toc;
+}
+
+
+// -----------------------------------------------------------------------------
+// Blog
+//
+// The shared parts -- the shell, .md-content, .toc and the footer -- are defined above
+// alongside the docs. What is left here is the blog's own layout: the card index
+// and the post's byline chrome.
+// -----------------------------------------------------------------------------
+
+// ---- Index ------------------------------------------------------------------
+.blog-index {
+  grid-template-columns: 1fr minmax(0, var(--content-max-width)) 1fr;
+  grid-template-areas:
+    ". head ."
+    ". grid ."
+    ". footer .";
+  align-content: start;
+  padding-bottom: 40px;
+
+  .blog-head {
+    grid-area: head;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 0 20px;
+    padding: 40px 0 20px;
+    border-bottom: 1px solid var(--color-border);
+
+
+    p {
+      margin: 6px 0 0;
+      max-width: 62ch;
+      color: var(--color-text-secondary);
+      font-size: 1.2rem;
+      line-height: 1.5;
+    }
+  }
+
+  .blog-feed {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background-color: var(--color-bg-white);
+    color: var(--color-link);
+    font-family: "Source Sans Pro", sans-serif;
+    font-size: 0.95rem;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color ease var(--anim-time), color ease var(--anim-time);
+    &:hover {
+      border-color: var(--color-link);
+      color: var(--color-link-hover);
+    }
+    i {
+      font-size: 18px;
+    }
+  }
+
+  .blog-empty {
+    grid-area: grid;
+    margin: 40px 20px;
+    color: var(--color-text-muted);
+    font-family: "Source Sans Pro", sans-serif;
+  }
+}
+
+.blog-grid {
+  grid-area: grid;
+  margin: 28px 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 24px;
+}
+
+.blog-card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-white);
+  border-radius: 8px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    box-shadow var(--anim-ease) var(--anim-time),
+    transform var(--anim-ease) var(--anim-time);
+
+  &:hover {
+    box-shadow:
+      0 4px 14px rgba(0, 0, 0, 0.1),
+      0 2px 4px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+    h2 {
+      color: var(--color-link);
+    }
+  }
+  &:focus-visible {
+    outline: 2px solid var(--color-link);
+    outline-offset: 2px;
+  }
+
+  .blog-card-img {
+    background-color: #f1f3f4;
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+    }
+  }
+
+  .blog-card-body {
+    flex-grow: 1;
+    padding: 16px 18px 8px;
+
+    h2 {
+      font-family: "Source Sans Pro", sans-serif;
+      font-size: 1.22rem;
+      font-weight: 600;
+      line-height: 1.28;
+      color: var(--color-text);
+      margin-bottom: 8px;
+      text-wrap: balance;
+      transition: color ease var(--anim-time);
+    }
+    p {
+      margin: 0;
+      font-size: 0.92rem;
+      line-height: 1.55;
+      color: var(--color-text-secondary);
+      // Three lines, so cards in a row stay the same height regardless of how
+      // long an author made the summary.
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  }
+
+  .blog-card-meta {
+    padding: 10px 18px 16px;
+    font-family: "Source Sans Pro", sans-serif;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .blog-card-author {
+      color: var(--color-text-secondary);
+      font-weight: 600;
+    }
+    .blog-card-dot {
+      opacity: 0.5;
+    }
+  }
+}
+
+// ---- Post -------------------------------------------------------------------
+.blog-post {
+  // Wider than the docs measure, because there is no nav column.
+  --max-doc-width: 860px;
+
+  grid-template-columns:
+    1fr
+    minmax(auto, var(--max-doc-width))
+    minmax(var(--toc-min-width), var(--toc-max-width))
+    1fr;
+  grid-template-rows: 1fr max-content;
+  grid-template-areas:
+    ". doc toc ."
+    ". footer footer .";
+
+  @media #{$wide} {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "doc"
+      "footer";
+  }
+}
+
+// Nested under .md-content and stated for both link states: `.md-content a:link` and
+// `.md-content a:visited` are (0,2,1), so a bare .blog-back (0,1,0) would lose and the
+// back-link would turn brown once visited.
+.md-content .blog-back {
+  display: inline-block;
+  margin-bottom: 18px;
+  font-family: "Source Sans Pro", sans-serif;
+  font-size: 0.95rem;
+  text-decoration: none;
+  &:link,
+  &:visited {
+    color: var(--color-link);
+  }
+  &::before {
+    content: "arrow_back";
+    font-family: "Material Icons Round";
+    font-size: 16px;
+    vertical-align: -3px;
+    margin-right: 4px;
+  }
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.md-content .blog-byline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border-light);
+
+  .blog-avatars {
+    display: flex;
+    flex-shrink: 0;
+    img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: #f1f3f4;
+      // Overlap when a post has several authors.
+      &:not(:first-child) {
+        margin-left: -10px;
+        box-shadow: 0 0 0 2px var(--color-bg-white);
+      }
+    }
+  }
+
+  .blog-byline-text {
+    font-family: "Source Sans Pro", sans-serif;
+    line-height: 1.35;
+  }
+  .blog-authors {
+    font-weight: 600;
+    // Same contest as .blog-back above: beat `.md-content a:link` on class count.
+    a:link,
+    a:visited {
+      color: var(--color-text);
+      text-decoration: none;
+      &:hover {
+        color: var(--color-link);
+      }
+    }
+  }
+  time {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
   }
 }

@@ -1,3 +1,9 @@
+<%
+  // Which section of the site this page is in. Drives the logo caption, the
+  // feed link, whether the search box appears, and which index it queries.
+  const inDocs = fileName.startsWith('/docs/');
+  const inBlog = fileName.startsWith('/blog/');
+-%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,15 +21,23 @@
   <link rel="stylesheet" href="/assets/style.css">
   <link rel="stylesheet" href="/assets/tomorrow-night.css">
   <link rel="shortcut icon" href="/assets/favicon.png" />
+<% if (inBlog) { %>
+  <link rel="alternate" type="application/atom+xml" title="Perfetto blog" href="/blog/atom.xml">
+<% } %>
   <script type="text/javascript" src="/assets/script.js"></script>
 </head>
 <body>
 <header class="site-header">
   <div class="brand">
-    <% if (fileName.startsWith('/docs/')) { %>
+    <% if (inDocs) { %>
     <a href="/docs/">
       <img src="/assets/brand.png">
       <span class="brand-docs">Docs</span>
+    </a>
+    <% } else if (inBlog) { %>
+    <a href="/blog/">
+      <img src="/assets/brand.png">
+      <span class="brand-blog">Blog</span>
     </a>
     <% } else { %>
     <a href="/">
@@ -33,15 +47,18 @@
   </div>
   <a href="#toggle" class="menu"><i class="material-icons-round">menu</i></a>
 
-  <% if (fileName.startsWith('/docs/')) { %>
+  <% if (inDocs || inBlog) { %>
     <div id="search">
-      <input id="search-box" type="text" placeholder="Search" autocomplete="off">
+      <input id="search-box" type="text" placeholder="<%= inBlog ? 'Search the blog' : 'Search' %>" autocomplete="off">
       <div id="search-res"></div>
     </div>
     <a href="/">Home</a>
-  <% } else { %>
-    <a href="/docs/">Docs</a>
   <% } %>
+  <% if (!inDocs) { %>
+  <a href="/docs/">Docs</a>
+  <% } %>
+  <%# The blog is deliberately unlisted for now: no top-bar link, reachable
+      only by going to /blog/ directly. Re-add here to launch it. %>
   <a href="/docs/contributing/getting-started#community">Community</a>
   <a href="https://ui.perfetto.dev/">Trace Viewer</a>
   <a href="https://github.com/google/perfetto">GitHub</a>

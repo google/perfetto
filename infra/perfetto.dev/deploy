@@ -62,6 +62,8 @@ EOF
 [ "$(file $OUT_DIR/docs/images/perfetto-stack.svg)" == "image/svg+xml" ]
 [ "$(file $OUT_DIR/docs/images/perfetto-stack.svg)" == "image/svg+xml" ]
 [ "$(file $OUT_DIR/docs/analysis/sql-tables)" == "text/html" ]
+[ "$(file $OUT_DIR/blog/index.html)" == "text/html" ]
+[ "$(file $OUT_DIR/blog/atom.xml)" == "application/atom+xml" ]
 
 # -j: apply 'Content-Encoding: gzip' compression to passed extensions.
 # -d: mirror also deletetions.
