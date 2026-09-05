@@ -1,0 +1,178 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+
+packet {
+  clock_snapshot {
+    clocks: {
+      clock_id: 6 # BOOTTIME
+      timestamp: 0
+    }
+    clocks: {
+      clock_id: 4 # MONOTONIC_COARSE
+      timestamp: 10
+    }
+  }
+}
+
+# Two stacks sharing a prefix: [f1, f2, f3] and [f1, f2], one sample each.
+packet {
+  trusted_packet_sequence_id: 999
+  previous_packet_dropped: 1
+  incremental_state_cleared: true
+  timestamp: 10
+  profile_packet {
+    strings {
+      iid: 1
+      str: "f1"
+    }
+    strings {
+      iid: 2
+      str: "f2"
+    }
+    strings {
+      iid: 3
+      str: "f3"
+    }
+    strings {
+      iid: 4
+      str: "liblib.so"
+    }
+    strings {
+      iid: 5
+      str: "build-id"
+    }
+    frames {
+      iid: 1
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 0x1000
+    }
+    frames {
+      iid: 2
+      function_name_id: 2
+      mapping_id: 1
+      rel_pc: 0x2001
+    }
+    frames {
+      iid: 3
+      function_name_id: 3
+      mapping_id: 1
+      rel_pc: 0x3000
+    }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+      frame_ids: 2
+      frame_ids: 3
+    }
+    callstacks {
+      iid: 2
+      frame_ids: 1
+      frame_ids: 2
+    }
+    mappings {
+      iid: 1
+      path_string_ids: 4
+      build_id: 5
+    }
+    process_dumps {
+      pid: 2
+      samples {
+        callstack_id: 1
+        self_allocated: 100
+        self_freed: 0
+        alloc_count: 1
+        free_count: 0
+      }
+      samples {
+        callstack_id: 2
+        self_allocated: 100
+        self_freed: 0
+        alloc_count: 1
+        free_count: 0
+      }
+    }
+  }
+}
+
+packet {
+  module_symbols {
+    path: "/liblib.so"
+    build_id: "build-id"
+    address_symbols {
+      address: 0x1000
+      lines {
+        function_name: "f1"
+        source_file_name: "f1.cc"
+        line_number: 1
+      }
+    }
+    address_symbols {
+      address: 0x2001
+      lines {
+        function_name: "f2"
+        source_file_name: "f2.cc"
+        line_number: 2
+      }
+    }
+    address_symbols {
+      address: 0x3000
+      lines {
+        function_name: "f3"
+        source_file_name: "f3.cc"
+        line_number: 33
+      }
+    }
+  }
+}
+
+packet {
+  module_disassembly {
+    path: "/liblib.so"
+    build_id: "build-id"
+    source_files: "f2.cc"
+    functions {
+      name: "f2"
+      start_address: 0x2000
+      size: 8
+      instructions {
+        address: 0x2000
+        bytes: "\x55"
+        text: "push rbp"
+        source_file_index: 0
+        line_number: 1
+      }
+      instructions {
+        address: 0x2001
+        bytes: "\xe8\x00\x00\x00\x00"
+        text: "call 0x3000"
+        target_address: 0x3000
+        target_symbol: "f3"
+        source_file_index: 0
+        line_number: 2
+      }
+      instructions {
+        address: 0x2006
+        bytes: "\xeb\xf8"
+        text: "jmp 0x2000"
+        target_address: 0x2000
+        source_file_index: 0
+        line_number: 3
+      }
+    }
+  }
+}

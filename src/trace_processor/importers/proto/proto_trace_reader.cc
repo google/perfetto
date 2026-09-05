@@ -1355,7 +1355,16 @@ constexpr uint8_t kTracePacketTag =
 constexpr uint16_t kModuleSymbolsTag =
     protozero::proto_utils::MakeTagLengthDelimited(
         protos::pbzero::TracePacket::kModuleSymbolsFieldNumber);
+constexpr uint16_t kSourceFileTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::TracePacket::kSourceFileFieldNumber);
+constexpr uint16_t kModuleDisassemblyTag =
+    protozero::proto_utils::MakeTagLengthDelimited(
+        protos::pbzero::TracePacket::kModuleDisassemblyFieldNumber);
 
+// Whether the first packet of the trace carries data that is bundled with a
+// trace after recording (symbols, source files, disassembly). Such packets
+// back-patch existing rows, so they must be parsed after the main trace.
 bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   const uint8_t* const end = ptr + size;
 
@@ -1382,7 +1391,8 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
     return false;
   }
 
-  return tag == kModuleSymbolsTag;
+  return tag == kModuleSymbolsTag || tag == kSourceFileTag ||
+         tag == kModuleDisassemblyTag;
 }
 
 // Perfetto proto trace.

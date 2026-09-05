@@ -666,6 +666,69 @@ CREATE PERFETTO VIEW stack_profile_symbol(
 AS
 SELECT * FROM __intrinsic_stack_profile_symbol;
 
+-- Contents of source files bundled with the trace, for the files referenced
+-- by symbolized frames.
+CREATE PERFETTO VIEW source_file(
+  -- The id of the row.
+  id ID,
+  -- Path of the file as it appears in the debug info. Joins to
+  -- stack_profile_symbol.source_file.
+  path STRING,
+  -- Raw contents of the file.
+  contents STRING
+)
+AS
+SELECT * FROM __intrinsic_source_file;
+
+-- Functions for which disassembly is bundled with the trace.
+CREATE PERFETTO VIEW disassembly_function(
+  -- The id of the row.
+  id ID,
+  -- Path of the module containing the function, matching
+  -- stack_profile_mapping.name.
+  path STRING,
+  -- Hex-encoded build id of the module, matching
+  -- stack_profile_mapping.build_id.
+  build_id STRING,
+  -- Symbol name of the function.
+  name STRING,
+  -- Address of the first instruction relative to the start of the module, in
+  -- the same space as stack_profile_frame.rel_pc.
+  start_rel_pc LONG,
+  -- Size of the function's code in bytes.
+  size LONG
+)
+AS
+SELECT * FROM __intrinsic_disassembly_function;
+
+-- Instructions of functions in disassembly_function, in address order.
+CREATE PERFETTO VIEW disassembly_instruction(
+  -- The id of the row.
+  id ID,
+  -- The function this instruction belongs to.
+  function_id JOINID(disassembly_function.id),
+  -- Address of the instruction relative to the start of the module, in the
+  -- same space as stack_profile_frame.rel_pc.
+  rel_pc LONG,
+  -- Hex-encoded raw bytes of the instruction.
+  bytes STRING,
+  -- Rendered mnemonic and operands.
+  text STRING,
+  -- For direct branches and calls, the module-relative address of the target
+  -- instruction.
+  target_rel_pc LONG,
+  -- For branches and calls out of the function, the name of the target symbol
+  -- if known.
+  target_symbol STRING,
+  -- Path of the source file the instruction was generated from. Joins to
+  -- source_file.path.
+  source_file STRING,
+  -- Line in source_file the instruction was generated from.
+  line_number LONG
+)
+AS
+SELECT * FROM __intrinsic_disassembly_instruction;
+
 -- Allocations that happened at a callsite.
 CREATE PERFETTO VIEW heap_profile_allocation(
   -- The id of the row.
