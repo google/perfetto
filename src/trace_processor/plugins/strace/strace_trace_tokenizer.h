@@ -38,7 +38,9 @@ namespace perfetto::trace_processor::strace_importer {
 // Examples of lines this is built from:
 //   1700000000.000000 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3
 //   1700000000.123456 read(3, "root:x:0:0"..., 1024) = 312
-//   1234 1700000000.000000 read(3, "root:x:0:0"..., 1024) = 312    (-f)
+//   1234 1700000000.000000 read(3, "root:x:0:0"..., 1024) = 312    (-f -o)
+//   [pid  1234] 1700000000.000000 read(3, "abc", 1024) = 3          (-f)
+//   1700000000.000000 read(3, "abc", 1024) = 3 <0.000123>           (-T)
 //   1700000000.000000 read(3,  <unfinished ...>
 //   1700000000.000500 <... read resumed> "root:x:0:0"..., 1024) = 312
 //
@@ -62,8 +64,14 @@ struct StraceLine {
   // line, whatever text follows "resumed>").
   std::string args;
   // The text after "= " at the end of a *complete* call, e.g. "3" or "-1
-  // ENOENT (No such file or directory)". Unset for unfinished calls.
+  // ENOENT (No such file or directory)". Unset for unfinished calls. The
+  // `strace -T` "<0.000123>" suffix, if any, is stripped into duration_ns
+  // rather than left in here.
   std::optional<std::string> return_value;
+  // Time spent inside the syscall, from `strace -T`'s "<seconds.fraction>"
+  // suffix. Unset when the trace was collected without `-T` (and always
+  // unset for an unfinished call, which strace has not timed yet).
+  std::optional<int64_t> duration_ns;
   StraceEventKind kind = StraceEventKind::kComplete;
 };
 
