@@ -230,8 +230,7 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
     size_t sp = rest.find(' ');
     if (sp != std::string_view::npos) {
       std::string_view head = rest.substr(0, sp);
-      bool all_digits =
-          !head.empty() && head.size() < 10 && IsAllDigits(head);
+      bool all_digits = !head.empty() && head.size() < 10 && IsAllDigits(head);
       if (all_digits) {
         auto pid = base::StringViewToNumber<uint32_t>(base::StringView(head));
         if (!pid)
