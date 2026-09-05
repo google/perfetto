@@ -21,6 +21,10 @@ import {
   type TreeExplorerQueryMetric,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
+import {
+  SOURCE_ANNOTATION_PROPERTIES,
+  sourceAnnotationNodeAction,
+} from '../../components/source_annotation/source_annotation_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {
   type AreaSelection,
@@ -211,7 +215,7 @@ export function createStackSampleAreaSelectionTab(
         !areaSelectionsEqual(previousSelection, selection);
       if (changed) {
         previousSelection = selection;
-        flamegraphMetrics = computeFlamegraphMetrics(selection, config);
+        flamegraphMetrics = computeFlamegraphMetrics(trace, selection, config);
       }
       if (flamegraphMetrics === undefined) return undefined;
       return {
@@ -228,6 +232,7 @@ export function createStackSampleAreaSelectionTab(
 }
 
 function computeFlamegraphMetrics(
+  trace: Trace,
   selection: AreaSelection,
   config: StackSampleAreaSelectionTabConfig,
 ): ReadonlyArray<TreeExplorerQueryMetric> | undefined {
@@ -265,6 +270,14 @@ function computeFlamegraphMetrics(
 
   const contextFilter = constraints.join(' or ');
   const timeFilter = `p.ts >= ${selection.start} and p.ts <= ${selection.end}`;
+  const samplesSql = `
+    select p.callsite_id
+    from stack_sample p
+    left join stack_sample_task_context tc on tc.id = p.task_context_id
+    left join thread t on t.utid = tc.utid
+    where ${timeFilter} and (${contextFilter})
+  `;
+  const sourceAnnotationAction = sourceAnnotationNodeAction(trace, samplesSql);
   const flamegraphProperties = {
     unaggregatableProperties: [{name: 'mapping_name', displayName: 'Mapping'}],
     aggregatableProperties: [
@@ -273,6 +286,7 @@ function computeFlamegraphMetrics(
         displayName: 'Source Location',
         mergeAggregation: 'ONE_OR_SUMMARY' as const,
       },
+      ...SOURCE_ANNOTATION_PROPERTIES,
     ],
   };
 
@@ -296,6 +310,9 @@ function computeFlamegraphMetrics(
           name,
           mapping_name,
           source_file || ':' || line_number as source_location,
+          source_file,
+          rel_pc,
+          mapping_id,
           self_value as value
         from _callstacks_for_callsites_weighted!((
           select p.callsite_id, c.value as value
@@ -310,6 +327,7 @@ function computeFlamegraphMetrics(
         ))
       `,
       ...flamegraphProperties,
+      optionalNodeActions: [sourceAnnotationAction],
     });
   }
 
@@ -323,14 +341,11 @@ function computeFlamegraphMetrics(
             name,
             mapping_name,
             source_file || ':' || line_number as source_location,
+            source_file,
+            rel_pc,
+            mapping_id,
             self_count
-          from _callstacks_for_callsites!((
-            select p.callsite_id
-            from stack_sample p
-            left join stack_sample_task_context tc on tc.id = p.task_context_id
-            left join thread t on t.utid = tc.utid
-            where ${timeFilter} and (${contextFilter})
-          ))
+          from _callstacks_for_callsites!((${samplesSql}))
         )
       `,
       tableMetrics: [
@@ -342,6 +357,7 @@ function computeFlamegraphMetrics(
       ],
       dependencySql: 'include perfetto module callstacks.stack_profile',
       ...flamegraphProperties,
+      optionalActions: [sourceAnnotationAction],
       nameColumnLabel: 'Symbol',
     }),
   );
