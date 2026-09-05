@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_TRACE_ENRICHMENT_TRACE_ENRICHMENT_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace perfetto::trace_processor {
@@ -51,6 +52,18 @@ struct EnrichmentConfig {
   // If true, disables automatic ProGuard map discovery.
   // PERFETTO_PROGUARD_MAP is always respected.
   bool no_auto_proguard_maps = false;
+
+  // If true, the source files referenced by symbolized frames are not read
+  // from disk and bundled.
+  bool no_source_files = false;
+
+  // (from, to) prefix pairs: a source file whose path in the debug info
+  // starts with `from` is read from the same path under `to`.
+  std::vector<std::pair<std::string, std::string>> source_prefix_maps;
+
+  // If true, the functions containing sampled addresses are not disassembled
+  // and bundled.
+  bool no_disassembly = false;
 
   // If true, output verbose details (all paths tried, etc.).
   // If false, output a concise summary with hint to use --verbose for failures.
@@ -91,9 +104,20 @@ struct EnrichmentResult {
   // Ready to be appended to the trace or included in a bundle.
   std::string deobfuscation_data;
 
+  // Serialized TracePacket protos containing the source files referenced by
+  // symbolized frames. Ready to be appended to the trace or included in a
+  // bundle.
+  std::string source_files;
+
+  // Serialized TracePacket protos containing the disassembly of the functions
+  // containing sampled addresses. Ready to be appended to the trace or
+  // included in a bundle.
+  std::string disassembly;
+
   // Returns true if any enrichment data was produced.
   bool HasData() const {
-    return !native_symbols.empty() || !deobfuscation_data.empty();
+    return !native_symbols.empty() || !deobfuscation_data.empty() ||
+           !source_files.empty() || !disassembly.empty();
   }
 };
 

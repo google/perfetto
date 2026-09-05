@@ -39,6 +39,9 @@ class BundleSubcommand : public Subcommand {
  private:
   std::string symbol_paths_;
   bool no_auto_symbol_paths_ = false;
+  bool no_source_files_ = false;
+  std::vector<std::string> source_prefix_maps_;
+  bool no_disassembly_ = false;
   std::vector<std::string> proguard_maps_;
   bool no_auto_proguard_maps_ = false;
   bool verbose_ = false;

@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include <utility>
+
 #include "perfetto/base/status.h"
 
 namespace perfetto::trace_to_text {
@@ -43,6 +45,16 @@ struct BundleContext {
 
   // If true, disables automatic ProGuard/R8 mapping discovery.
   bool no_auto_proguard_maps = false;
+
+  // If true, source files referenced by symbolized frames are not bundled.
+  bool no_source_files = false;
+
+  // (from, to) prefix pairs: a source file whose path in the debug info
+  // starts with `from` is read from the same path under `to`.
+  std::vector<std::pair<std::string, std::string>> source_prefix_maps;
+
+  // If true, the disassembly of sampled functions is not bundled.
+  bool no_disassembly = false;
 
   // If true, output verbose details (all paths tried, etc.)
   bool verbose = false;

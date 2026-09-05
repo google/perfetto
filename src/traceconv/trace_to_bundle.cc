@@ -71,6 +71,9 @@ base::Status TraceToBundle(const std::string& input_file_path,
   enrich_config.symbol_paths = context.symbol_paths;
   enrich_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
   enrich_config.no_auto_proguard_maps = context.no_auto_proguard_maps;
+  enrich_config.no_source_files = context.no_source_files;
+  enrich_config.source_prefix_maps = context.source_prefix_maps;
+  enrich_config.no_disassembly = context.no_disassembly;
   enrich_config.verbose = context.verbose;
   enrich_config.android_product_out = context.android_product_out;
   enrich_config.home_dir = context.home_dir;
@@ -108,6 +111,24 @@ base::Status TraceToBundle(const std::string& input_file_path,
         tar.AddFile("deobfuscation.pb", enrich_result.deobfuscation_data);
     if (!add_status.ok()) {
       return base::ErrStatus("failed to add deobfuscation data to bundle: %s",
+                             add_status.c_message());
+    }
+  }
+
+  // Add source files if available.
+  if (!enrich_result.source_files.empty()) {
+    auto add_status = tar.AddFile("sources.pb", enrich_result.source_files);
+    if (!add_status.ok()) {
+      return base::ErrStatus("failed to add source files to bundle: %s",
+                             add_status.c_message());
+    }
+  }
+
+  // Add disassembly if available.
+  if (!enrich_result.disassembly.empty()) {
+    auto add_status = tar.AddFile("disassembly.pb", enrich_result.disassembly);
+    if (!add_status.ok()) {
+      return base::ErrStatus("failed to add disassembly to bundle: %s",
                              add_status.c_message());
     }
   }
