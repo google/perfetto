@@ -74,6 +74,10 @@ class MessageTest : public ::testing::Test {
 
   void ResetMessage(FakeRootMessage* msg) { msg->Reset(stream_writer_.get()); }
 
+  void ResetMessage(FakeRootMessage* msg, NestedMessageEncoding encoding) {
+    msg->Reset(stream_writer_.get(), encoding);
+  }
+
   void SetChunkSize(size_t size) {
     buffer_.reset(new FakeScatteredBuffer(size));
     stream_writer_.reset(new ScatteredStreamWriter(buffer_.get()));
@@ -93,6 +97,13 @@ class MessageTest : public ::testing::Test {
     messages_.push_back(std::move(mem));
     FakeRootMessage* msg = new (msg_start) FakeRootMessage();
     msg->Reset(stream_writer_.get());
+    return msg;
+  }
+
+  // A root using the tracing v2 proto-group encoding.
+  FakeRootMessage* NewProtoGroupMessage() {
+    FakeRootMessage* msg = NewMessage();
+    msg->Reset(stream_writer_.get(), NestedMessageEncoding::kProtoGroup);
     return msg;
   }
 
@@ -341,6 +352,14 @@ TEST_F(MessageTest, DeeplyNestedEmptyMessages) {
   EXPECT_EQ(0x9371fe8eu, buf_hash);
 }
 
+// Release builds must reject an unknown encoding too, hence EXPECT_DEATH
+// rather than EXPECT_DCHECK_DEATH.
+TEST_F(MessageTest, ResetRejectsUnknownEncoding) {
+  FakeRootMessage* msg = NewMessage();
+  EXPECT_DEATH_IF_SUPPORTED(
+      ResetMessage(msg, static_cast<NestedMessageEncoding>(2)), "");
+}
+
 TEST_F(MessageTest, DestructInvalidMessageHandle) {
   FakeRootMessage* msg = NewMessage();
   EXPECT_DCHECK_DEATH({
@@ -469,6 +488,176 @@ TEST_F(MessageTest, FinalizeWithoutCompaction) {
   EXPECT_EQ(24u, size);
   EXPECT_EQ(28u, GetNumSerializedBytes());
 }
+
+// ---------------------------------------------------------------------------
+// Nested-message encodings.
+//
+// The proto-group encoding is specified at proto_utils::kProtoGroupEndByte.
+// Check exact bytes because this is a wire-format contract.
+// ---------------------------------------------------------------------------
+
+TEST_F(MessageTest, DefaultEncodingIsLengthDelimited) {
+  FakeRootMessage* msg = NewMessage();
+  EXPECT_EQ(msg->nested_message_encoding(),
+            NestedMessageEncoding::kLengthDelimited);
+
+  Message* nested = msg->BeginNestedMessage<FakeChildMessage>(1);
+  EXPECT_EQ(nested->nested_message_encoding(),
+            NestedMessageEncoding::kLengthDelimited);
+  msg->Finalize();
+
+  // Field 1 as wire type 2 and its length. The empty message fits in one chunk
+  // and is short, so the canonical path compacts the four reserved bytes down
+  // to one. The proto-group path must not change this behavior.
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("0A00", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, ProtoGroupEmptyNestedMessage) {
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  msg->BeginNestedMessage<FakeChildMessage>(1);
+  msg->Finalize();
+
+  // The worked example: 0b 04.
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("0B04", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, ProtoGroupNestedInsideNested) {
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  Message* outer = msg->BeginNestedMessage<FakeChildMessage>(1);
+  outer->BeginNestedMessage<FakeChildMessage>(2);
+  msg->Finalize();
+
+  // The worked example: 0b 13 04 04.
+  EXPECT_EQ(4u, GetNumSerializedBytes());
+  EXPECT_EQ("0B130404", GetNextSerializedBytes(4));
+}
+
+TEST_F(MessageTest, ProtoGroupChildInheritsTheRootEncoding) {
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  EXPECT_EQ(msg->nested_message_encoding(), NestedMessageEncoding::kProtoGroup);
+  Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
+  EXPECT_EQ(child->nested_message_encoding(),
+            NestedMessageEncoding::kProtoGroup);
+  Message* grandchild = child->BeginNestedMessage<FakeChildMessage>(2);
+  EXPECT_EQ(grandchild->nested_message_encoding(),
+            NestedMessageEncoding::kProtoGroup);
+
+  // Proto-group messages never reserve a length.
+  EXPECT_EQ(nullptr, child->size_field());
+  EXPECT_EQ(nullptr, grandchild->size_field());
+  msg->Finalize();
+}
+
+TEST_F(MessageTest, ProtoGroupRootEmitsNoEndByte) {
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  msg->AppendVarInt(1, 42);
+  msg->Finalize();
+
+  // Just the field: the root's framing belongs to whoever owns the stream.
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("082A", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, ProtoGroupSiblingsAndScalars) {
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  msg->AppendVarInt(1, 1);
+  Message* first = msg->BeginNestedMessage<FakeChildMessage>(2);
+  first->AppendVarInt(3, 2);
+  Message* second = msg->BeginNestedMessage<FakeChildMessage>(2);
+  second->AppendVarInt(3, 3);
+  msg->AppendVarInt(4, 4);
+  msg->Finalize();
+
+  //  08 01   field 1 = 1
+  //  13      start field 2
+  //  18 02   field 3 = 2
+  //  04      end field 2
+  //  13      start field 2
+  //  18 03   field 3 = 3
+  //  04      end field 2
+  //  20 04   field 4 = 4
+  EXPECT_EQ(12u, GetNumSerializedBytes());
+  EXPECT_EQ("080113180204131803042004", GetNextSerializedBytes(12));
+}
+
+TEST_F(MessageTest, ProtoGroupFinalizeIsIdempotent) {
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
+  EXPECT_EQ(1u, child->Finalize());
+  // A second Finalize() must not emit another end byte.
+  EXPECT_EQ(1u, child->Finalize());
+  EXPECT_EQ(1u, child->Finalize());
+  msg->Finalize();
+  msg->Finalize();
+
+  EXPECT_EQ(2u, GetNumSerializedBytes());
+  EXPECT_EQ("0B04", GetNextSerializedBytes(2));
+}
+
+TEST_F(MessageTest, ProtoGroupMultiByteFieldId) {
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  // (1000 << 3) | 3 = 8003 -> C3 3E.
+  msg->BeginNestedMessage<FakeChildMessage>(1000);
+  msg->Finalize();
+
+  EXPECT_EQ(3u, GetNumSerializedBytes());
+  EXPECT_EQ("C33E04", GetNextSerializedBytes(3));
+}
+
+TEST_F(MessageTest, ProtoGroupFramingCrossesChunkBoundaries) {
+  // The fixture hands out 16-byte chunks, so a payload this size puts the start
+  // tag and the end byte in different chunks.
+  FakeRootMessage* msg = NewProtoGroupMessage();
+  Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
+  for (uint32_t i = 0; i < 8; ++i)
+    child->AppendBytes(2, kTestBytes, sizeof(kTestBytes));
+  msg->Finalize();
+
+  // 1 start tag + 8 * (1 tag + 1 length + 10 bytes) + 1 end byte.
+  EXPECT_EQ(1u + 8u * 12u + 1u, GetNumSerializedBytes());
+  EXPECT_EQ("0B", GetNextSerializedBytes(1));
+  for (uint32_t i = 0; i < 8; ++i)
+    EXPECT_EQ("120A00000000420142FF4200", GetNextSerializedBytes(12)) << i;
+  EXPECT_EQ("04", GetNextSerializedBytes(1));
+}
+
+TEST_F(MessageTest, LengthDelimitedCompactionIsUnchanged) {
+  // The canonical path still compacts a short single-chunk nested message into
+  // a one-byte length; nothing about the new state was allowed to disturb it.
+  FakeRootMessage* msg = NewMessageWithSizeField();
+  msg->AppendBytes(1, kTestBytes, 5);
+  EXPECT_EQ(7u, msg->Finalize());
+  EXPECT_EQ(8u, GetNumSerializedBytes());
+}
+
+// The new fields must fit in the padding already present in Message.
+namespace {
+constexpr size_t AlignUp(size_t value, size_t alignment) {
+  return (value + alignment - 1) / alignment * alignment;
+}
+
+constexpr size_t ExpectedMessageSize() {
+  // stream_writer_, arena_, nested_message_, size_field_.
+  size_t size = 4 * sizeof(void*);
+  size += sizeof(uint32_t);  // size_
+  size += 3;                 // message_state_, encoding, needs_proto_group_end_
+#if PERFETTO_DCHECK_IS_ON()
+  size = AlignUp(size, alignof(uint32_t));
+  size += sizeof(uint32_t);  // generation_
+  size = AlignUp(size, sizeof(void*));
+  size += sizeof(void*);  // handle_
+#endif
+  return AlignUp(size, alignof(Message));
+}
+}  // namespace
+
+static_assert(sizeof(Message) == ExpectedMessageSize(),
+              "protozero::Message grew: the nested-message encoding and the "
+              "proto-group flag must fit in existing padding");
+static_assert(alignof(Message) == alignof(void*),
+              "protozero::Message must stay pointer-aligned");
 
 }  // namespace
 }  // namespace protozero

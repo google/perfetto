@@ -122,7 +122,7 @@
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_BEGIN_NAME(PREFIX, NAME)(       \
       struct PROTO * msg, struct PerfettoPbMsg * nested) {                \
-    PerfettoPbMsgBeginNested(&msg->msg, nested, NUM);                     \
+    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, nested, NUM);       \
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(         \
       struct PROTO * msg, struct PerfettoPbMsg * nested) {                \
@@ -184,7 +184,7 @@
       struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
     struct PerfettoPbMsg* nested_msg =                                    \
         PERFETTO_REINTERPRET_CAST(struct PerfettoPbMsg*, nested);         \
-    PerfettoPbMsgBeginNested(&msg->msg, nested_msg, NUM);                 \
+    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, nested_msg, NUM);   \
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(         \
       struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
@@ -246,8 +246,8 @@
 //        size.
 //      * PROTO_begin_NAME(struct PROTO*, struct PerfettoPbMsg* nested) and
 //        PROTO_end_NAME(struct PROTO*, struct PerfettoPbMsg* nested):
-//        Begins (and ends) a nested submessage to allow users to generate part
-//        of the length delimited buffer piece by piece.
+//        Starts and ends a length-delimited field whose contents can be
+//        appended piece by piece.
 //   * `PACKED`: for packed repeated field types. `CTYPE` should be
 //     one of `PerfettoPbPacked*`. Generates multiple accessors:
 //      * PROTO_set_NAME(struct PROTO*, const void*, size_t): Sets the value of
@@ -256,9 +256,8 @@
 //      * PROTO_begin_NAME(struct PROTO*, struct PerfettoPbPackedMsgCTYPE*
 //        nested) and
 //        PROTO_end_NAME(struct PROTO*, struct PerfettoPbPackedMsgCTYPE*
-//        nested): Begins (and ends) a packed helper nested submessage (of the
-//        right type) to allow users to push repeated entries one by one
-//        directly into the stream writer buffer.
+//        nested): Starts and ends a typed packed field whose entries can be
+//        appended one by one.
 #define PERFETTO_PB_FIELD(PROTO, TYPE, C_TYPE, NAME, NUM)     \
   PERFETTO_I_PB_FIELD_##TYPE(PROTO, PROTO, C_TYPE, NAME, NUM) \
       PERFETTO_I_PB_NUM_FIELD(PROTO, NAME, NUM)

@@ -380,9 +380,7 @@ static inline bool PerfettoTeLlDynCatEnabled(
 static inline void PerfettoTeLlPacketBegin(
     struct PerfettoTeLlIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
-  root->writer.writer =
-      PerfettoDsTracerImplPacketBegin(iterator->impl.ds.tracer);
-  PerfettoPbMsgInit(&root->msg.msg, &root->writer);
+  PerfettoDsRootTracePacketBegin(iterator->impl.ds.tracer, root);
 }
 
 // Finishes writing the packet pointed by `root` on the data source instance

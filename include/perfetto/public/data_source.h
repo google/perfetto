@@ -277,13 +277,37 @@ struct PerfettoDsRootTracePacket {
   struct perfetto_protos_TracePacket msg;
 };
 
+static inline enum PerfettoPbMsgEncoding PerfettoDsPacketEncodingToPbMsg(
+    uint32_t encoding) {
+  switch (encoding) {
+    case PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED:
+      return PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED;
+    case PERFETTO_DS_PACKET_ENCODING_PROTO_GROUP:
+      return PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
+  }
+
+  // The tracing library and the SDK headers disagree on the packet encoding.
+  abort();
+}
+
+// Starts a packet and initializes `root` with the writer's encoding.
+static inline void PerfettoDsRootTracePacketBegin(
+    struct PerfettoDsTracerImpl* tracer,
+    struct PerfettoDsRootTracePacket* root) {
+  const struct PerfettoDsPacketBeginResult result =
+      PerfettoDsTracerImplPacketBeginWithEncoding(tracer);
+  root->writer.writer = result.writer;
+  PerfettoPbMsgInitWithEncoding(
+      &root->msg.msg, &root->writer,
+      PerfettoDsPacketEncodingToPbMsg(result.encoding));
+}
+
 // Initializes `root` to write a new packet to the data source instance pointed
 // by `iterator`.
 static inline void PerfettoDsTracerPacketBegin(
     struct PerfettoDsTracerIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
-  root->writer.writer = PerfettoDsTracerImplPacketBegin(iterator->impl.tracer);
-  PerfettoPbMsgInit(&root->msg.msg, &root->writer);
+  PerfettoDsRootTracePacketBegin(iterator->impl.tracer, root);
 }
 
 // Finishes writing the packet pointed by `root` on the data source instance

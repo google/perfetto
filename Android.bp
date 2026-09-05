@@ -17694,6 +17694,14 @@ filegroup {
     ],
 }
 
+// GN: //src/shared_lib:unittests
+filegroup {
+    name: "perfetto_src_shared_lib_unittests",
+    srcs: [
+        "src/shared_lib/pb_msg_unittest.cc",
+    ],
+}
+
 // GN: //src/tools:tracing_proto_extensions_lib
 filegroup {
     name: "perfetto_src_tools_tracing_proto_extensions_lib",
@@ -23177,11 +23185,13 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_unittests",
     srcs: [
+        "src/tracing/v2/proto_rewriter_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_abi_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_concurrency_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_reader_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_writer_unittest.cc",
+        "src/tracing/v2/trace_writer_v2_unittest.cc",
     ],
 }
 
@@ -23189,9 +23199,11 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_v2",
     srcs: [
+        "src/tracing/v2/proto_rewriter.cc",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
         "src/tracing/v2/shared_ring_buffer_writer.cc",
+        "src/tracing/v2/trace_writer_v2.cc",
     ],
 }
 
@@ -24311,6 +24323,7 @@ cc_test {
         ":perfetto_src_shared_lib_track_event_intern_map",
         ":perfetto_src_shared_lib_track_event_track_event",
         ":perfetto_src_shared_lib_track_event_unittests",
+        ":perfetto_src_shared_lib_unittests",
         ":perfetto_src_tools_tracing_proto_extensions_lib",
         ":perfetto_src_tools_tracing_proto_extensions_unittests",
         ":perfetto_src_trace_processor_containers_containers",

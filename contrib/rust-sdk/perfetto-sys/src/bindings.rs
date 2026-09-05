@@ -294,6 +294,22 @@ unsafe extern "C" {
         tracer: *mut PerfettoDsTracerImpl,
     ) -> PerfettoStreamWriter;
 }
+pub const PerfettoDsPacketEncoding_PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED:
+    PerfettoDsPacketEncoding = 0;
+pub const PerfettoDsPacketEncoding_PERFETTO_DS_PACKET_ENCODING_PROTO_GROUP:
+    PerfettoDsPacketEncoding = 1;
+pub type PerfettoDsPacketEncoding = ::std::os::raw::c_uint;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PerfettoDsPacketBeginResult {
+    pub writer: PerfettoStreamWriter,
+    pub encoding: u32,
+}
+unsafe extern "C" {
+    pub fn PerfettoDsTracerImplPacketBeginWithEncoding(
+        tracer: *mut PerfettoDsTracerImpl,
+    ) -> PerfettoDsPacketBeginResult;
+}
 unsafe extern "C" {
     pub fn PerfettoDsTracerImplPacketEnd(
         tracer: *mut PerfettoDsTracerImpl,
@@ -341,6 +357,13 @@ unsafe extern "C" {
         arg2: *mut PerfettoStreamWriter,
         dst: *mut ::std::os::raw::c_void,
         size: usize,
+    );
+}
+unsafe extern "C" {
+    pub fn PerfettoHeapBufferAppendToStream(
+        buf: *mut PerfettoHeapBuffer,
+        heap_writer: *mut PerfettoStreamWriter,
+        dst: *mut PerfettoStreamWriter,
     );
 }
 unsafe extern "C" {

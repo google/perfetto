@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+import("../../gn/test.gni")
 
 # Makes the public ABI headers annotate symbols for shared library usage
 # (dllimport on Windows) in consumers of libperfetto_c. See
@@ -69,6 +70,20 @@ source_set("shared_lib") {
       (perfetto_build_standalone || is_perfetto_build_generator)) {
     assert_no_deps = [ "../../buildtools:abseil_cpp" ]
   }
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    # The inline pb_msg.h API calls the stream-writer ABI slow paths, which
+    # live in the shared-library implementation.
+    ":shared_lib",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../../include/perfetto/protozero",
+    "../../include/perfetto/public",
+  ]
+  sources = [ "pb_msg_unittest.cc" ]
 }
 
 shared_library("libperfetto_c") {

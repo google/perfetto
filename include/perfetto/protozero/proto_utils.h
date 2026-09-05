@@ -48,6 +48,23 @@ enum class ProtoWireType : uint32_t {
   kFixed32 = 5,
 };
 
+// Wire types 3 and 4 delimit a protobuf group. Protozero decoders do not
+// support groups, so keep them out of ProtoWireType. Tracing v2 only borrows
+// the start-group wire type for the encoding below.
+constexpr uint32_t kWireTypeStartGroup = 3;
+constexpr uint32_t kWireTypeEndGroup = 4;
+
+// Append-only nested-message encoding used by tracing v2:
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: 0x04
+//   root:                 no wrapper and no close byte
+//
+// Opens carry the field number. 0x04 is field-zero/end-group, which cannot be
+// an ordinary field, and closes the innermost message. Packet framing bounds
+// the root, so it needs neither marker.
+constexpr uint8_t kProtoGroupEndByte = 0x04;
+
 // This is the type defined in the proto for each field. This information
 // is used to decide the translation strategy when writing the trace.
 enum class ProtoSchemaType {
@@ -198,6 +215,11 @@ constexpr uint32_t MakeTagFixed(uint32_t field_id) {
 constexpr uint32_t MakeTagLengthDelimited(uint32_t field_id) {
   return (field_id << 3) |
          static_cast<uint32_t>(ProtoWireType::kLengthDelimited);
+}
+
+// Opens a nested message in the proto-group encoding described above.
+constexpr uint32_t MakeTagStartGroup(uint32_t field_id) {
+  return (field_id << 3) | kWireTypeStartGroup;
 }
 
 // Proto types: sint64, sint32.

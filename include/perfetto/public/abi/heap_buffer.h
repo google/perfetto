@@ -25,7 +25,7 @@ extern "C" {
 
 // A PerfettoHeapBuffer can be used to serialize protobuf data using the
 // PerfettoStreamWriter interface. Stores data on heap allocated buffers, which
-// can be read back with PerfettoHeapBufferCopyInto().
+// can be copied into contiguous memory or another stream writer.
 
 struct PerfettoHeapBuffer;
 
@@ -41,6 +41,12 @@ PERFETTO_SDK_EXPORT void PerfettoHeapBufferCopyInto(
     struct PerfettoStreamWriter*,
     void* dst,
     size_t size);
+
+// Syncs `heap_writer`, then appends the bytes in `buf` to `dst`.
+PERFETTO_SDK_EXPORT void PerfettoHeapBufferAppendToStream(
+    struct PerfettoHeapBuffer* buf,
+    struct PerfettoStreamWriter* heap_writer,
+    struct PerfettoStreamWriter* dst);
 
 // Destroys the heap buffer.
 PERFETTO_SDK_EXPORT void PerfettoHeapBufferDestroy(

@@ -12,23 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/fuzzer.gni")
 import("../../../gn/test.gni")
 
-# The tracing v2 producer-local shared ring: its ABI, the writer half of the
-# chunk protocol and the single-consumer reader. It does not interpret fragment
-# payloads. See /rfcs/0014-tracing-protocol-redesign.md for the design.
+# The producer side of tracing v2: the shared ring and its ABI, the writer half
+# of the chunk protocol, the single-consumer reader, and the proto-group
+# encoding used between TraceWriterV2 and ProtoRewriter. See
+# /rfcs/0014-tracing-protocol-redesign.md for the design.
 source_set("v2") {
   public_deps = [
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/ext/tracing/core",
     "../../../include/perfetto/public:protozero",
     "../../../include/perfetto/tracing",
+
+    # trace_writer_v2.h holds a protozero RootMessage and a stream writer.
+    "../../protozero",
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/trace:zero",
     "../../base",
   ]
   sources = [
+    "proto_rewriter.cc",
+    "proto_rewriter.h",
     "shared_ring_buffer.cc",
     "shared_ring_buffer.h",
     "shared_ring_buffer_abi.h",
@@ -36,6 +44,8 @@ source_set("v2") {
     "shared_ring_buffer_reader.h",
     "shared_ring_buffer_writer.cc",
     "shared_ring_buffer_writer.h",
+    "trace_writer_v2.cc",
+    "trace_writer_v2.h",
   ]
 }
 
@@ -45,15 +55,27 @@ perfetto_unittest_source_set("unittests") {
     ":v2",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/trace:cpp",
+    "../../../protos/perfetto/trace:zero",
     "../../base",
     "../../base:test_support",
   ]
   sources = [
+    "proto_rewriter_unittest.cc",
     "shared_ring_buffer_abi_unittest.cc",
     "shared_ring_buffer_concurrency_unittest.cc",
     "shared_ring_buffer_reader_unittest.cc",
     "shared_ring_buffer_test_utils.h",
     "shared_ring_buffer_unittest.cc",
     "shared_ring_buffer_writer_unittest.cc",
+    "trace_writer_v2_unittest.cc",
+  ]
+}
+
+perfetto_fuzzer_test("proto_rewriter_fuzzer") {
+  sources = [ "proto_rewriter_fuzzer.cc" ]
+  deps = [
+    ":v2",
+    "../../../gn:default_deps",
   ]
 }
