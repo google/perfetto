@@ -62,6 +62,7 @@
 #include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
+#include "src/tracing/v2/shared_ring_buffer.h"
 
 // Tests for the perfetto shared library.
 
@@ -2838,6 +2839,158 @@ TEST_F(SharedLibTrackEventTest, TrackEventIsCategoryEnabled) {
   tracing_session.StopBlocking();
 
   EXPECT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
+}
+
+// The public C SDK on a tracing v2 writer. Encoding details are covered by
+// pb_msg_unittest.cc; these tests cover writer selection and packet delivery.
+
+constexpr char kTracingV2DataSourceName[] = "dev.perfetto.tracing_v2_c_sdk";
+struct PerfettoDs data_source_v2 = PERFETTO_DS_INIT();
+
+class SharedLibTracingV2Test : public testing::Test {
+ protected:
+  void SetUp() override {
+    if (!perfetto::tracing_v2::SharedRingBuffer::SupportsWriterWait())
+      GTEST_SKIP() << "The tracing v2 ring needs a futex on this platform";
+  }
+
+  void TearDown() override {
+    if (!started_)
+      return;
+    perfetto::shlib::ResetForTesting();
+    data_source_v2.enabled = &perfetto_atomic_false;
+    perfetto::shlib::DsImplDestroy(data_source_v2.impl);
+    data_source_v2.impl = nullptr;
+  }
+
+  // The option is read when the producer backend is initialized. It cannot
+  // change an existing backend when a session starts later.
+  void StartProducer(bool tracing_v2) {
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    if (tracing_v2)
+      args.enable_tracing_v2 = true;
+    PerfettoProducerInit(args);
+    PerfettoDsRegister(&data_source_v2, kTracingV2DataSourceName,
+                       PerfettoDsParamsDefault());
+    started_ = true;
+  }
+
+  static void WriteNestedPacket(struct PerfettoDsRootTracePacket* packet) {
+    struct perfetto_protos_TestEvent for_testing;
+    perfetto_protos_TracePacket_begin_for_testing(&packet->msg, &for_testing);
+    perfetto_protos_TestEvent_set_cstr_str(&for_testing, "outer");
+    {
+      struct perfetto_protos_TestEvent_TestPayload payload;
+      perfetto_protos_TestEvent_begin_payload(&for_testing, &payload);
+      perfetto_protos_TestEvent_TestPayload_set_cstr_str(&payload, "inner");
+      perfetto_protos_TestEvent_end_payload(&for_testing, &payload);
+    }
+    perfetto_protos_TracePacket_end_for_testing(&packet->msg, &for_testing);
+  }
+
+  static void ExpectNestedPacket(const std::vector<uint8_t>& data) {
+    bool found = false;
+    for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+      ASSERT_THAT(
+          trace_field,
+          PbField(perfetto_protos_Trace_packet_field_number, MsgField(_)));
+      IdFieldView for_testing(
+          trace_field, perfetto_protos_TracePacket_for_testing_field_number);
+      ASSERT_TRUE(for_testing.ok());
+      if (for_testing.size() == 0)
+        continue;
+      found = true;
+      ASSERT_EQ(for_testing.size(), 1u);
+      EXPECT_THAT(
+          FieldView(for_testing.front()),
+          ElementsAre(
+              PbField(perfetto_protos_TestEvent_str_field_number,
+                      StringField("outer")),
+              PbField(
+                  perfetto_protos_TestEvent_payload_field_number,
+                  MsgField(ElementsAre(PbField(
+                      perfetto_protos_TestEvent_TestPayload_str_field_number,
+                      StringField("inner")))))));
+    }
+    EXPECT_TRUE(found);
+  }
+
+  bool started_ = false;
+};
+
+TEST_F(SharedLibTracingV2Test, DsPacketBeginUsesProtoGroupOnAV2Writer) {
+  StartProducer(/*tracing_v2=*/true);
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name(kTracingV2DataSourceName)
+          .Build();
+  bool traced = false;
+  bool uses_proto_group = false;
+  PERFETTO_DS_TRACE(data_source_v2, ctx) {
+    traced = true;
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+    // Not asserted inside the loop: a failure here would leave the packet open.
+    uses_proto_group = PerfettoPbMsgUsesProtoGroup(&trace_packet.msg.msg);
+    WriteNestedPacket(&trace_packet);
+    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+  }
+  ASSERT_TRUE(traced);
+  EXPECT_TRUE(uses_proto_group);
+
+  ASSERT_TRUE(tracing_session.FlushBlocking(/*timeout_ms=*/30000));
+  tracing_session.StopBlocking();
+  ExpectNestedPacket(tracing_session.ReadBlocking());
+}
+
+TEST_F(SharedLibTracingV2Test,
+       DsPacketBeginStaysLengthDelimitedWithTheSdkOptionOff) {
+  StartProducer(/*tracing_v2=*/false);
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name(kTracingV2DataSourceName)
+          .Build();
+  bool traced = false;
+  bool uses_proto_group = true;
+  PERFETTO_DS_TRACE(data_source_v2, ctx) {
+    traced = true;
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+    uses_proto_group = PerfettoPbMsgUsesProtoGroup(&trace_packet.msg.msg);
+    WriteNestedPacket(&trace_packet);
+    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+  }
+  ASSERT_TRUE(traced);
+  EXPECT_FALSE(uses_proto_group);
+
+  ASSERT_TRUE(tracing_session.FlushBlocking(/*timeout_ms=*/30000));
+  tracing_session.StopBlocking();
+  ExpectNestedPacket(tracing_session.ReadBlocking());
+}
+
+// This legacy entry point cannot pass the writer's encoding to the C message.
+TEST_F(SharedLibTracingV2Test, LegacyPacketBeginOnAV2WriterFailsLoudly) {
+  StartProducer(/*tracing_v2=*/true);
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name(kTracingV2DataSourceName)
+          .Build();
+
+  bool traced = false;
+  PERFETTO_DS_TRACE(data_source_v2, ctx) {
+    traced = true;
+    EXPECT_DEATH_IF_SUPPORTED(
+        {
+          struct PerfettoStreamWriter writer =
+              PerfettoDsTracerImplPacketBegin(ctx.impl.tracer);
+          perfetto::base::ignore_result(writer);
+        },
+        "PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED");
+    PERFETTO_DS_TRACE_BREAK(data_source_v2, ctx);
+  }
+  EXPECT_TRUE(traced);
+  tracing_session.StopBlocking();
 }
 
 }  // namespace

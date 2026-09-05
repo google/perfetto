@@ -27,6 +27,7 @@ group("client_api") {
     ":in_process_backend",
     "../../include/perfetto/tracing",
     "../../include/perfetto/tracing/core",
+    "v2",
   ]
   if (enable_perfetto_ipc) {
     public_deps += [ ":system_backend" ]
@@ -35,10 +36,9 @@ group("client_api") {
   }
 }
 
-# This target checks that the client API builds without backends. This is to
-# check that no references to the backends are leaked from the implementation
-# internals. In turn, this allows to dead-code-eliminate unused backends when
-# using linker's gc-sections (or similar mechanism).
+# This target checks that the client API builds without backends or tracing v2.
+# It must not acquire direct references to either implementation, so embedders
+# can remove them with the linker's gc-sections (or a similar mechanism).
 if (perfetto_build_standalone) {
   shared_library("client_api_no_backends_compile_test") {
     deps = [
@@ -122,13 +122,18 @@ if (enable_perfetto_integration_tests) {
   source_set("integrationtests") {
     testonly = true
     deps = [
+      ":client_api_without_backends",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
       "../../include/perfetto/ext/tracing/ipc",
       "../../include/perfetto/tracing",
       "../../protos/perfetto/trace:cpp",
+      "../../protos/perfetto/trace/ps:cpp",
+      "../../protos/perfetto/trace/ps:zero",
       "../base",
       "../base:test_support",
+      "test:api_test_support",
+      "v2",
     ]
     sources = [ "internal/tracing_muxer_impl_integrationtest.cc" ]
   }
@@ -145,6 +150,7 @@ perfetto_unittest_source_set("unittests") {
     "../base",
     "../base:test_support",
     "test:test_support",
+    "v2",
   ]
 
   sources = []
@@ -154,6 +160,7 @@ perfetto_unittest_source_set("unittests") {
   if (!build_with_chromium) {
     sources += [
       "internal/interceptor_trace_writer_unittest.cc",
+      "internal/tracing_v2_producer_endpoint_unittest.cc",
       "traced_proto_unittest.cc",
       "traced_value_unittest.cc",
     ]

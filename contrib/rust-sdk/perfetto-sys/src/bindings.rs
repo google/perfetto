@@ -432,6 +432,12 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    pub fn PerfettoProducerBackendInitArgsSetTracingV2Enabled(
+        arg1: *mut PerfettoProducerBackendInitArgs,
+        enabled: bool,
+    );
+}
+unsafe extern "C" {
     pub fn PerfettoProducerBackendInitArgsDestroy(arg1: *mut PerfettoProducerBackendInitArgs);
 }
 unsafe extern "C" {

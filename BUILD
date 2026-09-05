@@ -187,6 +187,7 @@ perfetto_cc_library(
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
+        ":src_tracing_v2_v2",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -1825,6 +1826,7 @@ perfetto_filegroup(
         "include/perfetto/tracing/internal/tracing_backend_fake.h",
         "include/perfetto/tracing/internal/tracing_muxer.h",
         "include/perfetto/tracing/internal/tracing_tls.h",
+        "include/perfetto/tracing/internal/tracing_v2_endpoint_functions.h",
         "include/perfetto/tracing/internal/track_event_data_source.h",
         "include/perfetto/tracing/internal/track_event_internal.h",
         "include/perfetto/tracing/internal/track_event_interned_fields.h",
@@ -6895,6 +6897,28 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/tracing/v2:v2
+perfetto_filegroup(
+    name = "src_tracing_v2_v2",
+    srcs = [
+        "src/tracing/internal/tracing_v2_producer_endpoint.cc",
+        "src/tracing/internal/tracing_v2_producer_endpoint.h",
+        "src/tracing/v2/in_process_tracing_v2_bridge.cc",
+        "src/tracing/v2/in_process_tracing_v2_bridge.h",
+        "src/tracing/v2/proto_rewriter.cc",
+        "src/tracing/v2/proto_rewriter.h",
+        "src/tracing/v2/shared_ring_buffer.cc",
+        "src/tracing/v2/shared_ring_buffer.h",
+        "src/tracing/v2/shared_ring_buffer_abi.h",
+        "src/tracing/v2/shared_ring_buffer_reader.cc",
+        "src/tracing/v2/shared_ring_buffer_reader.h",
+        "src/tracing/v2/shared_ring_buffer_writer.cc",
+        "src/tracing/v2/shared_ring_buffer_writer.h",
+        "src/tracing/v2/trace_writer_v2.cc",
+        "src/tracing/v2/trace_writer_v2.h",
+    ],
+)
+
 # GN target: //src/tracing:client_api_without_backends
 perfetto_filegroup(
     name = "src_tracing_client_api_without_backends",
@@ -11430,6 +11454,7 @@ perfetto_cc_library(
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
+        ":src_tracing_v2_v2",
     ],
     hdrs = [
         ":include_perfetto_base_base",

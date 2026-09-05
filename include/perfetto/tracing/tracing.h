@@ -36,6 +36,7 @@
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/in_process_tracing_backend.h"
 #include "perfetto/tracing/internal/system_tracing_backend.h"
+#include "perfetto/tracing/internal/tracing_v2_endpoint_functions.h"
 #include "perfetto/tracing/tracing_policy.h"
 
 namespace perfetto {
@@ -99,6 +100,13 @@ struct TracingInitArgs {
   // If set, the value must be a multiple of 4KB. The value can be ignored if
   // larger than kMaxShmSize (32MB) or not a multiple of 4KB.
   uint32_t shmem_size_hint_kb = 0;
+
+  // [Optional] Experimental, default off. Routes every TraceWriter of the
+  // producer backends initialized here through the tracing v2 ring; startup
+  // tracing writers stay on v1. Every data source must then use the current
+  // C++ or C SDK; older C headers and the Rust SDK are not supported. Wider
+  // rollout needs per-data-source capability negotiation.
+  bool enable_tracing_v2 = false;
 
   // [Optional] Specifies the preferred size of each page in the shmem buffer.
   // This is a trade-off between IPC overhead and fragmentation/efficiency of
@@ -200,6 +208,9 @@ struct TracingInitArgs {
   BackendFactoryFunction in_process_backend_factory_ = nullptr;
   ProducerBackendFactoryFunction system_producer_backend_factory_ = nullptr;
   ConsumerBackendFactoryFunction system_consumer_backend_factory_ = nullptr;
+  // Optional indirection keeps v2 symbols out of the always-linked muxer.
+  const internal::TracingV2EndpointFunctions* tracing_v2_endpoint_functions_ =
+      nullptr;
   bool dcheck_is_on_ = PERFETTO_DCHECK_IS_ON();
 };
 
@@ -212,7 +223,8 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
   // the call will have no effect on it. All the members of `args` will be
   // ignored in subsequent calls, except those require to initialize new
   // backends (`backends`, `enable_system_consumer`, `shmem_size_hint_kb`,
-  // `shmem_page_size_hint_kb` and `shmem_batch_commits_duration_ms`).
+  // `shmem_page_size_hint_kb`, `shmem_batch_commits_duration_ms` and
+  // `enable_tracing_v2`).
   static inline void Initialize(const TracingInitArgs& args)
       PERFETTO_ALWAYS_INLINE {
     TracingInitArgs args_copy(args);
@@ -238,6 +250,10 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
         args_copy.system_consumer_backend_factory_ =
             &internal::SystemConsumerTracingBackend::GetInstance;
       }
+    }
+    if (args.enable_tracing_v2) {
+      args_copy.tracing_v2_endpoint_functions_ =
+          internal::GetTracingV2EndpointFunctions();
     }
     InitializeInternal(args_copy);
   }

@@ -42,6 +42,7 @@
 #include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/internal/interceptor_trace_writer.h"
 #include "perfetto/tracing/internal/tracing_backend_fake.h"
+#include "perfetto/tracing/internal/tracing_v2_endpoint_functions.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
@@ -190,20 +191,39 @@ TracingMuxerImpl::ProducerImpl::ProducerImpl(
     TracingMuxerImpl* muxer,
     TracingBackendId backend_id,
     uint32_t shmem_batch_commits_duration_ms,
-    bool shmem_direct_patching_enabled)
+    bool shmem_direct_patching_enabled,
+    const TracingV2EndpointFunctions* tracing_v2_endpoint_functions)
     : muxer_(muxer),
       backend_id_(backend_id),
       shmem_batch_commits_duration_ms_(shmem_batch_commits_duration_ms),
-      shmem_direct_patching_enabled_(shmem_direct_patching_enabled) {}
+      shmem_direct_patching_enabled_(shmem_direct_patching_enabled),
+      tracing_v2_endpoint_functions_(tracing_v2_endpoint_functions) {}
 
 TracingMuxerImpl::ProducerImpl::~ProducerImpl() {
   muxer_ = nullptr;
 }
 
+// Called after ConnectProducer(), including on reconnect.
 void TracingMuxerImpl::ProducerImpl::Initialize(
     std::unique_ptr<ProducerEndpoint> endpoint) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(!connected_);
+  tracing_v2_endpoint_ = nullptr;
+  // Install the in-process bridge until traced can read v2 rings itself.
+  if (tracing_v2_endpoint_functions_ &&
+      tracing_v2_endpoint_functions_->is_supported()) {
+    if (!muxer_->tracing_v2_relay_task_runner_) {
+      // Shared by all temporary in-process v2 bridges.
+      Platform::CreateTaskRunnerArgs args{
+          /*name_for_debugging=*/"TracingV2Relay"};
+      muxer_->tracing_v2_relay_task_runner_ =
+          muxer_->platform_->CreateTaskRunner(std::move(args));
+    }
+    endpoint = tracing_v2_endpoint_functions_->create_endpoint(
+        std::move(endpoint), muxer_->task_runner_.get(),
+        muxer_->tracing_v2_relay_task_runner_.get());
+    tracing_v2_endpoint_ = endpoint.get();
+  }
   connection_id_.fetch_add(1, std::memory_order_relaxed);
   is_producer_provided_smb_ = endpoint->shared_memory();
   last_startup_target_buffer_reservation_ = 0;
@@ -267,12 +287,25 @@ void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
 }
 
 void TracingMuxerImpl::ProducerImpl::DisposeConnection() {
+  // Retained v1 writers keep this connection's arbiter alive. Release them
+  // asynchronously: the relay may need this thread to flush the arbiter.
+  // Keep the endpoint in dead_services_ until every WriterID is returned.
+  bool v2_has_retained_v1_writers = false;
+  if (tracing_v2_endpoint_) {
+    tracing_v2_endpoint_functions_->start_releasing_v1_writers(
+        tracing_v2_endpoint_);
+    v2_has_retained_v1_writers =
+        tracing_v2_endpoint_functions_->has_retained_v1_writers(
+            tracing_v2_endpoint_);
+    tracing_v2_endpoint_ = nullptr;
+  }
   // Keep the old service around as a dead connection in case it has active
   // trace writers. If any tracing sessions were created, we can't clear
   // |service_| here because other threads may be concurrently creating new
   // trace writers. Any reconnection attempt will atomically swap the new
   // service in place of the old one.
-  if (did_setup_tracing_ || did_setup_startup_tracing_) {
+  if (did_setup_tracing_ || did_setup_startup_tracing_ ||
+      v2_has_retained_v1_writers) {
     dead_services_.push_back(service_);
   } else {
     service_.reset();
@@ -1005,9 +1038,15 @@ void TracingMuxerImpl::AddProducerBackend(TracingProducerBackend* backend,
   rb.backend = backend;
   rb.id = backend_id;
   rb.type = type;
-  rb.producer.reset(new ProducerImpl(this, backend_id,
-                                     args.shmem_batch_commits_duration_ms,
-                                     args.shmem_direct_patching_enabled));
+  // The fallback backend never creates writers. Do not allocate a v2 ring or
+  // start the relay thread for it.
+  const TracingV2EndpointFunctions* tracing_v2_endpoint_functions =
+      type == BackendType::kUnspecifiedBackend
+          ? nullptr
+          : args.tracing_v2_endpoint_functions_;
+  rb.producer.reset(new ProducerImpl(
+      this, backend_id, args.shmem_batch_commits_duration_ms,
+      args.shmem_direct_patching_enabled, tracing_v2_endpoint_functions));
   rb.producer_conn_args.producer = rb.producer.get();
   rb.producer_conn_args.producer_name = platform_->GetCurrentProcessName();
   rb.producer_conn_args.task_runner = task_runner_.get();
@@ -1424,7 +1463,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->data_source->OnSetup(setup_args);
 
     return FindDataSourceRes(&static_state, internal_state, i,
-                             rds.params.requires_callbacks_under_lock);
+                             rds.params.requires_callbacks_under_lock,
+                             rds.descriptor.no_flush());
   }
   PERFETTO_ELOG(
       "Maximum number of data source instances exhausted. "
@@ -1716,6 +1756,12 @@ bool TracingMuxerImpl::FlushDataSource_AsyncBegin(
     PERFETTO_ELOG("Could not find data source to flush");
     return true;
   }
+  // A no_flush data source never gets OnFlush(). The service still asks for
+  // it when the tracing v2 endpoint cleared the bit (see
+  // TracingV2ProducerEndpoint::DescriptorForService) so that the ring is
+  // drained before the acknowledgement. Report it as flushed.
+  if (ds.no_flush)
+    return true;
 
   uint32_t backend_connection_id = ds.internal_state->backend_connection_id;
 
@@ -2281,7 +2327,8 @@ void TracingMuxerImpl::OnProducerDisconnected(ProducerImpl* producer) {
                     std::memory_order_relaxed)) {
           StopDataSource_AsyncBeginImpl(
               FindDataSourceRes(static_state, internal_state, i,
-                                rds.params.requires_callbacks_under_lock));
+                                rds.params.requires_callbacks_under_lock,
+                                rds.descriptor.no_flush()));
         }
       }
     }
@@ -2334,7 +2381,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
                   std::memory_order_relaxed) &&
           internal_state->data_source_instance_id == instance_id) {
         return FindDataSourceRes(static_state, internal_state, i,
-                                 rds.params.requires_callbacks_under_lock);
+                                 rds.params.requires_callbacks_under_lock,
+                                 rds.descriptor.no_flush());
       }
     }
   }
@@ -2662,7 +2710,8 @@ void TracingMuxerImpl::AbortStartupTracingSession(
           session_it->num_aborting_data_sources++;
           StopDataSource_AsyncBeginImpl(
               FindDataSourceRes(static_state, internal_state, i,
-                                rds.params.requires_callbacks_under_lock));
+                                rds.params.requires_callbacks_under_lock,
+                                rds.descriptor.no_flush()));
         }
       }
     }
@@ -2817,7 +2866,35 @@ void TracingMuxerImpl::Shutdown() {
 
   std::unique_ptr<base::TaskRunner> owned_task_runner(
       muxer->task_runner_.get());
+  std::unique_ptr<base::TaskRunner> owned_relay_task_runner;
   Platform* platform = muxer->platform_;
+
+  // Release relay-owned v1 writers before destroying their arbiters. Transfer
+  // the runner so neither tracing thread has to join the other.
+  base::WaitableEvent relay_transferred;
+  owned_task_runner->PostTask([muxer, &owned_relay_task_runner,
+                               &relay_transferred] {
+    for (RegisteredProducerBackend& backend : muxer->producer_backends_) {
+      if (backend.producer && backend.producer->tracing_v2_endpoint_) {
+        backend.producer->tracing_v2_endpoint_functions_
+            ->start_releasing_v1_writers(
+                backend.producer->tracing_v2_endpoint_);
+      }
+    }
+    owned_relay_task_runner = std::move(muxer->tracing_v2_relay_task_runner_);
+    relay_transferred.Notify();
+  });
+  relay_transferred.Wait();
+
+  // Release tasks were posted before this checkpoint.
+  if (owned_relay_task_runner) {
+    PERFETTO_CHECK(!owned_relay_task_runner->RunsTasksOnCurrentThread());
+    base::WaitableEvent writers_released;
+    owned_relay_task_runner->PostTask(
+        [&writers_released] { writers_released.Notify(); });
+    writers_released.Wait();
+  }
+
   base::WaitableEvent shutdown_done;
   owned_task_runner->PostTask([muxer, &shutdown_done] {
     // Check that no consumer session is currently active on any backend.
@@ -2831,14 +2908,23 @@ void TracingMuxerImpl::Shutdown() {
     // Destroy all writers before delete muxer frees the SMB; any writer left
     // alive would UAF when the muxer thread exits (b/534222391).
     muxer->DestroyAllTraceWritersForCurrentThread();
-    // The task runner must be deleted outside the muxer thread. This is done by
-    // `owned_task_runner` above.
+    // The task runner is deleted by the calling thread below.
     muxer->task_runner_.release();
     delete muxer;
     instance_ = TracingMuxerFake::Get();
     shutdown_done.Notify();
   });
   shutdown_done.Wait();
+
+  // Drain bridge-deletion tasks before joining the relay runner.
+  if (owned_relay_task_runner) {
+    base::WaitableEvent relay_drained;
+    owned_relay_task_runner->PostTask(
+        [&relay_drained] { relay_drained.Notify(); });
+    relay_drained.Wait();
+    // Join the relay before the muxer thread below and before the platform.
+    owned_relay_task_runner.reset();
+  }
 
   // Join the muxer thread before the platform (and its TLS key) is destroyed.
   owned_task_runner.reset();

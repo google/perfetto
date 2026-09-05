@@ -35,6 +35,10 @@ source_set("v2") {
     "../../base",
   ]
   sources = [
+    "../internal/tracing_v2_producer_endpoint.cc",
+    "../internal/tracing_v2_producer_endpoint.h",
+    "in_process_tracing_v2_bridge.cc",
+    "in_process_tracing_v2_bridge.h",
     "proto_rewriter.cc",
     "proto_rewriter.h",
     "shared_ring_buffer.cc",
@@ -59,8 +63,10 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:zero",
     "../../base",
     "../../base:test_support",
+    "../../protozero",
   ]
   sources = [
+    "in_process_tracing_v2_bridge_unittest.cc",
     "proto_rewriter_unittest.cc",
     "shared_ring_buffer_abi_unittest.cc",
     "shared_ring_buffer_concurrency_unittest.cc",

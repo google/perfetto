@@ -985,6 +985,7 @@ cc_library {
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
+        ":perfetto_src_tracing_v2_v2",
     ],
     host_supported: true,
     vendor_available: true,
@@ -1220,6 +1221,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
+        ":perfetto_src_tracing_v2_v2",
     ],
     shared_libs: [
         "liblog",
@@ -3315,6 +3317,7 @@ cc_test {
         ":perfetto_src_tracing_test_client_api_integrationtests",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_test_tracing_integration_test",
+        ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_integrationtest_initializer",
         ":perfetto_test_integrationtest_main",
         ":perfetto_test_test_helper",
@@ -23176,6 +23179,7 @@ filegroup {
     name: "perfetto_src_tracing_unittests",
     srcs: [
         "src/tracing/internal/interceptor_trace_writer_unittest.cc",
+        "src/tracing/internal/tracing_v2_producer_endpoint_unittest.cc",
         "src/tracing/traced_proto_unittest.cc",
         "src/tracing/traced_value_unittest.cc",
     ],
@@ -23185,6 +23189,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_unittests",
     srcs: [
+        "src/tracing/v2/in_process_tracing_v2_bridge_unittest.cc",
         "src/tracing/v2/proto_rewriter_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_abi_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_concurrency_unittest.cc",
@@ -23199,6 +23204,8 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_v2",
     srcs: [
+        "src/tracing/internal/tracing_v2_producer_endpoint.cc",
+        "src/tracing/v2/in_process_tracing_v2_bridge.cc",
         "src/tracing/v2/proto_rewriter.cc",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",

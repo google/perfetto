@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_ABI_H_
 #define INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_ABI_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "perfetto/public/abi/export.h"
@@ -50,6 +51,14 @@ PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsSetShmemSizeHintKb(
 PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsSetMachineId(
     struct PerfettoProducerBackendInitArgs*,
     uint32_t machine_id);
+
+// Experimental, default off. Routes every TraceWriter in this producer through
+// the tracing v2 ring. Every data source in the producer must then use the
+// current C or C++ SDK; older C headers and the Rust SDK are not supported.
+// Wider rollout needs per-data-source capability negotiation.
+PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsSetTracingV2Enabled(
+    struct PerfettoProducerBackendInitArgs*,
+    bool enabled);
 
 PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsDestroy(
     struct PerfettoProducerBackendInitArgs*);
