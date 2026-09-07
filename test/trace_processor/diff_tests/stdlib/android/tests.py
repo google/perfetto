@@ -1810,6 +1810,426 @@ class AndroidStdlib(TestSuite):
 422530232411,86735906,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286780",10090,-2746960329031286780,86735906,"com.android.providers.media.module","androidx.work.systemjobscheduler","Charging","Unknown",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,3,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
       """))
 
+  def test_android_job_scheduler_states_track_events(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          sequence_flags: 1
+          process_descriptor {
+            pid: 1000
+            process_name: "system_server"
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          thread_descriptor {
+            pid: 1000
+            tid: 1001
+            thread_name: "JobScheduler"
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 1
+            name: "JobScheduler"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          interned_data {
+            [com.android.internal.FrameworksBaseInternedData.android_job_name] {
+              iid: 1
+              name: "com.google.android.apps.photos/com.google.android.libraries.social.async.BackgroundTaskJobService#123"
+            }
+          }
+        }
+        packet {
+          timestamp: 2000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 123
+              source_uid: 10001
+              state: JOB_STATE_SCHEDULED
+              standby_bucket: STANDBY_BUCKET_ACTIVE
+              requested_priority: JOB_PRIORITY_DEFAULT
+              job_state_flags: 6291457
+              job_name_iid: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 4000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_END
+            track_uuid: 1
+          }
+        }
+        packet {
+          timestamp: 5000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 123
+              source_uid: 10001
+              state: JOB_STATE_STARTED
+              standby_bucket: STANDBY_BUCKET_ACTIVE
+              effective_priority: JOB_PRIORITY_DEFAULT
+              num_previous_attempts: 0
+              job_start_latency_ms: 3000
+              job_state_flags: 6291457
+              job_name_iid: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 7000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_END
+            track_uuid: 1
+          }
+        }
+        packet {
+          timestamp: 8000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 123
+              source_uid: 10001
+              state: JOB_STATE_FINISHED
+              internal_stop_reason: INTERNAL_STOP_REASON_SUCCESSFUL_FINISH
+              public_stop_reason: STOP_REASON_UNDEFINED
+              job_name_iid: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 9000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_END
+            track_uuid: 1
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.job_scheduler_states_track_events;
+        SELECT
+          id,
+          slice_id,
+          ts,
+          dur,
+          is_rescheduled,
+          job_name,
+          package_name,
+          job_namespace,
+          job_id,
+          uid,
+          proxy_uid,
+          filtered_trace_tag,
+          standby_bucket,
+          requested_priority,
+          effective_priority,
+          num_previous_attempts,
+          deadline_ms,
+          delay_ms,
+          job_start_latency_ms,
+          num_uncompleted_work_items,
+          proc_state,
+          periodic_job_interval_ms,
+          periodic_job_flex_interval_ms,
+          num_reschedules_due_to_abandonment,
+          back_off_policy_type,
+          internal_stop_reason,
+          public_stop_reason,
+          has_charging_constraint,
+          has_battery_not_low_constraint,
+          has_storage_not_low_constraint,
+          has_timing_delay_constraint,
+          has_deadline_constraint,
+          has_idle_constraint,
+          has_connectivity_constraint,
+          has_content_trigger_constraint,
+          is_requested_expedited_job,
+          is_running_as_expedited_job,
+          is_prefetch,
+          is_requested_as_user_initiated_job,
+          is_running_as_user_initiated_job,
+          is_periodic,
+          has_flexibility_constraint,
+          can_apply_transport_affinities
+        FROM android_job_scheduler_states_track_events;
+      """,
+        out=Csv("""
+        "id","slice_id","ts","dur","is_rescheduled","job_name","package_name","job_namespace","job_id","uid","proxy_uid","filtered_trace_tag","standby_bucket","requested_priority","effective_priority","num_previous_attempts","deadline_ms","delay_ms","job_start_latency_ms","num_uncompleted_work_items","proc_state","periodic_job_interval_ms","periodic_job_flex_interval_ms","num_reschedules_due_to_abandonment","back_off_policy_type","internal_stop_reason","public_stop_reason","has_charging_constraint","has_battery_not_low_constraint","has_storage_not_low_constraint","has_timing_delay_constraint","has_deadline_constraint","has_idle_constraint","has_connectivity_constraint","has_content_trigger_constraint","is_requested_expedited_job","is_running_as_expedited_job","is_prefetch","is_requested_as_user_initiated_job","is_running_as_user_initiated_job","is_periodic","has_flexibility_constraint","can_apply_transport_affinities"
+        1,1,5000000000,3000000000,0,"com.google.android.apps.photos/com.google.android.libraries.social.async.BackgroundTaskJobService#123","com.google.android.apps.photos","",123,10001,"[NULL]","","STANDBY_BUCKET_ACTIVE","JOB_PRIORITY_DEFAULT","JOB_PRIORITY_DEFAULT",0,"[NULL]","[NULL]",3000,"[NULL]","PROCESS_STATE_UNKNOWN","[NULL]","[NULL]","[NULL]","BACKOFF_POLICY_UNKNOWN","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED",1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0
+      """))
+
+  def test_android_job_scheduler_extract_functions(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE android.job_scheduler_states_track_events;
+        WITH test_cases(raw_job_name) AS (
+          VALUES
+            -- 1. Trace tag + Namespace + Class format
+            ('#sync_worker#@BACKUP_NAMESPACE@com.example.app/com.example.app.BackupService'),
+            -- 2. Trace tag + Tagged package format
+            ('#download_task#DownloadManager:com.example.downloader'),
+            -- 3. Trace tag only + Class format
+            ('#cleanup#com.example.app/com.example.app.CleanupJobService'),
+            -- 4. Namespace first + Trace tag + Tagged package with slash in tag
+            ('@SYNC_NAMESPACE@#updater#com.example.contacts/com.example.podio:com.example.android'),
+            -- 5. Standard package/class with trailing #job_id (no tags)
+            ('com.example.app/com.example.app.SyncJobService#123'),
+            -- 6. System component format without tags
+            ('android/com.android.server.PruneInstantAppsJobService')
+        )
+        SELECT
+          raw_job_name,
+          _android_js_extract_trace_tag(raw_job_name) AS trace_tag,
+          _android_js_extract_job_namespace(raw_job_name) AS job_namespace,
+          _android_js_extract_package_name(raw_job_name) AS package_name
+        FROM test_cases;
+      """,
+        out=Csv("""
+        "raw_job_name","trace_tag","job_namespace","package_name"
+        "#sync_worker#@BACKUP_NAMESPACE@com.example.app/com.example.app.BackupService","sync_worker","BACKUP_NAMESPACE","com.example.app"
+        "#download_task#DownloadManager:com.example.downloader","download_task","","com.example.downloader"
+        "#cleanup#com.example.app/com.example.app.CleanupJobService","cleanup","","com.example.app"
+        "@SYNC_NAMESPACE@#updater#com.example.contacts/com.example.podio:com.example.android","updater","SYNC_NAMESPACE","com.example.android"
+        "com.example.app/com.example.app.SyncJobService#123","","","com.example.app"
+        "android/com.android.server.PruneInstantAppsJobService","","","android"
+      """))
+
+  def test_android_job_scheduler_states_resilience_and_reschedule(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          sequence_flags: 1
+          process_descriptor {
+            pid: 1000
+            process_name: "system_server"
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 1
+            name: "JobScheduler"
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          interned_data {
+            [com.android.internal.FrameworksBaseInternedData.android_job_name] {
+              iid: 1
+              name: "com.example.app/com.example.app.Job101#101"
+            }
+            [com.android.internal.FrameworksBaseInternedData.android_job_name] {
+              iid: 2
+              name: "com.example.app/com.example.app.Job102#102"
+            }
+            [com.android.internal.FrameworksBaseInternedData.android_job_name] {
+              iid: 3
+              name: "com.example.app/com.example.app.Job103#103"
+            }
+          }
+        }
+        # Job 101: SCHEDULED -> STARTED -> [LOST FINISHED] -> (recycled) SCHEDULED
+        packet {
+          timestamp: 2000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 101
+              source_uid: 10001
+              state: JOB_STATE_SCHEDULED
+              job_name_iid: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 5000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 101
+              source_uid: 10001
+              state: JOB_STATE_STARTED
+              job_name_iid: 1
+            }
+          }
+        }
+        # Recycled Job 101 SCHEDULED hours later (simulated at 20s)
+        packet {
+          timestamp: 20000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 101
+              source_uid: 10001
+              state: JOB_STATE_SCHEDULED
+              job_name_iid: 1
+            }
+          }
+        }
+        # Job 102: Rescheduled job (num_previous_attempts > 0) -> FINISHED
+        packet {
+          timestamp: 6000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 102
+              source_uid: 10001
+              state: JOB_STATE_STARTED
+              num_previous_attempts: 2
+              job_name_iid: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 9000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 102
+              source_uid: 10001
+              state: JOB_STATE_FINISHED
+              internal_stop_reason: INTERNAL_STOP_REASON_SUCCESSFUL_FINISH
+              job_name_iid: 2
+            }
+          }
+        }
+        # Job 103: STARTED -> CANCELLED -> SCHEDULED -> STARTED -> FINISHED
+        packet {
+          timestamp: 7000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 103
+              source_uid: 10001
+              state: JOB_STATE_STARTED
+              job_name_iid: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 10000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 103
+              source_uid: 10001
+              state: JOB_STATE_CANCELLED
+              internal_stop_reason: INTERNAL_STOP_REASON_CANCELLED
+              job_name_iid: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 13000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 103
+              source_uid: 10001
+              state: JOB_STATE_STARTED
+              num_previous_attempts: 0
+              job_name_iid: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 16000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            categories: "jobscheduler"
+            name: "JobSchedulerStateEvent"
+            [com.android.internal.FrameworksBaseTrackEvent.job_scheduler_job] {
+              job_id: 103
+              source_uid: 10001
+              state: JOB_STATE_FINISHED
+              internal_stop_reason: INTERNAL_STOP_REASON_SUCCESSFUL_FINISH
+              job_name_iid: 3
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.job_scheduler_states_track_events;
+        SELECT
+          job_id,
+          ts,
+          dur,
+          is_rescheduled,
+          num_previous_attempts,
+          internal_stop_reason
+        FROM android_job_scheduler_states_track_events
+        ORDER BY ts;
+      """,
+        out=Csv("""
+        "job_id","ts","dur","is_rescheduled","num_previous_attempts","internal_stop_reason"
+        102,6000000000,3000000000,1,2,"INTERNAL_STOP_REASON_SUCCESSFUL_FINISH"
+        103,13000000000,3000000000,0,0,"INTERNAL_STOP_REASON_SUCCESSFUL_FINISH"
+      """))
+
   def test_android_kernel_wakelocks(self):
     return DiffTestBlueprint(
         trace=Path('android_kernel_wakelocks.textproto'),

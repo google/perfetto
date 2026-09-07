@@ -131,6 +131,11 @@ export function heapDumpClassHref(cls: string): string {
   return `#!/heapdump/objects_${encodeURIComponent(cls)}`;
 }
 
+// Link to the Heap Dump Explorer's bitmaps view.
+export function heapDumpBitmapsHref(): string {
+  return '#!/heapdump/bitmaps';
+}
+
 // A class-name cell. The class name links to that class's instances in the Heap
 // Dump Explorer. When `retainers` are given, each one adds a `↳ via <owner>`
 // line naming an app-side class that dominates this (library) class's instances

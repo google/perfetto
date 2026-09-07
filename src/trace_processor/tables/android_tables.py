@@ -29,6 +29,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
+from src.trace_processor.tables.slice_tables import SLICE_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
@@ -368,6 +369,261 @@ ANDROID_AFLAGS_TABLE = Table(
     ),
 )
 
+ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE = Table(
+    python_module=__file__,
+    class_name="AndroidJobSchedulerTrackEventTable",
+    sql_name="__intrinsic_android_job_scheduler_track_events",
+    columns=[
+        C("ts", CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
+        C("slice_id", CppTableId(SLICE_TABLE), cpp_access=CppAccess.READ),
+        C("job_id", CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C("uid", CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            "proxy_uid",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C("state", CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            "standby_bucket",
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "requested_priority",
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "effective_priority",
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "num_previous_attempts",
+            CppOptional(CppInt32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "deadline_ms",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "delay_ms",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "job_start_latency_ms",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "num_uncompleted_work_items",
+            CppOptional(CppInt32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C("proc_state",
+          CppString(),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            "internal_stop_reason",
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "public_stop_reason",
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "periodic_job_interval_ms",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "periodic_job_flex_interval_ms",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C("job_name", CppString(),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            "num_reschedules_due_to_abandonment",
+            CppOptional(CppInt32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "back_off_policy_type",
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_charging_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),  # BOOL represented as 0/1
+        C(
+            "has_battery_not_low_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_storage_not_low_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_timing_delay_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_deadline_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_idle_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_connectivity_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_content_trigger_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "is_requested_expedited_job",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "is_running_as_expedited_job",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "is_prefetch",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "is_requested_as_user_initiated_job",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "is_running_as_user_initiated_job",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "is_periodic",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "has_flexibility_constraint",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "can_apply_transport_affinities",
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          JobScheduler job state change events.
+        ''',
+        group='Android',
+        columns={
+            'ts':
+                'Timestamp of job state change.',
+            'slice_id':
+                'Id of the slice that contained this state change.',
+            'job_id':
+                'Id of the job.',
+            'uid':
+                'Uid associated with the job.',
+            'proxy_uid':
+                'Uid associated with proxy job.',
+            'state':
+                'Job state string.',
+            'standby_bucket':
+                'Job standby bucket string.',
+            'requested_priority':
+                'Job requested priority string.',
+            'effective_priority':
+                'Job effective priority string.',
+            'num_previous_attempts':
+                'Number of previous attempts at running job.',
+            'deadline_ms':
+                'Deadline that job has requested.',
+            'delay_ms':
+                'The delay that the Job has requested.',
+            'job_start_latency_ms':
+                'The latency in ms between scheduling and starting.',
+            'num_uncompleted_work_items':
+                'Number of uncompleted job work items.',
+            'proc_state':
+                'Process state of the process responsible for running the job.',
+            'internal_stop_reason':
+                'Internal stop reason for a job.',
+            'public_stop_reason':
+                'Public stop reason for a job.',
+            'periodic_job_interval_ms':
+                'Interval for the job to recur when it is set as periodic.',
+            'periodic_job_flex_interval_ms':
+                'Flex interval for the periodic job.',
+            'num_reschedules_due_to_abandonment':
+                'Number of reschedules due to job being abandoned.',
+            'back_off_policy_type':
+                'Back off policy applied to the job that gets rescheduled.',
+            'has_charging_constraint':
+                'True if app requested job should run when the device is charging.',
+            'has_battery_not_low_constraint':
+                'True if app requested job should run when the device battery is not low.',
+            'has_storage_not_low_constraint':
+                'True if app requested job should run when device storage is not low.',
+            'has_timing_delay_constraint':
+                'True if app requested job has a timing delay.',
+            'has_deadline_constraint':
+                'True if app requested there is a deadline by which the job should run.',
+            'has_idle_constraint':
+                'True if app requested job should run when device is idle.',
+            'has_connectivity_constraint':
+                'True if app requested job should run when device has connectivity.',
+            'has_content_trigger_constraint':
+                'True if app requested job should run when there is a content trigger.',
+            'is_requested_expedited_job':
+                'True if app requested that the job is run as an expedited job.',
+            'is_running_as_expedited_job':
+                'The job is run as an expedited job.',
+            'is_prefetch':
+                'True if app requested job should run within hours of app launch.',
+            'is_requested_as_user_initiated_job':
+                'True is app has requested that a job be run as a user initiated job.',
+            'is_running_as_user_initiated_job':
+                'True if job is running as a user initiated job.',
+            'is_periodic':
+                'Job should run in intervals.',
+            'has_flexibility_constraint':
+                'True if the job should run as a flex job.',
+            'can_apply_transport_affinities':
+                'Whether transport preference logic can be applied to this job.',
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_AFLAGS_TABLE,
@@ -375,6 +631,7 @@ ALL_TABLES = [
     ANDROID_DUMPSTATE_TABLE,
     ANDROID_GAME_INTERVENTION_LIST_TABLE,
     ANDROID_INPUT_EVENT_DISPATCH_TABLE,
+    ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE,
     ANDROID_KEY_EVENTS_TABLE,
     ANDROID_MOTION_EVENTS_TABLE,
     ANDROID_USER_LIST_TABLE,

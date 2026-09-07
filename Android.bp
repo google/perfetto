@@ -3159,6 +3159,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
@@ -17756,6 +17757,7 @@ filegroup {
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder_unittest.cc",
         "src/trace_processor/core/dataframe/arrow_deserializer_unittest.cc",
         "src/trace_processor/core/dataframe/arrow_serializer_unittest.cc",
+        "src/trace_processor/core/dataframe/dataframe_concurrency_unittest.cc",
         "src/trace_processor/core/dataframe/dataframe_unittest.cc",
         "src/trace_processor/core/dataframe/runtime_dataframe_builder_unittest.cc",
     ],
@@ -17766,6 +17768,7 @@ filegroup {
     name: "perfetto_src_trace_processor_core_exec_exec",
     srcs: [
         "src/trace_processor/core/exec/assert_type.cc",
+        "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/column_view.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/operator.cc",
@@ -17773,6 +17776,8 @@ filegroup {
         "src/trace_processor/core/exec/row_batch.cc",
         "src/trace_processor/core/exec/row_cursor.cc",
         "src/trace_processor/core/exec/row_store.cc",
+        "src/trace_processor/core/exec/tree_number_nodes.cc",
+        "src/trace_processor/core/exec/tree_order.cc",
     ],
 }
 
@@ -17786,10 +17791,13 @@ filegroup {
     name: "perfetto_src_trace_processor_core_exec_unittests",
     srcs: [
         "src/trace_processor/core/exec/assert_type_unittest.cc",
+        "src/trace_processor/core/exec/breaker_unittest.cc",
         "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
         "src/trace_processor/core/exec/operator_unittest.cc",
         "src/trace_processor/core/exec/row_batch_unittest.cc",
         "src/trace_processor/core/exec/row_store_unittest.cc",
+        "src/trace_processor/core/exec/tree_number_nodes_unittest.cc",
+        "src/trace_processor/core/exec/tree_order_unittest.cc",
         "src/trace_processor/core/exec/variant_unittest.cc",
     ],
 }
@@ -19079,7 +19087,9 @@ filegroup {
         "src/trace_processor/perfetto_sql/stdlib/android/io.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states_track_events.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/kernel_wakelocks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/lock_held.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf_spans.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/bitmap.sql",
@@ -19613,6 +19623,23 @@ python_binary_host {
         "tools/gen_tp_table_headers.py",
     ],
     main: "tools/gen_tp_table_headers.py",
+}
+
+// GN: //src/trace_processor/plugins/android_job_scheduler:android_job_scheduler
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
+    srcs: [
+        "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler.cc",
+        "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler_tracker.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/android_job_scheduler:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_android_job_scheduler_unittests",
+    srcs: [
+        "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler_tracker_unittest.cc",
+    ],
 }
 
 // GN: //src/trace_processor/plugins/android_process_state:android_process_state
@@ -21362,6 +21389,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
@@ -21855,6 +21883,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:concurrency_stress_test_util
+filegroup {
+    name: "perfetto_src_trace_processor_util_concurrency_stress_test_util",
+}
+
 // GN: //src/trace_processor/util:decompressor
 filegroup {
     name: "perfetto_src_trace_processor_util_decompressor",
@@ -22124,6 +22157,7 @@ filegroup {
     name: "perfetto_src_trace_processor_util_unittests",
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
+        "src/trace_processor/util/concurrency_stress_test_util_unittest.cc",
         "src/trace_processor/util/descriptors_unittest.cc",
         "src/trace_processor/util/flatbuffer_reader_unittest.cc",
         "src/trace_processor/util/galloping_search_unittest.cc",
@@ -24348,6 +24382,8 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_ancestor_unittests",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
+        ":perfetto_src_trace_processor_plugins_android_job_scheduler_unittests",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
@@ -24452,6 +24488,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
         ":perfetto_src_trace_processor_util_compressor",
+        ":perfetto_src_trace_processor_util_concurrency_stress_test_util",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
         ":perfetto_src_trace_processor_util_deobfuscation_unittests",
@@ -25482,6 +25519,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
@@ -26191,6 +26229,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_plugins_ancestor_ancestor",
         ":perfetto_src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
+        ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
