@@ -17,12 +17,6 @@ import {assertIsInstance} from '../../../../base/assert';
 import {AsyncMemo} from '../../../../base/async_memo';
 import type {Setting} from '../../../../public/settings';
 import type {Trace} from '../../../../public/trace';
-import type {Engine} from '../../../../trace_processor/engine';
-import {
-  materializeRows,
-  NUM,
-  STR,
-} from '../../../../trace_processor/query_result';
 import {Button, ButtonGroup, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {EmptyState} from '../../../../widgets/empty_state';
@@ -32,31 +26,25 @@ import {Select} from '../../../../widgets/select';
 import {Callout} from '../../components/callout';
 import {Page} from '../../components/page';
 import {PreviewBanner} from '../../components/preview_banner';
-import './landing_page.scss';
-import {ProcessMemDetails} from './proc_mem_overview';
-
-// Per-process memory-capture counts, used to populate and score the process
-// picker on the overview page.
-interface ProcMemStat {
-  readonly upid: number;
-  readonly pid: number;
-  readonly procName: string;
-  readonly heapDumps: number;
-  readonly smapsSnapshots: number;
-  readonly nativeDumps: number;
-}
+import {MemoryOverviewTab, ProcessMemDetails} from './proc_mem_overview';
+import {
+  loadProcessMemoryStats,
+  type ProcMemStat,
+  type ProcWithMem,
+} from './proc_mem_stats';
+import './memory_overview_page.scss';
 
 export interface MemoryOverviewPageAttrs {
   readonly trace: Trace;
-  readonly subpage: string | undefined;
+  readonly upid?: number;
+  readonly tab: MemoryOverviewTab;
   readonly autoNavigated: boolean;
   readonly hdeAvailable: boolean;
   readonly openByDefault: Setting<boolean>;
   readonly hideDefaultChangedHint: Setting<boolean>;
-  readonly onSubpageChange: (subpage: string) => void;
+  readonly onUpidChange: (upid: number) => void;
+  readonly onTabChange: (tab: MemoryOverviewTab) => void;
 }
-
-type ProcWithMem = readonly ProcMemStat[];
 
 export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> {
   private readonly slot = new AsyncMemo<ProcWithMem>();
@@ -64,12 +52,14 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
   view({attrs}: m.Vnode<MemoryOverviewPageAttrs>) {
     const {
       trace,
-      subpage,
+      upid,
+      tab,
       autoNavigated,
       hdeAvailable,
       openByDefault,
       hideDefaultChangedHint,
-      onSubpageChange,
+      onUpidChange,
+      onTabChange,
     } = attrs;
 
     return m(
@@ -88,7 +78,7 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
         hideDefaultChangedHint,
       ),
       m(PreviewBanner, {app: trace}),
-      this.renderPageContent(trace, subpage, onSubpageChange),
+      this.renderPageContent(trace, upid, tab, onUpidChange, onTabChange),
     );
   }
 
@@ -164,8 +154,10 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
 
   private renderPageContent(
     trace: Trace,
-    subpage: string | undefined,
-    onSubpageChange: (subpage: string) => void,
+    upid: number | undefined,
+    tab: MemoryOverviewTab,
+    onUpidChange: (upid: number) => void,
+    onTabChange: (tab: MemoryOverviewTab) => void,
   ) {
     const procsWithMemResult = this.slot.use({
       key: '',
@@ -177,16 +169,11 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
       return m(EmptyState, {icon: 'hourglass', title: 'Loading processes...'});
     }
 
-    const bestProc = pickBestProc(procs);
-    if (!bestProc) {
+    if (procs.length === 0) {
       return m(EmptyState, 'No processes with memory in this trace');
     }
 
-    // Use the upid in the url bar otherwise pick the 'best' proc - the one most
-    // likely to be what the user was tracing.
-    const selectedUpid = subpage
-      ? parseUpidFromSubpage(subpage)
-      : bestProc.upid;
+    const selectedUpid = upid;
 
     return [
       m('.pf-memscope-process-select', [
@@ -197,7 +184,7 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
             value: selectedUpid?.toString(),
             onchange: (e: Event) => {
               assertIsInstance(e.target, HTMLSelectElement);
-              onSubpageChange(e.target.value);
+              onUpidChange(Number(e.target.value));
             },
           },
           procs.map((p) =>
@@ -205,67 +192,11 @@ export class MemoryOverviewPage implements m.Component<MemoryOverviewPageAttrs> 
           ),
         ),
       ]),
-      Number.isNaN(selectedUpid)
-        ? m('', `Unable to parse upid from url '${subpage}'`)
-        : m(ProcessMemDetails, {trace, upid: selectedUpid}),
+      selectedUpid === undefined || Number.isNaN(selectedUpid)
+        ? m('', 'Unable to parse upid from url')
+        : m(ProcessMemDetails, {trace, upid: selectedUpid, tab, onTabChange}),
     ];
   }
-}
-
-// Returns a list processes that have memory dumps/smaps/profiles in the trace.
-async function loadProcessMemoryStats(engine: Engine): Promise<ProcWithMem> {
-  const result = await engine.query(`
-    SELECT
-      p.upid,
-      p.pid,
-      COALESCE(p.cmdline, p.name, '<unknown>') AS procName,
-      (
-        SELECT count(*)
-        FROM heap_graph g
-        WHERE g.upid = p.upid
-      ) AS heapDumps,
-      (
-        SELECT count(DISTINCT ts)
-        FROM profiler_smaps s
-        WHERE s.upid = p.upid
-      ) AS smapsSnapshots,
-      (
-        SELECT count(DISTINCT ts)
-        FROM heap_profile_allocation a
-        WHERE a.upid = p.upid
-      ) AS nativeDumps
-    FROM process p
-    WHERE heapDumps > 0 OR smapsSnapshots > 0 OR nativeDumps > 0
-    ORDER BY p.upid;
-  `);
-  return materializeRows(result, {
-    upid: NUM,
-    pid: NUM,
-    procName: STR,
-    heapDumps: NUM,
-    smapsSnapshots: NUM,
-    nativeDumps: NUM,
-  });
-}
-
-// Scores a process to determine how relevant it is for the landing page.
-// Higher score = more relevant. We weight by data type and count to pick
-// the process with the richest memory analysis data.
-function scoreProc(p: ProcMemStat): number {
-  // Heap dumps are the richest data source, followed by smaps, then profiles.
-  return p.heapDumps * 3 + p.smapsSnapshots * 2 + p.nativeDumps * 1;
-}
-
-function pickBestProc(procs: ProcWithMem) {
-  if (procs.length === 0) return undefined;
-  return procs.reduce((best, p) => (scoreProc(p) > scoreProc(best) ? p : best));
-}
-
-// The subpage might look like '/123' or even '/123/foo'
-function parseUpidFromSubpage(subpage: string): number {
-  const parts = subpage.split('/').filter((x) => x !== '');
-  if (parts.length === 0) return Number.NaN;
-  return parseInt(parts[0]);
 }
 
 function procOptionLabel(p: ProcMemStat): string {
