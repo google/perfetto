@@ -819,15 +819,16 @@ select name, value from stats where name glob 'strace*' and value > 0;
   at all no second process is ever attached, so a stderr capture is dropped in
   its entirety and imports nothing.
 
-- **For nanosecond-resolution durations,** ask `-T` for more precision:
+- **For nanosecond-resolution durations,** pass `--syscall-times=ns` in place
+  of `-T`:
 
   ```bash
   strace -ttt -f --syscall-times=ns -o my_trace.strace -- ./my_program
   ```
 
-  (`--syscall-times` takes one of `s`, `ms`, `us` or `ns`; the default is
-  microseconds. The option was added in strace 5.6; on older versions only
-  the default `-T` precision is available.)
+  (`--syscall-times` is the long form of `-T` and takes one of `s`, `ms`, `us`
+  or `ns`; the default is microseconds. The precision argument was added in
+  strace 5.6; on older versions only the default `-T` precision is available.)
 
 **External Resources:**
 
