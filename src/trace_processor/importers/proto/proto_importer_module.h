@@ -44,6 +44,7 @@ namespace trace_processor {
 class EtwModule;
 class FtraceModule;
 class TrackEventModule;
+class MetadataMinimalModule;
 class TraceBlobView;
 class TraceProcessorContext;
 class TrackEventModule;
@@ -191,6 +192,7 @@ struct ProtoImporterModuleContext {
   FtraceModule* ftrace_module = nullptr;
   EtwModule* etw_module = nullptr;
   TrackEventModule* track_module = nullptr;
+  MetadataMinimalModule* metadata_minimal_module = nullptr;
 
   std::unique_ptr<TraceSorter::Stream<TracePacketData>> trace_packet_stream;
   std::unique_ptr<TraceSorter::Stream<TrackEventData>> track_event_stream;

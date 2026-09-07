@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/proto/selective_trace_packet_decoder.h"
 
 namespace perfetto {
 
@@ -43,13 +44,13 @@ class ProtoVmIncrementalTracing {
   void ProcessProtoVmsPacket(protozero::ConstBytes blob,
                              const TraceBlobView& packet);
   std::optional<TraceBlobView> TryProcessPatch(
-      const protos::pbzero::TracePacket::Decoder& patch,
+      const SelectiveTracePacketDecoder& patch,
       const TraceBlobView& packet);
 
  private:
   TraceBlobView SerializeIncrementalState(
       const protovm::Vm& vm,
-      const protos::pbzero::TracePacket::Decoder& patch) const;
+      const SelectiveTracePacketDecoder& patch) const;
 
   TraceProcessorContext* context_;
   base::FlatHashMap<int32_t, std::vector<uint32_t>>

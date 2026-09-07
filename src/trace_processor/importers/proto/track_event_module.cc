@@ -44,7 +44,6 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
       tokenizer_(module_context, context, track_event_tracker_.get()),
       parser_(&extension_parser_context_, context, track_event_tracker_.get()) {
   RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
-  RegisterForField(TracePacket::kTrackEventFieldNumber);
   RegisterForField(TracePacket::kTrackDescriptorFieldNumber);
   RegisterForField(TracePacket::kThreadDescriptorFieldNumber);
   RegisterForField(TracePacket::kProcessDescriptorFieldNumber);

@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/protovm_incremental_tracing.h"
+#include "src/trace_processor/importers/proto/selective_trace_packet_decoder.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -42,7 +43,6 @@ struct ConstBytes;
 namespace perfetto {
 
 namespace protos::pbzero {
-class TracePacket_Decoder;
 class TraceConfig_Decoder;
 }  // namespace protos::pbzero
 
@@ -127,7 +127,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   // Variant for callers that already decoded the packet, so the (wide)
   // TracePacket decoder is not rebuilt per packet.
   base::Status TimestampTokenizeAndPushToSorter(
-      const protos::pbzero::TracePacket_Decoder&,
+      const SelectiveTracePacketDecoder&,
       TraceBlobView);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);
@@ -136,18 +136,18 @@ class ProtoTraceReader : public ChunkedTraceReader {
   // single-machine by construction) pinned this trace, given evidence that it
   // is actually multi-machine (a remote machine_id or a remote_clock_sync).
   base::Status CheckManifestSingleMachine();
-  void HandleIncrementalStateCleared(const protos::pbzero::TracePacket_Decoder&,
+  void HandleIncrementalStateCleared(const SelectiveTracePacketDecoder&,
                                      const TraceBlobView& packet);
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
-  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&,
+  void HandlePreviousPacketDropped(const SelectiveTracePacketDecoder&,
                                    const TraceBlobView& packet);
   // Breaks down a |previous_packet_dropped| bitmask into per-cause stats
   // (see TracePacket::DataLossReason).
   void RecordDataLossCauses(SequenceScopedState* seq, uint32_t reasons);
   void HandleTraceAttributes(ConstBytes);
-  void ParseTracePacketDefaults(const protos::pbzero::TracePacket_Decoder&,
+  void ParseTracePacketDefaults(const SelectiveTracePacketDecoder&,
                                 TraceBlobView trace_packet_defaults);
-  void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
+  void ParseInternedData(const SelectiveTracePacketDecoder&,
                          TraceBlobView interned_data);
   void ParseTraceConfig(ConstBytes);
   void ParseTraceStats(ConstBytes);
