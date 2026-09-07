@@ -76,7 +76,8 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
 std::optional<TraceBlobView> ProtoVmIncrementalTracing::TryProcessPatch(
     const SelectiveTracePacketDecoder& patch,
     const TraceBlobView& packet) {
-  if (PERFETTO_UNLIKELY(!patch.has_trusted_packet_sequence_id())) {
+  if (PERFETTO_LIKELY(sequence_id_to_vms_.size() == 0) ||
+      PERFETTO_UNLIKELY(!patch.has_trusted_packet_sequence_id())) {
     return std::nullopt;
   }
   std::vector<protovm::Vm*>* vms =

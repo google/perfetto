@@ -441,10 +441,12 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     if (PERFETTO_UNLIKELY(!timestamp_clock_id && defaults)) {
       timestamp_clock_id = defaults->timestamp_clock_id();
     }
-    std::optional<ClockTracker::ClockId> default_clock;
+    const ClockTracker::ClockId* default_clock = nullptr;
     if (PERFETTO_UNLIKELY(!timestamp_clock_id)) {
-      default_clock = context_->clock_tracker->trace_default_clock();
-      if (default_clock) {
+      const std::optional<ClockTracker::ClockId>& trace_default =
+          context_->clock_tracker->trace_default_clock();
+      if (trace_default) {
+        default_clock = &*trace_default;
         timestamp_clock_id = default_clock->clock_id;
       }
     }
