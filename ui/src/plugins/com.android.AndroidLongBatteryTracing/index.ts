@@ -22,8 +22,8 @@ import {
   NUM_NULL,
   STR_NULL,
   UNKNOWN,
-  type SqlValue,
   LONG_NULL,
+  type SpecType,
 } from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
@@ -798,7 +798,7 @@ export default class implements PerfettoPlugin {
       }
 
       // Add schema entries for dynamic columns
-      const argsSchema: Record<string, SqlValue> = {};
+      const argsSchema: SpecType = {};
       for (const arg of args) {
         argsSchema[safeArg(arg)] = UNKNOWN;
       }

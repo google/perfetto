@@ -59,47 +59,57 @@ WITH
           "Tensor G5",
           7,
           0
-        ), ("neo", 0, 100000), ("neo", 1, 100000), ("neo", 2, 100000),
+        ), ("Tensor G6", 0, 0), ("Tensor G6", 1, 0), ("Tensor G6", 2, 0),
+        (
+          "Tensor G6",
+          3,
+          0
+        ), ("Tensor G6", 4, 0), ("Tensor G6", 5, 0), ("Tensor G6", 6, 0),
         (
           "neo",
-          3,
+          0,
           100000
-        ), ("SXR2230P", 0, 0), ("SXR2230P", 1, 0), ("SXR2230P", 2, 0),
+        ), ("neo", 1, 100000), ("neo", 2, 100000), ("neo", 3, 100000),
         (
           "SXR2230P",
-          3,
+          0,
           0
-        ), ("SXR2230P", 4, 0), ("SXR2230P", 5, 0), ("MT6858", 0, 0),
+        ), ("SXR2230P", 1, 0), ("SXR2230P", 2, 0), ("SXR2230P", 3, 0),
+        (
+          "SXR2230P",
+          4,
+          0
+        ), ("SXR2230P", 5, 0), ("MT6858", 0, 0), ("MT6858", 1, 0),
         (
           "MT6858",
-          1,
+          2,
           0
-        ), ("MT6858", 2, 0), ("MT6858", 3, 0), ("MT6858", 4, 0),
+        ), ("MT6858", 3, 0), ("MT6858", 4, 0), ("MT6858", 5, 0),
         (
           "MT6858",
-          5,
+          6,
           0
-        ), ("MT6858", 6, 0), ("MT6858", 7, 0), ("MT6897", 0, 0),
+        ), ("MT6858", 7, 0), ("MT6897", 0, 0), ("MT6897", 1, 0),
         (
           "MT6897",
-          1,
+          2,
           0
-        ), ("MT6897", 2, 0), ("MT6897", 3, 0), ("MT6897", 4, 0),
+        ), ("MT6897", 3, 0), ("MT6897", 4, 0), ("MT6897", 5, 0),
         (
           "MT6897",
-          5,
+          6,
           0
-        ), ("MT6897", 6, 0), ("MT6897", 7, 0), ("SM8750", 0, 0),
+        ), ("MT6897", 7, 0), ("SM8750", 0, 0), ("SM8750", 1, 0),
         (
           "SM8750",
-          1,
+          2,
           0
-        ), ("SM8750", 2, 0), ("SM8750", 3, 0), ("SM8750", 4, 0),
+        ), ("SM8750", 3, 0), ("SM8750", 4, 0), ("SM8750", 5, 0),
         (
           "SM8750",
-          5,
+          6,
           0
-        ), ("SM8750", 6, 0), ("SM8750", 7, 0)
+        ), ("SM8750", 7, 0)
     ) AS _values
   )
 SELECT * FROM data;
@@ -195,50 +205,55 @@ WITH
           2
         ), ("Tensor G5", 5, 5), ("Tensor G5", 6, 5), ("Tensor G5", 7, 7),
         (
-          "neo",
+          "Tensor G6",
           0,
           0
-        ), ("neo", 1, 0), ("neo", 2, 0), ("neo", 3, 0), ("SXR2230P", 0, 0),
+        ), ("Tensor G6", 1, 0), ("Tensor G6", 2, 2), ("Tensor G6", 3, 2),
         (
-          "SXR2230P",
+          "Tensor G6",
+          4,
+          2
+        ), ("Tensor G6", 5, 2), ("Tensor G6", 6, 6), ("neo", 0, 0),
+        (
+          "neo",
           1,
           0
-        ), ("SXR2230P", 2, 2), ("SXR2230P", 3, 2), ("SXR2230P", 4, 2),
+        ), ("neo", 2, 0), ("neo", 3, 0), ("SXR2230P", 0, 0), ("SXR2230P", 1, 0),
         (
           "SXR2230P",
-          5,
+          2,
           2
-        ), ("MT6858", 0, 0), ("MT6858", 1, 0), ("MT6858", 2, 0),
+        ), ("SXR2230P", 3, 2), ("SXR2230P", 4, 2), ("SXR2230P", 5, 2),
         (
           "MT6858",
-          3,
+          0,
           0
-        ), ("MT6858", 4, 4), ("MT6858", 5, 4), ("MT6858", 6, 4),
+        ), ("MT6858", 1, 0), ("MT6858", 2, 0), ("MT6858", 3, 0),
         (
           "MT6858",
-          7,
+          4,
           4
-        ), ("MT6897", 0, 0), ("MT6897", 1, 0), ("MT6897", 2, 0),
+        ), ("MT6858", 5, 4), ("MT6858", 6, 4), ("MT6858", 7, 4),
         (
           "MT6897",
-          3,
+          0,
           0
-        ), ("MT6897", 4, 4), ("MT6897", 5, 4), ("MT6897", 6, 4),
+        ), ("MT6897", 1, 0), ("MT6897", 2, 0), ("MT6897", 3, 0),
         (
           "MT6897",
-          7,
-          7
-        ), ("SM8750", 0, 0), ("SM8750", 1, 0), ("SM8750", 2, 0),
+          4,
+          4
+        ), ("MT6897", 5, 4), ("MT6897", 6, 4), ("MT6897", 7, 7),
         (
           "SM8750",
-          3,
+          0,
           0
-        ), ("SM8750", 4, 0), ("SM8750", 5, 0), ("SM8750", 6, 6),
+        ), ("SM8750", 1, 0), ("SM8750", 2, 0), ("SM8750", 3, 0),
         (
           "SM8750",
-          7,
-          6
-        )
+          4,
+          0
+        ), ("SM8750", 5, 0), ("SM8750", 6, 6), ("SM8750", 7, 6)
     ) AS _values
   )
 SELECT * FROM data;
@@ -288,7 +303,8 @@ FROM _dev_policies;
 CREATE PERFETTO TABLE _use_devfreq AS
 WITH
   data(device) AS (
-    SELECT * FROM (VALUES ("Tensor G4"), ("Tensor G5")) AS _values
+    SELECT *
+    FROM (VALUES ("Tensor G4"), ("Tensor G5"), ("Tensor G6")) AS _values
   )
 SELECT * FROM data;
 
@@ -366,31 +382,37 @@ CREATE PERFETTO TABLE _vote_by_freq AS
 WITH
   data(device, cpu) AS (
     SELECT *
-    FROM (VALUES ("Tensor G5", 5), ("Tensor G5", 6), ("Tensor G5", 7)) AS _values
+    FROM (
+      VALUES
+        ("Tensor G5", 5), ("Tensor G5", 6), ("Tensor G5", 7), ("Tensor G6", 2),
+        (
+          "Tensor G6",
+          3
+        ), ("Tensor G6", 4), ("Tensor G6", 5), ("Tensor G6", 6)
+    ) AS _values
   )
 SELECT * FROM data;
 
 -- Gets all CPUs on device and whether the CPU vote is be freq or power
 CREATE PERFETTO TABLE _dev_vote_by_freq AS
 WITH
-  base AS (
-    SELECT m.cpu, 0 AS vote_by_freq
-    FROM _dev_cpu_policy_map AS m
-    LEFT JOIN _vote_by_freq AS v USING (cpu)
-    WHERE
-      v.cpu IS NULL
-    UNION ALL
+  _filtered_vote_by_freq AS (
     SELECT cpu, 1 AS vote_by_freq
     FROM _vote_by_freq AS v
     JOIN _wattson_device AS device
       ON v.device = device.name
   )
-SELECT cpu, vote_by_freq FROM base ORDER BY cpu;
+SELECT m.cpu, coalesce(v.vote_by_freq, 0) AS vote_by_freq
+FROM _dev_cpu_policy_map AS m
+LEFT JOIN _filtered_vote_by_freq AS v USING (cpu)
+ORDER BY
+  cpu;
 
 -- Device specific mapping to GPU ID
 CREATE PERFETTO TABLE _gpuid_map AS
 WITH
   data(device, gpu_id) AS (
-    SELECT * FROM (VALUES ("Tensor G5", 0), ("Tensor", 1)) AS _values
+    SELECT *
+    FROM (VALUES ("Tensor G5", 0), ("Tensor G6", 0), ("Tensor", 1)) AS _values
   )
 SELECT * FROM data;

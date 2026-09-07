@@ -54,6 +54,7 @@ import {
   NUM,
   LONG_NULL,
   NUM_NULL,
+  type InferRowType,
 } from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
@@ -241,7 +242,7 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   /**
    * Override the color scheme for each event.
    */
-  colorizer?(row: T): ColorScheme;
+  colorizer?(row: InferRowType<T>): ColorScheme;
 
   /**
    * Optional function returning a key for invalidating cached slice data frames when track attributes/modes change.
@@ -251,32 +252,32 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
   /**
    * Override the text displayed on each event (title).
    */
-  sliceName?(row: T): string;
+  sliceName?(row: InferRowType<T>): string;
 
   /**
    * Override the subtitle displayed on each event.
    */
-  sliceSubtitle?(row: T): string;
+  sliceSubtitle?(row: InferRowType<T>): string;
 
   /**
    * Override the tooltip content for each event.
    */
-  tooltip?(slice: SliceOrInstant<T>): m.Children;
+  tooltip?(slice: SliceOrInstant<InferRowType<T>>): m.Children;
 
   /**
    * Customize the details panel for events on this track.
    */
-  detailsPanel?(row: T): TrackEventDetailsPanel;
+  detailsPanel?(row: InferRowType<T>): TrackEventDetailsPanel;
 
   /**
    * Define the fill ratio for slices (0.0 to 1.0).
    */
-  fillRatio?(row: T): number;
+  fillRatio?(row: InferRowType<T>): number;
 
   /**
    * Override the pattern for each slice (e.g., RECT_PATTERN_HATCHED for RT threads).
    */
-  slicePattern?(row: T): number;
+  slicePattern?(row: InferRowType<T>): number;
 
   /**
    * Define buttons displayed on the track shell.
@@ -287,22 +288,24 @@ export interface SliceTrackAttrs<T extends DatasetSchema> {
    * Called once per render cycle before drawing. Return an array of
    * ColorVariant values (one per slice) to control each slice's color.
    */
-  onUpdatedSlices?(slices: readonly SliceOrInstant<T>[]): ColorVariant[];
+  onUpdatedSlices?(
+    slices: readonly SliceOrInstant<InferRowType<T>>[],
+  ): ColorVariant[];
 
   /**
    * Called when a slice is hovered.
    */
-  onSliceOver?(args: OnSliceOverArgs<T>): void;
+  onSliceOver?(args: OnSliceOverArgs<InferRowType<T>>): void;
 
   /**
    * Called when hover leaves a slice.
    */
-  onSliceOut?(args: OnSliceOutArgs<T>): void;
+  onSliceOut?(args: OnSliceOutArgs<InferRowType<T>>): void;
 
   /**
    * Called when a slice is clicked. Overrides the default selection behavior.
    */
-  onSliceClick?(args: OnSliceClickArgs<T>): void;
+  onSliceClick?(args: OnSliceClickArgs<InferRowType<T>>): void;
 }
 
 interface Tables extends AsyncDisposable {
@@ -312,11 +315,11 @@ interface Tables extends AsyncDisposable {
 }
 
 export type RowSchema = {
-  readonly id?: number;
-  readonly ts: bigint;
-  readonly dur?: bigint | null;
-  readonly depth?: number;
-  readonly layer?: number;
+  readonly id?: typeof NUM;
+  readonly ts: typeof LONG;
+  readonly dur?: typeof LONG_NULL;
+  readonly depth?: typeof NUM;
+  readonly layer?: typeof NUM;
 } & DatasetSchema;
 
 function getDataset<T extends DatasetSchema>(
@@ -335,14 +338,16 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly instantWidthPx: number;
   private readonly queue = new AtomicTaskQueue();
   private readonly tablesSlot = new AsyncMemo<Tables>(this.queue);
-  private readonly dataFrameSlot = new AsyncMemo<DataFrame<T>>(this.queue);
+  private readonly dataFrameSlot = new AsyncMemo<DataFrame<InferRowType<T>>>(
+    this.queue,
+  );
   private readonly bufferedBounds = new BufferedBounds();
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
-  private hoveredSlice?: SliceOrInstant<T>;
+  private hoveredSlice?: SliceOrInstant<InferRowType<T>>;
   private charWidth = {title: -1, subtitle: -1};
   private computedTrackHeight = 0;
-  private currentDataFrame?: DataFrame<T>;
+  private currentDataFrame?: DataFrame<InferRowType<T>>;
   private rowCount: number;
 
   /**
@@ -469,7 +474,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private renderSlices(
     trackCtx: TrackRenderContext,
-    sliceBuffers: SliceBuffers<T>,
+    sliceBuffers: SliceBuffers<InferRowType<T>>,
     xTransform: Transform1D,
     pxEnd: number,
     pxPerNs: number,
@@ -643,7 +648,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private renderInstants(
     trackCtx: TrackRenderContext,
-    instantBuffers: InstantBuffers<T>,
+    instantBuffers: InstantBuffers<InferRowType<T>>,
     xTransform: Transform1D,
     pxPerNs: number,
     baseOffsetPx: number,
@@ -801,7 +806,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return result.maybeFirstRow({rowCount: NUM})?.rowCount ?? 0;
   }
 
-  private useData(trackCtx: TrackRenderContext): DataFrame<T> | undefined {
+  private useData(
+    trackCtx: TrackRenderContext,
+  ): DataFrame<InferRowType<T>> | undefined {
     const {resolution, visibleWindow} = trackCtx;
 
     const dataset = this.getDataset();
@@ -881,7 +888,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     resolution: duration,
     signal: CancellationSignal,
     dataset: SourceDataset<T>,
-  ): Promise<InstantBuffers<T>> {
+  ): Promise<InstantBuffers<InferRowType<T>>> {
     const sqlSource = generateRenderQuery(dataset);
     const extraCols = Object.keys(dataset.schema)
       .map((c) => `s.${c} as ${c}`)
@@ -907,41 +914,46 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     // Initialize buffers
     const count = queryResult.numRows();
-    const xs = new Float32Array(count);
-    const depths = new Uint16Array(count);
-    const instants = new Array<Instant<T>>(count);
+    const instants = new Array<Instant<InferRowType<T>>>(count);
 
-    const it = queryResult.iter({
+    const cols = queryResult.decodeColumns({
       __id: NUM,
       __ts: NUM,
       __count: NUM,
       __depth: NUM,
       ...dataset.schema,
     });
+    const idCol = cols.__id;
+    const tsCol = cols.__ts;
+    const countCol = cols.__count;
+    const depthCol = cols.__depth;
+    const schemaKeys = Object.keys(dataset.schema);
+    const schemaCols = schemaKeys.map((k) => cols[k]);
+    const xs = new Float32Array(tsCol);
+    const depths = new Uint16Array(depthCol);
 
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    for (let i = 0; i < count; i++) {
       if (i % 64 === 0) {
         if (signal.isCancelled) throw TASK_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
-      const id = it.__id;
-      const ts = it.__ts;
-      const count = it.__count;
-      const depth = it.__depth;
-      const title = this.getTitle(it);
-      const subtitle = this.getSubtitle(it);
-      const colorScheme = this.getColor(it, title);
-      const row = this.extractKeys(it, dataset.schema);
+      // Building the row object for every row is inefficient but we need to do
+      // it for compatibility with the various callbacks, and changing these
+      // would change the track API.
+      // TODO(stevegolton): Change the getTitle(), getSubtitle(), getColor()
+      // callbacks to avoid having to build a row object for every row.
+      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const title = this.getTitle(row);
+      const subtitle = this.getSubtitle(row);
+      const colorScheme = this.getColor(row, title);
 
-      xs[i] = ts;
-      depths[i] = depth;
       instants[i] = {
-        id,
+        id: idCol[i],
         title,
         subtitle,
         colorScheme,
-        count,
+        count: countCol[i],
         row,
       };
     }
@@ -962,7 +974,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     resolution: duration,
     signal: CancellationSignal,
     dataset: SourceDataset<T>,
-  ): Promise<SliceBuffers<T>> {
+  ): Promise<SliceBuffers<InferRowType<T>>> {
     const engine = this.trace.engine;
     const sqlSource = generateRenderQuery(dataset);
     const extraCols = Object.keys(dataset.schema)
@@ -1008,13 +1020,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const task = await this.deferChunkedTask();
 
     const count = sliceQueryRes.numRows();
-    const starts = new Float32Array(count);
-    const ends = new Float32Array(count);
-    const depths = new Uint16Array(count);
-    const patterns = new Uint8Array(count);
-    const slices = new Array<Slice<T>>(count);
 
-    const it = sliceQueryRes.iter({
+    const cols = sliceQueryRes.decodeColumns({
       __id: NUM,
       __start: NUM,
       __end: NUM_NULL,
@@ -1023,38 +1030,46 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       __incomplete: NUM,
       ...dataset.schema,
     });
+    const idCol = cols.__id;
+    const startCol = cols.__start;
+    const endCol = cols.__end;
+    const countCol = cols.__count;
+    const depthCol = cols.__depth;
+    const incompleteCol = cols.__incomplete;
+    const schemaKeys = Object.keys(dataset.schema);
+    const schemaCols = schemaKeys.map((k) => cols[k]);
 
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    const starts = new Float32Array(startCol);
+    const ends = new Float32Array(count);
+    const depths = new Uint16Array(depthCol);
+    const patterns = new Uint8Array(count);
+    const slices = new Array<Slice<InferRowType<T>>>(count);
+
+    for (let i = 0; i < count; i++) {
       if (i % 64 === 0) {
         if (signal.isCancelled) throw TASK_CANCELLED;
         if (task.shouldYield()) await task.yield();
       }
 
-      const count = it.__count;
-      const id = it.__id;
-      const start = it.__start;
-      const end = it.__end;
-      const depth = it.__depth;
-      const title = this.getTitle(it);
-      const subtitle = this.getSubtitle(it);
-      const colorScheme = this.getColor(it, title);
-      const isIncomplete = it.__incomplete === 1;
-      const row = this.extractKeys(it, dataset.schema);
+      const row = this.buildSchemaRow(schemaKeys, schemaCols, i);
+      const title = this.getTitle(row);
+      const subtitle = this.getSubtitle(row);
+      const colorScheme = this.getColor(row, title);
+      const end = endCol[i];
+      const isIncomplete = incompleteCol[i] === 1;
 
-      starts[i] = start;
       // Incomplete slices are assigned a +Infinity end
       ends[i] = end === null ? Number.POSITIVE_INFINITY : end;
-      depths[i] = depth;
       patterns[i] = isIncomplete
         ? RECT_PATTERN_FADE_RIGHT
-        : (this.attrs.slicePattern?.(it) ?? 0);
+        : (this.attrs.slicePattern?.(row) ?? 0);
       slices[i] = {
-        id,
+        id: idCol[i],
         title,
         subtitle,
         colorScheme,
-        count,
-        fillRatio: this.attrs.fillRatio?.(it) ?? 1,
+        count: countCol[i],
+        fillRatio: this.attrs.fillRatio?.(row) ?? 1,
         row,
       };
     }
@@ -1069,16 +1084,18 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     };
   }
 
-  // Efficiently copy a sebset of keys from a raw value based on some template.
-  // Note: Only the template's keys are used, the values are ignored (hence the
-  // unknown value types).
-  private extractKeys(from: T, template: Record<keyof T, unknown>): T {
-    const result = {} as T;
-    // eslint-disable-next-line guard-for-in
-    for (const k in template) {
-      result[k] = from[k];
+  // Reads the dataset.schema columns out of the decoded columnar arrays (cols[k]
+  // holds the data for schema key k) into a per-row object for the callbacks.
+  private buildSchemaRow(
+    keys: readonly string[],
+    cols: readonly ArrayLike<SqlValue>[],
+    i: number,
+  ): InferRowType<T> {
+    const row: Record<string, SqlValue> = {};
+    for (let k = 0; k < keys.length; k++) {
+      row[keys[k]] = cols[k][i];
     }
-    return result;
+    return row as InferRowType<T>;
   }
 
   private async deferChunkedTask() {
@@ -1088,25 +1105,28 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return await deferChunkedTask({priority});
   }
 
-  private getTitle(row: T): string {
+  private getTitle(row: InferRowType<T>): string {
     if (this.attrs.sliceName) return this.attrs.sliceName(row);
     if ('name' in row && typeof row.name === 'string') return row.name;
     return '';
   }
 
-  private getSubtitle(row: T): string {
+  private getSubtitle(row: InferRowType<T>): string {
     if (this.attrs.sliceSubtitle) return this.attrs.sliceSubtitle(row);
     return '';
   }
 
-  private getColor(row: T, title: string | undefined): ColorScheme {
+  private getColor(
+    row: InferRowType<T>,
+    title: string | undefined,
+  ): ColorScheme {
     if (this.attrs.colorizer) return this.attrs.colorizer(row);
     if (title) return getColorForSlice(title);
     return getColorForSlice(`${row.id}`);
   }
 
   private onUpdatedSlices(
-    slices: readonly SliceOrInstant<T>[],
+    slices: readonly SliceOrInstant<InferRowType<T>>[],
   ): readonly ColorVariant[] {
     if (this.attrs.onUpdatedSlices) {
       return this.attrs.onUpdatedSlices(slices);
@@ -1116,7 +1136,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   private highlightHoveredAndSameTitle(
-    slices: readonly SliceOrInstant<T>[],
+    slices: readonly SliceOrInstant<InferRowType<T>>[],
   ): readonly ColorVariant[] {
     const hoveredSlice = this.hoveredSlice;
     const highlightedSliceName = this.attrs.trace.timeline.highlightedSliceName;
@@ -1221,7 +1241,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     x,
     y,
     timescale,
-  }: TrackMouseEvent): undefined | SliceOrInstant<T> {
+  }: TrackMouseEvent): undefined | SliceOrInstant<InferRowType<T>> {
     if (!this.currentDataFrame) return undefined;
 
     const trackHeight = this.computedTrackHeight;
@@ -1382,13 +1402,13 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   detailsPanel(sel: TrackEventSelection): TrackEventDetailsPanel | undefined {
     if (this.attrs.detailsPanel) {
-      return this.attrs.detailsPanel(sel as unknown as T);
+      return this.attrs.detailsPanel(sel as unknown as InferRowType<T>);
     } else {
       const dataset = getDataset(this.attrs);
       return new SliceTrackDetailsPanel(
         this.trace,
         dataset,
-        sel as unknown as T,
+        sel as unknown as InferRowType<T>,
       );
     }
   }
@@ -1457,9 +1477,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
 // Helper functions
 
-export function renderTooltip(
+export function renderTooltip<T extends RowSchema>(
   trace: Trace,
-  slice: SliceOrInstant<RowSchema>,
+  slice: SliceOrInstant<InferRowType<T>>,
   opts: {readonly title?: string; readonly extras?: m.Children} = {},
 ): m.Children {
   const durationFormatted = formatDurationForTooltip(trace, slice.row.dur);

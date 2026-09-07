@@ -278,13 +278,6 @@ export class CpuFreqTrack implements TrackRenderer {
     const idleRows = idleResult.numRows();
     assertTrue(freqRows == idleRows);
 
-    // Allocate arrays for Data and StepAreaBuffers
-    const timestamps = new BigInt64Array(freqRows);
-    const minFreqKHz = new Uint32Array(freqRows);
-    const maxFreqKHz = new Uint32Array(freqRows);
-    const lastFreqKHz = new Uint32Array(freqRows);
-    const lastIdleValues = new Int8Array(freqRows);
-
     // StepAreaBuffers arrays (raw data values, transform applied at render time)
     const xs = new Float32Array(freqRows); // Relative timestamps in ns
     const xnext = new Float32Array(freqRows); // Next relative timestamp in ns
@@ -293,43 +286,55 @@ export class CpuFreqTrack implements TrackRenderer {
     const maxYs = new Float32Array(freqRows); // Min freq (lower value = higher Y after transform)
     const fills = new Float32Array(freqRows); // 1.0 when not idle, 0.0 when idle
 
-    const freqIt = freqResult.iter({
+    const freqCols = freqResult.decodeColumns({
       ts: LONG,
       minFreq: NUM,
       maxFreq: NUM,
       lastFreq: NUM,
     });
-    const idleIt = idleResult.iter({
+    const idleCols = idleResult.decodeColumns({
       lastIdle: NUM,
     });
-    for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
-      if (i % 50 === 0) {
+    const tsCol = freqCols.ts;
+    const minFreqCol = freqCols.minFreq;
+    const maxFreqCol = freqCols.maxFreq;
+    const lastFreqCol = freqCols.lastFreq;
+    const lastIdleCol = idleCols.lastIdle;
+
+    const timestamps = tsCol;
+    const minFreqKHz = new Uint32Array(minFreqCol);
+    const maxFreqKHz = new Uint32Array(maxFreqCol);
+    const lastFreqKHz = new Uint32Array(lastFreqCol);
+    const lastIdleValues = new Int8Array(lastIdleCol);
+
+    for (let i = 0; i < freqRows; ++i) {
+      if (i % 64 === 0) {
         if (signal.isCancelled) return TASK_CANCELLED;
         if (task.shouldYield()) {
           await task.yield();
         }
       }
 
-      timestamps[i] = freqIt.ts;
-      minFreqKHz[i] = freqIt.minFreq;
-      maxFreqKHz[i] = freqIt.maxFreq;
-      lastFreqKHz[i] = freqIt.lastFreq;
-      lastIdleValues[i] = idleIt.lastIdle;
+      const ts = tsCol[i];
+      const minFreq = minFreqCol[i];
+      const maxFreq = maxFreqCol[i];
+      const lastFreq = lastFreqCol[i];
+      const lastIdle = lastIdleCol[i];
 
       // Populate step area buffers with raw values
-      const x = Number(freqIt.ts - start);
+      const x = Number(ts - start);
       xs[i] = Math.max(0, x); // Clamp to the start of the frame
-      ys[i] = freqIt.lastFreq;
+      ys[i] = lastFreq;
 
-      fills[i] = idleIt.lastIdle < 0 ? 1.0 : 0.0;
+      fills[i] = lastIdle < 0 ? 1.0 : 0.0;
       if (i > 0) {
         xnext[i - 1] = x;
         const yprev = ys[i - 1];
-        minYs[i] = Math.min(freqIt.minFreq, yprev);
-        maxYs[i] = Math.max(freqIt.maxFreq, yprev);
+        minYs[i] = Math.min(minFreq, yprev);
+        maxYs[i] = Math.max(maxFreq, yprev);
       } else {
-        minYs[i] = freqIt.minFreq;
-        maxYs[i] = freqIt.maxFreq;
+        minYs[i] = minFreq;
+        maxYs[i] = maxFreq;
       }
     }
 

@@ -17,8 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_SPAN_H_
 #define SRC_TRACE_PROCESSOR_CORE_UTIL_SPAN_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -37,6 +39,40 @@ struct Span {
 
   Span() = default;
   Span(T* _b, T* _e) : b(_b), e(_e) {}
+
+  template <typename U,
+            size_t N,
+            std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+  Span(U (&values)[N]) : Span(values, values + N) {}
+
+  template <typename U,
+            size_t N,
+            std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+  Span(std::array<U, N>& values)
+      : Span(values.data(), values.data() + values.size()) {}
+
+  template <typename U,
+            size_t N,
+            std::enable_if_t<std::is_convertible_v<const U*, T*>, int> = 0>
+  Span(const std::array<U, N>& values)
+      : Span(values.data(), values.data() + values.size()) {}
+
+  template <typename U,
+            typename Allocator,
+            std::enable_if_t<std::is_convertible_v<U*, T*>, int> = 0>
+  Span(std::vector<U, Allocator>& values)
+      : Span(values.data(), values.data() + values.size()) {}
+
+  template <typename U,
+            typename Allocator,
+            std::enable_if_t<std::is_convertible_v<const U*, T*>, int> = 0>
+  Span(const std::vector<U, Allocator>& values)
+      : Span(values.data(), values.data() + values.size()) {}
+
+  template <typename U, size_t N>
+  Span(std::array<U, N>&&) = delete;
+  template <typename U, typename Allocator>
+  Span(std::vector<U, Allocator>&&) = delete;
 
   T* begin() const { return b; }
   T* end() const { return e; }
@@ -59,6 +95,16 @@ Span<T> MakeMutableSpan(T (&values)[N]) {
 template <typename T, size_t N>
 Span<const T> MakeSpan(const T (&values)[N]) {
   return Span<const T>(values, values + N);
+}
+
+template <typename T, size_t N>
+Span<T> MakeMutableSpan(std::array<T, N>& values) {
+  return Span<T>(values.data(), values.data() + values.size());
+}
+
+template <typename T, size_t N>
+Span<const T> MakeSpan(const std::array<T, N>& values) {
+  return Span<const T>(values.data(), values.data() + values.size());
 }
 
 template <typename T>

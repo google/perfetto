@@ -357,15 +357,6 @@ ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
 
 ScopedFstream OpenFstream(const std::string& path, const std::string& mode) {
   ScopedFstream file;
-  // On Windows fopen interprets filename using the ANSI or OEM codepage but
-  // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
-  // filename correctly we use _wfopen and a UTF-16 string on windows.
-  //
-  // On Windows fopen also open files in the text mode by default, but we want
-  // to open them in the binary mode, to avoid silly EOL translations (and to be
-  // consistent with base::OpenFile). So we check the mode first and append 'b'
-  // mode only when it makes sense.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   std::string s_mode(mode);
   // Windows supports non-standard mode extension that sets encoding in text
   // mode. If you need to open a FILE* in text mode, use the fopen API directly.
@@ -375,13 +366,22 @@ ScopedFstream OpenFstream(const std::string& path, const std::string& mode) {
   if (!is_binary_mode)
     s_mode += 'b';
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // On Windows fopen interprets filename using the ANSI or OEM codepage but
+  // sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
+  // filename correctly we use _wfopen and a UTF-16 string on windows.
+  //
+  // On Windows fopen also open files in the text mode by default, but we want
+  // to open them in the binary mode, to avoid silly EOL translations (and to be
+  // consistent with base::OpenFile). So we check the mode first and append 'b'
+  // mode only when it makes sense.
   auto w_path = ToUtf16(path);
   auto w_mode = ToUtf16(s_mode);
   if (w_path && w_mode) {
     file.reset(_wfopen(w_path->c_str(), w_mode->c_str()));
   }
 #else
-  file.reset(fopen(path.c_str(), mode.c_str()));
+  file.reset(fopen(path.c_str(), s_mode.c_str()));
 #endif
   return file;
 }

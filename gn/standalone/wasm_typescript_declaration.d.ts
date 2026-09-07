@@ -48,7 +48,7 @@ declare namespace Wasm {
 
   export interface Module {
     callMain(args: string[]): void;
-    addFunction(f: any, argTypes: string): void;
+    addFunction(f: any, argTypes: string): number;
     FS_mkdir(path: string, mode?: number): any;
     FS_mount(type: Wasm.FileSystemType, opts: any, mountpoint: string): any;
     FS_lookupPath(path: string): { path: string; node: Wasm.FileSystemNode };
@@ -63,6 +63,12 @@ declare namespace Wasm {
       argTypes: string[],
       args: any[],
     ): number;
+    // Like ccall(), but resolves the symbol and marshalling once.
+    cwrap(
+      ident: string,
+      returnType: string,
+      argTypes: string[],
+    ): (...args: number[]) => number;
     HEAPU8: Uint8Array;
     FS: FileSystem;
   }

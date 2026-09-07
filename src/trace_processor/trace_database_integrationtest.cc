@@ -294,7 +294,7 @@ TEST(TraceProcessorCustomConfigTest,
   write_file(first_file.path());
 
   ASSERT_OK(rpc.NotifyEndOfFile());
-  ASSERT_OK(rpc.Parse(nullptr, 0));
+  ASSERT_OK(rpc.Parse(TraceBlobView()));
 
   base::TempFile second_file = base::TempFile::Create();
   write_file(second_file.path());

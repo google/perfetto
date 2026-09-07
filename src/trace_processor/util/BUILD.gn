@@ -254,6 +254,15 @@ source_set("galloping_search") {
   deps = [ "../../../gn:default_deps" ]
 }
 
+source_set("concurrency_stress_test_util") {
+  testonly = true
+  sources = [ "concurrency_stress_test_util.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("glob") {
   sources = [
     "glob.cc",
@@ -484,6 +493,7 @@ source_set("flatbuffer_reader") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
+    "concurrency_stress_test_util_unittest.cc",
     "descriptors_unittest.cc",
     "flatbuffer_reader_unittest.cc",
     "galloping_search_unittest.cc",
@@ -507,6 +517,7 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
+    ":concurrency_stress_test_util",
     ":decompressor",
     ":descriptors",
     ":flatbuffer_reader",

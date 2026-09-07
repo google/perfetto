@@ -724,16 +724,17 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
     // view would pin the whole trace chunk it points into, however small the
     // array is.
     TraceBlob blob = TraceBlob::Allocate(data_length);
-    if (!iterator_->ReadInto(blob.data(), data_length)) {
+    uint8_t* data = blob.mutable_data();
+    if (!iterator_->ReadInto(data, data_length)) {
       return false;
     }
     if (element_type == FieldType::kBoolean) {
       // Normalise to 0/1 to match the values exposed for boolean arrays.
       for (size_t i = 0; i < data_length; ++i) {
-        blob.data()[i] = blob.data()[i] != 0 ? 1 : 0;
+        data[i] = data[i] != 0 ? 1 : 0;
       }
     } else {
-      ToNativeEndian(blob.data(), element_count, type_size);
+      ToNativeEndian(data, element_count, type_size);
     }
     obj.SetArrayData(TraceBlobView(std::move(blob)), element_count);
   }

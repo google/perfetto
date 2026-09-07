@@ -182,7 +182,7 @@ bool Contains(const std::string& haystack, char needle);
 bool Contains(const std::vector<std::string>& haystack,
               const std::string& needle);
 size_t Find(const StringView& needle, const StringView& haystack);
-bool CaseInsensitiveEqual(const std::string& first, const std::string& second);
+bool CaseInsensitiveEqual(std::string_view first, std::string_view second);
 std::string Join(const std::vector<std::string>& parts,
                  const std::string& delim);
 std::vector<std::string> SplitString(const std::string& text,

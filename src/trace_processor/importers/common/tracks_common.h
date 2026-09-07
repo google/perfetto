@@ -210,6 +210,18 @@ inline constexpr auto kAndroidScreenStateBlueprint =
                              tracks::DimensionBlueprints(),
                              tracks::StaticNameBlueprint("ScreenState"));
 
+inline constexpr auto kAndroidBatteryStatusBlueprint =
+    tracks::CounterBlueprint("battery_status",
+                             tracks::UnknownUnitBlueprint(),
+                             tracks::DimensionBlueprints(),
+                             tracks::StaticNameBlueprint("BatteryStatus"));
+
+inline constexpr auto kAndroidPlugTypeBlueprint =
+    tracks::CounterBlueprint("plug_type",
+                             tracks::UnknownUnitBlueprint(),
+                             tracks::DimensionBlueprints(),
+                             tracks::StaticNameBlueprint("PlugType"));
+
 inline constexpr auto kAndroidBatteryStatsBlueprint = tracks::CounterBlueprint(
     "battery_stats",
     tracks::UnknownUnitBlueprint(),

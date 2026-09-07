@@ -630,8 +630,8 @@ function flamegraphMetricsForHeapProfile(
         from _android_heap_profile_callstacks_for_allocations!((
           select
             callsite_id,
-            iif(positive_alloc, size, 0) as size,
-            iif(positive_alloc, count, 0) as count,
+            max(iif(positive_alloc, size, 0), 0) as size,
+            max(iif(positive_alloc, count, 0), 0) as count,
             max(size, 0) as alloc_size,
             max(count, 0) as alloc_count
           from heap_profile_allocation a

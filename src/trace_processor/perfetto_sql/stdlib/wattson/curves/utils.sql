@@ -121,7 +121,18 @@ CREATE PERFETTO INDEX tpu_curves ON _tpu_filtered_curves(
   requests
 );
 
--- Device specific interconnect curves
+-- Device specific 1D DSU curve (policy 255)
+CREATE PERFETTO TABLE _filtered_curves_dsu_1d AS
+SELECT dc.freq_khz AS dsu_freq, dc.active AS power
+FROM _device_curves_1d AS dc
+JOIN _wattson_device AS device
+  ON dc.device = device.name
+WHERE
+  dc.policy = _dsu_dep!();
+
+CREATE PERFETTO INDEX freq_dsu_1d ON _filtered_curves_dsu_1d(dsu_freq);
+
+-- Device specific interconnect curves (for 2D dependency models)
 CREATE PERFETTO TABLE _filtered_curves_interconnect AS
 SELECT
   dc.policy,

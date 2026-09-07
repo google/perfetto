@@ -1180,11 +1180,10 @@ TEST_F(TraceBufferV2Test, ScrapedChunkRecommit_RelocateToWritePos) {
   EXPECT_EQ(1u, stats.readaheads_succeeded());
 }
 
-// Only the producer's final commit of a fully-read scraped copy may relocate.
-// This walks the two ways that can fail, on the same chunk: first a second
-// scrape (not the final commit), then the final commit arriving while the copy
-// still has unread fragments. Both must keep the in-place rewrite, which is
-// the only way to grow the chunk without re-ordering the unread payload.
+// A fully-read scraped copy relocates on any re-commit that adds fragments,
+// including a later scrape. The remaining gate is the unread payload: once the
+// relocated copy holds packets nobody has read, the final commit has to grow it
+// in place, which is the only way to do that without re-ordering them.
 TEST_F(TraceBufferV2Test, ScrapedChunkRecommit_InPlaceWhenGatesFail) {
   ResetBuffer(4096);
   const auto& stats = trace_buffer()->stats();
@@ -1202,31 +1201,100 @@ TEST_F(TraceBufferV2Test, ScrapedChunkRecommit_InPlaceWhenGatesFail) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
   // Second scrape grows the payload ('b' becomes visible, 'c' is the new
-  // incomplete tail). 'a' is fully consumed, but this is not the final commit.
+  // incomplete tail). 'a' is fully consumed, so this relocates.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(32, 'a')
       .AddPacket(32, 'b')
       .AddPacket(32, 'c')
       .PadTo(512)
       .CopyIntoTraceBuffer(/*chunk_complete=*/false);
-  EXPECT_EQ(1u, stats.chunks_rewritten());
-  EXPECT_EQ(0u, stats.chunks_relocated());
+  EXPECT_EQ(0u, stats.chunks_rewritten());
+  EXPECT_EQ(1u, stats.chunks_relocated());
 
-  // The final commit arrives, but 'b' and 'c' have not been read yet.
+  // The final commit arrives, but 'b' and 'c' have not been read yet: the copy
+  // is not fully consumed, so it has to be grown in place.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(32, 'a')
       .AddPacket(32, 'b')
       .AddPacket(32, 'c')
       .AddPacket(32, 'd')
       .CopyIntoTraceBuffer();
-  EXPECT_EQ(2u, stats.chunks_rewritten());
-  EXPECT_EQ(0u, stats.chunks_relocated());
+  EXPECT_EQ(1u, stats.chunks_rewritten());
+  EXPECT_EQ(1u, stats.chunks_relocated());
 
   // 'a' is not re-emitted; everything written after it reads back in order.
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'b')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'c')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'd')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Same setup as ScrapedChunkRecommit_RelocateToWritePos, except the flush that
+// grows the pinned copy is another scrape rather than the producer's final
+// commit. Rewriting in place would leave the recovered fragment in the cursor's
+// path, where the next write evicts it before the read that would have
+// collected it. The ring has plenty of room at this point, so the loss is
+// premature rather than a capacity problem.
+TEST_F(TraceBufferV2Test, ScrapedChunkReScrape_EvictedBeforeNextRead) {
+  ResetBuffer(4096);
+  const auto& stats = trace_buffer()->stats();
+
+  // First scrape of the writer's open chunk: 'b' is the incomplete tail.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .AddPacket(32, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Other writers fill the rest of the ring and get drained: the write cursor
+  // is now right behind the pinned scraped copy in ring order.
+  for (ChunkID c = 0; c < 3; c++) {
+    CreateChunk(ProducerID(2), WriterID(2), c)
+        .AddPacket(1024 - 16, 'x')
+        .CopyIntoTraceBuffer();
+  }
+  CreateChunk(ProducerID(2), WriterID(2), ChunkID(3))
+      .AddPacket(512 - 16, 'y')
+      .CopyIntoTraceBuffer();
+  ASSERT_EQ(0u, size_to_end());
+  trace_buffer()->BeginRead();
+  while (!ReadPacket().empty()) {
+  }
+  EXPECT_EQ(0u, stats.chunks_overwritten());
+
+  // Next flush: the producer is still mid-chunk, so the service scrapes it
+  // again and 'b' becomes visible.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .AddPacket(32, 'b')
+      .AddPacket(32, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+  EXPECT_EQ(0u, stats.chunks_rewritten());
+  EXPECT_EQ(1u, stats.chunks_relocated());
+
+  // One unrelated chunk arrives before the read: it lands where the stale copy
+  // used to be. With the in-place rewrite this used to evict 'b'.
+  CreateChunk(ProducerID(2), WriterID(2), ChunkID(4))
+      .AddPacket(512 - 16, 'z')
+      .CopyIntoTraceBuffer();
+
+  EXPECT_EQ(0u, stats.chunks_overwritten());
+  EXPECT_EQ(0u, stats.bytes_overwritten());
+
+  trace_buffer()->BeginRead();
+  uint32_t previous_packet_dropped = 0;
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'b')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(512 - 16, 'z')));
+  EXPECT_EQ(0u, previous_packet_dropped);
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 

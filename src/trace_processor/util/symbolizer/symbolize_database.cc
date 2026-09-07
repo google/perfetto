@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -56,11 +57,19 @@ namespace perfetto::profiling {
 namespace {
 using trace_processor::Iterator;
 
+// Runtime mapping start/end addresses do not affect symbolization. Group by
+// the fields used for address correction and by rel_pc so repeated mappings
+// emit one llvm-symbolizer request per effective address.
 constexpr const char* kQueryUnsymbolized =
     R"(
       select
-        spm.id,
-        spf.rel_pc
+        spm.build_id,
+        spm.name,
+        spm.exact_offset,
+        spm.start_offset,
+        spm.load_bias,
+        spf.rel_pc,
+        count(*)
       from __intrinsic_stack_profile_frame spf
       join __intrinsic_stack_profile_mapping spm on spf.mapping = spm.id
       where (
@@ -69,6 +78,20 @@ constexpr const char* kQueryUnsymbolized =
           or spm.name GLOB '[[]kernel.kallsyms]*'
         )
         and spf.symbol_set_id IS NULL
+      group by
+        spm.build_id,
+        spm.name,
+        spm.exact_offset,
+        spm.start_offset,
+        spm.load_bias,
+        spf.rel_pc
+      order by
+        spm.build_id,
+        spm.name,
+        spm.exact_offset,
+        spm.start_offset,
+        spm.load_bias,
+        spf.rel_pc
     )";
 
 // Query to get mappings with empty build IDs and their frame counts.
@@ -84,67 +107,6 @@ constexpr const char* kQueryMappingsWithoutBuildId =
         and spf.symbol_set_id IS NULL
       group by spm.name
     )";
-
-struct UnsymbolizedFrames {
-  UnsymbolizedMapping mapping;
-  std::vector<uint64_t> rel_pc;
-};
-
-std::optional<UnsymbolizedMapping> GetMappingById(
-    trace_processor::TraceProcessor* tp,
-    int64_t id) {
-  Iterator it = tp->ExecuteQuery(R"(
-      SELECT build_id, name, exact_offset, start_offset, load_bias
-      FROM __intrinsic_stack_profile_mapping WHERE id = )" +
-                                 std::to_string(id));
-  if (!it.Next()) {
-    return std::nullopt;
-  }
-
-  trace_processor::BuildId build_id =
-      trace_processor::BuildId::FromHex(it.Get(0).AsString());
-  std::string name = it.Get(1).AsString();
-  uint64_t exact_offset = static_cast<uint64_t>(it.Get(2).AsLong());
-  uint64_t start_offset = static_cast<uint64_t>(it.Get(3).AsLong());
-  int64_t load_bias = it.Get(4).AsLong();
-  PERFETTO_CHECK(load_bias >= 0);
-
-  return UnsymbolizedMapping{build_id.raw(), name, exact_offset, start_offset,
-                             static_cast<uint64_t>(load_bias)};
-}
-
-std::map<int64_t, std::vector<uint64_t>> GetUnsymbolizedFrameIdsByMappingId(
-    trace_processor::TraceProcessor* tp) {
-  std::map<int64_t, std::vector<uint64_t>> unsymbolized;
-  Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
-  while (it.Next()) {
-    int64_t mapping_id = it.Get(0).AsLong();
-    int64_t rel_pc = it.Get(1).AsLong();
-    unsymbolized[mapping_id].emplace_back(rel_pc);
-  }
-  if (!it.Status().ok()) {
-    PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
-                            it.Status().message().c_str());
-    return {};
-  }
-  return unsymbolized;
-}
-
-std::vector<UnsymbolizedFrames> GetUnsymbolizedFrames(
-    trace_processor::TraceProcessor* tp) {
-  std::vector<UnsymbolizedFrames> res;
-  for (auto& entry : GetUnsymbolizedFrameIdsByMappingId(tp)) {
-    int64_t mapping_id = entry.first;
-    std::vector<uint64_t>& frame_ids = entry.second;
-    std::optional<UnsymbolizedMapping> mapping = GetMappingById(tp, mapping_id);
-    if (!mapping) {
-      continue;
-    }
-    res.push_back(
-        UnsymbolizedFrames{std::move(*mapping), std::move(frame_ids)});
-  }
-  return res;
-}
 
 std::vector<std::pair<std::string, uint32_t>> GetMappingsWithoutBuildId(
     trace_processor::TraceProcessor* tp) {
@@ -202,12 +164,14 @@ SymbolizationOutput SymbolizeDatabaseWithSymbolizer(
     trace_processor::TraceProcessor* tp,
     Symbolizer* symbolizer) {
   PERFETTO_CHECK(symbolizer);
-  auto unsymbolized = GetUnsymbolizedFrames(tp);
+  auto unsymbolized = CollectUnsymbolizedFrames(tp);
   Symbolizer::Environment env = {GetOsRelease(tp)};
 
   SymbolizationOutput output;
-  for (const auto& [unsymbolized_mapping, rel_pcs] : unsymbolized) {
-    uint32_t frame_count = static_cast<uint32_t>(rel_pcs.size());
+  for (const UnsymbolizedFrames& frames : unsymbolized) {
+    const UnsymbolizedMapping& unsymbolized_mapping = frames.mapping;
+    const std::vector<uint64_t>& rel_pcs = frames.rel_pcs;
+    uint32_t frame_count = frames.frame_count;
     SymbolizeResult res =
         symbolizer->Symbolize(env, unsymbolized_mapping, rel_pcs);
     if (res.frames.empty()) {
@@ -419,6 +383,49 @@ void FormatSkippedMappings(
 }
 
 }  // namespace
+
+std::vector<UnsymbolizedFrames> CollectUnsymbolizedFrames(
+    trace_processor::TraceProcessor* tp) {
+  std::vector<UnsymbolizedFrames> result;
+  Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
+  while (it.Next()) {
+    trace_processor::BuildId build_id =
+        trace_processor::BuildId::FromHex(it.Get(0).AsString());
+    int64_t load_bias = it.Get(4).AsLong();
+    int64_t frame_count = it.Get(6).AsLong();
+    PERFETTO_CHECK(load_bias >= 0);
+    PERFETTO_CHECK(frame_count >= 0);
+
+    UnsymbolizedMapping mapping{
+        build_id.raw(),
+        it.Get(1).AsString(),
+        static_cast<uint64_t>(it.Get(2).AsLong()),
+        static_cast<uint64_t>(it.Get(3).AsLong()),
+        static_cast<uint64_t>(load_bias),
+    };
+    bool same_mapping =
+        !result.empty() && result.back().mapping.build_id == mapping.build_id &&
+        result.back().mapping.name == mapping.name &&
+        result.back().mapping.exact_offset == mapping.exact_offset &&
+        result.back().mapping.start_offset == mapping.start_offset &&
+        result.back().mapping.load_bias == mapping.load_bias;
+    if (!same_mapping)
+      result.push_back({std::move(mapping), {}, 0});
+
+    UnsymbolizedFrames& group = result.back();
+    PERFETTO_CHECK(static_cast<uint64_t>(group.frame_count) +
+                       static_cast<uint64_t>(frame_count) <=
+                   std::numeric_limits<uint32_t>::max());
+    group.rel_pcs.push_back(static_cast<uint64_t>(it.Get(5).AsLong()));
+    group.frame_count += static_cast<uint32_t>(frame_count);
+  }
+  if (!it.Status().ok()) {
+    PERFETTO_DFATAL_OR_ELOG("Failed to query unsymbolized frames: %s",
+                            it.Status().message().c_str());
+    return {};
+  }
+  return result;
+}
 
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config) {

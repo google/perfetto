@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../../base/classnames';
+import {Button, ButtonGroup, ButtonVariant} from '../../widgets/button';
 import type {TracePreset} from '../query/bigtrace_query_client';
 
 // Group presets by CUJ (their `category`), preserving first-seen order.
-// Shared by the home page (cards) and the settings page (chips).
+// `''` buckets as "Other"; the launcher relies on that when preselecting the
+// group of the last-used preset.
 export function groupPresetsByCuj(presets: ReadonlyArray<TracePreset>): {
   groups: Array<[string, TracePreset[]]>;
   byCuj: Map<string, TracePreset[]>;
@@ -37,8 +38,9 @@ export function groupPresetsByCuj(presets: ReadonlyArray<TracePreset>): {
   return {groups, byCuj};
 }
 
-// Flat segmented selector for CUJ groups. Stateless — the caller owns the
-// active key and updates it from onSelect. Renders nothing for a single group.
+// Selector for CUJ groups. Renders nothing for a single group. Same welded
+// control as the experiment arm toggle: outlined throughout, so the border
+// belongs to the group and the chosen one is the one that looks pressed.
 export function renderCujSelector(
   cujs: ReadonlyArray<string>,
   active: string,
@@ -46,18 +48,14 @@ export function renderCujSelector(
 ): m.Children {
   if (cujs.length <= 1) return null;
   return m(
-    '.pf-bt-cuj-selector',
+    ButtonGroup,
     cujs.map((cuj) =>
-      m(
-        'button.pf-bt-cuj-selector__item',
-        {
-          className: classNames(
-            cuj === active && 'pf-bt-cuj-selector__item--active',
-          ),
-          onclick: () => onSelect(cuj),
-        },
-        cuj,
-      ),
+      m(Button, {
+        label: cuj,
+        variant: ButtonVariant.Outlined,
+        active: cuj === active,
+        onclick: () => onSelect(cuj),
+      }),
     ),
   );
 }

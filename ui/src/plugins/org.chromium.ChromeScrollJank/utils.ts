@@ -16,7 +16,12 @@ import m from 'mithril';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import type {Trace} from '../../public/trace';
-import type {QueryResult, Row} from '../../trace_processor/query_result';
+import type {
+  QueryResult,
+  Row,
+  SpecType,
+  InferRowType,
+} from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
@@ -139,14 +144,17 @@ export function infoTooltip(text: string): m.Child {
  * Warning: Only use this function in contexts where the number of rows is
  * guaranteed to be small. Prefer doing transformations in SQL where possible.
  */
-export function rows<R extends Row>(queryResult: QueryResult, spec: R): R[] {
-  const results: R[] = [];
+export function rows<R extends SpecType>(
+  queryResult: QueryResult,
+  spec: R,
+): InferRowType<R>[] {
+  const results: InferRowType<R>[] = [];
   for (const it = queryResult.iter(spec); it.valid(); it.next()) {
     const row: Row = {};
     for (const key of Object.keys(spec)) {
       row[key] = it[key];
     }
-    results.push(row as R);
+    results.push(row as InferRowType<R>);
   }
   return results;
 }

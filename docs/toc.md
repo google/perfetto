@@ -176,7 +176,6 @@
 
     - [Building](contributing/build-instructions.md) {.tag-contrib}
     - [Testing](contributing/testing.md) {.tag-contrib}
-    - [Developer Tools](contributing/developer-tools.md) {.tag-contrib}
 
     - [UI Development](#)
 

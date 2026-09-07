@@ -24,6 +24,7 @@ import {
   type ExecuteOptions,
   QueryCancelledError,
   QueryNotFoundError,
+  toExperimentFilterSpec,
 } from './bigtrace_query_client';
 import {forwardAbort} from './abort_utils';
 import {
@@ -76,7 +77,9 @@ export class QueryRunner {
 
     if (endpoint.trim() === '') {
       tab.queryResult = makeQueryResponse(query, {
-        error: 'Set the BigTrace Endpoint in Settings before running queries.',
+        error:
+          'Set the BigTrace endpoint from the connection button (top right) ' +
+          'before running queries.',
       });
       tab.dataSource = new InMemoryDataSource([]);
       tab.isLoading = false;
@@ -122,6 +125,8 @@ export class QueryRunner {
       traceFilters,
       traceMetadataColumns,
       traceOrderBy,
+      traceLimit: tab.traceLimit,
+      experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
     };
 
     const wallStartMs = performance.now();
@@ -250,6 +255,9 @@ export class QueryRunner {
     exec.processedTraces = details.processedTraces ?? 0;
     exec.totalTraces = details.totalTraces ?? 0;
     if (details.limit !== undefined) tab.limit = details.limit;
+    if (typeof details.traceLimit === 'number' && details.traceLimit > 0) {
+      tab.traceLimit = details.traceLimit;
+    }
     // Restore the submit-time snapshot so the settings bar reflects what this
     // query ran with (only the full GET echoes it; the list endpoint omits it).
     // `settings` arrives camelCase (settingId); convert to SettingFilter[].
@@ -276,6 +284,11 @@ export class QueryRunner {
     }
     if (typeof details.traceOrderBy === 'string') {
       tab.traceOrderBy = details.traceOrderBy;
+    }
+    // Ids restore now; the names for them are resolved by whichever view
+    // shows the filter first.
+    if (details.experimentFilter !== undefined) {
+      tab.experimentFilter = {...details.experimentFilter};
     }
     this.cb.markDirty?.();
     tab.editorText = details.perfettoSql || fallbackQuery;

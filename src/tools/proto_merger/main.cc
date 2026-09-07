@@ -18,6 +18,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 #include <google/protobuf/compiler/importer.h>
@@ -114,7 +115,7 @@ int Main(int argc, char** argv) {
   std::string allowlist;
   std::string upstream_root_message;
   std::string output;
-  std::set<std::string> allowlisted_options;
+  std::unordered_set<std::string> allowlisted_options;
 
   for (;;) {
     int option =

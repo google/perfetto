@@ -83,7 +83,8 @@ AndroidProcessStateExtensionParser::~AndroidProcessStateExtensionParser() =
 TrackEventExtensionParser::Result
 AndroidProcessStateExtensionParser::OnTrackEventSliceExtension(
     const TrackEventExtensionField& field,
-    SliceId id) {
+    SliceId id,
+    PacketSequenceStateGeneration*) {
   int64_t ts = trace_context_->storage->slice_table()[id].ts();
   switch (field.id()) {
     case fb::FrameworksBaseTrackEvent::kProcessStateChangedEventFieldNumber:

@@ -275,4 +275,27 @@ TEST(FindPackageUidTest, FailsIfUidStartsInitialized) {
   ASSERT_FALSE(status.ok()) << status.message();
 }
 
+TEST(FindPackageUidTest, RejectsCaseMismatch) {
+  const auto packet = CreatePackageListPacket();
+
+  Context context;
+  context.package_name = "com.google.android.UVExposureReporter";
+
+  const FindPackageUid find;
+
+  const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
+
+  base::Status status = find.Begin(&context);
+  ASSERT_OK(status) << status.message();
+
+  status = find.Collect(decoder, &context);
+  ASSERT_OK(status) << status.message();
+
+  // The package should not match due to case sensitivity.
+  status = find.End(&context);
+  ASSERT_FALSE(status.ok()) << status.message();
+
+  ASSERT_FALSE(context.package_uid.has_value());
+}
+
 }  // namespace perfetto::trace_redaction

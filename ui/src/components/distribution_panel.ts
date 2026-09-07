@@ -18,7 +18,12 @@ import {AsyncMemo} from '../base/async_memo';
 import {Icons} from '../base/semantic_icons';
 import type {Trace} from '../public/trace';
 import type {Dataset, DatasetSchema} from '../trace_processor/dataset';
-import {NUM, type Row, type SqlValue} from '../trace_processor/query_result';
+import {
+  NUM,
+  type SpecType,
+  type Row,
+  type SqlValue,
+} from '../trace_processor/query_result';
 import {sqlValueToSqliteString} from '../trace_processor/sql_utils';
 import {
   createPerfettoTable,
@@ -617,7 +622,7 @@ function requiredSchema(
   },
   columns: ReadonlyArray<string>,
 ): DatasetSchema {
-  const schema: Record<string, SqlValue> = {};
+  const schema: SpecType = {};
   for (const col of new Set([
     ...columns,
     ...(inputs.filter === undefined ? [] : [inputs.filter.col]),

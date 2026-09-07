@@ -17,6 +17,8 @@
 #include "perfetto/ext/base/string_utils.h"
 
 #include <optional>
+#include <string_view>
+
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -328,6 +330,10 @@ TEST(StringUtilsTest, CaseInsensitiveEqual) {
   EXPECT_TRUE(CaseInsensitiveEqual("abc", "ABC"));
   EXPECT_FALSE(CaseInsensitiveEqual("abc", "AB"));
   EXPECT_FALSE(CaseInsensitiveEqual("ab", "ABC"));
+  EXPECT_TRUE(
+      CaseInsensitiveEqual(std::string_view("aBc"), std::string_view("AbC")));
+  EXPECT_FALSE(
+      CaseInsensitiveEqual(std::string_view("abc"), std::string_view("ab")));
 }
 
 TEST(StringUtilsTest, SplitString) {

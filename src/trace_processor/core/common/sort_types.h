@@ -19,7 +19,7 @@
 
 #include <cstdint>
 
-#include "src/trace_processor/core/util/type_set.h"
+#include "perfetto/ext/base/type_set.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -46,7 +46,7 @@ struct Sorted {};
 struct Unsorted {};
 
 // TypeSet of all possible column sort states.
-using SortState = core::TypeSet<IdSorted, SetIdSorted, Sorted, Unsorted>;
+using SortState = base::TypeSet<IdSorted, SetIdSorted, Sorted, Unsorted>;
 
 // Defines the direction for sorting.
 enum class SortDirection : uint32_t {

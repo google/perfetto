@@ -35,6 +35,7 @@ class TestStateManager : public ModuleStateManagerBase {
       : ModuleStateManagerBase(store) {}
 
   using ModuleStateManagerBase::GetState;
+  using ModuleStateManagerBase::GetStateByName;
   using ModuleStateManagerBase::OnConnect;
   using ModuleStateManagerBase::OnCreate;
   using ModuleStateManagerBase::OnDestroy;
@@ -50,6 +51,20 @@ std::unique_ptr<void, void (*)(void*)> MakeErasedPayload(int v) {
 }
 
 const char* const kArgvVt[] = {"db", "module", "vt1"};
+
+// SQL names are case-insensitive: state registered under one case must be
+// found under any other.
+TEST(ModuleStateManagerTest, StateLookupIsCaseInsensitive) {
+  CommittedStateManager store;
+  TestStateManager manager(store);
+
+  const char* const argv[] = {"db", "module", "MyTable"};
+  base::ignore_result(manager.OnCreate(3, argv, MakeErasedPayload(7)));
+
+  auto* payload = static_cast<Payload*>(manager.GetStateByName("MYTABLE"));
+  ASSERT_NE(payload, nullptr);
+  EXPECT_EQ(payload->value, 7);
+}
 
 // A manager with no local state falls back to peer-committed state.
 TEST(ModuleStateManagerTest, ColdAttachReadsPeerCommittedState) {

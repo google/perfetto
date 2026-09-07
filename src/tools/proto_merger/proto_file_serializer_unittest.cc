@@ -900,6 +900,90 @@ TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
   EXPECT_NE(merged_desc, nullptr);
 }
 
+TEST(ProtoFileSerializerTest,
+     ReservedUpstreamFieldWithDeletedTypeIsPlacedInDeletedFields) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Message note_msg{};
+    note_msg.name = "Note";
+    note_msg.fields.push_back(MakeField("string", "key", 1));
+    note_msg.fields.push_back(MakeField("string", "value", 2));
+    message.nested_messages.push_back(note_msg);
+
+    ProtoFile::Field notes_field = MakeField("Note", "notes", 46);
+    notes_field.is_repeated = true;
+    message.fields.push_back(notes_field);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.reserved_numbers.insert(46);
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  size_t pos_note_msg = out.find("message Note {");
+  size_t pos_notes_field = out.find("repeated Note notes = 46");
+
+  EXPECT_NE(pos_note_msg, std::string::npos);
+  EXPECT_NE(pos_notes_field, std::string::npos);
+  EXPECT_LT(pos_note_msg, pos_notes_field)
+      << "message Note must be defined before repeated Note notes is used:\n"
+      << out;
+
+  EXPECT_THAT(out, HasSubstr("repeated Note notes = 46 [deprecated = true];"));
+}
+
+TEST(ProtoFileSerializerTest,
+     DeletedOneofFieldWithDeletedTypeIsMarkedDeprecated) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Message note_msg{};
+    note_msg.name = "Note";
+    note_msg.fields.push_back(MakeField("string", "key", 1));
+    message.nested_messages.push_back(note_msg);
+
+    ProtoFile::Oneof oneof{};
+    oneof.name = "data";
+    oneof.fields.push_back(MakeField("Note", "note", 1));
+    message.oneofs.push_back(oneof);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Oneof oneof{};
+    oneof.name = "data";
+    message.oneofs.push_back(oneof);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("Note note = 1 [deprecated = true];"));
+}
+
 TEST(ProtoFileSerializerTest, ExtensionProtoMergerInlinesAllExtensions) {
   base::TempDir temp_dir = base::TempDir::Create();
   std::string base_content = R"(
@@ -1105,10 +1189,14 @@ TEST(ExtensionProtoMergerTest, MergeExtensionsEndToEnd) {
   EXPECT_THAT(out,
               HasSubstr("optional AppWakelockBundle app_wakelock = 1100;"));
 
-  // Verify relocated helper types
+  // Verify relocated helper types appear BEFORE their target message
   EXPECT_THAT(out, HasSubstr("enum ReceiverType {"));
   EXPECT_THAT(out, HasSubstr("message AndroidMessageQueue {"));
   EXPECT_THAT(out, HasSubstr("message AppWakelockBundle {"));
+  EXPECT_LT(out.find("message AndroidMessageQueue {"),
+            out.find("message TrackEvent {"));
+  EXPECT_LT(out.find("message AppWakelockBundle {"),
+            out.find("message TracePacket {"));
 }
 
 TEST(ExtensionProtoMergerTest, CrossFileExtensionDependency) {
@@ -1156,6 +1244,50 @@ TEST(ExtensionProtoMergerTest, CrossFileExtensionDependency) {
   EXPECT_THAT(out, HasSubstr("message TrackEvent {"));
   EXPECT_THAT(out, HasSubstr("optional SharedMeta shared_meta = 3000;"));
   EXPECT_THAT(out, HasSubstr("message SharedMeta {"));
+  EXPECT_LT(out.find("message SharedMeta {"), out.find("message TrackEvent {"));
+}
+
+TEST(ExtensionProtoMergerTest, UnassociatedHelpersAreOmitted) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string base_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message TrackEvent {
+      optional string name = 1;
+      extensions 1000 to 9999;
+    }
+  )";
+
+  std::string ext_content = R"(
+    syntax = "proto2";
+    package com.android.unassociated;
+    import "base.proto";
+
+    message UnusedHelper {
+      optional string data = 1;
+    }
+
+    message OtherMessage {
+      extensions 100 to 200;
+    }
+
+    extend OtherMessage {
+      optional UnusedHelper unused = 101;
+    }
+  )";
+
+  TempProtoFile temp_base(temp_dir.path(), "base.proto", base_content);
+  TempProtoFile temp_ext(temp_dir.path(), "ext.proto", ext_content);
+
+  std::string out;
+  base::Status status =
+      MergeExtensions("base.proto", temp_dir.path(), {"ext.proto"}, &out);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  EXPECT_THAT(out, HasSubstr("message TrackEvent {"));
+  EXPECT_THAT(out, Not(HasSubstr("UnusedHelper")));
+  EXPECT_THAT(out, Not(HasSubstr("OtherMessage")));
 }
 }  // namespace
 }  // namespace proto_merger
