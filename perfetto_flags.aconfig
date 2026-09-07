@@ -36,3 +36,10 @@ flag {
   bug: "496506220"
   is_fixed_read_only: true
 }
+flag {
+  name: "use_anon_rss_in_watchdog"
+  namespace: "perfetto"
+  description: "Use anonymous RSS (/proc/self/statm) instead of total RSS (/proc/self/stat) for the watchdog memory guardrail"
+  bug: "540573436"
+  is_fixed_read_only: true
+}
