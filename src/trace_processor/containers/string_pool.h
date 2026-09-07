@@ -210,14 +210,19 @@ class StringPool {
     // Perform a hashtable insertion with a null ID just to check if the string
     // is already inserted. If it's not, overwrite 0 with the actual Id.
     auto hash = base::MurmurHashValue(str);
-    MaybeLockGuard guard{mutex_, should_acquire_mutex_};
-    auto [id, inserted] = string_index_.Insert(hash, Id());
-    if (PERFETTO_LIKELY(!inserted)) {
-      PERFETTO_DCHECK(Get(*id) == str);
-      return *id;
+    Id result;
+    {
+      MaybeLockGuard guard{mutex_, should_acquire_mutex_};
+      auto [id, inserted] = string_index_.Insert(hash, Id());
+      if (PERFETTO_UNLIKELY(inserted)) {
+        *id = InsertString(str);
+        return *id;
+      }
+      result = *id;
     }
-    *id = InsertString(str);
-    return *id;
+    // Get() takes the mutex for large strings, so validate after unlocking.
+    PERFETTO_DCHECK(Get(result) == str);
+    return result;
   }
 
   // Given a string, returns the id for the string if it exists in the string
@@ -227,13 +232,18 @@ class StringPool {
       return Id::Null();
     }
     auto hash = base::MurmurHashValue(str);
-    MaybeLockGuard guard{mutex_, should_acquire_mutex_};
-    Id* id = string_index_.Find(hash);
-    if (id) {
-      PERFETTO_DCHECK(Get(*id) == str);
-      return *id;
+    Id result;
+    {
+      MaybeLockGuard guard{mutex_, should_acquire_mutex_};
+      Id* id = string_index_.Find(hash);
+      if (!id) {
+        return std::nullopt;
+      }
+      result = *id;
     }
-    return std::nullopt;
+    // Copy the id before unlocking: concurrent interns can rehash the index.
+    PERFETTO_DCHECK(Get(result) == str);
+    return result;
   }
 
   // Given a StringId, returns the string for that id.
@@ -290,6 +300,13 @@ class StringPool {
   }
 
   // Sets the locking mode of the string pool.
+  //
+  // With locking enabled, any number of threads may read (Get/GetId/...) and
+  // intern concurrently. Interns are serialized by |mutex_|. Get() of an
+  // already interned small string is lock-free and safe against concurrent
+  // interns: |blocks_| never reallocates, a new block lands in a different slot
+  // than the one being read, and a block's bytes are written once before its
+  // Id is published. Large strings are always read and written under |mutex_|.
   void set_locking(bool should_lock) { should_acquire_mutex_ = should_lock; }
 
  private:
