@@ -353,19 +353,18 @@ void Watchdog::ThreadMain() {
       continue;
 
     const uint64_t cpu_time = stat.utime + stat.stime;
+    // max(stat.rss_pages, 0) is used since rss_pages is signed.
     const uint64_t rss_bytes =
         stat.rss_pages > 0
             ? static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize()
             : 0;
 
     std::optional<uint64_t> rss_anon_bytes = std::nullopt;
-    if constexpr (PERFETTO_FLAGS(USE_ANON_RSS_IN_WATCHDOG)) {
-      if (statm_fd) {
-        lseek(statm_fd.get(), 0, SEEK_SET);
-        ProcStatm statm;
-        if (ReadProcStatm(statm_fd.get(), &statm))
-          rss_anon_bytes = statm.rss_anon_pages() * base::GetSysPageSize();
-      }
+    if (statm_fd) {
+      lseek(statm_fd.get(), 0, SEEK_SET);
+      ProcStatm statm;
+      if (ReadProcStatm(statm_fd.get(), &statm))
+        rss_anon_bytes = statm.rss_anon_pages() * base::GetSysPageSize();
     }
 
     bool threshold_exceeded = false;
