@@ -65,6 +65,8 @@ source_set("minimal") {
     "selective_track_event_decoder.h",
     "stack_profile_sequence_state.cc",
     "stack_profile_sequence_state.h",
+    "tracing_service_module.cc",
+    "tracing_service_module.h",
     "track_event_event_importer.h",
     "track_event_extension_parser.cc",
     "track_event_extension_parser.h",
