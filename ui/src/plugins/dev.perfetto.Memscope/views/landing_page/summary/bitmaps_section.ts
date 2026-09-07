@@ -18,6 +18,7 @@
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
+import {Icons} from '../../../../../base/semantic_icons';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import {
@@ -29,6 +30,7 @@ import {
 } from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
+import {Anchor} from '../../../../../widgets/anchor';
 import {Intent} from '../../../../../widgets/common';
 import {
   deltaText,
@@ -41,6 +43,7 @@ import {nearestByTs} from '../selection';
 import {
   deltaCell,
   emptyPanel,
+  heapDumpBitmapsHref,
   loadingPanel,
   shortClassName,
   topTable,
@@ -417,7 +420,18 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
 
     return m(
       Panel,
-      m(Panel.Header, {title: TITLE, subtitle: SUBTITLE}),
+      m(Panel.Header, {
+        title: TITLE,
+        subtitle: SUBTITLE,
+        controls: m(
+          Anchor,
+          {
+            href: heapDumpBitmapsHref(),
+            icon: Icons.UpdateSelection,
+          },
+          'Open in Heap Dump Explorer',
+        ),
+      }),
       m(
         Panel.Body,
         m(Stack, {spacing: 'large'}, [
