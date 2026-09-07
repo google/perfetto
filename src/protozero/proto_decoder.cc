@@ -261,6 +261,7 @@ PERFETTO_ALWAYS_INLINE void TypedProtoDecoderBase::ParseAllFieldsImpl(
       // not stored here because fields_ is indexed directly by field id, and
       // extension ids are sparse and potentially very high. Callers that need
       // them should decode selectively and consume them from unknown_fields().
+      has_out_of_range_fields_ = true;
       continue;
     }
 

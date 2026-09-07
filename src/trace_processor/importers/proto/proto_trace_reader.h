@@ -124,6 +124,11 @@ class ProtoTraceReader : public ChunkedTraceReader {
       uint32_t machine_id,
       std::unique_ptr<ProtoTraceReader>* out);
   base::Status TimestampTokenizeAndPushToSorter(TraceBlobView);
+  // Variant for callers that already decoded the packet, so the (wide)
+  // TracePacket decoder is not rebuilt per packet.
+  base::Status TimestampTokenizeAndPushToSorter(
+      const protos::pbzero::TracePacket_Decoder&,
+      TraceBlobView);
   base::Status ParseServiceEvent(int64_t ts, ConstBytes);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);

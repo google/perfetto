@@ -259,47 +259,45 @@ class TrackEventEventImporter {
   StringId ParseTrackEventCategory() {
     StringId category_id = kNullStringId;
 
-    std::vector<uint64_t> category_iids;
-    for (auto it = event_.category_iids(); it; ++it) {
-      category_iids.push_back(*it);
-    }
-    std::vector<protozero::ConstChars> category_strings;
-    for (auto it = event_.categories(); it; ++it) {
-      category_strings.push_back(*it);
-    }
+    auto category_iids = event_.category_iids();
+    auto category_strings = event_.categories();
+    auto has_multiple = [](auto it) { return it && ++it; };
+    bool has_multiple_categories = (category_iids && category_strings) ||
+                                   has_multiple(category_iids) ||
+                                   has_multiple(category_strings);
 
     // If there's a single category, we can avoid building a concatenated
     // string.
-    if (PERFETTO_LIKELY(category_iids.size() == 1 &&
-                        category_strings.empty())) {
+    if (PERFETTO_LIKELY(!has_multiple_categories && category_iids)) {
+      uint64_t iid = *category_iids;
       if (auto id = sequence_state_->InternedStringId(
-              protos::pbzero::InternedData::kEventCategoriesFieldNumber,
-              category_iids[0])) {
+              protos::pbzero::InternedData::kEventCategoriesFieldNumber, iid)) {
         category_id = *id;
       } else {
         base::DynamicStringWriter writer;
         writer.AppendLiteral("unknown(");
-        writer.AppendUnsignedInt(category_iids[0]);
+        writer.AppendUnsignedInt(iid);
         writer.AppendChar(')');
         category_id = storage_->InternString(writer.GetStringView());
       }
-    } else if (category_iids.empty() && category_strings.size() == 1) {
-      category_id = storage_->InternString(category_strings[0]);
-    } else if (category_iids.size() + category_strings.size() > 1) {
+    } else if (!has_multiple_categories && category_strings) {
+      category_id = storage_->InternString(*category_strings);
+    } else if (has_multiple_categories) {
       // We concatenate the category strings together since we currently only
       // support a single "cat" column.
       // TODO(eseckler): Support multi-category events in the table schema.
       std::string categories;
-      for (uint64_t iid : category_iids) {
+      for (auto it = category_iids; it; ++it) {
         auto name = sequence_state_->InternedStringView(
-            protos::pbzero::InternedData::kEventCategoriesFieldNumber, iid);
+            protos::pbzero::InternedData::kEventCategoriesFieldNumber, *it);
         if (!name)
           continue;
         if (!categories.empty())
           categories.append(",");
         categories.append(name->data(), name->size());
       }
-      for (const protozero::ConstChars& cat : category_strings) {
+      for (auto it = category_strings; it; ++it) {
+        protozero::ConstChars cat = *it;
         if (!categories.empty())
           categories.append(",");
         categories.append(cat.data, cat.size);
@@ -970,15 +968,16 @@ class TrackEventEventImporter {
       }
     }
     // gpu_correlation is an out-of-tree extension of TrackEvent (id 3000),
-    // not stored by the typed decoder. FindField does a single early-exit
-    // scan; this runs per event, so avoid collecting all fields.
-    protozero::Field gpu_field =
-        protozero::ProtoDecoder(
-            event_.begin(), static_cast<size_t>(event_.end() - event_.begin()))
-            .FindField(
-                protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber);
+    // not stored by the typed decoder. It is in the selective decoder's
+    // spill area, which extension dispatch already built for this event.
+    if (!event_.has_out_of_range_fields()) {
+      return;
+    }
+    TrackEventField gpu_field = selective_decoder().FindUnknownField(
+        protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber);
     if (gpu_field.valid()) {
-      protos::pbzero::GpuCorrelation::Decoder gpu(gpu_field.as_bytes());
+      protos::pbzero::GpuCorrelation::Decoder gpu(
+          gpu_field.Cast<protos::pbzero::GpuTrackEvent::kGpuCorrelation>());
       for (auto it = gpu.render_stage_submission_event_ids(); it; ++it) {
         context_->gpu_tracker->AddRenderStageSubmission(*it, slice_id);
       }
@@ -1342,6 +1341,13 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
+  const SelectiveTrackEventDecoder& selective_decoder() {
+    if (!selective_decoder_) {
+      selective_decoder_.emplace(blob_);
+    }
+    return *selective_decoder_;
+  }
+
   // Returns false if a parser claimed the event (default args should be
   // skipped). Only scans the blob when a parser is registered.
   template <typename Fn>
@@ -1353,9 +1359,12 @@ class TrackEventEventImporter {
     if (legacy_event_.has_phase()) {
       return true;
     }
+    // Extension fields are out-of-tree by definition.
+    if (!event_.has_out_of_range_fields()) {
+      return true;
+    }
     bool parse_args = true;
-    SelectiveTrackEventDecoder decoder(blob_);
-    for (const protozero::Field& f : decoder.unknown_fields()) {
+    for (const protozero::Field& f : selective_decoder().unknown_fields()) {
       TrackEventExtensionParser* parser = parser_->ParserForField(f.id());
       if (!parser) {
         continue;
@@ -1461,7 +1470,7 @@ class TrackEventEventImporter {
                                               unknown_extensions);
     }
 
-    {
+    if (event_.has_debug_annotations()) {
       auto key = parser_->args_parser_.EnterDictionary("debug");
       for (auto it = event_.debug_annotations(); it; ++it) {
         log_errors(
@@ -1714,6 +1723,8 @@ class TrackEventEventImporter {
   ConstBytes blob_;
   TrackEvent::Decoder event_;
   LegacyEvent::Decoder legacy_event_;
+  // Built on first use; shared by every consumer of out-of-tree fields.
+  std::optional<SelectiveTrackEventDecoder> selective_decoder_;
   protos::pbzero::TrackEventDefaults::Decoder* defaults_;
 
   // Importing state.
