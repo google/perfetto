@@ -386,6 +386,24 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
     return kInvalidField;
   }
 
+  // True if the message contained at least one field with an id beyond the
+  // highest id known in-tree (typically an out-of-tree extension). Such
+  // fields are not stored here; this lets callers skip a selective re-decode
+  // via unknown_fields() when there is nothing to find.
+  bool has_out_of_range_fields() const { return has_out_of_range_fields_; }
+
+  // True if any field whose bit is set in |mask| is present. |mask| is laid
+  // out like the presence bitmap (bit i of word i / 64 for field id i) and
+  // holds |words| words; bits beyond the known field range are ignored.
+  bool HasAnyField(const uint64_t* mask, size_t words) const {
+    size_t presence_words = (num_fields_ + 63) / 64;
+    for (size_t i = 0; i < words && i < presence_words; ++i) {
+      if (presence_[i] & mask[i])
+        return true;
+    }
+    return false;
+  }
+
   // True if the field with the given id was seen while decoding: tests bit
   // |id| of the presence bitmap. The caller must check that |id| is within
   // the bitmap, i.e. <= the decoder's MAX_FIELD_ID. Note that |id| may
@@ -564,6 +582,9 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   // can grow further, up to |capacity_|.
   // |size_| is always <= |capacity_|. But |num_fields_| can be > |size_|.
   uint32_t size_;
+
+  // See has_out_of_range_fields().
+  bool has_out_of_range_fields_ = false;
 
   // Initially equal to kFieldsCapacity of the TypedProtoDecoder
   // specialization. Can grow when falling back on heap-based storage, in which

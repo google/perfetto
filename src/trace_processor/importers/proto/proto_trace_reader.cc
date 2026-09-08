@@ -319,7 +319,12 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
-  auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
+  SequenceScopedState* scoped_state = sequence_state_.Find(seq_id);
+  bool inserted = false;
+  if (PERFETTO_UNLIKELY(!scoped_state)) {
+    scoped_state = sequence_state_.Insert(seq_id, {}).first;
+    inserted = true;
+  }
   if (decoder.has_trusted_packet_sequence_id()) {
     if (!inserted) {
       if (uint32_t reasons = decoder.previous_packet_dropped(); reasons) {
@@ -434,7 +439,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     ParseTraceConfig(decoder.trace_config());
   }
 
-  return TimestampTokenizeAndPushToSorter(std::move(packet));
+  return TimestampTokenizeAndPushToSorter(decoder, std::move(packet));
 }
 
 ProtoTraceReader::ClockResolution ProtoTraceReader::ResolveTimestampToTraceTime(
@@ -468,7 +473,12 @@ ProtoTraceReader::ClockResolution ProtoTraceReader::ResolveTimestampToTraceTime(
 base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
+  return TimestampTokenizeAndPushToSorter(decoder, std::move(packet));
+}
 
+base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    TraceBlobView packet) {
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto* state = GetIncrementalStateForPacketSequence(seq_id);
 
