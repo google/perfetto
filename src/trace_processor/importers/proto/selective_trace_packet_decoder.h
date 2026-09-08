@@ -165,9 +165,16 @@ class SelectiveTracePacketDecoder {
   bool has_compressed_packets() const {
     return decoder_.at<TracePacket::kCompressedPacketsFieldNumber>().valid();
   }
+  protozero::ConstBytes compressed_packets() const {
+    return decoder_.at<TracePacket::kCompressedPacketsFieldNumber>().as_bytes();
+  }
   bool has_zstd_compressed_packets() const {
     return decoder_.at<TracePacket::kZstdCompressedPacketsFieldNumber>()
         .valid();
+  }
+  protozero::ConstBytes zstd_compressed_packets() const {
+    return decoder_.at<TracePacket::kZstdCompressedPacketsFieldNumber>()
+        .as_bytes();
   }
   bool has_synchronization_marker() const {
     return decoder_.at<TracePacket::kSynchronizationMarkerFieldNumber>()
