@@ -253,5 +253,49 @@ TEST(HeapGraphTrackerTest, NumberOfArray) {
       0u);
 }
 
+TEST(HeapGraphTrackerTest, InsertObjectDiscriminators) {
+  TraceStorage storage;
+  GlobalStatsTracker stats_tracker(&storage);
+  HeapGraphTracker tracker(&storage, &stats_tracker);
+
+  tables::HeapGraphClassTable::Id class_id(1);
+  using ObjectRowNumber = tables::HeapGraphObjectTable::RowNumber;
+
+  StringId cid_field = storage.InternString("$cid");
+  StringId cid2_field = storage.InternString("$cid2");
+
+  std::vector<HeapGraphTracker::MergedClassDiscriminator> d1 = {
+      {cid_field, 1},
+  };
+  std::vector<HeapGraphTracker::MergedClassDiscriminator> d2 = {
+      {cid_field, 2},
+      {cid2_field, 5},
+  };
+
+  tracker.InsertObjectDiscriminators(class_id, ObjectRowNumber(10),
+                                     std::move(d1));
+  tracker.InsertObjectDiscriminators(class_id, ObjectRowNumber(20),
+                                     std::move(d2));
+
+  const auto* objects = tracker.ObjectsForMergedClass(class_id);
+  ASSERT_NE(objects, nullptr);
+  ASSERT_EQ(objects->size(), 2u);
+
+  EXPECT_EQ((*objects)[0].row_number, ObjectRowNumber(10));
+  ASSERT_EQ((*objects)[0].discriminators.size(), 1u);
+  EXPECT_EQ((*objects)[0].discriminators[0].field_name, cid_field);
+  EXPECT_EQ((*objects)[0].discriminators[0].value, 1);
+
+  EXPECT_EQ((*objects)[1].row_number, ObjectRowNumber(20));
+  ASSERT_EQ((*objects)[1].discriminators.size(), 2u);
+  EXPECT_EQ((*objects)[1].discriminators[0].field_name, cid_field);
+  EXPECT_EQ((*objects)[1].discriminators[0].value, 2);
+  EXPECT_EQ((*objects)[1].discriminators[1].field_name, cid2_field);
+  EXPECT_EQ((*objects)[1].discriminators[1].value, 5);
+
+  tracker.ClearDisambiguatedObjects();
+  EXPECT_EQ(tracker.ObjectsForMergedClass(class_id), nullptr);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

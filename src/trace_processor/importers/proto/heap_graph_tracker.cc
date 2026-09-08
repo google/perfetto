@@ -1125,6 +1125,16 @@ StringId HeapGraphTracker::InternTypeKindString(
   return type_kind_string_ids_[idx];
 }
 
+void HeapGraphTracker::InsertObjectDiscriminators(
+    tables::HeapGraphClassTable::Id class_id,
+    tables::HeapGraphObjectTable::RowNumber row,
+    std::vector<MergedClassDiscriminator> discriminators) {
+  if (!discriminators.empty()) {
+    class_to_disambiguated_objects_[class_id].push_back(
+        {row, std::move(discriminators)});
+  }
+}
+
 HeapGraphTracker::~HeapGraphTracker() = default;
 
 }  // namespace perfetto::trace_processor
