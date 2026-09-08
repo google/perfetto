@@ -53,6 +53,8 @@ void RegisterDefaultModules(ProtoImporterModuleContext* module_context,
       new ChromeSystemProbesModule(module_context, context));
   module_context->modules.emplace_back(
       new MetadataMinimalModule(module_context, context));
+  module_context->metadata_minimal_module =
+      static_cast<MetadataMinimalModule*>(module_context->modules.back().get());
 }
 
 }  // namespace perfetto::trace_processor

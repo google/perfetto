@@ -74,7 +74,7 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
 }
 
 std::optional<TraceBlobView> ProtoVmIncrementalTracing::TryProcessPatch(
-    const protos::pbzero::TracePacket::Decoder& patch,
+    const SelectiveTracePacketDecoder& patch,
     const TraceBlobView& packet) {
   if (PERFETTO_UNLIKELY(!patch.has_trusted_packet_sequence_id())) {
     return std::nullopt;
@@ -100,7 +100,7 @@ std::optional<TraceBlobView> ProtoVmIncrementalTracing::TryProcessPatch(
 
 TraceBlobView ProtoVmIncrementalTracing::SerializeIncrementalState(
     const protovm::Vm& vm,
-    const protos::pbzero::TracePacket::Decoder& patch) const {
+    const SelectiveTracePacketDecoder& patch) const {
   return context_->blob_packet_writer->WritePacket(
       [&](protos::pbzero::TracePacket* proto) {
         vm.SerializeIncrementalState(proto);
