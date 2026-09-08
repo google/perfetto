@@ -290,9 +290,6 @@ TrackEventParser::TrackEventParser(
         return std::nullopt;
       });
 
-  for (uint16_t index : kReflectFields) {
-    reflect_fields_.push_back(index);
-  }
   extension_parser_context_->parsers.emplace_back(
       std::make_unique<TrackEventArgFieldParser>(
           extension_parser_context_, context,
@@ -466,6 +463,14 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
+}
+
+std::optional<uint32_t> TrackEventParser::TrackEventDescriptorIdx() {
+  if (!track_event_descriptor_idx_) {
+    track_event_descriptor_idx_ = context_->descriptor_pool_->FindDescriptorIdx(
+        ".perfetto.protos.TrackEvent");
+  }
+  return track_event_descriptor_idx_;
 }
 
 void TrackEventParser::AddActiveProcess(int64_t packet_timestamp, int32_t pid) {

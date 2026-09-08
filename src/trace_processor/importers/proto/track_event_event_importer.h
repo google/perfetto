@@ -102,30 +102,6 @@ using protozero::ConstBytes;
 constexpr int64_t kPendingThreadDuration = -1;
 constexpr int64_t kPendingThreadInstructionDelta = -1;
 
-// The in-tree TrackEvent fields imported as args rather than into the row:
-// see TrackEventEventImporter::ParseTrackEventArgs.
-using TrackEvent = protos::pbzero::TrackEvent;
-constexpr protozero::SelectiveDecodeMask<
-    TrackEvent::kTaskExecutionFieldNumber,
-    TrackEvent::kLogMessageFieldNumber,
-    TrackEvent::kCcSchedulerStateFieldNumber,
-    TrackEvent::kChromeUserEventFieldNumber,
-    TrackEvent::kChromeKeyedServiceFieldNumber,
-    TrackEvent::kChromeLegacyIpcFieldNumber,
-    TrackEvent::kChromeHistogramSampleFieldNumber,
-    TrackEvent::kChromeLatencyInfoFieldNumber,
-    TrackEvent::kSourceLocationFieldNumber,
-    TrackEvent::kSourceLocationIidFieldNumber,
-    TrackEvent::kChromeMessagePumpFieldNumber,
-    TrackEvent::kChromeMojoEventInfoFieldNumber,
-    TrackEvent::kChromeApplicationStateInfoFieldNumber,
-    TrackEvent::kChromeRendererSchedulerStateFieldNumber,
-    TrackEvent::kChromeWindowHandleEventInfoFieldNumber,
-    TrackEvent::kChromeActiveProcessesFieldNumber,
-    TrackEvent::kScreenshotFieldNumber>
-    kArgFields{};
-constexpr size_t kArgFieldsWords = decltype(kArgFields)::kMaxFieldId / 64 + 1;
-
 inline TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
   switch (phase) {
     case 'b':
@@ -1260,13 +1236,6 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
-  const SelectiveTrackEventDecoder& selective_decoder() {
-    if (!selective_decoder_) {
-      selective_decoder_.emplace(blob_);
-    }
-    return *selective_decoder_;
-  }
-
   using RowKind = TrackEventFieldContext::RowKind;
 
   void ParseSliceArgs(BoundInserter* inserter) {
@@ -1280,10 +1249,10 @@ class TrackEventEventImporter {
   }
 
   // Adds the event's args to |inserter| and dispatches every field that is
-  // imported as args rather than into the row to the parser registered for
-  // it, then reflects the event into the args table unless a parser claimed
-  // its field. |inserter| is null for a row that takes no args, in which
-  // case only the parsers run.
+  // imported as args rather than into the row: each goes to the parser
+  // registered for it, then is reflected into the args table unless that
+  // parser claimed it. |inserter| is null for a row that takes no args, in
+  // which case only the parsers run.
   void ParseTrackEventArgs(BoundInserter* inserter,
                            RowKind row_kind,
                            uint32_t row_id) {
@@ -1331,41 +1300,34 @@ class TrackEventEventImporter {
     field_context_.row_id = row_id;
     field_context_.args = inserter;
 
-    bool reflect = true;
-    auto dispatch = [&](const protozero::Field& field) {
-      TrackEventExtensionParser* p = parser_->ParserForField(field.id());
-      if (p && p->OnTrackEventField(TrackEventExtensionField(field),
-                                    field_context_) ==
-                   TrackEventExtensionParser::Result::kHandled) {
-        reflect = false;
-      }
-    };
-    if (event_.HasAnyField(kArgFields.data(), kArgFieldsWords)) {
-      for (uint32_t id = 0; id <= decltype(kArgFields)::kMaxFieldId; ++id) {
-        if (kArgFields.contains(id) && event_.HasField(id)) {
-          dispatch(event_.Get(id));
+    int unknown_extensions = 0;
+    std::optional<uint32_t> track_event_idx =
+        parser_->TrackEventDescriptorIdx();
+    util::ProtoToArgsParser::RepeatedFieldIndex repeated_field_index;
+    // Every field that is not part of the event itself is an arg field or
+    // an extension, in wire order: each goes to its parser, then is reflected
+    // unless the parser claimed it.
+    for (const protozero::Field& field : event_.unknown_fields()) {
+      if (TrackEventExtensionParser* p = parser_->ParserForField(field.id())) {
+        if (p->OnTrackEventField(TrackEventExtensionField(field),
+                                 field_context_) ==
+            TrackEventExtensionParser::Result::kHandled) {
+          continue;
         }
       }
-    }
-    // Extension fields are out-of-tree by definition.
-    if (event_.has_out_of_range_fields()) {
-      for (const protozero::Field& f : selective_decoder().unknown_fields()) {
-        dispatch(f);
+      if (!args_writer || !track_event_idx) {
+        continue;
       }
+      log_errors(parser_->args_parser_.ParseMessageField(
+          *track_event_idx, field, *args_writer, &unknown_extensions,
+          &repeated_field_index));
+    }
+    if (unknown_extensions > 0) {
+      context_->stats_tracker->IncrementStats(stats::unknown_extension_fields,
+                                              unknown_extensions);
     }
     if (!inserter) {
       return;
-    }
-
-    if (reflect) {
-      int unknown_extensions = 0;
-      log_errors(parser_->args_parser_.ParseMessage(
-          blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
-          *args_writer, &unknown_extensions));
-      if (unknown_extensions > 0) {
-        context_->stats_tracker->IncrementStats(stats::unknown_extension_fields,
-                                                unknown_extensions);
-      }
     }
 
     if (event_.has_debug_annotations()) {
@@ -1472,10 +1434,8 @@ class TrackEventEventImporter {
   const TrackEventData* event_data_;
   PacketSequenceStateGeneration* sequence_state_;
   ConstBytes blob_;
-  TrackEvent::Decoder event_;
+  SelectiveTrackEventDecoder event_;
   LegacyEvent::Decoder legacy_event_;
-  // Built on first use; shared by every consumer of out-of-tree fields.
-  std::optional<SelectiveTrackEventDecoder> selective_decoder_;
   protos::pbzero::TrackEventDefaults::Decoder* defaults_;
   // Handed to every field parser; the row and args are filled in per row.
   TrackEventFieldContext field_context_;

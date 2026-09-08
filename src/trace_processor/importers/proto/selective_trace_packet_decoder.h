@@ -268,8 +268,8 @@ class SelectiveTracePacketDecoder {
   }
 
  private:
-  protozero::SelectiveTypedProtoDecoder<static_cast<int>(
-      internal::TracePacketDenseMask::kMaxFieldId)>
+  protozero::SelectiveTypedProtoDecoder<protozero::TypedProtoDecoder<
+      static_cast<int>(internal::TracePacketDenseMask::kMaxFieldId)>>
       decoder_;
 };
 
