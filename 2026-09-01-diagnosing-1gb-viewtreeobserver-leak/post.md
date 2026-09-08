@@ -1,7 +1,7 @@
 ---
-title: "Diagnosing a 1 GB ViewTreeObserver Memory Leak with Perfetto"
-author: "@goldenluk"
-summary: "How a single background scrim view silently leaked nearly 1 GB of UI hierarchies in production, and how we diagnosed and fixed it using Perfetto."
+title: Diagnosing a 1 GB ViewTreeObserver Memory Leak with Perfetto
+author: @goldenluk
+summary: How a single background scrim view silently leaked nearly 1 GB of UI hierarchies in production, and how we diagnosed and fixed it using Perfetto.
 ---
 
 ## Motivation
