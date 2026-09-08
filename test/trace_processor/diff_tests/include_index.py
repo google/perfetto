@@ -117,6 +117,7 @@ from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
+from diff_tests.parser.profiling.tests_source_and_disassembly import ProfilingSourceAndDisassembly
 from diff_tests.parser.sched.tests import SchedParser
 from diff_tests.parser.simpleperf.tests import Simpleperf
 from diff_tests.parser.simpleperf_proto.tests import SimpleperfProtoParser
@@ -179,6 +180,7 @@ from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.callstacks.tests import Callstacks
 from diff_tests.stdlib.stacks.tests import Stacks
 from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
@@ -250,6 +252,7 @@ def fetch_all_diff_tests(
       ProfilingHeapGraph,
       ProfilingHeapProfiling,
       ProfilingLlvmSymbolizer,
+      ProfilingSourceAndDisassembly,
       SchedParser,
       Simpleperf,
       SimpleperfProtoParser,
@@ -363,6 +366,7 @@ def fetch_all_diff_tests(
       SpanJoinOuterJoin,
       SpanJoinRegression,
       SpanJoinSmoke,
+      Callstacks,
       Stacks,
       CreateIntervals,
       IntervalsFillGaps,

@@ -69,6 +69,11 @@ class ProfileModule : public ProtoImporterModule {
                           PacketSequenceStateGeneration*,
                           protozero::ConstBytes);
   void ParseModuleSymbols(protozero::ConstBytes);
+
+  // bundled source and disassembly:
+  void ParseSourceFile(protozero::ConstBytes);
+  void ParseModuleDisassembly(protozero::ConstBytes);
+
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
   void ParsePackedSmaps(int64_t ts, UniquePid upid, protozero::ConstBytes);
 
