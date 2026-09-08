@@ -96,8 +96,8 @@ class TrackEventSink
     : public TraceSorter::Sink<TrackEventData, TrackEventSink> {
  public:
   explicit TrackEventSink(ProtoTraceParserImpl* parser) : parser_(parser) {}
-  void Parse(int64_t ts, TrackEventData data) {
-    parser_->ParseTrackEvent(ts, std::move(data));
+  void Parse(int64_t ts, const TrackEventData& data) {
+    parser_->ParseTrackEvent(ts, data);
   }
 
  private:

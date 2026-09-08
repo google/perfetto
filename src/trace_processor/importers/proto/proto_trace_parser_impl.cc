@@ -116,7 +116,8 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   }
 }
 
-void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts, TrackEventData data) {
+void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts,
+                                           const TrackEventData& data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   module_context_->track_module->ParseTrackEventData(packet, ts, data);
