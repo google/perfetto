@@ -69,7 +69,7 @@ class VideoFrameModule : public ProtoImporterModule {
                        int64_t ts,
                        const TracePacketData& data);
   void ParseVideoFrameError(protozero::ConstBytes bytes, int64_t ts);
-  void ParseFrameTimelineEvent(protozero::ConstBytes bytes);
+  void ParseVirtualDisplayComposite(protozero::ConstBytes bytes);
 
   struct StreamInfo {
     // display_name and codec_string arrive on the codec_config packet and
