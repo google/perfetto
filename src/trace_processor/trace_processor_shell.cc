@@ -177,6 +177,8 @@ Common flags (apply to all commands):
   -m, --metatrace FILE        Enable metatracing, write to FILE.
 
 Run '%s help <command>' for per-command flags and details.
+Scripting or AI agent? Run '%s help agent' for a short guide: keeping a trace
+loaded across many queries, discovering tables and the SQL standard library.
 
 Examples:
   tp trace.pb                                       Interactive shell.
@@ -193,7 +195,79 @@ Classic interface:
   fully supported and will remain so. Existing scripts will continue to work.
   Run '%s --help-classic' to see the classic flag reference.
 )",
-         argv0, argv0, argv0);
+         argv0, argv0, argv0, argv0);
+}
+
+// Printed by `trace_processor help agent`: a compact, self-contained guide
+// to driving trace_processor from scripts and coding agents, kept in the
+// binary so it is available wherever trace_processor is, with no separate
+// install. Agents rarely open --help on their own; the parse-time tip in
+// the query subcommand is what points them here. The guided workflows
+// live in the Perfetto agent skill (see the link at the end).
+void PrintAgentGuide(const char* argv0) {
+  // Meant to be copied into scripts: show the bare program name rather than
+  // whatever absolute path this binary was invoked as.
+  const char* slash = strrchr(argv0, '/');
+  const char* name = slash ? slash + 1 : argv0;
+  printf(R"(trace_processor for scripts and AI agents
+==========================================
+
+1. Load the trace once, then run many queries against it.
+   Parsing is the slow part (seconds to minutes); a warm session pays it once.
+
+     %s server unix --name SESSION --daemonize TRACE_FILE
+     %s query --remote SESSION "SELECT ts, dur, name FROM slice LIMIT 5"
+     %s query --remote SESSION -f queries.sql        # long SQL from a file
+     %s server kill SESSION                          # when completely done
+
+   Tables and modules created in one call stay available for the next.
+   Several ';'-separated statements per call are fine; each result set is
+   printed as CSV. One-shot form (re-parses the trace every time, only for a
+   single quick question): %s query TRACE_FILE "SELECT ..."
+
+2. Discover instead of guessing.
+
+     SELECT * FROM slice LIMIT 0;                     -- exact columns of any
+                                                      -- table, view or query
+     SELECT name FROM perfetto_tables;                -- every table/view
+     SELECT qualified_name, object_type, short_description
+     FROM __intrinsic_stdlib_objects
+     WHERE exposed = 1 AND regexp('startup|launch', summary, 'i')
+     LIMIT 20;                                        -- search the stdlib
+     SELECT summary FROM __intrinsic_stdlib_objects
+     WHERE qualified_name = 'android.startup.startups.android_startups';
+                                                      -- docs for one object
+     INCLUDE PERFETTO MODULE android.startup.startups; -- then use it
+
+   The standard library (https://perfetto.dev/docs/analysis/stdlib-docs) has
+   ready-made tables for most common questions; prefer it over hand-written
+   joins on raw tables.
+
+3. Core tables: slice (anything with a duration), thread, process,
+   thread_state (Running/Runnable/Sleeping), sched (on-CPU time), counter,
+   track, args. Frequently useful modules:
+     slices.with_context      thread_slice / process_slice / thread_or_process_slice
+     sched.with_context       sched_with_thread_process
+     android.startup.startups android_startups
+     android.anrs             android_anrs
+     android.frames.timeline  android_frames
+     android.memory.heap_graph.dominator_tree   Java heap retained sizes
+     linux.cpu.frequency      cpu frequency residency
+     stacks.cpu_profiling     CPU sampling call stacks
+
+4. PerfettoSQL rules of thumb.
+   - Join on utid/upid (unique per trace), never tid/pid (recycled by the OS);
+     report thread/process names to the user, not ids.
+   - dur = -1 means the slice was still open at trace end; dur = 0 is an
+     instant event. Handle both when summing durations.
+   - Use GLOB or regexp(pattern, str, 'i') for matching, not LIKE.
+   - Aggregate (COUNT/GROUP BY/LIMIT) rather than dumping raw rows.
+
+5. More: https://perfetto.dev/docs/analysis/trace-processor (reference),
+   https://perfetto.dev/docs/getting-started/using-ai (agent skill with
+   guided Android memory and GPU workflows, plus an installable bundle).
+)",
+         name, name, name, name, name);
 }
 
 void PrintClassicUsage(char** argv) {
@@ -850,6 +924,10 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
         continue;
       if (strcmp(argv[i], "help") == 0) {
         if (i + 1 < argc) {
+          if (strcmp(argv[i + 1], "agent") == 0) {
+            PrintAgentGuide(argv[0]);
+            return base::OkStatus();
+          }
           // `help <command>` -- find the named subcommand and print its usage.
           for (auto* sc : subcommands) {
             if (strcmp(sc->name(), argv[i + 1]) == 0) {
