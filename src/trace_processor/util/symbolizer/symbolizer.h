@@ -63,6 +63,15 @@ struct SymbolizeResult {
   // attempted paths with their individual errors.
   std::vector<SymbolPathAttempt> attempts;
 
+  // The binary the symbols were read from, when symbolization used a binary
+  // on disk rather than a symbol file. Empty otherwise.
+  std::string binary_path;
+
+  // Value to add to a mapping-relative address to obtain the link-time
+  // virtual address in |binary_path|. Only meaningful when |binary_path| is
+  // set.
+  uint64_t address_correction = 0;
+
   // Returns true if symbolization produced frames.
   bool ok() const { return !frames.empty(); }
 };

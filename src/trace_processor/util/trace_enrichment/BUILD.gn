@@ -13,17 +13,49 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/test.gni")
 
 source_set("trace_enrichment") {
   sources = [
+    "disassembly.cc",
+    "disassembly.h",
+    "source_files.cc",
+    "source_files.h",
     "trace_enrichment.cc",
     "trace_enrichment.h",
   ]
   deps = [
+    "../:build_id",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
+    "../../../../include/perfetto/protozero",
     "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
     "../deobfuscation:deobfuscator",
+    "../symbolizer",
     "../symbolizer:symbolize_database",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":trace_enrichment",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/ext/base",
+    "../../../../include/perfetto/protozero",
+    "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../protos/perfetto/trace:cpp",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/profiling:cpp",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../base",
+    "../../../base:test_support",
+  ]
+  sources = [
+    "disassembly_unittest.cc",
+    "source_files_unittest.cc",
   ]
 }
