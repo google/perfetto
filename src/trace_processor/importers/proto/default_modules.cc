@@ -22,12 +22,16 @@
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h"
 #include "src/trace_processor/importers/proto/metadata_minimal_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/tracing_service_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 
 namespace perfetto::trace_processor {
 
 void RegisterDefaultModules(ProtoImporterModuleContext* module_context,
                             TraceProcessorContext* context) {
+  module_context->modules.emplace_back(
+      new TracingServiceModule(module_context, context));
+
   // Ftrace and Etw modules are special, because they have an extra method for
   // parsing the ftrace/etw packets. So we need to store a pointer to it
   // separately.

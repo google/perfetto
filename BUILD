@@ -3356,6 +3356,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/selective_track_event_decoder.h",
         "src/trace_processor/importers/proto/stack_profile_sequence_state.cc",
         "src/trace_processor/importers/proto/stack_profile_sequence_state.h",
+        "src/trace_processor/importers/proto/tracing_service_module.cc",
+        "src/trace_processor/importers/proto/tracing_service_module.h",
         "src/trace_processor/importers/proto/track_event_event_importer.h",
         "src/trace_processor/importers/proto/track_event_extension_parser.cc",
         "src/trace_processor/importers/proto/track_event_extension_parser.h",

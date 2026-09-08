@@ -129,7 +129,6 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::Status TimestampTokenizeAndPushToSorter(
       const protos::pbzero::TracePacket_Decoder&,
       TraceBlobView);
-  base::Status ParseServiceEvent(int64_t ts, ConstBytes);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);
 
@@ -164,7 +163,6 @@ class ProtoTraceReader : public ChunkedTraceReader {
     }
     return &*builder;
   }
-  base::Status ParseExtensionDescriptor(ConstBytes descriptor);
 
   TraceProcessorContext* context_;
   ProtoTraceTokenizer tokenizer_;

@@ -61,7 +61,6 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -71,8 +70,6 @@
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
-#include "protos/perfetto/trace/extension_descriptor.pbzero.h"
-#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -237,37 +234,6 @@ base::Status ProtoTraceReader::Parse(TraceBlobView blob) {
   });
 }
 
-base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
-  protos::pbzero::ExtensionDescriptor::Decoder decoder(descriptor.data,
-                                                       descriptor.size);
-
-  const uint8_t* data = nullptr;
-  size_t size = 0;
-  std::optional<util::DecompressedBuffer> decompressed;
-  if (decoder.has_extension_set()) {
-    auto extension = decoder.extension_set();
-    data = extension.data;
-    size = extension.size;
-  } else if (decoder.has_extension_set_gzip()) {
-    auto gzipped = decoder.extension_set_gzip();
-    decompressed = util::DecompressToBuffer(util::CompressionType::kGzip,
-                                            gzipped.data, gzipped.size);
-    if (!decompressed || decompressed->size == 0) {
-      return base::ErrStatus(
-          "Failed to decompress gzipped extension descriptor (ERR:tp-corrupt)");
-    }
-    data = decompressed->data.get();
-    size = decompressed->size;
-  } else {
-    return base::OkStatus();
-  }
-
-  return context_->descriptor_pool_->AddFromFileDescriptorSet(
-      data, size,
-      /*skip_prefixes*/ {},
-      /*merge_existing_messages=*/true);
-}
-
 base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
   if (PERFETTO_UNLIKELY(decoder.bytes_left())) {
@@ -374,29 +340,6 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   if (decoder.has_remote_clock_sync()) {
     PERFETTO_DCHECK(!is_machine_dispatcher_);
     return ParseRemoteClockSync(decoder.remote_clock_sync());
-  }
-
-  if (decoder.has_service_event()) {
-    PERFETTO_DCHECK(decoder.has_timestamp());
-    int64_t ts = static_cast<int64_t>(decoder.timestamp());
-    // TracingServiceImpl always stamps lifecycle events with GetBootTimeNs(),
-    // so these timestamps are BOOTTIME regardless of primary_trace_clock.
-    // Convert explicitly: this path bypasses the generic timestamp conversion.
-    // If the conversion fails (e.g. clock snapshotting was disabled), keep
-    // the raw value, which is trace time in that case.
-    uint32_t timestamp_clock_id = decoder.has_timestamp_clock_id()
-                                      ? decoder.timestamp_clock_id()
-                                      : protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
-    if (auto trace_ts = context_->clock_tracker->ToTraceTime(
-            ClockId::Machine(timestamp_clock_id), ts, packet.offset(),
-            /*suppress_errors=*/true)) {
-      ts = *trace_ts;
-    }
-    return ParseServiceEvent(ts, decoder.service_event());
-  }
-
-  if (decoder.has_extension_descriptor()) {
-    return ParseExtensionDescriptor(decoder.extension_descriptor());
   }
 
   auto* state = GetIncrementalStateForPacketSequence(seq_id);
@@ -1038,54 +981,6 @@ ProtoTraceReader::CalculateClockOffsets(
   }
 
   return clock_offsets;
-}
-
-base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::TracingServiceEvent::Decoder tse(blob);
-  if (tse.tracing_started()) {
-    context_->metadata_tracker->SetMetadata(metadata::tracing_started_ns,
-                                            Variadic::Integer(ts));
-  }
-  if (tse.tracing_disabled()) {
-    context_->metadata_tracker->SetMetadata(metadata::tracing_disabled_ns,
-                                            Variadic::Integer(ts));
-  }
-  if (tse.all_data_sources_started()) {
-    context_->metadata_tracker->SetMetadata(
-        metadata::all_data_source_started_ns, Variadic::Integer(ts));
-  }
-  if (tse.all_data_sources_flushed()) {
-    context_->metadata_tracker->AppendMetadata(
-        metadata::all_data_source_flushed_ns, Variadic::Integer(ts));
-    context_->sorter->NotifyFlushEvent();
-  }
-  if (tse.read_tracing_buffers_completed()) {
-    context_->sorter->NotifyReadBufferEvent();
-  }
-  if (tse.has_slow_starting_data_sources()) {
-    protos::pbzero::TracingServiceEvent::DataSources::Decoder msg(
-        tse.slow_starting_data_sources());
-    for (auto it = msg.data_source(); it; it++) {
-      protos::pbzero::TracingServiceEvent::DataSources::DataSource::Decoder
-          data_source(*it);
-      std::string formatted = data_source.producer_name().ToStdString() + " " +
-                              data_source.data_source_name().ToStdString();
-      context_->metadata_tracker->AppendMetadata(
-          metadata::slow_start_data_source,
-          Variadic::String(
-              context_->storage->InternString(base::StringView(formatted))));
-    }
-  }
-  if (tse.has_clone_started()) {
-    context_->stats_tracker->SetStats(stats::traced_clone_started_timestamp_ns,
-                                      ts);
-  }
-  if (tse.has_buffer_cloned()) {
-    context_->stats_tracker->SetIndexedStats(
-        stats::traced_buf_clone_done_timestamp_ns,
-        static_cast<int>(tse.buffer_cloned()), ts);
-  }
-  return base::OkStatus();
 }
 
 void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
