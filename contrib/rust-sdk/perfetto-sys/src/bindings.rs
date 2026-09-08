@@ -144,6 +144,15 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn PerfettoDsFlushDone(arg1: *mut PerfettoDsAsyncFlusher);
 }
+pub const PerfettoDsFlushReason_PERFETTO_DS_FLUSH_REASON_UNKNOWN: PerfettoDsFlushReason = 0;
+pub const PerfettoDsFlushReason_PERFETTO_DS_FLUSH_REASON_PERIODIC: PerfettoDsFlushReason = 1;
+pub const PerfettoDsFlushReason_PERFETTO_DS_FLUSH_REASON_TRACE_STOP: PerfettoDsFlushReason = 2;
+pub const PerfettoDsFlushReason_PERFETTO_DS_FLUSH_REASON_TRACE_CLONE: PerfettoDsFlushReason = 3;
+pub const PerfettoDsFlushReason_PERFETTO_DS_FLUSH_REASON_EXPLICIT: PerfettoDsFlushReason = 4;
+pub type PerfettoDsFlushReason = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn PerfettoDsOnFlushArgsGetReason(args: *mut PerfettoDsOnFlushArgs) -> u64;
+}
 pub type PerfettoDsOnFlushCb = ::std::option::Option<
     unsafe extern "C" fn(
         arg1: *mut PerfettoDsImpl,

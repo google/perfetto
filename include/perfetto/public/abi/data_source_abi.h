@@ -127,6 +127,7 @@ typedef void (*PerfettoDsOnDestroyCb)(struct PerfettoDsImpl*,
                                       void* inst_ctx);
 
 // Opaque handle used to perform operations from the OnFlush callback.
+// Pointers to this struct are valid only during the OnFlush callback.
 struct PerfettoDsOnFlushArgs;
 
 // Opaque handle used to signal when the data source flush operation is
@@ -143,6 +144,22 @@ PerfettoDsOnFlushArgsPostpone(struct PerfettoDsOnFlushArgs*);
 // source instance (whose stop operation was previously postponed with
 // PerfettoDsOnFlushArgsPostpone).
 PERFETTO_SDK_EXPORT void PerfettoDsFlushDone(struct PerfettoDsAsyncFlusher*);
+
+// Reason for the flush operation.
+// Mirrors `perfetto::FlushFlags::Reason` in
+// `perfetto/tracing/core/flush_flags.h`. Keep this enum aligned with it.
+enum PerfettoDsFlushReason {
+  PERFETTO_DS_FLUSH_REASON_UNKNOWN = 0,
+  PERFETTO_DS_FLUSH_REASON_PERIODIC = 1,
+  PERFETTO_DS_FLUSH_REASON_TRACE_STOP = 2,
+  PERFETTO_DS_FLUSH_REASON_TRACE_CLONE = 3,
+  PERFETTO_DS_FLUSH_REASON_EXPLICIT = 4,
+};
+
+// Returns the reason for the flush operation (see enum PerfettoDsFlushReason).
+// `args` is valid only during the OnFlush callback.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsOnFlushArgsGetReason(struct PerfettoDsOnFlushArgs* args);
 
 // Called when the tracing service requires all the pending tracing data to be
 // flushed for a data source instance. `user_arg` is the value passed to
