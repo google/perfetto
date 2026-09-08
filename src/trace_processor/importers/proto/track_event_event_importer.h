@@ -1366,9 +1366,21 @@ class TrackEventEventImporter {
       if (!inserter || !track_event_idx) {
         continue;
       }
+      auto cache_key = parser_->args_parser_.CacheKey(*track_event_idx, field);
+      if (cache_key &&
+          inserter->AddMemoizedMessage(*cache_key, field.as_bytes())) {
+        continue;
+      }
+      bool cacheable = false;
+      if (cache_key) {
+        inserter->BeginMessage();
+      }
       log_errors(parser_->args_parser_.ParseMessageField(
           *track_event_idx, field, writer(), &unknown_extensions,
-          &repeated_field_index));
+          &repeated_field_index, &cacheable));
+      if (cache_key) {
+        inserter->EndMessage(*cache_key, field.as_bytes(), cacheable);
+      }
     }
     if (unknown_extensions > 0) {
       context_->stats_tracker->IncrementStats(stats::unknown_extension_fields,

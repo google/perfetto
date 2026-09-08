@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -255,12 +256,23 @@ class ProtoToArgsParser {
   // |unknown_extensions|. A caller parsing several fields of one message
   // passes the same |repeated_field_index| to each call so that the
   // occurrences of a repeated field are numbered across them.
+  // |cacheable| is set to true for schema-certified scalar messages with
+  // no unknown fields, whose args depend only on the message bytes.
   base::Status ParseMessageField(
       uint32_t descriptor_idx,
       const protozero::Field& field,
       Delegate& delegate,
       int* unknown_extensions = nullptr,
-      RepeatedFieldIndex* repeated_field_index = nullptr);
+      RepeatedFieldIndex* repeated_field_index = nullptr,
+      bool* cacheable = nullptr);
+
+  // Shared descriptor identity and output prefix; never parser-local IDs.
+  using MessageCacheKey = std::array<uint32_t, 4>;
+
+  // Identifies schema-certified scalar fields eligible for memoization.
+  // Cache only results that ParseMessageField reports as cacheable.
+  std::optional<MessageCacheKey> CacheKey(uint32_t descriptor_idx,
+                                          const protozero::Field& field);
 
   // These methods can be called from parsing overrides to enter nested
   // contexts. The contexts are left when the returned scope is destroyed or
@@ -487,6 +499,9 @@ class ProtoToArgsParser {
   };
   std::vector<NestedKeyValue> nv_nested_storage_;
   bool debug_annotation_enabled_ = false;
+  // The (message type, field id) edge CacheKey resolved last and its node.
+  uint64_t cache_key_cache_edge_ = std::numeric_limits<uint64_t>::max();
+  uint32_t cache_key_cache_node_ = kNoPath;
 };
 
 }  // namespace util

@@ -17,8 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <vector>
 
@@ -81,6 +85,22 @@ class GlobalArgsTracker {
     return AddArgSet(args + begin, args + end, sizeof(CompactArg));
   }
 
+  // Descriptor index, field number, descriptor generation, output prefix.
+  using MessageKey = std::array<uint32_t, 4>;
+
+  // An arg set committed from the args of exactly one message, remembered by
+  // the message's key and bytes so a repeated message reuses its args and set
+  // id without being parsed or hashed again.
+  struct MessageArgSet {
+    MessageKey key{};
+    std::vector<uint8_t> bytes;
+    std::vector<CompactArg> args;
+    ArgSetId set_id = 0;
+    // Whether `args` need translation, resolved on first use; it depends
+    // only on the args so it holds for every reuse of the set.
+    std::optional<bool> needs_translation;
+  };
+
   // Reusable accumulation buffer for one ArgsInserter, recycled via the pool
   // below so short-lived inserters don't churn allocations.
   struct ArgsBuffer {
@@ -89,11 +109,24 @@ class GlobalArgsTracker {
     // `args` is cheaper than a hash lookup.
     base::FlatHashMap<StringId, uint32_t> key_index;
     base::FlatHashMap<StringId, size_t> array_indexes;
+    // Set while `args` are exactly those of one message, identified by
+    // `message_key` and `message_bytes` (see ArgsInserter::AddMemoizedMessage);
+    // `message_set_id` is that message's arg set if it is already known.
+    bool from_message = false;
+    MessageKey message_key{};
+    std::vector<uint8_t> message_bytes;
+    std::optional<ArgSetId> message_set_id;
+    size_t message_start = 0;
+    std::optional<bool> message_needs_translation;
 
     void Reset() {
       args.clear();
       key_index.Clear();
       array_indexes.Clear();
+      from_message = false;
+      message_bytes.clear();
+      message_set_id.reset();
+      message_needs_translation.reset();
     }
   };
 
@@ -222,8 +255,49 @@ class GlobalArgsTracker {
     return arg_set_id;
   }
 
+  static constexpr uint32_t kMessageArgSetSlotBits = 12;
+  static constexpr size_t kMessageArgSetSlots = 1u << kMessageArgSetSlotBits;
+  static size_t MessageArgSetSlot(const MessageKey& key,
+                                  const uint8_t* data,
+                                  size_t n) {
+    return base::MurmurHashCombine(
+               key[0], key[1], key[2], key[3],
+               base::StringView(reinterpret_cast<const char*>(data), n)) >>
+           (64 - kMessageArgSetSlotBits);
+  }
+  MessageArgSet* FindMessageArgSet(const MessageKey& key,
+                                   const uint8_t* data,
+                                   size_t n) {
+    if (message_arg_sets_.empty()) {
+      return nullptr;
+    }
+    MessageArgSet& set = message_arg_sets_[MessageArgSetSlot(key, data, n)];
+    if (set.key != key || set.bytes.size() != n ||
+        memcmp(set.bytes.data(), data, n) != 0) {
+      return nullptr;
+    }
+    return &set;
+  }
+  void RememberMessageArgSet(const MessageKey& key,
+                             const std::vector<uint8_t>& bytes,
+                             const std::vector<CompactArg>& args,
+                             ArgSetId set_id,
+                             std::optional<bool> needs_translation) {
+    if (message_arg_sets_.empty()) {
+      message_arg_sets_.resize(kMessageArgSetSlots);
+    }
+    MessageArgSet& set =
+        message_arg_sets_[MessageArgSetSlot(key, bytes.data(), bytes.size())];
+    set.key = key;
+    set.bytes = bytes;
+    set.args = args;
+    set.set_id = set_id;
+    set.needs_translation = needs_translation;
+  }
+
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
       arg_row_for_hash_;
+  std::vector<MessageArgSet> message_arg_sets_;
 
   // Pool of ArgsInserter buffers: `buffer_storage_` owns them, `free_buffers_`
   // lists those available for reuse.
