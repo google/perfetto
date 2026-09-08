@@ -183,6 +183,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_memory_snapshot_node_table());
     AddDataframe(out, s->mutable_experimental_proto_path_table());
     AddDataframe(out, s->mutable_arg_table());
+    AddDataframe(out, s->mutable_arg_annotation_table());
     AddDataframe(out, s->mutable_heap_graph_object_table());
     AddDataframe(out, s->mutable_heap_graph_primitive_table());
     AddDataframe(out, s->mutable_heap_graph_object_data_table());

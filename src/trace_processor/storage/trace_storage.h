@@ -444,6 +444,12 @@ class TraceStorage {
   tables::ArgTable* mutable_arg_table() {
     return mutable_table<tables::ArgTable>();
   }
+  const tables::ArgAnnotationTable& arg_annotation_table() const {
+    return table<tables::ArgAnnotationTable>();
+  }
+  tables::ArgAnnotationTable* mutable_arg_annotation_table() {
+    return mutable_table<tables::ArgAnnotationTable>();
+  }
 
   const tables::ChromeRawTable& chrome_raw_table() const {
     return table<tables::ChromeRawTable>();

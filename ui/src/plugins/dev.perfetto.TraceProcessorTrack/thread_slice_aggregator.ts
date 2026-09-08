@@ -447,15 +447,49 @@ export class ThreadSliceAggregator implements Aggregator {
             },
           },
           args: {
-            expression: (alias, key) =>
-              `extract_arg(${alias}.arg_set_id, '${key}')`,
+            expression: (alias, key = '') => {
+              const set = `${alias}.arg_set_id`;
+              // An (is_pid)/(is_tid) arg exposes a companion *_process_name /
+              // *_thread_name key resolved from the annotated upid/utid.
+              for (const [vt, table, suffix] of [
+                ['upid', 'process', 'process_name'],
+                ['utid', 'thread', 'thread_name'],
+              ] as const) {
+                if (key.endsWith(suffix)) {
+                  const idKey = key.slice(0, -suffix.length) + vt;
+                  return (
+                    `COALESCE((SELECT r.name FROM ${table} r JOIN args a` +
+                    ` ON a.arg_set_id = ${set} AND a.key = '${idKey}'` +
+                    ` JOIN arg_annotation an` +
+                    ` ON an.key = a.key AND an.annotation = '${vt}'` +
+                    ` WHERE r.${vt} = a.int_value),` +
+                    ` extract_arg(${set}, '${key}'))`
+                  );
+                }
+              }
+              return `extract_arg(${set}, '${key}')`;
+            },
             parameterized: true,
             parameterKeysQuery: (tableOrSubquery, alias) => `
-                SELECT DISTINCT args.key
-                FROM (${tableOrSubquery}) AS ${alias}
-                JOIN args ON args.arg_set_id = ${alias}.arg_set_id
-                WHERE args.key IS NOT NULL
-                ORDER BY args.key
+                SELECT DISTINCT key FROM (
+                  SELECT args.key AS key
+                  FROM (${tableOrSubquery}) AS ${alias}
+                  JOIN args ON args.arg_set_id = ${alias}.arg_set_id
+                  WHERE args.key IS NOT NULL
+                  UNION ALL
+                  SELECT CASE an.annotation
+                    WHEN 'upid'
+                      THEN substr(an.key, 1, length(an.key) - 4) || 'process_name'
+                    WHEN 'utid'
+                      THEN substr(an.key, 1, length(an.key) - 4) || 'thread_name'
+                  END AS key
+                  FROM (${tableOrSubquery}) AS ${alias}
+                  JOIN args ON args.arg_set_id = ${alias}.arg_set_id
+                  JOIN arg_annotation an ON an.key = args.key
+                  WHERE an.annotation IN ('upid', 'utid')
+                )
+                WHERE key IS NOT NULL
+                ORDER BY key
                 LIMIT 1000
               `,
           },

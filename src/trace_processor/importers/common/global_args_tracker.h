@@ -52,6 +52,7 @@ class GlobalArgsTracker {
     StringId key = kNullStringId;
     Variadic value = Variadic::Integer(0);
     UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate;
+    StringId annotation = kNullStringId;
   };
   static_assert(std::is_trivially_destructible<CompactArg>::value,
                 "Args must be trivially destructible");
@@ -218,12 +219,27 @@ class GlobalArgsTracker {
       }
       row.value_type = storage_->GetIdForVariadicType(arg.value.type);
       arg_table.Insert(row);
+      // An annotation is a property of the key, so record each (key,
+      // annotation) once rather than per arg set.
+      if (!arg.annotation.is_null()) {
+        uint64_t dedup = (static_cast<uint64_t>(arg.key.raw_id()) << 32) |
+                         arg.annotation.raw_id();
+        if (seen_annotations_.Insert(dedup, true).second) {
+          tables::ArgAnnotationTable::Row annotation;
+          annotation.key = arg.key;
+          annotation.annotation = arg.annotation;
+          storage_->mutable_arg_annotation_table()->Insert(annotation);
+        }
+      }
     }
     return arg_set_id;
   }
 
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
       arg_row_for_hash_;
+
+  // (key << 32 | annotation) StringIds already written to arg_annotation.
+  base::FlatHashMap<uint64_t, bool> seen_annotations_;
 
   // Pool of ArgsInserter buffers: `buffer_storage_` owns them, `free_buffers_`
   // lists those available for reuse.

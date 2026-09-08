@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/core/plugin/plugin.h"
@@ -220,13 +221,46 @@ void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   args_cursor.SetFilterValueUnchecked(0, arg_set_id);
   args_cursor.Execute();
 
+  StringId upid_ann = storage->InternString("upid");
+  StringId utid_ann = storage->InternString("utid");
+  // arg_annotation is keyed by arg key, so load it once and reuse.
+  auto& annotation_by_key = user_data->annotation_by_key;
+  if (!user_data->annotations_loaded) {
+    auto& annotation_cursor = user_data->annotation_cursor;
+    annotation_cursor.Execute();
+    for (; !annotation_cursor.Eof(); annotation_cursor.Next()) {
+      annotation_by_key.Insert(annotation_cursor.key(),
+                               annotation_cursor.annotation());
+    }
+    user_data->annotations_loaded = true;
+  }
+
   // Reuse arg_set - clear but retain capacity
   arg_set.Clear();
   for (; !args_cursor.Eof(); args_cursor.Next()) {
-    const auto result = arg_set.AppendArg(storage->GetString(args_cursor.key()),
-                                          GetArgValue(*storage, args_cursor));
-    if (!result.ok()) {
-      return sqlite::result::Error(ctx, result.c_message());
+    NullTermStringView key = storage->GetString(args_cursor.key());
+    Variadic v = GetArgValue(*storage, args_cursor);
+    if (auto r = arg_set.AppendArg(key, v); !r.ok()) {
+      return sqlite::result::Error(ctx, r.c_message());
+    }
+    // A upid/utid arg also emits a companion process/thread name.
+    const StringId* ann = annotation_by_key.Find(args_cursor.key());
+    if (ann != nullptr && (*ann == upid_ann || *ann == utid_ann)) {
+      bool is_upid = *ann == upid_ann;
+      auto id = static_cast<uint32_t>(v.int_value);
+      StringId name =
+          is_upid ? storage->process_table()[id].name().value_or(kNullStringId)
+                  : storage->thread_table()[id].name().value_or(kNullStringId);
+      if (!name.is_null()) {
+        std::string k = key.ToStdString();
+        std::string name_key = k.substr(0, k.size() - 4) +
+                               (is_upid ? "process_name" : "thread_name");
+        if (auto r = arg_set.AppendArg(NullTermStringView(name_key),
+                                       Variadic::String(name));
+            !r.ok()) {
+          return sqlite::result::Error(ctx, r.c_message());
+        }
+      }
     }
   }
 

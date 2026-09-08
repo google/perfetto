@@ -657,6 +657,36 @@ FTRACE_EVENT_TABLE = Table(
                 ''',
         }))
 
+ARG_ANNOTATION_TABLE = Table(
+    python_module=__file__,
+    class_name='ArgAnnotationTable',
+    sql_name='__intrinsic_arg_annotation',
+    columns=[
+        C(
+            'key',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'annotation',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    wrapping_sql_view=WrappingSqlView(
+        view_name='__intrinsic_arg_annotation_view'),
+    tabledoc=TableDoc(
+        doc="""Semantic annotations on arg keys, joined to args by key. An
+        annotation is a property of the key, so it is stored once no matter how
+        many arg sets use the key. A key may have several (e.g. 'upid').""",
+        group='Misc',
+        columns={
+            'key': 'The key of the annotated arg.',
+            'annotation': "The annotation (e.g. 'upid', 'utid').",
+        }))
+
 ARG_TABLE = Table(
     python_module=__file__,
     class_name='ArgTable',
@@ -1139,6 +1169,7 @@ TRACE_IMPORT_LOGS_TABLE = Table(
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
+    ARG_ANNOTATION_TABLE,
     BUILD_FLAGS_TABLE,
     CHROME_RAW_TABLE,
     CLOCK_SNAPSHOT_TABLE,
