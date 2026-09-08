@@ -4,8 +4,9 @@ Answers one question with data: when a coding agent is asked to debug a
 performance problem with a trace, does a given change (to the skill, to
 what `trace_processor` prints, to the docs) make it do a better job, and
 at what cost? Reading a skill tells you whether it looks right; only
-running an agent against it tells you whether it helps. Round-one
-findings are in [REPORT.md](REPORT.md).
+running an agent against it tells you whether it helps. What the first
+rounds found, and how it shaped the skill, is summarised in
+[`ai/skills/README.md`](../skills/README.md#design-choices-and-the-evidence-behind-them).
 
 ## How a trial works
 
@@ -97,10 +98,31 @@ ai/evals/
   setup_assets.py       builds the out-of-tree assets conditions refer to
   conditions.json       named conditions (plugin dirs, PATH entries, env)
   cases/<id>/prompt.md  frontmatter (files to stage, runs, tags) + prompt
+                        (tags are free-form; see below for the ones in use)
   cases/<id>/graders/   one grader per file: regex | bash | tool_used |
                         file_exists | llm  (scored: false = indicator only)
   results/<name>/       transcripts, answers, grading, reports (gitignored)
 ```
+
+### Tags
+
+Tags exist only so `--tag` / `--exclude-tag` can select a subset of
+cases; they carry no meaning for grading. The ones in use:
+
+- **Domain**: `android`, `gpu`, `cpu`, `memory`, `startup`, `jank`,
+  `frames`, `binder`, `sched`, `anr`, `profiling`, `stacks`. What the
+  question is about.
+- **Route**: `workflow` (a shipped runbook under `workflows/` should
+  answer it), `stdlib` (a standard-library module does most of the
+  work), `adhoc` (plain SQL over the core tables).
+- **Difficulty**: `hard` for multi-step questions where a wrong method
+  gives a plausible wrong number. The set without `hard` is the cheap
+  smoke run.
+- **Behaviour under test**: `trigger` (does the skill fire, or stay
+  quiet, when it should?), `no-mention` (the prompt never says
+  "Perfetto"; every other prompt does), `negative` (the skill must not
+  fire), `trap` / `hallucination` (the trace does not contain what was
+  asked).
 
 ## Running
 

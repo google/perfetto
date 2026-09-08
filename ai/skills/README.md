@@ -38,8 +38,7 @@ Once installed, the agent has:
 
 The skill was measured with the harness in [`ai/evals/`](../evals/):
 the same prompts run with and without it, several times, on two models.
-The findings that shaped it (details in
-[`ai/evals/REPORT.md`](../evals/REPORT.md)):
+The findings that shaped it:
 
 - **Capable models already write correct PerfettoSQL.** With only the
   binary on `PATH`, Opus answered nearly every test question correctly.

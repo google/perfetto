@@ -1,6 +1,6 @@
 ---
 name: What retains the most memory in a Java heap dump
-tags: [android, memory, workflow, mentions-perfetto]
+tags: [android, memory, workflow]
 runs: 3
 files:
   - src: "{repo}/test/data/heap_graph_object_for_benchmarks.pftrace"

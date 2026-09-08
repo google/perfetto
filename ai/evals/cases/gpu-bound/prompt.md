@@ -1,6 +1,6 @@
 ---
 name: GPU-bound or host-bound
-tags: [gpu, workflow, mentions-perfetto]
+tags: [gpu, workflow]
 runs: 3
 files:
   - src: "{repo}/test/data/gpu_render_stages.pftrace"

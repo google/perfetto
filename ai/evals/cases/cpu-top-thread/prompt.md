@@ -1,6 +1,6 @@
 ---
 name: Top CPU thread in an Android system trace
-tags: [android, cpu, adhoc, mentions-perfetto]
+tags: [android, cpu, adhoc]
 runs: 3
 files:
   - src: "{repo}/test/data/example_android_trace_30s.pb"

@@ -1,6 +1,6 @@
 ---
 name: Which app ANR'd and why
-tags: [android, anr, adhoc, mentions-perfetto]
+tags: [android, anr, adhoc]
 runs: 3
 files:
   - src: "{repo}/test/data/android_anr.pftrace.gz"
