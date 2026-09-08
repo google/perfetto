@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -39,6 +40,7 @@
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_arg_fields.h"
 #include "src/trace_processor/importers/proto/track_event_event_importer.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -158,32 +160,8 @@ TrackEventParser::TrackEventParser(
           context->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
           context->storage->InternString("thread_instruction_count")),
-      task_file_name_args_key_id_(
-          context->storage->InternString("task.posted_from.file_name")),
-      task_function_name_args_key_id_(
-          context->storage->InternString("task.posted_from.function_name")),
-      task_line_number_args_key_id_(
-          context->storage->InternString("task.posted_from.line_number")),
       job_scheduler_job_name_args_key_id_(
           context->storage->InternString("job_scheduler_job.job_name")),
-      log_message_body_key_id_(
-          context->storage->InternString("track_event.log_message.message")),
-      log_message_source_location_function_name_key_id_(
-          context->storage->InternString(
-              "track_event.log_message.function_name")),
-      log_message_source_location_file_name_key_id_(
-          context->storage->InternString("track_event.log_message.file_name")),
-      log_message_source_location_line_number_key_id_(
-          context->storage->InternString(
-              "track_event.log_message.line_number")),
-      log_message_priority_id_(
-          context->storage->InternString("track_event.priority")),
-      source_location_function_name_key_id_(
-          context->storage->InternString("source.function_name")),
-      source_location_file_name_key_id_(
-          context->storage->InternString("source.file_name")),
-      source_location_line_number_key_id_(
-          context->storage->InternString("source.line_number")),
       raw_legacy_event_id_(
           context->storage->InternString("track_event.legacy_event")),
       legacy_event_passthrough_utid_id_(
@@ -222,8 +200,6 @@ TrackEventParser::TrackEventParser(
           context->storage->InternString("legacy_event.bind_to_enclosing")),
       legacy_event_flow_direction_key_id_(
           context->storage->InternString("legacy_event.flow_direction")),
-      histogram_name_key_id_(
-          context->storage->InternString("chrome_histogram_sample.name")),
       flow_direction_value_in_id_(context->storage->InternString("in")),
       flow_direction_value_out_id_(context->storage->InternString("out")),
       flow_direction_value_inout_id_(context->storage->InternString("inout")),
@@ -317,6 +293,10 @@ TrackEventParser::TrackEventParser(
   for (uint16_t index : kReflectFields) {
     reflect_fields_.push_back(index);
   }
+  extension_parser_context_->parsers.emplace_back(
+      std::make_unique<TrackEventArgFieldParser>(
+          extension_parser_context_, context,
+          &active_chrome_processes_tracker_));
 }
 
 void TrackEventParser::ParseTrackDescriptor(
