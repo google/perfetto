@@ -71,10 +71,6 @@ class TrackEventParser {
  private:
   friend class TrackEventEventImporter;
 
-  bool has_parsers() const {
-    return !extension_parser_context_->parsers.empty();
-  }
-
   TrackEventExtensionParser* ParserForField(uint32_t field_id) const {
     auto* it = extension_parser_context_->parsers_by_field.Find(field_id);
     return it ? *it : nullptr;
@@ -94,18 +90,7 @@ class TrackEventParser {
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;
-  const StringId task_file_name_args_key_id_;
-  const StringId task_function_name_args_key_id_;
-  const StringId task_line_number_args_key_id_;
   const StringId job_scheduler_job_name_args_key_id_;
-  const StringId log_message_body_key_id_;
-  const StringId log_message_source_location_function_name_key_id_;
-  const StringId log_message_source_location_file_name_key_id_;
-  const StringId log_message_source_location_line_number_key_id_;
-  const StringId log_message_priority_id_;
-  const StringId source_location_function_name_key_id_;
-  const StringId source_location_file_name_key_id_;
-  const StringId source_location_line_number_key_id_;
   const StringId raw_legacy_event_id_;
   const StringId legacy_event_passthrough_utid_id_;
   const StringId legacy_event_category_key_id_;
@@ -124,7 +109,6 @@ class TrackEventParser {
   const StringId legacy_event_bind_id_key_id_;
   const StringId legacy_event_bind_to_enclosing_key_id_;
   const StringId legacy_event_flow_direction_key_id_;
-  const StringId histogram_name_key_id_;
   const StringId flow_direction_value_in_id_;
   const StringId flow_direction_value_out_id_;
   const StringId flow_direction_value_inout_id_;

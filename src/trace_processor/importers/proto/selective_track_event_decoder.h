@@ -102,16 +102,6 @@ class SelectiveTrackEventDecoder {
     return decoder_.unknown_fields();
   }
 
-  // Returns the first unknown field with the given id (invalid if absent).
-  // Linear, but the number of unknown fields per event is tiny.
-  TrackEventField FindUnknownField(uint32_t id) const {
-    for (const protozero::Field& f : decoder_.unknown_fields()) {
-      if (f.id() == id)
-        return TrackEventField(f);
-    }
-    return TrackEventField(protozero::Field{});
-  }
-
   static constexpr bool ContainsField(uint32_t id) {
     return internal::kTrackEventDenseMask.contains(id);
   }

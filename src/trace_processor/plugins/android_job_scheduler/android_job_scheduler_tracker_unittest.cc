@@ -98,7 +98,11 @@ TEST_F(AndroidJobSchedulerTrackerTest, ParseAndroidJobSchedulerJob) {
   slice_row.ts = 1000;
   auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
 
-  tracker->OnTrackEventSliceExtension(extension_field, slice_id, nullptr);
+  TrackEventFieldContext event;
+  event.ts = 1000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
 
   const auto& table =
       context.storage->android_job_scheduler_track_event_table();
@@ -160,7 +164,11 @@ TEST_F(AndroidJobSchedulerTrackerTest,
   slice_row.ts = 1000;
   auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
 
-  tracker->OnTrackEventSliceExtension(extension_field, slice_id, nullptr);
+  TrackEventFieldContext event;
+  event.ts = 1000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
 
   const auto& table =
       context.storage->android_job_scheduler_track_event_table();
@@ -207,7 +215,11 @@ TEST_F(AndroidJobSchedulerTrackerTest, ParseAndroidJobSchedulerJob_Defaults) {
   slice_row.ts = 1000;
   auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
 
-  tracker->OnTrackEventSliceExtension(extension_field, slice_id, nullptr);
+  TrackEventFieldContext event;
+  event.ts = 1000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
 
   const auto& table =
       context.storage->android_job_scheduler_track_event_table();

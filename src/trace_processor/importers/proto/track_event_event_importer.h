@@ -43,9 +43,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/gpu_tracker.h"
 
-#include "protos/perfetto/trace/gpu/gpu_track_event.pbzero.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -104,17 +102,29 @@ using protozero::ConstBytes;
 constexpr int64_t kPendingThreadDuration = -1;
 constexpr int64_t kPendingThreadInstructionDelta = -1;
 
-// Paths on Windows use backslash rather than slash as a separator.
-// Normalise the paths by replacing backslashes with slashes to make it
-// easier to write cross-platform scripts.
-inline std::string NormalizePathSeparators(const protozero::ConstChars& path) {
-  std::string result(path.data, path.size);
-  for (char& c : result) {
-    if (c == '\\')
-      c = '/';
-  }
-  return result;
-}
+// The in-tree TrackEvent fields imported as args rather than into the row:
+// see TrackEventEventImporter::ParseTrackEventArgs.
+using TrackEvent = protos::pbzero::TrackEvent;
+constexpr protozero::SelectiveDecodeMask<
+    TrackEvent::kTaskExecutionFieldNumber,
+    TrackEvent::kLogMessageFieldNumber,
+    TrackEvent::kCcSchedulerStateFieldNumber,
+    TrackEvent::kChromeUserEventFieldNumber,
+    TrackEvent::kChromeKeyedServiceFieldNumber,
+    TrackEvent::kChromeLegacyIpcFieldNumber,
+    TrackEvent::kChromeHistogramSampleFieldNumber,
+    TrackEvent::kChromeLatencyInfoFieldNumber,
+    TrackEvent::kSourceLocationFieldNumber,
+    TrackEvent::kSourceLocationIidFieldNumber,
+    TrackEvent::kChromeMessagePumpFieldNumber,
+    TrackEvent::kChromeMojoEventInfoFieldNumber,
+    TrackEvent::kChromeApplicationStateInfoFieldNumber,
+    TrackEvent::kChromeRendererSchedulerStateFieldNumber,
+    TrackEvent::kChromeWindowHandleEventInfoFieldNumber,
+    TrackEvent::kChromeActiveProcessesFieldNumber,
+    TrackEvent::kScreenshotFieldNumber>
+    kArgFields{};
+constexpr size_t kArgFieldsWords = decltype(kArgFields)::kMaxFieldId / 64 + 1;
 
 inline TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
   switch (phase) {
@@ -130,29 +140,6 @@ inline TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
       return TrackCompressor::AsyncSliceType::kInstant;
   }
   PERFETTO_FATAL("For GCC");
-}
-
-inline protos::pbzero::AndroidLogPriority ToAndroidLogPriority(
-    protos::pbzero::LogMessage::Priority prio) {
-  switch (prio) {
-    case protos::pbzero::LogMessage::Priority::PRIO_UNSPECIFIED:
-      return protos::pbzero::AndroidLogPriority::PRIO_UNSPECIFIED;
-    case protos::pbzero::LogMessage::Priority::PRIO_UNUSED:
-      return protos::pbzero::AndroidLogPriority::PRIO_UNUSED;
-    case protos::pbzero::LogMessage::Priority::PRIO_VERBOSE:
-      return protos::pbzero::AndroidLogPriority::PRIO_VERBOSE;
-    case protos::pbzero::LogMessage::Priority::PRIO_DEBUG:
-      return protos::pbzero::AndroidLogPriority::PRIO_DEBUG;
-    case protos::pbzero::LogMessage::Priority::PRIO_INFO:
-      return protos::pbzero::AndroidLogPriority::PRIO_INFO;
-    case protos::pbzero::LogMessage::Priority::PRIO_WARN:
-      return protos::pbzero::AndroidLogPriority::PRIO_WARN;
-    case protos::pbzero::LogMessage::Priority::PRIO_ERROR:
-      return protos::pbzero::AndroidLogPriority::PRIO_ERROR;
-    case protos::pbzero::LogMessage::Priority::PRIO_FATAL:
-      return protos::pbzero::AndroidLogPriority::PRIO_FATAL;
-  }
-  return protos::pbzero::AndroidLogPriority::PRIO_UNSPECIFIED;
 }
 
 class TrackEventEventImporter {
@@ -177,7 +164,10 @@ class TrackEventEventImporter {
                       ->GetTrackEventDefaults()),
         thread_timestamp_(event_data->thread_timestamp),
         thread_instruction_count_(event_data->thread_instruction_count),
-        packet_sequence_id_(packet_sequence_id) {}
+        packet_sequence_id_(packet_sequence_id) {
+    field_context_.ts = ts;
+    field_context_.sequence_state = sequence_state_;
+  }
 
   base::Status Import() {
     // TODO(eseckler): This legacy event field will eventually be replaced by
@@ -667,11 +657,7 @@ class TrackEventEventImporter {
 
     context_->event_tracker->PushCounter(
         ts_, static_cast<double>(event_data_->counter_value), track_id,
-        [this](BoundInserter* inserter) {
-          if (DispatchCounterParsers(CounterId(inserter->id()))) {
-            ParseTrackEventArgs(inserter);
-          }
-        });
+        [this](BoundInserter* inserter) { ParseCounterArgs(inserter); });
     return base::OkStatus();
   }
 
@@ -694,16 +680,12 @@ class TrackEventEventImporter {
       auto opt_state_id =
           context_->state_tracker->UpdateState(ts_, track_id, kNullStringId);
       if (opt_state_id) {
-        DispatchStateParsers(*opt_state_id);
+        ParseTrackEventArgs(nullptr, RowKind::kState, opt_state_id->value);
       }
     } else {
       context_->state_tracker->UpdateState(
           ts_, track_id, state_id, category_id_,
-          [this](BoundInserter* inserter) {
-            if (DispatchStateParsers(StateId(inserter->id()))) {
-              ParseTrackEventArgs(inserter);
-            }
-          });
+          [this](BoundInserter* inserter) { ParseStateArgs(inserter); });
     }
 
     return base::OkStatus();
@@ -817,11 +799,8 @@ class TrackEventEventImporter {
 
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationBegin());
     auto opt_slice_id = context_->slice_tracker->Begin(
-        ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
-          if (DispatchSliceParsers(SliceId(inserter->id()))) {
-            ParseTrackEventArgs(inserter);
-          }
-        });
+        ts_, track_id, category_id_, name_id_,
+        [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (opt_slice_id.has_value()) {
       auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
@@ -843,11 +822,8 @@ class TrackEventEventImporter {
     }
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
-        ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
-          if (DispatchSliceParsers(SliceId(inserter->id()))) {
-            ParseTrackEventArgs(inserter);
-          }
-        });
+        ts_, track_id, category_id_, name_id_,
+        [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (!opt_slice_id)
       return base::OkStatus();
 
@@ -884,7 +860,7 @@ class TrackEventEventImporter {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationForLegacy());
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
-        [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+        [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (opt_slice_id.has_value()) {
       auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
@@ -967,24 +943,6 @@ class TrackEventEventImporter {
                                     /* close_flow = */ true);
       }
     }
-    // gpu_correlation is an out-of-tree extension of TrackEvent (id 3000),
-    // not stored by the typed decoder. It is in the selective decoder's
-    // spill area, which extension dispatch already built for this event.
-    if (!event_.has_out_of_range_fields()) {
-      return;
-    }
-    TrackEventField gpu_field = selective_decoder().FindUnknownField(
-        protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber);
-    if (gpu_field.valid()) {
-      protos::pbzero::GpuCorrelation::Decoder gpu(
-          gpu_field.Cast<protos::pbzero::GpuTrackEvent::kGpuCorrelation>());
-      for (auto it = gpu.render_stage_submission_event_ids(); it; ++it) {
-        context_->gpu_tracker->AddRenderStageSubmission(*it, slice_id);
-      }
-      for (auto it = gpu.render_stage_wait_event_ids(); it; ++it) {
-        context_->gpu_tracker->AddRenderStageWait(*it, slice_id);
-      }
-    }
   }
 
   void MaybeParseFlowEventV2(SliceId slice_id) {
@@ -1025,10 +983,7 @@ class TrackEventEventImporter {
     int64_t tidelta = 0;
     std::optional<tables::SliceTable::Id> opt_slice_id;
     auto args_inserter = [this, phase](BoundInserter* inserter) {
-      if (!DispatchSliceParsers(SliceId(inserter->id()))) {
-        return;
-      }
-      ParseTrackEventArgs(inserter);
+      ParseSliceArgs(inserter);
       // For legacy MARK event, add phase for JSON exporter.
       if (phase == 'R') {
         std::string phase_string(1, static_cast<char>(phase));
@@ -1062,10 +1017,7 @@ class TrackEventEventImporter {
 
   base::Status ParseAsyncBeginEvent(char phase) {
     auto args_inserter = [this, phase](BoundInserter* inserter) {
-      if (!DispatchSliceParsers(SliceId(inserter->id()))) {
-        return;
-      }
-      ParseTrackEventArgs(inserter);
+      ParseSliceArgs(inserter);
 
       if (phase == 'b')
         return;
@@ -1102,11 +1054,8 @@ class TrackEventEventImporter {
   base::Status ParseAsyncEndEvent() {
     ASSIGN_OR_RETURN(auto track_id, ParseTrackAssociationEnd());
     auto opt_slice_id = context_->slice_tracker->End(
-        ts_, track_id, category_id_, name_id_, [this](BoundInserter* inserter) {
-          if (DispatchSliceParsers(SliceId(inserter->id()))) {
-            ParseTrackEventArgs(inserter);
-          }
-        });
+        ts_, track_id, category_id_, name_id_,
+        [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (!opt_slice_id)
       return base::OkStatus();
 
@@ -1130,7 +1079,7 @@ class TrackEventEventImporter {
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
         [this, phase](BoundInserter* inserter) {
-          ParseTrackEventArgs(inserter);
+          ParseSliceArgs(inserter);
 
           PERFETTO_DCHECK(phase == 'T' || phase == 'p');
           std::string phase_string(1, static_cast<char>(phase));
@@ -1154,11 +1103,7 @@ class TrackEventEventImporter {
     int64_t tidelta = 0;
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id, category_id_, name_id_, duration_ns,
-        [this](BoundInserter* inserter) {
-          if (DispatchSliceParsers(SliceId(inserter->id()))) {
-            ParseTrackEventArgs(inserter);
-          }
-        });
+        [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (!opt_slice_id.has_value()) {
       return base::OkStatus();
     }
@@ -1310,34 +1255,8 @@ class TrackEventEventImporter {
     // No need to parse legacy_event.instant_event_scope() because we import
     // instant events into the slice table.
 
-    ParseTrackEventArgs(&inserter);
-    return base::OkStatus();
-  }
-
-  base::Status ParseScreenshotArgs(ConstBytes screenshot_bytes,
-                                   BoundInserter* inserter) {
-    protos::pbzero::Screenshot::Decoder screenshot(screenshot_bytes);
-    if (screenshot.has_jpg_image()) {
-      std::string base64_jpg = base::Base64Encode(screenshot.jpg_image().data,
-                                                  screenshot.jpg_image().size);
-      inserter->AddArg(storage_->InternString("screenshot.jpg_image"),
-                       Variadic::String(storage_->InternString(
-                           base::StringView(base64_jpg))));
-    }
-    if (screenshot.has_pam_image()) {
-      std::string base64_pam = base::Base64Encode(screenshot.pam_image().data,
-                                                  screenshot.pam_image().size);
-      inserter->AddArg(storage_->InternString("screenshot.pam_image"),
-                       Variadic::String(storage_->InternString(
-                           base::StringView(base64_pam))));
-    }
-    if (screenshot.has_ppm_image()) {
-      std::string base64_ppm = base::Base64Encode(screenshot.ppm_image().data,
-                                                  screenshot.ppm_image().size);
-      inserter->AddArg(storage_->InternString("screenshot.ppm_image"),
-                       Variadic::String(storage_->InternString(
-                           base::StringView(base64_ppm))));
-    }
+    ParseTrackEventArgs(&inserter, RowKind::kNone,
+                        TrackEventFieldContext::kNone);
     return base::OkStatus();
   }
 
@@ -1348,57 +1267,26 @@ class TrackEventEventImporter {
     return *selective_decoder_;
   }
 
-  // Returns false if a parser claimed the event (default args should be
-  // skipped). Only scans the blob when a parser is registered.
-  template <typename Fn>
-  bool DispatchParsers(Fn on_field) {
-    if (PERFETTO_LIKELY(!parser_->has_parsers())) {
-      return true;
-    }
-    // Extension parsers are not dispatched for legacy events.
-    if (legacy_event_.has_phase()) {
-      return true;
-    }
-    // Extension fields are out-of-tree by definition.
-    if (!event_.has_out_of_range_fields()) {
-      return true;
-    }
-    bool parse_args = true;
-    for (const protozero::Field& f : selective_decoder().unknown_fields()) {
-      TrackEventExtensionParser* parser = parser_->ParserForField(f.id());
-      if (!parser) {
-        continue;
-      }
-      if (on_field(parser, TrackEventExtensionField(f)) ==
-          TrackEventExtensionParser::Result::kHandled) {
-        parse_args = false;
-      }
-    }
-    return parse_args;
+  using RowKind = TrackEventFieldContext::RowKind;
+
+  void ParseSliceArgs(BoundInserter* inserter) {
+    ParseTrackEventArgs(inserter, RowKind::kSlice, inserter->id());
+  }
+  void ParseCounterArgs(BoundInserter* inserter) {
+    ParseTrackEventArgs(inserter, RowKind::kCounter, inserter->id());
+  }
+  void ParseStateArgs(BoundInserter* inserter) {
+    ParseTrackEventArgs(inserter, RowKind::kState, inserter->id());
   }
 
-  bool DispatchSliceParsers(SliceId id) {
-    return DispatchParsers([id, this](TrackEventExtensionParser* parser,
-                                      const TrackEventExtensionField& f) {
-      return parser->OnTrackEventSliceExtension(f, id, sequence_state_);
-    });
-  }
-
-  bool DispatchCounterParsers(CounterId id) {
-    return DispatchParsers([id, this](TrackEventExtensionParser* parser,
-                                      const TrackEventExtensionField& f) {
-      return parser->OnTrackEventCounterExtension(f, id, sequence_state_);
-    });
-  }
-
-  bool DispatchStateParsers(StateId id) {
-    return DispatchParsers([id, this](TrackEventExtensionParser* parser,
-                                      const TrackEventExtensionField& f) {
-      return parser->OnTrackEventStateExtension(f, id, sequence_state_);
-    });
-  }
-
-  void ParseTrackEventArgs(BoundInserter* inserter) {
+  // Adds the event's args to |inserter| and dispatches every field that is
+  // imported as args rather than into the row to the parser registered for
+  // it, then reflects the event into the args table unless a parser claimed
+  // its field. |inserter| is null for a row that takes no args, in which
+  // case only the parsers run.
+  void ParseTrackEventArgs(BoundInserter* inserter,
+                           RowKind row_kind,
+                           uint32_t row_id) {
     auto log_errors = [this](const base::Status& status) {
       if (status.ok())
         return;
@@ -1407,74 +1295,84 @@ class TrackEventEventImporter {
       PERFETTO_DLOG("ParseTrackEventArgs error: %s", status.c_message());
     };
 
-    if (event_.has_source_location_iid()) {
-      log_errors(AddSourceLocationArgs(event_.source_location_iid(), inserter));
-    }
-
-    if (event_.has_task_execution()) {
-      log_errors(ParseTaskExecutionArgs(event_.task_execution(), inserter));
-    }
-    if (event_.has_log_message()) {
-      log_errors(ParseLogMessage(event_.log_message(), inserter));
-    }
-    if (event_.has_screenshot()) {
-      log_errors(ParseScreenshotArgs(event_.screenshot(), inserter));
-    }
-    if (event_.has_chrome_histogram_sample()) {
-      log_errors(
-          ParseHistogramName(event_.chrome_histogram_sample(), inserter));
-    }
-    if (event_.has_chrome_active_processes()) {
-      protos::pbzero::ChromeActiveProcesses::Decoder message(
-          event_.chrome_active_processes());
-      for (auto it = message.pid(); it; ++it) {
-        parser_->AddActiveProcess(ts_, *it);
-      }
-    }
-    if (event_.has_correlation_id()) {
-      base::StackString<512> id_str("tp:#%" PRIu64, event_.correlation_id());
-      inserter->AddArg(parser_->correlation_id_key_id_,
-                       Variadic::String(context_->storage->InternString(
-                           id_str.string_view())));
-    }
-
-    if (event_.has_correlation_id_str()) {
-      inserter->AddArg(parser_->correlation_id_key_id_,
-                       Variadic::String(storage_->InternString(
-                           base::StringView(event_.correlation_id_str()))));
-    }
-    if (event_.has_correlation_id_str_iid()) {
-      if (auto id = sequence_state_->InternedStringId(
-              protos::pbzero::InternedData::kCorrelationIdStrFieldNumber,
-              event_.correlation_id_str_iid())) {
+    std::optional<ArgsParser> args_writer;
+    if (inserter) {
+      if (event_.has_correlation_id()) {
+        base::StackString<512> id_str("tp:#%" PRIu64, event_.correlation_id());
         inserter->AddArg(parser_->correlation_id_key_id_,
-                         Variadic::String(*id));
+                         Variadic::String(context_->storage->InternString(
+                             id_str.string_view())));
+      }
+      if (event_.has_correlation_id_str()) {
+        inserter->AddArg(parser_->correlation_id_key_id_,
+                         Variadic::String(storage_->InternString(
+                             base::StringView(event_.correlation_id_str()))));
+      }
+      if (event_.has_correlation_id_str_iid()) {
+        if (auto id = sequence_state_->InternedStringId(
+                protos::pbzero::InternedData::kCorrelationIdStrFieldNumber,
+                event_.correlation_id_str_iid())) {
+          inserter->AddArg(parser_->correlation_id_key_id_,
+                           Variadic::String(*id));
+        }
+      }
+      if (legacy_trace_source_id_) {
+        inserter->AddArg(parser_->legacy_trace_source_id_key_id_,
+                         Variadic::Integer(*legacy_trace_source_id_));
+      }
+      log_errors(ParseCallstack());
+      args_writer.emplace(ts_, *inserter, *storage_, *context_->process_tracker,
+                          sequence_state_, /*support_json=*/true);
+    }
+
+    field_context_.utid = utid_.value_or(TrackEventFieldContext::kNone);
+    field_context_.upid = upid_.value_or(TrackEventFieldContext::kNone);
+    field_context_.row_kind = row_kind;
+    field_context_.row_id = row_id;
+    field_context_.args = inserter;
+
+    bool reflect = true;
+    auto dispatch = [&](const protozero::Field& field) {
+      TrackEventExtensionParser* p = parser_->ParserForField(field.id());
+      if (p && p->OnTrackEventField(TrackEventExtensionField(field),
+                                    field_context_) ==
+                   TrackEventExtensionParser::Result::kHandled) {
+        reflect = false;
+      }
+    };
+    if (event_.HasAnyField(kArgFields.data(), kArgFieldsWords)) {
+      for (uint32_t id = 0; id <= decltype(kArgFields)::kMaxFieldId; ++id) {
+        if (kArgFields.contains(id) && event_.HasField(id)) {
+          dispatch(event_.Get(id));
+        }
       }
     }
-    if (legacy_trace_source_id_) {
-      inserter->AddArg(parser_->legacy_trace_source_id_key_id_,
-                       Variadic::Integer(*legacy_trace_source_id_));
+    // Extension fields are out-of-tree by definition.
+    if (event_.has_out_of_range_fields()) {
+      for (const protozero::Field& f : selective_decoder().unknown_fields()) {
+        dispatch(f);
+      }
+    }
+    if (!inserter) {
+      return;
     }
 
-    log_errors(ParseCallstack());
-
-    ArgsParser args_writer(ts_, *inserter, *storage_,
-                           *context_->process_tracker, sequence_state_,
-                           /*support_json=*/true);
-    int unknown_extensions = 0;
-    log_errors(parser_->args_parser_.ParseMessage(
-        blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
-        args_writer, &unknown_extensions));
-    if (unknown_extensions > 0) {
-      context_->stats_tracker->IncrementStats(stats::unknown_extension_fields,
-                                              unknown_extensions);
+    if (reflect) {
+      int unknown_extensions = 0;
+      log_errors(parser_->args_parser_.ParseMessage(
+          blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
+          *args_writer, &unknown_extensions));
+      if (unknown_extensions > 0) {
+        context_->stats_tracker->IncrementStats(stats::unknown_extension_fields,
+                                                unknown_extensions);
+      }
     }
 
     if (event_.has_debug_annotations()) {
       auto key = parser_->args_parser_.EnterDictionary("debug");
       for (auto it = event_.debug_annotations(); it; ++it) {
         log_errors(
-            parser_->args_parser_.ParseDebugAnnotation(*it, args_writer));
+            parser_->args_parser_.ParseDebugAnnotation(*it, *args_writer));
       }
     }
 
@@ -1483,37 +1381,6 @@ class TrackEventEventImporter {
                        Variadic::UnsignedInteger(*legacy_passthrough_utid_),
                        ArgsTracker::UpdatePolicy::kSkipIfExists);
     }
-  }
-
-  base::Status ParseTaskExecutionArgs(ConstBytes task_execution,
-                                      BoundInserter* inserter) {
-    protos::pbzero::TaskExecution::Decoder task(task_execution);
-    uint64_t iid = task.posted_from_iid();
-    if (!iid)
-      return base::ErrStatus("TaskExecution with invalid posted_from_iid");
-
-    auto* decoder = sequence_state_->LookupInternedMessage<
-        protos::pbzero::InternedData::kSourceLocationsFieldNumber,
-        protos::pbzero::SourceLocation>(iid);
-    if (!decoder)
-      return base::ErrStatus("TaskExecution with invalid posted_from_iid");
-
-    StringId file_name_id = kNullStringId;
-    StringId function_name_id = kNullStringId;
-    uint32_t line_number = 0;
-
-    std::string file_name = NormalizePathSeparators(decoder->file_name());
-    file_name_id = storage_->InternString(base::StringView(file_name));
-    function_name_id = storage_->InternString(decoder->function_name());
-    line_number = decoder->line_number();
-
-    inserter->AddArg(parser_->task_file_name_args_key_id_,
-                     Variadic::String(file_name_id));
-    inserter->AddArg(parser_->task_function_name_args_key_id_,
-                     Variadic::String(function_name_id));
-    inserter->AddArg(parser_->task_line_number_args_key_id_,
-                     Variadic::UnsignedInteger(line_number));
-    return base::OkStatus();
   }
 
   void MaybeInsertTrackEventCallstack(SliceId slice_id, TrackId track_id) {
@@ -1533,122 +1400,6 @@ class TrackEventEventImporter {
       row.weight = event_.callstack_weight();
     }
     table->Insert(row);
-  }
-
-  base::Status AddSourceLocationArgs(uint64_t iid, BoundInserter* inserter) {
-    if (!iid)
-      return base::ErrStatus("SourceLocation with invalid iid");
-
-    auto* decoder = sequence_state_->LookupInternedMessage<
-        protos::pbzero::InternedData::kSourceLocationsFieldNumber,
-        protos::pbzero::SourceLocation>(iid);
-    if (!decoder)
-      return base::ErrStatus("SourceLocation with invalid iid");
-
-    StringId file_name_id = kNullStringId;
-    StringId function_name_id = kNullStringId;
-    uint32_t line_number = 0;
-
-    std::string file_name = NormalizePathSeparators(decoder->file_name());
-    file_name_id = storage_->InternString(base::StringView(file_name));
-    function_name_id = storage_->InternString(decoder->function_name());
-    line_number = decoder->line_number();
-
-    inserter->AddArg(parser_->source_location_file_name_key_id_,
-                     Variadic::String(file_name_id));
-    inserter->AddArg(parser_->source_location_function_name_key_id_,
-                     Variadic::String(function_name_id));
-    inserter->AddArg(parser_->source_location_line_number_key_id_,
-                     Variadic::UnsignedInteger(line_number));
-    return base::OkStatus();
-  }
-
-  base::Status ParseLogMessage(ConstBytes blob, BoundInserter* inserter) {
-    if (!utid_)
-      return base::ErrStatus("LogMessage without thread association");
-
-    protos::pbzero::LogMessage::Decoder message(blob);
-
-    std::optional<StringId> body_id = sequence_state_->InternedStringId(
-        protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
-        message.body_iid());
-    if (!body_id)
-      return base::ErrStatus("LogMessage with invalid body_iid");
-
-    const StringId log_message_id = *body_id;
-    inserter->AddArg(parser_->log_message_body_key_id_,
-                     Variadic::String(log_message_id));
-
-    StringId source_location_id = kNullStringId;
-    if (message.has_source_location_iid()) {
-      auto* source_location_decoder = sequence_state_->LookupInternedMessage<
-          protos::pbzero::InternedData::kSourceLocationsFieldNumber,
-          protos::pbzero::SourceLocation>(message.source_location_iid());
-      if (!source_location_decoder)
-        return base::ErrStatus("LogMessage with invalid source_location_iid");
-      const std::string source_location =
-          source_location_decoder->file_name().ToStdString() + ":" +
-          std::to_string(source_location_decoder->line_number());
-      source_location_id =
-          storage_->InternString(base::StringView(source_location));
-
-      inserter->AddArg(parser_->log_message_source_location_file_name_key_id_,
-                       Variadic::String(storage_->InternString(
-                           source_location_decoder->file_name())));
-      inserter->AddArg(
-          parser_->log_message_source_location_function_name_key_id_,
-          Variadic::String(storage_->InternString(
-              source_location_decoder->function_name())));
-      inserter->AddArg(
-          parser_->log_message_source_location_line_number_key_id_,
-          Variadic::Integer(source_location_decoder->line_number()));
-    }
-
-    // The track event log message doesn't specify any priority. UI never
-    // displays priorities < 2 (VERBOSE in android). Let's make all the track
-    // event logs show up as INFO.
-    int32_t priority = protos::pbzero::AndroidLogPriority::PRIO_INFO;
-    if (message.has_prio()) {
-      priority = ToAndroidLogPriority(
-          static_cast<protos::pbzero::LogMessage::Priority>(message.prio()));
-      inserter->AddArg(parser_->log_message_priority_id_,
-                       Variadic::Integer(priority));
-    }
-
-    tables::LogTable::Row log_row;
-    log_row.ts = ts_;
-    log_row.utid = utid_;
-    log_row.prio = static_cast<uint32_t>(priority);
-    log_row.log_source = storage_->InternString("android_logcat");
-    log_row.tag = source_location_id != kNullStringId
-                      ? std::make_optional(source_location_id)
-                      : std::nullopt;
-    log_row.msg = log_message_id;
-    storage_->mutable_log_table()->Insert(log_row);
-
-    return base::OkStatus();
-  }
-
-  base::Status ParseHistogramName(ConstBytes blob, BoundInserter* inserter) {
-    protos::pbzero::ChromeHistogramSample::Decoder sample(blob);
-    if (!sample.has_name_iid())
-      return base::OkStatus();
-
-    if (sample.has_name()) {
-      return base::ErrStatus(
-          "name is already set for ChromeHistogramSample: only one of name and "
-          "name_iid can be set.");
-    }
-
-    std::optional<StringId> name_id = sequence_state_->InternedStringId(
-        protos::pbzero::InternedData::kHistogramNamesFieldNumber,
-        sample.name_iid());
-    if (!name_id)
-      return base::ErrStatus("HistogramName with invalid name_iid");
-
-    inserter->AddArg(parser_->histogram_name_key_id_,
-                     Variadic::String(*name_id));
-    return base::OkStatus();
   }
 
   base::Status ParseCallstack() {
@@ -1726,6 +1477,8 @@ class TrackEventEventImporter {
   // Built on first use; shared by every consumer of out-of-tree fields.
   std::optional<SelectiveTrackEventDecoder> selective_decoder_;
   protos::pbzero::TrackEventDefaults::Decoder* defaults_;
+  // Handed to every field parser; the row and args are filled in per row.
+  TrackEventFieldContext field_context_;
 
   // Importing state.
   StringId category_id_;
