@@ -23,10 +23,13 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -38,6 +41,14 @@ class V8TrackerTest : public testing::Test {
  public:
   V8TrackerTest() : v8_tracker_(&context_) {
     context_.storage.reset(new TraceStorage());
+    context_.machine_tracker.reset(
+        new MachineTracker(&context_, kDefaultMachineId));
+    context_.global_stats_tracker.reset(
+        new GlobalStatsTracker(context_.storage.get()));
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_.stats_tracker.reset(new StatsTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
@@ -49,8 +60,8 @@ class V8TrackerTest : public testing::Test {
 };
 
 TEST_F(V8TrackerTest, AddICEvent) {
-  const UniquePid upid = context_.process_tracker->GetOrCreateProcess(1234);
-  const UniqueTid utid = context_.process_tracker->UpdateThread(4321, upid);
+  context_.process_tracker->GetOrCreateProcess(1234);
+  const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
   const int64_t timestamp_early = 100;
   const int64_t timestamp = 1000;
   const uint64_t code_start_early = 0x0100;
@@ -110,7 +121,7 @@ TEST_F(V8TrackerTest, AddICEvent) {
     std::vector<uint8_t> decoder_vec = code_msg.SerializeAsArray();
     protos::pbzero::V8JsCode::Decoder code_decoder(decoder_vec.data(),
                                                    decoder_vec.size());
-    v8_tracker_.AddJsCode(timestamp, utid, *isolate_id, code_decoder);
+    v8_tracker_.AddJsCode(timestamp, utid, *isolate_id, func_id, code_decoder);
   }
 
   // Verify that the code was added
@@ -119,7 +130,9 @@ TEST_F(V8TrackerTest, AddICEvent) {
   // 5. Add IC Event
   protozero::HeapBuffered<protos::pbzero::V8ICEvent> ic_msg;
   ic_msg->set_pc(ic_pc);
-  ic_msg->set_type("LoadIC");
+  ic_msg->set_is_load(true);
+  ic_msg->set_is_global(false);
+  ic_msg->set_is_keyed(false);
   ic_msg->set_map(0x1234);
 
   std::vector<uint8_t> ic_vec = ic_msg.SerializeAsArray();

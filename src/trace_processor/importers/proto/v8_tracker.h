@@ -34,7 +34,6 @@
 
 namespace perfetto::trace_processor {
 
-class TraceStorage;
 class UserMemoryMapping;
 
 using IsolateId = tables::V8IsolateTable::Id;
@@ -128,7 +127,10 @@ class V8Tracker {
     int32_t isolate_id;
   };
 
-  StringId InternV8String(const protos::pbzero::V8String::Decoder& v8_string);
+  StringId InternV8String(protozero::ConstBytes bytes);
+
+  std::optional<tables::V8JsCodeTable::Id> FindJsCodeId(IsolateId isolate_id,
+                                                        uint64_t pc) const;
 
   tables::V8IsolateTable::ConstRowReference InsertIsolate(
       const protos::pbzero::InternedV8Isolate::Decoder& isolate);
@@ -184,7 +186,8 @@ class V8Tracker {
       js_function_index_;
   base::FlatHashMap<tables::JitCodeTable::Id, tables::V8JsCodeTable::Id>
       jit_to_v8_js_code_;
-};
+  base::FlatHashMap<IsolateId, AddressRangeMap<tables::V8JsCodeTable::Id>>
+      bytecode_ranges_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -251,6 +251,15 @@ class AddressRangeMap {
     return end();
   }
 
+  const_iterator FindRangeThatContains(AddressRange range) const {
+    PERFETTO_CHECK(!range.empty());
+    auto it = Find(range.start());
+    if (it != end() && it->first.end() >= range.end()) {
+      return it;
+    }
+    return end();
+  }
+
   // Finds the range that contains a given address.
   iterator Find(uint64_t address) {
     auto it = ranges_.upper_bound(address);

@@ -286,16 +286,17 @@ void V8Module::ParseV8ICEvent(protozero::ConstBytes bytes,
 
   std::optional<IsolateId> v8_isolate_id = state.GetOrInsertIsolate(
       data.sequence_state.get(), ic_event.v8_isolate_iid());
-  return;
-}
+  if (!v8_isolate_id) {
+    return;
+  }
 
-std::optional<UniqueTid> utid =
-    GetUtid(*data.sequence_state, *isolate_id, ic_event);
-if (!utid) {
-  return;
-}
+  std::optional<UniqueTid> utid =
+      GetUtid(*data.sequence_state, *v8_isolate_id, ic_event);
+  if (!utid) {
+    return;
+  }
 
-v8_tracker_->AddICEvent(ts, *utid, *isolate_id, ic_event);
+  v8_tracker_->AddICEvent(ts, *utid, *v8_isolate_id, ic_event);
 }
 
 }  // namespace trace_processor

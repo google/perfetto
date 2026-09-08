@@ -578,6 +578,8 @@ namespace perfetto::trace_processor::stats {
   F(v8_unknown_code_type,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(v8_code_load_missing_code_range,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "V8 load had no code range or an empty one. Event ignored."),            \
+  F(v8_ic_event_missing_code,             kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "Failed to find V8 code associated with the IC event."),                  \
   F(winscope_inputmethod_clients_parse_errors,                                 \
                                           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "InputMethod clients packet has unknown fields, which results in "       \
