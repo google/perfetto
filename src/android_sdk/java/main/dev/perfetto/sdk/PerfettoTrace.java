@@ -334,18 +334,31 @@ public final class PerfettoTrace {
     native_activate_trigger(triggerName, ttlMs);
   }
 
-  /** Registers the process with Perfetto. */
-  public static void register(boolean isBackendInProcess) {
+  /**
+   * Registers the process with Perfetto.
+   *
+   * <p>The in-process backend is always registered. The system backend is registered only if
+   * {@link TracingPolicy} allows this process; otherwise this is a no-op and Perfetto is left
+   * uninitialized. Callers must not register categories or emit events when this returns {@code
+   * false}.
+   *
+   * @return whether the process is registered with the requested backend
+   */
+  public static boolean register(boolean isBackendInProcess) {
     if (!isBackendInProcess) {
-        sAttemptedSystemRegistration.set(true);
+      sAttemptedSystemRegistration.set(true);
+      if (!TracingPolicy.allowSystemBackend()) {
+        return false;
+      }
     }
     native_register(isBackendInProcess);
+    return true;
   }
 
-  /** Registers the process with Perfetto and enable additional debug checks on the Java side. */
-  public static void registerWithDebugChecks(boolean isBackendInProcess) {
+  /** Registers the process with Perfetto and enables additional debug checks on the Java side. */
+  public static boolean registerWithDebugChecks(boolean isBackendInProcess) {
     sIsDebug = true;
-    register(isBackendInProcess);
+    return register(isBackendInProcess);
   }
 
   /**
