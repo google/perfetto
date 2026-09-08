@@ -1,0 +1,31 @@
+<%- include('template_header.html'); -%>
+<div class="blog blog-post">
+  <main class="md-content" data-md-file="<%= fileName %>">
+    <a class="blog-back" href="/blog/">All posts</a>
+    <h1><%= post.title %></h1>
+    <div class="blog-byline">
+      <div class="blog-avatars">
+        <% post.authors.forEach(function(a) { %>
+        <img src="<%= a.avatar %>" alt="" width="40" height="40" loading="lazy">
+        <% }); %>
+      </div>
+      <div class="blog-byline-text">
+        <div class="blog-authors">
+          <% post.authors.forEach(function(a, i) { %><%
+            %><% if (a.url) { %><a href="<%= a.url %>">@<%= a.handle %></a><% } else { %>@<%= a.handle %><% } %><%
+            %><%= i < post.authors.length - 1 ? ' ' : '' %><%
+          %><% }); %>
+        </div>
+        <time datetime="<%= post.isoDate %>"><%= post.isoDate %></time>
+      </div>
+    </div>
+    <%- markdown %>
+  </main>
+
+  <section class="toc"></section>
+
+  <%- include('template_footer.html'); -%>
+</div>
+
+</body>
+</html>
