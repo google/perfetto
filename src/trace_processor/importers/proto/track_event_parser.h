@@ -37,11 +37,6 @@ namespace perfetto::trace_processor {
 
 // Field numbers to be added to args table automatically via reflection
 //
-// TODO(ddrone): replace with a predicate on field id to import new fields
-// automatically
-static constexpr uint16_t kReflectFields[] = {
-    24, 25, 26, 27, 28, 29, 32, 33, 34, 35, 38, 39, 40, 41, 43, 49, 50};
-
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 class TrackEventTracker;
@@ -75,6 +70,9 @@ class TrackEventParser {
     auto* it = extension_parser_context_->parsers_by_field.Find(field_id);
     return it ? *it : nullptr;
   }
+
+  // The TrackEvent descriptor's index in the pool, resolved once.
+  std::optional<uint32_t> TrackEventDescriptorIdx();
 
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
@@ -127,7 +125,7 @@ class TrackEventParser {
 
   TrackEventExtensionParserContext* extension_parser_context_;
   ChromeStringLookup chrome_string_lookup_;
-  std::vector<uint32_t> reflect_fields_;
+  std::optional<uint32_t> track_event_descriptor_idx_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
   DummyMemoryMapping* inline_callstack_dummy_mapping_ = nullptr;
 };
