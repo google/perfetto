@@ -81,9 +81,11 @@ test('computeFlatFunctions sums self and total per name', () => {
       ]),
     ),
   );
-  expect(fns.get('A')).toEqual({name: 'A', self: 1, total: 10});
-  expect(fns.get('B')).toEqual({name: 'B', self: 4, total: 4});
-  expect(fns.get('C')).toEqual({name: 'C', self: 5, total: 5});
+  expect(fns.get('A')).toMatchObject({name: 'A', self: 1, total: 10});
+  // The representative node is the aggregated node with the largest self.
+  expect(fns.get('A')?.node.id).toBe(1);
+  expect(fns.get('B')).toMatchObject({name: 'B', self: 4, total: 4});
+  expect(fns.get('C')).toMatchObject({name: 'C', self: 5, total: 5});
 });
 
 test('computeFlatFunctions counts recursive frames once per path', () => {
@@ -119,8 +121,8 @@ test('computeFlatFunctions counts recursive frames once per path', () => {
       ]),
     ),
   );
-  expect(fns.get('A')).toEqual({name: 'A', self: 8, total: 10});
-  expect(fns.get('B')).toEqual({name: 'B', self: 2, total: 9});
+  expect(fns.get('A')).toMatchObject({name: 'A', self: 8, total: 10});
+  expect(fns.get('B')).toMatchObject({name: 'B', self: 2, total: 9});
 });
 
 test('computeFlatFunctions adds distinct paths through the same name', () => {
@@ -163,7 +165,7 @@ test('computeFlatFunctions adds distinct paths through the same name', () => {
       ]),
     ),
   );
-  expect(fns.get('A')).toEqual({name: 'A', self: 10, total: 10});
+  expect(fns.get('A')).toMatchObject({name: 'A', self: 10, total: 10});
 });
 
 test('computeFlatFunctions ignores the caller direction of pivot views', () => {
@@ -200,6 +202,6 @@ test('computeFlatFunctions ignores the caller direction of pivot views', () => {
     ),
   );
   expect(fns.get('Caller')).toBeUndefined();
-  expect(fns.get('Pivot')).toEqual({name: 'Pivot', self: 3, total: 10});
-  expect(fns.get('Callee')).toEqual({name: 'Callee', self: 7, total: 7});
+  expect(fns.get('Pivot')).toMatchObject({name: 'Pivot', self: 3, total: 10});
+  expect(fns.get('Callee')).toMatchObject({name: 'Callee', self: 7, total: 7});
 });
