@@ -36,6 +36,7 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -43,7 +44,9 @@ namespace perfetto::trace_processor {
 namespace {
 
 using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
+using ::com::android::internal::pbzero::FrameworksNativeTracePacket;
 using ::com::android::internal::pbzero::VideoFrame;
+using ::com::android::internal::pbzero::VirtualDisplayComposite;
 using ::perfetto::protos::pbzero::TracePacket;
 
 class VideoFrameModuleTest : public testing::Test {
@@ -80,6 +83,56 @@ class VideoFrameModuleTest : public testing::Test {
                       int64_t ts) {
     protozero::HeapBuffered<VideoFrame> vf;
     vf->set_display_id(display_id);
+    std::vector<uint8_t> au(au_size, 0xAB);
+    vf->set_au_data(au.data(), au.size());
+    std::vector<uint8_t> vf_bytes = vf.SerializeAsArray();
+
+    protozero::HeapBuffered<TracePacket> packet;
+    packet->AppendBytes(FrameworksBaseTracePacket::kVideoFrameFieldNumber,
+                        vf_bytes.data(), vf_bytes.size());
+    std::vector<uint8_t> bytes = packet.SerializeAsArray();
+
+    TraceBlobView tbv(TraceBlob::CopyFrom(bytes.data(), bytes.size()));
+    TracePacketData tpd{tbv.copy(), {}};
+    SelectiveTracePacketDecoder decoder(tbv.data(), tbv.length());
+    TracePacketField field = decoder.FindUnknownField(
+        FrameworksBaseTracePacket::kVideoFrameFieldNumber);
+    ASSERT_TRUE(field.valid());
+    module.ParseField({decoder, ts, tpd, field});
+  }
+
+  void PushVirtualDisplayComposite(VideoFrameModule& module,
+                                   int64_t present_time_us,
+                                   int64_t vsync_id) {
+    protozero::HeapBuffered<VirtualDisplayComposite> vdc;
+    vdc->set_present_time_us(present_time_us);
+    vdc->set_vsync_id(vsync_id);
+    std::vector<uint8_t> vdc_bytes = vdc.SerializeAsArray();
+
+    protozero::HeapBuffered<TracePacket> packet;
+    packet->AppendBytes(
+        FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber,
+        vdc_bytes.data(), vdc_bytes.size());
+    std::vector<uint8_t> bytes = packet.SerializeAsArray();
+
+    TraceBlobView tbv(TraceBlob::CopyFrom(bytes.data(), bytes.size()));
+    TracePacketData tpd{tbv.copy(), {}};
+    SelectiveTracePacketDecoder decoder(tbv.data(), tbv.length());
+    TracePacketField field = decoder.FindUnknownField(
+        FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber);
+    ASSERT_TRUE(field.valid());
+    module.ParseField({decoder, /*ts=*/0, tpd, field});
+  }
+
+  // Overload of PushAccessUnit that also populates pts_us
+  void PushAccessUnitWithPts(VideoFrameModule& module,
+                             uint32_t display_id,
+                             size_t au_size,
+                             int64_t ts,
+                             uint64_t pts_us) {
+    protozero::HeapBuffered<VideoFrame> vf;
+    vf->set_display_id(display_id);
+    vf->set_pts_us(pts_us);
     std::vector<uint8_t> au(au_size, 0xAB);
     vf->set_au_data(au.data(), au.size());
     std::vector<uint8_t> vf_bytes = vf.SerializeAsArray();
@@ -161,6 +214,26 @@ TEST_F(VideoFrameModuleTest, CapIsPerStream) {
   // overflow, and exactly one stream hit the cap.
   EXPECT_EQ(FrameRowCount(), 5u);
   EXPECT_EQ(SizeCapHits(), 1);
+}
+
+TEST_F(VideoFrameModuleTest, LinksFrameTimelineVsyncId) {
+  auto module = MakeModule();
+  constexpr int64_t kPtsUs = 500000;
+  constexpr int64_t kVsyncId = 42;
+
+  // 1. Push VirtualDisplayComposite packet
+  PushVirtualDisplayComposite(*module, kPtsUs, kVsyncId);
+
+  // 2. Push VideoFrame access unit with matching pts_us
+  PushAccessUnitWithPts(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                        kPtsUs);
+
+  // 3. Trigger end-of-trace backfill
+  module->OnEventsFullyExtracted();
+
+  // 4. Verify backfill succeeded
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ((*table_)[0].frame_timeline_vsync_id(), kVsyncId);
 }
 
 }  // namespace

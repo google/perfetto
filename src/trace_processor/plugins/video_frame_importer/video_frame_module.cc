@@ -44,11 +44,11 @@
 
 namespace perfetto::trace_processor {
 
-using ::com::android::internal::pbzero::FrameTimelineEvent;
 using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
 using ::com::android::internal::pbzero::FrameworksNativeTracePacket;
 using ::com::android::internal::pbzero::VideoFrame;
 using ::com::android::internal::pbzero::VideoFrameError;
+using ::com::android::internal::pbzero::VirtualDisplayComposite;
 using ::perfetto::protos::pbzero::TracePacket;
 
 VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
@@ -61,11 +61,10 @@ VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
       au_data_(au_data) {
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameFieldNumber);
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber);
-  // Also observe frame-timeline events, to pick out VirtualDisplayComposite and
-  // join the exact composite token onto each video frame by present time. This
-  // field is also handled by GraphicsEventModule; multiple modules per field is
-  // supported.
-  RegisterForField(FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber);
+  // Observe VirtualDisplayComposite events to join the composite vsync token
+  // onto each video frame by matching present time.
+  RegisterForField(
+      FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber);
 }
 
 VideoFrameModule::~VideoFrameModule() = default;
@@ -108,9 +107,10 @@ void VideoFrameModule::ParseField(const ParseFieldArgs& args) {
           args.field.Cast<FrameworksBaseTracePacket::kVideoFrameError>(),
           args.ts);
       break;
-    case FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber:
-      ParseFrameTimelineEvent(
-          args.field.Cast<FrameworksNativeTracePacket::kFrameTimelineEvent>());
+    case FrameworksNativeTracePacket::kVirtualDisplayCompositeFieldNumber:
+      ParseVirtualDisplayComposite(
+          args.field
+              .Cast<FrameworksNativeTracePacket::kVirtualDisplayComposite>());
       break;
     default:
       break;
@@ -246,13 +246,9 @@ void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
       });
 }
 
-void VideoFrameModule::ParseFrameTimelineEvent(protozero::ConstBytes bytes) {
-  FrameTimelineEvent::Decoder event(bytes);
-  if (!event.has_virtual_display_composite()) {
-    return;
-  }
-  FrameTimelineEvent::VirtualDisplayComposite::Decoder vdc(
-      event.virtual_display_composite());
+void VideoFrameModule::ParseVirtualDisplayComposite(
+    protozero::ConstBytes bytes) {
+  VirtualDisplayComposite::Decoder vdc(bytes);
   if (!vdc.has_present_time_us() || !vdc.has_vsync_id()) {
     return;
   }
