@@ -1,4 +1,14 @@
-# Perfetto public API surface
+  #include "perfetto/tracing.h"
+
+  class MyDataSource : public perfetto::DataSource<MyDataSource> {
+    void OnSetup(const SetupArgs&) override {}
+    void OnStart(const StartArgs&) override {}
+    void OnStop(const StopArgs&) override {}
+  };
+  ...
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("my_data_source");
+  MyDataSource::Register(dsd);# Perfetto public API surface
 
 **This API surface is not stable yet, don't depend on it**
 
