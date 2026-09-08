@@ -418,6 +418,58 @@ class ProtoToArgsParser {
   PERFETTO_NO_INLINE void PrepareFlatMessage(uint32_t node,
                                              uint32_t descriptor_idx);
 
+  // The delegate calls a flat message produces are a pure function of its
+  // node and its encoded bytes, so a repeat of the same bytes replays the
+  // calls recorded the first time instead of decoding again. The memo is a
+  // direct-mapped table with a full byte comparison: a miss overwrites the
+  // slot, so memory stays bounded and correctness never depends on a hit.
+  struct FlatMemoCall {
+    enum class Kind : uint8_t {
+      kInt,
+      kUint,
+      kDouble,
+      kBool,
+      kString,
+      kBytes,
+      kNull
+    };
+    Kind kind;
+    StringPool::Id flat_key;
+    StringPool::Id key;
+    union {
+      int64_t int_value;
+      uint64_t uint_value;
+      double double_value;
+      bool bool_value;
+    };
+    // Range in FlatMemoEntry::strings for kString and kBytes.
+    uint32_t str_offset;
+    uint32_t str_size;
+  };
+  struct FlatMemoEntry {
+    uint64_t hash = 0;
+    uint32_t node = kNoPath;
+    uint32_t generation = 0;
+    uint32_t unknown_fields = 0;
+    std::string bytes;
+    std::string strings;
+    std::vector<FlatMemoCall> calls;
+  };
+  class FlatMemoRecorder;
+  static constexpr size_t kFlatMemoSlots = 16 * 1024;
+  static constexpr size_t kFlatMemoMaxBytes = 256;
+
+  // Returns the memo slot for |bytes| under |node|, or null if the message is
+  // too large to memoize.
+  FlatMemoEntry* FlatMemoSlotFor(uint32_t node,
+                                 protozero::ConstBytes bytes,
+                                 uint64_t* out_hash);
+  void RunFlatMessage(uint32_t node,
+                      protozero::ConstBytes bytes,
+                      Delegate& delegate,
+                      uint32_t* unknown_fields);
+  void ReplayFlatMessage(const FlatMemoEntry& entry, Delegate& delegate);
+
   // Sentinel |path_nodes_| index: no descriptor path to cache.
   static constexpr uint32_t kNoPath = std::numeric_limits<uint32_t>::max();
 
@@ -473,6 +525,9 @@ class ProtoToArgsParser {
   const std::vector<uint32_t>* allowed_fields_ = nullptr;
   int* unknown_extensions_ = nullptr;
   bool add_defaults_ = false;
+
+  // Allocated on the first flat parse. See FlatMemoEntry.
+  std::vector<FlatMemoEntry> flat_memo_;
   // Shared work stack used by ParseMessage / ParseDebugAnnotation. Each
   // public entry pushes its initial item; RunWorkLoop drains the stack,
   // dispatching by variant type.
