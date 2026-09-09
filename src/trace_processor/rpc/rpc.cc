@@ -307,7 +307,7 @@ void Rpc::DrainStream(Stream& stream) {
   for (;;) {
     auto msg = stream.rxbuf_.ReadMessage();
     if (!msg.valid()) {
-      if (msg.fatal_framing_error) {
+      if (msg.fatal_framing_error()) {
         protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
         err_msg->add_msg()->set_fatal_error("RPC framing error");
         auto err = err_msg.SerializeAsArray();
@@ -316,7 +316,7 @@ void Rpc::DrainStream(Stream& stream) {
       }
       break;
     }
-    ParseRpcRequest(stream, msg.start, msg.len);
+    ParseRpcRequest(stream, msg.data(), msg.size());
   }
 }
 
