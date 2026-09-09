@@ -163,9 +163,7 @@ export class TrackView {
           (removable || node.removable) && this.renderCloseButton(),
           this.renderTrackMenuButton(),
           // Always-visible buttons last (pin button is visible when pinned)
-          // We don't want summary tracks to be pinned as they rarely have
-          // useful information.
-          !node.isSummary && this.renderPinButton(),
+          this.renderPinButton(),
           // Area seletion (when in area selection mode is always visible so put
           // it at the end)
           this.renderAreaSelectionCheckbox(),
