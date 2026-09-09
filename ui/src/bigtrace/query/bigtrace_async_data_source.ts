@@ -155,6 +155,7 @@ export class BigtraceAsyncDataSource implements DataSource {
       rows: mappedRows,
       // Filtered total; falls back to unfiltered while undefined.
       totalRows: this._filteredTotalRows ?? this.getTotalRows(),
+      unfilteredTotalRows: this.getTotalRows(),
       rowOffset: this.loadedOffset,
       // Pending covers the debounce window too, so the grid doesn't flicker
       // back to "settled" between the last scroll tick and the request.

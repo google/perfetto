@@ -650,6 +650,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       },
       m(DataGridToolbar, {
         leftItems: [
+          rowsResult.totalRows !== undefined &&
+            m(
+              'span.pf-data-grid__row-count',
+              this.renderRowCountLabel(rowsResult),
+            ),
           toolbarItemsLeft,
           this.renderPivotToolbarItems(attrs),
           this.renderTreeToolbarItems(attrs),
@@ -1388,6 +1393,23 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         }),
       ),
     ];
+  }
+
+  /**
+   * Builds the row count label for the toolbar. When filters are active and
+   * the data source reports an unfiltered total, shows the filtered count
+   * alongside the full count (e.g. "12 / 1,234 rows").
+   */
+  private renderRowCountLabel(rowsResult: DataSourceRows): string {
+    const totalRows = rowsResult.totalRows!;
+    if (
+      this.filters.length > 0 &&
+      rowsResult.unfilteredTotalRows !== undefined &&
+      rowsResult.unfilteredTotalRows !== totalRows
+    ) {
+      return `${totalRows.toLocaleString()} / ${rowsResult.unfilteredTotalRows.toLocaleString()} rows`;
+    }
+    return `${totalRows.toLocaleString()} rows`;
   }
 
   private renderTreeToolbarItems(attrs: DataGridAttrs): m.Children {

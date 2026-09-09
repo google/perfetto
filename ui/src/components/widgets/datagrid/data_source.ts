@@ -137,6 +137,10 @@ export interface DataSourceRows {
   // The total number of rows available in the dataset
   readonly totalRows?: number;
 
+  // The total number of rows in the dataset ignoring any active filters.
+  // Optional - not all data sources can report this cheaply.
+  readonly unfilteredTotalRows?: number;
+
   // The offset of the first row in this batch
   readonly rowOffset?: number;
 

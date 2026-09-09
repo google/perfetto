@@ -52,6 +52,11 @@
     gap: 4px;
   }
 
+  &__row-count {
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+  }
+
   &__groupby-column {
     background-color: color-mix(
       in srgb,

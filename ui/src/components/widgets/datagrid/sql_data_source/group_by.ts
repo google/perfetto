@@ -27,6 +27,7 @@ import {filterToSql, quoteIdentifier, sqlAggregateExpr} from '../sql_utils';
 // Flat GROUP BY datasource - uses simple GROUP BY queries without hierarchy.
 export class SQLDataSourceGroupBy {
   private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly unfilteredRowCountSlot: AsyncMemo<number>;
   private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
@@ -39,6 +40,7 @@ export class SQLDataSourceGroupBy {
     private readonly sqlSchema: SQLTableSchema,
   ) {
     this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.unfilteredRowCountSlot = new AsyncMemo<number>(queue);
     this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
@@ -77,11 +79,32 @@ export class SQLDataSourceGroupBy {
       },
     });
 
+    // Only fetch the unfiltered count when filters are actually active.
+    let unfilteredTotalRows: number | undefined;
+    let unfilteredPending = false;
+    if (filters.length > 0) {
+      const unfilteredCountResult = this.unfilteredRowCountSlot.use({
+        key: {groupBy, aggregates},
+        compute: async () => {
+          const query = this.buildGroupByQuery(
+            {...model, filters: []},
+            {countOnly: true},
+          );
+          const result = await this.engine.query(query);
+          return result.firstRow({count: NUM}).count;
+        },
+      });
+      unfilteredTotalRows = unfilteredCountResult.data;
+      unfilteredPending = unfilteredCountResult.isPending;
+    }
+
     return {
       totalRows: rowCountResult.data,
+      unfilteredTotalRows,
       rowOffset: rowsResult.data?.rowOffset,
       rows: rowsResult.data?.rows,
-      isPending: rowCountResult.isPending || rowsResult.isPending,
+      isPending:
+        rowCountResult.isPending || rowsResult.isPending || unfilteredPending,
     };
   }
 
@@ -223,6 +246,7 @@ export class SQLDataSourceGroupBy {
 
   dispose(): void {
     this.rowCountSlot.dispose();
+    this.unfilteredRowCountSlot.dispose();
     this.rowsSlot.dispose();
     this.summariesSlot.dispose();
   }

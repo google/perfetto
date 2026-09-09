@@ -26,6 +26,7 @@ import {filterToSql, quoteIdentifier} from '../sql_utils';
 
 export class SQLDataSourceFlat {
   private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly unfilteredRowCountSlot: AsyncMemo<number>;
   private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
@@ -38,6 +39,7 @@ export class SQLDataSourceFlat {
     private readonly sqlSchema: SQLTableSchema,
   ) {
     this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.unfilteredRowCountSlot = new AsyncMemo<number>(queue);
     this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
@@ -127,12 +129,37 @@ export class SQLDataSourceFlat {
       },
     });
 
-    // Merge the two results into a single bundle
+    // Only fetch the unfiltered count when filters are actually active.
+    let unfilteredTotalRows: number | undefined;
+    let unfilteredPending = false;
+    if (filters.length > 0) {
+      const unfilteredCountResult = this.unfilteredRowCountSlot.use({
+        key: {columns},
+        compute: async () => {
+          // No pagination/sort - we want the count of the whole dataset.
+          const query = buildQuery(this.sqlSchema, {
+            mode: 'flat',
+            columns,
+            filters: [],
+          });
+          const result = await this.engine.query(
+            `SELECT COUNT(*) as count FROM (${query})`,
+          );
+          return result.firstRow({count: NUM}).count;
+        },
+      });
+      unfilteredTotalRows = unfilteredCountResult.data;
+      unfilteredPending = unfilteredCountResult.isPending;
+    }
+
+    // Merge the results into a single bundle
     return {
       totalRows: rowCountResult.data,
+      unfilteredTotalRows,
       rowOffset: rowsResult.data?.rowOffset,
       rows: rowsResult.data?.rows,
-      isPending: rowCountResult.isPending || rowsResult.isPending,
+      isPending:
+        rowCountResult.isPending || rowsResult.isPending || unfilteredPending,
     };
   }
 
@@ -159,6 +186,7 @@ export class SQLDataSourceFlat {
 
   dispose(): void {
     this.rowCountSlot.dispose();
+    this.unfilteredRowCountSlot.dispose();
     this.rowsSlot.dispose();
     this.summariesSlot.dispose();
   }
