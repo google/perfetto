@@ -216,7 +216,7 @@ class Rpc {
  private:
   base::Status ExportSqlite(const ExportCallback&);
 
-  void ParseRpcRequest(Stream&, const uint8_t*, size_t);
+  void ParseRpcRequest(Stream&, protozero::ProtoRingBuffer::Message);
   void DrainStream(Stream&);
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);
