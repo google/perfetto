@@ -221,9 +221,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
         attrs.onStateChange(state);
       }
 
-      return m(
-        'div',
-        {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+      return [
         incomplete !== undefined &&
           incomplete.isIncomplete &&
           !incomplete.dismissed &&
@@ -249,7 +247,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
             },
           ],
         }),
-      );
+      ];
     },
   };
 }

@@ -89,6 +89,7 @@ function buildTabs(
   const hideExplanationSetting = session.hideDefaultChangedHint;
   const hideHint = hideExplanationSetting.get();
   const actions = new Map<string, TabActions>();
+
   const tabs: TabsTab[] = [
     {
       key: 'overview',
@@ -209,12 +210,13 @@ function buildTabs(
 
   for (const fg of session.flamegraphTabs) {
     const key = fgTabKey(fg.pathHashes, fg.isDominator);
+    const title =
+      fg.count !== null
+        ? `Flamegraph objects (${fg.count.toLocaleString()})`
+        : 'Flamegraph objects';
     tabs.push({
       key,
-      title:
-        fg.count !== null
-          ? `Flamegraph objects (${fg.count.toLocaleString()})`
-          : 'Flamegraph objects',
+      title,
       closeButton: true,
       content: m(FlamegraphObjectsView, {
         engine,
@@ -336,7 +338,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
       renderDumpSelector(session),
       m(
         'main',
-        {class: 'pf-hde-main'},
+        {class: 'pf-hde-page__tabs'},
         m(Tabs, {
           key: tabsKey,
           tabs,

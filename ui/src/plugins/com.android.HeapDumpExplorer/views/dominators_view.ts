@@ -31,6 +31,7 @@ import {
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
@@ -163,8 +164,12 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Dominators')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Dominators'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           data: dataSource,
@@ -185,7 +190,7 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
           showExportButton: true,
           onFiltersChanged: counter.onFiltersChanged,
         }),
-      ]);
+      );
     },
   };
 }

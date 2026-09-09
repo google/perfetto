@@ -36,6 +36,7 @@ import {
   renderOomeDetailsGrid,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 const HEAP_SCHEMA: ColumnSchema = {
   heap: {
@@ -279,176 +280,197 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
         m(GridCell, value),
       ];
 
-      return m('div', {class: 'pf-hde-view-scroll'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, 'Overview'),
-        showHint
-          ? m(
-              Callout,
-              {
-                className: 'pf-hde-default-changed-callout',
-                icon: 'info',
-                dismissible: true,
-                onDismiss: onDismissDefaultChangedHint,
-              },
-              m('p', [
-                m(
-                  'span',
-                  'Heapdump Explorer is now the default view for traces ' +
-                    'with heap-graph data.',
-                ),
-                m(Button, {
-                  label: 'Back to Timeline',
-                  icon: 'arrow_back',
-                  compact: true,
-                  onclick: onBackToTimeline,
-                }),
-              ]),
-            )
-          : null,
+      return m(
+        DetailsShell,
+        {
+          title: 'Overview',
+          fillHeight: true,
+          className: 'pf-hde-tab--padded',
+        },
+        [
+          showHint
+            ? m(
+                Callout,
+                {
+                  className: 'pf-hde-default-changed-callout',
+                  icon: 'info',
+                  dismissible: true,
+                  onDismiss: onDismissDefaultChangedHint,
+                },
+                m('p', [
+                  m(
+                    'span',
+                    'Heapdump Explorer is now the default view for traces ' +
+                      'with heap-graph data.',
+                  ),
+                  m(Button, {
+                    label: 'Back to Timeline',
+                    icon: 'arrow_back',
+                    compact: true,
+                    onclick: onBackToTimeline,
+                  }),
+                ]),
+              )
+            : null,
 
-        m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
-          m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
-          m(Grid, {
-            columns: [
-              {key: 'property', header: m(GridHeaderCell, 'Property')},
-              {key: 'value', header: m(GridHeaderCell, 'Value')},
-            ],
-            rowData: removeFalsyValues([
-              infoRow('Process', processLabel),
-              overview.processUptime !== null &&
-                infoRow('Uptime', Duration.format(overview.processUptime)),
-              overview.oomBucket !== null &&
-                infoRow(
-                  'OOM score',
-                  `${overview.oomBucket} (${overview.oomScore})`,
-                ),
-              infoRow('Classes', overview.classCount.toLocaleString()),
-              infoRow(
-                'Reachable instances',
-                overview.reachableInstanceCount.toLocaleString(),
-              ),
-              infoRow(
-                'Unreachable instances',
-                overview.unreachableInstanceCount.toLocaleString(),
-              ),
-              overview.anonRssAndSwapSize !== null &&
-                infoRow(
-                  'Anon RSS + Swap',
-                  fmtSize(Number(overview.anonRssAndSwapSize)),
-                ),
-              overview.dmabufRssSize !== null &&
-                infoRow(
-                  'DMA Buffer RSS',
-                  fmtSize(Number(overview.dmabufRssSize)),
-                ),
-            ]),
-          }),
-        ]),
-        m('div', {class: 'pf-hde-card'}, [
-          m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
-          m(DataGrid, {
-            schema: HEAP_SCHEMA,
-            data: heapRows,
-            initialColumns: [
-              {id: 'heap', field: 'heap'},
-              {id: 'java_size', field: 'java_size'},
-              {id: 'native_size', field: 'native_size'},
-              {id: 'total_size', field: 'total_size'},
-            ],
-          }),
-        ]),
-        overview.oome !== undefined
-          ? m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
-              m('h3', {class: 'pf-hde-sub-heading'}, OOME_DETAILS_TITLE),
-              renderOomeDetailsGrid(overview.oome),
-            ])
-          : null,
-        overview.duplicateBitmaps && overview.duplicateBitmaps.length > 0
-          ? renderDuplicateSection(
-              'Duplicate Bitmaps',
-              overview.duplicateBitmaps.length,
-              overview.duplicateBitmaps.reduce((a, g) => a + g.wastedBytes, 0),
-              'bitmaps',
-              'View Bitmaps',
-              navigate,
-              makeDuplicateBitmapSchema(navigate),
-              overview.duplicateBitmaps.map((g) => ({
-                dimensions: `${g.width} \u00d7 ${g.height}`,
-                groupKey: g.groupKey,
-                copies: g.count,
-                total_bytes: g.totalBytes,
-                wasted_bytes: g.wastedBytes,
-              })),
-              [
-                {id: 'dimensions', field: 'dimensions'},
-                {id: 'groupKey', field: 'groupKey'},
-                {id: 'copies', field: 'copies'},
-                {id: 'total_bytes', field: 'total_bytes'},
-                {id: 'wasted_bytes', field: 'wasted_bytes'},
+          m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
+            m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
+            m(Grid, {
+              columns: [
+                {key: 'property', header: m(GridHeaderCell, 'Property')},
+                {key: 'value', header: m(GridHeaderCell, 'Value')},
               ],
-            )
-          : overview.hasFieldValues
-            ? m(
-                'div',
-                {class: 'pf-hde-card pf-hde-mt-4 pf-hde-mb-4'},
-                m('p', {class: 'pf-hde-muted'}, 'No duplicate bitmaps found.'),
+              rowData: removeFalsyValues([
+                infoRow('Process', processLabel),
+                overview.processUptime !== null &&
+                  infoRow('Uptime', Duration.format(overview.processUptime)),
+                overview.oomBucket !== null &&
+                  infoRow(
+                    'OOM score',
+                    `${overview.oomBucket} (${overview.oomScore})`,
+                  ),
+                infoRow('Classes', overview.classCount.toLocaleString()),
+                infoRow(
+                  'Reachable instances',
+                  overview.reachableInstanceCount.toLocaleString(),
+                ),
+                infoRow(
+                  'Unreachable instances',
+                  overview.unreachableInstanceCount.toLocaleString(),
+                ),
+                overview.anonRssAndSwapSize !== null &&
+                  infoRow(
+                    'Anon RSS + Swap',
+                    fmtSize(Number(overview.anonRssAndSwapSize)),
+                  ),
+                overview.dmabufRssSize !== null &&
+                  infoRow(
+                    'DMA Buffer RSS',
+                    fmtSize(Number(overview.dmabufRssSize)),
+                  ),
+              ]),
+            }),
+          ]),
+          m('div', {class: 'pf-hde-card'}, [
+            m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
+            m(DataGrid, {
+              schema: HEAP_SCHEMA,
+              data: heapRows,
+              initialColumns: [
+                {id: 'heap', field: 'heap'},
+                {id: 'java_size', field: 'java_size'},
+                {id: 'native_size', field: 'native_size'},
+                {id: 'total_size', field: 'total_size'},
+              ],
+            }),
+          ]),
+          overview.oome !== undefined
+            ? m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
+                m('h3', {class: 'pf-hde-sub-heading'}, OOME_DETAILS_TITLE),
+                renderOomeDetailsGrid(overview.oome),
+              ])
+            : null,
+          overview.duplicateBitmaps && overview.duplicateBitmaps.length > 0
+            ? renderDuplicateSection(
+                'Duplicate Bitmaps',
+                overview.duplicateBitmaps.length,
+                overview.duplicateBitmaps.reduce(
+                  (a, g) => a + g.wastedBytes,
+                  0,
+                ),
+                'bitmaps',
+                'View Bitmaps',
+                navigate,
+                makeDuplicateBitmapSchema(navigate),
+                overview.duplicateBitmaps.map((g) => ({
+                  dimensions: `${g.width} \u00d7 ${g.height}`,
+                  groupKey: g.groupKey,
+                  copies: g.count,
+                  total_bytes: g.totalBytes,
+                  wasted_bytes: g.wastedBytes,
+                })),
+                [
+                  {id: 'dimensions', field: 'dimensions'},
+                  {id: 'groupKey', field: 'groupKey'},
+                  {id: 'copies', field: 'copies'},
+                  {id: 'total_bytes', field: 'total_bytes'},
+                  {id: 'wasted_bytes', field: 'wasted_bytes'},
+                ],
+              )
+            : overview.hasFieldValues
+              ? m(
+                  'div',
+                  {class: 'pf-hde-card pf-hde-mt-4 pf-hde-mb-4'},
+                  m(
+                    'p',
+                    {class: 'pf-hde-muted'},
+                    'No duplicate bitmaps found.',
+                  ),
+                )
+              : null,
+          overview.duplicateStrings && overview.duplicateStrings.length > 0
+            ? renderDuplicateSection(
+                'Duplicate Strings',
+                overview.duplicateStrings.length,
+                overview.duplicateStrings.reduce(
+                  (a, g) => a + g.wastedBytes,
+                  0,
+                ),
+                'strings',
+                'View Strings',
+                navigate,
+                makeDuplicateStringSchema(navigate),
+                overview.duplicateStrings.map((g) => ({
+                  value: g.value,
+                  copies: g.count,
+                  total_bytes: g.totalBytes,
+                  wasted_bytes: g.wastedBytes,
+                })),
+                [
+                  {id: 'value', field: 'value'},
+                  {id: 'copies', field: 'copies'},
+                  {id: 'total_bytes', field: 'total_bytes'},
+                  {id: 'wasted_bytes', field: 'wasted_bytes'},
+                ],
+              )
+            : overview.hasFieldValues
+              ? m(
+                  'div',
+                  {class: 'pf-hde-card pf-hde-mb-4'},
+                  m(
+                    'p',
+                    {class: 'pf-hde-muted'},
+                    'No duplicate strings found.',
+                  ),
+                )
+              : null,
+          overview.duplicateArrays && overview.duplicateArrays.length > 0
+            ? renderDuplicateSection(
+                'Duplicate Primitive Arrays',
+                overview.duplicateArrays.length,
+                overview.duplicateArrays.reduce((a, g) => a + g.wastedBytes, 0),
+                'arrays',
+                'View Arrays',
+                navigate,
+                makeDuplicateArraySchema(navigate),
+                overview.duplicateArrays.map((g) => ({
+                  className: g.className,
+                  arrayHash: g.arrayHash,
+                  copies: g.count,
+                  total_bytes: g.totalBytes,
+                  wasted_bytes: g.wastedBytes,
+                })),
+                [
+                  {id: 'className', field: 'className'},
+                  {id: 'arrayHash', field: 'arrayHash'},
+                  {id: 'copies', field: 'copies'},
+                  {id: 'total_bytes', field: 'total_bytes'},
+                  {id: 'wasted_bytes', field: 'wasted_bytes'},
+                ],
               )
             : null,
-        overview.duplicateStrings && overview.duplicateStrings.length > 0
-          ? renderDuplicateSection(
-              'Duplicate Strings',
-              overview.duplicateStrings.length,
-              overview.duplicateStrings.reduce((a, g) => a + g.wastedBytes, 0),
-              'strings',
-              'View Strings',
-              navigate,
-              makeDuplicateStringSchema(navigate),
-              overview.duplicateStrings.map((g) => ({
-                value: g.value,
-                copies: g.count,
-                total_bytes: g.totalBytes,
-                wasted_bytes: g.wastedBytes,
-              })),
-              [
-                {id: 'value', field: 'value'},
-                {id: 'copies', field: 'copies'},
-                {id: 'total_bytes', field: 'total_bytes'},
-                {id: 'wasted_bytes', field: 'wasted_bytes'},
-              ],
-            )
-          : overview.hasFieldValues
-            ? m(
-                'div',
-                {class: 'pf-hde-card pf-hde-mb-4'},
-                m('p', {class: 'pf-hde-muted'}, 'No duplicate strings found.'),
-              )
-            : null,
-        overview.duplicateArrays && overview.duplicateArrays.length > 0
-          ? renderDuplicateSection(
-              'Duplicate Primitive Arrays',
-              overview.duplicateArrays.length,
-              overview.duplicateArrays.reduce((a, g) => a + g.wastedBytes, 0),
-              'arrays',
-              'View Arrays',
-              navigate,
-              makeDuplicateArraySchema(navigate),
-              overview.duplicateArrays.map((g) => ({
-                className: g.className,
-                arrayHash: g.arrayHash,
-                copies: g.count,
-                total_bytes: g.totalBytes,
-                wasted_bytes: g.wastedBytes,
-              })),
-              [
-                {id: 'className', field: 'className'},
-                {id: 'arrayHash', field: 'arrayHash'},
-                {id: 'copies', field: 'copies'},
-                {id: 'total_bytes', field: 'total_bytes'},
-                {id: 'wasted_bytes', field: 'wasted_bytes'},
-              ],
-            )
-          : null,
-      ]);
+        ],
+      );
     },
   };
 }

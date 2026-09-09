@@ -28,50 +28,34 @@
   }
 
   height: 100%;
-  background: var(--pf-color-background-secondary);
   display: flex;
   flex-direction: column;
-  color: var(--pf-color-text);
   overflow: hidden;
+
+  .pf-details-shell .pf-content {
+    background: color-mix(
+      in srgb,
+      var(--pf-color-background) 70%,
+      var(--pf-color-background-secondary)
+    );
+  }
 }
 
-.pf-hde-main {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 1rem;
-  max-width: 95%;
-  margin: 0 auto;
-  width: 100%;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-
-  // The Tabs widget's content area must be a flex column so that DataGrid
-  // views (which use flex: 1 on .pf-hde-view-content) fill the available height.
-  .pf-tabs__content {
+.pf-details-shell.pf-hde-tab--padded {
+  .pf-content {
+    padding: 1rem;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
+
+    > .pf-hde-view-scroll {
+      flex: 0 0 auto;
+    }
   }
 }
 
-.pf-hde-heading-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-
-  // Remove the heading's own bottom margin when inside a heading row.
-  .pf-hde-view-heading {
-    margin-bottom: 0;
-  }
-}
-
-// Inline label+control (e.g. "Path: <select>") sitting at the right edge
-// of an .pf-hde-heading-row.
+// Inline label+control (e.g. "Path: <select>").
 .pf-hde-heading-control {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -80,21 +64,6 @@
   &__label {
     color: var(--pf-color-text-hint);
   }
-}
-
-// Flex-growing wrapper for view content with a DataGrid that fills height.
-.pf-hde-view-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-// Empty state for scroll views (bitmaps, etc.) where fillHeight cannot resolve
-// against a fixed parent. Uses viewport-relative height minus the page shell
-// (tab bar + padding) to vertically center the icon.
-.pf-hde-empty-fill {
-  height: calc(100vh - 200px);
 }
 
 .pf-hde-loading {
@@ -124,14 +93,6 @@
 .pf-hde-error-text {
   color: var(--pf-color-danger);
   padding: 1rem;
-}
-
-.pf-hde-view-heading {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-  color: var(--pf-color-text);
 }
 
 .pf-hde-default-changed-callout {
@@ -184,8 +145,8 @@
 }
 
 .pf-hde-bitmap-card {
+  background: var(--pf-color-background);
   border: 1px solid var(--pf-color-border);
-  border-radius: 3px;
   overflow: hidden;
   margin-bottom: 1rem;
 }
@@ -354,10 +315,6 @@
   opacity: 0.6;
 }
 
-.pf-hde-view-heading--tight {
-  margin-bottom: 0.25rem;
-}
-
 .pf-hde-action-row {
   display: flex;
   align-items: center;
@@ -444,4 +401,9 @@
 
 .pf-hde-col-header__info:hover {
   color: var(--pf-color-text);
+}
+
+.pf-hde-page__tabs {
+  flex-grow: 1;
+  overflow: hidden;
 }
