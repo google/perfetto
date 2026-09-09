@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -119,8 +120,20 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
 void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts,
                                            const TrackEventData& data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
-  protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
-  module_context_->track_module->ParseTrackEventData(packet, ts, data);
+  protozero::ProtoDecoder packet(blob.data(), blob.length());
+  protozero::ConstBytes event{};
+  uint32_t sequence_id = 0;
+  for (auto field = packet.ReadField(); field.valid();
+       field = packet.ReadField()) {
+    if (field.id() == protos::pbzero::TracePacket::kTrackEventFieldNumber) {
+      event = field.as_bytes();
+    } else if (field.id() == protos::pbzero::TracePacket::
+                                 kTrustedPacketSequenceIdFieldNumber) {
+      sequence_id = field.as_uint32();
+    }
+  }
+  module_context_->track_module->ParseTrackEventData(ts, data, event,
+                                                     sequence_id);
 }
 
 void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,

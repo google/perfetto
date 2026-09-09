@@ -101,13 +101,6 @@ void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
   track_event_tracker_->OnFirstPacketOnSequence(packet_sequence_id);
 }
 
-void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
-                                           int64_t ts,
-                                           const TrackEventData& data) {
-  parser_.ParseTrackEvent(ts, &data, decoder.track_event(),
-                          decoder.trusted_packet_sequence_id());
-}
-
 void TrackEventModule::OnEventsFullyExtracted() {
   parser_.OnEventsFullyExtracted();
 }
