@@ -119,7 +119,9 @@ trace_processor bundle input.perfetto-trace enriched-trace 2>bundle.log
 ```
 
 Live progress is suppressed when stderr is redirected. Use `--no-progress` to
-suppress it when running in a terminal too.
+suppress it when running in a terminal too. To hide routine status messages
+and successful summaries as well, use `--quiet` (or `-q` after `bundle`).
+Warnings and errors remain visible, including incomplete symbolization.
 
 See the [bundle command reference](/docs/reference/trace-processor-cli.md#subcommand-bundle)
 for option semantics, color controls, output replacement, and exit status.

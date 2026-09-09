@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -32,6 +33,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -45,12 +47,6 @@
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-#include <unistd.h>  // For isatty()
-#endif
 
 namespace perfetto::profiling {
 
@@ -154,67 +150,105 @@ std::unique_ptr<Symbolizer> CreateFindSymbolizer(
   return MaybeLocalSymbolizer(config.find_symbol_paths, {}, "find");
 }
 
-struct SymbolizationOutput {
-  std::string symbols_proto;
-  std::vector<SuccessfulMapping> successful_mappings;
-  std::vector<FailedMapping> failed_mappings;
+// ModuleSymbols identifies an address by module path, build ID, and rel_pc.
+// Keep one selected result per emitted address, including when the trace has
+// several mappings with different address-correction parameters.
+using MappingKey = std::pair<std::string, std::string>;
+struct AddressResult {
+  uint32_t frame_count = 0;
+  bool binary_found = false;
+  bool resolved = false;
 };
+struct MappingResult {
+  std::map<uint64_t, AddressResult> addresses;
+  std::map<std::string, uint32_t> successes;
+  std::vector<SymbolPathAttempt> attempts;
+};
+using MappingResults = std::map<MappingKey, MappingResult>;
 
-SymbolizationOutput SymbolizeDatabaseWithSymbolizer(
-    trace_processor::TraceProcessor* tp,
-    Symbolizer* symbolizer) {
-  PERFETTO_CHECK(symbolizer);
-  auto unsymbolized = CollectUnsymbolizedFrames(tp);
-  Symbolizer::Environment env = {GetOsRelease(tp)};
+bool HasFunctionName(const SymbolizedFrame& frame) {
+  return !frame.function_name.empty() && frame.function_name != "??";
+}
 
-  SymbolizationOutput output;
-  for (const UnsymbolizedFrames& frames : unsymbolized) {
-    const UnsymbolizedMapping& unsymbolized_mapping = frames.mapping;
-    const std::vector<uint64_t>& rel_pcs = frames.rel_pcs;
-    uint32_t frame_count = frames.frame_count;
-    SymbolizeResult res =
-        symbolizer->Symbolize(env, unsymbolized_mapping, rel_pcs);
-    if (res.frames.empty()) {
-      // Record the failed mapping with all attempted paths.
-      if (!res.attempts.empty()) {
-        output.failed_mappings.push_back(
-            {unsymbolized_mapping.name, unsymbolized_mapping.build_id,
-             std::move(res.attempts), frame_count});
-      }
+void SymbolizePendingAddresses(const std::vector<UnsymbolizedFrames>& groups,
+                               const Symbolizer::Environment& env,
+                               Symbolizer* symbolizer,
+                               MappingResults* results,
+                               std::string* symbols_output) {
+  for (const auto& group : groups) {
+    auto& result = results->at({group.mapping.name, group.mapping.build_id});
+    std::vector<uint64_t> pending;
+    for (uint64_t pc : group.rel_pcs) {
+      if (!result.addresses.at(pc).resolved)
+        pending.push_back(pc);
+    }
+    if (pending.empty())
       continue;
-    }
-
-    // Find the successful path from attempts (the one with kOk).
+    auto symbols = symbolizer->Symbolize(env, group.mapping, pending);
     std::string symbol_path;
-    for (const auto& attempt : res.attempts) {
-      if (attempt.error == SymbolPathError::kOk) {
+    for (const auto& attempt : symbols.attempts) {
+      if (attempt.error == SymbolPathError::kOk)
         symbol_path = attempt.path;
-        break;
-      }
+      auto same_attempt = [&attempt](const SymbolPathAttempt& existing) {
+        return existing.path == attempt.path && existing.error == attempt.error;
+      };
+      if (std::none_of(result.attempts.begin(), result.attempts.end(),
+                       same_attempt))
+        result.attempts.push_back(attempt);
     }
-    output.successful_mappings.push_back({unsymbolized_mapping.name,
-                                          unsymbolized_mapping.build_id,
-                                          symbol_path, frame_count});
-
-    protozero::HeapBuffered<perfetto::protos::pbzero::Trace> trace;
-    auto* packet = trace->add_packet();
-    auto* module_symbols = packet->set_module_symbols();
-    module_symbols->set_path(unsymbolized_mapping.name);
-    module_symbols->set_build_id(unsymbolized_mapping.build_id);
-    PERFETTO_DCHECK(res.frames.size() == rel_pcs.size());
-    for (size_t i = 0; i < res.frames.size(); ++i) {
-      auto* address_symbols = module_symbols->add_address_symbols();
-      address_symbols->set_address(rel_pcs[i]);
-      for (const SymbolizedFrame& frame : res.frames[i]) {
+    if (!symbol_path.empty()) {
+      for (uint64_t pc : pending)
+        result.addresses.at(pc).binary_found = true;
+    }
+    if (symbols.frames.empty())
+      continue;
+    PERFETTO_CHECK(symbols.frames.size() == pending.size());
+    protozero::HeapBuffered<protos::pbzero::Trace> trace;
+    protos::pbzero::ModuleSymbols* module = nullptr;
+    for (size_t i = 0; i < pending.size(); ++i) {
+      auto& address = result.addresses.at(pending[i]);
+      address.binary_found = true;
+      if (!std::any_of(symbols.frames[i].begin(), symbols.frames[i].end(),
+                       HasFunctionName))
+        continue;
+      address.resolved = true;
+      result.successes[symbol_path] += address.frame_count;
+      if (!module) {
+        module = trace->add_packet()->set_module_symbols();
+        module->set_path(group.mapping.name);
+        module->set_build_id(group.mapping.build_id);
+      }
+      auto* address_symbols = module->add_address_symbols();
+      address_symbols->set_address(pending[i]);
+      for (const auto& frame : symbols.frames[i]) {
         auto* line = address_symbols->add_lines();
         line->set_function_name(frame.function_name);
         line->set_source_file_name(frame.file_name);
         line->set_line_number(frame.line);
       }
     }
-    output.symbols_proto += trace.SerializeAsString();
+    if (module)
+      *symbols_output += trace.SerializeAsString();
   }
-  return output;
+}
+
+void CollectResults(const MappingResults& mappings, SymbolizerResult* result) {
+  for (const auto& [key, mapping] : mappings) {
+    FailedMapping failure{key.first, key.second, mapping.attempts, 0, 0};
+    for (const auto& entry : mapping.addresses) {
+      const auto& address = entry.second;
+      if (!address.resolved) {
+        failure.frame_count += address.frame_count;
+        if (address.binary_found)
+          failure.frames_without_symbols += address.frame_count;
+      }
+    }
+    for (const auto& [path, count] : mapping.successes)
+      result->successful_mappings.push_back(
+          {key.first, key.second, path, count});
+    if (failure.frame_count)
+      result->failed_mappings.push_back(std::move(failure));
+  }
 }
 
 // ANSI color codes for terminal output.
@@ -298,11 +332,16 @@ void FormatSuccessfulMappings(const std::vector<SuccessfulMapping>& mappings,
   if (frame_count == 0) {
     return;
   }
+  std::set<MappingKey> unique_mappings;
+  for (const auto& mapping : mappings)
+    unique_mappings.emplace(mapping.mapping_name, mapping.build_id);
   *out += "\n  Symbolized " + Plural(frame_count, "frame", "frames") +
-          " from " + Plural(mappings.size(), "mapping", "mappings") + ":\n";
+          " from " + Plural(unique_mappings.size(), "mapping", "mappings") +
+          ":\n";
   for (const auto& mapping : mappings) {
     *out += "    " + mapping.mapping_name + " (" +
             Plural(mapping.frame_count, "frame", "frames") + ")";
+    *out += " [build ID: " + base::ToHex(mapping.build_id) + "]";
     if (!mapping.symbol_path.empty()) {
       *out += " -> " + mapping.symbol_path;
     }
@@ -324,7 +363,7 @@ void FormatFailedMappings(bool colorize,
   if (frame_count == 0) {
     return;
   }
-  *out += "\n  No matching symbols in searched paths for " +
+  *out += "\n  Unresolved frames in " +
           Plural(mappings.size(), "mapping", "mappings") + " (" +
           Plural(frame_count, "frame", "frames") + "):\n";
   for (const auto& mapping : mappings) {
@@ -333,6 +372,11 @@ void FormatFailedMappings(bool colorize,
             Plural(mapping.frame_count, "frame", "frames") + ")\n";
     if (!is_kernel) {
       *out += "      build ID: " + base::ToHex(mapping.build_id) + "\n";
+    }
+    if (mapping.frames_without_symbols) {
+      *out += "      " +
+              Plural(mapping.frames_without_symbols, "frame", "frames") +
+              ": binary found, but no function name for the address\n";
     }
     if (!mapping.attempts.empty()) {
       *out += "      paths searched:\n";
@@ -410,7 +454,7 @@ std::vector<UnsymbolizedFrames> CollectUnsymbolizedFrames(
         result.back().mapping.start_offset == mapping.start_offset &&
         result.back().mapping.load_bias == mapping.load_bias;
     if (!same_mapping)
-      result.push_back({std::move(mapping), {}, 0});
+      result.push_back({std::move(mapping), {}, 0, {}});
 
     UnsymbolizedFrames& group = result.back();
     PERFETTO_CHECK(static_cast<uint64_t>(group.frame_count) +
@@ -418,6 +462,7 @@ std::vector<UnsymbolizedFrames> CollectUnsymbolizedFrames(
                    std::numeric_limits<uint32_t>::max());
     group.rel_pcs.push_back(static_cast<uint64_t>(it.Get(5).AsLong()));
     group.frame_count += static_cast<uint32_t>(frame_count);
+    group.frame_counts.push_back(static_cast<uint32_t>(frame_count));
   }
   if (!it.Status().ok()) {
     PERFETTO_DFATAL_OR_ELOG("Failed to query unsymbolized frames: %s",
@@ -434,69 +479,47 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
   // Get mappings and frame count for frames with empty build IDs.
   result.mappings_without_build_id = GetMappingsWithoutBuildId(tp);
 
+  auto groups = CollectUnsymbolizedFrames(tp);
+  MappingResults mappings;
+  for (const auto& group : groups) {
+    auto& mapping = mappings[{group.mapping.name, group.mapping.build_id}];
+    for (size_t i = 0; i < group.rel_pcs.size(); ++i) {
+      auto& address = mapping.addresses[group.rel_pcs[i]];
+      PERFETTO_CHECK(static_cast<uint64_t>(address.frame_count) +
+                         group.frame_counts[i] <=
+                     std::numeric_limits<uint32_t>::max());
+      address.frame_count += group.frame_counts[i];
+    }
+  }
+  // Nothing needs native symbol lookup (including an already symbolized trace).
+  if (groups.empty())
+    return result;
+
   bool has_any_paths =
       !config.index_symbol_paths.empty() || !config.symbol_files.empty() ||
       !config.find_symbol_paths.empty() || !config.breakpad_paths.empty();
   if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
     result.error_details =
-        "no symbol paths were searched. This happens when automatic path "
-        "discovery is disabled and no paths are provided. Pass "
-        "--symbol-paths PATH1,PATH2,... to point at the unstripped binaries "
-        "or Breakpad symbol files, or drop --no-auto-symbol-paths to search "
-        "the standard locations.";
+        "no symbol paths were searched. Pass --symbol-paths PATH1,PATH2,... "
+        "or enable automatic symbol path discovery.";
+    CollectResults(mappings, &result);
     return result;
   }
 
-  // Track successful and failed mappings by (mapping_name, build_id).
-  std::set<std::pair<std::string, std::string>> successful_mapping_keys;
-  std::map<std::pair<std::string, std::string>, size_t> failed_mapping_index;
-
-  auto collect_output = [&result, &successful_mapping_keys,
-                         &failed_mapping_index](SymbolizationOutput output) {
-    result.symbols += output.symbols_proto;
-    for (auto& success : output.successful_mappings) {
-      auto key = std::make_pair(success.mapping_name, success.build_id);
-      successful_mapping_keys.insert(key);
-      result.successful_mappings.push_back(std::move(success));
-    }
-    // Merge failed mappings - skip if already successful, merge attempts if
-    // already failed.
-    for (auto& failed : output.failed_mappings) {
-      auto key = std::make_pair(failed.mapping_name, failed.build_id);
-      // Skip if this mapping was already successfully symbolized.
-      if (successful_mapping_keys.count(key)) {
-        continue;
-      }
-      auto it = failed_mapping_index.find(key);
-      if (it != failed_mapping_index.end()) {
-        // Merge attempts into existing entry.
-        FailedMapping& existing = result.failed_mappings[it->second];
-        for (auto& attempt : failed.attempts) {
-          existing.attempts.push_back(std::move(attempt));
-        }
-      } else {
-        failed_mapping_index[key] = result.failed_mappings.size();
-        result.failed_mappings.push_back(std::move(failed));
-      }
-    }
-  };
-
-  // Run "index" mode symbolizer if paths are provided.
-  if (auto symbolizer = CreateIndexSymbolizer(config); symbolizer) {
-    collect_output(SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get()));
+  Symbolizer::Environment env = {GetOsRelease(tp)};
+  if (auto symbolizer = CreateIndexSymbolizer(config); symbolizer)
+    SymbolizePendingAddresses(groups, env, symbolizer.get(), &mappings,
+                              &result.symbols);
+  if (auto symbolizer = CreateFindSymbolizer(config); symbolizer)
+    SymbolizePendingAddresses(groups, env, symbolizer.get(), &mappings,
+                              &result.symbols);
+  for (const auto& path : config.breakpad_paths) {
+    BreakpadSymbolizer symbolizer(path);
+    SymbolizePendingAddresses(groups, env, &symbolizer, &mappings,
+                              &result.symbols);
   }
-
-  // Run "find" mode symbolizer if paths are provided.
-  if (auto symbolizer = CreateFindSymbolizer(config); symbolizer) {
-    collect_output(SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get()));
-  }
-
-  // Run breakpad symbolizers for each breakpad path.
-  for (const std::string& breakpad_path : config.breakpad_paths) {
-    BreakpadSymbolizer symbolizer(breakpad_path);
-    collect_output(SymbolizeDatabaseWithSymbolizer(tp, &symbolizer));
-  }
+  CollectResults(mappings, &result);
 
   result.error = SymbolizerError::kOk;
   return result;
@@ -520,7 +543,6 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
                                        bool colorize) {
   std::string summary;
 
-  size_t failed_count = result.failed_mappings.size();
   size_t skipped_count = result.mappings_without_build_id.size();
 
   // Count total frames.
@@ -534,22 +556,36 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
   }
   uint32_t unsymbolized_frames = failed_frames + skipped_frames;
 
-  // If everything succeeded, don't log anything.
-  if (failed_count == 0 && skipped_count == 0) {
-    return summary;
-  }
+  uint64_t resolved_frames = 0;
+  for (const auto& mapping : result.successful_mappings)
+    resolved_frames += mapping.frame_count;
+  if (resolved_frames + unsymbolized_frames == 0)
+    return "No native frames require symbolization.\n";
 
-  // Header showing the problem.
-  summary += Colorize(colorize, kYellow,
-                      Plural(unsymbolized_frames, "frame", "frames") +
-                          " could not be symbolized") +
-             " and will appear as \"unknown\".\n";
+  summary += Plural(resolved_frames, "frame", "frames") + " symbolized";
+  if (unsymbolized_frames) {
+    summary += "; " + Colorize(colorize, kYellow,
+                               Plural(unsymbolized_frames, "frame", "frames") +
+                                   " could not be symbolized");
+  }
+  summary += ".\n";
+  if (!result.error_details.empty())
+    summary += result.error_details + "\n";
 
   if (!verbose) {
     // Non-verbose: show breakdown summary with hints nested under each.
-    if (failed_frames > 0) {
-      summary += "  - " + Plural(failed_frames, "frame", "frames") + " from " +
-                 Plural(failed_count, "mapping", "mappings") +
+    uint32_t frames_without_symbols = 0;
+    size_t missing_binary_mappings = 0;
+    for (const auto& mapping : result.failed_mappings) {
+      frames_without_symbols += mapping.frames_without_symbols;
+      if (mapping.frame_count > mapping.frames_without_symbols)
+        ++missing_binary_mappings;
+    }
+    uint32_t missing_binary_frames = failed_frames - frames_without_symbols;
+    if (missing_binary_frames > 0) {
+      summary += "  - " + Plural(missing_binary_frames, "frame", "frames") +
+                 " from " +
+                 Plural(missing_binary_mappings, "mapping", "mappings") +
                  ": no matching symbols in searched paths\n";
 
       // Add hints nested under "no matching symbols".
@@ -570,6 +606,10 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
         FormatKernelHint(colorize, &summary, "    ");
       }
     }
+    if (frames_without_symbols) {
+      summary += "  - " + Plural(frames_without_symbols, "frame", "frames") +
+                 ": binary found, but no function name for the address\n";
+    }
     if (skipped_frames > 0) {
       summary += "  - " + Plural(skipped_frames, "frame", "frames") + " from " +
                  Plural(skipped_count, "mapping", "mappings") +
@@ -578,7 +618,8 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
       summary += MissingBuildIdHint(colorize);
     }
 
-    summary += "Use --verbose to see the full details.\n";
+    if (unsymbolized_frames)
+      summary += "Use --verbose to see the full details.\n";
     return summary;
   }
 
@@ -592,16 +633,13 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
 
 SymbolizerResult SymbolizeDatabaseAndLog(trace_processor::TraceProcessor* tp,
                                          const SymbolizerConfig& config,
-                                         bool verbose) {
+                                         bool verbose,
+                                         bool quiet) {
   SymbolizerResult result = SymbolizeDatabase(tp, config);
-  bool colorize = false;
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-  colorize = isatty(STDERR_FILENO);
-#endif
-  std::string summary = FormatSymbolizationSummary(result, verbose, colorize);
-  if (!summary.empty()) {
+  if (!quiet || !result.failed_mappings.empty() ||
+      !result.mappings_without_build_id.empty()) {
+    std::string summary = FormatSymbolizationSummary(
+        result, verbose && !quiet, base::StderrSupportsColor());
     fprintf(stderr, "%s", summary.c_str());
   }
   return result;

@@ -150,7 +150,8 @@ ScopedLine GetLine(const char* prompt) {
 
 void PrintQueryResultInteractively(Iterator* it,
                                    base::TimeNanos t_start,
-                                   uint32_t column_width) {
+                                   uint32_t column_width,
+                                   bool quiet) {
   base::TimeNanos t_end = base::GetWallTimeNs();
   for (uint32_t rows = 0; it->Next(); rows++) {
     if (rows % 32 == 0) {
@@ -205,8 +206,9 @@ void PrintQueryResultInteractively(Iterator* it,
   if (!status.ok()) {
     fprintf(stderr, "%s\n", status.c_message());
   }
-  printf("\nQuery executed in %.3f ms\n\n",
-         static_cast<double>((t_end - t_start).count()) / 1E6);
+  if (!quiet)
+    printf("\nQuery executed in %.3f ms\n\n",
+           static_cast<double>((t_end - t_start).count()) / 1E6);
 }
 
 void PrintShellUsage() {
@@ -238,7 +240,8 @@ base::Status StartInteractiveShell(TraceProcessor* trace_processor,
     if (!line)
       break;
     if (strcmp(line.get(), "") == 0) {
-      printf("If you want to quit either type .q or press CTRL-D (EOF)\n");
+      if (!options.quiet)
+        printf("If you want to quit either type .q or press CTRL-D (EOF)\n");
       continue;
     }
     if (line.get()[0] == '.') {
@@ -256,7 +259,8 @@ base::Status StartInteractiveShell(TraceProcessor* trace_processor,
       } else if (strcmp(command, "reset") == 0) {
         trace_processor->RestoreInitialTables();
       } else if (strcmp(command, "read") == 0 && strlen(arg)) {
-        base::Status status = RunQueriesFromFile(trace_processor, arg, true);
+        base::Status status =
+            RunQueriesFromFile(trace_processor, arg, true, options.quiet);
         if (!status.ok()) {
           PERFETTO_ELOG("%s", status.c_message());
         }
@@ -292,7 +296,7 @@ base::Status StartInteractiveShell(TraceProcessor* trace_processor,
 
     base::TimeNanos t_start = base::GetWallTimeNs();
     auto it = trace_processor->ExecuteQuery(line.get());
-    PrintQueryResultInteractively(&it, t_start, column_width);
+    PrintQueryResultInteractively(&it, t_start, column_width, options.quiet);
   }
   return base::OkStatus();
 }

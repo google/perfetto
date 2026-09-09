@@ -163,7 +163,8 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(
       OpenConversionOutput(output_path, binary_output, &output_file, &output));
 
-  const bool no_progress = ctx.global && ctx.global->no_progress;
+  const bool quiet = ctx.global && ctx.global->quiet;
+  const bool no_progress = quiet || (ctx.global && ctx.global->no_progress);
   if (format == "json") {
     RETURN_IF_ERROR(
         trace_to_text::TraceToJson(input, output, /*compress=*/false,
@@ -198,7 +199,7 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
       }
       RETURN_IF_ERROR(trace_to_text::TraceToProfile(
           input, pid, timestamps, !no_annotations_, output_dir_, profile_type,
-          verbose_, no_progress));
+          verbose_, no_progress, quiet));
     } else {  // firefox
       RETURN_IF_ERROR(
           trace_to_text::TraceToFirefoxProfile(input, output, no_progress));

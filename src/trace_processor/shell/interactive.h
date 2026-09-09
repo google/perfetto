@@ -36,6 +36,7 @@ struct InteractiveOptions {
   std::vector<MetricExtension> extensions;
   std::vector<MetricNameAndPath> metrics;
   const google::protobuf::DescriptorPool* pool;
+  bool quiet = false;
 };
 
 base::Status StartInteractiveShell(TraceProcessor* trace_processor,

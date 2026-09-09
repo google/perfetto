@@ -192,6 +192,7 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
   context.no_auto_proguard_maps = no_auto_proguard_maps_;
   context.verbose = verbose_;
   context.no_progress = ctx.global && ctx.global->no_progress;
+  context.quiet = ctx.global && ctx.global->quiet;
   if (const char* val = getenv("ANDROID_PRODUCT_OUT"))
     context.android_product_out = val;
   if (const char* val = getenv("HOME"))
@@ -200,7 +201,7 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
 
   base::Status status =
       trace_to_text::TraceToBundle(input_file, output_file, context);
-  if (status.ok()) {
+  if (status.ok() && !context.quiet) {
     fprintf(stdout, "Wrote %s.\n", output_file.c_str());
     fflush(stdout);
   }

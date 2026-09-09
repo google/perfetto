@@ -707,5 +707,74 @@ TEST_F(TraceconvShellBundleTest, RedirectedProgressIsPlainAndWarningsRemain) {
 }
 #endif
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST_F(TraceconvShellBundleTest, QuietBundleSuppressesRoutineOutput) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  for (const char* flag : {"--quiet", "-q"}) {
+    ArgvInvoker invoker;
+    for (const char* arg :
+         {"trace_processor_shell", "bundle", flag, "--verbose",
+          "--no-auto-symbol-paths", "--no-auto-proguard-maps"})
+      invoker.Add(arg);
+    invoker.Add(trace.path());
+    invoker.Add(output_path_);
+    testing::internal::CaptureStdout();
+    ScopedStderrCapture capture;
+    int status = invoker.Run();
+    auto stdout_text = testing::internal::GetCapturedStdout();
+    auto stderr_text = capture.Get();
+    EXPECT_EQ(status, 0);
+    EXPECT_TRUE(stdout_text.empty()) << stdout_text;
+    EXPECT_TRUE(stderr_text.empty()) << stderr_text;
+    EXPECT_TRUE(base::FileExists(output_path_));
+  }
+}
+
+TEST_F(TraceconvShellBundleTest, QuietBundleKeepsResourceErrors) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg : {"trace_processor_shell", "bundle", "--quiet",
+                          "--no-auto-symbol-paths", "--proguard-map"})
+    invoker.Add(arg);
+  invoker.Add(temp_dir_.path() + "/missing.map");
+  invoker.Add(trace.path());
+  invoker.Add(output_path_);
+  ScopedStderrCapture capture;
+  EXPECT_NE(invoker.Run(), 0);
+  auto output = capture.Get();
+  EXPECT_THAT(output, HasSubstr("missing.map"));
+  EXPECT_THAT(output, Not(HasSubstr("Read trace:")));
+  EXPECT_THAT(output, Not(HasSubstr("Enrichment done")));
+}
+
+TEST_F(TraceconvShellBundleTest, QuietQueryKeepsResultsAndLegacyQueryFile) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  base::TempFile sql = WriteTempFile("select 42 as answer");
+  for (bool legacy : {false, true}) {
+    ArgvInvoker invoker;
+    invoker.Add("trace_processor_shell");
+    if (legacy) {
+      invoker.Add("--quiet");
+      invoker.Add("-q");
+      invoker.Add(sql.path());
+      invoker.Add(trace.path());
+    } else {
+      invoker.Add("query");
+      invoker.Add("-q");
+      invoker.Add(trace.path());
+      invoker.Add("select 42 as answer");
+    }
+    testing::internal::CaptureStdout();
+    ScopedStderrCapture capture;
+    int status = invoker.Run();
+    auto stdout_text = testing::internal::GetCapturedStdout();
+    auto stderr_text = capture.Get();
+    EXPECT_EQ(status, 0);
+    EXPECT_THAT(stdout_text, HasSubstr("42"));
+    EXPECT_TRUE(stderr_text.empty()) << stderr_text;
+  }
+}
+#endif
+
 }  // namespace
 }  // namespace perfetto::trace_processor

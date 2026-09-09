@@ -34,7 +34,8 @@ namespace trace_to_text {
 base::Status SymbolizeProfile(std::istream* input,
                               std::ostream* output,
                               bool verbose,
-                              bool no_progress) {
+                              bool no_progress,
+                              bool quiet) {
   profiling::SymbolizerConfig sym_config;
 
   const char* breakpad_dir = getenv("BREAKPAD_SYMBOL_DIR");
@@ -64,7 +65,7 @@ base::Status SymbolizeProfile(std::istream* input,
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTraceUnfinalized(tp.get(), input, no_progress)) {
+  if (!ReadTraceUnfinalized(tp.get(), input, no_progress || quiet)) {
     return base::ErrStatus("failed to read trace");
   }
 
@@ -74,7 +75,7 @@ base::Status SymbolizeProfile(std::istream* input,
   }
 
   auto result =
-      profiling::SymbolizeDatabaseAndLog(tp.get(), sym_config, verbose);
+      profiling::SymbolizeDatabaseAndLog(tp.get(), sym_config, verbose, quiet);
   if (result.error != profiling::SymbolizerError::kOk) {
     return base::ErrStatus("symbolization failed: %s",
                            result.error_details.c_str());

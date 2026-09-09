@@ -124,6 +124,10 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(
       BoolFlag("version", 'v', "Prints the version.", &opts->version));
   flags.push_back(BoolFlag(
+      "quiet", 'q',
+      "Suppress progress and routine status messages; keep results and errors.",
+      &opts->quiet));
+  flags.push_back(BoolFlag(
       "no-progress", '\0',
       "Disable live progress (summaries and warnings are still printed).",
       &opts->no_progress));
@@ -437,10 +441,11 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
     const std::string& trace_file,
-    bool no_progress) {
+    bool no_progress,
+    bool quiet) {
   base::TimeNanos t_load_start = base::GetWallTimeNs();
   double size_mb = 0;
-  base::ProgressReporter progress(!no_progress);
+  base::ProgressReporter progress(!no_progress && !quiet);
 
   base::Status load_status = platform->LoadTrace(
       tp, trace_file, [&size_mb, &progress](size_t parsed_size) {
@@ -482,8 +487,8 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
       !sym_config.find_symbol_paths.empty()) {
     if (is_proto_trace) {
       tp->Flush();
-      auto sym_result =
-          profiling::SymbolizeDatabaseAndLog(tp, sym_config, /*verbose=*/false);
+      auto sym_result = profiling::SymbolizeDatabaseAndLog(
+          tp, sym_config, /*verbose=*/false, quiet);
       if (sym_result.error == profiling::SymbolizerError::kOk &&
           !sym_result.symbols.empty()) {
         std::unique_ptr<uint8_t[]> buf(new uint8_t[sym_result.symbols.size()]);
@@ -529,8 +534,9 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
 
   base::TimeNanos t_load = base::GetWallTimeNs() - t_load_start;
   double t_load_s = static_cast<double>(t_load.count()) / 1E9;
-  PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb, t_load_s,
-                size_mb / t_load_s);
+  if (!quiet)
+    PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb,
+                  t_load_s, size_mb / t_load_s);
 
   auto stats_status = PrintStats(tp);
   if (!stats_status.ok()) {
@@ -623,9 +629,9 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
   }
   ASSIGN_OR_RETURN(Config config, BuildConfig(opts, platform));
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
-  ASSIGN_OR_RETURN(
-      base::TimeNanos t_load,
-      LoadTraceFile(tp.get(), platform, trace_file, opts.no_progress));
+  ASSIGN_OR_RETURN(base::TimeNanos t_load,
+                   LoadTraceFile(tp.get(), platform, trace_file,
+                                 opts.no_progress, opts.quiet));
   if (t_load_out)
     *t_load_out = t_load;
   return std::move(tp);
