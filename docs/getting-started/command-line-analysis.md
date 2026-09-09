@@ -4,7 +4,7 @@ This page is a set of task-oriented recipes for working with traces from a
 shell using `trace_processor`: running queries, iterating without
 re-parsing, merging, exporting and converting. It shows the common form of
 each task; the full list of subcommands and flags is in the
-[Trace Processor reference](/docs/analysis/trace-processor.md).
+[Trace Processor reference](/docs/reference/trace-processor-cli.md).
 
 ## Get the binary
 
@@ -68,7 +68,7 @@ Two things to know:
   drop into a REPL on an already-warm session, or summarize it.
 
 Session naming, socket paths and idle-timeout tuning:
-[reference](/docs/analysis/trace-processor.md#subcommand-server).
+[reference](/docs/reference/trace-processor-cli.md#subcommand-server).
 
 ## Merge traces
 
@@ -124,7 +124,7 @@ trace_processor export sqlite -o trace.db trace.pftrace
 All three formats export the statically registered tables; only `sqlite` also
 includes views. Runtime tables created during the session (e.g.
 `CREATE PERFETTO TABLE`) are not exported. See the
-[Trace Processor reference](/docs/analysis/trace-processor.md#subcommand-export)
+[Trace Processor reference](/docs/reference/trace-processor-cli.md#subcommand-export)
 for the flag and format details.
 
 ## Convert to another trace format
@@ -150,4 +150,4 @@ parsed tables instead, see [Export trace data](#export-trace-data) above.
 - Automating analysis across many traces from Python:
   [Batch Trace Processor](/docs/analysis/batch-trace-processor.md).
 - Every subcommand and flag:
-  [Trace Processor reference](/docs/analysis/trace-processor.md).
+  [Trace Processor reference](/docs/reference/trace-processor-cli.md).
