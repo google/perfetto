@@ -423,6 +423,60 @@ test('QueryResult.decodeColumnsTypeErrors', () => {
     /Error @ row: 3 col: 'x'/,
   );
 });
+
+test('QueryResult.FixedWidthInts', () => {
+  // Integers encoded as fixed-width CELL_INT32 / CELL_INT64 (the encoding the
+  // Wasm engine opts into) instead of CELL_VARINT.
+  const batch = protos.QueryResult.CellsBatch.create({
+    cells: [T.CELL_INT32, T.CELL_INT64, T.CELL_INT32, T.CELL_INT64],
+    int32Cells: [42, -5],
+    int64Cells: [1000000000000, -1000000000000],
+    isLastBatch: true,
+  });
+  const resProto = protos.QueryResult.create({
+    columnNames: ['small', 'big', 'neg', 'negbig'],
+    batch: [batch],
+  });
+
+  const qr = createQueryResult({query: 'Some query'});
+  qr.appendResultBatch(protos.QueryResult.encode(resProto).finish());
+  expect(qr.numRows()).toBe(1);
+
+  // Read as numbers.
+  {
+    const iter = qr.iter({small: NUM, big: NUM, neg: NUM, negbig: NUM});
+    expect(iter.small).toBe(42);
+    expect(iter.big).toBe(1000000000000);
+    expect(iter.neg).toBe(-5);
+    expect(iter.negbig).toBe(-1000000000000);
+    iter.next();
+    expect(iter.valid()).toBe(false);
+  }
+
+  // Read as bigints (LONG).
+  {
+    const iter = qr.iter({small: LONG, big: LONG, neg: LONG, negbig: LONG});
+    expect(iter.small).toBe(42n);
+    expect(iter.big).toBe(1000000000000n);
+    expect(iter.neg).toBe(-5n);
+    expect(iter.negbig).toBe(-1000000000000n);
+  }
+
+  // Bulk columnar decode (the track hot path) must also handle the fixed-width
+  // int cells, mixing int32/int64 and number/bigint/null targets.
+  {
+    const cols = qr.decodeColumns({
+      small: NUM,
+      big: LONG,
+      neg: NUM_NULL,
+      negbig: LONG_NULL,
+    });
+    expect(Array.from(cols.small)).toEqual([42]);
+    expect(Array.from(cols.big)).toEqual([1000000000000n]);
+    expect(cols.neg).toEqual([-5]);
+    expect(cols.negbig).toEqual([-1000000000000n]);
+  }
+});
 // Regression test for b/194891824 .
 test('QueryResult.DuplicateColumnNames', () => {
   const batch = protos.QueryResult.CellsBatch.create({

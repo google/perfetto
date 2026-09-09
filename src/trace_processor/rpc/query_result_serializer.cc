@@ -120,6 +120,11 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
   protozero::PackedVarInt varints;
   protozero::PackedFixedSizeInt<double> doubles;
 
+  // Used instead of |varints| when use_fixed_width_int_cells_ is set. Each
+  // integer cell goes into |int32s| or |int64s| depending on its magnitude.
+  protozero::PackedFixedSizeInt<int32_t> int32s;
+  protozero::PackedFixedSizeInt<int64_t> int64s;
+
   // We write blobs on a temporary heap buffer and append it at the end. Blobs
   // are extremely rare, trying to avoid copies is not worth the complexity.
   std::vector<uint8_t> blobs;
@@ -158,9 +163,22 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
         break;
       }
       case SqlValue::Type::kLong: {
-        cell_type = BatchProto::CELL_VARINT;
-        varints.Append(value.long_value);
-        approx_batch_size += 4;  // Just a guess, doesn't need to be accurate.
+        const int64_t v = value.long_value;
+        if (!use_fixed_width_int_cells_) {
+          cell_type = BatchProto::CELL_VARINT;
+          varints.Append(v);
+          approx_batch_size += 4;  // Just a guess, doesn't need to be accurate.
+        } else if (v >= INT32_MIN && v <= INT32_MAX) {
+          // Small enough to fit in 4 bytes: use the int32 bucket to keep the
+          // wire (and the JS-side memcpy) smaller.
+          cell_type = BatchProto::CELL_INT32;
+          int32s.Append(static_cast<int32_t>(v));
+          approx_batch_size += 4;
+        } else {
+          cell_type = BatchProto::CELL_INT64;
+          int64s.Append(v);
+          approx_batch_size += 8;
+        }
         break;
       }
       case SqlValue::Type::kDouble: {
@@ -216,6 +234,15 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
   // Append the |varint_cells|, copying over the packed varint buffer.
   if (varints.size())
     batch->set_varint_cells(varints);
+
+  // Append the fixed-width integer buckets (only populated when
+  // use_fixed_width_int_cells_ is set). These use the standard packed-field
+  // setters, so the JS reader decodes them by overlaying a TypedArray instead
+  // of decoding a varint per cell.
+  if (int32s.size())
+    batch->set_int32_cells(int32s);
+  if (int64s.size())
+    batch->set_int64_cells(int64s);
 
   // Append the |float64_cells|, copying over the packed fixed64 buffer. This is
   // appended at a 64-bit aligned offset, so that JS can access these by overlay
