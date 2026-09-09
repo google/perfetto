@@ -1,0 +1,56 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// A named, typed key/value which is part of a track's identity.
+//
+// Dimensions are the single vocabulary for identifiers which apply to a set of
+// tracks: `machine`, `gpu`, `cpu`, `process` and `thread` are *well-known*
+// dimensions synthesized by trace processor, while producers can declare their
+// own *custom* dimensions (`rank`, `shard`, `stage`, ...) on a TrackDescriptor.
+//
+// A dimension has no scope field: it is declared on the track described by the
+// containing TrackDescriptor and applies to that track plus:
+//  * every track associated with the same process, if declared on a process
+//    track,
+//  * every track associated with the same thread, if declared on a thread
+//    track,
+//  * every `parent_uuid` descendant, if declared on any other track.
+//
+// Declaring a *different* value for a dimension name which is already
+// inherited from an ancestor is invalid: trace processor records an import
+// error and keeps the inherited value.
+message Dimension {
+  // The canonical dimension key, e.g. "rank". Custom dimensions cannot use a
+  // reserved well-known name (`machine`, `gpu`, `cpu`, `process`, `thread`).
+  optional string name = 1;
+
+  // The typed value of the dimension. This is the value used for SQL queries
+  // and (for well-known dimensions) merging, so it should be stable for the
+  // whole trace.
+  oneof value {
+    int64 int_value = 2;
+    string string_value = 3;
+  }
+
+  // Optional human readable label for this *value*, e.g. "worker-east" for
+  // rank 7. Only affects presentation: the canonical typed value above is what
+  // SQL and merging use.
+  optional string display_name = 4;
+}

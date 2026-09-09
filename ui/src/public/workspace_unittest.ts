@@ -270,3 +270,35 @@ test('TrackNode::clone(deep)', () => {
   expect(cloned.children[1].name).toBe(childB.name);
   expect(cloned.children[1].uri).toBe(childB.uri);
 });
+
+describe('TrackNode subtitles', () => {
+  test('setting the subtitle round-trips', () => {
+    const node = new TrackNode({subtitle: 'hello'});
+    expect(node.subtitle).toBe('hello');
+  });
+
+  test('items from different contributors compose', () => {
+    const node = new TrackNode();
+    node.setSubtitleItem('chrome.process_label', 'example.com');
+    node.setSubtitleItem('dimensions', 'rank 3');
+
+    expect(node.subtitle).toBe('example.com · rank 3');
+  });
+
+  test('an item can be removed without affecting the others', () => {
+    const node = new TrackNode();
+    node.subtitle = 'label';
+    node.setSubtitleItem('dimensions', 'rank 3');
+    node.setSubtitleItem('dimensions', undefined);
+
+    expect(node.subtitle).toBe('label');
+  });
+
+  test('subtitle is undefined when there are no items', () => {
+    const node = new TrackNode();
+    expect(node.subtitle).toBeUndefined();
+    node.subtitle = 'x';
+    node.subtitle = undefined;
+    expect(node.subtitle).toBeUndefined();
+  });
+});

@@ -34,6 +34,7 @@ perfetto_proto_library("@TYPE@") {
     "chrome_window_handle_event_info.proto",
     "counter_descriptor.proto",
     "debug_annotation.proto",
+    "dimension.proto",
     "log_message.proto",
     "process_descriptor.proto",
     "range_of_interest.proto",

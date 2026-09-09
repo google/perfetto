@@ -110,6 +110,7 @@ void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
 
 void TrackEventModule::OnEventsFullyExtracted() {
   parser_.OnEventsFullyExtracted();
+  track_event_tracker_->OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor

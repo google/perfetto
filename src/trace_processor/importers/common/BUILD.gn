@@ -89,6 +89,8 @@ source_set("common") {
     "trace_file_tracker.h",
     "track_compressor.cc",
     "track_compressor.h",
+    "track_dimension_resolver.cc",
+    "track_dimension_resolver.h",
     "track_tracker.cc",
     "track_tracker.h",
     "tracks.h",

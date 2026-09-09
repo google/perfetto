@@ -261,3 +261,177 @@ WHERE
     'gpu_log',
     'graphics_frame_event'
   );
+
+-- The *effective* dimensions of every track.
+--
+-- A dimension is a named, typed key/value which is part of a track's identity.
+-- There is one vocabulary for all of them, regardless of whether the value
+-- originated from a typed descriptor (e.g. `machine`, `gpu`), from import
+-- context, or from a producer declaring it explicitly with
+-- `TrackDescriptor.dimensions` (e.g. `rank` for a distributed training job).
+--
+-- Custom (producer-declared) dimensions are resolved onto every track which
+-- inherits them: tracks of the same process/thread when they were declared on
+-- a process/thread track, and `parent_id` descendants otherwise.
+--
+-- Note: this is a view rather than a table because the well known dimensions
+-- below are synthesized on the fly for *every* track, and most consumers only
+-- care about `is_well_known = 0`.
+CREATE PERFETTO VIEW track_dimension(
+  -- The track this dimension applies to.
+  track_id JOINID(track.id),
+  -- The canonical dimension name, e.g. 'rank' or 'machine'.
+  name STRING,
+  -- The value, for integer valued dimensions. Well known dimensions use trace
+  -- processor identities here (e.g. `machine.id`, `upid`, `utid`).
+  int_value LONG,
+  -- The value, for string valued dimensions. Exactly one of `int_value` and
+  -- `string_value` is non-null.
+  string_value STRING,
+  -- Optional human readable label for this *value* (e.g. a machine or process
+  -- name). Presentation only: joins should use the canonical value above.
+  display_name STRING,
+  -- Whether this is a well known dimension, i.e. one which trace processor
+  -- understands and whose value means the same thing across data sources.
+  is_well_known BOOL
+)
+AS
+-- Producer-declared custom dimensions, after inheritance was resolved.
+SELECT track_id, name, int_value, string_value, display_name, 0 AS is_well_known
+FROM __intrinsic_track_dimension
+UNION ALL
+-- Every track belongs to exactly one machine.
+SELECT
+  t.id AS track_id,
+  'machine' AS name,
+  m.id AS int_value,
+  NULL AS string_value,
+  m.name AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track AS t
+JOIN machine AS m
+  ON m.id = t.machine_id
+UNION ALL
+-- Tracks scoped to a single process, either directly or through their thread.
+SELECT
+  t.id AS track_id,
+  'process' AS name,
+  p.upid AS int_value,
+  NULL AS string_value,
+  p.name AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track AS t
+JOIN process AS p
+  ON p.upid
+  = coalesce(t.upid, (SELECT th.upid FROM thread AS th WHERE th.utid = t.utid))
+UNION ALL
+-- Tracks scoped to a single thread.
+SELECT
+  t.id AS track_id,
+  'thread' AS name,
+  t.utid AS int_value,
+  NULL AS string_value,
+  th.name AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track AS t
+JOIN thread AS th USING (utid)
+UNION ALL
+-- Tracks scoped to a single CPU or GPU. `ucpu`/`ugpu` are the canonical
+-- (machine aware) identities; the raw numbers stay available through
+-- `cpu.cpu` and `gpu.gpu`.
+SELECT
+  track_id,
+  name,
+  int_value,
+  NULL AS string_value,
+  NULL AS display_name,
+  1 AS is_well_known
+FROM (
+  SELECT
+    id AS track_id,
+    'cpu' AS name,
+    coalesce(
+      extract_arg(dimension_arg_set_id, 'ucpu'),
+      extract_arg(dimension_arg_set_id, 'cpu')
+    ) AS int_value
+  FROM __intrinsic_track
+  UNION ALL
+  SELECT
+    id AS track_id,
+    'gpu' AS name,
+    coalesce(
+      extract_arg(dimension_arg_set_id, 'ugpu'),
+      extract_arg(dimension_arg_set_id, 'gpu')
+    ) AS int_value
+  FROM __intrinsic_track
+)
+WHERE
+  int_value IS NOT NULL;
+
+-- The effective dimensions of every process.
+--
+-- This is a projection of the same declarations as `track_dimension`, keyed by
+-- `upid`: use it for event tables which carry their own `upid` (e.g.
+-- `gpu_slice`) rather than inheriting it from the track.
+CREATE PERFETTO VIEW process_dimension(
+  -- The process this dimension applies to.
+  upid JOINID(process.id),
+  -- The canonical dimension name, e.g. 'rank'.
+  name STRING,
+  -- The value, for integer valued dimensions.
+  int_value LONG,
+  -- The value, for string valued dimensions.
+  string_value STRING,
+  -- Optional human readable label for this *value*.
+  display_name STRING,
+  -- Whether this is a well known dimension.
+  is_well_known BOOL
+)
+AS
+SELECT upid, name, int_value, string_value, display_name, 0 AS is_well_known
+FROM __intrinsic_track_dimension_decl
+WHERE
+  upid IS NOT NULL
+UNION ALL
+SELECT
+  p.upid,
+  'machine' AS name,
+  m.id AS int_value,
+  NULL AS string_value,
+  m.name AS display_name,
+  1 AS is_well_known
+FROM process AS p
+JOIN machine AS m
+  ON m.id = p.machine_id;
+
+-- The effective dimensions of every thread: the dimensions declared on the
+-- thread itself plus the ones it inherits from its process.
+CREATE PERFETTO VIEW thread_dimension(
+  -- The thread this dimension applies to.
+  utid JOINID(thread.id),
+  -- The canonical dimension name, e.g. 'rank'.
+  name STRING,
+  -- The value, for integer valued dimensions.
+  int_value LONG,
+  -- The value, for string valued dimensions.
+  string_value STRING,
+  -- Optional human readable label for this *value*.
+  display_name STRING,
+  -- Whether this is a well known dimension.
+  is_well_known BOOL
+)
+AS
+SELECT utid, name, int_value, string_value, display_name, 0 AS is_well_known
+FROM __intrinsic_track_dimension_decl
+WHERE
+  utid IS NOT NULL
+UNION ALL
+SELECT
+  t.utid,
+  d.name,
+  d.int_value,
+  d.string_value,
+  d.display_name,
+  d.is_well_known
+FROM thread AS t
+JOIN process_dimension AS d USING (upid);

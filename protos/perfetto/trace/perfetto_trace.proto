@@ -17790,6 +17790,47 @@ message CounterDescriptor {
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
 
+// Begin of protos/perfetto/trace/track_event/dimension.proto
+
+// A named, typed key/value which is part of a track's identity.
+//
+// Dimensions are the single vocabulary for identifiers which apply to a set of
+// tracks: `machine`, `gpu`, `cpu`, `process` and `thread` are *well-known*
+// dimensions synthesized by trace processor, while producers can declare their
+// own *custom* dimensions (`rank`, `shard`, `stage`, ...) on a TrackDescriptor.
+//
+// A dimension has no scope field: it is declared on the track described by the
+// containing TrackDescriptor and applies to that track plus:
+//  * every track associated with the same process, if declared on a process
+//    track,
+//  * every track associated with the same thread, if declared on a thread
+//    track,
+//  * every `parent_uuid` descendant, if declared on any other track.
+//
+// Declaring a *different* value for a dimension name which is already
+// inherited from an ancestor is invalid: trace processor records an import
+// error and keeps the inherited value.
+message Dimension {
+  // The canonical dimension key, e.g. "rank". Custom dimensions cannot use a
+  // reserved well-known name (`machine`, `gpu`, `cpu`, `process`, `thread`).
+  optional string name = 1;
+
+  // The typed value of the dimension. This is the value used for SQL queries
+  // and (for well-known dimensions) merging, so it should be stable for the
+  // whole trace.
+  oneof value {
+    int64 int_value = 2;
+    string string_value = 3;
+  }
+
+  // Optional human readable label for this *value*, e.g. "worker-east" for
+  // rank 7. Only affects presentation: the canonical typed value above is what
+  // SQL and merging use.
+  optional string display_name = 4;
+}
+
+// End of protos/perfetto/trace/track_event/dimension.proto
+
 // Begin of protos/perfetto/trace/track_event/state_descriptor.proto
 
 // Descriptor for a state track.
@@ -17815,7 +17856,7 @@ message StateDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 21.
+// Next id: 22.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -18158,6 +18199,20 @@ message TrackDescriptor {
     THREAD_ORDERING_EXPLICIT = 1;
   }
   optional ThreadOrdering thread_ordering = 20;
+
+  // Custom, producer-declared dimensions for this track. Repeated so that a
+  // track can carry more than one independent dimension (e.g. `rank` and
+  // `stage`).
+  //
+  // Dimensions declared here are resolved onto this track *and* onto the
+  // tracks which inherit from it: tracks of the same process if `process` is
+  // set, tracks of the same thread if `thread` is set, and `parent_uuid`
+  // descendants otherwise. See Dimension for the full resolution rules.
+  //
+  // Well-known dimensions (`machine`, `gpu`, `cpu`, `process`, `thread`) are
+  // synthesized by trace processor from the typed fields above and from import
+  // context: producers must *not* declare them here.
+  repeated Dimension dimensions = 21;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

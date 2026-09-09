@@ -16,6 +16,7 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
+from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
@@ -89,7 +90,101 @@ TRACK_TABLE = Table(
         ),
     ])
 
+# Dimensions declared by a producer on a `TrackDescriptor`, as they were
+# declared: i.e. *before* inheritance is applied. At most one of `upid`, `utid`
+# is set: this happens when the declaration was made on a root process/thread
+# track, in which case the declaration applies to every track associated with
+# that process/thread. If neither is set the declaration applies to
+# `declaring_track_id` and its `parent_id` descendants.
+#
+# `declaring_track_id` is null when the descriptor which declared the dimension
+# never got a track of its own (e.g. a process descriptor with no events on the
+# process track itself). The declaration still applies to the process/thread.
+#
+# This is the input to the effective dimension resolver; consumers should use
+# `__intrinsic_track_dimension` (or the public `track_dimension` view) instead.
+TRACK_DIMENSION_DECL_TABLE = Table(
+    python_module=__file__,
+    class_name="TrackDimensionDeclTable",
+    sql_name="__intrinsic_track_dimension_decl",
+    columns=[
+        C(
+            "declaring_track_id",
+            CppOptional(CppTableId(TRACK_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "name",
+            CppString(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "int_value",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "string_value",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "display_name",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "upid",
+            CppOptional(CppTableId(PROCESS_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "utid",
+            CppOptional(CppTableId(THREAD_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
+    ])
+
+# The *effective* dimensions of every track: the declarations above after
+# process/thread association and `parent_id` inheritance have been applied.
+# Well known dimensions which trace processor can synthesize from existing
+# columns (machine, cpu, gpu, process, thread) are added on top of this table
+# by the public `track_dimension` view.
+TRACK_DIMENSION_TABLE = Table(
+    python_module=__file__,
+    class_name="TrackDimensionTable",
+    sql_name="__intrinsic_track_dimension",
+    columns=[
+        C(
+            "track_id",
+            CppTableId(TRACK_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "name",
+            CppString(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "int_value",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "string_value",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "display_name",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+    ])
+
 # Keep this list sorted.
 ALL_TABLES = [
+    TRACK_DIMENSION_DECL_TABLE,
+    TRACK_DIMENSION_TABLE,
     TRACK_TABLE,
 ]

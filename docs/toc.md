@@ -210,6 +210,7 @@
 
       - [Architecture](design-docs/trace-processor-architecture.md) {.tag-contrib}
       - [Batch Trace Processor](design-docs/batch-trace-processor.md) {.tag-contrib}
+      - [Track Dimensions](design-docs/track-dimensions.md) {.tag-contrib}
 
     - [UI](#)
 

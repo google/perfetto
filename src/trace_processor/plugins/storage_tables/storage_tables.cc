@@ -204,6 +204,8 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_sched_slice_table(), {{"utid"}});
     AddDataframe(out, s->mutable_thread_state_table());
     AddDataframe(out, s->mutable_track_table());
+    AddDataframe(out, s->mutable_track_dimension_decl_table());
+    AddDataframe(out, s->mutable_track_dimension_table(), {{"track_id"}});
     AddDataframe(out, s->mutable_counter_table());
     AddDataframe(out, s->mutable_android_network_packets_table());
     AddDataframe(out, s->mutable_metadata_table());
