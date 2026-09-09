@@ -120,6 +120,7 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
                                       pkg= prefix scopes the map to a package.
    --no-auto-proguard-maps            Disable automatic ProGuard/R8 mapping
                                       discovery (e.g. Gradle project layout)
+   --no-progress                      Disable live progress
    --verbose                          Print more detailed output
 
  binary                               Converts text proto to binary format
@@ -181,6 +182,7 @@ int Main(int argc, char** argv) {
   bool no_auto_symbol_paths = false;
   bool no_auto_proguard_maps = false;
   bool verbose = false;
+  bool no_progress = false;
   bool skip_unknown_fields = false;
   std::string output_dir;
   for (int i = 1; i < argc; i++) {
@@ -222,6 +224,8 @@ int Main(int argc, char** argv) {
     } else if (i < argc && strcmp(argv[i], "--symbol-paths") == 0) {
       i++;
       symbol_paths = base::SplitString(argv[i], ",");
+    } else if (strcmp(argv[i], "--no-progress") == 0) {
+      no_progress = true;
     } else if (strcmp(argv[i], "--no-auto-symbol-paths") == 0) {
       no_auto_symbol_paths = true;
     } else if (strcmp(argv[i], "--no-auto-proguard-maps") == 0) {
@@ -330,19 +334,19 @@ int Main(int argc, char** argv) {
   }
 
   if (format == "json")
-    return ToExitCode(trace_to_text::TraceToJson(input_stream, output_stream,
-                                                 /*compress=*/false,
-                                                 truncate_keep, full_sort));
+    return ToExitCode(trace_to_text::TraceToJson(
+        input_stream, output_stream,
+        /*compress=*/false, truncate_keep, full_sort, no_progress));
 
   if (format == "systrace")
     return ToExitCode(trace_to_text::TraceToSystrace(
-        input_stream, output_stream, /*ctrace=*/false, truncate_keep,
-        full_sort));
+        input_stream, output_stream, /*ctrace=*/false, truncate_keep, full_sort,
+        no_progress));
 
   if (format == "ctrace")
     return ToExitCode(trace_to_text::TraceToSystrace(
-        input_stream, output_stream, /*ctrace=*/true, truncate_keep,
-        full_sort));
+        input_stream, output_stream, /*ctrace=*/true, truncate_keep, full_sort,
+        no_progress));
 
   if (truncate_keep != trace_to_text::Keep::kAll) {
     PERFETTO_ELOG(
@@ -361,6 +365,7 @@ int Main(int argc, char** argv) {
   if (format == "text") {
     trace_to_text::TraceToTextOptions options;
     options.skip_unknown_fields = skip_unknown_fields;
+    options.no_progress = no_progress;
     return ToExitCode(
         trace_to_text::TraceToText(input_stream, output_stream, options));
   }
@@ -374,27 +379,27 @@ int Main(int argc, char** argv) {
     }
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        profile_type, verbose));
+        profile_type, verbose, no_progress));
   }
 
   if (format == "java_heap_profile") {
     // legacy alias for "profile --java-heap"
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        trace_to_text::ConversionMode::kJavaHeapProfile, verbose));
+        trace_to_text::ConversionMode::kJavaHeapProfile, verbose, no_progress));
   }
 
   if (format == "symbolize")
-    return ToExitCode(
-        trace_to_text::SymbolizeProfile(input_stream, output_stream, verbose));
+    return ToExitCode(trace_to_text::SymbolizeProfile(
+        input_stream, output_stream, verbose, no_progress));
 
   if (format == "deobfuscate")
     return ToExitCode(
         trace_to_text::DeobfuscateProfile(input_stream, output_stream));
 
   if (format == "firefox")
-    return ToExitCode(
-        trace_to_text::TraceToFirefoxProfile(input_stream, output_stream));
+    return ToExitCode(trace_to_text::TraceToFirefoxProfile(
+        input_stream, output_stream, no_progress));
 
   if (format == "decompress_packets")
     return ToExitCode(
@@ -434,6 +439,7 @@ int Main(int argc, char** argv) {
     context.no_auto_symbol_paths = no_auto_symbol_paths;
     context.no_auto_proguard_maps = no_auto_proguard_maps;
     context.verbose = verbose;
+    context.no_progress = no_progress;
     if (const char* val = getenv("ANDROID_PRODUCT_OUT")) {
       context.android_product_out = val;
     }

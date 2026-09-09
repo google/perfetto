@@ -49,6 +49,7 @@ struct GlobalOptions {
   // (unsupported yet) host:port.
   std::string remote_addr;
 
+  bool no_progress = false;
   bool force_full_sort = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
@@ -113,7 +114,8 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
 base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
-    const std::string& trace_file);
+    const std::string& trace_file,
+    bool no_progress = false);
 
 // Resolves the trace-file positional argument for a trace-consuming subcommand,
 // accounting for --remote. In --remote mode the trace is already loaded

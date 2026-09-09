@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/shell/common_flags.h"
-#include "src/traceconv/utils.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -33,6 +32,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -123,6 +123,10 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("help", 'h', "Prints this guide.", &opts->help));
   flags.push_back(
       BoolFlag("version", 'v', "Prints the version.", &opts->version));
+  flags.push_back(BoolFlag(
+      "no-progress", '\0',
+      "Disable live progress (summaries and warnings are still printed).",
+      &opts->no_progress));
   flags.push_back(BoolFlag("full-sort", '\0',
                            "Forces full sort ignoring windowing.",
                            &opts->force_full_sort));
@@ -432,18 +436,22 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
 base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
-    const std::string& trace_file) {
+    const std::string& trace_file,
+    bool no_progress) {
   base::TimeNanos t_load_start = base::GetWallTimeNs();
   double size_mb = 0;
+  base::ProgressReporter progress(!no_progress);
 
-  base::Status load_status =
-      platform->LoadTrace(tp, trace_file, [&size_mb](size_t parsed_size) {
+  base::Status load_status = platform->LoadTrace(
+      tp, trace_file, [&size_mb, &progress](size_t parsed_size) {
         size_mb = static_cast<double>(parsed_size) / 1E6;
-        fprintf(stderr, "\rLoading trace: %.2f MB\r", size_mb);
+        progress.Update(
+            base::StackString<128>("Loading trace: %.2f MB", size_mb)
+                .ToStdString());
       });
   // Terminate the in-place progress line so errors/logs below start on a
   // fresh line.
-  trace_to_text::EndProgressLine();
+  progress.Clear();
   if (!load_status.ok()) {
     return base::ErrStatus("failed to read trace file (path: %s): %s",
                            trace_file.c_str(), load_status.c_message());
@@ -615,8 +623,9 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
   }
   ASSIGN_OR_RETURN(Config config, BuildConfig(opts, platform));
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
-  ASSIGN_OR_RETURN(base::TimeNanos t_load,
-                   LoadTraceFile(tp.get(), platform, trace_file));
+  ASSIGN_OR_RETURN(
+      base::TimeNanos t_load,
+      LoadTraceFile(tp.get(), platform, trace_file, opts.no_progress));
   if (t_load_out)
     *t_load_out = t_load;
   return std::move(tp);

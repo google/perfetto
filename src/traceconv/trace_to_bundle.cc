@@ -22,37 +22,34 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/progress_reporter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/tar_writer.h"
 #include "src/trace_processor/util/trace_enrichment/trace_enrichment.h"
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-#include <unistd.h>  // For isatty()
-#endif
 
 namespace perfetto::trace_to_text {
 
 base::Status TraceToBundle(const std::string& input_file_path,
                            const std::string& output_file_path,
                            const BundleContext& context) {
+  base::ProgressReporter progress(!context.no_progress);
   auto tp = trace_processor::TraceProcessor::CreateInstance({});
 
-  // Report reading progress to stderr, like the interactive shell does, so
-  // long-running bundles don't look frozen.
   double loaded_mb = 0;
   auto status = trace_processor::ReadTrace(
-      tp.get(), input_file_path.c_str(), [&loaded_mb](uint64_t parsed_size) {
+      tp.get(), input_file_path.c_str(),
+      [&loaded_mb, &progress](uint64_t parsed_size) {
         loaded_mb = static_cast<double>(parsed_size) / 1E6;
-        fprintf(stderr, "\rReading trace: %.2f MB", loaded_mb);
+        progress.Update(
+            base::StackString<128>("Reading trace: %.2f MB", loaded_mb)
+                .ToStdString());
       });
-  if (!status.ok()) {
-    fprintf(stderr, "\n");
+  progress.Clear();
+  if (!status.ok())
     return base::ErrStatus("failed to read trace: %s", status.c_message());
-  }
-  fprintf(stderr, "\rRead trace: %.2f MB.\n", loaded_mb);
+  fprintf(stderr, "Read trace: %.2f MB.\n", loaded_mb);
 
   // Add original trace file directly (memory efficient). If the output path
   // cannot be opened, TarWriter fails gracefully and this propagates a
@@ -76,11 +73,7 @@ base::Status TraceToBundle(const std::string& input_file_path,
   enrich_config.home_dir = context.home_dir;
   enrich_config.working_dir = context.working_dir;
   enrich_config.root_dir = context.root_dir;
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-  enrich_config.colorize = isatty(STDERR_FILENO);
-#endif
+  enrich_config.colorize = base::StderrSupportsColor();
 
   // Add explicit ProGuard maps from context.
   for (const auto& map_spec : context.proguard_maps) {

@@ -26,7 +26,8 @@ namespace trace_to_text {
 
 base::Status SymbolizeProfile(std::istream* input,
                               std::ostream* output,
-                              bool verbose);
+                              bool verbose,
+                              bool no_progress = false);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

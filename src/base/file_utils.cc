@@ -266,6 +266,19 @@ bool FlushFile(int fd) {
 #endif
 }
 
+ScopedFile DupFile(int fd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  ScopedFile duplicate(_dup(fd));
+  if (duplicate && !SetHandleInformation(
+                       reinterpret_cast<HANDLE>(_get_osfhandle(*duplicate)),
+                       HANDLE_FLAG_INHERIT, 0))
+    return ScopedFile();
+  return duplicate;
+#else
+  return ScopedFile(fcntl(fd, F_DUPFD_CLOEXEC, 0));
+#endif
+}
+
 bool SeekFile(int fd, uint64_t offset) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (fd < 0) {

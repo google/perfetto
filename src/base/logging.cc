@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/progress_reporter.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -126,6 +127,7 @@ void LogMessage(LogLev level,
     log_msg = &large_buf[0];
   }
 
+  ProgressReporter::ClearBeforeLog();
   LogMessageCallback cb = g_log_callback.load(std::memory_order_relaxed);
   if (cb) {
     cb({level, line, fname, log_msg});
@@ -148,13 +150,7 @@ void LogMessage(LogLev level,
       break;
   }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-  static const bool use_colors = isatty(STDERR_FILENO);
-#else
-  static const bool use_colors = false;
-#endif
+  const bool use_colors = StderrSupportsColor();
 
   // Formats file.cc:line as a space-padded fixed width string. If the file name
   // |fname| is too long, truncate it on the left-hand side.

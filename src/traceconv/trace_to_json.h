@@ -29,7 +29,8 @@ base::Status TraceToJson(std::istream* input,
                          std::ostream* output,
                          bool compress,
                          Keep truncate_keep,
-                         bool full_sort);
+                         bool full_sort,
+                         bool no_progress = false);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
