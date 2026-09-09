@@ -3866,6 +3866,59 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   ASSERT_THAT(actual_shm_sizes_kb, ElementsAreArray(expected_shm_sizes_kb));
 }
 
+TEST_F(TracingServiceImplTest, InvalidTracingV2ChunkSizeRejectsConfig) {
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "configured_producer");
+  producer->RegisterDataSource("data_source");
+  EXPECT_CALL(*producer, OnTracingSetup()).Times(0);
+  for (uint32_t size : {1u, 252u, 255u, 258u, 32769u, 32772u, UINT32_MAX}) {
+    SCOPED_TRACE(size);
+    auto consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(128);
+    auto* ds = config.add_data_sources()->mutable_config();
+    ds->set_name("data_source");
+    ds->set_use_tracing_v2(true);
+    auto* producer_config = config.add_producers();
+    producer_config->set_producer_name("configured_producer");
+    producer_config->set_tracing_v2_chunk_size_bytes(size);
+    consumer->EnableTracing(config);
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes"));
+    EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
+  }
+}
+
+TEST_F(TracingServiceImplTest, ValidTracingV2ChunkSizeBoundariesReachProducer) {
+  // A new producer is needed each time: the setting is fixed at SMB setup.
+  for (uint32_t size : {0u, 256u, 260u, 32768u}) {
+    SCOPED_TRACE(size);
+    auto producer = CreateMockProducer();
+    const std::string producer_name =
+        "configured_producer_" + std::to_string(size);
+    producer->Connect(svc.get(), producer_name);
+    producer->RegisterDataSource("data_source");
+    auto consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(128);
+    config.add_data_sources()->mutable_config()->set_name("data_source");
+    auto* producer_config = config.add_producers();
+    producer_config->set_producer_name(producer_name);
+    producer_config->set_tracing_v2_chunk_size_bytes(size);
+    consumer->EnableTracing(config);
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+    producer->WaitForDataSourceStart("data_source");
+    EXPECT_EQ(producer->endpoint()->tracing_v2_chunk_size_bytes(), size);
+    consumer->DisableTracing();
+    producer->WaitForDataSourceStop("data_source");
+    consumer->WaitForTracingDisabled();
+    consumer->FreeBuffers();
+  }
+}
+
 TEST_F(TracingServiceImplTest, ProducerChunkSizeFixedAtFirstSharedMemorySetup) {
   auto producer = CreateMockProducer();
   producer->Connect(svc.get(), "configured_producer");

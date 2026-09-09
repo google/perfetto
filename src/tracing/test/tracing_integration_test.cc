@@ -341,11 +341,35 @@ TEST_P(TracingIntegrationTestWithChunkSize, WithIPCTransport) {
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
 
-// 0 leaves the field out of the config. 255 is invalid for v2 but must be
-// harmless for a producer that only creates v1 writers.
+// 0 leaves the field out of the config. Valid explicit values are transported
+// even when the producer only creates v1 writers. 260 need not be a power of
+// two.
 INSTANTIATE_TEST_SUITE_P(ChunkSize,
                          TracingIntegrationTestWithChunkSize,
-                         testing::Values(0u, 1024u, 255u));
+                         testing::Values(0u, 1024u, 260u));
+
+TEST_F(TracingIntegrationTest, InvalidTracingV2ChunkSizeRejectsConfig) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("perfetto.test");
+  auto* producer_config = trace_config.add_producers();
+  producer_config->set_producer_name("perfetto.mock_producer");
+  producer_config->set_tracing_v2_chunk_size_bytes(255);
+
+  // Invalid producer settings reject the config even for v1 data sources.
+  // Wait for that rejection, rather than for a data source that cannot start.
+  EXPECT_CALL(producer_, OnTracingSetup()).Times(0);
+  EXPECT_CALL(producer_, SetupDataSource(_, _)).Times(0);
+  EXPECT_CALL(producer_, StartDataSource(_, _)).Times(0);
+  auto on_tracing_disabled =
+      task_runner_->CreateCheckpoint("on_tracing_disabled");
+  EXPECT_CALL(consumer_, OnTracingDisabled(
+                             testing::HasSubstr("tracing_v2_chunk_size_bytes")))
+      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
+  consumer_endpoint_->EnableTracing(trace_config);
+  task_runner_->RunUntilCheckpoint("on_tracing_disabled");
+  EXPECT_EQ(producer_endpoint_->shared_memory(), nullptr);
+}
 
 // Regression test for b/172950370.
 TEST_F(TracingIntegrationTest, ValidErrorOnDisconnection) {

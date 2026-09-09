@@ -50,7 +50,7 @@ source_set("v2") {
   ]
 }
 
-# Temporary SDK-side forwarding through v1 until traced reads the ring itself.
+# Temporary SDK-side forwarding through v1 until traced reads the ring buffer.
 source_set("in_process_adapter") {
   public_deps = [ ":v2" ]
   deps = [

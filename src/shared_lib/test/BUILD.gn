@@ -53,10 +53,6 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/public",
       "../../base",
-
-      # For SharedRingBuffer::SupportsWriterWait(), to skip the v2 tests where
-      # the ring cannot wait.
-      "../../tracing/v2",
       "protos",
     ]
     sources = [ "api_integrationtest.cc" ]
