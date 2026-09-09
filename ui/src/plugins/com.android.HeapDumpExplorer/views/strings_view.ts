@@ -34,6 +34,7 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -74,9 +75,9 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const str = row.value != null ? String(row.value) : null;
         const display = `String ${fmtHex(id)}`;
         return m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
+            class: 'pf-hde-str-color',
             onclick: () =>
               navigate('object', {
                 id,
@@ -88,7 +89,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
           m(
             'span',
             {
-              class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
+              class: 'pf-hde-mono pf-hde-break-all',
             },
             str
               ? '"' +

@@ -29,6 +29,7 @@ import {
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
+import {Anchor} from '../../../widgets/anchor';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
@@ -63,9 +64,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
         m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('objects', {cls: String(value)}),
           },
           String(value),

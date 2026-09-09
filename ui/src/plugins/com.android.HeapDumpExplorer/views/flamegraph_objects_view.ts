@@ -29,6 +29,7 @@ import {
   COL_INFO,
   colHeader,
 } from '../components';
+import {Anchor} from '../../../widgets/anchor';
 
 interface FlamegraphObjectsViewAttrs {
   engine: Engine;
@@ -87,9 +88,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const str = row.str != null ? String(row.str) : null;
         return m('span', [
           m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {id, label: str ? `"${str}"` : display}),
             },
@@ -242,7 +242,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
           ),
           onBackToTimeline
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: onBackToTimeline},
                 'Back to Timeline',
               )

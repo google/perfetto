@@ -42,6 +42,7 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
 
 export interface ObjectParams {
   readonly id: number;
@@ -255,9 +256,8 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
         const str = row.str != null ? String(row.str) : null;
         return m('span', [
           m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {id, label: str ? `"${str}"` : display}),
             },
@@ -344,9 +344,8 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
       cellRenderer: (value: SqlValue, row) => {
         if (row.value_kind === 'ref' && row.ref_id !== null) {
           return m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id: Number(row.ref_id),
@@ -605,9 +604,8 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
       const flamegraphAction = (isDominator: boolean) =>
         row.className
           ? m(
-              'button',
+              Anchor,
               {
-                class: 'pf-hde-link',
                 title: isDominator
                   ? 'Open in Flamegraph pivoted on this dominator path'
                   : 'Open in Flamegraph pivoted on this shortest path',
@@ -655,7 +653,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                     ')',
                 ),
                 m(
-                  'button',
+                  Anchor,
                   {
                     class: 'pf-hde-download-link',
                     onclick: () => {
@@ -998,14 +996,14 @@ function renderArrayGrid(
       ? m('div', {class: 'pf-hde-action-row pf-hde-mb-2'}, [
           onDownloadBytes
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: onDownloadBytes},
                 'Download bytes',
               )
             : null,
           elems.length > 0
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: copyTsv},
                 'Copy as TSV',
               )
@@ -1073,9 +1071,8 @@ function subclassFilterTarget(className: string): string {
 
 function classFilterLink(className: string, navigate: NavFn): m.Child {
   return m(
-    'button',
+    Anchor,
     {
-      class: 'pf-hde-link',
       title: 'Open subclasses of this class',
       onclick: () =>
         navigate('classes', {rootClass: subclassFilterTarget(className)}),

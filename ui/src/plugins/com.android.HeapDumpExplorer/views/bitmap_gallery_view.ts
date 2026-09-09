@@ -37,6 +37,7 @@ import {
 import type {PathEntry} from '../types';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
 
 const SUMMARY_SCHEMA: ColumnSchema = {
   property: {title: 'Property', columnType: 'text'},
@@ -84,9 +85,8 @@ function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () =>
               navigate('object', {
                 id,
@@ -330,9 +330,8 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
               : null,
           ),
           m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id: row.row.id,
