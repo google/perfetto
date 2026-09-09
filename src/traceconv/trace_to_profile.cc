@@ -59,11 +59,15 @@ uint64_t ToConversionFlags(bool annotate_frames) {
 
 void MaybeSymbolize(trace_processor::TraceProcessor* tp,
                     bool verbose,
-                    bool quiet) {
+                    bool quiet,
+                    bool no_progress,
+                    const profiling::DebuginfodConfig& debuginfod) {
   profiling::SymbolizerConfig sym_config;
+  sym_config.debuginfod = debuginfod;
+  sym_config.progress = !no_progress && !quiet;
   const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
   std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
-  if (paths.empty()) {
+  if (paths.empty() && debuginfod.urls.empty()) {
     return;
   }
   if (mode && std::string_view(mode) == "find") {
@@ -175,7 +179,8 @@ base::Status TraceToProfile(std::istream* input,
                             std::optional<ConversionMode> explicit_mode,
                             bool verbose,
                             bool no_progress,
-                            bool quiet) {
+                            bool quiet,
+                            const profiling::DebuginfodConfig& debuginfod) {
   // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
@@ -222,7 +227,7 @@ base::Status TraceToProfile(std::istream* input,
   }
 
   // Add symbolisation and deobfuscation packets.
-  MaybeSymbolize(tp.get(), verbose, quiet);
+  MaybeSymbolize(tp.get(), verbose, quiet, no_progress, debuginfod);
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return base::ErrStatus("failed to finalize trace: %s", status.c_message());

@@ -35,7 +35,9 @@ namespace profiling {
 
 class Subprocess {
  public:
-  Subprocess(const std::string& file, std::vector<std::string> args);
+  Subprocess(const std::string& file,
+             std::vector<std::string> args,
+             const std::vector<std::string>& excluded_env = {});
   ~Subprocess();
 
   int64_t Write(const char* buffer, size_t size);

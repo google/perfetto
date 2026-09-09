@@ -93,6 +93,8 @@ base::Status TraceToBundle(const std::string& input_file_path,
 
   // Build enrichment configuration from context.
   trace_processor::util::EnrichmentConfig enrich_config;
+  enrich_config.debuginfod = context.debuginfod;
+  enrich_config.progress = !context.no_progress && !context.quiet;
   enrich_config.symbol_paths = context.symbol_paths;
   enrich_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
   enrich_config.no_auto_proguard_maps = context.no_auto_proguard_maps;

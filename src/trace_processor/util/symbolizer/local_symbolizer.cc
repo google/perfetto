@@ -900,6 +900,12 @@ bool ParseLlvmSymbolizerJsonLine(const std::string& line,
       });
 }
 
+std::optional<FoundBinary> FindBinaryFile(const std::string& path,
+                                          const std::string& build_id,
+                                          BinaryPathError* error) {
+  return IsCorrectFile(path, build_id, error);
+}
+
 BinaryFinder::~BinaryFinder() = default;
 
 LocalBinaryIndexer::LocalBinaryIndexer(
@@ -964,13 +970,37 @@ BinaryLookupResult LocalBinaryFinder::FindBinary(const std::string& abspath,
 
 LocalBinaryFinder::~LocalBinaryFinder() = default;
 
+bool CanRunLlvmSymbolizer() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::vector<std::string> args = {"--version"};
+#else
+  std::vector<std::string> args = {"llvm-symbolizer", "--version"};
+#endif
+  // Use the same filtered child environment as the actual symbolizer.
+  Subprocess process(kDefaultSymbolizer, std::move(args),
+                     {"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"});
+  std::string version;
+  char buffer[1024];
+  for (;;) {
+    int64_t size = process.Read(buffer, sizeof(buffer));
+    if (size <= 0)
+      break;
+    version.append(buffer, static_cast<size_t>(size));
+  }
+  return version.find("LLVM") != std::string::npos;
+}
+
 LLVMSymbolizerProcess::LLVMSymbolizerProcess(const std::string& symbolizer_path)
     :
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      subprocess_(symbolizer_path, {"--output-style=JSON"}) {
+      subprocess_(symbolizer_path,
+                  {"--output-style=JSON"},
+                  {"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"}) {
 }
 #else
-      subprocess_(symbolizer_path, {"llvm-symbolizer", "--output-style=JSON"}) {
+      subprocess_(symbolizer_path,
+                  {"llvm-symbolizer", "--output-style=JSON"},
+                  {"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"}) {
 }
 #endif
 
@@ -1081,10 +1111,9 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   bool is_kernel = base::StartsWith(mapping.name, "[kernel.kallsyms]");
   std::optional<FoundBinary> binary;
   std::vector<BinaryPathAttempt> binary_attempts;
-  if (is_kernel) {
-    if (env.os_release) {
+  if (is_kernel && use_kernel_paths_) {
+    if (env.os_release)
       binary = FindKernelBinary(*env.os_release, binary_attempts);
-    }
   } else {
     BinaryLookupResult lookup =
         finder_->FindBinary(mapping.name, mapping.build_id);
@@ -1111,6 +1140,7 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   }
 
   SymbolizeResult result;
+  result.attempts = std::move(attempts);
   result.frames.reserve(addresses.size());
   for (uint64_t address : addresses) {
     result.frames.emplace_back(llvm_symbolizer_.Symbolize(
@@ -1120,11 +1150,16 @@ SymbolizeResult LocalSymbolizer::Symbolize(
 }
 
 LocalSymbolizer::LocalSymbolizer(const std::string& symbolizer_path,
-                                 std::unique_ptr<BinaryFinder> finder)
-    : llvm_symbolizer_(symbolizer_path), finder_(std::move(finder)) {}
+                                 std::unique_ptr<BinaryFinder> finder,
+                                 bool use_kernel_paths)
+    : llvm_symbolizer_(symbolizer_path),
+      finder_(std::move(finder)),
+      use_kernel_paths_(use_kernel_paths) {}
 
-LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder)
-    : LocalSymbolizer(kDefaultSymbolizer, std::move(finder)) {}
+LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder,
+                                 bool use_kernel_paths)
+    : LocalSymbolizer(kDefaultSymbolizer, std::move(finder), use_kernel_paths) {
+}
 
 LocalSymbolizer::~LocalSymbolizer() = default;
 

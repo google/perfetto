@@ -122,6 +122,12 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
                                       discovery (e.g. Gradle project layout)
    --quiet, -q                        Suppress routine status messages
    --no-progress                      Disable live progress
+   --debuginfod                       Download missing debug files by build ID
+   --debuginfod-urls URLS              Space-separated servers; overrides
+                                      DEBUGINFOD_URLS (requires --debuginfod)
+   --debuginfod-cache-path PATH        Overrides DEBUGINFOD_CACHE_PATH
+   --debuginfod-connect-timeout SEC    Connection timeout (default: 5 seconds)
+   --debuginfod-stall-timeout SEC      Low-speed timeout (default: 10 seconds)
    --verbose                          Print more detailed output
 
  binary                               Converts text proto to binary format
@@ -185,6 +191,8 @@ int Main(int argc, char** argv) {
   bool verbose = false;
   bool no_progress = false;
   bool quiet = false;
+  profiling::DebuginfodOptions debuginfod_options;
+  profiling::DebuginfodConfig debuginfod;
   bool skip_unknown_fields = false;
   std::string output_dir;
   for (int i = 1; i < argc; i++) {
@@ -226,6 +234,25 @@ int Main(int argc, char** argv) {
     } else if (i < argc && strcmp(argv[i], "--symbol-paths") == 0) {
       i++;
       symbol_paths = base::SplitString(argv[i], ",");
+    } else if (strcmp(argv[i], "--debuginfod") == 0) {
+      debuginfod_options.enabled = true;
+    } else if (strcmp(argv[i], "--debuginfod-urls") == 0 ||
+               strcmp(argv[i], "--debuginfod-cache-path") == 0 ||
+               strcmp(argv[i], "--debuginfod-connect-timeout") == 0 ||
+               strcmp(argv[i], "--debuginfod-stall-timeout") == 0) {
+      std::string flag = argv[i];
+      if (++i >= argc) {
+        PERFETTO_ELOG("%s requires an argument", flag.c_str());
+        return 1;
+      }
+      if (flag == "--debuginfod-urls")
+        debuginfod_options.urls = argv[i];
+      else if (flag == "--debuginfod-cache-path")
+        debuginfod_options.cache_path = argv[i];
+      else if (flag == "--debuginfod-connect-timeout")
+        debuginfod_options.connect_timeout = argv[i];
+      else
+        debuginfod_options.stall_timeout = argv[i];
     } else if (strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0) {
       quiet = true;
     } else if (strcmp(argv[i], "--no-progress") == 0) {
@@ -268,6 +295,16 @@ int Main(int argc, char** argv) {
 
   if (positional_args.empty())
     return Usage(argv[0]);
+
+  std::string warnings;
+  auto debuginfod_status = profiling::ResolveDebuginfodOptions(
+      debuginfod_options, &debuginfod, &warnings);
+  if (!warnings.empty())
+    fprintf(stderr, "%s", warnings.c_str());
+  if (!debuginfod_status.ok()) {
+    PERFETTO_ELOG("%s", debuginfod_status.c_message());
+    return 1;
+  }
 
   std::istream* input_stream;
   std::ifstream file_istream;
@@ -386,7 +423,7 @@ int Main(int argc, char** argv) {
     }
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        profile_type, verbose, no_progress, quiet));
+        profile_type, verbose, no_progress, quiet, debuginfod));
   }
 
   if (format == "java_heap_profile") {
@@ -394,12 +431,12 @@ int Main(int argc, char** argv) {
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
         trace_to_text::ConversionMode::kJavaHeapProfile, verbose, no_progress,
-        quiet));
+        quiet, debuginfod));
   }
 
   if (format == "symbolize")
     return ToExitCode(trace_to_text::SymbolizeProfile(
-        input_stream, output_stream, verbose, no_progress, quiet));
+        input_stream, output_stream, verbose, no_progress, quiet, debuginfod));
 
   if (format == "deobfuscate")
     return ToExitCode(
@@ -442,6 +479,7 @@ int Main(int argc, char** argv) {
     }
 
     trace_to_text::BundleContext context;
+    context.debuginfod = debuginfod;
     context.symbol_paths = symbol_paths;
     context.proguard_maps = std::move(proguard_maps);
     context.no_auto_symbol_paths = no_auto_symbol_paths;

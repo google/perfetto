@@ -62,6 +62,63 @@ SQL rows, converted traces, explicit help/version output, and the
 machine-readable `server unix` startup record are command results and remain
 visible in quiet mode.
 
+## Debuginfod {#debuginfod}
+
+Native symbolization can fetch debug files using build IDs from the trace;
+local binaries are not required. These controls apply to trace loading (for
+example `query` and `server`), `bundle`, `util symbolize`, and `convert profile`.
+They also work in the classic interface and in `traceconv`'s corresponding
+commands. Remote sessions use the server's symbolization configuration; pass
+`--debuginfod` when starting the server, rather than together with `--remote`.
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--debuginfod` | Enable debuginfod cache lookup and downloads | Disabled |
+| `--debuginfod-urls URLS` | Quoted, whitespace-separated HTTP(S) server roots | `DEBUGINFOD_URLS` |
+| `--debuginfod-cache-path PATH` | Directory for downloaded debug files | `DEBUGINFOD_CACHE_PATH`, then the platform cache below |
+| `--debuginfod-connect-timeout SECONDS` | Connection timeout per request | `5` |
+| `--debuginfod-stall-timeout SECONDS` | Abort a transfer averaging less than one byte per second for this long | `10` |
+
+URL and cache flags replace their environment defaults, including when given
+an empty value. Enabling debuginfod requires at least one server URL and a
+nonempty cache path. Timeouts must be positive whole seconds. There is no
+whole-transfer deadline: a large download can continue while it makes progress.
+
+Setting URLs alone does not enable downloads. Configured URLs produce a warning
+when debuginfod is disabled, including with `--quiet`. The CLI removes
+`DEBUGINFOD_URLS` and `LLVM_SYMBOLIZER_OPTS` from the LLVM child's environment;
+`LLVM_SYMBOLIZER_OPTS`, when set, produces a warning that it is ignored. LLVM
+therefore cannot independently opt into downloads or change the output format.
+Other elfutils debuginfod environment controls are not interpreted by this CLI.
+
+Local native and Breakpad sources run first. Only unresolved addresses reach
+debuginfod. Each missing build ID is looked up once per invocation, using the
+cache first, then servers in the specified order. Requests are sequential.
+The first valid file with the requested build ID is used. Requests use
+`SERVER/buildid/HEX_BUILD_ID/debuginfo`; missing build IDs cannot be fetched.
+
+Downloads require `curl` and symbolization requires `llvm-symbolizer`, both on
+`PATH`. Curl handles HTTP(S) redirects and honors its proxy and TLS environment
+settings. Its configuration file (`.curlrc`) is disabled so it cannot override
+these output and timeout controls. Server roots cannot include a query or
+fragment. Downloads and redirects are restricted to HTTP(S).
+
+On POSIX systems the default cache is
+`$XDG_CACHE_HOME/debuginfod_client`, or `$HOME/.cache/debuginfod_client` when
+`XDG_CACHE_HOME` is unset. On Windows it is
+`%LOCALAPPDATA%/debuginfod_client`. Entries are stored as
+`HEX_BUILD_ID/debuginfo`. Files are checked against the requested build ID
+before use. Downloads are published atomically after validation; failed
+requests do not publish partial files. Abrupt termination may leave a temporary
+file. There is no automatic cache eviction; remove entries to reclaim space.
+
+Normal output reports cache hits, downloads, and unavailable build IDs alongside
+the frame totals. Verbose output adds cache paths, servers, and download errors.
+TTY progress identifies the build ID being fetched; `--no-progress` disables
+that display. Quiet suppresses routine output while retaining unresolved-frame
+warnings. A failed download leaves the affected addresses unresolved; it does
+not discard other symbols or prevent creation of a partial bundle.
+
 ## Color environment variables
 
 | Environment | Behavior |

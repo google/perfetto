@@ -19,6 +19,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
+#include <algorithm>
 #include <sstream>
 #include <string>
 
@@ -29,7 +30,9 @@
 namespace perfetto {
 namespace profiling {
 
-Subprocess::Subprocess(const std::string& file, std::vector<std::string> args) {
+Subprocess::Subprocess(const std::string& file,
+                       std::vector<std::string> args,
+                       const std::vector<std::string>& excluded_env) {
   std::stringstream cmd;
   cmd << file;
   for (auto arg : args) {
@@ -66,14 +69,33 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args) {
   start_info.hStdInput = child_pipe_in_read_;
   start_info.dwFlags |= STARTF_USESTDHANDLES;
 
+  std::vector<char> environment;
+  LPCH inherited = GetEnvironmentStringsA();
+  if (!inherited) {
+    PERFETTO_ELOG("Failed to read process environment");
+    return;
+  }
+  for (const char* entry = inherited; *entry; entry += strlen(entry) + 1) {
+    auto excluded = [entry](const std::string& name) {
+      return _strnicmp(entry, name.c_str(), name.size()) == 0 &&
+             entry[name.size()] == '=';
+    };
+    if (std::none_of(excluded_env.begin(), excluded_env.end(), excluded))
+      environment.insert(environment.end(), entry, entry + strlen(entry) + 1);
+  }
+  FreeEnvironmentStringsA(inherited);
+  environment.push_back('\0');
+  if (environment.size() == 1)
+    environment.push_back('\0');
+
   // Create the child process.
   success = CreateProcessA(nullptr,
                            &(cmd.str()[0]),  // command line
                            nullptr,          // process security attributes
-                           nullptr,      // primary thread security attributes
-                           TRUE,         // handles are inherited
-                           0,            // creation flags
-                           nullptr,      // use parent's environment
+                           nullptr,  // primary thread security attributes
+                           TRUE,     // handles are inherited
+                           0,        // creation flags
+                           environment.data(),  // filtered environment
                            nullptr,      // use parent's current directory
                            &start_info,  // STARTUPINFO pointer
                            &proc_info);  // receives PROCESS_INFORMATION

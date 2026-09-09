@@ -93,7 +93,8 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
   RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file,
-                                ctx.global->no_progress, ctx.global->quiet)
+                                ctx.global->no_progress, ctx.global->quiet,
+                                ctx.global->debuginfod)
                       .status());
 
   TraceProcessor::ExportFormat export_format;

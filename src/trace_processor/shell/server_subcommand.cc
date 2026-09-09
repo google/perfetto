@@ -257,7 +257,8 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
   if (!trace_file.empty()) {
     ASSIGN_OR_RETURN(auto t_load,
                      LoadTraceFile(tp.get(), ctx.platform, trace_file,
-                                   ctx.global->no_progress, ctx.global->quiet));
+                                   ctx.global->no_progress, ctx.global->quiet,
+                                   ctx.global->debuginfod));
     base::ignore_result(t_load);
   }
 
