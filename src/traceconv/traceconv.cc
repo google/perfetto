@@ -374,19 +374,20 @@ int Main(int argc, char** argv) {
     }
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        profile_type, verbose));
+        profile_type, verbose, /*quiet=*/false));
   }
 
   if (format == "java_heap_profile") {
     // legacy alias for "profile --java-heap"
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        trace_to_text::ConversionMode::kJavaHeapProfile, verbose));
+        trace_to_text::ConversionMode::kJavaHeapProfile, verbose,
+        /*quiet=*/false));
   }
 
   if (format == "symbolize")
-    return ToExitCode(
-        trace_to_text::SymbolizeProfile(input_stream, output_stream, verbose));
+    return ToExitCode(trace_to_text::SymbolizeProfile(
+        input_stream, output_stream, verbose, /*quiet=*/false));
 
   if (format == "deobfuscate")
     return ToExitCode(

@@ -48,7 +48,7 @@ pprof::PprofProfileReader ConvertTraceToPprof(
                                     /*timestamps=*/{},
                                     /*annotate_frames=*/false, out_dirname,
                                     /*conversion_mode=*/std::nullopt,
-                                    /*verbose=*/false);
+                                    /*verbose=*/false, /*quiet=*/false);
   PERFETTO_CHECK(profile_status.ok());
   std::vector<std::string> filenames;
   base::ListFilesRecursive(out_dirname, filenames);
@@ -140,7 +140,7 @@ TEST_F(TraceToPprofTest, OutputDirectory) {
       &file_istream, /*pid=*/0,
       /*timestamps=*/{},
       /*annotate_frames=*/false, output_dir, ConversionMode::kJavaHeapProfile,
-      /*verbose=*/false);
+      /*verbose=*/false, /*quiet=*/false);
   ASSERT_TRUE(profile_status.ok()) << profile_status.c_message();
 
   // Check files exist

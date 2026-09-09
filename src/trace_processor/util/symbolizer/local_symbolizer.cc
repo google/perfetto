@@ -1129,6 +1129,7 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   }
 
   SymbolizeResult result;
+  result.attempts = std::move(attempts);
   result.frames.reserve(addresses.size());
   for (uint64_t address : addresses) {
     result.frames.emplace_back(llvm_symbolizer_.Symbolize(

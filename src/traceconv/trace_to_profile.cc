@@ -57,7 +57,9 @@ uint64_t ToConversionFlags(bool annotate_frames) {
                                    : ConversionFlags::kNone);
 }
 
-void MaybeSymbolize(trace_processor::TraceProcessor* tp, bool verbose) {
+void MaybeSymbolize(trace_processor::TraceProcessor* tp,
+                    bool verbose,
+                    bool quiet) {
   profiling::SymbolizerConfig sym_config;
   const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
   std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
@@ -69,7 +71,8 @@ void MaybeSymbolize(trace_processor::TraceProcessor* tp, bool verbose) {
   } else {
     sym_config.index_symbol_paths = std::move(paths);
   }
-  auto result = profiling::SymbolizeDatabaseAndLog(tp, sym_config, verbose);
+  auto result =
+      profiling::SymbolizeDatabaseAndLog(tp, sym_config, verbose, quiet);
   if (result.error == profiling::SymbolizerError::kOk &&
       !result.symbols.empty()) {
     IngestTraceOrDie(tp, result.symbols);
@@ -170,7 +173,8 @@ base::Status TraceToProfile(std::istream* input,
                             bool annotate_frames,
                             const std::string& output_dir,
                             std::optional<ConversionMode> explicit_mode,
-                            bool verbose) {
+                            bool verbose,
+                            bool quiet) {
   // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
@@ -217,7 +221,7 @@ base::Status TraceToProfile(std::istream* input,
   }
 
   // Add symbolisation and deobfuscation packets.
-  MaybeSymbolize(tp.get(), verbose);
+  MaybeSymbolize(tp.get(), verbose, quiet);
   MaybeDeobfuscate(tp.get());
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return base::ErrStatus("failed to finalize trace: %s", status.c_message());
@@ -250,7 +254,8 @@ base::Status TraceToProfile(std::istream* input,
       return base::ErrStatus("failed to write %s", filename.c_str());
     }
   }
-  PERFETTO_LOG("Wrote profiles to %s", dst_dir.c_str());
+  if (!quiet)
+    PERFETTO_LOG("Wrote profiles to %s", dst_dir.c_str());
   return base::OkStatus();
 }
 

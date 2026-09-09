@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -25,6 +26,8 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -398,6 +401,24 @@ std::string BuildFuncgraphTrace(bool with_ksyms) {
 // can assert on the shell's diagnostics. POSIX only (the tests that use it
 // are not compiled on Windows; see the #if guards around them below).
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Debug builds print PERFETTO_DLOG lines ("[123.456] file.cc:12 msg") from
+// library code regardless of --quiet; drop them so assertions on the shell's
+// own output hold in both build modes.
+std::string WithoutDebugLogs(const std::string& text) {
+  std::string out;
+  for (base::StringSplitter lines(text, '\n'); lines.Next();) {
+    base::StringView line(lines.cur_token(), lines.cur_token_size());
+    bool is_log = line.size() > 10 && line.at(0) == '[' && line.at(4) == '.' &&
+                  line.at(8) == ']' && line.at(9) == ' ' &&
+                  isdigit(line.at(1)) && isdigit(line.at(5));
+    if (is_log)
+      continue;
+    out.append(line.data(), line.size());
+    out.push_back('\n');
+  }
+  return out;
+}
+
 class ScopedStderrCapture {
  public:
   ScopedStderrCapture() {
@@ -701,9 +722,64 @@ TEST_F(TraceconvShellBundleTest, RedirectedProgressIsPlainAndWarningsRemain) {
     ASSERT_EQ(invoker.Run(), 0);
     auto output = capture.Get();
     EXPECT_THAT(output, Not(HasSubstr("\r")));
-    EXPECT_THAT(output, HasSubstr("Read trace:"));
+    EXPECT_THAT(output, HasSubstr("Symbolization:"));
     EXPECT_THAT(output, HasSubstr("symbolize_ksyms"));
   }
+}
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST_F(TraceconvShellBundleTest, QuietBundleSuppressesRoutineOutput) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg :
+       {"trace_processor_shell", "bundle", "--quiet", "--verbose",
+        "--no-auto-symbol-paths", "--no-auto-proguard-maps"})
+    invoker.Add(arg);
+  invoker.Add(trace.path());
+  invoker.Add(output_path_);
+  testing::internal::CaptureStdout();
+  ScopedStderrCapture capture;
+  int status = invoker.Run();
+  auto stdout_text = testing::internal::GetCapturedStdout();
+  auto stderr_text = WithoutDebugLogs(capture.Get());
+  EXPECT_EQ(status, 0);
+  EXPECT_TRUE(stdout_text.empty()) << stdout_text;
+  EXPECT_TRUE(stderr_text.empty()) << stderr_text;
+  EXPECT_TRUE(base::FileExists(output_path_));
+}
+
+TEST_F(TraceconvShellBundleTest, QuietBundleKeepsResourceErrors) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg : {"trace_processor_shell", "bundle", "--quiet",
+                          "--no-auto-symbol-paths", "--proguard-map"})
+    invoker.Add(arg);
+  invoker.Add(temp_dir_.path() + "/missing.map");
+  invoker.Add(trace.path());
+  invoker.Add(output_path_);
+  ScopedStderrCapture capture;
+  EXPECT_NE(invoker.Run(), 0);
+  auto output = capture.Get();
+  EXPECT_THAT(output, HasSubstr("missing.map"));
+  EXPECT_THAT(output, Not(HasSubstr("Symbolization:")));
+}
+
+TEST_F(TraceconvShellBundleTest, QuietQueryKeepsResults) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg : {"trace_processor_shell", "query", "--quiet"})
+    invoker.Add(arg);
+  invoker.Add(trace.path());
+  invoker.Add("select 42 as answer");
+  testing::internal::CaptureStdout();
+  ScopedStderrCapture capture;
+  int status = invoker.Run();
+  auto stdout_text = testing::internal::GetCapturedStdout();
+  auto stderr_text = WithoutDebugLogs(capture.Get());
+  EXPECT_EQ(status, 0);
+  EXPECT_THAT(stdout_text, HasSubstr("42"));
+  EXPECT_TRUE(stderr_text.empty()) << stderr_text;
 }
 #endif
 
