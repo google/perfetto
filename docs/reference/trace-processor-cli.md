@@ -31,6 +31,8 @@ and behave the same across all subcommands:
 
 - **Help and version:** `-h, --help`, `-v, --version`.
 - **Progress:** `--no-progress` disables live progress output.
+- **Quiet:** `--quiet` also suppresses routine status messages and summaries.
+  Command results, warnings, and errors are still printed.
 - **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
   `--analyze-trace-proto-content`, `--crop-track-events`.
 - **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
@@ -55,6 +57,10 @@ Color can be overridden with the [FORCE_COLOR](https://force-color.org/) and
 [NO_COLOR](https://no-color.org/) environment variables. A nonempty
 `FORCE_COLOR` forces color on and takes precedence over a nonempty `NO_COLOR`,
 which forces it off.
+
+`--quiet` disables progress and drops routine status messages, timings, and
+successful summaries. Command results such as SQL rows and converted traces,
+warnings, and errors are unaffected.
 
 ## {#subcommands} Commands
 
@@ -343,6 +349,16 @@ The order above describes how paths are collected, not a guaranteed preference
 between duplicate copies of the same build ID during recursive indexing. Prefer
 directories containing the matching unstripped or debug binaries rather than
 mixing stripped and unstripped copies. Use `--verbose` to inspect lookup details.
+
+#### Symbolization results
+
+The summary reports how many frame records were resolved and how many remain
+unresolved, split between binaries that were not found, binaries found without
+a function name for the address, and mappings without a build ID. A frame counts
+as resolved only when a symbol source returns a usable function name. The first
+source to resolve an address wins; later sources are only asked about addresses
+that are still unresolved. `--verbose` adds the build IDs, symbol files, and
+paths searched for each mapping.
 
 #### Output replacement and cleanup
 

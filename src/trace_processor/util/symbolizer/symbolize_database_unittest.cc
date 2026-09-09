@@ -22,6 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace/interned_data/interned_data.gen.h"
 #include "protos/perfetto/trace/profiling/profile_common.gen.h"
@@ -87,6 +91,13 @@ std::unique_ptr<trace_processor::TraceProcessor> LoadTrace(
   return tp;
 }
 
+void WriteSymbols(const std::string& path, const std::string& contents) {
+  auto fd = base::OpenFile(path, O_CREAT | O_WRONLY, 0600);
+  ASSERT_TRUE(fd);
+  ASSERT_EQ(base::WriteAll(*fd, contents.data(), contents.size()),
+            static_cast<ssize_t>(contents.size()));
+}
+
 TEST(SymbolizeDatabaseTest, CoalescesEquivalentMappingsAndAddresses) {
   protos::gen::Trace trace;
   AddProfile(&trace, 1, 0x100000, 0, {0x10, 0x20});
@@ -115,5 +126,81 @@ TEST(SymbolizeDatabaseTest, KeepsAddressCorrectionGroupsSeparate) {
   EXPECT_EQ(frames[1].frame_count, 2u);
 }
 
+TEST(SymbolizeDatabaseTest,
+     FirstUsableSourceWinsAndFallbackFillsMissingAddresses) {
+  protos::gen::Trace trace;
+  AddProfile(&trace, 1, 0x100000, 0, {0x10, 0x20, 0x30});
+  AddProfile(&trace, 2, 0x200000, 0, {0x10, 0x20, 0x30});
+  auto tp = LoadTrace(trace);
+  auto first = base::TempDir::Create();
+  auto second = base::TempDir::Create();
+  std::string filename = "/" + base::ToHex("build-id") + ".breakpad";
+  auto cleanup = base::OnScopeExit([&] {
+    base::Unlink((first.path() + filename).c_str());
+    base::Unlink((second.path() + filename).c_str());
+  });
+  WriteSymbols(first.path() + filename,
+               "MODULE Linux x86_64 01234567 test.so\n"
+               "FUNC 10 1 0 first\n");
+  WriteSymbols(second.path() + filename,
+               "MODULE Linux x86_64 01234567 test.so\n"
+               "FUNC 10 1 0 must_not_replace_first\n"
+               "FUNC 20 1 0 fallback\n");
+  SymbolizerConfig config;
+  config.breakpad_paths = {first.path(), second.path(), second.path()};
+  auto result = SymbolizeDatabase(tp.get(), config);
+  ASSERT_EQ(result.successful_mappings.size(), 2u);
+  EXPECT_EQ(result.successful_mappings[0].frame_count, 2u);
+  EXPECT_EQ(result.successful_mappings[1].frame_count, 2u);
+  ASSERT_EQ(result.failed_mappings.size(), 1u);
+  EXPECT_EQ(result.failed_mappings[0].frame_count, 2u);
+  EXPECT_EQ(result.failed_mappings[0].frames_without_symbols, 2u);
+  auto summary = FormatSymbolizationSummary(result, false, false);
+  EXPECT_THAT(summary,
+              testing::HasSubstr(
+                  "4 frames symbolized; 2 frames could not be symbolized"));
+  EXPECT_THAT(summary,
+              testing::HasSubstr("binary found, but no function name"));
+  EXPECT_THAT(summary, testing::Not(testing::HasSubstr(first.path())));
+
+  protos::gen::Trace symbols;
+  ASSERT_TRUE(symbols.ParseFromString(result.symbols));
+  ASSERT_EQ(symbols.packet_size(), 2);
+  const auto& first_module = symbols.packet()[0].module_symbols();
+  const auto& fallback_module = symbols.packet()[1].module_symbols();
+  ASSERT_EQ(first_module.address_symbols_size(), 1);
+  ASSERT_EQ(fallback_module.address_symbols_size(), 1);
+  EXPECT_EQ(first_module.address_symbols()[0].address(), 0x10u);
+  EXPECT_EQ(first_module.address_symbols()[0].lines()[0].function_name(),
+            "first");
+  EXPECT_EQ(fallback_module.address_symbols()[0].address(), 0x20u);
+  EXPECT_EQ(fallback_module.address_symbols()[0].lines()[0].function_name(),
+            "fallback");
+}
+
+TEST(SymbolizeDatabaseTest, MissingSourcesStillCountAllFrames) {
+  protos::gen::Trace trace;
+  AddProfile(&trace, 1, 0x100000, 0, {0x10, 0x20});
+  auto tp = LoadTrace(trace);
+  auto result = SymbolizeDatabase(tp.get(), {});
+  ASSERT_EQ(result.failed_mappings.size(), 1u);
+  EXPECT_EQ(result.failed_mappings[0].frame_count, 2u);
+  EXPECT_EQ(result.failed_mappings[0].frames_without_symbols, 0u);
+  EXPECT_THAT(FormatSymbolizationSummary(result, false, false),
+              testing::HasSubstr(
+                  "0 frames symbolized; 2 frames could not be symbolized"));
+}
+
+TEST(SymbolizeDatabaseTest, SuccessfulAndEmptySummariesAreVisible) {
+  SymbolizerResult result;
+  EXPECT_EQ(FormatSymbolizationSummary(result, false, false),
+            "No native frames require symbolization.\n");
+  result.successful_mappings.push_back(
+      {"lib.so", "build-id", "/symbols/lib.so", 5});
+  EXPECT_EQ(FormatSymbolizationSummary(result, false, false),
+            "5 frames symbolized.\n");
+  EXPECT_THAT(FormatSymbolizationSummary(result, true, false),
+              testing::HasSubstr("/symbols/lib.so"));
+}
 }  // namespace
 }  // namespace perfetto::profiling

@@ -33,7 +33,8 @@ namespace trace_to_text {
 // be prepended to the profile to attach the symbol information.
 base::Status SymbolizeProfile(std::istream* input,
                               std::ostream* output,
-                              bool verbose) {
+                              bool verbose,
+                              bool quiet) {
   profiling::SymbolizerConfig sym_config;
 
   const char* breakpad_dir = getenv("BREAKPAD_SYMBOL_DIR");
@@ -73,7 +74,7 @@ base::Status SymbolizeProfile(std::istream* input,
   }
 
   auto result =
-      profiling::SymbolizeDatabaseAndLog(tp.get(), sym_config, verbose);
+      profiling::SymbolizeDatabaseAndLog(tp.get(), sym_config, verbose, quiet);
   if (result.error != profiling::SymbolizerError::kOk) {
     return base::ErrStatus("symbolization failed: %s",
                            result.error_details.c_str());
