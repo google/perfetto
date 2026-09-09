@@ -116,6 +116,10 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   using ConstBytes = protozero::ConstBytes;
   base::Status ParsePacket(TraceBlobView);
+  // Cold path: expands a compressed_packets / zstd_compressed_packets bundle
+  // and parses each packet in it.
+  base::Status ParseCompressedPackets(const SelectiveTracePacketDecoder&,
+                                      const TraceBlobView& packet);
   // Cold path: on the first remote-machine packet, decides whether to adopt it
   // onto the host context and sets adopted_machine_id_ (machine_id or 0).
   base::Status ResolveAdoptedMachine(uint32_t machine_id);
@@ -124,11 +128,12 @@ class ProtoTraceReader : public ChunkedTraceReader {
       uint32_t machine_id,
       std::unique_ptr<ProtoTraceReader>* out);
   base::Status TimestampTokenizeAndPushToSorter(TraceBlobView);
-  // Variant for callers that already decoded the packet, so the (wide)
-  // TracePacket decoder is not rebuilt per packet.
+  // Variant for callers that already decoded the packet and resolved its
+  // sequence state, so neither is redone per packet.
   base::Status TimestampTokenizeAndPushToSorter(
       const SelectiveTracePacketDecoder&,
-      TraceBlobView);
+      TraceBlobView,
+      PacketSequenceStateBuilder* state);
   base::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   base::Status ParseRemoteClockSync(ConstBytes blob);
 
@@ -155,13 +160,16 @@ class ProtoTraceReader : public ChunkedTraceReader {
   static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsets(std::vector<SyncClockSnapshots>&);
 
-  PacketSequenceStateBuilder* GetIncrementalStateForPacketSequence(
-      uint32_t sequence_id) {
-    auto& builder = sequence_state_.Find(sequence_id)->sequence_state_builder;
-    if (!builder) {
+  PacketSequenceStateBuilder* GetIncrementalState(SequenceScopedState* seq) {
+    auto& builder = seq->sequence_state_builder;
+    if (PERFETTO_UNLIKELY(!builder)) {
       builder = PacketSequenceStateBuilder(context_);
     }
     return &*builder;
+  }
+  PacketSequenceStateBuilder* GetIncrementalStateForPacketSequence(
+      uint32_t sequence_id) {
+    return GetIncrementalState(sequence_state_.Find(sequence_id));
   }
 
   TraceProcessorContext* context_;
@@ -183,6 +191,9 @@ class ProtoTraceReader : public ChunkedTraceReader {
   int64_t latest_timestamp_ = 0;
 
   base::FlatHashMap<uint32_t, SequenceScopedState> sequence_state_;
+  // The sequence ParsePacket last looked up; reset whenever the map changes.
+  uint32_t last_seq_id_ = 0;
+  SequenceScopedState* last_scoped_state_ = nullptr;
   StringId skipped_packet_key_id_;
   StringId invalid_incremental_state_key_id_;
   StringId packet_sequence_id_key_id_;

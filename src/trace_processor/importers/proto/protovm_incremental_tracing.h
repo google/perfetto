@@ -21,6 +21,7 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -43,11 +44,21 @@ class ProtoVmIncrementalTracing {
   void ProcessTraceProvenancePacket(protozero::ConstBytes blob);
   void ProcessProtoVmsPacket(protozero::ConstBytes blob,
                              const TraceBlobView& packet);
+  // Almost no trace has VMs, so that is settled here without a call, on the
+  // path every packet takes.
   std::optional<TraceBlobView> TryProcessPatch(
       const SelectiveTracePacketDecoder& patch,
-      const TraceBlobView& packet);
+      const TraceBlobView& packet) {
+    if (PERFETTO_LIKELY(sequence_id_to_vms_.size() == 0)) {
+      return std::nullopt;
+    }
+    return ProcessPatch(patch, packet);
+  }
 
  private:
+  std::optional<TraceBlobView> ProcessPatch(
+      const SelectiveTracePacketDecoder& patch,
+      const TraceBlobView& packet);
   TraceBlobView SerializeIncrementalState(
       const protovm::Vm& vm,
       const SelectiveTracePacketDecoder& patch) const;
