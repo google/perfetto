@@ -713,7 +713,7 @@ additional positionals.
 
 NOTE: The classic `--summary --summary-spec FILE --summary-metrics-v2 IDS
 --summary-format FORMAT` invocation is still supported and produces identical
-output. See [Trace Processor → Subcommand interface](trace-processor.md#subcommands)
+output. See [Trace Processor → Subcommand interface](/docs/reference/trace-processor-cli.md#subcommands)
 for details on the new CLI.
 
 </tabs?>

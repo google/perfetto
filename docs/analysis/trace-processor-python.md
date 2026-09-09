@@ -308,7 +308,7 @@ same version (a different version may load it, but this is not guaranteed).
 file per statically registered table, for analysis with pandas, Polars or
 pyarrow; it cannot be loaded back into trace processor. The Python API
 supports these two formats; to export to SQLite, use the
-[`export` shell subcommand](/docs/analysis/trace-processor.md#subcommand-export).
+[`export` shell subcommand](/docs/reference/trace-processor-cli.md#subcommand-export).
 
 ### Metatracing
 
