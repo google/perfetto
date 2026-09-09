@@ -313,6 +313,27 @@ class AndroidParser(TestSuite):
           100,"com.example.app",10001,42,10002,10003,10004,2000,5000
         """))
 
+  def test_android_framework_track_event_process_death(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_track_event_process_death.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          t.start_seq_id,
+          t.fw_start_ts,
+          t.fw_end_ts,
+          t.exit_reason,
+          t.exit_sub_reason
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid)
+        ORDER BY t.start_seq_id;
+        """,
+        out=Csv("""
+          "pid","start_seq_id","fw_start_ts","fw_end_ts","exit_reason","exit_sub_reason"
+          100,1,1000,2000,"APP_EXIT_REASON_CRASH","APP_EXIT_SUBREASON_TOO_MANY_CACHED"
+          200,2,1500,2500,"APP_EXIT_REASON_ANR","[NULL]"
+        """))
+
   def test_android_framework_track_event_enum(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
