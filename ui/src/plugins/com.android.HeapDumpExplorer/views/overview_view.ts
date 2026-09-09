@@ -146,9 +146,9 @@ function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
         m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link pf-hde-mono pf-hde-break-all pf-hde-str-color',
+            class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
             onclick: () =>
               navigate('strings', {
                 q: String(value ?? ''),

@@ -296,14 +296,6 @@
   }
 }
 
-.pf-hde-link {
-  color: var(--pf-color-primary);
-  text-decoration: underline;
-  &:hover {
-    color: var(--pf-color-accent);
-  }
-}
-
 .pf-hde-badge-reachability {
   color: var(--pf-hde-badge-reachability);
   font-size: 0.8125rem;
@@ -399,6 +391,7 @@
 
 .pf-hde-str-color {
   color: var(--pf-hde-badge-string);
+  text-decoration-color: var(--pf-hde-badge-string);
 }
 
 .pf-hde-str-badge {

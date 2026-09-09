@@ -77,6 +77,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         return m(
           Anchor,
           {
+            class: 'pf-hde-str-color',
             onclick: () =>
               navigate('object', {
                 id,
@@ -88,7 +89,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
           m(
             'span',
             {
-              class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
+              class: 'pf-hde-mono pf-hde-break-all',
             },
             str
               ? '"' +
