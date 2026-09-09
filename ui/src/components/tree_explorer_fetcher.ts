@@ -186,6 +186,7 @@ export class TreeExplorerFetcher implements AsyncDisposable {
     SharedAsyncDisposable<AsyncDisposable>
   >;
   private readonly metricTables: MetricTable[] = [];
+  private isDisposed = false;
 
   constructor(
     private readonly trace: Trace,
@@ -195,6 +196,8 @@ export class TreeExplorerFetcher implements AsyncDisposable {
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
+    // Stop queued fetches before dropping any tables.
+    this.isDisposed = true;
     for (const entry of this.metricTables) {
       await entry.table[Symbol.asyncDispose]();
     }
@@ -204,12 +207,15 @@ export class TreeExplorerFetcher implements AsyncDisposable {
   }
 
   // Fetches the tree for the metric selected in `state`, with all of
-  // `state`'s filters and view applied. Returns undefined if the fetcher's
-  // dependencies were disposed while the fetch was in flight.
+  // `state`'s filters and view applied. Returns undefined if this fetcher was
+  // disposed before the tree query was issued.
   async fetch(
     metrics: ReadonlyArray<TreeExplorerQueryMetric>,
     state: TreeExplorerState,
   ): Promise<TreeExplorerData | undefined> {
+    if (this.isDisposed) {
+      return undefined;
+    }
     const metric = ensureExists(
       metrics.find((x) => state.selectedMetricId === metricId(x)),
     );
@@ -219,20 +225,22 @@ export class TreeExplorerFetcher implements AsyncDisposable {
     // clone.
     await using trash = new AsyncDisposableStack();
     for (const dependency of this.dependencies ?? []) {
-      // If the dependency is disposed, it means that we have already ended
-      // up cleaning up the object so none of this matters. Just return.
-      if (dependency.isDisposed) {
-        return undefined;
-      }
       trash.use(dependency.clone());
     }
     const table = await this.getMetricTable(metric);
+    // Even a cache hit yields at the await, allowing disposal to drop the
+    // table before we issue the tree query.
+    if (this.isDisposed || table === undefined) {
+      return undefined;
+    }
     return await computeTree(this.trace.engine, table, state);
   }
 
+  // Returns undefined if this fetcher was disposed while the table was being
+  // built.
   private async getMetricTable(
     metric: TreeExplorerQueryMetric,
-  ): Promise<MetricTable> {
+  ): Promise<MetricTable | undefined> {
     const cached = this.metricTables.find((entry) => entry.metric === metric);
     if (cached) {
       return cached;
@@ -274,6 +282,11 @@ export class TreeExplorerFetcher implements AsyncDisposable {
           cumulative_value: NUM,
         }).cumulative_value,
       };
+      if (this.isDisposed) {
+        // Disposal may have finished, so clean up this table here.
+        await table[Symbol.asyncDispose]();
+        return undefined;
+      }
       this.metricTables.push(entry);
       return entry;
     } catch (error) {
