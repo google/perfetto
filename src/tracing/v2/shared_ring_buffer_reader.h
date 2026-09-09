@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <functional>
 #include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -33,9 +34,9 @@ class SharedRingBufferInternalsForTest;
 
 // Reads packet fragments from one SharedRingBuffer.
 //
-// - Use each instance from one execution context. The ring's storage and
+// - Use each instance from one execution context. The ring buffer's storage and
 //   SharedRingBuffer view must outlive the reader.
-// - Reservations are resolved in order. A relocated suffix gets a later
+// - Reservations are consumed in order. A relocated suffix gets a later
 //   reservation.
 // - The reader never waits for a writer, but may retry when it loses a
 //   concurrent state transition.
@@ -47,9 +48,10 @@ class SharedRingBufferInternalsForTest;
 //   producer-controlled shared memory.
 class SharedRingBufferReader {
  public:
-  // Result of resolving one position.
-  enum class ResolveResult {
-    // read_pos has caught up with write_pos.
+  // Result of consuming one position.
+  enum class ConsumeResult {
+    // No writer has reserved read_pos yet: read_pos has caught up with
+    // write_pos.
     kNoData,
     // A chunk was handed to the delegate and read_pos advanced.
     kChunkRead,
@@ -59,7 +61,7 @@ class SharedRingBufferReader {
     // The reader lost a concurrent state transition. read_pos is unchanged
     // and the same position is retried later, without waiting for the writer.
     kRetryLater,
-    // Invalid ring state. This reader cannot continue.
+    // Invalid ring buffer state. This reader cannot continue.
     // - The offending position is neither advanced nor reclaimed.
     // - Earlier chunks in this drain may already have been delivered.
     // - Drain() still publishes any progress made before the error.
@@ -83,13 +85,13 @@ class SharedRingBufferReader {
   };
 
   struct DrainResult {
-    uint32_t positions_resolved = 0;
-    ResolveResult last_result = ResolveResult::kNoData;
+    uint32_t positions_consumed = 0;
+    ConsumeResult last_result = ConsumeResult::kNoData;
 
     // The caller should schedule another Drain() call.
     bool needs_another_drain() const {
-      return last_result != ResolveResult::kNoData &&
-             last_result != ResolveResult::kProtocolError;
+      return last_result != ConsumeResult::kNoData &&
+             last_result != ConsumeResult::kProtocolError;
     }
   };
 
@@ -119,11 +121,11 @@ class SharedRingBufferReader {
   SharedRingBufferReader(SharedRingBufferReader&&) = delete;
   SharedRingBufferReader& operator=(SharedRingBufferReader&&) = delete;
 
-  // Resolves up to |max_positions|, then publishes read_pos once and wakes any
-  // writer parked on a full ring. Without the bound, one pass over a large
-  // ring could monopolize the consumer's task sequence. The bound also caps
-  // the copying and delegate work done per task and decides how often
-  // read_pos gets published.
+  // Consumes up to |max_positions|, then publishes read_pos once and wakes any
+  // writer parked on a full ring buffer. These are logical positions rather
+  // than chunks: a position whose chunk was never claimed still counts towards
+  // the bound. Without it, one pass over a large ring buffer could monopolize
+  // the consumer's task sequence.
   DrainResult Drain(uint32_t max_positions);
 
   bool has_protocol_error() const { return has_protocol_error_; }
@@ -144,8 +146,8 @@ class SharedRingBufferReader {
  private:
   friend class test::SharedRingBufferInternalsForTest;
 
-  // Resolves at most one position. Drain() publishes read_pos once per pass.
-  ResolveResult ResolveNextPosition();
+  // Consumes at most one position. Drain() publishes read_pos once per pass.
+  ConsumeResult ConsumeNextPosition();
 
   enum class CommittedPrefixStatus {
     kNoFragments,
@@ -157,17 +159,17 @@ class SharedRingBufferReader {
   // Validates and copies the committed prefix. A malformed or unknown format
   // is dropped without changing the ownership transition chosen by the
   // caller.
-  CommittedPrefixStatus CopyCommittedPrefix(uint32_t chunk_idx,
+  CommittedPrefixStatus CopyCommittedPrefix(ChunkIndex chunk_idx,
                                             uint32_t state_word);
 
   // Delivers a valid prefix to the delegate. Invalid or unsupported data is
   // reported as data loss. Called only after the position's compare-and-swap
   // won.
-  ResolveResult HandleCommittedPrefix(CommittedPrefixStatus);
+  ConsumeResult HandleCommittedPrefix(CommittedPrefixStatus);
 
   // Latches the error and logs |reason| once, together with the position and
   // the offending word. read_pos is not advanced.
-  ResolveResult StopOnProtocolError(const char* reason, uint32_t state_word);
+  ConsumeResult StopOnProtocolError(const char* reason, uint32_t state_word);
 
   SharedRingBuffer* const ring_;
   Delegate* const delegate_;
@@ -178,7 +180,12 @@ class SharedRingBufferReader {
   uint32_t read_pos_ = 0;
   bool has_protocol_error_ = false;
 
+  // Pauses between the speculative copy and rewrite CAS in deterministic tests.
+  std::function<void()> before_rewrite_for_testing_;
+
   // Published fragment bytes copied out of shared memory.
+  // TODO(sashwinbalaji): Measure whether embedding max-sized scratch arrays in
+  // the heap-allocated reader is faster than these reusable vectors.
   std::vector<uint8_t> copied_payload_;
 
   // Each fragment's decoded size and pointer into copied_payload_.

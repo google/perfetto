@@ -54,13 +54,13 @@ struct StressParams {
   uint32_t chunk_size;
   // An upper bound on the attempts each writer makes.
   uint32_t fragments_per_writer;
-  uint32_t seed_position;
+  uint32_t seed_pos;
   BufferExhaustedPolicy policy;
-  // If nonzero, the writers are stopped once the reader has resolved this
-  // many positions past seed_position. That makes the run end on reader
+  // If nonzero, the writers are stopped once the reader has consumed this
+  // many positions past seed_pos. That makes the run end on reader
   // progress rather than on the attempt budget, which matters for a policy
   // like kDrop where writers never wait for the reader.
-  uint32_t min_positions_resolved = 0;
+  uint32_t min_positions_consumed = 0;
 };
 
 // What a run actually did, so each test can assert that it exercised the path
@@ -105,11 +105,11 @@ class StressDelegate : public SharedRingBufferReader::Delegate {
 
 void RunStress(const StressParams& params, StressStats* stats) {
   test::SharedRingBufferForTesting ring(params.num_chunks, params.chunk_size);
-  Internals::SetPositions(ring.get(), params.seed_position);
+  Internals::SetPositions(ring.get(), params.seed_pos);
 
   StressDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
-  Internals::SetReaderPos(&reader, params.seed_position);
+  Internals::SetReaderPos(&reader, params.seed_pos);
 
   std::atomic<uint32_t> writers_done{0};
   // Set when the run's progress target is reached or when the drain below
@@ -175,10 +175,10 @@ void RunStress(const StressParams& params, StressStats* stats) {
     });
   }
 
-  // Drain until every writer has finished and the ring has been emptied. The
-  // deadline is far beyond what a correct run needs, even under TSAN; hitting
-  // it means the protocol stopped making progress, and the test must fail
-  // rather than spin here forever.
+  // Drain until every writer has finished and the ring buffer has been emptied.
+  // The deadline is far beyond what a correct run needs, even under TSAN;
+  // hitting it means the protocol stopped making progress, and the test must
+  // fail rather than spin here forever.
   const base::TimeMillis drain_deadline =
       base::GetWallTimeMs() + base::TimeMillis(60000);
   bool drain_timed_out = false;
@@ -187,13 +187,12 @@ void RunStress(const StressParams& params, StressStats* stats) {
         writers_done.load(std::memory_order_acquire) == params.num_writers;
     const SharedRingBufferReader::DrainResult result = reader.Drain(64);
     if (result.last_result ==
-        SharedRingBufferReader::ResolveResult::kProtocolError) {
+        SharedRingBufferReader::ConsumeResult::kProtocolError) {
       break;
     }
     // Unsigned subtraction keeps this right when the positions roll over.
-    if (params.min_positions_resolved != 0 &&
-        reader.read_pos() - params.seed_position >=
-            params.min_positions_resolved) {
+    if (params.min_positions_consumed != 0 &&
+        reader.read_pos() - params.seed_pos >= params.min_positions_consumed) {
       stop_writers.store(true, std::memory_order_relaxed);
     }
     if (all_done && !result.needs_another_drain())
@@ -203,18 +202,18 @@ void RunStress(const StressParams& params, StressStats* stats) {
       ADD_FAILURE() << "Stress drain did not finish within its deadline: "
                     << writers_done.load() << "/" << params.num_writers
                     << " writers done, read_pos " << reader.read_pos() << " ("
-                    << reader.read_pos() - params.seed_position
+                    << reader.read_pos() - params.seed_pos
                     << " positions past the seed), last result "
                     << static_cast<int>(result.last_result);
       break;
     }
-    if (result.positions_resolved == 0)
+    if (result.positions_consumed == 0)
       std::this_thread::yield();
   }
 
   // Stop the writers - a no-op on the success path, where they are already
   // done - and keep draining until they have all left their loops, so the
-  // joins below cannot wait on a writer parked on a full ring.
+  // joins below cannot wait on a writer parked on a full ring buffer.
   stop_writers.store(true, std::memory_order_relaxed);
   const base::TimeMillis shutdown_deadline =
       base::GetWallTimeMs() + base::TimeMillis(60000);
@@ -273,15 +272,15 @@ TEST(SharedRingBufferConcurrencyTest, StressFourWritersDropPolicy) {
   StressStats stats;
   RunStressUntilRelocations({/*num_writers=*/4, /*num_chunks=*/8,
                              /*chunk_size=*/256,
-                             /*fragments_per_writer=*/4000, /*seed_position=*/0,
+                             /*fragments_per_writer=*/4000, /*seed_pos=*/0,
                              BufferExhaustedPolicy::kDrop},
                             &stats);
-  // A drop policy on a small ring loses a lot, which is the point - but the
-  // exactly-once and ordering checks above are worthless if nothing got
+  // A drop policy on a small ring buffer loses a lot, which is the point - but
+  // the exactly-once and ordering checks above are worthless if nothing got
   // through. An absolute floor rather than a share of the total: how much a
   // drop-policy run keeps depends on how fast the reader is scheduled, and
   // under ThreadSanitizer that is a different number. What has to hold is that
-  // the per-writer checks ran on real data, not that the ring achieved a
+  // the per-writer checks ran on real data, not that the ring buffer achieved a
   // particular throughput.
   EXPECT_GT(stats.received, 100u);
   EXPECT_GT(stats.relocations, 0u);
@@ -295,35 +294,35 @@ TEST(SharedRingBufferConcurrencyTest, StressAcrossWrapCountRollover) {
   //
   // The run ends on reader progress, not on the writers' attempt budget: with
   // kDrop the writers never wait, so a reader short of CPU could otherwise
-  // watch them use up a fixed budget before it had resolved the positions up
+  // watch them use up a fixed budget before it had consumed the positions up
   // to the boundary. Requiring 16 traversals past it also means the writers
   // were still claiming with the wrapped-around count while the reader kept
   // advancing Free words from it.
   constexpr uint32_t kNumChunks = 4;
-  constexpr uint32_t kBoundary = kNumChunks * 65536u;
-  constexpr uint32_t kSeed = kBoundary - 16 * kNumChunks;
-  constexpr uint32_t kMinPositionsResolved = 32 * kNumChunks;
+  constexpr uint32_t kBoundaryPos = kNumChunks * 65536u;
+  constexpr uint32_t kSeedPos = kBoundaryPos - 16 * kNumChunks;
+  constexpr uint32_t kMinPositionsConsumed = 32 * kNumChunks;
   StressStats stats;
   RunStress({/*num_writers=*/4, kNumChunks, /*chunk_size=*/256,
-             /*fragments_per_writer=*/UINT32_MAX, kSeed,
-             BufferExhaustedPolicy::kDrop, kMinPositionsResolved},
+             /*fragments_per_writer=*/UINT32_MAX, kSeedPos,
+             BufferExhaustedPolicy::kDrop, kMinPositionsConsumed},
             &stats);
   EXPECT_GT(stats.received, 0u);
-  EXPECT_GE(stats.final_read_pos - kSeed, kMinPositionsResolved);
+  EXPECT_GE(stats.final_read_pos - kSeedPos, kMinPositionsConsumed);
   EXPECT_LT(WrapCountForPosition(stats.final_read_pos, kNumChunks),
-            WrapCountForPosition(kSeed, kNumChunks));
+            WrapCountForPosition(kSeedPos, kNumChunks));
 }
 
 TEST(SharedRingBufferConcurrencyTest, StressStallPolicy) {
-  // kStall needs the futex wait. Without it the first full ring reaches the
-  // deliberate PERFETTO_FATAL in AcquireNewChunk(), which would take the whole
-  // test binary down rather than fail this test.
+  // kStall needs the futex wait. Without it the first full ring buffer reaches
+  // the deliberate PERFETTO_FATAL in AcquireNewChunk(), which would take the
+  // whole test binary down rather than fail this test.
   if (!SharedRingBuffer::SupportsWriterWait())
     GTEST_SKIP() << "The futex wait is not available on this platform";
 
   StressStats stats;
   RunStress({/*num_writers=*/3, /*num_chunks=*/8, /*chunk_size=*/1024,
-             /*fragments_per_writer=*/2000, /*seed_position=*/0,
+             /*fragments_per_writer=*/2000, /*seed_pos=*/0,
              BufferExhaustedPolicy::kStall},
             &stats);
   EXPECT_GT(stats.received, 0u);

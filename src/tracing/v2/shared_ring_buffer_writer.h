@@ -36,12 +36,12 @@ namespace perfetto::tracing_v2 {
 //   boundary. A chunk can hold several fragments. The writer handles their
 //   byte ranges and sizes without interpreting their contents.
 // - Use each instance from one thread at a time. Several instances can write
-//   to the same ring concurrently.
-// - The ring's memory and SharedRingBuffer view must outlive every writer.
+//   to the same ring buffer concurrently.
+// - Every writer must be destroyed before the ring buffer's memory and view.
 //   The destructor still publishes the chunk the writer holds.
 // - Reserving a write position and claiming its physical chunk are separate
 //   operations. A failed claim leaves a position that only the reader can
-//   resolve.
+//   consume.
 // - The writer notifies its delegate before waiting for the reader to make
 //   space.
 class SharedRingBufferWriter {
@@ -49,12 +49,13 @@ class SharedRingBufferWriter {
   // Result of BeginFragment(), which may need a new chunk.
   enum class BeginFragmentResult {
     kSuccess,
-    // The ring is structurally full: num_chunks positions are outstanding and
-    // the reader is behind. A stalling policy has already waited by the time
-    // this is returned.
+    // The ring buffer is structurally full: num_chunks positions are
+    // outstanding and the reader is behind. A stalling policy has already
+    // waited by the time this is returned.
     kFull,
     // Positions were reserved but their chunks could not be claimed. Chunks
-    // pinned by a stalled writer produce this without the ring being full.
+    // pinned by a stalled writer produce this without the ring buffer being
+    // full.
     //
     // The reader has been notified before this is returned.
     kNoChunkAvailable,
@@ -122,9 +123,10 @@ class SharedRingBufferWriter {
   // the reader scraped the chunk meanwhile, the unpublished suffix moves to a
   // new chunk, which applies the buffer-exhaustion policy and may wait.
   //
-  // |continues_on_next| says that this fragment continues in this writer's
-  // next chunk. A chunk published with that flag is never reused, so a prefix
-  // scraped from BeingWritten always ends on a packet boundary.
+  // The ring buffer writer sees fragments, not packets. Its caller therefore
+  // sets |continues_on_next| when the packet continues in this writer's next
+  // chunk. A chunk carrying the flag is never reused, so a prefix scraped from
+  // BeingWritten always ends on a packet boundary.
   EndFragmentResult EndFragment(uint32_t size, bool continues_on_next);
 
   // Publishes whatever is held and lets go of the chunk. Any open fragment is
@@ -167,7 +169,7 @@ class SharedRingBufferWriter {
   EndFragmentResult ReleaseCurrentChunkAsComplete(
       std::optional<uint32_t> suffix_size,
       bool continues_on_next);
-  // Clears only this writer's cached chunk state. It does not modify the ring.
+  // Clears this writer's cached chunk state, leaving shared memory untouched.
   void ResetCurrentChunk();
 
   SharedRingBuffer* const ring_;
@@ -181,7 +183,7 @@ class SharedRingBufferWriter {
 
   // State cached for the chunk this writer currently owns.
   uint8_t* cur_chunk_ = nullptr;
-  uint32_t cur_chunk_idx_ = 0;
+  ChunkIndex cur_chunk_idx_ = ChunkIndex::FromIndex(0);
   // The exact word this writer's next compare-and-swap expects. It can differ
   // from the shared word once the reader has requested a rewrite.
   uint32_t expected_state_word_ = 0;

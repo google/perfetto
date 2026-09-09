@@ -19,8 +19,11 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
+#include <algorithm>
 #include <atomic>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/bits.h"
@@ -30,18 +33,19 @@
 
 namespace perfetto::tracing_v2 {
 
-// Shared-memory ABI for a tracing-v2 producer ring.
+// Shared-memory ABI for a tracing-v2 producer ring buffer.
 // Protocol and alternatives: RFC 0046,
 // https://github.com/google/perfetto/discussions/7120.
 // Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
 //
-// Several trace writers can write to the ring at once. One reader drains their
-// data in reservation order. A relocated suffix obtains a later reservation.
+// Several trace writers can write to the ring buffer at once. One reader drains
+// their data in reservation order. A relocated suffix obtains a later
+// reservation.
 //
-// The ring has one header followed by fixed-size chunks. The header holds the
-// read and write positions. Every chunk starts with one atomic state word. It
-// records who may access the chunk and, while a writer owns it, how many
-// complete fragments have been published.
+// The ring buffer has one header followed by fixed-size chunks. The header
+// holds the read and write positions. Every chunk starts with one atomic state
+// word. It records who may access the chunk and, while a writer owns it, how
+// many complete fragments have been published.
 //
 // The ABI assumes little-endian producer and service processes.
 
@@ -60,8 +64,8 @@ constexpr uint32_t kMinChunkSize = 256;
 // Contiguous chunks must keep every 32-bit state word aligned.
 constexpr uint32_t kChunkAlignmentBytes = 4;
 
-// Ring header
-// -----------
+// Ring buffer header
+// ------------------
 //
 //   byte offset
 //   0              4              8             12               64
@@ -72,19 +76,18 @@ constexpr uint32_t kChunkAlignmentBytes = 4;
 //   \_________ rw_positions _____/ \_  atomic32 _/
 //             atomic<uint64_t>
 //
-// Writers decide whether the ring has room by loading rw_positions once. The
-// high half is write_pos and the low half is read_pos. Keeping them in one
-// atomic prevents a capacity check from combining counters read at different
-// times.
+// The first four bytes of rw_positions contain read_pos. The following four
+// bytes contain write_pos. Writers load both positions from the same atomic,
+// so a capacity check cannot combine values read at different times.
 //
 // The reader is the only one that moves read_pos. It publishes a new value once
-// per drain pass and then wakes any writer parked on a full ring. read_pos is
-// also the first four bytes of rw_positions, which is the address the futex
-// waits on.
+// per drain pass and then wakes any writer parked on a full ring buffer.
+// read_pos is also the first four bytes of rw_positions, which is the address
+// the futex waits on.
 //
 // num_writers_waiting lets the reader skip a futex wake when nobody is waiting
-// for space. It is only an optimization and never decides whether the ring is
-// full or who owns a chunk.
+// for space. It is only an optimization and never decides whether the ring
+// buffer is full or who owns a chunk.
 //
 // Bytes 12..63 pad the header to one cache line.
 //
@@ -112,8 +115,12 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // ------------------------------------
 //
 // write_pos is the next position a writer can reserve. read_pos is the next
-// position the reader must resolve. Both counters are uint32_t and are allowed
-// to wrap.
+// position the reader must consume. Both counters are uint32_t and wrap at
+// UINT32_MAX.
+//
+// This is different from traversing the ring buffer: each position
+// is mapped to a physical chunk by ChunkIndex::FromPosition() when that chunk
+// is accessed.
 //
 // The number of reserved positions not yet handled by the reader is:
 //
@@ -128,7 +135,7 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 //   uint32_t(write_pos - read_pos) = 6
 //
 // A legal result is at most num_chunks. A larger result means that the two
-// positions do not describe a valid ring state.
+// positions do not describe a valid ring buffer state.
 //
 // This also means that at most one outstanding reservation maps to each
 // physical chunk (the one exception is the wrap-count alias described at
@@ -163,45 +170,77 @@ constexpr uint32_t NumOutstandingPositions(uint32_t write_pos,
   return write_pos - read_pos;
 }
 
-// num_chunks = 2^k, so the low k bits of a position select the physical chunk
-// and the remaining bits count completed traversals:
-//
-//             bits 31..k                    bits k-1..0
-//   +----------------------------+----------------------------+
-//   |       traversal number     |    physical chunk index    |
-//   +----------------------------+----------------------------+
-//              32 - k bits                    k bits
-//
-// For example, an eight-chunk ring has three chunk-index bits. The low three
-// bits select chunks 0 through 7. The remaining 29 bits count completed
-// traversals.
-constexpr uint32_t ChunkIndexOf(uint32_t position, uint32_t num_chunks) {
-  return position & (num_chunks - 1);
-}
+// A physical chunk index, distinct from the logical reservation position.
+// Variables use _idx for physical chunk indexes and _pos for logical positions.
+// - _idx identifies a physical chunk in the shared memory mapping, in the range
+//   [0, num_chunks). Successive logical positions cycle through these chunks,
+//   returning to chunk index 0 after chunk index num_chunks - 1.
+// - _pos identifies a logical position in the reservation order. It keeps
+//   advancing past num_chunks across successive traversals of the ring buffer;
+//   as a uint32_t, it wraps from UINT32_MAX to 0. FromPosition() maps it to the
+//   physical chunk index used for memory access.
+class ChunkIndex {
+ public:
+  // Builds from an already computed physical chunk index.
+  static constexpr ChunkIndex FromIndex(uint32_t chunk_idx) {
+    return ChunkIndex{chunk_idx};
+  }
+
+  // num_chunks = 2^k, so the low k bits of a position select the physical chunk
+  // and the remaining bits count completed traversals:
+  //
+  //             bits 31..k                    bits k-1..0
+  //   +----------------------------+----------------------------+
+  //   |       traversal number     |    physical chunk index    |
+  //   +----------------------------+----------------------------+
+  //              32 - k bits                    k bits
+  //
+  // For example, an eight-chunk ring buffer has three chunk-index bits. The low
+  // three bits select chunks 0 through 7. The remaining 29 bits count completed
+  // traversals.
+  static constexpr ChunkIndex FromPosition(uint32_t chunk_pos,
+                                           uint32_t num_chunks) {
+    return ChunkIndex{chunk_pos & (num_chunks - 1)};
+  }
+
+  constexpr uint32_t value() const { return chunk_idx_; }
+
+ private:
+  explicit constexpr ChunkIndex(uint32_t chunk_idx) : chunk_idx_(chunk_idx) {}
+
+  uint32_t chunk_idx_;
+};
 
 // Chunk state word
 // ----------------
 //
+// There are five defined states: Free, BeingWritten, Complete,
+// RewriteRequested and RewriteAcknowledged. The low control byte contains the
+// state. It also determines how to interpret the other three bytes: Free uses
+// them differently from the three data-bearing states.
+//
 // A Free word contains:
 //
-//    31                              16 15       8 7               0
-//   +----------------------------------+-----------+------------------+
-//   |            wrap_count            | num_frag- |   control = 0    |
-//   |                                  | ments = 0 | (Free, format 0, |
-//   |                                  |           |    no flags)     |
-//   +----------------------------------+-----------+------------------+
-//                   16 bits               8 bits          8 bits
+//   +-------------------+-------------------+---------------------------+
+//   |      byte 0       |      byte 1       |         bytes 2-3         |
+//   +-------------------+-------------------+---------------------------+
+//   |    control = 0    | num_fragments = 0 |        wrap_count         |
+//   | (Free, format 0,  |                   |                           |
+//   |     no flags)     |                   |                           |
+//   +-------------------+-------------------+---------------------------+
+//          8 bits              8 bits                  16 bits
 //
-// A Free word is wrap_count << 16, making a zero-filled ring valid and empty.
+// A Free word is wrap_count << 16, making a zero-filled ring buffer valid and
+// empty.
 //
 // BeingWritten, Complete and RewriteRequested contain:
 //
-//    31                              16 15       8 7               0
-//   +----------------------------------+-----------+------------------+
-//   |             WriterID             |    num    |   control byte   |
-//   |                                  | fragments |                  |
-//   +----------------------------------+-----------+------------------+
-//                   16 bits               8 bits          8 bits
+//   +-------------------+-------------------+---------------------------+
+//   |      byte 0       |      byte 1       |         bytes 2-3         |
+//   +-------------------+-------------------+---------------------------+
+//   |   control byte    |   num_fragments   |         WriterID          |
+//   +-------------------+-------------------+---------------------------+
+//          8 bits              8 bits                  16 bits
 //
 // The control byte is:
 //
@@ -223,15 +262,18 @@ enum class ChunkState : uint32_t {
   kBeingWritten = 1,
 
   // The writer has published num_fragments fragments and is no longer touching
-  // the chunk. It may take the chunk back before the reader reclaims it.
+  // the chunk. It may take the chunk back by changing it to BeingWritten
+  // before the reader reclaims it.
   kComplete = 2,
 
-  // The reader took the published prefix while the writer still owned the
-  // chunk. The writer must move anything it appended afterwards, then release
+  // While the writer was appending fragment N + 1, the reader consumed the
+  // first N fragments. The writer must move fragment N + 1 before releasing
   // this chunk.
   kRewriteRequested = 3,
 
-  // The writer has finished with the old chunk. The reader may reclaim it.
+  // After noticing RewriteRequested, the writer moves its unfinished fragment
+  // and changes the old chunk to RewriteAcknowledged. The reader changes it to
+  // Free when it encounters that chunk on a later traversal.
   kRewriteAcknowledged = 4,
 
   // A reader that does not know a state cannot tell who owns the chunk. It
@@ -325,14 +367,14 @@ enum PayloadFlags : uint32_t {
 // fields. The winning CAS settles ownership; no second atomic is needed.
 // If scraping wins, the writer relocates only the suffix after N fragments.
 //
-// A reservation allows one claim against Free(wrap_count(position)). On
+// A reservation allows one claim against Free(wrap_count(chunk_pos)). On
 // failure, the writer must reserve a new position, never retry the new word.
 //
 //   Actor   From                   Action                   To
 //   ------  ---------------------  -----------------------  -------------------
 //   writer  Free(wrap)             claim                    BeingWritten(0)
 //   writer  Free(wrap) gone        hole, reserve later      unchanged
-//   reader  Free(wrap)             resolve unclaimed        Free(next wrap)
+//   reader  Free(wrap)             consume unclaimed        Free(next wrap)
 //   reader  Free(other wrap)       protocol error, stop     unchanged
 //   writer  BeingWritten(N)        publish                  Complete(M)
 //   reader  BeingWritten(N)        take published prefix    RewriteRequested(N)
@@ -356,7 +398,7 @@ enum PayloadFlags : uint32_t {
 //
 // Free stores the low 16 bits of the traversal number:
 //
-//   wrap_count = uint16_t(position / num_chunks)
+//   wrap_count = uint16_t(chunk_pos / num_chunks)
 //
 // For the same chunk, that value repeats after:
 //
@@ -368,9 +410,9 @@ enum PayloadFlags : uint32_t {
 // the delayed writer. This is the limit of the 16-bit wrap count.
 //
 // Computes the wrap from a position; it does not inspect the chunk's state.
-inline uint16_t WrapCountForPosition(uint32_t position, uint32_t num_chunks) {
+inline uint16_t WrapCountForPosition(uint32_t chunk_pos, uint32_t num_chunks) {
   PERFETTO_DCHECK(base::IsPowerOfTwo(num_chunks));
-  return static_cast<uint16_t>(position >> base::CountTrailZeros(num_chunks));
+  return static_cast<uint16_t>(chunk_pos >> base::CountTrailZeros(num_chunks));
 }
 
 constexpr ChunkState ChunkStateOf(uint32_t state_word) {
@@ -387,11 +429,11 @@ constexpr uint32_t MakeFreeStateWord(uint16_t wrap_count) {
   return static_cast<uint32_t>(wrap_count) << kWrapCountShift;
 }
 
-// The Free word a reservation at |position| must find, and the word the
-// reader leaves for the next traversal when called with position + num_chunks.
-inline uint32_t MakeFreeStateWordForPosition(uint32_t position,
+// The Free word a reservation at |chunk_pos| must find, and the word the
+// reader leaves for the next traversal when called with chunk_pos + num_chunks.
+inline uint32_t MakeFreeStateWordForPosition(uint32_t chunk_pos,
                                              uint32_t num_chunks) {
-  return MakeFreeStateWord(WrapCountForPosition(position, num_chunks));
+  return MakeFreeStateWord(WrapCountForPosition(chunk_pos, num_chunks));
 }
 
 // These accessors apply to BeingWritten, Complete and RewriteRequested.
@@ -445,8 +487,8 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 // Target-buffer chunk format
 // --------------------------
 //
-// A data-bearing format-0 chunk begins with this six-byte header, leaving
-// 250 bytes for payload and size entries in a minimum-sized chunk:
+// A data-bearing format-0 chunk begins with this six-byte header. The remaining
+// bytes hold payload and size entries:
 //
 //   +---------+---------+-------------------+-------------------+
 //   | byte 0  | byte 1  |     bytes 2-3     |     bytes 4-5     |
@@ -454,7 +496,7 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 //   | control |  num    |     WriterID      |  target BufferID  |
 //   |  byte   |fragments|                   |                   |
 //   +---------+---------+-------------------+-------------------+
-//   \_____________ atomic state word _______/
+//   \__________ atomic state word __________/
 //
 // The rest of a format-0 chunk is laid out as follows:
 //
@@ -468,40 +510,40 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 //
 // Fragment 0's size is stored at the end of the chunk. num_fragments publishes
 // the same number of payload fragments and size varints. The writer fills
-// those bytes before its release transition out of BeingWritten. The reader
-// acquire-loads the state word, then decodes and checks every size before
-// copying the payload. The first publication also makes BufferID visible;
+// those bytes before transitioning out of BeingWritten. The reader loads the
+// state word, then decodes and checks every size before copying the payload.
+// The first publication also makes BufferID visible;
 // the reader must not load BufferID when num_fragments is zero.
 
-constexpr uint32_t kTargetBufferIDOffset = 4;
+constexpr uint32_t kTargetBufferIdOffset = 4;
 constexpr uint32_t kTargetBufferPayloadOffset = 6;
 
 inline void StoreTargetBufferID(uint8_t* chunk, BufferID buffer_id) {
-  chunk[kTargetBufferIDOffset] = static_cast<uint8_t>(buffer_id);
-  chunk[kTargetBufferIDOffset + 1] = static_cast<uint8_t>(buffer_id >> 8);
+  memcpy(&chunk[kTargetBufferIdOffset], &buffer_id, sizeof(buffer_id));
 }
 
 inline BufferID LoadTargetBufferID(const uint8_t* chunk) {
-  return static_cast<BufferID>(
-      static_cast<uint32_t>(chunk[kTargetBufferIDOffset]) |
-      (static_cast<uint32_t>(chunk[kTargetBufferIDOffset + 1]) << 8));
+  BufferID buffer_id;
+  memcpy(&buffer_id, &chunk[kTargetBufferIdOffset], sizeof(buffer_id));
+  return buffer_id;
 }
 
 // Fragment size directory
 // -----------------------
 //
-// The fragment sizes are varints at the end of the chunk. The first fragment's
-// varint ends at chunk_size. Each later varint is prepended below the previous
-// one:
+// The fragment sizes are reverse-encoded varints at the end of the chunk. The
+// first fragment's varint ends at chunk_size. Each later varint is prepended
+// below the previous one:
 //
 //   low address                                 high address
 //   +----------+----------+----------+----------+----------+
 //   | size N-1 |   ...    |  size 2  |  size 1  |  size 0  |
 //   +----------+----------+----------+----------+----------+
 //
-// The reader walks the sizes from high addresses to low addresses. It sees the
-// bytes of each size in normal protobuf varint order and stops at that
-// varint's final byte. It never has to inspect the next, unpublished entry.
+// The reader starts at the end of the chunk and walks towards lower addresses.
+// WriteFragmentSizeReversed() mirrors each varint's bytes so the reader sees
+// its least-significant group first and stops at its final byte. It never has
+// to inspect the next, unpublished entry.
 
 // Each varint byte carries seven value bits. Its top bit is set when another
 // byte follows.
@@ -509,53 +551,57 @@ constexpr uint32_t kVarIntDataBitsPerByte = 7;
 constexpr uint8_t kVarIntContinuationBit = 1u << kVarIntDataBitsPerByte;
 constexpr uint8_t kVarIntDataBitsMask = kVarIntContinuationBit - 1;
 
-// A uint32_t fragment size needs at most ceil(32 / 7) = 5 varint bytes.
-constexpr uint32_t kMaxFragmentSizeVarIntBytes = 5;
+// Fragment sizes share Protozero's message-length limit: four varint bytes.
+constexpr uint32_t kMaxFragmentSizeVarIntBytes = 4;
 
-constexpr uint32_t FragmentSizeVarIntByteCount(uint32_t fragment_size) {
-  uint32_t bytes = 1;
-  while (fragment_size >= kVarIntContinuationBit) {
-    fragment_size >>= kVarIntDataBitsPerByte;
-    ++bytes;
-  }
-  return bytes;
+inline uint32_t FragmentSizeVarIntByteCount(uint32_t fragment_size) {
+  PERFETTO_DCHECK(fragment_size <= protozero::proto_utils::kMaxMessageLength);
+  if (fragment_size < (1u << 7))
+    return 1;
+  if (fragment_size < (1u << 14))
+    return 2;
+  if (fragment_size < (1u << 21))
+    return 3;
+  return kMaxFragmentSizeVarIntBytes;
 }
 
-static_assert(FragmentSizeVarIntByteCount(UINT32_MAX) ==
-                  kMaxFragmentSizeVarIntBytes,
-              "kMaxFragmentSizeVarIntBytes must bound every uint32_t size");
-
-// Returns the largest n such that n + varint_size(n) <= available_bytes. The
-// loop runs at most four times because a uint32_t varint is at most five bytes.
-constexpr uint32_t MaxFragmentSizeForAvailableBytes(uint32_t available_bytes) {
+// Returns the largest supported n such that n + varint_size(n) <=
+// available_bytes, or zero if no payload byte fits.
+inline uint32_t MaxFragmentSizeForAvailableBytes(uint32_t available_bytes) {
   if (available_bytes <= 1)
     return 0;
-  // Leave at least one byte for the size varint.
-  uint32_t fragment_size = available_bytes - 1;
-  while (FragmentSizeVarIntByteCount(fragment_size) >
-         available_bytes - fragment_size) {
-    --fragment_size;
-  }
-  return fragment_size;
+  // At each threshold the directory needs one more byte. Until both that
+  // byte and the larger payload fit, keep the previous maximum payload.
+  if (available_bytes <= (1u << 7))
+    return available_bytes - 1;
+  if (available_bytes <= (1u << 14) + 1)
+    return available_bytes - 2;
+  if (available_bytes <= (1u << 21) + 2)
+    return available_bytes - 3;
+  return std::min(
+      available_bytes - 4,
+      static_cast<uint32_t>(protozero::proto_utils::kMaxMessageLength));
 }
 
-constexpr uint32_t MaxFragmentSizeForEmptyChunk(uint32_t chunk_size) {
-  if (chunk_size < kMinChunkSize)
-    return 0;
+inline uint32_t MaxFragmentSizeForEmptyChunk(uint32_t chunk_size) {
+  PERFETTO_CHECK(chunk_size >= kMinChunkSize);
   const uint32_t available_bytes = chunk_size - kTargetBufferPayloadOffset;
   return MaxFragmentSizeForAvailableBytes(available_bytes);
 }
 
 // Writes the size into the directory immediately before |sizes_begin| and
 // returns the new directory start. The caller must provide
-// FragmentSizeVarIntByteCount(size) bytes before |sizes_begin|.
-inline uint8_t* WriteFragmentSize(uint8_t* sizes_begin, uint32_t size) {
+// FragmentSizeVarIntByteCount(size) bytes before |sizes_begin|, and |size|
+// must be at most protozero::proto_utils::kMaxMessageLength.
+inline uint8_t* WriteFragmentSizeReversed(uint8_t* sizes_begin, uint32_t size) {
+  PERFETTO_DCHECK(size <= protozero::proto_utils::kMaxMessageLength);
   uint8_t encoded[kMaxFragmentSizeVarIntBytes];
   const uint8_t* const encoded_end =
       protozero::proto_utils::WriteVarInt(size, encoded);
   const size_t encoded_size = static_cast<size_t>(encoded_end - encoded);
   // Put the first varint byte at the highest address: the reader starts
-  // there and reads towards lower addresses (see ReadFragmentSize()).
+  // there and reads towards lower addresses (see ReadFragmentSizeReversed()).
+  // TODO(sashwinbalaji): Move this into proto_utils as WriteVarIntReversed().
   for (size_t i = 0; i < encoded_size; ++i) {
     --sizes_begin;
     *sizes_begin = encoded[i];
@@ -566,41 +612,37 @@ inline uint8_t* WriteFragmentSize(uint8_t* sizes_begin, uint32_t size) {
 // Decodes the next size varint while moving |*sizes_cursor| towards lower
 // addresses.
 //
-// WriteFragmentSize() stores each varint reversed, so a reader walking down
-// the chunk sees the bytes in normal varint order. For example, a size of 300
-// is the varint AC 02 and is stored as:
+// WriteFragmentSizeReversed() mirrors each varint, so a reader walking down
+// the chunk sees its bytes in protobuf decoding order. For example, a size of
+// 300 is the varint AC 02 and is stored as:
 //
 //        ... | 02 | AC |  <- chunk_size
 //              ^     ^
 //              |     first byte read: AC, continuation bit set
 //              second byte read: 02, no continuation bit, stop
 //
-// |lower_bound| is the lowest address a size byte may be read from, normally
-// the start of the payload. It only keeps the decoder inside the chunk.
-// Whether the payloads and the size bytes overlap is the caller's check, made
-// once every size is decoded.
+// |lower_bound| is the lowest address a size byte may be read from. The caller
+// uses the start of the payload because its end is known only after decoding
+// all the sizes. It checks for overlap with the payload afterwards.
 //
-// Rejected, so that every size has exactly one byte pattern:
-// - a varint that runs into |lower_bound| or is longer than five bytes;
-// - a value above uint32_t;
-// - a non-shortest encoding (81 00 for 1).
+// Rejects truncated varints and encodings longer than four bytes. Non-minimal
+// encodings are accepted; the writer emits the shortest representation.
 //
 // On success, |*sizes_cursor| points at the last byte read, which is the
-// exclusive upper bound for the next size. |*fragment_size| is also updated
-// only on success.
-inline bool ReadFragmentSize(const uint8_t* lower_bound,
-                             const uint8_t** sizes_cursor,
-                             uint32_t* fragment_size) {
+// exclusive upper bound for the next size. Failure leaves the cursor unchanged.
+inline std::optional<uint32_t> ReadFragmentSizeReversed(
+    const uint8_t* lower_bound,
+    const uint8_t** sizes_cursor) {
   const uint8_t* cursor = *sizes_cursor;
-  uint64_t value = 0;
+  uint32_t value = 0;
   uint32_t num_bytes = 0;
   for (;;) {
     if (cursor == lower_bound || num_bytes == kMaxFragmentSizeVarIntBytes)
-      return false;
+      return std::nullopt;
     --cursor;
     const uint8_t byte = *cursor;
     // Reading down the directory yields the least significant group first.
-    const uint64_t data_bits = byte & kVarIntDataBitsMask;
+    const uint32_t data_bits = byte & kVarIntDataBitsMask;
     const uint32_t shift = kVarIntDataBitsPerByte * num_bytes;
     value |= data_bits << shift;
     ++num_bytes;
@@ -608,16 +650,8 @@ inline bool ReadFragmentSize(const uint8_t* lower_bound,
       break;
   }
 
-  // Five bytes can carry 35 value bits, hence the range check.
-  if (value > UINT32_MAX)
-    return false;
-  // Reject non-shortest encodings so that every size has one byte pattern.
-  if (FragmentSizeVarIntByteCount(static_cast<uint32_t>(value)) != num_bytes)
-    return false;
-
   *sizes_cursor = cursor;
-  *fragment_size = static_cast<uint32_t>(value);
-  return true;
+  return value;
 }
 
 }  // namespace perfetto::tracing_v2

@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 
+#include <type_traits>
 #include <vector>
 
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
@@ -27,6 +28,16 @@ namespace perfetto::tracing_v2 {
 namespace {
 
 using test::WrapCountOf;
+
+static_assert(!std::is_convertible_v<uint32_t, ChunkIndex>);
+static_assert(!std::is_constructible_v<ChunkIndex, uint32_t>);
+static_assert(!std::is_convertible_v<ChunkIndex, uint32_t>);
+static_assert(
+    std::is_same_v<decltype(ChunkIndex::FromPosition(0, 4)), ChunkIndex>);
+static_assert(
+    !std::is_invocable_v<decltype(&SharedRingBuffer::LoadChunkStateWord),
+                         SharedRingBuffer*,
+                         uint32_t>);
 
 // Chunk state word
 // ----------------
@@ -197,20 +208,25 @@ TEST(SharedRingBufferABITest, ReplaceReadPos) {
 TEST(SharedRingBufferABITest, ChunkIndexAndWrapCount) {
   // A worked example.
   const uint32_t kNumChunks = 4;
-  const uint32_t kExpectedIndex[] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0};
+  const uint32_t kExpectedChunkIdx[] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0};
   const uint32_t kExpectedWrap[] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3};
-  for (uint32_t p = 0; p < 13; ++p) {
-    EXPECT_EQ(ChunkIndexOf(p, kNumChunks), kExpectedIndex[p]) << p;
-    EXPECT_EQ(WrapCountForPosition(p, kNumChunks), kExpectedWrap[p]) << p;
+  for (uint32_t chunk_pos = 0; chunk_pos < 13; ++chunk_pos) {
+    EXPECT_EQ(ChunkIndex::FromPosition(chunk_pos, kNumChunks).value(),
+              kExpectedChunkIdx[chunk_pos])
+        << chunk_pos;
+    EXPECT_EQ(WrapCountForPosition(chunk_pos, kNumChunks),
+              kExpectedWrap[chunk_pos])
+        << chunk_pos;
   }
 
-  // Including the one-chunk ring, where every position maps to chunk 0 and the
-  // wrap count is the position itself, truncated.
+  // Including the one-chunk ring buffer, where every position maps to chunk 0
+  // and the wrap count is the position itself, truncated.
   for (uint32_t num_chunks : {1u, 2u, 4u, 8u, 1024u}) {
-    for (uint32_t p = 0; p < 3 * num_chunks + 3; ++p) {
-      EXPECT_EQ(ChunkIndexOf(p, num_chunks), p % num_chunks);
-      EXPECT_EQ(WrapCountForPosition(p, num_chunks),
-                (p / num_chunks) & 0xffffu);
+    for (uint32_t chunk_pos = 0; chunk_pos < 3 * num_chunks + 3; ++chunk_pos) {
+      EXPECT_EQ(ChunkIndex::FromPosition(chunk_pos, num_chunks).value(),
+                chunk_pos % num_chunks);
+      EXPECT_EQ(WrapCountForPosition(chunk_pos, num_chunks),
+                (chunk_pos / num_chunks) & 0xffffu);
     }
   }
 }
@@ -223,29 +239,31 @@ TEST(SharedRingBufferABITest, OutstandingPositionsAcrossRollover) {
   EXPECT_EQ(NumOutstandingPositions(0xffffffffu, 0xfffffffeu), 1u);
 
   const uint32_t kNumChunks = 8;
-  const uint32_t kExpected[] = {4, 5, 6, 7, 0, 1};
-  uint32_t p = 0xfffffffcu;
-  for (uint32_t i = 0; i < 6; ++i, ++p)
-    EXPECT_EQ(ChunkIndexOf(p, kNumChunks), kExpected[i]) << i;
+  const uint32_t kExpectedChunkIdx[] = {4, 5, 6, 7, 0, 1};
+  uint32_t chunk_pos = 0xfffffffcu;
+  for (uint32_t i = 0; i < 6; ++i, ++chunk_pos)
+    EXPECT_EQ(ChunkIndex::FromPosition(chunk_pos, kNumChunks).value(),
+              kExpectedChunkIdx[i])
+        << i;
 }
 
 TEST(SharedRingBufferABITest, NextWrapFromPosition) {
   // The next wrap comes from the next position, not from the chunk word.
   // Away from the rollovers next_wrap is simply "one more".
   const uint32_t kNumChunks = 4;
-  for (uint32_t p = 0; p < 16; ++p) {
-    EXPECT_EQ(WrapCountForPosition(p + kNumChunks, kNumChunks),
-              WrapCountForPosition(p, kNumChunks) + 1)
-        << p;
+  for (uint32_t chunk_pos = 0; chunk_pos < 16; ++chunk_pos) {
+    EXPECT_EQ(WrapCountForPosition(chunk_pos + kNumChunks, kNumChunks),
+              WrapCountForPosition(chunk_pos, kNumChunks) + 1)
+        << chunk_pos;
   }
 
   // At the 16-bit truncation boundary it is not: the wrap after 0xffff is
   // zero. A reader that incremented the value it found in the chunk would
   // agree here by accident of the uint16_t, so the position rollover below is
   // the discriminating case.
-  const uint32_t kLastLapOfPeriod = 0xffffu * kNumChunks;  // wrap 0xffff
-  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriod, kNumChunks), 0xffffu);
-  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriod + kNumChunks, kNumChunks),
+  const uint32_t kLastLapOfPeriodPos = 0xffffu * kNumChunks;  // wrap 0xffff
+  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriodPos, kNumChunks), 0xffffu);
+  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriodPos + kNumChunks, kNumChunks),
             0u);
 
   // At the uint32_t position rollover the traversal number restarts from zero
@@ -253,12 +271,12 @@ TEST(SharedRingBufferABITest, NextWrapFromPosition) {
   // the protocol derives the wrap from the position and never increments the
   // value it finds in the chunk.
   const uint32_t kBigRing = 1u << 20;
-  const uint32_t kLastPosition = 0u - kBigRing;  // the last lap's chunk 0
-  EXPECT_EQ(ChunkIndexOf(kLastPosition, kBigRing), 0u);
-  EXPECT_EQ(WrapCountForPosition(kLastPosition, kBigRing), 0xfffu);
-  EXPECT_EQ(WrapCountForPosition(kLastPosition + kBigRing, kBigRing), 0u);
-  EXPECT_NE(WrapCountForPosition(kLastPosition + kBigRing, kBigRing),
-            WrapCountForPosition(kLastPosition, kBigRing) + 1u);
+  const uint32_t kLastPos = 0u - kBigRing;  // the last lap's chunk 0
+  EXPECT_EQ(ChunkIndex::FromPosition(kLastPos, kBigRing).value(), 0u);
+  EXPECT_EQ(WrapCountForPosition(kLastPos, kBigRing), 0xfffu);
+  EXPECT_EQ(WrapCountForPosition(kLastPos + kBigRing, kBigRing), 0u);
+  EXPECT_NE(WrapCountForPosition(kLastPos + kBigRing, kBigRing),
+            WrapCountForPosition(kLastPos, kBigRing) + 1u);
 }
 
 // Pin the finite period of the 16-bit wrap count.
@@ -270,11 +288,12 @@ TEST(SharedRingBufferABITest, WrapCountPeriod) {
     const uint32_t period = num_chunks * 65536;
     EXPECT_EQ(WrapCountForPosition(0, num_chunks),
               WrapCountForPosition(period, num_chunks));
-    EXPECT_EQ(ChunkIndexOf(0, num_chunks), ChunkIndexOf(period, num_chunks));
+    EXPECT_EQ(ChunkIndex::FromPosition(0, num_chunks).value(),
+              ChunkIndex::FromPosition(period, num_chunks).value());
     // No earlier lap of the same chunk aliases position 0.
     for (uint32_t lap = 1; lap < 8; ++lap) {
-      const uint32_t p = lap * num_chunks;
-      EXPECT_NE(WrapCountForPosition(p, num_chunks),
+      const uint32_t chunk_pos = lap * num_chunks;
+      EXPECT_NE(WrapCountForPosition(chunk_pos, num_chunks),
                 WrapCountForPosition(0, num_chunks));
     }
   }
@@ -302,8 +321,9 @@ TEST(SharedRingBufferABITest, FragmentSizeVarIntByteCount) {
   EXPECT_EQ(FragmentSizeVarIntByteCount(0x1fffff), 3u);
   EXPECT_EQ(FragmentSizeVarIntByteCount(0x200000), 4u);
   EXPECT_EQ(FragmentSizeVarIntByteCount(0x0fffffff), 4u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(0x10000000), 5u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(UINT32_MAX), 5u);
+  EXPECT_EQ(
+      FragmentSizeVarIntByteCount(protozero::proto_utils::kMaxMessageLength),
+      4u);
 }
 
 TEST(SharedRingBufferABITest, MaxFragmentSizeForAvailableBytes) {
@@ -315,11 +335,47 @@ TEST(SharedRingBufferABITest, MaxFragmentSizeForAvailableBytes) {
   EXPECT_EQ(MaxFragmentSizeForAvailableBytes(129), 127u);
   EXPECT_EQ(MaxFragmentSizeForAvailableBytes(130), 128u);
   EXPECT_EQ(MaxFragmentSizeForAvailableBytes(250), 248u);
-  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(UINT32_MAX), UINT32_MAX - 5u);
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(UINT32_MAX),
+            protozero::proto_utils::kMaxMessageLength);
+}
+
+TEST(SharedRingBufferABITest, UndersizedChunkIsInvalid) {
+  EXPECT_DEATH_IF_SUPPORTED(MaxFragmentSizeForEmptyChunk(kMinChunkSize - 1),
+                            "PERFETTO_CHECK");
+}
+
+TEST(SharedRingBufferABITest, CapacityAtEveryVarIntThreshold) {
+  // At a threshold the larger payload needs an extra directory byte. Test
+  // the last smaller payload, the one-byte gap, and the first larger payload.
+  for (uint32_t bytes : {1u, 2u, 3u}) {
+    const uint32_t threshold = 1u << (7 * bytes);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes - 2),
+              threshold - 2);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes - 1),
+              threshold - 1);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes),
+              threshold - 1);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes + 1),
+              threshold);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes + 2),
+              threshold + 1);
+  }
+  const uint32_t max_size = protozero::proto_utils::kMaxMessageLength;
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(max_size + 3), max_size - 1);
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(max_size + 4), max_size);
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(max_size + 5), max_size);
+}
+
+TEST(SharedRingBufferABITest, NonMinimalFragmentSizes) {
+  // In decreasing address order these encode 0 and 1 using extra bytes.
+  const uint8_t sizes[] = {0x00, 0x80, 0x81, 0x00, 0x80};
+  const uint8_t* cursor = sizes + sizeof(sizes);
+  EXPECT_EQ(ReadFragmentSizeReversed(sizes, &cursor), 0u);
+  EXPECT_EQ(ReadFragmentSizeReversed(sizes, &cursor), 1u);
+  EXPECT_EQ(cursor, sizes);
 }
 
 TEST(SharedRingBufferABITest, MaxFragmentSizeForEmptyChunk) {
-  EXPECT_EQ(MaxFragmentSizeForEmptyChunk(kMinChunkSize - 1), 0u);
   EXPECT_EQ(MaxFragmentSizeForEmptyChunk(256), 248u);
   EXPECT_EQ(MaxFragmentSizeForEmptyChunk(260), 252u);  // Non-power-of-two.
   EXPECT_EQ(MaxFragmentSizeForEmptyChunk(65536), 65527u);
@@ -330,7 +386,7 @@ TEST(SharedRingBufferABITest, SizesGrowDown) {
   std::vector<uint8_t> chunk(256, 0);
   uint8_t* sizes_begin = chunk.data() + chunk.size();
   for (uint32_t size : {5u, 200u, 3u})
-    sizes_begin = WriteFragmentSize(sizes_begin, size);
+    sizes_begin = WriteFragmentSizeReversed(sizes_begin, size);
 
   // Fragment 0 is nearest the end. Reading towards lower addresses yields the
   // normal varint byte sequence c8 01 for 200.
@@ -342,49 +398,43 @@ TEST(SharedRingBufferABITest, SizesGrowDown) {
 
   const uint8_t* cursor = chunk.data() + chunk.size();
   for (uint32_t expected : {5u, 200u, 3u}) {
-    uint32_t actual = 0;
-    ASSERT_TRUE(ReadFragmentSize(sizes_begin, &cursor, &actual));
-    EXPECT_EQ(actual, expected);
+    EXPECT_EQ(ReadFragmentSizeReversed(sizes_begin, &cursor), expected);
   }
   EXPECT_EQ(cursor, sizes_begin);
 }
 
 TEST(SharedRingBufferABITest, FragmentSizeRoundTrip) {
-  const uint32_t kSizes[] = {0,          1,          127,       128,
-                             16383,      16384,      0x1fffff,  0x200000,
-                             0x0fffffff, 0x10000000, UINT32_MAX};
+  const uint32_t kSizes[] = {
+      0,        1,        127,
+      128,      16383,    16384,
+      0x1fffff, 0x200000, protozero::proto_utils::kMaxMessageLength};
   std::vector<uint8_t> sizes(64, 0xee);
   uint8_t* sizes_begin = sizes.data() + sizes.size();
   for (uint32_t size : kSizes)
-    sizes_begin = WriteFragmentSize(sizes_begin, size);
+    sizes_begin = WriteFragmentSizeReversed(sizes_begin, size);
 
   const uint8_t* cursor = sizes.data() + sizes.size();
   for (uint32_t expected : kSizes) {
-    uint32_t actual = 0;
-    ASSERT_TRUE(ReadFragmentSize(sizes_begin, &cursor, &actual));
-    EXPECT_EQ(actual, expected);
+    EXPECT_EQ(ReadFragmentSizeReversed(sizes_begin, &cursor), expected);
   }
   EXPECT_EQ(cursor, sizes_begin);
 }
 
 TEST(SharedRingBufferABITest, MalformedFragmentSizes) {
   const uint8_t kUnterminated[] = {0x80};
-  const uint8_t kTooLong[] = {0x00, 0x80, 0x80, 0x80, 0x80, 0x80};
-  const uint8_t kUint32Overflow[] = {0x10, 0xff, 0xff, 0xff, 0xff};
-  const uint8_t kNonCanonical[] = {0x00, 0x80};
+  const uint8_t kTooLong[] = {0x00, 0x80, 0x80, 0x80, 0x80};
+  const uint8_t kAboveMessageLimit[] = {0x01, 0x80, 0x80, 0x80, 0x80};
 
   auto expect_rejected = [](const uint8_t* begin, size_t size) {
     const uint8_t* cursor = begin + size;
-    uint32_t fragment_size = 0xdeadbeef;
-    EXPECT_FALSE(ReadFragmentSize(begin, &cursor, &fragment_size));
-    // A rejection leaves both outputs untouched.
+    EXPECT_EQ(ReadFragmentSizeReversed(begin, &cursor), std::nullopt);
+    // A rejection leaves the cursor untouched.
     EXPECT_EQ(cursor, begin + size);
-    EXPECT_EQ(fragment_size, 0xdeadbeefu);
   };
   expect_rejected(kUnterminated, sizeof(kUnterminated));
   expect_rejected(kTooLong, sizeof(kTooLong));
-  expect_rejected(kUint32Overflow, sizeof(kUint32Overflow));
-  expect_rejected(kNonCanonical, sizeof(kNonCanonical));
+  expect_rejected(kAboveMessageLimit, sizeof(kAboveMessageLimit));
+  expect_rejected(kUnterminated, 0);
 }
 
 TEST(SharedRingBufferABITest, TargetBufferID) {

@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -68,15 +69,16 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
   const uint32_t start_pos = read_pos_;
   DrainResult result{};
   for (uint32_t i = 0; i < max_positions; ++i) {
-    result.last_result = ResolveNextPosition();
-    if (result.last_result != ResolveResult::kChunkRead &&
-        result.last_result != ResolveResult::kPositionSkipped) {
+    result.last_result = ConsumeNextPosition();
+    if (result.last_result != ConsumeResult::kChunkRead &&
+        result.last_result != ConsumeResult::kPositionSkipped) {
       break;
     }
   }
 
-  result.positions_resolved = read_pos_ - start_pos;
-  if (result.positions_resolved != 0) {
+  result.positions_consumed = read_pos_ - start_pos;
+  if (result.positions_consumed != 0) {
+    // uint32_t subtraction gives the forward distance across wraparound.
     // One publication and at most one wake cover the whole pass. Until this
     // point writers can only under-estimate free capacity.
     //
@@ -97,126 +99,135 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
 // 4. RewriteRequested: skip; the writer still owns the chunk. Once it becomes
 //    RewriteAcknowledged, only the reader may reclaim it on a later traversal.
 //
-// In the first three cases, a lost CAS leaves read_pos unchanged for the next
-// pass. Deliver the copy only after winning, so a retry cannot deliver the
-// same fragments twice. RewriteAcknowledged has no competing writer
-// transition; failure to reclaim it is a protocol error.
-SharedRingBufferReader::ResolveResult
-SharedRingBufferReader::ResolveNextPosition() {
+// A lost CAS leaves read_pos unchanged. BeingWritten retries locally; Free
+// and Complete retry on a later pass. Deliver the copy only after winning,
+// so a retry cannot deliver the same fragments twice. RewriteAcknowledged has
+// no competing writer transition; failure to reclaim it is a protocol error.
+SharedRingBufferReader::ConsumeResult
+SharedRingBufferReader::ConsumeNextPosition() {
   if (has_protocol_error_)
-    return ResolveResult::kProtocolError;
+    return ConsumeResult::kProtocolError;
 
-  // A stale write_pos only shortens this drain pass.
+  // The cursor bounds reservations; the chunk state publishes their payload.
   const uint32_t write_pos = ring_->LoadWritePos();
   const uint32_t outstanding = NumOutstandingPositions(write_pos, read_pos_);
   if (outstanding == 0)
-    return ResolveResult::kNoData;
-  if (outstanding > num_chunks_) {
+    return ConsumeResult::kNoData;
+  if (PERFETTO_UNLIKELY(outstanding > num_chunks_)) {
     // A legal writer cannot reserve more than num_chunks outstanding
     // positions.
     has_protocol_error_ = true;
     PERFETTO_ELOG(
-        "tracing v2: stopping ring reader; write_pos %u is %u positions ahead "
-        "of read_pos %u, which is more than the %u chunks in the ring",
+        "tracing v2: stopping ring buffer reader; write_pos %u is "
+        "%u positions ahead of read_pos %u, but the ring buffer has only %u "
+        "chunks",
         write_pos, outstanding, read_pos_, num_chunks_);
-    return ResolveResult::kProtocolError;
+    return ConsumeResult::kProtocolError;
   }
 
   // read_pos_ is the next logical position.
-  const uint32_t position = read_pos_;
-  const uint32_t chunk_idx = ChunkIndexOf(position, num_chunks_);
+  const uint32_t chunk_pos = read_pos_;
+  const auto chunk_idx = ChunkIndex::FromPosition(chunk_pos, num_chunks_);
 
-  // A failed compare-and-swap replaces this with the word that won.
-  uint32_t state_word = ring_->LoadChunkStateWord(chunk_idx);
+  for (;;) {
+    uint32_t state_word = ring_->LoadChunkStateWord(chunk_idx);
 
-  switch (ChunkStateOf(state_word)) {
-    case ChunkState::kFree: {
-      // Check reserved bits first; reclaiming must not hide an invalid word.
-      if ((state_word & ~kWriterIDMask) != 0)
-        return StopOnProtocolError("Free word has reserved bits", state_word);
-      // Only this reader advances the wrap; a different wrap here is an error.
-      const uint32_t expected_free_word =
-          MakeFreeStateWordForPosition(position, num_chunks_);
-      if (state_word != expected_free_word) {
-        return StopOnProtocolError(
-            "Free word carries another position's wrap count", state_word);
+    switch (ChunkStateOf(state_word)) {
+      case ChunkState::kFree: {
+        // Check reserved bits first; reclaiming must not hide an invalid word.
+        if ((state_word & ~kWriterIDMask) != 0)
+          return StopOnProtocolError("Free word has reserved bits", state_word);
+        // Only this reader advances the wrap. A different wrap is an error.
+        const uint32_t expected_free_word =
+            MakeFreeStateWordForPosition(chunk_pos, num_chunks_);
+        if (state_word != expected_free_word) {
+          return StopOnProtocolError(
+              "Free word carries another position's wrap count", state_word);
+        }
+        // Nobody claimed this reservation, so the reader advances the wrap
+        // count. A writer can still claim between the load and this CAS. The
+        // CAS then fails and the same position is retried as BeingWritten.
+        if (!ring_->TryMoveFreeChunkToNextWrap(chunk_pos, &state_word))
+          return ConsumeResult::kRetryLater;
+        ++read_pos_;
+        ++stats_.positions_skipped;
+        return ConsumeResult::kPositionSkipped;
       }
-      // Nobody claimed this reservation, so the reader advances the wrap
-      // count. A writer can still claim between the load and this CAS. The
-      // CAS then fails and the same position is retried as BeingWritten.
-      if (!ring_->TryMoveFreeChunkToNextWrap(position, &state_word))
-        return ResolveResult::kRetryLater;
-      ++read_pos_;
-      ++stats_.positions_skipped;
-      return ResolveResult::kPositionSkipped;
-    }
 
-    case ChunkState::kBeingWritten: {
-      const auto status = CopyCommittedPrefix(chunk_idx, state_word);
-      // Validation does not settle ownership. Even a malformed prefix must win
-      // the state transition before the reader can advance.
-      if (!ring_->TryRequestRewrite(chunk_idx, &state_word))
-        return ResolveResult::kRetryLater;
-      ++read_pos_;
-      ++stats_.rewrite_requests;
-      return HandleCommittedPrefix(status);
-    }
-
-    case ChunkState::kComplete: {
-      const auto status = CopyCommittedPrefix(chunk_idx, state_word);
-      // The writer may have taken the chunk back, turning Complete(N) into
-      // BeingWritten(N). The reader discards its copy and retries the same
-      // position instead of delivering data from a lost race.
-      if (!ring_->TryReleaseCompleteChunkAsFree(position, &state_word))
-        return ResolveResult::kRetryLater;
-      ++read_pos_;
-      // A Complete chunk with no fragments can still carry kFlagDataLoss, and
-      // this reclaim was the last chance to see it: the writer's reuse CAS
-      // now fails and it forgets the chunk. The kBeingWritten case above
-      // stays silent for the same shape because that chunk still has an
-      // owner, which moves the flag to the relocated suffix.
-      if (status == CommittedPrefixStatus::kNoFragments &&
-          (copied_chunk_.payload_flags & kFlagDataLoss)) {
-        delegate_->OnDataLoss(copied_chunk_.writer_id);
+      case ChunkState::kBeingWritten: {
+        const auto status = CopyCommittedPrefix(chunk_idx, state_word);
+        // Validation does not settle ownership. Even a malformed prefix must
+        // win the state transition before the reader can advance.
+        if (before_rewrite_for_testing_)
+          before_rewrite_for_testing_();
+        if (!ring_->TryRequestRewrite(chunk_idx, &state_word)) {
+          // The writer published a newer prefix. Discard this copy and reload
+          // the state to try again. Each further publication increases the
+          // bounded fragment count; if the writer stops, the next CAS wins.
+          continue;
+        }
+        ++read_pos_;
+        ++stats_.rewrite_requests;
+        return HandleCommittedPrefix(status);
       }
-      return HandleCommittedPrefix(status);
-    }
 
-    case ChunkState::kRewriteRequested:
-      // The writer still owns this chunk. Resolve the position as a hole.
-      ++read_pos_;
-      ++stats_.positions_skipped;
-      return ResolveResult::kPositionSkipped;
-
-    case ChunkState::kRewriteAcknowledged:
-      // RewriteAcknowledged has one canonical word with no payload fields, and
-      // the reclaim compares against exactly that word. After acknowledging,
-      // the writer is finished with the chunk and only this reader may change
-      // it, so a failed reclaim cannot be a lost race: either the word was not
-      // canonical or something other than this reader moved it.
-      if (!ring_->TryReleaseRewriteAcknowledgedChunkAsFree(position,
-                                                           &state_word)) {
-        return StopOnProtocolError(
-            ChunkStateOf(state_word) == ChunkState::kRewriteAcknowledged
-                ? "RewriteAcknowledged word has payload bits set"
-                : "RewriteAcknowledged word changed under the reader",
-            state_word);
+      case ChunkState::kComplete: {
+        const auto status = CopyCommittedPrefix(chunk_idx, state_word);
+        // The writer may have taken the chunk back, turning Complete(N) into
+        // BeingWritten(N). The reader discards its copy and retries the same
+        // position instead of delivering data from a lost race.
+        if (!ring_->TryReleaseCompleteChunkAsFree(chunk_pos, &state_word))
+          return ConsumeResult::kRetryLater;
+        ++read_pos_;
+        // A Complete chunk with no fragments can still carry kFlagDataLoss, and
+        // this reclaim was the last chance to see it: the writer's reuse CAS
+        // now fails and it forgets the chunk. The kBeingWritten case above
+        // stays silent for the same shape because that chunk still has an
+        // owner, which moves the flag to the relocated suffix.
+        if (status == CommittedPrefixStatus::kNoFragments &&
+            (copied_chunk_.payload_flags & kFlagDataLoss)) {
+          delegate_->OnDataLoss(copied_chunk_.writer_id);
+        }
+        return HandleCommittedPrefix(status);
       }
-      ++read_pos_;
-      ++stats_.positions_skipped;
-      return ResolveResult::kPositionSkipped;
 
-    case ChunkState::kReserved5:
-    case ChunkState::kReserved6:
-    case ChunkState::kReserved7:
-      // The reader cannot safely reclaim an unknown state.
-      return StopOnProtocolError("reserved chunk state", state_word);
+      case ChunkState::kRewriteRequested:
+        // The writer still owns this chunk. Consume the position as a hole.
+        ++read_pos_;
+        ++stats_.positions_skipped;
+        return ConsumeResult::kPositionSkipped;
+
+      case ChunkState::kRewriteAcknowledged:
+        // RewriteAcknowledged has one canonical word with no payload fields,
+        // and the reclaim compares against exactly that word. After
+        // acknowledging, the writer is finished with the chunk and only this
+        // reader may change it, so a failed reclaim cannot be a lost race:
+        // either the word was not canonical or something other than this reader
+        // moved it.
+        if (!ring_->TryReleaseRewriteAcknowledgedChunkAsFree(chunk_pos,
+                                                             &state_word)) {
+          return StopOnProtocolError(
+              ChunkStateOf(state_word) == ChunkState::kRewriteAcknowledged
+                  ? "RewriteAcknowledged word has payload bits set"
+                  : "RewriteAcknowledged word changed under the reader",
+              state_word);
+        }
+        ++read_pos_;
+        ++stats_.positions_skipped;
+        return ConsumeResult::kPositionSkipped;
+
+      case ChunkState::kReserved5:
+      case ChunkState::kReserved6:
+      case ChunkState::kReserved7:
+        // The reader cannot safely reclaim an unknown state.
+        return StopOnProtocolError("reserved chunk state", state_word);
+    }
+    PERFETTO_FATAL("tracing v2: unhandled chunk state word 0x%08x", state_word);
   }
-  PERFETTO_FATAL("tracing v2: unhandled chunk state word 0x%08x", state_word);
 }
 
 SharedRingBufferReader::CommittedPrefixStatus
-SharedRingBufferReader::CopyCommittedPrefix(uint32_t chunk_idx,
+SharedRingBufferReader::CopyCommittedPrefix(ChunkIndex chunk_idx,
                                             uint32_t state_word) {
   copied_fragments_.clear();
   copied_chunk_ = ChunkContents{};
@@ -226,8 +237,8 @@ SharedRingBufferReader::CopyCommittedPrefix(uint32_t chunk_idx,
   const uint32_t num_fragments = NumFragmentsOf(state_word);
   if (num_fragments == 0) {
     // A writer may still be storing BufferID after claiming BeingWritten(0).
-    // Only its first release publication makes that store visible. Do not
-    // touch any bytes beyond the state word when no fragment is published.
+    // Its first publication makes that store visible. Until then, do not touch
+    // any bytes beyond the state word.
     return CommittedPrefixStatus::kNoFragments;
   }
 
@@ -241,13 +252,13 @@ SharedRingBufferReader::CopyCommittedPrefix(uint32_t chunk_idx,
   const uint8_t* sizes_cursor = chunk + chunk_size_;
   uint32_t total = 0;
   for (uint32_t i = 0; i < num_fragments; ++i) {
-    uint32_t fragment_size = 0;
-    if (!ReadFragmentSize(payload_begin, &sizes_cursor, &fragment_size) ||
-        fragment_size > capacity - total) {
+    const auto fragment_size =
+        ReadFragmentSizeReversed(payload_begin, &sizes_cursor);
+    if (!fragment_size || *fragment_size > capacity - total) {
       return CommittedPrefixStatus::kMalformed;
     }
-    total += fragment_size;
-    copied_fragments_.push_back(Fragment{nullptr, fragment_size});
+    total += *fragment_size;
+    copied_fragments_.push_back(Fragment{nullptr, *fragment_size});
   }
 
   const uint32_t sizes_bytes =
@@ -270,13 +281,13 @@ SharedRingBufferReader::CopyCommittedPrefix(uint32_t chunk_idx,
   return CommittedPrefixStatus::kReady;
 }
 
-SharedRingBufferReader::ResolveResult
+SharedRingBufferReader::ConsumeResult
 SharedRingBufferReader::HandleCommittedPrefix(CommittedPrefixStatus status) {
   switch (status) {
     case CommittedPrefixStatus::kReady:
       ++stats_.chunks_read;
       delegate_->OnChunkRead(copied_chunk_);
-      return ResolveResult::kChunkRead;
+      return ConsumeResult::kChunkRead;
     case CommittedPrefixStatus::kMalformed:
       ++stats_.malformed_chunks;
       delegate_->OnDataLoss(copied_chunk_.writer_id);
@@ -290,19 +301,19 @@ SharedRingBufferReader::HandleCommittedPrefix(CommittedPrefixStatus status) {
   }
 
   ++stats_.positions_skipped;
-  return ResolveResult::kPositionSkipped;
+  return ConsumeResult::kPositionSkipped;
 }
 
-SharedRingBufferReader::ResolveResult
+SharedRingBufferReader::ConsumeResult
 SharedRingBufferReader::StopOnProtocolError(const char* reason,
                                             uint32_t state_word) {
   // Stop rather than trusting a malformed word from a producer. Log once.
   has_protocol_error_ = true;
   PERFETTO_ELOG(
-      "tracing v2: stopping ring reader at position %u: %s (chunk state word "
-      "0x%08x, %s)",
+      "tracing v2: stopping ring buffer reader at position %u: %s "
+      "(chunk state word 0x%08x, %s)",
       read_pos_, reason, state_word, ChunkStateName(ChunkStateOf(state_word)));
-  return ResolveResult::kProtocolError;
+  return ConsumeResult::kProtocolError;
 }
 
 }  // namespace perfetto::tracing_v2

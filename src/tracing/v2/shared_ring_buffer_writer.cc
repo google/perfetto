@@ -55,7 +55,7 @@ SharedRingBufferWriter::SharedRingBufferWriter(
       max_fragment_size_(MaxFragmentSizeForEmptyChunk(chunk_size_)) {
   PERFETTO_CHECK(delegate_);
   // WriterIDs are nonzero, at most kMaxWriterID, and identify this writer
-  // until all positions reserved under the id have been resolved.
+  // until all positions reserved under the id have been consumed.
   PERFETTO_DCHECK(writer_id_ != 0 && writer_id_ <= kMaxWriterID);
 }
 
@@ -117,14 +117,14 @@ SharedRingBufferWriter::EndFragmentResult SharedRingBufferWriter::EndFragment(
   PERFETTO_DCHECK(has_open_fragment());
   PERFETTO_DCHECK(cur_chunk_);
   PERFETTO_DCHECK(cur_chunk_state() == ChunkState::kBeingWritten);
-  // |size| must still fit in the range BeginFragment() handed out, together
-  // with the size varint that encodes it.
+  // BeginFragment() left room for both the payload and its size entry.
+  // Subtracting the fragment's start gives that complete available range.
   PERFETTO_DCHECK(size <= MaxFragmentSizeForAvailableBytes(
                               sizes_begin_ - cur_fragment_begin_));
 
   // Nothing becomes visible until ReleaseCurrentChunkAsComplete().
   uint8_t* sizes_begin = cur_chunk_ + sizes_begin_;
-  sizes_begin = WriteFragmentSize(sizes_begin, size);
+  sizes_begin = WriteFragmentSizeReversed(sizes_begin, size);
   sizes_begin_ = static_cast<uint32_t>(sizes_begin - cur_chunk_);
   payload_end_ = cur_fragment_begin_ + size;
   ++num_fragments_;
@@ -189,13 +189,13 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
 
   // Each round reserves a position and then claims its chunk.
   //
-  // 1. If the ring is full, no position is reserved; apply the exhaustion
-  //    policy below.
+  // 1. A full ring buffer prevents reservation. Apply the exhaustion policy.
   // 2. If both reservation and claim succeed, return the chunk.
-  // 3. A failed claim leaves a hole; reserve a later position instead.
+  // 3. A reservation succeeds, but its physical chunk is not Free for that
+  //    traversal. The position is now a hole, so try a later reservation.
   //
-  // Stop when the ring reports full or after num_chunks failed claims. The
-  // latter bounds attempts, not physical chunks visited: other writers can
+  // Stop when the ring buffer reports full or after num_chunks failed claims.
+  // The latter bounds attempts, not physical chunks visited: other writers can
   // take intervening positions, so repeated attempts may hit the same pinned
   // chunk.
   uint32_t num_failed_claims = 0;
@@ -205,10 +205,10 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
 
     if (reservation.result == SharedRingBuffer::ReserveResult::kReserved) {
       // Happy case: the reserved position's chunk is Free for this traversal.
-      if (ring_->TryAcquireChunkForWriting(reservation.position,
+      if (ring_->TryAcquireChunkForWriting(reservation.write_pos,
                                            being_written_word)) {
-        cur_chunk_idx_ =
-            ChunkIndexOf(reservation.position, ring_->num_chunks());
+        cur_chunk_idx_ = ChunkIndex::FromPosition(reservation.write_pos,
+                                                  ring_->num_chunks());
         cur_chunk_ = ring_->chunk_at(cur_chunk_idx_);
         expected_state_word_ = being_written_word;
         payload_end_ = kTargetBufferPayloadOffset;
@@ -219,18 +219,20 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
         return BeginFragmentResult::kSuccess;
       }
 
-      // This reservation is now a hole. Never retry it against a different
-      // Free word; reserve a later position instead.
+      // This position is now a hole. A later Free word belongs to another
+      // traversal, so this writer must leave this position behind and reserve
+      // a new one.
       ++stats_.failed_claims;
       saw_unclaimable_chunk = true;
       if (++num_failed_claims < ring_->num_chunks())
         continue;
     }
 
-    // The reader resolves holes and moves read_pos, so notify it whenever
+    // The reader consumes holes and moves read_pos, so notify it whenever
     // holes were created or this writer is about to wait. The count can be
-    // below num_chunks here: a later reservation can find the ring full after
-    // only some failed claims, and those holes still need the notification.
+    // below num_chunks here: a later reservation can find the ring buffer full
+    // after only some failed claims, and those holes still need the
+    // notification.
     if (num_failed_claims != 0 || policy != BufferExhaustedPolicy::kDrop) {
       delegate_->NotifyReader();
       num_failed_claims = 0;
@@ -238,7 +240,8 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
 
     // Classify the exhaustion.
     // Preserve a failed claim across waits, even if the last reservation
-    // found the ring full: this acquisition has already left holes behind.
+    // found the ring buffer full: this acquisition has already left holes
+    // behind.
     const BeginFragmentResult exhausted_result =
         saw_unclaimable_chunk ? BeginFragmentResult::kNoChunkAvailable
                               : BeginFragmentResult::kFull;
@@ -351,7 +354,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
       PERFETTO_FATAL(
           "tracing v2: publication of chunk %u by writer %u lost to state word "
           "0x%08x, which is not a rewrite request for this writer",
-          cur_chunk_idx_, writer_id_, expected);
+          cur_chunk_idx_.value(), writer_id_, expected);
     }
 
     const uint32_t taken = NumFragmentsOf(expected);
@@ -373,7 +376,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
       PERFETTO_FATAL(
           "tracing v2: writer %u could not acknowledge chunk %u; only its "
           "owner may leave RewriteRequested",
-          writer_id_, cur_chunk_idx_);
+          writer_id_, cur_chunk_idx_.value());
     }
     ++stats_.relocations;
 
@@ -411,7 +414,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
     }
     payload_end_ = kTargetBufferPayloadOffset + *suffix_size;
     uint8_t* sizes_begin =
-        WriteFragmentSize(cur_chunk_ + chunk_size_, *suffix_size);
+        WriteFragmentSizeReversed(cur_chunk_ + chunk_size_, *suffix_size);
     sizes_begin_ = static_cast<uint32_t>(sizes_begin - cur_chunk_);
     num_fragments_ = 1;
     // Round again to publish the replacement, which the reader may also scrape.
@@ -420,7 +423,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
 
 void SharedRingBufferWriter::ResetCurrentChunk() {
   cur_chunk_ = nullptr;
-  cur_chunk_idx_ = 0;
+  cur_chunk_idx_ = ChunkIndex::FromIndex(0);
   expected_state_word_ = 0;
   payload_end_ = 0;
   sizes_begin_ = 0;
