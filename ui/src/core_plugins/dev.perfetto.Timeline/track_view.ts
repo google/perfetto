@@ -197,6 +197,9 @@ export class TrackView {
         error: renderer?.getError(),
         chips: node.chips,
         buttons,
+        className: renderer?.track.collapsed
+          ? 'pf-track--collapsed-slices'
+          : undefined,
         scrollToOnCreate: scrollToOnCreate || scrollIntoView,
         collapsible: collapsible && node.hasChildren,
         collapsed: collapsible && node.collapsed,
