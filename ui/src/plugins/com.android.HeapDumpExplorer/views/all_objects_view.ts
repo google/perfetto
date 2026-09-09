@@ -32,6 +32,7 @@ import {
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
@@ -197,12 +198,17 @@ export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Objects')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Objects'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
+          showExportButton: true,
           initialColumns: [
             {id: 'id', field: 'id'},
             {id: 'cls', field: 'cls'},
@@ -217,13 +223,12 @@ export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
             {id: 'heap', field: 'heap'},
           ],
           filters,
-          showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
             counter.onFiltersChanged(f);
           },
         }),
-      ]);
+      );
     },
   };
 }

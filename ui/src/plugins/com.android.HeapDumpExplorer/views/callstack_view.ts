@@ -22,6 +22,7 @@ import {
 } from '../../../widgets/tree_explorer';
 import {Stack} from '../../../widgets/stack';
 import {EmptyState} from '../../../widgets/empty_state';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 import {
   buildOomeCallstackMetrics,
@@ -69,8 +70,8 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
 
     if (!this.oomeDataLoaded) {
       return m(
-        'div',
-        {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+        DetailsShell,
+        {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
         m(TreeExplorerPanel, {
           trace: attrs.trace,
           metrics: undefined,
@@ -82,15 +83,19 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
 
     if (this.oomeData === undefined) {
       return m(
-        EmptyState,
-        {
-          icon: 'data_array',
-          title: 'Data is not available in this trace',
-          fillHeight: true,
-        },
+        DetailsShell,
+        {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
         m(
-          'div',
-          'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in recent versions of Android',
+          EmptyState,
+          {
+            icon: 'data_array',
+            title: 'Data is not available in this trace',
+            fillHeight: true,
+          },
+          m(
+            'div',
+            'Callstacks in heap dumps are only available in Perfetto heap dumps collected on OutOfMemoryError and in recent versions of Android',
+          ),
         ),
       );
     }
@@ -111,8 +116,8 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
     }
 
     return m(
-      'div',
-      {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+      DetailsShell,
+      {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
       m(
         Stack,
         {orientation: 'vertical'},

@@ -32,6 +32,7 @@ import {
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -143,21 +144,30 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
     view(vnode) {
       const {navigate} = vnode.attrs;
       if (vnode.attrs.hasFieldValues === false) {
-        return m(EmptyState, {
-          icon: 'data_array',
-          title: 'Array data requires an ART heap dump (.hprof)',
-          fillHeight: true,
-        });
+        return m(
+          DetailsShell,
+          {title: 'Arrays', fillHeight: true},
+          m(EmptyState, {
+            icon: 'data_array',
+            title: 'Array data requires an ART heap dump (.hprof)',
+            fillHeight: true,
+          }),
+        );
       }
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Arrays')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Arrays'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
+          showExportButton: true,
           initialColumns: [
             {id: 'id', field: 'id'},
             {id: 'cls', field: 'cls'},
@@ -167,13 +177,12 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
             {id: 'heap', field: 'heap'},
           ],
           filters,
-          showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
             counter.onFiltersChanged(f);
           },
         }),
-      ]);
+      );
     },
   };
 }

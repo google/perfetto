@@ -30,6 +30,7 @@ import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
@@ -163,12 +164,17 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Classes')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Classes'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
+          showExportButton: true,
           initialColumns: [
             {id: 'cls', field: 'cls'},
             {id: 'cnt', field: 'cnt'},
@@ -179,13 +185,12 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
             {id: 'retained_count', field: 'retained_count'},
           ],
           filters,
-          showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
             counter.onFiltersChanged(f);
           },
         }),
-      ]);
+      );
     },
   };
 }

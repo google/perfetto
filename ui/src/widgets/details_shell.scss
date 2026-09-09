@@ -57,6 +57,13 @@
   .pf-content {
     flex-grow: 1;
     overflow-x: auto;
+
+    // A blend color half way between background and background-secondary
+    background: color-mix(
+      in srgb,
+      var(--pf-color-background) 70%,
+      var(--pf-color-background-secondary)
+    );
   }
 
   &.pf-fill-height {
