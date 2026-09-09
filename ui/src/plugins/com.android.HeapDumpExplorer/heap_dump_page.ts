@@ -245,7 +245,7 @@ function buildTabs(
         activeDump,
         heaps: overview.heaps,
         navigate: navigateWithTabs,
-        openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
+        openFlamegraphPivotedOnClass: session.openFlamegraphPivotedOnClass,
         params: {id: obj.objId},
       }),
     });
