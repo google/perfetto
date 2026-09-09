@@ -23,6 +23,7 @@
 #include <unordered_set>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -79,6 +80,15 @@ class TrackEventTracker {
       kByKey = 2,
     };
 
+    // A producer-declared custom dimension (see TrackDescriptor.dimensions).
+    // Exactly one of |int_value| / |string_value| is set.
+    struct Dimension {
+      StringId name = kNullStringId;
+      std::optional<int64_t> int_value;
+      StringId string_value = kNullStringId;
+      StringId display_name = kNullStringId;
+    };
+
     uint64_t parent_uuid = 0;
     std::optional<int64_t> pid;
     std::optional<int64_t> tid;
@@ -102,6 +112,11 @@ class TrackEventTracker {
     // For merging tracks.
     SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
     StringId sibling_merge_key = kNullStringId;
+
+    // Producer-declared custom dimensions. Dimensions are *not* part of the
+    // track's identity, so they are deliberately not considered by
+    // |IsForSameTrack|.
+    std::vector<Dimension> dimensions;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
@@ -339,6 +354,10 @@ class TrackEventTracker {
 
   void OnFirstPacketOnSequence(uint32_t packet_sequence_id);
 
+  // Called once all events have been extracted: records the dimensions
+  // declared by every descriptor track into the declaration table.
+  void OnEventsFullyExtracted();
+
   std::optional<int64_t> range_of_interest_start_us() const {
     return range_of_interest_start_us_;
   }
@@ -353,6 +372,9 @@ class TrackEventTracker {
     std::optional<ResolvedDescriptorTrack> resolved = std::nullopt;
     std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
         track_id_or_factory = std::nullopt;
+    // Whether the dimensions declared on this descriptor have already been
+    // written to the declaration table.
+    bool dimensions_recorded = false;
   };
 
   std::optional<TrackId> InternDescriptorTrackForParent(
@@ -410,6 +432,12 @@ class TrackEventTracker {
                     const DescriptorTrackReservation&,
                     bool,
                     ArgsTracker::BoundInserter&);
+
+  // Writes the dimensions declared on the descriptor track |uuid| into the
+  // `__intrinsic_track_dimension_decl` table, anchoring them to the process,
+  // thread or track they were declared on. `ResolveTrackDimensions` turns
+  // those declarations into the effective dimensions of every track.
+  void RecordDeclaredDimensions(uint64_t uuid, std::optional<TrackId>);
 
   // Helper to record analysis errors with track_uuid arg
   void RecordTrackError(size_t stat_key, uint64_t track_uuid);

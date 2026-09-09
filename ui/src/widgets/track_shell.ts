@@ -367,7 +367,9 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             ),
             attrs.subtitle &&
               !showSubtitleInContent(attrs) &&
-              m('.pf-track__subtitle', attrs.subtitle),
+              // The subtitle is ellipsized, so keep the full text reachable
+              // for both pointer and assistive technology users.
+              m('.pf-track__subtitle', {title: attrs.subtitle}, attrs.subtitle),
           ),
     );
   }
@@ -439,7 +441,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       },
       attrs.subtitle &&
         showSubtitleInContent(attrs) &&
-        m('.pf-track__subtitle', attrs.subtitle),
+        m('.pf-track__subtitle', {title: attrs.subtitle}, attrs.subtitle),
     );
   }
 }

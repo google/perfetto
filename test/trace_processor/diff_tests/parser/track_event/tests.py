@@ -1583,3 +1583,205 @@ class TrackEvent(TestSuite):
         "slice_count","slice_name","slice_ts","errors"
         1,"good",1000000,1
         """))
+
+  # Producer-declared custom dimensions (TrackDescriptor.dimensions) and the
+  # well known dimensions synthesized by trace processor.
+  def test_track_event_dimensions(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT
+          d.track_id,
+          t.name AS track_name,
+          d.name,
+          d.int_value,
+          d.string_value,
+          d.display_name
+        FROM track_dimension AS d
+        JOIN track AS t ON t.id = d.track_id
+        WHERE d.is_well_known = 0
+        ORDER BY d.track_id, d.name;
+        """,
+        out=Csv("""
+        "track_id","track_name","name","int_value","string_value","display_name"
+        0,"[NULL]","rank",3,"[NULL]","[NULL]"
+        0,"[NULL]","stage","[NULL]","forward","[NULL]"
+        1,"async","rank",3,"[NULL]","[NULL]"
+        1,"async","stage","[NULL]","forward","[NULL]"
+        2,"[NULL]","rank",7,"[NULL]","worker-east"
+        3,"child","rank",7,"[NULL]","worker-east"
+        4,"[NULL]","chrome.process_label","[NULL]","IMDb: Ratings, Reviews","IMDb: Ratings, Reviews"
+        4,"[NULL]","chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/","Subframe: https://prebid.a-mo.net/"
+        5,"[NULL]","rank",3,"[NULL]","[NULL]"
+        5,"[NULL]","stage","[NULL]","forward","[NULL]"
+        """))
+
+  # Dimensions are a query axis: slices can be filtered/grouped by the
+  # dimensions of the track they are on, whatever the track type.
+  def test_track_event_dimensions_slice_join(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT
+          s.name AS slice,
+          d.name AS dimension,
+          d.int_value,
+          d.string_value
+        FROM slice AS s
+        JOIN track_dimension AS d USING (track_id)
+        WHERE d.is_well_known = 0
+        ORDER BY s.ts, d.name;
+        """,
+        out=Csv("""
+        "slice","dimension","int_value","string_value"
+        "work","rank",3,"[NULL]"
+        "work","stage","[NULL]","forward"
+        "other","rank",7,"[NULL]"
+        "frame","chrome.process_label","[NULL]","IMDb: Ratings, Reviews"
+        "frame","chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/"
+        "tick","rank",3,"[NULL]"
+        "tick","stage","[NULL]","forward"
+        """))
+
+  # Process/thread projections of the same declarations, for event tables which
+  # carry their own upid/utid instead of inheriting it from the track.
+  def test_track_event_dimensions_process_and_thread(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT 'process' AS scope, upid AS id, name, int_value, string_value
+        FROM process_dimension
+        WHERE is_well_known = 0
+        UNION ALL
+        SELECT 'thread' AS scope, utid AS id, name, int_value, string_value
+        FROM thread_dimension
+        WHERE is_well_known = 0
+        ORDER BY scope, id, name;
+        """,
+        out=Csv("""
+        "scope","id","name","int_value","string_value"
+        "process",1,"rank",3,"[NULL]"
+        "process",1,"stage","[NULL]","forward"
+        "process",2,"rank",7,"[NULL]"
+        "process",3,"chrome.process_label","[NULL]","IMDb: Ratings, Reviews"
+        "process",3,"chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/"
+        "thread",1,"rank",3,"[NULL]"
+        "thread",1,"stage","[NULL]","forward"
+        "thread",2,"rank",3,"[NULL]"
+        "thread",2,"stage","[NULL]","forward"
+        "thread",3,"rank",7,"[NULL]"
+        "thread",4,"chrome.process_label","[NULL]","IMDb: Ratings, Reviews"
+        "thread",4,"chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/"
+        """))
+
+  # Invalid dimension declarations are dropped and reported as stats: a child
+  # cannot override an inherited value, cannot use a reserved well known name
+  # and must provide a value.
+  def test_track_event_dimensions_invalid(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name IN (
+          'track_descriptor_invalid_dimension',
+          'track_descriptor_reserved_dimension_name',
+          'track_dimension_conflicting_value')
+          AND value > 0
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","value"
+        "track_descriptor_invalid_dimension",1
+        "track_descriptor_reserved_dimension_name",1
+        "track_dimension_conflicting_value",1
+        """))
+
+  # RFC resolution rule 4: a global track only gets the dimensions declared on
+  # itself or an explicit parent_uuid ancestor, plus synthesized well known
+  # ones. It must not pick up dimensions from unrelated trees or processes.
+  def test_track_event_dimensions_global_tracks(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "global parent"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            dimensions { name: "shard" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            parent_uuid: 1
+            name: "global child"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 3
+            name: "unrelated global"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 4
+            process { pid: 100 process_name: "p" }
+            dimensions { name: "rank" int_value: 9 }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 1 type: TYPE_INSTANT name: "a" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 2 type: TYPE_INSTANT name: "b" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 3 type: TYPE_INSTANT name: "c" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 4 type: TYPE_INSTANT name: "d" } }
+        """),
+        query="""
+        SELECT
+          t.name AS track,
+          group_concat(d.name || '=' || coalesce(d.int_value, d.string_value)) AS dimensions
+        FROM track AS t
+        LEFT JOIN track_dimension AS d ON d.track_id = t.id
+        GROUP BY t.id
+        ORDER BY t.id;
+        """,
+        out=Csv("""
+        "track","dimensions"
+        "global parent","machine=0,shard=1"
+        "global child","machine=0,shard=1"
+        "unrelated global","machine=0"
+        "[NULL]","machine=0,process=1,rank=9"
+        """))
+
+  # Well known dimensions are synthesized by trace processor from existing
+  # columns rather than declared by producers.
+  def test_track_event_dimensions_well_known(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT DISTINCT name
+        FROM track_dimension
+        WHERE is_well_known = 1
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name"
+        "machine"
+        "process"
+        "thread"
+        """))

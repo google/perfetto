@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
+#include "src/trace_processor/importers/common/track_dimension_resolver.h"
 #include "src/trace_processor/importers/etw/file_io_tracker.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -190,6 +191,11 @@ void TraceProcessorStorageImpl::OnEventsFullyExtracted() {
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();
   }
+
+  // Turn the dimensions declared by producers into the effective dimensions of
+  // every track. This is a whole-trace pass, so it has to run once all tracks
+  // exist (i.e. after every context above has been flushed).
+  ResolveTrackDimensions(context());
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {
