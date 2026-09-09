@@ -271,7 +271,7 @@ void CollectResults(const MappingResults& results, SymbolizerResult* result) {
     }
     for (const auto& [path, count] : mapping.successes)
       result->successful_mappings.push_back(
-          {key.name, key.build_id, path, count});
+          {key.name, key.build_id, path, count, mapping.attempts});
     if (failure.frame_count)
       result->failed_mappings.push_back(std::move(failure));
   }
@@ -310,6 +310,12 @@ const char* SymbolPathErrorToString(SymbolPathError error) {
       return "failed to parse";
     case SymbolPathError::kBuildIdNotInIndex:
       return "no matching build ID";
+    case SymbolPathError::kNotOnServer:
+      return "not on server";
+    case SymbolPathError::kServerUnreachable:
+      return "server unreachable";
+    case SymbolPathError::kDownloadFailed:
+      return "download failed";
   }
   return "unknown";
 }
@@ -483,23 +489,36 @@ bool AnyMapping(const std::vector<UnresolvedGroup>& groups,
   return false;
 }
 
-// Advice for frames whose binaries were searched for but not usable, split by
-// where the reader gets their binaries from rather than by platform.
+void FormatEnableDiscoveryAdvice(bool colorize, std::string* out) {
+  *out += "    " + Colorize(colorize, kBold, "Otherwise,") +
+          " enable automatic symbol path discovery to search the usual "
+          "locations.\n";
+}
+
+// Advice for frames whose binaries were not searched for, or were searched
+// for but not usable, split by where the reader gets their binaries from
+// rather than by platform.
 void FormatFixAdvice(bool colorize,
+                     bool llvm_unavailable,
+                     bool debuginfod_enabled,
                      const std::vector<UnresolvedGroup>& groups,
                      std::string* out) {
   auto frames = [&groups](UnresolvedReason reason) {
     return groups[static_cast<size_t>(reason)].frame_count;
   };
+  // With llvm-symbolizer missing the warning above already names the fix.
+  bool not_searched =
+      frames(UnresolvedReason::kNotSearched) > 0 && !llvm_unavailable;
   bool missing = frames(UnresolvedReason::kBinaryNotFound) ||
                  frames(UnresolvedReason::kNoSymbolForAddress);
   bool kernel = frames(UnresolvedReason::kKernel) > 0;
-  if (!missing && !kernel)
+  if (!not_searched && !missing && !kernel)
     return;
-  const auto kSearched = {UnresolvedReason::kBinaryNotFound,
-                          UnresolvedReason::kNoSymbolForAddress};
-  bool linux_distro = AnyMapping(groups, kSearched, IsLinuxDistroMapping);
-  bool android = AnyMapping(groups, kSearched, IsAndroidPlatformMapping);
+  const auto kNative = {UnresolvedReason::kNotSearched,
+                        UnresolvedReason::kBinaryNotFound,
+                        UnresolvedReason::kNoSymbolForAddress};
+  bool linux_distro = AnyMapping(groups, kNative, IsLinuxDistroMapping);
+  bool android = AnyMapping(groups, kNative, IsAndroidPlatformMapping);
 
   *out += "  " + Colorize(colorize, kBoldCyan, "To fix this:") + "\n";
   *out += "    " +
@@ -511,6 +530,8 @@ void FormatFixAdvice(bool colorize,
           " install its debug symbols";
   if (!linux_distro && !kernel && !android) {
     *out += "; see https://perfetto.dev/docs/learning-more/symbolization\n";
+    if (not_searched)
+      FormatEnableDiscoveryAdvice(colorize, out);
     return;
   }
   *out += ":\n";
@@ -524,12 +545,37 @@ void FormatFixAdvice(bool colorize,
     if (kernel)
       *out += ", kernel: sudo dnf debuginfo-install kernel";
     *out += "\n";
+    if (!debuginfod_enabled) {
+      *out += "      " + Colorize(colorize, kBold, "Any distro:") +
+              " pass --debuginfod to fetch them from its debuginfod server "
+              "(DEBUGINFOD_URLS)\n";
+    }
   }
   if (android) {
     *out += "      " + Colorize(colorize, kBold, "Android:") +
             " use the symbols directory of the matching platform build "
             "(ANDROID_PRODUCT_OUT/symbols)\n";
   }
+  if (not_searched)
+    FormatEnableDiscoveryAdvice(colorize, out);
+}
+
+// A file that exists but is unusable, or a server that did not answer, is the
+// one worth noticing.
+std::string FormatAttemptOutcome(bool colorize,
+                                 const SymbolPathAttempt& attempt) {
+  const char* color = kGray;
+  if (attempt.error == SymbolPathError::kOk)
+    color = kGreen;
+  else if (attempt.error == SymbolPathError::kBuildIdMismatch ||
+           attempt.error == SymbolPathError::kParseError ||
+           attempt.error == SymbolPathError::kServerUnreachable ||
+           attempt.error == SymbolPathError::kDownloadFailed)
+    color = kRed;
+  std::string outcome = SymbolPathErrorToString(attempt.error);
+  if (!attempt.detail.empty())
+    outcome += ": " + attempt.detail;
+  return Colorize(colorize, color, outcome);
 }
 
 void FormatSuccessfulMappings(bool colorize,
@@ -568,9 +614,31 @@ void FormatSuccessfulMappings(bool colorize,
               "\n";
     }
     if (!mapping.symbol_path.empty()) {
+      std::string source = Frames(mapping.frame_count);
+      for (const auto& attempt : mapping.attempts) {
+        if (attempt.error == SymbolPathError::kOk &&
+            attempt.path == mapping.symbol_path && !attempt.detail.empty())
+          source += ", " + attempt.detail;
+      }
       *out +=
           "      symbols: " + Colorize(colorize, kGreen, mapping.symbol_path) +
-          " (" + Frames(mapping.frame_count) + ")\n";
+          " (" + source + ")\n";
+    }
+    // Sources that did not help, listed once after the mapping's last entry.
+    bool last = i + 1 == mappings.size() || !same_mapping(i + 1);
+    if (!last)
+      continue;
+    bool any_failed = false;
+    for (const auto& attempt : mapping.attempts)
+      any_failed |= attempt.error != SymbolPathError::kOk;
+    if (!any_failed)
+      continue;
+    *out += "      also tried:\n";
+    for (const auto& attempt : mapping.attempts) {
+      if (attempt.error == SymbolPathError::kOk)
+        continue;
+      *out += "        " + Colorize(colorize, kGray, attempt.path) + " (" +
+              FormatAttemptOutcome(colorize, attempt) + ")\n";
     }
   }
 }
@@ -608,17 +676,8 @@ void FormatUnresolvedMappings(bool colorize,
       }
       *out += "      " + ReasonWithPathsText(group.reason) + "\n";
       for (const auto& attempt : *mapping.attempts) {
-        // A file that exists but is unusable is the one worth noticing.
-        const char* color = kGray;
-        if (attempt.error == SymbolPathError::kOk)
-          color = kGreen;
-        else if (attempt.error == SymbolPathError::kBuildIdMismatch ||
-                 attempt.error == SymbolPathError::kParseError)
-          color = kRed;
-        *out +=
-            "        " + Colorize(colorize, kGray, attempt.path) + " (" +
-            Colorize(colorize, color, SymbolPathErrorToString(attempt.error)) +
-            ")\n";
+        *out += "        " + Colorize(colorize, kGray, attempt.path) + " (" +
+                FormatAttemptOutcome(colorize, attempt) + ")\n";
       }
     }
   }
@@ -628,8 +687,49 @@ void FormatUnresolvedMappings(bool colorize,
 // for --verbose.
 constexpr size_t kMaxInlineMappings = 3;
 
+bool IsServerUrl(const std::string& path) {
+  return base::StartsWith(path, "http://") ||
+         base::StartsWith(path, "https://");
+}
+
+// Download errors and bad files from servers are worth a line in the short
+// report, since a negative answer from a reachable server is not. Each
+// distinct cause is named once.
+void FormatDebuginfodFailureHints(bool colorize,
+                                  const std::vector<UnresolvedGroup>& groups,
+                                  std::string* out) {
+  std::vector<std::string> causes;
+  for (auto reason : {UnresolvedReason::kBinaryNotFound,
+                      UnresolvedReason::kNoSymbolForAddress}) {
+    for (const auto& mapping : groups[static_cast<size_t>(reason)].mappings) {
+      if (!mapping.attempts)
+        continue;
+      for (const auto& attempt : *mapping.attempts) {
+        bool download_error =
+            attempt.error == SymbolPathError::kDownloadFailed ||
+            (IsServerUrl(attempt.path) &&
+             (attempt.error == SymbolPathError::kParseError ||
+              attempt.error == SymbolPathError::kBuildIdMismatch));
+        if (!download_error)
+          continue;
+        std::string cause = attempt.detail.empty()
+                                ? SymbolPathErrorToString(attempt.error)
+                                : attempt.detail;
+        cause += " (" + attempt.path + ")";
+        if (std::find(causes.begin(), causes.end(), cause) == causes.end())
+          causes.push_back(std::move(cause));
+      }
+    }
+  }
+  for (const auto& cause : causes) {
+    *out += "    " + Colorize(colorize, kBoldCyan, "hint:") +
+            " debuginfod: " + cause + "\n";
+  }
+}
+
 void FormatUnresolvedSummary(bool colorize,
                              bool llvm_unavailable,
+                             const DebuginfodStats& debuginfod,
                              const std::vector<UnresolvedGroup>& groups,
                              std::string* out) {
   for (const auto& group : groups) {
@@ -658,7 +758,9 @@ void FormatUnresolvedSummary(bool colorize,
           groups[static_cast<size_t>(UnresolvedReason::kNoSymbolForAddress)];
       frame_count += stripped.frame_count;
       collect(stripped);
-      reason = "no usable symbols in the searched paths";
+      reason = debuginfod.enabled
+                   ? "no usable symbols in the searched paths or servers"
+                   : "no usable symbols in the searched paths";
     }
     if (frame_count == 0)
       continue;
@@ -682,8 +784,39 @@ void FormatUnresolvedSummary(bool colorize,
       *out += "    " + Colorize(colorize, kBoldCyan, "hint:") +
               " rebuild with build IDs (linker flag -Wl,--build-id) and "
               "re-record the trace\n";
+    } else if (group.reason == UnresolvedReason::kBinaryNotFound) {
+      for (const auto& server : debuginfod.unreachable_servers) {
+        *out += "    " + Colorize(colorize, kBoldCyan, "hint:") +
+                " debuginfod server " + server +
+                " could not be reached; check the URL and your network\n";
+      }
+      FormatDebuginfodFailureHints(colorize, groups, out);
     }
   }
+}
+
+// One line of counts for the run, plus any server that could not be reached.
+// Warnings about missing tools are printed even when nothing was looked up.
+void FormatDebuginfod(bool colorize,
+                      const DebuginfodStats& stats,
+                      std::string* out) {
+  if (!stats.warnings.empty())
+    *out += Colorize(colorize, kYellow, stats.warnings);
+  std::vector<std::string> parts;
+  if (stats.downloads)
+    parts.push_back(std::to_string(stats.downloads) + " downloaded");
+  if (stats.cache_hits)
+    parts.push_back(std::to_string(stats.cache_hits) + " from cache");
+  if (stats.not_found)
+    parts.push_back(std::to_string(stats.not_found) +
+                    " not found on any server");
+  if (stats.failed)
+    parts.push_back(std::to_string(stats.failed) + " failed");
+  if (parts.empty())
+    return;
+  *out += "  " +
+          Colorize(colorize, kGray, "Debuginfod: " + base::Join(parts, ", ")) +
+          "\n";
 }
 
 }  // namespace
@@ -763,7 +896,8 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
 
   bool has_any_paths =
       !config.index_symbol_paths.empty() || !config.symbol_files.empty() ||
-      !config.find_symbol_paths.empty() || !config.breakpad_paths.empty();
+      !config.find_symbol_paths.empty() || !config.breakpad_paths.empty() ||
+      !config.debuginfod.urls.empty();
   if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
     result.error_details =
@@ -793,6 +927,20 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
     BreakpadSymbolizer symbolizer(path);
     SymbolizePendingAddresses(groups, env, &symbolizer, &mappings,
                               &result.symbols);
+  }
+  bool unresolved = false;
+  for (const auto& mapping : mappings.mappings) {
+    for (auto it = mapping.addresses.GetIterator(); it; ++it)
+      unresolved |= !it.value().resolved;
+  }
+  if (unresolved && !config.debuginfod.urls.empty()) {
+    auto symbolizer =
+        CreateDebuginfodSymbolizer(config.debuginfod, &result.debuginfod);
+    if (symbolizer) {
+      result.debuginfod.enabled = true;
+      SymbolizePendingAddresses(groups, env, symbolizer.get(), &mappings,
+                                &result.symbols);
+    }
   }
   CollectResults(mappings, &result);
 
@@ -852,6 +1000,7 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
   }
   if (result.llvm_symbolizer_unavailable)
     summary += Colorize(colorize, kYellow, LlvmSymbolizerUnavailableMessage());
+  FormatDebuginfod(colorize, result.debuginfod, &summary);
 
   if (verbose) {
     FormatSuccessfulMappings(colorize, result.successful_mappings, &summary);
@@ -859,15 +1008,17 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
                              groups, &summary);
     if (unresolved) {
       summary += "\n";
-      FormatFixAdvice(colorize, groups, &summary);
+      FormatFixAdvice(colorize, result.llvm_symbolizer_unavailable,
+                      result.debuginfod.enabled, groups, &summary);
     }
     return summary;
   }
   if (unresolved == 0)
     return summary;
-  FormatUnresolvedSummary(colorize, result.llvm_symbolizer_unavailable, groups,
-                          &summary);
-  FormatFixAdvice(colorize, groups, &summary);
+  FormatUnresolvedSummary(colorize, result.llvm_symbolizer_unavailable,
+                          result.debuginfod, groups, &summary);
+  FormatFixAdvice(colorize, result.llvm_symbolizer_unavailable,
+                  result.debuginfod.enabled, groups, &summary);
   summary += Colorize(colorize, kGray,
                       "Run with --verbose to see build IDs and every path "
                       "searched.") +

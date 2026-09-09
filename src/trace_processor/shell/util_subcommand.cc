@@ -231,7 +231,8 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
 
   if (util == "symbolize") {
     RETURN_IF_ERROR(trace_to_text::SymbolizeProfile(
-        input, output, verbose_, ctx.global && ctx.global->quiet));
+        input, output, verbose_, ctx.global && ctx.global->quiet,
+        ctx.global->debuginfod));
   } else if (util == "deobfuscate") {
     RETURN_IF_ERROR(trace_to_text::DeobfuscateProfile(input, output));
   } else if (util == "decompress_packets") {

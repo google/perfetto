@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -96,6 +97,63 @@ void WriteSymbols(const std::string& path, const std::string& contents) {
   ASSERT_TRUE(fd);
   ASSERT_EQ(base::WriteAll(*fd, contents.data(), contents.size()),
             static_cast<ssize_t>(contents.size()));
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+TEST(DebuginfodOptionsTest, ExplicitValuesAndWhitespace) {
+  DebuginfodOptions options;
+  options.enabled = true;
+  options.urls = "  https://one.example/\t\nhttp://two.example/debug/ ";
+  options.cache_path = "/chosen/cache";
+  options.connect_timeout = "2";
+  options.stall_timeout = "3";
+  DebuginfodConfig config;
+  std::string warnings;
+  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  EXPECT_THAT(config.urls, testing::ElementsAre("https://one.example",
+                                                "http://two.example/debug"));
+  EXPECT_EQ(config.cache_path, "/chosen/cache");
+  EXPECT_EQ(config.connect_timeout_seconds, 2u);
+  EXPECT_EQ(config.stall_timeout_seconds, 3u);
+}
+
+#endif
+
+TEST(DebuginfodOptionsTest, ConfigurationDoesNotEnableDownloads) {
+  DebuginfodOptions options;
+  options.urls = "https://one.example";
+  options.cache_path = "/chosen/cache";
+  DebuginfodConfig config;
+  std::string warnings;
+  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  EXPECT_TRUE(config.urls.empty());
+  EXPECT_THAT(warnings, testing::HasSubstr("--debuginfod"));
+}
+
+TEST(DebuginfodOptionsTest, RejectsEmptyOverridesAndInvalidValues) {
+  DebuginfodOptions options;
+  options.enabled = true;
+  options.urls = "";
+  options.cache_path = "/chosen/cache";
+  DebuginfodConfig config;
+  std::string warnings;
+  EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  for (const char* url :
+       {"file:///tmp/debug", "https://host?q=x", "https://host#fragment"}) {
+    config = {};
+    options.urls = url;
+    EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  }
+  options.urls = "https://one.example";
+  for (const char* timeout : {"0", "-1", "1.5", "bad", "4294967296"}) {
+    config = {};
+    options.connect_timeout = timeout;
+    EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  }
+  config = {};
+  options.connect_timeout = "5";
+  options.cache_path = "";
+  EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
 }
 
 TEST(SymbolizeDatabaseTest, CoalescesEquivalentMappingsAndAddresses) {
@@ -189,6 +247,14 @@ TEST(SymbolizeDatabaseTest, MissingSourcesStillCountAllFrames) {
   EXPECT_THAT(FormatSymbolizationSummary(result, false, false),
               testing::HasSubstr(
                   "0 of 2 frames symbolized, 2 could not be symbolized"));
+  // Both reports must tell the reader how to get something searched.
+  EXPECT_THAT(FormatSymbolizationSummary(result, false, false),
+              testing::HasSubstr("enable automatic symbol path discovery"));
+  std::string verbose = FormatSymbolizationSummary(result, true, false);
+  EXPECT_THAT(verbose, testing::HasSubstr("To fix this:"));
+  EXPECT_THAT(verbose, testing::HasSubstr("pass --symbol-paths"));
+  EXPECT_THAT(verbose,
+              testing::HasSubstr("enable automatic symbol path discovery"));
 }
 
 TEST(SymbolizeDatabaseTest, SuccessfulAndEmptySummariesAreVisible) {
@@ -196,11 +262,74 @@ TEST(SymbolizeDatabaseTest, SuccessfulAndEmptySummariesAreVisible) {
   EXPECT_EQ(FormatSymbolizationSummary(result, false, false),
             "Symbolization: no native frames to symbolize.\n");
   result.successful_mappings.push_back(
-      {"lib.so", "build-id", "/symbols/lib.so", 5});
+      {"lib.so", "build-id", "/symbols/lib.so", 5, {}});
   EXPECT_EQ(FormatSymbolizationSummary(result, false, false),
             "Symbolization: all 5 frames symbolized.\n");
   EXPECT_THAT(FormatSymbolizationSummary(result, true, false),
               testing::HasSubstr("/symbols/lib.so"));
+}
+
+TEST(SymbolizeDatabaseTest, DebuginfodOutcomesAreReportedLikePaths) {
+  SymbolizerResult result;
+  result.debuginfod.enabled = true;
+  result.debuginfod.downloads = 1;
+  result.debuginfod.not_found = 1;
+  result.debuginfod.failed = 1;
+  result.debuginfod.unreachable_servers = {"http://down.example"};
+  result.successful_mappings.push_back(
+      {"/usr/lib/liba.so",
+       "a",
+       "/cache/aa/debuginfo",
+       2,
+       {{"http://down.example", SymbolPathError::kServerUnreachable,
+         "Failed to connect"},
+        {"/cache/aa/debuginfo", SymbolPathError::kOk,
+         "downloaded from http://up.example"}}});
+  result.failed_mappings.push_back(
+      {"/usr/lib/libb.so",
+       "b",
+       {{"/usr/lib/debug", SymbolPathError::kBuildIdNotInIndex, {}},
+        {"http://up.example", SymbolPathError::kNotOnServer, {}},
+        {"http://down.example", SymbolPathError::kServerUnreachable,
+         "Failed to connect"},
+        {"http://bad.example", SymbolPathError::kParseError,
+         "invalid debug file"},
+        {"http://flaky.example", SymbolPathError::kDownloadFailed,
+         "The requested URL returned error: 503"}},
+       3,
+       0});
+
+  std::string summary = FormatSymbolizationSummary(result, false, false);
+  EXPECT_THAT(summary, testing::HasSubstr("2 of 5 frames symbolized"));
+  EXPECT_THAT(summary, testing::HasSubstr("  Debuginfod: 1 downloaded, "
+                                          "1 not found on any server, "
+                                          "1 failed\n"));
+  EXPECT_THAT(summary, testing::HasSubstr("no usable symbols in the searched "
+                                          "paths or servers"));
+  EXPECT_THAT(summary, testing::HasSubstr("hint: debuginfod server "
+                                          "http://down.example could not be "
+                                          "reached"));
+  EXPECT_THAT(summary, testing::HasSubstr("hint: debuginfod: invalid debug "
+                                          "file (http://bad.example)\n"));
+  EXPECT_THAT(summary, testing::HasSubstr("hint: debuginfod: The requested "
+                                          "URL returned error: 503 "
+                                          "(http://flaky.example)\n"));
+  EXPECT_THAT(summary, testing::Not(testing::HasSubstr("--debuginfod")));
+
+  std::string verbose = FormatSymbolizationSummary(result, true, false);
+  EXPECT_THAT(verbose, testing::HasSubstr("symbols: /cache/aa/debuginfo "
+                                          "(2 frames, downloaded from "
+                                          "http://up.example)"));
+  EXPECT_THAT(verbose, testing::HasSubstr("      also tried:\n        "
+                                          "http://down.example (server "
+                                          "unreachable: Failed to connect)"));
+  EXPECT_THAT(verbose, testing::HasSubstr("http://up.example (not on server)"));
+  EXPECT_THAT(verbose, testing::HasSubstr("http://down.example (server "
+                                          "unreachable: Failed to connect)"));
+
+  result.debuginfod.enabled = false;
+  EXPECT_THAT(FormatSymbolizationSummary(result, false, false),
+              testing::HasSubstr("pass --debuginfod"));
 }
 }  // namespace
 }  // namespace perfetto::profiling

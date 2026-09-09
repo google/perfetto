@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
 #include "src/trace_processor/util/symbolizer/symbolizer.h"
 
 namespace perfetto::trace_processor {
@@ -40,6 +41,7 @@ enum class SymbolizerError {
 
 // Configuration for symbolization.
 struct SymbolizerConfig {
+  DebuginfodConfig debuginfod;
   // Directories to search using "index" mode (builds an index by build ID).
   // Faster for repeated lookups.
   std::vector<std::string> index_symbol_paths;
@@ -78,6 +80,9 @@ struct SuccessfulMapping {
   std::string symbol_path;
   // Number of frames that were symbolized.
   uint32_t frame_count = 0;
+  // Every path and server tried for the mapping, including the successful
+  // one, so verbose reports can explain fallbacks.
+  std::vector<SymbolPathAttempt> attempts;
 };
 
 // Record of a failed symbolization attempt for a mapping.
@@ -94,6 +99,7 @@ struct FailedMapping {
 
 // Result of symbolization operation.
 struct SymbolizerResult {
+  DebuginfodStats debuginfod;
   SymbolizerError error = SymbolizerError::kOk;
 
   // Machine-readable details about the error (e.g., missing path).
