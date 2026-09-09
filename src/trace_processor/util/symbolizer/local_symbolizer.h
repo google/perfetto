@@ -23,6 +23,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "src/trace_processor/util/symbolizer/subprocess.h"
@@ -132,9 +133,10 @@ class LLVMSymbolizerProcess {
 class LocalSymbolizer : public Symbolizer {
  public:
   LocalSymbolizer(const std::string& symbolizer_path,
-                  std::unique_ptr<BinaryFinder> finder);
+                  std::unique_ptr<BinaryFinder> finder,
+                  bool use_kernel_paths);
 
-  explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder);
+  LocalSymbolizer(std::unique_ptr<BinaryFinder> finder, bool use_kernel_paths);
 
   SymbolizeResult Symbolize(const Environment& env,
                             const UnsymbolizedMapping& mapping,
@@ -145,12 +147,28 @@ class LocalSymbolizer : public Symbolizer {
  private:
   LLVMSymbolizerProcess llvm_symbolizer_;
   std::unique_ptr<BinaryFinder> finder_;
+  // Remote lookup uses build IDs instead of searching host kernel paths.
+  bool use_kernel_paths_;
 };
 
 std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
     const std::vector<std::string>& directories,
     const std::vector<std::string>& individual_files,
     const char* mode);
+
+// Building blocks shared with the debuginfod symbolizer.
+
+// Parses the binary at |path| and returns its load info if it is a supported
+// ELF or Mach-O file whose build ID matches |build_id| (when given). On
+// failure |error| says why.
+std::optional<FoundBinary> FindBinaryFile(
+    const std::string& path,
+    std::optional<std::string_view> build_id,
+    BinaryPathError* error);
+
+// Whether llvm-symbolizer can be spawned, so callers can fail before
+// downloading debug files that could not be symbolized anyway.
+bool CanRunLlvmSymbolizer();
 
 }  // namespace perfetto::profiling
 

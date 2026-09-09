@@ -354,7 +354,8 @@ TEST(TraceProcessorShellIntegrationTest, ClassicStdiod) {
   base::Subprocess process({ShellPath(), "--stdiod"});
   process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
   process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
-  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  // Keep diagnostics separate from the binary RPC response.
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
   process.args.input = req.SerializeAsString();
   process.Start();
   ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
@@ -907,7 +908,8 @@ TEST(TraceProcessorShellIntegrationTest, ServerSubcommandStdio) {
   base::Subprocess process({ShellPath(), "server", "stdio"});
   process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
   process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
-  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  // Keep diagnostics separate from the binary RPC response.
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
   process.args.input = req.SerializeAsString();
   process.Start();
 
@@ -1189,7 +1191,8 @@ TEST(TraceProcessorShellIntegrationTest, ClassicMetricExtensionWithStdiod) {
       {ShellPath(), "--stdiod", "--metric-extension", ext_arg});
   process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
   process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
-  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  // Keep diagnostics separate from the binary RPC response.
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
   process.args.input = req.SerializeAsString();
   process.Start();
   ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
@@ -1251,7 +1254,8 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
       {ShellPath(), "--stdiod", "--add-sql-package", pkg_arg});
   process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
   process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
-  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  // Keep diagnostics separate from the binary RPC response.
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
   process.args.input = req.SerializeAsString();
   process.Start();
   ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));

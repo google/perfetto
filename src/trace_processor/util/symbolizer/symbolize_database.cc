@@ -531,7 +531,8 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
 
   bool has_any_paths =
       !config.index_symbol_paths.empty() || !config.symbol_files.empty() ||
-      !config.find_symbol_paths.empty() || !config.breakpad_paths.empty();
+      !config.find_symbol_paths.empty() || !config.breakpad_paths.empty() ||
+      !config.debuginfod.urls.empty();
   if (!has_any_paths) {
     result.error = SymbolizerError::kSymbolizerNotAvailable;
     result.error_details =
@@ -552,6 +553,18 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
     BreakpadSymbolizer symbolizer(path);
     SymbolizePendingAddresses(groups, env, &symbolizer, &mappings,
                               &result.symbols);
+  }
+  bool unresolved = false;
+  for (const auto& mapping : mappings.mappings) {
+    for (auto it = mapping.addresses.GetIterator(); it; ++it)
+      unresolved |= !it.value().resolved;
+  }
+  if (unresolved && !config.debuginfod.urls.empty()) {
+    auto symbolizer =
+        CreateDebuginfodSymbolizer(config.debuginfod, &result.debuginfod);
+    if (symbolizer)
+      SymbolizePendingAddresses(groups, env, symbolizer.get(), &mappings,
+                                &result.symbols);
   }
   CollectResults(mappings, &result);
 
@@ -603,6 +616,16 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
                                    " could not be symbolized");
   }
   summary += ".\n";
+  const auto& downloads = result.debuginfod;
+  summary += downloads.warnings;
+  if (downloads.cache_hits || downloads.downloads || downloads.failures) {
+    summary += "Debuginfod: " + std::to_string(downloads.cache_hits) +
+               " cache hits, " + std::to_string(downloads.downloads) +
+               " downloaded, " + std::to_string(downloads.failures) +
+               " unavailable.\n";
+    if (verbose)
+      summary += downloads.details;
+  }
   if (!result.error_details.empty())
     summary += result.error_details + "\n";
 

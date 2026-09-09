@@ -38,6 +38,7 @@
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
+#include "test/test_helper.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
@@ -105,6 +106,8 @@ std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
 class TraceconvShellBundleTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    base::UnsetEnv("DEBUGINFOD_URLS");
+    base::UnsetEnv("LLVM_SYMBOLIZER_OPTS");
     input_trace_ = base::GetTestDataPath(
         "test/data/heapprofd_standalone_client_example-trace");
     output_path_ = output_file_.path();
@@ -129,6 +132,7 @@ class TraceconvShellBundleTest : public ::testing::Test {
     return names;
   }
 
+  TestEnvCleaner env_{"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"};
   base::TempDir temp_dir_ = base::TempDir::Create();
   base::TempFile output_file_ = base::TempFile::Create();
   std::string input_trace_;

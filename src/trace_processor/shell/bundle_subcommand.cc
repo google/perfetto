@@ -184,6 +184,8 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
 #endif
 
   trace_to_text::BundleContext context;
+  if (ctx.global)
+    context.debuginfod = ctx.global->debuginfod;
   if (!symbol_paths_.empty())
     context.symbol_paths = base::SplitString(symbol_paths_, ",");
   for (const std::string& map : proguard_maps_) {
