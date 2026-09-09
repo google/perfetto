@@ -62,7 +62,6 @@
 #include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
-#include "src/tracing/v2/shared_ring_buffer.h"
 
 // Tests for the perfetto shared library.
 
@@ -2869,11 +2868,6 @@ struct PerfettoDs data_source_v2 = PERFETTO_DS_INIT();
 
 class SharedLibTracingV2Test : public testing::Test {
  protected:
-  void SetUp() override {
-    if (!perfetto::tracing_v2::SharedRingBuffer::SupportsWriterWait())
-      GTEST_SKIP() << "The tracing v2 ring needs a futex on this platform";
-  }
-
   void TearDown() override {
     if (!started_)
       return;

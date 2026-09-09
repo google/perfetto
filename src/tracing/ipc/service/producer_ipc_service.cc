@@ -488,10 +488,9 @@ void ProducerIPCService::RemoteProducer::SendSetupTracing() {
   auto cmd = ipc::AsyncResult<protos::gen::GetAsyncCommandResponse>::Create();
   cmd.set_has_more(true);
   auto setup_tracing = cmd->mutable_setup_tracing();
-  if (service_endpoint->tracing_v2_chunk_size_bytes()) {
-    setup_tracing->set_tracing_v2_chunk_size_bytes(
-        service_endpoint->tracing_v2_chunk_size_bytes());
-  }
+  const uint32_t chunk_size = service_endpoint->tracing_v2_chunk_size_bytes();
+  if (chunk_size != 0)
+    setup_tracing->set_tracing_v2_chunk_size_bytes(chunk_size);
   if (!service_endpoint->IsShmemProvidedByProducer()) {
     // Nominal case (% Chrome): service provides SMB.
     setup_tracing->set_shared_buffer_page_size_kb(

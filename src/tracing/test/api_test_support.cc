@@ -24,7 +24,6 @@
 #include "perfetto/tracing/internal/basic_types.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
 #include "src/tracing/v2/relay_sequence.h"
-#include "src/tracing/v2/shared_ring_buffer.h"
 
 #include <sstream>
 
@@ -197,11 +196,6 @@ bool TracingMuxerImplInternalsForTest::DoesSystemBackendHaveSMB() {
     return false;
   const auto& service = backend->producer->service_;
   return service && service->shared_memory();
-}
-
-// static
-bool TracingMuxerImplInternalsForTest::SupportsTracingV2() {
-  return tracing_v2::SharedRingBuffer::SupportsWriterWait();
 }
 
 // static

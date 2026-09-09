@@ -50,6 +50,11 @@ namespace perfetto::tracing_v2 {
 
 class InProcessTracingV2BridgeTestPeer {
  public:
+  static bool DrainBarrierBatch(InProcessTracingV2Bridge* bridge,
+                                uint32_t target_pos) {
+    return bridge->DrainBarrierBatch(target_pos);
+  }
+
   static std::unique_ptr<TraceWriter> CreateTraceWriter(
       InProcessTracingV2Bridge* bridge,
       std::unique_ptr<TraceWriter> v1_writer,
@@ -283,7 +288,12 @@ class InProcessTracingV2BridgeTest : public ::testing::Test {
     return writer;
   }
 
-  enum class RejectedChunk { kMalformed, kUnsupportedFormat, kWrongBuffer };
+  enum class RejectedChunk {
+    kMalformed,
+    kUnsupportedFormat,
+    kWrongBuffer,
+    kDataLoss
+  };
 
   void TestRejectedMiddleChunk(RejectedChunk rejection) {
     auto writer = CreateWriter(7, 11);
@@ -300,20 +310,28 @@ class InProcessTracingV2BridgeTest : public ::testing::Test {
     DrainRelay();
     ASSERT_TRUE(recorded_[7].packets.empty());
 
+    if (rejection == RejectedChunk::kDataLoss)
+      chunk_writer.RecordDataLoss();
     ASSERT_TRUE(test::WriteFragment(&chunk_writer, "\x50\x02", true, true));
     chunk_writer.FinishCurrentChunk();
     // No writer or relay task races these edits to the completed chunk.
+    const auto chunk_idx = ChunkIndex::FromIndex(1);
     switch (rejection) {
       case RejectedChunk::kMalformed:
         // A fragment size larger than the chunk's payload capacity.
-        WriteFragmentSize(ring.chunk_at(1) + kChunkSize, kChunkSize);
+        WriteFragmentSizeReversed(ring.chunk_at(chunk_idx) + kChunkSize,
+                                  kChunkSize);
         break;
       case RejectedChunk::kUnsupportedFormat:
         test::SharedRingBufferInternalsForTest::SetChunkStateWord(
-            &ring, 1, ring.LoadChunkStateWord(1) | (1u << kChunkFormatShift));
+            &ring, chunk_idx,
+            ring.LoadChunkStateWordAcquire(chunk_idx) |
+                (1u << kChunkFormatShift));
         break;
       case RejectedChunk::kWrongBuffer:
-        StoreTargetBufferID(ring.chunk_at(1), 12);
+        StoreTargetBufferId(ring.chunk_at(chunk_idx), 12);
+        break;
+      case RejectedChunk::kDataLoss:
         break;
     }
     DrainRelay();
@@ -338,11 +356,14 @@ class InProcessTracingV2BridgeTest : public ::testing::Test {
 
     ASSERT_EQ(recorded_[7].packets.size(), 2u);
     EXPECT_EQ(recorded_[7].packets[0].timestamp(), 6u);
-    constexpr uint32_t kExpectedLoss =
+    uint32_t expected_loss =
         protos::gen::TracePacket::DATA_LOSS_PRESENT |
-        protos::gen::TracePacket::DATA_LOSS_CHUNK_CORRUPTED |
         protos::gen::TracePacket::DATA_LOSS_ORPHAN_CONTINUATION;
-    EXPECT_EQ(recorded_[7].packets[0].previous_packet_dropped(), kExpectedLoss);
+    // Only the buffer mismatch is diagnosed by the bridge itself.
+    // The reader reports generic loss for the other rejected chunks.
+    if (rejection == RejectedChunk::kWrongBuffer)
+      expected_loss |= protos::gen::TracePacket::DATA_LOSS_CHUNK_CORRUPTED;
+    EXPECT_EQ(recorded_[7].packets[0].previous_packet_dropped(), expected_loss);
     EXPECT_EQ(recorded_[7].packets[1].timestamp(), 7u);
     EXPECT_EQ(recorded_[7].packets[1].previous_packet_dropped(), 0u);
   }
@@ -446,7 +467,36 @@ TEST_F(InProcessTracingV2BridgeTest, ExplicitCallbacksBelongToTheirOwnFlush) {
   EXPECT_TRUE(first);
 }
 
-TEST_F(InProcessTracingV2BridgeTest, CleanRetirementDoesNotFlushV1Writer) {
+TEST_F(InProcessTracingV2BridgeTest,
+       FlushCallbackCanDestroyWriterAndQueueDrain) {
+  auto writer = CreateWriter(7, 11);
+  std::unique_ptr<TraceWriter> next_writer;
+  bool acknowledged = false;
+  auto drained = task_runner_.CreateCheckpoint("drained");
+  writer->NewTracePacket()->set_timestamp(1);
+  writer->Flush([&] {
+    acknowledged = true;
+    writer.reset();
+    next_writer = CreateWriter(9, 11);
+    next_writer->NewTracePacket()->set_timestamp(2);
+    next_writer->FinishTracePacket();
+    bridge_->DrainPendingData([&] {
+      EXPECT_EQ(recorded_[7].destructions, 1u);
+      EXPECT_EQ(recorded_[7].flushes, 1u);
+      ASSERT_EQ(recorded_[9].packets.size(), 1u);
+      EXPECT_EQ(recorded_[9].packets[0].timestamp(), 2u);
+      EXPECT_EQ(recorded_[9].flushes, 1u);
+      drained();
+    });
+  });
+  task_runner_.RunUntilCheckpoint("drained");
+  EXPECT_TRUE(acknowledged);
+  ASSERT_EQ(recorded_[7].packets.size(), 1u);
+  EXPECT_EQ(recorded_[7].packets[0].timestamp(), 1u);
+}
+
+TEST_F(InProcessTracingV2BridgeTest,
+       CleanWriterDestructionDoesNotFlushV1Writer) {
   auto writer = CreateWriter(7, 11);
   recorded_[7].defer_flush_callbacks = true;
   writer.reset();
@@ -457,11 +507,12 @@ TEST_F(InProcessTracingV2BridgeTest, CleanRetirementDoesNotFlushV1Writer) {
   EXPECT_EQ(recorded_[7].flushes, 0u);
   EXPECT_TRUE(recorded_[7].pending_flush_callbacks.empty());
 
-  // Retirement has released this ID, so it can be registered again.
+  // The v1 writer has released its ID, so it can be registered again.
   writer = CreateWriter(7, 11);
 }
 
-TEST_F(InProcessTracingV2BridgeTest, DirtyRetirementFlushesV1WriterOnce) {
+TEST_F(InProcessTracingV2BridgeTest,
+       DirtyWriterDestructionFlushesV1WriterOnce) {
   auto writer = CreateWriter(7, 11);
   recorded_[7].defer_flush_callbacks = true;
   recorded_[7].on_forward = task_runner_.CreateCheckpoint("forwarded");
@@ -479,7 +530,36 @@ TEST_F(InProcessTracingV2BridgeTest, DirtyRetirementFlushesV1WriterOnce) {
   EXPECT_TRUE(recorded_[7].pending_flush_callbacks.empty());
 }
 
-TEST_F(InProcessTracingV2BridgeTest, RetirementAfterFlushDoesNotFlushAgain) {
+TEST_F(InProcessTracingV2BridgeTest,
+       WriterDestructionFlushCanRegisterAnotherWriter) {
+  auto writer = CreateWriter(7, 11);
+  std::unique_ptr<TraceWriter> next_writer;
+  auto drained = task_runner_.CreateCheckpoint("drained");
+  recorded_[7].on_flush = [&] {
+    EXPECT_EQ(recorded_[7].destructions, 0u);
+    // Registration takes the bridge mutex. The destruction barrier must
+    // release it before flushing the v1 writer. Its WriterID stays reserved
+    // until the v1 writer is destroyed.
+    next_writer = CreateWriter(9, 11);
+    next_writer->NewTracePacket()->set_timestamp(2);
+    next_writer->FinishTracePacket();
+    bridge_->DrainPendingData([&] {
+      EXPECT_EQ(recorded_[7].destructions, 1u);
+      ASSERT_EQ(recorded_[9].packets.size(), 1u);
+      EXPECT_EQ(recorded_[9].packets[0].timestamp(), 2u);
+      drained();
+    });
+  };
+  writer->NewTracePacket()->set_timestamp(1);
+  writer.reset();
+  task_runner_.RunUntilCheckpoint("drained");
+  ASSERT_EQ(recorded_[7].packets.size(), 1u);
+  EXPECT_EQ(recorded_[7].packets[0].timestamp(), 1u);
+  EXPECT_EQ(recorded_[7].flushes, 1u);
+}
+
+TEST_F(InProcessTracingV2BridgeTest,
+       WriterDestructionAfterFlushDoesNotFlushAgain) {
   auto writer = CreateWriter(7, 11);
   writer->NewTracePacket()->set_timestamp(1);
   auto done = task_runner_.CreateCheckpoint("flushed");
@@ -495,6 +575,17 @@ TEST_F(InProcessTracingV2BridgeTest, RetirementAfterFlushDoesNotFlushAgain) {
   EXPECT_TRUE(recorded_[7].pending_flush_callbacks.empty());
 }
 
+TEST_F(InProcessTracingV2BridgeTest, BarrierTargetCannotExceedWritePosition) {
+#if PERFETTO_DCHECK_IS_ON()
+  EXPECT_DEATH_IF_SUPPORTED(
+      InProcessTracingV2BridgeTestPeer::DrainBarrierBatch(bridge_.get(), 1),
+      "barrier target is ahead of write_pos");
+#else
+  EXPECT_TRUE(
+      InProcessTracingV2BridgeTestPeer::DrainBarrierBatch(bridge_.get(), 1));
+#endif
+}
+
 TEST_F(InProcessTracingV2BridgeTest, ProtocolErrorDoesNotStrandBarriers) {
   // Check errors both before and after progress in the same reader batch.
   for (uint32_t malformed_pos : {0u, 1u}) {
@@ -506,19 +597,17 @@ TEST_F(InProcessTracingV2BridgeTest, ProtocolErrorDoesNotStrandBarriers) {
       ASSERT_EQ(ring.TryReserveWritePos().result,
                 SharedRingBuffer::ReserveResult::kReserved);
     // No writer or relay task races this invalid Free wrap count.
+    const auto malformed_idx =
+        ChunkIndex::FromPosition(malformed_pos, ring.num_chunks());
     test::SharedRingBufferInternalsForTest::SetChunkStateWord(
-        &ring, malformed_pos, MakeFreeStateWord(1));
+        &ring, malformed_idx, MakeFreeStateWord(1));
 
-#if PERFETTO_DCHECK_IS_ON()
-    EXPECT_DEATH_IF_SUPPORTED(
-        DrainRelay(), "Cannot drain malformed tracing v2 ring position");
-#else
-    // The reader stays stopped, but this request and a later one complete.
+    // The reader logs once and stays stopped. This and later internal drains
+    // still complete in both debug and release builds.
     DrainRelay();
     DrainRelay();
     EXPECT_EQ(test::SharedRingBufferInternalsForTest::GetReadPos(&ring),
               malformed_pos);
-#endif
   }
 }
 
@@ -583,6 +672,10 @@ TEST_F(InProcessTracingV2BridgeTest, PacketSpanningChunksIsReassembled) {
 
 TEST_F(InProcessTracingV2BridgeTest, MalformedChunkDiscardsPartialPacket) {
   TestRejectedMiddleChunk(RejectedChunk::kMalformed);
+}
+
+TEST_F(InProcessTracingV2BridgeTest, LossFlaggedChunkDiscardsPartialPacket) {
+  TestRejectedMiddleChunk(RejectedChunk::kDataLoss);
 }
 
 TEST_F(InProcessTracingV2BridgeTest, UnsupportedChunkDiscardsPartialPacket) {
@@ -720,7 +813,7 @@ TEST(InProcessTracingV2BridgeBurstTest,
     ASSERT_TRUE(test::WriteFragment(&chunk_writer, "\x40\x01"));
     chunk_writer.FinishCurrentChunk();
   }
-  ASSERT_EQ(ring_a.LoadWritePos(), kFirstTarget);
+  ASSERT_EQ(ring_a.LoadWritePosRelaxed(), kFirstTarget);
   std::vector<uint32_t> completions;
   bridge_a->DrainPendingData([&] {
     EXPECT_EQ(test::SharedRingBufferInternalsForTest::GetReadPos(&ring_a),
@@ -778,7 +871,7 @@ TEST(InProcessTracingV2BridgeBurstTest,
   }
   EXPECT_EQ(completions, (std::vector<uint32_t>{1, 2}));
   EXPECT_EQ(recorded_a.packets.size(), kFirstTarget + 1);
-  EXPECT_EQ(ring_a.LoadWritePos(), kFirstTarget + 2);
+  EXPECT_EQ(ring_a.LoadWritePosRelaxed(), kFirstTarget + 2);
   EXPECT_EQ(task_runner.queued(), 0u);
   // Ordinary notification still delivers the later packet.
   delegate_a.NotifyReader();
@@ -797,48 +890,6 @@ TEST(InProcessTracingV2BridgeBurstTest,
   writer_a.reset();
   writer_b.reset();
   task_runner.RunQueuedTasks();
-}
-
-TEST(InProcessTracingV2BridgeBurstTest,
-     StaleControlContinuationDoesNotDrainTheNextBarrier) {
-  QueuedTaskRunner task_runner;
-  auto bridge =
-      InProcessTracingV2Bridge::Create(MakeRelay(&task_runner), 1024, 256);
-  TraceWriterV2::Delegate& delegate = *bridge;
-  SharedRingBuffer& ring = delegate.ring_buffer();
-  // Unclaimed reservations are resolved as holes and need no retained writer.
-  for (uint32_t i = 0; i < 257; ++i)
-    ASSERT_EQ(ring.TryReserveWritePos().result,
-              SharedRingBuffer::ReserveResult::kReserved);
-  std::vector<uint32_t> completions;
-  bridge->DrainPendingData([&] { completions.push_back(1); });
-  for (uint32_t i = 0; i < 256; ++i)
-    ASSERT_EQ(ring.TryReserveWritePos().result,
-              SharedRingBuffer::ReserveResult::kReserved);
-  bridge->DrainPendingData([&] { completions.push_back(2); });
-
-  task_runner.RunNextTask();
-  EXPECT_EQ(test::SharedRingBufferInternalsForTest::GetReadPos(&ring), 256u);
-  task_runner.RunNextTask();  // Only enqueues the second barrier.
-  ASSERT_EQ(task_runner.queued(), 1u);
-  auto continuation = task_runner.TakeNextTask();
-  continuation();
-  // Completing the first barrier must yield before the second reader batch.
-  EXPECT_EQ(completions, (std::vector<uint32_t>{1}));
-  EXPECT_EQ(test::SharedRingBufferInternalsForTest::GetReadPos(&ring), 257u);
-  ASSERT_EQ(task_runner.queued(), 1u);
-
-  const size_t posts = task_runner.posts();
-  continuation();  // Replay the old barrier's task while the next is pending.
-  EXPECT_EQ(task_runner.posts(), posts);
-  EXPECT_EQ(test::SharedRingBufferInternalsForTest::GetReadPos(&ring), 257u);
-  EXPECT_EQ(completions, (std::vector<uint32_t>{1}));
-  task_runner.RunQueuedTasks();
-  EXPECT_EQ(test::SharedRingBufferInternalsForTest::GetReadPos(&ring), 513u);
-  EXPECT_EQ(completions, (std::vector<uint32_t>{1, 2}));
-  continuation();  // An empty queue also makes it stale.
-  EXPECT_EQ(task_runner.queued(), 0u);
-  EXPECT_EQ(completions, (std::vector<uint32_t>{1, 2}));
 }
 
 // A barrier only covers what was in the ring when it sampled the write
@@ -933,7 +984,8 @@ TEST_F(InProcessTracingV2BridgeTest,
             (std::vector<std::string>{"endpoint drain", "writer flush"}));
 }
 
-TEST_F(InProcessTracingV2BridgeTest, RetirementWaitsBehindAnEarlierBarrier) {
+TEST_F(InProcessTracingV2BridgeTest,
+       WriterDestructionWaitsBehindAnEarlierBarrier) {
   auto writer = CreateWriter(7, 11);
   recorded_[7].defer_flush_callbacks = true;
   writer->NewTracePacket()->set_timestamp(1);
@@ -1003,8 +1055,8 @@ TEST_F(InProcessTracingV2BridgeTest, DataLossIsReportedOnTheNextPacket) {
   writer->Flush();
   EXPECT_GT(writer->drop_count(), 0u);
 
-  // Draining frees space. The next packet gets in and carries the loss report,
-  // as previous_packet_dropped is defined.
+  // Draining frees space. The next chunk carries the pending loss flag.
+  // Its payload is discarded, so the report waits for a later packet.
   DrainRelay();
   const size_t before_recovery = recorded_[7].packets.size();
   ASSERT_GT(before_recovery, 0u);
@@ -1016,15 +1068,23 @@ TEST_F(InProcessTracingV2BridgeTest, DataLossIsReportedOnTheNextPacket) {
   writer->Flush();
   DrainRelay();
 
+  EXPECT_EQ(recorded_[7].packets.size(), before_recovery);
+  writer->NewTracePacket()->set_timestamp(1000);
+  writer->Flush();
+  DrainRelay();
+
   ASSERT_EQ(recorded_[7].packets.size(), before_recovery + 1);
   const protos::gen::TracePacket& recovered = recorded_[7].packets.back();
-  EXPECT_EQ(recovered.timestamp(), 999u);
-  EXPECT_NE(recovered.previous_packet_dropped() &
-                protos::gen::TracePacket::DATA_LOSS_PRESENT,
-            0u);
-  EXPECT_NE(recovered.previous_packet_dropped() &
-                protos::gen::TracePacket::DATA_LOSS_SMB_FULL,
-            0u);
+  EXPECT_EQ(recovered.timestamp(), 1000u);
+  constexpr uint32_t kExpectedLoss =
+      protos::gen::TracePacket::DATA_LOSS_PRESENT;
+  EXPECT_EQ(recovered.previous_packet_dropped(), kExpectedLoss);
+
+  writer->NewTracePacket()->set_timestamp(1001);
+  writer->Flush();
+  DrainRelay();
+  ASSERT_EQ(recorded_[7].packets.size(), before_recovery + 2);
+  EXPECT_EQ(recorded_[7].packets.back().previous_packet_dropped(), 0u);
 }
 
 TEST_F(InProcessTracingV2BridgeTest,
@@ -1048,9 +1108,8 @@ TEST_F(InProcessTracingV2BridgeTest,
   EXPECT_EQ(recorded_[7].flushes, 1u);
 }
 
-// Dropping our last reference does not lose what is in the ring: the
-// retirement barrier posted by the writer keeps the bridge alive until it has
-// forwarded everything.
+// Dropping our last reference does not lose what is in the ring. The queued
+// destruction request keeps the bridge alive until it has forwarded everything.
 TEST_F(InProcessTracingV2BridgeTest, TeardownDrainsWhatIsStillInTheRing) {
   std::unique_ptr<TraceWriter> writer = CreateWriter(7, 11);
   for (uint32_t i = 0; i < 10; ++i)
@@ -1059,8 +1118,8 @@ TEST_F(InProcessTracingV2BridgeTest, TeardownDrainsWhatIsStillInTheRing) {
   // Nothing has run yet: the packets are in the ring and nowhere else.
   ASSERT_TRUE(recorded_[7].packets.empty());
 
-  // Drop the writer, then our reference. The queued retirement barrier is now
-  // the only owner, and it drains before it goes away.
+  // Drop the writer, then our reference. The queued writer destruction barrier
+  // is now the only owner, and it drains before it goes away.
   writer.reset();
   bridge_.reset();
   task_runner_.RunUntilIdle();
@@ -1083,7 +1142,7 @@ TEST_F(InProcessTracingV2BridgeTest, WriterOutlivingTheBridgeReferenceIsSafe) {
 }
 
 // Queued relay tasks own the bridge through shared_ptr. Discarding the queue
-// releases those references; after the explicit owners are gone, the bridge
+// releases those references. After the explicit owners are gone, the bridge
 // and its retained v1 writers are destroyed. A raw pointer here would be a
 // lifetime bug.
 TEST(InProcessTracingV2BridgeLifetimeTest,
@@ -1151,15 +1210,15 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   EXPECT_EQ(recorded[7].destructions, 0u);
 
   relay_task_runner.reset();
-  // The v1 writer was never retired, so it goes when the bridge does.
+  // The v1 writer is still retained, so it goes when the bridge does.
   bridge.reset();
   EXPECT_EQ(recorded[7].destructions, 1u);
 }
 
-// Drain and explicit-flush barriers have callbacks, so requests made after
-// close complete inline. Writer retirement has no waiter and is dropped.
+// Internal drains release lifecycle waiters after close. Explicit writer flush
+// callbacks require a service acknowledgement and must be discarded instead.
 TEST(InProcessTracingV2BridgeLifetimeTest,
-     BarriersRequestedAfterCloseCompleteInline) {
+     ClosedRelayDiscardsWriterFlushButCompletesInternalDrain) {
   auto queued_runner =
       std::unique_ptr<QueuedTaskRunner>(new QueuedTaskRunner());
   QueuedTaskRunner* const queued = queued_runner.get();
@@ -1170,6 +1229,8 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   std::unique_ptr<TraceWriter> writer =
       CreateV2Writer(bridge.get(), 7, &recorded[7]);
 
+  writer->NewTracePacket()->set_timestamp(42);
+  EXPECT_TRUE(recorded[7].packets.empty());
   std::unique_ptr<base::TaskRunner> relay_task_runner = relay->Close();
   const size_t posts_after_close = queued->posts();
 
@@ -1179,13 +1240,16 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
 
   bool flushed = false;
   writer->Flush([&flushed] { flushed = true; });
-  EXPECT_TRUE(flushed);
+  EXPECT_FALSE(flushed);
+  EXPECT_EQ(recorded[7].flushes, 0u);
+  EXPECT_TRUE(recorded[7].packets.empty());
 
   EXPECT_EQ(queued->posts(), posts_after_close);
 
   writer.reset();
   relay_task_runner.reset();
   bridge.reset();
+  EXPECT_FALSE(flushed);
 }
 
 // The flush ack callback ends up owned by the endpoint, which can outlive the
@@ -1236,8 +1300,6 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
 // reassembly exactly.
 TEST(InProcessTracingV2BridgeTestWithThread,
      PacketLargerThanRingReassemblesExactly) {
-  if (!SharedRingBuffer::SupportsWriterWait())
-    GTEST_SKIP() << "Requires writer waiting";
   FakeV1Writer::Recorded recorded;
   auto relay =
       std::make_shared<RelaySequence>(std::make_unique<base::ThreadTaskRunner>(
@@ -1279,8 +1341,8 @@ TEST(InProcessTracingV2BridgeLifetimeTest, ClosingARealRelayThreadIsSafe) {
   std::unique_ptr<base::TaskRunner> relay_task_runner = relay->Close();
   EXPECT_FALSE(relay->PostTask([] { ADD_FAILURE() << "ran after Close()"; }));
 
-  // Retirement is refused after the close, so the v1 writer goes with the
-  // bridge rather than being handed back.
+  // The destruction request is refused after close, so the v1 writer goes with
+  // the bridge rather than being handed back.
   writer.reset();
   bridge.reset();
   // The task that ran the completion may hold the last bridge reference until
@@ -1344,20 +1406,26 @@ TEST(InProcessTracingV2BridgeSizingTest, CapacityRoundsDownToAPowerOfTwo) {
   EXPECT_EQ(chunks(256 * 1024), 1024u);
   // 132 KiB is a legal SMB size. 528 chunks is not a power of two.
   EXPECT_EQ(chunks(132 * 1024), 512u);
-  EXPECT_EQ(chunks(kChunkSize), 1u);
-  EXPECT_EQ(chunks(2 * kChunkSize - 1), 1u);
-  // Too small for a single chunk: the caller has to reject the request.
+  EXPECT_EQ(chunks(2 * kChunkSize), 2u);
+  // Fewer than two chunks is an unsupported layout.
+  EXPECT_EQ(chunks(kChunkSize), 0u);
+  EXPECT_EQ(chunks(2 * kChunkSize - 1), 0u);
   EXPECT_EQ(chunks(kChunkSize - 1), 0u);
   EXPECT_EQ(chunks(0), 0u);
 }
 
-// num_chunks == 0 is a CHECK, before anything is allocated.
-TEST(InProcessTracingV2BridgeSizingTest, ZeroChunksIsRefused) {
+// Reject unsupported chunk counts before allocating storage.
+TEST(InProcessTracingV2BridgeSizingTest, FewerThanTwoChunksIsRefused) {
   base::TestTaskRunner task_runner;
   EXPECT_DEATH_IF_SUPPORTED(
       InProcessTracingV2Bridge::Create(
           MakeRelay(&task_runner),
           /*num_chunks=*/0, InProcessTracingV2Bridge::kDefaultChunkSize),
+      "");
+  EXPECT_DEATH_IF_SUPPORTED(
+      InProcessTracingV2Bridge::Create(
+          MakeRelay(&task_runner),
+          /*num_chunks=*/1, InProcessTracingV2Bridge::kDefaultChunkSize),
       "");
 }
 

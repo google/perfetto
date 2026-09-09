@@ -168,6 +168,22 @@ std::unique_ptr<TracingService> TracingService::CreateInstance(
 namespace tracing_service {
 
 namespace {
+// The service validates chunk sizes before passing them to the producer's
+// temporary v2 adapter. These limits are duplicated here to avoid making the
+// service depend on the adapter. When changing them, update both copies:
+// - kMinTracingV2ChunkSize must match kMinChunkSize, and
+//   kTracingV2ChunkAlignment must match kChunkAlignmentBytes, both in
+//   src/tracing/v2/shared_ring_buffer_abi.h.
+// - kMaxTracingV2ChunkSize must match
+//   InProcessTracingV2Bridge::kMaxConfiguredChunkSize in
+//   src/tracing/v2/in_process_tracing_v2_bridge.h.
+//
+// TODO(sashwinbalaji): Consider a common internal header under src/tracing/
+// if this policy is needed beyond the temporary adapter.
+constexpr uint32_t kMinTracingV2ChunkSize = 256;
+constexpr uint32_t kMaxTracingV2ChunkSize = 32 * 1024;
+constexpr uint32_t kTracingV2ChunkAlignment = 4;
+
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr uint32_t kDefaultSnapshotsIntervalMs = 10 * 1000;
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
@@ -458,9 +474,12 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
           "Adopting producer-provided SMB of %zu kB for producer \"%s\"",
           shm_size / 1024, endpoint->name_.c_str());
       auto shmem_mode = GetShmemMode(client_identity, in_process);
-      endpoint->SetupSharedMemory(std::move(shm), page_size,
-                                  /*provided_by_producer=*/true, shmem_mode,
-                                  /*tracing_v2_chunk_size_bytes=*/0);
+      endpoint->SetupSharedMemory(
+          std::move(shm), page_size,
+          /*provided_by_producer=*/true, shmem_mode,
+          // No TraceConfig exists at producer connect;
+          // a producer-provided SMB uses the v2 default.
+          /*tracing_v2_chunk_size_bytes=*/0);
     } else {
       PERFETTO_LOG(
           "Discarding incorrectly sized producer-provided SMB for producer "
@@ -654,6 +673,20 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       return PERFETTO_SVC_ERR(
           "A Consumer is trying to EnableTracing() but another tracing "
           "session is already active (forgot a call to FreeBuffers() ?)");
+    }
+  }
+
+  // Reject malformed v2 setup policy before any selected producer sees it.
+  for (const auto& producer : cfg.producers()) {
+    const uint32_t chunk_size = producer.tracing_v2_chunk_size_bytes();
+    if (chunk_size != 0 && (chunk_size < kMinTracingV2ChunkSize ||
+                            chunk_size > kMaxTracingV2ChunkSize ||
+                            chunk_size % kTracingV2ChunkAlignment != 0)) {
+      return PERFETTO_SVC_ERR(
+          "TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes must be zero "
+          "or a multiple of %u between %u and %u bytes (received %u)",
+          kTracingV2ChunkAlignment, kMinTracingV2ChunkSize,
+          kMaxTracingV2ChunkSize, chunk_size);
     }
   }
 
