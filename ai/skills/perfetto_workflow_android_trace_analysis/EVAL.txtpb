@@ -1,0 +1,73 @@
+# proto-file: learning/gemini/agents/evaluation/evalin/proto/eval_suite.proto
+# proto-message: EvalSuite
+# txtpbfmt: wrap_strings_after_newlines
+
+suite_name: "perfetto_workflow_android_trace_analysis"
+timeout_seconds: 300
+
+cases {
+  name: "initialize_scratchpad"
+  prompt: "I want to analyze a performance trace. What is the setup phase?"
+  expectations: "The agent recommends initializing a local scratchpad file (`_analysis.md`) to log verified facts and maintain a strict Chain of Evidence."
+}
+
+cases {
+  name: "investigate_cpu_contention"
+  prompt: "My app seems slow and I suspect CPU contention. What should I analyze in the trace?"
+  expectations: "The agent recommends formulating hypotheses based on `hints_cpu.md`."
+  expectations: "The agent recommends comparing 'Runnable' vs 'Running' state times to quantify contention."
+  expectations: "The agent recommends measuring scheduling latency (Runnable duration) using standard queries."
+}
+
+cases {
+  name: "follow_dependencies"
+  prompt: "A critical thread is in state 'D' (Uninterruptible Sleep). How do I find why it is blocked?"
+  expectations: "The agent recommends checking the `blocked_function` from the thread state details."
+  expectations: "The agent explains it must follow the dependency to identify the waker or waker thread (like a kworker for I/O) and cannot conclude the investigation without finding the blocker."
+}
+
+# These are examples of internal evaluations performed on non-public traces.
+# They are kept here for reference/example purposes, but will be redacted
+# or skipped in public test runs. See the PR description for links to the actual
+# non-public traces and more details.
+
+cases {
+  name: "douyin_startup_latency"
+  prompt: "Analyze the app startup latency issue in this trace"
+  expectations: "The agent identifies the startup latency for com.ss.android.ugc.aweme is 4,964,729,650 ns (approximately 4.96 seconds)."
+  expectations: "The agent identifies the uninterruptible sleep on the main thread of com.ss.android.ugc.aweme during startup."
+  expectations: "The agent identifies do_page_fault as the dominant factor in uninterruptible sleep."
+  expectations: "The agent identifies that do_page_fault overlaps mostly with bindApplication."
+}
+
+cases {
+  name: "twitter_startup_jank"
+  prompt: "Analyze the jank issue in this Perfetto trace"
+  expectations: "The agent identifies the startup duration for com.twitter.android is 100,461,181 ns (approximately 100 ms)."
+  expectations: "The agent identifies long CPU running time: busy running a long Choreographer#doFrame slice in the main process."
+  expectations: "The agent identifies missing cpu_frequency data due to the CPU frequency governor being stuck."
+}
+
+cases {
+  name: "files_cold_startup_contention"
+  prompt: "I’m investigating cold startup latency for the Files app. This trace shows a 673ms startup on a Pixel 6a. I see some long stalls on the main thread, particularly during the 'traversal' phase. Can you perform a critical path analysis to see if my app is competing for system-level resources or blocked by other threads? Please categorize the types of stalls (e.g., I/O vs. software locks) that are most impacting the critical path."
+  expectations: "The agent uses Flow events to trace the binder transaction to system_server and identify the Priority Inversion."
+  expectations: "The agent traces the lock back to the Blocking Thread (TID 1831) in the same app and identifies the specific query for freeable_space from Google Photos."
+  expectations: "The agent identifies that ~80ms of the stall is due to Uninterruptible Sleep (D-state) specifically for code loading (DEX/OAT), distinguishing it from the ~2ms IPC locking stall."
+}
+
+cases {
+  name: "dialer_core_displacement"
+  prompt: "We’ve noticed that our app's cold start is significantly slower on the Pixel 8 Pro (Husky) than expected. Looking at the trace, I suspect the main thread isn't getting prioritized on the 'big' core during the critical startup window. Can you verify which cores the app is running on and if there's any background activity displacing it? If so, why does the system allow a background process to take the high-performance core?"
+  expectations: "The agent verifies that the main thread is bumped to slower mid/little cores because com.google.android.tts is sitting on CPU 8 (the big core)."
+  expectations: "The agent uses tracks like oom_score_adj or cgroups to identify that TTS was promoted to the SP_TOP_APP (Group 5) scheduling priority."
+  expectations: "The agent notices that the developer used the BIND_NOT_FOREGROUND flag but the Android platform's OomAdjuster ignored it due to an active binding."
+}
+
+cases {
+  name: "unmapped_hardware_memory_leak"
+  prompt: "Our application delegates processing to the TPU. Right before the device experiences severe memory pressure, the Perfetto trace shows the app's RssFile memory dropping significantly. Why is the system still out of memory if the app seemingly freed its file-backed memory?"
+  expectations: "The agent observes the drop in the RssFile counter for the specific process being traced."
+  expectations: "The agent queries the dma_heap_stat or dmabuf_total_size counters (or equivalent hardware-backed memory tracking) and observes that they remain high or increase."
+  expectations: "The agent concludes that kswapd successfully unmapped the pages from the CPU's virtual address space (causing the drop in RSS), but the memory is still physically pinned by the TPU/hardware, meaning the memory was not actually freed."
+}
