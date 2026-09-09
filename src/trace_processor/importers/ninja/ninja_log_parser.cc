@@ -41,6 +41,17 @@ namespace perfetto::trace_processor {
 
 using base::StringSplitter;
 
+namespace {
+// The range of `# ninja log vN` headers we can read. ninja bumped the version
+// twice without changing the layout of a log line: v6 (ninja 1.12) only
+// dropped its own support for reading v4 logs, and v7 (ninja 1.13) switched
+// the command hash from MurmurHash2 to rapidhash. We never interpret that
+// hash, only compare it for equality, so v5, v6 and v7 all parse the same
+// here. Anything newer is rejected rather than guessed at.
+constexpr uint32_t kOldestSupportedVersion = 5;
+constexpr uint32_t kNewestSupportedVersion = 7;
+}  // namespace
+
 NinjaLogParser::NinjaLogParser(TraceProcessorContext* ctx) : ctx_(ctx) {}
 NinjaLogParser::~NinjaLogParser() = default;
 
@@ -64,8 +75,11 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
         return base::ErrStatus("Failed to parse ninja log header");
       header_parsed_ = true;
       auto version = base::CStringToUInt32(line.cur_token() + strlen(kHeader));
-      if (!version || *version != 5)
-        return base::ErrStatus("Unsupported ninja log version");
+      if (!version || *version < kOldestSupportedVersion ||
+          *version > kNewestSupportedVersion) {
+        return base::ErrStatus("Unsupported ninja log version: %s",
+                               line.cur_token() + strlen(kHeader));
+      }
       continue;
     }
 
@@ -103,6 +117,26 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
       continue;
     }
 
+    // The same log file usually contains several ninja invocations, appended
+    // one after the other. Each invocation restarts its timestamps from zero,
+    // and within an invocation ninja appends lines as jobs complete, so the
+    // end timestamps only ever grow. An end timestamp that goes backwards is
+    // therefore the start of a new build.
+    // Those builds must not be laid on top of each other: the packing below
+    // infers parallelism from overlapping timestamps, so superimposed builds
+    // look like one build with several times the real number of workers. We
+    // shift each build past the end of the previous one instead, which is what
+    // ninjatracing does with --showall.
+    // Caveat: this works only if ninja didn't recompact the log. Once
+    // recompaction happens (can be forced via `ninja -t recompact`) there is
+    // no way to identify the boundaries of each build, because recompaction
+    // keeps, for each hash, only the most recent entry.
+    if (*t_end < last_end_seen_)
+      build_offset_ms_ += last_end_seen_;
+    last_end_seen_ = *t_end;
+    const int64_t start_ms = *t_start + build_offset_ms_;
+    const int64_t end_ms = *t_end + build_offset_ms_;
+
     // If more hashes show up back-to-back with the same timestamps, merge them
     // together as they identify multiple outputs for the same build rule.
     // TODO(lalitm): this merging should really happen in NotifyEndOfFile
@@ -110,13 +144,13 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
     // non-significant rework of this class so it's not been found to be worth
     // implementing yet.
     if (!jobs_.empty() && *cmdhash == jobs_.back().hash &&
-        *t_start == jobs_.back().start_ms && *t_end == jobs_.back().end_ms) {
-      jobs_.back().names.append(" ");
+        start_ms == jobs_.back().start_ms && end_ms == jobs_.back().end_ms) {
+      jobs_.back().names.append(", ");
       jobs_.back().names.append(name);
       continue;
     }
 
-    jobs_.emplace_back(*t_start, *t_end, *cmdhash, name);
+    jobs_.emplace_back(start_ms, end_ms, *cmdhash, name);
   }
   log_.erase(log_.begin(), log_.begin() + static_cast<ssize_t>(valid_size));
   return base::OkStatus();
@@ -172,7 +206,7 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
       auto utid =
           ctx_->process_tracker->UpdateThread(worker_id, kSyntheticNinjaPid);
 
-      base::StackString<32> name("Worker");
+      base::StackString<32> name("Worker %zu", workers.size() + 1);
       StringId name_id = ctx_->storage->InternString(name.string_view());
       ctx_->process_tracker->UpdateThreadName(utid, name_id,
                                               ThreadNamePriority::kOther);
