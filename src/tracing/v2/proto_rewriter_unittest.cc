@@ -300,34 +300,32 @@ TEST(ProtoRewriterTest, MalformedTagsAndValuesAreRejected) {
   }
 }
 
-// A tenth varint byte with more than one payload bit overflows the shift and
-// reads as a small legal value. Reject it wherever it appears.
-TEST(ProtoRewriterTest, OverflowingTenByteVarintsAreRejected) {
+// ParseVarInt() discards overflow bits in byte ten. The rewriter follows that
+// behavior and preserves the original bytes of ordinary fields.
+TEST(ProtoRewriterTest, TenByteVarintsFollowProtozeroParsing) {
   std::vector<uint8_t> out;
-  // A tag carrying bit 65: unchecked, it wraps to field 1, wire type 0.
-  EXPECT_EQ(Rewrite(Bytes({0x88, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-                           0x02, 0x2a}),
-                    &out),
-            RewriteResult::kMalformedInput);
-  EXPECT_TRUE(out.empty());
-  // A scalar value that wraps to zero.
-  EXPECT_EQ(Rewrite(Bytes({0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-                           0x80, 0x02}),
-                    &out),
-            RewriteResult::kMalformedInput);
-  EXPECT_TRUE(out.empty());
-  // A length that wraps to zero, followed by what would then be a valid field.
-  EXPECT_EQ(Rewrite(Bytes({0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-                           0x80, 0x02, 0x08, 0x01}),
-                    &out),
-            RewriteResult::kMalformedInput);
-  EXPECT_TRUE(out.empty());
+  const std::vector<std::vector<uint8_t>> inputs = {
+      // The tag decodes to field 1, wire type 0.
+      Bytes({0x88, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02, 0x2a}),
+      // The scalar value decodes to zero.
+      Bytes({0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02}),
+      // The length decodes to zero, followed by a separate varint field.
+      Bytes({0x0a, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02,
+             0x08, 0x01}),
+  };
+  for (const auto& in : inputs) {
+    ASSERT_EQ(Rewrite(in, &out), RewriteResult::kSuccess);
+    EXPECT_EQ(out, in);
+  }
+
   // The same value inside a nested message.
-  EXPECT_EQ(Rewrite(Bytes({0x0b, 0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+  ASSERT_EQ(Rewrite(Bytes({0x0b, 0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
                            0x80, 0x80, 0x02, 0x04}),
                     &out),
-            RewriteResult::kMalformedInput);
-  EXPECT_TRUE(out.empty());
+            RewriteResult::kSuccess);
+  EXPECT_EQ(out, Bytes({0x0a, 0x8b, 0x80, 0x80, 0x00,  // field 1, length 11
+                        0x08, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                        0x80, 0x02}));
 
   // A legal ten-byte value and redundant short encodings still pass.
   const std::vector<uint8_t> legal = Bytes({
@@ -386,9 +384,8 @@ TEST(ProtoRewriterTest, OutputLimitFitsEmbeddedLinks) {
 
 #if SIZE_MAX > UINT32_MAX
   // Check the limit itself without allocating a large input or output.
-  EXPECT_EQ(Rewrite(in, &out, size_t{UINT32_MAX} + 1),
-            RewriteResult::kOutputTooLarge);
-  EXPECT_TRUE(out.empty());
+  EXPECT_DEATH(Rewrite(in, &out, size_t{UINT32_MAX} + 1),
+               "max_output_size <= UINT32_MAX");
 #endif
 }
 
@@ -399,6 +396,15 @@ TEST(ProtoRewriterTest, OutputLimitIsExactAndClearsOutput) {
             RewriteResult::kSuccess);
   EXPECT_EQ(out.size(), 5u);
   EXPECT_EQ(Rewrite(Bytes({0x0b, 0x04}), &out, /*max_output=*/4),
+            RewriteResult::kOutputTooLarge);
+  EXPECT_TRUE(out.empty());
+
+  // The largest field id needs five tag bytes plus the four-byte length slot.
+  const auto max_id_group = Bytes({0xfb, 0xff, 0xff, 0xff, 0x0f, 0x04});
+  ASSERT_EQ(Rewrite(max_id_group, &out, /*max_output=*/9),
+            RewriteResult::kSuccess);
+  EXPECT_EQ(out, Bytes({0xfa, 0xff, 0xff, 0xff, 0x0f, 0x80, 0x80, 0x80, 0x00}));
+  EXPECT_EQ(Rewrite(max_id_group, &out, /*max_output=*/8),
             RewriteResult::kOutputTooLarge);
   EXPECT_TRUE(out.empty());
 

@@ -60,6 +60,8 @@ class TraceWriterV2 : public TraceWriter,
                       public protozero::ScatteredStreamWriter::Delegate {
  public:
   // Provides storage and coordinates reader progress for the writer's lifetime.
+  // Calls run on SDK writer threads and may overlap across writers.
+  // Post reader work to a shared sequence if it needs to run serially.
   class Delegate : public SharedRingBufferWriter::Delegate {
    public:
     ~Delegate() override;
@@ -68,12 +70,14 @@ class TraceWriterV2 : public TraceWriter,
     // remain valid for the delegate's lifetime.
     virtual SharedRingBuffer& ring_buffer() = 0;
 
-    // Called after this writer publishes its current data. Completes the flush
-    // operation and runs |callback| on a sequence chosen by the delegate.
+    // Called after this writer publishes its data. For a non-empty callback:
+    // - Wait for service acknowledgement before invoking it.
+    // - The delegate chooses the callback sequence.
+    // - Disconnect may discard it, as allowed by TraceWriter::Flush().
     virtual void Flush(WriterID, std::function<void()> callback) = 0;
 
     // Called after the writer publishes its last chunk. The WriterID must not
-    // be reused while unresolved ring positions can still name it.
+    // be reused while unconsumed ring positions can still name it.
     virtual void OnWriterDestroyed(WriterID) = 0;
   };
 
@@ -99,8 +103,8 @@ class TraceWriterV2 : public TraceWriter,
   TracePacketHandle NewTracePacket() override;
   void FinishTracePacket() override;
 
-  // Publishes this writer's current data, then calls Delegate::Flush(). The
-  // delegate determines completion and the sequence on which |callback| runs.
+  // Publishes this writer's data, then calls Delegate::Flush() (see above for
+  // callback requirements).
   void Flush(std::function<void()> callback = {}) override;
 
   WriterID writer_id() const override {

@@ -584,7 +584,7 @@ struct PerfettoDsPacketBeginResult PerfettoDsTracerImplPacketBeginWithEncoding(
   // TakeStreamWriter() consumes the handle, so read the encoding first.
   const auto encoding = message_handle->nested_message_encoding();
   protozero::ScatteredStreamWriter* sw = message_handle.TakeStreamWriter();
-  struct PerfettoDsPacketBeginResult result;
+  struct PerfettoDsPacketBeginResult result{};
   result.writer.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
   perfetto::UpdateStreamWriter(*sw, &result.writer);
   switch (encoding) {

@@ -45,28 +45,14 @@ using proto_utils::ProtoWireType;
 using proto_utils::WriteRedundantVarInt;
 using proto_utils::WriteVarInt;
 
+static_assert(kMessageLengthFieldSize == sizeof(uint32_t),
+              "Each length placeholder must hold a 32-bit nesting link");
+
+constexpr uint32_t kNoOpenMessage = UINT32_MAX;
+
 // The low three bits of a 32-bit tag hold the wire type, so a field id has at
 // most 29 bits.
 constexpr uint64_t kMaxFieldId = (1u << 29) - 1;
-
-// A varint carries seven value bits per byte, so uint64_t needs at most ten.
-constexpr size_t kMaxVarIntBytes = 10;
-
-// ParseVarInt() drops overflow bits from byte ten. Reject them here while
-// continuing to accept redundant encodings, as protobuf does.
-const uint8_t* ParseVarIntWithinUint64(const uint8_t* start,
-                                       const uint8_t* end,
-                                       uint64_t* value) {
-  const uint8_t* pos = ParseVarInt(start, end, value);
-  if (pos == start)
-    return start;
-  const size_t num_bytes = static_cast<size_t>(pos - start);
-  // ParseVarInt() consumes at most ten bytes. The first nine hold 63 bits, so
-  // byte ten may only be 0 or 1.
-  if (num_bytes == kMaxVarIntBytes && start[kMaxVarIntBytes - 1] > 1)
-    return start;
-  return pos;
-}
 
 bool AppendToOutput(const uint8_t* source_begin,
                     const uint8_t* source_end,
@@ -93,44 +79,51 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
                                                  const uint8_t* input_end,
                                                  std::vector<uint8_t>* output,
                                                  size_t max_output_size) {
-  if (max_output_size > UINT32_MAX)
-    return Reject(output, RewriteResult::kOutputTooLarge);
+  // This bound comes from the trusted caller, not the packet data.
+  PERFETTO_CHECK(max_output_size <= UINT32_MAX);
   output->clear();
 
   // Open-message stack, stored in output length placeholders:
-  // - Each slot holds its enclosing slot's offset + 1; zero means root.
+  // - Each slot holds the output offset of its enclosing message's length
+  //   field, or kNoOpenMessage if its parent is the root.
   // - Offsets survive output reallocations.
-  // - A four-byte slot requires offset + 4 <= max_output_size <= UINT32_MAX,
-  //   so offset + 1 cannot wrap to zero.
-  uint32_t innermost_open_link = 0;
+  // - A four-byte slot must fit within max_output_size <= UINT32_MAX, so its
+  //   offset is at most UINT32_MAX - 4 and cannot equal kNoOpenMessage.
+  uint32_t innermost_length_offset = kNoOpenMessage;
   const uint8_t* read_ptr = input_begin;
 
   while (read_ptr < input_end) {
     // 1. Close the innermost message and backfill its length. 0x04 is a close
     // marker only at a field boundary; field parsers consume embedded bytes.
     if (*read_ptr == kProtoGroupEndByte) {
-      if (innermost_open_link == 0)
+      if (innermost_length_offset == kNoOpenMessage)
         return Reject(output, RewriteResult::kMalformedInput);
       ++read_ptr;
 
-      const size_t length_offset = innermost_open_link - 1;
-      uint32_t enclosing_link = 0;
-      memcpy(&enclosing_link, output->data() + length_offset,
-             sizeof(enclosing_link));
+      const size_t length_offset = innermost_length_offset;
+      PERFETTO_DCHECK(length_offset <= output->size());
+      PERFETTO_DCHECK(kMessageLengthFieldSize <=
+                      output->size() - length_offset);
+      uint32_t enclosing_length_offset;
+      memcpy(&enclosing_length_offset, output->data() + length_offset,
+             sizeof(enclosing_length_offset));
       const size_t content_size =
           output->size() - length_offset - kMessageLengthFieldSize;
       if (content_size > kMaxMessageLength)
         return Reject(output, RewriteResult::kOutputTooLarge);
       WriteRedundantVarInt(static_cast<uint32_t>(content_size),
                            output->data() + length_offset);
-      innermost_open_link = enclosing_link;
+      innermost_length_offset = enclosing_length_offset;
       continue;
     }
 
     // 2. Parse and validate the next field tag.
     const uint8_t* const field_begin = read_ptr;
     uint64_t tag = 0;
-    read_ptr = ParseVarIntWithinUint64(read_ptr, input_end, &tag);
+    // TODO(sashwinbalaji): Consider rejecting overflow bits in the tenth varint
+    // byte. For now, tags, lengths and values use Protozero's ParseVarInt(),
+    // which discards those bits.
+    read_ptr = ParseVarInt(read_ptr, input_end, &tag);
     if (read_ptr == field_begin)
       return Reject(output, RewriteResult::kMalformedInput);
 
@@ -141,20 +134,18 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
 
     // 3. Replace a nested-message open marker with a tag and length slot.
     if (wire_type == kWireTypeStartGroup) {
-      uint8_t tag_bytes[kMaxTagEncodedSize];
+      uint8_t preamble[kMaxTagEncodedSize + kMessageLengthFieldSize];
       const uint32_t length_tag =
           MakeTagLengthDelimited(static_cast<uint32_t>(field_id));
-      uint8_t* const tag_end = WriteVarInt(length_tag, tag_bytes);
-      if (!AppendToOutput(tag_bytes, tag_end, output, max_output_size))
+      uint8_t* const length_field = WriteVarInt(length_tag, preamble);
+      memcpy(length_field, &innermost_length_offset,
+             sizeof(innermost_length_offset));
+      if (!AppendToOutput(preamble, length_field + kMessageLengthFieldSize,
+                          output, max_output_size)) {
         return Reject(output, RewriteResult::kOutputTooLarge);
-
-      if (kMessageLengthFieldSize > max_output_size - output->size())
-        return Reject(output, RewriteResult::kOutputTooLarge);
-      const size_t length_offset = output->size();
-      output->resize(length_offset + kMessageLengthFieldSize);
-      memcpy(output->data() + length_offset, &innermost_open_link,
-             sizeof(innermost_open_link));
-      innermost_open_link = static_cast<uint32_t>(length_offset + 1);
+      }
+      innermost_length_offset =
+          static_cast<uint32_t>(output->size() - kMessageLengthFieldSize);
       continue;
     }
 
@@ -168,7 +159,7 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
       case ProtoWireType::kVarInt: {
         const uint8_t* const value_begin = read_ptr;
         uint64_t value = 0;
-        read_ptr = ParseVarIntWithinUint64(read_ptr, input_end, &value);
+        read_ptr = ParseVarInt(read_ptr, input_end, &value);
         if (read_ptr == value_begin)
           return Reject(output, RewriteResult::kMalformedInput);
         break;
@@ -185,7 +176,7 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
       case ProtoWireType::kLengthDelimited: {
         const uint8_t* const length_begin = read_ptr;
         uint64_t length = 0;
-        read_ptr = ParseVarIntWithinUint64(read_ptr, input_end, &length);
+        read_ptr = ParseVarInt(read_ptr, input_end, &length);
         if (read_ptr == length_begin ||
             length > static_cast<uint64_t>(input_end - read_ptr)) {
           return Reject(output, RewriteResult::kMalformedInput);
@@ -198,7 +189,7 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
       return Reject(output, RewriteResult::kOutputTooLarge);
   }
 
-  if (innermost_open_link != 0)
+  if (innermost_length_offset != kNoOpenMessage)
     return Reject(output, RewriteResult::kMalformedInput);
 
   return RewriteResult::kSuccess;

@@ -66,8 +66,10 @@ TraceWriterV2::~TraceWriterV2() {
 }
 
 TraceWriter::TracePacketHandle TraceWriterV2::NewTracePacket() {
-  // Starting another packet while its handle is alive would let the old
-  // handle finalize the new packet when it eventually goes out of scope.
+  // Direct Message::Finalize() bypasses the handle's finalization callback.
+  // Close the previous packet's ring fragment before starting another packet.
+  if (packet_open_ && cur_packet_->is_finalized())
+    FinishTracePacket();
   PERFETTO_CHECK(!packet_open_);
 
   const auto range = ring_buffer_writer_.BeginFragment(
@@ -103,12 +105,15 @@ void TraceWriterV2::FinishTracePacket() {
   ClosePacketFragment(/*continues_on_next=*/false);
 
   // Acquiring the fragment may have left holes before it. The reader has to
-  // resolve those positions before it can reach this packet.
+  // consume those positions before it can reach this packet.
   delegate_->NotifyReader();
 }
 
 void TraceWriterV2::Flush(std::function<void()> callback) {
-  // Flush must not invalidate memory still reachable through a packet handle.
+  // Close any fragment left open by direct Message::Finalize() before flushing.
+  // Raw stream callers must still call FinishTracePacket() themselves.
+  if (packet_open_ && cur_packet_->is_finalized())
+    FinishTracePacket();
   PERFETTO_CHECK(!packet_open_);
 
   // A completed fragment leaves its chunk cached so that the next packet can
@@ -126,6 +131,7 @@ protozero::ContiguousMemoryRange TraceWriterV2::GetNewBuffer() {
   if (!packet_open_) {
     // protozero asked for space outside a packet. That only happens if a
     // caller writes through a stale handle, which is a data-source bug.
+    PERFETTO_DFATAL("TraceWriterV2: write outside an open packet");
     return EnterDropMode();
   }
 

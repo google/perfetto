@@ -42,18 +42,32 @@ std::atomic<uint32_t> g_generation;
 
 }  // namespace
 
+// Sizes before adding nested-message encoding, measured on x86_64 and ARMv7.
+// The encoding and root flag must fit in existing padding in both DCHECK modes.
+static_assert(sizeof(void*) == 4 || sizeof(void*) == 8,
+              "Message size budget requires a 32-bit or 64-bit target");
+#if PERFETTO_DCHECK_IS_ON()
+static_assert(sizeof(Message) == (sizeof(void*) == 8 ? 56 : 32),
+              "protozero::Message grew beyond its debug size budget");
+#else
+static_assert(sizeof(Message) == (sizeof(void*) == 8 ? 40 : 24),
+              "protozero::Message grew beyond its release size budget");
+#endif
+
 // Do NOT put any code in the constructor or use default initialization.
 // Use the Reset() method below instead.
 
 void Message::Reset(ScatteredStreamWriter* stream_writer, MessageArena* arena) {
-  Reset(stream_writer, arena, NestedMessageEncoding::kLengthDelimited);
+  Reset(stream_writer, arena, NestedMessageEncoding::kLengthDelimited,
+        /*is_root=*/true);
 }
 
-// This method is called to initialize both root and nested messages. Every
-// member must be assigned before any generated setter can observe the object.
+// Every member must be assigned before any generated setter can observe the
+// object, whether it is a root or a nested message.
 void Message::Reset(ScatteredStreamWriter* stream_writer,
                     MessageArena* arena,
-                    NestedMessageEncoding encoding) {
+                    NestedMessageEncoding encoding,
+                    bool is_root) {
 // Older versions of libstdcxx don't have is_trivially_constructible.
 #if !defined(__GLIBCXX__) || __GLIBCXX__ >= 20170516
   static_assert(std::is_trivially_constructible<Message>::value,
@@ -72,9 +86,8 @@ void Message::Reset(ScatteredStreamWriter* stream_writer,
   size_field_ = nullptr;
   nested_message_ = nullptr;
   message_state_ = MessageState::kNotFinalized;
-  message_framing_ = encoding == NestedMessageEncoding::kProtoGroup
-                         ? MessageFraming::kProtoGroupRoot
-                         : MessageFraming::kLengthDelimited;
+  encoding_ = encoding;
+  is_root_ = is_root;
 #if PERFETTO_DCHECK_IS_ON()
   handle_ = nullptr;
   generation_ = g_generation.fetch_add(1, std::memory_order_relaxed);
@@ -139,10 +152,10 @@ uint32_t Message::Finalize() {
   if (nested_message_)
     EndNestedMessage();
 
-  if (PERFETTO_UNLIKELY(uses_proto_group())) {
+  if (PERFETTO_UNLIKELY(encoding_ == NestedMessageEncoding::kProtoGroup)) {
     PERFETTO_DCHECK(!size_field_);
     // Packet framing closes the root; only a nested group needs a close byte.
-    if (message_framing_ == MessageFraming::kProtoGroupNested) {
+    if (!is_root_) {
       const uint8_t end = proto_utils::kProtoGroupEndByte;
       WriteToStream(&end, &end + 1);
     }
@@ -210,19 +223,23 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
   if (nested_message_)
     EndNestedMessage();
 
+  uint32_t tag;
+  switch (encoding_) {
+    case NestedMessageEncoding::kLengthDelimited:
+      tag = proto_utils::MakeTagLengthDelimited(field_id);
+      break;
+    case NestedMessageEncoding::kProtoGroup:
+      tag = proto_utils::MakeTagStartGroup(field_id);
+      break;
+  }
   uint8_t data[proto_utils::kMaxTagEncodedSize];
-  const uint32_t tag = uses_proto_group()
-                           ? proto_utils::MakeTagStartGroup(field_id)
-                           : proto_utils::MakeTagLengthDelimited(field_id);
   uint8_t* data_end = proto_utils::WriteVarInt(tag, data);
   WriteToStream(data, data_end);
 
   Message* message = arena_->NewMessage();
-  message->Reset(stream_writer_, arena_, nested_message_encoding());
+  message->Reset(stream_writer_, arena_, encoding_, /*is_root=*/false);
 
-  if (PERFETTO_UNLIKELY(uses_proto_group())) {
-    message->message_framing_ = MessageFraming::kProtoGroupNested;
-  } else {
+  if (PERFETTO_LIKELY(encoding_ == NestedMessageEncoding::kLengthDelimited)) {
     // The length of the nested message cannot be known upfront. So right now
     // just reserve the bytes to encode the size after the nested message is
     // done.

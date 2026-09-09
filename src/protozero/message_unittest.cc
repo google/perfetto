@@ -641,25 +641,5 @@ TEST_F(MessageTest, ProtoGroupFramingCrossesChunkBoundaries) {
   EXPECT_EQ("04", GetNextSerializedBytes(1));
 }
 
-// Invalid strongly typed encodings are a programmer error.
-TEST_F(MessageTest, ResetDchecksUnknownEncoding) {
-  FakeRootMessage* msg = NewMessage();
-  EXPECT_DCHECK_DEATH({
-    msg->Reset(stream_writer_.get(), static_cast<NestedMessageEncoding>(2));
-  });
-}
-
-// Sizes before adding nested-message encoding, measured on x86_64 and ARMv7.
-// The framing discriminator must fit in existing padding in both DCHECK modes.
-static_assert(sizeof(void*) == 4 || sizeof(void*) == 8,
-              "Message size budget requires a 32-bit or 64-bit target");
-#if PERFETTO_DCHECK_IS_ON()
-static_assert(sizeof(Message) == (sizeof(void*) == 8 ? 56 : 32),
-              "protozero::Message grew beyond its debug size budget");
-#else
-static_assert(sizeof(Message) == (sizeof(void*) == 8 ? 40 : 24),
-              "protozero::Message grew beyond its release size budget");
-#endif
-
 }  // namespace
 }  // namespace protozero

@@ -45,7 +45,7 @@ class RootMessage : public T {
 
   void Reset(ScatteredStreamWriter* writer, NestedMessageEncoding encoding) {
     root_arena_.Reset();
-    Message::Reset(writer, &root_arena_, encoding);
+    Message::Reset(writer, &root_arena_, encoding, /*is_root=*/true);
   }
 
  private:

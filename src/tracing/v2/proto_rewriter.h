@@ -30,8 +30,7 @@ enum class RewriteResult {
   // close marker, or a message left open.
   kMalformedInput,
   // The rewritten packet would exceed |max_output_size|, or a nested message
-  // would not fit its four-byte length field, or the requested limit exceeds
-  // UINT32_MAX. The input itself may be valid.
+  // would not fit its four-byte length field. The input itself may be valid.
   kOutputTooLarge,
 };
 
@@ -44,13 +43,15 @@ enum class RewriteResult {
 //
 // is encoded and rewritten as follows:
 //
-//   proto-group (hex):  0b 10 07 04
-//                       \_/       \/
-//                    start field 1  end current message
+//   proto-group (hex):
+//   0b              10 07       04
+//   |               |           |
+//   start field 1   contents    end current message
 //
-//   protobuf (hex):     0a 82 80 80 00 10 07
-//                       \_/ \_________/ \___/
-//                    field 1  length 2   contents
+//   protobuf (hex):
+//   0a              82 80 80 00               10 07
+//   |               |                         |
+//   field 1         length 2 (four bytes)     contents
 //
 // The root message has no marker. Ordinary protobuf fields are copied
 // unchanged. A standard protobuf end-group tag is not a valid proto-group
@@ -59,8 +60,8 @@ enum class RewriteResult {
 // Requirements:
 // - Input is a private copy, outside producer-owned shared memory.
 // - Input must not overlap |output|'s storage.
-// - |max_output_size| bounds the root and must be <= UINT32_MAX so nesting
-//   links fit. Larger limits return kOutputTooLarge even for a small packet.
+// - |max_output_size| bounds the root and must be <= UINT32_MAX (CHECKed).
+//   Nesting links use 32-bit offsets.
 // - Each nested message must fit its four-byte length field.
 // - |output| is empty unless the result is kSuccess.
 RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,

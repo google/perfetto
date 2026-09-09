@@ -75,11 +75,15 @@ class PERFETTO_EXPORT_COMPONENT Message {
   Message() = default;
 
   // Clears up the state, allowing the message to be reused as a fresh one.
-  // Uses length-delimited encoding.
+  // Uses length-delimited encoding and initializes a root message.
   void Reset(ScatteredStreamWriter*, MessageArena*);
 
-  // As above, but selects the encoding used for nested messages.
-  void Reset(ScatteredStreamWriter*, MessageArena*, NestedMessageEncoding);
+  // As above, but selects the encoding and whether this is a root message.
+  // In proto-group mode only nested messages append a closing byte.
+  void Reset(ScatteredStreamWriter*,
+             MessageArena*,
+             NestedMessageEncoding,
+             bool is_root);
 
   // Commits all the changes to the buffer and seals the message. In
   // length-delimited mode this backfills the size field of this and all nested
@@ -102,10 +106,7 @@ class PERFETTO_EXPORT_COMPONENT Message {
   void set_size_field(uint8_t* size_field) { size_field_ = size_field; }
 
   // Returns the encoding a new child should inherit.
-  NestedMessageEncoding nested_message_encoding() const {
-    return uses_proto_group() ? NestedMessageEncoding::kProtoGroup
-                              : NestedMessageEncoding::kLengthDelimited;
-  }
+  NestedMessageEncoding nested_message_encoding() const { return encoding_; }
 
   Message* nested_message() { return nested_message_; }
 
@@ -223,10 +224,6 @@ class PERFETTO_EXPORT_COMPONENT Message {
   Message(const Message&) = delete;
   Message& operator=(const Message&) = delete;
 
-  bool uses_proto_group() const {
-    return message_framing_ != MessageFraming::kLengthDelimited;
-  }
-
   Message* BeginNestedMessageInternal(uint32_t field_id);
 
   // Called by Finalize and Append* methods.
@@ -262,7 +259,10 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // [optional] Pointer to a non-aligned pre-reserved var-int slot of
   // kMessageLengthFieldSize bytes. When set, the Finalize() method will write
   // the size of proto-encoded message in the pointed memory region.
-  // Proto-group messages do not reserve a length, so this remains null.
+  //
+  // In proto-group mode, a nested message ends with a closing byte and the
+  // root ends at the packet boundary. Neither writes a length before its
+  // contents, so there is no length field to fill in later.
   uint8_t* size_field_;
 
   // Keeps track of the size of the current message.
@@ -282,18 +282,32 @@ class PERFETTO_EXPORT_COMPONENT Message {
 
   MessageState message_state_;
 
-  // Framing of this message. Proto-group needs two values because only a nested
-  // message writes a close byte. The packet framing closes the root.
-  //
-  // There is no separate encoding member. nested_message_encoding() derives the
-  // child encoding from this field.
-  enum class MessageFraming : uint8_t {
-    kLengthDelimited,
-    kProtoGroupRoot,
-    kProtoGroupNested,
-  };
+  // Selected by the root and inherited by every nested message.
+  NestedMessageEncoding encoding_;
 
-  MessageFraming message_framing_;
+  // Whether this message is the root of the packet. In proto-group mode:
+  //
+  // - Root: the caller supplies the packet's boundaries to the rewriter.
+  //   There is no start-group tag for the root, so Finalize() must not append
+  //   an end byte. The rewriter would reject it as an unmatched closing byte.
+  //
+  // - Nested message: the parent writes a start-group tag. Finalize() must
+  //   append an end byte to mark where the child's fields stop, so later
+  //   fields can be read as part of the parent again.
+  //
+  // Example: a root packet containing just one nested message:
+  //
+  //   packet begins                            packet ends
+  //        |                                        |
+  //        v                                        v
+  //        +-------------+----------------+---------+
+  //        | START child | child's fields | END     |
+  //        +-------------+----------------+---------+
+  //
+  // END closes the child. No additional byte closes the root.
+  // Both messages use the same encoding, so we need is_root_ to tell them
+  // apart.
+  bool is_root_;
 
 #if PERFETTO_DCHECK_IS_ON()
   // Current generation of message. Incremented on Reset.

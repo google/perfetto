@@ -47,6 +47,7 @@ using Internals = test::SharedRingBufferInternalsForTest;
 constexpr WriterID kWriterA = 3;
 constexpr BufferID kBufferA = 11;
 
+// Test stand-in for downstream acknowledgement, without a service.
 class CountingDelegate : public TraceWriterV2::Delegate {
  public:
   explicit CountingDelegate(SharedRingBuffer& ring) : ring_buffer_(ring) {}
@@ -211,6 +212,64 @@ TEST(TraceWriterV2Test, MessageHandleDestructionPublishesThePacket) {
   const std::vector<protos::gen::TracePacket> packets = f.reassembler.Decode();
   ASSERT_EQ(packets.size(), 1u);
   EXPECT_EQ(packets[0].timestamp(), 4242u);
+}
+
+TEST(TraceWriterV2Test, DirectFinalizationThenFlushClosesFragmentOnce) {
+  Fixture f;
+  {
+    auto packet = f.writer->NewTracePacket();
+    packet->set_timestamp(42);
+    packet->Finalize();
+    // Message finalization alone has not closed the ring fragment.
+    EXPECT_EQ(f.delegate->notifications, 0u);
+    f.writer->Flush();
+    EXPECT_EQ(f.delegate->notifications, 1u);
+    f.reader.Drain(64);
+  }
+  // Handle destruction must not publish the same fragment again.
+  f.writer->Flush();
+  f.reader.Drain(64);
+  EXPECT_EQ(f.delegate->notifications, 1u);
+  const auto packets = f.reassembler.Decode();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].timestamp(), 42u);
+  EXPECT_EQ(f.writer->drop_count(), 0u);
+}
+
+TEST(TraceWriterV2Test, DirectFinalizationThenNewPacket) {
+  Fixture f;
+  {
+    auto packet = f.writer->NewTracePacket();
+    packet->set_timestamp(1);
+    packet->Finalize();
+  }
+  {
+    auto packet = f.writer->NewTracePacket();
+    packet->set_timestamp(2);
+  }
+  f.writer->Flush();
+  f.reader.Drain(64);
+  const auto packets = f.reassembler.Decode();
+  ASSERT_EQ(packets.size(), 2u);
+  EXPECT_EQ(packets[0].timestamp(), 1u);
+  EXPECT_EQ(packets[1].timestamp(), 2u);
+  EXPECT_EQ(f.delegate->notifications, 2u);
+}
+
+TEST(TraceWriterV2Test, RawStreamRequiresExplicitCompletion) {
+  Fixture f;
+  auto packet = f.writer->NewTracePacket();
+  auto* stream = packet.TakeStreamWriter();
+  stream->WriteByte(0x40);  // TracePacket.timestamp = 7.
+  stream->WriteByte(0x07);
+  EXPECT_EQ(f.delegate->notifications, 0u);
+  f.writer->FinishTracePacket();
+  f.writer->Flush();
+  f.reader.Drain(64);
+  const auto packets = f.reassembler.Decode();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].timestamp(), 7u);
+  EXPECT_EQ(f.delegate->notifications, 1u);
 }
 
 TEST(TraceWriterV2Test, WrittenIncludesOpenAndDroppedPacketBytes) {
@@ -389,10 +448,12 @@ TEST(TraceWriterV2Test, AnAcquisitionThatBurnedPositionsNotifiesImmediately) {
   const uint32_t being_written =
       MakeDataStateWord(ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer,
                         0, 0, kWriterA + 1);
-  for (uint32_t i = 0; i < ring->num_chunks(); ++i) {
-    ASSERT_TRUE(ring->TryAcquireChunkForWriting(i, being_written));
+  for (uint32_t chunk_pos = 0; chunk_pos < ring->num_chunks(); ++chunk_pos) {
+    ASSERT_TRUE(ring->TryAcquireChunkForWriting(chunk_pos, being_written));
+    const auto chunk_idx =
+        ChunkIndex::FromPosition(chunk_pos, ring->num_chunks());
     uint32_t observed = being_written;
-    ASSERT_TRUE(ring->TryRequestRewrite(i, &observed));
+    ASSERT_TRUE(ring->TryRequestRewrite(chunk_idx, &observed));
   }
 
   TraceWriterV2::InitArgs args;
@@ -472,10 +533,11 @@ TEST(TraceWriterV2Test, ScrapeDuringAnOpenPacketProducesOneCanonicalPacket) {
     packet->set_timestamp(2);
     // The reader arrives while this packet is still being written and takes
     // the prefix the writer has already published, which is the first packet.
-    ASSERT_EQ(ChunkStateOf(f.ring->LoadChunkStateWord(0)),
-              ChunkState::kBeingWritten);
-    EXPECT_EQ(Internals::ResolveNextPosition(&f.reader),
-              SharedRingBufferReader::ResolveResult::kChunkRead);
+    ASSERT_EQ(
+        ChunkStateOf(f.ring->LoadChunkStateWord(ChunkIndex::FromIndex(0))),
+        ChunkState::kBeingWritten);
+    EXPECT_EQ(Internals::ConsumeNextPosition(&f.reader),
+              SharedRingBufferReader::ConsumeResult::kChunkRead);
     EXPECT_EQ(f.reader.GetStats().rewrite_requests, 1u);
     packet->set_trusted_packet_sequence_id(5);
   }
@@ -648,6 +710,33 @@ TEST(TraceWriterV2Test, FlushIsForwardedToTheDelegate) {
 }
 
 #if defined(GTEST_HAS_DEATH_TEST)
+
+TEST(TraceWriterV2DeathTest, RawStreamRemainsUnfinishedWithoutPacketEnd) {
+  Fixture f;
+  auto packet = f.writer->NewTracePacket();
+  auto* stream = packet.TakeStreamWriter();
+  stream->WriteByte(0x40);
+  stream->WriteByte(0x07);
+  EXPECT_DEATH(f.writer->Flush(), "packet_open_");
+  EXPECT_DEATH(f.writer->NewTracePacket(), "packet_open_");
+  f.writer->FinishTracePacket();
+}
+
+TEST(TraceWriterV2DeathTest, StaleStreamWriteIsDiagnosed) {
+  Fixture f;
+  auto packet = f.writer->NewTracePacket();
+  auto* stream = packet.TakeStreamWriter();
+  f.writer->FinishTracePacket();
+  f.writer->Flush();  // Clears the stream's cached range.
+#if PERFETTO_DCHECK_IS_ON()
+  EXPECT_DEATH(stream->WriteByte(0), "write outside an open packet");
+#else
+  stream->WriteByte(0);
+  EXPECT_EQ(f.writer->drop_count(), 1u);
+  auto next = f.writer->NewTracePacket();
+  next->set_timestamp(42);
+#endif
+}
 
 TEST(TraceWriterV2DeathTest, NewPacketRequiresThePreviousHandleToClose) {
   Fixture f;

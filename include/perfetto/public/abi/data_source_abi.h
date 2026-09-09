@@ -360,8 +360,9 @@ PERFETTO_SDK_EXPORT void PerfettoDsImplTraceIterateBreak(
 // used to write data to the packet. The caller must use
 // PerfettoDsTracerImplPacketEnd() when done.
 //
-// This function only supports length-delimited writers. New callers should use
-// PerfettoDsTracerImplPacketBeginWithEncoding().
+// Only supports length-delimited writers. Aborts for ProtoGroup writers
+// selected by DataSourceConfig.use_tracing_v2.
+// Use PerfettoDsTracerImplPacketBeginWithEncoding() for new callers.
 PERFETTO_SDK_EXPORT struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
     struct PerfettoDsTracerImpl* tracer);
 
