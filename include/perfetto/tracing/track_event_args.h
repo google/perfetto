@@ -40,7 +40,7 @@ class FlowImpl {
   static PERFETTO_ALWAYS_INLINE inline FlowImpl ProcessScoped(
       uint64_t flow_id,
       const char* named_scope) {
-    return Global(flow_id, named_scope);
+    return Global(flow_id ^ Track::process_uuid, named_scope);
   }
 
   // Same as above, but construct an id from a pointer.
