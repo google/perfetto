@@ -304,13 +304,6 @@
   }
 }
 
-.pf-hde-link--alt {
-  color: var(--pf-color-primary);
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
 .pf-hde-badge-reachability {
   color: var(--pf-hde-badge-reachability);
   font-size: 0.8125rem;
@@ -338,11 +331,6 @@
 .pf-hde-download-link {
   font-size: 0.875rem;
   line-height: 1.25rem;
-  color: var(--pf-color-primary);
-  cursor: pointer;
-  &:hover {
-    text-decoration: underline;
-  }
 }
 
 .pf-hde-path-arrow {
@@ -450,7 +438,7 @@
 }
 
 .pf-hde-col-header__info {
-  color: var(--pf-color-fg-muted, #888);
+  color: var(--pf-color-text-muted);
   font-size: 14px;
   cursor: help;
   opacity: 0;
@@ -462,5 +450,5 @@
 }
 
 .pf-hde-col-header__info:hover {
-  color: var(--pf-color-fg, #333);
+  color: var(--pf-color-text);
 }

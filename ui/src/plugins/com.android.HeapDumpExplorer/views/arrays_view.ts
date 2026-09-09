@@ -31,6 +31,7 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -61,9 +62,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('object', {id, label: display}),
           },
           display,

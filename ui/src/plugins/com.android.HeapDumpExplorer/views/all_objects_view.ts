@@ -31,6 +31,7 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
@@ -81,9 +82,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const str = row.str != null ? String(row.str) : null;
         return m('span', [
           m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {id, label: str ? `"${str}"` : display}),
             },

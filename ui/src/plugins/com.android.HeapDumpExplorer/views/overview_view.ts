@@ -35,6 +35,7 @@ import {
   OOME_DETAILS_TITLE,
   renderOomeDetailsGrid,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
+import {Anchor} from '../../../widgets/anchor';
 
 const HEAP_SCHEMA: ColumnSchema = {
   heap: {
@@ -69,9 +70,8 @@ function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue, row) =>
         m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () =>
               navigate('bitmaps', {
                 filterKey: String(row.groupKey ?? ''),
@@ -100,9 +100,8 @@ function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
         m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('objects', {cls: String(value ?? '')}),
           },
           String(value ?? ''),
@@ -117,9 +116,8 @@ function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue, row) =>
         m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () =>
               navigate('arrays', {
                 arrayHash: String(row.arrayHash ?? ''),
@@ -168,9 +166,8 @@ function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue, row) =>
         m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('strings', {q: String(row.value ?? '')}),
           },
           String(value),
@@ -210,9 +207,8 @@ function renderDuplicateSection(
       m('span', {class: 'pf-hde-mono pf-hde-semibold'}, fmtSize(totalWasted)),
       '. ',
       m(
-        'button',
+        Anchor,
         {
-          class: 'pf-hde-link--alt',
           onclick: () => navigate(targetView as NavState['view']),
         },
         linkLabel,
