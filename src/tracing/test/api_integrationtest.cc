@@ -7138,8 +7138,8 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   data_source->on_start.Wait();
 
   // Block the relay so A's barrier can't finish, then leave a consumer flush
-  // stuck behind it. SyncProducers() first: the relay handle is read without
-  // a lock and is only safe to read once the muxer has finished the setup.
+  // stuck behind it. SyncProducers() establishes that setup is complete; the
+  // relay itself is obtained through an atomic shared-pointer snapshot.
   perfetto::test::SyncProducers();
   WaitableTestEvent relay_blocked;
   WaitableTestEvent release_relay;
@@ -7155,7 +7155,15 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
     ctx.NewTracePacket()->set_for_testing()->set_str("connection A");
     ctx.Flush();
   });
+  data_source->on_flush.Reset();
   session_a->get()->Flush([](bool) {}, /*timeout_ms=*/30000);
+  // OnFlush proves the request reached ProducerImpl. The following muxer task
+  // runs after it has queued the ring drain behind the blocked relay.
+  data_source->on_flush.Wait();
+  WaitableTestEvent flush_queued;
+  perfetto::test::TracingMuxerImplInternalsForTest::PostToMuxerSequence(
+      [&flush_queued] { flush_queued.Notify(); });
+  flush_queued.Wait();
 
   // Kills the connection while the writer, the barrier and the flush are all
   // pending.
@@ -7607,65 +7615,34 @@ TEST_P(PerfettoStartupTracingApiTest, CompatibleConfig) {
   EXPECT_THAT(slices, ElementsAre("B:foo.Event", "E"));
 }
 
-TEST_P(PerfettoStartupTracingApiTest, TracingV2DoesNotAdoptV1StartupInstance) {
+// An unresolved v1 startup reservation can defer bridge commits past a v2 stop
+// acknowledgement. This temporary adapter rejects sharing that connection.
+TEST_P(PerfettoStartupTracingApiTest, TracingV2RejectsV1StartupConnection) {
   using Internals = perfetto::test::TracingMuxerImplInternalsForTest;
   if (!Internals::SupportsTracingV2())
     GTEST_SKIP() << "The tracing v2 ring needs a futex on this platform";
 
-  SetupStartupTracing();
-  TRACE_EVENT_BEGIN("test", "StartupEvent");
-
-  perfetto::TraceConfig cfg;
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_use_tracing_v2(true);
-  perfetto::protos::gen::TrackEventConfig te_cfg;
-  te_cfg.add_disabled_categories("*");
-  te_cfg.add_enabled_categories("test");
-  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
-
-  auto* tracing_session = NewTrace(cfg);
-  tracing_session->get()->StartBlocking();
-  // TrackEvent does not acknowledge start. Wait until the producer has
-  // processed the new instance before inspecting its state.
-  perfetto::test::SyncProducers();
-
-  // Inspect the muxer state directly: the trace looks the same whether the
-  // instance went through v2 or was silently downgraded to v1.
-  WaitableTestEvent checked_instances;
-  Internals::PostToMuxerSequence([&] {
-    auto* static_state =
-        perfetto::DataSourceHelper<
-            perfetto::internal::TrackEventDataSource,
-            perfetto::internal::TrackEventDataSourceTraits>::type()
-            .static_state();
-    size_t startup_instances = 0;
-    size_t service_instances = 0;
-    for (size_t i = 0; i < perfetto::internal::kMaxDataSourceInstances; ++i) {
-      auto* state = static_state->TryGet(i);
-      if (!state)
-        continue;
-      if (state->startup_target_buffer_reservation.load()) {
-        ++startup_instances;
-        EXPECT_EQ(state->data_source_instance_id, 0u);
-        EXPECT_FALSE(state->use_tracing_v2);
-      } else {
-        ++service_instances;
-        EXPECT_NE(state->data_source_instance_id, 0u);
-        EXPECT_TRUE(state->use_tracing_v2);
-      }
-    }
-    EXPECT_EQ(startup_instances, 1u);
-    EXPECT_EQ(service_instances, 1u);
-    checked_instances.Notify();
-  });
-  checked_instances.Wait();
-  AbortStartupTracing();
-
-  TRACE_EVENT_END("test");
-  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
-  EXPECT_THAT(slices, ElementsAre("E"));
+  const std::string previous_style = testing::GTEST_FLAG(death_test_style);
+  testing::GTEST_FLAG(death_test_style) = "threadsafe";
+  EXPECT_DEATH_IF_SUPPORTED(
+      {
+        SetupStartupTracing();
+        TRACE_EVENT_BEGIN("test", "StartupEvent");
+        perfetto::TraceConfig cfg;
+        cfg.add_buffers()->set_size_kb(1024);
+        auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+        ds_cfg->set_name("track_event");
+        ds_cfg->set_use_tracing_v2(true);
+        perfetto::protos::gen::TrackEventConfig te_cfg;
+        te_cfg.add_disabled_categories("*");
+        te_cfg.add_enabled_categories("test");
+        ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+        auto* tracing_session = NewTrace(cfg);
+        tracing_session->get()->StartBlocking();
+        perfetto::test::SyncProducers();
+      },
+      "cannot share a producer connection with startup tracing");
+  testing::GTEST_FLAG(death_test_style) = previous_style;
 }
 
 // Test that a startup tracing session won't be adopted when the config is not

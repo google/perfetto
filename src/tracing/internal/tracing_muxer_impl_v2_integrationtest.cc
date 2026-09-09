@@ -194,10 +194,10 @@ class TracingMuxerImplV2Test : public testing::Test {
     EXPECT_EQ(committed_chunks, 1u);
 
     writer.reset();
-    auto retired = muxer_runner.CreateCheckpoint("retired");
+    auto writer_destroyed = muxer_runner.CreateCheckpoint("writer_destroyed");
     connection.bridge->DrainPendingData(
-        [&] { muxer_runner.PostTask(retired); });
-    muxer_runner.RunUntilCheckpoint("retired");
+        [&] { muxer_runner.PostTask(writer_destroyed); });
+    muxer_runner.RunUntilCheckpoint("writer_destroyed");
     relay->Close().reset();
   }
 
@@ -240,6 +240,24 @@ class TracingMuxerImplV2Test : public testing::Test {
     producer.EnsureTracingV2Connection();
   }
 
+  static void SetupStartupInstanceOnV2Connection() {
+    RunOnMuxerAndWait([](auto* muxer) {
+      for (auto& backend : muxer->producer_backends_) {
+        if (!backend.producer->tracing_v2_connection_)
+          continue;
+        for (const auto& rds : muxer->data_sources_) {
+          if (rds.descriptor.name() != "tracing_v2_flushing")
+            continue;
+          DataSourceConfig config;
+          config.set_name(rds.descriptor.name());
+          muxer->SetupDataSourceImpl(
+              rds, backend.id, backend.producer->connection_id_.load(),
+              /*instance_id=*/0, config, /*startup_session_id=*/1);
+        }
+      }
+    });
+  }
+
   static void WaitForFullRing(tracing_v2::InProcessTracingV2Bridge* bridge) {
     auto* header =
         static_cast<tracing_v2::RingBufferHeader*>(bridge->ring_memory_.Get());
@@ -278,6 +296,18 @@ TEST_F(TracingMuxerImplV2Test, InvalidConfiguredChunkSizeIsFatal) {
       "tracing_v2_chunk_size_bytes=8192 requires at least one chunk to fit in "
       "the shared memory buffer, got 4096 bytes");
   testing::GTEST_FLAG(death_test_style) = previous_death_test_style;
+}
+
+TEST_F(TracingMuxerImplV2Test, StartupReservationPreventsV2Connection) {
+  EXPECT_DEATH_IF_SUPPORTED(
+      {
+        ProducerImpl producer(nullptr, 0, 0, false);
+        // SetupDataSourceImpl increments this before handing out a startup
+        // writer. It remains nonzero after adoption on the same connection.
+        producer.last_startup_target_buffer_reservation_ = 1;
+        producer.EnsureTracingV2Connection();
+      },
+      "cannot share a producer connection with startup tracing");
 }
 
 TEST_F(TracingMuxerImplV2Test, ConnectionCreatesDropWriter) {
@@ -320,7 +350,8 @@ TEST_F(TracingMuxerImplV2Test, ConnectionPreservesInvalidDownstreamWriter) {
 // With a real arbiter, checks that the v1 commit is posted to the muxer before
 // the barrier completion posts its own notification. The muxer runner is only
 // run after each barrier has completed.
-TEST_F(TracingMuxerImplV2Test, BridgeQueuesCommitBeforeControlAndRetirement) {
+TEST_F(TracingMuxerImplV2Test,
+       BridgeQueuesCommitBeforeControlAndWriterDestruction) {
   base::TestTaskRunner muxer_runner;
   auto memory = InProcessSharedMemory::Create(8192);
   auto endpoint = std::make_shared<testing::NiceMock<MockProducerEndpoint>>();
@@ -373,16 +404,17 @@ TEST_F(TracingMuxerImplV2Test, BridgeQueuesCommitBeforeControlAndRetirement) {
   writer.reset();
   completed = false;
   connection.bridge->DrainPendingData([&] {
-    muxer_runner.PostTask([&] { operations.push_back("retired"); });
+    muxer_runner.PostTask([&] { operations.push_back("writer_destroyed"); });
     completed = true;
   });
-  base::WaitableEvent retirement_posted;
-  ASSERT_TRUE(relay->PostTask([&] { retirement_posted.Notify(); }));
-  retirement_posted.Wait();
+  base::WaitableEvent destruction_posted;
+  ASSERT_TRUE(relay->PostTask([&] { destruction_posted.Notify(); }));
+  destruction_posted.Wait();
   EXPECT_TRUE(completed);
   muxer_runner.RunUntilIdle();
-  EXPECT_THAT(operations, testing::ElementsAre("commit", "stop", "commit",
-                                               "unregister", "retired"));
+  EXPECT_THAT(operations,
+              testing::ElementsAre("commit", "stop", "commit", "unregister",
+                                   "writer_destroyed"));
   relay->Close().reset();
 }
 
@@ -439,7 +471,7 @@ TEST_F(TracingMuxerImplV2Test, PendingFlushReleasesWriterBeforeEndpoint) {
   EXPECT_FALSE(arbiter->TryShutdown());
 
   auto joining_runner = relay->Close();
-  writer.reset();  // Retirement is rejected, leaving the retained v1 writer.
+  writer.reset();  // The v1 writer stays alive until bridge destruction.
   joining_runner.reset();
   bridge.reset();
   EXPECT_FALSE(weak_bridge.expired());
@@ -848,7 +880,8 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
   }
 
   static bool PostToRelay(std::function<void()> task) {
-    // Same locking caveat as HasTracingV2Relay(): wait for the muxer first.
+    // Establish that setup completed before obtaining the atomic relay
+    // snapshot.
     WaitForMuxerSequence();
     return Internals::PostToTracingV2Relay(std::move(task));
   }
@@ -1186,6 +1219,18 @@ TEST_F(TracingV2InProcessTest, AnInterceptedInstanceWithoutTracingV2IsFine) {
   // The packet went to the interceptor, not to the session's buffer.
   EXPECT_TRUE(TestPackets(StopAndParse(session.get())).empty());
   perfetto::ConsoleInterceptor::SetOutputFdForTesting(STDERR_FILENO);
+}
+
+TEST_F(TracingV2InProcessTest, V2ConnectionRejectsLaterStartupInstance) {
+  const std::string previous_style = testing::GTEST_FLAG(death_test_style);
+  testing::GTEST_FLAG(death_test_style) = "threadsafe";
+  EXPECT_DEATH_IF_SUPPORTED(
+      {
+        PutConnectionOnTracingV2();
+        SetupStartupInstanceOnV2Connection();
+      },
+      "Startup tracing cannot share a producer connection");
+  testing::GTEST_FLAG(death_test_style) = previous_style;
 }
 
 TEST_F(TracingV2InProcessTest, AV2ConfigCreatesTheRelayOnDemand) {
@@ -1580,6 +1625,53 @@ TEST_F(TracingV2InProcessTest, LaterFlushDoesNotAcknowledgeAnOlderOne) {
 // in the same ordered queue. (A connection that never selected v2 keeps the
 // v1 behaviour, where a synchronously completed request is acked at once; see
 // TracingMuxerImplV2Test.NeverV2ConnectionKeepsV1FlushAcks.)
+// The consumer timing out does not cancel the producer's outstanding callback.
+// Later requests remain queued until that callback completes (or its source
+// stops).
+TEST_F(TracingV2InProcessTest, TimedOutFlushStillBlocksLaterProducerRequests) {
+  RunInFreshProcess([] {
+    auto older = StartSession(
+        MakeConfigFor({"tracing_v2_async_flush"}, WriterSelection::kV2));
+    auto newer = StartSession(
+        MakeConfigFor({"tracing_v2_flushing"}, WriterSelection::kV2));
+    base::WaitableEvent held;
+    base::WaitableEvent timed_out;
+    TracingV2AsyncFlushDataSource::hold_next_flush.store(&held);
+    older->Flush(
+        [&](bool success) {
+          EXPECT_FALSE(success);
+          timed_out.Notify();
+        },
+        /*timeout_ms=*/1);
+    held.Wait();
+    timed_out.Wait();
+    EXPECT_EQ(PendingFlushCount(), 1u);
+
+    base::WaitableEvent newer_handled;
+    base::WaitableEvent newer_completed;
+    std::atomic<bool> acknowledged{false};
+    TracingV2FlushingDataSource::on_flush_done.store(&newer_handled);
+    newer->Flush(
+        [&](bool success) {
+          EXPECT_TRUE(success);
+          acknowledged.store(true);
+          newer_completed.Notify();
+        },
+        /*timeout_ms=*/30000);
+    newer_handled.Wait();
+    WaitForMuxerSequence();
+    EXPECT_EQ(PendingFlushCount(), 2u);
+    EXPECT_FALSE(acknowledged.load());
+    TracingV2FlushingDataSource::on_flush_done.store(nullptr);
+
+    TracingV2AsyncFlushDataSource::CompleteHeldFlush();
+    newer_completed.Wait();
+    EXPECT_EQ(PendingFlushCount(), 0u);
+    newer->StopBlocking();
+    older->StopBlocking();
+  });
+}
+
 TEST_F(TracingV2InProcessTest, V1FlushesOnAV2ConnectionAreFifo) {
   PutConnectionOnTracingV2();
   CheckFlushFifo(WriterSelection::kV1);
@@ -2002,7 +2094,13 @@ TEST_F(TracingV2InProcessTest, ShutdownAfterV2UseJoinsAcceptedRelayWork) {
     // thread once the relay stops accepting tasks, i.e. once Shutdown() has
     // closed it.
     std::thread releaser([&] {
+      const auto deadline =
+          std::chrono::steady_clock::now() + std::chrono::seconds(30);
       while (Internals::PostToTracingV2Relay([] {})) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+          ADD_FAILURE() << "Shutdown did not close the tracing v2 relay";
+          break;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
       release_relay.Notify();

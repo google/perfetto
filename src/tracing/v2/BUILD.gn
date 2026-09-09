@@ -15,8 +15,8 @@
 import("../../../gn/fuzzer.gni")
 import("../../../gn/test.gni")
 
-# The permanent tracing v2 protocol: the shared ring and its ABI, the writer half
-# of the chunk protocol, the single-consumer reader, and the proto-group
+# The permanent tracing v2 protocol: the shared ring buffer and its ABI, the
+# writer half of the chunk protocol, the single-consumer reader, and the proto-group
 # encoding used between TraceWriterV2 and ProtoRewriter. See
 # https://github.com/google/perfetto/discussions/7120 (RFC 0046) and
 # https://github.com/google/perfetto/discussions/4508 (RFC 0014) for the design.
@@ -50,7 +50,7 @@ source_set("v2") {
   ]
 }
 
-# Temporary SDK-side forwarding through v1 until traced reads the ring itself.
+# Temporary SDK-side forwarding through v1 until traced reads the ring buffer.
 source_set("in_process_adapter") {
   public_deps = [ ":v2" ]
   deps = [

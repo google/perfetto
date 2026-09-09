@@ -5284,11 +5284,12 @@ class Utsname(_message.Message):
     def __init__(self, sysname: _Optional[str] = ..., version: _Optional[str] = ..., release: _Optional[str] = ..., machine: _Optional[str] = ...) -> None: ...
 
 class SystemInfo(_message.Message):
-    __slots__ = ("utsname", "android_build_fingerprint", "android_device_manufacturer", "android_soc_model", "android_guest_soc_model", "android_hardware_revision", "android_storage_model", "android_ram_model", "android_serial_console", "tracing_service_version", "android_sdk_version", "page_size", "num_cpus", "timezone_off_mins", "hz", "system_ram_bytes", "machine_name")
+    __slots__ = ("utsname", "android_build_fingerprint", "android_device_manufacturer", "android_soc_model", "device_tree_compatibles", "android_guest_soc_model", "android_hardware_revision", "android_storage_model", "android_ram_model", "android_serial_console", "tracing_service_version", "android_sdk_version", "page_size", "num_cpus", "timezone_off_mins", "hz", "system_ram_bytes", "machine_name")
     UTSNAME_FIELD_NUMBER: _ClassVar[int]
     ANDROID_BUILD_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
     ANDROID_DEVICE_MANUFACTURER_FIELD_NUMBER: _ClassVar[int]
     ANDROID_SOC_MODEL_FIELD_NUMBER: _ClassVar[int]
+    DEVICE_TREE_COMPATIBLES_FIELD_NUMBER: _ClassVar[int]
     ANDROID_GUEST_SOC_MODEL_FIELD_NUMBER: _ClassVar[int]
     ANDROID_HARDWARE_REVISION_FIELD_NUMBER: _ClassVar[int]
     ANDROID_STORAGE_MODEL_FIELD_NUMBER: _ClassVar[int]
@@ -5306,6 +5307,7 @@ class SystemInfo(_message.Message):
     android_build_fingerprint: str
     android_device_manufacturer: str
     android_soc_model: str
+    device_tree_compatibles: _containers.RepeatedScalarFieldContainer[str]
     android_guest_soc_model: str
     android_hardware_revision: str
     android_storage_model: str
@@ -5319,7 +5321,7 @@ class SystemInfo(_message.Message):
     hz: int
     system_ram_bytes: int
     machine_name: str
-    def __init__(self, utsname: _Optional[_Union[Utsname, _Mapping]] = ..., android_build_fingerprint: _Optional[str] = ..., android_device_manufacturer: _Optional[str] = ..., android_soc_model: _Optional[str] = ..., android_guest_soc_model: _Optional[str] = ..., android_hardware_revision: _Optional[str] = ..., android_storage_model: _Optional[str] = ..., android_ram_model: _Optional[str] = ..., android_serial_console: _Optional[str] = ..., tracing_service_version: _Optional[str] = ..., android_sdk_version: _Optional[int] = ..., page_size: _Optional[int] = ..., num_cpus: _Optional[int] = ..., timezone_off_mins: _Optional[int] = ..., hz: _Optional[int] = ..., system_ram_bytes: _Optional[int] = ..., machine_name: _Optional[str] = ...) -> None: ...
+    def __init__(self, utsname: _Optional[_Union[Utsname, _Mapping]] = ..., android_build_fingerprint: _Optional[str] = ..., android_device_manufacturer: _Optional[str] = ..., android_soc_model: _Optional[str] = ..., device_tree_compatibles: _Optional[_Iterable[str]] = ..., android_guest_soc_model: _Optional[str] = ..., android_hardware_revision: _Optional[str] = ..., android_storage_model: _Optional[str] = ..., android_ram_model: _Optional[str] = ..., android_serial_console: _Optional[str] = ..., tracing_service_version: _Optional[str] = ..., android_sdk_version: _Optional[int] = ..., page_size: _Optional[int] = ..., num_cpus: _Optional[int] = ..., timezone_off_mins: _Optional[int] = ..., hz: _Optional[int] = ..., system_ram_bytes: _Optional[int] = ..., machine_name: _Optional[str] = ...) -> None: ...
 
 class TraceStats(_message.Message):
     __slots__ = ("buffer_stats", "chunk_payload_histogram_def", "writer_stats", "producers_connected", "producers_seen", "data_sources_registered", "data_sources_seen", "tracing_sessions", "total_buffers", "chunks_discarded", "patches_discarded", "invalid_packets", "filter_stats", "flushes_requested", "flushes_succeeded", "flushes_failed", "final_flush_outcome")

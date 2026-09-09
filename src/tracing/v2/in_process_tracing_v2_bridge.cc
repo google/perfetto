@@ -47,6 +47,11 @@ constexpr size_t kMaxPacketSize = protozero::proto_utils::kMaxMessageLength;
 // Match the maximum v1 SMB size.
 constexpr uint64_t kMaxChunkStorage = 32 * 1024 * 1024;
 
+void AddDataLoss(uint32_t* pending_data_loss, uint32_t reason = 0) {
+  // Accumulate loss reasons until a packet reaches v1.
+  *pending_data_loss |= TracePacket::DATA_LOSS_PRESENT | reason;
+}
+
 }  // namespace
 
 // static
@@ -57,7 +62,7 @@ uint32_t InProcessTracingV2Bridge::NumChunksForCapacity(size_t capacity_bytes,
   if (chunks_that_fit == 0)
     return 0;
 
-  // Limit the ring to SharedRingBuffer's maximum chunk count.
+  // Limit the ring buffer to SharedRingBuffer's maximum chunk count.
   const uint64_t capped =
       std::min<uint64_t>(chunks_that_fit, kMaxChunksPerRing);
 
@@ -81,8 +86,8 @@ std::shared_ptr<InProcessTracingV2Bridge> InProcessTracingV2Bridge::Create(
   // This also keeps the size_t cast below safe on 32-bit.
   PERFETTO_CHECK(chunk_storage <= kMaxChunkStorage);
   const uint64_t ring_size = uint64_t{sizeof(RingBufferHeader)} + chunk_storage;
-  // Zero-filled memory is a valid empty ring: positions at 0, all chunks in
-  // Free(0).
+  // Zero-filled memory is a valid empty ring buffer: positions at 0, all chunks
+  // in Free(0).
   base::PagedMemory ring_memory =
       base::PagedMemory::Allocate(static_cast<size_t>(ring_size));
   return std::shared_ptr<InProcessTracingV2Bridge>(new InProcessTracingV2Bridge(
@@ -110,23 +115,23 @@ std::unique_ptr<TraceWriter> InProcessTracingV2Bridge::CreateTraceWriter(
     std::unique_ptr<TraceWriter> v1_writer,
     BufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {
-  PERFETTO_CHECK(v1_writer);
   const WriterID writer_id = v1_writer->writer_id();
-  // WriterID 0 does not identify a usable downstream writer, so keep it on v1.
+  // WriterID 0 is an unusable writer returned after downstream allocation
+  // fails.
   if (writer_id == 0)
     return v1_writer;
 
   // Keep the v1 writer for the relay, indexed by its existing WriterID.
+  auto state = std::unique_ptr<WriterState>(new WriterState());
+  state->v1_writer = std::move(v1_writer);
+  state->target_buffer = target_buffer;
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto state = std::unique_ptr<WriterState>(new WriterState());
-    state->v1_writer = std::move(v1_writer);
-    state->target_buffer = target_buffer;
     const auto inserted = writers_.Insert(writer_id, std::move(state));
     PERFETTO_CHECK(inserted.second);
   }
 
-  // Publish into the ring with the same WriterID.
+  // Publish into the ring buffer with the same WriterID.
   TraceWriterV2::InitArgs args{};
   args.delegate = shared_from_this();
   args.writer_id = writer_id;
@@ -135,7 +140,7 @@ std::unique_ptr<TraceWriter> InProcessTracingV2Bridge::CreateTraceWriter(
   return std::unique_ptr<TraceWriter>(new TraceWriterV2(args));
 }
 
-// --- Ring data path. ---
+// --- TraceWriterV2::Delegate: SDK writer threads. ---
 
 SharedRingBuffer& InProcessTracingV2Bridge::ring_buffer() {
   return ring_buffer_;
@@ -143,9 +148,9 @@ SharedRingBuffer& InProcessTracingV2Bridge::ring_buffer() {
 
 void InProcessTracingV2Bridge::NotifyReader() {
   // Coalesce notifications into one relay task. The exchanges make each
-  // writer's ring updates visible to the drain. The task clears the flag before
-  // draining so later writes can schedule another pass. A failed post leaves
-  // the flag set.
+  // writer's ring buffer updates visible to the drain. The task clears the flag
+  // before draining so later writes can schedule another pass. A failed post
+  // leaves the flag set.
   if (drain_scheduled_.exchange(true, std::memory_order_acq_rel))
     return;
   relay_->PostTask([self = shared_from_this()] {
@@ -157,11 +162,14 @@ void InProcessTracingV2Bridge::NotifyReader() {
   });
 }
 
-// Continuation flags join the last fragment of one chunk to the first of the
-// next:
+// --- SharedRingBufferReader::Delegate: relay sequence. ---
+
+// Continuation joins chunks from the same WriterID. Other writers may reserve
+// positions between them:
 //
-//   chunk k   : [ frag a | frag b | frag c... ]  flags: ContinuesOnNext
-//   chunk k+1 : [ ...frag c | frag d ]           flags: ContinuesFromPrev
+//   writer A, earlier chunk: [ frag a | frag b... ]  ContinuesOnNext
+//   writer B:                [ another packet ]
+//   writer A, next chunk:    [ ...frag b | frag c ]  ContinuesFromPrev
 void InProcessTracingV2Bridge::OnChunkRead(
     const SharedRingBufferReader::ChunkContents& contents) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -180,7 +188,9 @@ void InProcessTracingV2Bridge::OnChunkRead(
   }
 
   if ((contents.payload_flags & kFlagDataLoss) != 0) {
-    AddDataLoss(state, TracePacket::DATA_LOSS_SMB_FULL);
+    // The v2 ring buffer is shared-memory buffering too, so reuse the existing
+    // reason.
+    AddDataLoss(&state->pending_data_loss, TracePacket::DATA_LOSS_SMB_FULL);
   }
 
   for (uint32_t i = 0; i < contents.num_fragments; ++i) {
@@ -195,36 +205,35 @@ void InProcessTracingV2Bridge::OnChunkRead(
     if (!continues_from_prev) {
       // A promised continuation did not arrive.
       if (state->expecting_continuation) {
-        AddDataLoss(state, TracePacket::DATA_LOSS_REASSEMBLY_GAP);
+        AddDataLoss(&state->pending_data_loss,
+                    TracePacket::DATA_LOSS_REASSEMBLY_GAP);
       }
       state->partial_packet.clear();
       state->discarding_packet = false;
     } else if (!state->expecting_continuation) {
       // The packet's first fragment did not arrive.
       state->discarding_packet = true;
-      AddDataLoss(state, TracePacket::DATA_LOSS_ORPHAN_CONTINUATION);
+      AddDataLoss(&state->pending_data_loss,
+                  TracePacket::DATA_LOSS_ORPHAN_CONTINUATION);
     }
 
+    PERFETTO_DCHECK(state->partial_packet.size() <= kMaxPacketSize);
     if (!state->discarding_packet &&
         fragment.size > kMaxPacketSize - state->partial_packet.size()) {
       state->discarding_packet = true;
-      AddDataLoss(state);
+      AddDataLoss(&state->pending_data_loss);
     }
-    if (!state->discarding_packet) {
-      state->partial_packet.insert(state->partial_packet.end(), fragment.data,
-                                   fragment.data + fragment.size);
-    }
-
     state->expecting_continuation = continues_on_next;
-    if (continues_on_next)
-      continue;
-
     if (state->discarding_packet) {
       state->partial_packet.clear();
-      state->discarding_packet = false;
+      state->discarding_packet = continues_on_next;
       continue;
     }
-    ForwardPacket(state);
+
+    state->partial_packet.insert(state->partial_packet.end(), fragment.data,
+                                 fragment.data + fragment.size);
+    if (!continues_on_next)
+      ForwardPacket(state);
   }
 }
 
@@ -251,13 +260,8 @@ void InProcessTracingV2Bridge::DiscardCurrentPacket(WriterState* state) {
   // until a fragment that starts a new packet shows up.
   state->expecting_continuation = false;
   state->discarding_packet = true;
-  AddDataLoss(state, TracePacket::DATA_LOSS_CHUNK_CORRUPTED);
-}
-
-void InProcessTracingV2Bridge::AddDataLoss(WriterState* state,
-                                           uint32_t reason) {
-  // Accumulate loss reasons until a packet reaches v1.
-  state->pending_data_loss |= TracePacket::DATA_LOSS_PRESENT | reason;
+  AddDataLoss(&state->pending_data_loss,
+              TracePacket::DATA_LOSS_CHUNK_CORRUPTED);
 }
 
 void InProcessTracingV2Bridge::ForwardPacket(WriterState* state) {
@@ -268,15 +272,17 @@ void InProcessTracingV2Bridge::ForwardPacket(WriterState* state) {
   const uint8_t* const end = begin ? begin + packet_bytes.size() : nullptr;
   const RewriteResult rewrite_result = RewriteProtoGroupToLengthDelimited(
       begin, end, &rewritten_packet_, kMaxPacketSize);
+
   state->partial_packet.clear();
   switch (rewrite_result) {
     case RewriteResult::kSuccess:
       break;
     case RewriteResult::kMalformedInput:
-      AddDataLoss(state, TracePacket::DATA_LOSS_CHUNK_CORRUPTED);
+      AddDataLoss(&state->pending_data_loss,
+                  TracePacket::DATA_LOSS_CHUNK_CORRUPTED);
       return;
     case RewriteResult::kOutputTooLarge:
-      AddDataLoss(state);
+      AddDataLoss(&state->pending_data_loss);
       return;
   }
 
@@ -296,11 +302,12 @@ void InProcessTracingV2Bridge::ForwardPacket(WriterState* state) {
   state->has_unflushed_v1_data = true;
 }
 
-// --- Control barriers. ---
+// --- Barrier submission: muxer and SDK writer threads. ---
 
 void InProcessTracingV2Bridge::DrainPendingData(
     std::function<void()> completion) {
-  // Keep a copy so a closed relay can run |completion| inline.
+  // Copy the completion callback into the barrier. If posting fails, invoke
+  // the original callback here.
   const bool queued = EnqueueBarrier(BarrierType::kFlushDirtyWriters,
                                      /*writer_id=*/0, completion);
   if (!queued && completion) {
@@ -310,32 +317,14 @@ void InProcessTracingV2Bridge::DrainPendingData(
 
 void InProcessTracingV2Bridge::Flush(WriterID writer_id,
                                      std::function<void()> callback) {
-  // Keep a copy so a closed relay can complete the flush inline.
-  const bool queued =
-      EnqueueBarrier(BarrierType::kFlushWriter, writer_id, callback);
-  if (!queued && callback) {
-    callback();
-  }
+  // Disconnect may discard a writer flush, but cannot acknowledge its data.
+  EnqueueBarrier(BarrierType::kFlushWriter, writer_id, std::move(callback));
 }
 
 void InProcessTracingV2Bridge::OnWriterDestroyed(WriterID writer_id) {
-  // Writer retirement:
-  // - drains this writer before releasing its v1 writer and WriterID.
-  // - keeps the bridge alive until retirement completes.
-  // - leaves WriterState for bridge destruction if the relay is closed.
-  EnqueueBarrier(BarrierType::kRetireWriter, writer_id, [this, writer_id] {
-    PERFETTO_DCHECK_THREAD(thread_checker_);
-    std::unique_ptr<WriterState> writer_to_destroy;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      std::unique_ptr<WriterState>* const entry = writers_.Find(writer_id);
-      if (!entry)
-        return;
-      writer_to_destroy = std::move(*entry);
-      writers_.Erase(writer_id);
-    }
-    // Destroy outside |mutex_| because the writer can run callbacks.
-  });
+  // The queued task keeps the bridge and WriterID alive until the drain. If
+  // admission is closed, the retained writer dies with the bridge instead.
+  EnqueueBarrier(BarrierType::kDestroyWriter, writer_id, {});
 }
 
 bool InProcessTracingV2Bridge::EnqueueBarrier(
@@ -343,7 +332,10 @@ bool InProcessTracingV2Bridge::EnqueueBarrier(
     WriterID writer_id,
     std::function<void()> completion) {
   Barrier barrier;
-  // Sample before posting so the barrier covers preceding writes.
+  // The caller has synchronized with the writers whose preceding data this
+  // flush/stop covers, so this snapshot includes at least their reservations.
+  // Seeing a newer position only adds work to the barrier. Chunk state, rather
+  // than this position, determines which reservations have published payload.
   barrier.drain_target_pos = ring_buffer_.LoadWritePos();
   barrier.type = type;
   barrier.writer_id = writer_id;
@@ -351,14 +343,14 @@ bool InProcessTracingV2Bridge::EnqueueBarrier(
   return relay_->PostTask(
       [self = shared_from_this(), barrier = std::move(barrier)]() mutable {
         PERFETTO_DCHECK_THREAD(self->thread_checker_);
-        // Barrier IDs belong to the relay sequence.
-        barrier.id = self->next_barrier_id_++;
         self->pending_control_barriers_.push_back(std::move(barrier));
         // The front barrier drives the queue.
         if (self->pending_control_barriers_.size() == 1)
           self->RunFrontBarrier();
       });
 }
+
+// --- Barrier execution: relay sequence. ---
 
 bool InProcessTracingV2Bridge::DrainBarrierBatch(uint32_t target_pos) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -371,57 +363,82 @@ bool InProcessTracingV2Bridge::DrainBarrierBatch(uint32_t target_pos) {
   const uint32_t remaining = static_cast<uint32_t>(positions_to_target);
   const uint32_t batch_size = std::min(remaining, kMaxPositionsPerPass);
   const auto result = ring_buffer_reader_.Drain(batch_size);
-  if (result.positions_resolved == remaining)
+  if (result.positions_consumed == remaining)
     return true;
   if (result.needs_another_drain())
     return false;
 
-  PERFETTO_DFATAL(
-      "Cannot drain malformed tracing v2 ring position. Abandoning barrier");
+  // The reader already logged a latched protocol error. Abandon this barrier
+  // without repeating that diagnostic for every later flush.
+  if (result.last_result ==
+      SharedRingBufferReader::ConsumeResult::kProtocolError) {
+    return true;
+  }
+  PERFETTO_DFATAL("Tracing v2 barrier target is ahead of write_pos");
   return true;
 }
 
 void InProcessTracingV2Bridge::RunFrontBarrier() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  Barrier& barrier = pending_control_barriers_.front();
-  if (DrainBarrierBatch(barrier.drain_target_pos)) {
-    // Explicit flush waits for the downstream ack. Drains and retirement flush
-    // only writers with new data.
-    std::vector<WriterState*> writers;
-    if (barrier.type != BarrierType::kFlushDirtyWriters) {
+  PERFETTO_DCHECK(!pending_control_barriers_.empty());
+  if (!DrainBarrierBatch(pending_control_barriers_.front().drain_target_pos)) {
+    // Yield between batches so one bridge cannot monopolize the relay.
+    relay_->PostTask([self = shared_from_this()] { self->RunFrontBarrier(); });
+    return;
+  }
+
+  // Finish queue bookkeeping before invoking any writer or completion callback.
+  Barrier barrier = std::move(pending_control_barriers_.front());
+  pending_control_barriers_.pop_front();
+  switch (barrier.type) {
+    case BarrierType::kFlushWriter: {
+      // Registration precedes every writer request. The queued destruction
+      // removes the entry after its earlier requests. Even a clean writer must
+      // request an ACK.
       WriterState* state = FindWriterState(barrier.writer_id);
-      if (state && (barrier.type == BarrierType::kFlushWriter ||
-                    state->has_unflushed_v1_data)) {
-        writers.push_back(state);
-      }
-    } else {
-      std::lock_guard<std::mutex> lock(mutex_);
-      for (auto it = writers_.GetIterator(); it; ++it) {
-        if (it.value()->has_unflushed_v1_data)
-          writers.push_back(it.value().get());
-      }
-    }
-
-    for (WriterState* state : writers) {
+      PERFETTO_CHECK(state);
+      state->v1_writer->Flush(std::move(barrier.completion));
       state->has_unflushed_v1_data = false;
-      if (barrier.type == BarrierType::kFlushWriter) {
-        // Complete with the downstream v1 acknowledgement.
-        state->v1_writer->Flush(std::exchange(barrier.completion, {}));
-      } else {
-        state->v1_writer->Flush();
-      }
+      break;
     }
+    case BarrierType::kFlushDirtyWriters: {
+      // Snapshot under the registration lock, but call writers outside it.
+      // Only this sequence removes entries, so their pointers remain valid.
+      std::vector<WriterState*> writers;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (auto it = writers_.GetIterator(); it; ++it) {
+          if (it.value()->has_unflushed_v1_data)
+            writers.push_back(it.value().get());
+        }
+      }
+      for (WriterState* state : writers) {
+        state->v1_writer->Flush();
+        state->has_unflushed_v1_data = false;
+      }
 
-    // With a fully bound arbiter, Flush() posts CommitData before returning, so
-    // the completion below cannot overtake it.
-    //
-    // TODO(sashwinbalaji): An unadopted v1 startup reservation can leave the
-    // arbiter unbound and defer CommitData past the stop ack. This adapter does
-    // not support that case.
-    std::function<void()> completion = std::move(barrier.completion);
-    pending_control_barriers_.pop_front();
-    if (completion)
-      completion();
+      // Startup tracing cannot share this connection, so the bound arbiter
+      // posts CommitData before Flush() returns. The completion's muxer task
+      // lands behind those commits without waiting for their service ACKs.
+      if (barrier.completion)
+        barrier.completion();
+      break;
+    }
+    case BarrierType::kDestroyWriter: {
+      std::unique_ptr<WriterState> state;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto* entry = writers_.Find(barrier.writer_id);
+        PERFETTO_CHECK(entry);
+        state = std::move(*entry);
+        writers_.Erase(barrier.writer_id);
+      }
+      // The drain covered this writer's final chunk. Flush and destroy outside
+      // the lock. The v1 writer retains its WriterID until destruction.
+      if (state->has_unflushed_v1_data)
+        state->v1_writer->Flush();
+      break;
+    }
   }
 
   if (pending_control_barriers_.empty())
@@ -429,13 +446,9 @@ void InProcessTracingV2Bridge::RunFrontBarrier() {
 
   // Yield between batches and barriers. Closing the relay drops this task and
   // leaves the remaining barriers incomplete.
-  const uint64_t barrier_id = pending_control_barriers_.front().id;
-  relay_->PostTask([self = shared_from_this(), barrier_id] {
-    if (!self->pending_control_barriers_.empty() &&
-        self->pending_control_barriers_.front().id == barrier_id) {
-      self->RunFrontBarrier();
-    }
-  });
+  // Only this method removes the front and posts at most one continuation.
+  // Enqueue tasks can append work but cannot advance a non-empty queue.
+  relay_->PostTask([self = shared_from_this()] { self->RunFrontBarrier(); });
 }
 
 }  // namespace perfetto::tracing_v2

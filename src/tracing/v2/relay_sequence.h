@@ -30,10 +30,10 @@ namespace perfetto::tracing_v2 {
 // Wraps the task runner that drains the in-process v2 bridges, adding one
 // thing: a way to stop accepting work before the runner is destroyed.
 //
-// Tasks come from arbitrary SDK threads (ring notifications, writer
+// Tasks come from arbitrary SDK threads (ring buffer notifications, writer
 // destruction), from the muxer sequence (flush and stop barriers) and from the
 // relay itself. Some of them race with Tracing::Shutdown(), e.g. the TLS
-// writers destroyed during shutdown post their own retirement.
+// v2 writers destroyed during shutdown request destruction of their v1 writers.
 //
 // Holding |mutex_| across the post means that a caller either gets its task
 // onto the live runner, or is told that the sequence is closed and has to deal

@@ -237,7 +237,9 @@ message TraceConfig {
     // must fit in the shared memory buffer.
     //
     // The value is fixed when shared memory is set up. Changing it requires the
-    // producer to reconnect. It has no effect on v1 writers.
+    // producer to reconnect. A producer-provided SMB is set up at connection
+    // time, before any TraceConfig, and always uses the default chunk size.
+    // It has no effect on v1 writers. Invalid values reject the trace config.
     optional uint32 tracing_v2_chunk_size_bytes = 4;
   }
 

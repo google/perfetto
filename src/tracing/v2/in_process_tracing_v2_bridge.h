@@ -50,51 +50,51 @@ namespace perfetto::tracing_v2 {
 class InProcessTracingV2BridgeTestPeer;
 
 // Temporary adapter that lets SDK data sources write through the tracing v2
-// ring while traced still only understands the v1 shared memory buffer (SMB).
-// It reads the ring in the producer process and re-emits the packets through
-// ordinary v1 TraceWriters:
+// ring buffer while traced still only understands the v1 shared memory buffer
+// (SMB). It reads the ring buffer in the producer process and re-emits the
+// packets through ordinary v1 TraceWriters. NotifyReader() schedules a
+// coalesced drain on the relay sequence; the other arrows show packet data
+// flow.
 //
-//   producer process
-//   +----------------------------------------------------------------------+
-//   | SDK thread                         relay sequence                    |
-//   |                                                                      |
-//   | TraceWriterV2 -- writes --> v2 ring <-- drains -- RingBufferReader   |
-//   |      |                                                   |           |
-//   |      +-- NotifyReader() -------------------------------> |           |
-//   |                                                          v           |
-//   |                                                 reassemble / rewrite |
-//   |                                                          |           |
-//   |                                                          v           |
-//   |                                                 retained v1 writer   |
-//   +----------------------------------------------------------|-----------+
-//                                                              v
-//                                                        shared v1 SMB
-//                                                              |
-//                                                              v
-//                                                           traced
-//                                                              |
-//                                                              v
-//                                                       session TraceBuffer
+//   Producer process
+//   SDK thread                  Relay sequence
+//   TraceWriterV2 --------------->  v2 ring buffer
+//         |                                |
+//         |                                v
+//         +-- NotifyReader() -> SharedRingBufferReader    -+
+//                                          |               |
+//                                          v               | Temporary
+//                                reassemble / rewrite      | adapter
+//                                          |               | in producer
+//                                          v               |
+//                               retained v1 TraceWriter   -+
+//                                          |
+//                                          v
+//                                    shared v1 SMB
+//                                          |
+//                                          v
+//                                       traced
+//                                          |
+//                                          v
+//                                 session TraceBuffer
 //
-// Once traced reads the ring directly, the reader, the reassembly and the
-// rewriter move there. This class, the relay sequence and the second copy of
-// the data in the SMB go away:
+// Once traced reads the ring buffer directly, the relay sequence, retained
+// v1 writers and extra v1 SMB go away. Reassembly and rewriting move into the
+// service:
 //
-//   producer process                              traced
-//   +--------------------------+                  +------------------------+
-//   | TraceWriterV2 -> v2 ring |----------------->| RingBufferReader       |
-//   +--------------------------+                  |          |             |
-//                                                 |          v             |
-//                                                 | reassemble / rewrite   |
-//                                                 |          |             |
-//                                                 |          v             |
-//                                                 | session TraceBuffer    |
-//                                                 +------------------------+
+//   Producer                                    Tracing service
+//   TraceWriterV2 -> shared v2 ring buffer ----> ring buffer reader
+//                                                   |
+//                                                   v
+//                                           reassemble / rewrite
+//                                                   |
+//                                                   v
+//                                               TraceBuffer
 //
-// The bridge owns the ring memory and its reader, the per-writer reassembly
-// state and one v1 TraceWriter per v2 WriterID. Writer registration is guarded
-// by |mutex_|. Draining, reassembly, v1 forwarding, barriers and retirement
-// run one task at a time on the relay sequence.
+// The bridge owns the ring buffer memory and its reader, the per-writer
+// reassembly state and one v1 TraceWriter per v2 WriterID. Writer registration
+// is guarded by |mutex_|. Draining, reassembly, v1 forwarding and control
+// barriers run one task at a time on the relay sequence.
 //
 // Lifetime: every TraceWriterV2 holds a shared_ptr to its bridge (the bridge
 // is their Delegate), and so does every queued relay task. The last reference
@@ -102,9 +102,11 @@ class InProcessTracingV2BridgeTestPeer;
 // backing those v1 writers alive until then (see |dead_services_|).
 //
 // Shutdown, i.e. after RelaySequence::Close():
-// - New drains complete inline without draining the ring.
-// - New writer retirements are dropped. Nobody waits for them and WriterIDs
-//   are not reused after shutdown.
+// - New internal drains complete inline without draining the ring buffer.
+// - New explicit writer flushes discard their callbacks without
+//   acknowledgement.
+// - New writer destruction requests are dropped. Nobody waits for them.
+//   WriterIDs are not reused after shutdown.
 // - Tasks queued before the close may still run while the task runner is being
 //   destroyed. A drain accepted before the close may not finish if its next
 //   batch is posted after the close.
@@ -115,16 +117,25 @@ class InProcessTracingV2Bridge
  public:
   static constexpr uint32_t kDefaultChunkSize = 256;
 
-  // Each writer allocates chunk-sized scratch buffers, so cap the chunk size
-  // independently of the ring size. 32 KB matches the max v1 SMB page size.
-  static constexpr uint32_t kMaxChunkSize = 32 * 1024;
+  // Bounds per-writer scratch for configured writers; matches the v1 page
+  // limit. Keep in sync with kMaxTracingV2ChunkSize in
+  // src/tracing/service/tracing_service_impl.cc.
+  // TODO(sashwinbalaji): Consider a common internal header under src/tracing/
+  // if this policy is needed beyond the temporary adapter.
+  static constexpr uint32_t kMaxConfiguredChunkSize = 32 * 1024;
 
   // Largest power-of-two number of chunks that fits in |capacity_bytes|, or 0
-  // if not even one fits. Power of two because the ring masks positions by
-  // the chunk count.
+  // if not even one fits. Power of two because the ring buffer masks positions
+  // by the chunk count. CHECKs that |chunk_size| is nonzero. Capacity covers
+  // chunk storage only. The ring buffer header is allocated in addition to it.
   static uint32_t NumChunksForCapacity(size_t capacity_bytes,
                                        uint32_t chunk_size);
 
+  // CHECKs the shared ring buffer ABI layout constraints, a non-null relay,
+  // nonzero power-of-two chunk count and at most 32 MiB of chunk storage.
+  // Allocates the ring buffer header in addition. The 32 KiB maximum chunk size
+  // is producer setup policy (kMaxConfiguredChunkSize), not a factory
+  // constraint.
   static std::shared_ptr<InProcessTracingV2Bridge> Create(
       std::shared_ptr<RelaySequence> relay,
       uint32_t num_chunks,
@@ -137,8 +148,8 @@ class InProcessTracingV2Bridge
   InProcessTracingV2Bridge(InProcessTracingV2Bridge&&) = delete;
   InProcessTracingV2Bridge& operator=(InProcessTracingV2Bridge&&) = delete;
 
-  // Drains everything written to the ring so far, flushes the v1 writers that
-  // received data and then runs |completion| on the relay sequence. With a
+  // Drains everything written to the ring buffer so far, flushes the v1 writers
+  // that received data and then runs |completion| on the relay sequence. With a
   // fully bound v1 arbiter, commits are posted to the muxer sequence before
   // |completion| runs, so anything the completion posts there lands behind
   // them. If the relay is closed, |completion| runs inline without draining.
@@ -178,34 +189,38 @@ class InProcessTracingV2Bridge
     bool has_unflushed_v1_data = false;
   };
 
-  // Work to perform after the reader reaches a barrier's ring position.
+  // Work to perform after the reader reaches a barrier's ring buffer position.
   enum class BarrierType {
     // Flush one v1 writer. Completion runs with its acknowledgement.
     kFlushWriter,
     // Flush every v1 writer that received data since its last flush.
     kFlushDirtyWriters,
-    // Forward a writer's remaining data, then release its v1 writer.
-    kRetireWriter,
+    // Forward a writer's remaining data, then destroy its retained v1 writer.
+    kDestroyWriter,
   };
 
-  // A control operation (flush, drain, writer retirement) that must run after
-  // all the ring data written before it was requested:
+  // A control operation (flush, drain, writer destruction) that must run after
+  // all the ring buffer data written before it was requested:
   //   sample write_pos -> drain up to it -> flush v1 writer(s) -> completion
   // Barriers run one at a time, in request order, on the relay sequence.
   struct Barrier {
-    // Lets a continuation task check that the barrier it was posted for is
-    // still the front one.
-    uint64_t id = 0;
     uint32_t drain_target_pos = 0;
     BarrierType type = BarrierType::kFlushDirtyWriters;
-    // The v1 WriterID for flush/retirement, or 0 for kFlushDirtyWriters.
+    // The v1 WriterID for flush/destruction, or 0 for kFlushDirtyWriters.
     WriterID writer_id = 0;
+    // Service ACK callback for kFlushWriter, relay completion for
+    // kFlushDirtyWriters, empty for kDestroyWriter.
     std::function<void()> completion;
   };
 
-  // --- Ring data path. ---
+  // TraceWriterV2::Delegate: SDK writer threads. Calls may overlap.
   SharedRingBuffer& ring_buffer() override;
+  // Also called by the relay to reschedule a bounded drain.
   void NotifyReader() override;
+  void Flush(WriterID, std::function<void()> callback) override;
+  void OnWriterDestroyed(WriterID) override;
+
+  // SharedRingBufferReader::Delegate and packet processing: relay sequence.
   void OnChunkRead(const SharedRingBufferReader::ChunkContents&) override;
   void OnDataLoss(WriterID) override;
 
@@ -214,35 +229,30 @@ class InProcessTracingV2Bridge
   // relay sequence ever removes them.
   WriterState* FindWriterState(WriterID);
   static void DiscardCurrentPacket(WriterState*);
-  static void AddDataLoss(WriterState*, uint32_t reason = 0);
   void ForwardPacket(WriterState*);
 
-  // --- Control barriers. ---
-  void Flush(WriterID, std::function<void()> callback) override;
-  void OnWriterDestroyed(WriterID) override;
-
+  // Barrier submission: thread-safe.
   // Samples write_pos and posts a barrier for it. Returns false if the relay
-  // is closed. |completion| is consumed either way, so callers that want to
-  // run it inline on rejection must keep their own copy. Thread-safe.
+  // is closed. Takes ownership of |completion| even on rejection. Callers that
+  // need to invoke the callback after rejection must pass a copy.
   bool EnqueueBarrier(BarrierType, WriterID, std::function<void()> completion);
 
-  // --- Relay-side barrier processing. ---
+  // Barrier execution: relay sequence only.
   // Drains one bounded batch for the current control barrier. Returns true when
   // |target_pos| is reached or the reader cannot continue.
   bool DrainBarrierBatch(uint32_t target_pos);
 
   void RunFrontBarrier();
 
-  // Order matters: the ring and the reader point into |ring_memory_|.
+  // Order matters: the ring buffer and the reader point into |ring_memory_|.
   base::PagedMemory ring_memory_;
   SharedRingBuffer ring_buffer_;
   SharedRingBufferReader ring_buffer_reader_;
 
   std::vector<uint8_t> rewritten_packet_;
 
-  // Only the front barrier can be in progress.
+  // Enqueue tasks append. RunFrontBarrier drains and removes the front.
   std::deque<Barrier> pending_control_barriers_;
-  uint64_t next_barrier_id_ = 1;
 
   // Guards |writers_| only, as any SDK thread can insert into it. The
   // WriterState contents are relay-sequence only. The unique_ptr keeps them

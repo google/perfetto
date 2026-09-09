@@ -261,7 +261,8 @@ class TracingMuxerImpl : public TracingMuxer {
     // declared first so it outlives the bridge and its retained v1 writers.
     struct TracingV2Connection {
       // Creates the downstream v1 writer and wraps it in a v2 writer. The
-      // caller's exhaustion policy applies only to the v2 ring. Thread-safe.
+      // caller's exhaustion policy applies only to the v2 ring buffer.
+      // Thread-safe.
       std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
                                                      BufferExhaustedPolicy);
 
@@ -274,27 +275,22 @@ class TracingMuxerImpl : public TracingMuxer {
     // v2 path.
     void EnsureTracingV2Connection();
 
-    // Drops pending bridge references, then |tracing_v2_connection_|. This must
-    // happen before |service_| releases the arbiter used by the bridge's v1
-    // writers.
+    // Drops |tracing_v2_connection_| after the caller clears pending flushes.
+    // Both must happen before |service_| releases the bridge's v1 arbiter.
     void ReleaseTracingV2Connection();
 
     // Flush() for a connection that has a v2 bridge. Requests are acked in
     // FlushRequestID order and one that includes a v2 instance drains the
-    // ring first. Requests made of v1 instances only go through here too:
-    // they queue behind older requests but don't need the ring.
+    // ring buffer first. Requests made of v1 instances only go through here
+    // too: they queue behind older requests but don't need the ring buffer.
     void FlushWithTracingV2(FlushRequestID,
                             const DataSourceInstanceID*,
                             size_t,
                             FlushFlags);
 
-    // Removes a stopped instance from requests that can no longer receive its
-    // flush completion.
-    void DropStoppedDataSourceFromPendingFlushes(DataSourceInstanceID);
-
     // Acks the completed requests at the front of |pending_flushes_|. If the
-    // front request still has to drain the ring, starts the drain (once) and
-    // stops there: nothing behind it can be acked until it has completed.
+    // front request still has to drain the ring buffer, starts the drain (once)
+    // and stops there: nothing behind it can be acked until it has completed.
     void AdvanceTracingV2FlushQueue();
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
@@ -333,22 +329,22 @@ class TracingMuxerImpl : public TracingMuxer {
       // Instances whose asynchronous OnFlush() has not completed yet.
       std::set<DataSourceInstanceID> pending_data_sources;
 
-      // Set if an instance in this request writes through the v2 ring: the
-      // bridge must drain the ring before we can ack. Reset once the drain has
-      // completed.
+      // Set if an instance in this request writes through the v2 ring buffer:
+      // the bridge must drain the ring buffer before we can ack. Reset once the
+      // drain has completed.
       std::shared_ptr<tracing_v2::InProcessTracingV2Bridge> bridge_to_drain;
 
       // The drain of |bridge_to_drain| has been requested. Only the oldest
-      // request gets to do this, so the ring position is sampled after every
-      // earlier OnFlush() callback has run.
+      // request gets to do this, so the ring buffer position is sampled after
+      // every earlier OnFlush() callback has run.
       bool ring_drain_started = false;
     };
     std::map<FlushRequestID, PendingFlush> pending_flushes_;
 
     // Null until the first data source instance on the current connection
-    // selects tracing v2. It stays non-null while that connection has a v2
-    // instance and is cleared when the connection is disposed. A reconnect
-    // starts from null again.
+    // selects tracing v2. It stays non-null until the connection is disposed,
+    // even after its last v2 instance stops. Later v1-only flushes therefore
+    // still use the ordered queue. A reconnect starts from null again.
     //
     // WARNING: as for |service_|, any *write* access or any *read* access from
     // a non-muxer thread must go through std::atomic_{load,store}.
@@ -622,13 +618,13 @@ class TracingMuxerImpl : public TracingMuxer {
   // completions must not touch a replacement connection.
   ProducerImpl* FindProducerForConnection(TracingBackendId,
                                           uint32_t backend_connection_id);
-  // Drains the ring on the relay sequence, then runs |on_drained| on the muxer
-  // thread. The callback must revalidate the connection after both hops.
+  // Drains the ring buffer on the relay sequence, then runs |on_drained| on the
+  // muxer thread. The callback must revalidate the connection after both hops.
   void DrainTracingV2RingThenPostToMuxer(
       const std::shared_ptr<tracing_v2::InProcessTracingV2Bridge>& bridge,
       std::function<void()> on_drained);
-  // Called on the muxer thread once the v2 bridge has drained the ring and
-  // flushed its v1 writers, for a flush request and for a stopping instance
+  // Called on the muxer thread once the v2 bridge has drained the ring buffer
+  // and flushed its v1 writers, for a flush request and for a stopping instance
   // respectively.
   void FlushTracingV2Ring_AsyncEnd(TracingBackendId,
                                    uint32_t backend_connection_id,

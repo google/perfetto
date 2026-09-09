@@ -176,8 +176,8 @@ message DataSourceConfig {
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
 
-  // Experimental. Writes this data source instance through the tracing v2 ring
-  // instead of the v1 shared memory buffer. Off by default.
+  // Experimental. Writes this data source instance through the tracing v2
+  // ring buffer instead of the v1 shared memory buffer. Off by default.
   //
   // Only enable this for a producer known to support tracing v2. A producer
   // that understands the field but cannot honor it aborts instead of falling
@@ -193,7 +193,9 @@ message DataSourceConfig {
   // will_notify_on_stop, stopping waits for data_source_stop_timeout_ms.
   //
   // The producer must support writer waits. Startup tracing and interceptors
-  // are not supported and abort when this field is enabled.
+  // are not supported and abort when this field is enabled. This adapter also
+  // rejects v2 on a producer connection that has used startup tracing (even if
+  // already adopted), and rejects later startup tracing on a v2 connection.
   optional bool use_tracing_v2 = 13;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
