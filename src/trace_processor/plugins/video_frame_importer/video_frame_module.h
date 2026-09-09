@@ -52,6 +52,11 @@ class VideoFrameModule : public ProtoImporterModule {
 
   void ParseField(const ParseFieldArgs& args) override;
 
+  // Backfills frame_timeline_vsync_id on the video-frame rows from the
+  // VirtualDisplayComposite events collected during parsing. Runs once all
+  // packets are parsed, so it does not depend on frame/composite ordering.
+  void OnEventsFullyExtracted() override;
+
   // Parse-time per-stream byte cap, a backstop against traces recorded
   // without a producer cap. Matches the producer's 256 MB default.
   static constexpr int64_t kDefaultMaxStreamSizeBytes = 256ll * 1024 * 1024;
@@ -64,6 +69,7 @@ class VideoFrameModule : public ProtoImporterModule {
                        int64_t ts,
                        const TracePacketData& data);
   void ParseVideoFrameError(protozero::ConstBytes bytes, int64_t ts);
+  void ParseFrameTimelineEvent(protozero::ConstBytes bytes);
 
   struct StreamInfo {
     // display_name and codec_string arrive on the codec_config packet and
@@ -78,6 +84,13 @@ class VideoFrameModule : public ProtoImporterModule {
   std::vector<TraceBlobView>* const au_data_;
   int64_t max_stream_size_bytes_ = kDefaultMaxStreamSizeBytes;
   base::FlatHashMap<uint32_t, StreamInfo> stream_info_by_id_;
+
+  // present_time_us -> vsync id, from VirtualDisplayComposite events. Used at
+  // end of parsing to backfill frame_timeline_vsync_id by matching pts_us.
+  base::FlatHashMap<int64_t, int64_t> vsync_id_by_present_us_;
+  // (table row, pts_us) recorded as access-unit rows are inserted, so the
+  // backfill can look up the vsync id without needing to re-read pts_us.
+  std::vector<std::pair<uint32_t, int64_t>> row_pts_us_;
 };
 
 }  // namespace perfetto::trace_processor
