@@ -638,7 +638,54 @@ TEST_F(TraceconvShellBundleTest, BundleRejectsSymbolPathsAsSeparateArgs) {
   EXPECT_NE(invoker.Run(), 0);
 }
 
+TEST_F(TraceconvShellBundleTest, BundleFailurePreservesExistingOutput) {
+  base::TempFile trace = WriteTempFile("");
+  base::TempFile destination = WriteTempFile("existing output");
+  ArgvInvoker invoker;
+  invoker.Add("trace_processor_shell");
+  invoker.Add("bundle");
+  invoker.Add("--no-progress");
+  invoker.Add("--no-auto-symbol-paths");
+  invoker.Add("--proguard-map");
+  invoker.Add(temp_dir_.path() + "/missing.map");
+  invoker.Add(trace.path());
+  invoker.Add(destination.path());
+  EXPECT_NE(invoker.Run(), 0);
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(destination.path(), &contents));
+  EXPECT_EQ(contents, "existing output");
+}
+
+TEST_F(TraceconvShellBundleTest, BundleRejectsSameInputAndOutput) {
+  base::TempFile trace = WriteTempFile("original trace");
+  ArgvInvoker invoker;
+  invoker.Add("trace_processor_shell");
+  invoker.Add("bundle");
+  invoker.Add(trace.path());
+  invoker.Add(trace.path());
+  EXPECT_NE(invoker.Run(), 0);
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(trace.path(), &contents));
+  EXPECT_EQ(contents, "original trace");
+}
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST_F(TraceconvShellBundleTest, BundleRejectsHardLinkedInputAndOutput) {
+  base::TempFile trace = WriteTempFile("original trace");
+  std::string alias = temp_dir_.path() + "/alias";
+  ASSERT_EQ(link(trace.path().c_str(), alias.c_str()), 0);
+  ArgvInvoker invoker;
+  invoker.Add("trace_processor_shell");
+  invoker.Add("bundle");
+  invoker.Add(trace.path());
+  invoker.Add(alias);
+  EXPECT_NE(invoker.Run(), 0);
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(trace.path(), &contents));
+  EXPECT_EQ(contents, "original trace");
+  ASSERT_TRUE(base::Unlink(alias.c_str()));
+}
+
 TEST_F(TraceconvShellBundleTest, RedirectedProgressIsPlainAndWarningsRemain) {
   base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(false));
   for (bool no_progress : {false, true}) {

@@ -279,6 +279,38 @@ ScopedFile DupFile(int fd) {
 #endif
 }
 
+bool IsRegularFile(const std::string& path) {
+  struct stat st{};
+  if (stat(path.c_str(), &st) != 0)
+    return false;
+  PERFETTO_MSAN_UNPOISON(&st, sizeof(st));
+  return (st.st_mode & S_IFMT) == S_IFREG;
+}
+
+bool IsSameFile(const std::string& first, const std::string& second) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  auto identity = [](const std::string& path,
+                     BY_HANDLE_FILE_INFORMATION* info) {
+    ScopedPlatformHandle file(CreateFileA(
+        path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    return file && GetFileInformationByHandle(*file, info);
+  };
+  BY_HANDLE_FILE_INFORMATION a{}, b{};
+  return identity(first, &a) && identity(second, &b) &&
+         a.dwVolumeSerialNumber == b.dwVolumeSerialNumber &&
+         a.nFileIndexHigh == b.nFileIndexHigh &&
+         a.nFileIndexLow == b.nFileIndexLow;
+#else
+  struct stat a{}, b{};
+  if (stat(first.c_str(), &a) != 0 || stat(second.c_str(), &b) != 0)
+    return false;
+  PERFETTO_MSAN_UNPOISON(&a, sizeof(a));
+  PERFETTO_MSAN_UNPOISON(&b, sizeof(b));
+  return a.st_dev == b.st_dev && a.st_ino == b.st_ino;
+#endif
+}
+
 bool SeekFile(int fd, uint64_t offset) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   if (fd < 0) {

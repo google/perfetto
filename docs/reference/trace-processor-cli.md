@@ -293,8 +293,12 @@ including common Trace Processor options.
 
 | Argument | Meaning |
 | --- | --- |
-| `input` | Input trace file path. Stdin is not supported. |
+| `input` | Existing regular trace file. Stdin is not supported. |
 | `output` | Destination file path. Stdout is not supported. Its parent directory must exist and be writable. |
+
+Input and output must refer to different files, including through hard links.
+An existing output must be a regular file. Output symlinks are rejected; specify
+the target path directly.
 
 #### Options
 
@@ -349,6 +353,18 @@ The order above describes how paths are collected, not a guaranteed preference
 between duplicate copies of the same build ID during recursive indexing. Prefer
 directories containing the matching unstripped or debug binaries rather than
 mixing stripped and unstripped copies. Use `--verbose` to inspect lookup details.
+
+#### Output replacement and cleanup
+
+The command writes a temporary file beside the destination. It replaces the
+destination only after successfully writing and flushing the complete bundle.
+An existing output is preserved if reading, enrichment, or writing fails.
+
+Ordinary failures remove the temporary file on cleanup. Abrupt termination,
+including Ctrl-C, or a cleanup failure can leave a sibling file named
+`<output>.tmp.<uuid>`. Cleanup is best effort; incomplete data is never published
+as the destination. A leftover temporary file can be deleted once the process
+has stopped.
 
 #### Exit status
 

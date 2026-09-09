@@ -89,6 +89,10 @@ Outputs a TAR containing the trace plus the symbols and deobfuscation
 mappings needed to make it self-contained. Both <input> and <output> must be
 real file paths (stdin/stdout are not supported).
 
+The output is replaced only after the bundle is complete. Input and output
+must be different regular files; specify an output symlink's target directly.
+Abrupt termination may leave a temporary file beside the output.
+
 Live progress uses stderr only when it is a terminal (except TERM=dumb).
 Nonempty FORCE_COLOR forces ANSI color, overriding NO_COLOR. Otherwise,
 nonempty NO_COLOR disables automatic color. Color does not enable progress.)";
@@ -169,23 +173,6 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
         "bundle: output path '%s' is a %s. Fix the symlink and try again.",
         output_file.c_str(), symlink_problem.c_str());
   }
-
-  // Fail fast on output paths that cannot be created, before spending time
-  // reading the (potentially huge) trace. The TarWriter re-opens with O_TRUNC
-  // once the trace has been read successfully.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  {
-    base::ScopedFile probe =
-        base::OpenFile(output_file, O_CREAT | O_WRONLY, 0644);
-    if (!probe) {
-      return base::ErrStatus(
-          "bundle: cannot create output file '%s' (errno: %d, %s). Check "
-          "that the parent directory exists and is writable, then try "
-          "again.",
-          output_file.c_str(), errno, strerror(errno));
-    }
-  }
-#endif
 
   trace_to_text::BundleContext context;
   if (!symbol_paths_.empty())
