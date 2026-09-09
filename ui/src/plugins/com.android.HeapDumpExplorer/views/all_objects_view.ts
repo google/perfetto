@@ -208,7 +208,6 @@ export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
-          showExportButton: true,
           initialColumns: [
             {id: 'id', field: 'id'},
             {id: 'cls', field: 'cls'},
@@ -223,6 +222,7 @@ export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
             {id: 'heap', field: 'heap'},
           ],
           filters,
+          showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
             counter.onFiltersChanged(f);

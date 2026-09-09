@@ -174,7 +174,6 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
-          showExportButton: true,
           initialColumns: [
             {id: 'id', field: 'id'},
             {id: 'cls', field: 'cls'},
@@ -188,6 +187,7 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
             {id: 'heap', field: 'heap'},
             {id: 'root_type', field: 'root_type'},
           ],
+          showExportButton: true,
           onFiltersChanged: counter.onFiltersChanged,
         }),
       );

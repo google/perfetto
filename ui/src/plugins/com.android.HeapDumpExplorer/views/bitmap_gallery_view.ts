@@ -477,7 +477,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
               vnode.attrs.hasFieldValues === false
                 ? 'Bitmap data requires an ART heap dump (.hprof)'
                 : 'No bitmap data available',
-            className: 'pf-hde-empty-fill',
+            fillHeight: true,
           }),
         );
       }

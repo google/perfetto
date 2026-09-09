@@ -167,7 +167,6 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
-          showExportButton: true,
           initialColumns: [
             {id: 'id', field: 'id'},
             {id: 'cls', field: 'cls'},
@@ -177,6 +176,7 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
             {id: 'heap', field: 'heap'},
           ],
           filters,
+          showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
             counter.onFiltersChanged(f);

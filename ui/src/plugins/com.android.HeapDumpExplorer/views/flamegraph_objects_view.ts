@@ -249,7 +249,6 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
-          showExportButton: true,
           initialColumns: [
             {id: 'id', field: 'id'},
             {id: 'cls', field: 'cls'},
@@ -263,6 +262,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             {id: 'reachable_count', field: 'reachable_count'},
             {id: 'heap', field: 'heap'},
           ],
+          showExportButton: true,
           onFiltersChanged: counter.onFiltersChanged,
         }),
       );

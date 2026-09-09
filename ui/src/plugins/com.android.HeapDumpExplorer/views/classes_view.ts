@@ -174,7 +174,6 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
           schema: makeUiSchema(navigate),
           data: dataSource,
           fillHeight: true,
-          showExportButton: true,
           initialColumns: [
             {id: 'cls', field: 'cls'},
             {id: 'cnt', field: 'cnt'},
@@ -185,6 +184,7 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
             {id: 'retained_count', field: 'retained_count'},
           ],
           filters,
+          showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
             counter.onFiltersChanged(f);

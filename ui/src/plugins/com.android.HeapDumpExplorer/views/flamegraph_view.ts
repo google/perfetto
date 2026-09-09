@@ -23,7 +23,6 @@ import {
   type TreeExplorerState,
   type TreeExplorerOptionalAction,
 } from '../../../widgets/tree_explorer';
-import {DetailsShell} from '../../../widgets/details_shell';
 import {AsyncMemo} from '../../../base/async_memo';
 import {
   isHeapGraphIncomplete,
@@ -222,12 +221,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
         attrs.onStateChange(state);
       }
 
-      return m(
-        DetailsShell,
-        {
-          title: 'Flamegraph',
-          fillHeight: true,
-        },
+      return [
         incomplete !== undefined &&
           incomplete.isIncomplete &&
           !incomplete.dismissed &&
@@ -253,7 +247,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
             },
           ],
         }),
-      );
+      ];
     },
   };
 }
