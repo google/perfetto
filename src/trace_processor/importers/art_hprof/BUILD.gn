@@ -35,5 +35,6 @@ source_set("art_hprof") {
     "../../importers/common",
     "../../tables",
     "../../util:trace_type",
+    "../proto:full",
   ]
 }
