@@ -430,10 +430,14 @@ if (enable_perfetto_benchmarks) {
     deps = [
       ":client",
       ":client_api",
+      ":daemon",
+      ":wire_protocol",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../gn:libunwindstack",
       "../../base",
       "../../base:test_support",
+      "../common:unwind_support",
     ]
     sources = [ "client_api_benchmark.cc" ]
   }
