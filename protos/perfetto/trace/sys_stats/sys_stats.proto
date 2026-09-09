@@ -193,4 +193,22 @@ message SysStats {
     optional uint32 num_slabs = 3;
   }
   repeated SlabInfo slab_info = 18;
+
+  // Per-cgroup resource counters polled from /sys/fs/cgroup. Works with both
+  // the cgroup v1 (per-controller) and v2 (unified) hierarchies.
+  message Cgroup {
+    // Absolute cgroup path, e.g. "/sys/fs/cgroup/top-app".
+    optional string path = 1;
+    message Counter {
+      // The counter type (a CPU, memory, or IO metric).
+      optional CgroupCounters key = 1;
+      // The counter value in bytes, microseconds, or a raw count. For "max"
+      // limits with no bound set, this is uint64 max.
+      optional uint64 value = 2;
+      // For io.stat counters, the block device, e.g. "8:0".
+      optional string device = 3;
+    }
+    repeated Counter counter = 2;
+  }
+  repeated Cgroup cgroup = 19;
 }
