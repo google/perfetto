@@ -432,7 +432,10 @@ export default class implements PerfettoPlugin {
     support: SupportPlugin,
     features: Set<string>,
   ): Promise<void> {
-    if (!features.has('track.battery_stats.*')) {
+    if (
+      !features.has('track.battery_stats.*') &&
+      !features.has('track_event.jobscheduler')
+    ) {
       return;
     }
 
@@ -645,7 +648,112 @@ export default class implements PerfettoPlugin {
       await query('Foreground apps', 'battery_stats.fg');
     }
 
-    if (
+    if (features.has('track_event.jobscheduler')) {
+      await e.query(
+        `INCLUDE PERFETTO MODULE android.job_scheduler_states_track_events;`,
+      );
+      await support.addSliceTrack(
+        ctx,
+        'Jobs',
+        new SourceDataset({
+          src: `
+            SELECT
+              id,
+              slice_id,
+              ts,
+              dur,
+              ifnull(job_name, 'Unknown') AS name,
+              job_name,
+              package_name,
+              job_namespace,
+              job_id,
+              uid,
+              proxy_uid,
+              filtered_trace_tag,
+              standby_bucket,
+              requested_priority,
+              effective_priority,
+              num_previous_attempts,
+              deadline_ms,
+              delay_ms,
+              job_start_latency_ms,
+              num_uncompleted_work_items,
+              proc_state,
+              periodic_job_interval_ms,
+              periodic_job_flex_interval_ms,
+              num_reschedules_due_to_abandonment,
+              back_off_policy_type,
+              internal_stop_reason,
+              public_stop_reason,
+              has_charging_constraint,
+              has_battery_not_low_constraint,
+              has_storage_not_low_constraint,
+              has_timing_delay_constraint,
+              has_deadline_constraint,
+              has_idle_constraint,
+              has_connectivity_constraint,
+              has_content_trigger_constraint,
+              is_requested_expedited_job,
+              is_running_as_expedited_job,
+              is_prefetch,
+              is_requested_as_user_initiated_job,
+              is_running_as_user_initiated_job,
+              is_periodic,
+              has_flexibility_constraint,
+              can_apply_transport_affinities,
+              is_rescheduled
+            FROM android_job_scheduler_states_track_events
+          `,
+          schema: {
+            id: NUM,
+            slice_id: NUM_NULL,
+            ts: LONG,
+            dur: LONG_NULL,
+            name: STR,
+            job_name: STR_NULL,
+            package_name: STR_NULL,
+            job_namespace: STR_NULL,
+            job_id: LONG_NULL,
+            uid: LONG_NULL,
+            proxy_uid: LONG_NULL,
+            filtered_trace_tag: STR_NULL,
+            standby_bucket: STR_NULL,
+            requested_priority: STR_NULL,
+            effective_priority: STR_NULL,
+            num_previous_attempts: LONG_NULL,
+            deadline_ms: LONG_NULL,
+            delay_ms: LONG_NULL,
+            job_start_latency_ms: LONG_NULL,
+            num_uncompleted_work_items: LONG_NULL,
+            proc_state: STR_NULL,
+            periodic_job_interval_ms: LONG_NULL,
+            periodic_job_flex_interval_ms: LONG_NULL,
+            num_reschedules_due_to_abandonment: LONG_NULL,
+            back_off_policy_type: STR_NULL,
+            internal_stop_reason: STR_NULL,
+            public_stop_reason: STR_NULL,
+            has_charging_constraint: NUM_NULL,
+            has_battery_not_low_constraint: NUM_NULL,
+            has_storage_not_low_constraint: NUM_NULL,
+            has_timing_delay_constraint: NUM_NULL,
+            has_deadline_constraint: NUM_NULL,
+            has_idle_constraint: NUM_NULL,
+            has_connectivity_constraint: NUM_NULL,
+            has_content_trigger_constraint: NUM_NULL,
+            is_requested_expedited_job: NUM_NULL,
+            is_running_as_expedited_job: NUM_NULL,
+            is_prefetch: NUM_NULL,
+            is_requested_as_user_initiated_job: NUM_NULL,
+            is_running_as_user_initiated_job: NUM_NULL,
+            is_periodic: NUM_NULL,
+            has_flexibility_constraint: NUM_NULL,
+            can_apply_transport_affinities: NUM_NULL,
+            is_rescheduled: NUM_NULL,
+          },
+        }),
+        groupName,
+      );
+    } else if (
       features.has('atom.scheduled_job_state_changed') &&
       features.has('google3')
     ) {
