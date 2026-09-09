@@ -96,7 +96,6 @@ class DataSourceInternalForTest {
 class TracingMuxerImplInternalsForTest {
  public:
   static bool DoesSystemBackendHaveSMB();
-  static bool SupportsTracingV2();
   static void ClearIncrementalState();
 
   // Whether the v2 relay sequence exists. It is created by the first v2

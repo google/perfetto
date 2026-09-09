@@ -117,7 +117,8 @@ struct DataSourceState {
 
   // Copy of DataSourceDescriptor.no_flush. FlushDataSource_AsyncBegin() only
   // has the instance state, not the descriptor, and needs this to skip
-  // OnFlush() when the service flushes a v2 instance just to drain the ring.
+  // OnFlush() when the service flushes a v2 instance just to drain the ring
+  // buffer.
   bool no_flush = false;
 
   // Copy of DataSourceConfig.use_tracing_v2. Set before this instance is
