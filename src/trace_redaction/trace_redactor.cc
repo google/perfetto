@@ -39,6 +39,7 @@
 #include "src/trace_redaction/drop_empty_ftrace_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/merge_process_tree.h"
+#include "src/trace_redaction/merge_synthetic_sched.h"
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
@@ -406,10 +407,13 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   }
 
   // Pass 2: Merge process trees into a single deduplicated process tree packet
-  // appended at the end of the trace.
+  // appended at the end of the trace, and coalesce duplicated synthetic sched
+  // events.
   TraceRedactorPass* pass2 = redactor->add_pass();
   pass2->emplace_collect<CollectProcessTrees>();
+  pass2->emplace_validator<SyntheticProcessValidator>();
   pass2->emplace_transform<ReduceProcessTrees>();
+  pass2->emplace_transform<MergeSyntheticSched>();
   pass2->emplace_augment<AugmentProcessTrees>();
 
   return redactor;
