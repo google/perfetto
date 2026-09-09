@@ -32,6 +32,7 @@ import {
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {Memo} from '../../../base/memo';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
@@ -145,24 +146,28 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function DominatorsView(): m.Component<DominatorsViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+  const datasourceMemo = new Memo<SQLDataSource>();
   const counter = new RowCounter();
 
   return {
-    oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-        preamble: SQL_PREAMBLE,
-      });
-      counter.init(engine, query, SQL_PREAMBLE);
+    onremove() {
+      datasourceMemo.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {engine, activeDump, navigate} = vnode.attrs;
 
-      if (!dataSource) return null;
+      const dataSource = datasourceMemo.use({
+        key: activeDump,
+        compute: () => {
+          const query = buildQuery(activeDump);
+          counter.init(engine, query, SQL_PREAMBLE);
+          return new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: SQL_PREAMBLE,
+          });
+        },
+      });
 
       return m(
         DetailsShell,

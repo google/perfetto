@@ -33,6 +33,7 @@ import {
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {Memo} from '../../../base/memo';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
@@ -164,7 +165,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+  const datasourceMemo = new Memo<SQLDataSource>();
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
@@ -180,23 +181,29 @@ export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-        preamble: SQL_PREAMBLE,
-      });
-      counter.init(engine, query, SQL_PREAMBLE);
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
+    onremove() {
+      datasourceMemo.dispose();
+    },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {engine, activeDump, navigate} = vnode.attrs;
 
-      if (!dataSource) return null;
+      const dataSource = datasourceMemo.use({
+        key: activeDump,
+        compute: () => {
+          const query = buildQuery(activeDump);
+          counter.init(engine, query, SQL_PREAMBLE);
+          return new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: SQL_PREAMBLE,
+          });
+        },
+      });
 
       return m(
         DetailsShell,

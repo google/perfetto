@@ -17,6 +17,7 @@ import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
   type NavFn,
@@ -28,9 +29,9 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
-import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {Memo} from '../../../base/memo';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
@@ -111,10 +112,10 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function ClassesView(): m.Component<ClassesViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
-  let alive = true;
+  const datasourceMemo = new Memo<SQLDataSource>();
   const counter = new RowCounter();
   let filters: Filter[] = [];
+  let alive = true;
 
   async function applyNavFilter(
     engine: Engine,
@@ -133,17 +134,9 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-        preamble: PREAMBLE,
-      });
-      counter.init(engine, query, PREAMBLE);
       applyNavFilter(
-        engine,
-        activeDump,
+        vnode.attrs.engine,
+        vnode.attrs.activeDump,
         vnode.attrs.initialRootClass,
         vnode.attrs.clearNavParam,
       ).catch(console.error);
@@ -157,12 +150,24 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
       ).catch(console.error);
     },
     onremove() {
+      datasourceMemo.dispose();
       alive = false;
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {engine, activeDump, navigate} = vnode.attrs;
 
-      if (!dataSource) return null;
+      const dataSource = datasourceMemo.use({
+        key: activeDump,
+        compute: () => {
+          const query = buildQuery(activeDump);
+          counter.init(engine, query, PREAMBLE);
+          return new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: PREAMBLE,
+          });
+        },
+      });
 
       return m(
         DetailsShell,

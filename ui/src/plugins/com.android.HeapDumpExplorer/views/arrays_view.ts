@@ -33,6 +33,7 @@ import {
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {Memo} from '../../../base/memo';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -113,7 +114,7 @@ interface ArraysViewAttrs {
 }
 
 export function ArraysView(): m.Component<ArraysViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+  const datasourceMemo = new Memo<SQLDataSource>();
   const counter = new RowCounter();
   let filters: Filter[] = [];
 
@@ -129,20 +130,16 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-      });
-      counter.init(engine, query);
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
+    onremove() {
+      datasourceMemo.dispose();
+    },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {engine, activeDump, navigate} = vnode.attrs;
       if (vnode.attrs.hasFieldValues === false) {
         return m(
           DetailsShell,
@@ -155,7 +152,17 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
         );
       }
 
-      if (!dataSource) return null;
+      const dataSource = datasourceMemo.use({
+        key: activeDump,
+        compute: () => {
+          const query = buildQuery(activeDump);
+          counter.init(engine, query);
+          return new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+          });
+        },
+      });
 
       return m(
         DetailsShell,

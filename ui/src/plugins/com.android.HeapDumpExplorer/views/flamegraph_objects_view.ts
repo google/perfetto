@@ -31,6 +31,7 @@ import {
 } from '../components';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {Memo} from '../../../base/memo';
 
 interface FlamegraphObjectsViewAttrs {
   readonly engine: Engine;
@@ -170,45 +171,36 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
-  let lastPathHashes: string | undefined;
+  const datasourceMemo = new Memo<SQLDataSource | null>();
   const counter = new RowCounter();
 
-  function initDataSource(
-    engine: Engine,
-    pathHashes: string,
-    isDominator: boolean,
-  ): void {
-    const query = flamegraphQuery(pathHashes, isDominator);
-    dataSource = new SQLDataSource({
-      engine,
-      tableOrSubquery: query,
-      preamble: SQL_PREAMBLE,
-    });
-    counter.init(engine, query, SQL_PREAMBLE);
-  }
-
   return {
-    oninit(vnode) {
-      const {pathHashes, isDominator, engine} = vnode.attrs;
-      lastPathHashes = pathHashes;
-      if (pathHashes) {
-        initDataSource(engine, pathHashes, isDominator ?? false);
-      }
-    },
-    onupdate(vnode) {
-      if (vnode.attrs.pathHashes !== lastPathHashes) {
-        const {pathHashes, isDominator, engine} = vnode.attrs;
-        lastPathHashes = pathHashes;
-        if (pathHashes) {
-          initDataSource(engine, pathHashes, isDominator ?? false);
-        } else {
-          dataSource = null;
-        }
-      }
+    onremove() {
+      datasourceMemo.dispose();
     },
     view(vnode) {
-      const {navigate, nodeName, onBackToTimeline} = vnode.attrs;
+      const {
+        engine,
+        pathHashes,
+        isDominator,
+        navigate,
+        nodeName,
+        onBackToTimeline,
+      } = vnode.attrs;
+
+      const dataSource = datasourceMemo.use({
+        key: {pathHashes, isDominator: isDominator ?? false},
+        compute: () => {
+          if (!pathHashes) return null;
+          const query = flamegraphQuery(pathHashes, isDominator ?? false);
+          counter.init(engine, query, SQL_PREAMBLE);
+          return new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: SQL_PREAMBLE,
+          });
+        },
+      });
 
       if (!dataSource) {
         return m(

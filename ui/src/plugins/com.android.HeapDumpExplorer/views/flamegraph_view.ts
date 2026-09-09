@@ -249,6 +249,9 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
         }),
       ];
     },
+    onremove() {
+      incompleteSlot.dispose();
+    },
   };
 }
 

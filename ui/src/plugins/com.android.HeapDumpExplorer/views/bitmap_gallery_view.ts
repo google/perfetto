@@ -39,6 +39,7 @@ import * as queries from '../queries';
 import type {HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 const SUMMARY_SCHEMA: ColumnSchema = {
   property: {title: 'Property', columnType: 'text'},
@@ -373,7 +374,7 @@ interface BitmapGalleryViewAttrs {
 }
 
 export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
-  let rows: BitmapListRow[] | null = null;
+  const memo = new AsyncMemo<BitmapListRow[]>();
   let alive = true;
   let pathMode: PathMode = 'none';
   const pathsFetched: Record<Exclude<PathMode, 'none'>, boolean> = {
@@ -424,33 +425,36 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
   return {
     oninit(vnode) {
       applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
-      queries
-        .getBitmapList(vnode.attrs.engine, vnode.attrs.activeDump)
-        .then((r) => {
-          if (!alive) return;
-          rows = r;
-          m.redraw();
-          // Enrich with reachable sizes asynchronously.
-          queries
-            .enrichWithReachable(
-              vnode.attrs.engine,
-              r.map((b) => b.row),
-            )
-            .then(() => {
-              if (alive) m.redraw();
-            })
-            .catch(console.error);
-        })
-        .catch(console.error);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
     },
     onremove() {
+      memo.dispose();
       alive = false;
     },
     view(vnode) {
       const {engine, activeDump, navigate} = vnode.attrs;
+
+      const rows = memo.use({
+        key: activeDump,
+        compute: async () => {
+          pathsFetched.shortest = false;
+          pathsFetched.dominator = false;
+          pathMaps.shortest.clear();
+          pathMaps.dominator.clear();
+          const r = await queries.getBitmapList(engine, activeDump);
+          try {
+            await queries.enrichWithReachable(
+              engine,
+              r.map((b) => b.row),
+            );
+          } catch (e) {
+            console.error(e);
+          }
+          return r;
+        },
+      }).data;
 
       if (!rows) {
         return m(

@@ -32,8 +32,7 @@ import type {OomeData} from '../types';
 import {getOome} from '../queries';
 import type {HeapDump} from '../queries';
 
-import {AsyncLimiter} from '../../../base/async_limiter';
-import {Monitor} from '../../../base/monitor';
+import {AsyncMemo} from '../../../base/async_memo';
 
 interface CallstackViewAttrs {
   readonly trace: Trace;
@@ -43,32 +42,29 @@ interface CallstackViewAttrs {
 }
 
 export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
-  private oomeData?: OomeData;
-  private oomeDataLoaded = false;
+  private readonly oomeMemo = new AsyncMemo<OomeData | null>();
   private cachedMetrics?: ReadonlyArray<TreeExplorerQueryMetric>;
   private cachedKey?: string;
-  private readonly limiter = new AsyncLimiter();
-  private monitor?: Monitor;
+
+  onremove() {
+    this.oomeMemo.dispose();
+  }
 
   view({attrs}: m.Vnode<CallstackViewAttrs>) {
-    this.monitor ??= new Monitor([() => attrs.dump]);
-    if (this.monitor.ifStateChanged()) {
-      this.oomeData = undefined;
-      this.oomeDataLoaded = false;
-      const dump = attrs.dump;
-      this.limiter.schedule(async () => {
-        try {
-          this.oomeData = await getOome(attrs.trace.engine, dump);
-        } catch {
-          this.oomeData = undefined;
-        } finally {
-          this.oomeDataLoaded = true;
-          m.redraw();
-        }
-      });
-    }
+    const {trace, dump} = attrs;
 
-    if (!this.oomeDataLoaded) {
+    const oomeResult = this.oomeMemo.use({
+      key: dump,
+      compute: async () => {
+        try {
+          return (await getOome(trace.engine, dump)) ?? null;
+        } catch {
+          return null;
+        }
+      },
+    });
+
+    if (oomeResult.data === undefined) {
       return m(
         DetailsShell,
         {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
@@ -81,7 +77,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       );
     }
 
-    if (this.oomeData === undefined) {
+    if (oomeResult.data === null) {
       return m(
         DetailsShell,
         {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
@@ -100,8 +96,9 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       );
     }
 
-    const upid = this.oomeData.upid;
-    const ts = this.oomeData.ts;
+    const oomeData = oomeResult.data;
+    const upid = oomeData.upid;
+    const ts = oomeData.ts;
     const key = `${upid}:${ts}`;
     if (this.cachedMetrics === undefined || key !== this.cachedKey) {
       this.cachedMetrics = buildOomeCallstackMetrics(ts);
@@ -121,7 +118,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       m(
         Stack,
         {orientation: 'vertical'},
-        renderOomeDetails(this.oomeData?.details),
+        renderOomeDetails(oomeData.details),
         m(TreeExplorerPanel, {
           trace: attrs.trace,
           metrics,
