@@ -48,6 +48,7 @@ source_set("base") {
     "periodic_task.h",
     "pipe.h",
     "platform.h",
+    "progress_reporter.h",
     "rt_mutex.h",
     "scoped_file.h",
     "scoped_mmap.h",
