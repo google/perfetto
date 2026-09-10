@@ -117,6 +117,12 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
     case PERF_RECORD_COMM:
       return ParseComm(std::move(record));
 
+    case PERF_RECORD_FORK:
+      return ParseFork(ts, std::move(record));
+
+    case PERF_RECORD_EXIT:
+      return ParseExit(ts, std::move(record));
+
     case PERF_RECORD_SAMPLE:
 
       return ParseSample(ts, std::move(record));
@@ -292,6 +298,55 @@ base::Status RecordParser::ParseComm(Record record) {
       utid, context_->storage->InternString(base::StringView(comm)),
       ThreadNamePriority::kPerfComm);
 
+  return base::OkStatus();
+}
+
+base::Status RecordParser::ParseFork(int64_t, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_FORK");
+  }
+
+  if (pid != ppid) {
+    UniquePid parent_upid = context_->process_tracker->GetOrCreateProcess(ppid);
+    UniquePid child_upid = context_->process_tracker->GetOrCreateProcess(pid);
+    context_->process_tracker->SetProcessParent(child_upid, parent_upid);
+  }
+
+  context_->process_tracker->UpdateThread(tid, pid);
+  return base::OkStatus();
+}
+
+base::Status RecordParser::ParseExit(int64_t ts, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_EXIT");
+  }
+
+  uint64_t time = 0;
+  reader.Read(time);
+  int64_t exit_ts = ts;
+  if (exit_ts <= 0 && time != 0 && record.attr) {
+    if (auto opt_ts = context_->clock_tracker->ToTraceTime(
+            record.attr->clock_id(), static_cast<int64_t>(time))) {
+      exit_ts = *opt_ts;
+    }
+  }
+
+  // Ensure process-to-thread attribution is established before terminating the
+  // thread.
+  context_->process_tracker->UpdateThread(tid, pid);
+  context_->process_tracker->EndThread(exit_ts, tid);
   return base::OkStatus();
 }
 

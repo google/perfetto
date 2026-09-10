@@ -660,4 +660,103 @@ TEST_F(PerfThreadScopedCounterTest,
 }
 
 }  // namespace
+
+class PerfRecordParserForkExitTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    context_.storage = std::make_unique<TraceStorage>();
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+    context_.cpu_tracker = std::make_unique<CpuTracker>(&context_);
+    context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
+    context_.process_tracker = std::make_unique<ProcessTracker>(&context_);
+  }
+
+  TraceProcessorContext context_;
+};
+
+TEST_F(PerfRecordParserForkExitTest, ForkUpdatesProcessTracker) {
+  PerfTracker perf_tracker(&context_);
+  RecordParser parser(&context_, &perf_tracker);
+  struct {
+    uint32_t pid = 1000;
+    uint32_t ppid = 1;
+    uint32_t tid = 1001;
+    uint32_t ptid = 1000;
+    uint64_t time = 12345;
+  } event_data;
+  perf_event_header header;
+  header.type = PERF_RECORD_FORK;
+  header.misc = 0;
+  header.size = sizeof(header) + sizeof(event_data);
+  Record record;
+  record.header = header;
+  record.payload =
+      TraceBlobView(TraceBlob::CopyFrom(&event_data, sizeof(event_data)));
+
+  parser.Parse(1000, std::move(record));
+
+  const auto& thread_table = context_.storage->thread_table();
+  bool found = false;
+  for (uint32_t i = 0; i < thread_table.row_count(); ++i) {
+    if (thread_table[i].tid() == 1001) {
+      found = true;
+      ASSERT_TRUE(thread_table[i].upid().has_value());
+      auto upid = *thread_table[i].upid();
+      EXPECT_EQ(context_.storage->process_table()[upid].pid(), 1000u);
+      EXPECT_EQ(context_.storage->process_table()[upid].parent_upid(),
+                context_.process_tracker->GetOrCreateProcess(1));
+      EXPECT_FALSE(thread_table[i].end_ts().has_value());
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(PerfRecordParserForkExitTest, ExitEndsThreadAndAllowsTidReuse) {
+  PerfTracker perf_tracker(&context_);
+  RecordParser parser(&context_, &perf_tracker);
+  struct {
+    uint32_t pid = 1000;
+    uint32_t ppid = 1;
+    uint32_t tid = 1001;
+    uint32_t ptid = 1000;
+    uint64_t time = 12345;
+  } event_data;
+  perf_event_header header;
+  header.type = PERF_RECORD_EXIT;
+  header.misc = 0;
+  header.size = sizeof(header) + sizeof(event_data);
+  Record record;
+  record.header = header;
+  record.payload =
+      TraceBlobView(TraceBlob::CopyFrom(&event_data, sizeof(event_data)));
+
+  parser.Parse(5000, std::move(record));
+
+  const auto& thread_table = context_.storage->thread_table();
+  std::optional<UniqueTid> first_utid;
+  for (uint32_t i = 0; i < thread_table.row_count(); ++i) {
+    if (thread_table[i].tid() == 1001) {
+      first_utid = i;
+      ASSERT_TRUE(thread_table[i].upid().has_value());
+      auto upid = *thread_table[i].upid();
+      EXPECT_EQ(context_.storage->process_table()[upid].pid(), 1000u);
+      EXPECT_EQ(thread_table[i].end_ts(), 5000);
+    }
+  }
+  ASSERT_TRUE(first_utid.has_value());
+
+  // Subsequent event with same TID after exit must allocate a fresh utid.
+  UniqueTid recycled_utid = context_.process_tracker->UpdateThread(1001, 2000);
+  EXPECT_NE(*first_utid, recycled_utid);
+}
+
 }  // namespace perfetto::trace_processor::perf_importer
