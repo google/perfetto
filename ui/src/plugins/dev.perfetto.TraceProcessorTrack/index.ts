@@ -853,12 +853,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
               SELECT
                 bucket,
                 upid,
-                IFNULL(SUM(utid_sum) / CAST(${resolution} AS FLOAT), 0) AS load
+                SUM(utid_load) AS load
               FROM thread
               INNER JOIN (
                 SELECT
                   IFNULL(CAST((ts - ${traceSpan.start}) / ${resolution} AS INT), 0) AS bucket,
-                  SUM(dur) AS utid_sum,
+                  -- Divide before summing to avoid overflowing duration totals.
+                  SUM(dur / CAST(${resolution} AS FLOAT)) AS utid_load,
                   utid
                 FROM slice
                 INNER JOIN thread_track ON slice.track_id = thread_track.id
