@@ -135,7 +135,7 @@ void OnlineTraceToText::EndWrite(size_t size_written) {
   pending_write_.EndWrite(size_written);
   while (true) {
     auto token = ring_buffer_.ReadMessage();
-    if (token.fatal_framing_error) {
+    if (token.fatal_framing_error()) {
       error_ = "failed to tokenize trace packet (corrupt or truncated)";
       ok_ = false;
       return;
@@ -146,12 +146,12 @@ void OnlineTraceToText::EndWrite(size_t size_written) {
       break;
     }
 
-    if (token.field_id != protos::pbzero::Trace::kPacketFieldNumber) {
+    if (token.field_id() != protos::pbzero::Trace::kPacketFieldNumber) {
       PERFETTO_ELOG("Skipping invalid field");
       continue;
     }
-    protos::pbzero::TracePacket::Decoder decoder(token.start, token.len);
-    bytes_processed_ += token.len;
+    protos::pbzero::TracePacket::Decoder decoder(token.data(), token.size());
+    bytes_processed_ += token.size();
     if ((packet_++ & 0x3f) == 0) {
       ProgressLine("Processing trace: %8zu KB", bytes_processed_ / 1024);
     }
@@ -163,7 +163,7 @@ void OnlineTraceToText::EndWrite(size_t size_written) {
                              util::CompressionType::kZstd);
     } else {
       WriteToOutput(output_, "packet {\n");
-      protozero::ConstBytes packet = {token.start, token.len};
+      protozero::ConstBytes packet = {token.data(), token.size()};
       std::string text = TracePacketToText(packet, 1 /* indent_depth */);
       output_->write(text.data(), std::streamsize(text.size()));
       WriteToOutput(output_, "\n}\n");
