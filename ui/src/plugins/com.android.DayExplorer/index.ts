@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {uuidv4} from '../../base/uuid';
-import type {Trace} from '../../public/trace';
+import type {Storage, Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {CounterTrack} from '../../components/tracks/counter_track';
@@ -34,9 +34,7 @@ import {
 import {Memo} from '../../base/memo';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
-import type {Store} from '../../base/store';
 import {z} from 'zod';
-import {ensureExists} from '../../base/assert';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 
@@ -49,13 +47,6 @@ type DayExplorerPluginState = z.infer<typeof DAY_EXPLORER_PLUGIN_STATE_SCHEMA>;
 export default class DayExplorerPlugin implements PerfettoPlugin {
   static readonly id = 'com.android.DayExplorer';
   static readonly dependencies = [StandardGroupsPlugin, SupportPlugin];
-
-  private store?: Store<DayExplorerPluginState>;
-
-  private migrateDayExplorerPluginState(init: unknown): DayExplorerPluginState {
-    const result = DAY_EXPLORER_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
 
   private support(ctx: Trace) {
     return ctx.plugins.getPlugin(SupportPlugin);
@@ -148,7 +139,10 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     });
   }
 
-  private createDayExplorerFlameGraphPanel(trace: Trace) {
+  private createDayExplorerFlameGraphPanel(
+    trace: Trace,
+    storage: Storage<DayExplorerPluginState>,
+  ) {
     const fetcherMemo = new Memo<TreeExplorerFetcher | undefined>();
     return {
       id: 'day_explorer_flamegraph_selection',
@@ -157,22 +151,26 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         const fetcher = fetcherMemo.use({
           key: areaSelectionKey(selection),
           compute: () => {
-            const metrics = this.computeDayExplorerFlameGraph(selection);
+            const metrics = this.computeDayExplorerFlameGraph(
+              selection,
+              storage,
+            );
             return metrics && new TreeExplorerFetcher(trace, metrics);
           },
         });
         if (fetcher === undefined) {
           return undefined;
         }
-        const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(TreeExplorerPanel, {
             fetcher,
-            state: store.state.areaSelectionFlamegraphState,
+            state: storage.get().areaSelectionFlamegraphState,
             onStateChange: (state) => {
-              store.edit((draft) => {
-                draft.areaSelectionFlamegraphState = state;
+              const current = storage.get();
+              storage.set({
+                ...current,
+                areaSelectionFlamegraphState: state,
               });
             },
           }),
@@ -183,6 +181,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
 
   private computeDayExplorerFlameGraph(
     currentSelection: AreaSelection,
+    storage: Storage<DayExplorerPluginState>,
   ): ReadonlyArray<TreeExplorerQueryMetric> | undefined {
     // The flame graph will be shown when any day explorer track is in the area
     // selection. The selection is used to filter by time, and we filter the graph
@@ -255,12 +254,13 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Component',
     });
-    const store = ensureExists(this.store);
-    store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = updateTreeExplorerState(
-        draft.areaSelectionFlamegraphState,
+    const current = storage.get();
+    storage.set({
+      ...current,
+      areaSelectionFlamegraphState: updateTreeExplorerState(
+        current.areaSelectionFlamegraphState,
         metrics,
-      );
+      ),
     });
     return metrics;
   }
@@ -330,15 +330,17 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(DayExplorerPlugin.id, (init) =>
-      this.migrateDayExplorerPluginState(init),
-    );
+    const storage = ctx.registerStorage({
+      id: DayExplorerPlugin.id,
+      schema: DAY_EXPLORER_PLUGIN_STATE_SCHEMA,
+      defaultValue: {},
+    });
 
     const support = this.support(ctx);
     const features = await support.features(ctx.engine);
 
     ctx.selection.registerAreaSelectionTab(
-      this.createDayExplorerFlameGraphPanel(ctx),
+      this.createDayExplorerFlameGraphPanel(ctx, storage),
     );
 
     if (features.has('google3')) {

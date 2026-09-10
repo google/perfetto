@@ -16,7 +16,7 @@ import {z} from 'zod';
 import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 
 // Schema for the slice of Heap Dump Explorer state that survives in a shared
-// permalink. The session writes this on every state change via mountStore;
+// permalink. The session writes this on every state change via registerStorage;
 // the core serializes it into the permalink and restores it before the plugin
 // loads (see core/state_serialization.ts).
 //
@@ -62,8 +62,4 @@ export const HDE_STATE_SCHEMA = z
 
 export type HdeState = z.infer<typeof HDE_STATE_SCHEMA>;
 
-// An unparseable or older permalink falls back to empty state rather than
-// throwing.
-export function migrateHdeState(init: unknown): HdeState {
-  return HDE_STATE_SCHEMA.safeParse(init).data ?? {};
-}
+export const DEFAULT_HDE_STATE: HdeState = {};

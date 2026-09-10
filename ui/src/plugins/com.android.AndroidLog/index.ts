@@ -16,8 +16,8 @@ import './styles.scss';
 import m from 'mithril';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
-  type LogFilteringCriteria,
   type LogPanelCache,
+  LOG_FILTERING_CRITERIA_SCHEMA,
   LogPanel,
 } from './logs_panel';
 import {ANDROID_LOGS_TRACK_KIND} from '../../public/track_kinds';
@@ -26,33 +26,20 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import type {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {createPerProcessLogTrack, createPerThreadLogTrack} from './logs_track';
-import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import {AndroidLogSelectionAggregator} from './log_selection_aggregator';
+import {z} from 'zod';
 import {getMachineCount, maybeMachineLabel} from '../../public/utils';
 
-const VERSION = 1;
-
-const DEFAULT_STATE: AndroidLogPluginState = {
-  version: VERSION,
-  filter: {
-    // The first two log priorities are ignored.
-    minimumLevel: 2,
-    tags: [],
-    isTagRegex: false,
-    textEntry: '',
-    hideNonMatching: true,
-    machineExcludeList: [],
-  },
-};
-
-interface AndroidLogPluginState {
-  version: number;
-  filter: LogFilteringCriteria;
-}
+const ANDROID_LOG_STATE_SCHEMA = z
+  .object({
+    version: z.number().default(1),
+    filter: LOG_FILTERING_CRITERIA_SCHEMA,
+  })
+  .prefault({});
 
 async function getMachines(engine: Engine): Promise<LogPanelCache> {
   // A machine might not provide Android logs, even if configured to do so.
@@ -114,14 +101,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidLog';
   async onTraceLoad(ctx: Trace): Promise<void> {
     const numMachines = await getMachineCount(ctx.engine);
-    const store = ctx.mountStore<AndroidLogPluginState>(
-      'com.android.AndroidLogFilterState',
-      (init) => {
-        return exists(init) && (init as {version: unknown}).version === VERSION
-          ? (init as AndroidLogPluginState)
-          : DEFAULT_STATE;
-      },
-    );
 
     const result = await ctx.engine.query(
       `select count(1) as cnt from android_logs`,
@@ -297,10 +276,10 @@ export default class implements PerfettoPlugin {
     const androidLogsTabUri = 'perfetto.AndroidLog#tab';
 
     // Eternal tabs should always be available even if there is nothing to show
-    const filterStore = store.createSubStore(
-      ['filter'],
-      (x) => x as LogFilteringCriteria,
-    );
+    const filterStore = ctx.registerStorage({
+      id: 'com.android.AndroidLogFilterState',
+      schema: ANDROID_LOG_STATE_SCHEMA,
+    });
 
     const cache = await getMachines(ctx.engine);
 
@@ -308,7 +287,14 @@ export default class implements PerfettoPlugin {
       isEphemeral: false,
       uri: androidLogsTabUri,
       content: {
-        render: () => m(LogPanel, {filterStore, cache, trace: ctx}),
+        render: () =>
+          m(LogPanel, {
+            trace: ctx,
+            cache,
+            filter: filterStore.get().filter,
+            onFilterChange: (filter) =>
+              filterStore.set({...filterStore.get(), filter}),
+          }),
         getTitle: () => 'Android Logs',
       },
     });

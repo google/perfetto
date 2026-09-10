@@ -42,27 +42,34 @@ import {
 } from '../../widgets/grid';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
-import type {Store} from '../../base/store';
 import type {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {MenuItem} from '../../widgets/menu';
 import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
 import {Anchor} from '../../widgets/anchor';
 import {getThreadUriPrefix} from '../../public/utils';
+import {z} from 'zod';
 
 const ROW_H = 24;
 
-export interface JournaldLogFilteringCriteria {
-  readonly minimumLevel: number;
-  readonly tags: string[];
-  readonly isTagRegex?: boolean;
-  readonly textEntry: string;
-  readonly hideNonMatching: boolean;
-}
+export const JOURNALD_FILTER_SCHEMA = z
+  .object({
+    minimumLevel: z.number().default(7),
+    tags: z.array(z.string()).default([]),
+    isTagRegex: z.boolean().optional(),
+    textEntry: z.string().default(''),
+    hideNonMatching: z.boolean().default(true),
+  })
+  .prefault({});
+
+export type JournaldLogFilteringCriteria = z.infer<
+  typeof JOURNALD_FILTER_SCHEMA
+>;
 
 export interface JournaldLogPanelAttrs {
-  readonly filterStore: Store<JournaldLogFilteringCriteria>;
   readonly trace: Trace;
+  readonly filter: JournaldLogFilteringCriteria;
+  readonly onFilterChange: (filter: JournaldLogFilteringCriteria) => void;
 }
 
 interface Pagination {
@@ -119,7 +126,7 @@ export class JournaldLogPanel implements m.ClassComponent<JournaldLogPanelAttrs>
 
   view({attrs}: m.CVnode<JournaldLogPanelAttrs>) {
     const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const filters = attrs.filterStore.state;
+    const filters = attrs.filter;
     const pagination = this.pagination;
     const engine = attrs.trace.engine;
 
@@ -148,7 +155,8 @@ export class JournaldLogPanel implements m.ClassComponent<JournaldLogPanelAttrs>
         title: 'Journald Logs',
         description: `Total messages: ${totalEvents}`,
         buttons: m(LogsFilters, {
-          store: attrs.filterStore,
+          filter: attrs.filter,
+          onFilterChange: attrs.onFilterChange,
         }),
       },
       this.renderGrid(attrs.trace, entries),
@@ -386,59 +394,67 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
 }
 
 interface LogsFiltersAttrs {
-  readonly store: Store<JournaldLogFilteringCriteria>;
+  readonly filter: JournaldLogFilteringCriteria;
+  readonly onFilterChange: (filter: JournaldLogFilteringCriteria) => void;
 }
 
 class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
+    const filterState = attrs.filter;
     return [
       m('span', 'Log Level'),
       m(LogPriorityWidget, {
         options: JOURNALD_PRIORITIES,
-        selectedIndex: attrs.store.state.minimumLevel,
+        selectedIndex: filterState.minimumLevel,
         onSelect: (minimumLevel) => {
-          attrs.store.edit((draft) => {
-            draft.minimumLevel = minimumLevel;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            minimumLevel,
           });
         },
       }),
       m(TagInput, {
         leftIcon: 'label',
         placeholder: 'Filter by tag...',
-        tags: attrs.store.state.tags,
+        tags: filterState.tags,
         onTagAdd: (tag) => {
-          attrs.store.edit((draft) => {
-            draft.tags.push(tag);
+          attrs.onFilterChange({
+            ...attrs.filter,
+            tags: [...attrs.filter.tags, tag],
           });
         },
         onTagRemove: (index) => {
-          attrs.store.edit((draft) => {
-            draft.tags.splice(index, 1);
+          attrs.onFilterChange({
+            ...attrs.filter,
+            tags: attrs.filter.tags.filter((_, i) => i !== index),
           });
         },
       }),
       m(Button, {
         icon: 'regular_expression',
         tooltip: 'Use regex',
-        active: !!attrs.store.state.isTagRegex,
+        active: !!filterState.isTagRegex,
         onclick: () => {
-          attrs.store.edit((draft) => {
-            draft.isTagRegex = !draft.isTagRegex;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            isTagRegex: !attrs.filter.isTagRegex,
           });
         },
       }),
       m(LogTextWidget, {
         onChange: (text) => {
-          attrs.store.edit((draft) => {
-            draft.textEntry = text;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            textEntry: text,
           });
         },
       }),
       m(FilterByTextWidget, {
-        hideNonMatching: attrs.store.state.hideNonMatching,
+        hideNonMatching: filterState.hideNonMatching,
         onClick: () => {
-          attrs.store.edit((draft) => {
-            draft.hideNonMatching = !draft.hideNonMatching;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            hideNonMatching: !attrs.filter.hideNonMatching,
           });
         },
       }),
