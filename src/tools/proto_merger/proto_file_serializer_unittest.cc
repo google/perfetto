@@ -1289,6 +1289,41 @@ TEST(ExtensionProtoMergerTest, UnassociatedHelpersAreOmitted) {
   EXPECT_THAT(out, Not(HasSubstr("UnusedHelper")));
   EXPECT_THAT(out, Not(HasSubstr("OtherMessage")));
 }
+
+TEST(ProtoFileSerializerTest, IgnoresLintComments) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  protozero::MultiFileErrorCollectorImpl mfe;
+
+  std::string proto_content = R"(
+    syntax = "proto2";
+    // LINT.IfChange
+    // This is a valid comment
+    message Foo {
+      optional int32 a = 1;
+    }
+    // LINT.ThenChange
+  )";
+
+  TempProtoFile temp_input(temp_dir.path(), "input.proto", proto_content);
+
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  dst.MapPath("", ".");
+  dst.MapPath("", "buildtools/protobuf/src");
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe);
+  const auto* input_desc = importer_input.Import("input.proto");
+
+  ASSERT_NE(input_desc, nullptr);
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  std::string out = ProtoFileToDotProto(input_file);
+
+  EXPECT_THAT(out, testing::HasSubstr("This is a valid comment"));
+  EXPECT_THAT(out, testing::Not(testing::HasSubstr("LINT.IfChange")));
+  EXPECT_THAT(out, testing::Not(testing::HasSubstr("LINT.ThenChange")));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto
