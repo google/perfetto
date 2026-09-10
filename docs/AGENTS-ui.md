@@ -358,6 +358,39 @@ async onTraceLoad(trace: Trace): Promise<void> {
 }
 ```
 
+### Prefer `NUM` (number) over `LONG` (bigint) for TraceProcessor ID fields
+
+When pulling out TraceProcessor ID columns (e.g. `track_id`, `upid`, `utid`, `slice.id`, `process_id`), use `NUM`/`NUM_NULL` and `number` instead of `LONG`/`LONG_NULL` and `bigint`:
+
+```typescript
+const iter = result.iter({
+  track_id: NUM,   // number — preferred for IDs
+  // track_id: LONG, // bigint — avoid for IDs
+});
+```
+
+TraceProcessor IDs are assigned sequentially by the engine, so they are small integers guaranteed to fit well within the 2^53 limit of JS `number`s (the largest safe integer). Using `number` avoids the awkwardness of `bigint` arithmetic and comparisons (`1n !== 1`), the need for `Number()`/`BigInt()` conversions at boundaries (e.g. track tags, URLs, JSON), lets the query result decode into a `Float64Array` instead of a `BigInt64Array`, and avoids the performance hit of `bigint` operations, which are significantly slower than native number ops.
+
+**When to use `LONG`**: timestamps (`ts`) and durations (`dur`) in nanoseconds should use `LONG`/`bigint`, as they can genuinely exceed 2^53 — e.g. a timestamp in ns overflows once the trace clock passes ~262 days, and large `dur` values or arithmetic on ns timestamps (deltas, sums) can exceed it well before that. `bigint` is the only safe representation for those values.
+
+### Keep times and durations as `Time`/`Duration` where possible
+
+The UI has first-class types for these values in `ui/src/base/time.ts`: the branded `time` type (via the `Time` class) and `duration` (via the `Duration` class). When pulling `ts`/`dur` (or any ns timestamp/duration) out of a query result, immediately convert to these types rather than passing raw `bigint`s around:
+
+```typescript
+const iter = result.iter({
+  ts: LONG,
+  dur: LONG,
+});
+
+for (; iter.valid(); iter.next()) {
+  const start = Time.fromRaw(iter.ts);      // time (branded bigint)
+  const dur = Duration.fromRaw(iter.dur);   // duration
+}
+```
+
+The branded `time` type prevents accidentally mixing up times and durations (or plain bigints) at compile time, and both types provide helpers for arithmetic, formatting, and clamping. Only hold raw `bigint`s at the query boundary; convert to `Time`/`Duration` as soon as you leave the query iteration.
+
 ## Track creation
 
 Rarely you need to create a new Track from scratch.
