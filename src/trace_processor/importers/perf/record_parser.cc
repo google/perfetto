@@ -118,6 +118,7 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
       return ParseComm(std::move(record));
 
     case PERF_RECORD_SAMPLE:
+
       return ParseSample(ts, std::move(record));
 
     case PERF_RECORD_MMAP:
@@ -190,7 +191,8 @@ base::Status RecordParser::InternSample(Sample sample) {
       upid, sample.callchain, sample.perf_invocation->needs_pc_adjustment());
 
   // Update counters and create counter set.
-  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids, UpdateCounters(sample));
+  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids,
+                   UpdateCounters(sample, utid));
 
   tables::ProfilerSampleTable::Row row;
   row.ts = sample.trace_ts;
@@ -349,9 +351,10 @@ UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
-    const Sample& sample) {
+    const Sample& sample,
+    std::optional<UniqueTid> utid) {
   if (!sample.read_groups.empty()) {
-    return UpdateCountersInReadGroups(sample);
+    return UpdateCountersInReadGroups(sample, utid);
   }
 
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
@@ -360,15 +363,27 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
+  // Periodic sampling timebase counters are kept on CPU counter tracks (or
+  // global if CPU is unavailable), while hardware PMU counters collected in
+  // read groups (e.g. via --add-counter) are thread-scoped when
+  // thread-targeted.
   CounterId counter_id =
-      sample.attr->GetOrCreateCounter(sample.cpu)
+      sample.attr->GetOrCreateCounter(sample.cpu, std::nullopt)
           .AddDelta(sample.trace_ts, static_cast<double>(period));
   return std::vector<CounterId>{counter_id};
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
-    const Sample& sample) {
+    const Sample& sample,
+    std::optional<UniqueTid> utid) {
+  if (!utid.has_value() && sample.pid_tid.has_value()) {
+    utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
+                                                   sample.pid_tid->pid);
+  }
+
   std::vector<CounterId> counter_ids;
+  std::optional<uint32_t> cpu_for_count =
+      sample.perf_invocation->is_simpleperf() ? sample.cpu : std::nullopt;
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
         sample.perf_invocation->FindAttrForEventId(*entry.event_id);
@@ -376,10 +391,28 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
       return base::ErrStatus("No perf_event_attr for id %" PRIu64,
                              *entry.event_id);
     }
-    CounterId counter_id =
-        attr->GetOrCreateCounter(sample.cpu)
-            .AddCount(sample.trace_ts, static_cast<double>(entry.value));
-    counter_ids.push_back(counter_id);
+    if (attr->is_thread_scoped() && utid.has_value()) {
+      PerfCounter& thread_counter = attr->GetOrCreateThreadCounter(*utid);
+      double prev_count = thread_counter.last_count();
+      CounterId counter_id = thread_counter.AddCount(
+          sample.trace_ts, static_cast<double>(entry.value), cpu_for_count);
+      counter_ids.push_back(counter_id);
+      if (sample.cpu.has_value()) {
+        double delta = thread_counter.last_count() - prev_count;
+        attr->GetOrCreateCpuCounter(sample.cpu)
+            .AddDelta(sample.trace_ts, delta);
+      }
+    } else {
+      PerfCounter& cpu_counter = attr->GetOrCreateCpuCounter(sample.cpu);
+      double prev_count = cpu_counter.last_count();
+      CounterId counter_id = cpu_counter.AddCount(
+          sample.trace_ts, static_cast<double>(entry.value));
+      counter_ids.push_back(counter_id);
+      if (utid.has_value()) {
+        double delta = cpu_counter.last_count() - prev_count;
+        attr->GetOrCreateThreadCounter(*utid).AddDelta(sample.trace_ts, delta);
+      }
+    }
   }
   return counter_ids;
 }

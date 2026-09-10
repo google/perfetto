@@ -55,14 +55,18 @@ class RecordParser : public TraceSorter::Sink<Record, RecordParser> {
   base::Status ParseSample(int64_t ts, Record record);
   base::Status ParseComm(Record record);
   base::Status ParseMmap(int64_t trace_ts, Record record);
+
   base::Status ParseMmap2(int64_t trace_ts, Record record);
   base::Status ParseItraceStart(Record record);
 
   base::Status InternSample(Sample sample);
 
-  base::StatusOr<std::vector<CounterId>> UpdateCounters(const Sample& sample);
-  static base::StatusOr<std::vector<CounterId>> UpdateCountersInReadGroups(
-      const Sample& sample);
+  base::StatusOr<std::vector<CounterId>> UpdateCounters(
+      const Sample& sample,
+      std::optional<UniqueTid> utid);
+  base::StatusOr<std::vector<CounterId>> UpdateCountersInReadGroups(
+      const Sample& sample,
+      std::optional<UniqueTid> utid);
 
   std::optional<CallsiteId> InternCallchain(
       UniquePid upid,

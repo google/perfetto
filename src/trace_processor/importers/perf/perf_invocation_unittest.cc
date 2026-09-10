@@ -22,11 +22,23 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/perf/features.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
+#include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf/record_parser.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -362,6 +374,434 @@ TEST(PerfInvocationTest, SimpleperfMetaInfoEventTypeInfoWithExtraFields) {
   auto* name = meta_info.event_type_info.Find({0, 0});
   ASSERT_NE(name, nullptr);
   EXPECT_EQ(*name, "cpu-cycles");
+}
+
+class PerfThreadScopedCounterTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    context_.storage = std::make_unique<TraceStorage>();
+    context_.global_stats_tracker =
+        std::make_unique<GlobalStatsTracker>(context_.storage.get());
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+    context_.cpu_tracker = std::make_unique<CpuTracker>(&context_);
+    context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
+    context_.process_tracker = std::make_unique<ProcessTracker>(&context_);
+    context_.mapping_tracker = std::make_unique<MappingTracker>(&context_);
+    context_.stack_profile_tracker =
+        std::make_unique<StackProfileTracker>(&context_);
+    context_.profiler_sample_tracker =
+        std::make_unique<ProfilerSampleTracker>(&context_);
+  }
+
+  TraceProcessorContext context_;
+};
+
+TEST_F(PerfThreadScopedCounterTest, ThreadScopedCounterCreation) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = true;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+
+  PerfCounter& counter1 = attr_ptr->GetOrCreateCounter(0, utid1);
+  counter1.AddDelta(1000, 50.0);
+  PerfCounter& counter2 = attr_ptr->GetOrCreateCounter(0, utid2);
+  counter2.AddDelta(1005, 30.0);
+
+  const auto& track_table = context_.storage->track_table();
+  EXPECT_EQ(track_table.row_count(), 2u);
+  const auto& counter_table = context_.storage->counter_table();
+  EXPECT_EQ(counter_table.row_count(), 2u);
+  EXPECT_NE(counter1.track_id(), counter2.track_id());
+  EXPECT_EQ(counter_table[0].value(), 50.0);
+  EXPECT_EQ(counter_table[1].value(), 30.0);
+}
+
+TEST_F(PerfThreadScopedCounterTest, ThreadScopedCounterAddCountMonotonicity) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = true;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+  PerfCounter& counter1 = attr_ptr->GetOrCreateCounter(0, utid1);
+  PerfCounter& counter2 = attr_ptr->GetOrCreateCounter(0, utid2);
+
+  counter1.AddCount(1000, 1000.0);
+  counter2.AddCount(1005, 50.0);
+
+  const auto& counter_table = context_.storage->counter_table();
+  EXPECT_EQ(counter_table.row_count(), 2u);
+  EXPECT_EQ(counter_table[0].value(), 1000.0);
+  EXPECT_EQ(counter_table[1].value(), 50.0);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       NonMonotonicCounterGracefulClampingAndStat) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = true;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  UniqueTid utid = context_.process_tracker->UpdateThread(101, 100);
+  PerfCounter& counter = attr_ptr->GetOrCreateCounter(0, utid);
+  counter.AddCount(1000, 1000.0);
+
+  counter.AddCount(1005, 50.0);
+
+  EXPECT_EQ(context_.stats_tracker->GetStats(stats::perf_counter_non_monotonic),
+            1);
+  const auto& counter_table = context_.storage->counter_table();
+  EXPECT_EQ(counter_table.row_count(), 2u);
+  EXPECT_EQ(counter_table[0].value(), 1000.0);
+  EXPECT_EQ(counter_table[1].value(), 1000.0);
+}
+
+TEST_F(PerfThreadScopedCounterTest, ThreadScopedCounterAddCountCoreMigration) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = true;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_CPU;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  UniqueTid utid = context_.process_tracker->UpdateThread(101, 100);
+  PerfCounter& counter = attr_ptr->GetOrCreateCounter(0, utid);
+
+  // Core 0 emits 1000 instructions.
+  counter.AddCount(1000, 1000.0, 0);
+  // Thread migrates to Core 1; Core 1 counter records 500 instructions.
+  counter.AddCount(1010, 500.0, 1);
+  // Thread migrates back to Core 0; Core 0 counter reaches 1200 (delta +200).
+  counter.AddCount(1020, 1200.0, 0);
+  // Thread migrates back to Core 1; Core 1 counter reaches 700 (delta +200).
+  counter.AddCount(1030, 700.0, 1);
+
+  const auto& counter_table = context_.storage->counter_table();
+  EXPECT_EQ(counter_table.row_count(), 4u);
+  EXPECT_EQ(counter_table[0].value(), 1000.0);
+  EXPECT_EQ(counter_table[1].value(), 1500.0);
+  EXPECT_EQ(counter_table[2].value(), 1700.0);
+  EXPECT_EQ(counter_table[3].value(), 1900.0);
+  EXPECT_EQ(context_.stats_tracker->GetStats(stats::perf_counter_non_monotonic),
+            0);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       ThreadScopedCounterPerCpuNonMonotonicClamping) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = true;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_CPU;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  UniqueTid utid = context_.process_tracker->UpdateThread(101, 100);
+  PerfCounter& counter = attr_ptr->GetOrCreateCounter(0, utid);
+
+  counter.AddCount(1000, 1000.0, 0);
+  counter.AddCount(1010, 500.0, 1);
+  // Core 0 counter unexpectedly regresses from 1000 to 800.
+  counter.AddCount(1020, 800.0, 0);
+
+  EXPECT_EQ(context_.stats_tracker->GetStats(stats::perf_counter_non_monotonic),
+            1);
+  const auto& counter_table = context_.storage->counter_table();
+  EXPECT_EQ(counter_table.row_count(), 3u);
+  EXPECT_EQ(counter_table[0].value(), 1000.0);
+  EXPECT_EQ(counter_table[1].value(), 1500.0);
+  // Regressed sample is clamped to 1000.0 (delta = 0), total remains 1500.0.
+  EXPECT_EQ(counter_table[2].value(), 1500.0);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       SystemWideTraceRoutesToCpuTrackEvenWithInherit) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = true;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  (*session)->SetCmdline({"/usr/bin/perf", "record", "-a"});
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  EXPECT_FALSE(attr_ptr->is_thread_scoped());
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+
+  PerfCounter& counter1 = attr_ptr->GetOrCreateCounter(0, utid1);
+  PerfCounter& counter2 = attr_ptr->GetOrCreateCounter(0, utid2);
+
+  EXPECT_EQ(counter1.track_id(), counter2.track_id());
+  const auto& track_table = context_.storage->track_table();
+  EXPECT_EQ(track_table.row_count(), 1u);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       SystemWideTraceWithoutCmdlineRoutesToCpuTrack) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = false;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  EXPECT_FALSE(attr_ptr->is_thread_scoped());
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+
+  PerfCounter& counter1 = attr_ptr->GetOrCreateCounter(0, utid1);
+  PerfCounter& counter2 = attr_ptr->GetOrCreateCounter(0, utid2);
+
+  EXPECT_EQ(counter1.track_id(), counter2.track_id());
+  const auto& track_table = context_.storage->track_table();
+  EXPECT_EQ(track_table.row_count(), 1u);
+}
+
+TEST_F(PerfThreadScopedCounterTest, ThreadScopedTraceDetectedViaCmdlinePid) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = false;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  (*session)->SetCmdline({"/usr/bin/perf", "record", "-p", "100"});
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  EXPECT_TRUE(attr_ptr->is_thread_scoped());
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+
+  PerfCounter& counter1 = attr_ptr->GetOrCreateCounter(0, utid1);
+  PerfCounter& counter2 = attr_ptr->GetOrCreateCounter(0, utid2);
+
+  EXPECT_NE(counter1.track_id(), counter2.track_id());
+  const auto& track_table = context_.storage->track_table();
+  EXPECT_EQ(track_table.row_count(), 2u);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       ThreadScopedTraceDetectedViaSimpleperfMetaInfoApp) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = false;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  feature::SimpleperfMetaInfo meta_info;
+  meta_info.entries.Insert("app_package_name", "com.android.chrome");
+  (*session)->SetSimpleperfMetaInfo(meta_info.entries);
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  EXPECT_TRUE(attr_ptr->is_thread_scoped());
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+
+  PerfCounter& counter1 = attr_ptr->GetOrCreateCounter(0, utid1);
+  PerfCounter& counter2 = attr_ptr->GetOrCreateCounter(0, utid2);
+
+  EXPECT_NE(counter1.track_id(), counter2.track_id());
+  const auto& track_table = context_.storage->track_table();
+  EXPECT_EQ(track_table.row_count(), 2u);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       SystemWideTraceDetectedViaSimpleperfMetaInfoSystemWide) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = false;
+  attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  feature::SimpleperfMetaInfo meta_info;
+  meta_info.entries.Insert("system_wide_collection", "true");
+  (*session)->SetSimpleperfMetaInfo(meta_info.entries);
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  EXPECT_FALSE(attr_ptr->is_thread_scoped());
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+
+  PerfCounter& counter1 = attr_ptr->GetOrCreateCounter(0, utid1);
+  PerfCounter& counter2 = attr_ptr->GetOrCreateCounter(0, utid2);
+
+  EXPECT_EQ(counter1.track_id(), counter2.track_id());
+  const auto& track_table = context_.storage->track_table();
+  EXPECT_EQ(track_table.row_count(), 1u);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       SystemWideReadGroupPopulatesBothCpuAndThreadCounters) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = false;
+  attr.sample_type =
+      PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_CPU | PERF_SAMPLE_READ;
+  attr.read_format = PERF_FORMAT_GROUP | PERF_FORMAT_ID;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  (*session)->SetCmdline({"/usr/bin/perf", "record", "-a"});
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  PerfTracker perf_tracker(&context_);
+  RecordParser parser(&context_, &perf_tracker);
+  struct SamplePayload {
+    uint32_t pid;
+    uint32_t tid;
+    uint64_t time;
+    uint32_t cpu;
+    uint32_t res;
+    uint64_t nr;
+    uint64_t value;
+    uint64_t id;
+  };
+  SamplePayload s1{100, 101, 1000, 0, 0, 1, 1000, 1};
+  SamplePayload s2{100, 102, 2000, 0, 0, 1, 3500, 1};
+  SamplePayload s3{100, 101, 3000, 0, 0, 1, 5000, 1};
+  auto make_record = [&](const SamplePayload& p) {
+    perf_event_header header;
+    header.type = PERF_RECORD_SAMPLE;
+    header.misc = PERF_RECORD_MISC_USER;
+    header.size = sizeof(header) + sizeof(p);
+    Record r;
+    r.header = header;
+    r.attr = attr_ptr;
+    r.session = *session;
+    r.payload = TraceBlobView(TraceBlob::CopyFrom(&p, sizeof(p)));
+    return r;
+  };
+  auto parse_samples = [&]() {
+    parser.Parse(1000, make_record(s1));
+    parser.Parse(2000, make_record(s2));
+    parser.Parse(3000, make_record(s3));
+  };
+
+  parse_samples();
+
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+  PerfCounter& cpu_counter = attr_ptr->GetOrCreateCpuCounter(0);
+  PerfCounter& t1_counter = attr_ptr->GetOrCreateThreadCounter(utid1);
+  PerfCounter& t2_counter = attr_ptr->GetOrCreateThreadCounter(utid2);
+  EXPECT_EQ(cpu_counter.last_count(), 5000.0);
+  EXPECT_EQ(t1_counter.last_count(), 2500.0);
+  EXPECT_EQ(t2_counter.last_count(), 2500.0);
+}
+
+TEST_F(PerfThreadScopedCounterTest,
+       ThreadScopedReadGroupPopulatesBothThreadAndCpuCounters) {
+  PerfInvocation::Builder builder(&context_);
+  perf_event_attr attr{};
+  attr.sample_id_all = true;
+  attr.inherit = true;
+  attr.read_format = PERF_FORMAT_GROUP | PERF_FORMAT_ID;
+  attr.sample_type =
+      PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_CPU | PERF_SAMPLE_READ;
+  builder.AddAttrAndIds(attr, {1});
+  auto session = builder.Build();
+  ASSERT_TRUE(session.ok());
+  RefPtr<PerfEventAttr> attr_ptr = (*session)->FindAttrForEventId(1);
+  ASSERT_TRUE(attr_ptr);
+  attr_ptr->set_event_name("instructions");
+  ASSERT_TRUE(attr_ptr->is_thread_scoped());
+  PerfTracker perf_tracker(&context_);
+  RecordParser parser(&context_, &perf_tracker);
+  struct __attribute__((packed)) SamplePayload {
+    uint32_t pid;
+    uint32_t tid;
+    uint64_t time;
+    uint32_t cpu;
+    uint32_t res;
+    uint64_t nr;
+    uint64_t value;
+    uint64_t id;
+  };
+  SamplePayload s1{100, 101, 1000, 0, 0, 1, 1000, 1};
+  SamplePayload s2{100, 102, 2000, 0, 0, 1, 500, 1};
+  SamplePayload s3{100, 101, 3000, 0, 0, 1, 2500, 1};
+  auto make_record = [&](const SamplePayload& p) {
+    perf_event_header header;
+    header.type = PERF_RECORD_SAMPLE;
+    header.misc = PERF_RECORD_MISC_USER;
+    header.size = sizeof(header) + sizeof(p);
+    Record r;
+    r.header = header;
+    r.attr = attr_ptr;
+    r.session = *session;
+    r.payload = TraceBlobView(TraceBlob::CopyFrom(&p, sizeof(p)));
+    return r;
+  };
+  auto parse_samples = [&]() {
+    parser.Parse(1000, make_record(s1));
+    parser.Parse(2000, make_record(s2));
+    parser.Parse(3000, make_record(s3));
+  };
+
+  parse_samples();
+
+  UniqueTid utid1 = context_.process_tracker->UpdateThread(101, 100);
+  UniqueTid utid2 = context_.process_tracker->UpdateThread(102, 100);
+  PerfCounter& cpu_counter = attr_ptr->GetOrCreateCpuCounter(0);
+  PerfCounter& t1_counter = attr_ptr->GetOrCreateThreadCounter(utid1);
+  PerfCounter& t2_counter = attr_ptr->GetOrCreateThreadCounter(utid2);
+  EXPECT_EQ(t1_counter.last_count(), 2500.0);
+  EXPECT_EQ(t2_counter.last_count(), 500.0);
+  EXPECT_EQ(cpu_counter.last_count(), 3000.0);
 }
 
 }  // namespace
