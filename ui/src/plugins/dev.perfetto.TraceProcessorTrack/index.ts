@@ -738,7 +738,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       },
     });
 
-    const disposables = new AsyncDisposableStack();
+    await using disposables = new AsyncDisposableStack();
     const iiTable = disposables.use(
       await createIITable(
         trace.engine,
@@ -830,9 +830,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         metrics,
       );
     });
+    // Move the resources into the returned object: the implicit scope-exit
+    // dispose becomes a no-op on the happy path, and cleans up if anything
+    // above throws.
+    const owned = disposables.move();
     return {
       metrics,
-      [Symbol.asyncDispose]: () => disposables[Symbol.asyncDispose](),
+      [Symbol.asyncDispose]: () => owned[Symbol.asyncDispose](),
     };
   }
 
