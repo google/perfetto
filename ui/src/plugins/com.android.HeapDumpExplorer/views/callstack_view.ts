@@ -14,7 +14,8 @@
 
 import m from 'mithril';
 import type {Trace} from '../../../public/trace';
-import type {TreeExplorerQueryMetric} from '../../../components/tree_explorer_fetcher';
+import {TreeExplorerFetcher} from '../../../components/tree_explorer_fetcher';
+import {Memo} from '../../../base/memo';
 import {TreeExplorerPanel} from '../../../components/tree_explorer_panel';
 import {
   createDefaultTreeExplorerState,
@@ -45,8 +46,9 @@ interface CallstackViewAttrs {
 export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
   private oomeData?: OomeData;
   private oomeDataLoaded = false;
-  private cachedMetrics?: ReadonlyArray<TreeExplorerQueryMetric>;
-  private cachedKey?: string;
+  // The fetcher is created for the dump it serves and disposed by the memo when
+  // the dump changes or when this view is removed.
+  private readonly fetcherMemo = new Memo<TreeExplorerFetcher>();
   private readonly limiter = new AsyncLimiter();
   private monitor?: Monitor;
 
@@ -69,16 +71,11 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
     }
 
     if (!this.oomeDataLoaded) {
-      return m(
-        DetailsShell,
-        {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
-        m(TreeExplorerPanel, {
-          trace: attrs.trace,
-          metrics: undefined,
-          state: attrs.state,
-          onStateChange: attrs.onStateChange,
-        }),
-      );
+      return m(DetailsShell, {
+        title: 'Callstack',
+        fillHeight: true,
+        className: 'pf-hde-tab--padded',
+      });
     }
 
     if (this.oomeData === undefined) {
@@ -102,12 +99,12 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
 
     const upid = this.oomeData.upid;
     const ts = this.oomeData.ts;
-    const key = `${upid}:${ts}`;
-    if (this.cachedMetrics === undefined || key !== this.cachedKey) {
-      this.cachedMetrics = buildOomeCallstackMetrics(ts);
-      this.cachedKey = key;
-    }
-    const metrics = this.cachedMetrics;
+    const fetcher = this.fetcherMemo.use({
+      key: {upid, ts},
+      compute: () =>
+        new TreeExplorerFetcher(attrs.trace, buildOomeCallstackMetrics(ts)),
+    });
+    const metrics = fetcher.metrics;
 
     let state = attrs.state;
     if (state === undefined) {
@@ -123,12 +120,15 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
         {orientation: 'vertical'},
         renderOomeDetails(this.oomeData?.details),
         m(TreeExplorerPanel, {
-          trace: attrs.trace,
-          metrics,
+          fetcher,
           state,
           onStateChange: attrs.onStateChange,
         }),
       ),
     );
+  }
+
+  onremove(): void {
+    this.fetcherMemo.dispose();
   }
 }

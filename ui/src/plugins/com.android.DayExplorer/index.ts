@@ -21,15 +21,17 @@ import {CounterTrack} from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
 import {STR, LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {areaSelectionKey, type AreaSelection} from '../../public/selection';
 import {
   TREE_EXPLORER_STATE_SCHEMA,
   updateTreeExplorerState,
 } from '../../widgets/tree_explorer';
 import {
   metricsFromTableOrSubquery,
+  TreeExplorerFetcher,
   type TreeExplorerQueryMetric,
 } from '../../components/tree_explorer_fetcher';
+import {Memo} from '../../base/memo';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 import type {Store} from '../../base/store';
@@ -147,28 +149,26 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
   }
 
   private createDayExplorerFlameGraphPanel(trace: Trace) {
-    let previousSelection: AreaSelection | undefined;
-    let flamegraphMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
+    const fetcherMemo = new Memo<TreeExplorerFetcher | undefined>();
     return {
       id: 'day_explorer_flamegraph_selection',
       name: 'Day Explorer Flamegraph',
       render: (selection: AreaSelection) => {
-        const selectionChanged =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        previousSelection = selection;
-        if (selectionChanged) {
-          flamegraphMetrics = this.computeDayExplorerFlameGraph(selection);
-        }
-        if (flamegraphMetrics === undefined) {
+        const fetcher = fetcherMemo.use({
+          key: areaSelectionKey(selection),
+          compute: () => {
+            const metrics = this.computeDayExplorerFlameGraph(selection);
+            return metrics && new TreeExplorerFetcher(trace, metrics);
+          },
+        });
+        if (fetcher === undefined) {
           return undefined;
         }
         const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(TreeExplorerPanel, {
-            trace,
-            metrics: flamegraphMetrics,
+            fetcher,
             state: store.state.areaSelectionFlamegraphState,
             onStateChange: (state) => {
               store.edit((draft) => {

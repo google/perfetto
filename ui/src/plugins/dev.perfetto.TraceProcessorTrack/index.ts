@@ -14,10 +14,8 @@
 
 import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
-import {AsyncLimiter} from '../../base/async_limiter';
 import {ensureExists} from '../../base/assert';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {SharedAsyncDisposable} from '../../base/shared_disposable';
 import {Time} from '../../base/time';
 import {
   createAggregationTab,
@@ -27,13 +25,12 @@ import {sliceDistributionCellRenderers} from '../../components/details/slice_det
 import {openDistributionTab} from '../../components/distribution_panel';
 import {
   metricsFromTableOrSubquery,
-  type TreeExplorerFetcherDependency,
-  type TreeExplorerQueryMetric,
+  TreeExplorerFetcher,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {MinimapRow} from '../../public/minimap';
 import type {PerfettoPlugin} from '../../public/plugin';
-import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {areaSelectionKey, type AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getMachineCount, getTrackName} from '../../public/utils';
@@ -71,6 +68,7 @@ import {
 } from '../../trace_processor/sql_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {CallstackDetailsSection} from './callstack_details_section';
+import {AsyncMemo, AtomicTaskQueue} from '../../base/async_memo';
 
 const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
   areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
@@ -81,8 +79,7 @@ type TraceProcessorTrackPluginState = z.infer<
 >;
 
 interface SliceFlamegraphData extends AsyncDisposable {
-  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
-  readonly dependencies: ReadonlyArray<TreeExplorerFetcherDependency>;
+  readonly fetcher: TreeExplorerFetcher;
 }
 
 function createDetailsPanel(trace: Trace, utid: number | null) {
@@ -658,41 +655,33 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   }
 
   private createSliceFlameGraphPanel(trace: Trace) {
-    let previousSelection: AreaSelection | undefined;
-    let computed: SliceFlamegraphData | undefined;
-    let isLoading = false;
-    const limiter = new AsyncLimiter();
+    const queue = new AtomicTaskQueue();
+    const memo = new AsyncMemo<SliceFlamegraphData | undefined>(queue);
 
     return {
       id: 'slice_flamegraph_selection',
       name: 'Slice Flamegraph',
       render: (selection: AreaSelection) => {
-        const selectionChanged =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        previousSelection = selection;
-        if (selectionChanged) {
-          limiter.schedule(async () => {
-            const previousComputed = computed;
-            computed = undefined;
-            isLoading = true;
-            await previousComputed?.[Symbol.asyncDispose]();
-            computed = await this.computeSliceFlamegraph(trace, selection);
-            isLoading = false;
-          });
-        }
-        if (computed === undefined && !isLoading) {
+        const selectionKey = areaSelectionKey(selection);
+        const {isPending, data: computed} = memo.use({
+          key: {
+            selection: selectionKey,
+          },
+          compute: () => this.computeSliceFlamegraph(trace, queue, selection),
+        });
+
+        // No data returned, return undefined to hide the tab.
+        if (computed === undefined && !isPending) {
           return undefined;
         }
+
         const store = ensureExists(this.store);
         return {
-          isLoading,
+          isLoading: isPending,
           content:
             computed &&
             m(TreeExplorerPanel, {
-              trace,
-              metrics: computed.metrics,
-              dependencies: computed.dependencies,
+              fetcher: computed.fetcher,
               state: store.state.areaSelectionFlamegraphState,
               onStateChange: (state) => {
                 store.edit((draft) => {
@@ -707,6 +696,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private async computeSliceFlamegraph(
     trace: Trace,
+    queue: AtomicTaskQueue,
     currentSelection: AreaSelection,
   ): Promise<SliceFlamegraphData | undefined> {
     const trackIds = [];
@@ -835,12 +825,23 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         metrics,
       );
     });
-    const dependency: TreeExplorerFetcherDependency =
-      SharedAsyncDisposable.wrap(disposables.move());
+    // The fetcher is created here, next to the metrics it serves, and moved
+    // into the returned object: it dies with this generation, so its virtual
+    // tables (which read from `iiTable`) never outlive the tables themselves.
+    const fetcher = new TreeExplorerFetcher(trace, metrics, queue);
+    // Move the resources into the returned object: the implicit scope-exit
+    // dispose becomes a no-op on the happy path, and cleans up if anything
+    // above throws.
+    const owned = disposables.move();
     return {
-      metrics,
-      dependencies: [dependency],
-      [Symbol.asyncDispose]: () => dependency[Symbol.asyncDispose](),
+      fetcher,
+      [Symbol.asyncDispose]: async () => {
+        // Dispose the fetcher first: its virtual tables are built from the
+        // tables `owned` drops. Its disposal is queued, so it lands after any
+        // in-flight query against those tables.
+        fetcher[Symbol.dispose]();
+        await owned[Symbol.asyncDispose]();
+      },
     };
   }
 

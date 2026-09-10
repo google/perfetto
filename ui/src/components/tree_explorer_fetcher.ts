@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncDisposableStack} from '../base/disposable_stack';
 import {ensureExists} from '../base/assert';
+import {
+  AsyncMemo,
+  AtomicTaskQueue,
+  type AsyncMemoResult,
+} from '../base/async_memo';
 import type {Engine} from '../trace_processor/engine';
 import {
   createVirtualTable,
@@ -37,7 +41,6 @@ import {metricId} from '../widgets/tree_explorer';
 import type {Trace} from '../public/trace';
 import {sqliteString} from '../base/string_utils';
 import {parseUserFilterRegex} from '../widgets/flamegraph_regex';
-import type {SharedAsyncDisposable} from '../base/shared_disposable';
 
 export interface TreeExplorerQueryColumn {
   // The name of the column in SQL.
@@ -139,8 +142,8 @@ export interface MetricsFromTableOrSubqueryOptions {
 }
 
 // Given a table and columns on those table (corresponding to metrics),
-// returns an array of `TreeExplorerQueryMetric` structs which can be passed
-// in TreeExplorerPanel's attrs.
+// returns an array of `TreeExplorerQueryMetric` structs which can be handed to
+// a `TreeExplorerFetcher` (and rendered by TreeExplorerPanel).
 //
 // `tableOrSubquery` should have the columns `id`, `parentId`, `name` and all
 // columns specified by `tableMetrics[].name`, `unaggregatableProperties` and
@@ -169,74 +172,81 @@ export function metricsFromTableOrSubquery(
   return metrics;
 }
 
-interface MetricTable {
+interface MetricTable extends AsyncDisposable {
   readonly metric: TreeExplorerQueryMetric;
   readonly table: DisposableSqlEntity;
   readonly unfilteredCumulativeValue: number;
 }
 
-export type TreeExplorerFetcherDependency =
-  SharedAsyncDisposable<AsyncDisposable>;
+interface MetricTableSlot {
+  readonly metric: TreeExplorerQueryMetric;
+  readonly memo: AsyncMemo<MetricTable>;
+}
 
 // Fetches tree explorer data by querying an `Engine`: turns a
 // (metric, state) pair into the filtered tree the views display. Purely a
 // data-layer object with no rendering; TreeExplorerPanel drives it.
-export class TreeExplorerFetcher implements AsyncDisposable {
-  private readonly dependencies: ReadonlyArray<
-    SharedAsyncDisposable<AsyncDisposable>
-  >;
-  private readonly metricTables: MetricTable[] = [];
+export class TreeExplorerFetcher implements Disposable {
+  private readonly slots: ReadonlyArray<MetricTableSlot>;
+  private readonly dataMemo: AsyncMemo<TreeExplorerData>;
 
   constructor(
     private readonly trace: Trace,
-    dependencies: ReadonlyArray<TreeExplorerFetcherDependency> = [],
+    readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>,
+    queue = new AtomicTaskQueue(),
   ) {
-    this.dependencies = dependencies.map((d) => d.clone());
+    this.slots = metrics.map((metric) => ({
+      metric,
+      memo: new AsyncMemo<MetricTable>(queue),
+    }));
+    this.dataMemo = new AsyncMemo<TreeExplorerData>(queue);
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
-    for (const entry of this.metricTables) {
-      await entry.table[Symbol.asyncDispose]();
-    }
-    for (const dependency of this.dependencies ?? []) {
-      await dependency[Symbol.asyncDispose]?.();
+  // Disposal only *schedules* the drops on the queue, so that they land after
+  // any in-flight query, hence there is nothing to await. It must stay
+  // synchronous: callers may invoke this from inside a queued task (e.g. an
+  // AsyncMemo evicting a cache entry), and awaiting a queued task from there
+  // would deadlock.
+  [Symbol.dispose](): void {
+    this.dataMemo.dispose();
+    for (const {memo} of this.slots) {
+      memo.dispose();
     }
   }
 
-  // Fetches the tree for the metric selected in `state`, with all of
-  // `state`'s filters and view applied. Returns undefined if the fetcher's
-  // dependencies were disposed while the fetch was in flight.
-  async fetch(
-    metrics: ReadonlyArray<TreeExplorerQueryMetric>,
-    state: TreeExplorerState,
-  ): Promise<TreeExplorerData | undefined> {
-    const metric = ensureExists(
-      metrics.find((x) => state.selectedMetricId === metricId(x)),
+  // Call once per render: returns the tree currently available for the
+  // metric selected in `state` and schedules any needed work. `state.view`
+  // must already be the effective view (see TreeExplorerPanel).
+  use(state: TreeExplorerState): AsyncMemoResult<TreeExplorerData> {
+    const index = this.metrics.findIndex(
+      (x) => state.selectedMetricId === metricId(x),
     );
-    // Clone all dependencies so they cannot be dropped while this function
-    // is running. Disposing these clones after the function returns does not
-    // drop the tables while either this instance or the caller still owns a
-    // clone.
-    await using trash = new AsyncDisposableStack();
-    for (const dependency of this.dependencies ?? []) {
-      // If the dependency is disposed, it means that we have already ended
-      // up cleaning up the object so none of this matters. Just return.
-      if (dependency.isDisposed) {
-        return undefined;
-      }
-      trash.use(dependency.clone());
+    const {metric, memo} = ensureExists(this.slots[index]);
+    // The memo is dedicated to this metric, so its key is constant: the
+    // table is created once and kept for the fetcher's lifetime.
+    const table = memo.use({
+      key: {},
+      compute: () => this.createMetricTable(metric),
+    }).data;
+
+    if (table === undefined) {
+      return {isPending: true};
     }
-    const table = await this.getMetricTable(metric);
-    return await computeTree(this.trace.engine, table, state);
+
+    return this.dataMemo.use({
+      key: {
+        metricIndex: index,
+        filters: state.filters,
+        addedMetricIds: state.addedMetricIds,
+        view: state.view,
+      },
+      compute: () => computeTree(this.trace.engine, table, state),
+    });
   }
 
-  private async getMetricTable(
+  private async createMetricTable(
     metric: TreeExplorerQueryMetric,
   ): Promise<MetricTable> {
-    const cached = this.metricTables.find((entry) => entry.metric === metric);
-    if (cached) {
-      return cached;
-    }
     if (metric.dependencySql !== undefined) {
       await this.trace.engine.query(metric.dependencySql);
     }
@@ -267,15 +277,14 @@ export class TreeExplorerFetcher implements AsyncDisposable {
         ))
         where __intrinsic_flamegraph_find(_tree_id, 'SUPER_ROOT')
       `);
-      const entry = {
+      return {
         metric,
         table,
         unfilteredCumulativeValue: result.firstRow({
           cumulative_value: NUM,
         }).cumulative_value,
+        [Symbol.asyncDispose]: () => table[Symbol.asyncDispose](),
       };
-      this.metricTables.push(entry);
-      return entry;
     } catch (error) {
       await table[Symbol.asyncDispose]();
       throw error;
