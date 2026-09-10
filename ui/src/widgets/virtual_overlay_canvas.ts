@@ -32,7 +32,7 @@
 import './virtual_overlay_canvas.scss';
 import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
-import {findRef, toHTMLElement} from '../base/dom_utils';
+import {bindEventListener, findRef, toHTMLElement} from '../base/dom_utils';
 import type {Rect2D, Size2D} from '../base/geom';
 import {ensureExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
@@ -195,6 +195,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
 
     // Create the canvas rendering context
     this.ctx = ensureExists(virtualCanvas.canvasElement.getContext('2d'));
+    const ctx = this.ctx;
 
     // Create WebGL canvas if enabled
     if (attrs.enableWebGL) {
@@ -219,19 +220,29 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       });
       if (webglCtx) {
         this.webglRenderer = new WebGLRenderer(this.ctx, webglCtx);
-        // Fail loudly if we lose context
-        const onContextLost = (e: Event) => {
-          const statusMessage =
-            (e as WebGLContextEvent).statusMessage || 'no status message';
-          throw new Error(`WebGL context lost: ${statusMessage}`);
-        };
-        this.webglCanvas.addEventListener('webglcontextlost', onContextLost);
-        this.trash.defer(() => {
-          this.webglCanvas?.removeEventListener(
+        this.trash.use(
+          bindEventListener(
+            this.webglCanvas,
             'webglcontextlost',
-            onContextLost,
-          );
-        });
+            (e: Event) => {
+              // Set the webgl renderer to undefined means that the canvas
+              // renderer will just be used instead.
+              this.webglRenderer = undefined;
+
+              // Calling preventDefault here allows tells the browser to send us
+              // a 'webglcontextrestored' event when context is restored.
+              e.preventDefault();
+            },
+          ),
+        );
+        this.trash.use(
+          bindEventListener(this.webglCanvas, 'webglcontextrestored', () => {
+            // Recreate the webgl renderer to continue rendering with WebGL.
+            // WebGL state such as buffers and textures shall be recrated lazily
+            // on first render.
+            this.webglRenderer = new WebGLRenderer(ctx, webglCtx);
+          }),
+        );
       }
     }
 
