@@ -517,6 +517,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       perf_invocation_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
+      perf_invocation_->SetSimpleperfMetaInfo(meta_info.entries);
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
         perf_invocation_->SetEventName(it.key().type, it.key().config,
                                        it.value());

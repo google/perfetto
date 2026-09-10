@@ -502,6 +502,10 @@ namespace perfetto::trace_processor::stats {
       "config. This will cause a process to be completely absent from the "    \
       "trace, but does *not* imply data loss for processes that do have "      \
       "samples in this trace."),                                               \
+  F(perf_counter_non_monotonic,           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "Count of samples where a hardware perf counter value decreased "        \
+      "unexpectedly. The counter was clamped to prevent invalid negative "     \
+      "deltas."),                                                              \
   F(perf_features_skipped,                kIndexed, kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(perf_samples_cpu_mode_unknown,        kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
