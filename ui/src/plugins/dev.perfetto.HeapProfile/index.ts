@@ -26,7 +26,7 @@ import {
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import type {Track} from '../../public/track';
 import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
-import type {Store} from '../../base/store';
+import type {Storage} from '../../public/trace';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
 import {Memo} from '../../base/memo';
@@ -86,7 +86,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   }
 
   private readonly trackMap = new Map<string, Track>();
-  private store?: Store<HeapProfilePluginState>;
+  private storage?: Storage<HeapProfilePluginState>;
 
   private readonly nodeSelectedEvt = new EvtSource<{
     pathHashes: string;
@@ -106,23 +106,18 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     return this.nodeSelectedEvt.addListener(cb);
   }
 
-  private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
-    const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return (
-      result.data ?? {
+  async onTraceLoad(trace: Trace): Promise<void> {
+    this.storage = trace.registerStorage({
+      id: HeapProfilePlugin.id,
+      schema: HEAP_PROFILE_PLUGIN_STATE_SCHEMA,
+      defaultValue: {
         [ProfileType.NATIVE_HEAP_PROFILE]: {},
         [ProfileType.GENERIC_HEAP_PROFILE]: {},
         [ProfileType.JAVA_HEAP_SAMPLES]: {},
         [ProfileType.JAVA_HEAP_GRAPH]: {},
         [ProfileType.OOME_CALLSTACK]: {},
-      }
-    );
-  }
-
-  async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(HeapProfilePlugin.id, (init) =>
-      this.migrateHeapProfilePluginState(init),
-    );
+      },
+    });
     await this.createHeapProfileTable(trace);
     // Ordered by priority, so the tracks and the area-selection flamegraph tabs
     // registered below come out in the right order.
@@ -282,7 +277,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
         const group = trackGroupsPlugin.getGroupForProcess(upid);
         if (!group) continue;
 
-        const store = ensureExists(this.store);
+        const storage = ensureExists(this.storage);
         const uri = trackUri(upid, heapType.type);
         const descriptor = profileDescriptor(heapType.type);
         const track: Track = {
@@ -297,10 +292,15 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             viewName,
             upid,
             incomplete,
-            store.state[descriptor.type].trackFlamegraphState,
+            storage.get()[descriptor.type]?.trackFlamegraphState,
             (state) => {
-              store.edit((draft) => {
-                draft[descriptor.type].trackFlamegraphState = state;
+              const current = storage.get();
+              storage.set({
+                ...current,
+                [descriptor.type]: {
+                  ...current[descriptor.type],
+                  trackFlamegraphState: state,
+                },
               });
             },
             heapType.type === 'java_heap_graph'
@@ -394,7 +394,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       // "lower first" priority to keep the same order (native before ART).
       priority: -priority,
       render: (selection: AreaSelection) => {
-        const store = ensureExists(this.store);
+        const storage = ensureExists(this.storage);
         const panel = panelMemo.use({
           key: areaSelectionKey(selection),
           compute: () => {
@@ -411,11 +411,15 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                   descriptor,
                   selection.start,
                   selection.end,
-                  store.state[descriptor.type].areaSelectionFlamegraphState,
+                  storage.get()[descriptor.type]?.areaSelectionFlamegraphState,
                   (state) => {
-                    store.edit((draft) => {
-                      draft[descriptor.type].areaSelectionFlamegraphState =
-                        state;
+                    const current = storage.get();
+                    storage.set({
+                      ...current,
+                      [descriptor.type]: {
+                        ...current[descriptor.type],
+                        areaSelectionFlamegraphState: state,
+                      },
                     });
                   },
                   /* isAreaSelection= */ true,

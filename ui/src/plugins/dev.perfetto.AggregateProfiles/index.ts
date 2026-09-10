@@ -17,45 +17,38 @@ import m from 'mithril';
 
 import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
 import type {PerfettoPlugin} from '../../public/plugin';
-import type {Trace} from '../../public/trace';
+import type {Storage, Trace} from '../../public/trace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {AggregateProfilesPage} from './aggregate_profiles_page';
 import {
   type AggregateProfilesPageState,
   AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
 } from './types';
-import type {Store} from '../../base/store';
 import {ensureExists} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';
-  private store?: Store<AggregateProfilesPageState>;
-
-  private migratePageState(init: unknown): AggregateProfilesPageState {
-    const result = AGGREGATE_PROFILES_PAGE_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
+  private storage?: Storage<AggregateProfilesPageState>;
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore('dev.perfetto.AggregateProfiles', (init) =>
-      this.migratePageState(init),
-    );
+    this.storage = trace.registerStorage({
+      id: 'dev.perfetto.AggregateProfiles',
+      schema: AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
+      defaultValue: {},
+    });
     const profiles = await this.getProfiles(trace);
     if (profiles.length === 0) {
       return;
     }
-    const store = ensureExists(this.store);
+    const storage = ensureExists(this.storage);
     trace.pages.registerPage({
       route: '/aggregateprofiles',
       render: () =>
         m(AggregateProfilesPage, {
           trace,
-          state: store.state,
+          state: storage.get(),
           onStateChange: (state: AggregateProfilesPageState) => {
-            store.edit((draft) => {
-              draft.selectedProfileId = state.selectedProfileId;
-              draft.flamegraphState = state.flamegraphState;
-            });
+            storage.set(state);
           },
           profiles,
         }),

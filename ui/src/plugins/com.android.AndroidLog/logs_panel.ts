@@ -41,7 +41,6 @@ import {
 } from '../../widgets/grid';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
-import type {Store} from '../../base/store';
 import type {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {MenuItem} from '../../widgets/menu';
@@ -64,9 +63,10 @@ export interface LogPanelCache {
 }
 
 export interface LogPanelAttrs {
-  readonly cache: LogPanelCache;
-  readonly filterStore: Store<LogFilteringCriteria>;
   readonly trace: Trace;
+  readonly cache: LogPanelCache;
+  readonly filter: LogFilteringCriteria;
+  readonly onFilterChange: (filter: LogFilteringCriteria) => void;
 }
 
 interface Pagination {
@@ -110,7 +110,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
     const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const filters = attrs.filterStore.state;
+    const filters = attrs.filter;
     const pagination = this.pagination;
     const engine = attrs.trace.engine;
 
@@ -143,7 +143,8 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         buttons: m(LogsFilters, {
           trace: attrs.trace,
           cache: attrs.cache,
-          store: attrs.filterStore,
+          filter: attrs.filter,
+          onFilterChange: attrs.onFilterChange,
         }),
       },
       this.renderGrid(attrs.trace, entries, attrs.cache),
@@ -390,63 +391,71 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
 interface LogsFiltersAttrs {
   readonly trace: Trace;
   readonly cache: LogPanelCache;
-  readonly store: Store<LogFilteringCriteria>;
+  readonly filter: LogFilteringCriteria;
+  readonly onFilterChange: (filter: LogFilteringCriteria) => void;
 }
 
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
     const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
+    const filterState = attrs.filter;
 
     return [
       m('span', 'Log Level'),
       m(LogPriorityWidget, {
         trace: attrs.trace,
         options: LOG_PRIORITIES,
-        selectedIndex: attrs.store.state.minimumLevel,
+        selectedIndex: filterState.minimumLevel,
         onSelect: (minimumLevel) => {
-          attrs.store.edit((draft) => {
-            draft.minimumLevel = minimumLevel;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            minimumLevel,
           });
         },
       }),
       m(TagInput, {
         leftIcon: 'label',
         placeholder: 'Filter by tag...',
-        tags: attrs.store.state.tags,
+        tags: filterState.tags,
         onTagAdd: (tag) => {
-          attrs.store.edit((draft) => {
-            draft.tags.push(tag);
+          attrs.onFilterChange({
+            ...attrs.filter,
+            tags: [...attrs.filter.tags, tag],
           });
         },
         onTagRemove: (index) => {
-          attrs.store.edit((draft) => {
-            draft.tags.splice(index, 1);
+          attrs.onFilterChange({
+            ...attrs.filter,
+            tags: attrs.filter.tags.filter((_, i) => i !== index),
           });
         },
       }),
       m(Button, {
         icon: 'regular_expression',
         tooltip: 'Use regex',
-        active: !!attrs.store.state.isTagRegex,
+        active: !!filterState.isTagRegex,
         onclick: () => {
-          attrs.store.edit((draft) => {
-            draft.isTagRegex = !draft.isTagRegex;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            isTagRegex: !attrs.filter.isTagRegex,
           });
         },
       }),
       m(LogTextWidget, {
         trace: attrs.trace,
         onChange: (text) => {
-          attrs.store.edit((draft) => {
-            draft.textEntry = text;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            textEntry: text,
           });
         },
       }),
       m(FilterByTextWidget, {
-        hideNonMatching: attrs.store.state.hideNonMatching,
+        hideNonMatching: filterState.hideNonMatching,
         onClick: () => {
-          attrs.store.edit((draft) => {
-            draft.hideNonMatching = !draft.hideNonMatching;
+          attrs.onFilterChange({
+            ...attrs.filter,
+            hideNonMatching: !attrs.filter.hideNonMatching,
           });
         },
       }),
@@ -455,7 +464,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   }
 
   private renderFilterPanel(attrs: LogsFiltersAttrs) {
-    const machineExcludeList = attrs.store.state.machineExcludeList;
+    const machineExcludeList = attrs.filter.machineExcludeList;
     const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds.map(
       (uMachineId) => {
         return {
@@ -475,7 +484,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
       position: PopupPosition.Top,
       options,
       onChange: (diffs: MultiSelectDiff[]) => {
-        const newList = new Set<number>(machineExcludeList);
+        const newList = new Set<number>(attrs.filter.machineExcludeList);
         diffs.forEach(({checked, id}) => {
           const machineId = Number(id);
           if (checked) {
@@ -484,8 +493,9 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
             newList.add(machineId);
           }
         });
-        attrs.store.edit((draft) => {
-          draft.machineExcludeList = Array.from(newList);
+        attrs.onFilterChange({
+          ...attrs.filter,
+          machineExcludeList: Array.from(newList),
         });
       },
     });
