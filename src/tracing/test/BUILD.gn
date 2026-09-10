@@ -130,6 +130,9 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:default_deps",
       "../../base",
       "../../tracing:client_api_without_backends",
+
+      # For RelaySequence, used by the test hooks that block the v2 relay.
+      "../v2:in_process_adapter",
     ]
 
     # The system tracing backend requires IPC support.

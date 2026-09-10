@@ -217,6 +217,7 @@ pb_msg!(TraceConfigProducerConfig {
     producer_name: String, primitive, 1,
     shm_size_kb: u32, primitive, 2,
     page_size_kb: u32, primitive, 3,
+    tracing_v2_chunk_size_bytes: u32, primitive, 4,
 });
 
 pb_msg!(TraceConfigBuiltinDataSource {

@@ -229,6 +229,18 @@ message TraceConfig {
     // Specifies the preferred size of each page in the shared memory buffer.
     // Must be an integer multiple of 4K.
     optional uint32 page_size_kb = 3;
+
+    // Chunk size, in bytes, used by tracing v2 writers for this producer.
+    //
+    // Zero or absent selects 256. Other values must be a multiple of 4 between
+    // 256 and 32768 (the current v1 SMB page-size limit). At least one chunk
+    // must fit in the shared memory buffer.
+    //
+    // The value is fixed when shared memory is set up. Changing it requires the
+    // producer to reconnect. A producer-provided SMB is set up at connection
+    // time, before any TraceConfig, and always uses the default chunk size.
+    // It has no effect on v1 writers. Invalid values reject the trace config.
+    optional uint32 tracing_v2_chunk_size_bytes = 4;
   }
 
   repeated ProducerConfig producers = 6;

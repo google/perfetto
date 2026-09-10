@@ -79,6 +79,7 @@ source_set("client_api_without_backends") {
     "../../protos/perfetto/config/track_event:cpp",
     "../base",
     "core",
+    "v2:in_process_adapter",
   ]
   public_deps = [ "../../include/perfetto/tracing" ]
   sources = [
@@ -122,6 +123,7 @@ if (enable_perfetto_integration_tests) {
   source_set("integrationtests") {
     testonly = true
     deps = [
+      ":client_api_without_backends",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
       "../../include/perfetto/ext/tracing/ipc",
@@ -129,8 +131,15 @@ if (enable_perfetto_integration_tests) {
       "../../protos/perfetto/trace:cpp",
       "../base",
       "../base:test_support",
+      "core",
+      "test:api_test_support",
+      "test:test_support",
+      "v2:in_process_adapter",
     ]
-    sources = [ "internal/tracing_muxer_impl_integrationtest.cc" ]
+    sources = [
+      "internal/tracing_muxer_impl_integrationtest.cc",
+      "internal/tracing_muxer_impl_v2_integrationtest.cc",
+    ]
   }
 }
 

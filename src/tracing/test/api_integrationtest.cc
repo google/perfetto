@@ -7113,6 +7113,92 @@ TEST_P(PerfettoApiTest, StartTracingWhileExecutingTracepoint) {
   EXPECT_THAT(test_strings, AllOf(Not(IsEmpty()), Each("My String")));
 }
 
+// A reconnect gives the producer a new endpoint and a new v2 bridge. Leave
+// ring data, a barrier and a consumer flush pending on the old connection
+// while the service restarts, then check that the new connection works and
+// that no packet crosses over. The bridge-level isolation is covered by
+// InProcessTracingV2BridgeLifetimeTest.TwoBridgesWithTheSameWriterIdStayIndependent.
+TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
+  if (GetParam() != perfetto::kSystemBackend) {
+    GTEST_SKIP();
+  }
+  if (!perfetto::test::TracingMuxerImplInternalsForTest::SupportsTracingV2()) {
+    GTEST_SKIP() << "The tracing v2 ring needs a futex on this platform";
+  }
+  auto* data_source = &data_sources_["my_data_source"];
+
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  ds_cfg->set_use_tracing_v2(true);
+
+  auto* session_a = NewTrace(cfg);
+  session_a->get()->StartBlocking();
+  data_source->on_start.Wait();
+
+  // Block the relay so A's barrier can't finish, then leave a consumer flush
+  // stuck behind it. SyncProducers() establishes that setup is complete; the
+  // relay itself is obtained through an atomic shared-pointer snapshot.
+  perfetto::test::SyncProducers();
+  WaitableTestEvent relay_blocked;
+  WaitableTestEvent release_relay;
+  ASSERT_TRUE(
+      perfetto::test::TracingMuxerImplInternalsForTest::PostToTracingV2Relay(
+          [&relay_blocked, &release_relay] {
+            relay_blocked.Notify();
+            release_relay.Wait();
+          }));
+  relay_blocked.Wait();
+
+  MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
+    ctx.NewTracePacket()->set_for_testing()->set_str("connection A");
+    ctx.Flush();
+  });
+  data_source->on_flush.Reset();
+  session_a->get()->Flush([](bool) {}, /*timeout_ms=*/30000);
+  // OnFlush proves the request reached ProducerImpl. The following muxer task
+  // runs after it has queued the ring drain behind the blocked relay.
+  data_source->on_flush.Wait();
+  WaitableTestEvent flush_queued;
+  perfetto::test::TracingMuxerImplInternalsForTest::PostToMuxerSequence(
+      [&flush_queued] { flush_queued.Notify(); });
+  flush_queued.Wait();
+
+  // Kills the connection while the writer, the barrier and the flush are all
+  // pending.
+  system_service_.Restart();
+  data_source->on_stop.Wait();
+  release_relay.Notify();
+  perfetto::test::SyncProducers();
+
+  // Connection B. Its arbiter is fresh, so it starts handing out WriterIDs from
+  // the beginning again.
+  data_source->on_start.Reset();
+  auto* session_b = NewTrace(cfg);
+  session_b->get()->StartBlocking();
+  data_source->on_start.Wait();
+  MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
+    ctx.NewTracePacket()->set_for_testing()->set_str("connection B");
+    ctx.Flush();
+  });
+
+  // A stale request from A must not sit in front of this one.
+  EXPECT_TRUE(session_b->get()->FlushBlocking(/*timeout_ms=*/30000));
+  session_b->get()->StopBlocking();
+
+  std::vector<char> raw_trace = session_b->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  std::vector<std::string> payloads;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (packet.has_for_testing())
+      payloads.push_back(packet.for_testing().str());
+  }
+  // Only B's data: A's writer forwards into A's bridge, which went with A.
+  EXPECT_THAT(payloads, ElementsAre("connection B"));
+}
+
 TEST_P(PerfettoApiTest, SystemDisconnect) {
   if (GetParam() != perfetto::kSystemBackend) {
     GTEST_SKIP();
@@ -7527,6 +7613,36 @@ TEST_P(PerfettoStartupTracingApiTest, CompatibleConfig) {
   // Both events should be retained.
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   EXPECT_THAT(slices, ElementsAre("B:foo.Event", "E"));
+}
+
+// An unresolved v1 startup reservation can defer bridge commits past a v2 stop
+// acknowledgement. This temporary adapter rejects sharing that connection.
+TEST_P(PerfettoStartupTracingApiTest, TracingV2RejectsV1StartupConnection) {
+  using Internals = perfetto::test::TracingMuxerImplInternalsForTest;
+  if (!Internals::SupportsTracingV2())
+    GTEST_SKIP() << "The tracing v2 ring needs a futex on this platform";
+
+  const std::string previous_style = testing::GTEST_FLAG(death_test_style);
+  testing::GTEST_FLAG(death_test_style) = "threadsafe";
+  EXPECT_DEATH_IF_SUPPORTED(
+      {
+        SetupStartupTracing();
+        TRACE_EVENT_BEGIN("test", "StartupEvent");
+        perfetto::TraceConfig cfg;
+        cfg.add_buffers()->set_size_kb(1024);
+        auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+        ds_cfg->set_name("track_event");
+        ds_cfg->set_use_tracing_v2(true);
+        perfetto::protos::gen::TrackEventConfig te_cfg;
+        te_cfg.add_disabled_categories("*");
+        te_cfg.add_enabled_categories("test");
+        ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+        auto* tracing_session = NewTrace(cfg);
+        tracing_session->get()->StartBlocking();
+        perfetto::test::SyncProducers();
+      },
+      "cannot share a producer connection with startup tracing");
+  testing::GTEST_FLAG(death_test_style) = previous_style;
 }
 
 // Test that a startup tracing session won't be adopted when the config is not

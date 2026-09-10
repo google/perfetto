@@ -79,6 +79,12 @@ size_t ProxyProducerEndpoint::shared_buffer_page_size_kb() const {
   }
   return backend_->shared_buffer_page_size_kb();
 }
+uint32_t ProxyProducerEndpoint::tracing_v2_chunk_size_bytes() const {
+  if (!backend_) {
+    return 0;
+  }
+  return backend_->tracing_v2_chunk_size_bytes();
+}
 std::unique_ptr<TraceWriter> ProxyProducerEndpoint::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {

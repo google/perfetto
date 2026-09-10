@@ -101,6 +101,11 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // See shared_memory_abi.h
   virtual size_t shared_buffer_page_size_kb() const = 0;
 
+  // Chunk size in bytes for tracing v2 writers on this connection, fixed when
+  // the shared memory is set up. 0 means "use the default". Ignored by v1
+  // writers.
+  virtual uint32_t tracing_v2_chunk_size_bytes() const = 0;
+
   // Creates a trace writer, which allows to create events, handling the
   // underying shared memory buffer and signalling to the Service. This method
   // is thread-safe but the returned object is not. A TraceWriter should be

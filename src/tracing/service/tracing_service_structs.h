@@ -106,6 +106,20 @@ struct DataSourceInstance {
   DataSourceInstance(const DataSourceInstance&) = delete;
   DataSourceInstance& operator=(const DataSourceInstance&) = delete;
 
+  // no_flush data sources are normally scraped rather than flushed. That does
+  // not work for a v2 instance: its data sits in a ring buffer in the producer
+  // process that we cannot scrape, so we ask the producer to flush anyway.
+  bool RequiresProducerFlush() const {
+    return !no_flush || config.use_tracing_v2();
+  }
+
+  // Same reasoning for stop: a v2 producer has to drain its ring buffer before
+  // we can consider the instance stopped, whether or not the data source
+  // declared will_notify_on_stop.
+  bool RequiresProducerStopAck() const {
+    return will_notify_on_stop || config.use_tracing_v2();
+  }
+
   DataSourceInstanceID instance_id;
   DataSourceConfig config;
   std::string data_source_name;

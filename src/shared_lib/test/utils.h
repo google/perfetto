@@ -90,6 +90,10 @@ class TracingSession {
       enable_protovm_config_ = true;
       return *this;
     }
+    Builder& set_use_tracing_v2() {
+      use_tracing_v2_ = true;
+      return *this;
+    }
     std::vector<uint8_t> BuildProtoConfig();
 
     TracingSession Build();
@@ -100,6 +104,7 @@ class TracingSession {
     std::vector<std::string> disabled_categories_;
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
+    bool use_tracing_v2_ = false;
   };
 
   static TracingSession Adopt(struct PerfettoTracingSessionImpl*);

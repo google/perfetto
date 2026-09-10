@@ -3834,6 +3834,12 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
         static_cast<uint32_t>(kSizes[i].config_size_kb));
     producer_config->set_page_size_kb(
         static_cast<uint32_t>(kSizes[i].config_page_size_kb));
+    // Producer 0 leaves the field unset. The others get distinct values to
+    // check that each connection gets its own.
+    if (i != 0) {
+      producer_config->set_tracing_v2_chunk_size_bytes(
+          static_cast<uint32_t>(256 * i));
+    }
   }
 
   consumer->EnableTracing(trace_config);
@@ -3851,12 +3857,106 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
         producer[i]->endpoint()->shared_memory()->size() / 1024;
     actual_page_sizes_kb[i] =
         producer[i]->endpoint()->shared_buffer_page_size_kb();
+    EXPECT_EQ(producer[i]->endpoint()->tracing_v2_chunk_size_bytes(), 256 * i);
   }
   for (size_t i = 0; i < kNumProducers; i++) {
     producer[i]->WaitForDataSourceStart("data_source");
   }
   ASSERT_THAT(actual_page_sizes_kb, ElementsAreArray(expected_page_sizes_kb));
   ASSERT_THAT(actual_shm_sizes_kb, ElementsAreArray(expected_shm_sizes_kb));
+}
+
+TEST_F(TracingServiceImplTest, InvalidTracingV2ChunkSizeRejectsConfig) {
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "configured_producer");
+  producer->RegisterDataSource("data_source");
+  EXPECT_CALL(*producer, OnTracingSetup()).Times(0);
+  for (uint32_t size : {1u, 252u, 255u, 258u, 32769u, 32772u, UINT32_MAX}) {
+    SCOPED_TRACE(size);
+    auto consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(128);
+    auto* ds = config.add_data_sources()->mutable_config();
+    ds->set_name("data_source");
+    ds->set_use_tracing_v2(true);
+    auto* producer_config = config.add_producers();
+    producer_config->set_producer_name("configured_producer");
+    producer_config->set_tracing_v2_chunk_size_bytes(size);
+    consumer->EnableTracing(config);
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes"));
+    EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
+  }
+}
+
+TEST_F(TracingServiceImplTest, ValidTracingV2ChunkSizeBoundariesReachProducer) {
+  // A new producer is needed each time: the setting is fixed at SMB setup.
+  for (uint32_t size : {0u, 256u, 260u, 32768u}) {
+    SCOPED_TRACE(size);
+    auto producer = CreateMockProducer();
+    const std::string producer_name =
+        "configured_producer_" + std::to_string(size);
+    producer->Connect(svc.get(), producer_name);
+    producer->RegisterDataSource("data_source");
+    auto consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(128);
+    config.add_data_sources()->mutable_config()->set_name("data_source");
+    auto* producer_config = config.add_producers();
+    producer_config->set_producer_name(producer_name);
+    producer_config->set_tracing_v2_chunk_size_bytes(size);
+    consumer->EnableTracing(config);
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("data_source");
+    producer->WaitForDataSourceStart("data_source");
+    EXPECT_EQ(producer->endpoint()->tracing_v2_chunk_size_bytes(), size);
+    consumer->DisableTracing();
+    producer->WaitForDataSourceStop("data_source");
+    consumer->WaitForTracingDisabled();
+    consumer->FreeBuffers();
+  }
+}
+
+TEST_F(TracingServiceImplTest, ProducerChunkSizeFixedAtFirstSharedMemorySetup) {
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "configured_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  auto* unmatched = trace_config.add_producers();
+  unmatched->set_producer_name("another_producer");
+  unmatched->set_tracing_v2_chunk_size_bytes(512);
+  auto* producer_config = trace_config.add_producers();
+  producer_config->set_producer_name("configured_producer");
+  producer_config->set_tracing_v2_chunk_size_bytes(1024);
+  producer_config->set_page_size_kb(8);
+
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  auto* shared_memory = producer->endpoint()->shared_memory();
+  EXPECT_EQ(producer->endpoint()->tracing_v2_chunk_size_bytes(), 1024u);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  consumer->FreeBuffers();
+
+  producer_config->set_tracing_v2_chunk_size_bytes(2048);
+  producer_config->set_page_size_kb(16);
+  consumer->EnableTracing(trace_config);
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  EXPECT_EQ(producer->endpoint()->shared_memory(), shared_memory);
+  EXPECT_EQ(producer->endpoint()->shared_buffer_page_size_kb(), 8u);
+  EXPECT_EQ(producer->endpoint()->tracing_v2_chunk_size_bytes(), 1024u);
 }
 
 TEST_F(TracingServiceImplTest, ExplicitFlush) {
@@ -4178,6 +4278,73 @@ TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
   for (const std::vector<DataSourceInstanceID>& ds_ids : clears_seen) {
     ASSERT_THAT(ds_ids, ElementsAreArray({ds_incremental1, ds_incremental2}));
   }
+}
+
+// The service cannot scrape a v2 ring, so it must wait for the stop ack of a
+// v2 instance even if the data source did not declare will_notify_on_stop.
+TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForTracingV2StopAck) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_v2");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("ds_v2");
+  ds_config->set_use_tracing_v2(true);
+  trace_config.set_data_source_stop_timeout_ms(kDataSourceStopTimeoutMs);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_v2");
+  DataSourceInstanceID id = producer->GetDataSourceInstanceId("ds_v2");
+  consumer->StartTracing();
+  producer->WaitForDataSourceStart("ds_v2");
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_v2");
+
+  // Nothing else is pending: if the service weren't waiting for our ack,
+  // OnTracingDisabled() would fire here.
+  EXPECT_CALL(*consumer, OnTracingDisabled(_)).Times(0);
+  task_runner.RunUntilIdle();
+  ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(consumer.get()));
+
+  producer->endpoint()->NotifyDataSourceStopped(id);
+  // Half the stop timeout: fails if the service only got there via the
+  // timeout rather than the ack.
+  consumer->WaitForTracingDisabled(kDataSourceStopTimeoutMs / 2);
+}
+
+// Without use_tracing_v2 the service does not wait for a stop ack it was
+// never promised.
+TEST_F(TracingServiceImplTest, OnTracingDisabledDoesNotWaitWithoutTracingV2) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_v1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_v1");
+  trace_config.set_data_source_stop_timeout_ms(kDataSourceStopTimeoutMs);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_v1");
+  consumer->StartTracing();
+  producer->WaitForDataSourceStart("ds_v1");
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_v1");
+  // We never send NotifyDataSourceStopped(), and disabling must not wait for
+  // it.
+  consumer->WaitForTracingDisabled(kDataSourceStopTimeoutMs / 2);
 }
 
 // Creates a tracing session where some of the data sources set the
@@ -6262,9 +6429,13 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMB) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("data_source");
 
+  auto* producer_config = trace_config.add_producers();
+  producer_config->set_producer_name("mock_producer");
+  producer_config->set_tracing_v2_chunk_size_bytes(1024);
   consumer->EnableTracing(trace_config);
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
+  EXPECT_EQ(producer->endpoint()->tracing_v2_chunk_size_bytes(), 0u);
 
   // Verify that data written to the producer-provided SMB ends up in trace
   // buffer correctly.

@@ -156,6 +156,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   protovm_config,
                   12);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  VARINT,
+                  bool,
+                  use_tracing_v2,
+                  13);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,
                   ftrace_config,
