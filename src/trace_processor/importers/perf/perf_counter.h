@@ -18,9 +18,15 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_COUNTER_H_
 
 #include <cstdint>
+#include <optional>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+
+namespace perfetto::trace_processor {
+class TraceProcessorContext;
+}
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -28,23 +34,25 @@ namespace perfetto::trace_processor::perf_importer {
 // perf files to absolute values needed for the perfetto counter table.
 class PerfCounter {
  public:
-  PerfCounter(tables::CounterTable* counter_table,
+  PerfCounter(TraceProcessorContext* context,
               tables::TrackTable::Id track_id,
-              bool is_timebase)
-      : counter_table_(*counter_table),
-        track_id_(track_id),
-        is_timebase_(is_timebase) {}
+              bool is_timebase);
 
   bool is_timebase() const { return is_timebase_; }
+  tables::TrackTable::Id track_id() const { return track_id_; }
 
   tables::CounterTable::Id AddDelta(int64_t ts, double delta);
-  tables::CounterTable::Id AddCount(int64_t ts, double count);
+  tables::CounterTable::Id AddCount(int64_t ts,
+                                    double count,
+                                    std::optional<uint32_t> cpu = std::nullopt);
 
  private:
+  TraceProcessorContext* context_ = nullptr;
   tables::CounterTable& counter_table_;
   tables::TrackTable::Id track_id_;
   const bool is_timebase_;
   double last_count_{0};
+  base::FlatHashMap<uint32_t, double> last_count_per_cpu_;
 };
 
 }  // namespace perfetto::trace_processor::perf_importer

@@ -23,9 +23,9 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <utility>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
@@ -98,9 +98,28 @@ class PerfEventAttr : public RefCounted {
     event_name_ = std::move(event_name);
   }
 
+  bool is_thread_scoped() const {
+    if (is_system_wide_) {
+      return false;
+    }
+    if (is_thread_scoped_override_.has_value()) {
+      return *is_thread_scoped_override_;
+    }
+    return attr_.inherit != 0;
+  }
+
+  void set_is_system_wide(bool is_system_wide) {
+    is_system_wide_ = is_system_wide;
+  }
+
+  void set_is_thread_scoped(bool is_thread_scoped) {
+    is_thread_scoped_override_ = is_thread_scoped;
+  }
+
   size_t sample_id_size() const { return sample_id_size_; }
 
-  PerfCounter& GetOrCreateCounter(std::optional<uint32_t> cpu);
+  PerfCounter& GetOrCreateCounter(std::optional<uint32_t> cpu,
+                                  std::optional<UniqueTid> utid);
 
   ClockTracker::ClockId clock_id() const { return clock_id_; }
 
@@ -113,6 +132,7 @@ class PerfEventAttr : public RefCounted {
 
   PerfCounter CreateGlobalCounter() const;
   PerfCounter CreateCpuCounter(uint32_t cpu) const;
+  PerfCounter CreateThreadCounter(UniqueTid utid) const;
 
   TraceProcessorContext* const context_;
   const ClockTracker::ClockId clock_id_;
@@ -123,13 +143,19 @@ class PerfEventAttr : public RefCounted {
   std::optional<size_t> id_offset_from_start_;
   std::optional<size_t> id_offset_from_end_;
   size_t sample_id_size_;
+  bool is_system_wide_ = false;
+  std::optional<bool> is_thread_scoped_override_;
 
-  // Counter not bound to a specific CPU. Might actually be an aggregate from
-  // multiple per-cpu counters in cases such as thread-scoped profiling.
+  // Counter not bound to a specific CPU or thread. Might actually be an
+  // aggregate from multiple per-cpu counters in cases such as thread-scoped
+  // profiling.
   std::unique_ptr<PerfCounter> global_counter_;
 
   // Keyed by cpu index. Per-cpu counters.
-  std::unordered_map<uint32_t, PerfCounter> counters_;
+  base::FlatHashMap<uint32_t, std::unique_ptr<PerfCounter>> cpu_counters_;
+
+  // Keyed by utid. Per-thread counters.
+  base::FlatHashMap<UniqueTid, std::unique_ptr<PerfCounter>> thread_counters_;
 
   std::string event_name_;
 };

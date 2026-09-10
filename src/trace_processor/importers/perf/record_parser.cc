@@ -117,7 +117,14 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
     case PERF_RECORD_COMM:
       return ParseComm(std::move(record));
 
+    case PERF_RECORD_FORK:
+      return ParseFork(ts, std::move(record));
+
+    case PERF_RECORD_EXIT:
+      return ParseExit(ts, std::move(record));
+
     case PERF_RECORD_SAMPLE:
+
       return ParseSample(ts, std::move(record));
 
     case PERF_RECORD_MMAP:
@@ -190,7 +197,8 @@ base::Status RecordParser::InternSample(Sample sample) {
       upid, sample.callchain, sample.perf_invocation->needs_pc_adjustment());
 
   // Update counters and create counter set.
-  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids, UpdateCounters(sample));
+  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids,
+                   UpdateCounters(sample, utid));
 
   tables::ProfilerSampleTable::Row row;
   row.ts = sample.trace_ts;
@@ -293,6 +301,55 @@ base::Status RecordParser::ParseComm(Record record) {
   return base::OkStatus();
 }
 
+base::Status RecordParser::ParseFork(int64_t, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_FORK");
+  }
+
+  if (pid != ppid) {
+    UniquePid parent_upid = context_->process_tracker->GetOrCreateProcess(ppid);
+    UniquePid child_upid = context_->process_tracker->GetOrCreateProcess(pid);
+    context_->process_tracker->SetProcessParent(child_upid, parent_upid);
+  }
+
+  context_->process_tracker->UpdateThread(tid, pid);
+  return base::OkStatus();
+}
+
+base::Status RecordParser::ParseExit(int64_t ts, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_EXIT");
+  }
+
+  uint64_t time = 0;
+  reader.Read(time);
+  int64_t exit_ts = ts;
+  if (exit_ts <= 0 && time != 0 && record.attr) {
+    if (auto opt_ts = context_->clock_tracker->ToTraceTime(
+            record.attr->clock_id(), static_cast<int64_t>(time))) {
+      exit_ts = *opt_ts;
+    }
+  }
+
+  // Ensure process-to-thread attribution is established before terminating the
+  // thread.
+  context_->process_tracker->UpdateThread(tid, pid);
+  context_->process_tracker->EndThread(exit_ts, tid);
+  return base::OkStatus();
+}
+
 base::Status RecordParser::ParseMmap(int64_t trace_ts, Record record) {
   MmapRecord mmap;
   RETURN_IF_ERROR(mmap.Parse(record));
@@ -349,9 +406,10 @@ UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
-    const Sample& sample) {
+    const Sample& sample,
+    std::optional<UniqueTid> utid) {
   if (!sample.read_groups.empty()) {
-    return UpdateCountersInReadGroups(sample);
+    return UpdateCountersInReadGroups(sample, utid);
   }
 
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
@@ -360,15 +418,27 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
+  // Periodic sampling timebase counters are kept on CPU counter tracks (or
+  // global if CPU is unavailable), while hardware PMU counters collected in
+  // read groups (e.g. via --add-counter) are thread-scoped when
+  // thread-targeted.
   CounterId counter_id =
-      sample.attr->GetOrCreateCounter(sample.cpu)
+      sample.attr->GetOrCreateCounter(sample.cpu, std::nullopt)
           .AddDelta(sample.trace_ts, static_cast<double>(period));
   return std::vector<CounterId>{counter_id};
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
-    const Sample& sample) {
+    const Sample& sample,
+    std::optional<UniqueTid> utid) {
+  if (!utid.has_value() && sample.pid_tid.has_value()) {
+    utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
+                                                   sample.pid_tid->pid);
+  }
+
   std::vector<CounterId> counter_ids;
+  std::optional<uint32_t> cpu_for_count =
+      sample.perf_invocation->is_simpleperf() ? sample.cpu : std::nullopt;
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
         sample.perf_invocation->FindAttrForEventId(*entry.event_id);
@@ -377,8 +447,9 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
                              *entry.event_id);
     }
     CounterId counter_id =
-        attr->GetOrCreateCounter(sample.cpu)
-            .AddCount(sample.trace_ts, static_cast<double>(entry.value));
+        attr->GetOrCreateCounter(sample.cpu, utid)
+            .AddCount(sample.trace_ts, static_cast<double>(entry.value),
+                      cpu_for_count);
     counter_ids.push_back(counter_id);
   }
   return counter_ids;

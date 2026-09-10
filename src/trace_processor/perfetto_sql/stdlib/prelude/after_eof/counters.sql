@@ -256,7 +256,7 @@ WHERE
 
 -- Tracks containing counter-like events collected from Linux perf.
 CREATE PERFETTO TABLE perf_counter_track(
-  -- Unique identifier for this thread counter track.
+  -- Unique identifier for this perf counter track.
   id ID(track.id),
   -- Name of the track.
   name STRING,
@@ -304,6 +304,51 @@ SELECT
 FROM counter_track AS ct
 WHERE
   ct.type IN ('perf_cpu_counter', 'perf_global_counter');
+
+-- Tracks containing thread-scoped counter-like events collected from Linux perf.
+CREATE PERFETTO TABLE perf_thread_counter_track(
+  -- The unique identifier of this track.
+  id ID(track.id),
+  -- The name of the counter track.
+  name STRING,
+  -- The type of the counter track.
+  type STRING,
+  -- The track which is the "parent" of this track. Only non-null for tracks
+  -- created using Perfetto's track_event API.
+  parent_id JOINID(track.id),
+  -- Args for this track which store information about "source" of this track in
+  -- the trace. For example: whether this track orginated from atrace, Chrome
+  -- tracepoints etc.
+  source_arg_set_id ARGSETID,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
+  -- The units of the counter. This column is rarely filled.
+  unit STRING,
+  -- The description for this track. For debugging purposes only.
+  description STRING,
+  -- The id of the perf session this counter was captured on.
+  perf_session_id LONG,
+  -- The thread the counter is associated with.
+  utid JOINID(thread.id),
+  -- Whether this counter is the sampling timebase for the session.
+  is_timebase BOOL
+)
+AS
+SELECT
+  ct.id,
+  ct.name,
+  ct.type,
+  ct.parent_id,
+  ct.source_arg_set_id,
+  ct.machine_id,
+  ct.unit,
+  ct.description,
+  extract_arg(ct.dimension_arg_set_id, 'perf_session_id') AS perf_session_id,
+  extract_arg(ct.dimension_arg_set_id, 'utid') AS utid,
+  extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
+FROM counter_track AS ct
+WHERE
+  ct.type = 'perf_thread_counter';
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters(

@@ -152,18 +152,30 @@ PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
 
 PerfEventAttr::~PerfEventAttr() = default;
 
-PerfCounter& PerfEventAttr::GetOrCreateCounter(std::optional<uint32_t> cpu) {
-  if (!cpu) {
-    if (!global_counter_) {
-      global_counter_ = std::make_unique<PerfCounter>(CreateGlobalCounter());
+PerfCounter& PerfEventAttr::GetOrCreateCounter(std::optional<uint32_t> cpu,
+                                               std::optional<UniqueTid> utid) {
+  if (is_thread_scoped() && utid.has_value()) {
+    if (auto* it = thread_counters_.Find(*utid)) {
+      return **it;
     }
-    return *global_counter_;
+    return **thread_counters_
+                 .Insert(*utid, std::make_unique<PerfCounter>(
+                                    CreateThreadCounter(*utid)))
+                 .first;
   }
-  auto it = counters_.find(*cpu);
-  if (it == counters_.end()) {
-    it = counters_.emplace(*cpu, CreateCpuCounter(*cpu)).first;
+  if (cpu.has_value()) {
+    if (auto* it = cpu_counters_.Find(*cpu)) {
+      return **it;
+    }
+    return **cpu_counters_
+                 .Insert(*cpu,
+                         std::make_unique<PerfCounter>(CreateCpuCounter(*cpu)))
+                 .first;
   }
-  return it->second;
+  if (!global_counter_) {
+    global_counter_ = std::make_unique<PerfCounter>(CreateGlobalCounter());
+  }
+  return *global_counter_;
 }
 
 PerfCounter PerfEventAttr::CreateGlobalCounter() const {
@@ -176,7 +188,7 @@ PerfCounter PerfEventAttr::CreateGlobalCounter() const {
         inserter.AddArg(context_->storage->InternString("is_timebase"),
                         Variadic::Boolean(is_timebase()));
       });
-  return {context_->storage->mutable_counter_table(), track_id, is_timebase()};
+  return {context_, track_id, is_timebase()};
 }
 
 PerfCounter PerfEventAttr::CreateCpuCounter(uint32_t cpu) const {
@@ -189,7 +201,20 @@ PerfCounter PerfEventAttr::CreateCpuCounter(uint32_t cpu) const {
         inserter.AddArg(context_->storage->InternString("is_timebase"),
                         Variadic::Boolean(is_timebase()));
       });
-  return {context_->storage->mutable_counter_table(), track_id, is_timebase()};
+  return {context_, track_id, is_timebase()};
+}
+
+PerfCounter PerfEventAttr::CreateThreadCounter(UniqueTid utid) const {
+  base::StringView name(event_name_);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::kPerfThreadCounterBlueprint,
+      tracks::Dimensions(utid, perf_session_id_.value, name),
+      tracks::DynamicName(context_->storage->InternString(name)),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(context_->storage->InternString("is_timebase"),
+                        Variadic::Boolean(is_timebase()));
+      });
+  return {context_, track_id, is_timebase()};
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

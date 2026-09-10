@@ -96,6 +96,24 @@ class Simpleperf(TestSuite):
           "instructions","[NULL]","[NULL]",40,0
         '''))
 
+  def test_perf_thread_counter_track(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_add_counter.data'),
+        query='''
+        SELECT
+          name,
+          unit,
+          description,
+          perf_session_id,
+          utid,
+          is_timebase
+        FROM perf_thread_counter_track
+        ORDER BY perf_session_id, name;
+        ''',
+        out=Csv('''
+          "name","unit","description","perf_session_id","utid","is_timebase"
+        '''))
+
   # simpleperf report -i perf.data --print-event-count --csv
   # The thread name in this trace changes over time. simpleperf shows samples
   # with the old and new name. Perfetto does not support threads changing names,
