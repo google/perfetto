@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
+#include "src/trace_processor/importers/proto/wattson_soc_model_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -86,6 +87,8 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
       new ProfileModule(module_context, context));
   module_context->modules.emplace_back(
       new AppWakelockModule(module_context, context));
+  module_context->modules.emplace_back(
+      new WattsonSocModelModule(module_context, context));
   module_context->modules.emplace_back(
       new ConcurrentSessionsModule(module_context, context));
   module_context->modules.emplace_back(

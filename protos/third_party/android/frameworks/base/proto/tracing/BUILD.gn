@@ -18,6 +18,10 @@ perfetto_proto_library("frameworks_base_common_@TYPE@") {
   sources = [ "frameworks_base_common.proto" ]
 }
 
+perfetto_proto_library("wattson_soc_model_@TYPE@") {
+  sources = [ "wattson_soc_model.proto" ]
+}
+
 # Imports field_options.proto (a custom option), so it is protozero-only.
 perfetto_proto_library("frameworks_base_track_event_@TYPE@") {
   proto_generators = [ "zero" ]
@@ -44,6 +48,7 @@ perfetto_proto_library("frameworks_base_trace_packet_@TYPE@") {
   public_deps = [
     ":frameworks_base_common_@TYPE@",
     ":frameworks_base_interned_data_@TYPE@",
+    ":wattson_soc_model_@TYPE@",
     "../../../../../../perfetto/trace:non_minimal_@TYPE@",
   ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
