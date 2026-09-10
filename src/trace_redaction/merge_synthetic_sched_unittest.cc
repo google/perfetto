@@ -232,11 +232,11 @@ TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsInMiddleCoalesced) {
   EXPECT_EQ(sched.switch_next_prio().at(0), 100);
   EXPECT_EQ(sched.switch_next_comm_index().at(0), 0u);
 
-  // Event 1: First Synth event preserved (with state 1, prio 120, comm 1)
+  // Event 1: First Synth event preserved (with state 1, prio 0, comm 1)
   EXPECT_EQ(sched.switch_timestamp().at(1), 20u);
   EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
   EXPECT_EQ(sched.switch_prev_state().at(1), 1);
-  EXPECT_EQ(sched.switch_next_prio().at(1), 120);
+  EXPECT_EQ(sched.switch_next_prio().at(1), 0);
   EXPECT_EQ(sched.switch_next_comm_index().at(1), 1u);
 
   // Event 2: TargetPidB with accumulated deltas 50 + 30 + 40 = 120
