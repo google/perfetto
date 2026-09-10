@@ -285,15 +285,21 @@ TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsAtEndCoalesced) {
   ASSERT_TRUE(result.ParseFromString(buffer));
   const auto& sched = result.ftrace_events().compact_sched();
 
-  ASSERT_EQ(sched.switch_timestamp_size(), 2);
-  ASSERT_EQ(sched.switch_next_pid_size(), 2);
+  ASSERT_EQ(sched.switch_timestamp_size(), 3);
+  ASSERT_EQ(sched.switch_next_pid_size(), 3);
 
   EXPECT_EQ(sched.switch_timestamp().at(0), 100u);
   EXPECT_EQ(sched.switch_next_pid().at(0), kTargetPidA);
 
+  // Start of synthetic chain preserved
   EXPECT_EQ(sched.switch_timestamp().at(1), 20u);
   EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
   EXPECT_EQ(sched.switch_prev_state().at(1), 1);
+
+  // End of synthetic chain preserved with accumulated delta (30 + 40 = 70)
+  EXPECT_EQ(sched.switch_timestamp().at(2), 70u);
+  EXPECT_EQ(sched.switch_next_pid().at(2), kSynthCpu0);
+  EXPECT_EQ(sched.switch_prev_state().at(2), 0);
 }
 
 TEST_F(MergeSyntheticSchedTest, AllSyntheticEventsBundleCoalesced) {
@@ -308,12 +314,18 @@ TEST_F(MergeSyntheticSchedTest, AllSyntheticEventsBundleCoalesced) {
   ASSERT_TRUE(result.ParseFromString(buffer));
   const auto& sched = result.ftrace_events().compact_sched();
 
-  ASSERT_EQ(sched.switch_timestamp_size(), 1);
-  ASSERT_EQ(sched.switch_next_pid_size(), 1);
+  ASSERT_EQ(sched.switch_timestamp_size(), 2);
+  ASSERT_EQ(sched.switch_next_pid_size(), 2);
 
+  // Start of synthetic chain preserved
   EXPECT_EQ(sched.switch_timestamp().at(0), 100u);
   EXPECT_EQ(sched.switch_next_pid().at(0), kSynthCpu0);
   EXPECT_EQ(sched.switch_prev_state().at(0), 1);
+
+  // End of synthetic chain preserved with accumulated delta (50 + 75 = 125)
+  EXPECT_EQ(sched.switch_timestamp().at(1), 125u);
+  EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
+  EXPECT_EQ(sched.switch_prev_state().at(1), 0);
 }
 
 TEST_F(MergeSyntheticSchedTest, NonSyntheticConsecutivePidsAreNotCoalesced) {

@@ -236,6 +236,7 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
 
   uint64_t accumulated_delta = 0;
   bool in_synthetic_chain = false;
+  SchedSwitchEvent curr{};
 
   // Perform the consecutive synthetic thread switch events merging algorithm.
   // It will accumulate timestamp deltas of consecutive synthetic thread switch
@@ -256,7 +257,6 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
   // TID1 (1 ns) -> TID2 (1 ns) -> STID (1 ns) -> TID3 (5 ns) -> TID4 (1 ns) ->
   // STID (1 ns)
   while (it_ts && it_prev_state && it_pid && it_prio && it_comm) {
-    SchedSwitchEvent curr;
     curr.timestamp_delta = *it_ts;
     curr.prev_state = *it_prev_state;
     curr.next_pid = *it_pid;
@@ -308,6 +308,16 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
     ++it_pid;
     ++it_prio;
     ++it_comm;
+  }
+
+  // If the bundle ended while in a synthetic chain and at least one subsequent
+  // synthetic event was coalesced, emit the end of the chain so that both the
+  // start and end timestamps of the unclosed chain are preserved.
+  if (in_synthetic_chain && accumulated_delta > 0) {
+    curr.timestamp_delta = accumulated_delta;
+    curr.prev_state = 0;
+    curr.next_prio = 0;
+    emit_event(curr);
   }
 
   if (PERFETTO_UNLIKELY(it_ts || it_prev_state || it_pid || it_prio ||
