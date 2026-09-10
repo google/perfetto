@@ -142,8 +142,8 @@ export interface MetricsFromTableOrSubqueryOptions {
 }
 
 // Given a table and columns on those table (corresponding to metrics),
-// returns an array of `TreeExplorerQueryMetric` structs which can be passed
-// in TreeExplorerPanel's attrs.
+// returns an array of `TreeExplorerQueryMetric` structs which can be handed to
+// a `TreeExplorerFetcher` (and rendered by TreeExplorerPanel).
 //
 // `tableOrSubquery` should have the columns `id`, `parentId`, `name` and all
 // columns specified by `tableMetrics[].name`, `unaggregatableProperties` and
@@ -178,38 +178,38 @@ interface MetricTable extends AsyncDisposable {
   readonly unfilteredCumulativeValue: number;
 }
 
+interface MetricTableSlot {
+  readonly metric: TreeExplorerQueryMetric;
+  readonly memo: AsyncMemo<MetricTable>;
+}
+
 // Fetches tree explorer data by querying an `Engine`: turns a
 // (metric, state) pair into the filtered tree the views display. Purely a
 // data-layer object with no rendering; TreeExplorerPanel drives it.
-//
-// All work (table creation, tree fetches, disposal) is scheduled on a single
-// AtomicTaskQueue through AsyncMemo, so a metric's virtual table is only
-// disposed after any in-flight query against it has completed.
-export class TreeExplorerFetcher implements AsyncDisposable {
-  // One memo per metric object we have seen. The map key *is* the identity:
-  // a new metric object (same id, different SQL) gets a new memo and a new
-  // table. `seq` is a stable numeric stand-in for the metric in the JSON
-  // memo keys (metric objects are not JSON-serializable).
-  private readonly tableMemos = new Map<
-    TreeExplorerQueryMetric,
-    {memo: AsyncMemo<MetricTable>; seq: number}
-  >();
+export class TreeExplorerFetcher implements Disposable {
+  private readonly slots: ReadonlyArray<MetricTableSlot>;
   private readonly dataMemo: AsyncMemo<TreeExplorerData>;
-  private nextSeq = 0;
 
   constructor(
     private readonly trace: Trace,
-    private readonly queue = new AtomicTaskQueue(),
+    readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>,
+    queue = new AtomicTaskQueue(),
   ) {
+    this.slots = metrics.map((metric) => ({
+      metric,
+      memo: new AsyncMemo<MetricTable>(queue),
+    }));
     this.dataMemo = new AsyncMemo<TreeExplorerData>(queue);
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
+  // Disposal only *schedules* the drops on the queue, so that they land after
+  // any in-flight query, hence there is nothing to await. It must stay
+  // synchronous: callers may invoke this from inside a queued task (e.g. an
+  // AsyncMemo evicting a cache entry), and awaiting a queued task from there
+  // would deadlock.
+  [Symbol.dispose](): void {
     this.dataMemo.dispose();
-    // Disposing a memo schedules its cache disposal through the shared
-    // queue, i.e. after any in-flight work on it; the queue handles the
-    // synchronization, we just ask every memo to go away.
-    for (const {memo} of this.tableMemos.values()) {
+    for (const {memo} of this.slots) {
       memo.dispose();
     }
   }
@@ -217,40 +217,30 @@ export class TreeExplorerFetcher implements AsyncDisposable {
   // Call once per render: returns the tree currently available for the
   // metric selected in `state` and schedules any needed work. `state.view`
   // must already be the effective view (see TreeExplorerPanel).
-  use(
-    metrics: ReadonlyArray<TreeExplorerQueryMetric>,
-    state: TreeExplorerState,
-  ): AsyncMemoResult<TreeExplorerData> {
-    const metric = ensureExists(
-      metrics.find((x) => state.selectedMetricId === metricId(x)),
+  use(state: TreeExplorerState): AsyncMemoResult<TreeExplorerData> {
+    const index = this.metrics.findIndex(
+      (x) => state.selectedMetricId === metricId(x),
     );
-    let entry = this.tableMemos.get(metric);
-    if (entry === undefined) {
-      entry = {
-        memo: new AsyncMemo<MetricTable>(this.queue),
-        seq: ++this.nextSeq,
-      };
-      this.tableMemos.set(metric, entry);
-    }
-    // The memo is dedicated to this metric object, so its key is constant:
-    // the table is created once and kept for the fetcher's lifetime.
-    const table = entry.memo.use({
+    const {metric, memo} = ensureExists(this.slots[index]);
+    // The memo is dedicated to this metric, so its key is constant: the
+    // table is created once and kept for the fetcher's lifetime.
+    const table = memo.use({
       key: {},
       compute: () => this.createMetricTable(metric),
     }).data;
 
-    if (!table) {
+    if (table === undefined) {
       return {isPending: true};
     }
 
     return this.dataMemo.use({
       key: {
-        metricSeq: entry.seq,
+        metricIndex: index,
         filters: state.filters,
         addedMetricIds: state.addedMetricIds,
         view: state.view,
       },
-      compute: () => computeTree(this.trace.engine, table!, state),
+      compute: () => computeTree(this.trace.engine, table, state),
     });
   }
 

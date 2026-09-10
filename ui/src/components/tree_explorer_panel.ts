@@ -15,7 +15,6 @@
 import './tree_explorer_panel.scss';
 import m from 'mithril';
 import {assertUnreachable, ensureExists} from '../base/assert';
-import type {Trace} from '../public/trace';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {Flamegraph, buildFlamegraphExportString} from '../widgets/flamegraph';
@@ -24,31 +23,32 @@ import {TreeExplorerFilterBar} from '../widgets/tree_explorer_filter_bar';
 import {TreeExplorerViewSwitcher} from '../widgets/tree_explorer_view_switcher';
 import {
   computeHighlightRegex,
+  createDefaultTreeExplorerState,
   metricId,
   type TreeExplorerAddableMetric,
   type TreeExplorerData,
   type TreeExplorerState,
   type TreeExplorerView,
 } from '../widgets/tree_explorer';
-import {
+import type {
   TreeExplorerFetcher,
-  type TreeExplorerQueryMetric,
+  TreeExplorerQueryMetric,
 } from './tree_explorer_fetcher';
 import {
   TreeExplorerFlatView,
   TreeExplorerTreeView,
   buildFlatExportString,
 } from './tree_explorer_table_views';
-import type {AtomicTaskQueue} from '../base/async_memo';
 
 export interface TreeExplorerPanelAttrs {
-  readonly trace: Trace;
-
-  // The metrics to render. Undefined shows a loading state.
-  readonly metrics?: ReadonlyArray<TreeExplorerQueryMetric>;
+  // The fetcher supplying the tree, or undefined to show a pending state.
+  // Owned by the caller: this panel never creates or disposes it, so that the
+  // lifetime of the engine-side resources the metric SQL depends on is decided
+  // in one place (where the metrics themselves are created).
+  readonly fetcher: TreeExplorerFetcher;
 
   // Caller-owned tree explorer state (filters, view, selected metric). When
-  // `metrics` change, pass `updateTreeExplorerState(state, metrics)` to keep
+  // metrics change, pass `updateTreeExplorerState(state, metrics)` to keep
   // the selected metric valid. Undefined shows an empty pending state.
   readonly state?: TreeExplorerState;
 
@@ -60,43 +60,28 @@ export interface TreeExplorerPanelAttrs {
   // Host-provided downloads shown alongside the built-in exports of the
   // displayed tree, for representations the panel cannot build itself.
   readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
-
-  // Queue shared with the owner of any engine-side resources (e.g. temp
-  // tables) that the metric SQL depends on. If the owner disposes those
-  // resources through this same queue (e.g. as the AsyncDisposable result of
-  // an AsyncMemo on it), the disposal is serialized after this panel's
-  // in-flight queries. When omitted the fetcher uses a private queue and the
-  // host is responsible for keeping such resources alive for the panel's
-  // lifetime.
-  readonly queue?: AtomicTaskQueue;
 }
 
-// The batteries-included tree explorer: owns a `TreeExplorerFetcher` (created
-// in the constructor from `attrs.trace` / `attrs.queue`, disposed on unmount)
-// and composes the view switcher, the shared filter bar and the active view
-// (flamegraph canvas, call tree or flat function table) of the fetched tree.
-// Lets area-selection tabs and details panels render a tree explorer without
-// managing `[Symbol.asyncDispose]` themselves.
+// The batteries-included tree explorer: composes the view switcher, the shared
+// filter bar and the active view (flamegraph canvas, call tree or flat
+// function table) of the tree supplied by `attrs.fetcher`.
 //
-// The fetcher is created once, so hosts must remount the panel (new key or
-// position) when `trace` or `queue` identity changes.
-//
-// Hosts that want the view switcher elsewhere (a DetailsShell header, an
-// existing tab strip) compose `TreeExplorerViewSwitcher`,
-// `TreeExplorerFilterBar` and the views directly instead of using this panel.
+// The panel is stateless with respect to fetching: the fetcher is created by
+// the host where the metrics are created, and disposed by that host when the
+// metrics are superseded. Hosts that want the view switcher elsewhere (a
+// DetailsShell header, an existing tab strip) compose
+// `TreeExplorerViewSwitcher`, `TreeExplorerFilterBar` and the views directly
+// instead of using this panel.
 export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttrs> {
-  private readonly fetcher: TreeExplorerFetcher;
   private highlightPattern = '';
 
-  constructor({attrs}: m.CVnode<TreeExplorerPanelAttrs>) {
-    this.fetcher = new TreeExplorerFetcher(attrs.trace, attrs.queue);
-  }
-
   view({attrs}: m.CVnode<TreeExplorerPanelAttrs>): m.Children {
-    const {metrics, state} = attrs;
+    const {fetcher, state = createDefaultTreeExplorerState(fetcher.metrics)} =
+      attrs;
+    const metrics = fetcher?.metrics;
     const data =
-      metrics !== undefined && state !== undefined
-        ? this.fetcher.use(metrics, {...state, view: effectiveView(state)}).data
+      fetcher !== undefined && state !== undefined
+        ? fetcher.use({...state, view: effectiveView(state)}).data
         : undefined;
 
     const shownState = state ?? {
@@ -153,12 +138,13 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
               : 'flamegraph',
         extraDownloadItems: attrs.extraDownloadItems,
       }),
-      this.renderView(attrs, shownState, highlightRegex, data),
+      this.renderView(attrs, shownMetrics, shownState, highlightRegex, data),
     );
   }
 
   private renderView(
     attrs: TreeExplorerPanelAttrs,
+    metrics: ReadonlyArray<TreeExplorerQueryMetric>,
     state: TreeExplorerState,
     highlightRegex: RegExp | undefined,
     data: TreeExplorerData | undefined,
@@ -166,7 +152,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
     const displayMode = state.displayMode;
     if (displayMode === 'flamegraph') {
       return m(Flamegraph, {
-        metrics: attrs.metrics ?? [],
+        metrics,
         state,
         data,
         highlightRegex,
@@ -184,8 +170,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
       );
     }
     const unit =
-      (attrs.metrics ?? []).find((x) => metricId(x) === state.selectedMetricId)
-        ?.unit ?? '';
+      metrics.find((x) => metricId(x) === state.selectedMetricId)?.unit ?? '';
     switch (displayMode) {
       case 'tree':
         return m(TreeExplorerTreeView, {data, unit});
@@ -194,10 +179,6 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
       default:
         assertUnreachable(displayMode);
     }
-  }
-
-  async onremove(): Promise<void> {
-    await this.fetcher[Symbol.asyncDispose]();
   }
 }
 

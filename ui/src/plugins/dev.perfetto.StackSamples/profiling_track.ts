@@ -16,13 +16,14 @@ import m from 'mithril';
 import {getColorForSample} from '../../components/colorizer';
 import {
   metricsFromTableOrSubquery,
-  type TreeExplorerQueryMetric,
+  TreeExplorerFetcher,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {Time, type time} from '../../base/time';
+import {Memo} from '../../base/memo';
 import {
   createDefaultTreeExplorerState,
   type TreeExplorerState,
@@ -108,6 +109,11 @@ export function createProfilingTrack(
   detailsPanelState: TreeExplorerState | undefined,
   onDetailsPanelStateChange: (state: TreeExplorerState) => void,
 ) {
+  // The metrics (and so the fetcher which owns the virtual tables built from
+  // them) depend only on the selected sample timestamp: the memo keeps exactly
+  // one generation alive and disposes it when the selection moves on.
+  const fetcherMemo = new Memo<TreeExplorerFetcher>();
+
   return SliceTrack.create({
     trace,
     uri,
@@ -116,9 +122,11 @@ export function createProfilingTrack(
     colorizer: (row) => getColorForSample(row.callsiteId),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
-      const metrics: ReadonlyArray<TreeExplorerQueryMetric> =
-        metricsFromTableOrSubquery({
-          tableOrSubquery: `
+      const fetcher = fetcherMemo.use({
+        key: {ts},
+        compute: () => {
+          const metrics = metricsFromTableOrSubquery({
+            tableOrSubquery: `
             (
               select
                 id,
@@ -132,26 +140,30 @@ export function createProfilingTrack(
               ))
             )
           `,
-          tableMetrics: [
-            {
-              name: config.metricName,
-              unit: '',
-              columnName: 'self_count',
-            },
-          ],
-          dependencySql: `include perfetto module ${config.sqlModule}`,
-          unaggregatableProperties: [
-            {name: 'mapping_name', displayName: 'Mapping'},
-          ],
-          aggregatableProperties: [
-            {
-              name: 'source_location',
-              displayName: 'Source Location',
-              mergeAggregation: 'ONE_OR_SUMMARY',
-            },
-          ],
-          nameColumnLabel: 'Symbol',
-        });
+            tableMetrics: [
+              {
+                name: config.metricName,
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            dependencySql: `include perfetto module ${config.sqlModule}`,
+            unaggregatableProperties: [
+              {name: 'mapping_name', displayName: 'Mapping'},
+            ],
+            aggregatableProperties: [
+              {
+                name: 'source_location',
+                displayName: 'Source Location',
+                mergeAggregation: 'ONE_OR_SUMMARY',
+              },
+            ],
+            nameColumnLabel: 'Symbol',
+          });
+          return new TreeExplorerFetcher(trace, metrics);
+        },
+      });
+      const metrics = fetcher.metrics;
       // Use provided state or create initial state once
       let state = detailsPanelState ?? createDefaultTreeExplorerState(metrics);
       if (detailsPanelState === undefined) {
@@ -169,7 +181,7 @@ export function createProfilingTrack(
               state = newState;
               onDetailsPanelStateChange(newState);
             },
-            metrics,
+            fetcher,
           ),
         // TODO(lalitm): we should be able remove this around the 26Q2 timeframe
         // We moved serialization from being attached to selections to instead being
@@ -192,7 +204,7 @@ function renderProfilingDetailsPanel(
   config: ProfilingTrackConfig,
   state: TreeExplorerState,
   onStateChange: (state: TreeExplorerState) => void,
-  metrics: ReadonlyArray<TreeExplorerQueryMetric>,
+  fetcher: TreeExplorerFetcher,
 ): m.Children {
   return m(
     FlamegraphProfile,
@@ -203,7 +215,7 @@ function renderProfilingDetailsPanel(
         title: config.panelTitle,
         buttons: m('span', 'Timestamp: ', m(Timestamp, {trace, ts})),
       },
-      m(TreeExplorerPanel, {trace, metrics, state, onStateChange}),
+      m(TreeExplorerPanel, {fetcher, state, onStateChange}),
     ),
   );
 }

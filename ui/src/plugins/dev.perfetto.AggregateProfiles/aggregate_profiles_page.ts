@@ -17,6 +17,7 @@ import {assertExists, assertIsInstance} from '../../base/assert';
 import {Memo} from '../../base/memo';
 import {maybeUndefined} from '../../base/utils';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
+import {TreeExplorerFetcher} from '../../components/tree_explorer_fetcher';
 import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
@@ -25,11 +26,7 @@ import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyContext} from '../../widgets/hotkey_context';
 import {Select} from '../../widgets/select';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
-import {
-  createDefaultTreeExplorerState,
-  type TreeExplorerState,
-  updateTreeExplorerState,
-} from '../../widgets/tree_explorer';
+import {updateTreeExplorerState} from '../../widgets/tree_explorer';
 import type {AggregateProfile, AggregateProfilesPageState} from './types';
 
 const HIDE_PAGE_EXPLANATION_KEY = 'hideAggregateProfilesPageExplanation';
@@ -43,7 +40,10 @@ export interface AggregateProfilesPageAttrs {
 }
 
 export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
-  private readonly memo = new Memo<TreeExplorerState>();
+  // The fetcher (and so the virtual tables built for the metrics) is created
+  // for the profile it serves and disposed by the memo when the user switches
+  // profile, so at most one generation is alive at a time.
+  private readonly fetcherMemo = new Memo<TreeExplorerFetcher>();
 
   view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
     // Use the selected profile from the state or just use the first one if none
@@ -91,6 +91,10 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     );
   }
 
+  onremove(): void {
+    this.fetcherMemo.dispose();
+  }
+
   private stepProfile(attrs: AggregateProfilesPageAttrs, step: number): void {
     if (attrs.profiles.length < 2) return;
     const cur = attrs.profiles.findIndex(
@@ -119,27 +123,15 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     selectedProfile: AggregateProfile,
     attrs: AggregateProfilesPageAttrs,
   ): m.Children {
-    // This is a hack necessitated by two issues:
-    // 1. TreeExplorerPanel is unable to handle state=undefined despite it being
-    //    optional in the attrs interface defintion.
-    // 2. The flamegraph compares attrs by reference equality to detect changes,
-    //    so while we could simply recreate the state every frame if it's
-    //    undefined and avoid the memo entirely - this would trigger an infite
-    //    loading loop as we'd have a new object reference every frame.
-    let flamegraphState = attrs.state.flamegraphState;
-    if (flamegraphState === undefined) {
-      flamegraphState = this.memo.use({
-        key: selectedProfile.id,
-        compute: () => {
-          return createDefaultTreeExplorerState(selectedProfile.metrics);
-        },
-      });
-    }
+    const fetcher = this.fetcherMemo.use({
+      key: {profileId: selectedProfile.id},
+      compute: () =>
+        new TreeExplorerFetcher(attrs.trace, selectedProfile.metrics),
+    });
 
     return m(TreeExplorerPanel, {
-      trace: attrs.trace,
-      metrics: selectedProfile.metrics,
-      state: flamegraphState,
+      fetcher,
+      state: attrs.state.flamegraphState,
       onStateChange: (state) => {
         attrs.onStateChange({
           ...attrs.state,

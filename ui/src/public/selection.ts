@@ -74,6 +74,33 @@ export function areaSelectionsEqual(a: AreaSelection, b: AreaSelection) {
   return true;
 }
 
+/**
+ * The serializable identity of an area selection, suitable for use as a memo or
+ * cache key. Two selections produce equal keys if and only if
+ * `areaSelectionsEqual` considers them equal.
+ *
+ * Note that `tracks` (the resolved Track objects) is deliberately not part of
+ * the key: it is derived from `trackUris` by the selection manager.
+ */
+export interface AreaSelectionKey {
+  readonly start: time;
+  readonly end: time;
+  readonly trackUris: ReadonlyArray<string>;
+}
+
+/**
+ * Returns the memo key for an area selection. See `AreaSelectionKey`. Note:
+ * This is only necessary because selections are not directly serializable due
+ * to the inclusion of derived track data (the tracks field).
+ */
+export function areaSelectionKey(selection: AreaSelection): AreaSelectionKey {
+  return {
+    start: selection.start,
+    end: selection.end,
+    trackUris: selection.trackUris,
+  };
+}
+
 export interface SelectionManager {
   readonly selection: Selection;
 
