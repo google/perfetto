@@ -419,6 +419,28 @@ class AndroidParser(TestSuite):
           "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
         """))
 
+  def test_android_framework_binder_died_recycled(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_binder_died_recycled.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          s.start_seq_id,
+          p.start_ts,
+          p.end_ts
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process s
+          ON s.upid = p.upid
+        WHERE p.pid > 0
+        ORDER BY p.pid, p.start_ts;
+        """,
+        out=Csv("""
+          "pid","name","start_seq_id","start_ts","end_ts"
+          100,"com.example.appa",1,1000000000,6000000000
+          100,"com.example.appb",2,5000000000,7000000000
+        """))
+
   def test_android_process_state_metadata(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_metadata.textproto'),
