@@ -19,21 +19,28 @@ package dev.perfetto.sdk;
 /**
  * Loads the JNI library backing the native methods in this package.
  *
- * <p>These sources are built twice. The platform build jarjars them into {@code
- * com.android.internal.dev.perfetto.sdk} and pairs them with {@code libperfetto_framework_jni}; the
- * standalone SDK build keeps them in {@code dev.perfetto.sdk} and pairs them with {@code
- * libperfetto_jni}. Both libraries are compiled from the same sources and differ only in the class
- * names their {@code JNI_OnLoad} registers against, aborting if those classes are absent, so the
- * variant has to be picked from the package the classes actually landed in.
+ * <p>These sources are built in multiple variants. The platform framework build jarjars them into
+ * {@code com.android.internal.dev.perfetto.sdk} and pairs them with {@code
+ * libperfetto_framework_jni}; the standalone SDK build keeps them in {@code dev.perfetto.sdk} and
+ * pairs them with {@code libperfetto_jni}. The Libcore build jarjars them into {@code
+ * dalvik.system.dev.perfetto.sdk} and links them statically into the runtime, where JNI registration
+ * occurs at startup.
  *
  * @hide
  */
 final class PerfettoNativeLibrary {
   private static final String FRAMEWORK_PREFIX = "com.android.internal.";
+  private static final String LIBCORE_PREFIX = "dalvik.system.";
 
   /** Loads the JNI library matching this build. Repeat calls are no-ops. */
   static void load() {
-    boolean isFramework = PerfettoNativeLibrary.class.getName().startsWith(FRAMEWORK_PREFIX);
+    String className = PerfettoNativeLibrary.class.getName();
+    if (className.startsWith(LIBCORE_PREFIX)) {
+      // In Libcore, native methods are statically linked into the runtime
+      // and registered at startup.
+      return;
+    }
+    boolean isFramework = className.startsWith(FRAMEWORK_PREFIX);
     System.loadLibrary(isFramework ? "perfetto_framework_jni" : "perfetto_jni");
   }
 }

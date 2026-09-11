@@ -50,6 +50,10 @@ struct alignas(8) StraceEvent {
   StringPool::Id syscall_name_id;
   std::optional<StringPool::Id> args_id;
   std::optional<StringPool::Id> return_value_id;
+  // Time spent in the syscall, when the trace was collected with
+  // `strace -T`. Unset otherwise, in which case complete calls become
+  // zero-duration slices as before.
+  std::optional<int64_t> duration_ns;
   StraceEventKind kind = StraceEventKind::kComplete;
 };
 

@@ -15,11 +15,22 @@
 #include <benchmark/benchmark.h>
 
 #include <algorithm>
+#include <cstring>
 #include <string>
+#include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/base/test/utils.h"
+
+namespace {
+void Write(protozero::ProtoRingBuffer* buf, const void* data, size_t len) {
+  auto write = buf->BeginWrite(len);
+  memcpy(write.data(), data, len);
+  write.EndWrite(len);
+}
 
 static void BM_ProtoRingBufferReadLargeChunks(benchmark::State& state) {
   std::string trace_data;
@@ -36,7 +47,7 @@ static void BM_ProtoRingBufferReadLargeChunks(benchmark::State& state) {
       total_packet_size += msg.len;
     } else {
       state.PauseTiming();
-      buffer.Append(trace_data.data(), trace_data.size());
+      Write(&buffer, trace_data.data(), trace_data.size());
       state.ResumeTiming();
     }
   }
@@ -64,7 +75,7 @@ static void BM_ProtoRingBufferRead(benchmark::State& state) {
     } else {
       state.PauseTiming();
       size_t sz = std::min(kChunkSize, trace_data.size() - offset);
-      buffer.Append(trace_data.data() + offset, sz);
+      Write(&buffer, trace_data.data() + offset, sz);
       offset = (offset + sz) % trace_data.size();
       state.ResumeTiming();
     }
@@ -73,3 +84,5 @@ static void BM_ProtoRingBufferRead(benchmark::State& state) {
 }
 
 BENCHMARK(BM_ProtoRingBufferRead);
+
+}  // namespace

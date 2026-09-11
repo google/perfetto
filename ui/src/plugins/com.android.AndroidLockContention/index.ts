@@ -158,27 +158,24 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       id: 'com.android.visualiseHeldLocks',
       name: 'Lock Contention: Visualise held locks',
       callback: async () => {
+        await trace.engine.query('INCLUDE PERFETTO MODULE android.lock_held;');
         await addDebugSliceTrack({
           trace: trace,
           data: {
+            // `slice_id` + `table_name` let DebugSliceTrackDetailsPanel resolve
+            // the underlying slice and render a link to it.
             sqlSource: `
-                    WITH lock_held_slices AS (
-                    SELECT ts, dur, lock_name, utid
-                    FROM interval_merge_overlapping_partitioned!((
-                        SELECT ts, dur, name AS lock_name, utid
-                        FROM thread_slice
-                        WHERE dur > 0 AND thread_slice.name GLOB '*_lock_held'
-                    ), (lock_name, utid))
-                    )
                     SELECT
-                    row_number() OVER () AS id,
-                    name AS thread_name,
-                    lock_name,
-                    utid,
-                    ts,
-                    MIN(LEAD(ts) OVER(PARTITION BY lock_name ORDER BY ts), ts + dur) - ts AS dur
-                    FROM lock_held_slices
-                    JOIN thread USING (utid)
+                      h.id AS slice_id,
+                      'slice' AS table_name,
+                      t.name AS thread_name,
+                      h.lock_name,
+                      h.blocking_method,
+                      utid,
+                      h.ts,
+                      iif(h.is_incomplete, -1, h.dur) AS dur
+                    FROM android_lock_held AS h
+                    JOIN thread AS t USING (utid)
                 `,
           },
           title: 'Held Lock',

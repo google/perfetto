@@ -135,7 +135,8 @@ instance. The most important are:
 - `bin_path`: Path to the `trace_processor` binary. If not given, the
   `trace_processor` version pinned to (and shipped with) the installed
   `perfetto` package is downloaded and used. This keeps results reproducible:
-  upgrading the binary means upgrading the package.
+  upgrading the binary means upgrading the package. The pinned release is
+  `perfetto.prebuilts.manifests.version.PREBUILTS_VERSION`.
 - `fetch_latest_trace_processor`: If `True` (and `bin_path` is not set), fetch
   the latest available prebuilt from `get.perfetto.dev` instead of the version
   pinned to the package. Use this to always run the newest build, at the cost of
@@ -307,7 +308,7 @@ same version (a different version may load it, but this is not guaranteed).
 file per statically registered table, for analysis with pandas, Polars or
 pyarrow; it cannot be loaded back into trace processor. The Python API
 supports these two formats; to export to SQLite, use the
-[`export` shell subcommand](/docs/analysis/trace-processor.md#subcommand-export).
+[`export` shell subcommand](/docs/reference/trace-processor-cli.md#subcommand-export).
 
 ### Metatracing
 

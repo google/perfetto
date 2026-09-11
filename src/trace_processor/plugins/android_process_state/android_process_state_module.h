@@ -47,15 +47,14 @@ class AndroidProcessStateModule : public ProtoImporterModule {
 class AndroidProcessStateExtensionParser : public TrackEventExtensionParser {
  public:
   AndroidProcessStateExtensionParser(TrackEventExtensionParserContext* context,
-                                     TraceProcessorContext* trace_context,
+                                     TraceProcessorContext*,
                                      AndroidProcessStateTracker* tracker);
   ~AndroidProcessStateExtensionParser() override;
 
-  Result OnTrackEventSliceExtension(const TrackEventExtensionField& field,
-                                    SliceId id) override;
+  Result OnTrackEventField(const TrackEventExtensionField& field,
+                           const TrackEventFieldContext& event) override;
 
  private:
-  TraceProcessorContext* const trace_context_;
   AndroidProcessStateTracker* const tracker_;
 };
 

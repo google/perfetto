@@ -226,7 +226,7 @@ gensrcs {
         "&& $(location aprotoc) " +
         "--plugin=$(location protoc-gen-javastream) " +
 
-        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.ViewCapture,perfetto.protos.AppWakelocksConfig,perfetto.protos.AppWakelockInfo,perfetto.protos.AppWakelockBundle,perfetto.protos.DisplayVideoConfig," +
+        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.ViewCapture,perfetto.protos.AppWakelocksConfig,perfetto.protos.AppWakelockInfo,perfetto.protos.AppWakelockBundle,perfetto.protos.DisplayVideoConfig,perfetto.protos.AndroidProcessStateConfig," +
 
         // IME protos
         "perfetto.protos.ClientSideProto,perfetto.protos.DisplayCutoutProto,perfetto.protos.EditorInfoProto,perfetto.protos.ImeFocusControllerProto,perfetto.protos.InputConnectionCallProto,perfetto.protos.InputConnectionProto,perfetto.protos.InputMethodClientsTraceProto,perfetto.protos.InputMethodClientsTraceFileProto,perfetto.protos.InputMethodConfig,perfetto.protos.InputMethodManagerProto,perfetto.protos.InputMethodManagerServiceProto,perfetto.protos.InputMethodManagerServiceTraceProto,perfetto.protos.InputMethodManagerServiceTraceFileProto,perfetto.protos.InputMethodServiceProto,perfetto.protos.InputMethodServiceTraceProto,perfetto.protos.InputMethodServiceTraceFileProto,perfetto.protos.InsetsAnimationControlImplProto,perfetto.protos.InsetsControllerProto,perfetto.protos.InsetsProto,perfetto.protos.InsetsFrameProviderProto,perfetto.protos.InsetsSizeOverrideProto,perfetto.protos.InsetsSourceConsumerProto,perfetto.protos.InsetsSourceControlProto,perfetto.protos.InsetsSourceProto,perfetto.protos.InsetsStateProto,perfetto.protos.RectProto,perfetto.protos.SoftInputWindowProto,perfetto.protos.SurfaceControlProto,perfetto.protos.ViewRootImplProto,perfetto.protos.WindowLayoutParamsProto," +
@@ -318,6 +318,9 @@ aconfig_declarations {
 cc_aconfig_library {
     name: "perfetto_flags_c_lib",
     aconfig_declarations: "perfetto_flags-aconfig",
+    // All flags read from C++ are fixed read-only, and this drops the runtime
+    // deps (libbase, aconfig storage) that have no sdk variant.
+    mode: "force-read-only",
     vendor_available: true,
     product_available: true,
     apex_available: [
@@ -325,6 +328,9 @@ cc_aconfig_library {
         "//apex_available:platform",
         "com.android.profiling",
     ],
+    sdk_version: "current",
+    // The sdk variant would otherwise use the NDK "system" STL (no libc++).
+    stl: "libc++_static",
     min_sdk_version: "30",
 }
 
@@ -387,5 +393,20 @@ filegroup {
     name: "perfetto_cpp_blob_emitter",
     srcs: [
         "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+filegroup {
+    name: "perfetto_java_blob_emitter",
+    srcs: [
+        "python/tools/java_blob_emitter.py",
+    ],
+}
+
+filegroup {
+    name: "perfetto_sdk_libcore_jarjar_rules",
+    srcs: ["src/android_sdk/java/main/perfetto-sdk-libcore-jarjar-rules.txt"],
+    visibility: [
+        "//libcore:__subpackages__",
     ],
 }

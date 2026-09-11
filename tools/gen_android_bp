@@ -79,6 +79,7 @@ default_targets = [
     '//src/java_sdk/test:perfetto_java_sdk_instrumentation_test',
     '//src/android_sdk/java/main:perfetto_trace_lib',
     '//src/android_sdk/jni:libperfetto_framework_jni',
+    '//src/android_sdk/jni:libperfetto_libcore_jni',
     '//src/android_sdk/java/test:perfetto_trace_instrumentation_test',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
@@ -122,6 +123,7 @@ target_host_supported = [
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/android_sdk/jni:libperfetto_framework_jni',
+    '//src/android_sdk/jni:libperfetto_libcore_jni',
     '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor',
@@ -352,6 +354,8 @@ additional_args = {
     'libperfetto_client_experimental': [
         ('apex_available',
          {'//apex_available:platform', '//apex_available:anyapex'}),
+        ('sdk_version', 'current'),
+        ('stl', 'libc++_static'),
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
@@ -371,6 +375,8 @@ additional_args = {
         }),
     ],
     'libperfetto_c': [
+        ('apex_available',
+         {'//apex_available:platform', '//apex_available:anyapex'}),
         ('min_sdk_version', '30'),
         ('export_include_dirs', {'include'}),
         # Exports the SDK ABI symbols from the .so (see
@@ -434,8 +440,23 @@ additional_args = {
         # Framework should use 'perfetto_trace_lib_framework_java' instead.
         ('visibility', {':__subpackages__'}),
     ],
+    'perfetto_trace_lib_libcore_java': [
+        ('visibility', {'//libcore:__subpackages__'}),
+    ],
+    'libperfetto_framework_jni': [
+        ('apex_available',
+         {'//apex_available:platform', '//apex_available:anyapex'}),
+        ('min_sdk_version', 'apex_inherit'),
+    ],
     # Framework should use 'libperfetto_framework_jni' instead.
     'libperfetto_jni': [('visibility', {':__subpackages__'}),],
+    'libperfetto_libcore_jni': [
+        ('apex_available',
+         {'//apex_available:platform', '//apex_available:anyapex'}),
+        ('min_sdk_version', 'apex_inherit'),
+        ('header_libs', {'jni_headers'}),
+        ('visibility', {'//libcore:__subpackages__'}),
+    ],
 }
 
 
@@ -1405,6 +1426,15 @@ class AndroidJavaSDKModulesGenerator:
         java_copy_module.jarjar_rules = gn_utils.label_to_path(
             target.android_bp_copy_java_target_jarjar)
         self.blueprint.add_module(java_copy_module)
+
+      libcore_filegroup_name = bp_module_name + '_libcore_java'
+      libcore_filegroup = Module('filegroup', libcore_filegroup_name,
+                                 target.name)
+      libcore_filegroup.srcs = [
+          gn_utils.label_to_path(src) for src in target.sources
+      ]
+      _add_additional_args(libcore_filegroup)
+      self.blueprint.add_module(libcore_filegroup)
 
       module.static_libs.add(java_library_module_name)
     else:

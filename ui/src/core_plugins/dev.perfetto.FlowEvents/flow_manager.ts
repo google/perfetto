@@ -25,6 +25,7 @@ import type {
 } from '../../public/selection';
 import type {Engine} from '../../trace_processor/engine';
 import type {Raf} from '../../public/raf';
+import type {Setting} from '../../public/settings';
 
 const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   id: 'showIndirectPrecedingFlows',
@@ -49,6 +50,7 @@ export class FlowManager {
     private trackMgr: TrackManager,
     private selectionMgr: SelectionManager,
     private raf?: Raf,
+    private directFlowsOnlySetting?: Setting<boolean>,
   ) {}
 
   // TODO(primiano): the only reason why this is not done in the constructor is
@@ -319,6 +321,51 @@ export class FlowManager {
   }
 
   sliceSelected(sliceId: number) {
+    if (this.directFlowsOnlySetting?.get()) {
+      // Only show flows directly connected to the selected slice (one step).
+      const query = `
+      select
+        f.slice_out as beginSliceId,
+        t1.track_id as beginTrackId,
+        t1.name as beginSliceName,
+        CHROME_CUSTOM_SLICE_NAME(t1.slice_id) as beginSliceChromeCustomName,
+        t1.category as beginSliceCategory,
+        t1.ts as beginSliceStartTs,
+        (t1.ts+t1.dur) as beginSliceEndTs,
+        t1.depth as beginDepth,
+        (thread_out.name || ' ' || thread_out.tid) as beginThreadName,
+        (process_out.name || ' ' || process_out.pid) as beginProcessName,
+        f.slice_in as endSliceId,
+        t2.track_id as endTrackId,
+        t2.name as endSliceName,
+        CHROME_CUSTOM_SLICE_NAME(t2.slice_id) as endSliceChromeCustomName,
+        t2.category as endSliceCategory,
+        t2.ts as endSliceStartTs,
+        (t2.ts+t2.dur) as endSliceEndTs,
+        t2.depth as endDepth,
+        (thread_in.name || ' ' || thread_in.tid) as endThreadName,
+        (process_in.name || ' ' || process_in.pid) as endProcessName,
+        extract_arg(f.arg_set_id, 'cat') as category,
+        extract_arg(f.arg_set_id, 'name') as name,
+        f.id as id,
+        slice_is_ancestor(t1.slice_id, t2.slice_id) as flowToDescendant
+      from flow f
+      join slice t1 on f.slice_out = t1.slice_id
+      join slice t2 on f.slice_in = t2.slice_id
+      left join thread_track track_out on track_out.id = t1.track_id
+      left join thread thread_out on thread_out.utid = track_out.utid
+      left join thread_track track_in on track_in.id = t2.track_id
+      left join thread thread_in on thread_in.utid = track_in.utid
+      left join process process_out on process_out.upid = thread_out.upid
+      left join process process_in on process_in.upid = thread_in.upid
+      where f.slice_out = ${sliceId} or f.slice_in = ${sliceId}
+      `;
+      this.queryFlowEvents(query).then((flows) =>
+        this.setConnectedFlows(flows),
+      );
+      return;
+    }
+
     const connectedFlows = SHOW_INDIRECT_PRECEDING_FLOWS_FLAG.get()
       ? `(
            select * from directly_connected_flow(${sliceId})

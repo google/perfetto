@@ -77,7 +77,7 @@ SameDataAsMatcher SameDataAs(const TraceBlobView& expected_data) {
 TraceBlobView CreateExpectedData(size_t expected_size) {
   TraceBlob tb = TraceBlob::Allocate(expected_size);
   for (size_t i = 0; i < expected_size; ++i) {
-    tb.data()[i] = static_cast<uint8_t>(i);
+    tb.mutable_data()[i] = static_cast<uint8_t>(i);
   }
   return TraceBlobView(std::move(tb));
 }

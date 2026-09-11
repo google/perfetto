@@ -267,6 +267,19 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
     args: ['1753096827527374787', 'name'],
     traceFile: 'missing_track_names.pb', // Simple trace
   },
+
+  // Android performance metrics pinning
+  {
+    id: 'com.android.PinPerfMetrics',
+    args: ['{}'],
+    traceFile: 'missing_track_names.pb',
+    before: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+      const workspace = trace.workspaces.createEmptyWorkspace('Test Workspace');
+      trace.workspaces.switchWorkspace(workspace);
+    },
+  },
 ];
 
 test('all allowlisted commands have corresponding test cases', async () => {

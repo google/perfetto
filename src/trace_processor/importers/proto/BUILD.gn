@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto_cc_proto_descriptor.gni")
+import("../../../../gn/test.gni")
 
 source_set("minimal") {
   sources = [
@@ -64,6 +65,10 @@ source_set("minimal") {
     "selective_track_event_decoder.h",
     "stack_profile_sequence_state.cc",
     "stack_profile_sequence_state.h",
+    "tracing_service_module.cc",
+    "tracing_service_module.h",
+    "track_event_arg_fields.cc",
+    "track_event_arg_fields.h",
     "track_event_event_importer.h",
     "track_event_extension_parser.cc",
     "track_event_extension_parser.h",
@@ -106,6 +111,7 @@ source_set("minimal") {
     "../../../../protos/third_party/android/connectivity:connectivity_network_trace_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_interned_data_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
     "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../../../../protos/third_party/chromium:zero",
     "../../../base",
@@ -339,7 +345,7 @@ perfetto_cc_proto_descriptor("gen_cc_gpu_interned_data_descriptor") {
       "../../../../protos/perfetto/trace/gpu:gpu_interned_data_descriptor"
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "active_chrome_processes_tracker_unittest.cc",

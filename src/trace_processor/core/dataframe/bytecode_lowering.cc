@@ -27,6 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/type_set.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -43,7 +44,6 @@
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -64,9 +64,9 @@ enum RegType : uint32_t {
 };
 
 // TypeSet of all possible sparse nullability states.
-using SparseNullTypes = TypeSet<SparseNull,
-                                SparseNullWithPopcountAlways,
-                                SparseNullWithPopcountUntilFinalization>;
+using SparseNullTypes = base::TypeSet<SparseNull,
+                                      SparseNullWithPopcountAlways,
+                                      SparseNullWithPopcountUntilFinalization>;
 
 // Gets the appropriate bound modifier and range operation type
 // for a given range operation.

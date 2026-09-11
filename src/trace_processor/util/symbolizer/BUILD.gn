@@ -117,6 +117,17 @@ perfetto_unittest_source_set("unittests") {
     "breakpad_symbolizer_unittest.cc",
     "local_symbolizer_unittest.cc",
   ]
+  if (enable_perfetto_trace_processor) {
+    sources += [ "symbolize_database_unittest.cc" ]
+    deps += [
+      ":symbolize_database",
+      "../../../../include/perfetto/trace_processor:trace_processor",
+      "../../../../protos/perfetto/trace:cpp",
+      "../../../../protos/perfetto/trace/interned_data:cpp",
+      "../../../../protos/perfetto/trace/profiling:cpp",
+      "../../../../protos/perfetto/trace/track_event:cpp",
+    ]
+  }
   if (enable_perfetto_llvm_symbolizer) {
     sources += [ "llvm_symbolizer_unittest.cc" ]
     deps += [ ":llvm_symbolizer" ]

@@ -56,6 +56,11 @@ struct LogicalPlan;
 // - Efficient query execution with optimized bytecode generation
 // - Support for serializable query plans that separate planning from execution
 // - Memory-efficient storage with support for specialized column types
+//
+// A finalized Dataframe is safe for concurrent reads from multiple threads as
+// long as each thread uses its own cursor: PlanQuery, PrepareCursor and cursor
+// iteration touch no shared mutable state. Mutating operations (Insert*,
+// SetCell*, Clear, Finalize) are not thread-safe and must not race with reads.
 class Dataframe {
  public:
   // QueryPlan encapsulates an executable, serializable representation of a
@@ -275,6 +280,14 @@ class Dataframe {
 
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
+
+  // Returns `column`'s values and which rows hold one, for reading them
+  // without going through a cursor.
+  const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
+  // Returns the type of the values in `column`.
+  StorageType column_type(uint32_t column) const {
+    return column_ptrs_[column]->storage.type();
+  }
 
   // Returns the number of rows in the dataframe.
   uint32_t row_count() const { return row_count_; }

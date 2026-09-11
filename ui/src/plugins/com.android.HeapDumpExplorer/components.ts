@@ -24,6 +24,7 @@ import {fmtSize} from './format';
 import type {NavState} from './nav_state';
 import {Tooltip} from '../../widgets/tooltip';
 import {Icon} from '../../widgets/icon';
+import {Anchor} from '../../widgets/anchor';
 
 export type NavFn = (
   view: NavState['view'],
@@ -61,9 +62,8 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
           : null,
         full?.isRoot ? m('span', {class: 'pf-hde-badge-root'}, 'root') : null,
         m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('object', {id: row.id, label: row.display}),
           },
           row.display,

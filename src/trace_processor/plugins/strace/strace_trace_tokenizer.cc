@@ -47,8 +47,23 @@ namespace {
 constexpr int64_t kNsPerSec = 1000LL * 1000 * 1000;
 constexpr int64_t kNsPerUs = 1000;
 
+// strace interleaves its own messages ("strace: Process 1234 attached", and
+// the errors it prints when it cannot attach) with the trace itself.
+constexpr std::string_view kDiagnosticPrefix = "strace: ";
+
 std::string_view ToStringView(const TraceBlobView& tbv) {
   return {reinterpret_cast<const char*>(tbv.data()), tbv.size()};
+}
+
+// Whether `s` consists only of ASCII digits. Vacuously true for an empty
+// `s`, matching a `for` loop over it that never finds a non-digit; callers
+// that require at least one digit check emptiness separately.
+bool IsAllDigits(std::string_view s) {
+  for (char c : s) {
+    if (!isdigit(static_cast<unsigned char>(c)))
+      return false;
+  }
+  return true;
 }
 
 // The largest number of whole seconds since the epoch for which
@@ -102,6 +117,63 @@ std::optional<int64_t> ParseEpochTimestamp(std::string_view s) {
   return ns;
 }
 
+// Parses the "<seconds.fraction>" suffix `strace -T` appends to a completed
+// syscall line ("... = 0 <0.000123>") into nanoseconds. strace prints six
+// fractional digits by default and up to nine with `--syscall-times=ns`, so
+// the fraction is scaled by its digit count rather than assumed to be
+// microseconds. Returns std::nullopt if the suffix isn't a well-formed
+// duration, in which case the caller keeps the text as part of the return
+// value instead of dropping it.
+std::optional<int64_t> ParseSyscallDuration(std::string_view s) {
+  size_t dot = s.find('.');
+  std::string_view whole = s.substr(0, dot);
+  std::string_view frac =
+      dot == std::string_view::npos ? std::string_view() : s.substr(dot + 1);
+
+  if (whole.empty() || whole.size() > 10 || frac.size() > 9)
+    return std::nullopt;
+  if (!IsAllDigits(whole) || !IsAllDigits(frac))
+    return std::nullopt;
+
+  auto seconds = base::StringViewToInt64(base::StringView(whole));
+  // A syscall duration is a wall-clock interval, so anything near the epoch
+  // range is garbage rather than a real measurement; reject it instead of
+  // overflowing the multiplication below.
+  if (!seconds || *seconds > kMaxEpochSeconds)
+    return std::nullopt;
+
+  int64_t ns = *seconds * kNsPerSec;
+  if (!frac.empty()) {
+    auto frac_value = base::StringViewToInt64(base::StringView(frac));
+    if (!frac_value)
+      return std::nullopt;
+    // Scale by the number of digits actually printed: ".5" is 500ms, while
+    // ".000500" is 500us.
+    int64_t scale = kNsPerSec;
+    for (size_t i = 0; i < frac.size(); ++i)
+      scale /= 10;
+    ns += *frac_value * scale;
+  }
+  return ns;
+}
+
+// Splits a trailing `strace -T` "<duration>" suffix off a return value.
+// `ret` is updated in place to the return value without the suffix.
+std::optional<int64_t> ExtractTrailingDuration(std::string_view* ret) {
+  std::string_view text = base::TrimWhitespace(*ret);
+  if (text.size() < 3 || text.back() != '>')
+    return std::nullopt;
+  size_t open = text.rfind('<');
+  if (open == std::string_view::npos)
+    return std::nullopt;
+  std::optional<int64_t> dur =
+      ParseSyscallDuration(text.substr(open + 1, text.size() - open - 2));
+  if (!dur)
+    return std::nullopt;
+  *ret = base::TrimWhitespace(text.substr(0, open));
+  return dur;
+}
+
 }  // namespace
 
 ParseStraceLineResult ParseStraceLine(std::string_view line) {
@@ -111,7 +183,41 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
     return {};
   }
 
+  // strace's own diagnostics ("strace: Process 1234 attached", and the
+  // error messages it prints when it cannot attach) are interleaved with
+  // the trace. They must be recognised here: the timestamp parsing below
+  // would otherwise see the ':' in "strace:" and report them as `-t`/`-tt`
+  // output, which raises a spurious "re-run with -ttt" error on a trace
+  // that was in fact collected correctly.
+  if (rest.substr(0, kDiagnosticPrefix.size()) == kDiagnosticPrefix) {
+    return {};
+  }
+
   StraceLine out;
+
+  // Optional "[pid  1234] " prefix. strace prints the pid two different
+  // ways when following processes: a bare "1234 " prefix when writing to a
+  // file (-o/-ff), and this bracketed, right-aligned form when writing to
+  // stderr, which is what a piped or redirected capture contains.
+  {
+    constexpr std::string_view kPidPrefix = "[pid";
+    if (rest.substr(0, kPidPrefix.size()) == kPidPrefix) {
+      size_t close = rest.find(']', kPidPrefix.size());
+      if (close == std::string_view::npos)
+        return {};
+      std::string_view digits = base::TrimWhitespace(
+          rest.substr(kPidPrefix.size(), close - kPidPrefix.size()));
+      auto pid = base::StringViewToNumber<uint32_t>(base::StringView(digits));
+      if (!pid)
+        return {};
+      out.pid = *pid;
+      rest = base::TrimWhitespace(rest.substr(close + 1));
+      // "[pid 75] +++ exited with 0 +++" and its signal-delivery sibling
+      // are not syscall lines either, they just carry a pid prefix.
+      if (rest.empty() || rest[0] == '-' || rest[0] == '+')
+        return {};
+    }
+  }
 
   // Optional leading pid (present with -f/-ff): "1234 1700000000.000000 ...".
   // A bare digit run is ambiguous with an integral (no-fraction) `-ttt`
@@ -120,17 +226,11 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
   // digits, while Linux's pid_max tops out at 4194304 (7 digits) even at
   // its highest configurable value. A 10+ digit run is therefore always the
   // timestamp, never a pid, and is left for the block below.
-  {
+  if (!out.pid) {
     size_t sp = rest.find(' ');
     if (sp != std::string_view::npos) {
       std::string_view head = rest.substr(0, sp);
-      bool all_digits = !head.empty() && head.size() < 10;
-      for (char c : head) {
-        if (!isdigit(static_cast<unsigned char>(c))) {
-          all_digits = false;
-          break;
-        }
-      }
+      bool all_digits = !head.empty() && head.size() < 10 && IsAllDigits(head);
       if (all_digits) {
         auto pid = base::StringViewToNumber<uint32_t>(base::StringView(head));
         if (!pid)
@@ -209,15 +309,19 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
   // single-line call ("foo(...) = ret").
   out.kind = resumed ? StraceEventKind::kResumed : StraceEventKind::kComplete;
 
-  // The return value itself may contain further parens (e.g. "-1 ENOENT (No
-  // such file or directory)"), so anchor on a ')' followed by whitespace and
-  // then '=' — not the last ')' in the line — to separate the call's own
-  // closing paren from its return value. strace right-aligns the '=' column
-  // with spaces (e.g. "close(2)        = 0"), so the gap between ')' and '='
-  // cannot be assumed to be exactly one space.
+  // The call's own closing paren is the last ')' that is followed by the
+  // '=' of the return value. Scanning forwards instead would stop at the
+  // first such ')', which is wrong whenever an argument contains one:
+  // wait4's status macros print "[{WIFEXITED(s) && WEXITSTATUS(s) == 0}]",
+  // and a string argument can contain ") =" verbatim. Anchoring on ')'
+  // rather than on the last ')' in the line keeps a parenthesised errno
+  // description ("-1 ENOENT (No such file or directory)") out of the args.
+  // strace right-aligns the '=' column with spaces (e.g.
+  // "close(2)        = 0"), so the gap between ')' and '=' cannot be
+  // assumed to be exactly one space.
   size_t close_paren = std::string_view::npos;
-  for (size_t pos = rest.find(')'); pos != std::string_view::npos;
-       pos = rest.find(')', pos + 1)) {
+  for (size_t pos = rest.rfind(')'); pos != std::string_view::npos;
+       pos = pos == 0 ? std::string_view::npos : rest.rfind(')', pos - 1)) {
     size_t after = pos + 1;
     while (after < rest.size() && base::IsSpace(rest[after]))
       ++after;
@@ -233,22 +337,39 @@ ParseStraceLineResult ParseStraceLine(std::string_view line) {
     size_t eq = rest.find('=');
     if (eq == std::string_view::npos)
       return {};
-    out.return_value = std::string(base::TrimWhitespace(rest.substr(eq + 1)));
+    std::string_view ret = rest.substr(eq + 1);
+    out.duration_ns = ExtractTrailingDuration(&ret);
+    out.return_value = std::string(base::TrimWhitespace(ret));
     return ParseStraceLineResult{std::move(out)};
   }
 
   out.args = std::string(base::TrimWhitespace(rest.substr(0, close_paren)));
   size_t eq = rest.find('=', close_paren + 1);
-  out.return_value = std::string(base::TrimWhitespace(rest.substr(eq + 1)));
+  std::string_view ret = rest.substr(eq + 1);
+  out.duration_ns = ExtractTrailingDuration(&ret);
+  out.return_value = std::string(base::TrimWhitespace(ret));
   return ParseStraceLineResult{std::move(out)};
 }
 
 bool IsStraceFormatTrace(const uint8_t* ptr, size_t size) {
   std::string_view str(reinterpret_cast<const char*>(ptr), size);
-  size_t nl = str.find('\n');
-  std::string_view first_line =
-      nl == std::string_view::npos ? str : str.substr(0, nl);
-  return ParseStraceLine(first_line).line.has_value();
+  // `strace -f -p <pid>` opens its output with "strace: Process <pid>
+  // attached" rather than a syscall line, so sniffing only the very first
+  // line would reject a perfectly valid trace. Skip strace's own
+  // diagnostics (and blank lines) and sniff the first real line instead.
+  for (;;) {
+    size_t nl = str.find('\n');
+    std::string_view line =
+        nl == std::string_view::npos ? str : str.substr(0, nl);
+    std::string_view trimmed = base::TrimWhitespace(line);
+    if (!trimmed.empty() &&
+        trimmed.substr(0, kDiagnosticPrefix.size()) != kDiagnosticPrefix) {
+      return ParseStraceLine(line).line.has_value();
+    }
+    if (nl == std::string_view::npos)
+      return false;
+    str = str.substr(nl + 1);
+  }
 }
 
 StraceTraceTokenizer::StraceTraceTokenizer(TraceProcessorContext* ctx)
@@ -314,6 +435,7 @@ base::Status StraceTraceTokenizer::Parse(TraceBlobView blob) {
           base::StringView(*parsed.return_value));
     }
     evt.kind = parsed.kind;
+    evt.duration_ns = parsed.duration_ns;
 
     stream_->Push(*trace_ts, evt);
   }

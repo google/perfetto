@@ -33,7 +33,11 @@ export class Dropdown<T extends string | number> implements ProbeSetting {
 
   constructor(readonly attrs: DropdownAttrs<T>) {
     assertTrue(attrs.options.length > 0);
-    this._value = attrs.defaultValue ?? attrs.options[0].value;
+    this._value = this.defaultValue();
+  }
+
+  private defaultValue(): T {
+    return this.attrs.defaultValue ?? this.attrs.options[0].value;
   }
 
   serialize() {
@@ -41,15 +45,10 @@ export class Dropdown<T extends string | number> implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
-    if (typeof state !== 'string' && typeof state !== 'number') {
-      return;
-    }
     const option = this.attrs.options.find(
       (candidate) => candidate.value === state,
     );
-    if (option) {
-      this._value = option.value;
-    }
+    this._value = option?.value ?? this.defaultValue();
   }
 
   get value(): T {

@@ -19,39 +19,157 @@ import {debounce} from '../../base/rate_limiters';
 import {shortUuid} from '../../base/uuid';
 import type {
   BigtraceQueryClient,
+  ExperimentFilterSpec,
   TracePreset,
 } from '../query/bigtrace_query_client';
 import {queryStore, type QueryExecution} from '../query/query_store';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {
-  traceFilterState,
-  traceOrderByState,
-  traceQueryColumnsState,
-} from '../settings/trace_selection_state';
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
-const DEFAULT_LIMIT = 100;
-// Presets default to a higher row cap than a bare tab — they're meant to
-// surface a meaningful result set, not a 100-row teaser.
-const PRESET_DEFAULT_LIMIT = 1000;
-const TAB_TITLE_MAX_CHARS = 32;
 
-// First non-empty `--`-stripped line, clipped. `/* */` blocks not handled.
-export function deriveTitleFromQuery(sql: string): string | undefined {
-  const stripped = sql
-    .split('\n')
-    .map((line) => {
-      const idx = line.indexOf('--');
-      return idx === -1 ? line : line.slice(0, idx);
-    })
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (stripped.length === 0) return undefined;
-  const firstLine = stripped[0];
-  if (firstLine.length <= TAB_TITLE_MAX_CHARS) return firstLine;
-  return firstLine.slice(0, TAB_TITLE_MAX_CHARS - 1) + '…';
+// Row cap on the query and cap on how many traces it fans out to, defaulted per
+// execution mode: an ephemeral run is a quick look, a persistent one is a full
+// sweep whose results are saved.
+export const MODE_DEFAULTS = {
+  ephemeral: {rowLimit: 1_000, traceLimit: 10_000},
+  persistent: {rowLimit: 10_000, traceLimit: 100_000},
+} as const;
+
+// The backend setting carrying an explicit list of trace UUIDs — the second
+// way to select a corpus: instead of a source plus the grid filter, exactly
+// these traces. A backend that supports it declares the setting (disabled by
+// default); the UI names the id to treat it as a selection MODE rather than
+// an ordinary card. When it is enabled and non-empty the backend selects
+// exactly these traces and ignores the filter-mode fields.
+// A tab's experiment selection: the wire triple plus whatever the catalog
+// told us about it. The names and denial flags are for display only — they
+// are refetched, never authoritative, and never travel.
+export interface ExperimentFilterState extends ExperimentFilterSpec {
+  readonly experimentName?: string;
+  readonly controlName?: string;
+  readonly experimentDenied?: boolean;
+  readonly controlDenied?: boolean;
+}
+
+export const TRACE_UUIDS_SETTING_ID = 'trace_uuids';
+
+// Whether this deployment offers selection by UUID at all.
+export function traceUuidsDeclared(): boolean {
+  return bigTraceSettingsStorage.get(TRACE_UUIDS_SETTING_ID) !== undefined;
+}
+
+// UUID mode is DERIVED, not stored — one predicate for every surface. The
+// tab must hold its OWN trace_uuids entry (created on entering the mode, or
+// by a preset, or by a clone/restore) and not have it disabled. Requiring the
+// explicit entry keeps a fresh tab out of the mode even when the exec config
+// (which declares the setting) arrives only after the tab was created — the
+// tab-creation mirror of globally-disabled settings can't cover settings it
+// hasn't seen yet.
+export function traceUuidsState(
+  declared: boolean,
+  disabled: boolean,
+  hasEntry: boolean,
+): boolean {
+  return declared && !disabled && hasEntry;
+}
+
+export function traceUuidsActive(tab: BigTraceEditorTab): boolean {
+  return traceUuidsState(
+    traceUuidsDeclared(),
+    tab.disabledSettings.includes(TRACE_UUIDS_SETTING_ID),
+    tab.querySettings.some((s) => s.settingId === TRACE_UUIDS_SETTING_ID),
+  );
+}
+
+// Enter/leave UUID mode. Entering ensures the tab's own entry (keeping any
+// values it held from an earlier stint in the mode) and enables it; leaving
+// only disables — values and the whole filter-mode configuration (source,
+// grid filter, order) stay put, hidden rather than cleared.
+export function setTraceUuidsActive(
+  tab: BigTraceEditorTab,
+  active: boolean,
+): void {
+  const setting = bigTraceSettingsStorage.get(TRACE_UUIDS_SETTING_ID);
+  if (setting === undefined) return;
+  const without = tab.disabledSettings.filter(
+    (id) => id !== TRACE_UUIDS_SETTING_ID,
+  );
+  if (active) {
+    tab.disabledSettings = without;
+    if (
+      !tab.querySettings.some((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+    ) {
+      tab.querySettings = [
+        ...tab.querySettings,
+        {
+          settingId: TRACE_UUIDS_SETTING_ID,
+          values: [],
+          category: (setting.category ?? 'TRACE_ADDRESS') as SettingCategory,
+        },
+      ];
+    }
+  } else {
+    tab.disabledSettings = [...without, TRACE_UUIDS_SETTING_ID];
+  }
+}
+
+// Pasted text → UUID list: split on commas and any whitespace, drop empties,
+// dedupe keeping first occurrence. No format validation — what a "uuid" looks
+// like is the backend's business.
+export function parseTraceUuids(text: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of text.split(/[\s,]+/)) {
+    if (token === '' || seen.has(token)) continue;
+    seen.add(token);
+    out.push(token);
+  }
+  return out;
+}
+
+// Trace selection is WHICH traces a query runs over: the source settings
+// (TRACE_ADDRESS) and any per-trace metadata filters an indexer backend
+// declares (TRACE_METADATA).
+export function isTraceSelectionSetting(setting: {
+  readonly id: string;
+  readonly category?: string;
+}): boolean {
+  return (
+    setting.category === 'TRACE_ADDRESS' ||
+    setting.category === 'TRACE_METADATA'
+  );
+}
+
+function modeDefaults(materialize: boolean): {
+  readonly rowLimit: number;
+  readonly traceLimit: number;
+} {
+  return materialize ? MODE_DEFAULTS.persistent : MODE_DEFAULTS.ephemeral;
+}
+
+// Switch a tab's execution mode, moving both limits to the new mode's defaults
+// — but only where they still hold the old mode's default, so a value the user
+// typed (or a preset set) survives the flip.
+export function applyModeDefaults(
+  tab: BigTraceEditorTab,
+  materialize: boolean,
+): void {
+  const from = modeDefaults(tab.materialize);
+  const to = modeDefaults(materialize);
+  if (tab.limit === from.rowLimit) tab.limit = to.rowLimit;
+  if (tab.traceLimit === from.traceLimit) tab.traceLimit = to.traceLimit;
+  tab.materialize = materialize;
+}
+
+// Whether there is anything to run: a line that isn't blank or a `--`
+// comment. `/* */` blocks not handled.
+export function hasQueryText(sql: string): boolean {
+  return sql.split('\n').some((line) => {
+    const idx = line.indexOf('--');
+    return (idx === -1 ? line : line.slice(0, idx)).trim().length > 0;
+  });
 }
 
 // Sync populates rows/columns; async leaves them empty (reads via `tab.dataSource`).
@@ -115,12 +233,166 @@ export function disabledSettingsFromSnapshot(
   return allCategoriedSettingIds.filter((id) => !active.has(id));
 }
 
+// Configure a tab's trace selection from a preset: the source settings, the
+// grid filter and order, and the result-metadata columns. A preset carries
+// trace selection and SQL, nothing else — the query options, the caps and
+// the mode are the tab's own and stay untouched (anything else a stale
+// catalog entry still names is ignored). Within its scope a preset is the
+// whole selection, not a diff: trace settings it doesn't name are turned
+// off — togglable ones disabled, booleans set to false.
+export function applyPresetSetup(tab: BigTraceEditorTab, t: TracePreset): void {
+  const presetTraceSettings: SettingFilter[] = (t.settings ?? [])
+    .filter((s) =>
+      isTraceSelectionSetting({id: s.settingId, category: s.category}),
+    )
+    .map((s) => ({
+      settingId: s.settingId,
+      values: [...s.values],
+      category: s.category as SettingCategory,
+    }));
+  const presetIds = new Set(presetTraceSettings.map((s) => s.settingId));
+
+  // Overrides outside trace selection (options, the cap) are kept verbatim.
+  const querySettings: SettingFilter[] = tab.querySettings.filter(
+    (s) => !isTraceSelectionSetting({id: s.settingId, category: s.category}),
+  );
+  querySettings.push(...presetTraceSettings);
+  const disabledSettings = new Set(
+    tab.disabledSettings.filter((id) => {
+      const raw = bigTraceSettingsStorage.get(id);
+      // Unknown ids are not ours to interpret; keep them disabled.
+      return raw === undefined || !isTraceSelectionSetting(raw);
+    }),
+  );
+  for (const raw of bigTraceSettingsStorage.getAllSettings()) {
+    if (!isTraceSelectionSetting(raw)) continue;
+    if (presetIds.has(raw.id)) continue;
+    if (raw.type === 'boolean') {
+      querySettings.push({
+        settingId: raw.id,
+        values: ['false'],
+        category: raw.category as SettingCategory,
+      });
+    } else {
+      disabledSettings.add(raw.id);
+    }
+  }
+
+  tab.querySettings = querySettings;
+  tab.disabledSettings = [...disabledSettings];
+  tab.traceFilters = [...(t.traceFilters ?? [])];
+  // [] from the wire means "unspecified" → use the default-visible set.
+  const metadataColumns = t.traceMetadataColumns ?? [];
+  tab.traceMetadataColumns = metadataColumns.length
+    ? [...metadataColumns]
+    : null;
+  tab.traceOrderBy = t.traceOrderBy ?? '';
+  // Ids and arm only: a preset states the selection, and the names for it are
+  // resolved from the catalog. One it doesn't state is turned off, like every
+  // other part of the selection.
+  tab.experimentFilter =
+    t.experimentFilter === undefined ? undefined : {...t.experimentFilter};
+  tab.lastPresetId = t.id;
+}
+
+// Fill a tab from a preset: its trace selection plus its query. The tab keeps
+// its own name, options, caps and mode. Whether the tab then leaves the
+// launcher is the caller's — on a new tab a card only fills the page in, and
+// Start query opens the editor.
+export function applyPresetToTab(tab: BigTraceEditorTab, t: TracePreset): void {
+  applyPresetSetup(tab, t);
+  tab.editorText = t.perfettoSql;
+}
+
+// The run configuration Settings edits, as it stood when the form opened —
+// enough to put the tab back if the user leaves with Cancel instead of Apply.
+export interface TabConfigSnapshot {
+  readonly querySettings: ReadonlyArray<SettingFilter>;
+  readonly disabledSettings: ReadonlyArray<string>;
+  readonly traceFilters: ReadonlyArray<Filter>;
+  readonly traceMetadataColumns: ReadonlyArray<string> | null;
+  readonly traceOrderBy: string;
+  readonly experimentFilter: ExperimentFilterState | undefined;
+  readonly limit: number;
+  readonly traceLimit: number;
+  readonly materialize: boolean;
+}
+
+// Flat primitives throughout, so a spread detaches it fully.
+export function copyExperimentFilter(
+  filter: ExperimentFilterState | undefined,
+): ExperimentFilterState | undefined {
+  return filter === undefined ? undefined : {...filter};
+}
+
+// Deep enough that neither side can reach the other's arrays.
+function copySettingFilters(
+  list: ReadonlyArray<SettingFilter>,
+): SettingFilter[] {
+  return list.map((s) => ({...s, values: [...s.values]}));
+}
+
+export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
+  return {
+    querySettings: copySettingFilters(tab.querySettings),
+    disabledSettings: [...tab.disabledSettings],
+    traceFilters: [...tab.traceFilters],
+    traceMetadataColumns:
+      tab.traceMetadataColumns === null ? null : [...tab.traceMetadataColumns],
+    traceOrderBy: tab.traceOrderBy,
+    experimentFilter: copyExperimentFilter(tab.experimentFilter),
+    limit: tab.limit,
+    traceLimit: tab.traceLimit,
+    materialize: tab.materialize,
+  };
+}
+
+export function restoreTabConfig(
+  tab: BigTraceEditorTab,
+  snap: TabConfigSnapshot,
+): void {
+  tab.querySettings = copySettingFilters(snap.querySettings);
+  tab.disabledSettings = [...snap.disabledSettings];
+  tab.traceFilters = [...snap.traceFilters];
+  tab.traceMetadataColumns =
+    snap.traceMetadataColumns === null ? null : [...snap.traceMetadataColumns];
+  tab.traceOrderBy = snap.traceOrderBy;
+  tab.experimentFilter = copyExperimentFilter(snap.experimentFilter);
+  tab.limit = snap.limit;
+  tab.traceLimit = snap.traceLimit;
+  tab.materialize = snap.materialize;
+}
+
+// Open Settings on a tab that already has a configuration: the launcher takes
+// the tab over on its settings form, and the configuration on entry is kept so
+// that leaving with Cancel restores it while Apply keeps the edits.
+export function openSettings(tab: BigTraceEditorTab): void {
+  tab.settingsSession = {before: snapshotTabConfig(tab)};
+}
+
+// Leave the launcher for the editor. Without `keep`, the configuration goes
+// back to what it was when Settings opened; a tab with no such session (a new
+// tab starting its first query) has nothing to restore.
+export function closeSettings(
+  tab: BigTraceEditorTab,
+  {keep}: {readonly keep: boolean},
+): void {
+  if (!keep && tab.settingsSession !== undefined) {
+    restoreTabConfig(tab, tab.settingsSession.before);
+  }
+  tab.settingsSession = undefined;
+  tab.configured = true;
+}
+
 // Mutated in-place by the runner; only QueryTabsState creates/destroys.
 export interface BigTraceEditorTab {
   readonly id: string;
   title: string;
   editorText: string;
   limit: number;
+  // Cap on how many traces the run fans out to; a top-level request field
+  // like `limit`, defaulted per mode and moved with it while untouched.
+  traceLimit: number;
   queryResult?: QueryResponse;
   isLoading: boolean;
   dataSource?: DataSource;
@@ -132,11 +404,19 @@ export interface BigTraceEditorTab {
   // Tri-state (effectiveQueryColumns): null = defaultVisible; [] = nothing; [...] = these.
   traceMetadataColumns: readonly string[] | null;
   traceOrderBy: string;
+  // Which experiment/control pair and arm the query runs over; undefined =
+  // no experiment filtering.
+  experimentFilter?: ExperimentFilterState;
   // Per-tab shown columns (display pref, persisted); null = show all.
   resultColumns: readonly string[] | null;
   // Per-tab disabled setting IDs, independent of global /settings. Seeded from
   // globals at creation, then toggled per-tab; excluded from effective settings.
   disabledSettings: readonly string[];
+  // The preset last applied to this tab, from the gallery or the settings
+  // form's picker. Presets can share one setup (the catalog's query-only ones
+  // all have an empty one), so this is the hint for reading the setup back as
+  // the preset actually chosen.
+  lastPresetId?: string;
   // Tab-lifetime: every request plumbs `signal`; aborts on close.
   readonly lifecycle: AbortController;
   // Per-execute request: Cancel aborts this without tearing down the tab.
@@ -154,6 +434,14 @@ export interface BigTraceEditorTab {
   // on a no-row failure, else Table). Set on user click so it sticks across
   // redraws.
   resultsTabKey?: string;
+  // False until the tab has been given a configuration — a preset, or settings
+  // the user chose by hand. Unconfigured tabs show the launcher instead of the
+  // editor. Tabs restored from storage or opened from History are configured.
+  configured: boolean;
+  // Set while Settings is open on a configured tab: the run configuration on
+  // entry, so Cancel can put it back. View state, not persisted — a reload
+  // closes Settings with the edits kept, as Apply would.
+  settingsSession?: {readonly before: TabConfigSnapshot};
 }
 
 // Persisted subset of BigTraceEditorTab. Transient state is rebuilt on load.
@@ -162,6 +450,7 @@ interface StoredTab {
   readonly title: string;
   readonly editorText: string;
   readonly limit: number;
+  readonly traceLimit?: number;
   readonly materialize: boolean;
   readonly queryUuid?: string;
   readonly error?: string;
@@ -172,8 +461,11 @@ interface StoredTab {
   // null = unchosen (attach defaultVisible); preserved distinct from [].
   readonly traceMetadataColumns?: ReadonlyArray<string> | null;
   readonly traceOrderBy?: string;
+  readonly experimentFilter?: ExperimentFilterState;
   readonly resultColumns?: ReadonlyArray<string> | null;
   readonly disabledSettings?: ReadonlyArray<string>;
+  readonly configured?: boolean;
+  readonly lastPresetId?: string;
 }
 
 interface StoredState {
@@ -213,6 +505,7 @@ export class QueryTabsState {
     materialize?: boolean,
     forceNew?: boolean,
     stored?: Partial<StoredTab>,
+    traceLimit?: number,
   ): BigTraceEditorTab {
     if (!forceNew) {
       const existingTab = this.tabs.find((t) => {
@@ -230,43 +523,45 @@ export class QueryTabsState {
       }
     }
 
-    // Caller title wins; else derive from SQL so History opens get meaningful
-    // labels instead of "Query N". maybeAutoNameTab refines on first run.
-    const derivedTitle =
-      title ?? (initialQuery && deriveTitleFromQuery(initialQuery));
-    // Seed the per-tab trace-selection snapshot. Restored tabs use the
-    // persisted snapshot; history-reopen tabs start empty (runner rehydrates
-    // from /query_executions/{uuid}); fresh tabs copy the current /settings
-    // globals.
+    // Restored tabs bring their own title (possibly one the user typed);
+    // everything else is "Query N".
+    const derivedTitle = title;
+    // Seed the per-tab settings snapshot. Restored tabs use the persisted
+    // one; history-reopen tabs start empty (the runner rehydrates from
+    // /query_executions/{uuid}); fresh tabs start from the backend defaults.
     const isFromStorage = stored !== undefined;
     const isFromHistory = queryUuid !== undefined && !isFromStorage;
+    // Default to persistent; ?? (not ||) keeps an explicit/restored ephemeral.
+    const isPersistent = materialize ?? true;
     const querySettings: SettingFilter[] = isFromStorage
       ? [...(stored?.querySettings ?? [])]
       : isFromHistory
         ? []
         : [...bigTraceSettingsStorage.buildSettingFilters()];
+    // Restored tabs use their snapshot; history-reopen tabs are rehydrated by
+    // the runner; a fresh tab starts empty and gets its selection from the
+    // preset (or custom setup) chosen in the launcher.
     const traceFilters: Filter[] = isFromStorage
       ? [...(stored?.traceFilters ?? [])]
-      : isFromHistory
-        ? []
-        : [...traceFilterState.get()];
-    // Restored: persisted; history-reopen: null (runner rehydrates); fresh: global.
+      : [];
     const traceMetadataColumns: readonly string[] | null = isFromStorage
       ? (stored?.traceMetadataColumns ?? null)
-      : isFromHistory
-        ? null
-        : traceQueryColumnsState.get();
+      : null;
     const traceOrderBy: string = isFromStorage
       ? (stored?.traceOrderBy ?? '')
-      : isFromHistory
-        ? ''
-        : traceOrderByState.get();
+      : '';
     // Restored tabs keep their layout; fresh/history start at show-all (null).
+    // Restored whole (names included), so a reload needs no catalog refetch.
+    // Fresh tabs have no experiment selection; a history-reopen tab gets one
+    // from its submit-time snapshot, not from here.
+    const experimentFilter = isFromStorage
+      ? copyExperimentFilter(stored?.experimentFilter)
+      : undefined;
     const resultColumns: readonly string[] | null = isFromStorage
       ? (stored?.resultColumns ?? null)
       : null;
-    // Per-tab enable/disable. Fresh tabs mirror the current global state, then
-    // diverge independently; restored tabs use their persisted set.
+    // Per-tab enable/disable. Fresh tabs mirror what the backend declares
+    // disabled, then diverge; restored tabs use their persisted set.
     const disabledSettings: string[] = isFromStorage
       ? [...(stored?.disabledSettings ?? [])]
       : isFromHistory
@@ -279,7 +574,15 @@ export class QueryTabsState {
       id: shortUuid(),
       title: derivedTitle || this.nextTabName(),
       editorText: initialQuery ?? '',
-      limit: limit ?? DEFAULT_LIMIT,
+      // No caller-supplied caps: take the ones that fit the execution mode.
+      limit: limit ?? modeDefaults(isPersistent).rowLimit,
+      traceLimit:
+        traceLimit ??
+        (isFromStorage &&
+        typeof stored?.traceLimit === 'number' &&
+        stored.traceLimit > 0
+          ? stored.traceLimit
+          : modeDefaults(isPersistent).traceLimit),
       queryResult: undefined,
       isLoading: false,
       dataSource: undefined,
@@ -287,15 +590,23 @@ export class QueryTabsState {
       traceFilters,
       traceMetadataColumns,
       traceOrderBy,
+      experimentFilter,
       resultColumns,
       disabledSettings,
       lifecycle: new AbortController(),
       activeRequest: undefined,
-      // Default to persistent; ?? (not ||) keeps an explicit/restored ephemeral.
-      materialize: materialize ?? true,
+      materialize: isPersistent,
       lastProcessedRows: 0,
       queryUuid,
       pollGeneration: 0,
+      // Tabs predating the launcher have no flag; treat them as configured so
+      // a reload never drops the user back into the picker.
+      configured: isFromStorage
+        ? (stored?.configured ?? true)
+        : isFromHistory
+          ? true
+          : false,
+      lastPresetId: isFromStorage ? stored?.lastPresetId : undefined,
     };
     tab.execution = queryStore.getOrCreate(queryUuid || tab.id, {
       materialized: tab.materialize,
@@ -306,51 +617,37 @@ export class QueryTabsState {
     return tab;
   }
 
-  // Seed and activate a new tab from a home-page preset. The preset's own
-  // settings are applied; every other setting is turned off — togglable ones
-  // disabled, booleans set to false (they have no disable concept).
-  addTabFromPreset(t: TracePreset): BigTraceEditorTab {
-    const presetIds = new Set((t.settings ?? []).map((s) => s.settingId));
-    const querySettings: SettingFilter[] = (t.settings ?? []).map((s) => ({
-      settingId: s.settingId,
-      values: [...s.values],
-      category: s.category as SettingCategory,
-    }));
-    const disabledSettings: string[] = [];
-    for (const raw of bigTraceSettingsStorage.getAllSettings()) {
-      if (raw.category === undefined) continue;
-      if (presetIds.has(raw.id)) continue;
-      if (raw.type === 'boolean') {
-        querySettings.push({
-          settingId: raw.id,
-          values: ['false'],
-          category: raw.category as SettingCategory,
-        });
-      } else {
-        disabledSettings.push(raw.id);
-      }
-    }
-    const metadataColumns = t.traceMetadataColumns ?? [];
-    return this.addNewTab(
-      t.name || undefined,
-      t.perfettoSql,
-      // Optional in the contract; a preset with no explicit limit defaults to
-      // 1000 rows (not the bare-tab default).
-      t.limit != null && t.limit > 0 ? t.limit : PRESET_DEFAULT_LIMIT,
-      undefined, // queryUuid — a preset is a fresh run, not a reopened one
-      t.materialized ?? true,
+  // Clone a tab: same query and configuration, no results and no queryUuid,
+  // so running it creates its own execution instead of colliding with the
+  // original's in History.
+  cloneTab(tabId: string): BigTraceEditorTab | undefined {
+    const src = this.tabs.find((t) => t.id === tabId);
+    if (src === undefined) return undefined;
+    const clone = this.addNewTab(
+      undefined, // "Query N", like any new tab
+      src.editorText,
+      src.limit,
+      undefined,
+      src.materialize,
       true, // forceNew
       {
-        querySettings,
-        disabledSettings,
-        traceFilters: [...(t.traceFilters ?? [])],
-        // [] from the wire means "unspecified" → use the default-visible set.
-        traceMetadataColumns: metadataColumns.length
-          ? [...metadataColumns]
-          : null,
-        traceOrderBy: t.traceOrderBy ?? '',
+        querySettings: src.querySettings,
+        disabledSettings: src.disabledSettings,
+        traceFilters: src.traceFilters,
+        traceMetadataColumns:
+          src.traceMetadataColumns === null
+            ? null
+            : [...src.traceMetadataColumns],
+        traceOrderBy: src.traceOrderBy,
+        experimentFilter: copyExperimentFilter(src.experimentFilter),
+        resultColumns: src.resultColumns,
+        configured: true,
+        lastPresetId: src.lastPresetId,
+        traceLimit: src.traceLimit,
       },
     );
+    this.markDirty();
+    return clone;
   }
 
   closeTab(tabId: string): void {
@@ -381,18 +678,6 @@ export class QueryTabsState {
     }
   }
 
-  // Replace "Query N" with a SQL-derived title before submit;
-  // user-renamed tabs are skipped.
-  maybeAutoNameTab(tabId: string, queryText: string): void {
-    const tab = this.tabs.find((t) => t.id === tabId);
-    if (!tab) return;
-    if (!/^Query \d+$/.test(tab.title)) return;
-    const derived = deriveTitleFromQuery(queryText);
-    if (derived === undefined) return;
-    tab.title = derived;
-    this.markDirty();
-  }
-
   reorderTab(draggedId: string, beforeId: string | undefined): void {
     const draggedIndex = this.tabs.findIndex((t) => t.id === draggedId);
     if (draggedIndex === -1) return;
@@ -418,6 +703,7 @@ export class QueryTabsState {
         title: t.title,
         editorText: t.editorText,
         limit: t.limit,
+        traceLimit: t.traceLimit,
         materialize: t.materialize,
         queryUuid: t.queryUuid,
         error: t.queryResult?.error,
@@ -427,8 +713,11 @@ export class QueryTabsState {
         traceFilters: t.traceFilters,
         traceMetadataColumns: t.traceMetadataColumns,
         traceOrderBy: t.traceOrderBy,
+        experimentFilter: t.experimentFilter,
         resultColumns: t.resultColumns,
         disabledSettings: t.disabledSettings,
+        configured: t.configured,
+        lastPresetId: t.lastPresetId,
       })),
       activeTabId: this.activeTabId,
     };

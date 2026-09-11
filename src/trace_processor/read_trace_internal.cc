@@ -517,7 +517,7 @@ base::Status ReadTraceUsingRead(
       progress_callback(*file_size);
 
     TraceBlob blob = TraceBlob::Allocate(kChunkSize);
-    auto rsize = base::Read(fd, blob.data(), blob.size());
+    auto rsize = base::Read(fd, blob.mutable_data(), blob.size());
     if (rsize == 0)
       break;
 

@@ -31,6 +31,32 @@ def _version_from_changelog():
   raise RuntimeError('Cannot determine version: no CHANGELOG or PKG-INFO')
 
 
+def _check_prebuilts_version(version):
+  """Refuses a release build whose pinned prebuilts do not match its version.
+
+  Only enforced when PERFETTO_PYPI_RELEASE is set: development trees lag
+  between a CHANGELOG bump and the prebuilt roll landing.
+  """
+  if not os.environ.get('PERFETTO_PYPI_RELEASE'):
+    return
+  here = os.path.dirname(os.path.abspath(__file__))
+  version_py = os.path.join(here, 'perfetto', 'prebuilts', 'manifests',
+                            'version.py')
+  with open(version_py) as f:
+    m = re.search(r"^PREBUILTS_VERSION = '([^']*)'$", f.read(), re.M)
+  if not m:
+    raise RuntimeError('No PREBUILTS_VERSION found in %s' % version_py)
+  expected = 'v' + version[len('0.'):]
+  if m.group(1) != expected:
+    raise RuntimeError(
+        'Package version %s pins prebuilts %s, expected %s. Run '
+        'tools/release/roll-prebuilts --manifests-only %s before building.' %
+        (version, m.group(1), expected, expected))
+
+
+_VERSION = _version_from_changelog()
+_check_prebuilts_version(_VERSION)
+
 setup(
     name='perfetto',
     packages=[
@@ -48,7 +74,7 @@ setup(
         'perfetto.trace_processor': ['*.descriptor'],
     },
     include_package_data=True,
-    version=_version_from_changelog(),
+    version=_VERSION,
     license='apache-2.0',
     description='Python APIs and bindings for Perfetto (perfetto.dev)',
     author='Perfetto',

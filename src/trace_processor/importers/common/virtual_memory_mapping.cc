@@ -86,6 +86,16 @@ FrameId VirtualMemoryMapping::InternFrame(
     base::StringView function_name,
     std::optional<base::StringView> source_file,
     std::optional<uint32_t> line_number) {
+  return InternFrameAndCheckIfNew(rel_pc, function_name, source_file,
+                                  line_number)
+      .first;
+}
+
+std::pair<FrameId, bool> VirtualMemoryMapping::InternFrameAndCheckIfNew(
+    uint64_t rel_pc,
+    base::StringView function_name,
+    std::optional<base::StringView> source_file,
+    std::optional<uint32_t> line_number) {
   JitCache* jit_cache = nullptr;
   if (is_jitted_) {
     if (auto u = GetUpid()) {
@@ -100,7 +110,7 @@ FrameId VirtualMemoryMapping::InternFrame(
   if (was_inserted) {
     frames_by_rel_pc_[rel_pc].push_back(frame_id);
   }
-  return frame_id;
+  return {frame_id, was_inserted};
 }
 
 std::vector<FrameId> VirtualMemoryMapping::FindFrameIds(uint64_t rel_pc) const {

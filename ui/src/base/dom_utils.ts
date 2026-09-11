@@ -129,6 +129,20 @@ export function bindEventListener<K extends keyof HTMLElementEventMap>(
   event: K,
   handler: (event: HTMLElementEventMap[K]) => void,
   options?: AddEventListenerOptions,
+): Disposable;
+export function bindEventListener<K extends string>(
+  element: EventTarget,
+  event: K,
+  handler: (
+    event: K extends keyof HTMLElementEventMap ? HTMLElementEventMap[K] : Event,
+  ) => void,
+  options?: AddEventListenerOptions,
+): Disposable;
+export function bindEventListener(
+  element: EventTarget,
+  event: string,
+  handler: (event: Event) => void,
+  options?: AddEventListenerOptions,
 ): Disposable {
   element.addEventListener(event, handler as EventListener, options);
   return {

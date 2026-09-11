@@ -15,17 +15,19 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
+import {Memo} from '../../base/memo';
 import type {Store} from '../../base/store';
 import {
   metricsFromTableOrSubquery,
+  TreeExplorerFetcher,
   type TreeExplorerQueryMetric,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {
+  areaSelectionKey,
   type AreaSelection,
   type AreaSelectionTab,
-  areaSelectionsEqual,
 } from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {Track} from '../../public/track';
@@ -199,26 +201,29 @@ export function createStackSampleAreaSelectionTab(
   trace: Trace,
   config: StackSampleAreaSelectionTabConfig,
 ): AreaSelectionTab {
-  let previousSelection: AreaSelection | undefined;
-  let flamegraphMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
+  // The fetcher (and so the virtual tables built for the metrics) is created
+  // for the selection it serves and disposed by the memo as soon as the
+  // selection changes, so at most one generation is alive at a time.
+  const fetcherMemo = new Memo<TreeExplorerFetcher | undefined>();
 
   return {
     id: `stack_sample_flamegraph_${encodeURIComponent(config.source)}`,
     name: `${config.title} Sample Flamegraph`,
     render: (selection: AreaSelection) => {
-      const changed =
-        previousSelection === undefined ||
-        !areaSelectionsEqual(previousSelection, selection);
-      if (changed) {
-        previousSelection = selection;
-        flamegraphMetrics = computeFlamegraphMetrics(selection, config);
-      }
-      if (flamegraphMetrics === undefined) return undefined;
+      const fetcher = fetcherMemo.use({
+        key: areaSelectionKey(selection),
+        compute: () => {
+          const metrics = computeFlamegraphMetrics(selection, config);
+          return metrics === undefined
+            ? undefined
+            : new TreeExplorerFetcher(trace, metrics);
+        },
+      });
+      if (fetcher === undefined) return undefined;
       return {
         isLoading: false,
         content: m(TreeExplorerPanel, {
-          trace,
-          metrics: flamegraphMetrics,
+          fetcher,
           state: config.getState(),
           onStateChange: config.setState,
         }),

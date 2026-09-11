@@ -882,6 +882,17 @@ message AndroidPolledStateConfig {
 
 // End of protos/perfetto/config/android/android_polled_state_config.proto
 
+// Begin of protos/perfetto/config/android/android_process_state_config.proto
+
+// Configuration for the "android.process_state" data source.
+message AndroidProcessStateConfig {
+  // If true, dumps process name, start seq id, and start time in the snapshot.
+  // When false (default), these fields are omitted to save trace buffer space.
+  optional bool dump_process_metadata = 1;
+}
+
+// End of protos/perfetto/config/android/android_process_state_config.proto
+
 // Begin of protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto
 
 // Data source that controls the system properties used to guard initialization
@@ -5080,6 +5091,10 @@ message DataSourceConfig {
   optional ChromiumSamplingHeapProfilerConfig chromium_sampling_heap_profiler =
       144 [lazy = true];
 
+  // Data source name: android.process_state
+  optional AndroidProcessStateConfig android_process_state_config = 145
+      [lazy = true];
+
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
 
@@ -6088,7 +6103,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 18
+// Next id: 19
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -6101,6 +6116,12 @@ message SystemInfo {
 
   // The SoC model from which trace is collected
   optional string android_soc_model = 9;
+
+  // Device tree compatible strings for Linux devices. This field is populated
+  // from the firmware file /sys/firmware/devicetree/base/compatible on the
+  // target device. The ordering matches the ordering in the device tree.
+  // Introduced after 26Q3 in Sept 2026 and is not supported on older versions.
+  repeated string device_tree_compatibles = 18;
 
   // The guest SoC model from which trace is collected in case of VMs
   optional string android_guest_soc_model = 13;

@@ -76,6 +76,12 @@ export async function getConnectedFlows(
   const nullToStr = (s: null | string): string => (s === null ? 'NULL' : s);
 
   for (; it.valid(); it.next()) {
+    // Only include flows directly connected to the slice (one hop),
+    // not the full transitive closure from directly_connected_flow.
+    if (it.sliceIn !== sliceId && it.sliceOut !== sliceId) {
+      continue;
+    }
+
     const row: FlowRow = {
       id: it.id,
       sliceId: asSliceSqlId(it.otherSliceId),
