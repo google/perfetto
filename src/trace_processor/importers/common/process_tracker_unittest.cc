@@ -672,5 +672,77 @@ TEST_F(ProcessTrackerTest, ReaffirmedThreadUpdatesLiveTid) {
   ASSERT_EQ(context.process_tracker->GetOrCreateThread(500), utid_a);
 }
 
+TEST_F(ProcessTrackerTest, StartNewProcessAlwaysCreatesNewUpid) {
+  UniquePid upid1 = context.process_tracker->StartNewProcess(
+      1000, std::nullopt, 1234, kNullStringId, ThreadNamePriority::kFtrace);
+  UniquePid upid2 = context.process_tracker->StartNewProcess(
+      2000, std::nullopt, 1234, kNullStringId, ThreadNamePriority::kFtrace);
+  EXPECT_NE(upid1, upid2);
+}
+
+TEST_F(ProcessTrackerTest, EndProcess) {
+  UniquePid upid = context.process_tracker->StartNewProcess(
+      1000, std::nullopt, 1234, kNullStringId, ThreadNamePriority::kFtrace);
+  context.process_tracker->EndProcess(5000, upid);
+
+  auto process = context.storage->process_table()[upid];
+  EXPECT_EQ(process.end_ts(), 5000);
+
+  // If end_ts is nullopt, end_ts remains unset.
+  UniquePid upid2 = context.process_tracker->StartNewProcess(
+      6000, std::nullopt, 5678, kNullStringId, ThreadNamePriority::kFtrace);
+  context.process_tracker->EndProcess(std::nullopt, upid2);
+  auto process2 = context.storage->process_table()[upid2];
+  EXPECT_FALSE(process2.end_ts().has_value());
+}
+
+TEST_F(ProcessTrackerTest, ReleasePid) {
+  UniquePid upid1 = context.process_tracker->StartNewProcess(
+      1000, std::nullopt, 1234, kNullStringId, ThreadNamePriority::kFtrace);
+  ASSERT_EQ(context.process_tracker->GetProcessOrNull(1234), upid1);
+
+  context.process_tracker->ReleasePid(upid1);
+
+  // The pid is free again, but the process is not marked as ended: we do not
+  // know when it died.
+  EXPECT_EQ(context.process_tracker->GetProcessOrNull(1234), std::nullopt);
+  EXPECT_FALSE(context.storage->process_table()[upid1].end_ts().has_value());
+
+  // A new process can now take the pid.
+  UniquePid upid2 = context.process_tracker->StartNewProcess(
+      5000, std::nullopt, 1234, kNullStringId, ThreadNamePriority::kFtrace);
+  EXPECT_NE(upid2, upid1);
+  EXPECT_EQ(context.process_tracker->GetProcessOrNull(1234), upid2);
+}
+
+TEST_F(ProcessTrackerTest, EndProcessAfterReleasePidLeavesSuccessorAlone) {
+  UniquePid upid1 = context.process_tracker->StartNewProcess(
+      1000, std::nullopt, 1234, kNullStringId, ThreadNamePriority::kFtrace);
+  context.process_tracker->ReleasePid(upid1);
+  UniquePid upid2 = context.process_tracker->StartNewProcess(
+      5000, std::nullopt, 1234, kNullStringId, ThreadNamePriority::kFtrace);
+
+  // A late death for the first process must not touch the second one, even
+  // though the second one now owns the pid.
+  context.process_tracker->EndProcess(6000, upid1);
+
+  EXPECT_EQ(context.storage->process_table()[upid1].end_ts(), 6000);
+  EXPECT_FALSE(context.storage->process_table()[upid2].end_ts().has_value());
+  EXPECT_EQ(context.process_tracker->GetProcessOrNull(1234), upid2);
+
+  // The released process's own threads must be closed too, otherwise they stay
+  // open-ended even though we know the process is gone. The successor's
+  // threads must be left alone.
+  auto& threads = context.storage->thread_table();
+  for (uint32_t i = 0; i < threads.row_count(); ++i) {
+    auto thread = threads[i];
+    if (thread.upid() == upid1) {
+      EXPECT_EQ(thread.end_ts(), 6000);
+    } else if (thread.upid() == upid2) {
+      EXPECT_FALSE(thread.end_ts().has_value());
+    }
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

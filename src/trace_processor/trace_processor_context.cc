@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
+#include "src/trace_processor/importers/android/android_process_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
@@ -105,6 +106,8 @@ void InitPerMachineState(TraceProcessorContext* context, int64_t machine_id) {
   context->symbol_tracker = Ptr<SymbolTracker>::MakeRoot(context);
   context->machine_tracker = Ptr<MachineTracker>::MakeRoot(context, machine_id);
   context->process_tracker = Ptr<ProcessTracker>::MakeRoot(context);
+  context->android_process_tracker =
+      Ptr<AndroidProcessTracker>::MakeRoot(context);
   context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
   context->gpu_tracker = Ptr<GpuTracker>::MakeRoot(context);
@@ -116,6 +119,7 @@ void CopyPerMachineState(const TraceProcessorContext* source,
   dest->symbol_tracker = source->symbol_tracker.Fork();
   dest->machine_tracker = source->machine_tracker.Fork();
   dest->process_tracker = source->process_tracker.Fork();
+  dest->android_process_tracker = source->android_process_tracker.Fork();
   dest->mapping_tracker = source->mapping_tracker.Fork();
   dest->cpu_tracker = source->cpu_tracker.Fork();
   dest->gpu_tracker = source->gpu_tracker.Fork();
