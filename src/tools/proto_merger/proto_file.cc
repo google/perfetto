@@ -217,9 +217,25 @@ Output InitFromDescriptor(const Descriptor& desc) {
   if (!desc.GetSourceLocation(&source_loc))
     return {};
 
+  auto filter_lint_comments =
+      [](const std::vector<std::string>& lines) -> std::vector<std::string> {
+    std::vector<std::string> parsed;
+    for (const auto& line : lines) {
+      std::string t = base::TrimWhitespace(line);
+      if (base::StartsWith(t, "LINT.IfChange") ||
+          base::StartsWith(t, "LINT.ThenChange")) {
+        continue;
+      }
+      parsed.push_back(line);
+    }
+    return parsed;
+  };
+
   Output out;
-  out.leading_comments = base::SplitString(source_loc.leading_comments, "\n");
-  out.trailing_comments = base::SplitString(source_loc.trailing_comments, "\n");
+  out.leading_comments = filter_lint_comments(
+      base::SplitString(source_loc.leading_comments, "\n"));
+  out.trailing_comments = filter_lint_comments(
+      base::SplitString(source_loc.trailing_comments, "\n"));
   return out;
 }
 
