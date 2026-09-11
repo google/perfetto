@@ -38,6 +38,8 @@ export function formatDuration(trace: Trace, dur: duration): string {
     case TimestampFormat.Timecode:
     case TimestampFormat.CustomTimezone:
       return renderFormattedDuration(trace, dur);
+    case TimestampFormat.Compact:
+      return renderFormattedDuration(trace, dur, '');
     case TimestampFormat.TraceNs:
       return dur.toString();
     case TimestampFormat.TraceNsLocale:
@@ -54,13 +56,17 @@ export function formatDuration(trace: Trace, dur: duration): string {
   }
 }
 
-function renderFormattedDuration(trace: Trace, dur: duration): string {
+function renderFormattedDuration(
+  trace: Trace,
+  dur: duration,
+  separator = ' ',
+): string {
   const fmt = trace.timeline.durationPrecision;
   switch (fmt) {
     case DurationPrecision.HumanReadable:
       return Duration.humanise(dur);
     case DurationPrecision.Full:
-      return Duration.format(dur);
+      return Duration.format(dur, separator);
     default:
       const x: never = fmt;
       throw new Error(`Invalid format ${x}`);
