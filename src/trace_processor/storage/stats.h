@@ -33,6 +33,13 @@ namespace perfetto::trace_processor::stats {
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_skipped,              kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_total,                kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(android_process_state_reuse_unknown_ts,  kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,  \
+      "PID reuse detected from android.process_state snapshot without a "      \
+      "resolvable start timestamp; process incarnation split without setting " \
+      "end_ts or start_ts."),                                                  \
+  F(android_process_state_invalid_start_time, kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,  \
+      "Process start elapsed time in android.process_state snapshot resulted " \
+      "in integer overflow during nanosecond conversion."),                    \
   F(android_video_size_cap_hit,           kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "android.display.video producer hit max_stream_size_bytes; stream torn " \
       "down. See trace_import_logs for the affected display."),                \

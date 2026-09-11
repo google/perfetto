@@ -14,6 +14,7 @@
 
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/perfetto_tp_tables.gni")
+import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
@@ -36,6 +37,8 @@ source_set("android_process_state") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
+    "../../../../protos/perfetto/config/android:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_common_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
@@ -43,6 +46,7 @@ source_set("android_process_state") {
     "../../../base",
     "../../../protozero",
     "../../core/plugin",
+    "../../importers/android",
     "../../importers/common",
     "../../importers/common:parser_types",
     "../../importers/proto:minimal",
@@ -52,4 +56,27 @@ source_set("android_process_state") {
     "../../types",
     "../../util:descriptors",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":android_process_state",
+    ":tables",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
+    "../../../../protos/perfetto/config/android:zero",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../src/protozero",
+    "../../importers/android",
+    "../../importers/common",
+    "../../importers/proto:minimal",
+    "../../storage",
+    "../../types",
+    "../../util:clock",
+  ]
+  sources = [ "android_process_state_tracker_unittest.cc" ]
 }

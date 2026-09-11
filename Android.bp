@@ -19734,6 +19734,14 @@ python_binary_host {
     main: "tools/gen_tp_table_headers.py",
 }
 
+// GN: //src/trace_processor/plugins/android_process_state:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_android_process_state_unittests",
+    srcs: [
+        "src/trace_processor/plugins/android_process_state/android_process_state_tracker_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/plugins/args:args
 filegroup {
     name: "perfetto_src_trace_processor_plugins_args_args",
@@ -24425,6 +24433,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":perfetto_src_trace_processor_plugins_android_job_scheduler_unittests",
         ":perfetto_src_trace_processor_plugins_android_process_state_android_process_state",
+        ":perfetto_src_trace_processor_plugins_android_process_state_unittests",
         ":perfetto_src_trace_processor_plugins_args_args",
         ":perfetto_src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":perfetto_src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
