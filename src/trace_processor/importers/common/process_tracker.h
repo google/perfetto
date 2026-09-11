@@ -412,7 +412,6 @@ class ProcessTracker {
   };
   base::FlatHashMap<UniquePid, SortIndex> process_sort_indexes_;
   base::FlatHashMap<UniqueTid, SortIndex> thread_sort_indexes_;
-
 };
 
 }  // namespace perfetto::trace_processor

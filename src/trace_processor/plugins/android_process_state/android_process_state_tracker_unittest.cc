@@ -254,7 +254,8 @@ TEST_F(AndroidProcessStateTrackerTest, ReconcileUserspacePidRecycling) {
   EXPECT_FALSE(old_process.end_ts().has_value());
 
   auto new_process = context_.storage->process_table()[*opt_upid];
-  EXPECT_EQ(context_.storage->GetString(*new_process.name()), "com.test.newapp");
+  EXPECT_EQ(context_.storage->GetString(*new_process.name()),
+            "com.test.newapp");
   EXPECT_EQ(context_.android_process_tracker->GetStartSeqId(*opt_upid), 20);
   EXPECT_EQ(new_process.start_ts(), 8000000000LL);
 }
@@ -395,7 +396,8 @@ TEST_F(AndroidProcessStateTrackerTest, ReconcileKernelAuthority) {
   ASSERT_TRUE(opt_upid.has_value());
   auto process = context_.storage->process_table()[*opt_upid];
   EXPECT_EQ(process.pid(), 3001u);
-  // Under Kernel Authority, snapshot records do not enrich core process table metadata.
+  // Under Kernel Authority, snapshot records do not enrich core process table
+  // metadata.
   EXPECT_FALSE(process.name().has_value());
   EXPECT_FALSE(
       context_.android_process_tracker->GetStartSeqId(*opt_upid).has_value());

@@ -89,10 +89,10 @@ class Parser : public TrackEventExtensionParser {
           upid, static_cast<uint32_t>(evt.uid()));
     }
     if (evt.has_process_name()) {
-      auto priority = trace_context_->android_process_tracker
-                              ->FrameworkIsProcessAuthority()
-                          ? ProcessNamePriority::kAndroidFramework
-                          : ProcessNamePriority::kOther;
+      auto priority =
+          trace_context_->android_process_tracker->FrameworkIsProcessAuthority()
+              ? ProcessNamePriority::kAndroidFramework
+              : ProcessNamePriority::kOther;
       trace_context_->process_tracker->UpdateProcessName(
           upid, trace_context_->storage->InternString(evt.process_name()),
           priority);
@@ -128,8 +128,7 @@ class Parser : public TrackEventExtensionParser {
           evt.has_start_seq_id() ? std::make_optional(evt.start_seq_id())
                                  : std::nullopt;
       upid = android_process_tracker->GetOrStartProcess(
-          ts, evt.pid(), seq_id, name_id,
-          ThreadNamePriority::kTrackDescriptor);
+          ts, evt.pid(), seq_id, name_id, ThreadNamePriority::kTrackDescriptor);
     } else {
       upid = process_tracker->GetOrCreateProcess(evt.pid());
     }
@@ -190,9 +189,8 @@ class Parser : public TrackEventExtensionParser {
     // reported, in which case it no longer resolves to the process that died.
     // The event names the incarnation via its start seq id, so prefer that.
     if (evt.has_start_seq_id()) {
-      if (auto upid =
-              android_process_tracker->FindProcess(evt.pid(),
-                                                   evt.start_seq_id());
+      if (auto upid = android_process_tracker->FindProcess(evt.pid(),
+                                                           evt.start_seq_id());
           upid) {
         // This may be an incarnation which no longer owns the pid, so end it
         // by upid rather than going through the pid.
@@ -204,8 +202,7 @@ class Parser : public TrackEventExtensionParser {
 
     // No seq id to go on: end whoever owns the pid now. This is the path every
     // trace without framework process authority takes.
-    std::optional<UniqueTid> utid =
-        process_tracker->GetThreadOrNull(evt.pid());
+    std::optional<UniqueTid> utid = process_tracker->GetThreadOrNull(evt.pid());
     if (!utid) {
       return;
     }
