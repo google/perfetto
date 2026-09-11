@@ -184,6 +184,8 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
   // === Native Symbolization ===
   {
     profiling::SymbolizerConfig sym_config;
+    sym_config.debuginfod = config.debuginfod;
+    sym_config.progress = config.progress;
 
     // Start with explicit paths from config.
     sym_config.index_symbol_paths = config.symbol_paths;

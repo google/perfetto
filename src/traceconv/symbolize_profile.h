@@ -20,15 +20,18 @@
 #include <iostream>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
 
 namespace perfetto {
 namespace trace_to_text {
 
-base::Status SymbolizeProfile(std::istream* input,
-                              std::ostream* output,
-                              bool verbose,
-                              bool no_progress = false,
-                              bool quiet = false);
+base::Status SymbolizeProfile(
+    std::istream* input,
+    std::ostream* output,
+    bool verbose,
+    bool no_progress = false,
+    bool quiet = false,
+    const profiling::DebuginfodConfig& debuginfod = {});
 
 }  // namespace trace_to_text
 }  // namespace perfetto

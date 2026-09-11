@@ -82,6 +82,10 @@ struct BinaryLookupResult {
   bool ok() const { return binary.has_value(); }
 };
 
+std::optional<FoundBinary> FindBinaryFile(const std::string& path,
+                                          const std::string& build_id,
+                                          BinaryPathError* error);
+
 class BinaryFinder {
  public:
   virtual ~BinaryFinder();
@@ -118,6 +122,8 @@ class LocalBinaryFinder : public BinaryFinder {
   std::map<std::string, BinaryLookupResult> cache_;
 };
 
+bool CanRunLlvmSymbolizer();
+
 class LLVMSymbolizerProcess {
  public:
   explicit LLVMSymbolizerProcess(const std::string& symbolizer_path);
@@ -132,9 +138,11 @@ class LLVMSymbolizerProcess {
 class LocalSymbolizer : public Symbolizer {
  public:
   LocalSymbolizer(const std::string& symbolizer_path,
-                  std::unique_ptr<BinaryFinder> finder);
+                  std::unique_ptr<BinaryFinder> finder,
+                  bool use_kernel_paths = true);
 
-  explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder);
+  explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder,
+                           bool use_kernel_paths = true);
 
   SymbolizeResult Symbolize(const Environment& env,
                             const UnsymbolizedMapping& mapping,
@@ -145,6 +153,8 @@ class LocalSymbolizer : public Symbolizer {
  private:
   LLVMSymbolizerProcess llvm_symbolizer_;
   std::unique_ptr<BinaryFinder> finder_;
+  // Remote lookup uses build IDs instead of searching host kernel paths.
+  bool use_kernel_paths_;
 };
 
 std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(

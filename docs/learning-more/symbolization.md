@@ -14,6 +14,26 @@ organised around that question. Two definitions used throughout:
   R8/ProGuard (e.g. `fsd.a`) back to the original identifiers, using the
   `mapping.txt` produced at build time.
 
+## Fetch debug files using debuginfod
+
+If you have a trace with native build IDs and access to a debuginfod server,
+you can create a symbolized bundle without supplying local binaries. Install
+`curl` and `llvm-symbolizer`, then run:
+
+```sh
+trace_processor bundle --debuginfod \
+  --debuginfod-urls "https://your-debuginfod-server.example" \
+  input.pftrace output.tar
+```
+
+If `DEBUGINFOD_URLS` is already configured, only `--debuginfod` is needed.
+Open the resulting bundle in the UI. Check the reported unresolved-frame count;
+use `--verbose` to investigate unsuccessful lookups. Downloads are cached for
+later runs. Use `--debuginfod-cache-path PATH` to choose a different cache.
+
+See the [CLI reference](/docs/reference/trace-processor-cli.md#debuginfod) for
+precedence, timeouts, cache layout, and output controls.
+
 ## Which workflow do you need? {#which-workflow}
 
 Match your trace to one of the categories below and follow the link. Picking the

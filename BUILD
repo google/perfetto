@@ -5947,6 +5947,7 @@ perfetto_cc_library(
     srcs = [
         "src/trace_processor/util/symbolizer/breakpad_parser.cc",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer.cc",
+        "src/trace_processor/util/symbolizer/debuginfod.cc",
         "src/trace_processor/util/symbolizer/filesystem_posix.cc",
         "src/trace_processor/util/symbolizer/filesystem_windows.cc",
         "src/trace_processor/util/symbolizer/local_symbolizer.cc",
@@ -5961,6 +5962,7 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
         "src/trace_processor/util/symbolizer/breakpad_parser.h",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer.h",
+        "src/trace_processor/util/symbolizer/debuginfod.h",
         "src/trace_processor/util/symbolizer/elf.h",
         "src/trace_processor/util/symbolizer/filesystem.h",
         "src/trace_processor/util/symbolizer/local_symbolizer.h",

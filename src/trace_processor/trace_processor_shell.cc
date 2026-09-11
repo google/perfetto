@@ -114,6 +114,7 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   bool quiet = false;
+  profiling::DebuginfodOptions debuginfod;
   std::string query_string;
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;
@@ -297,6 +298,13 @@ Behavioural:
                                       executing some other commands (-q, -Q,
                                       --run-metrics, --summary).
 
+Symbolization:
+ --debuginfod                         Download missing debug files by build ID.
+ --debuginfod-urls URLS                Space-separated HTTP(S) servers;
+                                      overrides DEBUGINFOD_URLS.
+ --debuginfod-cache-path PATH          Overrides DEBUGINFOD_CACHE_PATH.
+ --debuginfod-connect-timeout SECONDS  Connection timeout (default: 5).
+ --debuginfod-stall-timeout SECONDS    Low-speed timeout (default: 10).
 Output:
  --quiet                              Suppress routine status messages, retaining
                                       results, warnings, and errors.
@@ -527,6 +535,11 @@ enum LongOption {
 
   OPT_HELP_CLASSIC,
   OPT_QUIET,
+  OPT_DEBUGINFOD,
+  OPT_DEBUGINFOD_URLS,
+  OPT_DEBUGINFOD_CACHE_PATH,
+  OPT_DEBUGINFOD_CONNECT_TIMEOUT,
+  OPT_DEBUGINFOD_STALL_TIMEOUT,
 };
 
 constexpr char kShortOptions[] = "hvWiDdm:p:q:Q:e:";
@@ -535,6 +548,14 @@ const option kLongOptions[] = {
     {"help", no_argument, nullptr, 'h'},
     {"help-classic", no_argument, nullptr, OPT_HELP_CLASSIC},
     {"quiet", no_argument, nullptr, OPT_QUIET},
+    {"debuginfod", no_argument, nullptr, OPT_DEBUGINFOD},
+    {"debuginfod-urls", required_argument, nullptr, OPT_DEBUGINFOD_URLS},
+    {"debuginfod-cache-path", required_argument, nullptr,
+     OPT_DEBUGINFOD_CACHE_PATH},
+    {"debuginfod-connect-timeout", required_argument, nullptr,
+     OPT_DEBUGINFOD_CONNECT_TIMEOUT},
+    {"debuginfod-stall-timeout", required_argument, nullptr,
+     OPT_DEBUGINFOD_STALL_TIMEOUT},
     {"version", no_argument, nullptr, 'v'},
 
     {"httpd", no_argument, nullptr, 'D'},
@@ -623,6 +644,27 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_QUIET) {
       command_line_options.quiet = true;
+      continue;
+    }
+
+    if (option == OPT_DEBUGINFOD) {
+      command_line_options.debuginfod.enabled = true;
+      continue;
+    }
+    if (option == OPT_DEBUGINFOD_URLS) {
+      command_line_options.debuginfod.urls = optarg;
+      continue;
+    }
+    if (option == OPT_DEBUGINFOD_CACHE_PATH) {
+      command_line_options.debuginfod.cache_path = optarg;
+      continue;
+    }
+    if (option == OPT_DEBUGINFOD_CONNECT_TIMEOUT) {
+      command_line_options.debuginfod.connect_timeout = optarg;
+      continue;
+    }
+    if (option == OPT_DEBUGINFOD_STALL_TIMEOUT) {
+      command_line_options.debuginfod.stall_timeout = optarg;
       continue;
     }
 
@@ -1031,6 +1073,11 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
+      std::string warnings;
+      RETURN_IF_ERROR(profiling::ResolveDebuginfodOptions(
+          global.debuginfod_options, &global.debuginfod, &warnings));
+      if (!warnings.empty())
+        fprintf(stderr, "%s", warnings.c_str());
 
       // Parse metric extensions and populate their descriptor pool. The
       // pool is always created (built-in metrics need it for output
@@ -1064,6 +1111,20 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 
   // Forward global flags.
   auto add_global_flags = [&]() {
+    if (options.debuginfod.enabled)
+      args.emplace_back("--debuginfod");
+    if (options.debuginfod.urls) {
+      args.emplace_back("--debuginfod-urls");
+      args.push_back(*options.debuginfod.urls);
+    }
+    if (options.debuginfod.cache_path) {
+      args.emplace_back("--debuginfod-cache-path");
+      args.push_back(*options.debuginfod.cache_path);
+    }
+    args.emplace_back("--debuginfod-connect-timeout");
+    args.push_back(options.debuginfod.connect_timeout);
+    args.emplace_back("--debuginfod-stall-timeout");
+    args.push_back(options.debuginfod.stall_timeout);
     if (options.quiet)
       args.emplace_back("--quiet");
     if (options.force_full_sort)

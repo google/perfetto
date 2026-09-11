@@ -199,7 +199,7 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
       }
       RETURN_IF_ERROR(trace_to_text::TraceToProfile(
           input, pid, timestamps, !no_annotations_, output_dir_, profile_type,
-          verbose_, no_progress, quiet));
+          verbose_, no_progress, quiet, ctx.global->debuginfod));
     } else {  // firefox
       RETURN_IF_ERROR(
           trace_to_text::TraceToFirefoxProfile(input, output, no_progress));

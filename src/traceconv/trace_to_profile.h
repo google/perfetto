@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/profiling/pprof_builder.h"
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
 
 namespace perfetto {
 namespace trace_to_text {
@@ -37,7 +38,8 @@ base::Status TraceToProfile(std::istream* input,
                             std::optional<ConversionMode> conversion_mode,
                             bool verbose,
                             bool no_progress = false,
-                            bool quiet = false);
+                            bool quiet = false,
+                            const profiling::DebuginfodConfig& debuginfod = {});
 
 }  // namespace trace_to_text
 }  // namespace perfetto

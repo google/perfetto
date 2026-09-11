@@ -32,6 +32,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/subcommand.h"
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
 
 namespace perfetto::trace_processor {
 class TraceProcessorShell_PlatformInterface;
@@ -41,6 +42,8 @@ namespace perfetto::trace_processor::shell {
 
 // Options shared across all subcommands (trace loading, metatrace, dev, etc.).
 struct GlobalOptions {
+  profiling::DebuginfodOptions debuginfod_options;
+  profiling::DebuginfodConfig debuginfod;
   std::string trace_file;
 
   // If non-empty, trace-consuming subcommands run against a remote warm session
@@ -117,7 +120,8 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessorShell_PlatformInterface* platform,
     const std::string& trace_file,
     bool no_progress = false,
-    bool quiet = false);
+    bool quiet = false,
+    const profiling::DebuginfodConfig& debuginfod = {});
 
 // Resolves the trace-file positional argument for a trace-consuming subcommand,
 // accounting for --remote. In --remote mode the trace is already loaded

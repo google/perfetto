@@ -22,13 +22,19 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <algorithm>
+#include <cstring>
 
 #include "perfetto/ext/base/utils.h"
+
+extern "C" char** environ;
 
 namespace perfetto {
 namespace profiling {
 
-Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
+Subprocess::Subprocess(const std::string& file,
+                       std::vector<std::string> args,
+                       const std::vector<std::string>& excluded_env)
     : input_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)),
       output_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)) {
   std::vector<char*> c_str_args;
@@ -37,7 +43,19 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
     c_str_args.push_back(&(arg[0]));
   c_str_args.push_back(nullptr);
 
+  // Build the environment before fork; the child only redirects pointers.
+  std::vector<char*> environment;
+  for (char** entry = environ; *entry; ++entry) {
+    auto excluded = [entry](const std::string& name) {
+      return strncmp(*entry, name.c_str(), name.size()) == 0 &&
+             (*entry)[name.size()] == '=';
+    };
+    if (std::none_of(excluded_env.begin(), excluded_env.end(), excluded))
+      environment.push_back(*entry);
+  }
+  environment.push_back(nullptr);
   if ((pid_ = fork()) == 0) {
+    environ = environment.data();
     // Child
     PERFETTO_CHECK(dup2(*input_pipe_.rd, STDIN_FILENO) != -1);
     PERFETTO_CHECK(dup2(*output_pipe_.wr, STDOUT_FILENO) != -1);

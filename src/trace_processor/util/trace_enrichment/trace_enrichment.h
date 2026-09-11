@@ -19,6 +19,7 @@
 
 #include <string>
 #include <vector>
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
 
 namespace perfetto::trace_processor {
 class TraceProcessor;
@@ -30,6 +31,8 @@ namespace perfetto::trace_processor::util {
 // Users should provide explicit paths or set environment variables.
 // If auto-discovery is enabled, well-known locations are also searched.
 struct EnrichmentConfig {
+  bool progress = false;
+  profiling::DebuginfodConfig debuginfod;
   // Explicit paths to search for native symbols (highest priority).
   // These paths are also searched for breakpad symbol files.
   std::vector<std::string> symbol_paths;
