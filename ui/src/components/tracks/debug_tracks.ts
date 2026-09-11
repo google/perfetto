@@ -21,6 +21,7 @@ import {
   createPerfettoTable,
   sqlValueToReadableString,
   sqlValueToSqliteString,
+  stripTrailingSemicolons,
 } from '../../trace_processor/sql_utils';
 import {SliceTrack} from './slice_track';
 import {
@@ -147,13 +148,17 @@ async function createTableForSliceTrack(
   argSetIdColumn?: string,
   colorCol?: string,
 ) {
+  // The source query is nested in a CTE below, so any trailing semicolon must
+  // be removed, otherwise the resulting query is a syntax error.
+  const sqlSource = stripTrailingSemicolons(data.sqlSource);
+
   if (rawColumns === undefined) {
     // Find the raw columns list from the query if not provided.
     // TODO(stevegolton): Potential performance improvement to be obtained from
     // using the prepare statement API rather than a LIMIT 0 query.
     const query = `
       WITH data AS (
-        ${data.sqlSource}
+        ${sqlSource}
       )
       SELECT *
       FROM data
@@ -188,7 +193,7 @@ async function createTableForSliceTrack(
 
   const query = `
     with data${dataColumns} as (
-      ${data.sqlSource}
+      ${sqlSource}
     ),
     prepared_data as (
       select ${cols}
@@ -378,7 +383,7 @@ async function createTableForCounterTrack(
 
   const query = `
     with data as (
-      ${data.sqlSource}
+      ${stripTrailingSemicolons(data.sqlSource)}
     )
     select ${cols}
     from data
