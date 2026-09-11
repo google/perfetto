@@ -22,6 +22,7 @@ import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {sqlValueToSqliteString} from '../../trace_processor/sql_utils';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -71,18 +72,39 @@ const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
   'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
 };
 
+/**
+ * Creates a track renderer for Actual Frame Timeline slices.
+ *
+ * @param trace - The trace context.
+ * @param uri - Unique URI for the track.
+ * @param maxDepth - Maximum visual depth of slices on the track.
+ * @param trackIds - Track IDs containing frame timeline slices for this process.
+ * @param useExperimentalJankForClassification - Whether to use experimental
+ * jank classification tags to color and classify slices instead of standard tags.
+ * @param layer - Optional layer filter. When provided, scopes the track to
+ * frames belonging to this specific layer and process.
+ * @param layer.name - Name of the layer.
+ * @param layer.upid - Process upid owning the layer.
+ */
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
   maxDepth: number,
   trackIds: ReadonlyArray<number>,
   useExperimentalJankForClassification: boolean,
+  layer?: {readonly name: string; readonly upid: number},
 ) {
+  const src =
+    layer === undefined
+      ? 'actual_frame_timeline_slice'
+      : `select * from actual_frame_timeline_slice
+         where layer_name = ${sqlValueToSqliteString(layer.name)}
+           and upid = ${layer.upid}`;
   return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
-      src: 'actual_frame_timeline_slice',
+      src,
       schema: {
         id: NUM,
         name: STR,

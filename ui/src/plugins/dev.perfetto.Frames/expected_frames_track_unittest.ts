@@ -13,34 +13,44 @@
 // limitations under the License.
 
 import type {Trace} from '../../public/trace';
-import {createActualFramesTrack} from './actual_frames_track';
+import {createExpectedFramesTrack} from './expected_frames_track';
 
-describe('ActualFramesTrack Tooltips Configuration & Test Suite', () => {
+describe('ExpectedFramesTrack', () => {
   const fakeTrace = {engine: {}} as unknown as Trace;
 
-  test('ActualFramesTrack registers dataset and track configuration', () => {
-    const track = createActualFramesTrack(
+  test('reads the whole table when no layer is given', () => {
+    const track = createExpectedFramesTrack(
       fakeTrace,
-      '/process_1/actual_frames',
+      '/process_1/expected_frames',
       2,
       [10, 11],
-      false,
     );
-    expect(track).toBeDefined();
-    expect(track.getDataset().src).toBe('actual_frame_timeline_slice');
+    expect(track.getDataset().src).toBe('expected_frame_timeline_slice');
   });
 
-  test('ActualFramesTrack scopes the dataset to a layer of a process', () => {
-    const track = createActualFramesTrack(
+  test('scopes the dataset to a layer of a process', () => {
+    const track = createExpectedFramesTrack(
       fakeTrace,
-      '/process_1/actual_frames/MyLayer',
+      '/process_1/expected_frames/MyLayer',
       2,
       [10, 11],
-      false,
       {name: "My'Layer", upid: 7},
     );
     // Layer names are escaped, hence the doubled up quote.
     expect(track.getDataset().src).toContain("layer_name = 'My''Layer'");
     expect(track.getDataset().src).toContain('upid = 7');
+  });
+
+  test('also picks up expected frames matched by surface frame token', () => {
+    const track = createExpectedFramesTrack(
+      fakeTrace,
+      '/process_1/expected_frames/MyLayer',
+      2,
+      [10, 11],
+      {name: 'MyLayer', upid: 7},
+    );
+    expect(track.getDataset().src).toContain(
+      'act.surface_frame_token = exp.surface_frame_token',
+    );
   });
 });
