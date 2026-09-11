@@ -136,7 +136,7 @@ TEST_F(AndroidProcessStateTrackerTest, SystemServerZeroSuppressionHandling) {
   EXPECT_FALSE(process.start_ts().has_value());
 }
 
-TEST_F(AndroidProcessStateTrackerTest, ParseTraceConfigViaModule) {
+TEST_F(AndroidProcessStateTrackerTest, TokenizeTraceConfigViaModule) {
   ProtoImporterModuleContext module_context;
   AndroidProcessStateModule module(&module_context, tracker_.get());
 
@@ -156,7 +156,7 @@ TEST_F(AndroidProcessStateTrackerTest, ParseTraceConfigViaModule) {
 
   std::string config_bytes = config.SerializeAsString();
   protos::pbzero::TraceConfig_Decoder trace_config_decoder(config_bytes);
-  module.ParseTraceConfig(trace_config_decoder);
+  module.TokenizeTraceConfig(trace_config_decoder);
 
   EXPECT_FALSE(context_.android_process_tracker->FrameworkIsProcessAuthority());
 }

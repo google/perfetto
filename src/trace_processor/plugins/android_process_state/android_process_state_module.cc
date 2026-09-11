@@ -64,7 +64,7 @@ void AndroidProcessStateModule::ParseField(const ParseFieldArgs& args) {
   }
 }
 
-void AndroidProcessStateModule::ParseTraceConfig(
+void AndroidProcessStateModule::TokenizeTraceConfig(
     const protos::pbzero::TraceConfig_Decoder& trace_config) {
   bool ftrace_configured = false;
   std::optional<bool> dump_process_metadata;

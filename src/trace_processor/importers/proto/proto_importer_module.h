@@ -159,6 +159,13 @@ class ProtoImporterModule {
   // with |field| holding the (first occurrence of the) registered field.
   virtual void ParseField(const ParseFieldArgs& args);
 
+  // Called by ProtoTraceReader for trace config packets during the
+  // tokenization stage i.e. before sorting, on all existing modules. Use this
+  // instead of ParseTraceConfig() when the config decides how later packets
+  // are interpreted: the config packet does not necessarily sort first, so by
+  // the time ParseTraceConfig() runs some packets may already be parsed.
+  virtual void TokenizeTraceConfig(const protos::pbzero::TraceConfig_Decoder&);
+
   // Called by ProtoTraceParser for trace config packets after the sorting
   // stage, on all existing modules.
   virtual void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&);

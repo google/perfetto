@@ -61,6 +61,9 @@ ModuleResult ProtoImporterModule::TokenizePacket(
 
 void ProtoImporterModule::ParseField(const ParseFieldArgs& /*args*/) {}
 
+void ProtoImporterModule::TokenizeTraceConfig(
+    const protos::pbzero::TraceConfig_Decoder&) {}
+
 void ProtoImporterModule::ParseTraceConfig(
     const protos::pbzero::TraceConfig_Decoder&) {}
 
