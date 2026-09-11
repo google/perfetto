@@ -10,7 +10,7 @@ If the user has not yet loaded a trace into `trace_processor`, follow `$SKILL_RO
 
 This section is the mandatory first-pass triage for analyzing a native heap profile. You MUST follow these instructions verbatim before attempting any open-ended exploratory queries. You MUST only proceed to Phase 2 (Open-Ended Exploratory Deep Dive) if the user explicitly states that this first pass triage is not good, not working, or inconclusive.
 
-1.  Run the trace query using the provided compiled script to extract the top unreleased allocation path. The script takes the trace file as its argument and returns the query result as CSV.
+1.  Run the trace query using the provided compiled script to extract the top unreleased allocation path. The script runs against the warm session and returns the query result as CSV.
 
     ```bash
     trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_native_heap.sql
@@ -26,7 +26,7 @@ This section is the mandatory first-pass triage for analyzing a native heap prof
     >
     > There is likely a memory leak or high memory usage in this profile. To find where the issue is likely to be, search for {process_name} and find the source code for the app/binary in order to help identify where the allocation happens. Use that source code to assist in generating a hypothesis. If you can't find the source code, tell the user that the source code can't be found so the issue can't be identified. Reference specific locations in the code showing the allocation and create an implementation plan for fixing or optimizing it.
 
-4.  Present this generated string as a system prompt asking the underlying LLM to generate the final analysis response for the user. Provide the model's analysis cleanly.
+4.  Treat the generated string as the brief for your own analysis and write the final response for the user from it.
 
 ---
 

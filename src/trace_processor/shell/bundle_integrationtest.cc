@@ -26,6 +26,8 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/trace_processor/read_trace.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
@@ -178,6 +180,67 @@ TEST_F(TraceconvShellBundleTest, BundleWithProguardMap) {
   EXPECT_EQ(cls.deobfuscated_name(), "com.example.Foo");
   ASSERT_EQ(cls.obfuscated_methods().size(), 1u);
   EXPECT_EQ(cls.obfuscated_methods()[0].obfuscated_name(), "b");
+}
+
+// HPROF rows must participate in the same deobfuscation lookup as proto heap
+// graphs, including normalized array/class names and inherited fields.
+TEST_F(TraceconvShellBundleTest, HprofDeobfuscation) {
+  auto mapping = WriteTempFile(
+      "com.example.String -> java.lang.String:\n"
+      "    byte[] restoredValue -> value\n"
+      "com.example.Super -> SuperDumpedStuff:\n"
+      "    java.lang.Object restoredField -> a\n");
+  for (const std::string& package :
+       {std::string(), std::string("com.example=")}) {
+    SCOPED_TRACE(package);
+    ArgvInvoker invoker;
+    invoker.Add("trace_processor_shell");
+    invoker.Add("bundle");
+    invoker.Add("--no-auto-symbol-paths");
+    invoker.Add("--no-auto-proguard-maps");
+    invoker.Add("--proguard-map");
+    invoker.Add(package + mapping.path());
+    invoker.Add(base::GetTestDataPath("test/data/test-dump.hprof"));
+    invoker.Add(output_path_);
+    ASSERT_EQ(invoker.Run(), 0);
+
+    auto tp = TraceProcessor::CreateInstance(Config{});
+    ASSERT_TRUE(ReadTrace(tp.get(), output_path_.c_str()).ok());
+    auto classes = tp->ExecuteQuery(
+        "SELECT name, deobfuscated_name FROM heap_graph_class "
+        "WHERE name IN ('java.lang.String', 'java.lang.String[]', "
+        "'java.lang.String[][]', 'java.lang.Class<java.lang.String>', "
+        "'java.lang.Class<java.lang.String[]>', "
+        "'java.lang.Class<java.lang.String[][]>') ORDER BY name");
+    const char* expected[] = {"java.lang.Class<com.example.String>",
+                              "java.lang.Class<com.example.String[]>",
+                              "java.lang.Class<com.example.String[][]>",
+                              "com.example.String",
+                              "com.example.String[]",
+                              "com.example.String[][]"};
+    for (const char* name : expected) {
+      ASSERT_TRUE(classes.Next());
+      ASSERT_EQ(classes.Get(1).type, SqlValue::kString);
+      EXPECT_STREQ(classes.Get(1).string_value, name);
+    }
+    EXPECT_FALSE(classes.Next());
+    EXPECT_TRUE(classes.Status().ok());
+
+    auto fields = tp->ExecuteQuery(
+        "SELECT field_name, deobfuscated_field_name, COUNT(*) "
+        "FROM heap_graph_reference WHERE field_name IN "
+        "('java.lang.String.value', 'SuperDumpedStuff.a') GROUP BY 1, 2 "
+        "ORDER BY field_name");
+    for (const char* name : {"com.example.Super.restoredField",
+                             "com.example.String.restoredValue"}) {
+      ASSERT_TRUE(fields.Next());
+      ASSERT_EQ(fields.Get(1).type, SqlValue::kString);
+      EXPECT_STREQ(fields.Get(1).string_value, name);
+      EXPECT_GT(fields.Get(2).long_value, 0);
+    }
+    EXPECT_FALSE(fields.Next());
+    EXPECT_TRUE(fields.Status().ok());
+  }
 }
 
 // Repeating --proguard-map should produce one DeobfuscationMapping per input

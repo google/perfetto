@@ -1340,7 +1340,7 @@ and `sqlite` produces a database any SQLite tool can open. For how to choose
 between the formats and the exact contents of each, see
 [Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data)
 and the
-[Trace Processor reference](/docs/analysis/trace-processor.md#subcommand-export).
+[Trace Processor reference](/docs/reference/trace-processor-cli.md#subcommand-export).
 
 ## Next Steps
 

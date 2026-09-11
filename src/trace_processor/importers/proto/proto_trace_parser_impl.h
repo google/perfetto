@@ -43,7 +43,7 @@ class ProtoTraceParserImpl {
   ProtoTraceParserImpl(TraceProcessorContext*, ProtoImporterModuleContext*);
   ~ProtoTraceParserImpl();
 
-  void ParseTrackEvent(int64_t ts, TrackEventData data);
+  void ParseTrackEvent(int64_t ts, const TrackEventData& data);
   void ParseTracePacket(int64_t ts, TracePacketData data);
   void ParseEtwEvent(uint32_t cpu, int64_t /*ts*/, TracePacketData data);
   void ParseFtraceEvent(uint32_t cpu, int64_t /*ts*/, FtraceData data);

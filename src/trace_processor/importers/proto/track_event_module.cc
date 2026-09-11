@@ -44,7 +44,6 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
       tokenizer_(module_context, context, track_event_tracker_.get()),
       parser_(&extension_parser_context_, context, track_event_tracker_.get()) {
   RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
-  RegisterForField(TracePacket::kTrackEventFieldNumber);
   RegisterForField(TracePacket::kTrackDescriptorFieldNumber);
   RegisterForField(TracePacket::kThreadDescriptorFieldNumber);
   RegisterForField(TracePacket::kProcessDescriptorFieldNumber);
@@ -100,13 +99,6 @@ void TrackEventModule::ParseField(const ParseFieldArgs& args) {
 
 void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
   track_event_tracker_->OnFirstPacketOnSequence(packet_sequence_id);
-}
-
-void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
-                                           int64_t ts,
-                                           const TrackEventData& data) {
-  parser_.ParseTrackEvent(ts, &data, decoder.track_event(),
-                          decoder.trusted_packet_sequence_id());
 }
 
 void TrackEventModule::OnEventsFullyExtracted() {

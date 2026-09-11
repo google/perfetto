@@ -46,14 +46,15 @@ AndroidJobSchedulerTracker::AndroidJobSchedulerTracker(
   RegisterTrackEventExtension(kJobSchedulerJobExtensionFieldId);
 }
 
-TrackEventExtensionParser::Result
-AndroidJobSchedulerTracker::OnTrackEventSliceExtension(
+TrackEventExtensionParser::Result AndroidJobSchedulerTracker::OnTrackEventField(
     const TrackEventExtensionField& field,
-    SliceId slice_id,
-    PacketSequenceStateGeneration* sequence_state) {
-  if (field.id() != kJobSchedulerJobExtensionFieldId) {
+    const TrackEventFieldContext& event) {
+  if (field.id() != kJobSchedulerJobExtensionFieldId ||
+      event.row_kind != TrackEventFieldContext::RowKind::kSlice) {
     return Result::kIgnored;
   }
+  SliceId slice_id = event.slice_id();
+  PacketSequenceStateGeneration* sequence_state = event.sequence_state;
 
   auto job_blob = field.Cast<com::android::internal::pbzero::
                                  FrameworksBaseTrackEvent::kJobSchedulerJob>();
@@ -70,7 +71,7 @@ AndroidJobSchedulerTracker::OnTrackEventSliceExtension(
     }
   }
 
-  int64_t ts = trace_context_->storage->slice_table()[slice_id].ts();
+  int64_t ts = event.ts;
   auto* table = trace_context_->storage
                     ->mutable_android_job_scheduler_track_event_table();
 

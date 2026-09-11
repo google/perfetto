@@ -42,10 +42,8 @@ class AndroidJobSchedulerTracker : public TrackEventExtensionParser {
   AndroidJobSchedulerTracker(TrackEventExtensionParserContext*,
                              TraceProcessorContext*);
 
-  Result OnTrackEventSliceExtension(
-      const TrackEventExtensionField& field,
-      SliceId id,
-      PacketSequenceStateGeneration* sequence_state) override;
+  Result OnTrackEventField(const TrackEventExtensionField& field,
+                           const TrackEventFieldContext& event) override;
 
  private:
   StringId InternEnum(DescriptorPool::CachedDescriptor& cache,

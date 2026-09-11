@@ -27,6 +27,9 @@ importers:
       marked:
         specifier: ^4.3.0
         version: 4.3.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       protobufjs:
         specifier: ^7.5.8
         version: 7.6.5
@@ -568,6 +571,10 @@ packages:
   picomatch@4.0.5:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
+
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
 
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
@@ -1177,6 +1184,8 @@ snapshots:
 
   picomatch@4.0.5:
     optional: true
+
+  pngjs@7.0.0: {}
 
   points-on-curve@0.2.0: {}
 

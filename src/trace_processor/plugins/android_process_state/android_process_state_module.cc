@@ -66,11 +66,9 @@ void AndroidProcessStateModule::OnEventsFullyExtracted() {
 
 AndroidProcessStateExtensionParser::AndroidProcessStateExtensionParser(
     TrackEventExtensionParserContext* context,
-    TraceProcessorContext* trace_context,
+    TraceProcessorContext*,
     AndroidProcessStateTracker* tracker)
-    : TrackEventExtensionParser(context),
-      trace_context_(trace_context),
-      tracker_(tracker) {
+    : TrackEventExtensionParser(context), tracker_(tracker) {
   RegisterTrackEventExtension(
       fb::FrameworksBaseTrackEvent::kProcessStateChangedEventFieldNumber);
   RegisterTrackEventExtension(
@@ -81,11 +79,13 @@ AndroidProcessStateExtensionParser::~AndroidProcessStateExtensionParser() =
     default;
 
 TrackEventExtensionParser::Result
-AndroidProcessStateExtensionParser::OnTrackEventSliceExtension(
+AndroidProcessStateExtensionParser::OnTrackEventField(
     const TrackEventExtensionField& field,
-    SliceId id,
-    PacketSequenceStateGeneration*) {
-  int64_t ts = trace_context_->storage->slice_table()[id].ts();
+    const TrackEventFieldContext& event) {
+  if (event.row_kind != TrackEventFieldContext::RowKind::kSlice) {
+    return Result::kIgnored;
+  }
+  int64_t ts = event.ts;
   switch (field.id()) {
     case fb::FrameworksBaseTrackEvent::kProcessStateChangedEventFieldNumber:
       tracker_->ParseProcessStateChange(

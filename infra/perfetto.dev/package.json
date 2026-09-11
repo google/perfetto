@@ -15,6 +15,7 @@
     "ejs": "^3.1.10",
     "highlight.js": "^10.7.3",
     "marked": "^4.3.0",
+    "pngjs": "^7.0.0",
     "protobufjs": "^7.5.8"
   }
 }

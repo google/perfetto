@@ -16,7 +16,11 @@ import m from 'mithril';
 import {download} from '../../../base/download_utils';
 import type {Trace} from '../../../public/trace';
 import type {time} from '../../../base/time';
-import type {TreeExplorerQueryMetric} from '../../../components/tree_explorer_fetcher';
+import {
+  TreeExplorerFetcher,
+  type TreeExplorerQueryMetric,
+} from '../../../components/tree_explorer_fetcher';
+import {Memo} from '../../../base/memo';
 import {TreeExplorerPanel} from '../../../components/tree_explorer_panel';
 import {
   createDefaultTreeExplorerState,
@@ -179,8 +183,9 @@ function buildHeapGraphMetrics(
 }
 
 export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
-  let cachedMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
-  let cachedKey: string | undefined;
+  // The fetcher is created for the dump it serves and disposed by the memo when
+  // the dump changes or when this view is removed.
+  const fetcherMemo = new Memo<TreeExplorerFetcher>();
 
   // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
   // the flamegraph behind a dismissible warning modal. Keyed by dump so it
@@ -193,16 +198,15 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
 
   return {
     view({attrs}) {
-      const key = `${attrs.upid}:${attrs.ts}`;
-      if (cachedMetrics === undefined || key !== cachedKey) {
-        cachedMetrics = buildHeapGraphMetrics(
-          attrs.upid,
-          attrs.ts,
-          attrs.onShowObjects,
-        );
-        cachedKey = key;
-      }
-      const metrics = cachedMetrics;
+      const fetcher = fetcherMemo.use({
+        key: {upid: attrs.upid, ts: attrs.ts},
+        compute: () =>
+          new TreeExplorerFetcher(
+            attrs.trace,
+            buildHeapGraphMetrics(attrs.upid, attrs.ts, attrs.onShowObjects),
+          ),
+      });
+      const metrics = fetcher.metrics;
 
       const incomplete = incompleteSlot.use({
         key: {upid: attrs.upid, ts: attrs.ts},
@@ -221,9 +225,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
         attrs.onStateChange(state);
       }
 
-      return m(
-        'div',
-        {class: 'pf-hde-view-content pf-hde-flamegraph-view'},
+      return [
         incomplete !== undefined &&
           incomplete.isIncomplete &&
           !incomplete.dismissed &&
@@ -231,8 +233,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
             incomplete.dismissed = true;
           }),
         m(TreeExplorerPanel, {
-          trace: attrs.trace,
-          metrics,
+          fetcher,
           state,
           onStateChange: attrs.onStateChange,
           extraDownloadItems: [
@@ -249,7 +250,10 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
             },
           ],
         }),
-      );
+      ];
+    },
+    onremove() {
+      fetcherMemo.dispose();
     },
   };
 }
