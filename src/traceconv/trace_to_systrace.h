@@ -37,12 +37,14 @@ base::Status TraceToSystrace(std::istream* input,
                              std::ostream* output,
                              bool ctrace,
                              Keep truncate_keep,
-                             bool full_sort);
+                             bool full_sort,
+                             bool no_progress = false);
 
 int ExtractSystrace(trace_processor::TraceProcessor*,
                     TraceWriter*,
                     bool wrapped_in_json,
-                    Keep truncate_keep);
+                    Keep truncate_keep,
+                    bool no_progress = false);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

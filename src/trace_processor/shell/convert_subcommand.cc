@@ -27,6 +27,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/convert_helpers.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/traceconv/trace_to_firefox.h"
@@ -162,15 +163,19 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(
       OpenConversionOutput(output_path, binary_output, &output_file, &output));
 
+  const bool no_progress = ctx.global && ctx.global->no_progress;
   if (format == "json") {
-    RETURN_IF_ERROR(trace_to_text::TraceToJson(
-        input, output, /*compress=*/false, truncate_keep, full_sort_));
+    RETURN_IF_ERROR(
+        trace_to_text::TraceToJson(input, output, /*compress=*/false,
+                                   truncate_keep, full_sort_, no_progress));
   } else if (format == "systrace") {
-    RETURN_IF_ERROR(trace_to_text::TraceToSystrace(
-        input, output, /*ctrace=*/false, truncate_keep, full_sort_));
+    RETURN_IF_ERROR(
+        trace_to_text::TraceToSystrace(input, output, /*ctrace=*/false,
+                                       truncate_keep, full_sort_, no_progress));
   } else if (format == "ctrace") {
-    RETURN_IF_ERROR(trace_to_text::TraceToSystrace(
-        input, output, /*ctrace=*/true, truncate_keep, full_sort_));
+    RETURN_IF_ERROR(
+        trace_to_text::TraceToSystrace(input, output, /*ctrace=*/true,
+                                       truncate_keep, full_sort_, no_progress));
   } else if (format == "text" || format == "profile" || format == "firefox") {
     if (truncate_keep != trace_to_text::Keep::kAll) {
       return base::ErrStatus("--truncate is unsupported for the '%s' format.",
@@ -183,6 +188,7 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
     if (format == "text") {
       trace_to_text::TraceToTextOptions options;
       options.skip_unknown_fields = skip_unknown_;
+      options.no_progress = no_progress;
       RETURN_IF_ERROR(trace_to_text::TraceToText(input, output, options));
     } else if (format == "profile") {
       if (!output_path.empty()) {
@@ -192,9 +198,10 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
       }
       RETURN_IF_ERROR(trace_to_text::TraceToProfile(
           input, pid, timestamps, !no_annotations_, output_dir_, profile_type,
-          verbose_));
+          verbose_, no_progress));
     } else {  // firefox
-      RETURN_IF_ERROR(trace_to_text::TraceToFirefoxProfile(input, output));
+      RETURN_IF_ERROR(
+          trace_to_text::TraceToFirefoxProfile(input, output, no_progress));
     }
   } else {
     return base::ErrStatus("convert: unknown format '%s'.", format.c_str());

@@ -35,6 +35,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/convert_helpers.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/util/json_value.h"
@@ -226,7 +227,8 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
                                        &output_file, &output));
 
   if (util == "symbolize") {
-    RETURN_IF_ERROR(trace_to_text::SymbolizeProfile(input, output, verbose_));
+    RETURN_IF_ERROR(trace_to_text::SymbolizeProfile(
+        input, output, verbose_, ctx.global && ctx.global->no_progress));
   } else if (util == "deobfuscate") {
     RETURN_IF_ERROR(trace_to_text::DeobfuscateProfile(input, output));
   } else if (util == "decompress_packets") {

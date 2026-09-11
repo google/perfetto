@@ -28,6 +28,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/dynamic_string_writer.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
@@ -112,8 +113,10 @@ inline void FormatThread(uint32_t tid,
 
 class QueryWriter {
  public:
-  QueryWriter(trace_processor::TraceProcessor* tp, TraceWriter* trace_writer)
-      : tp_(tp), trace_writer_(trace_writer) {}
+  QueryWriter(trace_processor::TraceProcessor* tp,
+              TraceWriter* trace_writer,
+              bool no_progress)
+      : tp_(tp), trace_writer_(trace_writer), progress_(!no_progress) {}
 
   template <typename Callback>
   bool RunQuery(const std::string& sql, Callback callback) {
@@ -124,14 +127,15 @@ class QueryWriter {
       callback(&iterator, &line_writer);
 
       if (global_writer_.pos() + line_writer.pos() >= kFlushThreshold) {
-        ProgressLine("Writing row %" PRIu32, rows);
+        progress_.Update(
+            base::StackString<128>("Writing row %" PRIu32, rows).ToStdString());
         auto str = global_writer_.GetStringView();
         trace_writer_->Write(str.data(), str.size());
         global_writer_.Clear();
       }
       global_writer_.AppendStringView(line_writer.GetStringView());
     }
-    EndProgressLine();
+    progress_.Clear();
 
     // Check if we have an error in the iterator and print if so.
     auto status = iterator.Status();
@@ -153,12 +157,14 @@ class QueryWriter {
   trace_processor::TraceProcessor* tp_ = nullptr;
   base::DynamicStringWriter global_writer_;
   TraceWriter* trace_writer_;
+  base::ProgressReporter progress_;
 };
 
 int ExtractRawEvents(TraceWriter* trace_writer,
                      QueryWriter& q_writer,
                      bool wrapped_in_json,
-                     Keep truncate_keep) {
+                     Keep truncate_keep,
+                     bool no_progress) {
   using trace_processor::Iterator;
 
   static const char kRawEventsCountSql[] = "select count(1) from ftrace_event";
@@ -178,7 +184,8 @@ int ExtractRawEvents(TraceWriter* trace_writer,
     return 0;
   }
 
-  ProgressLine("Converting ftrace events");
+  base::ProgressReporter progress(!no_progress);
+  progress.Update("Converting ftrace events");
 
   auto raw_callback = [wrapped_in_json](Iterator* it,
                                         base::DynamicStringWriter* writer) {
@@ -267,7 +274,8 @@ base::Status TraceToSystrace(std::istream* input,
                              std::ostream* output,
                              bool ctrace,
                              Keep truncate_keep,
-                             bool full_sort) {
+                             bool full_sort,
+                             bool no_progress) {
   std::unique_ptr<TraceWriter> trace_writer(
       ctrace ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
@@ -278,7 +286,7 @@ base::Status TraceToSystrace(std::istream* input,
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTraceUnfinalized(tp.get(), input))
+  if (!ReadTraceUnfinalized(tp.get(), input, no_progress))
     return base::ErrStatus("failed to read trace");
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return base::ErrStatus("failed to finalize trace: %s", status.c_message());
@@ -287,23 +295,23 @@ base::Status TraceToSystrace(std::istream* input,
   if (ctrace)
     *output << "TRACE:\n";
 
-  int ret = ExtractSystrace(tp.get(), trace_writer.get(),
-                            /*wrapped_in_json=*/false, truncate_keep);
+  int ret =
+      ExtractSystrace(tp.get(), trace_writer.get(),
+                      /*wrapped_in_json=*/false, truncate_keep, no_progress);
   if (ret) {
-    EndProgressLine();
     return base::ErrStatus("failed to convert ftrace events");
   }
-  EndProgressLine();
   return base::OkStatus();
 }
 
 int ExtractSystrace(trace_processor::TraceProcessor* tp,
                     TraceWriter* trace_writer,
                     bool wrapped_in_json,
-                    Keep truncate_keep) {
+                    Keep truncate_keep,
+                    bool no_progress) {
   using trace_processor::Iterator;
 
-  QueryWriter q_writer(tp, trace_writer);
+  QueryWriter q_writer(tp, trace_writer, no_progress);
   if (wrapped_in_json) {
     trace_writer->Write(kProcessDumpHeader);
 
@@ -344,7 +352,7 @@ int ExtractSystrace(trace_processor::TraceProcessor* tp,
     trace_writer->Write(kProcessDumpFooter);
   }
   return ExtractRawEvents(trace_writer, q_writer, wrapped_in_json,
-                          truncate_keep);
+                          truncate_keep, no_progress);
 }
 
 }  // namespace trace_to_text

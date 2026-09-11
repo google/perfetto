@@ -171,6 +171,7 @@ Commands:
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
   -v, --version               Print version.
+      --no-progress          Disable live progress; keep summaries and errors.
       --full-sort             Force full sort ignoring windowing.
       --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
       --add-sql-package PATH  Register SQL files from a directory as a package.

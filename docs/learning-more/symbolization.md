@@ -112,8 +112,17 @@ add `--no-auto-symbol-paths` and `--no-auto-proguard-maps`. Native paths from
 `PERFETTO_BINARY_PATH` still apply; unset that variable to restrict lookup to
 `--symbol-paths`.
 
+For scripts that capture diagnostics, redirect stderr to a log:
+
+```bash
+trace_processor bundle input.perfetto-trace enriched-trace 2>bundle.log
+```
+
+Live progress is suppressed when stderr is redirected. Use `--no-progress` to
+suppress it when running in a terminal too.
+
 See the [bundle command reference](/docs/reference/trace-processor-cli.md#subcommand-bundle)
-for option semantics, symbol search paths, and exit status.
+for option semantics, color controls, and exit status.
 
 ### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `trace_processor util symbolize` / `util deobfuscate`
 

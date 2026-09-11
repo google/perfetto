@@ -170,12 +170,13 @@ base::Status TraceToProfile(std::istream* input,
                             bool annotate_frames,
                             const std::string& output_dir,
                             std::optional<ConversionMode> explicit_mode,
-                            bool verbose) {
+                            bool verbose,
+                            bool no_progress) {
   // Pre-parse trace.
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
-  if (!ReadTraceUnfinalized(tp.get(), input))
+  if (!ReadTraceUnfinalized(tp.get(), input, no_progress))
     return base::ErrStatus("failed to read trace");
   tp->Flush();
 

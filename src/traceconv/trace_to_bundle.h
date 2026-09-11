@@ -47,6 +47,9 @@ struct BundleContext {
   // If true, output verbose details (all paths tried, etc.)
   bool verbose = false;
 
+  // Suppress live progress; summaries and diagnostics are unaffected.
+  bool no_progress = false;
+
   // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
   std::string android_product_out;
 

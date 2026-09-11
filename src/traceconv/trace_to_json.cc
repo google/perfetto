@@ -19,6 +19,8 @@
 #include <stdio.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/progress_reporter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
@@ -61,12 +63,14 @@ class TraceWriterOutputWriter final
 };
 
 bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
-                           TraceWriter* writer) {
-  ProgressLine("Converting userspace events");
+                           TraceWriter* writer,
+                           bool no_progress) {
+  base::ProgressReporter progress(!no_progress);
+  progress.Update("Converting userspace events");
 
   TraceWriterOutputWriter output(writer);
   base::Status status = trace_processor::json::ExportJson(tp, &output);
-  EndProgressLine();
+  progress.Clear();
   if (!status.ok()) {
     PERFETTO_ELOG("Could not convert userspace events: %s", status.c_message());
     return false;
@@ -84,7 +88,8 @@ base::Status TraceToJson(std::istream* input,
                          std::ostream* output,
                          bool compress,
                          Keep truncate_keep,
-                         bool full_sort) {
+                         bool full_sort,
+                         bool no_progress) {
   std::unique_ptr<TraceWriter> trace_writer(
       compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
@@ -95,14 +100,14 @@ base::Status TraceToJson(std::istream* input,
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTraceUnfinalized(tp.get(), input))
+  if (!ReadTraceUnfinalized(tp.get(), input, no_progress))
     return base::ErrStatus("failed to read trace");
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
     return base::ErrStatus("failed to finalize trace: %s", status.c_message());
   }
 
   // TODO(eseckler): Support truncation of userspace event data.
-  if (!ExportUserspaceEvents(tp.get(), trace_writer.get())) {
+  if (!ExportUserspaceEvents(tp.get(), trace_writer.get(), no_progress)) {
     // ExportJson streams directly to |trace_writer|, so emitting an empty
     // trace header here would corrupt any output already written. Report the
     // conversion failure instead of silently dropping userspace events.
@@ -111,15 +116,14 @@ base::Status TraceToJson(std::istream* input,
   }
   trace_writer->Write(",\n");
 
-  int ret = ExtractSystrace(tp.get(), trace_writer.get(),
-                            /*wrapped_in_json=*/true, truncate_keep);
+  int ret =
+      ExtractSystrace(tp.get(), trace_writer.get(),
+                      /*wrapped_in_json=*/true, truncate_keep, no_progress);
   if (ret) {
-    EndProgressLine();
     return base::ErrStatus("failed to convert ftrace events");
   }
 
   trace_writer->Write(kTraceFooter);
-  EndProgressLine();
   return base::OkStatus();
 }
 

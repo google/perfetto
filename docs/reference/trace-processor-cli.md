@@ -30,6 +30,8 @@ These flags are accepted in addition to the subcommand-specific flags below
 and behave the same across all subcommands:
 
 - **Help and version:** `-h, --help`, `-v, --version`.
+- **Progress:** `--no-progress` disables live progress, preserving summaries,
+  warnings, and errors.
 - **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
   `--analyze-trace-proto-content`, `--crop-track-events`.
 - **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
@@ -43,6 +45,25 @@ and behave the same across all subcommands:
   `--metatrace-categories CATEGORIES`. This produces a Perfetto trace of
   trace processor itself, which you can load back into the UI for
   performance debugging.
+
+## Progress and diagnostics
+
+Diagnostics go to stderr. Live progress is displayed only when stderr is a
+terminal and `TERM` is not `dumb`. Redirected stderr contains ordinary messages
+without progress redraws. `--no-progress` suppresses live progress independently
+of verbosity and color; summaries, warnings, and errors remain enabled.
+
+## Color environment variables
+
+| Environment | Behavior |
+| --- | --- |
+| Nonempty `FORCE_COLOR` | Force ANSI color, including when stderr is redirected. Takes precedence over `NO_COLOR`. |
+| Nonempty `NO_COLOR` | Disable automatic color. |
+| Neither | On POSIX, use terminal detection and disable automatic color for `TERM=dumb`. On Windows, automatic ANSI color is disabled. |
+
+Empty values are ignored. Any nonempty value counts, including `0`, following
+[FORCE_COLOR](https://force-color.org/) and [NO_COLOR](https://no-color.org/).
+Forcing color does not enable progress redraws.
 
 ## {#subcommands} Commands
 
@@ -230,7 +251,8 @@ trace_processor convert <format> [flags] [input] [output]
 
 Formats are `systrace`, `json`, `ctrace`, `text`, `profile`, and `firefox`.
 Omitted input and output paths use stdin and stdout. For `profile`, use
-`--output-dir` instead of an output-file argument. Run `help convert` for
+`--output-dir` instead of an output-file argument. `--no-progress` applies
+to conversion progress as well as trace loading. Run `help convert` for
 format-specific options.
 
 ### {#subcommand-util} `util`: low-level trace utilities

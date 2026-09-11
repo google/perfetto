@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/traceconv/trace_to_bundle.h"
 
@@ -86,7 +87,11 @@ const char* BundleSubcommand::detailed_help() const {
 
 Outputs a TAR containing the trace plus the symbols and deobfuscation
 mappings needed to make it self-contained. Both <input> and <output> must be
-real file paths (stdin/stdout are not supported).)";
+real file paths (stdin/stdout are not supported).
+
+Live progress uses stderr only when it is a terminal (except TERM=dumb).
+Nonempty FORCE_COLOR forces ANSI color, overriding NO_COLOR. Otherwise,
+nonempty NO_COLOR disables automatic color. Color does not enable progress.)";
 }
 
 std::vector<FlagSpec> BundleSubcommand::GetFlags() {
@@ -199,6 +204,7 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
   context.no_auto_symbol_paths = no_auto_symbol_paths_;
   context.no_auto_proguard_maps = no_auto_proguard_maps_;
   context.verbose = verbose_;
+  context.no_progress = ctx.global && ctx.global->no_progress;
   if (const char* val = getenv("ANDROID_PRODUCT_OUT"))
     context.android_product_out = val;
   if (const char* val = getenv("HOME"))

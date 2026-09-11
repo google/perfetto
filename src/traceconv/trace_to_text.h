@@ -27,6 +27,7 @@ namespace trace_to_text {
 struct TraceToTextOptions {
   // If true, unknown proto fields are skipped when converting to text.
   bool skip_unknown_fields = false;
+  bool no_progress = false;
 };
 
 // Returns OkStatus() on success.

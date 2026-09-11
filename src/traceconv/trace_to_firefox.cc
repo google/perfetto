@@ -46,13 +46,13 @@ void ExportFirefoxProfile(trace_processor::TraceProcessor& tp,
   PERFETTO_CHECK(it.Status().ok());
 }
 
-std::unique_ptr<trace_processor::TraceProcessor> LoadTrace(
-    std::istream* input) {
+std::unique_ptr<trace_processor::TraceProcessor> LoadTrace(std::istream* input,
+                                                           bool no_progress) {
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTraceUnfinalized(tp.get(), input)) {
+  if (!ReadTraceUnfinalized(tp.get(), input, no_progress)) {
     return nullptr;
   }
   if (auto status = tp->NotifyEndOfFile(); !status.ok()) {
@@ -63,8 +63,10 @@ std::unique_ptr<trace_processor::TraceProcessor> LoadTrace(
 
 }  // namespace
 
-base::Status TraceToFirefoxProfile(std::istream* input, std::ostream* output) {
-  auto tp = LoadTrace(input);
+base::Status TraceToFirefoxProfile(std::istream* input,
+                                   std::ostream* output,
+                                   bool no_progress) {
+  auto tp = LoadTrace(input, no_progress);
   if (!tp) {
     return base::ErrStatus("failed to read trace");
   }
