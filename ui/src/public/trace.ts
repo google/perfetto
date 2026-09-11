@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {Migrate, Store} from '../base/store';
+import type {z} from 'zod';
 import type {TraceInfo} from './trace_info';
 import type {Engine} from '../trace_processor/engine';
 import type {App} from './app';
@@ -34,6 +34,38 @@ import type {InitialPageManager} from './initial_page';
 // the type as the type of the callback.
 export interface EventListeners {
   traceready: () => Promise<void> | void;
+}
+
+/**
+ * Describes a persistent storage container backed by the trace's permalink state.
+ */
+export interface StorageDescriptor<T> {
+  // A unique identifier for the storage within the trace's permalink state.
+  readonly id: string;
+  // The Zod schema used for validating the stored value upon restore.
+  readonly schema: z.ZodType<T>;
+  // The default value used when no state is present or if validation fails.
+  readonly defaultValue: T;
+  // Optional human-readable name.
+  readonly name?: string;
+  // Optional description.
+  readonly description?: string;
+}
+
+/** @deprecated Use StorageDescriptor instead. */
+export type StoreDescriptor<T> = StorageDescriptor<T>;
+
+/**
+ * A persistent state container with get and set methods, backed by the trace's
+ * permalink state.
+ */
+export interface Storage<T> {
+  // Get the current value, validated by the schema or falling back to default.
+  get(): T;
+  // Update the stored value.
+  set(value: T): void;
+  // Reset the stored value back to the default value.
+  reset(): void;
 }
 
 /**
@@ -67,8 +99,13 @@ export interface Trace extends App {
   // selection.
   scrollTo(args: ScrollToArgs): void;
 
-  // Create a store mounted over the top of this plugin's persistent state.
-  mountStore<T>(id: string, migrate: Migrate<T>): Store<T>;
+  /**
+   * Register a persistent storage container backed by the trace's permalink state.
+   *
+   * When loading a permalink, the value will be restored from the permalink if
+   * valid according to the schema, or fall back to defaultValue.
+   */
+  registerStorage<T>(descriptor: StorageDescriptor<T>): Storage<T>;
 
   // Returns the blob of the current trace file.
   // If the trace is opened from a file or postmessage, the blob is returned

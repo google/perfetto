@@ -42,8 +42,7 @@ import {
 } from '../../widgets/grid';
 import {classNames} from '../../base/classnames';
 import {TagInput} from '../../widgets/tag_input';
-import type {Store} from '../../base/store';
-import type {Trace} from '../../public/trace';
+import type {Storage, Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
 import {MenuItem} from '../../widgets/menu';
 import {AtomicTaskQueue, AsyncMemo} from '../../base/async_memo';
@@ -61,7 +60,7 @@ export interface JournaldLogFilteringCriteria {
 }
 
 export interface JournaldLogPanelAttrs {
-  readonly filterStore: Store<JournaldLogFilteringCriteria>;
+  readonly filterStore: Storage<JournaldLogFilteringCriteria>;
   readonly trace: Trace;
 }
 
@@ -119,7 +118,7 @@ export class JournaldLogPanel implements m.ClassComponent<JournaldLogPanelAttrs>
 
   view({attrs}: m.CVnode<JournaldLogPanelAttrs>) {
     const visibleSpan = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const filters = attrs.filterStore.state;
+    const filters = attrs.filterStore.get();
     const pagination = this.pagination;
     const engine = attrs.trace.engine;
 
@@ -386,59 +385,70 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
 }
 
 interface LogsFiltersAttrs {
-  readonly store: Store<JournaldLogFilteringCriteria>;
+  readonly store: Storage<JournaldLogFilteringCriteria>;
 }
 
 class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
+    const filterState = attrs.store.get();
     return [
       m('span', 'Log Level'),
       m(LogPriorityWidget, {
         options: JOURNALD_PRIORITIES,
-        selectedIndex: attrs.store.state.minimumLevel,
+        selectedIndex: filterState.minimumLevel,
         onSelect: (minimumLevel) => {
-          attrs.store.edit((draft) => {
-            draft.minimumLevel = minimumLevel;
+          attrs.store.set({
+            ...attrs.store.get(),
+            minimumLevel,
           });
         },
       }),
       m(TagInput, {
         leftIcon: 'label',
         placeholder: 'Filter by tag...',
-        tags: attrs.store.state.tags,
+        tags: filterState.tags,
         onTagAdd: (tag) => {
-          attrs.store.edit((draft) => {
-            draft.tags.push(tag);
+          const current = attrs.store.get();
+          attrs.store.set({
+            ...current,
+            tags: [...current.tags, tag],
           });
         },
         onTagRemove: (index) => {
-          attrs.store.edit((draft) => {
-            draft.tags.splice(index, 1);
+          const current = attrs.store.get();
+          attrs.store.set({
+            ...current,
+            tags: current.tags.filter((_, i) => i !== index),
           });
         },
       }),
       m(Button, {
         icon: 'regular_expression',
         tooltip: 'Use regex',
-        active: !!attrs.store.state.isTagRegex,
+        active: !!filterState.isTagRegex,
         onclick: () => {
-          attrs.store.edit((draft) => {
-            draft.isTagRegex = !draft.isTagRegex;
+          const current = attrs.store.get();
+          attrs.store.set({
+            ...current,
+            isTagRegex: !current.isTagRegex,
           });
         },
       }),
       m(LogTextWidget, {
         onChange: (text) => {
-          attrs.store.edit((draft) => {
-            draft.textEntry = text;
+          attrs.store.set({
+            ...attrs.store.get(),
+            textEntry: text,
           });
         },
       }),
       m(FilterByTextWidget, {
-        hideNonMatching: attrs.store.state.hideNonMatching,
+        hideNonMatching: filterState.hideNonMatching,
         onClick: () => {
-          attrs.store.edit((draft) => {
-            draft.hideNonMatching = !draft.hideNonMatching;
+          const current = attrs.store.get();
+          attrs.store.set({
+            ...current,
+            hideNonMatching: !current.hideNonMatching,
           });
         },
       }),

@@ -23,74 +23,44 @@ import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import {createJournaldLogTrack} from './logs_track';
 import {TrackNode} from '../../public/workspace';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
-import {exists} from '../../base/utils';
+import {z} from 'zod';
 
-const VERSION = 1;
 const JOURNALD_LOGS_TRACK_KIND = 'JournaldLogTrack';
 
-const DEFAULT_STATE: JournaldLogPluginState = {
-  version: VERSION,
-  filter: {
-    // Show all levels by default (7 = DEBUG, the least severe).
-    minimumLevel: 7,
-    tags: [],
-    isTagRegex: false,
-    textEntry: '',
-    hideNonMatching: true,
-  },
+const JOURNALD_FILTER_SCHEMA = z.object({
+  minimumLevel: z.number().default(7),
+  tags: z.array(z.string()).default([]),
+  isTagRegex: z.boolean().optional(),
+  textEntry: z.string().default(''),
+  hideNonMatching: z.boolean().default(true),
+});
+
+const JOURNALD_STATE_SCHEMA = z.union([
+  z
+    .object({
+      version: z.number(),
+      filter: JOURNALD_FILTER_SCHEMA,
+    })
+    .transform((s) => s.filter),
+  JOURNALD_FILTER_SCHEMA,
+]);
+
+const DEFAULT_FILTER: JournaldLogFilteringCriteria = {
+  minimumLevel: 7,
+  tags: [],
+  isTagRegex: false,
+  textEntry: '',
+  hideNonMatching: true,
 };
-
-interface JournaldLogPluginState {
-  version: number;
-  filter: JournaldLogFilteringCriteria;
-}
-
-function isJournaldLogFilteringCriteria(
-  value: unknown,
-): value is JournaldLogFilteringCriteria {
-  if (!exists(value) || typeof value !== 'object') {
-    return false;
-  }
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.minimumLevel === 'number' &&
-    Array.isArray(candidate.tags) &&
-    candidate.tags.every((tag) => typeof tag === 'string') &&
-    typeof candidate.textEntry === 'string' &&
-    typeof candidate.hideNonMatching === 'boolean' &&
-    (candidate.isTagRegex === undefined ||
-      typeof candidate.isTagRegex === 'boolean')
-  );
-}
-
-function migrateJournaldPluginState(init: unknown): JournaldLogPluginState {
-  if (!exists(init) || typeof init !== 'object') {
-    return DEFAULT_STATE;
-  }
-  const candidate = init as Record<string, unknown>;
-  if (
-    candidate.version === VERSION &&
-    isJournaldLogFilteringCriteria(candidate.filter)
-  ) {
-    return {
-      version: VERSION,
-      filter: candidate.filter,
-    };
-  }
-  return DEFAULT_STATE;
-}
-
-function migrateJournaldFilter(value: unknown): JournaldLogFilteringCriteria {
-  return isJournaldLogFilteringCriteria(value) ? value : DEFAULT_STATE.filter;
-}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.JournaldLog';
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<JournaldLogPluginState>(
-      'dev.perfetto.JournaldLogFilterState',
-      migrateJournaldPluginState,
-    );
+    const filterStore = ctx.registerStorage({
+      id: 'dev.perfetto.JournaldLogFilterState',
+      schema: JOURNALD_STATE_SCHEMA,
+      defaultValue: DEFAULT_FILTER,
+    });
 
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE linux.systemd_journald;
@@ -112,8 +82,6 @@ export default class implements PerfettoPlugin {
     }
 
     const journaldLogsTabUri = 'perfetto.JournaldLog#tab';
-
-    const filterStore = store.createSubStore(['filter'], migrateJournaldFilter);
 
     ctx.tabs.registerTab({
       isEphemeral: false,

@@ -23,45 +23,25 @@ import {Cpu} from '../../components/cpu';
 import {getMachineCount} from '../../public/utils';
 import {
   type FtraceFilter,
-  type FtracePluginState as FtraceFilters,
   FTRACE_RAW_TRACK_KIND,
+  FTRACE_STATE_SCHEMA,
 } from './common';
 import {FtraceExplorer, type FtraceExplorerCache} from './ftrace_explorer';
 import {createFtraceTrack} from './ftrace_track';
 
-const VERSION = 2;
-
-const DEFAULT_STATE: FtraceFilters = {
-  version: VERSION,
-  filter: {
-    excludeList: [],
-  },
+const DEFAULT_STATE: FtraceFilter = {
+  excludeList: [],
 };
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Ftrace';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const store = ctx.mountStore<FtraceFilters>(
-      'dev.perfetto.FtraceFilters',
-      (init: unknown) => {
-        if (
-          typeof init === 'object' &&
-          init !== null &&
-          'version' in init &&
-          init.version === VERSION
-        ) {
-          return init as {} as FtraceFilters;
-        } else {
-          return DEFAULT_STATE;
-        }
-      },
-    );
-
-    const filterStore = store.createSubStore(
-      ['filter'],
-      (x) => x as FtraceFilter,
-    );
+    const filter = ctx.registerStorage({
+      id: 'dev.perfetto.FtraceFilters',
+      schema: FTRACE_STATE_SCHEMA,
+      defaultValue: DEFAULT_STATE,
+    });
 
     const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
 
@@ -92,7 +72,7 @@ export default class implements PerfettoPlugin {
           ucpu: cpu.ucpu,
           kinds: [FTRACE_RAW_TRACK_KIND],
         },
-        renderer: createFtraceTrack(ctx, uri, cpu.ucpu, filterStore),
+        renderer: createFtraceTrack(ctx, uri, cpu.ucpu, filter),
       });
 
       const track = new TrackNode({
@@ -114,8 +94,9 @@ export default class implements PerfettoPlugin {
     // The event-name filter is shared (and persisted) across both the
     // standalone tab and the area-selection tab.
     const onExcludeListChange = (excludeList: ReadonlyArray<string>) =>
-      filterStore.edit((draft) => {
-        draft.excludeList = Array.from(excludeList);
+      filter.set({
+        ...filter.get(),
+        excludeList: Array.from(excludeList),
       });
 
     const allUcpus = cpus.map((c) => c.ucpu);
@@ -129,16 +110,17 @@ export default class implements PerfettoPlugin {
             trace: ctx,
             cache,
             cpus,
-            excludeList: filterStore.state.excludeList,
+            excludeList: filter.get().excludeList,
             onExcludeListChange,
             // The standalone tab exposes a persisted cpu inclusion filter over
             // all cpus. Undefined persisted state means "show all".
             cpuFilter: {
               kind: 'selectable',
-              show: filterStore.state.visibleCpus ?? allUcpus,
+              show: filter.get().visibleCpus ?? allUcpus,
               onChange: (show) =>
-                filterStore.edit((draft) => {
-                  draft.visibleCpus = Array.from(show);
+                filter.set({
+                  ...filter.get(),
+                  visibleCpus: Array.from(show),
                 }),
             },
           }),
@@ -175,7 +157,7 @@ export default class implements PerfettoPlugin {
             cache,
             cpus,
             bounds: {start: selection.start, end: selection.end},
-            excludeList: filterStore.state.excludeList,
+            excludeList: filter.get().excludeList,
             onExcludeListChange,
             cpuFilter: {kind: 'fixed', show: selectedUcpus},
           }),

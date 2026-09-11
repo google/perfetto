@@ -12,22 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
+
 export const FTRACE_RAW_TRACK_KIND = 'FtraceRawTrack';
 
-export interface FtraceFilter {
+export const FTRACE_FILTER_SCHEMA = z.object({
   // We use an exclude list rather than include list for filtering events, as we
   // want to include all events by default but we won't know what names are
   // present initially.
-  excludeList: string[];
+  excludeList: z.array(z.string()),
   // Inclusion list of ucpu ids shown in the standalone ftrace tab. Undefined
   // means all CPUs are shown.
-  visibleCpus?: number[];
-}
+  visibleCpus: z.array(z.number()).optional(),
+});
 
-export interface FtracePluginState {
-  version: number;
-  filter: FtraceFilter;
-}
+export type FtraceFilter = z.infer<typeof FTRACE_FILTER_SCHEMA>;
+
+// Backwards-compatibility schema for older permalinks that stored
+// { version: 2, filter: { excludeList: ... } }
+const LEGACY_FTRACE_SCHEMA = z
+  .object({
+    version: z.number().optional(),
+    filter: FTRACE_FILTER_SCHEMA,
+  })
+  .transform((legacy) => legacy.filter);
+
+export const FTRACE_STATE_SCHEMA = z.union([
+  FTRACE_FILTER_SCHEMA,
+  LEGACY_FTRACE_SCHEMA,
+]);
 
 export interface FtraceStat {
   name: string;

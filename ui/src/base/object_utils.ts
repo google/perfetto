@@ -118,3 +118,13 @@ export function isEnumValue<T extends {}>(
 ): value is T[keyof T] {
   return Object.values(enm).includes(value);
 }
+
+/**
+ * Recursively freezes an object and all its properties to prevent mutation.
+ */
+export function deepFreeze<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+  Object.freeze(obj);
+  Object.values(obj).forEach(deepFreeze);
+  return obj;
+}
