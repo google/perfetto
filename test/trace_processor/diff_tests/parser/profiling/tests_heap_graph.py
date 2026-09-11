@@ -789,3 +789,407 @@ class ProfilingHeapGraph(TestSuite):
         "ts","heap_size"
         10,100000
         """))
+
+  def test_heap_graph_merged_classes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.example.app"
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          packages_list {
+            packages {
+              name: "com.example.app"
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            types {
+              id: 1
+              class_name: "MergedBase"
+            }
+            # Object 0: Matches discriminator_id: 0 ($cid = 0) -> the base class itself -> MergedBase
+            objects {
+              id: 0
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 0
+              }
+            }
+            # Object 1: Matches nested branch $cid = 1 and nested leaf $cid2 = 10 -> NestedLeaf
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 1
+              }
+              merged_class_discriminators {
+                field_name: "$cid2"
+                value: 10
+              }
+            }
+            # Object 2: Matches direct leaf discriminator_id: 2 ($cid = 2) -> DirectLeaf2
+            objects {
+              id: 2
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 2
+              }
+            }
+            # Object 3: Duplicate class name matching base class ($cid = 3) -> MergedBase
+            objects {
+              id: 3
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 3
+              }
+            }
+            # Object 4: Unknown discriminator value ($cid = 999) -> Ambiguous -> MergedBase
+            objects {
+              id: 4
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 999
+              }
+            }
+            # Object 5: No discriminators -> Base class row -> MergedBase
+            objects {
+              id: 5
+              type_id: 1
+              self_size: 64
+            }
+            # Object 6: Matches nested branch $cid = 1 with no nested $cid2 -> NestedBase
+            objects {
+              id: 6
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 1
+              }
+            }
+            # Object 7: Matches nested branch $cid = 1 with nested $cid2 = 0 -> NestedBase
+            objects {
+              id: 7
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 1
+              }
+              merged_class_discriminators {
+                field_name: "$cid2"
+                value: 0
+              }
+            }
+            # Object 8: Matches nested branch $cid = 1 with unknown $cid2 = 99 -> Ambiguous -> MergedBase
+            objects {
+              id: 8
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 1
+              }
+              merged_class_discriminators {
+                field_name: "$cid2"
+                value: 99
+              }
+            }
+            # Object 9: Matches discriminator_id: 4 ($cid = 4) having single mismatched child -> Ambiguous -> MergedBase
+            objects {
+              id: 9
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cid"
+                value: 4
+              }
+            }
+            continued: false
+            index: 0
+          }
+        }
+        packet {
+          deobfuscation_mapping {
+            package_name: "com.example.app"
+            obfuscated_classes {
+              obfuscated_name: "MergedBase"
+              deobfuscated_name: "com.example.MergedBase"
+              merged_classes {
+                class_id_field_name: "$cid"
+                # First child is the class itself
+                merged_classes {
+                  class_id: 0
+                  name: "com.example.MergedBase"
+                }
+                # Merged class with its own name and multiple merged classes
+                # First child is the class itself (NestedBase)
+                merged_classes {
+                  class_id: 1
+                  name: "com.example.NestedBase"
+                  merged_classes {
+                    class_id_field_name: "$cid2"
+                    merged_classes {
+                      class_id: 0
+                      name: "com.example.NestedBase"
+                    }
+                    merged_classes {
+                      class_id: 10
+                      name: "com.example.NestedLeaf"
+                    }
+                  }
+                }
+                # Direct leaf
+                merged_classes {
+                  class_id: 2
+                  name: "com.example.DirectLeaf2"
+                }
+                # Corner case: duplicate name matching base class
+                merged_classes {
+                  class_id: 3
+                  name: "com.example.MergedBase"
+                }
+                # Corner case: single child with a mismatched name (ambiguous)
+                merged_classes {
+                  class_id: 4
+                  name: "com.example.MismatchOwner"
+                  merged_classes {
+                    merged_classes {
+                      name: "com.example.MismatchChild"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          o.id AS object_id,
+          c.name AS obfuscated_name,
+          c.deobfuscated_name,
+          -- Verify whether this object shares type_id with the base class row (object 5)
+          o.type_id = (SELECT type_id FROM heap_graph_object WHERE id = 5) AS shares_base_type_id,
+          -- Verify total number of heap_graph_class rows created
+          (SELECT count() FROM heap_graph_class) AS total_classes
+        FROM heap_graph_object o
+        JOIN heap_graph_class c ON o.type_id = c.id
+        ORDER BY o.id;
+        """,
+        out=Csv("""
+        "object_id","obfuscated_name","deobfuscated_name","shares_base_type_id","total_classes"
+        0,"MergedBase","com.example.MergedBase",1,4
+        1,"MergedBase","com.example.NestedLeaf",0,4
+        2,"MergedBase","com.example.DirectLeaf2",0,4
+        3,"MergedBase","com.example.MergedBase",1,4
+        4,"MergedBase","com.example.MergedBase",1,4
+        5,"MergedBase","com.example.MergedBase",1,4
+        6,"MergedBase","com.example.NestedBase",0,4
+        7,"MergedBase","com.example.NestedBase",0,4
+        8,"MergedBase","com.example.MergedBase",1,4
+        9,"MergedBase","com.example.MergedBase",1,4
+        """))
+
+  def test_heap_graph_merged_classes_missing_field_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.example.app"
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          packages_list {
+            packages {
+              name: "com.example.app"
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            types {
+              id: 1
+              class_name: "MergedRoot"
+            }
+            # Object 0: Matches Child A's nested discriminator $cidA = 1 -> GroupALeaf1
+            objects {
+              id: 0
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cidA"
+                value: 1
+              }
+            }
+            # Object 1: Matches Child A's nested discriminator $cidA = 2 -> GroupALeaf2
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cidA"
+                value: 2
+              }
+            }
+            # Object 2: Matches Child B's nested discriminator $cidB = 10 -> GroupBLeaf
+            objects {
+              id: 2
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cidB"
+                value: 10
+              }
+            }
+            # Object 3: 0 non-zero discriminators -> Resolves to MergedRoot
+            objects {
+              id: 3
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cidA"
+                value: 0
+              }
+            }
+            # Object 4: No discriminators -> MergedRoot
+            objects {
+              id: 4
+              type_id: 1
+              self_size: 64
+            }
+            # Object 5: Unknown discriminator value -> Ambiguous -> MergedRoot
+            objects {
+              id: 5
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cidA"
+                value: 999
+              }
+            }
+            # Object 6: Conflicting discriminators from both branches -> Ambiguous -> MergedRoot
+            objects {
+              id: 6
+              type_id: 1
+              self_size: 64
+              merged_class_discriminators {
+                field_name: "$cidA"
+                value: 1
+              }
+              merged_class_discriminators {
+                field_name: "$cidB"
+                value: 10
+              }
+            }
+            continued: false
+            index: 0
+          }
+        }
+        packet {
+          deobfuscation_mapping {
+            package_name: "com.example.app"
+            obfuscated_classes {
+              obfuscated_name: "MergedRoot"
+              deobfuscated_name: "com.example.MergedRoot"
+              merged_classes {
+                # Notice: NO class_id_field_name at this top level!
+                # In practice, each merged class has a name, and if it has multiple merged classes,
+                # typically its first child is the class itself (with its name).
+                merged_classes {
+                  name: "com.example.MergedRoot"
+                }
+                merged_classes {
+                  name: "com.example.GroupA"
+                  merged_classes {
+                    class_id_field_name: "$cidA"
+                    # First child is the class itself
+                    merged_classes {
+                      class_id: 0
+                      name: "com.example.GroupA"
+                    }
+                    merged_classes {
+                      class_id: 1
+                      name: "com.example.GroupALeaf1"
+                    }
+                    merged_classes {
+                      class_id: 2
+                      name: "com.example.GroupALeaf2"
+                    }
+                  }
+                }
+                merged_classes {
+                  name: "com.example.GroupB"
+                  merged_classes {
+                    class_id_field_name: "$cidB"
+                    # First child is the class itself
+                    merged_classes {
+                      class_id: 0
+                      name: "com.example.GroupB"
+                    }
+                    merged_classes {
+                      class_id: 10
+                      name: "com.example.GroupBLeaf"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          o.id AS object_id,
+          c.name AS obfuscated_name,
+          c.deobfuscated_name,
+          -- Verify whether this object shares type_id with the base class row (object 4)
+          o.type_id = (SELECT type_id FROM heap_graph_object WHERE id = 4) AS shares_base_type_id,
+          -- Verify total number of heap_graph_class rows created
+          (SELECT count() FROM heap_graph_class) AS total_classes
+        FROM heap_graph_object o
+        JOIN heap_graph_class c ON o.type_id = c.id
+        ORDER BY o.id;
+        """,
+        out=Csv("""
+        "object_id","obfuscated_name","deobfuscated_name","shares_base_type_id","total_classes"
+        0,"MergedRoot","com.example.GroupALeaf1",0,4
+        1,"MergedRoot","com.example.GroupALeaf2",0,4
+        2,"MergedRoot","com.example.GroupBLeaf",0,4
+        3,"MergedRoot","com.example.MergedRoot",1,4
+        4,"MergedRoot","com.example.MergedRoot",1,4
+        5,"MergedRoot","com.example.MergedRoot",1,4
+        6,"MergedRoot","com.example.MergedRoot",1,4
+        """))
