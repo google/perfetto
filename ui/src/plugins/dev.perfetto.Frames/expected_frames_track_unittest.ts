@@ -13,18 +13,17 @@
 // limitations under the License.
 
 import type {Trace} from '../../public/trace';
-import {createActualFramesTrack} from './actual_frames_track';
+import {createExpectedFramesTrack} from './expected_frames_track';
 
-describe('ActualFramesTrack Tooltips Configuration & Test Suite', () => {
+describe('ExpectedFramesTrack', () => {
   const fakeTrace = {engine: {}} as unknown as Trace;
 
-  test('ActualFramesTrack scopes the dataset to a process', () => {
-    const track = createActualFramesTrack(
+  test('scopes the dataset to a process when no layer is given', () => {
+    const track = createExpectedFramesTrack(
       fakeTrace,
-      '/process_1/actual_frames',
+      '/process_1/expected_frames',
       2,
       1,
-      false,
     );
     expect(track.rootTableName).toBe('slice');
     expect(track.getDataset().src).toContain('upid = 1');
@@ -34,13 +33,12 @@ describe('ActualFramesTrack Tooltips Configuration & Test Suite', () => {
     expect(track.getDataset().filter).toBeUndefined();
   });
 
-  test('ActualFramesTrack scopes the dataset to a layer of a process', () => {
-    const track = createActualFramesTrack(
+  test('scopes the dataset to a layer of a process', () => {
+    const track = createExpectedFramesTrack(
       fakeTrace,
-      '/process_1/actual_frames/MyLayer',
+      '/process_1/expected_frames/MyLayer',
       2,
       7,
-      false,
       "My'Layer",
     );
     expect(track.rootTableName).toBeUndefined();
@@ -48,5 +46,18 @@ describe('ActualFramesTrack Tooltips Configuration & Test Suite', () => {
     expect(track.getDataset().src).toContain("layer_name = 'My''Layer'");
     expect(track.getDataset().src).toContain('upid = 7');
     expect(track.getDataset().filter).toBeUndefined();
+  });
+
+  test('also picks up expected frames matched by surface frame token', () => {
+    const track = createExpectedFramesTrack(
+      fakeTrace,
+      '/process_1/expected_frames/MyLayer',
+      2,
+      7,
+      'MyLayer',
+    );
+    expect(track.getDataset().src).toContain(
+      'act.surface_frame_token = exp.surface_frame_token',
+    );
   });
 });
