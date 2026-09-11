@@ -35,6 +35,7 @@ perfetto_component("base") {
   ]
   sources = [
     "android_utils.cc",
+    "atomic_file.cc",
     "base64.cc",
     "cpu_info.cc",
     "crash_keys.cc",
@@ -228,6 +229,7 @@ perfetto_unittest_source_set("unittests") {
   }
 
   sources = [
+    "atomic_file_unittest.cc",
     "base64_unittest.cc",
     "bits_unittest.cc",
     "circular_queue_unittest.cc",

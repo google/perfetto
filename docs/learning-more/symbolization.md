@@ -122,7 +122,7 @@ Live progress is suppressed when stderr is redirected. Use `--no-progress` to
 suppress it when running in a terminal too.
 
 See the [bundle command reference](/docs/reference/trace-processor-cli.md#subcommand-bundle)
-for option semantics, color controls, and exit status.
+for option semantics, color controls, output replacement, and exit status.
 
 ### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `trace_processor util symbolize` / `util deobfuscate`
 
