@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {getColorForSample} from '../../components/colorizer';
+import {sampleColorScheme} from './sample_colors';
 import {
   metricsFromTableOrSubquery,
   TreeExplorerFetcher,
@@ -32,7 +32,7 @@ import {
 import type {Trace} from '../../public/trace';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {SourceDataset} from '../../trace_processor/dataset';
-import type {LONG, NUM} from '../../trace_processor/query_result';
+import type {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 /**
  * Configuration for creating a profiling track (CPU profile, perf samples, etc)
@@ -40,12 +40,14 @@ import type {LONG, NUM} from '../../trace_processor/query_result';
 export interface ProfilingTrackConfig {
   /**
    * The SourceDataset that provides the profiling samples.
-   * Must have schema: {id: NUM, ts: LONG, callsiteId: NUM}
+   * Must have schema: {id: NUM, ts: LONG, callsiteId: NUM, category: NUM, mappingName: STR}
    */
   readonly dataset: SourceDataset<{
     id: typeof NUM;
     ts: typeof LONG;
     callsiteId: typeof NUM;
+    category: typeof NUM;
+    mappingName: typeof STR;
   }>;
 
   /**
@@ -119,7 +121,7 @@ export function createProfilingTrack(
     uri,
     dataset: config.dataset,
     sliceName: () => config.sliceName,
-    colorizer: (row) => getColorForSample(row.callsiteId),
+    colorizer: (row) => sampleColorScheme(row.category, row.mappingName),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
       const fetcher = fetcherMemo.use({
@@ -201,7 +203,7 @@ export function createProfilingTrack(
 function renderProfilingDetailsPanel(
   trace: Trace,
   ts: time,
-  config: ProfilingTrackConfig,
+  config: Omit<ProfilingTrackConfig, 'dataset'>,
   state: TreeExplorerState,
   onStateChange: (state: TreeExplorerState) => void,
   fetcher: TreeExplorerFetcher,
