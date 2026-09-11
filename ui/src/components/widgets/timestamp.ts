@@ -73,6 +73,8 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
       case TimestampFormat.Timecode:
       case TimestampFormat.CustomTimezone:
         return renderTimecode(time);
+      case TimestampFormat.Compact:
+        return Time.formatCompact(time);
       case TimestampFormat.TraceNs:
         return time.toString();
       case TimestampFormat.TraceNsLocale:
