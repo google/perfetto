@@ -14,12 +14,13 @@
 # limitations under the License.
 
 import argparse
-import http.server
 import os
-import socketserver
 import sys
-import webbrowser
-import urllib
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.join(ROOT_DIR, 'python'))
+
+from perfetto.common.open_trace_server import *
 
 
 class ANSI:
@@ -32,56 +33,8 @@ class ANSI:
   BG_BLUE = '\033[44m'
 
 
-# HTTP Server used to open the trace in the browser.
-class HttpHandler(http.server.SimpleHTTPRequestHandler):
-
-  def end_headers(self):
-    self.send_header('Access-Control-Allow-Origin', self.server.allow_origin)
-    self.send_header('Cache-Control', 'no-cache')
-    super().end_headers()
-
-  def do_GET(self):
-    if self.path != '/' + self.server.expected_fname:
-      self.send_error(404, 'File not found')
-      return
-
-    self.server.fname_get_completed = True
-    super().do_GET()
-
-  def do_POST(self):
-    self.send_error(404, 'File not found')
-
-
 def prt(msg, colors=ANSI.END):
   print(colors + msg + ANSI.END)
-
-
-def open_trace(path, open_browser, origin):
-  # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
-  PORT = 9001
-  path = os.path.abspath(path)
-  os.chdir(os.path.dirname(path))
-  fname = os.path.basename(path)
-  socketserver.TCPServer.allow_reuse_address = True
-  with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
-    address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}&referrer=open_trace_in_ui'
-    if open_browser:
-      webbrowser.open_new_tab(address)
-    else:
-      print(f'Open URL in browser: {address}')
-
-    httpd.expected_fname = fname
-    httpd.fname_get_completed = None
-
-    # In case the user's `--origin` has a path component, strip it out
-    def strip_url_path(url):
-      url_parsed = urllib.parse.urlparse(url)
-      return urllib.parse.urlunparse(
-          url_parsed._replace(path='', query='', fragment='', params=''))
-
-    httpd.allow_origin = strip_url_path(origin)
-    while httpd.fname_get_completed is None:
-      httpd.handle_request()
 
 
 def main():
@@ -95,6 +48,13 @@ def main():
   parser.add_argument('positional_trace', metavar='trace', nargs='?')
   parser.add_argument(
       '-n', '--no-open-browser', action='store_true', default=False)
+  parser.add_argument(
+      '--remote-browser',
+      action='store_true',
+      default=False,
+      help='The browser runs on another machine (e.g. this is an ssh session). '
+      'Serves the trace on all interfaces and prints a URL that hands it to '
+      'the UI, so no port forwarding is needed')
   origin_group = parser.add_mutually_exclusive_group()
   origin_group.add_argument('--origin', default='https://ui.perfetto.dev')
   origin_group.add_argument(
@@ -127,7 +87,12 @@ def main():
     origin = 'http://localhost:10000'
 
   prt('Opening the trace (%s) in the browser' % trace_file)
-  open_trace(trace_file, open_browser, origin)
+  open_trace_in_browser(
+      trace_file,
+      open_browser,
+      origin,
+      referrer='open_trace_in_ui',
+      remote_browser=args.remote_browser)
 
 
 if __name__ == '__main__':
