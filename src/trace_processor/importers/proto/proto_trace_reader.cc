@@ -585,6 +585,12 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
   if (trace_config.has_trace_attributes()) {
     HandleTraceAttributes(trace_config.trace_attributes());
   }
+
+  // Notify the modules before sorting: the config can change how the packets
+  // that follow are interpreted, and it is not guaranteed to sort first.
+  for (auto& module : module_context_.modules) {
+    module->TokenizeTraceConfig(trace_config);
+  }
 }
 
 void ProtoTraceReader::HandleIncrementalStateCleared(

@@ -23,6 +23,9 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/config/android/android_process_state_config.pbzero.h"
+#include "protos/perfetto/config/data_source_config.pbzero.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 
@@ -47,6 +50,7 @@ void AndroidProcessStateModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
     case fb::FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber:
       tracker_->ParseProcessStateDump(
+          args.ts,
           args.field
               .Cast<fb::FrameworksBaseTracePacket::kAndroidProcessState>());
       break;
@@ -58,6 +62,35 @@ void AndroidProcessStateModule::ParseField(const ParseFieldArgs& args) {
     default:
       break;
   }
+}
+
+void AndroidProcessStateModule::TokenizeTraceConfig(
+    const protos::pbzero::TraceConfig_Decoder& trace_config) {
+  bool ftrace_configured = false;
+  std::optional<bool> dump_process_metadata;
+
+  for (auto it = trace_config.data_sources(); it; ++it) {
+    protos::pbzero::TraceConfig::DataSource::Decoder ds(*it);
+    if (!ds.has_config()) {
+      continue;
+    }
+    protos::pbzero::DataSourceConfig::Decoder cfg(ds.config());
+    if (cfg.name().ToStdStringView() == "linux.ftrace") {
+      ftrace_configured = true;
+    }
+    if (cfg.name().ToStdStringView() == "android.process_state") {
+      bool dump_meta = false;
+      if (cfg.has_android_process_state_config()) {
+        protos::pbzero::AndroidProcessStateConfig::Decoder aps_cfg(
+            cfg.android_process_state_config());
+        dump_meta = aps_cfg.has_dump_process_metadata() &&
+                    aps_cfg.dump_process_metadata();
+      }
+      dump_process_metadata = dump_meta;
+    }
+  }
+
+  tracker_->OnConfigDetected(ftrace_configured, dump_process_metadata);
 }
 
 void AndroidProcessStateModule::OnEventsFullyExtracted() {

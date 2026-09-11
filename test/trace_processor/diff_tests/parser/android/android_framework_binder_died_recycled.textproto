@@ -1,0 +1,89 @@
+# Exercises binder_died resolving the correct process incarnation after the pid
+# has already been recycled:
+# - App A starts on pid 100 (seq 1), then pid 100 is recycled by App B (seq 2).
+# - The death for seq 1 arrives *after* the recycle. It must end App A, not the
+#   live owner of pid 100 (App B).
+# - The death for seq 2 then ends App B.
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks { clock_id: 6 timestamp: 0 }
+    clocks { clock_id: 3 timestamp: 0 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+packet {
+  trace_config {
+    data_sources {
+      config {
+        name: "android.process_state"
+        android_process_state_config {
+          dump_process_metadata: true
+        }
+      }
+    }
+  }
+}
+# App A starts on pid 100 (seq_id: 1).
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10001
+      pid: 100
+      process_name: "com.example.appa"
+      start_seq_id: 1
+    }
+  }
+}
+# pid 100 is recycled by App B (seq_id: 2) while App A's death is still in
+# flight.
+packet {
+  timestamp: 5000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10002
+      pid: 100
+      process_name: "com.example.appb"
+      start_seq_id: 2
+    }
+  }
+}
+# Late death for App A. Resolved via start_seq_id, so it must end App A and
+# leave App B untouched.
+packet {
+  timestamp: 6000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      uid: 10001
+      pid: 100
+      process_name: "com.example.appa"
+      start_seq_id: 1
+    }
+  }
+}
+# Death for App B.
+packet {
+  timestamp: 7000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      uid: 10002
+      pid: 100
+      process_name: "com.example.appb"
+      start_seq_id: 2
+    }
+  }
+}
