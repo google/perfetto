@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -288,6 +289,7 @@ void ArtHprofParser::TraceBlobViewIterator::Shrink() {
 }
 
 void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   auto& class_table = *context_->storage->mutable_heap_graph_class_table();
 
   for (auto it = graph.GetClasses().GetIterator(); it; ++it) {
@@ -305,7 +307,8 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
     class_row.classloader_id = 0;
     class_row.kind = kind_id;
 
-    tables::HeapGraphClassTable::Id table_id = class_table.Insert(class_row).id;
+    tables::HeapGraphClassTable::Id table_id =
+        heap_graph_tracker->InsertClass(class_row).id;
     class_map_[class_id] = table_id;
     class_name_map_[class_id] = class_def.GetName();
   }
@@ -396,7 +399,8 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
     class_row.classloader_id = 0;
     class_row.kind = kind_id;
 
-    tables::HeapGraphClassTable::Id table_id = class_table.Insert(class_row).id;
+    tables::HeapGraphClassTable::Id table_id =
+        heap_graph_tracker->InsertClass(class_row).id;
     class_object_map_[class_id] = table_id;
   }
 }
@@ -459,6 +463,7 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
 }
 
 void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   auto& object_table = *context_->storage->mutable_heap_graph_object_table();
   auto& reference_table =
       *context_->storage->mutable_heap_graph_reference_table();
@@ -496,6 +501,7 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
         static_cast<uint32_t>(reference_table.row_count());
     object_table[owner_table_id].set_reference_set_id(reference_set_id);
 
+    const bool index_fields = obj.GetObjectType() != ObjectType::kObjectArray;
     for (const auto& ref : refs) {
       std::optional<tables::HeapGraphObjectTable::Id> owned_table_id;
       StringId field_type_id = unknown_type_id;
@@ -514,7 +520,7 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
       reference_row.field_name = ref.field_name;
       reference_row.field_type_name = field_type_id;
 
-      reference_table.Insert(reference_row);
+      heap_graph_tracker->InsertReference(reference_row, index_fields);
     }
   }
 }

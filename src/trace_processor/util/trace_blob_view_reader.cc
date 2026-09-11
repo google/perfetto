@@ -41,8 +41,7 @@ void TraceBlobViewReader::PushBack(TraceBlobView data) {
   end_offset_ += size;
 }
 
-bool TraceBlobViewReader::PopFrontUntil(const size_t target_offset) {
-  PERFETTO_CHECK(start_offset() <= target_offset);
+bool TraceBlobViewReader::PopFrontUntilSlow(const size_t target_offset) {
   while (!data_.empty()) {
     Entry& entry = data_.front();
     if (target_offset == entry.start_offset) {
@@ -51,7 +50,8 @@ bool TraceBlobViewReader::PopFrontUntil(const size_t target_offset) {
     const size_t bytes_to_pop = target_offset - entry.start_offset;
     if (entry.data.size() > bytes_to_pop) {
       entry.data =
-          entry.data.slice_off(bytes_to_pop, entry.data.size() - bytes_to_pop);
+          std::move(entry.data)
+              .slice_off(bytes_to_pop, entry.data.size() - bytes_to_pop);
       entry.start_offset += bytes_to_pop;
       return true;
     }
@@ -130,7 +130,7 @@ auto TraceBlobViewReader::SliceOffImpl(const size_t offset,
   return visitor.Finalize(std::move(res));
 }
 
-std::optional<TraceBlobView> TraceBlobViewReader::SliceOff(
+std::optional<TraceBlobView> TraceBlobViewReader::SliceOffSlow(
     size_t offset,
     size_t length) const {
   struct Visitor {

@@ -16,7 +16,11 @@ import './aggregation_adapter.scss';
 import m from 'mithril';
 import {type time, Time} from '../base/time';
 import {exists} from '../base/utils';
-import type {AreaSelection, AreaSelectionTab} from '../public/selection';
+import {
+  areaSelectionKey,
+  type AreaSelection,
+  type AreaSelectionTab,
+} from '../public/selection';
 import type {Trace} from '../public/trace';
 import type {Track} from '../public/track';
 import {
@@ -315,11 +319,7 @@ export function createAggregationTab(
     name: aggregator.getTabName(),
     priority,
     render(selection: AreaSelection) {
-      const selectionKey = {
-        start: selection.start,
-        end: selection.end,
-        tracks: selection.trackUris,
-      };
+      const selectionKey = areaSelectionKey(selection);
       const aggregation = aggregationMemo.use({
         key: selectionKey,
         compute: () => {

@@ -63,6 +63,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -244,9 +245,12 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         "(ERR:tp-corrupt)");
   }
 
-  // Compressed packets are expanded by the tokenizer; none should reach here.
-  PERFETTO_CHECK(!decoder.has_compressed_packets() &&
-                 !decoder.has_zstd_compressed_packets());
+  // A bundle of compressed packets is expanded and each packet parsed in
+  // its place; nothing else in the enclosing packet is read.
+  if (PERFETTO_UNLIKELY((decoder.has_compressed_packets() ||
+                         decoder.has_zstd_compressed_packets()))) {
+    return ParseCompressedPackets(decoder, packet);
+  }
 
   // The top-level reader dispatches packets from other machines to a
   // per-machine reader; host and adopted-machine packets are parsed here.
@@ -285,19 +289,24 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     decoder = SelectiveTracePacketDecoder(packet.data(), packet.length());
   }
 
+  // Consecutive packets nearly always come from the same sequence, so the
+  // last lookup is kept rather than hashing the id for every packet.
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
-  SequenceScopedState* scoped_state = sequence_state_.Find(seq_id);
+  SequenceScopedState* scoped_state = last_scoped_state_;
   bool inserted = false;
-  if (PERFETTO_UNLIKELY(!scoped_state)) {
-    scoped_state = sequence_state_.Insert(seq_id, {}).first;
-    inserted = true;
+  if (PERFETTO_UNLIKELY(!scoped_state || seq_id != last_seq_id_)) {
+    scoped_state = sequence_state_.Find(seq_id);
+    if (!scoped_state) {
+      scoped_state = sequence_state_.Insert(seq_id, {}).first;
+      inserted = true;
+    }
+    last_seq_id_ = seq_id;
+    last_scoped_state_ = scoped_state;
   }
-  if (decoder.has_trusted_packet_sequence_id()) {
-    if (!inserted) {
-      if (uint32_t reasons = decoder.previous_packet_dropped(); reasons) {
-        ++scoped_state->previous_packet_dropped_count;
-        RecordDataLossCauses(scoped_state, reasons);
-      }
+  if (decoder.has_trusted_packet_sequence_id() && !inserted) {
+    if (uint32_t reasons = decoder.previous_packet_dropped(); reasons) {
+      ++scoped_state->previous_packet_dropped_count;
+      RecordDataLossCauses(scoped_state, reasons);
     }
   }
 
@@ -318,8 +327,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     HandlePreviousPacketDropped(decoder, packet);
   }
 
-  // It is important that we parse defaults before parsing other fields such as
-  // the timestamp, since the defaults could affect them.
+  // It is important that we parse defaults before parsing other fields
+  // such as the timestamp, since the defaults could affect them.
   if (decoder.has_trace_packet_defaults()) {
     auto field = decoder.trace_packet_defaults();
     ParseTracePacketDefaults(decoder, packet.slice(field.data, field.size));
@@ -343,8 +352,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 
-  auto* state = GetIncrementalStateForPacketSequence(seq_id);
-  if (decoder.sequence_flags() &
+  auto* state = GetIncrementalState(scoped_state);
+  if (sequence_flags &
       protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE) {
     if (!seq_id) {
       return base::ErrStatus(
@@ -383,7 +392,24 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     ParseTraceConfig(decoder.trace_config());
   }
 
-  return TimestampTokenizeAndPushToSorter(decoder, std::move(packet));
+  return TimestampTokenizeAndPushToSorter(decoder, std::move(packet), state);
+}
+
+base::Status ProtoTraceReader::ParseCompressedPackets(
+    const SelectiveTracePacketDecoder& decoder,
+    const TraceBlobView& packet) {
+  util::CompressionType codec;
+  protozero::ConstBytes field;
+  if (decoder.has_compressed_packets()) {
+    codec = util::CompressionType::kGzip;
+    field = decoder.compressed_packets();
+  } else {
+    codec = util::CompressionType::kZstd;
+    field = decoder.zstd_compressed_packets();
+  }
+  return tokenizer_.TokenizeCompressedPackets(
+      codec, packet.slice(field.data, field.size),
+      [this](TraceBlobView inner) { return ParsePacket(std::move(inner)); });
 }
 
 ProtoTraceReader::ClockResolution ProtoTraceReader::ResolveTimestampToTraceTime(
@@ -417,14 +443,16 @@ ProtoTraceReader::ClockResolution ProtoTraceReader::ResolveTimestampToTraceTime(
 base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     TraceBlobView packet) {
   SelectiveTracePacketDecoder decoder(packet.data(), packet.length());
-  return TimestampTokenizeAndPushToSorter(decoder, std::move(packet));
+  auto* state = GetIncrementalStateForPacketSequence(
+      decoder.trusted_packet_sequence_id());
+  return TimestampTokenizeAndPushToSorter(decoder, std::move(packet), state);
 }
 
 base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     const SelectiveTracePacketDecoder& decoder,
-    TraceBlobView packet) {
+    TraceBlobView packet,
+    PacketSequenceStateBuilder* state) {
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
-  auto* state = GetIncrementalStateForPacketSequence(seq_id);
 
   protos::pbzero::TracePacketDefaults::Decoder* defaults =
       state->current_generation()->GetTracePacketDefaults();

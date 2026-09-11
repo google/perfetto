@@ -94,12 +94,14 @@ How to use it:
   *(#5284, #2900)*
 
 - 🔁 **❌ Hand-rolled loading/in-flight booleans and manual change-detection for
-  async data → ✅ use `QuerySlot` (and `AsyncLimiter`).** Selection-driven queries
+  async data → ✅ use `AsyncMemo` (and `AsyncLimiter`).** Selection-driven queries
   fired straight off events cause unbounded head-of-line blocking when the user
-  clicks faster than queries run. Use a `QuerySlot` (declare a key, poll it each
-  render, render stale data with `retainOn`), or load inside
+  clicks faster than queries run. Use an `AsyncMemo` (declare a key compared by
+  value, call `.use()` each render, render stale data with `retainOn`), or load inside
   `TrackEventDetailsPanel.load()`, which auto-cancels obsolete loads. Guard
   concurrency with `AsyncLimiter.isRunning` rather than a bespoke flag.
+  Disposing `AsyncMemo` instances in `onremove()` is optional (useful to cancel
+  in-flight tasks or clean up disposable resources early).
   *(#4464, #4582, #4737, #5436, #4192)*
 
 - **❌ Keeping derived state that must be manually kept in sync → ✅ derive it from

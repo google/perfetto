@@ -114,7 +114,8 @@ struct TokenizePacketArgs {
   const SelectiveTracePacketDecoder& decoder;
   TraceBlobView* packet;
   int64_t ts;
-  RefPtr<PacketSequenceStateGeneration> state;
+  // The sequence's current generation; a module that keeps it copies it.
+  const RefPtr<PacketSequenceStateGeneration>& state;
   TracePacketField field;
 };
 

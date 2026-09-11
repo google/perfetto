@@ -37,6 +37,8 @@ import {
 import type {PathEntry} from '../types';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 const SUMMARY_SCHEMA: ColumnSchema = {
   property: {title: 'Property', columnType: 'text'},
@@ -84,9 +86,8 @@ function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () =>
               navigate('object', {
                 id,
@@ -330,9 +331,8 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
               : null,
           ),
           m(
-            'button',
+            Anchor,
             {
-              class: 'pf-hde-link',
               onclick: () =>
                 navigate('object', {
                   id: row.row.id,
@@ -453,7 +453,11 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
       const {engine, activeDump, navigate} = vnode.attrs;
 
       if (!rows) {
-        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
+        return m(
+          DetailsShell,
+          {title: 'Bitmaps', fillHeight: true, className: 'pf-hde-tab--padded'},
+          m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+        );
       }
 
       const totalRetained = rows.reduce(
@@ -464,14 +468,18 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
       const withoutPixels = rows.filter((r) => !r.hasPixelData);
 
       if (vnode.attrs.hasFieldValues === false || rows.length === 0) {
-        return m(EmptyState, {
-          icon: 'image',
-          title:
-            vnode.attrs.hasFieldValues === false
-              ? 'Bitmap data requires an ART heap dump (.hprof)'
-              : 'No bitmap data available',
-          className: 'pf-hde-empty-fill',
-        });
+        return m(
+          DetailsShell,
+          {title: 'Bitmaps', fillHeight: true, className: 'pf-hde-tab--padded'},
+          m(EmptyState, {
+            icon: 'image',
+            title:
+              vnode.attrs.hasFieldValues === false
+                ? 'Bitmap data requires an ART heap dump (.hprof)'
+                : 'No bitmap data available',
+            fillHeight: true,
+          }),
+        );
       }
 
       const bitmapSchema = makeBitmapListSchema(navigate);
@@ -499,14 +507,13 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         filters = [...f];
       };
 
-      return m('div', {class: 'pf-hde-view-scroll'}, [
-        m('div', {class: 'pf-hde-heading-row'}, [
-          m(
-            'h2',
-            {class: 'pf-hde-view-heading'},
-            `Bitmaps (${rows.length.toLocaleString()})`,
-          ),
-          m(
+      return m(
+        DetailsShell,
+        {
+          title: `Bitmaps (${rows.length.toLocaleString()})`,
+          fillHeight: true,
+          className: 'pf-hde-tab--padded',
+          buttons: m(
             'label',
             {class: 'pf-hde-heading-control'},
             m('span', {class: 'pf-hde-heading-control__label'}, 'Path'),
@@ -541,83 +548,85 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
               ],
             ),
           ),
-        ]),
-        m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
-          m(DataGrid, {
-            schema: SUMMARY_SCHEMA,
-            data: [
-              {property: 'Total bitmaps', value: String(rows.length)},
-              ...(withPixels.length > 0
-                ? [
-                    {
-                      property: 'With pixel data',
-                      value: String(withPixels.length),
-                    },
-                  ]
-                : []),
-              {property: 'Total retained', value: fmtSize(totalRetained)},
-            ],
-            initialColumns: [
-              {id: 'property', field: 'property'},
-              {id: 'value', field: 'value'},
-            ],
-          }),
-        ]),
-        withPixels.length > 0
-          ? m(
-              'div',
-              {class: 'pf-hde-mb-4'},
-              withPixels.map((r) =>
-                m(BitmapCard, {
-                  key: r.row.id,
-                  row: r,
-                  engine,
-                  activeDump,
-                  navigate,
-                  pathMode,
-                  pathData:
-                    pathMode === 'none'
-                      ? undefined
-                      : (pathMaps[pathMode].get(r.row.id) ?? null),
+        },
+        [
+          m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
+            m(DataGrid, {
+              schema: SUMMARY_SCHEMA,
+              data: [
+                {property: 'Total bitmaps', value: String(rows.length)},
+                ...(withPixels.length > 0
+                  ? [
+                      {
+                        property: 'With pixel data',
+                        value: String(withPixels.length),
+                      },
+                    ]
+                  : []),
+                {property: 'Total retained', value: fmtSize(totalRetained)},
+              ],
+              initialColumns: [
+                {id: 'property', field: 'property'},
+                {id: 'value', field: 'value'},
+              ],
+            }),
+          ]),
+          withPixels.length > 0
+            ? m(
+                'div',
+                {class: 'pf-hde-mb-4'},
+                withPixels.map((r) =>
+                  m(BitmapCard, {
+                    key: r.row.id,
+                    row: r,
+                    engine,
+                    activeDump,
+                    navigate,
+                    pathMode,
+                    pathData:
+                      pathMode === 'none'
+                        ? undefined
+                        : (pathMaps[pathMode].get(r.row.id) ?? null),
+                  }),
+                ),
+              )
+            : null,
+          withPixels.length > 0
+            ? m('div', {class: 'pf-hde-mb-4'}, [
+                m(
+                  'h3',
+                  {class: 'pf-hde-muted-heading'},
+                  `${withPixels.length} bitmap${withPixels.length > 1 ? 's' : ''} with pixel data`,
+                ),
+                m(DataGrid, {
+                  schema: bitmapSchema,
+                  data: withPixels.map(bitmapRowToRow),
+                  initialColumns: bitmapColumns,
+                  filters,
+                  onFiltersChanged,
+                  showExportButton: true,
                 }),
-              ),
-            )
-          : null,
-        withPixels.length > 0
-          ? m('div', {class: 'pf-hde-mb-4'}, [
-              m(
-                'h3',
-                {class: 'pf-hde-muted-heading'},
-                `${withPixels.length} bitmap${withPixels.length > 1 ? 's' : ''} with pixel data`,
-              ),
-              m(DataGrid, {
-                schema: bitmapSchema,
-                data: withPixels.map(bitmapRowToRow),
-                initialColumns: bitmapColumns,
-                filters,
-                onFiltersChanged,
-                showExportButton: true,
-              }),
-            ])
-          : null,
-        withoutPixels.length > 0
-          ? m('div', {class: 'pf-hde-mb-4'}, [
-              m(
-                'h3',
-                {class: 'pf-hde-muted-heading pf-hde-mt-4'},
-                `${withoutPixels.length} bitmap${withoutPixels.length > 1 ? 's' : ''} without pixel data`,
-              ),
-              m(DataGrid, {
-                schema: bitmapSchema,
-                data: withoutPixels.map(bitmapRowToRow),
-                initialColumns: bitmapColumns,
-                filters,
-                onFiltersChanged,
-                showExportButton: true,
-              }),
-            ])
-          : null,
-      ]);
+              ])
+            : null,
+          withoutPixels.length > 0
+            ? m('div', {class: 'pf-hde-mb-4'}, [
+                m(
+                  'h3',
+                  {class: 'pf-hde-muted-heading pf-hde-mt-4'},
+                  `${withoutPixels.length} bitmap${withoutPixels.length > 1 ? 's' : ''} without pixel data`,
+                ),
+                m(DataGrid, {
+                  schema: bitmapSchema,
+                  data: withoutPixels.map(bitmapRowToRow),
+                  initialColumns: bitmapColumns,
+                  filters,
+                  onFiltersChanged,
+                  showExportButton: true,
+                }),
+              ])
+            : null,
+        ],
+      );
     },
   };
 }

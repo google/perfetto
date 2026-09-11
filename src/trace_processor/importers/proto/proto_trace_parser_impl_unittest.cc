@@ -80,6 +80,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
@@ -3183,6 +3184,30 @@ TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
   EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
                "ARMv8 Processor rev 0 (v8l)");
   EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+}
+
+TEST_F(ProtoTraceParserTest, SystemInfoDeviceTreeCompatible) {
+  auto* packet = trace_->add_packet();
+  packet->set_trusted_packet_sequence_id(1);
+  packet->set_timestamp(1000);
+  auto* sys_info = packet->set_system_info();
+  sys_info->add_device_tree_compatibles("google,gs101-oriole");
+  sys_info->add_device_tree_compatibles("google,gs101");
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& metadata_table = context_.storage->metadata_table();
+  std::vector<std::string> compatibles;
+  StringId key_id = context_.storage->InternString("device_tree_compatible");
+  for (uint32_t i = 0; i < metadata_table.row_count(); ++i) {
+    if (metadata_table[i].name() == key_id) {
+      compatibles.push_back(
+          context_.storage->GetString(*metadata_table[i].str_value()).c_str());
+    }
+  }
+  EXPECT_THAT(compatibles,
+              testing::ElementsAre("google,gs101-oriole", "google,gs101"));
 }
 
 }  // namespace

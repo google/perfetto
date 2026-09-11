@@ -4204,6 +4204,9 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
     info->set_android_storage_model(sys_info.android_storage_model);
   if (!sys_info.android_ram_model.empty())
     info->set_android_ram_model(sys_info.android_ram_model);
+  for (const auto& compatible : sys_info.device_tree_compatibles) {
+    info->add_device_tree_compatibles(compatible);
+  }
   if (!sys_info.android_serial_console.empty())
     info->set_android_serial_console(sys_info.android_serial_console);
 
