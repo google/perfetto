@@ -25,6 +25,51 @@ const ignores = fs
     .split('\n')
     .filter((l) => l !== '' && !l.startsWith('#'));
 
+const QUERY_CALLS = new Set(['query', 'iter', 'firstRow', 'decodeColumns']);
+
+function isInsideQueryCall(node) {
+  let curr = node.parent;
+  while (curr && !curr.type.includes('Function')) {
+    if (curr.type === 'CallExpression') {
+      const callee = curr.callee;
+      const fnName = callee.name ?? callee.property?.name;
+      if (fnName && QUERY_CALLS.has(fnName)) {
+        return true;
+      }
+    }
+    curr = curr.parent;
+  }
+  return false;
+}
+
+const customCamelcaseProperties = {
+  meta: {
+    type: 'suggestion',
+    messages: {
+      notCamelCase: "Identifier '{{name}}' is not in camel case.",
+    },
+  },
+  create(context) {
+    return {
+      Property(node) {
+        if (node.key.type !== 'Identifier' || node.computed) return;
+
+        const name = node.key.name;
+        const trimmed = name.replace(/^_+|_+$/g, '');
+        if (trimmed.includes('_') && !/^([A-Z0-9_]+)$/.test(name)) {
+          if (!isInsideQueryCall(node)) {
+            context.report({
+              node: node.key,
+              messageId: 'notCamelCase',
+              data: {name},
+            });
+          }
+        }
+      },
+    };
+  },
+};
+
 module.exports = [
   // `ignores` has to go on a standalone block at the start otherwise gets
   // overridden by configs, because the new eslint flat config is so clever.
@@ -37,6 +82,11 @@ module.exports = [
     plugins: {
       '@typescript-eslint': typescriptEslint,
       jsdoc,
+      perfetto: {
+        rules: {
+          'camelcase-properties': customCamelcaseProperties,
+        },
+      },
     },
 
     languageOptions: {
@@ -53,6 +103,8 @@ module.exports = [
     },
 
     rules: {
+      'camelcase': ['error', {properties: 'never'}],
+      'perfetto/camelcase-properties': 'error',
       'curly': ['error', 'multi-line'],
       'guard-for-in': 'error',
       'no-caller': 'error',
