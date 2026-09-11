@@ -96,15 +96,19 @@ WITH
       (
         _android_lock_held_raw,
         (
-          SELECT id, ts, dur, blocking_utid AS utid
+          SELECT id, ts, dur, lock_name, blocking_utid AS utid
           FROM android_monitor_contention
-          WHERE blocking_utid IS NOT NULL
+          WHERE blocking_utid IS NOT NULL AND lock_name IS NOT NULL
         )
       ),
-      (utid)
+      (lock_name, utid)
     ) AS ii
     JOIN android_monitor_contention AS mc
       ON mc.id = ii.id_1
+    JOIN _android_lock_held_raw AS raw
+      ON raw.id = ii.id_0
+    WHERE
+      mc.ts >= raw.ts
     GROUP BY
       held_id
   )

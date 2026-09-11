@@ -137,6 +137,7 @@
 
   - [CLI Tools](#)
 
+    - [trace_processor](reference/trace-processor-cli.md)
     - [perfetto](reference/perfetto-cli.md) {.tag-android .tag-linux}
     - [traced](reference/traced.md) {.tag-android .tag-linux}
     - [traced_probes](reference/traced_probes.md) {.tag-android .tag-linux}

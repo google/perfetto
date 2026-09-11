@@ -32,20 +32,32 @@ using TrackEventField = TypedProtoField;
 
 namespace internal {
 
-// The TrackEvent fields the parser reads by name (the dense allowlist for
-// selective decoding below). Every other field -- in particular the out-of-tree
-// extensions (`extensions 1000 to 9999`) -- lands in unknown_fields().
-using TrackEventDenseMask = protozero::SelectiveDecodeMask<
-    protos::pbzero::TrackEvent::kTypeFieldNumber,
-    protos::pbzero::TrackEvent::kTrackUuidFieldNumber,
+// The TrackEvent fields that describe the event itself, read through the
+// generated accessors. Every other field is imported as args: the in-tree
+// arg fields such as task_execution and the chrome typed messages, and the
+// out-of-tree extensions (`extensions 1000 to 9999`). Those land in
+// unknown_fields(), in wire order, which drives arg field dispatch.
+using TrackEventCoreMask = protozero::SelectiveDecodeMask<
+    protos::pbzero::TrackEvent::kTimestampDeltaUsFieldNumber,
+    protos::pbzero::TrackEvent::kThreadTimeDeltaUsFieldNumber,
     protos::pbzero::TrackEvent::kCategoryIidsFieldNumber,
-    protos::pbzero::TrackEvent::kCategoriesFieldNumber,
+    protos::pbzero::TrackEvent::kDebugAnnotationsFieldNumber,
+    protos::pbzero::TrackEvent::kLegacyEventFieldNumber,
+    protos::pbzero::TrackEvent::kThreadInstructionCountDeltaFieldNumber,
+    protos::pbzero::TrackEvent::kTypeFieldNumber,
     protos::pbzero::TrackEvent::kNameIidFieldNumber,
+    protos::pbzero::TrackEvent::kTrackUuidFieldNumber,
+    protos::pbzero::TrackEvent::kExtraCounterValuesFieldNumber,
+    protos::pbzero::TrackEvent::kTimestampAbsoluteUsFieldNumber,
+    protos::pbzero::TrackEvent::kThreadTimeAbsoluteUsFieldNumber,
+    protos::pbzero::TrackEvent::kThreadInstructionCountAbsoluteFieldNumber,
+    protos::pbzero::TrackEvent::kCategoriesFieldNumber,
     protos::pbzero::TrackEvent::kNameFieldNumber,
     protos::pbzero::TrackEvent::kCounterValueFieldNumber,
-    protos::pbzero::TrackEvent::kDoubleCounterValueFieldNumber,
     protos::pbzero::TrackEvent::kExtraCounterTrackUuidsFieldNumber,
-    protos::pbzero::TrackEvent::kExtraCounterValuesFieldNumber,
+    protos::pbzero::TrackEvent::kFlowIdsOldFieldNumber,
+    protos::pbzero::TrackEvent::kTerminatingFlowIdsOldFieldNumber,
+    protos::pbzero::TrackEvent::kDoubleCounterValueFieldNumber,
     protos::pbzero::TrackEvent::kExtraDoubleCounterTrackUuidsFieldNumber,
     protos::pbzero::TrackEvent::kExtraDoubleCounterValuesFieldNumber,
     protos::pbzero::TrackEvent::kFlowIdsFieldNumber,
@@ -55,61 +67,25 @@ using TrackEventDenseMask = protozero::SelectiveDecodeMask<
     protos::pbzero::TrackEvent::kCorrelationIdStrIidFieldNumber,
     protos::pbzero::TrackEvent::kCallstackFieldNumber,
     protos::pbzero::TrackEvent::kCallstackIidFieldNumber,
-    protos::pbzero::TrackEvent::kDebugAnnotationsFieldNumber,
-    protos::pbzero::TrackEvent::kTaskExecutionFieldNumber,
-    protos::pbzero::TrackEvent::kLogMessageFieldNumber,
-    protos::pbzero::TrackEvent::kCcSchedulerStateFieldNumber,
-    protos::pbzero::TrackEvent::kChromeUserEventFieldNumber,
-    protos::pbzero::TrackEvent::kChromeKeyedServiceFieldNumber,
-    protos::pbzero::TrackEvent::kChromeLegacyIpcFieldNumber,
-    protos::pbzero::TrackEvent::kChromeHistogramSampleFieldNumber,
-    protos::pbzero::TrackEvent::kChromeLatencyInfoFieldNumber,
-    protos::pbzero::TrackEvent::kChromeApplicationStateInfoFieldNumber,
-    protos::pbzero::TrackEvent::kChromeRendererSchedulerStateFieldNumber,
-    protos::pbzero::TrackEvent::kChromeWindowHandleEventInfoFieldNumber,
-    protos::pbzero::TrackEvent::kChromeActiveProcessesFieldNumber,
-    protos::pbzero::TrackEvent::kScreenshotFieldNumber,
-    protos::pbzero::TrackEvent::kSourceLocationFieldNumber,
-    protos::pbzero::TrackEvent::kSourceLocationIidFieldNumber,
-    protos::pbzero::TrackEvent::kChromeMessagePumpFieldNumber,
-    protos::pbzero::TrackEvent::kChromeMojoEventInfoFieldNumber,
-    protos::pbzero::TrackEvent::kLegacyEventFieldNumber>;
+    protos::pbzero::TrackEvent::kCallstackWeightFieldNumber>;
 
-inline constexpr TrackEventDenseMask kTrackEventDenseMask{};
+inline constexpr TrackEventCoreMask kTrackEventCoreMask{};
 
 }  // namespace internal
 
-// Hand-maintained wrapper around protozero::SelectiveTypedProtoDecoder for
-// TrackEvent, mirroring SelectiveTracePacketDecoder. The allowlist is the set
-// of in-tree TrackEvent fields; every other field -- in particular out-of-tree
-// extensions (`extensions 1000 to 9999`) -- lands in unknown_fields(), which
-// drives TrackEvent extension plugin dispatch.
-//
-// The parser still reads in-tree fields via the generated TrackEvent::Decoder;
-// this wrapper exists to enumerate extension fields cheaply and in wire order.
-class SelectiveTrackEventDecoder {
+// The generated TrackEvent decoder, decoded selectively: the fields of the
+// event itself are available through the generated accessors, every other
+// field is in unknown_fields(). One decode serves both the row and the arg
+// field dispatch.
+class SelectiveTrackEventDecoder : public protozero::SelectiveTypedProtoDecoder<
+                                       protos::pbzero::TrackEvent::Decoder> {
  public:
-  using TrackEvent = protos::pbzero::TrackEvent;
-
   SelectiveTrackEventDecoder(const uint8_t* data, size_t length)
-      : decoder_(data, length, internal::kTrackEventDenseMask) {}
+      : SelectiveTypedProtoDecoder(data,
+                                   length,
+                                   internal::kTrackEventCoreMask) {}
   explicit SelectiveTrackEventDecoder(protozero::ConstBytes blob)
       : SelectiveTrackEventDecoder(blob.data, blob.size) {}
-
-  // All the fields not in the allowlist, in wire order, with repeated
-  // occurrences preserved. Drives extension plugin dispatch.
-  protozero::UnknownFieldRange unknown_fields() const {
-    return decoder_.unknown_fields();
-  }
-
-  static constexpr bool ContainsField(uint32_t id) {
-    return internal::kTrackEventDenseMask.contains(id);
-  }
-
- private:
-  protozero::SelectiveTypedProtoDecoder<static_cast<int>(
-      internal::TrackEventDenseMask::kMaxFieldId)>
-      decoder_;
 };
 
 }  // namespace perfetto::trace_processor

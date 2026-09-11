@@ -432,6 +432,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     size_t size,
     const std::vector<std::string>& skip_prefixes,
     bool merge_existing_messages) {
+  generation_++;
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
   std::vector<ExtensionInfo> extensions;

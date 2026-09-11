@@ -20,6 +20,8 @@ import type {
   SelectionManager,
   TrackEventSelection,
   AreaSelectionTab,
+  TrackEventSelectionTab,
+  SelectionTab,
 } from '../public/selection';
 import {TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
@@ -58,7 +60,7 @@ export class SelectionManagerImpl implements SelectionManager {
     Selection,
     SelectionDetailsPanel
   >();
-  public readonly areaSelectionTabs: AreaSelectionTab[] = [];
+  public readonly selectionTabs: SelectionTab[] = [];
   private _currentSelectionSubTab?: string;
 
   constructor(
@@ -520,8 +522,28 @@ export class SelectionManagerImpl implements SelectionManager {
     return undefined;
   }
 
+  registerSelectionTab(tab: SelectionTab): void {
+    this.selectionTabs.push(tab);
+  }
+
   registerAreaSelectionTab(tab: AreaSelectionTab): void {
-    this.areaSelectionTabs.push(tab);
+    this.registerSelectionTab({
+      id: tab.id,
+      name: tab.name,
+      priority: tab.priority,
+      render: (selection) =>
+        selection.kind === 'area' ? tab.render(selection) : undefined,
+    });
+  }
+
+  registerTrackEventSelectionTab(tab: TrackEventSelectionTab): void {
+    this.registerSelectionTab({
+      id: tab.id,
+      name: tab.name,
+      priority: tab.priority,
+      render: (selection) =>
+        selection.kind === 'track_event' ? tab.render(selection) : undefined,
+    });
   }
 
   get currentSelectionSubTab(): string | undefined {

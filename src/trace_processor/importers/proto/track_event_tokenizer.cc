@@ -451,6 +451,16 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
   protos::pbzero::TrackEvent::Decoder event(
       args.field.Cast<protos::pbzero::TracePacket::kTrackEvent>());
+  const bool legacy = event.HasAnyField(kLegacyTrackEventFields.data(), 1);
+  const bool needs_processing = legacy || event.has_extra_counter_values() ||
+                                event.has_extra_double_counter_values() ||
+                                event.type() == TrackEvent::TYPE_COUNTER ||
+                                event.type() == TrackEvent::TYPE_STATE;
+  if (!needs_processing && args.decoder.has_timestamp() && args.ts >= 0) {
+    module_context_->track_event_stream->Push(
+        args.ts, TrackEventData(std::move(*args.packet), args.state));
+    return ModuleResult::Handled();
+  }
   protos::pbzero::TrackEventDefaults::Decoder* defaults =
       args.state->GetTrackEventDefaults();
 
@@ -458,7 +468,6 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   bool timestamp_needs_clock_conversion = false;
   TrackEventData data(std::move(*args.packet), args.state);
   // The sequence-local state is only needed for deltas.
-  const bool legacy = event.HasAnyField(kLegacyTrackEventFields.data(), 1);
   TrackEventSequenceState* track_event =
       legacy ? args.state->GetCustomState<TrackEventSequenceState>() : nullptr;
 

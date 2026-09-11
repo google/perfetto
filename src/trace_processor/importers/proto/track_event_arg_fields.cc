@@ -142,6 +142,8 @@ TrackEventExtensionParser::Result TrackEventArgFieldParser::OnTrackEventField(
         stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEventArgs error: %s", status.c_message());
   };
+  // Fields the generic reflection also covers return kIgnored so that their
+  // plain args are added as well.
   switch (field.id()) {
     case TrackEvent::kSourceLocationIidFieldNumber:
       log_errors(AddSourceLocationArgs(
@@ -150,10 +152,10 @@ TrackEventExtensionParser::Result TrackEventArgFieldParser::OnTrackEventField(
     case TrackEvent::kTaskExecutionFieldNumber:
       log_errors(
           ParseTaskExecution(field.Cast<TrackEvent::kTaskExecution>(), event));
-      return Result::kIgnored;
+      return Result::kHandled;
     case TrackEvent::kLogMessageFieldNumber:
       log_errors(ParseLogMessage(field.Cast<TrackEvent::kLogMessage>(), event));
-      return Result::kIgnored;
+      return Result::kHandled;
     case TrackEvent::kScreenshotFieldNumber:
       ParseScreenshot(field.Cast<TrackEvent::kScreenshot>(), event);
       return Result::kIgnored;

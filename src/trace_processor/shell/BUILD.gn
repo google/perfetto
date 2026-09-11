@@ -138,6 +138,7 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/ext/base",
       "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+      "../../../include/perfetto/trace_processor",
       "../../../protos/perfetto/trace:cpp",
       "../../../protos/perfetto/trace/ftrace:cpp",
       "../../../protos/perfetto/trace/interned_data:cpp",

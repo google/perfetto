@@ -14,10 +14,7 @@
 
 import './tree_explorer_panel.scss';
 import m from 'mithril';
-import {AsyncLimiter} from '../base/async_limiter';
-import {Monitor} from '../base/monitor';
 import {assertUnreachable, ensureExists} from '../base/assert';
-import type {Trace} from '../public/trace';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {Flamegraph, buildFlamegraphExportString} from '../widgets/flamegraph';
@@ -26,16 +23,16 @@ import {TreeExplorerFilterBar} from '../widgets/tree_explorer_filter_bar';
 import {TreeExplorerViewSwitcher} from '../widgets/tree_explorer_view_switcher';
 import {
   computeHighlightRegex,
+  createDefaultTreeExplorerState,
   metricId,
   type TreeExplorerAddableMetric,
   type TreeExplorerData,
   type TreeExplorerState,
   type TreeExplorerView,
 } from '../widgets/tree_explorer';
-import {
+import type {
   TreeExplorerFetcher,
-  type TreeExplorerFetcherDependency,
-  type TreeExplorerQueryMetric,
+  TreeExplorerQueryMetric,
 } from './tree_explorer_fetcher';
 import {
   TreeExplorerFlatView,
@@ -44,13 +41,14 @@ import {
 } from './tree_explorer_table_views';
 
 export interface TreeExplorerPanelAttrs {
-  readonly trace: Trace;
-
-  // The metrics to render. Undefined shows a loading state.
-  readonly metrics?: ReadonlyArray<TreeExplorerQueryMetric>;
+  // The fetcher supplying the tree, or undefined to show a pending state.
+  // Owned by the caller: this panel never creates or disposes it, so that the
+  // lifetime of the engine-side resources the metric SQL depends on is decided
+  // in one place (where the metrics themselves are created).
+  readonly fetcher: TreeExplorerFetcher;
 
   // Caller-owned tree explorer state (filters, view, selected metric). When
-  // `metrics` change, pass `updateTreeExplorerState(state, metrics)` to keep
+  // metrics change, pass `updateTreeExplorerState(state, metrics)` to keep
   // the selected metric valid. Undefined shows an empty pending state.
   readonly state?: TreeExplorerState;
 
@@ -59,80 +57,33 @@ export interface TreeExplorerPanelAttrs {
   readonly addableMetrics?: ReadonlyArray<TreeExplorerAddableMetric>;
   readonly onAddMetric?: (metric: TreeExplorerAddableMetric) => void;
 
-  // Perfetto tables / indices the metric SQL depends on. The panel forwards
-  // them to the inner `TreeExplorerFetcher`, which disposes them along with
-  // itself on unmount or when the array reference changes.
-  readonly dependencies?: ReadonlyArray<TreeExplorerFetcherDependency>;
-
   // Host-provided downloads shown alongside the built-in exports of the
   // displayed tree, for representations the panel cannot build itself.
   readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
 }
 
-// The batteries-included tree explorer: owns a `TreeExplorerFetcher` (created
-// on first render, disposed on unmount or when `trace` / `dependencies`
-// identity changes) and composes the view switcher, the shared filter bar
-// and the active view (flamegraph canvas, call tree or flat function table)
-// of the fetched tree. Lets area-selection tabs and details panels render a
-// tree explorer without managing `[Symbol.asyncDispose]` themselves.
+// The batteries-included tree explorer: composes the view switcher, the shared
+// filter bar and the active view (flamegraph canvas, call tree or flat
+// function table) of the tree supplied by `attrs.fetcher`.
 //
-// Hosts that want the view switcher elsewhere (a DetailsShell header, an
-// existing tab strip) compose `TreeExplorerViewSwitcher`,
-// `TreeExplorerFilterBar` and the views directly instead of using this panel.
+// The panel is stateless with respect to fetching: the fetcher is created by
+// the host where the metrics are created, and disposed by that host when the
+// metrics are superseded. Hosts that want the view switcher elsewhere (a
+// DetailsShell header, an existing tab strip) compose
+// `TreeExplorerViewSwitcher`, `TreeExplorerFilterBar` and the views directly
+// instead of using this panel.
 export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttrs> {
-  private fetcher?: TreeExplorerFetcher;
-  private lastTrace?: Trace;
-  private lastDeps?: ReadonlyArray<TreeExplorerFetcherDependency>;
-
-  private data?: TreeExplorerData;
-  private readonly queryLimiter = new AsyncLimiter();
-  private lastAttrs?: TreeExplorerPanelAttrs;
-  private monitor = this.createMonitor();
   private highlightPattern = '';
 
-  // Watches everything that affects the fetched tree. Notably absent:
-  // displayMode, which only changes how the already-fetched tree is shown —
-  // except through effectiveView(), whose result it can change (flat mode
-  // always fetches the TOP_DOWN shape).
-  private createMonitor(): Monitor {
-    return new Monitor([
-      () => this.lastAttrs?.metrics,
-      () => this.lastAttrs?.state?.filters,
-      () => this.lastAttrs?.state?.selectedMetricId,
-      () => this.lastAttrs?.state?.addedMetricIds,
-      () =>
-        this.lastAttrs?.state &&
-        JSON.stringify(effectiveView(this.lastAttrs.state)),
-    ]);
-  }
-
   view({attrs}: m.CVnode<TreeExplorerPanelAttrs>): m.Children {
-    this.lastAttrs = attrs;
-    if (
-      this.fetcher === undefined ||
-      this.lastTrace !== attrs.trace ||
-      this.lastDeps !== attrs.dependencies
-    ) {
-      void this.fetcher?.[Symbol.asyncDispose]();
-      this.fetcher = new TreeExplorerFetcher(attrs.trace, attrs.dependencies);
-      this.lastTrace = attrs.trace;
-      this.lastDeps = attrs.dependencies;
-      // A new fetcher has no tables yet: force a refetch even if the
-      // metrics/state references are unchanged.
-      this.monitor = this.createMonitor();
-    }
-    const fetcher = this.fetcher;
-    const {metrics, state} = attrs;
-    if (this.monitor.ifStateChanged()) {
-      this.data = undefined;
-      if (metrics && state) {
-        const fetchState = {...state, view: effectiveView(state)};
-        this.queryLimiter.schedule(async () => {
-          this.data = undefined;
-          this.data = await fetcher.fetch(metrics, fetchState);
-        });
-      }
-    }
+    const {fetcher, state = createDefaultTreeExplorerState(fetcher.metrics)} =
+      attrs;
+    const metrics = fetcher?.metrics;
+    const data =
+      fetcher !== undefined && state !== undefined
+        ? fetcher.use({...state, view: effectiveView(state)}).data
+        : undefined;
+
     const shownState = state ?? {
       view: {kind: 'TOP_DOWN' as const},
       selectedMetricId: '',
@@ -155,7 +106,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
       m(TreeExplorerFilterBar, {
         metrics: shownMetrics,
         state: shownState,
-        data: this.data,
+        data: data,
         onStateChange: attrs.onStateChange,
         addableMetrics: attrs.addableMetrics,
         onAddMetric: attrs.onAddMetric,
@@ -170,10 +121,14 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
           selectedMetric === undefined
             ? undefined
             : async (format) => {
-                const data = ensureExists(this.data);
+                const dataExists = ensureExists(data);
                 return displayMode === 'flat'
-                  ? buildFlatExportString(data, selectedMetric, format)
-                  : buildFlamegraphExportString(data, selectedMetric, format);
+                  ? buildFlatExportString(dataExists, selectedMetric, format)
+                  : buildFlamegraphExportString(
+                      dataExists,
+                      selectedMetric,
+                      format,
+                    );
               },
         exportFileBaseName:
           displayMode === 'flat'
@@ -183,26 +138,28 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
               : 'flamegraph',
         extraDownloadItems: attrs.extraDownloadItems,
       }),
-      this.renderView(attrs, shownState, highlightRegex),
+      this.renderView(attrs, shownMetrics, shownState, highlightRegex, data),
     );
   }
 
   private renderView(
     attrs: TreeExplorerPanelAttrs,
+    metrics: ReadonlyArray<TreeExplorerQueryMetric>,
     state: TreeExplorerState,
     highlightRegex: RegExp | undefined,
+    data: TreeExplorerData | undefined,
   ): m.Children {
     const displayMode = state.displayMode;
     if (displayMode === 'flamegraph') {
       return m(Flamegraph, {
-        metrics: attrs.metrics ?? [],
+        metrics,
         state,
-        data: this.data,
+        data,
         highlightRegex,
         onStateChange: attrs.onStateChange,
       });
     }
-    if (this.data === undefined) {
+    if (data === undefined) {
       return m(
         '.pf-tree-explorer__loading',
         m(
@@ -213,21 +170,15 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
       );
     }
     const unit =
-      (attrs.metrics ?? []).find((x) => metricId(x) === state.selectedMetricId)
-        ?.unit ?? '';
+      metrics.find((x) => metricId(x) === state.selectedMetricId)?.unit ?? '';
     switch (displayMode) {
       case 'tree':
-        return m(TreeExplorerTreeView, {data: this.data, unit});
+        return m(TreeExplorerTreeView, {data, unit});
       case 'flat':
-        return m(TreeExplorerFlatView, {data: this.data, unit});
+        return m(TreeExplorerFlatView, {data, unit});
       default:
         assertUnreachable(displayMode);
     }
-  }
-
-  async onremove(): Promise<void> {
-    await this.fetcher?.[Symbol.asyncDispose]();
-    this.fetcher = undefined;
   }
 }
 

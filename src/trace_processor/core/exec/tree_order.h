@@ -30,8 +30,11 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// TREE ORDER CHILD FIRST: puts tree rows into a depth first post-order, so
-// every child precedes its parent. A fold up a tree runs over this order.
+// TREE ORDER CHILD FIRST: puts tree rows into an order where every child
+// precedes its parent. A fold up a tree runs over this order.
+//
+// Subtrees may be interleaved: this does not guarantee DFS post-order, so a
+// fold up keeps a value per node rather than a stack of the current path.
 //
 // A breaker: the first row out has to be a leaf, and no row is known to be a
 // leaf until the input ends. Rows which arrived child first come back as they

@@ -37,11 +37,6 @@ namespace perfetto::trace_processor {
 
 // Field numbers to be added to args table automatically via reflection
 //
-// TODO(ddrone): replace with a predicate on field id to import new fields
-// automatically
-static constexpr uint16_t kReflectFields[] = {
-    24, 25, 26, 27, 28, 29, 32, 33, 34, 35, 38, 39, 40, 41, 43, 49, 50};
-
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 class TrackEventTracker;
@@ -71,10 +66,23 @@ class TrackEventParser {
  private:
   friend class TrackEventEventImporter;
 
-  TrackEventExtensionParser* ParserForField(uint32_t field_id) const {
-    auto* it = extension_parser_context_->parsers_by_field.Find(field_id);
-    return it ? *it : nullptr;
+  // Consecutive events tend to carry the same fields, so the field looked
+  // up last is remembered, including a field without a parser. Parsers are
+  // only ever added, so a changed count means the answer may have changed.
+  TrackEventExtensionParser* ParserForField(uint32_t field_id) {
+    const auto& by_field = extension_parser_context_->parsers_by_field;
+    if (field_id != last_parser_field_id_ ||
+        by_field.size() != last_parser_count_) {
+      auto* it = by_field.Find(field_id);
+      last_parser_ = it ? *it : nullptr;
+      last_parser_field_id_ = field_id;
+      last_parser_count_ = by_field.size();
+    }
+    return last_parser_;
   }
+
+  // The TrackEvent descriptor's index in the pool, resolved once.
+  std::optional<uint32_t> TrackEventDescriptorIdx();
 
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
@@ -127,7 +135,10 @@ class TrackEventParser {
 
   TrackEventExtensionParserContext* extension_parser_context_;
   ChromeStringLookup chrome_string_lookup_;
-  std::vector<uint32_t> reflect_fields_;
+  std::optional<uint32_t> track_event_descriptor_idx_;
+  TrackEventExtensionParser* last_parser_ = nullptr;
+  uint32_t last_parser_field_id_ = 0;
+  size_t last_parser_count_ = 0;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
   DummyMemoryMapping* inline_callstack_dummy_mapping_ = nullptr;
 };
