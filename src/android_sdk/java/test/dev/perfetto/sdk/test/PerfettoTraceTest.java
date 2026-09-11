@@ -1443,4 +1443,26 @@ public class PerfettoTraceTest {
       mTrackNames.add(desc.getStaticName());
     }
   }
+
+  @Test
+  public void testRegisterSystemBackendOnHost() {
+    // On host / default variant, system backend registration is unrestricted.
+    assertThat(PerfettoTrace.register(false)).isTrue();
+    assertThat(PerfettoTrace.getAttempedSystemRegistration()).isTrue();
+  }
+
+  @Test
+  public void testCategorySetupSafeWhenUnregistered() {
+    Category unregCategory = new Category("unregistered_test_category");
+    assertThat(unregCategory.isEnabled()).isFalse();
+    assertThat(unregCategory.isRegistered()).isFalse();
+
+    // Registering should succeed and be safe
+    unregCategory.register();
+    assertThat(unregCategory.isRegistered()).isTrue();
+
+    // Unregistering should also be safe
+    unregCategory.unregister();
+    assertThat(unregCategory.isRegistered()).isFalse();
+  }
 }
