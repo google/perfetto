@@ -219,13 +219,14 @@ base::Status UnixRpcServer::Run() {
     PrintStartupRecord(stdout, static_cast<int>(base::GetProcessId()),
                        args_.session_name, args_.socket_path,
                        args_.idle_timeout_ms);
-    fprintf(stderr,
-            "[unix] Serving warm session '%s'. Query it with:\n"
-            "  trace_processor_shell query --remote %s \"SELECT ...\"\n"
-            "Stop it with Ctrl-C, or: "
-            "trace_processor_shell server kill %s\n",
-            args_.session_name.c_str(), args_.session_name.c_str(),
-            args_.session_name.c_str());
+    if (!args_.quiet)
+      fprintf(stderr,
+              "[unix] Serving warm session '%s'. Query it with:\n"
+              "  trace_processor_shell query --remote %s \"SELECT ...\"\n"
+              "Stop it with Ctrl-C, or: "
+              "trace_processor_shell server kill %s\n",
+              args_.session_name.c_str(), args_.session_name.c_str(),
+              args_.session_name.c_str());
   }
 
   // Record our pid next to the socket so `server kill` can stop us. This

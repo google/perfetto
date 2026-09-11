@@ -22,7 +22,9 @@ command-specific help, including the flags supported by that build.
 
 The classic flat-flag interface (`-q`, `-Q`, `--httpd`, `--summary`,
 `--run-metrics`, `-e`, `--stdiod`) remains supported. Use `--help-classic`
-for its flags.
+for its flags. In the classic interface, `-q FILE` still means an SQL query
+file; use `--quiet` there. Use `-q` after an explicit command, for example
+`trace_processor bundle -q input.pftrace output.tar`.
 
 ## {#global-flags} Global flags (apply to every subcommand)
 
@@ -30,6 +32,9 @@ These flags are accepted in addition to the subcommand-specific flags below
 and behave the same across all subcommands:
 
 - **Help and version:** `-h, --help`, `-v, --version`.
+- **Quiet:** `-q, --quiet` suppresses progress, timings, successful summaries,
+  and routine status messages. Command results, warnings, and errors remain
+  enabled. Quiet takes precedence over `--verbose`.
 - **Progress:** `--no-progress` disables live progress, preserving summaries,
   warnings, and errors.
 - **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
@@ -52,6 +57,10 @@ Diagnostics go to stderr. Live progress is displayed only when stderr is a
 terminal and `TERM` is not `dumb`. Redirected stderr contains ordinary messages
 without progress redraws. `--no-progress` suppresses live progress independently
 of verbosity and color; summaries, warnings, and errors remain enabled.
+`--quiet` additionally suppresses routine summaries and status messages.
+SQL rows, converted traces, explicit help/version output, and the
+machine-readable `server unix` startup record are command results and remain
+visible in quiet mode.
 
 ## Color environment variables
 
@@ -353,6 +362,31 @@ The order above describes how paths are collected, not a guaranteed preference
 between duplicate copies of the same build ID during recursive indexing. Prefer
 directories containing the matching unstripped or debug binaries rather than
 mixing stripped and unstripped copies. Use `--verbose` to inspect lookup details.
+
+#### Symbolization results
+
+Normal output reports the number of original frame records resolved by this
+invocation and the number still unresolved, including fully successful runs.
+An empty trace or one that has no remaining native frames to resolve reports
+that no native frames require symbolization.
+
+A frame is resolved when at least one returned function name is usable; finding
+a binary alone does not count as resolving its addresses. Counts describe
+records in `stack_profile_frame`, not profiling samples, unique instruction
+addresses, or the number of inline functions. Frames already symbolized before
+this invocation are excluded.
+
+Unresolved counts distinguish missing binaries, binaries found without function
+names for the requested addresses, and missing build IDs. `--verbose` retains
+the aggregate and adds mapping names, build IDs, selected symbol files, and
+lookup attempts. `--quiet` suppresses successful summaries but retains warnings
+about unresolved frames and errors for explicitly requested resources.
+
+The first usable result for each module/build-ID/address combination wins.
+Later symbol sources are asked only for unresolved addresses, so they cannot
+replace existing names with missing or different results. In `bundle`, native
+binary lookup precedes Breakpad lookup. This does not change how the native
+index chooses among duplicate binaries with the same build ID.
 
 #### Output replacement and cleanup
 

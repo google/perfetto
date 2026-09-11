@@ -49,6 +49,7 @@ struct BundleContext {
 
   // Suppress live progress; summaries and diagnostics are unaffected.
   bool no_progress = false;
+  bool quiet = false;
 
   // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
   std::string android_product_out;

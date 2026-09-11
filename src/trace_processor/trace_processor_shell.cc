@@ -113,6 +113,7 @@ struct CommandLineOptions {
   bool no_ftrace_raw = false;
 
   std::string query_file_path;
+  bool quiet = false;
   std::string query_string;
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;
@@ -171,6 +172,7 @@ Commands:
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
   -v, --version               Print version.
+  -q, --quiet                Suppress routine status; keep results and errors.
       --no-progress          Disable live progress; keep summaries and errors.
       --full-sort             Force full sort ignoring windowing.
       --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
@@ -294,6 +296,10 @@ Behavioural:
  -i, --interactive                    Starts interactive mode even after
                                       executing some other commands (-q, -Q,
                                       --run-metrics, --summary).
+
+Output:
+ --quiet                              Suppress routine status messages, retaining
+                                      results, warnings, and errors.
 
 Parsing:
  --full-sort                          Forces the trace processor into performing
@@ -520,6 +526,7 @@ enum LongOption {
   OPT_METRIC_EXTENSION,
 
   OPT_HELP_CLASSIC,
+  OPT_QUIET,
 };
 
 constexpr char kShortOptions[] = "hvWiDdm:p:q:Q:e:";
@@ -527,6 +534,7 @@ constexpr char kShortOptions[] = "hvWiDdm:p:q:Q:e:";
 const option kLongOptions[] = {
     {"help", no_argument, nullptr, 'h'},
     {"help-classic", no_argument, nullptr, OPT_HELP_CLASSIC},
+    {"quiet", no_argument, nullptr, OPT_QUIET},
     {"version", no_argument, nullptr, 'v'},
 
     {"httpd", no_argument, nullptr, 'D'},
@@ -580,6 +588,8 @@ const option kLongOptions[] = {
     {nullptr, 0, nullptr, 0}};
 
 CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
+  // Match ParseFlags: each invocation must reset getopt scan state.
+  optind = 0;
   CommandLineOptions command_line_options;
 
   bool explicit_interactive = false;
@@ -608,6 +618,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == 'q') {
       command_line_options.query_file_path = optarg;
+      continue;
+    }
+
+    if (option == OPT_QUIET) {
+      command_line_options.quiet = true;
       continue;
     }
 
@@ -1049,6 +1064,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 
   // Forward global flags.
   auto add_global_flags = [&]() {
+    if (options.quiet)
+      args.emplace_back("--quiet");
     if (options.force_full_sort)
       args.emplace_back("--full-sort");
     if (options.no_ftrace_raw)

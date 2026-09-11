@@ -92,9 +92,9 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
   ASSIGN_OR_RETURN(Config config, BuildConfig(*ctx.global, ctx.platform));
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  RETURN_IF_ERROR(
-      LoadTraceFile(tp.get(), ctx.platform, trace_file, ctx.global->no_progress)
-          .status());
+  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file,
+                                ctx.global->no_progress, ctx.global->quiet)
+                      .status());
 
   TraceProcessor::ExportFormat export_format;
   if (format == "sqlite") {

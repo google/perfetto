@@ -120,6 +120,7 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
                                       pkg= prefix scopes the map to a package.
    --no-auto-proguard-maps            Disable automatic ProGuard/R8 mapping
                                       discovery (e.g. Gradle project layout)
+   --quiet, -q                        Suppress routine status messages
    --no-progress                      Disable live progress
    --verbose                          Print more detailed output
 
@@ -183,6 +184,7 @@ int Main(int argc, char** argv) {
   bool no_auto_proguard_maps = false;
   bool verbose = false;
   bool no_progress = false;
+  bool quiet = false;
   bool skip_unknown_fields = false;
   std::string output_dir;
   for (int i = 1; i < argc; i++) {
@@ -224,6 +226,8 @@ int Main(int argc, char** argv) {
     } else if (i < argc && strcmp(argv[i], "--symbol-paths") == 0) {
       i++;
       symbol_paths = base::SplitString(argv[i], ",");
+    } else if (strcmp(argv[i], "--quiet") == 0 || strcmp(argv[i], "-q") == 0) {
+      quiet = true;
     } else if (strcmp(argv[i], "--no-progress") == 0) {
       no_progress = true;
     } else if (strcmp(argv[i], "--no-auto-symbol-paths") == 0) {
@@ -329,6 +333,9 @@ int Main(int argc, char** argv) {
     return 1;
   }
 
+  no_progress = no_progress || quiet;
+  verbose = verbose && !quiet;
+
   if (format == "binary") {
     return TextToTrace(input_stream, output_stream);
   }
@@ -379,19 +386,20 @@ int Main(int argc, char** argv) {
     }
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        profile_type, verbose, no_progress));
+        profile_type, verbose, no_progress, quiet));
   }
 
   if (format == "java_heap_profile") {
     // legacy alias for "profile --java-heap"
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        trace_to_text::ConversionMode::kJavaHeapProfile, verbose, no_progress));
+        trace_to_text::ConversionMode::kJavaHeapProfile, verbose, no_progress,
+        quiet));
   }
 
   if (format == "symbolize")
     return ToExitCode(trace_to_text::SymbolizeProfile(
-        input_stream, output_stream, verbose, no_progress));
+        input_stream, output_stream, verbose, no_progress, quiet));
 
   if (format == "deobfuscate")
     return ToExitCode(
@@ -440,6 +448,7 @@ int Main(int argc, char** argv) {
     context.no_auto_proguard_maps = no_auto_proguard_maps;
     context.verbose = verbose;
     context.no_progress = no_progress;
+    context.quiet = quiet;
     if (const char* val = getenv("ANDROID_PRODUCT_OUT")) {
       context.android_product_out = val;
     }

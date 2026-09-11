@@ -71,7 +71,8 @@ class Httpd : public base::HttpRequestHandler {
            int port,
            const std::vector<std::string>& additional_cors_origins,
            uint32_t idle_timeout_ms,
-           IdleStart idle_start);
+           IdleStart idle_start,
+           bool quiet);
 
  private:
   // HttpRequestHandler implementation.
@@ -139,19 +140,23 @@ void Httpd::Run(const std::string& listen_ip,
                 int port,
                 const std::vector<std::string>& additional_cors_origins,
                 uint32_t idle_timeout_ms,
-                IdleStart idle_start) {
+                IdleStart idle_start,
+                bool quiet) {
   for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
     http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
   }
   for (const auto& additional_cors_origin : additional_cors_origins) {
     http_srv_.AddAllowedOrigin(additional_cors_origin);
   }
+  http_srv_.SetQuiet(quiet);
   http_srv_.Start(listen_ip, port);
-  PERFETTO_ILOG(
-      "[HTTP] This server can be used by reloading https://ui.perfetto.dev and "
-      "clicking on YES on the \"Trace Processor native acceleration\" dialog "
-      "or through the Python API (see "
-      "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
+  if (!quiet)
+    PERFETTO_ILOG(
+        "[HTTP] This server can be used by reloading https://ui.perfetto.dev "
+        "and "
+        "clicking on YES on the \"Trace Processor native acceleration\" dialog "
+        "or through the Python API (see "
+        "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
   reaper_ =
       std::make_unique<IdleReaper>(&task_runner_, idle_timeout_ms, idle_start,
                                    [this] { task_runner_.Quit(); });
@@ -404,12 +409,14 @@ void RunHttpRPCServer(Rpc& rpc,
                       const std::string& port_number,
                       const std::vector<std::string>& additional_cors_origins,
                       uint32_t idle_timeout_ms,
-                      IdleStart idle_start) {
+                      IdleStart idle_start,
+                      bool quiet) {
   Httpd srv(rpc);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port, additional_cors_origins, idle_timeout_ms, idle_start);
+  srv.Run(ip, port, additional_cors_origins, idle_timeout_ms, idle_start,
+          quiet);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {

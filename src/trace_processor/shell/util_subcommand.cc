@@ -84,7 +84,9 @@ base::Status CheckManifestPaths(const std::string& manifest,
 // Dry-runs the written archive through a tokenize-only Trace Processor pass
 // and reports whether any events would be dropped when it is opened. This is
 // the same check the UI's merge dialog runs.
-base::Status ValidateMergedArchive(const std::string& path, bool strict) {
+base::Status ValidateMergedArchive(const std::string& path,
+                                   bool strict,
+                                   bool quiet) {
   Config config;
   config.parsing_mode = ParsingMode::kTokenizeOnly;
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
@@ -104,7 +106,8 @@ base::Status ValidateMergedArchive(const std::string& path, bool strict) {
   }
   int64_t dropped = it.Get(0).long_value;
   if (dropped == 0) {
-    printf("Validation: all traces line up on the shared timeline.\n");
+    if (!quiet)
+      printf("Validation: all traces line up on the shared timeline.\n");
     return base::OkStatus();
   }
   if (strict) {
@@ -228,7 +231,8 @@ base::Status UtilSubcommand::Run(const SubcommandContext& ctx) {
 
   if (util == "symbolize") {
     RETURN_IF_ERROR(trace_to_text::SymbolizeProfile(
-        input, output, verbose_, ctx.global && ctx.global->no_progress));
+        input, output, verbose_, ctx.global && ctx.global->no_progress,
+        ctx.global && ctx.global->quiet));
   } else if (util == "deobfuscate") {
     RETURN_IF_ERROR(trace_to_text::DeobfuscateProfile(input, output));
   } else if (util == "decompress_packets") {
@@ -282,15 +286,17 @@ base::Status UtilSubcommand::RunMerge(const SubcommandContext& ctx) {
       RETURN_IF_ERROR(tar.AddFileFromPath(members[i], inputs[i]));
     }
   }
-  printf("Wrote %s (%zu trace%s%s).\n", merge_output_.c_str(), inputs.size(),
-         inputs.size() == 1 ? "" : "s",
-         manifest.empty() ? "" : " plus manifest");
+  if (!(ctx.global && ctx.global->quiet))
+    printf("Wrote %s (%zu trace%s%s).\n", merge_output_.c_str(), inputs.size(),
+           inputs.size() == 1 ? "" : "s",
+           manifest.empty() ? "" : " plus manifest");
   fflush(stdout);
 
   if (merge_no_validate_) {
     return base::OkStatus();
   }
-  return ValidateMergedArchive(merge_output_, merge_strict_);
+  return ValidateMergedArchive(merge_output_, merge_strict_,
+                               ctx.global && ctx.global->quiet);
 }
 
 }  // namespace perfetto::trace_processor::shell

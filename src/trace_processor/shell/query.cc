@@ -110,7 +110,8 @@ base::Status RunQueriesWithoutOutput(TraceProcessor* trace_processor,
 
 base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
                                       const std::string& sql_query,
-                                      FILE* output) {
+                                      FILE* output,
+                                      bool quiet) {
   PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
 
   // Statements are executed one at a time and every statement's result set
@@ -184,11 +185,12 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
     return base::ErrStatus("No valid SQL to run");
   }
 
-  PERFETTO_ILOG(
-      "Query execution time: %" PRIi64 " ms",
-      static_cast<int64_t>(
-          std::chrono::duration_cast<std::chrono::milliseconds>(exec_dur)
-              .count()));
+  if (!quiet)
+    PERFETTO_ILOG(
+        "Query execution time: %" PRIi64 " ms",
+        static_cast<int64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(exec_dur)
+                .count()));
   return base::OkStatus();
 }
 
@@ -213,16 +215,18 @@ base::Status PrintPerfFile(const std::string& perf_file_path,
 
 base::Status RunQueries(TraceProcessor* trace_processor,
                         const std::string& queries,
-                        bool expect_output) {
+                        bool expect_output,
+                        bool quiet) {
   if (expect_output) {
-    return RunQueriesAndPrintResult(trace_processor, queries, stdout);
+    return RunQueriesAndPrintResult(trace_processor, queries, stdout, quiet);
   }
   return RunQueriesWithoutOutput(trace_processor, queries);
 }
 
 base::Status RunQueriesFromFile(TraceProcessor* trace_processor,
                                 const std::string& query_file_path,
-                                bool expect_output) {
+                                bool expect_output,
+                                bool quiet) {
   std::string queries;
   if (!base::ReadFile(query_file_path, &queries)) {
     return base::ErrStatus(
@@ -230,7 +234,7 @@ base::Status RunQueriesFromFile(TraceProcessor* trace_processor,
         "to use the -Q flag instead?",
         query_file_path.c_str());
   }
-  return RunQueries(trace_processor, queries, expect_output);
+  return RunQueries(trace_processor, queries, expect_output, quiet);
 }
 
 }  // namespace perfetto::trace_processor

@@ -44,15 +44,18 @@ base::Status RunQueriesWithoutOutput(TraceProcessor* trace_processor,
 
 base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
                                       const std::string& sql_query,
-                                      FILE* output);
+                                      FILE* output,
+                                      bool quiet = false);
 
 base::Status RunQueries(TraceProcessor* trace_processor,
                         const std::string& queries,
-                        bool expect_output);
+                        bool expect_output,
+                        bool quiet = false);
 
 base::Status RunQueriesFromFile(TraceProcessor* trace_processor,
                                 const std::string& query_file_path,
-                                bool expect_output);
+                                bool expect_output,
+                                bool quiet = false);
 
 base::Status PrintPerfFile(const std::string& perf_file_path,
                            base::TimeNanos t_load,

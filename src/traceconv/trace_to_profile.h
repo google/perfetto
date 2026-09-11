@@ -36,7 +36,8 @@ base::Status TraceToProfile(std::istream* input,
                             const std::string& output_dir,
                             std::optional<ConversionMode> conversion_mode,
                             bool verbose,
-                            bool no_progress = false);
+                            bool no_progress = false,
+                            bool quiet = false);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

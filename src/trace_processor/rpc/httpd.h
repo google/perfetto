@@ -46,7 +46,8 @@ void RunHttpRPCServer(Rpc& rpc,
                       const std::string& port_number,
                       const std::vector<std::string>& additional_cors_origins,
                       uint32_t idle_timeout_ms,
-                      IdleStart idle_start);
+                      IdleStart idle_start,
+                      bool quiet = false);
 
 }  // namespace perfetto::trace_processor
 

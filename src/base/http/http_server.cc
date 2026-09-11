@@ -68,7 +68,8 @@ HttpServer::HttpServer(TaskRunner* task_runner, HttpRequestHandler* req_handler)
 HttpServer::~HttpServer() = default;
 
 void HttpServer::ListenOnIpV4(const std::string& ip_addr) {
-  PERFETTO_LOG("[HTTP] Starting HTTP server on %s", ip_addr.c_str());
+  if (!quiet_)
+    PERFETTO_LOG("[HTTP] Starting HTTP server on %s", ip_addr.c_str());
   sock4_ = UnixSocket::Listen(ip_addr, this, task_runner_, SockFamily::kInet,
                               SockType::kStream);
   bool ipv4_listening = sock4_ && sock4_->is_listening();
@@ -79,7 +80,8 @@ void HttpServer::ListenOnIpV4(const std::string& ip_addr) {
 }
 
 void HttpServer::ListenOnIpV6(const std::string& ip_addr) {
-  PERFETTO_LOG("[HTTP] Starting HTTP server on %s", ip_addr.c_str());
+  if (!quiet_)
+    PERFETTO_LOG("[HTTP] Starting HTTP server on %s", ip_addr.c_str());
   sock6_ = UnixSocket::Listen(ip_addr, this, task_runner_, SockFamily::kInet6,
                               SockType::kStream);
   bool ipv6_listening = sock6_ && sock6_->is_listening();
@@ -121,14 +123,16 @@ void HttpServer::AddAllowedOrigin(const std::string& origin) {
 void HttpServer::OnNewIncomingConnection(
     UnixSocket*,  // The listening socket, irrelevant here.
     std::unique_ptr<UnixSocket> sock) {
-  PERFETTO_LOG("[HTTP] New connection");
+  if (!quiet_)
+    PERFETTO_LOG("[HTTP] New connection");
   clients_.emplace_back(std::move(sock));
 }
 
 void HttpServer::OnConnect(UnixSocket*, bool) {}
 
 void HttpServer::OnDisconnect(UnixSocket* sock) {
-  PERFETTO_LOG("[HTTP] Client disconnected");
+  if (!quiet_)
+    PERFETTO_LOG("[HTTP] Client disconnected");
   for (auto it = clients_.begin(); it != clients_.end(); ++it) {
     if (it->sock.get() == sock) {
       req_handler_->OnHttpConnectionClosed(&*it);
@@ -318,11 +322,13 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
                                   body_size);
   conn->ClearPayload();
 
-  PERFETTO_LOG("[HTTP] %.*s %.*s [body=%zuB, origin=\"%.*s\"]",
-               static_cast<int>(http_req.method.size()), http_req.method.data(),
-               static_cast<int>(http_req.uri.size()), http_req.uri.data(),
-               http_req.body.size(), static_cast<int>(http_req.origin.size()),
-               http_req.origin.data());
+  if (!quiet_)
+    PERFETTO_LOG("[HTTP] %.*s %.*s [body=%zuB, origin=\"%.*s\"]",
+                 static_cast<int>(http_req.method.size()),
+                 http_req.method.data(), static_cast<int>(http_req.uri.size()),
+                 http_req.uri.data(), http_req.body.size(),
+                 static_cast<int>(http_req.origin.size()),
+                 http_req.origin.data());
 
   if (http_req.method == "OPTIONS") {
     HandleCorsPreflightRequest(http_req);

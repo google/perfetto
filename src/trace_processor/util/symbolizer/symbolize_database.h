@@ -63,6 +63,8 @@ struct UnsymbolizedFrames {
   UnsymbolizedMapping mapping;
   std::vector<uint64_t> rel_pcs;
   uint32_t frame_count = 0;
+  // Original frame-row count for each entry in rel_pcs.
+  std::vector<uint32_t> frame_counts;
 };
 
 std::vector<UnsymbolizedFrames> CollectUnsymbolizedFrames(
@@ -86,6 +88,8 @@ struct FailedMapping {
   std::vector<SymbolPathAttempt> attempts;
   // Number of frames that could not be symbolized.
   uint32_t frame_count = 0;
+  // Subset for which a binary was found but no usable function name returned.
+  uint32_t frames_without_symbols = 0;
 };
 
 // Result of symbolization operation.
@@ -104,7 +108,9 @@ struct SymbolizerResult {
   // Each pair contains {mapping_name, frame_count}.
   std::vector<std::pair<std::string, uint32_t>> mappings_without_build_id;
 
-  // Mappings that were successfully symbolized.
+  // Successful frame counts grouped by mapping and selected source path.
+  // One mapping can have several entries when fallback supplies other
+  // addresses.
   std::vector<SuccessfulMapping> successful_mappings;
 
   // Mappings that failed to symbolize with their attempted paths.
@@ -122,7 +128,8 @@ struct SymbolizerResult {
 SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                    const SymbolizerConfig& config);
 
-// Generate a human-readable summary of symbolization results.
+// Generate aggregate counts of original frame records, including successes.
+// Verbose mode adds mapping, build-ID, source, and lookup details.
 // If colorize is true, ANSI color codes are included in the output.
 std::string FormatSymbolizationSummary(const SymbolizerResult& result,
                                        bool verbose,
@@ -130,10 +137,12 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
 
 // Convenience function: calls SymbolizeDatabase then logs the summary to
 // stderr. For callers who want unconditional logging (non-enrichment use
-// cases). Automatically uses ANSI color codes when stderr is a terminal.
+// cases). Uses the shared color policy. Quiet suppresses successful summaries
+// while retaining warnings about unresolved frames.
 SymbolizerResult SymbolizeDatabaseAndLog(trace_processor::TraceProcessor* tp,
                                          const SymbolizerConfig& config,
-                                         bool verbose);
+                                         bool verbose,
+                                         bool quiet = false);
 
 // Returns paths from PERFETTO_BINARY_PATH environment variable.
 std::vector<std::string> GetPerfettoBinaryPath();

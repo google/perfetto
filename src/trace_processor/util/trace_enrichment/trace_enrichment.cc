@@ -209,22 +209,21 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
     sym_config.breakpad_paths = sym_config.index_symbol_paths;
 
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
-    if (sym_result.error == profiling::SymbolizerError::kOk) {
-      result.native_symbols = std::move(sym_result.symbols);
-      std::string sym_summary = profiling::FormatSymbolizationSummary(
-          sym_result, config.verbose, config.colorize);
-      if (!sym_summary.empty()) {
-        result.details += "Symbolization: " + sym_summary;
-      }
-    } else {
-      result.details += "Symbolization: " + sym_result.error_details + "\n";
-    }
+    result.native_symbols = std::move(sym_result.symbols);
+    std::string summary =
+        "Symbolization: " + profiling::FormatSymbolizationSummary(
+                                sym_result, config.verbose, config.colorize);
+    if (!sym_result.failed_mappings.empty() ||
+        !sym_result.mappings_without_build_id.empty())
+      result.warnings += summary;
+    else
+      result.details += summary;
   }
 
   // === Kernel ftrace events that cannot be symbolized offline ===
   // Do this even when symbolization itself was skipped: the user needs this
   // feedback regardless of whether any symbol paths were configured.
-  result.details += GetKernelSymbolizationWarning(tp);
+  result.warnings += GetKernelSymbolizationWarning(tp);
 
   // === Java Deobfuscation ===
   bool explicit_maps_failed = false;
@@ -264,13 +263,13 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
 
     // Add deobfuscation failures to details if any explicit maps failed.
     if (!failed_explicit_maps.empty()) {
-      result.details +=
+      result.warnings +=
           "Deobfuscation: failed to read the following explicitly-provided "
           "ProGuard/R8 map(s):\n";
       for (const auto& path : failed_explicit_maps) {
-        result.details += "  - " + path + "\n";
+        result.warnings += "  - " + path + "\n";
       }
-      result.details +=
+      result.warnings +=
           "Check that each file exists and is a valid mapping.txt produced "
           "by R8/ProGuard for the build that ran on the device.\n";
     }
