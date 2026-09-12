@@ -17,7 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_ANDROID_PROCESS_STATE_ANDROID_PROCESS_STATE_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_ANDROID_PROCESS_STATE_ANDROID_PROCESS_STATE_H_
 
+namespace perfetto::trace_processor {
+class AndroidProcessTracker;
+class PluginBase;
+class TraceProcessorContext;
+}  // namespace perfetto::trace_processor
+
 namespace perfetto::trace_processor::android_process_state {
+
+class AndroidProcessState;
+
+AndroidProcessTracker* EnsureAndroidProcessTracker(
+    PluginBase* plugin,
+    TraceProcessorContext* trace_context);
 
 void RegisterPlugin();
 

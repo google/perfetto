@@ -485,6 +485,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
+        ":src_trace_processor_plugins_android_process_state_tracker",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -810,6 +811,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
+        ":src_trace_processor_plugins_android_process_state_tracker",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -4637,6 +4639,15 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/android_process_state/all_tables_fwd.h",
         "src/trace_processor/plugins/android_process_state/tables_fwd.h",
         "src/trace_processor/plugins/android_process_state/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_process_state:tracker
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_android_process_state_tracker",
+    srcs = [
+        "src/trace_processor/plugins/android_process_state/android_process_tracker.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_tracker.h",
     ],
 )
 
@@ -11861,6 +11872,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
+        ":src_trace_processor_plugins_android_process_state_tracker",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",
@@ -12217,6 +12229,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
+        ":src_trace_processor_plugins_android_process_state_tracker",
         ":src_trace_processor_plugins_args_args",
         ":src_trace_processor_plugins_art_heap_graph_functions_art_heap_graph_functions",
         ":src_trace_processor_plugins_art_process_metadata_importer_art_process_metadata_importer",

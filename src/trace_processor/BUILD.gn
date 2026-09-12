@@ -479,6 +479,7 @@ perfetto_unittest_source_set("unittests") {
       "perfetto_sql/tokenizer:unittests",
       "plugins/ancestor:unittests",
       "plugins/android_job_scheduler:unittests",
+      "plugins/android_process_state:unittests",
       "plugins/connected_flow:unittests",
       "plugins/descendant:unittests",
       "plugins/experimental_flat_slice:unittests",

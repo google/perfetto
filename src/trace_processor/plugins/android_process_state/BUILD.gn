@@ -14,12 +14,29 @@
 
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/perfetto_tp_tables.gni")
+import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
 perfetto_tp_tables("tables") {
   sources = [ "tables.py" ]
   deps = [ "../../tables:tables_python" ]
+}
+
+# The shared view of Android process identity. Split out so other Android
+# plugins can depend on it without pulling in this plugin's parsing code.
+source_set("tracker") {
+  sources = [
+    "android_process_tracker.cc",
+    "android_process_tracker.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
+    "../../importers/common",
+    "../../storage",
+    "../../types",
+  ]
 }
 
 source_set("android_process_state") {
@@ -31,11 +48,16 @@ source_set("android_process_state") {
     "android_process_state_tracker.cc",
     "android_process_state_tracker.h",
   ]
-  public_deps = [ ":tables" ]
+  public_deps = [
+    ":tables",
+    ":tracker",
+  ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
     "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
+    "../../../../protos/perfetto/config/android:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_common_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
@@ -51,5 +73,31 @@ source_set("android_process_state") {
     "../../tables",
     "../../types",
     "../../util:descriptors",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":android_process_state",
+    ":tables",
+    ":tracker",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
+    "../../../../protos/perfetto/config/android:zero",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../src/protozero",
+    "../../importers/common",
+    "../../importers/proto:minimal",
+    "../../storage",
+    "../../types",
+    "../../util:clock",
+  ]
+  sources = [
+    "android_process_state_tracker_unittest.cc",
+    "android_process_tracker_unittest.cc",
   ]
 }
