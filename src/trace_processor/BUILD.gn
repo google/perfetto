@@ -322,6 +322,39 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
   }
 
+  config("c_api_impl_config") {
+    defines = [ "PERFETTO_TP_C_IMPLEMENTATION" ]
+  }
+
+  source_set("c_api") {
+    configs += [ ":c_api_impl_config" ]
+    sources = [ "trace_processor_c.cc" ]
+    deps = [
+      ":lib",
+      "../../gn:default_deps",
+      "../base",
+    ]
+    public_deps = [ "../../include/perfetto/trace_processor:c_api" ]
+  }
+
+  # Shared library exposing only the C API in trace_processor_c.h. Used by
+  # the Rust bindings in src/rust.
+  shared_library("libtrace_processor_c") {
+    deps = [
+      ":c_api",
+      "../../gn:default_deps",
+    ]
+
+    # Some third-party deps (e.g. zstd) mark their symbols visible: hide them
+    # so they don't clash with other copies loaded in the same process.
+    if (is_linux || is_android) {
+      version_script = "trace_processor_c.map"
+      inputs = [ version_script ]
+      ldflags = [ "-Wl,--version-script=" +
+                  rebase_path(version_script, root_build_dir) ]
+    }
+  }
+
   # Library target for the trace processor shell.
   # Allows embedders (e.g. Google3) to customize the shell executable's
   # interaction with the environment.
@@ -509,8 +542,10 @@ if (enable_perfetto_integration_tests) {
       sources += [
         "read_trace_integrationtest.cc",
         "trace_database_integrationtest.cc",
+        "trace_processor_c_integrationtest.cc",
       ]
       deps += [
+        ":c_api",
         ":lib",
         ":local_file_system",
         "../../gn:default_deps",
