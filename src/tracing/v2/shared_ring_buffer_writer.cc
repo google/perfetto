@@ -124,7 +124,7 @@ SharedRingBufferWriter::EndFragmentResult SharedRingBufferWriter::EndFragment(
 
   // Nothing becomes visible until ReleaseCurrentChunkAsComplete().
   uint8_t* const new_sizes_begin_ptr =
-      WriteFragmentSize(cur_chunk_ + sizes_begin_, size);
+      WriteFragmentSizeReversed(cur_chunk_ + sizes_begin_, size);
   // sizes_begin_ stores a byte offset. The helper returns a pointer.
   // Subtract the chunk's start pointer to get the new offset.
   sizes_begin_ = static_cast<uint32_t>(new_sizes_begin_ptr - cur_chunk_);
@@ -467,7 +467,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
     }
     payload_end_ = kTargetBufferPayloadOffset + *fragment_size;
     uint8_t* sizes_begin =
-        WriteFragmentSize(cur_chunk_ + chunk_size_, *fragment_size);
+        WriteFragmentSizeReversed(cur_chunk_ + chunk_size_, *fragment_size);
     sizes_begin_ = static_cast<uint32_t>(sizes_begin - cur_chunk_);
     num_fragments_ = 1;
     // Round again to publish the replacement, which the reader may also scrape.

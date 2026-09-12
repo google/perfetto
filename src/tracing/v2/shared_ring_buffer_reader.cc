@@ -242,22 +242,30 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
   if (ChunkFormatOf(state_word) != ChunkFormat::kTargetBuffer)
     return CopiedChunkStatus::kUnsupportedFormat;
 
-  // Decode and validate the fragment sizes.
+  // Decode first to find the payload end and the directory start.
+  // Until then, payload_begin is the decoder's lower bound. It prevents size
+  // reads from reaching the header, but does not prove the payload fits.
   const uint32_t capacity = chunk_size_ - kTargetBufferPayloadOffset;
   const uint8_t* chunk = ring_->chunk_at(chunk_idx);
   const uint8_t* const payload_begin = chunk + kTargetBufferPayloadOffset;
   const uint8_t* sizes_cursor = chunk + chunk_size_;
   uint32_t total = 0;
   for (uint32_t i = 0; i < num_fragments; ++i) {
-    uint32_t fragment_size = 0;
-    if (!ReadFragmentSize(payload_begin, &sizes_cursor, &fragment_size) ||
-        fragment_size > capacity - total) {
+    const auto fragment_size =
+        ReadFragmentSizeReversed(payload_begin, &sizes_cursor);
+    if (!fragment_size || *fragment_size > capacity - total) {
       return CopiedChunkStatus::kMalformed;
     }
-    total += fragment_size;
-    copied_fragments_.push_back(Fragment{nullptr, fragment_size});
+    total += *fragment_size;
+    copied_fragments_.push_back(Fragment{nullptr, *fragment_size});
   }
 
+  // The sizes are valid varints. Their payloads may still overlap the
+  // directory:
+  // - Count the bytes actually read, including non-minimal size encodings.
+  // - On overlap, reject the chunk before copying or delivering any payload.
+  // - sizes_cursor is local to this read attempt. Returning discards it.
+  //   No cursor change needs to be undone.
   const uint32_t sizes_bytes =
       static_cast<uint32_t>(chunk + chunk_size_ - sizes_cursor);
   if (total > capacity - sizes_bytes)

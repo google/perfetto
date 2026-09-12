@@ -409,7 +409,8 @@ TEST(SharedRingBufferReaderTest, PayloadSizesOverlap) {
   ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   // The chunk has 250 bytes after its fixed header. A 249-byte fragment fits
   // by itself, but its two-byte size varint does not fit beside it.
-  WriteFragmentSize(ring->chunk_at(ChunkIndex::FromIndex(0)) + 256, 249);
+  WriteFragmentSizeReversed(ring->chunk_at(ChunkIndex::FromIndex(0)) + 256,
+                            249);
   Internals::SetChunkStateWord(
       ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1,
@@ -423,6 +424,43 @@ TEST(SharedRingBufferReaderTest, PayloadSizesOverlap) {
             MakeFreeStateWord(1));
 }
 
+TEST(SharedRingBufferReaderTest, NonMinimalSizeUsesActualDirectoryBytes) {
+  // A three-byte size entry leaves room for 247 payload bytes.
+  // 248 would fit with a minimal two-byte entry, but overlaps this directory.
+  for (uint32_t size : {247u, 248u}) {
+    SCOPED_TRACE(size);
+    test::SharedRingBufferForTesting ring(2, 256);
+    RecordingDelegate delegate;
+    SharedRingBufferReader reader(ring.get(), &delegate);
+    ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
+    uint8_t* chunk = ring->chunk_at(ChunkIndex::FromIndex(0));
+    StoreTargetBufferId(chunk, kBuffer);
+    memset(chunk + kTargetBufferPayloadOffset, 'x', size);
+    chunk[255] = static_cast<uint8_t>(size);
+    chunk[254] = 0x81;
+    chunk[253] = 0x00;
+    Internals::SetChunkStateWord(
+        ring.get(), ChunkIndex::FromIndex(0),
+        MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0,
+                          1, kWriterA));
+
+    EXPECT_EQ(reader.Drain(1).positions_consumed, 1u);
+    if (size == 247) {
+      EXPECT_EQ(delegate.AllFragments(),
+                std::vector<std::string>{std::string(size, 'x')});
+      EXPECT_TRUE(delegate.writers_with_data_loss.empty());
+      EXPECT_EQ(reader.GetStats().malformed_chunks, 0u);
+    } else {
+      EXPECT_TRUE(delegate.chunks.empty());
+      EXPECT_EQ(delegate.writers_with_data_loss,
+                std::vector<WriterID>{kWriterA});
+      EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
+    }
+    EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+              MakeFreeStateWord(1));
+  }
+}
+
 TEST(SharedRingBufferReaderTest, CumulativeSizeOverflow) {
   test::SharedRingBufferForTesting ring(4, 512);
   RecordingDelegate delegate;
@@ -433,8 +471,8 @@ TEST(SharedRingBufferReaderTest, CumulativeSizeOverflow) {
   // payload area, of which four go to the size varints.
   uint8_t* chunk = ring->chunk_at(ChunkIndex::FromIndex(0));
   uint8_t* sizes_begin = chunk + 512;
-  sizes_begin = WriteFragmentSize(sizes_begin, 400);
-  WriteFragmentSize(sizes_begin, 400);
+  sizes_begin = WriteFragmentSizeReversed(sizes_begin, 400);
+  WriteFragmentSizeReversed(sizes_begin, 400);
   Internals::SetChunkStateWord(
       ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 2,

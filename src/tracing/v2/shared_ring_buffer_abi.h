@@ -21,7 +21,9 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <algorithm>
 #include <atomic>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/bits.h"
@@ -601,72 +603,74 @@ inline BufferID LoadTargetBufferId(const uint8_t* chunk) {
 // Fragment size directory
 // -----------------------
 //
-// The fragment sizes are varints at the end of the chunk. The first fragment's
-// varint ends at chunk_size. Each later varint is prepended below the previous
-// one:
+// The fragment sizes are reversed varints at the end of the chunk.
+// - Fragment 0's size ends at chunk_size.
+// - Each later size is prepended at a lower address.
 //
 //   low address                                 high address
 //   +----------+----------+----------+----------+----------+
 //   | size N-1 |   ...    |  size 2  |  size 1  |  size 0  |
 //   +----------+----------+----------+----------+----------+
 //
-// The reader walks the sizes from high addresses to low addresses. It sees the
-// bytes of each size in normal protobuf varint order and stops at that
-// varint's final byte. It never has to inspect the next, unpublished entry.
+// Within each size entry:
+// - Each byte carries seven value bits and a continuation bit (0x80).
+// - The least significant group is at the highest address.
+// - The reader moves towards lower addresses until the continuation bit is
+//   clear. It does not read the next, unpublished entry.
 
-// Each varint byte carries seven value bits. Its top bit is set when another
-// byte follows.
-constexpr uint32_t kVarIntDataBitsPerByte = 7;
-constexpr uint8_t kVarIntContinuationBit = 1u << kVarIntDataBitsPerByte;
-constexpr uint8_t kVarIntDataBitsMask = kVarIntContinuationBit - 1;
+// Fragment sizes share Protozero's message-length limit: four varint bytes.
+constexpr uint32_t kMaxFragmentSizeVarIntBytes = 4;
 
-// A uint32_t fragment size needs at most ceil(32 / 7) = 5 varint bytes.
-constexpr uint32_t kMaxFragmentSizeVarIntBytes = 5;
-
-constexpr uint32_t FragmentSizeVarIntByteCount(uint32_t fragment_size) {
-  uint32_t bytes = 1;
-  while (fragment_size >= kVarIntContinuationBit) {
-    fragment_size >>= kVarIntDataBitsPerByte;
-    ++bytes;
-  }
-  return bytes;
-}
-
-static_assert(FragmentSizeVarIntByteCount(UINT32_MAX) ==
-                  kMaxFragmentSizeVarIntBytes,
-              "kMaxFragmentSizeVarIntBytes must bound every uint32_t size");
-
-// Returns the largest n such that n + varint_size(n) <= available_bytes. The
-// loop runs at most four times because a uint32_t varint is at most five bytes.
-constexpr uint32_t MaxFragmentSizeForAvailableBytes(uint32_t available_bytes) {
+// Returns the largest supported n with n + varint_size(n) <= available_bytes.
+// Returns zero if no payload byte fits.
+inline uint32_t MaxFragmentSizeForAvailableBytes(uint32_t available_bytes) {
   if (available_bytes <= 1)
     return 0;
-  // Leave at least one byte for the size varint.
-  uint32_t fragment_size = available_bytes - 1;
-  while (FragmentSizeVarIntByteCount(fragment_size) >
-         available_bytes - fragment_size) {
-    --fragment_size;
-  }
-  return fragment_size;
+  // available_bytes includes both the payload and its size entry.
+  // Each size byte carries seven bits. The branches below:
+  // - Compare against the largest payload plus its size entry.
+  // - Subtract the reserved size bytes to get the payload capacity.
+  //
+  // At a boundary, this can leave one byte unused. For example:
+  // - 129 exceeds the one-byte limit of 128, so take the two-byte case.
+  // - Return 129 - 2 = 127. That payload actually needs only one size byte.
+  // - A payload of 128 would need two size bytes, and 128 + 2 > 129.
+
+  // One size byte: (2^7 - 1) + 1 = 2^7 total. Subtract one size byte.
+  if (available_bytes <= (1u << 7))
+    return available_bytes - 1;
+  // Two size bytes: (2^14 - 1) + 2 = 2^14 + 1 total. Subtract two.
+  if (available_bytes <= (1u << 14) + 1)
+    return available_bytes - 2;
+  // Three size bytes: (2^21 - 1) + 3 = 2^21 + 2 total. Subtract three.
+  if (available_bytes <= (1u << 21) + 2)
+    return available_bytes - 3;
+  return std::min(
+      available_bytes - 4,
+      static_cast<uint32_t>(protozero::proto_utils::kMaxMessageLength));
 }
 
-constexpr uint32_t MaxFragmentSizeForEmptyChunk(uint32_t chunk_size) {
-  if (chunk_size < kMinChunkSize)
-    return 0;
+inline uint32_t MaxFragmentSizeForEmptyChunk(uint32_t chunk_size) {
+  // Callers use a validated ring buffer, so a size below 256 is a caller error.
+  PERFETTO_CHECK(chunk_size >= kMinChunkSize);
   const uint32_t available_bytes = chunk_size - kTargetBufferPayloadOffset;
   return MaxFragmentSizeForAvailableBytes(available_bytes);
 }
 
 // Writes the size into the directory immediately before |sizes_begin| and
-// returns the new directory start. The caller must provide
-// FragmentSizeVarIntByteCount(size) bytes before |sizes_begin|.
-inline uint8_t* WriteFragmentSize(uint8_t* sizes_begin, uint32_t size) {
+// returns the new directory start. The caller must leave enough space before
+// |sizes_begin| for the size's minimal varint encoding.
+// |size| must be at most protozero::proto_utils::kMaxMessageLength.
+inline uint8_t* WriteFragmentSizeReversed(uint8_t* sizes_begin, uint32_t size) {
+  PERFETTO_DCHECK(size <= protozero::proto_utils::kMaxMessageLength);
+  // TODO(sashwinbalaji): Add proto_utils::WriteVarIntReversed to write directly
+  // into the directory. This would avoid the temporary buffer and copy below.
   uint8_t encoded[kMaxFragmentSizeVarIntBytes];
   const uint8_t* const encoded_end =
       protozero::proto_utils::WriteVarInt(size, encoded);
   const size_t encoded_size = static_cast<size_t>(encoded_end - encoded);
   // Put the first varint byte at the highest address: the reader starts
-  // there and reads towards lower addresses (see ReadFragmentSize()).
+  // there and reads towards lower addresses (see ReadFragmentSizeReversed()).
   for (size_t i = 0; i < encoded_size; ++i) {
     --sizes_begin;
     *sizes_begin = encoded[i];
@@ -674,61 +678,54 @@ inline uint8_t* WriteFragmentSize(uint8_t* sizes_begin, uint32_t size) {
   return sizes_begin;
 }
 
-// Decodes the next size varint while moving |*sizes_cursor| towards lower
-// addresses.
+// Decodes one reversed size varint, starting just below |*sizes_cursor|.
 //
-// WriteFragmentSize() stores each varint reversed, so a reader walking down
-// the chunk sees the bytes in normal varint order. For example, a size of 300
-// is the varint AC 02 and is stored as:
+// For example, 300 is stored as 02 AC from low to high address.
+// The reader visits AC first, then 02:
 //
 //        ... | 02 | AC |  <- chunk_size
 //              ^    ^
 //              |    first byte read: AC, continuation bit set
 //              second byte read: 02, no continuation bit, stop
 //
-// |lower_bound| is the lowest address a size byte may be read from, normally
-// the start of the payload. It only keeps the decoder inside the chunk.
-// Whether the payloads and the size bytes overlap is the caller's check, made
-// once every size is decoded.
+// The reader validates the chunk in two steps:
+// 1. Decode the sizes with |lower_bound| set to the payload start.
+//    This keeps reads out of the header. The payload end is not yet known.
+// 2. Add up the decoded sizes. The payload must end at or before the directory
+//    start. Reject the chunk on overlap, without copying payload.
 //
-// Rejected, so that every size has exactly one byte pattern:
-// - a varint that runs into |lower_bound| or is longer than five bytes.
-// - a value above uint32_t.
-// - a non-shortest encoding (81 00 for 1).
+// Rejects truncated entries and entries needing more than four bytes.
+// Four bytes limit the decoded size to Protozero's kMaxMessageLength.
 //
-// On success, |*sizes_cursor| points at the last byte read, which is the
-// exclusive upper bound for the next size. |*fragment_size| is also updated
-// only on success.
-inline bool ReadFragmentSize(const uint8_t* lower_bound,
-                             const uint8_t** sizes_cursor,
-                             uint32_t* fragment_size) {
+// - Success returns the size, which may be zero. |*sizes_cursor| moves to the
+//   last byte read, just above the next entry.
+// - Failure returns std::nullopt and leaves |*sizes_cursor| unchanged.
+inline std::optional<uint32_t> ReadFragmentSizeReversed(
+    const uint8_t* lower_bound,
+    const uint8_t** sizes_cursor) {
+  PERFETTO_DCHECK(lower_bound <= *sizes_cursor);
   const uint8_t* cursor = *sizes_cursor;
-  uint64_t value = 0;
+  uint32_t value = 0;
   uint32_t num_bytes = 0;
+  // TODO(sashwinbalaji): Benchmark alternatives:
+  // - Increment a running shift by seven instead of multiplying each time.
+  // - Find the terminator first, then decode forwards with shift-and-or.
   for (;;) {
     if (cursor == lower_bound || num_bytes == kMaxFragmentSizeVarIntBytes)
-      return false;
+      return std::nullopt;
     --cursor;
-    const uint8_t byte = *cursor;
+    const uint8_t cur = *cursor;
     // Reading down the directory yields the least significant group first.
-    const uint64_t data_bits = byte & kVarIntDataBitsMask;
-    const uint32_t shift = kVarIntDataBitsPerByte * num_bytes;
+    const uint32_t data_bits = cur & 0x7f;
+    const uint32_t shift = 7 * num_bytes;
     value |= data_bits << shift;
     ++num_bytes;
-    if ((byte & kVarIntContinuationBit) == 0)
+    if ((cur & 0x80) == 0)
       break;
   }
 
-  // Five bytes can carry 35 value bits, hence the range check.
-  if (value > UINT32_MAX)
-    return false;
-  // Reject non-shortest encodings so that every size has one byte pattern.
-  if (FragmentSizeVarIntByteCount(static_cast<uint32_t>(value)) != num_bytes)
-    return false;
-
   *sizes_cursor = cursor;
-  *fragment_size = static_cast<uint32_t>(value);
-  return true;
+  return value;
 }
 
 }  // namespace perfetto::tracing_v2

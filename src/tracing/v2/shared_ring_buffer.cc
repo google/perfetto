@@ -25,6 +25,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
@@ -43,6 +44,11 @@
 
 namespace perfetto::tracing_v2 {
 namespace {
+
+static_assert(kMaxFragmentSizeVarIntBytes ==
+                  protozero::proto_utils::kMessageLengthFieldSize,
+              "Ring buffer fragment sizes must use the same varint byte limit "
+              "as Protozero message lengths");
 
 uint32_t NumChunksForRingLayout(const uint8_t* start,
                                 size_t size,

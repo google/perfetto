@@ -106,15 +106,14 @@ DecodedChunk Decode(SharedRingBuffer* ring, ChunkIndex chunk_idx) {
   const uint8_t* sizes_cursor = chunk + ring->chunk_size();
   uint32_t offset = kTargetBufferPayloadOffset;
   for (uint32_t i = 0; i < NumFragmentsOf(word); ++i) {
-    uint32_t size = 0;
-    const bool valid = ReadFragmentSize(chunk + kTargetBufferPayloadOffset,
-                                        &sizes_cursor, &size);
-    EXPECT_TRUE(valid);
-    if (!valid)
+    const auto size = ReadFragmentSizeReversed(
+        chunk + kTargetBufferPayloadOffset, &sizes_cursor);
+    EXPECT_TRUE(size.has_value());
+    if (!size)
       return decoded;
     decoded.fragments.emplace_back(
-        reinterpret_cast<const char*>(chunk + offset), size);
-    offset += size;
+        reinterpret_cast<const char*>(chunk + offset), *size);
+    offset += *size;
   }
   return decoded;
 }
