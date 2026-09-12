@@ -48,9 +48,15 @@ enum class ProtoWireType : uint32_t {
   kFixed32 = 5,
 };
 
-// Wire types 3 and 4 delimit a protobuf group. Protozero decoders do not
-// support groups, so keep them out of ProtoWireType. Tracing v2 only borrows
-// the start-group wire type for the encoding below.
+// Tracing v2's private proto-group format borrows the protobuf start-group
+// wire type (3). It closes each nested message with a single 0x04 byte instead
+// of a standard end-group tag that repeats the opening field number. See
+// kProtoGroupEndByte below for the framing and RFC 0014 for the design:
+// https://github.com/google/perfetto/discussions/4508.
+//
+// ProtoRewriter must convert this format to length-delimited protobuf before
+// ordinary decoding. Protozero decoders do not support groups, so wire types
+// 3 and 4 stay outside ProtoWireType.
 constexpr uint32_t kWireTypeStartGroup = 3;
 constexpr uint32_t kWireTypeEndGroup = 4;
 

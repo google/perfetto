@@ -578,6 +578,21 @@ TEST_F(MessageTest, ProtoGroupRootEmitsNoEndByte) {
   EXPECT_EQ("082A", GetNextSerializedBytes(2));
 }
 
+TEST_F(MessageTest, ProtoGroupRootFinalizesThroughMessagePointer) {
+  // Handles finalize through Message*, without the RootMessage type.
+  Message* msg = NewProtoGroupMessage();
+  Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
+  child->AppendVarInt(2, 7);
+
+  EXPECT_EQ(4u, msg->Finalize());
+  EXPECT_EQ(4u, GetNumSerializedBytes());
+  EXPECT_EQ(4u, msg->Finalize());
+  EXPECT_EQ(4u, GetNumSerializedBytes());
+
+  // Start field 1, field 2 = 7, then only the child's closing byte.
+  EXPECT_EQ("0B100704", GetNextSerializedBytes(4));
+}
+
 TEST_F(MessageTest, ProtoGroupSiblingsAndScalars) {
   FakeRootMessage* msg = NewProtoGroupMessage();
   msg->AppendVarInt(1, 1);
