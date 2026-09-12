@@ -33,9 +33,10 @@
 
 namespace perfetto::tracing_v2::test {
 
-// Owns zero-filled, page-aligned memory for a ring and exposes the non-owning
-// SharedRingBuffer view over it. Production code allocates the region
-// elsewhere. Tests use this so that the ring layout is specified only once.
+// Owns zero-filled, page-aligned memory for a ring buffer and exposes the
+// non-owning SharedRingBuffer view over it. Production code allocates the
+// region elsewhere. Tests use this so that the ring buffer layout is specified
+// only once.
 class SharedRingBufferForTesting {
  public:
   SharedRingBufferForTesting(uint32_t num_chunks, uint32_t chunk_size)
@@ -79,9 +80,9 @@ class SharedRingBufferInternalsForTest {
         std::memory_order_relaxed);
   }
 
-  // Seeds a valid ring state near a position or wrap-count rollover: every
-  // chunk becomes Free for the first position at or after |position| that maps
-  // to it, and both positions are set to |position|.
+  // Seeds a valid ring buffer state near a position or wrap-count rollover:
+  // every chunk becomes Free for the first position at or after |position| that
+  // maps to it, and both positions are set to |position|.
   static void SetPositions(SharedRingBuffer* ring, uint32_t position) {
     for (uint32_t chunk_idx = 0; chunk_idx < ring->num_chunks(); ++chunk_idx) {
       const uint32_t first_position =
@@ -116,15 +117,15 @@ class SharedRingBufferInternalsForTest {
     ring->PublishReadPosFromSnapshot(rw_positions, read_pos);
   }
 
-  // Starts the reader at |position| instead of zero, to match a ring seeded
-  // near uint32_t rollover.
+  // Starts the reader at |position| instead of zero, to match a ring buffer
+  // seeded near uint32_t rollover.
   static void SetReaderPos(SharedRingBufferReader* reader, uint32_t position) {
     reader->read_pos_ = position;
   }
 
-  static SharedRingBufferReader::ResolveResult ResolveNextPosition(
+  static SharedRingBufferReader::ConsumeResult ConsumeNextPosition(
       SharedRingBufferReader* reader) {
-    return reader->ResolveNextPosition();
+    return reader->ConsumeNextPosition();
   }
 };
 
@@ -154,7 +155,7 @@ constexpr uint16_t WrapCountOf(uint32_t state_word) {
 }
 
 // Writes one fragment holding |bytes| and publishes it. Returns false if the
-// fragment could not be begun or if publishing it dropped a relocated suffix.
+// fragment could not be begun or if publishing it dropped a relocated fragment.
 inline bool WriteFragment(SharedRingBufferWriter* writer,
                           const std::string& bytes,
                           bool continues_from_prev = false,

@@ -33,22 +33,23 @@ class SharedRingBufferInternalsForTest;
 
 // Reads packet fragments from one SharedRingBuffer.
 //
-// - Use each instance from one execution context. The ring's storage and
+// - Use each instance from one execution context. The ring buffer's storage and
 //   SharedRingBuffer view must outlive the reader.
-// - Reservations are resolved in order. A relocated suffix gets a later
+// - Reservations are consumed in order. A relocated fragment gets a later
 //   reservation.
 // - The reader never waits for a writer, but may retry when it loses a
 //   concurrent state transition.
-// - If a writer still owns a chunk, the reader takes the published prefix.
-//   The writer moves the unpublished suffix to a later reservation.
+// - If a writer still owns a chunk, the reader copies its published fragments.
+//   This is a partial chunk read. The writer moves its unpublished fragment to
+//   a later reservation.
 // - Fragment sizes are decoded once into reader-owned values, and the payload
 //   copy uses those values without rereading the shared size bytes. The
 //   delegate only ever sees reader-owned scratch, never a view of
 //   producer-controlled shared memory.
 class SharedRingBufferReader {
  public:
-  // Result of resolving one position.
-  enum class ResolveResult {
+  // Result of consuming one position.
+  enum class ConsumeResult {
     // read_pos has caught up with write_pos.
     kNoData,
     // A chunk was handed to the delegate and read_pos advanced.
@@ -59,7 +60,7 @@ class SharedRingBufferReader {
     // The reader lost a concurrent state transition. read_pos is unchanged
     // and the same position is retried later, without waiting for the writer.
     kRetryLater,
-    // Invalid ring state. This reader cannot continue.
+    // Invalid ring buffer state. This reader cannot continue.
     // - The offending position is neither advanced nor reclaimed.
     // - Earlier chunks in this drain may already have been delivered.
     // - Drain() still publishes any progress made before the error.
@@ -83,13 +84,13 @@ class SharedRingBufferReader {
   };
 
   struct DrainResult {
-    uint32_t positions_resolved = 0;
-    ResolveResult last_result = ResolveResult::kNoData;
+    uint32_t positions_consumed = 0;
+    ConsumeResult last_result = ConsumeResult::kNoData;
 
     // The caller should schedule another Drain() call.
     bool needs_another_drain() const {
-      return last_result != ResolveResult::kNoData &&
-             last_result != ResolveResult::kProtocolError;
+      return last_result != ConsumeResult::kNoData &&
+             last_result != ConsumeResult::kProtocolError;
     }
   };
 
@@ -119,10 +120,10 @@ class SharedRingBufferReader {
   SharedRingBufferReader(SharedRingBufferReader&&) = delete;
   SharedRingBufferReader& operator=(SharedRingBufferReader&&) = delete;
 
-  // Resolves up to |max_positions|, then publishes read_pos once and wakes any
-  // writer parked on a full ring. Without the bound, one pass over a large
-  // ring could monopolize the consumer's task sequence. The bound also caps
-  // the copying and delegate work done per task and decides how often
+  // Consumes up to |max_positions|, then publishes read_pos once and wakes any
+  // writer parked on a full ring buffer. Without the bound, one pass over a
+  // large ring buffer could monopolize the consumer's task sequence. The bound
+  // also caps the copying and delegate work done per task and decides how often
   // read_pos gets published.
   DrainResult Drain(uint32_t max_positions);
 
@@ -144,30 +145,30 @@ class SharedRingBufferReader {
  private:
   friend class test::SharedRingBufferInternalsForTest;
 
-  // Resolves at most one position. Drain() publishes read_pos once per pass.
-  ResolveResult ResolveNextPosition();
+  // Consumes at most one position. Drain() publishes read_pos once per pass.
+  ConsumeResult ConsumeNextPosition();
 
-  enum class CommittedPrefixStatus {
+  enum class CopiedChunkStatus {
     kNoFragments,
     kReady,
     kMalformed,
     kUnsupportedFormat,
   };
 
-  // Validates and copies the committed prefix. A malformed or unknown format
-  // is dropped without changing the ownership transition chosen by the
-  // caller.
-  CommittedPrefixStatus CopyCommittedPrefix(uint32_t chunk_idx,
-                                            uint32_t state_word);
+  // Validates and copies the published fragments.
+  // Returns a status for malformed data or an unsupported format.
+  // The caller handles ownership before reporting any data loss.
+  CopiedChunkStatus CopyPublishedFragments(uint32_t chunk_idx,
+                                           uint32_t state_word);
 
-  // Delivers a valid prefix to the delegate. Invalid or unsupported data is
-  // reported as data loss. Called only after the position's compare-and-swap
-  // won.
-  ResolveResult HandleCommittedPrefix(CommittedPrefixStatus);
+  // Called only after winning the position's compare-and-swap.
+  // Delivers valid fragments to the delegate. Reports invalid or unsupported
+  // data as loss.
+  ConsumeResult HandleCopiedChunk(CopiedChunkStatus);
 
   // Latches the error and logs |reason| once, together with the position and
   // the offending word. read_pos is not advanced.
-  ResolveResult StopOnProtocolError(const char* reason, uint32_t state_word);
+  ConsumeResult StopOnProtocolError(const char* reason, uint32_t state_word);
 
   SharedRingBuffer* const ring_;
   Delegate* const delegate_;
@@ -177,6 +178,15 @@ class SharedRingBufferReader {
   // The reader owns this value and publishes it once per Drain().
   uint32_t read_pos_ = 0;
   bool has_protocol_error_ = false;
+
+  // TODO(sashwinbalaji): Revisit both scratch vectors:
+  // - Check heap/stack allocation in production and tests before enlarging
+  //   the reader with inline std::array members.
+  // - copied_payload_: establish a common maximum chunk size, then use a byte
+  //   array of that size.
+  // - copied_fragments_: use kMaxFragmentsPerChunk inline Fragment entries.
+  // - Measure whether this + offset access improves the read/copy path over
+  //   following pointers to separate vector allocations.
 
   // Published fragment bytes copied out of shared memory.
   std::vector<uint8_t> copied_payload_;

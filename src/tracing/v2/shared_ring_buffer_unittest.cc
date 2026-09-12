@@ -51,8 +51,9 @@ uint32_t CompleteWord(WriterID writer, uint32_t num_fragments) {
                            num_fragments, writer);
 }
 
-// Reads a chunk's state word without going through the ring's own accessors,
-// so that a test observing the ring cannot be fooled by a bug in them.
+// Reads a chunk's state word without going through the ring buffer's own
+// accessors, so that a test observing the ring buffer cannot be fooled by a bug
+// in them.
 uint32_t PeekStateWord(SharedRingBuffer* ring, uint32_t chunk_idx) {
   const uint8_t* chunk = ring->chunk_at(chunk_idx);
   return static_cast<uint32_t>(chunk[0]) |
@@ -79,20 +80,20 @@ bool SpinUntil(ConditionFn condition,
 }
 
 // ---------------------------------------------------------------------------
-// Ring dimensions.
+// Ring buffer dimensions.
 // ---------------------------------------------------------------------------
 
 // A page-aligned, zero-filled region for the constructor-contract tests below.
 // SharedRingBufferForTesting is not used here because it never builds an
-// invalid ring.
+// invalid ring buffer.
 size_t RingSizeFor(uint32_t num_chunks, uint32_t chunk_size) {
   return sizeof(RingBufferHeader) +
          static_cast<size_t>(num_chunks) * chunk_size;
 }
 
-// An invalid ring layout is a configuration error, so the constructor CHECKs.
-// It only does arithmetic on |size|, which is why an impossibly large region
-// can be described by a small mapping.
+// An invalid ring buffer layout is a configuration error, so the constructor
+// CHECKs. It only does arithmetic on |size|, which is why an impossibly large
+// region can be described by a small mapping.
 TEST(SharedRingBufferTest, InvalidLayout) {
   base::PagedMemory memory = base::PagedMemory::Allocate(64 * 1024);
   uint8_t* start = static_cast<uint8_t*>(memory.Get());
@@ -139,7 +140,7 @@ TEST(SharedRingBufferTest, InvalidLayout) {
 
   // An empty region is rejected before the constructor subtracts the header
   // size from it. This chunk size is the one whose sum with the 64-byte header
-  // would wrap to zero in 32-bit arithmetic; the layout check never forms that
+  // would wrap to zero in 32-bit arithmetic. The layout check never forms that
   // sum, and the region fails the header-size check first.
   constexpr uint32_t kWrappingChunkSize = UINT32_MAX - 63u;
   EXPECT_DEATH_IF_SUPPORTED(
@@ -172,8 +173,8 @@ TEST(SharedRingBufferTest, ValidLayout) {
   }
 }
 
-// chunk_size must keep the state word aligned and be at least 256 bytes;
-// nothing requires it to be a power of two and there is no arbitrary maximum.
+// chunk_size must keep the state word aligned and be at least 256 bytes.
+// Nothing requires it to be a power of two and there is no arbitrary maximum.
 TEST(SharedRingBufferTest, NonPowerOfTwoChunkSize) {
   for (uint32_t chunk_size : {260u, 1000u, 65536u}) {
     test::SharedRingBufferForTesting ring(4, chunk_size);
@@ -184,7 +185,7 @@ TEST(SharedRingBufferTest, NonPowerOfTwoChunkSize) {
 }
 
 // Free(0) is the all-zero word, so a fresh zero-filled mapping is
-// already correct and the ring does not walk it at construction.
+// already correct and the ring buffer does not walk it at construction.
 TEST(SharedRingBufferTest, FreshMappingIsFree) {
   test::SharedRingBufferForTesting ring(1024, kChunkSize);
   for (uint32_t i = 0; i < ring->num_chunks(); ++i) {
@@ -236,7 +237,7 @@ TEST(SharedRingBufferTest, ChunksFollowHeader) {
 // ---------------------------------------------------------------------------
 
 TEST(SharedRingBufferTest, ReserveUntilFull) {
-  // Reservations are consecutive tickets until the ring is full.
+  // Reservations are consecutive tickets until the ring buffer is full.
   test::SharedRingBufferForTesting ring(4, kChunkSize);
 
   for (uint32_t expected = 0; expected < 4; ++expected) {
@@ -247,8 +248,8 @@ TEST(SharedRingBufferTest, ReserveUntilFull) {
 
   const auto full = ring->TryReserveWritePos();
   EXPECT_EQ(full.result, ReserveResult::kFull);
-  // Nothing was reserved, so write_pos did not move: a full ring must not burn
-  // a position.
+  // Nothing was reserved, so write_pos did not move: a full ring buffer must
+  // not burn a position.
   EXPECT_EQ(ring->LoadWritePos(), 4u);
   // The sample the decision was taken against is exactly what a stalling
   // writer has to wait on.
@@ -335,7 +336,8 @@ TEST(SharedRingBufferTest, ReservationLosesToPublication) {
 }
 
 // The same losing CAS, but the value returned by the failure says that the
-// ring is full. The retry must take the Full exit, without burning a position.
+// ring buffer is full. The retry must take the Full exit, without burning a
+// position.
 TEST(SharedRingBufferTest, ReservationLossFindsFull) {
   test::SharedRingBufferForTesting ring(2, kChunkSize);
   ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
@@ -422,8 +424,8 @@ TEST(SharedRingBufferTest, StaleClaimFails) {
   ASSERT_EQ(stale.result, ReserveResult::kReserved);
   ASSERT_EQ(stale.position, 4u);
 
-  // The reader resolves positions 0 to 4 as holes, so chunk 0 ends up Free
-  // with position 8's wrap count.
+  // The reader advances the wrap counts for unclaimed positions 0 to 4, so
+  // chunk 0 ends up Free with position 8's wrap count.
   for (uint32_t position = 0; position <= 4; ++position) {
     const uint32_t chunk_idx = ChunkIndexOf(position, 4);
     uint32_t observed = ring->LoadChunkStateWord(chunk_idx);
@@ -469,13 +471,13 @@ TEST(SharedRingBufferTest, WrapCountPeriod) {
   // A fresh chunk 0 is Free(0), the word position 0 expects. One full
   // wrap-count period later, position 2 * 65536 maps to the same chunk and
   // its wrap count - bit 16 of the traversal number - is truncated back to
-  // zero, so this claim lands even though the ring never ran.
+  // zero, so this claim lands even though the ring buffer never ran.
   EXPECT_TRUE(
       ring->TryAcquireChunkForWriting(2u * 65536, BeingWrittenWord(kWriterA)));
 }
 
-// The wrap count a seeded ring stamps is the low 16 bits of the traversal
-// number.
+// The wrap count a seeded ring buffer stamps is the low 16 bits of the
+// traversal number.
 TEST(SharedRingBufferTest, SeededWrapCounts) {
   test::SharedRingBufferForTesting ring(4, kChunkSize);
   // 4 * 65536 is one whole wrap-count period, so every chunk is stamped with
@@ -516,7 +518,7 @@ TEST(SharedRingBufferTest, PublishReuseReclaim) {
       ring->TryReleaseChunkAsComplete(0, CompleteWord(kWriterA, 5), &observed));
 
   // The reader consumes it and stamps the wrap for the *next* traversal of this
-  // chunk, taken from the position it just resolved.
+  // chunk, taken from the position it just consumed.
   observed = CompleteWord(kWriterA, 5);
   ASSERT_TRUE(ring->TryReleaseCompleteChunkAsFree(0, &observed));
   EXPECT_EQ(PeekStateWord(ring.get(), 0), MakeFreeStateWord(1));
@@ -572,7 +574,7 @@ TEST(SharedRingBufferTest, AcknowledgeThenReclaim) {
   EXPECT_EQ(PeekStateWord(ring.get(), 0), kRewriteAcknowledgedStateWord);
 
   // Only the reader turns that into a free word, and it stamps the wrap of the
-  // position it is resolving.
+  // position it is consuming.
   ASSERT_TRUE(ring->TryReleaseRewriteAcknowledgedChunkAsFree(4, &observed));
   EXPECT_EQ(PeekStateWord(ring.get(), 0), MakeFreeStateWord(2));
 }
@@ -688,7 +690,8 @@ TEST(SharedRingBufferTest, ReclaimAcrossWrapCountRollover) {
 // Race 1: a delayed writer's claim against the reader's advance of an
 // unclaimed position. Both compare against Free(wrap(position)).
 //
-// Positions 0..7 on a two-chunk ring cover both chunks and four wrap counts.
+// Positions 0..7 on a two-chunk ring buffer cover both chunks and four wrap
+// counts.
 
 TEST(SharedRingBufferTest, UnclaimedAdvanceLosesToClaim) {
   constexpr uint32_t kNumChunks = 2;
@@ -759,7 +762,7 @@ TEST(SharedRingBufferTest, ScrapeLosesToPublication) {
       ring->TryReleaseChunkAsComplete(0, CompleteWord(kWriterA, 1), &expected));
 
   // The scrape fails and receives the Complete word, so the reader discards
-  // its speculative copy of the prefix and retries the position.
+  // its speculative copy of the published fragments and retries the position.
   EXPECT_FALSE(ring->TryRequestRewrite(0, &observed));
   EXPECT_EQ(observed, CompleteWord(kWriterA, 1));
   EXPECT_EQ(PeekStateWord(ring.get(), 0), CompleteWord(kWriterA, 1));
@@ -772,7 +775,7 @@ TEST(SharedRingBufferTest, PublicationLosesToScrape) {
   ASSERT_TRUE(ring->TryRequestRewrite(0, &observed));
 
   // The publication fails and receives the rewrite request. Its fragment count
-  // says which prefix the reader took: nothing here.
+  // says which fragments the reader consumed: nothing here.
   uint32_t expected = BeingWrittenWord(kWriterA);
   EXPECT_FALSE(
       ring->TryReleaseChunkAsComplete(0, CompleteWord(kWriterA, 1), &expected));
@@ -780,8 +783,8 @@ TEST(SharedRingBufferTest, PublicationLosesToScrape) {
   EXPECT_EQ(WriterIDOf(expected), kWriterA);
   EXPECT_EQ(NumFragmentsOf(expected), 0u);
 
-  // The writer moves its suffix elsewhere and lets go of the chunk, saying
-  // nothing about who gets it next.
+  // The writer moves its unpublished fragment elsewhere and lets go of the
+  // chunk, saying nothing about who gets it next.
   EXPECT_TRUE(ring->TryAcknowledgeRewrite(0, expected));
   EXPECT_EQ(PeekStateWord(ring.get(), 0), kRewriteAcknowledgedStateWord);
 }
@@ -812,7 +815,7 @@ TEST(SharedRingBufferTest, ReuseLosesToReclaim) {
   // Position 0 was consumed, so the chunk is Free for position 2.
   EXPECT_EQ(PeekStateWord(ring.get(), 0), MakeFreeStateWord(1));
 
-  // The reuse fails; the writer drops its cached handle and the word stays.
+  // The reuse fails. The writer drops its cached handle and the word stays.
   EXPECT_FALSE(ring->TryReacquireChunkForWriting(0, CompleteWord(kWriterA, 1)));
   EXPECT_EQ(PeekStateWord(ring.get(), 0), MakeFreeStateWord(1));
 }
@@ -895,7 +898,7 @@ TEST(SharedRingBufferTest, WaitTimesOut) {
   ASSERT_EQ(ring->LoadWritePos(), 2u);
   ASSERT_EQ(Internals::GetReadPos(ring.get()), 0u);
 
-  // Keep the normal timeout path short; elapsed time is not part of the
+  // Keep the normal timeout path short. Elapsed time is not part of the
   // contract.
   EXPECT_EQ(ring->WaitForReadPosChange(0, 1), WriterWaitResult::kRetry);
   EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
@@ -906,7 +909,7 @@ TEST(SharedRingBufferTest, AllWaitersReleased) {
   if (!SharedRingBuffer::SupportsWriterWait())
     GTEST_SKIP() << "The futex wait is not available on this platform";
   constexpr uint32_t kNumWaiters = 8;
-  // Production wait timeout; progress must be observed well before it.
+  // Production wait timeout. Progress must be observed well before it.
   constexpr uint32_t kWaitTimeoutMs = 30000;
   test::SharedRingBufferForTesting ring(2, kChunkSize);
 
