@@ -42,6 +42,8 @@ class SharedRingBufferInternalsForTest;
 // - If a writer still owns a chunk, the reader copies its published fragments.
 //   This is a partial chunk read. The writer moves its unpublished fragment to
 //   a later reservation.
+// - A chunk marked kFlagDataLoss is consumed without delivering its fragments.
+//   The delegate receives a loss report instead.
 // - Fragment sizes are decoded once into reader-owned values, and the payload
 //   copy uses those values without rereading the shared size bytes. The
 //   delegate only ever sees reader-owned scratch, never a view of
@@ -106,10 +108,16 @@ class SharedRingBufferReader {
     // reader-owned memory. The view is valid only for this call.
     virtual void OnChunkRead(const ChunkContents&) = 0;
 
-    // Called for a loss that no OnChunkRead() call can carry: committed data
-    // that failed validation, or kFlagDataLoss on a Complete chunk with no
-    // fragments. The consumer should report the gap on the next packet from
-    // this writer.
+    // Called when published data is discarded after validation fails or the
+    // chunk carries kFlagDataLoss. Also handles a flagged Complete chunk with
+    // no fragments. No OnChunkRead() call delivers those fragments.
+    //
+    // The delegate must handle packet recovery for this writer:
+    // - Discard any partial packet and remember the gap.
+    // - A later unflagged chunk may start with an orphan continuation.
+    //   Discard that fragment because its earlier bytes were lost.
+    // - Later fragments in that chunk can start complete, valid packets.
+    //   Deliver those packets and report the gap on the first one.
     virtual void OnDataLoss(WriterID) = 0;
   };
 
@@ -156,17 +164,19 @@ class SharedRingBufferReader {
     kReady,
     kMalformed,
     kUnsupportedFormat,
+    kDataLoss,
   };
 
   // Validates and copies the published fragments.
-  // Returns a status for malformed data or an unsupported format.
+  // Skips payload access if kFlagDataLoss is set. Otherwise validates sizes
+  // and format before copying.
   // The caller handles ownership before reporting any data loss.
   CopiedChunkStatus CopyPublishedFragments(ChunkIndex chunk_idx,
                                            uint32_t state_word);
 
   // Called only after winning the position's compare-and-swap.
-  // Delivers valid fragments to the delegate. Reports invalid or unsupported
-  // data as loss.
+  // Delivers valid, unflagged fragments to the delegate. Reports discarded
+  // chunks as loss.
   ConsumeResult HandleCopiedChunk(CopiedChunkStatus);
 
   // Latches the error and logs |reason| once, together with the position and
