@@ -45,6 +45,13 @@ class SharedRingBufferInternalsForTest;
 //   chunk Free again.
 // - All updates to rw_positions and the chunk state words go through this
 //   class.
+//
+// Compare-and-exchange operations use the default sequentially consistent
+// order. Their comments describe proposed weaker orders and intended handoffs.
+//
+// TODO(sashwinbalaji): Validate weaker CAS ordering in a later optimization
+// pass. Prove these handoffs and measure the benefit before
+// replacing seq_cst.
 class SharedRingBuffer {
  public:
   // Attaches to a ring buffer at |start|. Its layout is:
@@ -144,14 +151,15 @@ class SharedRingBuffer {
   // Returns the current chunk state word. A writer publishes fragments before
   // changing this word, so the returned word also makes those fragments
   // visible to the reader.
-  uint32_t LoadChunkStateWord(ChunkIndex chunk_idx) const;
+  uint32_t LoadChunkStateWordAcquire(ChunkIndex chunk_idx) const;
 
   // Returns the next logical position a writer can reserve.
   // - This bounds the reservations the reader can consume.
   // - It does not say which chunks have published fragments.
   //   The reader checks each chunk's state word for that.
-  // - A later reservation will be visible on a subsequent load.
-  uint32_t LoadWritePos() const;
+  // - An older position can shorten a drain pass. A later pass can consume
+  //   the remaining reservations.
+  uint32_t LoadWritePosRelaxed() const;
 
   // BeingWritten -> RewriteRequested, passing format, flags, num_fragments and
   // the WriterID through untouched. |*expected| is the last BeingWritten word.
