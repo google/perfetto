@@ -38,6 +38,7 @@ _base_unittests_targets += [
 _tracing_unittests_targets += [
   "src/tracing/core:unittests",
   "src/tracing/service:unittests",
+  "src/tracing/v2:unittests",
   "src/tracing:unittests",
 ]
 
