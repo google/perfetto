@@ -75,6 +75,8 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
     }
   }
 
+  // Unsigned subtraction also counts positions across uint32_t rollover.
+  // Advancing from UINT32_MAX to zero consumes one position.
   result.positions_consumed = read_pos_ - start_pos;
   if (result.positions_consumed != 0) {
     // One publication and at most one wake cover the whole pass. Until this
@@ -124,8 +126,8 @@ SharedRingBufferReader::ConsumeNextPosition() {
   }
 
   // read_pos_ is the next logical position.
-  const uint32_t position = read_pos_;
-  const uint32_t chunk_idx = ChunkIndexOf(position, num_chunks_);
+  const uint32_t chunk_pos = read_pos_;
+  const ChunkIndex chunk_idx = ChunkIndex::FromPosition(chunk_pos, num_chunks_);
 
   // A failed compare-and-swap replaces this with the word that won.
   uint32_t state_word = ring_->LoadChunkStateWord(chunk_idx);
@@ -137,7 +139,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
         return StopOnProtocolError("Free word has reserved bits", state_word);
       // Only this reader advances the wrap. A different wrap here is an error.
       const uint32_t expected_free_word =
-          MakeFreeStateWordForPosition(position, num_chunks_);
+          MakeFreeStateWordForPosition(chunk_pos, num_chunks_);
       if (state_word != expected_free_word) {
         return StopOnProtocolError(
             "Free word carries another position's wrap count", state_word);
@@ -145,7 +147,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // Nobody claimed this reservation, so the reader advances the wrap
       // count. A writer can still claim between the load and this CAS. The
       // CAS then fails and the same position is retried as BeingWritten.
-      if (!ring_->TryMoveFreeChunkToNextWrap(position, &state_word))
+      if (!ring_->TryMoveFreeChunkToNextWrap(chunk_pos, &state_word))
         return ConsumeResult::kRetryLater;
       ++read_pos_;
       ++stats_.positions_skipped;
@@ -168,7 +170,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // The writer may have taken the chunk back, turning Complete(N) into
       // BeingWritten(N). The reader discards its copy and retries the same
       // position instead of delivering data from a lost race.
-      if (!ring_->TryReleaseCompleteChunkAsFree(position, &state_word))
+      if (!ring_->TryReleaseCompleteChunkAsFree(chunk_pos, &state_word))
         return ConsumeResult::kRetryLater;
       ++read_pos_;
       // A Complete chunk with no fragments can still carry kFlagDataLoss, and
@@ -200,7 +202,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // Reclaiming compares against exactly that word. The writer has finished
       // with the chunk and only this reader may change it. A failed reclaim
       // means the word was invalid or another actor changed it.
-      if (!ring_->TryReleaseRewriteAcknowledgedChunkAsFree(position,
+      if (!ring_->TryReleaseRewriteAcknowledgedChunkAsFree(chunk_pos,
                                                            &state_word)) {
         return StopOnProtocolError(
             ChunkStateOf(state_word) == ChunkState::kRewriteAcknowledged
@@ -222,7 +224,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
 }
 
 SharedRingBufferReader::CopiedChunkStatus
-SharedRingBufferReader::CopyPublishedFragments(uint32_t chunk_idx,
+SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
                                                uint32_t state_word) {
   copied_fragments_.clear();
   copied_chunk_ = ChunkContents{};

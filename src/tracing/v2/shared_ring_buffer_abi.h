@@ -61,6 +61,9 @@ constexpr uint32_t kMinChunkSize = 256;
 // Contiguous chunks must keep every 32-bit state word aligned.
 constexpr uint32_t kChunkAlignmentBytes = 4;
 
+// Minimum supported chunk count.
+constexpr uint32_t kMinChunksPerRing = 2;
+
 // Ring buffer header
 // ------------------
 //
@@ -113,8 +116,11 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // ------------------------------------
 //
 // write_pos is the next position a writer can reserve. read_pos is the next
-// position the reader must consume. Both counters are uint32_t and are allowed
-// to wrap.
+// position the reader must consume. These are logical positions:
+// - They keep advancing past num_chunks across successive traversals.
+// - As uint32_t counters, they roll over from UINT32_MAX to zero.
+// - Both reader and writer map a position to a physical chunk before access.
+//   ChunkIndex::FromPosition() performs that mapping modulo num_chunks.
 //
 // A writer reserves a position by advancing write_pos, then tries to claim
 // its physical chunk.
@@ -123,6 +129,8 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 //
 //   outstanding = uint32_t(write_pos - read_pos)
 //   outstanding <= num_chunks < 2^31
+//
+// Zero means empty. Exactly num_chunks means full.
 //
 // Unsigned subtraction also works when write_pos wraps back to zero. For
 // example:
@@ -167,21 +175,51 @@ constexpr uint32_t NumOutstandingPositions(uint32_t write_pos,
   return write_pos - read_pos;
 }
 
-// num_chunks = 2^k, so the low k bits of a position select the physical chunk
-// and the remaining bits count completed traversals:
+// A physical chunk index. Variable names distinguish indices from positions:
+// - *_idx selects a chunk in memory, from 0 to num_chunks - 1.
+//   Successive positions cycle through these indices, then return to zero.
+// - *_pos identifies a reservation in logical order.
+//   It keeps advancing across traversals, past num_chunks.
+//   It rolls over from UINT32_MAX to zero.
 //
-//             bits 0..k-1                  bits k..31
-//   +----------------------------+----------------------------+
-//   |    physical chunk index    |      traversal number      |
-//   +----------------------------+----------------------------+
-//               k bits                     32 - k bits
+// For a ring buffer with four chunks:
 //
-// For example, an eight-chunk ring buffer has three chunk-index bits. The low
-// three bits select chunks 0 through 7. The remaining 29 bits count completed
-// traversals.
-constexpr uint32_t ChunkIndexOf(uint32_t position, uint32_t num_chunks) {
-  return position & (num_chunks - 1);
-}
+//   chunk_pos: 0 1 2 3 4 5 6 7 8
+//   chunk_idx: 0 1 2 3 0 1 2 3 0
+class ChunkIndex {
+ public:
+  // Maps a logical position to its physical chunk in a validated ring buffer.
+  //
+  // num_chunks = 2^k, so the low k bits of a position select the physical chunk
+  // and the remaining bits count completed traversals:
+  //
+  //             bits 0..k-1                  bits k..31
+  //   +----------------------------+----------------------------+
+  //   |    physical chunk index    |      traversal number      |
+  //   +----------------------------+----------------------------+
+  //               k bits                     32 - k bits
+  //
+  // For example, an eight-chunk ring buffer has three chunk-index bits. The low
+  // three bits select chunks 0 through 7. The remaining 29 bits count completed
+  // traversals.
+  static constexpr ChunkIndex FromPosition(uint32_t chunk_pos,
+                                           uint32_t num_chunks) {
+    return ChunkIndex{chunk_pos & (num_chunks - 1)};
+  }
+
+  // Builds from an existing physical chunk index.
+  // Uses |chunk_idx| unchanged, without applying modulo num_chunks.
+  static constexpr ChunkIndex FromIndex(uint32_t chunk_idx) {
+    return ChunkIndex{chunk_idx};
+  }
+
+  constexpr uint32_t value() const { return chunk_idx_; }
+
+ private:
+  explicit constexpr ChunkIndex(uint32_t chunk_idx) : chunk_idx_(chunk_idx) {}
+
+  uint32_t chunk_idx_;
+};
 
 // Chunk state word
 // ----------------
@@ -351,7 +389,7 @@ enum PayloadFlags : uint32_t {
 //    - The reader atomically changes Free(wrap) to Free(next wrap).
 //      Only the wrap count changes. The state stays Free.
 //    - The reader advances read_pos without delivering fragments.
-//    - The chunk is ready for position + num_chunks. That position's writer
+//    - The chunk is ready for chunk_pos + num_chunks. That position's writer
 //      can claim it by changing the state to BeingWritten.
 //    - The original writer resumes with the old wrap count. Its claim fails
 //      without changing the chunk. It tries a new reservation.
@@ -399,7 +437,7 @@ enum PayloadFlags : uint32_t {
 // If scraping wins, the writer relocates only the unpublished fragment after
 // the N published fragments.
 //
-// A reservation allows one claim against Free(wrap_count(position)). On
+// A reservation allows one claim against Free(wrap_count(chunk_pos)). On
 // failure, the writer must reserve a new position, never retry the new word.
 //
 //   Actor   From                   Action                   To
@@ -430,7 +468,7 @@ enum PayloadFlags : uint32_t {
 //
 // Free stores the low 16 bits of the traversal number:
 //
-//   wrap_count = uint16_t(position / num_chunks)
+//   wrap_count = uint16_t(chunk_pos / num_chunks)
 //
 // For the same chunk, that value repeats after:
 //
@@ -442,9 +480,9 @@ enum PayloadFlags : uint32_t {
 // the delayed writer. This is the limit of the 16-bit wrap count.
 //
 // Computes the wrap from a position. It does not inspect the chunk's state.
-inline uint16_t WrapCountForPosition(uint32_t position, uint32_t num_chunks) {
+inline uint16_t WrapCountForPosition(uint32_t chunk_pos, uint32_t num_chunks) {
   PERFETTO_DCHECK(base::IsPowerOfTwo(num_chunks));
-  return static_cast<uint16_t>(position >> base::CountTrailZeros(num_chunks));
+  return static_cast<uint16_t>(chunk_pos >> base::CountTrailZeros(num_chunks));
 }
 
 constexpr ChunkState ChunkStateOf(uint32_t state_word) {
@@ -461,11 +499,11 @@ constexpr uint32_t MakeFreeStateWord(uint16_t wrap_count) {
   return static_cast<uint32_t>(wrap_count) << kWrapCountShift;
 }
 
-// The Free word a reservation at |position| must find, and the word the
-// reader leaves for the next traversal when called with position + num_chunks.
-inline uint32_t MakeFreeStateWordForPosition(uint32_t position,
+// The Free word a reservation at |chunk_pos| must find, and the word the
+// reader leaves for the next traversal when called with chunk_pos + num_chunks.
+inline uint32_t MakeFreeStateWordForPosition(uint32_t chunk_pos,
                                              uint32_t num_chunks) {
-  return MakeFreeStateWord(WrapCountForPosition(position, num_chunks));
+  return MakeFreeStateWord(WrapCountForPosition(chunk_pos, num_chunks));
 }
 
 // These accessors apply to BeingWritten, Complete and RewriteRequested.

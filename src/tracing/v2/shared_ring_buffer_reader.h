@@ -50,7 +50,8 @@ class SharedRingBufferReader {
  public:
   // Result of consuming one position.
   enum class ConsumeResult {
-    // read_pos has caught up with write_pos.
+    // No reservation at read_pos is visible yet.
+    // read_pos has caught up with the observed write_pos.
     kNoData,
     // A chunk was handed to the delegate and read_pos advanced.
     kChunkRead,
@@ -120,11 +121,13 @@ class SharedRingBufferReader {
   SharedRingBufferReader(SharedRingBufferReader&&) = delete;
   SharedRingBufferReader& operator=(SharedRingBufferReader&&) = delete;
 
-  // Consumes up to |max_positions|, then publishes read_pos once and wakes any
-  // writer parked on a full ring buffer. Without the bound, one pass over a
-  // large ring buffer could monopolize the consumer's task sequence. The bound
-  // also caps the copying and delegate work done per task and decides how often
-  // read_pos gets published.
+  // Consumes up to |max_positions| logical reservations:
+  // - A position counts even when it delivers no fragments.
+  // - An unclaimed reservation uses the budget when the reader passes it.
+  //
+  // Publishes read_pos once and wakes writers parked on a full ring buffer.
+  // The budget bounds copying and delegate callbacks in this pass.
+  // This lets other tasks run between passes over a large ring buffer.
   DrainResult Drain(uint32_t max_positions);
 
   bool has_protocol_error() const { return has_protocol_error_; }
@@ -158,7 +161,7 @@ class SharedRingBufferReader {
   // Validates and copies the published fragments.
   // Returns a status for malformed data or an unsupported format.
   // The caller handles ownership before reporting any data loss.
-  CopiedChunkStatus CopyPublishedFragments(uint32_t chunk_idx,
+  CopiedChunkStatus CopyPublishedFragments(ChunkIndex chunk_idx,
                                            uint32_t state_word);
 
   // Called only after winning the position's compare-and-swap.

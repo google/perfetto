@@ -195,22 +195,29 @@ TEST(SharedRingBufferABITest, ReplaceReadPos) {
 // -----------------
 
 TEST(SharedRingBufferABITest, ChunkIndexAndWrapCount) {
+  static_assert(sizeof(ChunkIndex) == sizeof(uint32_t));
+  static_assert(ChunkIndex::FromIndex(3).value() == 3);
+  static_assert(ChunkIndex::FromPosition(7, 4).value() == 3);
   // A worked example.
   const uint32_t kNumChunks = 4;
-  const uint32_t kExpectedIndex[] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0};
+  const uint32_t kExpectedChunkIdx[] = {0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0};
   const uint32_t kExpectedWrap[] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3};
-  for (uint32_t p = 0; p < 13; ++p) {
-    EXPECT_EQ(ChunkIndexOf(p, kNumChunks), kExpectedIndex[p]) << p;
-    EXPECT_EQ(WrapCountForPosition(p, kNumChunks), kExpectedWrap[p]) << p;
+  for (uint32_t chunk_pos = 0; chunk_pos < 13; ++chunk_pos) {
+    EXPECT_EQ(ChunkIndex::FromPosition(chunk_pos, kNumChunks).value(),
+              kExpectedChunkIdx[chunk_pos])
+        << chunk_pos;
+    EXPECT_EQ(WrapCountForPosition(chunk_pos, kNumChunks),
+              kExpectedWrap[chunk_pos])
+        << chunk_pos;
   }
 
-  // Including the one-chunk ring buffer, where every position maps to chunk 0
-  // and the wrap count is the position itself, truncated.
-  for (uint32_t num_chunks : {1u, 2u, 4u, 8u, 1024u}) {
-    for (uint32_t p = 0; p < 3 * num_chunks + 3; ++p) {
-      EXPECT_EQ(ChunkIndexOf(p, num_chunks), p % num_chunks);
-      EXPECT_EQ(WrapCountForPosition(p, num_chunks),
-                (p / num_chunks) & 0xffffu);
+  // Check the mapping across several supported chunk counts.
+  for (uint32_t num_chunks : {2u, 4u, 8u, 1024u}) {
+    for (uint32_t chunk_pos = 0; chunk_pos < 3 * num_chunks + 3; ++chunk_pos) {
+      EXPECT_EQ(ChunkIndex::FromPosition(chunk_pos, num_chunks).value(),
+                chunk_pos % num_chunks);
+      EXPECT_EQ(WrapCountForPosition(chunk_pos, num_chunks),
+                (chunk_pos / num_chunks) & 0xffffu);
     }
   }
 }
@@ -223,29 +230,31 @@ TEST(SharedRingBufferABITest, OutstandingPositionsAcrossRollover) {
   EXPECT_EQ(NumOutstandingPositions(0xffffffffu, 0xfffffffeu), 1u);
 
   const uint32_t kNumChunks = 8;
-  const uint32_t kExpected[] = {4, 5, 6, 7, 0, 1};
-  uint32_t p = 0xfffffffcu;
-  for (uint32_t i = 0; i < 6; ++i, ++p)
-    EXPECT_EQ(ChunkIndexOf(p, kNumChunks), kExpected[i]) << i;
+  const uint32_t kExpectedChunkIdx[] = {4, 5, 6, 7, 0, 1};
+  uint32_t chunk_pos = 0xfffffffcu;
+  for (uint32_t i = 0; i < 6; ++i, ++chunk_pos)
+    EXPECT_EQ(ChunkIndex::FromPosition(chunk_pos, kNumChunks).value(),
+              kExpectedChunkIdx[i])
+        << i;
 }
 
 TEST(SharedRingBufferABITest, NextWrapFromPosition) {
   // The next wrap comes from the next position, not from the chunk word.
   // Away from the rollovers next_wrap is simply "one more".
   const uint32_t kNumChunks = 4;
-  for (uint32_t p = 0; p < 16; ++p) {
-    EXPECT_EQ(WrapCountForPosition(p + kNumChunks, kNumChunks),
-              WrapCountForPosition(p, kNumChunks) + 1)
-        << p;
+  for (uint32_t chunk_pos = 0; chunk_pos < 16; ++chunk_pos) {
+    EXPECT_EQ(WrapCountForPosition(chunk_pos + kNumChunks, kNumChunks),
+              WrapCountForPosition(chunk_pos, kNumChunks) + 1)
+        << chunk_pos;
   }
 
   // At the 16-bit truncation boundary it is not: the wrap after 0xffff is
   // zero. A reader that incremented the value it found in the chunk would
   // agree here by accident of the uint16_t, so the position rollover below is
   // the discriminating case.
-  const uint32_t kLastLapOfPeriod = 0xffffu * kNumChunks;  // wrap 0xffff
-  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriod, kNumChunks), 0xffffu);
-  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriod + kNumChunks, kNumChunks),
+  const uint32_t kLastLapOfPeriodPos = 0xffffu * kNumChunks;  // wrap 0xffff
+  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriodPos, kNumChunks), 0xffffu);
+  EXPECT_EQ(WrapCountForPosition(kLastLapOfPeriodPos + kNumChunks, kNumChunks),
             0u);
 
   // At the uint32_t position rollover the traversal number restarts from zero
@@ -253,12 +262,12 @@ TEST(SharedRingBufferABITest, NextWrapFromPosition) {
   // the protocol derives the wrap from the position and never increments the
   // value it finds in the chunk.
   const uint32_t kBigRing = 1u << 20;
-  const uint32_t kLastPosition = 0u - kBigRing;  // the last lap's chunk 0
-  EXPECT_EQ(ChunkIndexOf(kLastPosition, kBigRing), 0u);
-  EXPECT_EQ(WrapCountForPosition(kLastPosition, kBigRing), 0xfffu);
-  EXPECT_EQ(WrapCountForPosition(kLastPosition + kBigRing, kBigRing), 0u);
-  EXPECT_NE(WrapCountForPosition(kLastPosition + kBigRing, kBigRing),
-            WrapCountForPosition(kLastPosition, kBigRing) + 1u);
+  const uint32_t kLastPos = 0u - kBigRing;  // the last lap's chunk 0
+  EXPECT_EQ(ChunkIndex::FromPosition(kLastPos, kBigRing).value(), 0u);
+  EXPECT_EQ(WrapCountForPosition(kLastPos, kBigRing), 0xfffu);
+  EXPECT_EQ(WrapCountForPosition(kLastPos + kBigRing, kBigRing), 0u);
+  EXPECT_NE(WrapCountForPosition(kLastPos + kBigRing, kBigRing),
+            WrapCountForPosition(kLastPos, kBigRing) + 1u);
 }
 
 // Pin the finite period of the 16-bit wrap count.
@@ -266,15 +275,16 @@ TEST(SharedRingBufferABITest, WrapCountPeriod) {
   // For num_chunks up to 65536 the wrap count repeats every num_chunks * 65536
   // reservations: the same chunk carries the same wrap count again once the
   // traversal number has run through the whole uint16_t.
-  for (uint32_t num_chunks : {1u, 2u, 16u}) {
+  for (uint32_t num_chunks : {2u, 16u}) {
     const uint32_t period = num_chunks * 65536;
     EXPECT_EQ(WrapCountForPosition(0, num_chunks),
               WrapCountForPosition(period, num_chunks));
-    EXPECT_EQ(ChunkIndexOf(0, num_chunks), ChunkIndexOf(period, num_chunks));
+    EXPECT_EQ(ChunkIndex::FromPosition(0, num_chunks).value(),
+              ChunkIndex::FromPosition(period, num_chunks).value());
     // No earlier lap of the same chunk aliases position 0.
     for (uint32_t lap = 1; lap < 8; ++lap) {
-      const uint32_t p = lap * num_chunks;
-      EXPECT_NE(WrapCountForPosition(p, num_chunks),
+      const uint32_t chunk_pos = lap * num_chunks;
+      EXPECT_NE(WrapCountForPosition(chunk_pos, num_chunks),
                 WrapCountForPosition(0, num_chunks));
     }
   }

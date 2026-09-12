@@ -224,10 +224,10 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
 
     if (reservation.result == SharedRingBuffer::ReserveResult::kReserved) {
       // Happy case: the reserved position's chunk is Free for this traversal.
-      if (ring_->TryAcquireChunkForWriting(reservation.position,
+      if (ring_->TryAcquireChunkForWriting(reservation.chunk_pos,
                                            being_written_word)) {
-        cur_chunk_idx_ =
-            ChunkIndexOf(reservation.position, ring_->num_chunks());
+        cur_chunk_idx_ = ChunkIndex::FromPosition(reservation.chunk_pos,
+                                                  ring_->num_chunks());
         cur_chunk_ = ring_->chunk_at(cur_chunk_idx_);
         expected_state_word_ = being_written_word;
         payload_end_ = kTargetBufferPayloadOffset;
@@ -392,7 +392,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
       PERFETTO_FATAL(
           "tracing v2: publication of chunk %u by writer %u lost to state word "
           "0x%08x, which is not a rewrite request for this writer",
-          cur_chunk_idx_, writer_id_, expected);
+          cur_chunk_idx_.value(), writer_id_, expected);
     }
 
     // expected is RewriteRequested. The reader did a partial chunk read:
@@ -428,7 +428,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
       PERFETTO_FATAL(
           "tracing v2: writer %u could not acknowledge chunk %u: only its "
           "owner may leave RewriteRequested",
-          writer_id_, cur_chunk_idx_);
+          writer_id_, cur_chunk_idx_.value());
     }
     ++stats_.relocations;
 
@@ -476,7 +476,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
 
 void SharedRingBufferWriter::ResetCurrentChunk() {
   cur_chunk_ = nullptr;
-  cur_chunk_idx_ = 0;
+  cur_chunk_idx_ = ChunkIndex::FromIndex(0);
   expected_state_word_ = 0;
   payload_end_ = 0;
   sizes_begin_ = 0;
