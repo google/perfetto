@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <functional>
 #include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -60,9 +61,13 @@ class SharedRingBufferReader {
     // No payload was delivered. read_pos advanced and data can no longer be
     // published for this position.
     kPositionSkipped,
-    // The reader lost a concurrent state transition. read_pos is unchanged
-    // and the same position is retried later, without waiting for the writer.
-    kRetryLater,
+    // A writer changed the chunk before the reader's CAS:
+    // - Claimed Free before the reader advanced its wrap count.
+    // - Published Complete before the reader requested a rewrite.
+    // - Reused Complete before the reader reclaimed it.
+    // read_pos stays unchanged. Drain() retries the same position immediately,
+    // within its per-position attempt limit.
+    kRetryImmediately,
     // Invalid ring buffer state. This reader cannot continue.
     // - The offending position is neither advanced nor reclaimed.
     // - Earlier chunks in this drain may already have been delivered.
@@ -132,6 +137,9 @@ class SharedRingBufferReader {
   // Consumes up to |max_positions| logical reservations:
   // - A position counts even when it delivers no fragments.
   // - An unclaimed reservation uses the budget when the reader passes it.
+  // - A lost CAS retries the same position without using the position budget.
+  //   A separate attempt limit bounds retries at each position. Reaching it
+  //   leaves that position unchanged and requests another drain.
   //
   // Publishes read_pos once and wakes writers parked on a full ring buffer.
   // The budget bounds copying and delegate callbacks in this pass.
@@ -191,6 +199,15 @@ class SharedRingBufferReader {
   // The reader owns this value and publishes it once per Drain().
   uint32_t read_pos_ = 0;
   bool has_protocol_error_ = false;
+
+  // Test callback, called just before the reader's chunk-state CAS.
+  // - The reader has loaded the state and copied any readable fragments.
+  // - The callback makes a writer claim, publish or reuse the chunk.
+  //   The reader's CAS then fails because it expects the earlier state.
+  // - Tests verify that Drain() retries without advancing read_pos or
+  //   delivering fragments from the failed attempt.
+  // Empty in production. Tests force the race without scheduling threads.
+  std::function<void()> before_state_transition_for_testing_;
 
   // TODO(sashwinbalaji): Revisit both scratch vectors:
   // - Check heap/stack allocation in production and tests before enlarging

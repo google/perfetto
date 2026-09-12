@@ -22,7 +22,9 @@
 #include <string.h>
 
 #include <atomic>
+#include <functional>
 #include <string>
+#include <utility>
 
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/paged_memory.h"
@@ -126,6 +128,11 @@ class SharedRingBufferInternalsForTest {
   static SharedRingBufferReader::ConsumeResult ConsumeNextPosition(
       SharedRingBufferReader* reader) {
     return reader->ConsumeNextPosition();
+  }
+
+  static void SetBeforeStateTransitionCallback(SharedRingBufferReader* reader,
+                                               std::function<void()> callback) {
+    reader->before_state_transition_for_testing_ = std::move(callback);
   }
 };
 
