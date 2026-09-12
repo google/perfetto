@@ -56,9 +56,14 @@ uint32_t NumChunksForRingLayout(const uint8_t* start,
   // size_t on 32-bit builds.
   PERFETTO_CHECK(size >= sizeof(RingBufferHeader));
   const size_t chunks_size = size - sizeof(RingBufferHeader);
-  PERFETTO_CHECK(chunks_size >= chunk_size);
   PERFETTO_CHECK(chunks_size % chunk_size == 0);
   const size_t num_chunks = chunks_size / chunk_size;
+
+  // We require two chunks as the minimum useful configuration.
+  // One chunk would still work with the ABI:
+  // - write_pos - read_pos is 0 when empty and 1 when full.
+  // - The Free wrap count distinguishes successive uses of the chunk.
+  PERFETTO_CHECK(num_chunks >= kMinChunksPerRing);
   PERFETTO_CHECK(num_chunks <= kMaxChunksPerRing);
   PERFETTO_CHECK(base::IsPowerOfTwo(num_chunks));
   return static_cast<uint32_t>(num_chunks);
@@ -147,7 +152,7 @@ SharedRingBuffer::Reservation SharedRingBuffer::TryReserveWritePosFromSnapshot(
             rw_positions, PackRwPositions(write_pos + 1, read_pos),
             std::memory_order_acquire, std::memory_order_acquire)) {
       reservation.result = ReserveResult::kReserved;
-      reservation.position = write_pos;
+      reservation.chunk_pos = write_pos;
       return reservation;
     }
   }
@@ -155,13 +160,13 @@ SharedRingBuffer::Reservation SharedRingBuffer::TryReserveWritePosFromSnapshot(
 
 // --- Writer-side chunk transitions. ---
 
-bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t position,
+bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t chunk_pos,
                                                  uint32_t being_written_word) {
   PERFETTO_DCHECK(ChunkStateOf(being_written_word) ==
                   ChunkState::kBeingWritten);
   PERFETTO_DCHECK(NumFragmentsOf(being_written_word) == 0);
 
-  // Free(wrap(position)) -> BeingWritten(0).
+  // Free(wrap(chunk_pos)) -> BeingWritten(0).
   // The claim can fail because:
   // - the reader consumed this position as unclaimed.
   // - an older reservation still owns the chunk.
@@ -174,14 +179,14 @@ bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t position,
   //
   // On failure, memory order relaxed is enough because the returned word
   // is ignored.
-  uint32_t expected = MakeFreeStateWordForPosition(position, num_chunks_);
-  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(position);
+  uint32_t expected = MakeFreeStateWordForPosition(chunk_pos, num_chunks_);
+  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   return state_word->compare_exchange_strong(expected, being_written_word,
                                              std::memory_order_acquire,
                                              std::memory_order_relaxed);
 }
 
-bool SharedRingBuffer::TryReleaseChunkAsComplete(uint32_t chunk_idx,
+bool SharedRingBuffer::TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
                                                  uint32_t complete_word,
                                                  uint32_t* expected) {
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kBeingWritten);
@@ -202,7 +207,7 @@ bool SharedRingBuffer::TryReleaseChunkAsComplete(uint32_t chunk_idx,
                                              std::memory_order_acquire);
 }
 
-bool SharedRingBuffer::TryReacquireChunkForWriting(uint32_t chunk_idx,
+bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
                                                    uint32_t observed) {
   PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kComplete);
 
@@ -225,7 +230,7 @@ bool SharedRingBuffer::TryReacquireChunkForWriting(uint32_t chunk_idx,
       std::memory_order_relaxed, std::memory_order_relaxed);
 }
 
-bool SharedRingBuffer::TryAcknowledgeRewrite(uint32_t chunk_idx,
+bool SharedRingBuffer::TryAcknowledgeRewrite(ChunkIndex chunk_idx,
                                              uint32_t observed) {
   PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kRewriteRequested);
 
@@ -246,7 +251,7 @@ bool SharedRingBuffer::TryAcknowledgeRewrite(uint32_t chunk_idx,
 
 // --- Reader-side chunk transitions. ---
 
-uint32_t SharedRingBuffer::LoadChunkStateWord(uint32_t chunk_idx) const {
+uint32_t SharedRingBuffer::LoadChunkStateWord(ChunkIndex chunk_idx) const {
   // Memory order acquire pairs with the writer's memory order release
   // publication of Complete. This makes the
   // fragments, their size varints and BufferID visible to the reader.
@@ -265,7 +270,7 @@ uint32_t SharedRingBuffer::LoadWritePos() const {
   return WritePosOf(header()->rw_positions.load(std::memory_order_relaxed));
 }
 
-bool SharedRingBuffer::TryRequestRewrite(uint32_t chunk_idx,
+bool SharedRingBuffer::TryRequestRewrite(ChunkIndex chunk_idx,
                                          uint32_t* expected) {
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kBeingWritten);
 
@@ -284,11 +289,11 @@ bool SharedRingBuffer::TryRequestRewrite(uint32_t chunk_idx,
       std::memory_order_release, std::memory_order_relaxed);
 }
 
-bool SharedRingBuffer::TryMoveFreeChunkToNextWrap(uint32_t position,
+bool SharedRingBuffer::TryMoveFreeChunkToNextWrap(uint32_t chunk_pos,
                                                   uint32_t* expected) {
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kFree);
 
-  // Free(wrap(position)) -> Free(next wrap).
+  // Free(wrap(chunk_pos)) -> Free(next wrap).
   // A delayed writer can claim first. The reader then retries this position on
   // a later pass and finds the chunk BeingWritten or Complete.
   //
@@ -296,13 +301,13 @@ bool SharedRingBuffer::TryMoveFreeChunkToNextWrap(uint32_t position,
   //
   // On failure, memory order relaxed is enough because the reader retries
   // the position.
-  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(position);
+  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   return state_word->compare_exchange_strong(
-      *expected, MakeFreeWordForNextWrap(position), std::memory_order_release,
+      *expected, MakeFreeWordForNextWrap(chunk_pos), std::memory_order_release,
       std::memory_order_relaxed);
 }
 
-bool SharedRingBuffer::TryReleaseCompleteChunkAsFree(uint32_t position,
+bool SharedRingBuffer::TryReleaseCompleteChunkAsFree(uint32_t chunk_pos,
                                                      uint32_t* expected) {
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kComplete);
 
@@ -315,14 +320,14 @@ bool SharedRingBuffer::TryReleaseCompleteChunkAsFree(uint32_t position,
   //
   // On failure, memory order relaxed is enough because the reader retries
   // the position without using the copied payload.
-  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(position);
+  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   return state_word->compare_exchange_strong(
-      *expected, MakeFreeWordForNextWrap(position), std::memory_order_release,
+      *expected, MakeFreeWordForNextWrap(chunk_pos), std::memory_order_release,
       std::memory_order_relaxed);
 }
 
 bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
-    uint32_t position,
+    uint32_t chunk_pos,
     uint32_t* observed) {
   // RewriteAcknowledged -> Free(next wrap).
   // Only this reader changes an acknowledged chunk. The expected value is the
@@ -339,9 +344,9 @@ bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
   // On failure, memory order relaxed is enough because the unexpected
   // word is used only to report the protocol error.
   uint32_t expected = kRewriteAcknowledgedStateWord;
-  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(position);
+  std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   const bool reclaimed = state_word->compare_exchange_strong(
-      expected, MakeFreeWordForNextWrap(position), std::memory_order_acq_rel,
+      expected, MakeFreeWordForNextWrap(chunk_pos), std::memory_order_acq_rel,
       std::memory_order_relaxed);
   if (!reclaimed)
     *observed = expected;

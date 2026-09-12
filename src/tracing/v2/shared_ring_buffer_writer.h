@@ -211,7 +211,7 @@ class SharedRingBufferWriter {
 
   // State cached for the chunk this writer currently owns.
   uint8_t* cur_chunk_ = nullptr;
-  uint32_t cur_chunk_idx_ = 0;
+  ChunkIndex cur_chunk_idx_ = ChunkIndex::FromIndex(0);
   // The exact word this writer's next compare-and-swap expects. It can differ
   // from the shared word once the reader has requested a rewrite.
   uint32_t expected_state_word_ = 0;

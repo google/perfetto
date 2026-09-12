@@ -64,7 +64,7 @@ class SharedRingBufferInternalsForTest {
  public:
   // Injects a state word for corruption and unknown-ABI tests.
   static void SetChunkStateWord(SharedRingBuffer* ring,
-                                uint32_t chunk_idx,
+                                ChunkIndex chunk_idx,
                                 uint32_t state_word) {
     ring->chunk_state_word_at(chunk_idx)->store(state_word,
                                                 std::memory_order_release);
@@ -81,17 +81,17 @@ class SharedRingBufferInternalsForTest {
   }
 
   // Seeds a valid ring buffer state near a position or wrap-count rollover:
-  // every chunk becomes Free for the first position at or after |position| that
-  // maps to it, and both positions are set to |position|.
-  static void SetPositions(SharedRingBuffer* ring, uint32_t position) {
+  // every chunk becomes Free for the first position at or after |chunk_pos|
+  // that maps to it, and both positions are set to |chunk_pos|.
+  static void SetPositions(SharedRingBuffer* ring, uint32_t chunk_pos) {
     for (uint32_t chunk_idx = 0; chunk_idx < ring->num_chunks(); ++chunk_idx) {
-      const uint32_t first_position =
-          position + ((chunk_idx - position) & (ring->num_chunks() - 1));
-      ring->chunk_state_word_at(chunk_idx)->store(
-          MakeFreeStateWordForPosition(first_position, ring->num_chunks()),
-          std::memory_order_relaxed);
+      const uint32_t first_pos =
+          chunk_pos + ((chunk_idx - chunk_pos) & (ring->num_chunks() - 1));
+      ring->chunk_state_word_at(ChunkIndex::FromIndex(chunk_idx))
+          ->store(MakeFreeStateWordForPosition(first_pos, ring->num_chunks()),
+                  std::memory_order_relaxed);
     }
-    ring->header()->rw_positions.store(PackRwPositions(position, position),
+    ring->header()->rw_positions.store(PackRwPositions(chunk_pos, chunk_pos),
                                        std::memory_order_release);
   }
 
@@ -117,10 +117,10 @@ class SharedRingBufferInternalsForTest {
     ring->PublishReadPosFromSnapshot(rw_positions, read_pos);
   }
 
-  // Starts the reader at |position| instead of zero, to match a ring buffer
+  // Starts the reader at |chunk_pos| instead of zero, to match a ring buffer
   // seeded near uint32_t rollover.
-  static void SetReaderPos(SharedRingBufferReader* reader, uint32_t position) {
-    reader->read_pos_ = position;
+  static void SetReaderPos(SharedRingBufferReader* reader, uint32_t chunk_pos) {
+    reader->read_pos_ = chunk_pos;
   }
 
   static SharedRingBufferReader::ConsumeResult ConsumeNextPosition(

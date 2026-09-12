@@ -119,7 +119,8 @@ TEST(SharedRingBufferReaderTest, ConsumesCompleteChunk) {
             (std::vector<std::string>{"alpha", "beta"}));
 
   // The chunk is now Free with the wrap count of its next position.
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader), ConsumeResult::kNoData);
 }
 
@@ -173,6 +174,62 @@ TEST(SharedRingBufferReaderTest, DrainBudget) {
   EXPECT_EQ(delegate.chunks.size(), 4u);
 }
 
+TEST(SharedRingBufferReaderTest, DrainBudgetIncludesUnclaimedReservations) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+
+  // The first reservation delivers nothing. The second holds a fragment.
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
+  ASSERT_TRUE(WriteFragment(&writer, "published"));
+  ASSERT_EQ(writer.FinishCurrentChunk(), EndFragmentResult::kSuccess);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 2u);
+
+  const auto first = reader.Drain(2);
+  EXPECT_EQ(first.positions_consumed, 2u);
+  EXPECT_TRUE(first.needs_another_drain());
+  EXPECT_EQ(Internals::GetReadPos(ring.get()), 2u);
+  EXPECT_EQ(delegate.AllFragments(), (std::vector<std::string>{"published"}));
+  EXPECT_EQ(reader.GetStats().positions_skipped, 1u);
+
+  // The third reservation remains for the next pass, even though it is empty.
+  const auto second = reader.Drain(2);
+  EXPECT_EQ(second.positions_consumed, 1u);
+  EXPECT_FALSE(second.needs_another_drain());
+  EXPECT_EQ(Internals::GetReadPos(ring.get()), 3u);
+  EXPECT_EQ(delegate.chunks.size(), 1u);
+  EXPECT_EQ(reader.GetStats().positions_skipped, 2u);
+}
+
+TEST(SharedRingBufferReaderTest, DrainAcrossPositionRollover) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+  constexpr uint32_t kStartPos = UINT32_MAX - 1;
+  Internals::SetPositions(ring.get(), kStartPos);
+  Internals::SetReaderPos(&reader, kStartPos);
+
+  // Each writer reserves a fresh position: UINT32_MAX - 1, UINT32_MAX, zero.
+  const std::vector<std::string> fragments = {"before", "at max", "after"};
+  for (const auto& fragment : fragments) {
+    SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+    ASSERT_TRUE(WriteFragment(&writer, fragment));
+    ASSERT_EQ(writer.FinishCurrentChunk(), EndFragmentResult::kSuccess);
+  }
+
+  const auto result = reader.Drain(4);
+  EXPECT_EQ(result.positions_consumed, 3u);
+  EXPECT_EQ(result.last_result, ConsumeResult::kNoData);
+  EXPECT_FALSE(result.needs_another_drain());
+  EXPECT_EQ(reader.read_pos(), 1u);
+  EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
+  EXPECT_EQ(delegate.AllFragments(), fragments);
+
+  EXPECT_EQ(reader.Drain(4).positions_consumed, 0u);
+  EXPECT_EQ(delegate.chunks.size(), 3u);
+}
+
 // ---------------------------------------------------------------------------
 // Unclaimed reservations.
 // ---------------------------------------------------------------------------
@@ -185,14 +242,15 @@ TEST(SharedRingBufferReaderTest, UnclaimedPosition) {
   SharedRingBufferReader reader(ring.get(), &delegate);
 
   // A writer reserved position 0 and never claimed it.
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.read_pos(), 1u);
   EXPECT_EQ(reader.GetStats().positions_skipped, 1u);
   EXPECT_TRUE(delegate.chunks.empty());
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
 }
 
 TEST(SharedRingBufferReaderTest, RewriteRequestedSkipped) {
@@ -207,15 +265,15 @@ TEST(SharedRingBufferReaderTest, RewriteRequestedSkipped) {
       ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 0, kWriterB);
   ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, being_written));
   uint32_t observed = being_written;
-  ASSERT_TRUE(ring->TryRequestRewrite(0, &observed));
-  const uint32_t marked = ring->LoadChunkStateWord(0);
+  ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
+  const uint32_t marked = ring->LoadChunkStateWord(ChunkIndex::FromIndex(0));
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.read_pos(), 1u);
   // Only the owning writer may leave that state, so the reader left it alone.
-  EXPECT_EQ(ring->LoadChunkStateWord(0), marked);
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)), marked);
   EXPECT_EQ(reader.GetStats().positions_skipped, 1u);
 }
 
@@ -228,14 +286,16 @@ TEST(SharedRingBufferReaderTest, RewriteAcknowledgedReclaimed) {
       ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 0, kWriterB);
   ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, being_written));
   uint32_t observed = being_written;
-  ASSERT_TRUE(ring->TryRequestRewrite(0, &observed));
+  ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
   ASSERT_TRUE(ring->TryAcknowledgeRewrite(
-      0, ReplaceChunkState(being_written, ChunkState::kRewriteRequested)));
+      ChunkIndex::FromIndex(0),
+      ReplaceChunkState(being_written, ChunkState::kRewriteRequested)));
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +321,7 @@ TEST(SharedRingBufferReaderTest, ReadsPublishedFragmentsWhileWriterAppends) {
   // Only what the writer had published, and nothing of the open fragment.
   EXPECT_EQ(delegate.chunks[0].fragments,
             (std::vector<std::string>{"committed"}));
-  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)),
+  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0))),
             ChunkState::kRewriteRequested);
 
   // The writer relocates its unpublished fragment, and the reader picks it up
@@ -287,7 +347,7 @@ TEST(SharedRingBufferReaderTest, ReadsChunkWithNoPublishedFragments) {
   EXPECT_TRUE(delegate.chunks.empty());
   // Nothing came out, but the old owner is still stopped from publishing
   // behind the reader.
-  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)),
+  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0))),
             ChunkState::kRewriteRequested);
 }
 
@@ -301,9 +361,9 @@ TEST(SharedRingBufferReaderTest, UnknownFormat) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   Internals::SetChunkStateWord(
-      ring.get(), 0,
+      ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kReservedRouting, 0,
                         3, kWriterB));
 
@@ -313,7 +373,8 @@ TEST(SharedRingBufferReaderTest, UnknownFormat) {
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterB}));
   // The loss was reported and the chunk remains usable.
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
   EXPECT_EQ(reader.read_pos(), 1u);
 }
 
@@ -322,11 +383,11 @@ TEST(SharedRingBufferReaderTest, SizesLargerThanChunk) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   // varint(0) takes one byte. 255 such entries do not fit in the 250-byte
   // payload area.
   Internals::SetChunkStateWord(
-      ring.get(), 0,
+      ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0,
                         255, kWriterB));
 
@@ -335,7 +396,8 @@ TEST(SharedRingBufferReaderTest, SizesLargerThanChunk) {
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterB}));
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
 }
 
 TEST(SharedRingBufferReaderTest, PayloadSizesOverlap) {
@@ -344,12 +406,12 @@ TEST(SharedRingBufferReaderTest, PayloadSizesOverlap) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   // The chunk has 250 bytes after its fixed header. A 249-byte fragment fits
   // by itself, but its two-byte size varint does not fit beside it.
-  WriteFragmentSize(ring->chunk_at(0) + 256, 249);
+  WriteFragmentSize(ring->chunk_at(ChunkIndex::FromIndex(0)) + 256, 249);
   Internals::SetChunkStateWord(
-      ring.get(), 0,
+      ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1,
                         kWriterB));
 
@@ -357,7 +419,8 @@ TEST(SharedRingBufferReaderTest, PayloadSizesOverlap) {
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterB}));
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
 }
 
 TEST(SharedRingBufferReaderTest, CumulativeSizeOverflow) {
@@ -365,15 +428,15 @@ TEST(SharedRingBufferReaderTest, CumulativeSizeOverflow) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   // Two fragments claiming 400 bytes each in a chunk that has 506 bytes of
   // payload area, of which four go to the size varints.
-  uint8_t* chunk = ring->chunk_at(0);
+  uint8_t* chunk = ring->chunk_at(ChunkIndex::FromIndex(0));
   uint8_t* sizes_begin = chunk + 512;
   sizes_begin = WriteFragmentSize(sizes_begin, 400);
   WriteFragmentSize(sizes_begin, 400);
   Internals::SetChunkStateWord(
-      ring.get(), 0,
+      ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 2,
                         kWriterB));
 
@@ -381,7 +444,8 @@ TEST(SharedRingBufferReaderTest, CumulativeSizeOverflow) {
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
   EXPECT_TRUE(delegate.chunks.empty());
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
 }
 
 TEST(SharedRingBufferReaderTest, UnterminatedFragmentSize) {
@@ -389,11 +453,11 @@ TEST(SharedRingBufferReaderTest, UnterminatedFragmentSize) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   for (uint32_t i = 0; i < kMaxFragmentSizeVarIntBytes; ++i)
-    ring->chunk_at(0)[511 - i] = 0x80;
+    ring->chunk_at(ChunkIndex::FromIndex(0))[511 - i] = 0x80;
   Internals::SetChunkStateWord(
-      ring.get(), 0,
+      ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1,
                         kWriterB));
 
@@ -401,7 +465,8 @@ TEST(SharedRingBufferReaderTest, UnterminatedFragmentSize) {
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
   EXPECT_TRUE(delegate.chunks.empty());
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
 }
 
 // A count larger than the writer actually wrote is a producer claim like any
@@ -412,9 +477,9 @@ TEST(SharedRingBufferReaderTest, InflatedFragmentCount) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   Internals::SetChunkStateWord(
-      ring.get(), 0,
+      ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 8,
                         kWriterB));
 
@@ -427,7 +492,8 @@ TEST(SharedRingBufferReaderTest, InflatedFragmentCount) {
   for (const std::string& fragment : delegate.chunks[0].fragments)
     EXPECT_TRUE(fragment.empty());
   EXPECT_EQ(reader.GetStats().malformed_chunks, 0u);
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
   EXPECT_EQ(reader.read_pos(), 1u);
 }
 
@@ -437,9 +503,9 @@ TEST(SharedRingBufferReaderTest, MalformedBeingWrittenChunk) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   Internals::SetChunkStateWord(
-      ring.get(), 0,
+      ring.get(), ChunkIndex::FromIndex(0),
       MakeDataStateWord(ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer,
                         0, 255, kWriterB));
 
@@ -448,7 +514,7 @@ TEST(SharedRingBufferReaderTest, MalformedBeingWrittenChunk) {
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
   // Malformed bytes may be dropped. What must not happen is leaving a
   // BeingWritten owner able to publish behind the reader.
-  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)),
+  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0))),
             ChunkState::kRewriteRequested);
 }
 
@@ -457,15 +523,16 @@ TEST(SharedRingBufferReaderTest, ReservedStateStopsRing) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   const uint32_t reserved_word = 0x00000005u;
-  Internals::SetChunkStateWord(ring.get(), 0, reserved_word);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0),
+                               reserved_word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kProtocolError);
   EXPECT_TRUE(reader.has_protocol_error());
   EXPECT_EQ(reader.read_pos(), 0u);
-  EXPECT_EQ(ring->LoadChunkStateWord(0), reserved_word);
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)), reserved_word);
 
   // The ring buffer is never read again, and a drain over it changes nothing.
   const SharedRingBufferReader::DrainResult result = reader.Drain(8);
@@ -479,18 +546,19 @@ TEST(SharedRingBufferReaderTest, ForeignFreeWordStopsRing) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   // Position 0 expects Free(0). Only the reader writes a free word, and
   // it derives it from the position it is consuming, so no legal execution puts
   // this here.
   const uint32_t wrong_wrap = MakeFreeStateWord(3);
-  Internals::SetChunkStateWord(ring.get(), 0, wrong_wrap);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0),
+                               wrong_wrap);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kProtocolError);
   EXPECT_TRUE(reader.has_protocol_error());
   EXPECT_EQ(reader.read_pos(), 0u);
-  EXPECT_EQ(ring->LoadChunkStateWord(0), wrong_wrap);
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)), wrong_wrap);
 }
 
 // The control and fragment-count fields of a Free word are zero. A word using
@@ -501,16 +569,18 @@ TEST(SharedRingBufferReaderTest, FreeReservedBitsStopRing) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   // The wrap count is position 0's, but a reserved bit is set.
   const uint32_t reserved_bit_word = MakeFreeStateWord(0) | (1u << 8);
-  Internals::SetChunkStateWord(ring.get(), 0, reserved_bit_word);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0),
+                               reserved_bit_word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kProtocolError);
   EXPECT_TRUE(reader.has_protocol_error());
   EXPECT_EQ(reader.read_pos(), 0u);
-  EXPECT_EQ(ring->LoadChunkStateWord(0), reserved_bit_word);
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            reserved_bit_word);
 }
 
 // RewriteAcknowledged has one canonical word: the state bits and nothing else.
@@ -522,15 +592,15 @@ TEST(SharedRingBufferReaderTest, ForgedRewriteAckStopsRing) {
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
 
-  ASSERT_EQ(ring->TryReserveWritePos().position, 0u);
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   const uint32_t forged = kRewriteAcknowledgedStateWord | kFlagDataLoss;
-  Internals::SetChunkStateWord(ring.get(), 0, forged);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), forged);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kProtocolError);
   EXPECT_TRUE(reader.has_protocol_error());
   EXPECT_EQ(reader.read_pos(), 0u);
-  EXPECT_EQ(ring->LoadChunkStateWord(0), forged);
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)), forged);
 }
 
 // A writer reserves a position only after seeing fewer than num_chunks
@@ -623,7 +693,7 @@ TEST(SharedRingBufferReaderTest, DataLossOnEmptyCompleteChunk) {
   ASSERT_EQ(writer.BeginFragment(4, false).result,
             BeginFragmentResult::kSuccess);
   ASSERT_EQ(writer.FinishCurrentChunk(), EndFragmentResult::kSuccess);
-  ASSERT_EQ(ring->LoadChunkStateWord(0),
+  ASSERT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
             MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer,
                               kFlagDataLoss, 0, kWriterA));
 
@@ -631,7 +701,8 @@ TEST(SharedRingBufferReaderTest, DataLossOnEmptyCompleteChunk) {
             ConsumeResult::kPositionSkipped);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterA}));
-  EXPECT_EQ(ring->LoadChunkStateWord(0), MakeFreeStateWord(1));
+  EXPECT_EQ(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0)),
+            MakeFreeStateWord(1));
 
   // The writer's reuse of that chunk fails and its replacement does not repeat
   // the flag.
@@ -661,7 +732,7 @@ TEST(SharedRingBufferReaderTest, DataLossFollowsRelocatedFragment) {
             ConsumeResult::kPositionSkipped);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_TRUE(delegate.writers_with_data_loss.empty());
-  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)),
+  EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(ChunkIndex::FromIndex(0))),
             ChunkState::kRewriteRequested);
 
   ASSERT_EQ(writer.EndFragment(6, false), EndFragmentResult::kSuccess);
@@ -676,10 +747,9 @@ TEST(SharedRingBufferReaderTest, DataLossFollowsRelocatedFragment) {
   EXPECT_TRUE(delegate.writers_with_data_loss.empty());
 }
 
-// A one-chunk ring buffer is legal: every position maps to chunk 0 and the ring
-// buffer alternates between one outstanding reservation and empty.
-TEST(SharedRingBufferReaderTest, OneChunkRing) {
-  test::SharedRingBufferForTesting ring(1, 256);
+// The smallest supported ring buffer reuses both chunks across traversals.
+TEST(SharedRingBufferReaderTest, TwoChunkRing) {
+  test::SharedRingBufferForTesting ring(2, 256);
   RecordingDelegate delegate;
   SharedRingBufferReader reader(ring.get(), &delegate);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
