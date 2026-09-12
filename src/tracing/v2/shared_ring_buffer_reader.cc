@@ -108,8 +108,9 @@ SharedRingBufferReader::ConsumeNextPosition() {
   if (has_protocol_error_)
     return ConsumeResult::kProtocolError;
 
-  // A stale write_pos only shortens this drain pass.
-  const uint32_t write_pos = ring_->LoadWritePos();
+  // A relaxed load is enough here. An older write_pos only shortens this
+  // drain pass, which is still correct. A later pass can consume the rest.
+  const uint32_t write_pos = ring_->LoadWritePosRelaxed();
   const uint32_t outstanding = NumOutstandingPositions(write_pos, read_pos_);
   if (outstanding == 0)
     return ConsumeResult::kNoData;
@@ -130,7 +131,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
   const ChunkIndex chunk_idx = ChunkIndex::FromPosition(chunk_pos, num_chunks_);
 
   // A failed compare-and-swap replaces this with the word that won.
-  uint32_t state_word = ring_->LoadChunkStateWord(chunk_idx);
+  uint32_t state_word = ring_->LoadChunkStateWordAcquire(chunk_idx);
 
   switch (ChunkStateOf(state_word)) {
     case ChunkState::kFree: {
@@ -234,7 +235,7 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
   const uint32_t num_fragments = NumFragmentsOf(state_word);
   if (num_fragments == 0) {
     // A writer may still be storing BufferID after claiming BeingWritten(0).
-    // Only its first release publication makes that store visible. Do not
+    // Only its first fragment publication makes that store visible. Do not
     // touch any bytes beyond the state word when no fragment is published.
     return CopiedChunkStatus::kNoFragments;
   }

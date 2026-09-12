@@ -123,9 +123,7 @@ SharedRingBuffer::SharedRingBuffer(uint8_t* start,
 
 SharedRingBuffer::Reservation SharedRingBuffer::TryReserveWritePos() {
   // The reader marks chunks Free before publishing read_pos.
-  //
-  // Memory order acquire ensures that a writer which sees the new
-  // read_pos also sees those Free state words.
+  // A writer that sees the new read_pos also sees those Free state words.
   return TryReserveWritePosFromSnapshot(
       header()->rw_positions.load(std::memory_order_acquire));
 }
@@ -152,11 +150,12 @@ SharedRingBuffer::Reservation SharedRingBuffer::TryReserveWritePosFromSnapshot(
     // Failure reloads both halves. The loop rechecks capacity, and no position
     // was taken.
     //
-    // With memory order acquire, a snapshot that shows a newer read_pos
-    // also shows the chunks the reader freed before publishing it.
+    // Proposed memory ordering:
+    // - Success: acquire to observe the Free words published with read_pos.
+    // - Failure: acquire for the same reason. The refreshed read_pos feeds
+    //   the next capacity check.
     if (ring_header->rw_positions.compare_exchange_weak(
-            rw_positions, PackRwPositions(write_pos + 1, read_pos),
-            std::memory_order_acquire, std::memory_order_acquire)) {
+            rw_positions, PackRwPositions(write_pos + 1, read_pos))) {
       reservation.result = ReserveResult::kReserved;
       reservation.chunk_pos = write_pos;
       return reservation;
@@ -165,6 +164,10 @@ SharedRingBuffer::Reservation SharedRingBuffer::TryReserveWritePosFromSnapshot(
 }
 
 // --- Writer-side chunk transitions. ---
+
+// Every chunk CAS compares the whole state word, not just the state bits.
+// In the transitions below, N is the published fragment count. The expected
+// data word also includes its format, flags and WriterID.
 
 bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t chunk_pos,
                                                  uint32_t being_written_word) {
@@ -179,17 +182,13 @@ bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t chunk_pos,
   //
   // Either way, leave this reservation unclaimed and reserve a new position.
   //
-  // Memory order acquire pairs with the reader's memory order release
-  // transition to Free. The writer cannot overwrite
-  // the chunk until the reader is done with its old contents.
-  //
-  // On failure, memory order relaxed is enough because the returned word
-  // is ignored.
+  // Proposed memory ordering:
+  // - Success: acquire to observe the reader's release of Free.
+  //   The reader must finish copying before this writer overwrites the chunk.
+  // - Failure: relaxed because the returned word is ignored.
   uint32_t expected = MakeFreeStateWordForPosition(chunk_pos, num_chunks_);
   std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
-  return state_word->compare_exchange_strong(expected, being_written_word,
-                                             std::memory_order_acquire,
-                                             std::memory_order_relaxed);
+  return state_word->compare_exchange_strong(expected, being_written_word);
 }
 
 bool SharedRingBuffer::TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
@@ -202,15 +201,13 @@ bool SharedRingBuffer::TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
   // The reader can request a rewrite first. Failure then returns
   // RewriteRequested(N), and the caller relocates the unpublished fragment.
   //
-  // Memory order release publishes the M fragments and their sizes, plus
-  // BufferID on the first publication.
-  //
-  // On failure, memory order acquire ensures that the reader has finished
-  // copying the published fragments before the writer sees its rewrite request.
+  // Proposed memory ordering:
+  // - Success: release to publish M fragments and their sizes.
+  //   The first publication also makes BufferID visible.
+  // - Failure: acquire to observe the reader's RewriteRequested(N).
+  //   The reader must finish copying N fragments before the writer relocates.
   std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
-  return state_word->compare_exchange_strong(*expected, complete_word,
-                                             std::memory_order_release,
-                                             std::memory_order_acquire);
+  return state_word->compare_exchange_strong(*expected, complete_word);
 }
 
 bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
@@ -221,58 +218,48 @@ bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
   // The reader can reclaim the chunk first. The writer then drops its cached
   // handle and does not touch the chunk again.
   //
-  // Success publishes no bytes, so it uses memory order relaxed.
-  //
-  // The read-modify-write still extends the release sequence of Complete(N).
-  // The reader's memory order acquire load of BeingWritten(N) therefore
-  // sees the published fragments.
-  //
-  // Failure also uses memory order relaxed because the returned word is
-  // ignored.
+  // Proposed memory ordering:
+  // - Success: relaxed because reuse publishes no new bytes.
+  //   The read-modify-write extends Complete(N)'s release sequence.
+  //   The reader's acquire load still sees the N published fragments.
+  // - Failure: relaxed because the returned word is ignored.
   uint32_t expected = observed;
   std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
   return state_word->compare_exchange_strong(
-      expected, ReplaceChunkState(observed, ChunkState::kBeingWritten),
-      std::memory_order_relaxed, std::memory_order_relaxed);
+      expected, ReplaceChunkState(observed, ChunkState::kBeingWritten));
 }
 
 bool SharedRingBuffer::TryAcknowledgeRewrite(ChunkIndex chunk_idx,
                                              uint32_t observed) {
   PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kRewriteRequested);
 
-  // RewriteRequested -> RewriteAcknowledged.
+  // The observed RewriteRequested word -> canonical RewriteAcknowledged.
   // Only this writer may acknowledge, so failure is a protocol error.
   //
-  // Memory order release orders the unpublished fragment copy before the reader
-  // reclaims the chunk and a later writer overwrites it.
-  //
-  // On failure, memory order relaxed is enough because the unexpected
-  // word is not inspected.
+  // Proposed memory ordering:
+  // - Success: release to save the unpublished fragment before
+  //   acknowledgement. The reader can then reclaim the chunk.
+  // - Failure: relaxed because it only reports a protocol error.
   uint32_t expected = observed;
   std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
-  return state_word->compare_exchange_strong(
-      expected, kRewriteAcknowledgedStateWord, std::memory_order_release,
-      std::memory_order_relaxed);
+  return state_word->compare_exchange_strong(expected,
+                                             kRewriteAcknowledgedStateWord);
 }
 
 // --- Reader-side chunk transitions. ---
 
-uint32_t SharedRingBuffer::LoadChunkStateWord(ChunkIndex chunk_idx) const {
-  // Memory order acquire pairs with the writer's memory order release
-  // publication of Complete. This makes the
-  // fragments, their size varints and BufferID visible to the reader.
-  //
-  // A BeingWritten word created by reuse extends that release sequence and
-  // gives the same guarantee.
+uint32_t SharedRingBuffer::LoadChunkStateWordAcquire(
+    ChunkIndex chunk_idx) const {
+  // The acquire load pairs with the writer's publication of the fragments.
+  // The published count makes those fragments and their sizes visible.
+  // The first publication also makes BufferID visible. Reusing Complete as
+  // BeingWritten preserves that count and the visibility of its bytes.
   return chunk_state_word_at(chunk_idx)->load(std::memory_order_acquire);
 }
 
-uint32_t SharedRingBuffer::LoadWritePos() const {
-  // Memory order relaxed is enough because write_pos only bounds the
-  // current drain pass.
-  //
-  // LoadChunkStateWord() uses memory order acquire to order the payload
-  // reads.
+uint32_t SharedRingBuffer::LoadWritePosRelaxed() const {
+  // This bounds the reader's pass. It does not show whether each reservation
+  // has published data. LoadChunkStateWordAcquire() provides that information.
   return WritePosOf(header()->rw_positions.load(std::memory_order_relaxed));
 }
 
@@ -284,15 +271,16 @@ bool SharedRingBuffer::TryRequestRewrite(ChunkIndex chunk_idx,
   // The writer can publish first. The reader then discards its copy and retries
   // this position on a later pass.
   //
-  // Memory order release orders the published fragment copy before the writer
-  // observes the request and relocates its unpublished fragment.
+  // The expected word is the BeingWritten(N) word used to copy the fragments.
   //
-  // On failure, memory order relaxed is enough because the reader retries
-  // this position without using the returned word to read the payload.
+  // Proposed memory ordering:
+  // - Success: release to finish that copy before the writer observes
+  //   RewriteRequested and relocates its unpublished fragment.
+  // - Failure: relaxed because the copy is discarded. The next attempt
+  //   acquire-loads the state word again before reading any payload.
   std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
   return state_word->compare_exchange_strong(
-      *expected, ReplaceChunkState(*expected, ChunkState::kRewriteRequested),
-      std::memory_order_release, std::memory_order_relaxed);
+      *expected, ReplaceChunkState(*expected, ChunkState::kRewriteRequested));
 }
 
 bool SharedRingBuffer::TryMoveFreeChunkToNextWrap(uint32_t chunk_pos,
@@ -303,14 +291,13 @@ bool SharedRingBuffer::TryMoveFreeChunkToNextWrap(uint32_t chunk_pos,
   // A delayed writer can claim first. The reader then retries this position on
   // a later pass and finds the chunk BeingWritten or Complete.
   //
-  // Memory order release publishes Free to the next writer.
-  //
-  // On failure, memory order relaxed is enough because the reader retries
-  // the position.
+  // Proposed memory ordering:
+  // - Success: release to publish the next Free wrap to a claiming writer.
+  // - Failure: relaxed because the next attempt acquire-loads the state
+  //   word again before reading any payload.
   std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   return state_word->compare_exchange_strong(
-      *expected, MakeFreeWordForNextWrap(chunk_pos), std::memory_order_release,
-      std::memory_order_relaxed);
+      *expected, MakeFreeWordForNextWrap(chunk_pos));
 }
 
 bool SharedRingBuffer::TryReleaseCompleteChunkAsFree(uint32_t chunk_pos,
@@ -321,15 +308,16 @@ bool SharedRingBuffer::TryReleaseCompleteChunkAsFree(uint32_t chunk_pos,
   // The writer can reuse the chunk first. The reader then discards its copy and
   // retries this position on a later pass.
   //
-  // Memory order release orders the copy before the next writer acquires
-  // Free and overwrites the chunk.
+  // The expected word is the Complete(N) word used to copy the fragments.
   //
-  // On failure, memory order relaxed is enough because the reader retries
-  // the position without using the copied payload.
+  // Proposed memory ordering:
+  // - Success: release to finish the copy before another writer acquires
+  //   Free and overwrites the chunk.
+  // - Failure: relaxed because the copy is discarded. The next attempt
+  //   acquire-loads the state word again before reading any payload.
   std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   return state_word->compare_exchange_strong(
-      *expected, MakeFreeWordForNextWrap(chunk_pos), std::memory_order_release,
-      std::memory_order_relaxed);
+      *expected, MakeFreeWordForNextWrap(chunk_pos));
 }
 
 bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
@@ -342,18 +330,17 @@ bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
   // Failure is therefore a protocol error. The caller gets the unexpected
   // word in |*observed|.
   //
-  // Memory order acq_rel serves both handoffs:
-  // - acquire pairs with the acknowledgement after the writer copies its
-  //   unpublished fragment.
-  // - release hands the chunk to the next writer after that copy.
-  //
-  // On failure, memory order relaxed is enough because the unexpected
-  // word is used only to report the protocol error.
+  // Proposed memory ordering:
+  // - Success: acq_rel for two handoffs:
+  //   - Acquire observes the writer's acknowledgement after it saves its
+  //     unpublished fragment.
+  //   - Release passes the chunk to the next writer after that copy.
+  // - Failure: relaxed because the returned word only diagnoses the
+  //   protocol error.
   uint32_t expected = kRewriteAcknowledgedStateWord;
   std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   const bool reclaimed = state_word->compare_exchange_strong(
-      expected, MakeFreeWordForNextWrap(chunk_pos), std::memory_order_acq_rel,
-      std::memory_order_relaxed);
+      expected, MakeFreeWordForNextWrap(chunk_pos));
   if (!reclaimed)
     *observed = expected;
   return reclaimed;
@@ -381,23 +368,21 @@ SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
   // - the writer counts itself as waiting before checking read_pos.
   // - the reader publishes read_pos before checking the waiter count.
   //
-  // Without the two fences, both checks could see the old value. The writer
-  // would then sleep after the reader skipped the wake:
+  // The fences order each update before the other side's check. Together
+  // they prevent both checks from seeing an older value:
   //
-  //   writer                              reader
-  //   ------                              ------
-  //   num_writers_waiting += 1            publish read_pos
-  //   memory order seq_cst fence          memory order seq_cst fence
-  //   load read_pos                       load num_writers_waiting
-  //   FUTEX_WAIT if unchanged             FUTEX_WAKE if nonzero
+  //   writer                         reader
+  //   ------                         ------
+  //   num_writers_waiting += 1       publish read_pos
+  //   seq_cst fence                  seq_cst fence
+  //   load read_pos                  load num_writers_waiting
+  //   FUTEX_WAIT if unchanged        FUTEX_WAKE if nonzero
   //
-  // Both fences use memory order seq_cst. Whichever comes first decides
-  // the outcome:
-  // - writer first: the reader sees the waiter and wakes it.
-  // - reader first: the writer sees the new read_pos and does not sleep.
+  // - Writer's fence first: the reader sees the waiter and wakes it.
+  // - Reader's fence first: the writer sees the new read_pos.
+  //   It does not sleep.
   //
-  // num_writers_waiting is only a wake hint, so its accesses use
-  // memory order relaxed.
+  // num_writers_waiting is only a wake hint, so its accesses use relaxed order.
   ring_header->num_writers_waiting.fetch_add(1, std::memory_order_relaxed);
   std::atomic_thread_fence(std::memory_order_seq_cst);
 
@@ -428,8 +413,7 @@ SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
 }
 
 void SharedRingBuffer::PublishReadPos(uint32_t read_pos) {
-  // This load only supplies the initial expected value for the CAS below, so
-  // memory order relaxed is enough.
+  // This load only supplies the initial expected value for the CAS below.
   PublishReadPosFromSnapshot(
       header()->rw_positions.load(std::memory_order_relaxed), read_pos);
 }
@@ -444,19 +428,18 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   // Failure reloads both halves. The retry keeps the new write_pos while
   // replacing read_pos again.
   //
-  // Memory order release publishes this pass's Free words to writers that
-  // see the new read_pos.
-  //
-  // On failure, memory order relaxed is enough because the returned value
-  // only supplies the next CAS attempt.
+  // Proposed memory ordering:
+  // - Success: release so writers that acquire the new read_pos also see
+  //   this pass's Free words.
+  // - Failure: relaxed because the returned word only supplies the next
+  //   CAS attempt. No payload access depends on it.
   while (!ring_header->rw_positions.compare_exchange_weak(
-      rw_positions, ReplaceReadPos(rw_positions, read_pos),
-      std::memory_order_release, std::memory_order_relaxed)) {
+      rw_positions, ReplaceReadPos(rw_positions, read_pos))) {
   }
 
 #if PERFETTO_TRACING_V2_HAS_FUTEX()
-  // See the missed-wake schedule in WaitForReadPosChange(). The
-  // memory order seq_cst fence must precede the waiter-count load.
+  // See the missed-wake schedule in WaitForReadPosChange(). The fence
+  // orders read_pos publication before the waiter-count load.
   std::atomic_thread_fence(std::memory_order_seq_cst);
 
   if (ring_header->num_writers_waiting.load(std::memory_order_relaxed) == 0)

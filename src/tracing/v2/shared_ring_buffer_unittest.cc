@@ -43,11 +43,11 @@ static_assert(!std::is_constructible_v<ChunkIndex, uint32_t>);
 static_assert(!std::is_convertible_v<uint32_t, ChunkIndex>);
 static_assert(!std::is_convertible_v<ChunkIndex, uint32_t>);
 static_assert(
-    !std::is_invocable_v<decltype(&SharedRingBuffer::LoadChunkStateWord),
+    !std::is_invocable_v<decltype(&SharedRingBuffer::LoadChunkStateWordAcquire),
                          const SharedRingBuffer*,
                          uint32_t>);
 static_assert(
-    std::is_invocable_v<decltype(&SharedRingBuffer::LoadChunkStateWord),
+    std::is_invocable_v<decltype(&SharedRingBuffer::LoadChunkStateWordAcquire),
                         const SharedRingBuffer*,
                         ChunkIndex>);
 
@@ -220,15 +220,15 @@ TEST(SharedRingBufferTest, FreshMappingIsFree) {
   for (uint32_t chunk_idx = 0; chunk_idx < ring->num_chunks(); ++chunk_idx) {
     ASSERT_EQ(PeekStateWord(ring.get(), ChunkIndex::FromIndex(chunk_idx)), 0u)
         << chunk_idx;
-    ASSERT_EQ(ChunkStateOf(
-                  ring->LoadChunkStateWord(ChunkIndex::FromIndex(chunk_idx))),
+    ASSERT_EQ(ChunkStateOf(ring->LoadChunkStateWordAcquire(
+                  ChunkIndex::FromIndex(chunk_idx))),
               ChunkState::kFree);
-    ASSERT_EQ(
-        WrapCountOf(ring->LoadChunkStateWord(ChunkIndex::FromIndex(chunk_idx))),
-        0u);
+    ASSERT_EQ(WrapCountOf(ring->LoadChunkStateWordAcquire(
+                  ChunkIndex::FromIndex(chunk_idx))),
+              0u);
   }
   EXPECT_EQ(Internals::GetReadPos(ring.get()), 0u);
-  EXPECT_EQ(ring->LoadWritePos(), 0u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 0u);
   EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
 }
 
@@ -288,7 +288,7 @@ TEST(SharedRingBufferTest, ReserveUntilFull) {
   EXPECT_EQ(full.result, ReserveResult::kFull);
   // Nothing was reserved, so write_pos did not move: a full ring buffer must
   // not burn a position.
-  EXPECT_EQ(ring->LoadWritePos(), 4u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 4u);
   // The sample the decision was taken against is exactly what a stalling
   // writer has to wait on.
   EXPECT_EQ(full.read_pos_for_wait, 0u);
@@ -304,14 +304,14 @@ TEST(SharedRingBufferTest, CapacityFollowsReadPos) {
   // Publishing read_pos must preserve a concurrently updated write_pos.
   ring->PublishReadPos(1);
   EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
-  EXPECT_EQ(ring->LoadWritePos(), 2u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 2u);
 
   const auto reservation = ring->TryReserveWritePos();
   ASSERT_EQ(reservation.result, ReserveResult::kReserved);
   EXPECT_EQ(reservation.chunk_pos, 2u);
   EXPECT_EQ(reservation.read_pos_for_wait, 1u);
   EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
-  EXPECT_EQ(ring->LoadWritePos(), 3u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 3u);
 }
 
 // One load of the packed positions decides capacity across uint32_t rollover.
@@ -326,7 +326,7 @@ TEST(SharedRingBufferTest, CapacityAcrossPositionRollover) {
     EXPECT_EQ(reservation.chunk_pos, kSeedPos + i) << i;
   }
   // write_pos has wrapped: 0xfffffffc + 8 = 4.
-  EXPECT_EQ(ring->LoadWritePos(), 4u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 4u);
 
   const auto full = ring->TryReserveWritePos();
   ASSERT_EQ(full.result, ReserveResult::kFull);
@@ -369,7 +369,7 @@ TEST(SharedRingBufferTest, ReservationLosesToPublication) {
   // The failed CAS returned read_pos=1. Seeing that value here proves that the
   // retry did not keep read_pos=0 from the old value.
   EXPECT_EQ(reservation.read_pos_for_wait, 1u);
-  EXPECT_EQ(ring->LoadWritePos(), 3u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 3u);
   EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
 }
 
@@ -388,7 +388,7 @@ TEST(SharedRingBufferTest, ReservationLossFindsFull) {
       Internals::TryReserveWritePosFromSnapshot(ring.get(), stale_rw_positions);
   EXPECT_EQ(reservation.result, ReserveResult::kFull);
   EXPECT_EQ(reservation.read_pos_for_wait, 0u);
-  EXPECT_EQ(ring->LoadWritePos(), 2u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 2u);
 }
 
 // A writer reservation lands between the reader's load and its CAS. The
@@ -403,7 +403,7 @@ TEST(SharedRingBufferTest, PublicationLosesToReservation) {
             0u);  // Now (write=1, read=0).
 
   Internals::PublishReadPosFromSnapshot(ring.get(), stale_rw_positions, 1);
-  EXPECT_EQ(ring->LoadWritePos(), 1u);
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 1u);
   EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
 }
 
@@ -433,7 +433,7 @@ TEST(SharedRingBufferTest, TwoChunkRing) {
                 MakeFreeStateWord(static_cast<uint16_t>(traversal + 1)));
     }
     ring->PublishReadPos((traversal + 1) * 2);
-    EXPECT_EQ(Internals::GetReadPos(ring.get()), ring->LoadWritePos());
+    EXPECT_EQ(Internals::GetReadPos(ring.get()), ring->LoadWritePosRelaxed());
   }
 }
 
@@ -472,7 +472,7 @@ TEST(SharedRingBufferTest, StaleClaimFails) {
   // chunk 0 ends up Free with position 8's wrap count.
   for (uint32_t chunk_pos = 0; chunk_pos <= 4; ++chunk_pos) {
     const ChunkIndex chunk_idx = ChunkIndex::FromPosition(chunk_pos, 4);
-    uint32_t observed = ring->LoadChunkStateWord(chunk_idx);
+    uint32_t observed = ring->LoadChunkStateWordAcquire(chunk_idx);
     ASSERT_TRUE(ring->TryMoveFreeChunkToNextWrap(chunk_pos, &observed))
         << chunk_pos;
   }
@@ -496,7 +496,7 @@ TEST(SharedRingBufferTest, OnlyMatchingPositionClaims) {
   test::SharedRingBufferForTesting ring(2, kChunkSize);
 
   // Positions 0 and 2 both map to chunk 0 but belong to different traversals.
-  uint32_t observed = ring->LoadChunkStateWord(ChunkIndex::FromIndex(0));
+  uint32_t observed = ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0));
   ASSERT_TRUE(ring->TryMoveFreeChunkToNextWrap(0, &observed));
   ASSERT_EQ(WrapCountOf(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0))),
             1u);
@@ -771,7 +771,7 @@ TEST(SharedRingBufferTest, UnclaimedAdvanceLosesToClaim) {
     const ChunkIndex chunk_idx =
         ChunkIndex::FromPosition(chunk_pos, kNumChunks);
     // The reader loaded the Free word before the claim landed.
-    uint32_t observed = ring->LoadChunkStateWord(chunk_idx);
+    uint32_t observed = ring->LoadChunkStateWordAcquire(chunk_idx);
     ASSERT_EQ(observed, MakeFreeStateWordForPosition(chunk_pos, kNumChunks));
     ASSERT_TRUE(
         ring->TryAcquireChunkForWriting(chunk_pos, BeingWrittenWord(kWriterA)));
@@ -802,7 +802,7 @@ TEST(SharedRingBufferTest, ClaimLosesToUnclaimedAdvance) {
     SCOPED_TRACE(chunk_pos);
     const ChunkIndex chunk_idx =
         ChunkIndex::FromPosition(chunk_pos, kNumChunks);
-    uint32_t observed = ring->LoadChunkStateWord(chunk_idx);
+    uint32_t observed = ring->LoadChunkStateWordAcquire(chunk_idx);
     ASSERT_TRUE(ring->TryMoveFreeChunkToNextWrap(chunk_pos, &observed));
     const uint32_t next_wrap =
         MakeFreeStateWordForPosition(chunk_pos + kNumChunks, kNumChunks);
@@ -825,7 +825,7 @@ TEST(SharedRingBufferTest, ScrapeLosesToPublication) {
   test::SharedRingBufferForTesting ring(2, kChunkSize);
   ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, BeingWrittenWord(kWriterA)));
   // The reader loaded BeingWritten(0) before the publication landed.
-  uint32_t observed = ring->LoadChunkStateWord(ChunkIndex::FromIndex(0));
+  uint32_t observed = ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0));
   ASSERT_EQ(observed, BeingWrittenWord(kWriterA));
 
   uint32_t expected = BeingWrittenWord(kWriterA);
@@ -870,7 +870,7 @@ TEST(SharedRingBufferTest, ReclaimLosesToReuse) {
   Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0),
                                CompleteWord(kWriterA, 1));
   // The reader loaded Complete(1) before the reuse landed.
-  uint32_t observed = ring->LoadChunkStateWord(ChunkIndex::FromIndex(0));
+  uint32_t observed = ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0));
   ASSERT_TRUE(ring->TryReacquireChunkForWriting(ChunkIndex::FromIndex(0),
                                                 CompleteWord(kWriterA, 1)));
 
@@ -974,7 +974,7 @@ TEST(SharedRingBufferTest, WaitTimesOut) {
   test::SharedRingBufferForTesting ring(2, kChunkSize);
   ASSERT_EQ(ring->TryReserveWritePos().result, ReserveResult::kReserved);
   ASSERT_EQ(ring->TryReserveWritePos().result, ReserveResult::kReserved);
-  ASSERT_EQ(ring->LoadWritePos(), 2u);
+  ASSERT_EQ(ring->LoadWritePosRelaxed(), 2u);
   ASSERT_EQ(Internals::GetReadPos(ring.get()), 0u);
 
   // Keep the normal timeout path short. Elapsed time is not part of the
