@@ -256,13 +256,13 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // accessed anymore afterwards.
   Message* nested_message_;
 
-  // [optional] Pointer to a non-aligned pre-reserved var-int slot of
-  // kMessageLengthFieldSize bytes. When set, the Finalize() method will write
-  // the size of proto-encoded message in the pointed memory region.
+  // Optional pointer to the length field in length-delimited mode. The field
+  // has kMessageLengthFieldSize bytes and may be unaligned. Finalize() writes
+  // this message's encoded size there, then sets this pointer to null.
   //
-  // In proto-group mode, a nested message ends with a closing byte and the
-  // root ends at the packet boundary. Neither writes a length before its
-  // contents, so there is no length field to fill in later.
+  // In proto-group mode, this pointer is unused and always null. That encoding
+  // reserves no length field. A nested message appends a closing byte when it
+  // finishes, and the packet boundary marks the end of the root message.
   uint8_t* size_field_;
 
   // Keeps track of the size of the current message.
@@ -285,15 +285,13 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // Selected by the root and inherited by every nested message.
   NestedMessageEncoding encoding_;
 
-  // Whether this message is the root of the packet. In proto-group mode:
+  // Whether this message is the packet root. In proto-group mode, Finalize()
+  // closes nested messages with an end byte. The packet boundary closes the
+  // root, which has no start tag or end byte.
   //
-  // - Root: the caller supplies the packet's boundaries to the rewriter.
-  //   There is no start-group tag for the root, so Finalize() must not append
-  //   an end byte. The rewriter would reject it as an unmatched closing byte.
-  //
-  // - Nested message: the parent writes a start-group tag. Finalize() must
-  //   append an end byte to mark where the child's fields stop, so later
-  //   fields can be read as part of the parent again.
+  // MessageHandleBase finalizes through Message*, and packet handles expose
+  // the generated message type. Both call Message::Finalize(), so the root
+  // identity must be stored in Message even when RootMessage owns the arena.
   //
   // Example: a root packet containing just one nested message:
   //
@@ -305,8 +303,6 @@ class PERFETTO_EXPORT_COMPONENT Message {
   //        +-------------+----------------+---------+
   //
   // END closes the child. No additional byte closes the root.
-  // Both messages use the same encoding, so we need is_root_ to tell them
-  // apart.
   bool is_root_;
 
 #if PERFETTO_DCHECK_IS_ON()
