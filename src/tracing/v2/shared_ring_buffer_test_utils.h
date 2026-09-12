@@ -61,9 +61,14 @@ class SharedRingBufferForTesting {
 };
 
 // Reaches the private state that the deterministic tests need. Friended by
-// SharedRingBuffer and SharedRingBufferReader.
+// SharedRingBuffer, SharedRingBufferReader and SharedRingBufferWriter.
 class SharedRingBufferInternalsForTest {
  public:
+  // Exercise the writer's sleep fallback even on platforms with futex support.
+  static void DisableWriterFutex(SharedRingBufferWriter* writer) {
+    writer->use_futex_ = false;
+  }
+
   // Injects a state word for corruption and unknown-ABI tests.
   static void SetChunkStateWord(SharedRingBuffer* ring,
                                 ChunkIndex chunk_idx,

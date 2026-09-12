@@ -49,17 +49,22 @@ class CountingSharedRingBufferWriterDelegate
   uint32_t num_notifications = 0;
 };
 
-// Plays a reader that frees one chunk whenever the writer asks for one: the
-// chunk at read_pos, which must be finished with (Complete or
-// RewriteAcknowledged), becomes Free and read_pos moves past it.
+// Waits for the chosen number of notifications, then frees one chunk per call.
+// The chunk at read_pos must be Complete or RewriteAcknowledged. It becomes
+// Free and read_pos moves past it.
 class ReleasingSharedRingBufferWriterDelegate
     : public SharedRingBufferWriter::Delegate {
  public:
-  explicit ReleasingSharedRingBufferWriterDelegate(SharedRingBuffer* ring)
-      : ring_(ring) {}
+  explicit ReleasingSharedRingBufferWriterDelegate(
+      SharedRingBuffer* ring,
+      uint32_t release_after_notifications = 1)
+      : ring_(ring),
+        release_after_notifications_(release_after_notifications) {}
 
   void NotifyReader() override {
     ++num_notifications;
+    if (num_notifications < release_after_notifications_)
+      return;
     const uint32_t read_pos = Internals::GetReadPos(ring_);
     const ChunkIndex chunk_idx =
         ChunkIndex::FromPosition(read_pos, ring_->num_chunks());
@@ -78,6 +83,7 @@ class ReleasingSharedRingBufferWriterDelegate
 
  private:
   SharedRingBuffer* const ring_;
+  const uint32_t release_after_notifications_;
 };
 
 // A minimal, independent decoder for what a chunk holds. It deliberately does
@@ -467,8 +473,6 @@ TEST(SharedRingBufferWriterTest, DropPolicyReportsFull) {
 
 TEST(SharedRingBufferWriterTest, NotifiesReaderBeforeWaiting) {
   // A full ring buffer notifies the reader before the writer waits.
-  if (!SharedRingBuffer::SupportsWriterWait())
-    GTEST_SKIP() << "The futex wait is not available on this platform";
   test::SharedRingBufferForTesting ring(2, 256);
 
   SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
@@ -487,10 +491,35 @@ TEST(SharedRingBufferWriterTest, NotifiesReaderBeforeWaiting) {
   EXPECT_EQ(delegate.num_notifications, 1u);
 }
 
+TEST(SharedRingBufferWriterTest, SleepFallbackRetriesUntilSpaceIsAvailable) {
+  for (auto policy :
+       {BufferExhaustedPolicy::kStall, BufferExhaustedPolicy::kStallThenDrop}) {
+    SCOPED_TRACE(static_cast<int>(policy));
+    test::SharedRingBufferForTesting ring(2, 256);
+    SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
+    ASSERT_TRUE(WriteFragment(&first, "first"));
+    first.FinishCurrentChunk();
+    ASSERT_TRUE(WriteFragment(&first, "second"));
+    first.FinishCurrentChunk();
+
+    // Keep the ring buffer full through two waits. The next notification
+    // releases space, so recovery depends on retrying after the sleep.
+    ReleasingSharedRingBufferWriterDelegate delegate(ring.get(), 3);
+    SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer, policy,
+                                  &delegate);
+    Internals::DisableWriterFutex(&second);
+    ASSERT_TRUE(WriteFragment(&second, "recovered"));
+    EXPECT_EQ(delegate.num_notifications, 3u);
+    EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
+    EXPECT_EQ(ring->LoadWritePosRelaxed(), 3u);
+    EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
+    EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(0)).fragments,
+              std::vector<std::string>{"recovered"});
+  }
+}
+
 TEST(SharedRingBufferWriterTest, StallThenDropEpisode) {
   // kStallThenDrop does not stall again until a chunk has reported the loss.
-  if (!SharedRingBuffer::SupportsWriterWait())
-    GTEST_SKIP() << "The futex wait is not available on this platform";
   test::SharedRingBufferForTesting ring(2, 256);
 
   SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
