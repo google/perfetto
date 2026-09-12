@@ -42,7 +42,10 @@ _tracing_unittests_targets += [
   "src/tracing:unittests",
 ]
 
-_misc_unittests_targets += [ "src/shared_lib/track_event:unittests" ]
+_misc_unittests_targets += [
+  "src/shared_lib:unittests",
+  "src/shared_lib/track_event:unittests",
+]
 
 if ((is_linux || is_android) && !perfetto_build_with_embedder) {
   # This test depends on pthread and can't run on non-Linux-based OS.

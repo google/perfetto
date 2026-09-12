@@ -25,6 +25,10 @@
 // This header contains macros that define types and accessors for protobuf
 // messages.
 //
+// ProtoGroup supports scalar, complete-value and nested-message accessors.
+// Incremental STRING/PACKED begin/append/end accessors abort.
+// See PerfettoPbMsgEncoding in pb_msg.h.
+//
 // Example usage:
 //
 // PERFETTO_PB_ENUM(perfetto_protos_BuiltinClock){
@@ -122,7 +126,7 @@
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_BEGIN_NAME(PREFIX, NAME)(       \
       struct PROTO * msg, struct PerfettoPbMsg * nested) {                \
-    PerfettoPbMsgBeginNested(&msg->msg, nested, NUM);                     \
+    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, nested, NUM);       \
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(         \
       struct PROTO * msg, struct PerfettoPbMsg * nested) {                \
@@ -184,7 +188,7 @@
       struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
     struct PerfettoPbMsg* nested_msg =                                    \
         PERFETTO_REINTERPRET_CAST(struct PerfettoPbMsg*, nested);         \
-    PerfettoPbMsgBeginNested(&msg->msg, nested_msg, NUM);                 \
+    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, nested_msg, NUM);   \
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(         \
       struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
