@@ -463,7 +463,7 @@ enum PayloadFlags : uint32_t {
 //   reader  RewriteRequested       advance read_pos         unchanged
 //   reader  RewriteAcknowledged    reclaim                  Free(next wrap)
 //   reader  reserved state 5..7    unknown owner, stop      unchanged
-//   reader  Free CAS lost          retry later              unchanged
+//   reader  Free CAS lost          retry immediately        unchanged
 //   reader  BeingWritten CAS lost  discard copy, retry      unchanged
 //   reader  Complete CAS lost      discard copy, retry      unchanged
 //   reader  acknowledgement lost   protocol error, stop     unchanged
@@ -471,6 +471,7 @@ enum PayloadFlags : uint32_t {
 //   writer  any other lost CAS     bug, abort               unchanged
 //
 // Lost-CAS rows describe a failed attempt. It does not change the shared word.
+// The reader retries within Drain(), subject to its per-position attempt limit.
 // A failed publication must find RewriteRequested(N), or the writer aborts.
 // The reader also stops on reserved bits in Free or RewriteAcknowledged.
 //

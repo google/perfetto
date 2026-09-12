@@ -269,7 +269,7 @@ bool SharedRingBuffer::TryRequestRewrite(ChunkIndex chunk_idx,
 
   // BeingWritten(N) -> RewriteRequested(N).
   // The writer can publish first. The reader then discards its copy and retries
-  // this position on a later pass.
+  // this position immediately within Drain().
   //
   // The expected word is the BeingWritten(N) word used to copy the fragments.
   //
@@ -288,8 +288,8 @@ bool SharedRingBuffer::TryMoveFreeChunkToNextWrap(uint32_t chunk_pos,
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kFree);
 
   // Free(wrap(chunk_pos)) -> Free(next wrap).
-  // A delayed writer can claim first. The reader then retries this position on
-  // a later pass and finds the chunk BeingWritten or Complete.
+  // A delayed writer can claim first. The reader then retries this position
+  // immediately and finds the chunk BeingWritten or Complete.
   //
   // Proposed memory ordering:
   // - Success: release to publish the next Free wrap to a claiming writer.
@@ -306,7 +306,7 @@ bool SharedRingBuffer::TryReleaseCompleteChunkAsFree(uint32_t chunk_pos,
 
   // Complete(N) -> Free(next wrap).
   // The writer can reuse the chunk first. The reader then discards its copy and
-  // retries this position on a later pass.
+  // retries this position immediately within Drain().
   //
   // The expected word is the Complete(N) word used to copy the fragments.
   //
@@ -341,7 +341,7 @@ bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
   std::atomic<uint32_t>* state_word = chunk_state_word_for_position(chunk_pos);
   const bool reclaimed = state_word->compare_exchange_strong(
       expected, MakeFreeWordForNextWrap(chunk_pos));
-  if (!reclaimed)
+  if (PERFETTO_UNLIKELY(!reclaimed))
     *observed = expected;
   return reclaimed;
 }
@@ -451,9 +451,10 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   // This runs once per pass rather than once per reclaimed chunk.
   //
   // Waits are bounded, so a failed wake delays writers but cannot strand them.
-  if (FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions),
-                   FUTEX_WAKE_PRIVATE, static_cast<uint32_t>(INT32_MAX),
-                   nullptr) < 0) {
+  if (PERFETTO_UNLIKELY(
+          FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions),
+                       FUTEX_WAKE_PRIVATE, static_cast<uint32_t>(INT32_MAX),
+                       nullptr) < 0)) {
     PERFETTO_DPLOG("tracing v2: futex wake on read_pos failed");
   }
 #endif  // PERFETTO_TRACING_V2_HAS_FUTEX()

@@ -402,8 +402,9 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
     }
 
     // Only the reader's rewrite request may beat this publication.
-    if (ChunkStateOf(expected) != ChunkState::kRewriteRequested ||
-        WriterIDOf(expected) != writer_id_) {
+    if (PERFETTO_UNLIKELY(ChunkStateOf(expected) !=
+                              ChunkState::kRewriteRequested ||
+                          WriterIDOf(expected) != writer_id_)) {
       PERFETTO_FATAL(
           "tracing v2: publication of chunk %u by writer %u lost to state word "
           "0x%08x, which is not a rewrite request for this writer",
@@ -440,7 +441,8 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
                                  cur_chunk_ + payload_end_);
     }
 
-    if (!ring_->TryAcknowledgeRewrite(cur_chunk_idx_, expected)) {
+    if (PERFETTO_UNLIKELY(
+            !ring_->TryAcknowledgeRewrite(cur_chunk_idx_, expected))) {
       PERFETTO_FATAL(
           "tracing v2: writer %u could not acknowledge chunk %u: only its "
           "owner may leave RewriteRequested",

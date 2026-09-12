@@ -36,6 +36,7 @@ namespace {
 using Internals = test::SharedRingBufferInternalsForTest;
 using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
 using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
+using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
 using ConsumeResult = SharedRingBufferReader::ConsumeResult;
 using test::GetNoopWriterDelegate;
 using test::MakeWriter;
@@ -122,6 +123,212 @@ TEST(SharedRingBufferReaderTest, ConsumesCompleteChunk) {
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader), ConsumeResult::kNoData);
+}
+
+TEST(SharedRingBufferReaderTest, DrainRetriesWriterClaim) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+  ASSERT_EQ(ring->TryReserveWritePos().result,
+            SharedRingBuffer::ReserveResult::kReserved);
+
+  uint32_t attempts = 0;
+  Internals::SetBeforeStateTransitionCallback(&reader, [&] {
+    EXPECT_EQ(reader.read_pos(), 0u);
+    if (++attempts == 1) {
+      // Claim after the reader observed Free. Its wrap-advance CAS must fail.
+      ASSERT_TRUE(ring->TryAcquireChunkForWriting(
+          0, MakeDataStateWord(ChunkState::kBeingWritten,
+                               ChunkFormat::kTargetBuffer, 0, 0, kWriterA)));
+    }
+  });
+
+  const auto result = reader.Drain(1);
+  EXPECT_EQ(attempts, 2u);
+  EXPECT_EQ(result.positions_consumed, 1u);
+  EXPECT_EQ(result.last_result, ConsumeResult::kPositionSkipped);
+  EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
+  EXPECT_EQ(reader.GetStats().rewrite_requests, 1u);
+  EXPECT_TRUE(delegate.chunks.empty());
+  EXPECT_TRUE(delegate.writers_with_data_loss.empty());
+}
+
+TEST(SharedRingBufferReaderTest, DrainRetriesWriterPublication) {
+  for (bool abandon_fragment : {false, true}) {
+    for (bool report_loss : {false, true}) {
+      SCOPED_TRACE(abandon_fragment);
+      SCOPED_TRACE(report_loss);
+      test::SharedRingBufferForTesting ring(4, 256);
+      RecordingDelegate delegate;
+      SharedRingBufferReader reader(ring.get(), &delegate);
+      SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+      ASSERT_TRUE(WriteFragment(&writer, "before"));
+      if (report_loss)
+        writer.RecordDataLoss();
+      const auto range = writer.BeginFragment(5, false);
+      ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
+      memcpy(range.begin, "after", 5);
+
+      uint32_t attempts = 0;
+      Internals::SetBeforeStateTransitionCallback(&reader, [&] {
+        EXPECT_EQ(reader.read_pos(), 0u);
+        EXPECT_EQ(Internals::GetReadPos(ring.get()), 0u);
+        EXPECT_TRUE(delegate.chunks.empty());
+        EXPECT_TRUE(delegate.writers_with_data_loss.empty());
+        if (++attempts != 1)
+          return;
+        // Publish after the reader copied "before" from BeingWritten.
+        const auto result = abandon_fragment ? writer.FinishCurrentChunk()
+                                             : writer.EndFragment(5, false);
+        ASSERT_EQ(result, EndFragmentResult::kSuccess);
+      });
+
+      const auto result = reader.Drain(1);
+      EXPECT_EQ(attempts, 2u);
+      EXPECT_EQ(result.positions_consumed, 1u);
+      EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
+      if (report_loss) {
+        EXPECT_EQ(result.last_result, ConsumeResult::kPositionSkipped);
+        EXPECT_TRUE(delegate.chunks.empty());
+        EXPECT_EQ(delegate.writers_with_data_loss,
+                  std::vector<WriterID>{kWriterA});
+      } else {
+        EXPECT_EQ(result.last_result, ConsumeResult::kChunkRead);
+        ASSERT_EQ(delegate.chunks.size(), 1u);
+        const std::vector<std::string> expected =
+            abandon_fragment ? std::vector<std::string>{"before"}
+                             : std::vector<std::string>{"before", "after"};
+        EXPECT_EQ(delegate.AllFragments(), expected);
+        EXPECT_TRUE(delegate.writers_with_data_loss.empty());
+      }
+    }
+  }
+}
+
+TEST(SharedRingBufferReaderTest, DrainRetriesWriterReuse) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, "before"));
+
+  uint32_t attempts = 0;
+  Internals::SetBeforeStateTransitionCallback(&reader, [&] {
+    EXPECT_EQ(reader.read_pos(), 0u);
+    EXPECT_TRUE(delegate.chunks.empty());
+    if (++attempts == 1) {
+      // Reuse after the reader copied Complete. Its reclaim CAS must fail.
+      const auto range = writer.BeginFragment(5, false);
+      ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
+      memcpy(range.begin, "after", 5);
+    }
+  });
+
+  const auto result = reader.Drain(1);
+  EXPECT_EQ(attempts, 2u);
+  EXPECT_EQ(result.positions_consumed, 1u);
+  EXPECT_EQ(result.last_result, ConsumeResult::kChunkRead);
+  ASSERT_EQ(delegate.chunks.size(), 1u);
+  EXPECT_EQ(delegate.AllFragments(), std::vector<std::string>{"before"});
+  EXPECT_EQ(reader.GetStats().rewrite_requests, 1u);
+
+  Internals::SetBeforeStateTransitionCallback(&reader, {});
+  ASSERT_EQ(writer.EndFragment(5, false), EndFragmentResult::kSuccess);
+  EXPECT_EQ(writer.GetStats().relocations, 1u);
+  reader.Drain(4);
+  EXPECT_EQ(delegate.AllFragments(),
+            (std::vector<std::string>{"before", "after"}));
+}
+
+TEST(SharedRingBufferReaderTest, DrainRetriesUntilFragmentLimit) {
+  test::SharedRingBufferForTesting ring(4, 512);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  ASSERT_EQ(writer.BeginFragment(0, false).result,
+            BeginFragmentResult::kSuccess);
+
+  uint32_t attempts = 0;
+  uint32_t fragments_published = 0;
+  bool fragment_open = true;
+  Internals::SetBeforeStateTransitionCallback(&reader, [&] {
+    ++attempts;
+    EXPECT_EQ(reader.read_pos(), 0u);
+    EXPECT_TRUE(delegate.chunks.empty());
+    if (fragments_published == kMaxFragmentsPerChunk)
+      return;
+    // Alternate publication and reuse so every CAS loses until the chunk
+    // reaches the fragment limit. Zero-byte fragments still use the count.
+    if (fragment_open) {
+      ASSERT_EQ(writer.EndFragment(0, false), EndFragmentResult::kSuccess);
+      ++fragments_published;
+    } else {
+      ASSERT_EQ(writer.BeginFragment(0, false).result,
+                BeginFragmentResult::kSuccess);
+    }
+    fragment_open = !fragment_open;
+  });
+
+  const auto result = reader.Drain(1);
+  EXPECT_EQ(attempts, 2 * kMaxFragmentsPerChunk);
+  EXPECT_EQ(result.positions_consumed, 1u);
+  EXPECT_EQ(result.last_result, ConsumeResult::kChunkRead);
+  ASSERT_EQ(delegate.chunks.size(), 1u);
+  EXPECT_EQ(delegate.AllFragments(),
+            std::vector<std::string>(kMaxFragmentsPerChunk));
+  EXPECT_FALSE(reader.has_protocol_error());
+}
+
+TEST(SharedRingBufferReaderTest, RetryLimitPublishesEarlierProgress) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, "first"));
+  writer.FinishCurrentChunk();
+  writer.RecordDataLoss();
+  ASSERT_TRUE(WriteFragment(&writer, "discarded"));
+  writer.FinishCurrentChunk();
+
+  uint32_t failed_attempts = 0;
+  Internals::SetBeforeStateTransitionCallback(&reader, [&] {
+    if (reader.read_pos() == 0)
+      return;
+    EXPECT_EQ(reader.read_pos(), 1u);
+    EXPECT_EQ(Internals::GetReadPos(ring.get()), 0u);
+    EXPECT_TRUE(delegate.writers_with_data_loss.empty());
+    // Exercise the scheduling limit through the low-level API. Keep changing
+    // state at the same fragment count, beyond what the writer class does.
+    const ChunkIndex chunk_idx = ChunkIndex::FromIndex(1);
+    uint32_t word = ring->LoadChunkStateWordAcquire(chunk_idx);
+    if (ChunkStateOf(word) == ChunkState::kComplete) {
+      ASSERT_TRUE(ring->TryReacquireChunkForWriting(chunk_idx, word));
+    } else {
+      ASSERT_EQ(ChunkStateOf(word), ChunkState::kBeingWritten);
+      ASSERT_TRUE(ring->TryReleaseChunkAsComplete(
+          chunk_idx, ReplaceChunkState(word, ChunkState::kComplete), &word));
+    }
+    ++failed_attempts;
+  });
+
+  const auto result = reader.Drain(2);
+  EXPECT_EQ(failed_attempts, 2 * kMaxFragmentsPerChunk + 2);
+  EXPECT_EQ(result.last_result, ConsumeResult::kRetryImmediately);
+  EXPECT_TRUE(result.needs_another_drain());
+  EXPECT_EQ(result.positions_consumed, 1u);
+  EXPECT_EQ(reader.read_pos(), 1u);
+  EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
+  EXPECT_EQ(delegate.AllFragments(), std::vector<std::string>{"first"});
+  EXPECT_TRUE(delegate.writers_with_data_loss.empty());
+  EXPECT_FALSE(reader.has_protocol_error());
+
+  Internals::SetBeforeStateTransitionCallback(&reader, {});
+  const auto next = reader.Drain(1);
+  EXPECT_EQ(next.positions_consumed, 1u);
+  EXPECT_EQ(next.last_result, ConsumeResult::kPositionSkipped);
+  EXPECT_EQ(Internals::GetReadPos(ring.get()), 2u);
+  EXPECT_EQ(delegate.writers_with_data_loss, std::vector<WriterID>{kWriterA});
+  EXPECT_EQ(delegate.AllFragments(), std::vector<std::string>{"first"});
 }
 
 TEST(SharedRingBufferReaderTest, DrainPublishesOnce) {

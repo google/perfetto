@@ -25,6 +25,21 @@
 namespace perfetto::tracing_v2 {
 namespace {
 
+// Bound attempts at one position. For M = kMaxFragmentsPerChunk:
+// - Each fragment can defeat the reader's CAS twice:
+//   1. Publication: BeingWritten(N) -> Complete(N + 1).
+//   2. Reuse: Complete(N + 1) -> BeingWritten(N + 1).
+//   Allow M attempts for each, giving 2 * M.
+// - Add one for the initial Free -> BeingWritten claim.
+// - Add one for the reader's successful CAS, giving 2 * M + 2.
+//
+// This is conservative. SharedRingBufferWriter stops reusing at M fragments,
+// so there are at most M - 1 reuses. Zero-byte fragments still use the count.
+// FinishCurrentChunk() drops the cached handle even when abandoning a fragment.
+// The limit also bounds work if another producer keeps changing the state
+// without increasing the fragment count.
+constexpr uint32_t kMaxAttemptsPerPosition = 2 * kMaxFragmentsPerChunk + 2;
+
 // For the protocol-error log only.
 const char* ChunkStateName(ChunkState state) {
   switch (state) {
@@ -68,7 +83,16 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
   const uint32_t start_pos = read_pos_;
   DrainResult result{};
   for (uint32_t i = 0; i < max_positions; ++i) {
-    result.last_result = ConsumeNextPosition();
+    // Retry before spending this position's budget. Each attempt reloads the
+    // state and recopies any published fragments. A descheduled writer does
+    // not block us because an unchanged state lets the next CAS succeed.
+    for (uint32_t attempt = 0; attempt < kMaxAttemptsPerPosition; ++attempt) {
+      result.last_result = ConsumeNextPosition();
+      if (result.last_result != ConsumeResult::kRetryImmediately)
+        break;
+    }
+    // If every attempt lost, yield with another drain requested. Contention
+    // alone is not a protocol error. Publish earlier progress below.
     if (result.last_result != ConsumeResult::kChunkRead &&
         result.last_result != ConsumeResult::kPositionSkipped) {
       break;
@@ -99,13 +123,13 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
 // 4. RewriteRequested: skip. The writer still owns the chunk. Once it becomes
 //    RewriteAcknowledged, only the reader may reclaim it on a later traversal.
 //
-// In the first three cases, a lost CAS leaves read_pos unchanged for the next
-// pass. Deliver the copy only after winning, so a retry cannot deliver the
-// same fragments twice. RewriteAcknowledged has no competing writer
+// In the first three cases, a lost CAS leaves read_pos unchanged. Drain()
+// retries immediately. Deliver the copy only after winning, so a retry cannot
+// deliver the same fragments twice. RewriteAcknowledged has no competing writer
 // transition. Failure to reclaim it is a protocol error.
 SharedRingBufferReader::ConsumeResult
 SharedRingBufferReader::ConsumeNextPosition() {
-  if (has_protocol_error_)
+  if (PERFETTO_UNLIKELY(has_protocol_error_))
     return ConsumeResult::kProtocolError;
 
   // A relaxed load is enough here. An older write_pos only shortens this
@@ -114,7 +138,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
   const uint32_t outstanding = NumOutstandingPositions(write_pos, read_pos_);
   if (outstanding == 0)
     return ConsumeResult::kNoData;
-  if (outstanding > num_chunks_) {
+  if (PERFETTO_UNLIKELY(outstanding > num_chunks_)) {
     // A legal writer cannot reserve more than num_chunks outstanding
     // positions.
     has_protocol_error_ = true;
@@ -136,20 +160,22 @@ SharedRingBufferReader::ConsumeNextPosition() {
   switch (ChunkStateOf(state_word)) {
     case ChunkState::kFree: {
       // Check reserved bits first. Reclaiming must not hide an invalid word.
-      if ((state_word & ~kWriterIDMask) != 0)
+      if (PERFETTO_UNLIKELY((state_word & ~kWriterIDMask) != 0))
         return StopOnProtocolError("Free word has reserved bits", state_word);
       // Only this reader advances the wrap. A different wrap here is an error.
       const uint32_t expected_free_word =
           MakeFreeStateWordForPosition(chunk_pos, num_chunks_);
-      if (state_word != expected_free_word) {
+      if (PERFETTO_UNLIKELY(state_word != expected_free_word)) {
         return StopOnProtocolError(
             "Free word carries another position's wrap count", state_word);
       }
       // Nobody claimed this reservation, so the reader advances the wrap
       // count. A writer can still claim between the load and this CAS. The
       // CAS then fails and the same position is retried as BeingWritten.
+      if (before_state_transition_for_testing_)
+        before_state_transition_for_testing_();
       if (!ring_->TryMoveFreeChunkToNextWrap(chunk_pos, &state_word))
-        return ConsumeResult::kRetryLater;
+        return ConsumeResult::kRetryImmediately;
       ++read_pos_;
       ++stats_.positions_skipped;
       return ConsumeResult::kPositionSkipped;
@@ -159,8 +185,10 @@ SharedRingBufferReader::ConsumeNextPosition() {
       const auto status = CopyPublishedFragments(chunk_idx, state_word);
       // Validation does not settle ownership. Even a malformed chunk must win
       // the state transition before the reader can advance.
+      if (before_state_transition_for_testing_)
+        before_state_transition_for_testing_();
       if (!ring_->TryRequestRewrite(chunk_idx, &state_word))
-        return ConsumeResult::kRetryLater;
+        return ConsumeResult::kRetryImmediately;
       ++read_pos_;
       ++stats_.rewrite_requests;
       return HandleCopiedChunk(status);
@@ -171,8 +199,10 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // The writer may have taken the chunk back, turning Complete(N) into
       // BeingWritten(N). The reader discards its copy and retries the same
       // position instead of delivering data from a lost race.
+      if (before_state_transition_for_testing_)
+        before_state_transition_for_testing_();
       if (!ring_->TryReleaseCompleteChunkAsFree(chunk_pos, &state_word))
-        return ConsumeResult::kRetryLater;
+        return ConsumeResult::kRetryImmediately;
       ++read_pos_;
       // A Complete chunk with no fragments can still carry kFlagDataLoss, and
       // this reclaim was the last chance to see it: the writer's reuse CAS
