@@ -382,32 +382,66 @@ TEST(SharedRingBufferWriterTest, DataLossOnNextChunk) {
   EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(1)).payload_flags, 0u);
 }
 
-// A loss recorded while the writer still holds a reusable Complete chunk must
-// not put the post-loss fragment into that chunk: the flag would then only
-// appear on a later one.
-TEST(SharedRingBufferWriterTest, DataLossSkipsCachedChunk) {
-  test::SharedRingBufferForTesting ring(4, 512);
+// Pending loss must not force a new reservation while cached space is usable.
+TEST(SharedRingBufferWriterTest, DataLossReusesCachedChunkWhenFull) {
+  test::SharedRingBufferForTesting ring(2, 512);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
-
+  SharedRingBufferWriter blocker = MakeWriter(ring.get(), kWriterB, kBuffer);
   ASSERT_TRUE(WriteFragment(&writer, "before"));
+  ASSERT_TRUE(WriteFragment(&blocker, "occupied"));
+  ASSERT_EQ(ring->LoadWritePosRelaxed(), 2u);
+
   writer.RecordDataLoss();
   ASSERT_TRUE(WriteFragment(&writer, "after"));
+  ASSERT_TRUE(WriteFragment(&writer, "more"));
 
-  // The pre-loss fragment stays alone in chunk 0. The post-loss fragment opened
-  // a new position, and its chunk is the one reporting the gap.
+  // All three fragments stay in the same chunk. Its flag tells the reader
+  // to discard them together, without locating the gap between them.
   EXPECT_EQ(ring->LoadWritePosRelaxed(), 2u);
-  const DecodedChunk before = Decode(ring.get(), ChunkIndex::FromIndex(0));
-  ASSERT_EQ(before.fragments.size(), 1u);
-  EXPECT_EQ(before.fragments[0], "before");
-  EXPECT_EQ(before.payload_flags, 0u);
-  const DecodedChunk after = Decode(ring.get(), ChunkIndex::FromIndex(1));
-  ASSERT_EQ(after.fragments.size(), 1u);
-  EXPECT_EQ(after.fragments[0], "after");
-  EXPECT_EQ(after.payload_flags, kFlagDataLoss);
+  const DecodedChunk chunk = Decode(ring.get(), ChunkIndex::FromIndex(0));
+  EXPECT_EQ(chunk.fragments,
+            (std::vector<std::string>{"before", "after", "more"}));
+  EXPECT_EQ(chunk.payload_flags, kFlagDataLoss);
+  EXPECT_EQ(writer.GetStats().failed_claims, 0u);
+}
 
-  // The gap is reported exactly once: the chunk after it carries no flag.
-  ASSERT_TRUE(WriteFragment(&writer, std::string(500, 'x')));
-  EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(2)).payload_flags, 0u);
+TEST(SharedRingBufferWriterTest, PendingLossSurvivesRepeatedFullBuffer) {
+  test::SharedRingBufferForTesting ring(2, 512);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  SharedRingBufferWriter blocker = MakeWriter(ring.get(), kWriterB, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, "before"));
+  ASSERT_TRUE(WriteFragment(&blocker, "occupied"));
+  ASSERT_EQ(blocker.FinishCurrentChunk(), EndFragmentResult::kSuccess);
+
+  ASSERT_EQ(writer.FinishCurrentChunk(), EndFragmentResult::kSuccess);
+  const ChunkIndex first_idx = ChunkIndex::FromIndex(0);
+  const uint32_t before_word = ring->LoadChunkStateWordAcquire(first_idx);
+  writer.RecordDataLoss();
+
+  // Without a cached chunk, every attempt needs a reservation.
+  // A full ring buffer must leave the positions and old data unchanged.
+  for (uint32_t attempt = 0; attempt < 3; ++attempt) {
+    SCOPED_TRACE(attempt);
+    EXPECT_EQ(writer.BeginFragment(1, false).result,
+              BeginFragmentResult::kFull);
+    EXPECT_EQ(ring->LoadWritePosRelaxed(), 2u);
+    EXPECT_EQ(ring->LoadChunkStateWordAcquire(first_idx), before_word);
+    const DecodedChunk before = Decode(ring.get(), first_idx);
+    EXPECT_EQ(before.fragments, std::vector<std::string>{"before"});
+    EXPECT_EQ(before.payload_flags, 0u);
+  }
+  EXPECT_EQ(writer.GetStats().failed_claims, 0u);
+
+  // Once the reader frees space, the next chunk still carries the pending gap.
+  uint32_t expected = before_word;
+  ASSERT_TRUE(ring->TryReleaseCompleteChunkAsFree(0, &expected));
+  ring->PublishReadPos(1);
+  ASSERT_TRUE(WriteFragment(&writer, "after"));
+  ASSERT_TRUE(WriteFragment(&writer, "more"));
+  EXPECT_EQ(ring->LoadWritePosRelaxed(), 3u);
+  const DecodedChunk recovered = Decode(ring.get(), first_idx);
+  EXPECT_EQ(recovered.fragments, (std::vector<std::string>{"after", "more"}));
+  EXPECT_EQ(recovered.payload_flags, kFlagDataLoss);
 }
 
 // ---------------------------------------------------------------------------

@@ -16,8 +16,8 @@
 
 // Unsynchronized end-to-end stress, worth running under ThreadSanitizer:
 // several writers against one draining reader, no schedule imposed. Every
-// published fragment must come out exactly once and in its writer's order,
-// except the ones the writer itself accounted as dropped.
+// delivered fragment must come out once and in its writer's order. Missing
+// fragments must be accounted for by writer drops or reported chunk loss.
 //
 // The individual races are pinned deterministically, in both orders, by the
 // SharedRingBufferTest race tests in shared_ring_buffer_unittest.cc.
@@ -96,11 +96,10 @@ class StressDelegate : public SharedRingBufferReader::Delegate {
     }
   }
 
-  void OnDataLoss(WriterID writer_id) override {
-    ADD_FAILURE() << "reader discarded a chunk from writer " << writer_id;
-  }
+  void OnDataLoss(WriterID writer_id) override { ++loss_reports[writer_id]; }
 
   std::map<uint32_t, std::vector<uint32_t>> received;
+  std::map<uint32_t, uint64_t> loss_reports;
 };
 
 void RunStress(const StressParams& params, StressStats* stats) {
@@ -228,6 +227,9 @@ void RunStress(const StressParams& params, StressStats* stats) {
     return;  // Already failed. The accounting below would only add noise.
   ASSERT_FALSE(reader.has_protocol_error());
   reader.Drain(1u << 20);
+  ASSERT_FALSE(reader.has_protocol_error());
+  EXPECT_EQ(reader.GetStats().malformed_chunks, 0u);
+  EXPECT_EQ(reader.GetStats().unsupported_format_chunks, 0u);
   stats->final_read_pos = reader.read_pos();
 
   for (uint32_t w = 0; w < params.num_writers; ++w) {
@@ -237,9 +239,23 @@ void RunStress(const StressParams& params, StressStats* stats) {
       ASSERT_LT(sequences[i - 1], sequences[i])
           << "writer " << w << " fragment " << i;
     }
-    // Everything that is missing is something the writer itself accounted for.
-    EXPECT_EQ(sequences.size() + unwritten[w] + dropped[w], attempts[w])
-        << "writer " << w;
+    // Writer failures account for fragments that were never published.
+    const uint64_t accounted = sequences.size() + unwritten[w] + dropped[w];
+    ASSERT_LE(accounted, attempts[w]) << "writer " << w;
+    const uint64_t reader_discarded = attempts[w] - accounted;
+    const uint64_t loss_reports = delegate.loss_reports[w + 1];
+    if (loss_reports == 0) {
+      EXPECT_EQ(reader_discarded, 0u) << "writer " << w;
+    } else {
+      // A reported loss must originate from a writer failure. It can also
+      // discard good fragments sharing the flagged chunk. Each fragment in
+      // this test needs at least eight payload bytes and one size byte.
+      EXPECT_LE(loss_reports, unwritten[w] + dropped[w]) << "writer " << w;
+      const uint32_t max_fragments =
+          (params.chunk_size - kTargetBufferPayloadOffset) / 9;
+      EXPECT_LE(reader_discarded, loss_reports * max_fragments)
+          << "writer " << w;
+    }
 
     stats->received += sequences.size();
     stats->unwritten += unwritten[w];

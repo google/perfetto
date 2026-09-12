@@ -146,7 +146,8 @@ class SharedRingBufferWriter {
   //   bytes, so it cannot infer continues_from_prev from the previous flag.
 
   // A reader can reach the chunk while the caller is still filling a fragment:
-  // - It reads the already published fragments and requests a rewrite.
+  // - It consumes the published fragments and requests a rewrite.
+  //   It discards those fragments if the chunk carries kFlagDataLoss.
   // - It moves on without reading the fragment still being filled.
   //   It will not revisit that reservation to read more fragments.
   // - EndFragment() saves the new fragment and acknowledges the request.
@@ -160,8 +161,12 @@ class SharedRingBufferWriter {
   // Safe to call with nothing held. The destructor calls it.
   EndFragmentResult FinishCurrentChunk();
 
-  // Marks data discarded by the caller. The next chunk published by this writer
-  // carries kFlagDataLoss.
+  // Records loss for the next chunk publication.
+  // - A cached chunk can still be reused, even when the ring buffer is full.
+  // - The publication sets kFlagDataLoss. The reader discards all published
+  //   fragments in that chunk. Even complete packets before or after the gap
+  //   are discarded. The flag cannot identify which packets are safe.
+  // - Data already delivered by the reader cannot be retracted.
   void RecordDataLoss() { data_loss_pending_ = true; }
 
   WriterID writer_id() const { return writer_id_; }
@@ -215,26 +220,35 @@ class SharedRingBufferWriter {
   // The exact word this writer's next compare-and-swap expects. It can differ
   // from the shared word once the reader has requested a rewrite.
   uint32_t expected_state_word_ = 0;
-  // Payload grows up from the chunk header and the size varints grow down
-  // from the end of the chunk. The two offsets below are the edges that move:
+  // Payload grows from the header. Size entries grow backwards from the end.
+  // - payload_end_ is measured from the chunk start.
+  // - size_directory_bytes_ counts bytes used from the chunk end.
   //
-  //   0     6                 payload_end_       sizes_begin_       chunk_size
-  //   +-----+-----------------+------------------+------------------+
-  //   | hdr | payload  -----> |       free       | <-----   sizes   |
-  //   +-----+-----------------+------------------+------------------+
+  // Example: a 256-byte chunk with 200 payload bytes and 4 directory bytes.
   //
-  // Offset of the end of finalized payload.
+  //   0        6                     206                252         256
+  //   +--------+---------------------+------------------+-----------+
+  //   | header |  payload grows ---> |    free space    | <-- sizes |
+  //   +--------+---------------------+------------------+-----------+
+  //
+  // Here: chunk_size_ = 256, payload_end_ = 206, size_directory_bytes_ = 4.
+  // Directory start = chunk_size_ - size_directory_bytes_ = 252.
+  // Free bytes = chunk_size_ - payload_end_ - size_directory_bytes_ = 46.
+  //
+  // Byte offset from the chunk start to the end of finalized payload.
   uint32_t payload_end_ = 0;
-  // Offset of the lowest size varint written so far.
-  uint32_t sizes_begin_ = 0;
+  // Size-directory bytes used from the chunk end. Zero means no entries.
+  uint32_t size_directory_bytes_ = 0;
   // Finalized fragments, published or not. expected_state_word_ contains the
   // count already visible to the reader.
   uint32_t num_fragments_ = 0;
   // Byte offset from the chunk start to the open fragment, or kNoFragmentOpen.
   uint32_t cur_fragment_begin_ = kNoFragmentOpen;
 
-  // Set when this writer has lost data that the next chunk it publishes must
-  // report.
+  // Whether kFlagDataLoss still needs to be set in a chunk's state word.
+  // - Cleared after successfully claiming or publishing a chunk with the flag.
+  // - Kept pending if the reader requests a rewrite before publication.
+  //   AcquireNewChunk() then sets the flag in the replacement chunk.
   bool data_loss_pending_ = false;
 
   // Unpublished fragment saved while changing chunks. Allocated on demand and

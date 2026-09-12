@@ -240,6 +240,14 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
     return CopiedChunkStatus::kNoFragments;
   }
 
+  // The loss flag does not identify where data was lost within the chunk.
+  // - Drop every published fragment, even a complete packet after the gap.
+  // - Do not read an unpublished fragment. The writer may relocate it.
+  // The caller must win the state transition before reporting the gap or
+  // advancing read_pos. See Delegate::OnDataLoss() for packet recovery.
+  if (state_word & kFlagDataLoss)
+    return CopiedChunkStatus::kDataLoss;
+
   if (ChunkFormatOf(state_word) != ChunkFormat::kTargetBuffer)
     return CopiedChunkStatus::kUnsupportedFormat;
 
@@ -300,6 +308,9 @@ SharedRingBufferReader::ConsumeResult SharedRingBufferReader::HandleCopiedChunk(
       break;
     case CopiedChunkStatus::kUnsupportedFormat:
       ++stats_.unsupported_format_chunks;
+      delegate_->OnDataLoss(copied_chunk_.writer_id);
+      break;
+    case CopiedChunkStatus::kDataLoss:
       delegate_->OnDataLoss(copied_chunk_.writer_id);
       break;
     case CopiedChunkStatus::kNoFragments:

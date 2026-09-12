@@ -365,7 +365,13 @@ constexpr uint32_t kMaxFragmentsPerChunk = (1u << kNumFragmentsBits) - 1;
 constexpr uint32_t kWrapCountShift = kWriterIDShift;
 
 enum PayloadFlags : uint32_t {
-  // The writer dropped trace data before writing this chunk.
+  // The writer lost data before or while filling this chunk.
+  // - The flag does not identify where data was lost within the chunk.
+  // - The reader discards all published fragments and reports loss.
+  //   This includes complete, good packets before or after the gap.
+  // - A writer may keep appending. The flag stays set for that reservation.
+  //   Fragments appended to this chunk are also discarded once published.
+  // This allows cached reuse after loss without forcing a new reservation.
   kFlagDataLoss = 1u << kPayloadFlagsShift,
 
   // The last fragment is not the end of its packet. The packet continues in
@@ -586,6 +592,7 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 // acquire-loads the state word, then decodes and checks every size before
 // copying the payload. The first publication also makes BufferID visible.
 // The reader must not load BufferID when num_fragments is zero.
+// A chunk marked kFlagDataLoss is discarded without reading its payload.
 
 constexpr uint32_t kTargetBufferIdOffset = 4;
 constexpr uint32_t kTargetBufferPayloadOffset = 6;
