@@ -39,6 +39,28 @@ class AndroidProcessTrackerTest : public ::testing::Test {
   }
 
  protected:
+  // Every thread of |upid| must be closed at |ts|. A process that ends with
+  // open-ended threads looks like it is still running.
+  void ExpectThreadsEndedAt(UniquePid upid, int64_t ts) {
+    const auto& threads = context.storage->thread_table();
+    for (uint32_t i = 0; i < threads.row_count(); ++i) {
+      auto thread = threads[i];
+      if (thread.upid() == upid) {
+        EXPECT_EQ(thread.end_ts(), ts);
+      }
+    }
+  }
+
+  void ExpectThreadsStillOpen(UniquePid upid) {
+    const auto& threads = context.storage->thread_table();
+    for (uint32_t i = 0; i < threads.row_count(); ++i) {
+      auto thread = threads[i];
+      if (thread.upid() == upid) {
+        EXPECT_FALSE(thread.end_ts().has_value());
+      }
+    }
+  }
+
   TraceProcessorContext context;
   std::unique_ptr<AndroidProcessTracker> android_process_tracker;
 };
@@ -112,6 +134,51 @@ TEST_F(AndroidProcessTrackerTest, MissingSeqIdKeepsLiveProcess) {
       2000, 1234, std::nullopt, name, ThreadNamePriority::kTrackDescriptor);
   EXPECT_EQ(same, upid);
   EXPECT_EQ(android_process_tracker->GetStartSeqId(upid), 5);
+}
+
+TEST_F(AndroidProcessTrackerTest, EndProcessClosesLiveProcessAndItsThread) {
+  StringId name = context.storage->InternString("app");
+  UniquePid upid = android_process_tracker->GetOrStartProcess(
+      1000, 1234, 1, name, ThreadNamePriority::kTrackDescriptor);
+
+  android_process_tracker->EndProcess(6000, upid);
+
+  EXPECT_EQ(context.storage->process_table()[upid].end_ts(), 6000);
+  EXPECT_EQ(context.process_tracker->GetProcessOrNull(1234), std::nullopt);
+  ExpectThreadsEndedAt(upid, 6000);
+}
+
+TEST_F(AndroidProcessTrackerTest, EndProcessAfterRecycleLeavesSuccessorAlone) {
+  StringId app_a = context.storage->InternString("app_a");
+  StringId app_b = context.storage->InternString("app_b");
+
+  UniquePid upid_a = android_process_tracker->GetOrStartProcess(
+      1000, 1234, 1, app_a, ThreadNamePriority::kTrackDescriptor);
+  UniquePid upid_b = android_process_tracker->GetOrStartProcess(
+      5000, 1234, 2, app_b, ThreadNamePriority::kTrackDescriptor);
+
+  // A death for the first incarnation, arriving after the pid was handed on.
+  android_process_tracker->EndProcess(6000, upid_a);
+
+  EXPECT_EQ(context.storage->process_table()[upid_a].end_ts(), 6000);
+  ExpectThreadsEndedAt(upid_a, 6000);
+
+  // The successor keeps the pid and stays open.
+  EXPECT_EQ(context.process_tracker->GetProcessOrNull(1234), upid_b);
+  EXPECT_FALSE(context.storage->process_table()[upid_b].end_ts().has_value());
+  ExpectThreadsStillOpen(upid_b);
+}
+
+TEST_F(AndroidProcessTrackerTest, EndProcessIsIdempotent) {
+  StringId name = context.storage->InternString("app");
+  UniquePid upid = android_process_tracker->GetOrStartProcess(
+      1000, 1234, 1, name, ThreadNamePriority::kTrackDescriptor);
+
+  android_process_tracker->EndProcess(6000, upid);
+  android_process_tracker->EndProcess(9000, upid);
+
+  // The first death wins; a repeat must not move the end time.
+  EXPECT_EQ(context.storage->process_table()[upid].end_ts(), 6000);
 }
 
 }  // namespace

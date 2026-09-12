@@ -66,7 +66,7 @@ class AndroidProcessTracker {
   // incarnation on our behalf, and deliberately leaves it without an end_ts:
   // a new process starting tells us the old one is gone, but not when it
   // died. That is recorded when the framework reports the death, which
-  // locates its process via FindProcess().
+  // locates its process via FindProcess() and closes it with EndProcess().
   //
   // Note: android.util.proto.ProtoOutputStream omits zero-valued fields, so a
   // missing start_seq_id cannot be told apart from seq id 0. Records without
@@ -76,6 +76,11 @@ class AndroidProcessTracker {
                               std::optional<int64_t> start_seq_id,
                               StringId name,
                               ThreadNamePriority priority);
+
+  // Records that |upid| ended at |ts|, even if its pid has since been handed
+  // to a newer incarnation. Unlike ProcessTracker::EndThread(), which works
+  // through the pid, this always ends the process it was given.
+  void EndProcess(int64_t ts, UniquePid upid);
 
   // Returns the upid recorded for (|pid|, |start_seq_id|), if we have seen it.
   // Unlike ProcessTracker::GetProcessOrNull() this also finds incarnations
@@ -102,6 +107,7 @@ class AndroidProcessTracker {
   };
 
   void RecordStartSeqId(UniquePid upid, int64_t pid, int64_t start_seq_id);
+  void RecordMainThread(UniquePid upid, int64_t pid);
 
   TraceProcessorContext* const context_;
 
@@ -111,6 +117,10 @@ class AndroidProcessTracker {
 
   // upid -> start_seq_id.
   base::FlatHashMap<UniquePid, int64_t> start_seq_id_by_upid_;
+
+  // upid -> the main thread ProcessTracker created for it. Needed to close
+  // that thread once the pid no longer resolves to this process.
+  base::FlatHashMap<UniquePid, UniqueTid> main_utid_by_upid_;
 
   bool framework_is_process_authority_ = false;
 };
