@@ -55,7 +55,7 @@ SharedRingBufferWriter::SharedRingBufferWriter(
       max_fragment_size_(MaxFragmentSizeForEmptyChunk(chunk_size_)) {
   PERFETTO_CHECK(delegate_);
   // WriterIDs are nonzero, at most kMaxWriterID, and identify this writer
-  // until all positions reserved under the id have been resolved.
+  // until all positions reserved under the id have been consumed.
   PERFETTO_DCHECK(writer_id_ != 0 && writer_id_ <= kMaxWriterID);
 }
 
@@ -123,9 +123,11 @@ SharedRingBufferWriter::EndFragmentResult SharedRingBufferWriter::EndFragment(
                               sizes_begin_ - cur_fragment_begin_));
 
   // Nothing becomes visible until ReleaseCurrentChunkAsComplete().
-  uint8_t* sizes_begin = cur_chunk_ + sizes_begin_;
-  sizes_begin = WriteFragmentSize(sizes_begin, size);
-  sizes_begin_ = static_cast<uint32_t>(sizes_begin - cur_chunk_);
+  uint8_t* const new_sizes_begin_ptr =
+      WriteFragmentSize(cur_chunk_ + sizes_begin_, size);
+  // sizes_begin_ stores a byte offset. The helper returns a pointer.
+  // Subtract the chunk's start pointer to get the new offset.
+  sizes_begin_ = static_cast<uint32_t>(new_sizes_begin_ptr - cur_chunk_);
   payload_end_ = cur_fragment_begin_ + size;
   ++num_fragments_;
   cur_fragment_begin_ = kNoFragmentOpen;
@@ -135,8 +137,8 @@ SharedRingBufferWriter::EndFragmentResult SharedRingBufferWriter::EndFragment(
 
 SharedRingBufferWriter::EndFragmentResult
 SharedRingBufferWriter::FinishCurrentChunk() {
-  // The open fragment is not in the published count. Abandon its bytes;
-  // previously published fragments stay visible.
+  // The open fragment is not in the published count. Abandon its bytes.
+  // Previously published fragments stay visible.
   cur_fragment_begin_ = kNoFragmentOpen;
 
   EndFragmentResult result = EndFragmentResult::kSuccess;
@@ -162,12 +164,13 @@ SharedRingBufferWriter::BeginFragmentResult
 SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
   PERFETTO_DCHECK(!cur_chunk_);
 
-  // The flags of the chunk about to be claimed. A data-loss flag reaches this
-  // point in one of two ways: the packet writer recorded a loss
-  // (data_loss_pending_), or the reader scraped an empty prefix and the flag is
-  // travelling with the relocated suffix (continuation_flags). In the second
-  // case data_loss_pending_ is already clear, so |flags| is the one value that
-  // says whether this chunk reports a loss.
+  // A data-loss flag reaches the new chunk through either:
+  // - data_loss_pending_: the packet writer recorded a loss.
+  // - continuation_flags: the reader requested a rewrite before any fragment
+  //   was published. The flag travels with the relocated fragment.
+  //
+  // In the second case data_loss_pending_ is already clear. Use the combined
+  // |flags| below to decide whether this chunk reports loss.
   const uint32_t flags =
       continuation_flags | (data_loss_pending_ ? kFlagDataLoss : 0u);
   const uint32_t being_written_word =
@@ -187,17 +190,33 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
 
   std::optional<base::TimeMillis> stall_deadline;
 
-  // Each round reserves a position and then claims its chunk.
+  // Each attempt reserves a position, then tries to claim its physical chunk:
   //
-  // 1. If the ring is full, no position is reserved; apply the exhaustion
-  //    policy below.
-  // 2. If both reservation and claim succeed, return the chunk.
-  // 3. A failed claim leaves a hole; reserve a later position instead.
+  // 1. TryReserveWritePos() finds the ring buffer full.
+  //    - write_pos stays unchanged. No position was reserved.
+  //    - Apply the buffer-exhaustion policy below.
   //
-  // Stop when the ring reports full or after num_chunks failed claims. The
-  // latter bounds attempts, not physical chunks visited: other writers can
-  // take intervening positions, so repeated attempts may hit the same pinned
-  // chunk.
+  // 2. Reservation and TryAcquireChunkForWriting() both succeed.
+  //    - This writer now owns the chunk. Return it to the caller.
+  //
+  // 3. Reservation succeeds, but TryAcquireChunkForWriting() fails.
+  //    - The reader advanced the wrap count before we claimed the chunk.
+  //      We may have been descheduled after advancing write_pos.
+  //    - Or the chunk still belongs to an older reservation:
+  //      - Its writer claimed the chunk, then got descheduled.
+  //      - The reader copied its published fragments and set RewriteRequested.
+  //      - The reader advanced read_pos. It did not release the chunk.
+  //      - Advancing read_pos made room for another reservation.
+  //        TryReserveWritePos() checks the positions, not the chunk state.
+  //      - Our new reservation selects that same physical chunk.
+  //        The claim fails because the older writer has not acknowledged yet.
+  //    - Leave the reservation unclaimed. Try a new reservation with continue.
+  //    - After num_chunks failed claims, apply the exhaustion policy instead.
+
+  // num_chunks limits failed claims in one round of attempts.
+  // - Other writers can reserve positions between our attempts.
+  // - Our reservations can select the same physical chunk on different wraps.
+  // - Reaching the limit does not mean we checked every physical chunk.
   uint32_t num_failed_claims = 0;
   bool saw_unclaimable_chunk = false;
   for (;;) {
@@ -215,22 +234,42 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
         sizes_begin_ = chunk_size_;
         num_fragments_ = 0;
         data_loss_pending_ = false;
-        StoreTargetBufferID(cur_chunk_, target_buffer_);
+        StoreTargetBufferId(cur_chunk_, target_buffer_);
         return BeginFragmentResult::kSuccess;
       }
 
-      // This reservation is now a hole. Never retry it against a different
-      // Free word; reserve a later position instead.
+      // write_pos advanced, but this reservation could not claim its chunk.
+      // - We may have been descheduled before claiming the chunk. The reader
+      //   could then advance its wrap count before we resumed.
+      // - The reserved position fixes both the chunk index and the wrap count.
+      // - A Free word with a different wrap count prepares this chunk for a
+      //   later position. We have not reserved that position. Do not change
+      //   the expected wrap count and retry the claim.
+      // - Call TryReserveWritePos() again. Other writers may have reserved the
+      //   intervening positions, so we may not get the next position.
+      // - Use the chunk index and wrap count from that new reservation.
+      //   Do not just move to the next physical chunk.
+
+      // See "Chunk ownership and wrap identity" in shared_ring_buffer_abi.h
+      // for the two failure cases and the reader's state updates.
       ++stats_.failed_claims;
       saw_unclaimable_chunk = true;
       if (++num_failed_claims < ring_->num_chunks())
         continue;
     }
 
-    // The reader resolves holes and moves read_pos, so notify it whenever
-    // holes were created or this writer is about to wait. The count can be
-    // below num_chunks here: a later reservation can find the ring full after
-    // only some failed claims, and those holes still need the notification.
+    // If we got here, either:
+    // - TryReserveWritePos() found no space in the ring buffer.
+    //   It left write_pos unchanged.
+    // - TryAcquireChunkForWriting() failed num_chunks times this round.
+    //   Each reservation advanced write_pos but left its chunk unclaimed.
+    //   Earlier failures took continue to try another reservation.
+    //   This failure reached the attempt limit.
+
+    // Notify the reader after failed claims or before waiting.
+    // Reservation can find the ring buffer full after only a few failed
+    // claims. The reader may still need to consume those unclaimed
+    // reservations.
     if (num_failed_claims != 0 || policy != BufferExhaustedPolicy::kDrop) {
       delegate_->NotifyReader();
       num_failed_claims = 0;
@@ -238,15 +277,17 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
 
     // Classify the exhaustion.
     // Preserve a failed claim across waits, even if the last reservation
-    // found the ring full: this acquisition has already left holes behind.
+    // found the ring buffer full: this acquisition has already left unclaimed
+    // reservations behind.
     const BeginFragmentResult exhausted_result =
         saw_unclaimable_chunk ? BeginFragmentResult::kNoChunkAvailable
                               : BeginFragmentResult::kFull;
 
     if (policy == BufferExhaustedPolicy::kDrop) {
-      PERFETTO_DLOG(
-          "tracing v2: writer %u: %s; returning without a chunk", writer_id_,
-          saw_unclaimable_chunk ? "no chunk could be claimed" : "ring full");
+      PERFETTO_DLOG("tracing v2: writer %u: %s: returning without a chunk",
+                    writer_id_,
+                    saw_unclaimable_chunk ? "no chunk could be claimed"
+                                          : "ring buffer full");
       return exhausted_result;
     }
 
@@ -257,12 +298,12 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
     if (now >= *stall_deadline) {
       if (policy == BufferExhaustedPolicy::kStall) {
         PERFETTO_FATAL(
-            "tracing v2: writer %u could not acquire a chunk for %u ms; "
+            "tracing v2: writer %u could not acquire a chunk for %u ms: "
             "possible deadlock",
             writer_id_, kStallTimeoutMs);
       }
       PERFETTO_DLOG(
-          "tracing v2: writer %u stalled for %u ms; returning without a "
+          "tracing v2: writer %u stalled for %u ms: returning without a "
           "chunk",
           writer_id_, kStallTimeoutMs);
       return exhausted_result;
@@ -286,7 +327,7 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
             writer_id_);
       }
       PERFETTO_DLOG(
-          "tracing v2: writer %u cannot wait on read_pos; returning without "
+          "tracing v2: writer %u cannot wait on read_pos: returning without "
           "a chunk",
           writer_id_);
       return exhausted_result;
@@ -296,24 +337,24 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
 
 SharedRingBufferWriter::EndFragmentResult
 SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
-    std::optional<uint32_t> suffix_size,
+    std::optional<uint32_t> fragment_size,
     bool continues_on_next) {
   PERFETTO_DCHECK(cur_chunk_);
   PERFETTO_DCHECK(cur_chunk_state() == ChunkState::kBeingWritten);
   PERFETTO_DCHECK(!has_open_fragment());
 
-  // EndFragment publishes before another fragment can begin, so a rewrite
-  // leaves exactly its just-ended fragment to relocate. FinishCurrentChunk
-  // abandons the open fragment and leaves no completed suffix.
+  // EndFragment publishes before another fragment can begin. A rewrite leaves
+  // only the just-ended fragment to relocate. FinishCurrentChunk abandons the
+  // open fragment, so it has nothing to relocate.
   //
-  //   BeingWritten(N) -- writer --> Complete(N + has_suffix)
+  //   BeingWritten(N) -- writer --> Complete(N + has_fragment)
   //          |
   //          +--------- reader --> RewriteRequested(N)
-  //                                      |
-  //                         writer copies suffix and acknowledges
+  //                                         |
+  //                    writer copies the fragment and acknowledges
   //
-  // A replacement has BeingWritten(0) and the same one-fragment suffix. It can
-  // lose the same race, hence the loop and the unchanged suffix_size.
+  // The replacement starts at BeingWritten(0). It can lose the same race.
+  // Keep looping with the same fragment_size until publication or drop.
   for (;;) {
     uint32_t flags = PayloadFlagsOf(expected_state_word_);
     if (continues_on_next)
@@ -330,12 +371,12 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
       // Let go of the chunk when the next fragment must start elsewhere:
       //  - continues_on_next: kFlagContinuesOnNextChunk describes the last
       //    fragment. Appending another would make it describe the wrong one,
-      //    and a scraped prefix could then end in the middle of a packet.
+      //    and a partial chunk read could then end in the middle of a packet.
       //  - The fragment count is at its maximum.
       //  - At most one byte is left between the payload and the sizes.
       //    BeginFragment() hands out a non-empty range, and the size varint
       //    needs one more byte, so a one-byte gap cannot be reused even by a
-      //    zero-length fragment; two bytes can. EndFragment() only accepts a
+      //    zero-length fragment. Two bytes can. EndFragment() only accepts a
       //    fragment whose payload and size entry fit, so payload_end_ <=
       //    sizes_begin_ and the subtraction cannot underflow.
       if (continues_on_next || num_fragments_ >= kMaxFragmentsPerChunk ||
@@ -354,40 +395,55 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
           cur_chunk_idx_, writer_id_, expected);
     }
 
-    const uint32_t taken = NumFragmentsOf(expected);
-    PERFETTO_DCHECK(taken == NumFragmentsOf(expected_state_word_));
-    PERFETTO_DCHECK(num_fragments_ ==
-                    taken + (suffix_size.has_value() ? 1u : 0u));
+    // expected is RewriteRequested. The reader did a partial chunk read:
+    // - It consumed NumFragmentsOf(expected) published fragments.
+    // - We were still writing the next fragment, so it did not read that one.
+    // - It moved on. We must publish any remaining fragment in a new chunk.
+    const uint32_t num_fragments_read = NumFragmentsOf(expected);
 
-    // Save the suffix before acknowledging: the reader can then reclaim the
-    // old chunk. Acknowledge before waiting for space to avoid pinning it.
-    if (suffix_size) {
+    // The reader consumed exactly the fragments we had already published.
+    // Its rewrite request preserves that count in the state word.
+    PERFETTO_DCHECK(num_fragments_read == NumFragmentsOf(expected_state_word_));
+
+    // Any extra fragment in num_fragments_ still needs to be published:
+    // - EndFragment() counted the just-ended fragment before trying to publish.
+    // - FinishCurrentChunk() abandoned the open fragment without counting it.
+    // Another fragment cannot begin until EndFragment() finishes, so at most
+    // one fragment remains unpublished.
+    PERFETTO_DCHECK(num_fragments_ ==
+                    num_fragments_read + (fragment_size.has_value() ? 1u : 0u));
+
+    // Save the unpublished fragment before acknowledging. The reader can
+    // reclaim the old chunk after that. Acknowledge before waiting for space
+    // so we do not pin the old chunk while waiting for a new one.
+    if (fragment_size) {
       // TODO(sashwinbalaji): Measure first-relocation latency and retained
       // memory per writer before deciding whether to preallocate this scratch
       // or release it after use.
-      relocation_payload_.assign(cur_chunk_ + payload_end_ - *suffix_size,
+      relocation_payload_.assign(cur_chunk_ + payload_end_ - *fragment_size,
                                  cur_chunk_ + payload_end_);
     }
 
     if (!ring_->TryAcknowledgeRewrite(cur_chunk_idx_, expected)) {
       PERFETTO_FATAL(
-          "tracing v2: writer %u could not acknowledge chunk %u; only its "
+          "tracing v2: writer %u could not acknowledge chunk %u: only its "
           "owner may leave RewriteRequested",
           writer_id_, cur_chunk_idx_);
     }
     ++stats_.relocations;
 
-    // Prefix flags move only when the reader took no fragments.
+    // Chunk-start flags move only when the reader took no fragments.
     const uint32_t inherited_flags =
         PayloadFlagsOf(expected) &
         (kFlagContinuesFromPrevChunk | kFlagDataLoss);
-    const uint32_t relocated_flags = taken == 0 ? inherited_flags : 0;
+    const uint32_t relocated_flags =
+        num_fragments_read == 0 ? inherited_flags : 0;
 
     ResetCurrentChunk();
 
-    if (!suffix_size) {
+    if (!fragment_size) {
       // Nothing remains to relocate. A loss flag the reader did not take has
-      // no suffix to travel with, so the next chunk must carry it instead.
+      // no fragment to travel with, so the next chunk must carry it instead.
       PERFETTO_DCHECK(!continues_on_next);
       if (relocated_flags & kFlagDataLoss)
         data_loss_pending_ = true;
@@ -396,7 +452,7 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
 
     if (AcquireNewChunk(relocated_flags) != BeginFragmentResult::kSuccess) {
       PERFETTO_DLOG(
-          "tracing v2: writer %u dropped one relocated fragment; no "
+          "tracing v2: writer %u dropped one relocated fragment: no "
           "replacement chunk",
           writer_id_);
       ++stats_.fragments_dropped;
@@ -409,9 +465,9 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
       memcpy(cur_chunk_ + kTargetBufferPayloadOffset,
              relocation_payload_.data(), relocation_payload_.size());
     }
-    payload_end_ = kTargetBufferPayloadOffset + *suffix_size;
+    payload_end_ = kTargetBufferPayloadOffset + *fragment_size;
     uint8_t* sizes_begin =
-        WriteFragmentSize(cur_chunk_ + chunk_size_, *suffix_size);
+        WriteFragmentSize(cur_chunk_ + chunk_size_, *fragment_size);
     sizes_begin_ = static_cast<uint32_t>(sizes_begin - cur_chunk_);
     num_fragments_ = 1;
     // Round again to publish the replacement, which the reader may also scrape.

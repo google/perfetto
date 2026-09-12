@@ -36,12 +36,12 @@ namespace perfetto::tracing_v2 {
 //   boundary. A chunk can hold several fragments. The writer handles their
 //   byte ranges and sizes without interpreting their contents.
 // - Use each instance from one thread at a time. Several instances can write
-//   to the same ring concurrently.
-// - The ring's memory and SharedRingBuffer view must outlive every writer.
-//   The destructor still publishes the chunk the writer holds.
+//   to the same ring buffer concurrently.
+// - Keep the ring buffer's memory and SharedRingBuffer view alive until
+//   every writer is destroyed. The destructor still publishes its chunk.
 // - Reserving a write position and claiming its physical chunk are separate
 //   operations. A failed claim leaves a position that only the reader can
-//   resolve.
+//   consume.
 // - The writer notifies its delegate before waiting for the reader to make
 //   space.
 class SharedRingBufferWriter {
@@ -49,12 +49,13 @@ class SharedRingBufferWriter {
   // Result of BeginFragment(), which may need a new chunk.
   enum class BeginFragmentResult {
     kSuccess,
-    // The ring is structurally full: num_chunks positions are outstanding and
-    // the reader is behind. A stalling policy has already waited by the time
-    // this is returned.
+    // The ring buffer is structurally full: num_chunks positions are
+    // outstanding and the reader is behind. A stalling policy has already
+    // waited by the time this is returned.
     kFull,
     // Positions were reserved but their chunks could not be claimed. Chunks
-    // pinned by a stalled writer produce this without the ring being full.
+    // pinned by a stalled writer produce this without the ring buffer being
+    // full.
     //
     // The reader has been notified before this is returned.
     kNoChunkAvailable,
@@ -66,9 +67,8 @@ class SharedRingBufferWriter {
   // Result of EndFragment() and FinishCurrentChunk(), which publish.
   enum class EndFragmentResult {
     kSuccess,
-    // The reader scraped the chunk and there was no replacement capacity, so
-    // the unpublished suffix was dropped. The writer is consistent and its next
-    // publication will carry the data-loss flag.
+    // The reader scraped the chunk, but no replacement chunk was available.
+    // The unpublished fragment was dropped. The next publication reports loss.
     kRelocationDropped,
   };
 
@@ -87,8 +87,8 @@ class SharedRingBufferWriter {
    public:
     virtual ~Delegate();
 
-    // Schedules reader work. Called after this writer creates holes and before
-    // it waits for read_pos to advance.
+    // Schedules reader work after failed claims leave reservations unclaimed
+    // and before this writer waits for read_pos to advance.
     virtual void NotifyReader() = 0;
   };
 
@@ -104,32 +104,60 @@ class SharedRingBufferWriter {
   SharedRingBufferWriter(SharedRingBufferWriter&&) = delete;
   SharedRingBufferWriter& operator=(SharedRingBufferWriter&&) = delete;
 
-  // Returns space for one fragment of at least |min_size| bytes. This reuses
-  // the current chunk when possible and acquires a new chunk otherwise. At
-  // most one fragment can be open at a time.
+  // Starts a fragment for the caller to fill.
+  // - On success, returns a writable range of at least |min_size| bytes.
+  // - Reuses space in the current chunk when possible. Otherwise, claims a new
+  //   chunk using the configured buffer-exhaustion policy.
+  // - Call EndFragment() after writing the bytes.
+  // - Only one fragment can be open at a time.
+  //
+  // |continues_from_prev| describes the packet this fragment belongs to:
+  // - true: continues the packet from this writer's previous chunk.
+  // - false: starts a new packet.
+  FragmentRange BeginFragment(uint32_t min_size, bool continues_from_prev);
+
+  // Finishes the fragment with the |size| bytes the caller wrote.
+  // - |size| must fit in the range returned by BeginFragment().
+  // - Records the size and publishes the fragment, making it readable.
+  // - Set |continues_on_next| if the packet needs another chunk.
+  //   Leave it false if this fragment ends the packet.
+  EndFragmentResult EndFragment(uint32_t size, bool continues_on_next);
+
+  // Packet continuation
+  // -------------------
   //
   // A packet split across chunks publishes matching continuation flags:
   //
   //   chunk A: EndFragment(..., true)   ContinuesOnNext
   //   chunk B: BeginFragment(..., true) ContinuesFromPrev
   //
-  // The caller supplies both because a failed continuation can enter the drop
-  // buffer, making the next fragment a new packet.
-  FragmentRange BeginFragment(uint32_t min_size, bool continues_from_prev);
+  // Each chunk has one pair of continuation flags:
+  // - ContinuesFromPrev describes its first fragment.
+  // - ContinuesOnNext describes its last fragment.
+  // - After EndFragment(..., true), this writer stops appending to that chunk.
+  //   Appending would make another fragment the last one. The flag would then
+  //   describe the wrong fragment.
 
-  // Ends the open fragment at |size| bytes, writes its size varint, and
-  // publishes. |size| must not exceed the range BeginFragment() handed out. If
-  // the reader scraped the chunk meanwhile, the unpublished suffix moves to a
-  // new chunk, which applies the buffer-exhaustion policy and may wait.
-  //
-  // |continues_on_next| says that this fragment continues in this writer's
-  // next chunk. A chunk published with that flag is never reused, so a prefix
-  // scraped from BeingWritten always ends on a packet boundary.
-  EndFragmentResult EndFragment(uint32_t size, bool continues_on_next);
+  // If BeginFragment(..., true) cannot acquire space for the continuation:
+  // - The caller may abandon the rest of the packet.
+  // - If it does, the next packet starts with BeginFragment(..., false).
+  //   The previous chunk still marks the abandoned packet as continuing.
+  // - Only the caller knows it has started a new packet. This writer handles
+  //   bytes, so it cannot infer continues_from_prev from the previous flag.
+
+  // A reader can reach the chunk while the caller is still filling a fragment:
+  // - It reads the already published fragments and requests a rewrite.
+  // - It moves on without reading the fragment still being filled.
+  //   It will not revisit that reservation to read more fragments.
+  // - EndFragment() saves the new fragment and acknowledges the request.
+  // - It then tries to publish that fragment in another chunk.
+  //   EndFragment() can therefore need space to finish an open fragment.
+  // - Getting that space follows the configured buffer-exhaustion policy.
+  //   It may wait. If it fails, EndFragment() returns kRelocationDropped.
 
   // Publishes whatever is held and lets go of the chunk. Any open fragment is
   // abandoned: its bytes were never counted, so nothing is published for it.
-  // Safe to call with nothing held; the destructor calls it.
+  // Safe to call with nothing held. The destructor calls it.
   EndFragmentResult FinishCurrentChunk();
 
   // Marks data discarded by the caller. The next chunk published by this writer
@@ -162,12 +190,14 @@ class SharedRingBufferWriter {
 
   FragmentRange BeginFragmentInCurrentChunk(uint32_t available);
   BeginFragmentResult AcquireNewChunk(uint32_t continuation_flags);
-  // The just-ended fragment, if any, is the only completed unpublished suffix.
-  // An engaged zero size represents a valid empty fragment.
+  // Only the just-ended fragment can be complete but unpublished:
+  // - A size of zero is a valid empty fragment.
+  // - nullopt means FinishCurrentChunk() has no fragment to publish.
   EndFragmentResult ReleaseCurrentChunkAsComplete(
-      std::optional<uint32_t> suffix_size,
+      std::optional<uint32_t> fragment_size,
       bool continues_on_next);
-  // Clears only this writer's cached chunk state. It does not modify the ring.
+  // Clears only this writer's cached chunk state. It does not modify the ring
+  // buffer.
   void ResetCurrentChunk();
 
   SharedRingBuffer* const ring_;
@@ -188,7 +218,7 @@ class SharedRingBufferWriter {
   // Payload grows up from the chunk header and the size varints grow down
   // from the end of the chunk. The two offsets below are the edges that move:
   //
-  //   0     6                payload_end_    sizes_begin_       chunk_size
+  //   0     6                 payload_end_       sizes_begin_       chunk_size
   //   +-----+-----------------+------------------+------------------+
   //   | hdr | payload  -----> |       free       | <-----   sizes   |
   //   +-----+-----------------+------------------+------------------+
@@ -207,8 +237,8 @@ class SharedRingBufferWriter {
   // report.
   bool data_loss_pending_ = false;
 
-  // Suffix saved while changing chunks. Allocated on demand and reused;
-  // writers that never relocate need no payload storage here.
+  // Unpublished fragment saved while changing chunks. Allocated on demand and
+  // reused. Writers that never relocate need no payload storage here.
   std::vector<uint8_t> relocation_payload_;
 
   Stats stats_;

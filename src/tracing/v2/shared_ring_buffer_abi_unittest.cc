@@ -151,7 +151,7 @@ TEST(SharedRingBufferABITest, FreeWordLayout) {
   EXPECT_EQ(WrapCountOf(MakeFreeStateWord(0xffff)), 0xffffu);
 
   // MakeFreeStateWord takes a uint16_t, so no caller can produce a word with a
-  // reserved bit set; decoding one still yields only bytes 2-3.
+  // reserved bit set. Decoding one still yields only bytes 2-3.
   EXPECT_EQ(WrapCountOf(0x0005fff8u), 5u);
   EXPECT_EQ(ChunkStateOf(0x0005fff8u), ChunkState::kFree);
 }
@@ -204,8 +204,8 @@ TEST(SharedRingBufferABITest, ChunkIndexAndWrapCount) {
     EXPECT_EQ(WrapCountForPosition(p, kNumChunks), kExpectedWrap[p]) << p;
   }
 
-  // Including the one-chunk ring, where every position maps to chunk 0 and the
-  // wrap count is the position itself, truncated.
+  // Including the one-chunk ring buffer, where every position maps to chunk 0
+  // and the wrap count is the position itself, truncated.
   for (uint32_t num_chunks : {1u, 2u, 4u, 8u, 1024u}) {
     for (uint32_t p = 0; p < 3 * num_chunks + 3; ++p) {
       EXPECT_EQ(ChunkIndexOf(p, num_chunks), p % num_chunks);
@@ -387,22 +387,22 @@ TEST(SharedRingBufferABITest, MalformedFragmentSizes) {
   expect_rejected(kNonCanonical, sizeof(kNonCanonical));
 }
 
-TEST(SharedRingBufferABITest, TargetBufferID) {
+TEST(SharedRingBufferABITest, TargetBufferId) {
   // Stored little-endian at bytes 4 and 5.
   std::vector<uint8_t> chunk(256, 0);
-  StoreTargetBufferID(chunk.data(), 0x1234);
+  StoreTargetBufferId(chunk.data(), 0x1234);
   EXPECT_EQ(chunk[4], 0x34u);
   EXPECT_EQ(chunk[5], 0x12u);
-  EXPECT_EQ(LoadTargetBufferID(chunk.data()), 0x1234);
+  EXPECT_EQ(LoadTargetBufferId(chunk.data()), 0x1234);
   // The state word is not disturbed and the payload area still starts at 6.
   EXPECT_EQ(chunk[0], 0u);
   EXPECT_EQ(chunk[3], 0u);
   EXPECT_EQ(chunk[kTargetBufferPayloadOffset], 0u);
 
-  StoreTargetBufferID(chunk.data(), 0xffff);
-  EXPECT_EQ(LoadTargetBufferID(chunk.data()), 0xffff);
-  StoreTargetBufferID(chunk.data(), 0);
-  EXPECT_EQ(LoadTargetBufferID(chunk.data()), 0);
+  StoreTargetBufferId(chunk.data(), 0xffff);
+  EXPECT_EQ(LoadTargetBufferId(chunk.data()), 0xffff);
+  StoreTargetBufferId(chunk.data(), 0);
+  EXPECT_EQ(LoadTargetBufferId(chunk.data()), 0);
 }
 
 }  // namespace

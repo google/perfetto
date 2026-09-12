@@ -163,10 +163,10 @@ bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t position,
 
   // Free(wrap(position)) -> BeingWritten(0).
   // The claim can fail because:
-  // - the reader resolved this position as unclaimed.
+  // - the reader consumed this position as unclaimed.
   // - an older reservation still owns the chunk.
   //
-  // Either way, this reservation is a hole and the caller never retries it.
+  // Either way, leave this reservation unclaimed and reserve a new position.
   //
   // Memory order acquire pairs with the reader's memory order release
   // transition to Free. The writer cannot overwrite
@@ -189,13 +189,13 @@ bool SharedRingBuffer::TryReleaseChunkAsComplete(uint32_t chunk_idx,
 
   // BeingWritten(N) -> Complete(M).
   // The reader can request a rewrite first. Failure then returns
-  // RewriteRequested(N), and the caller relocates the suffix.
+  // RewriteRequested(N), and the caller relocates the unpublished fragment.
   //
   // Memory order release publishes the M fragments and their sizes, plus
   // BufferID on the first publication.
   //
   // On failure, memory order acquire ensures that the reader has finished
-  // copying the prefix before the writer sees its rewrite request.
+  // copying the published fragments before the writer sees its rewrite request.
   std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
   return state_word->compare_exchange_strong(*expected, complete_word,
                                              std::memory_order_release,
@@ -214,7 +214,7 @@ bool SharedRingBuffer::TryReacquireChunkForWriting(uint32_t chunk_idx,
   //
   // The read-modify-write still extends the release sequence of Complete(N).
   // The reader's memory order acquire load of BeingWritten(N) therefore
-  // sees the prefix.
+  // sees the published fragments.
   //
   // Failure also uses memory order relaxed because the returned word is
   // ignored.
@@ -232,7 +232,7 @@ bool SharedRingBuffer::TryAcknowledgeRewrite(uint32_t chunk_idx,
   // RewriteRequested -> RewriteAcknowledged.
   // Only this writer may acknowledge, so failure is a protocol error.
   //
-  // Memory order release orders the suffix copy before the reader
+  // Memory order release orders the unpublished fragment copy before the reader
   // reclaims the chunk and a later writer overwrites it.
   //
   // On failure, memory order relaxed is enough because the unexpected
@@ -273,8 +273,8 @@ bool SharedRingBuffer::TryRequestRewrite(uint32_t chunk_idx,
   // The writer can publish first. The reader then discards its copy and retries
   // this position on a later pass.
   //
-  // Memory order release orders the prefix copy before the writer
-  // observes the request and relocates its suffix.
+  // Memory order release orders the published fragment copy before the writer
+  // observes the request and relocates its unpublished fragment.
   //
   // On failure, memory order relaxed is enough because the reader retries
   // this position without using the returned word to read the payload.
@@ -332,7 +332,8 @@ bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
   // word in |*observed|.
   //
   // Memory order acq_rel serves both handoffs:
-  // - acquire pairs with the writer's acknowledgement after its suffix copy.
+  // - acquire pairs with the acknowledgement after the writer copies its
+  //   unpublished fragment.
   // - release hands the chunk to the next writer after that copy.
   //
   // On failure, memory order relaxed is enough because the unexpected

@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include <atomic>
 
@@ -30,18 +31,18 @@
 
 namespace perfetto::tracing_v2 {
 
-// Shared-memory ABI for a tracing-v2 producer ring.
+// Shared-memory ABI for a tracing-v2 producer ring buffer.
 // Protocol and alternatives: RFC 0046,
 // https://github.com/google/perfetto/discussions/7120.
 // Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
 //
-// Several trace writers can write to the ring at once. One reader drains their
-// data in reservation order. A relocated suffix obtains a later reservation.
+// Several trace writers can write at once. One reader drains their data in
+// reservation order. A relocated fragment gets a later reservation.
 //
-// The ring has one header followed by fixed-size chunks. The header holds the
-// read and write positions. Every chunk starts with one atomic state word. It
-// records who may access the chunk and, while a writer owns it, how many
-// complete fragments have been published.
+// The ring buffer has one header followed by fixed-size chunks:
+// - The header holds the read and write positions.
+// - Each chunk starts with an atomic state word. It records ownership and the
+//   number of published fragments while the chunk belongs to a writer.
 //
 // The ABI assumes little-endian producer and service processes.
 
@@ -60,31 +61,31 @@ constexpr uint32_t kMinChunkSize = 256;
 // Contiguous chunks must keep every 32-bit state word aligned.
 constexpr uint32_t kChunkAlignmentBytes = 4;
 
-// Ring header
-// -----------
+// Ring buffer header
+// ------------------
 //
 //   byte offset
-//   0              4              8             12               64
+//   0              4              8              12               64
 //   +--------------+--------------+--------------+----------------+
 //   |   read_pos   |  write_pos   | num_writers_ |    reserved    |
 //   |              |              |   waiting    |                |
 //   +--------------+--------------+--------------+----------------+
-//   \_________ rw_positions _____/ \_  atomic32 _/
-//             atomic<uint64_t>
+//   |<------- rw_positions ------>|<- atomic32 ->|
+//          atomic<uint64_t>
 //
-// Writers decide whether the ring has room by loading rw_positions once. The
-// high half is write_pos and the low half is read_pos. Keeping them in one
-// atomic prevents a capacity check from combining counters read at different
-// times.
+// Writers check capacity by loading rw_positions once. In memory:
+// - The first four bytes hold read_pos.
+// - The next four bytes hold write_pos.
+// Keeping both in one atomic avoids combining counters read at different times.
 //
 // The reader is the only one that moves read_pos. It publishes a new value once
-// per drain pass and then wakes any writer parked on a full ring. read_pos is
-// also the first four bytes of rw_positions, which is the address the futex
-// waits on.
+// per drain pass and then wakes any writer parked on a full ring buffer.
+// read_pos is also the first four bytes of rw_positions, which is the address
+// the futex waits on.
 //
 // num_writers_waiting lets the reader skip a futex wake when nobody is waiting
-// for space. It is only an optimization and never decides whether the ring is
-// full or who owns a chunk.
+// for space. It is only an optimization and never decides whether the ring
+// buffer is full or who owns a chunk.
 //
 // Bytes 12..63 pad the header to one cache line.
 //
@@ -112,8 +113,11 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // ------------------------------------
 //
 // write_pos is the next position a writer can reserve. read_pos is the next
-// position the reader must resolve. Both counters are uint32_t and are allowed
+// position the reader must consume. Both counters are uint32_t and are allowed
 // to wrap.
+//
+// A writer reserves a position by advancing write_pos, then tries to claim
+// its physical chunk.
 //
 // The number of reserved positions not yet handled by the reader is:
 //
@@ -128,7 +132,7 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 //   uint32_t(write_pos - read_pos) = 6
 //
 // A legal result is at most num_chunks. A larger result means that the two
-// positions do not describe a valid ring state.
+// positions do not describe a valid ring buffer state.
 //
 // This also means that at most one outstanding reservation maps to each
 // physical chunk (the one exception is the wrap-count alias described at
@@ -166,14 +170,14 @@ constexpr uint32_t NumOutstandingPositions(uint32_t write_pos,
 // num_chunks = 2^k, so the low k bits of a position select the physical chunk
 // and the remaining bits count completed traversals:
 //
-//             bits 31..k                    bits k-1..0
+//             bits 0..k-1                  bits k..31
 //   +----------------------------+----------------------------+
-//   |       traversal number     |    physical chunk index    |
+//   |    physical chunk index    |      traversal number      |
 //   +----------------------------+----------------------------+
-//              32 - k bits                    k bits
+//               k bits                     32 - k bits
 //
-// For example, an eight-chunk ring has three chunk-index bits. The low three
-// bits select chunks 0 through 7. The remaining 29 bits count completed
+// For example, an eight-chunk ring buffer has three chunk-index bits. The low
+// three bits select chunks 0 through 7. The remaining 29 bits count completed
 // traversals.
 constexpr uint32_t ChunkIndexOf(uint32_t position, uint32_t num_chunks) {
   return position & (num_chunks - 1);
@@ -182,56 +186,95 @@ constexpr uint32_t ChunkIndexOf(uint32_t position, uint32_t num_chunks) {
 // Chunk state word
 // ----------------
 //
+// Each chunk starts with a 32-bit atomic state word (std::atomic<uint32_t>).
+//
+// There are five states:
+// 1. kFree
+// 2. kBeingWritten
+// 3. kComplete
+// 4. kRewriteRequested
+// 5. kRewriteAcknowledged
+//
+// The low control byte (8 bits) determines how to interpret the upper 24 bits:
+// - Free has 8 unused bits that must be zero, followed by wrap_count (16 bits).
+// - BeingWritten, Complete and RewriteRequested carry num_fragments (8 bits)
+//   and WriterID (16 bits).
+// - RewriteAcknowledged has no other fields so its upper bits are all zero.
+//
+// Whole-word diagrams below show bytes in increasing address order.
+//
 // A Free word contains:
 //
-//    31                              16 15       8 7               0
-//   +----------------------------------+-----------+------------------+
-//   |            wrap_count            | num_frag- |   control = 0    |
-//   |                                  | ments = 0 | (Free, format 0, |
-//   |                                  |           |    no flags)     |
-//   +----------------------------------+-----------+------------------+
-//                   16 bits               8 bits          8 bits
+//   +------------------+------------------+------------------+
+//   |      byte 0      |      byte 1      |    bytes 2-3     |
+//   +------------------+------------------+------------------+
+//   |   control = 0    | num_fragments = 0|    wrap_count    |
+//   | (Free, format 0, |                  |                  |
+//   |    no flags)     |                  |                  |
+//   +------------------+------------------+------------------+
 //
-// A Free word is wrap_count << 16, making a zero-filled ring valid and empty.
+// A Free word is wrap_count << 16, making a zero-filled ring buffer valid and
+// empty.
 //
 // BeingWritten, Complete and RewriteRequested contain:
 //
-//    31                              16 15       8 7               0
-//   +----------------------------------+-----------+------------------+
-//   |             WriterID             |    num    |   control byte   |
-//   |                                  | fragments |                  |
-//   +----------------------------------+-----------+------------------+
-//                   16 bits               8 bits          8 bits
+//   +------------------+------------------+------------------+
+//   |      byte 0      |      byte 1      |    bytes 2-3     |
+//   +------------------+------------------+------------------+
+//   |   control byte   |  num_fragments   |     WriterID     |
+//   +------------------+------------------+------------------+
 //
 // The control byte is:
 //
 //   +---------+---------+---------+---------+---------+
-//   |  bit 7  |  bit 6  |  bit 5  |bits 4-3 |bits 2-0 |
+//   |bits 0-2 |bits 3-4 |  bit 5  |  bit 6  |  bit 7  |
 //   +---------+---------+---------+---------+---------+
-//   |continues|continues|  data   | format  |  state  |
-//   |from prev| on next |  loss   |         |         |
+//   |  state  | format  |  data   |continues|continues|
+//   |         |         |  loss   | on next |from prev|
 //   +---------+---------+---------+---------+---------+
 //
-// RewriteAcknowledged carries no other fields; every other bit is zero.
+// RewriteAcknowledged carries no other fields so every other bit is zero.
 
 enum class ChunkState : uint32_t {
-  // The chunk may be claimed by the reservation with this wrap count.
+  // No writer owns this chunk:
+  // - A writer whose reserved position selects this chunk and has the same
+  //   wrap count can change Free to BeingWritten before writing.
+  // - To consume an unclaimed reservation, the reader must first advance the
+  //   wrap count atomically. The delayed writer's claim then fails.
   kFree = 0,
 
-  // One writer owns the chunk. num_fragments is the prefix it has already
-  // published. The writer may be appending another fragment after that prefix.
+  // One writer owns the chunk:
+  // - The first N = num_fragments fragments are published and can be read.
+  // - The writer may be appending fragment N + 1 after those published bytes.
+  //
+  // The writer publishes by changing BeingWritten to Complete. The reader
+  // can instead copy the first N fragments and request a rewrite, without
+  // waiting for the writer to finish.
   kBeingWritten = 1,
 
-  // The writer has published num_fragments fragments and is no longer touching
-  // the chunk. It may take the chunk back before the reader reclaims it.
+  // The writer has published all num_fragments fragments and stopped writing.
+  // The reader and writer can now race to change the state:
+  // - The reader consumes the fragments and changes Complete to Free.
+  // - The same writer changes Complete back to BeingWritten to append more.
+  // If the reader wins, the writer drops its cached handle to the chunk.
   kComplete = 2,
 
-  // The reader took the published prefix while the writer still owned the
-  // chunk. The writer must move anything it appended afterwards, then release
-  // this chunk.
+  // A partial chunk read won the race against the writer's publication:
+  // - The reader consumed N = num_fragments and can move on.
+  // - The writer still owns the chunk and may be writing fragment N + 1.
+  //
+  // The writer notices the request when it tries to publish. It must save
+  // any unpublished fragment before acknowledging. The reader cannot free
+  // the chunk until that acknowledgement.
   kRewriteRequested = 3,
 
-  // The writer has finished with the old chunk. The reader may reclaim it.
+  // The writer notices RewriteRequested when it next tries to publish:
+  // - It saves any unpublished fragment in private memory.
+  // - It changes the old chunk to RewriteAcknowledged and stops touching it.
+  //
+  // Acknowledgement happens before waiting for a replacement chunk.
+  // Only the reader changes RewriteAcknowledged to Free, when it next visits
+  // this chunk on a later traversal.
   kRewriteAcknowledged = 4,
 
   // A reader that does not know a state cannot tell who owns the chunk. It
@@ -285,7 +328,7 @@ enum PayloadFlags : uint32_t {
   // The writer dropped trace data before writing this chunk.
   kFlagDataLoss = 1u << kPayloadFlagsShift,
 
-  // The last fragment is not the end of its packet; the packet continues in
+  // The last fragment is not the end of its packet. The packet continues in
   // this writer's next chunk. Only Complete may carry this flag, and the
   // writer must not reuse a chunk carrying it.
   kFlagContinuesOnNextChunk = 1u << (kPayloadFlagsShift + 1),
@@ -299,16 +342,46 @@ enum PayloadFlags : uint32_t {
 // ---------------------------------
 //
 // Only the reader writes Free. The writer publishes each closed fragment and
-// may reuse its Complete chunk to append another. If the reader reaches a
-// BeingWritten chunk, it takes the published prefix without waiting for the
-// writer. The writer must then relocate its unpublished suffix.
+// may reuse its Complete chunk to append another.
 //
-//                writer claims               writer publishes
-//   Free(wrap)  -------------->  BeingWritten(N)  -------------->  Complete(M)
-//       |                              |                               |
-//       | reader                       | reader                        | reader
-//       v                              v                               v
-//   Free(next wrap)           RewriteRequested(N)               Free(next wrap)
+// The reader can make progress even when a writer is descheduled:
+//
+// 1. The writer pauses before claiming the chunk.
+//    - The position is reserved. The chunk has not been claimed.
+//    - The reader atomically changes Free(wrap) to Free(next wrap).
+//      Only the wrap count changes. The state stays Free.
+//    - The reader advances read_pos without delivering fragments.
+//    - The chunk is ready for position + num_chunks. That position's writer
+//      can claim it by changing the state to BeingWritten.
+//    - The original writer resumes with the old wrap count. Its claim fails
+//      without changing the chunk. It tries a new reservation.
+//    - If the writer claims first, the reader's update fails instead.
+//      The reader leaves read_pos unchanged and retries the position.
+//
+// 2. The writer pauses after claiming the chunk.
+//    - The reader copies the published fragments.
+//    - The reader changes BeingWritten to RewriteRequested, then advances
+//      read_pos. The writer still owns the chunk.
+//    - Later reservations cannot claim this chunk while it awaits
+//      acknowledgement. The reader advances past those reservations without
+//      changing the chunk's state word or delivering fragments.
+//    - The owning writer resumes and saves any unpublished fragment.
+//      Only that writer can change RewriteRequested to RewriteAcknowledged.
+//    - On a later traversal, the reader changes RewriteAcknowledged to
+//      Free(next wrap). It then advances read_pos without delivering fragments.
+//    - The chunk is now available for a subsequent reservation.
+//
+// An unclaimed reservation that the reader skips is called a hole. Skipping
+// means advancing read_pos without delivering fragments for that reservation.
+// It can also require a state word update, as in the Free and
+// RewriteAcknowledged cases above.
+//
+//                 writer claims                writer publishes
+//     Free(wrap)  ------------> BeingWritten(N)  -----------> Complete(M)
+//          |                           |                           |
+//          | reader                    | reader                    | reader
+//          v                           v                           v
+//   Free(next wrap)           RewriteRequested(N)           Free(next wrap)
 //                                      |
 //                                      | writer finishes with old chunk
 //                                      v
@@ -318,12 +391,13 @@ enum PayloadFlags : uint32_t {
 //                                      v
 //                               Free(next wrap)
 //
-// N and M count published fragments. A claim starts at N = 0; reuse takes
+// N and M count published fragments. A claim starts at N = 0. Reuse takes
 // Complete(M) back to BeingWritten(M).
 //
 // Publication and scraping race on the same BeingWritten word, including its
-// fields. The winning CAS settles ownership; no second atomic is needed.
-// If scraping wins, the writer relocates only the suffix after N fragments.
+// fields. The winning CAS settles ownership. No second atomic is needed.
+// If scraping wins, the writer relocates only the unpublished fragment after
+// the N published fragments.
 //
 // A reservation allows one claim against Free(wrap_count(position)). On
 // failure, the writer must reserve a new position, never retry the new word.
@@ -331,16 +405,16 @@ enum PayloadFlags : uint32_t {
 //   Actor   From                   Action                   To
 //   ------  ---------------------  -----------------------  -------------------
 //   writer  Free(wrap)             claim                    BeingWritten(0)
-//   writer  Free(wrap) gone        hole, reserve later      unchanged
-//   reader  Free(wrap)             resolve unclaimed        Free(next wrap)
+//   writer  Free(wrap) gone        reserve a new position   unchanged
+//   reader  Free(wrap)             consume unclaimed        Free(next wrap)
 //   reader  Free(other wrap)       protocol error, stop     unchanged
 //   writer  BeingWritten(N)        publish                  Complete(M)
-//   reader  BeingWritten(N)        take published prefix    RewriteRequested(N)
+//   reader  BeingWritten(N)        read N fragments         RewriteRequested(N)
 //   writer  Complete(N)            reuse                    BeingWritten(N)
 //   writer  Complete gone          drop cached handle       unchanged
 //   reader  Complete               consume                  Free(next wrap)
-//   writer  RewriteRequested       move suffix, release     RewriteAcknowledged
-//   reader  RewriteRequested       skip as a hole           unchanged
+//   writer  RewriteRequested       copy fragment, release   RewriteAcknowledged
+//   reader  RewriteRequested       advance read_pos         unchanged
 //   reader  RewriteAcknowledged    reclaim                  Free(next wrap)
 //   reader  reserved state 5..7    unknown owner, stop      unchanged
 //   reader  Free CAS lost          retry later              unchanged
@@ -350,7 +424,7 @@ enum PayloadFlags : uint32_t {
 //   writer  publication CAS lost   handle rewrite or abort  unchanged
 //   writer  any other lost CAS     bug, abort               unchanged
 //
-// Lost-CAS rows describe a failed attempt; it does not change the shared word.
+// Lost-CAS rows describe a failed attempt. It does not change the shared word.
 // A failed publication must find RewriteRequested(N), or the writer aborts.
 // The reader also stops on reserved bits in Free or RewriteAcknowledged.
 //
@@ -367,7 +441,7 @@ enum PayloadFlags : uint32_t {
 // loses the claim. Chunk ownership holds, but reservation order is lost for
 // the delayed writer. This is the limit of the 16-bit wrap count.
 //
-// Computes the wrap from a position; it does not inspect the chunk's state.
+// Computes the wrap from a position. It does not inspect the chunk's state.
 inline uint16_t WrapCountForPosition(uint32_t position, uint32_t num_chunks) {
   PERFETTO_DCHECK(base::IsPowerOfTwo(num_chunks));
   return static_cast<uint16_t>(position >> base::CountTrailZeros(num_chunks));
@@ -436,7 +510,7 @@ constexpr uint32_t kRewriteAcknowledgedStateWord =
 // Replaces only the state bits, preserving format, flags, count and WriterID.
 // The reader uses this to request a rewrite without understanding the chunk
 // format. The writer uses it to take a Complete chunk back to BeingWritten
-// while the word keeps describing the prefix it already published.
+// while the word keeps describing the fragments it already published.
 constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
   return (state_word & ~kChunkStateMask) |
          (static_cast<uint32_t>(state) << kChunkStateShift);
@@ -445,8 +519,8 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 // Target-buffer chunk format
 // --------------------------
 //
-// A data-bearing format-0 chunk begins with this six-byte header, leaving
-// 250 bytes for payload and size entries in a minimum-sized chunk:
+// A data-bearing format-0 chunk begins with this six-byte header. The remaining
+// chunk_size - 6 bytes hold payload and size entries:
 //
 //   +---------+---------+-------------------+-------------------+
 //   | byte 0  | byte 1  |     bytes 2-3     |     bytes 4-5     |
@@ -458,10 +532,10 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 //
 // The rest of a format-0 chunk is laid out as follows:
 //
-//   low address                                                high address
-//   0                 4          6                              chunk_size
+//   low address                                         high address
+//   0                 4          6                                 chunk_size
 //   +-----------------+----------+-----------+------+--------------+
-//   | atomic state    | BufferID | payloads  | free | size varints  |
+//   | atomic state    | BufferID | payloads  | free | size varints |
 //   | word            |          | grow ---> |      | <--- grow    |
 //   +-----------------+----------+-----------+------+--------------+
 //                                                     ... N-1  1  0
@@ -470,21 +544,20 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 // the same number of payload fragments and size varints. The writer fills
 // those bytes before its release transition out of BeingWritten. The reader
 // acquire-loads the state word, then decodes and checks every size before
-// copying the payload. The first publication also makes BufferID visible;
-// the reader must not load BufferID when num_fragments is zero.
+// copying the payload. The first publication also makes BufferID visible.
+// The reader must not load BufferID when num_fragments is zero.
 
-constexpr uint32_t kTargetBufferIDOffset = 4;
+constexpr uint32_t kTargetBufferIdOffset = 4;
 constexpr uint32_t kTargetBufferPayloadOffset = 6;
 
-inline void StoreTargetBufferID(uint8_t* chunk, BufferID buffer_id) {
-  chunk[kTargetBufferIDOffset] = static_cast<uint8_t>(buffer_id);
-  chunk[kTargetBufferIDOffset + 1] = static_cast<uint8_t>(buffer_id >> 8);
+inline void StoreTargetBufferId(uint8_t* chunk, BufferID buffer_id) {
+  memcpy(&chunk[kTargetBufferIdOffset], &buffer_id, sizeof(buffer_id));
 }
 
-inline BufferID LoadTargetBufferID(const uint8_t* chunk) {
-  return static_cast<BufferID>(
-      static_cast<uint32_t>(chunk[kTargetBufferIDOffset]) |
-      (static_cast<uint32_t>(chunk[kTargetBufferIDOffset + 1]) << 8));
+inline BufferID LoadTargetBufferId(const uint8_t* chunk) {
+  BufferID buffer_id;
+  memcpy(&buffer_id, &chunk[kTargetBufferIdOffset], sizeof(buffer_id));
+  return buffer_id;
 }
 
 // Fragment size directory
@@ -571,8 +644,8 @@ inline uint8_t* WriteFragmentSize(uint8_t* sizes_begin, uint32_t size) {
 // is the varint AC 02 and is stored as:
 //
 //        ... | 02 | AC |  <- chunk_size
-//              ^     ^
-//              |     first byte read: AC, continuation bit set
+//              ^    ^
+//              |    first byte read: AC, continuation bit set
 //              second byte read: 02, no continuation bit, stop
 //
 // |lower_bound| is the lowest address a size byte may be read from, normally
@@ -581,8 +654,8 @@ inline uint8_t* WriteFragmentSize(uint8_t* sizes_begin, uint32_t size) {
 // once every size is decoded.
 //
 // Rejected, so that every size has exactly one byte pattern:
-// - a varint that runs into |lower_bound| or is longer than five bytes;
-// - a value above uint32_t;
+// - a varint that runs into |lower_bound| or is longer than five bytes.
+// - a value above uint32_t.
 // - a non-shortest encoding (81 00 for 1).
 //
 // On success, |*sizes_cursor| points at the last byte read, which is the

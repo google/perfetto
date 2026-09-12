@@ -14,9 +14,8 @@
 
 import("../../../gn/test.gni")
 
-# The tracing v2 producer-local shared ring: its ABI, the writer half of the
-# chunk protocol and the single-consumer reader. It does not interpret fragment
-# payloads. Protocol and alternatives: RFC 0046,
+# The tracing v2 producer-local shared ring buffer: its ABI, writer and reader.
+# It does not interpret fragment payloads. Protocol and alternatives: RFC 0046,
 # https://github.com/google/perfetto/discussions/7120.
 # Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
 source_set("v2") {

@@ -99,7 +99,7 @@ DecodedChunk Decode(SharedRingBuffer* ring, uint32_t chunk_idx) {
     return decoded;
 
   decoded.writer_id = WriterIDOf(word);
-  decoded.target_buffer = LoadTargetBufferID(chunk);
+  decoded.target_buffer = LoadTargetBufferId(chunk);
   decoded.payload_flags = PayloadFlagsOf(word);
 
   const uint8_t* sizes_cursor = chunk + ring->chunk_size();
@@ -119,13 +119,13 @@ DecodedChunk Decode(SharedRingBuffer* ring, uint32_t chunk_idx) {
 }
 
 // Plays the reader's part of the scrape: marks whatever the writer currently
-// holds as rewrite-requested and reports what the marked prefix was.
+// holds as rewrite-requested and reports the published fragment count.
 uint32_t MarkForRewrite(SharedRingBuffer* ring, uint32_t chunk_idx) {
   uint32_t observed = ring->LoadChunkStateWord(chunk_idx);
   EXPECT_EQ(ChunkStateOf(observed), ChunkState::kBeingWritten);
-  const uint32_t taken = NumFragmentsOf(observed);
+  const uint32_t num_fragments_read = NumFragmentsOf(observed);
   EXPECT_TRUE(ring->TryRequestRewrite(chunk_idx, &observed));
-  return taken;
+  return num_fragments_read;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ uint32_t MarkForRewrite(SharedRingBuffer* ring, uint32_t chunk_idx) {
 // ---------------------------------------------------------------------------
 
 TEST(SharedRingBufferWriterTest, PayloadUpSizesDown) {
-  // Payload grows up from the header; sizes grow down from the end.
+  // Payload grows up from the header. Sizes grow down from the end.
   test::SharedRingBufferForTesting ring(4, 256);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
 
@@ -183,7 +183,7 @@ TEST(SharedRingBufferWriterTest, FragmentSizeBoundaries) {
 }
 
 TEST(SharedRingBufferWriterTest, LargestFragment) {
-  // The largest fragment fits exactly; one more byte is too large.
+  // The largest fragment fits exactly. One more byte is too large.
   test::SharedRingBufferForTesting ring(4, 256);
   // 256 - 6 header bytes - varint(248), which takes two bytes.
   constexpr uint32_t kLargest = 248;
@@ -327,7 +327,7 @@ TEST(SharedRingBufferWriterTest, ReuseLosesToReclaim) {
   ASSERT_TRUE(ring->TryReleaseCompleteChunkAsFree(0, &observed));
   ring->PublishReadPos(1);
 
-  // The writer's reuse fails; it drops its handle and goes for a fresh chunk
+  // The writer's reuse fails. It drops its handle and goes for a fresh chunk
   // rather than writing behind the reader.
   ASSERT_TRUE(WriteFragment(&writer, "two"));
   EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)), ChunkState::kFree);
@@ -337,8 +337,8 @@ TEST(SharedRingBufferWriterTest, ReuseLosesToReclaim) {
 }
 
 // A chunk published with "continues on next chunk" is never reused. Without
-// that rule a later scrape could take a prefix ending in the middle of a
-// packet.
+// that rule a later scrape could take a set of fragments ending in the middle
+// of a packet.
 TEST(SharedRingBufferWriterTest, ContinuesOnNextNotReused) {
   test::SharedRingBufferForTesting ring(4, 512);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
@@ -406,24 +406,24 @@ TEST(SharedRingBufferWriterTest, DataLossSkipsCachedChunk) {
 // ---------------------------------------------------------------------------
 
 TEST(SharedRingBufferWriterTest, DropPolicyReportsFull) {
-  // kDrop reports a full ring without blocking.
+  // kDrop reports a full ring buffer without blocking.
   test::SharedRingBufferForTesting ring(2, 256);
   SharedRingBufferWriter a = MakeWriter(ring.get(), kWriterA, kBuffer);
   SharedRingBufferWriter b = MakeWriter(ring.get(), kWriterB, kBuffer);
 
-  // Two writers hold both chunks, so the ring is structurally full.
+  // Two writers hold both chunks, so the ring buffer is structurally full.
   ASSERT_EQ(a.BeginFragment(1, false).result, BeginFragmentResult::kSuccess);
   ASSERT_EQ(b.BeginFragment(1, false).result, BeginFragmentResult::kSuccess);
 
   SharedRingBufferWriter c = MakeWriter(ring.get(), 11, kBuffer);
   EXPECT_EQ(c.BeginFragment(1, false).result, BeginFragmentResult::kFull);
-  // Nothing was reserved, so a full ring costs no position.
+  // Nothing was reserved, so a full ring buffer costs no position.
   EXPECT_EQ(ring->LoadWritePos(), 2u);
   EXPECT_EQ(c.GetStats().failed_claims, 0u);
 }
 
 TEST(SharedRingBufferWriterTest, NotifiesReaderBeforeWaiting) {
-  // A full ring notifies the reader before the writer waits.
+  // A full ring buffer notifies the reader before the writer waits.
   if (!SharedRingBuffer::SupportsWriterWait())
     GTEST_SKIP() << "The futex wait is not available on this platform";
   test::SharedRingBufferForTesting ring(1, 256);
@@ -477,7 +477,8 @@ TEST(SharedRingBufferWriterTest, StallThenDropEpisode) {
 }
 
 // A chunk pinned by a writer that stopped mid-rewrite is not the same thing as
-// a full ring: positions are available, but their chunks cannot be acquired.
+// a full ring buffer: positions are available, but their chunks cannot be
+// acquired.
 TEST(SharedRingBufferWriterTest, PinnedChunks) {
   // The writer gives up after num_chunks failed claims. Nobody else reserves
   // here, so those claims land on each physical chunk once and use up the whole
@@ -510,31 +511,32 @@ TEST(SharedRingBufferWriterTest, PinnedChunks) {
 // Relocation after a scrape.
 // ---------------------------------------------------------------------------
 
-TEST(SharedRingBufferWriterTest, RelocatesSuffix) {
-  // A scrape moves only the unpublished suffix. The first scrape also
-  // allocates the relocation scratch; the second one below reuses it.
+TEST(SharedRingBufferWriterTest, RelocatesUnpublishedFragment) {
+  // A scrape moves only the unpublished fragment. The first scrape also
+  // allocates the relocation scratch. The second one below reuses it.
   test::SharedRingBufferForTesting ring(4, 512);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
 
-  const std::vector<std::string> prefix = {"one", "", std::string(128, 'x'),
-                                           "three", "four"};
-  for (const auto& fragment : prefix)
+  const std::vector<std::string> published_fragments = {
+      "one", "", std::string(128, 'x'), "three", "four"};
+  for (const auto& fragment : published_fragments)
     ASSERT_TRUE(WriteFragment(&writer, fragment));
 
   // Several published fragments, including a two-byte size and an empty
-  // fragment, precede the only completed suffix this writer can produce.
+  // fragment, precede the only completed unpublished fragment this writer can
+  // produce.
   const auto range = writer.BeginFragment(6, false);
   ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
   memcpy(range.begin, "suffix", 6);
-  EXPECT_EQ(MarkForRewrite(ring.get(), 0), prefix.size());
-  EXPECT_EQ(Decode(ring.get(), 0).fragments, prefix);
+  EXPECT_EQ(MarkForRewrite(ring.get(), 0), published_fragments.size());
+  EXPECT_EQ(Decode(ring.get(), 0).fragments, published_fragments);
 
   ASSERT_EQ(writer.EndFragment(6, false), EndFragmentResult::kSuccess);
   EXPECT_EQ(writer.GetStats().relocations, 1u);
   EXPECT_EQ(writer.GetStats().fragments_dropped, 0u);
 
   // The old chunk is acknowledged - the writer says nothing about who gets it
-  // next - and only the suffix moved.
+  // next - and only the unpublished fragment moved.
   EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)),
             ChunkState::kRewriteAcknowledged);
   const DecodedChunk replacement = Decode(ring.get(), 1);
@@ -543,11 +545,11 @@ TEST(SharedRingBufferWriterTest, RelocatesSuffix) {
   EXPECT_EQ(replacement.target_buffer, kBuffer);
   ASSERT_EQ(replacement.fragments.size(), 1u);
   EXPECT_EQ(replacement.fragments[0], "suffix");
-  // A non-empty prefix went out with the chunk's beginning, so the suffix does
-  // not repeat the flags describing it.
+  // Published fragments went out with the chunk's beginning, so the unpublished
+  // fragment does not repeat the flags describing it.
   EXPECT_EQ(replacement.payload_flags, 0u);
 
-  // Scrape the replacement too: the newer suffix moves on again.
+  // Scrape the replacement too: the newer fragment moves on again.
   const auto again = writer.BeginFragment(5, false);
   ASSERT_EQ(again.result, BeginFragmentResult::kSuccess);
   memcpy(again.begin, "again", 5);
@@ -565,7 +567,7 @@ TEST(SharedRingBufferWriterTest, RelocatesSuffix) {
 }
 
 TEST(SharedRingBufferWriterTest, RelocationKeepsFlags) {
-  // A scrape with no published prefix carries the flags along.
+  // A scrape with no published fragments carries the flags along.
   test::SharedRingBufferForTesting ring(4, 512);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
   writer.RecordDataLoss();
@@ -582,24 +584,24 @@ TEST(SharedRingBufferWriterTest, RelocationKeepsFlags) {
   ASSERT_EQ(replacement.fragments.size(), 1u);
   EXPECT_EQ(replacement.fragments[0], "tail");
   // The reader took no beginning, so both flags describing it travel with the
-  // relocated suffix.
+  // relocated fragment.
   EXPECT_EQ(replacement.payload_flags,
             kFlagContinuesFromPrevChunk | kFlagDataLoss);
 }
 
 // An ended zero-byte fragment still needs a replacement and a size varint.
 TEST(SharedRingBufferWriterTest, RelocatesZeroLengthFragment) {
-  for (bool has_prefix : {false, true}) {
-    SCOPED_TRACE(has_prefix);
+  for (bool has_published_fragment : {false, true}) {
+    SCOPED_TRACE(has_published_fragment);
     test::SharedRingBufferForTesting ring(4, 512);
     SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
     writer.RecordDataLoss();
-    if (has_prefix) {
+    if (has_published_fragment) {
       ASSERT_TRUE(WriteFragment(&writer, "prefix"));
     }
     ASSERT_EQ(writer.BeginFragment(0, false).result,
               BeginFragmentResult::kSuccess);
-    EXPECT_EQ(MarkForRewrite(ring.get(), 0), has_prefix ? 1u : 0u);
+    EXPECT_EQ(MarkForRewrite(ring.get(), 0), has_published_fragment ? 1u : 0u);
     ASSERT_EQ(writer.EndFragment(0, false), EndFragmentResult::kSuccess);
 
     EXPECT_EQ(ring->LoadChunkStateWord(0), kRewriteAcknowledgedStateWord);
@@ -608,13 +610,14 @@ TEST(SharedRingBufferWriterTest, RelocatesZeroLengthFragment) {
     EXPECT_EQ(replacement.state, ChunkState::kComplete);
     ASSERT_EQ(replacement.fragments.size(), 1u);
     EXPECT_TRUE(replacement.fragments[0].empty());
-    EXPECT_EQ(replacement.payload_flags, has_prefix ? 0u : kFlagDataLoss);
+    EXPECT_EQ(replacement.payload_flags,
+              has_published_fragment ? 0u : kFlagDataLoss);
     EXPECT_EQ(writer.GetStats().relocations, 1u);
     EXPECT_EQ(writer.GetStats().fragments_dropped, 0u);
   }
 }
 
-// A loss flag that the reader did not take rides with the relocated suffix,
+// A loss flag that the reader did not take rides with the relocated fragment,
 // so the writer's own data_loss_pending_ is already clear when the replacement
 // is acquired. kStallThenDrop must still see the unreported loss and drop
 // rather than begin another stall.
@@ -631,16 +634,17 @@ TEST(SharedRingBufferWriterTest, StallThenDropWithRelocatedLossFlag) {
   ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
   memcpy(range.begin, "tail", 4);
 
-  // Occupy the ring's only other chunk so no replacement can be had.
+  // Occupy the ring buffer's only other chunk so no replacement can be had.
   SharedRingBufferWriter blocker = MakeWriter(ring.get(), kWriterB, kBuffer);
   ASSERT_EQ(blocker.BeginFragment(1, false).result,
             BeginFragmentResult::kSuccess);
 
-  // The reader takes nothing, so the flag moves with the one-fragment suffix.
+  // The reader takes nothing, so the flag moves with the unpublished fragment.
   EXPECT_EQ(MarkForRewrite(ring.get(), 0), 0u);
 
   // A stall would notify the delegate, which frees the acknowledged chunk and
-  // lets the relocation succeed. A drop asks nobody and gives the suffix up.
+  // lets the relocation succeed. A drop asks nobody and gives the unpublished
+  // fragment up.
   EXPECT_EQ(writer.EndFragment(4, false),
             EndFragmentResult::kRelocationDropped);
   EXPECT_EQ(delegate.num_notifications, 0u);
@@ -656,7 +660,7 @@ TEST(SharedRingBufferWriterTest, StallThenDropWithRelocatedLossFlag) {
   EXPECT_EQ(delegate.num_notifications, 0u);
 }
 
-TEST(SharedRingBufferWriterTest, RelocationWithEmptySuffix) {
+TEST(SharedRingBufferWriterTest, RewriteWithoutUnpublishedFragment) {
   // A scrape with nothing unpublished just acknowledges.
   test::SharedRingBufferForTesting ring(4, 512);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
@@ -667,7 +671,7 @@ TEST(SharedRingBufferWriterTest, RelocationWithEmptySuffix) {
             BeginFragmentResult::kSuccess);
   EXPECT_EQ(MarkForRewrite(ring.get(), 0), 1u);
 
-  // Releasing abandons the open fragment; there is nothing left to move.
+  // Releasing abandons the open fragment. There is nothing left to move.
   EXPECT_EQ(writer.FinishCurrentChunk(), EndFragmentResult::kSuccess);
   EXPECT_EQ(writer.GetStats().fragments_dropped, 0u);
   EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)),
@@ -675,7 +679,7 @@ TEST(SharedRingBufferWriterTest, RelocationWithEmptySuffix) {
   EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(1)), ChunkState::kFree);
 }
 
-TEST(SharedRingBufferWriterTest, EmptySuffixKeepsDataLossPending) {
+TEST(SharedRingBufferWriterTest, NoFragmentToRelocateKeepsDataLossPending) {
   // A scrape that takes nothing, followed by nothing to relocate, leaves the
   // loss flag with the writer for its next chunk.
   test::SharedRingBufferForTesting ring(4, 512);
@@ -686,7 +690,7 @@ TEST(SharedRingBufferWriterTest, EmptySuffixKeepsDataLossPending) {
             BeginFragmentResult::kSuccess);
   EXPECT_EQ(MarkForRewrite(ring.get(), 0), 0u);
 
-  // Releasing abandons the open fragment, so no suffix can carry the flag.
+  // Releasing abandons the open fragment, so no fragment can carry the flag.
   EXPECT_EQ(writer.FinishCurrentChunk(), EndFragmentResult::kSuccess);
   EXPECT_EQ(ChunkStateOf(ring->LoadChunkStateWord(0)),
             ChunkState::kRewriteAcknowledged);
@@ -696,28 +700,31 @@ TEST(SharedRingBufferWriterTest, EmptySuffixKeepsDataLossPending) {
 }
 
 // Acknowledging happens before the writer looks for replacement capacity. The
-// other order would leave the old chunk occupied exactly when the ring is full,
-// so every later traversal of it would burn a position.
+// other order would leave the old chunk occupied exactly when the ring buffer
+// is full, so every later traversal of it would burn a position.
 TEST(SharedRingBufferWriterTest, RelocationDrop) {
-  for (const std::string& suffix : {std::string("lost"), std::string()}) {
-    SCOPED_TRACE(suffix);
+  for (const std::string& unpublished_fragment :
+       {std::string("lost"), std::string()}) {
+    SCOPED_TRACE(unpublished_fragment);
     test::SharedRingBufferForTesting ring(2, 512);
     SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
 
     ASSERT_TRUE(WriteFragment(&writer, "published"));
 
-    // Occupy the ring's only other chunk so no replacement can be had.
+    // Occupy the ring buffer's only other chunk so no replacement can be had.
     SharedRingBufferWriter blocker = MakeWriter(ring.get(), kWriterB, kBuffer);
     ASSERT_EQ(blocker.BeginFragment(1, false).result,
               BeginFragmentResult::kSuccess);
 
     const auto range = writer.BeginFragment(4, false);
     ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
-    if (!suffix.empty())
-      memcpy(range.begin, suffix.data(), suffix.size());
+    if (!unpublished_fragment.empty())
+      memcpy(range.begin, unpublished_fragment.data(),
+             unpublished_fragment.size());
     EXPECT_EQ(MarkForRewrite(ring.get(), 0), 1u);
 
-    EXPECT_EQ(writer.EndFragment(static_cast<uint32_t>(suffix.size()), false),
+    EXPECT_EQ(writer.EndFragment(
+                  static_cast<uint32_t>(unpublished_fragment.size()), false),
               EndFragmentResult::kRelocationDropped);
     EXPECT_EQ(writer.GetStats().fragments_dropped, 1u);
     EXPECT_EQ(writer.GetStats().relocations, 1u);
