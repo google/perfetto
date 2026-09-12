@@ -303,19 +303,6 @@ TEST(SharedRingBufferABITest, WrapCountPeriod) {
 // Target-buffer chunk format
 // --------------------------
 
-TEST(SharedRingBufferABITest, FragmentSizeVarIntByteCount) {
-  EXPECT_EQ(FragmentSizeVarIntByteCount(0), 1u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(127), 1u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(128), 2u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(16383), 2u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(16384), 3u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(0x1fffff), 3u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(0x200000), 4u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(0x0fffffff), 4u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(0x10000000), 5u);
-  EXPECT_EQ(FragmentSizeVarIntByteCount(UINT32_MAX), 5u);
-}
-
 TEST(SharedRingBufferABITest, MaxFragmentSizeForAvailableBytes) {
   // The largest fragment leaves room for its own varint.
   EXPECT_EQ(MaxFragmentSizeForAvailableBytes(0), 0u);
@@ -325,11 +312,38 @@ TEST(SharedRingBufferABITest, MaxFragmentSizeForAvailableBytes) {
   EXPECT_EQ(MaxFragmentSizeForAvailableBytes(129), 127u);
   EXPECT_EQ(MaxFragmentSizeForAvailableBytes(130), 128u);
   EXPECT_EQ(MaxFragmentSizeForAvailableBytes(250), 248u);
-  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(UINT32_MAX), UINT32_MAX - 5u);
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(UINT32_MAX),
+            protozero::proto_utils::kMaxMessageLength);
+}
+
+TEST(SharedRingBufferABITest, CapacityAtEveryVarIntThreshold) {
+  // The payload cannot grow until its larger size entry also fits.
+  for (uint32_t bytes : {1u, 2u, 3u}) {
+    SCOPED_TRACE(bytes);
+    const uint32_t threshold = 1u << (7 * bytes);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes - 2),
+              threshold - 2);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes - 1),
+              threshold - 1);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes),
+              threshold - 1);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes + 1),
+              threshold);
+    EXPECT_EQ(MaxFragmentSizeForAvailableBytes(threshold + bytes + 2),
+              threshold + 1);
+  }
+  const uint32_t max_size = protozero::proto_utils::kMaxMessageLength;
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(max_size + 3), max_size - 1);
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(max_size + 4), max_size);
+  EXPECT_EQ(MaxFragmentSizeForAvailableBytes(max_size + 5), max_size);
+}
+
+TEST(SharedRingBufferABITest, UndersizedChunkIsInvalid) {
+  EXPECT_DEATH_IF_SUPPORTED(MaxFragmentSizeForEmptyChunk(kMinChunkSize - 1),
+                            "PERFETTO_CHECK");
 }
 
 TEST(SharedRingBufferABITest, MaxFragmentSizeForEmptyChunk) {
-  EXPECT_EQ(MaxFragmentSizeForEmptyChunk(kMinChunkSize - 1), 0u);
   EXPECT_EQ(MaxFragmentSizeForEmptyChunk(256), 248u);
   EXPECT_EQ(MaxFragmentSizeForEmptyChunk(260), 252u);  // Non-power-of-two.
   EXPECT_EQ(MaxFragmentSizeForEmptyChunk(65536), 65527u);
@@ -340,10 +354,10 @@ TEST(SharedRingBufferABITest, SizesGrowDown) {
   std::vector<uint8_t> chunk(256, 0);
   uint8_t* sizes_begin = chunk.data() + chunk.size();
   for (uint32_t size : {5u, 200u, 3u})
-    sizes_begin = WriteFragmentSize(sizes_begin, size);
+    sizes_begin = WriteFragmentSizeReversed(sizes_begin, size);
 
-  // Fragment 0 is nearest the end. Reading towards lower addresses yields the
-  // normal varint byte sequence c8 01 for 200.
+  // Fragment 0 is nearest the end. The size 200 is stored as 01 c8 from low
+  // to high address. The reader visits c8 first, then 01.
   EXPECT_EQ(sizes_begin, chunk.data() + 252);
   EXPECT_EQ(chunk[252], 0x03u);
   EXPECT_EQ(chunk[253], 0x01u);
@@ -352,49 +366,53 @@ TEST(SharedRingBufferABITest, SizesGrowDown) {
 
   const uint8_t* cursor = chunk.data() + chunk.size();
   for (uint32_t expected : {5u, 200u, 3u}) {
-    uint32_t actual = 0;
-    ASSERT_TRUE(ReadFragmentSize(sizes_begin, &cursor, &actual));
-    EXPECT_EQ(actual, expected);
+    EXPECT_EQ(ReadFragmentSizeReversed(sizes_begin, &cursor), expected);
   }
   EXPECT_EQ(cursor, sizes_begin);
 }
 
 TEST(SharedRingBufferABITest, FragmentSizeRoundTrip) {
-  const uint32_t kSizes[] = {0,          1,          127,       128,
-                             16383,      16384,      0x1fffff,  0x200000,
-                             0x0fffffff, 0x10000000, UINT32_MAX};
+  const uint32_t kSizes[] = {
+      0,        1,        127,
+      128,      16383,    16384,
+      0x1fffff, 0x200000, protozero::proto_utils::kMaxMessageLength};
   std::vector<uint8_t> sizes(64, 0xee);
   uint8_t* sizes_begin = sizes.data() + sizes.size();
   for (uint32_t size : kSizes)
-    sizes_begin = WriteFragmentSize(sizes_begin, size);
+    sizes_begin = WriteFragmentSizeReversed(sizes_begin, size);
 
   const uint8_t* cursor = sizes.data() + sizes.size();
   for (uint32_t expected : kSizes) {
-    uint32_t actual = 0;
-    ASSERT_TRUE(ReadFragmentSize(sizes_begin, &cursor, &actual));
-    EXPECT_EQ(actual, expected);
+    EXPECT_EQ(ReadFragmentSizeReversed(sizes_begin, &cursor), expected);
   }
   EXPECT_EQ(cursor, sizes_begin);
 }
 
 TEST(SharedRingBufferABITest, MalformedFragmentSizes) {
   const uint8_t kUnterminated[] = {0x80};
-  const uint8_t kTooLong[] = {0x00, 0x80, 0x80, 0x80, 0x80, 0x80};
-  const uint8_t kUint32Overflow[] = {0x10, 0xff, 0xff, 0xff, 0xff};
-  const uint8_t kNonCanonical[] = {0x00, 0x80};
+  const uint8_t kTooLong[] = {0x00, 0x80, 0x80, 0x80, 0x80};
+  const uint8_t kAboveMessageLimit[] = {0x01, 0x80, 0x80, 0x80, 0x80};
 
   auto expect_rejected = [](const uint8_t* begin, size_t size) {
     const uint8_t* cursor = begin + size;
-    uint32_t fragment_size = 0xdeadbeef;
-    EXPECT_FALSE(ReadFragmentSize(begin, &cursor, &fragment_size));
-    // A rejection leaves both outputs untouched.
+    EXPECT_EQ(ReadFragmentSizeReversed(begin, &cursor), std::nullopt);
+    // A rejection leaves the cursor untouched, even after reading some bytes.
     EXPECT_EQ(cursor, begin + size);
-    EXPECT_EQ(fragment_size, 0xdeadbeefu);
   };
+  expect_rejected(kUnterminated, 0);
   expect_rejected(kUnterminated, sizeof(kUnterminated));
   expect_rejected(kTooLong, sizeof(kTooLong));
-  expect_rejected(kUint32Overflow, sizeof(kUint32Overflow));
-  expect_rejected(kNonCanonical, sizeof(kNonCanonical));
+  expect_rejected(kAboveMessageLimit, sizeof(kAboveMessageLimit));
+}
+
+TEST(SharedRingBufferABITest, NonMinimalFragmentSizes) {
+  // In decreasing address order, these encode 0 with two bytes and 1 with four.
+  const uint8_t sizes[] = {0x00, 0x80, 0x80, 0x81, 0x00, 0x80};
+  const uint8_t* cursor = sizes + sizeof(sizes);
+  EXPECT_EQ(ReadFragmentSizeReversed(sizes, &cursor), 0u);
+  EXPECT_EQ(cursor, sizes + 4);
+  EXPECT_EQ(ReadFragmentSizeReversed(sizes, &cursor), 1u);
+  EXPECT_EQ(cursor, sizes);
 }
 
 TEST(SharedRingBufferABITest, TargetBufferId) {
