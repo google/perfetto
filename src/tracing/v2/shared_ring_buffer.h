@@ -197,6 +197,7 @@ class SharedRingBuffer {
     // gives up, the writer's own deadline does.
     kRetry,
     // This build or kernel cannot provide the wait. Do not retry the syscall.
+    // The writer can sleep and retry acquisition instead.
     kUnavailable,
   };
 

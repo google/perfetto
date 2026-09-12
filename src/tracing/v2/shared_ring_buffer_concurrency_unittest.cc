@@ -330,12 +330,6 @@ TEST(SharedRingBufferConcurrencyTest, StressAcrossWrapCountRollover) {
 }
 
 TEST(SharedRingBufferConcurrencyTest, StressStallPolicy) {
-  // kStall needs the futex wait. Without it the first full ring buffer reaches
-  // the deliberate PERFETTO_FATAL in AcquireNewChunk(), which would take the
-  // whole test binary down rather than fail this test.
-  if (!SharedRingBuffer::SupportsWriterWait())
-    GTEST_SKIP() << "The futex wait is not available on this platform";
-
   StressStats stats;
   RunStress({/*num_writers=*/3, /*num_chunks=*/8, /*chunk_size=*/1024,
              /*fragments_per_writer=*/2000, /*seed_pos=*/0,

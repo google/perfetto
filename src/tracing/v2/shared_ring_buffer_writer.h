@@ -44,6 +44,8 @@ namespace perfetto::tracing_v2 {
 //   consume.
 // - The writer notifies its delegate before waiting for the reader to make
 //   space.
+// - Stalling uses a futex wait when available. Otherwise, it sleeps and retries
+//   with the same timeout and buffer-exhaustion policy.
 class SharedRingBufferWriter {
  public:
   // Result of BeginFragment(), which may need a new chunk.
@@ -181,6 +183,8 @@ class SharedRingBufferWriter {
   Stats GetStats() const { return stats_; }
 
  private:
+  friend class test::SharedRingBufferInternalsForTest;
+
   static constexpr uint32_t kNoFragmentOpen = UINT32_MAX;
 
   // Maximum payload available to one more fragment in the cached chunk, which
@@ -250,6 +254,10 @@ class SharedRingBufferWriter {
   // - Kept pending if the reader requests a rewrite before publication.
   //   AcquireNewChunk() then sets the flag in the replacement chunk.
   bool data_loss_pending_ = false;
+
+  // Stop trying the syscall if the build or kernel cannot provide it.
+  // Once false, this writer uses sleep backoff for later waits too.
+  bool use_futex_ = SharedRingBuffer::SupportsWriterWait();
 
   // Unpublished fragment saved while changing chunks. Allocated on demand and
   // reused. Writers that never relocate need no payload storage here.

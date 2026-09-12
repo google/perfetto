@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <algorithm>
 #include <optional>
 
 #include "perfetto/base/logging.h"
@@ -35,6 +36,9 @@ namespace {
 // writer has waited this long. Matches v1's kAssertAtNStalls in
 // SharedMemoryArbiterImpl::GetNewChunk(), roughly 30 seconds.
 constexpr uint32_t kStallTimeoutMs = 30000;
+
+// Same 100 ms sleep cap as SharedMemoryArbiterImpl::GetNewChunk().
+constexpr uint32_t kMaxFallbackSleepUs = 100000;
 
 }  // namespace
 
@@ -195,6 +199,7 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
   }
 
   std::optional<base::TimeMillis> stall_deadline;
+  uint32_t fallback_sleep_us = 0;
   const uint32_t num_chunks = ring_->num_chunks();
 
   // Each attempt reserves a position, then tries to claim its physical chunk:
@@ -323,24 +328,26 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
     // timeout or a spurious wake.
     const uint32_t timeout_ms =
         static_cast<uint32_t>((*stall_deadline - now).count());
-    const SharedRingBuffer::WriterWaitResult wait =
+
+    if (!use_futex_) {
+      // No futex wait is available. Sleep, then retry reservation and claim.
+      // - Use v1's backoff: 0, 8, 72, ... microseconds, capped at 100 ms.
+      // - Limit the sleep to the remaining time on the same stall deadline.
+      // - kDrop already returned above. The two stalling policies keep their
+      //   normal timeout behavior even without futex support.
+      base::SleepMicroseconds(std::min(fallback_sleep_us, timeout_ms * 1000));
+      fallback_sleep_us =
+          std::min(kMaxFallbackSleepUs, (fallback_sleep_us + 1) * 8);
+      continue;
+    }
+
+    const auto wait =
         ring_->WaitForReadPosChange(reservation.read_pos_for_wait, timeout_ms);
 
-    // Without a wait primitive kStall cannot be honoured, and kStallThenDrop
-    // drops at once.
-    if (wait == SharedRingBuffer::WriterWaitResult::kUnavailable) {
-      if (policy == BufferExhaustedPolicy::kStall) {
-        PERFETTO_FATAL(
-            "tracing v2: writer %u cannot stall because waiting on read_pos "
-            "is unavailable",
-            writer_id_);
-      }
-      PERFETTO_DLOG(
-          "tracing v2: writer %u cannot wait on read_pos: returning without "
-          "a chunk",
-          writer_id_);
-      return exhausted_result;
-    }
+    // The kernel cannot provide this wait. Use sleep backoff for this writer's
+    // remaining waits, including later acquisitions, instead of retrying it.
+    if (wait == SharedRingBuffer::WriterWaitResult::kUnavailable)
+      use_futex_ = false;
   }
 }
 
