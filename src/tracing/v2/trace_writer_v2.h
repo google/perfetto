@@ -45,12 +45,23 @@ class SharedRingBuffer;
 
 // TraceWriter implementation backed by a tracing v2 shared ring buffer.
 //
-// Packets use proto-group encoding because the reader may copy a fragment
-// before nested-message lengths are known.
-//
 // A packet normally occupies one fragment. If it crosses a chunk boundary, the
 // writer sets the continuation flags and carries on in the next chunk. The
-// reader joins those fragments before rewriting the packet.
+// reader joins those fragments to reassemble the packet.
+//
+// A nested message can span chunks and still be open when the reader copies
+// an earlier fragment. The two encodings handle this differently:
+//
+// - Length-delimited (v1): Protozero reserves a length field before each nested
+//   message and fills it in when the message finishes. If the chunk containing
+//   that field must be released first, TraceWriterImpl redirects the length
+//   write to a patch record. Once the message finishes, the arbiter sends the
+//   completed patch to the service to update its copy of the chunk.
+//
+// - Proto-group (this writer): Each nested message starts with a group tag and
+//   ends with an appended closing byte. Previously published bytes need no
+//   length update. After reassembly, ProtoRewriter converts the packet to
+//   ordinary length-delimited protobuf.
 //
 // If the writer drops any part of a packet:
 // - Its remaining bytes go to the drop buffer.

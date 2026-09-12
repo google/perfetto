@@ -82,7 +82,6 @@ TraceWriter::TracePacketHandle TraceWriterV2::NewTracePacket() {
     stream_writer_.Reset(EnterDropMode());
   }
 
-  // Every nested message inherits the root's encoding.
   cur_packet_->Reset(&stream_writer_,
                      protozero::NestedMessageEncoding::kProtoGroup);
   packet_open_ = true;

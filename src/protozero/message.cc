@@ -152,9 +152,9 @@ uint32_t Message::Finalize() {
   if (nested_message_)
     EndNestedMessage();
 
-  if (PERFETTO_UNLIKELY(encoding_ == NestedMessageEncoding::kProtoGroup)) {
+  if (encoding_ == NestedMessageEncoding::kProtoGroup) {
     PERFETTO_DCHECK(!size_field_);
-    // Packet framing closes the root; only a nested group needs a close byte.
+    // Packet framing closes the root. Only a nested group needs a close byte.
     if (!is_root_) {
       const uint8_t end = proto_utils::kProtoGroupEndByte;
       WriteToStream(&end, &end + 1);
@@ -224,13 +224,10 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
     EndNestedMessage();
 
   uint32_t tag;
-  switch (encoding_) {
-    case NestedMessageEncoding::kLengthDelimited:
-      tag = proto_utils::MakeTagLengthDelimited(field_id);
-      break;
-    case NestedMessageEncoding::kProtoGroup:
-      tag = proto_utils::MakeTagStartGroup(field_id);
-      break;
+  if (encoding_ == NestedMessageEncoding::kProtoGroup) {
+    tag = proto_utils::MakeTagStartGroup(field_id);
+  } else {
+    tag = proto_utils::MakeTagLengthDelimited(field_id);
   }
   uint8_t data[proto_utils::kMaxTagEncodedSize];
   uint8_t* data_end = proto_utils::WriteVarInt(tag, data);
@@ -239,7 +236,7 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
   Message* message = arena_->NewMessage();
   message->Reset(stream_writer_, arena_, encoding_, /*is_root=*/false);
 
-  if (PERFETTO_LIKELY(encoding_ == NestedMessageEncoding::kLengthDelimited)) {
+  if (encoding_ == NestedMessageEncoding::kLengthDelimited) {
     // The length of the nested message cannot be known upfront. So right now
     // just reserve the bytes to encode the size after the nested message is
     // done.
