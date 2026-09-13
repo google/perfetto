@@ -49,13 +49,7 @@ TraceWriterV2Impl::TraceWriterV2Impl(const InitArgs& args)
                           args.buffer_exhausted_policy,
                           delegate_.get()),
       stream_writer_(this),
-      cur_packet_(new protozero::RootMessage<protos::pbzero::TracePacket>()) {
-  // Protozero never receives more than one chunk at a time. Reserving the same
-  // amount here keeps the drop path allocation-free.
-  drop_buffer_.resize(args.ring_buffer->chunk_size());
-  stream_writer_.Reset(
-      {drop_buffer_.data(), drop_buffer_.data() + drop_buffer_.size()});
-}
+      cur_packet_(new protozero::RootMessage<protos::pbzero::TracePacket>()) {}
 
 TraceWriterV2Impl::~TraceWriterV2Impl() {
   FinishTracePacket();
@@ -187,6 +181,11 @@ void TraceWriterV2Impl::ClosePacketFragment(bool continues_on_next) {
 
 protozero::ContiguousMemoryRange TraceWriterV2Impl::EnterDropMode() {
   fragment_begin_ = nullptr;
+
+  // A failed relocation may already have set in_drop_mode_. Allocate on the
+  // first use independently of how the packet entered drop mode.
+  if (drop_buffer_.empty())
+    drop_buffer_.resize(ring_buffer_writer_.chunk_size());
 
   if (!in_drop_mode_) {
     in_drop_mode_ = true;
