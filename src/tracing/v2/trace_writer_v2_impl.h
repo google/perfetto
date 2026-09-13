@@ -192,8 +192,13 @@ class TraceWriterV2Impl : public TraceWriter,
   // to |drop_buffer_|.
   uint8_t* fragment_begin_ = nullptr;
 
-  // Protozero writes here while the ring buffer has no capacity. The bytes
-  // are thrown away, but the data source can finish the packet normally.
+  // When a packet is dropped, protozero writes its remaining bytes here so
+  // the data source can finish writing normally. These bytes are discarded.
+  //
+  // Allocate this buffer only when needed, then reuse it for later drops.
+  // Writers that never drop avoid the extra memory. The tradeoff is an
+  // allocation on the first drop. Use one chunk so raw stream callers can
+  // still reserve a contiguous range of bytes.
   std::vector<uint8_t> drop_buffer_;
 
   bool packet_open_ = false;
