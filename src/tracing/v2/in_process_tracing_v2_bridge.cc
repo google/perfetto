@@ -132,19 +132,16 @@ std::unique_ptr<TraceWriter> InProcessTracingV2Bridge::CreateTraceWriter(
   }
 
   // Publish into the ring buffer with the same WriterID.
-  TraceWriterV2::InitArgs args{};
+  TraceWriterV2Impl::InitArgs args{};
   args.delegate = shared_from_this();
+  args.ring_buffer = &ring_buffer_;
   args.writer_id = writer_id;
   args.target_buffer = target_buffer;
   args.buffer_exhausted_policy = buffer_exhausted_policy;
-  return std::unique_ptr<TraceWriter>(new TraceWriterV2(args));
+  return std::unique_ptr<TraceWriter>(new TraceWriterV2Impl(args));
 }
 
-// --- TraceWriterV2::Delegate: SDK writer threads. ---
-
-SharedRingBuffer& InProcessTracingV2Bridge::ring_buffer() {
-  return ring_buffer_;
-}
+// --- TraceWriterV2Impl::Delegate: SDK writer threads. ---
 
 void InProcessTracingV2Bridge::NotifyReader() {
   // Coalesce notifications into one relay task. The exchanges make each

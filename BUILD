@@ -6925,8 +6925,8 @@ perfetto_filegroup(
         "src/tracing/v2/shared_ring_buffer_reader.h",
         "src/tracing/v2/shared_ring_buffer_writer.cc",
         "src/tracing/v2/shared_ring_buffer_writer.h",
-        "src/tracing/v2/trace_writer_v2.cc",
-        "src/tracing/v2/trace_writer_v2.h",
+        "src/tracing/v2/trace_writer_v2_impl.cc",
+        "src/tracing/v2/trace_writer_v2_impl.h",
     ],
 )
 
