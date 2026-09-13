@@ -31,6 +31,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -436,6 +437,50 @@ TEST(LocalBinaryFinderTest, BuildIdSubdir) {
       tmp.path() +
           "/root/.build-id/41/41414141414141414141414141414141414141.debug");
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+// Returns the address passed to a fake llvm-symbolizer for |rel_pc|.
+std::string SymbolizedAddress(const std::string& binary,
+                              const std::string& build_id,
+                              uint64_t rel_pc) {
+  base::TmpDirTree tmp;
+  tmp.AddFile("fake-llvm-symbolizer",
+              "#!/bin/sh\n"
+              "while read -r bin addr; do\n"
+              "  printf '{\"Address\":\"%s\",\"Symbol\":[{\"FileName\":"
+              "\"f\",\"FunctionName\":\"%s\",\"Line\":1}]}\\n' "
+              "\"$addr\" \"$addr\"\n"
+              "done\n");
+  std::string symbolizer = tmp.AbsolutePath("fake-llvm-symbolizer");
+  PERFETTO_CHECK(chmod(symbolizer.c_str(), 0755) == 0);
+  tmp.AddDir("root");
+  tmp.AddFile("root/binary", binary);
+
+  LocalSymbolizer local_symbolizer(
+      symbolizer, std::make_unique<LocalBinaryIndexer>(
+                      std::vector<std::string>{tmp.AbsolutePath("root")},
+                      std::vector<std::string>{}));
+  UnsymbolizedMapping mapping{build_id, "/binary", 0, 0, 0};
+  SymbolizeResult result = local_symbolizer.Symbolize({}, mapping, {rel_pc});
+  if (result.frames.size() != 1 || result.frames[0].size() != 1) {
+    return "";
+  }
+  return result.frames[0][0].function_name;
+}
+
+TEST(LocalSymbolizerTest, ElfAddressesAreNotCorrectedWithZeroLoadBias) {
+  EXPECT_EQ(SymbolizedAddress(CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"),
+                              "AAAAAAAAAAAAAAAAAAAA", 0x10),
+            "0x10");
+}
+
+TEST(LocalSymbolizerTest, MachOAddressesAreRelativeToText) {
+  EXPECT_EQ(SymbolizedAddress(CreateMachOWithBuildId("BBBBBBBBBBBBBBBB"),
+                              "BBBBBBBBBBBBBBBB", 0x10),
+            "0x1244");
+}
+#endif
 
 }  // namespace
 }  // namespace profiling
