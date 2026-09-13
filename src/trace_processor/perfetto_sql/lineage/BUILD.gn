@@ -28,7 +28,6 @@ source_set("connection_catalog") {
     "../../core/common",
     "../../core/dataframe",
     "../../sqlite",
-    "../engine",
   ]
 }
 

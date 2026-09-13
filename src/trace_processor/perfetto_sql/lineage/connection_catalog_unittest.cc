@@ -20,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -77,7 +78,10 @@ class ConnectionCatalogTest : public ::testing::Test {
   StringPool pool_;
   std::unique_ptr<PerfettoSqlConnection> connection_ =
       PerfettoSqlConnection::CreateConnectionToNewDatabase(&pool_, true);
-  ConnectionCatalog catalog_{connection_.get()};
+  ConnectionCatalog catalog_{connection_->sqlite_connection(),
+                             [this](std::string_view name) {
+                               return connection_->GetDataframeOrNull(name);
+                             }};
 };
 
 TEST_F(ConnectionCatalogTest, ReadsDataframeStorageTypes) {
