@@ -22,11 +22,14 @@
 #include <string_view>
 #include <vector>
 
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/exec/type_mapping.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/schema/query_schema.h"
+#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -82,7 +85,7 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
   relation.columns.reserve(columns.size());
   for (uint32_t i = 0; i < columns.size(); ++i) {
     relation.columns.push_back(
-        {columns[i], exec::ToAnalysisType(dataframe->column_type(i))});
+        {columns[i], sql_schema::ToAnalysisType(dataframe->column_type(i))});
   }
   return relation;
 }
@@ -98,6 +101,17 @@ std::optional<std::string> ConnectionCatalog::FindViewSql(
   }
   const char* sql = sqlite::column::Text(stmt.sqlite_stmt(), 0);
   return sql ? std::make_optional(std::string(sql)) : std::nullopt;
+}
+
+const dataframe::Dataframe* ConnectionCatalog::FindDataframe(
+    std::string_view name) const {
+  return connection_->GetDataframeOrNull(name);
+}
+
+base::StatusOr<pipeline::Schema> ConnectionCatalog::DescribeQuery(
+    const SqlSource& sql) const {
+  return sql_schema::DescribeQuery(connection_->sqlite_connection(), sql,
+                                   *this);
 }
 
 }  // namespace perfetto::trace_processor
