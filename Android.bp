@@ -23212,7 +23212,7 @@ filegroup {
         "src/tracing/v2/shared_ring_buffer_reader_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_writer_unittest.cc",
-        "src/tracing/v2/trace_writer_v2_unittest.cc",
+        "src/tracing/v2/trace_writer_v2_impl_unittest.cc",
     ],
 }
 
@@ -23224,7 +23224,7 @@ filegroup {
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
         "src/tracing/v2/shared_ring_buffer_writer.cc",
-        "src/tracing/v2/trace_writer_v2.cc",
+        "src/tracing/v2/trace_writer_v2_impl.cc",
     ],
 }
 

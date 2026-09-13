@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_V2_TRACE_WRITER_V2_H_
-#define SRC_TRACING_V2_TRACE_WRITER_V2_H_
+#ifndef SRC_TRACING_V2_TRACE_WRITER_V2_IMPL_H_
+#define SRC_TRACING_V2_TRACE_WRITER_V2_IMPL_H_
 
 #include <stdint.h>
 
@@ -73,20 +73,34 @@ class SharedRingBuffer;
 // As with TraceWriterImpl, an instance may be used by only one thread at a
 // time. Packet writes go straight to the ring buffer. The delegate handles
 // reader notifications, flush completion and WriterID retirement.
-class TraceWriterV2 : public TraceWriter,
-                      public protozero::MessageFinalizationListener,
-                      public protozero::ScatteredStreamWriter::Delegate {
+class TraceWriterV2Impl : public TraceWriter,
+                          public protozero::MessageFinalizationListener,
+                          public protozero::ScatteredStreamWriter::Delegate {
  public:
-  // Provides storage and coordinates reader progress for the writer's lifetime.
-  // Calls run on SDK writer threads and may overlap across writers.
-  // Post reader work to a shared sequence if it needs to run serially.
+  // Coordinates reader progress, flush completion and writer retirement.
+  //
+  // Independently owned writers can share a delegate:
+  //
+  //   Caller A                           Caller B
+  //        | owns                             | owns
+  //        v                                  v
+  //   v2 writer A                        v2 writer B
+  //        | shared_ptr                       | shared_ptr
+  //        +----------------+-----------------+
+  //                         v
+  //                      Delegate
+  //
+  // Several writers can share this delegate. Each keeps it alive for as long
+  // as it needs it, independently of when the other writers are destroyed.
+  //
+  // Refcounting manages lifetime only. Each writer still needs a single
+  // calling thread or external synchronization.
+  //
+  // Calls run on the writer's thread and may overlap across writers.
+  // Implementations must synchronize access to their shared state.
   class Delegate : public SharedRingBufferWriter::Delegate {
    public:
     ~Delegate() override;
-
-    // Returns the same ring buffer on every call. It and its backing memory
-    // must remain valid for the delegate's lifetime.
-    virtual SharedRingBuffer& ring_buffer() = 0;
 
     // Called after this writer publishes its data. For a non-empty callback:
     // - Wait for service acknowledgement before invoking it.
@@ -94,8 +108,26 @@ class TraceWriterV2 : public TraceWriter,
     // - Disconnect may discard it, as allowed by TraceWriter::Flush().
     virtual void Flush(WriterID, std::function<void()> callback) = 0;
 
-    // Called after the writer publishes its last chunk. The WriterID must not
-    // be reused while unconsumed ring buffer positions can still name it.
+    // The caller owns the writer, while the writer retains this delegate.
+    // Releasing that reference does not tell the delegate which writer ended.
+    // Called after this writer publishes its final chunk. The delegate decides
+    // when the reader no longer needs the writer's resources and its WriterID
+    // can be used by another writer.
+    //
+    // Like v1, where ~TraceWriterImpl() flushes remaining data and calls
+    // SharedMemoryArbiterImpl::ReleaseWriterID():
+    //
+    //   Writer                               Delegate
+    //   ~TraceWriterV2Impl()
+    //     publish last chunk
+    //     OnWriterDestroyed(id) -----------> arrange retirement of id
+    //
+    // Prototype note: InProcessTracingV2Bridge forwards v2 ring data through a
+    // retained v1 writer. It waits for the reader to pass the final publication
+    // before releasing that writer and its reassembly state, so unread packets
+    // can still be forwarded. Once we have validated the v2 ring buffer and the
+    // service reads it directly, check whether writer cleanup can be simpler
+    // without the bridge.
     virtual void OnWriterDestroyed(WriterID) = 0;
   };
 
@@ -107,15 +139,18 @@ class TraceWriterV2 : public TraceWriter,
     BufferID target_buffer = 0;
     BufferExhaustedPolicy buffer_exhausted_policy =
         BufferExhaustedPolicy::kDrop;
+    // Must be non-null. Borrowed by the writer. The ring buffer and its backing
+    // memory must outlive the writer.
+    SharedRingBuffer* ring_buffer = nullptr;
   };
 
-  explicit TraceWriterV2(const InitArgs&);
-  ~TraceWriterV2() override;
+  explicit TraceWriterV2Impl(const InitArgs&);
+  ~TraceWriterV2Impl() override;
 
-  TraceWriterV2(const TraceWriterV2&) = delete;
-  TraceWriterV2& operator=(const TraceWriterV2&) = delete;
-  TraceWriterV2(TraceWriterV2&&) = delete;
-  TraceWriterV2& operator=(TraceWriterV2&&) = delete;
+  TraceWriterV2Impl(const TraceWriterV2Impl&) = delete;
+  TraceWriterV2Impl& operator=(const TraceWriterV2Impl&) = delete;
+  TraceWriterV2Impl(TraceWriterV2Impl&&) = delete;
+  TraceWriterV2Impl& operator=(TraceWriterV2Impl&&) = delete;
 
   // TraceWriter:
   TracePacketHandle NewTracePacket() override;
@@ -142,7 +177,7 @@ class TraceWriterV2 : public TraceWriter,
   void ClosePacketFragment(bool continues_on_next);
   protozero::ContiguousMemoryRange EnterDropMode();
 
-  // Outlives ring_buffer_writer_, which borrows its ring buffer and delegate.
+  // Outlives ring_buffer_writer_, which borrows the delegate.
   const std::shared_ptr<Delegate> delegate_;
   SharedRingBufferWriter ring_buffer_writer_;
 
@@ -171,4 +206,4 @@ class TraceWriterV2 : public TraceWriter,
 }  // namespace tracing_v2
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_V2_TRACE_WRITER_V2_H_
+#endif  // SRC_TRACING_V2_TRACE_WRITER_V2_IMPL_H_
