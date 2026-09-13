@@ -276,7 +276,7 @@ void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
 }
 
 void TracingMuxerImpl::ProducerImpl::DisposeConnection() {
-  // Flushes belong to this connection, including any bridge they retain.
+  // Flushes belong to this connection.
   // Drop them before its endpoint can be released on either v1 or v2.
   pending_flushes_.clear();
   if (tracing_v2_connection_) {
@@ -395,11 +395,13 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
 void TracingMuxerImpl::ProducerImpl::ReleaseTracingV2Connection() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(tracing_v2_connection_);
-  // The endpoint's arbiter backs the v1 writers retained by the bridge, so
-  // ProducerImpl must drop its bridge references before dropping the endpoint.
-  // Callers first clear pending flushes, which can also retain bridges. Trace
-  // writers and queued relay tasks hold their own references; see the bridge's
-  // class comment.
+  // Release order:
+  // - Clear pending flushes first, so they cannot use this connection again.
+  // - Drop ProducerImpl's bridge reference before releasing the endpoint.
+  //   The bridge's v1 writers depend on the endpoint's arbiter.
+  //
+  // Trace writers and queued relay tasks keep their own bridge references.
+  // See the bridge's class comment for their lifetime rules.
   PERFETTO_DCHECK(pending_flushes_.empty());
   std::atomic_store(&tracing_v2_connection_,
                     std::shared_ptr<TracingV2Connection>());
@@ -578,7 +580,7 @@ void TracingMuxerImpl::ProducerImpl::FlushWithTracingV2(
       DataSourceInstanceID ds_id = instances[i];
       auto ds = muxer_->FindDataSource(backend_id_, ds_id);
       if (ds && ds.internal_state->use_tracing_v2)
-        pending.bridge_to_drain = tracing_v2_connection_->bridge;
+        pending.ring_buffer_drain = RingBufferDrainState::kPending;
       bool handled = muxer_->FlushDataSource_AsyncBegin(backend_id_, ds_id,
                                                         flush_id, flush_flags);
       if (!handled)
@@ -603,24 +605,24 @@ void TracingMuxerImpl::ProducerImpl::AdvanceTracingV2FlushQueue() {
     PendingFlush& pending = it->second;
     if (!pending.pending_data_sources.empty())
       break;
-    if (pending.bridge_to_drain) {
-      if (!pending.ring_drain_started) {
-        pending.ring_drain_started = true;
-        // DrainPendingData() samples the ring buffer's write position now,
-        // after every OnFlush() of this request has run, so it covers what
-        // those callbacks wrote. The position is fixed at that point: a data
-        // source that keeps writing cannot postpone the ack forever.
-        const TracingBackendId backend_id = backend_id_;
-        const uint32_t connection_id =
-            connection_id_.load(std::memory_order_relaxed);
-        const FlushRequestID flush_id = it->first;
-        muxer_->DrainTracingV2RingThenPostToMuxer(
-            pending.bridge_to_drain,
-            [muxer = muxer_, backend_id, connection_id, flush_id] {
-              muxer->FlushTracingV2Ring_AsyncEnd(backend_id, connection_id,
-                                                 flush_id);
-            });
-      }
+    if (pending.ring_buffer_drain == RingBufferDrainState::kInProgress)
+      break;
+    if (pending.ring_buffer_drain == RingBufferDrainState::kPending) {
+      pending.ring_buffer_drain = RingBufferDrainState::kInProgress;
+      // DrainPendingData() samples the ring buffer's write position now,
+      // after every OnFlush() of this request has run, so it covers what
+      // those callbacks wrote. The position is fixed at that point: a data
+      // source that keeps writing cannot postpone the ack forever.
+      const TracingBackendId backend_id = backend_id_;
+      const uint32_t connection_id =
+          connection_id_.load(std::memory_order_relaxed);
+      const FlushRequestID flush_id = it->first;
+      muxer_->DrainTracingV2RingBufferThenPostToMuxer(
+          tracing_v2_connection_->bridge,
+          [muxer = muxer_, backend_id, connection_id, flush_id] {
+            muxer->FlushTracingV2RingBuffer_AsyncEnd(backend_id, connection_id,
+                                                     flush_id);
+          });
       break;
     }
     flush_id_to_acknowledge = it->first;
@@ -1941,11 +1943,11 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     if (instance_id && uses_tracing_v2) {
       // Setup created the bridge on this connection; the connection-generation
       // check above keeps its lifetime valid through this stop.
-      DrainTracingV2RingThenPostToMuxer(
+      DrainTracingV2RingBufferThenPostToMuxer(
           producer->tracing_v2_connection_->bridge,
           [this, backend_id, backend_connection_id, instance_id] {
-            StopTracingV2Ring_AsyncEnd(backend_id, backend_connection_id,
-                                       instance_id);
+            StopTracingV2RingBuffer_AsyncEnd(backend_id, backend_connection_id,
+                                             instance_id);
           });
     } else if (instance_id && will_notify_on_stop) {
       producer->service_->NotifyDataSourceStopped(instance_id);
@@ -2091,19 +2093,28 @@ TracingMuxerImpl::ProducerImpl* TracingMuxerImpl::FindProducerForConnection(
   return producer;
 }
 
-void TracingMuxerImpl::DrainTracingV2RingThenPostToMuxer(
+void TracingMuxerImpl::DrainTracingV2RingBufferThenPostToMuxer(
     const std::shared_ptr<tracing_v2::InProcessTracingV2Bridge>& bridge,
     std::function<void()> on_drained) {
-  // The bridge completes on the relay sequence. Post back because the callback
-  // reads muxer state. It must revalidate the connection after both hops.
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // Post the relay's completion back to the muxer before reading muxer state.
+  // Reject old muxer generations before checking backend and connection IDs,
+  // which reset can reuse.
   auto* muxer_task_runner = task_runner_.get();
+  const uint32_t muxer_id = muxer_id_for_testing_;
+  auto completion_on_muxer = [this, muxer_id,
+                              on_drained = std::move(on_drained)] {
+    if (muxer_id == muxer_id_for_testing_)
+      on_drained();
+  };
   bridge->DrainPendingData(
-      [muxer_task_runner, on_drained = std::move(on_drained)]() mutable {
-        muxer_task_runner->PostTask(std::move(on_drained));
+      [muxer_task_runner,
+       completion_on_muxer = std::move(completion_on_muxer)]() mutable {
+        muxer_task_runner->PostTask(std::move(completion_on_muxer));
       });
 }
 
-void TracingMuxerImpl::FlushTracingV2Ring_AsyncEnd(
+void TracingMuxerImpl::FlushTracingV2RingBuffer_AsyncEnd(
     TracingBackendId backend_id,
     uint32_t backend_connection_id,
     FlushRequestID flush_id) {
@@ -2113,11 +2124,11 @@ void TracingMuxerImpl::FlushTracingV2Ring_AsyncEnd(
   auto it = producer->pending_flushes_.find(flush_id);
   if (it == producer->pending_flushes_.end())
     return;
-  it->second.bridge_to_drain.reset();
+  it->second.ring_buffer_drain = ProducerImpl::RingBufferDrainState::kNone;
   producer->AdvanceTracingV2FlushQueue();
 }
 
-void TracingMuxerImpl::StopTracingV2Ring_AsyncEnd(
+void TracingMuxerImpl::StopTracingV2RingBuffer_AsyncEnd(
     TracingBackendId backend_id,
     uint32_t backend_connection_id,
     DataSourceInstanceID instance_id) {
