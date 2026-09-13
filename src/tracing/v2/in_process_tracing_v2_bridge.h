@@ -35,7 +35,7 @@
 #include "src/tracing/v2/relay_sequence.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
-#include "src/tracing/v2/trace_writer_v2.h"
+#include "src/tracing/v2/trace_writer_v2_impl.h"
 
 namespace perfetto::internal {
 class TracingMuxerImpl;
@@ -58,7 +58,7 @@ class InProcessTracingV2BridgeTestPeer;
 //
 //   Producer process
 //   SDK thread                  Relay sequence
-//   TraceWriterV2 --------------->  v2 ring buffer
+//   TraceWriterV2Impl ----------->  v2 ring buffer
 //         |                                |
 //         |                                v
 //         +-- NotifyReader() -> SharedRingBufferReader    -+
@@ -83,7 +83,7 @@ class InProcessTracingV2BridgeTestPeer;
 // service:
 //
 //   Producer                                    Tracing service
-//   TraceWriterV2 -> shared v2 ring buffer ----> ring buffer reader
+//   TraceWriterV2Impl -> v2 ring buffer -------> ring buffer reader
 //                                                   |
 //                                                   v
 //                                           reassemble / rewrite
@@ -96,10 +96,10 @@ class InProcessTracingV2BridgeTestPeer;
 // is guarded by |mutex_|. Draining, reassembly, v1 forwarding and control
 // barriers run one task at a time on the relay sequence.
 //
-// Lifetime: every TraceWriterV2 holds a shared_ptr to its bridge (the bridge
-// is their Delegate), and so does every queued relay task. The last reference
-// can go away on any thread. ProducerImpl keeps the endpoint and the arbiter
-// backing those v1 writers alive until then (see |dead_services_|).
+// Lifetime: every TraceWriterV2Impl holds a shared_ptr to its bridge (the
+// bridge is their Delegate), and so does every queued relay task. The last
+// reference can go away on any thread. ProducerImpl keeps the endpoint and the
+// arbiter backing those v1 writers alive until then (see |dead_services_|).
 //
 // Shutdown, i.e. after RelaySequence::Close():
 // - New internal drains complete inline without draining the ring buffer.
@@ -111,7 +111,7 @@ class InProcessTracingV2BridgeTestPeer;
 //   destroyed. A drain accepted before the close may not finish if its next
 //   batch is posted after the close.
 class InProcessTracingV2Bridge
-    : public TraceWriterV2::Delegate,
+    : public TraceWriterV2Impl::Delegate,
       public SharedRingBufferReader::Delegate,
       public std::enable_shared_from_this<InProcessTracingV2Bridge> {
  public:
@@ -165,9 +165,9 @@ class InProcessTracingV2Bridge
                            uint32_t chunk_size,
                            std::shared_ptr<RelaySequence> relay);
 
-  // Takes ownership of |v1_writer| and returns a TraceWriterV2 with the same
-  // WriterID that forwards into it. If |v1_writer| has no usable WriterID, it
-  // is returned as is. Called by TracingV2Connection. Thread-safe.
+  // Takes ownership of |v1_writer| and returns a TraceWriterV2Impl with the
+  // same WriterID that forwards into it. If |v1_writer| has no usable WriterID,
+  // it is returned as is. Called by TracingV2Connection. Thread-safe.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       std::unique_ptr<TraceWriter> v1_writer,
       BufferID target_buffer,
@@ -213,8 +213,7 @@ class InProcessTracingV2Bridge
     std::function<void()> completion;
   };
 
-  // TraceWriterV2::Delegate: SDK writer threads. Calls may overlap.
-  SharedRingBuffer& ring_buffer() override;
+  // TraceWriterV2Impl::Delegate: SDK writer threads. Calls may overlap.
   // Also called by the relay to reschedule a bounded drain.
   void NotifyReader() override;
   void Flush(WriterID, std::function<void()> callback) override;

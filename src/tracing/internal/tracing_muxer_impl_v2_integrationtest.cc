@@ -102,6 +102,11 @@ class TracingMuxerImplV2Test : public testing::Test {
     return bridge;
   }
 
+  static tracing_v2::SharedRingBuffer& GetRingBuffer(
+      tracing_v2::InProcessTracingV2Bridge* bridge) {
+    return bridge->ring_buffer_;
+  }
+
   // Number of flush requests the connected producers are still tracking.
   static size_t PendingFlushCount() {
     size_t count = 0;
@@ -217,9 +222,9 @@ class TracingMuxerImplV2Test : public testing::Test {
           .WillOnce(testing::Return(requested_chunk_size));
       producer.EnsureTracingV2Connection();
       auto bridge = producer.tracing_v2_connection_->bridge;
-      tracing_v2::TraceWriterV2::Delegate& delegate = *bridge;
-      EXPECT_EQ(delegate.ring_buffer().chunk_size(), expected_chunk_size);
-      EXPECT_EQ(delegate.ring_buffer().num_chunks(), expected_num_chunks);
+      auto& ring = GetRingBuffer(bridge.get());
+      EXPECT_EQ(ring.chunk_size(), expected_chunk_size);
+      EXPECT_EQ(ring.num_chunks(), expected_num_chunks);
       // A second call is a no-op and does not touch the endpoint (StrictMock).
       producer.EnsureTracingV2Connection();
       EXPECT_EQ(producer.tracing_v2_connection_->bridge, bridge);
@@ -343,8 +348,7 @@ TEST_F(TracingMuxerImplV2Test, ConnectionPreservesInvalidDownstreamWriter) {
   EXPECT_EQ(writer->writer_id(), 0u);
   writer->NewTracePacket()->set_timestamp(123);
   writer->Flush();
-  tracing_v2::TraceWriterV2::Delegate& delegate = *connection.bridge;
-  EXPECT_EQ(delegate.ring_buffer().LoadWritePosRelaxed(), 0u);
+  EXPECT_EQ(GetRingBuffer(connection.bridge.get()).LoadWritePosRelaxed(), 0u);
   writer.reset();
   relay->Close().reset();
 }
@@ -1288,9 +1292,9 @@ TEST_F(TracingV2ChunkSizeTest, ConfiguredSizeReachesRingAndRemainsFixed) {
   auto session = StartSession(cfg);
   auto bridge = GetBridge();
   ASSERT_NE(bridge, nullptr);
-  tracing_v2::TraceWriterV2::Delegate& delegate = *bridge;
-  EXPECT_EQ(delegate.ring_buffer().chunk_size(), 1024u);
-  EXPECT_EQ(delegate.ring_buffer().num_chunks(), 64u);
+  auto& ring = GetRingBuffer(bridge.get());
+  EXPECT_EQ(ring.chunk_size(), 1024u);
+  EXPECT_EQ(ring.num_chunks(), 64u);
   TracingV2TestDataSource::Trace([](TracingV2TestDataSource::TraceContext ctx) {
     ctx.NewTracePacket()->set_for_testing()->set_str(std::string(4096, 'c'));
   });
@@ -1303,8 +1307,8 @@ TEST_F(TracingV2ChunkSizeTest, ConfiguredSizeReachesRingAndRemainsFixed) {
   producer_config->set_shm_size_kb(128);
   session = StartSession(cfg);
   EXPECT_EQ(GetBridge(), bridge);
-  EXPECT_EQ(delegate.ring_buffer().chunk_size(), 1024u);
-  EXPECT_EQ(delegate.ring_buffer().num_chunks(), 64u);
+  EXPECT_EQ(ring.chunk_size(), 1024u);
+  EXPECT_EQ(ring.num_chunks(), 64u);
   StopAndParse(session.get());
 }
 
@@ -1312,8 +1316,7 @@ TEST_F(TracingV2InProcessTest, EnabledProducesAValidTraceThroughTheRing) {
   auto session = StartSession(MakeConfig());
   auto bridge = GetBridge();
   ASSERT_NE(bridge, nullptr);
-  tracing_v2::TraceWriterV2::Delegate& delegate = *bridge;
-  EXPECT_EQ(delegate.ring_buffer().chunk_size(), 256u);
+  EXPECT_EQ(GetRingBuffer(bridge.get()).chunk_size(), 256u);
 
   for (uint32_t i = 0; i < 32; ++i) {
     TracingV2TestDataSource::Trace(
