@@ -148,12 +148,16 @@ class InProcessTracingV2Bridge
   InProcessTracingV2Bridge(InProcessTracingV2Bridge&&) = delete;
   InProcessTracingV2Bridge& operator=(InProcessTracingV2Bridge&&) = delete;
 
-  // Drains everything written to the ring buffer so far, flushes the v1 writers
-  // that received data and then runs |completion| on the relay sequence. With a
-  // fully bound v1 arbiter, commits are posted to the muxer sequence before
-  // |completion| runs, so anything the completion posts there lands behind
-  // them. If the relay is closed, |completion| runs inline without draining.
-  // Thread-safe.
+  // Samples the ring's write position and reads the published fragments through
+  // that position. Flushes the v1 writers that received complete packets, then
+  // runs |completion| on the relay sequence. Callers must finish the packets
+  // they want included before requesting the drain.
+  //
+  // With a fully bound v1 arbiter, commits are posted to the muxer sequence
+  // before |completion| runs; the service has not necessarily acknowledged
+  // them. Anything the completion posts there lands behind those commits.
+  // If the relay is closed, |completion| runs inline without draining.
+  // Thread-safe. See the class comment for interrupted drains during shutdown.
   void DrainPendingData(std::function<void()> completion);
 
  private:
@@ -199,9 +203,9 @@ class InProcessTracingV2Bridge
     kDestroyWriter,
   };
 
-  // A control operation (flush, drain, writer destruction) that must run after
-  // all the ring buffer data written before it was requested:
-  //   sample write_pos -> drain up to it -> flush v1 writer(s) -> completion
+  // A control operation (flush, drain, writer destruction) ordered after
+  // earlier packet publication:
+  //   sample write_pos -> read published fragments -> flush v1 -> completion
   // Barriers run one at a time, in request order, on the relay sequence.
   struct Barrier {
     uint32_t drain_target_pos = 0;

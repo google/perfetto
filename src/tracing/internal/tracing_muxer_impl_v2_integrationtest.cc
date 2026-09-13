@@ -102,6 +102,15 @@ class TracingMuxerImplV2Test : public testing::Test {
     return bridge;
   }
 
+  static void DrainOnMuxer(
+      const std::shared_ptr<tracing_v2::InProcessTracingV2Bridge>& bridge,
+      std::function<void()> completion) {
+    RunOnMuxerAndWait([&](auto* muxer) {
+      muxer->DrainTracingV2RingBufferThenPostToMuxer(bridge,
+                                                     std::move(completion));
+    });
+  }
+
   static tracing_v2::SharedRingBuffer& GetRingBuffer(
       tracing_v2::InProcessTracingV2Bridge* bridge) {
     return bridge->ring_buffer_;
@@ -268,16 +277,20 @@ class TracingMuxerImplV2Test : public testing::Test {
         static_cast<tracing_v2::RingBufferHeader*>(bridge->ring_memory_.Get());
     const auto deadline =
         std::chrono::steady_clock::now() + std::chrono::seconds(30);
-    while (!header->num_writers_waiting.load(std::memory_order_relaxed) &&
-           std::chrono::steady_clock::now() < deadline)
+    // The relay is blocked, so reservations cannot be consumed while waiting
+    // here. Observe capacity directly: the futex waiter count does not include
+    // writers using sleep backoff.
+    uint32_t outstanding;
+    do {
+      const uint64_t positions =
+          header->rw_positions.load(std::memory_order_acquire);
+      outstanding = tracing_v2::NumOutstandingPositions(
+          tracing_v2::WritePosOf(positions), tracing_v2::ReadPosOf(positions));
+      if (outstanding == bridge->ring_buffer_.num_chunks())
+        return;
       std::this_thread::yield();
-    EXPECT_GT(header->num_writers_waiting.load(std::memory_order_relaxed), 0u);
-    const uint64_t positions =
-        header->rw_positions.load(std::memory_order_acquire);
-    EXPECT_EQ(
-        tracing_v2::NumOutstandingPositions(tracing_v2::WritePosOf(positions),
-                                            tracing_v2::ReadPosOf(positions)),
-        bridge->ring_buffer_.num_chunks());
+    } while (std::chrono::steady_clock::now() < deadline);
+    FAIL() << "Ring did not fill: " << outstanding << " outstanding positions";
   }
 };
 
@@ -315,6 +328,21 @@ TEST_F(TracingMuxerImplV2Test, StartupReservationPreventsV2Connection) {
         producer.EnsureTracingV2Connection();
       },
       "cannot share a producer connection with startup tracing");
+}
+
+TEST_F(TracingMuxerImplV2Test, FullRingCheckpointDoesNotRequireFutexWaiters) {
+  auto relay = CreateTestRelay();
+  auto bridge = tracing_v2::InProcessTracingV2Bridge::Create(
+      relay, kTestNumChunks, kTestChunkSize);
+  auto& ring = GetRingBuffer(bridge.get());
+  // Fill the reservation capacity without entering a kernel wait. This is
+  // also the state visible to the checkpoint on the sleep-backoff path.
+  for (uint32_t i = 0; i < kTestNumChunks; ++i) {
+    ASSERT_EQ(ring.TryReserveWritePos().result,
+              tracing_v2::SharedRingBuffer::ReserveResult::kReserved);
+  }
+  WaitForFullRing(bridge.get());
+  relay->Close().reset();
 }
 
 TEST_F(TracingMuxerImplV2Test, ConnectionCreatesDropWriter) {
@@ -465,8 +493,7 @@ TEST_F(TracingMuxerImplV2Test, PendingFlushReleasesWriterBeforeEndpoint) {
   writer->FinishTracePacket();
 
   auto& pending = producer->pending_flushes_[1];
-  pending.bridge_to_drain = bridge;
-  pending.ring_drain_started = true;
+  pending.ring_buffer_drain = ProducerImpl::RingBufferDrainState::kInProgress;
   bool completed = false;
   bridge->DrainPendingData([&] { completed = true; });
   base::WaitableEvent barrier_posted;
@@ -561,7 +588,8 @@ TEST_F(TracingMuxerImplV2Test, DisposeConnectionDropsPendingFlushes) {
   std::weak_ptr<tracing_v2::InProcessTracingV2Bridge> weak_bridge =
       producer->tracing_v2_connection_->bridge;
   producer->pending_flushes_[1].pending_data_sources.insert(11);
-  producer->pending_flushes_[2].bridge_to_drain = weak_bridge.lock();
+  producer->pending_flushes_[2].ring_buffer_drain =
+      ProducerImpl::RingBufferDrainState::kPending;
   producer->DisposeConnection();
   EXPECT_TRUE(producer->pending_flushes_.empty());
   EXPECT_FALSE(producer->tracing_v2_connection_);
@@ -1728,7 +1756,7 @@ TEST_F(TracingV2InProcessTest, V1FlushOnAV2ConnectionWaitsBehindAV2Barrier) {
       },
       /*timeout_ms=*/30000);
   // Both OnFlush() callbacks have run (they are synchronous). The v2 request
-  // is waiting for the ring drain, the v1 request for the v2 one.
+  // is waiting for the ring buffer drain, the v1 request for the v2 one.
   perfetto::test::SyncProducers();
   {
     std::lock_guard<std::mutex> lock(mutex);
@@ -2109,6 +2137,35 @@ TEST_F(TracingV2InProcessTest, ShutdownAfterV2UseJoinsAcceptedRelayWork) {
     perfetto::Tracing::Shutdown();
     releaser.join();
     EXPECT_TRUE(marker_ran.load());
+  });
+}
+
+TEST_F(TracingV2InProcessTest, PendingDrainCompletionIsDiscardedAfterReset) {
+  RunInFreshProcess([] {
+    PutConnectionOnTracingV2();
+    auto bridge = GetBridge();
+    base::WaitableEvent relay_held;
+    base::WaitableEvent release_relay;
+    ASSERT_TRUE(PostToRelay([&] {
+      relay_held.Notify();
+      release_relay.Wait();
+    }));
+    relay_held.Wait();
+
+    std::atomic<bool> completed{false};
+    DrainOnMuxer(bridge, [&] { completed.store(true); });
+    // Reset retains the relay and muxer task runners. A queued completion
+    // must not act on the next set of backends, whose connection IDs restart.
+    TearDownTestSuite();
+    SetUpTestSuite();
+    EXPECT_FALSE(completed.load());
+
+    release_relay.Notify();
+    base::WaitableEvent relay_drained;
+    ASSERT_TRUE(PostToRelay([&] { relay_drained.Notify(); }));
+    relay_drained.Wait();
+    WaitForMuxerSequence();
+    EXPECT_FALSE(completed.load());
   });
 }
 
