@@ -28,6 +28,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -81,8 +83,13 @@ class PerfettoSqlParser {
     bool replace;
     std::string name;
     std::vector<sql_argument::ArgumentDefinition> schema;
-    // SQL source for the select statement.
-    SqlSource sql;
+    using Body = std::variant<SqlSource, pipeline::LogicalPlan>;
+    Body body;
+  };
+  // Indicates that the specified SQL was a pipeline: FROM followed by `|>`
+  // stages.
+  struct Pipeline {
+    pipeline::LogicalPlan plan;
   };
   // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
   // with the following parameters.
@@ -131,12 +138,17 @@ class PerfettoSqlParser {
                                  CreateView,
                                  DropIndex,
                                  Include,
+                                 Pipeline,
                                  SqliteSql>;
 
   // Reset(SqlSource) must be called before iterating. The underlying
   // syntaqlite parser is created once and reused across Reset() calls.
+  //
+  // Pipelines are compiled against |catalog| during parsing. If null,
+  // pipelines are rejected.
   explicit PerfettoSqlParser(
-      const base::FlatHashMap<std::string, Macro>& macros);
+      const base::FlatHashMap<std::string, Macro>& macros,
+      const pipeline::Catalog* catalog = nullptr);
 
   // Rebinds to a fresh source; keeps the syntaqlite parser instance.
   void Reset(SqlSource);

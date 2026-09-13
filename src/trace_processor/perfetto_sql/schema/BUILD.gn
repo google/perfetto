@@ -1,4 +1,4 @@
-# Copyright (C) 2025 The Android Open Source Project
+# Copyright (C) 2026 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,22 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/test.gni")
-
-source_set("common") {
+source_set("schema") {
   sources = [
-    "duplicate_types.h",
-    "null_types.h",
-    "op_types.h",
-    "schema.h",
-    "sort_types.h",
-    "storage_types.h",
-    "value_fetcher.h",
+    "query_schema.cc",
+    "query_schema.h",
+    "type_mapping.h",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
     "../../../base",
-    "../../containers",
-    "../util",
+    "../../../perfetto_sql/analysis",
+    "../../../perfetto_sql/syntaqlite",
+    "../../core/common",
+    "../../sqlite",
   ]
 }

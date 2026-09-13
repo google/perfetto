@@ -39,6 +39,8 @@ source_set("syntaqlite") {
     "../../trace_processor/perfetto_sql/engine:unittests",
     "../../trace_processor/perfetto_sql/exec:*",
     "../../trace_processor/perfetto_sql/parser:*",
+    "../../trace_processor/perfetto_sql/pipeline:*",
+    "../../trace_processor/perfetto_sql/schema:*",
     "../../trace_processor/perfetto_sql/tokenizer",
     "../../trace_processor/util:sql_module_doc_parser",
     "../analysis:*",
