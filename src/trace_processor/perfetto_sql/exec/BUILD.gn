@@ -30,7 +30,7 @@ source_set("exec") {
     "../../core/exec",
     "../../core/util",
     "../../sqlite",
-    "../lineage:connection_catalog",
+    "../lineage",
   ]
 }
 
@@ -49,6 +49,6 @@ perfetto_unittest_source_set("unittests") {
     "../../core/exec:test_utils",
     "../../core/util",
     "../../sqlite",
-    "../lineage:connection_catalog",
+    "../lineage",
   ]
 }

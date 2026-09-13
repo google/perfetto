@@ -14,37 +14,11 @@
 
 import("../../../../gn/test.gni")
 
-source_set("connection_catalog") {
-  sources = [
-    "connection_catalog.cc",
-    "connection_catalog.h",
-    "type_mapping.h",
-  ]
+source_set("lineage") {
+  sources = [ "type_mapping.h" ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
-    "../../../base",
     "../../../perfetto_sql/analysis",
     "../../core/common",
-    "../../core/dataframe",
-    "../../sqlite",
-    "../engine",
-  ]
-}
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "connection_catalog_unittest.cc" ]
-  deps = [
-    ":connection_catalog",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../base",
-    "../../../perfetto_sql/analysis",
-    "../../../perfetto_sql/syntaqlite",
-    "../../containers",
-    "../../core/common",
-    "../../sqlite",
-    "../engine",
   ]
 }
