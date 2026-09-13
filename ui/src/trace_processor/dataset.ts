@@ -493,7 +493,14 @@ function getJoinSignature(dataset: SourceDataset): string {
   if (!dataset.joins) {
     return '';
   }
-  return Object.keys(dataset.joins).sort().join(',');
+  // The signature must identify the join definition, not just its alias:
+  // two datasets whose 'depth' joins point at different tables must not be
+  // merged, or the merged query joins every row through one table and
+  // silently drops the rows only present in the others.
+  return Object.entries(dataset.joins)
+    .map(([id, join]) => `${id}:${join.from}:${join.unique ?? false}`)
+    .sort()
+    .join(',');
 }
 
 function mergeFilters(filters: InFilter[]): InFilter | undefined {
