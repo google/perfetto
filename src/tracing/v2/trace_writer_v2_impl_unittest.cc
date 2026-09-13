@@ -175,6 +175,45 @@ struct Fixture {
   std::unique_ptr<TraceWriterV2Impl> writer;
 };
 
+TEST(TraceWriterV2ImplTest, DestroyingAnUnusedWriterNotifiesDelegate) {
+  Fixture f;
+  EXPECT_EQ(f.writer->written(), 0u);
+  f.writer.reset();
+  EXPECT_EQ(f.delegate->destroyed_writers, std::vector<WriterID>{kWriterA});
+  EXPECT_EQ(f.ring->LoadWritePosRelaxed(), 0u);
+}
+
+TEST(TraceWriterV2ImplTest, FirstDropAfterRelocationFailure) {
+  Fixture f(/*num_chunks=*/2, /*chunk_size=*/256);
+  f.writer->NewTracePacket()->set_timestamp(1);
+
+  // Occupy the other chunk, then request a rewrite of the writer's cached
+  // chunk. Model the reader paused before it advances read_pos, so the writer
+  // cannot reserve a replacement for its unpublished fragment.
+  SharedRingBufferWriter blocker(f.ring.get(), 9, kBufferA,
+                                 BufferExhaustedPolicy::kDrop,
+                                 test::GetNoopWriterDelegate());
+  ASSERT_EQ(blocker.BeginFragment(1, false).result,
+            SharedRingBufferWriter::BeginFragmentResult::kSuccess);
+  {
+    auto packet = f.writer->NewTracePacket();
+    uint32_t observed =
+        f.ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0));
+    ASSERT_EQ(ChunkStateOf(observed), ChunkState::kBeingWritten);
+    ASSERT_EQ(NumFragmentsOf(observed), 1u);
+    ASSERT_TRUE(f.ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
+    const std::string payload(1024, 'x');
+    packet->AppendRawProtoBytes(payload.data(), payload.size());
+    // Relocation records the drop before GetNewBuffer calls EnterDropMode.
+    // Allocation must happen even though in_drop_mode_ is already true.
+    EXPECT_EQ(f.ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
+              kRewriteAcknowledgedStateWord);
+    EXPECT_EQ(f.writer->drop_count(), 1u);
+    EXPECT_GT(f.writer->written(), payload.size());
+  }
+  EXPECT_EQ(f.writer->drop_count(), 1u);
+}
+
 TEST(TraceWriterV2ImplTest, WritesAPacketThatRewritesToCanonicalProtobuf) {
   Fixture f;
   {
