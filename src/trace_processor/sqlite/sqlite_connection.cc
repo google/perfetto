@@ -267,7 +267,15 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
 
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                        SqlSource source)
-    : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
+    : stmt_(stmt.release()), sql_source_(std::move(source)) {}
+
+void SqliteConnection::PreparedStatement::Finalizer::operator()(
+    sqlite3_stmt* stmt) const {
+  sqlite3_finalize(stmt);
+  if (on_finalized) {
+    on_finalized();
+  }
+}
 
 bool SqliteConnection::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",

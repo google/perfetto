@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -71,12 +72,24 @@ class SqliteConnection {
     const base::Status& status() const { return status_; }
     sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }
 
+    // Sets a callback to run once the statement has been finalized. Unlike the
+    // destructors SQLite runs during finalization, it can change the schema.
+    void SetOnFinalized(std::function<void()> fn) {
+      stmt_.get_deleter().on_finalized = std::move(fn);
+    }
+
    private:
     friend class SqliteConnection;
 
+    // Finalizes the statement, then runs `on_finalized` if set.
+    struct Finalizer {
+      void operator()(sqlite3_stmt*) const;
+      std::function<void()> on_finalized;
+    };
+
     explicit PreparedStatement(ScopedStmt, SqlSource);
 
-    ScopedStmt stmt_;
+    std::unique_ptr<sqlite3_stmt, Finalizer> stmt_;
     ScopedSqliteString expanded_sql_;
     SqlSource sql_source_;
     base::Status status_ = base::OkStatus();

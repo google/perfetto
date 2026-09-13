@@ -173,6 +173,11 @@ class PerfettoSqlParser {
   // called unless |Next()| returned true.
   const Statement& statement() const;
 
+  // Transfers the current statement to the caller. After this, statement()
+  // and TakeStatement() must not be called until Next() succeeds again.
+  // Statement SQL and end offset remain available.
+  Statement TakeStatement();
+
   // Returns the full statement which was parsed. This should return
   // |statement()| and Perfetto SQL code that's in front. This function *must
   // not* be called unless |Next()| returned true.
