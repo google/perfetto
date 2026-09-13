@@ -276,7 +276,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void EnsureTracingV2Connection();
 
     // Drops |tracing_v2_connection_| after the caller clears pending flushes.
-    // Both must happen before |service_| releases the bridge's v1 arbiter.
+    // Release the bridge before |service_| releases its v1 arbiter.
     void ReleaseTracingV2Connection();
 
     // Flush() for a connection that has a v2 bridge. Requests are acked in
@@ -322,22 +322,37 @@ class TracingMuxerImpl : public TracingMuxer {
     // expiration).
     std::list<std::pair<std::string, base::TimeMillis>> on_connect_triggers_;
 
-    // A flush request the service is waiting on. The v1 path only ever uses
-    // |pending_data_sources|; the other fields stay at their defaults, which is
-    // what lets FlushWithTracingV2() take over a queue the v1 path started.
+    // Ring buffer work needed before acknowledging a flush request.
+    enum class RingBufferDrainState {
+      // No drain to wait for: the request is v1-only, or its drain is done.
+      // It still has to wait for its OnFlush() callbacks and earlier requests
+      // before it can be acknowledged.
+      kNone,
+
+      // A v2 instance needs a drain, but we have not started it yet.
+      // Wait for this request's OnFlush() callbacks and all earlier requests.
+      // Then sample the ring buffer's write position, start the drain, and
+      // change to kInProgress.
+      kPending,
+
+      // Drain requested; wait for its completion callback on the muxer.
+      // The relay reads up to the sampled position, then flushes its v1
+      // writers. After their commits are posted, the callback changes this
+      // to kNone.
+      // This does not wait for the service to acknowledge those commits.
+      kInProgress,
+    };
+
+    // A flush request the service is waiting on. The v1 path only uses
+    // |pending_data_sources| and leaves the drain kNone, so
+    // FlushWithTracingV2() can take over a queue the v1 path started.
     struct PendingFlush {
       // Instances whose asynchronous OnFlush() has not completed yet.
       std::set<DataSourceInstanceID> pending_data_sources;
 
-      // Set if an instance in this request writes through the v2 ring buffer:
-      // the bridge must drain the ring buffer before we can ack. Reset once the
-      // drain has completed.
-      std::shared_ptr<tracing_v2::InProcessTracingV2Bridge> bridge_to_drain;
-
-      // The drain of |bridge_to_drain| has been requested. Only the oldest
-      // request gets to do this, so the ring buffer position is sampled after
-      // every earlier OnFlush() callback has run.
-      bool ring_drain_started = false;
+      // Drains use the bridge owned by tracing_v2_connection_.
+      // DisposeConnection() clears this queue before releasing the connection.
+      RingBufferDrainState ring_buffer_drain = RingBufferDrainState::kNone;
     };
     std::map<FlushRequestID, PendingFlush> pending_flushes_;
 
@@ -620,18 +635,18 @@ class TracingMuxerImpl : public TracingMuxer {
                                           uint32_t backend_connection_id);
   // Drains the ring buffer on the relay sequence, then runs |on_drained| on the
   // muxer thread. The callback must revalidate the connection after both hops.
-  void DrainTracingV2RingThenPostToMuxer(
+  void DrainTracingV2RingBufferThenPostToMuxer(
       const std::shared_ptr<tracing_v2::InProcessTracingV2Bridge>& bridge,
       std::function<void()> on_drained);
   // Called on the muxer thread once the v2 bridge has drained the ring buffer
   // and flushed its v1 writers, for a flush request and for a stopping instance
   // respectively.
-  void FlushTracingV2Ring_AsyncEnd(TracingBackendId,
-                                   uint32_t backend_connection_id,
-                                   FlushRequestID);
-  void StopTracingV2Ring_AsyncEnd(TracingBackendId,
-                                  uint32_t backend_connection_id,
-                                  DataSourceInstanceID);
+  void FlushTracingV2RingBuffer_AsyncEnd(TracingBackendId,
+                                         uint32_t backend_connection_id,
+                                         FlushRequestID);
+  void StopTracingV2RingBuffer_AsyncEnd(TracingBackendId,
+                                        uint32_t backend_connection_id,
+                                        DataSourceInstanceID);
   void AbortStartupTracingSession(TracingSessionGlobalID, BackendType);
   // When ResetForTesting() is executed, `cb` will be called on the calling
   // thread and on the muxer thread.
