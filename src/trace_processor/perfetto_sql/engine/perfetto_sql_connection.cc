@@ -48,11 +48,15 @@
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
+#include "src/trace_processor/perfetto_sql/engine/pipeline_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
+#include "src/trace_processor/perfetto_sql/lineage/connection_catalog.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_syntax.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -288,6 +292,29 @@ ArgumentTypeToDataframeType(sql_argument::Type type, bool bytes_as_int64) {
       return base::ErrStatus("ANY type cannot be used in table columns");
   }
   PERFETTO_FATAL("For GCC");
+}
+
+// Removes a pipeline's module once nothing reads it.
+class PipelineRegistration {
+ public:
+  PipelineRegistration(SqliteConnection* connection, std::string table)
+      : connection_(connection), table_(std::move(table)) {}
+  ~PipelineRegistration() { connection_->UnregisterVirtualTableModule(table_); }
+
+  PipelineRegistration(const PipelineRegistration&) = delete;
+  PipelineRegistration& operator=(const PipelineRegistration&) = delete;
+
+ private:
+  SqliteConnection* connection_;
+  std::string table_;
+};
+
+// The SQL which reads a registered pipeline, keeping `pipeline` as the source
+// errors point at.
+SqlSource SelectFromPipeline(const SqlSource& pipeline,
+                             const std::string& table) {
+  return pipeline.RewriteAllIgnoreExisting(
+      SqlSource::FromTraceProcessorImplementation("SELECT * FROM " + table));
 }
 
 base::StatusOr<std::vector<dataframe::AdhocDataframeBuilder::ColumnType>>
@@ -674,11 +701,19 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
     // ResolveExtensionStatement, which executes them and returns a dummy
     // statement to prepare.
     std::optional<SqlSource> source_to_prepare;
-    const bool is_dummy =
-        !std::holds_alternative<PerfettoSqlParser::SqliteSql>(stmt);
-    if (PERFETTO_LIKELY(!is_dummy)) {
+    std::shared_ptr<void> dependency;
+    bool is_dummy = false;
+    if (PERFETTO_LIKELY(
+            std::holds_alternative<PerfettoSqlParser::SqliteSql>(stmt))) {
       source_to_prepare = parser->TakeStatementSql();
+    } else if (const auto* pipeline =
+                   std::get_if<PerfettoSqlParser::Pipeline>(&stmt)) {
+      ASSIGN_OR_RETURN(RegisteredPipeline registered,
+                       RegisterPipeline(pipeline->sql));
+      source_to_prepare = SelectFromPipeline(pipeline->sql, registered.table);
+      dependency = std::move(registered.handle);
     } else {
+      is_dummy = true;
       ASSIGN_OR_RETURN(source_to_prepare, ResolveExtensionStatement(frame_idx));
     }
 
@@ -689,6 +724,9 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
           connection_->PrepareStatement(std::move(*source_to_prepare));
       RETURN_IF_ERROR(stmt_result.status());
       next_stmt = std::move(stmt_result);
+      if (dependency) {
+        next_stmt->KeepAlive(std::move(dependency));
+      }
     }
     PERFETTO_DCHECK(next_stmt->sqlite_stmt());
 
@@ -794,11 +832,8 @@ base::StatusOr<SqlSource> PerfettoSqlConnection::ResolveExtensionStatement(
   } else if (const auto* drop_index =
                  std::get_if<PerfettoSqlParser::DropIndex>(&stmt)) {
     RETURN_IF_ERROR(ExecuteDropIndex(*drop_index));
-  } else if (std::holds_alternative<PerfettoSqlParser::Pipeline>(stmt)) {
-    return AddTracebackIfNeeded(
-        base::ErrStatus("Pipelines cannot be executed yet"), stmt_sql);
   } else {
-    // SqliteSql is inlined in ProcessFrame's hot path.
+    // SqliteSql and Pipeline are handled in ProcessFrame.
     PERFETTO_FATAL("Unexpected statement variant");
   }
   return RewriteToDummySql(stmt_sql);
@@ -889,6 +924,21 @@ const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
   return state ? state->dataframe : nullptr;
 }
 
+std::shared_ptr<const dataframe::Dataframe>
+PerfettoSqlConnection::ShareDataframeOrNull(std::string_view name) const {
+  auto* state = dataframe_context_->GetStateByName(name);
+  if (!state) {
+    return nullptr;
+  }
+  if (state->owned_dataframe) {
+    return state->owned_dataframe;
+  }
+  // Static tables are owned by the trace processor, which outlives every
+  // query, so there is nothing to share.
+  return std::shared_ptr<const dataframe::Dataframe>(
+      std::shared_ptr<const dataframe::Dataframe>(), state->dataframe);
+}
+
 base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
     bool replace,
     const FunctionPrototype& prototype,
@@ -945,12 +995,18 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
+  std::optional<RegisteredPipeline> pipeline;
   if (create_table.is_pipeline) {
-    return base::ErrStatus("Pipelines cannot be executed yet");
+    ASSIGN_OR_RETURN(pipeline, RegisterPipeline(create_table.sql));
   }
-  auto stmt_or = connection_->PrepareStatement(create_table.sql);
+  auto stmt_or = connection_->PrepareStatement(
+      pipeline ? SelectFromPipeline(create_table.sql, pipeline->table)
+               : create_table.sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteConnection::PreparedStatement stmt = std::move(stmt_or);
+  if (pipeline) {
+    stmt.KeepAlive(std::move(pipeline->handle));
+  }
   ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
                                           stmt, "CREATE PERFETTO TABLE"));
   ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
@@ -1011,6 +1067,36 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
     }
   }
   return exec_res.status();
+}
+
+base::StatusOr<PerfettoSqlConnection::RegisteredPipeline>
+PerfettoSqlConnection::RegisterPipeline(const SqlSource& sql) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_PLAN");
+  ASSIGN_OR_RETURN(pipeline::PipelineSyntax syntax,
+                   pipeline::ParsePipeline(sql));
+  lineage::ConnectionCatalog catalog(
+      connection_.get(),
+      [this](std::string_view name) { return GetDataframeOrNull(name); });
+  pipeline::PlanEnvironment env;
+  env.connection = connection_.get();
+  env.pool = pool_;
+  env.catalog = &catalog;
+  env.find_dataframe = [this](std::string_view name) {
+    return ShareDataframeOrNull(name);
+  };
+  ASSIGN_OR_RETURN(std::unique_ptr<pipeline::PipelinePlan> plan,
+                   pipeline::PlanPipeline(syntax, env));
+
+  std::string table =
+      "__intrinsic_pipeline_" + std::to_string(pipeline_count_++);
+  auto ctx = std::make_unique<PipelineModule::Context>();
+  ctx->plan = std::move(plan);
+  ctx->pool = pool_;
+  connection_->RegisterVirtualTableModule(
+      table, &PipelineModule::kModule, ctx.release(),
+      [](void* p) { delete static_cast<PipelineModule::Context*>(p); });
+  return RegisteredPipeline{
+      table, std::make_shared<PipelineRegistration>(connection_.get(), table)};
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(

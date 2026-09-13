@@ -252,6 +252,13 @@ void SqliteConnection::RegisterVirtualTableModule(
   PERFETTO_CHECK(res == SQLITE_OK);
 }
 
+void SqliteConnection::UnregisterVirtualTableModule(
+    const std::string& module_name) {
+  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(), nullptr,
+                                     nullptr, nullptr);
+  PERFETTO_CHECK(res == SQLITE_OK);
+}
+
 std::optional<uint32_t> SqliteConnection::GetErrorOffset() const {
   return GetErrorOffsetDb(db_.get());
 }
@@ -268,6 +275,23 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                        SqlSource source)
     : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
+
+SqliteConnection::PreparedStatement::PreparedStatement(
+    PreparedStatement&&) noexcept = default;
+
+SqliteConnection::PreparedStatement&
+SqliteConnection::PreparedStatement::operator=(
+    PreparedStatement&& other) noexcept {
+  // The old statement has to be finalized before what it depends on goes.
+  stmt_ = std::move(other.stmt_);
+  expanded_sql_ = std::move(other.expanded_sql_);
+  sql_source_ = std::move(other.sql_source_);
+  status_ = std::move(other.status_);
+  dependency_ = std::move(other.dependency_);
+  return *this;
+}
+
+SqliteConnection::PreparedStatement::~PreparedStatement() = default;
 
 bool SqliteConnection::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",

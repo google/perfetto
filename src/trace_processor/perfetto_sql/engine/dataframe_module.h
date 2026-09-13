@@ -50,7 +50,8 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     explicit State(std::unique_ptr<dataframe::Dataframe> _owned_dataframe)
         : owned_dataframe(std::move(_owned_dataframe)),
           dataframe(owned_dataframe.get()) {}
-    std::unique_ptr<dataframe::Dataframe> owned_dataframe;
+    // Shared so a pipeline reading the dataframe directly keeps it alive.
+    std::shared_ptr<dataframe::Dataframe> owned_dataframe;
     dataframe::Dataframe* dataframe;
     std::vector<std::string> named_indexes;
   };
