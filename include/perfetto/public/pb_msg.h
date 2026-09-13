@@ -53,10 +53,10 @@ enum PerfettoPbMsgEncoding {
 //
 // These are bits in the in-memory size member, not bytes in the packet:
 //
-//       bit 31          bit 30             bits 29..0
-//   +---------------+---------------+------------------------+
-//   | proto-group   | end written   | byte count             |
-//   +---------------+---------------+------------------------+
+//     bits 0..27     bits 28..29       bit 30          bit 31
+//   +--------------+--------------+----------------+---------------+
+//   | byte count   | zero         | end written    | proto-group   |
+//   +--------------+--------------+----------------+---------------+
 //
 // - Proto-group: this message and its children use proto-group encoding.
 // - End written: this nested message has already appended its closing byte.
@@ -65,8 +65,8 @@ enum PerfettoPbMsgEncoding {
 // - Byte count: the size without either flag, read with PerfettoPbMsgSize().
 //   Both flags stay clear for length-delimited messages.
 //
-// The flags sit above the supported size range. The existing four-byte
-// nested-message length limit still applies; the 30 count bits do not raise it.
+// Callers must keep every message, including roots, within (1 << 28) - 1
+// bytes, matching the four-byte nested length limit.
 #define PERFETTO_PB_MSG_PROTO_GROUP_BIT (UINT32_C(1) << 31)
 #define PERFETTO_PB_MSG_PROTO_GROUP_END_WRITTEN_BIT (UINT32_C(1) << 30)
 #define PERFETTO_PB_MSG_SIZE_MASK ((UINT32_C(1) << 30) - 1)
@@ -92,8 +92,10 @@ struct PerfettoPbMsg {
   // contents, so this pointer stays NULL.
   uint8_t* size_field;
 
-  // Byte count and proto-group flags (see above).
-  // Use PerfettoPbMsgSize() to read the byte count.
+  // - Length-delimited: a plain byte count.
+  // - Proto-group: the byte count plus the flags above.
+  //
+  // Use PerfettoPbMsgSize() to read the count in either mode.
   uint32_t size;
 
   struct PerfettoPbMsgWriter* writer;
@@ -112,7 +114,8 @@ struct PerfettoPbMsg {
   struct PerfettoPbMsg* parent;
 };
 
-// Returns the number of bytes written into |msg|.
+// Returns the byte count with the encoding flags removed.
+// PerfettoPbMsgEndNested() adds a child's size to this count when it closes.
 static inline uint32_t PerfettoPbMsgSize(const struct PerfettoPbMsg* msg) {
   return msg->size & PERFETTO_PB_MSG_SIZE_MASK;
 }
