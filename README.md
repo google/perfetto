@@ -1,8 +1,9 @@
 # Perfetto - System profiling, app tracing and trace analysis
 
 Perfetto is an open-source suite of SDKs, daemons and tools which use
-**tracing** to help developers understand the behaviour of complex systems and
-root-cause functional and performance issues on client and embedded systems.
+**tracing** and **profiling** to help developers understand the behaviour of
+complex systems and root-cause functional and performance issues on client and
+embedded systems.
 
 It is a production-grade tool that is the default tracing system for the
 **Android operating system** and the **Chromium browser**.
@@ -23,8 +24,10 @@ together:
   and Linux (e.g. scheduling states, CPU frequencies, memory profiling,
   callstack sampling).
 - **Browser-based UI:** A powerful, fully local UI for visualizing and exploring
-  large, multi-GB traces on a timeline. It works in all major browsers, requires
-  no installation, and can open traces from other tools.
+  large, multi-GB traces on a timeline, and for exploring CPU and memory
+  profiles with flamegraphs and call trees. It works in all major browsers,
+  requires no installation, and can open traces and profiles from other tools
+  such as pprof, Linux perf and simpleperf.
 - **SQL-based analysis library:** A powerful engine that allows you to
   programmatically query traces using SQL to automate analysis and extract
   custom metrics.
@@ -50,10 +53,13 @@ range of use cases.
 - **For Chromium Developers:** Perfetto is the tracing backend for
   `chrome://tracing`. Use it to debug and root-cause issues in the browser, V8,
   and Blink.
-- **For Performance Engineers & SREs:** Analyze and visualize a wide range of
-  profiling and tracing formats, not just Perfetto's. Use the powerful SQL
-  interface to programmatically analyze traces from tools like **Linux perf**,
-  **macOS Instruments**, **Chrome JSON traces**, and more.
+- **For Performance Engineers & SREs:** Use Perfetto as a profile viewer for
+  CPU profiles from **pprof**, **Linux perf** and **simpleperf**: explore them
+  with flamegraphs and call trees, see samples on a timeline, and query them
+  with SQL. See
+  [Viewing CPU Profiles](https://perfetto.dev/docs/getting-started/viewing-cpu-profiles).
+  Perfetto also opens traces from tools like **macOS Instruments**, **Chrome
+  JSON traces**, and more.
 
 ## Getting Started
 
