@@ -12,40 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/perfetto.gni")
 import("../../../../gn/test.gni")
 
-source_set("exec") {
+assert(enable_perfetto_trace_processor_sqlite)
+
+source_set("logical") {
   sources = [
-    "sql_scan.cc",
-    "sql_scan.h",
+    "catalog.cc",
+    "catalog.h",
+    "compiler.cc",
+    "compiler.h",
+    "logical_plan.h",
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
     "../../../base",
-    "../../containers",
+    "../../../perfetto_sql/syntaqlite",
     "../../core/common",
-    "../../core/exec",
-    "../../core/util",
+    "../../core/dataframe",
     "../../sqlite",
   ]
 }
 
-perfetto_unittest_source_set("unittests") {
+source_set("test_catalog") {
   testonly = true
-  sources = [ "sql_scan_unittest.cc" ]
+  sources = [ "test_catalog.h" ]
   deps = [
-    ":exec",
+    ":logical",
     "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../../../perfetto_sql/analysis",
     "../../containers",
-    "../../core/common",
-    "../../core/exec",
-    "../../core/exec:test_utils",
-    "../../core/util",
+    "../../core/dataframe",
     "../../sqlite",
     "../schema",
+  ]
+}
+
+source_set("test_utils") {
+  testonly = true
+  sources = [
+    "logical_plan_test_utils.cc",
+    "logical_plan_test_utils.h",
+  ]
+  deps = [
+    ":logical",
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../core/common",
   ]
 }

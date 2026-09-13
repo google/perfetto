@@ -54,6 +54,8 @@
 
 namespace perfetto::trace_processor {
 
+class ConnectionCatalog;
+
 // Intermediary class which translates high-level concepts and algorithms used
 // in trace processor into lower-level concepts and functions can be understood
 // by and executed against SQLite.
@@ -613,6 +615,8 @@ class PerfettoSqlConnection {
       fn_registry_;
 
   std::unique_ptr<SqliteConnection> connection_;
+  // Passed to every parser, for compiling pipelines.
+  std::unique_ptr<ConnectionCatalog> catalog_;
 
   // Reused across Execute() calls via Reset() to avoid the syntaqlite
   // create/destroy round-trip. Re-entrant Execute() and include frames
