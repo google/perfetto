@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/lineage/connection_catalog.h"
-
-#include <sqlite3.h>
+#include "src/trace_processor/perfetto_sql/engine/connection_catalog.h"
 
 #include <cstdint>
 #include <optional>
@@ -28,11 +26,15 @@
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
+#include "src/trace_processor/perfetto_sql/exec/type_mapping.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 
-namespace perfetto::trace_processor::lineage {
+namespace perfetto::trace_processor {
 namespace {
+
+namespace analysis = ::perfetto::perfetto_sql::analysis;
 
 // Finds the stored CREATE VIEW SQL for the view named $name. Temporary views
 // shadow database views of the same name, so their rows sort first. SQL
@@ -80,22 +82,22 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
   relation.columns.reserve(columns.size());
   for (uint32_t i = 0; i < columns.size(); ++i) {
     relation.columns.push_back(
-        {columns[i], ToAnalysisType(dataframe->column_type(i))});
+        {columns[i], exec::ToAnalysisType(dataframe->column_type(i))});
   }
   return relation;
 }
 
 std::optional<std::string> ConnectionCatalog::FindViewSql(
     std::string_view name) const {
-  auto res = connection_->ExecuteUntilLastStatement(
-      SqlSource::FromTraceProcessorImplementation(
-          base::ReplaceAll(kFindViewSql, "$name", Quoted(name))));
-  if (!res.ok() || res->stmt.IsDone()) {
+  SqliteConnection::PreparedStatement stmt =
+      connection_->sqlite_connection()->PrepareStatement(
+          SqlSource::FromTraceProcessorImplementation(
+              base::ReplaceAll(kFindViewSql, "$name", Quoted(name))));
+  if (!stmt.Step()) {
     return std::nullopt;
   }
-  sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
-  const auto* sql = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+  const char* sql = sqlite::column::Text(stmt.sqlite_stmt(), 0);
   return sql ? std::make_optional(std::string(sql)) : std::nullopt;
 }
 
-}  // namespace perfetto::trace_processor::lineage
+}  // namespace perfetto::trace_processor
