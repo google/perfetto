@@ -50,6 +50,10 @@ namespace perfetto::tracing_v2 {
 
 class InProcessTracingV2BridgeTestPeer {
  public:
+  static SharedRingBuffer& GetRingBuffer(InProcessTracingV2Bridge* bridge) {
+    return bridge->ring_buffer_;
+  }
+
   static bool DrainBarrierBatch(InProcessTracingV2Bridge* bridge,
                                 uint32_t target_pos) {
     return bridge->DrainBarrierBatch(target_pos);
@@ -297,8 +301,8 @@ class InProcessTracingV2BridgeTest : public ::testing::Test {
 
   void TestRejectedMiddleChunk(RejectedChunk rejection) {
     auto writer = CreateWriter(7, 11);
-    TraceWriterV2::Delegate& delegate = *bridge_;
-    SharedRingBuffer& ring = delegate.ring_buffer();
+    SharedRingBuffer& ring =
+        InProcessTracingV2BridgeTestPeer::GetRingBuffer(bridge_.get());
     SharedRingBufferWriter chunk_writer(&ring, 7, 11,
                                         BufferExhaustedPolicy::kDrop,
                                         test::GetNoopWriterDelegate());
@@ -591,8 +595,8 @@ TEST_F(InProcessTracingV2BridgeTest, ProtocolErrorDoesNotStrandBarriers) {
   for (uint32_t malformed_pos : {0u, 1u}) {
     SCOPED_TRACE(malformed_pos);
     bridge_ = InProcessTracingV2Bridge::Create(relay_, kNumChunks, kChunkSize);
-    TraceWriterV2::Delegate& delegate = *bridge_;
-    SharedRingBuffer& ring = delegate.ring_buffer();
+    SharedRingBuffer& ring =
+        InProcessTracingV2BridgeTestPeer::GetRingBuffer(bridge_.get());
     for (uint32_t i = 0; i <= malformed_pos; ++i)
       ASSERT_EQ(ring.TryReserveWritePos().result,
                 SharedRingBuffer::ReserveResult::kReserved);
@@ -800,8 +804,8 @@ TEST(InProcessTracingV2BridgeBurstTest,
   auto bridge_b = InProcessTracingV2Bridge::Create(relay, 32, 256);
   auto writer_a = CreateV2Writer(bridge_a.get(), 7, &recorded_a);
   auto writer_b = CreateV2Writer(bridge_b.get(), 7, &recorded_b);
-  TraceWriterV2::Delegate& delegate_a = *bridge_a;
-  SharedRingBuffer& ring_a = delegate_a.ring_buffer();
+  SharedRingBuffer& ring_a =
+      InProcessTracingV2BridgeTestPeer::GetRingBuffer(bridge_a.get());
   // Publish one packet per position without ordinary drain notifications, so
   // only the control barrier can advance A's reader.
   SharedRingBufferWriter chunk_writer(&ring_a, 7, 11,
@@ -874,6 +878,7 @@ TEST(InProcessTracingV2BridgeBurstTest,
   EXPECT_EQ(ring_a.LoadWritePosRelaxed(), kFirstTarget + 2);
   EXPECT_EQ(task_runner.queued(), 0u);
   // Ordinary notification still delivers the later packet.
+  TraceWriterV2Impl::Delegate& delegate_a = *bridge_a;
   delegate_a.NotifyReader();
   ASSERT_EQ(task_runner.queued(), 1u);
   task_runner.RunNextTask();
