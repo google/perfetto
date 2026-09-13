@@ -65,7 +65,13 @@ inline bool operator==(const PerfettoSqlParser::CreateFunction& a,
 
 inline bool operator==(const PerfettoSqlParser::CreateTable& a,
                        const PerfettoSqlParser::CreateTable& b) {
-  return std::tie(a.name, a.sql) == std::tie(b.name, b.sql);
+  return std::tie(a.name, a.sql, a.is_pipeline) ==
+         std::tie(b.name, b.sql, b.is_pipeline);
+}
+
+inline bool operator==(const PerfettoSqlParser::Pipeline& a,
+                       const PerfettoSqlParser::Pipeline& b) {
+  return a.sql == b.sql;
 }
 
 inline bool operator==(const PerfettoSqlParser::CreateView& a,
@@ -130,7 +136,12 @@ inline std::ostream& operator<<(std::ostream& stream,
   }
   if (const auto* tab = std::get_if<PerfettoSqlParser::CreateTable>(&line)) {
     return stream << "CreateTable(name=" << testing::PrintToString(tab->name)
-                  << ", sql=" << testing::PrintToString(tab->sql) << ")";
+                  << ", sql=" << testing::PrintToString(tab->sql)
+                  << ", is_pipeline=" << tab->is_pipeline << ")";
+  }
+  if (const auto* pipe = std::get_if<PerfettoSqlParser::Pipeline>(&line)) {
+    return stream << "Pipeline(sql=" << testing::PrintToString(pipe->sql)
+                  << ")";
   }
   if (const auto* tab = std::get_if<PerfettoSqlParser::CreateView>(&line)) {
     return stream << "CreateView(name=" << testing::PrintToString(tab->name)

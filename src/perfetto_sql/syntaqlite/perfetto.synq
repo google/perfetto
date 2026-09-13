@@ -80,6 +80,7 @@ node CreatePerfettoTableStmt {
   schema: index PerfettoArgDefList
   select: index Select
   select_span: inline SyntaqliteTextSpan
+  pipeline: index PerfettoPipeline
 
   semantic { define_table(name: table_name, columns: schema, select: select) }
 
@@ -101,8 +102,10 @@ node CreatePerfettoTableStmt {
         softline ")"
       }
       if_set(select) { line "AS" }
+      if_set(pipeline) { line "AS" }
     }
     if_set(select) { hardline child(select) }
+    if_set(pipeline) { hardline child(pipeline) }
   }
 }
 
@@ -260,4 +263,12 @@ node DropPerfettoIndexStmt {
   fmt {
     "DROP" "PERFETTO" "INDEX" space span(index_name) space "ON" space span(table_name)
   }
+}
+
+// A pipeline: FROM followed by `|>` stages. Only its extent is captured; the
+// trace processor parses the stages, since it is what plans them.
+node PerfettoPipeline {
+  body: inline SyntaqliteTextSpan
+
+  fmt { span(body) }
 }
