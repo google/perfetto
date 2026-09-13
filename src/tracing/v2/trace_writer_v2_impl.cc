@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/v2/trace_writer_v2.h"
+#include "src/tracing/v2/trace_writer_v2_impl.h"
 
 #include <stdint.h>
 
@@ -39,11 +39,11 @@ constexpr uint32_t kMinFragmentPayloadSize =
 
 }  // namespace
 
-TraceWriterV2::Delegate::~Delegate() = default;
+TraceWriterV2Impl::Delegate::~Delegate() = default;
 
-TraceWriterV2::TraceWriterV2(const InitArgs& args)
+TraceWriterV2Impl::TraceWriterV2Impl(const InitArgs& args)
     : delegate_(args.delegate),
-      ring_buffer_writer_(&delegate_->ring_buffer(),
+      ring_buffer_writer_(args.ring_buffer,
                           args.writer_id,
                           args.target_buffer,
                           args.buffer_exhausted_policy,
@@ -52,20 +52,20 @@ TraceWriterV2::TraceWriterV2(const InitArgs& args)
       cur_packet_(new protozero::RootMessage<protos::pbzero::TracePacket>()) {
   // Protozero never receives more than one chunk at a time. Reserving the same
   // amount here keeps the drop path allocation-free.
-  drop_buffer_.resize(delegate_->ring_buffer().chunk_size());
+  drop_buffer_.resize(args.ring_buffer->chunk_size());
   stream_writer_.Reset(
       {drop_buffer_.data(), drop_buffer_.data() + drop_buffer_.size()});
 }
 
-TraceWriterV2::~TraceWriterV2() {
+TraceWriterV2Impl::~TraceWriterV2Impl() {
   FinishTracePacket();
-  // Publish the last chunk before notifying the delegate of destruction.
+  // Publish the last chunk before the delegate starts retiring this WriterID.
   ring_buffer_writer_.FinishCurrentChunk();
   stream_writer_.Reset({nullptr, nullptr});
   delegate_->OnWriterDestroyed(writer_id());
 }
 
-TraceWriter::TracePacketHandle TraceWriterV2::NewTracePacket() {
+TraceWriter::TracePacketHandle TraceWriterV2Impl::NewTracePacket() {
   // Direct Message::Finalize() bypasses the handle's finalization callback.
   // Close the previous packet's fragment before starting another packet.
   if (packet_open_ && cur_packet_->is_finalized())
@@ -95,7 +95,7 @@ TraceWriter::TracePacketHandle TraceWriterV2::NewTracePacket() {
   return handle;
 }
 
-void TraceWriterV2::FinishTracePacket() {
+void TraceWriterV2Impl::FinishTracePacket() {
   if (!packet_open_)
     return;
 
@@ -108,7 +108,7 @@ void TraceWriterV2::FinishTracePacket() {
   delegate_->NotifyReader();
 }
 
-void TraceWriterV2::Flush(std::function<void()> callback) {
+void TraceWriterV2Impl::Flush(std::function<void()> callback) {
   // Close any fragment left open by direct Message::Finalize() before flushing.
   // Raw stream callers must still call FinishTracePacket() themselves.
   if (packet_open_ && cur_packet_->is_finalized())
@@ -122,15 +122,15 @@ void TraceWriterV2::Flush(std::function<void()> callback) {
   delegate_->Flush(writer_id(), std::move(callback));
 }
 
-void TraceWriterV2::OnMessageFinalized(protozero::Message*) {
+void TraceWriterV2Impl::OnMessageFinalized(protozero::Message*) {
   FinishTracePacket();
 }
 
-protozero::ContiguousMemoryRange TraceWriterV2::GetNewBuffer() {
+protozero::ContiguousMemoryRange TraceWriterV2Impl::GetNewBuffer() {
   if (!packet_open_) {
     // protozero asked for space outside a packet. That only happens if a
     // caller writes through a stale handle, which is a data-source bug.
-    PERFETTO_DFATAL("TraceWriterV2: write outside an open packet");
+    PERFETTO_DFATAL("TraceWriterV2Impl: write outside an open packet");
     return EnterDropMode();
   }
 
@@ -161,11 +161,11 @@ protozero::ContiguousMemoryRange TraceWriterV2::GetNewBuffer() {
   return {range.begin, range.end};
 }
 
-uint8_t* TraceWriterV2::AnnotatePatch(uint8_t*) {
-  PERFETTO_FATAL("TraceWriterV2 cannot patch previously written bytes");
+uint8_t* TraceWriterV2Impl::AnnotatePatch(uint8_t*) {
+  PERFETTO_FATAL("TraceWriterV2Impl cannot patch previously written bytes");
 }
 
-void TraceWriterV2::ClosePacketFragment(bool continues_on_next) {
+void TraceWriterV2Impl::ClosePacketFragment(bool continues_on_next) {
   if (!fragment_begin_) {
     // The packet went to the drop buffer. The next publication carries
     // kFlagDataLoss, even if it reuses a cached chunk.
@@ -185,7 +185,7 @@ void TraceWriterV2::ClosePacketFragment(bool continues_on_next) {
   }
 }
 
-protozero::ContiguousMemoryRange TraceWriterV2::EnterDropMode() {
+protozero::ContiguousMemoryRange TraceWriterV2Impl::EnterDropMode() {
   fragment_begin_ = nullptr;
 
   if (!in_drop_mode_) {

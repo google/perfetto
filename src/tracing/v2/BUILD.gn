@@ -16,7 +16,7 @@ import("../../../gn/fuzzer.gni")
 import("../../../gn/test.gni")
 
 # The tracing v2 producer-local shared ring buffer: its ABI, writer and reader.
-# TraceWriterV2 and ProtoRewriter handle the ProtoGroup fragment payloads.
+# TraceWriterV2Impl and ProtoRewriter handle the ProtoGroup fragment payloads.
 # Protocol and alternatives: RFC 0046,
 # https://github.com/google/perfetto/discussions/7120.
 # Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
@@ -27,7 +27,7 @@ source_set("v2") {
     "../../../include/perfetto/protozero",
     "../../../include/perfetto/tracing",
 
-    # trace_writer_v2.h holds a protozero RootMessage and a stream writer.
+    # trace_writer_v2_impl.h holds a protozero RootMessage and a stream writer.
     "../../protozero",
   ]
   deps = [
@@ -45,8 +45,8 @@ source_set("v2") {
     "shared_ring_buffer_reader.h",
     "shared_ring_buffer_writer.cc",
     "shared_ring_buffer_writer.h",
-    "trace_writer_v2.cc",
-    "trace_writer_v2.h",
+    "trace_writer_v2_impl.cc",
+    "trace_writer_v2_impl.h",
   ]
 }
 
@@ -68,7 +68,7 @@ perfetto_unittest_source_set("unittests") {
     "shared_ring_buffer_test_utils.h",
     "shared_ring_buffer_unittest.cc",
     "shared_ring_buffer_writer_unittest.cc",
-    "trace_writer_v2_unittest.cc",
+    "trace_writer_v2_impl_unittest.cc",
   ]
 }
 

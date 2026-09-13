@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/v2/trace_writer_v2.h"
+#include "src/tracing/v2/trace_writer_v2_impl.h"
 
 #include <stdint.h>
 
@@ -48,11 +48,8 @@ constexpr WriterID kWriterA = 3;
 constexpr BufferID kBufferA = 11;
 
 // Test stand-in for downstream acknowledgement, without a service.
-class CountingDelegate : public TraceWriterV2::Delegate {
+class CountingDelegate : public TraceWriterV2Impl::Delegate {
  public:
-  explicit CountingDelegate(SharedRingBuffer& ring) : ring_buffer_(ring) {}
-
-  SharedRingBuffer& ring_buffer() override { return ring_buffer_; }
   void NotifyReader() override { ++notifications; }
   void Flush(WriterID, std::function<void()> callback) override {
     ++flushes;
@@ -65,18 +62,12 @@ class CountingDelegate : public TraceWriterV2::Delegate {
   uint32_t notifications = 0;
   uint32_t flushes = 0;
   std::vector<WriterID> destroyed_writers;
-
- private:
-  SharedRingBuffer& ring_buffer_;
 };
 
 // Drains the ring buffer synchronously from the notification to test
 // notification timing deterministic.
-class DrainingDelegate : public TraceWriterV2::Delegate {
+class DrainingDelegate : public TraceWriterV2Impl::Delegate {
  public:
-  explicit DrainingDelegate(SharedRingBuffer& ring) : ring_buffer_(ring) {}
-
-  SharedRingBuffer& ring_buffer() override { return ring_buffer_; }
   void NotifyReader() override {
     ++notifications;
     if (reader)
@@ -90,9 +81,6 @@ class DrainingDelegate : public TraceWriterV2::Delegate {
   void OnWriterDestroyed(WriterID) override {}
   SharedRingBufferReader* reader = nullptr;
   uint32_t notifications = 0;
-
- private:
-  SharedRingBuffer& ring_buffer_;
 };
 
 // Puts the writer's fragments back together into packets and rewrites them to
@@ -169,24 +157,25 @@ struct Fixture {
                    uint32_t chunk_size = 256,
                    BufferExhaustedPolicy policy = BufferExhaustedPolicy::kDrop)
       : ring(num_chunks, chunk_size),
-        delegate(std::make_shared<CountingDelegate>(*ring.get())),
+        delegate(std::make_shared<CountingDelegate>()),
         reader(ring.get(), &reassembler) {
-    TraceWriterV2::InitArgs args;
+    TraceWriterV2Impl::InitArgs args{};
+    args.ring_buffer = ring.get();
     args.delegate = delegate;
     args.writer_id = kWriterA;
     args.target_buffer = kBufferA;
     args.buffer_exhausted_policy = policy;
-    writer = std::make_unique<TraceWriterV2>(args);
+    writer = std::make_unique<TraceWriterV2Impl>(args);
   }
 
   test::SharedRingBufferForTesting ring;
   std::shared_ptr<CountingDelegate> delegate;
   PacketReassembler reassembler;
   SharedRingBufferReader reader;
-  std::unique_ptr<TraceWriterV2> writer;
+  std::unique_ptr<TraceWriterV2Impl> writer;
 };
 
-TEST(TraceWriterV2Test, WritesAPacketThatRewritesToCanonicalProtobuf) {
+TEST(TraceWriterV2ImplTest, WritesAPacketThatRewritesToCanonicalProtobuf) {
   Fixture f;
   {
     auto packet = f.writer->NewTracePacket();
@@ -205,7 +194,7 @@ TEST(TraceWriterV2Test, WritesAPacketThatRewritesToCanonicalProtobuf) {
   EXPECT_GT(f.delegate->notifications, 0u);
 }
 
-TEST(TraceWriterV2Test, MessageHandleDestructionPublishesThePacket) {
+TEST(TraceWriterV2ImplTest, MessageHandleDestructionPublishesThePacket) {
   Fixture f;
   {
     auto packet = f.writer->NewTracePacket();
@@ -220,7 +209,7 @@ TEST(TraceWriterV2Test, MessageHandleDestructionPublishesThePacket) {
   EXPECT_EQ(packets[0].timestamp(), 4242u);
 }
 
-TEST(TraceWriterV2Test, DirectFinalizationThenFlushClosesFragmentOnce) {
+TEST(TraceWriterV2ImplTest, DirectFinalizationThenFlushClosesFragmentOnce) {
   Fixture f;
   {
     auto packet = f.writer->NewTracePacket();
@@ -242,7 +231,7 @@ TEST(TraceWriterV2Test, DirectFinalizationThenFlushClosesFragmentOnce) {
   EXPECT_EQ(f.writer->drop_count(), 0u);
 }
 
-TEST(TraceWriterV2Test, DirectFinalizationThenNewPacket) {
+TEST(TraceWriterV2ImplTest, DirectFinalizationThenNewPacket) {
   Fixture f;
   {
     auto packet = f.writer->NewTracePacket();
@@ -262,7 +251,7 @@ TEST(TraceWriterV2Test, DirectFinalizationThenNewPacket) {
   EXPECT_EQ(f.delegate->notifications, 2u);
 }
 
-TEST(TraceWriterV2Test, RawStreamRequiresExplicitCompletion) {
+TEST(TraceWriterV2ImplTest, RawStreamRequiresExplicitCompletion) {
   Fixture f;
   auto packet = f.writer->NewTracePacket();
   auto* stream = packet.TakeStreamWriter();
@@ -278,19 +267,20 @@ TEST(TraceWriterV2Test, RawStreamRequiresExplicitCompletion) {
   EXPECT_EQ(f.delegate->notifications, 1u);
 }
 
-TEST(TraceWriterV2Test, WrittenIncludesOpenAndDroppedPacketBytes) {
+TEST(TraceWriterV2ImplTest, WrittenIncludesOpenAndDroppedPacketBytes) {
   test::SharedRingBufferForTesting ring(/*num_chunks=*/2, /*chunk_size=*/256);
   ASSERT_EQ(ring->TryReserveWritePos().result,
             SharedRingBuffer::ReserveResult::kReserved);
   ASSERT_EQ(ring->TryReserveWritePos().result,
             SharedRingBuffer::ReserveResult::kReserved);
 
-  TraceWriterV2::InitArgs args;
-  args.delegate = std::make_shared<CountingDelegate>(*ring.get());
+  TraceWriterV2Impl::InitArgs args{};
+  args.ring_buffer = ring.get();
+  args.delegate = std::make_shared<CountingDelegate>();
   args.writer_id = kWriterA;
   args.target_buffer = kBufferA;
   args.buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
-  TraceWriterV2 writer(args);
+  TraceWriterV2Impl writer(args);
 
   EXPECT_EQ(writer.written(), 0u);
   {
@@ -303,7 +293,7 @@ TEST(TraceWriterV2Test, WrittenIncludesOpenAndDroppedPacketBytes) {
   EXPECT_EQ(writer.drop_count(), 1u);
 }
 
-TEST(TraceWriterV2Test, MarksOnlyTheFirstPacketOnSequence) {
+TEST(TraceWriterV2ImplTest, MarksOnlyTheFirstPacketOnSequence) {
   Fixture f;
   for (uint32_t timestamp : {1u, 2u}) {
     auto packet = f.writer->NewTracePacket();
@@ -318,7 +308,7 @@ TEST(TraceWriterV2Test, MarksOnlyTheFirstPacketOnSequence) {
   EXPECT_FALSE(packets[1].first_packet_on_sequence());
 }
 
-TEST(TraceWriterV2Test, NestedMessagesUseThePrivateFramingOnTheWire) {
+TEST(TraceWriterV2ImplTest, NestedMessagesUseThePrivateFramingOnTheWire) {
   Fixture f;
   {
     auto packet = f.writer->NewTracePacket();
@@ -353,7 +343,7 @@ TEST(TraceWriterV2Test, NestedMessagesUseThePrivateFramingOnTheWire) {
   EXPECT_EQ(packets[0].for_testing().payload().str()[1], "second");
 }
 
-TEST(TraceWriterV2Test, PacketSpanningSeveralChunksReconstructsExactly) {
+TEST(TraceWriterV2ImplTest, PacketSpanningSeveralChunksReconstructsExactly) {
   // 256-byte chunks give about 249 payload bytes, so a 2 KiB string has to be
   // split across many of them.
   Fixture f(/*num_chunks=*/64, /*chunk_size=*/256);
@@ -374,7 +364,7 @@ TEST(TraceWriterV2Test, PacketSpanningSeveralChunksReconstructsExactly) {
   EXPECT_GT(f.reader.GetStats().chunks_read, 1u);
 }
 
-TEST(TraceWriterV2Test, FinalizingAPacketCanCrossAChunkBoundary) {
+TEST(TraceWriterV2ImplTest, FinalizingAPacketCanCrossAChunkBoundary) {
   Fixture f(/*num_chunks=*/8, /*chunk_size=*/256);
 
   // An empty chunk holds a 248-byte fragment. The three-byte first-packet
@@ -403,19 +393,20 @@ TEST(TraceWriterV2Test, FinalizingAPacketCanCrossAChunkBoundary) {
 //
 // kDrop deliberately, so that the failure is a wrong answer in milliseconds
 // rather than a 30-second stall.
-TEST(TraceWriterV2Test, PacketLargerThanTheWholeRingSurvives) {
+TEST(TraceWriterV2ImplTest, PacketLargerThanTheWholeRingSurvives) {
   test::SharedRingBufferForTesting ring(/*num_chunks=*/2, /*chunk_size=*/256);
   PacketReassembler reassembler;
   SharedRingBufferReader reader(ring.get(), &reassembler);
-  auto delegate = std::make_shared<DrainingDelegate>(*ring.get());
+  auto delegate = std::make_shared<DrainingDelegate>();
   delegate->reader = &reader;
 
-  TraceWriterV2::InitArgs args;
+  TraceWriterV2Impl::InitArgs args{};
+  args.ring_buffer = ring.get();
   args.delegate = delegate;
   args.writer_id = kWriterA;
   args.target_buffer = kBufferA;
   args.buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
-  TraceWriterV2 writer(args);
+  TraceWriterV2Impl writer(args);
 
   // Two 256-byte chunks hold about 500 payload bytes between them, so this
   // needs about eight traversals of the ring buffer.
@@ -442,11 +433,12 @@ TEST(TraceWriterV2Test, PacketLargerThanTheWholeRingSurvives) {
 // Failed claims leave reservations unclaimed. Notify the reader immediately:
 // - Those positions use capacity shared by all writers.
 // - Keeping this packet open must not delay the reader's progress.
-TEST(TraceWriterV2Test, AnAcquisitionThatBurnedPositionsNotifiesImmediately) {
+TEST(TraceWriterV2ImplTest,
+     AnAcquisitionThatBurnedPositionsNotifiesImmediately) {
   test::SharedRingBufferForTesting ring(/*num_chunks=*/2, /*chunk_size=*/256);
   PacketReassembler reassembler;
   SharedRingBufferReader reader(ring.get(), &reassembler);
-  auto delegate = std::make_shared<CountingDelegate>(*ring.get());
+  auto delegate = std::make_shared<CountingDelegate>();
 
   // Both chunks pinned by a writer that stopped mid-rewrite, so no claim the
   // writer below makes can succeed.
@@ -461,12 +453,13 @@ TEST(TraceWriterV2Test, AnAcquisitionThatBurnedPositionsNotifiesImmediately) {
     ASSERT_TRUE(ring->TryRequestRewrite(chunk_idx, &observed));
   }
 
-  TraceWriterV2::InitArgs args;
+  TraceWriterV2Impl::InitArgs args{};
+  args.ring_buffer = ring.get();
   args.delegate = delegate;
   args.writer_id = kWriterA;
   args.target_buffer = kBufferA;
   args.buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
-  TraceWriterV2 writer(args);
+  TraceWriterV2Impl writer(args);
 
   TraceWriter::TracePacketHandle packet = writer.NewTracePacket();
   packet->set_timestamp(1);
@@ -475,7 +468,7 @@ TEST(TraceWriterV2Test, AnAcquisitionThatBurnedPositionsNotifiesImmediately) {
   EXPECT_GT(ring->LoadWritePosRelaxed(), 0u);
 }
 
-TEST(TraceWriterV2Test, ManySmallPacketsShareChunksAndKeepTheirOrder) {
+TEST(TraceWriterV2ImplTest, ManySmallPacketsShareChunksAndKeepTheirOrder) {
   Fixture f(/*num_chunks=*/64, /*chunk_size=*/512);
   for (uint32_t i = 0; i < 200; ++i) {
     auto packet = f.writer->NewTracePacket();
@@ -492,14 +485,15 @@ TEST(TraceWriterV2Test, ManySmallPacketsShareChunksAndKeepTheirOrder) {
   EXPECT_LT(f.ring->LoadWritePosRelaxed(), 200u);
 }
 
-TEST(TraceWriterV2Test, PacketsFromTwoWritersKeepTheirOwnBuffersAndIds) {
+TEST(TraceWriterV2ImplTest, PacketsFromTwoWritersKeepTheirOwnBuffersAndIds) {
   Fixture f(/*num_chunks=*/16, /*chunk_size=*/256);
-  TraceWriterV2::InitArgs args;
+  TraceWriterV2Impl::InitArgs args{};
+  args.ring_buffer = f.ring.get();
   args.delegate = f.delegate;
   args.writer_id = 9;
   args.target_buffer = 22;
   args.buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
-  TraceWriterV2 other(args);
+  TraceWriterV2Impl other(args);
 
   {
     auto packet = f.writer->NewTracePacket();
@@ -524,7 +518,8 @@ TEST(TraceWriterV2Test, PacketsFromTwoWritersKeepTheirOwnBuffersAndIds) {
 // The reader takes the chunk while a packet is still being written. The writer
 // relocates only the part it had not published, and the packet still comes out
 // once and whole.
-TEST(TraceWriterV2Test, ScrapeDuringAnOpenPacketProducesOneCanonicalPacket) {
+TEST(TraceWriterV2ImplTest,
+     ScrapeDuringAnOpenPacketProducesOneCanonicalPacket) {
   Fixture f(/*num_chunks=*/16, /*chunk_size=*/512);
 
   // Publish the first packet so the reader can copy it from the chunk.
@@ -555,7 +550,7 @@ TEST(TraceWriterV2Test, ScrapeDuringAnOpenPacketProducesOneCanonicalPacket) {
   EXPECT_EQ(packets[1].trusted_packet_sequence_id(), 5u);
 }
 
-TEST(TraceWriterV2Test, DropModeCountsDropsAndReportsTheGapAfterwards) {
+TEST(TraceWriterV2ImplTest, DropModeCountsDropsAndReportsTheGapAfterwards) {
   // Two chunks, both taken by other writers, so this writer gets nothing.
   Fixture f(/*num_chunks=*/2, /*chunk_size=*/256);
   ASSERT_EQ(f.ring->TryReserveWritePos().result,
@@ -595,23 +590,24 @@ TEST(TraceWriterV2Test, DropModeCountsDropsAndReportsTheGapAfterwards) {
   EXPECT_EQ(f.reassembler.data_loss_reports, 1u);
 }
 
-TEST(TraceWriterV2Test, APartiallyDroppedPacketIsNotResumed) {
+TEST(TraceWriterV2ImplTest, APartiallyDroppedPacketIsNotResumed) {
   test::SharedRingBufferForTesting ring(/*num_chunks=*/2, /*chunk_size=*/256);
   PacketReassembler reassembler;
   SharedRingBufferReader reader(ring.get(), &reassembler);
-  auto delegate = std::make_shared<CountingDelegate>(*ring.get());
+  auto delegate = std::make_shared<CountingDelegate>();
 
   ASSERT_EQ(ring->TryReserveWritePos().result,
             SharedRingBuffer::ReserveResult::kReserved);
   ASSERT_EQ(ring->TryReserveWritePos().result,
             SharedRingBuffer::ReserveResult::kReserved);
 
-  TraceWriterV2::InitArgs args;
+  TraceWriterV2Impl::InitArgs args{};
+  args.ring_buffer = ring.get();
   args.delegate = delegate;
   args.writer_id = kWriterA;
   args.target_buffer = kBufferA;
   args.buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;
-  TraceWriterV2 writer(args);
+  TraceWriterV2Impl writer(args);
 
   {
     auto packet = writer.NewTracePacket();
@@ -648,7 +644,7 @@ TEST(TraceWriterV2Test, APartiallyDroppedPacketIsNotResumed) {
   EXPECT_EQ(reassembler.data_loss_reports, 1u);
 }
 
-TEST(TraceWriterV2Test, LossDiscardsPartialPacketsAndOrphanContinuations) {
+TEST(TraceWriterV2ImplTest, LossDiscardsPartialPacketsAndOrphanContinuations) {
   Fixture f(/*num_chunks=*/2, /*chunk_size=*/256);
 
   // Packet 1 fills both chunks and loses its remaining bytes. The reader
@@ -684,7 +680,7 @@ TEST(TraceWriterV2Test, LossDiscardsPartialPacketsAndOrphanContinuations) {
   EXPECT_EQ(f.reassembler.data_loss_reports, 1u);
 }
 
-TEST(TraceWriterV2Test, DropBufferSupportsContiguousStreamReservations) {
+TEST(TraceWriterV2ImplTest, DropBufferSupportsContiguousStreamReservations) {
   Fixture f(/*num_chunks=*/2, /*chunk_size=*/4096);
   ASSERT_EQ(f.ring->TryReserveWritePos().result,
             SharedRingBuffer::ReserveResult::kReserved);
@@ -732,7 +728,7 @@ TEST(TraceWriterV2Test, DropBufferSupportsContiguousStreamReservations) {
   EXPECT_EQ(f.reassembler.data_loss_reports, 1u);
 }
 
-TEST(TraceWriterV2Test, DestructorPublishesTheLastPacket) {
+TEST(TraceWriterV2ImplTest, DestructorPublishesTheLastPacket) {
   Fixture f;
   {
     auto packet = f.writer->NewTracePacket();
@@ -748,7 +744,7 @@ TEST(TraceWriterV2Test, DestructorPublishesTheLastPacket) {
   EXPECT_EQ(packets[0].timestamp(), 77u);
 }
 
-TEST(TraceWriterV2Test, RetainsDelegateUntilDestruction) {
+TEST(TraceWriterV2ImplTest, RetainsDelegateUntilDestruction) {
   Fixture f;
   std::weak_ptr<CountingDelegate> delegate = f.delegate;
   f.delegate.reset();
@@ -768,7 +764,7 @@ TEST(TraceWriterV2Test, RetainsDelegateUntilDestruction) {
   EXPECT_EQ(packets[0].timestamp(), 77u);
 }
 
-TEST(TraceWriterV2Test, FlushIsForwardedToTheDelegate) {
+TEST(TraceWriterV2ImplTest, FlushIsForwardedToTheDelegate) {
   Fixture f;
   bool called = false;
   {
@@ -782,7 +778,7 @@ TEST(TraceWriterV2Test, FlushIsForwardedToTheDelegate) {
 
 #if defined(GTEST_HAS_DEATH_TEST)
 
-TEST(TraceWriterV2DeathTest, RawStreamRemainsUnfinishedWithoutPacketEnd) {
+TEST(TraceWriterV2ImplDeathTest, RawStreamRemainsUnfinishedWithoutPacketEnd) {
   Fixture f;
   auto packet = f.writer->NewTracePacket();
   auto* stream = packet.TakeStreamWriter();
@@ -793,7 +789,7 @@ TEST(TraceWriterV2DeathTest, RawStreamRemainsUnfinishedWithoutPacketEnd) {
   f.writer->FinishTracePacket();
 }
 
-TEST(TraceWriterV2DeathTest, StaleStreamWriteIsDiagnosed) {
+TEST(TraceWriterV2ImplDeathTest, StaleStreamWriteIsDiagnosed) {
   Fixture f;
   auto packet = f.writer->NewTracePacket();
   auto* stream = packet.TakeStreamWriter();
@@ -809,7 +805,7 @@ TEST(TraceWriterV2DeathTest, StaleStreamWriteIsDiagnosed) {
 #endif
 }
 
-TEST(TraceWriterV2DeathTest, NewPacketRequiresThePreviousHandleToClose) {
+TEST(TraceWriterV2ImplDeathTest, NewPacketRequiresThePreviousHandleToClose) {
   Fixture f;
   auto packet = f.writer->NewTracePacket();
   packet->set_timestamp(1);
@@ -817,7 +813,7 @@ TEST(TraceWriterV2DeathTest, NewPacketRequiresThePreviousHandleToClose) {
   EXPECT_DEATH({ f.writer->NewTracePacket(); }, "");
 }
 
-TEST(TraceWriterV2DeathTest, FlushRequiresThePacketHandleToClose) {
+TEST(TraceWriterV2ImplDeathTest, FlushRequiresThePacketHandleToClose) {
   Fixture f;
   auto packet = f.writer->NewTracePacket();
   packet->set_timestamp(1);
