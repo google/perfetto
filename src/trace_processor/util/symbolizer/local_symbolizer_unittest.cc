@@ -58,6 +58,29 @@ TEST(LocalSymbolizerTest, ParseJsonLine) {
   EXPECT_EQ(result[1].line, 20u);
 }
 
+TEST(LocalSymbolizerTest, ParseJsonLineWithError) {
+  std::vector<SymbolizedFrame> result;
+  std::string error;
+  ASSERT_TRUE(ParseLlvmSymbolizerJsonLine(
+      "{\"Address\":\"0x0\",\"Error\":{\"Message\":\"No such file or "
+      "directory\"},\"ModuleName\":\"/nonexistent\"}",
+      &result, &error));
+  EXPECT_TRUE(result.empty());
+  EXPECT_EQ(error, "No such file or directory");
+}
+
+TEST(LocalSymbolizerTest, ProbeFailsIfSymbolizerCannotBeRun) {
+  LLVMSymbolizerProcess process("/nonexistent/llvm-symbolizer");
+  EXPECT_FALSE(process.Probe());
+}
+
+TEST(LocalSymbolizerTest, SymbolizeFailsGracefullyIfSymbolizerCannotBeRun) {
+  LLVMSymbolizerProcess process("/nonexistent/llvm-symbolizer");
+  for (int i = 0; i < 3; i++) {
+    EXPECT_TRUE(process.Symbolize("/nonexistent", 0x1000).empty());
+  }
+}
+
 // Creates a very simple ELF file content with the first 20 bytes of `build_id`
 // as build id (if build id is shorter the remainin bytes are zero).
 std::string CreateElfWithBuildId(const std::string& build_id) {

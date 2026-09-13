@@ -43,11 +43,11 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
     PERFETTO_CHECK(dup2(*output_pipe_.wr, STDOUT_FILENO) != -1);
     input_pipe_.wr.reset();
     output_pipe_.rd.reset();
-    if (execvp(file.c_str(), c_str_args.data()) == -1)
-      PERFETTO_FATAL("Failed to exec %s", file.c_str());
+    execvp(file.c_str(), c_str_args.data());
+    _exit(127);
   }
   PERFETTO_CHECK(pid_ != -1);
-  input_pipe_.rd.reset();
+  // Keep input_pipe_.rd open to avoid SIGPIPE if the process exits.
   output_pipe_.wr.reset();
 }
 
@@ -70,7 +70,13 @@ int64_t Subprocess::Read(char* buffer, size_t size) {
   if (!output_pipe_.rd) {
     return -1;
   }
-  return PERFETTO_EINTR(read(output_pipe_.rd.get(), buffer, size));
+  int64_t res = PERFETTO_EINTR(read(output_pipe_.rd.get(), buffer, size));
+  if (res == 0) {
+    // The process exited: stop writes, which could otherwise block forever.
+    input_pipe_.wr.reset();
+    input_pipe_.rd.reset();
+  }
+  return res;
 }
 
 }  // namespace profiling

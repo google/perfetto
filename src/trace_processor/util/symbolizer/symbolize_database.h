@@ -111,6 +111,8 @@ struct SymbolizerResult {
   // Callers can use this to decide what/how to log based on whether
   // paths were explicit or speculative.
   std::vector<FailedMapping> failed_mappings;
+
+  bool llvm_symbolizer_unavailable = false;
 };
 
 // Performs native symbolization on a trace.
