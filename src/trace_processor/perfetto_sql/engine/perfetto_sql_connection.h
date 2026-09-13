@@ -39,10 +39,12 @@
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
+#include "src/trace_processor/perfetto_sql/engine/pipeline_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
@@ -452,12 +454,16 @@ class PerfettoSqlConnection {
                               const PerfettoSqlParser& parser);
 
   // Creates a runtime table and registers it with SQLite.
-  base::Status ExecuteCreateTable(
-      const PerfettoSqlParser::CreateTable& create_table);
+  base::Status ExecuteCreateTable(PerfettoSqlParser::CreateTable create_table,
+                                  const SqlSource& statement_sql);
 
   base::Status ExecuteCreateView(const PerfettoSqlParser::CreateView&);
 
   base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
+
+  base::StatusOr<SqliteConnection::PreparedStatement> PreparePipeline(
+      pipeline::LogicalPlan,
+      const SqlSource&);
 
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
 
@@ -573,6 +579,7 @@ class PerfettoSqlConnection {
   // context class of the module inherits from ModuleStateManagerBase.
   std::vector<sqlite::ModuleStateManagerBase*> virtual_module_state_managers_;
 
+  PipelineModule::Context* pipeline_context_ = nullptr;
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
