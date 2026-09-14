@@ -25,6 +25,8 @@
     - [Analyzing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
     - [Viewing CPU Profiles](getting-started/viewing-cpu-profiles.md) {.tag-android .tag-linux .tag-cpp-rust .tag-performance}
     - [Taking ART Heap Dumps](how-to/art-heap-dump.md) {.tag-android}
+    - [Choosing How to Record](how-to/choose-how-to-record.md) {.tag-android .tag-linux}
+    - [Choosing a Profiler](how-to/choose-a-profiler.md) {.tag-android .tag-linux .tag-performance}
     - [Analyzing Traces from the Command Line](getting-started/command-line-analysis.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-performance}
     - [Tracing on Linux](getting-started/linux-cookbook.md) {.tag-linux}
     - [Capturing Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
