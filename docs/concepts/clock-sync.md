@@ -12,7 +12,7 @@ the trace.
 
 ## Problem statement
 
-In a complex multi-producer scenario, different data source can emit events
+In a complex multi-producer scenario, different data sources can emit events
 using different clock domains.
 
 Some examples:
@@ -52,10 +52,9 @@ message TracePacket {
 
 ```
 
-This (optional) field determines the clock domain for the packet.
-If omitted it refers to the default clock domain of the trace
-(`CLOCK_BOOTTIME` for Linux/Android).
-It present, this field can be set to either:
+This (optional) field determines the clock domain for the packet. If omitted it
+refers to the default clock domain of the trace (`CLOCK_BOOTTIME` for
+Linux/Android). If present, this field can be set to either:
 
 * One of the [builtin clocks defined in clock_snapshot.proto][builtin_clocks]
   (e.g., `CLOCK_BOOTTIME`, `CLOCK_REALTIME`, `CLOCK_MONOTONIC`). These clocks
@@ -64,11 +63,10 @@ It present, this field can be set to either:
 * A custom globally-scoped clock, with 128 <= ID < 2**32
 
 #### Builtin clocks
-Builtin clocks cover the most common case of data sources using one of the
-POSIX clocks (see `man clock_gettime`). These clocks are periodically
-snapshotted by the `traced` service. The producer doesn't need to do anything
-other than set the `timestamp_clock_id` field in order to emit events
-that use these clocks.
+Builtin clocks cover the most common case of data sources using one of the POSIX
+clocks (see `man clock_gettime`). These clocks are periodically snapshotted by
+the `traced` service. The producer doesn't need to do anything other than set
+the `timestamp_clock_id` field to emit events that use these clocks.
 
 #### Sequence-scoped clocks
 Sequence-scoped clocks are application-defined clock domains that are valid only
@@ -78,12 +76,10 @@ In most cases this really means *"events emitted by the same data source on
 the same thread"*.
 
 This covers the most common use case of a clock domain that is used only within
-a data source and not shared across different data sources.
-The main advantage of sequence-scoped clocks is that avoids the ID
-disambiguation problem and JustWorks&trade; for the most simple case.
+a data source and not shared across different data sources. Sequence-scoped
+clocks avoid the need to disambiguate IDs in this case.
 
-In order to make use of a custom sequence-scoped clock domain a data source
-must:
+To use a custom sequence-scoped clock domain, a data source must:
 
 * Emit its packets with a `timestamp_clock_id` in the range [64, 127]
 * Emit at least once a [`ClockSnapshot`][clock_snapshot] packet.
@@ -116,10 +112,10 @@ different data sources unaware of each other.
 As such, it is **strongly discouraged** to just use the ID 128 (or any other
 arbitrarily chosen value). Instead the recommended pattern is:
 
-* Chose a fully qualified name for the clock domain
-  (e.g. `com.example.my_subsystem`)
-* Chose the clock ID as `HASH("com.example.my_subsystem") | 0x80000000`
-  where `HASH(x)` is the FNV-1a hash of the fully qualified clock domain name.
+* Choose a fully qualified name for the clock domain (e.g.
+  `com.example.my_subsystem`)
+* Choose the clock ID as `HASH("com.example.my_subsystem") | 0x80000000` where
+  `HASH(x)` is the FNV-1a hash of the fully qualified clock domain name.
 
 ### {#clock_snapshot} The ClockSnapshot trace packet
 
@@ -127,9 +123,9 @@ The [`ClockSnapshot`][clock_snapshot] packet defines sync points between two or
 more clock domains. It conveys the notion *"at this point in time, the timestamp
 of the clock domains X,Y,Z was 1000, 2000, 3000."*.
 
-The trace importer ([Trace Processor](/docs/analysis/trace-processor.md)) uses this
-information to establish a mapping between these clock domain. For instance,
-to realize that 1042 on clock domain X == 3042 on clock domain Z.
+The trace importer ([Trace Processor](/docs/analysis/trace-processor.md)) uses
+this information to establish a mapping between these clock domains. For
+instance, 1042 on clock domain X == 3042 on clock domain Z.
 
 The `traced` service automatically emits `ClockSnapshot` packets for the builtin
 clock domains on a regular basis.
@@ -137,10 +133,10 @@ clock domains on a regular basis.
 A data source should emit `ClockSnapshot` packets only when using custom clock
 domains, either sequence-scoped or globally-scoped.
 
-It is *not* mandatory that the `ClockSnapshot` for a custom clock domain
-contains also a snapshot of `CLOCK_BOOTTIME` (although it is advisable to do
-so when possible). The Trace Processor can deal with multi-path clock domain
-resolution based on graph traversal (see the [Operation](#operation) section).
+It is *not* mandatory that the `ClockSnapshot` for a custom clock domain also
+contain a snapshot of `CLOCK_BOOTTIME` (although it is advisable to do so when
+possible). The Trace Processor can deal with multi-path clock domain resolution
+based on graph traversal (see the [Operation](#operation) section).
 
 ## Operation
 
@@ -174,8 +170,8 @@ one specified by the `timestamp_clock_id` field) and the target clock domain
 (i.e. the trace time, `CLOCK_BOTTIME`) are snapshotted within the same
 `ClockSnapshot` packets.
 
-Clock domain conversion is possible also in more complex scenarios where the
-two domains are not directly connected, as long as a path exist between the two.
+Clock domain conversion is possible also in more complex scenarios where the two
+domains are not directly connected, as long as a path exists between the two.
 
 In this sense `ClockSnapshot` packets define edges of an acyclic graph that is
 queried to perform clock domain conversions. All types of clock domains can be
@@ -188,7 +184,7 @@ In the more general case, the clock domain conversion logic operates as follows:
 * For each clock domain of the path identified, the timestamp is converted using
   the aforementioned nearest neighbor resolution.
 
-This allows to deal with complex scenarios as follows:
+This handles more complex scenarios, such as:
 
 ```python
 CUSTOM_CLOCK        1000                 3000
@@ -200,7 +196,7 @@ In the example above, there is no snapshot that directly links `CUSTOM_CLOCK`
 and `CLOCK_BOOTTIME`. However there is an indirect path that allows a conversion
 via `CUSTOM_CLOCK -> CLOCK_MONOTONIC -> CLOCK_BOOTTIME`.
 
-This allows to synchronize a hypothetical `TracePacket` that has
+This lets Perfetto synchronize a hypothetical `TracePacket` that has
 `timestamp_clock_id=CUSTOM_CLOCK` and `timestamp=3503` as follows:
 
 ```python
@@ -230,10 +226,10 @@ real-time clock jumps back from 3AM to 2AM.
 Such a trace would contain several snapshots that break bijectivity between the
 two clock domains. In this case converting a `CLOCK_BOOTTIME` timestamp to
 `CLOCK_REALTIME` is always possible without ambiguities (eventually two distinct
-timestamps can be resolved against the same `CLOCK_REALTIME` timestamp).
-The opposite is not allowed, because `CLOCK_REALTIME` timestamps between 2AM
-and 3AM are ambiguous and could be resolved against two different
-`CLOCK_BOOTTIME` timestamps).
+timestamps can be resolved against the same `CLOCK_REALTIME` timestamp). The
+opposite is not allowed, because `CLOCK_REALTIME` timestamps between 2AM and 3AM
+are ambiguous and could be resolved against two different `CLOCK_BOOTTIME`
+timestamps.
 
 ## Clocks across traces and machines
 

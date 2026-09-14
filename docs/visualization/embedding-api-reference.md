@@ -1,15 +1,15 @@
 # Perfetto UI embedding API reference
 
-This page is a reference for the `postMessage` and URL parameter surface used to
-embed the Perfetto UI (`ui.perfetto.dev`) inside an `<iframe>` on a host page.
+This page describes the `postMessage` API and URL parameters for embedding the
+Perfetto UI (`ui.perfetto.dev`) inside an `<iframe>` on a host page.
 
 For a task-oriented walkthrough of the embedding flow, see
 [Embedding the Perfetto UI](/docs/visualization/embedding-the-ui.md). For the
 `window.open()` (new browser tab) variant and for sharing / `appStateHash`
 details, see [Deep linking to the Perfetto UI](/docs/visualization/deep-linking-to-perfetto-ui.md).
 
-NOTE: This is a reference, not a tutorial. Fields and message types not listed
-here are not part of the supported surface.
+NOTE: Fields and message types not listed here are not part of the supported
+API.
 
 ## Message channel
 
@@ -35,11 +35,11 @@ trace:
 3. The host listens for `'message'` events; on the first `data === 'PONG'` from
    the UI window it stops pinging and posts the trace.
 
-A robust host pings on an interval (for example every 50-250ms) and clears the
+Have the host ping at an interval (for example every 50-250ms) and clear the
 interval on the first `PONG`.
 
-A message with `{perfettoIgnore: true}` is ignored on purpose. This lets a host
-multiplex other traffic over the same channel.
+The UI ignores messages with `{perfettoIgnore: true}`, so the host can send
+other traffic over the same channel.
 
 ## Opening a trace
 
@@ -101,7 +101,7 @@ iframe.contentWindow.postMessage(
 | `viewPercentage` | `number` | No       | Fraction of the viewport the range should fill, in `(0.0, 1.0]`. Out-of-range values are ignored and replaced by `0.5`. |
 
 The handler retries internally (roughly 20 times at 200ms intervals) until the
-trace is ready, so this message can be posted shortly after the trace without
+trace is ready. You can post this message shortly after the trace without
 waiting for an explicit "loaded" signal.
 
 ## String commands

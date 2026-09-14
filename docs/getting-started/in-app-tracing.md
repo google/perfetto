@@ -19,11 +19,11 @@ Download `perfetto-cpp-sdk-src.zip` from the latest Perfetto release at
 https://github.com/google/perfetto/releases/latest and extract it.
 
 The SDK consists of two files, `perfetto.h` and `perfetto.cc`. These are an
-amalgamation of the Client API designed to easy to integrate to existing build
+amalgamation of the Client API designed to integrate with existing build
 systems. The sources are self-contained and require only a C++17 compliant
 standard library.
 
-Copy them in your project. The next steps assume they're in the `perfetto/sdk`
+Copy them into your project. The next steps assume they're in the `perfetto/sdk`
 folder. Assuming your build looks like this:
 
 <?tabs>
@@ -252,7 +252,7 @@ directly in the UI.
 
     ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
 
-3.  You can then execute queries Ctrl/Cmd + Enter:
+3.  Execute queries with Ctrl/Cmd + Enter:
 
 For example, by running:
 
@@ -280,11 +280,8 @@ WHERE name = 'Framerate';
 
 ## Combined In-App and System Tracing
 
-While in-app tracing is useful for understanding your application's behavior in
-isolation, its real power comes from combining it with a system-wide trace. This
-allows you to see how your app's events correlate with system events like CPU
-scheduling, memory usage, and I/O, providing a complete picture of your app's
-performance in the context of the entire system.
+Combining in-app tracing with a system-wide trace lets you see how your app's
+events correlate with system events like CPU scheduling, memory usage, and I/O.
 
 To enable combined tracing, you need to change your application to connect to
 the system-wide tracing service and then use the standard system tracing tools
@@ -351,7 +348,7 @@ to record a trace.
 Now that you've recorded your first in-app trace, you can learn more about
 instrumenting your code:
 
-- **[Tracing SDK](/docs/instrumentation/tracing-sdk.md)**: A deep dive into the
-  SDK's features.
+- **[Tracing SDK](/docs/instrumentation/tracing-sdk.md)**: Details of the SDK's
+  features.
 - **[Track Events](/docs/instrumentation/track-events.md)**: Learn more about
   the different types of track events and how to use them.

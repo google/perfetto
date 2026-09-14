@@ -2,17 +2,17 @@
 
 NOTE: **FrameTimeline requires Android 12(S) or higher**
 
-A frame is said to be janky if the time the frame was presented on screen does
-not match the predicted present time given by the scheduler.
+A frame is janky if its on-screen presentation time does not match the time
+predicted by the scheduler.
 
-A jank can cause:
+Jank can cause:
 * Unstable frame rate
 * Increased latency
 
 FrameTimeline is a module within SurfaceFlinger that detects janks and reports
 the source of the jank.
 [SurfaceViews](https://developer.android.com/reference/android/view/SurfaceView)
-are currently **not supported**, but will be, in future.
+are currently **not supported**, but will be in the future.
 
 ## UI
 
@@ -64,21 +64,21 @@ These include:
 
 * **Present Type**
 
-Was the frame early, on time or late.
+Was the frame early, on time, or late?
 * **On time finish**
 
 Did the application finish its work for the frame on time?
 * **Jank Type**
 
-Was there a jank observed with this frame? If yes, this shows what type of jank
-was observed. If not, the type would be **None**.
+If the frame was janky, this shows the type of jank. Otherwise, it shows
+**None**.
 * **Prediction type**
 
 Did the prediction expire by the time this frame was received by FrameTimeline?
 If yes, this will say **Expired Prediction**. If not, **Valid Prediction**.
 * **GPU Composition**
 
-Boolean that tells if the frame was composited by the GPU or not.
+A boolean indicating whether the GPU composited the frame.
 * **Layer Name**
 
 Name of the Layer/Surface to which the frame was presented. Some processes
@@ -87,7 +87,7 @@ will be shown in the Actual Timeline. Layer Name can be a good way to
 disambiguate between these slices.
 * **Is Buffer?**
 
-Boolean that tells if the frame corresponds to a buffer or an animation.
+A boolean indicating whether the frame corresponds to a buffer or an animation.
 
 ### Flow events
 
@@ -125,7 +125,7 @@ SurfaceFlinger was janky.
 
 ### None
 
-All good. No jank with the frame. The ideal state that should be aimed for.
+No jank was observed for the frame.
 
 ### App janks
 
@@ -134,8 +134,8 @@ All good. No jank with the frame. The ideal state that should be aimed for.
 The app ran longer than expected causing a jank. The total time taken by the app
 frame is calculated by using the choreographer wake-up as the start time and
 max(gpu, post time) as the end time. Post time is the time the frame was sent to
-SurfaceFlinger. Since the GPU usually runs in parallel, it could be that the gpu
-finished later than the post time.
+SurfaceFlinger. Since the GPU usually runs in parallel, the GPU could finish
+later than the post time.
 
 * **BufferStuffing**
 
@@ -155,14 +155,13 @@ latency associated with the late present.
 ### SurfaceFlinger Janks
 
 There are two ways SurfaceFlinger can composite frames.
-* Device Composition - uses a dedicated hardware
+* Device Composition - uses dedicated hardware
 * GPU/Client composition - uses GPU to composite
 
-An important thing to note is that performing device composition happens as a
-blocking call on the main thread. However, GPU composition happens in parallel.
-SurfaceFlinger performs the necessary draw calls and then hands over the gpu
-fence to the display device. The display device then waits for the fence to be
-signaled, and then presents the frame.
+Device composition is a blocking call on the main thread. GPU composition
+happens in parallel. SurfaceFlinger performs the necessary draw calls and then
+hands over the GPU fence to the display device. The display device then waits
+for the fence to be signaled, then presents the frame.
 
 * **SurfaceFlingerCpuDeadlineMissed**
 
@@ -210,7 +209,7 @@ of such a jank happening is very low but not impossible.
 
 ## SQL
 
-At the SQL level, frametimeline data is available in two tables
+FrameTimeline data is available in two SQL tables:
 * [`expected_frame_timeline_slice`](/docs/analysis/sql-tables.autogen#expected_frame_timeline_slice)
 * [`actual_frame_timeline_slice`](/docs/analysis/sql-tables.autogen#actual_frame_timeline_slice)
 
@@ -267,4 +266,3 @@ data_sources {
     }
 }
 ```
-

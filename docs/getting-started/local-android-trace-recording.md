@@ -1,7 +1,7 @@
 # Cookbook: Recording Android Traces Locally
 
-This page collects **end-to-end recipes** for recording Perfetto traces on
-Android in situations that the standard interactive workflow does not cover.
+This page provides recipes for recording Perfetto traces on Android in
+situations that the standard interactive workflow does not cover.
 
 - [Tracing Android boot](#boot-tracing): record a trace covering the boot
   sequence, which you cannot start by hand while the device is booting.
@@ -12,7 +12,7 @@ The recipes assume a host with `adb` access to the device. Each recipe is
 self-contained: copy the config and commands as they are, then adjust the
 highlighted parameters. If you have never recorded a trace before, start with
 the [system tracing tutorial](/docs/getting-started/system-tracing.md). For the
-full reference on each topic, follow the links into the deeper guides:
+full reference on each topic, see:
 
 - [Trace configuration](/docs/concepts/config.md)
 - [ART heap dumps](/docs/data-sources/java-heap-profiler.md)
@@ -113,7 +113,7 @@ The file is removed before a new boot trace starts, so pull it before arming
 the next one.
 
 **6. View it.** Open `boottrace.perfetto-trace` in the
-[Perfetto UI](https://ui.perfetto.dev). To dig into the data with SQL, see the
+[Perfetto UI](https://ui.perfetto.dev). To analyze the data with SQL, see the
 [Android trace analysis cookbook](/docs/getting-started/android-trace-analysis.md).
 
 ### How early in boot does the trace start?

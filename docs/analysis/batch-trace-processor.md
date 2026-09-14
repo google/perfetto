@@ -18,7 +18,7 @@ pip3 install perfetto
 NOTE: if you are a Googler, have a look at
 [go/perfetto-btp-load-internal](http://goto.corp.google.com/perfetto-btp-load-internal) for how to load traces from Google-internal sources.
 
-The simplest way to load traces in is by passing a list of file paths to load:
+To load traces, pass a list of file paths:
 ```python
 from perfetto.batch_trace_processor.api import BatchTraceProcessor
 
@@ -44,9 +44,8 @@ with BatchTraceProcessor(files) as btp:
 NOTE: loading too many traces can cause out-of-memory issues: see
 [this](/docs/analysis/batch-trace-processor#memory-usage) section for details.
 
-A common requirement is to load traces located in the cloud or by sending
-a request to a server. To support this usecase, traces can also be loaded
-using [trace URIs](/docs/analysis/batch-trace-processor#trace-uris):
+To load traces from cloud storage or a server, use
+[trace URIs](/docs/analysis/batch-trace-processor#trace-uris):
 ```python
 from perfetto.batch_trace_processor.api import BatchTraceProcessor
 from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
@@ -79,9 +78,8 @@ For example, to get a count of the number of userspace slices:
 The return value of `query` is a list of [Pandas](https://pandas.pydata.org/)
 dataframes, one for each trace loaded.
 
-A common requirement is for all of the traces to be flattened into a
-single dataframe instead of getting one dataframe per-trace. To support this,
-the `query_and_flatten` function can be used:
+To combine results from all traces into a single dataframe, use
+`query_and_flatten`:
 ```python
 >>> btp.query_and_flatten('select count(1) from slice')
   count(1)
@@ -136,12 +134,11 @@ shape: (3, 1)
 ```
 
 ## Trace URIs
-Trace URIs are a powerful feature of the batch trace processor. URIs decouple
-the notion of "paths" to traces from the filesystem. Instead, the URI
-describes *how* a trace should be fetched (i.e. by sending a HTTP request
-to a server, from cloud storage etc).
+Trace URIs describe *how* to fetch a trace, rather than where it lives in the
+filesystem. For example, a URI can specify an HTTP request to a server or a
+location in cloud storage.
 
-The syntax of trace URIs are similar to web
+The syntax of trace URIs is similar to web
 [URLs](https://en.wikipedia.org/wiki/URL). Formally a trace URI has the
 structure:
 ```
@@ -156,37 +153,33 @@ would indicate that traces should be fetched using the protocol `gcs`
 ([Google Cloud Storage](https://cloud.google.com/storage)) with traces
 located at bucket `foo` and path `bar` in the bucket.
 
-NOTE: the `gcs` resolver is *not* actually included: it's simply given as its
-an easy to understand example.
+NOTE: The `gcs` resolver is *not* included; it is used here as an example.
 
-URIs are only a part of the puzzle: ultimately batch trace processor still needs
-the bytes of the traces to be able to parse and query them. The job of
-converting URIs to trace bytes is left to *resolvers* - Python
-classes associated to each *protocol* and use the key-value pairs in the URI
-to lookup the traces to be parsed.
+Batch Trace Processor uses *resolvers* to convert URIs to trace bytes for
+parsing and querying. Resolvers are Python classes associated with each
+*protocol*. They use the key-value pairs in the URI to look up traces.
 
-By default, batch trace processor only ships with a single resolver which knows
-how to lookup filesystem paths: however, custom resolvers can be easily
-created and registered. See the documentation on the
+By default, Batch Trace Processor ships with a single resolver for filesystem
+paths. You can also create and register custom resolvers. See the documentation
+on the
 [TraceUriResolver class](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/python/perfetto/trace_uri_resolver/resolver.py;l=56?q=resolver.py)
 for information on how to do this.
 
 ## Memory usage
-Memory usage is a very important thing to pay attention to working with batch
-trace processor. Every trace loaded lives fully in memory: this is magic behind
-making queries fast (<1s) even on hundreds of traces.
+Every loaded trace lives fully in memory, allowing fast queries (<1s) even on
+hundreds of traces.
 
-This also means that the number of traces you can load is heavily limited by
-the amount of memory available available. As a rule of thumb, if your
-average trace size is S and you are trying to load N traces, you will have
-2 * S * N memory usage. Note that this can vary significantly based on the
-exact contents and sizes of your trace.
+This also means that the number of traces you can load is heavily limited by the
+amount of available memory. As a rule of thumb, if your average trace size is S
+and you are trying to load N traces, you will have 2 * S * N memory usage. Note
+that this can vary significantly based on the exact contents and sizes of your
+trace.
 
 ## Advanced features
 ### Sharing computations between TP and BTP
-Sometimes it can be useful to parameterise code to work with either trace
-processor or batch trace processor. `execute` or `execute_and_flatten`
-can be used for this purpose:
+Sometimes it can be useful to parameterize code to work with either trace
+processor or batch trace processor. `execute` or `execute_and_flatten` can be
+used for this purpose:
 ```python
 def some_complex_calculation(tp):
   res = tp.query('...').as_pandas_dataframe()

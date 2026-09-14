@@ -1,8 +1,8 @@
 # Deep linking to the Perfetto UI
 
 This document describes how to open traces hosted on external servers with the
-Perfetto UI. This can help integrating the Perfetto UI with custom dashboards
-and implement _'Open with Perfetto UI'_-like features.
+Perfetto UI. Use this to integrate the Perfetto UI with custom dashboards and
+implement features like _'Open with Perfetto UI'_.
 
 In this guide, you'll learn how to:
 
@@ -178,7 +178,7 @@ allow popups for the site. This usually happens if:
 - Too much time passes between the user gesture and the `window.open()`.
 
 If the trace file is big enough, the `fetch()` might take long enough to exceed
-the user gesture threshold. This can be detected by observing that
+the user gesture threshold. You can detect this by checking whether
 `window.open()` returned `null`. When this happens, the best option is to show
 another clickable element and bind the fetched trace ArrayBuffer to the new
 onclick handler, like the code in the example above does.
@@ -204,9 +204,8 @@ not added to the browser cache.
 
 ## Customizing the UI with URL parameters
 
-Beyond just opening a trace, you can control the initial UI state using URL
-fragment parameters. These work with both Option 1 (direct URL) and Option 2
-(postMessage).
+You can control the initial UI state using URL fragment parameters. These work
+with both Option 1 (direct URL) and Option 2 (postMessage).
 
 ### Zooming into a region of the trace
 

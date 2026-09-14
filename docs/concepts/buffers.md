@@ -1,8 +1,7 @@
 # Buffers and dataflow
 
-This page describes the dataflow in Perfetto when recording traces. It describes
-all the buffering stages, explains how to size the buffers and how to debug
-data losses.
+This page describes how trace data flows through Perfetto's buffers, how to size
+them, and how to debug data loss.
 
 ## Concepts
 
@@ -17,10 +16,10 @@ The design principles of the tracing dataflow are:
   reading.
 * Trace data is eventually committed in the central trace buffer by the end
   of the trace or when explicit flush requests are issued via the IPC channel.
-* Producers are untrusted and should not be able to see each-other's trace data,
+* Producers are untrusted and should not be able to see each other's trace data,
   as that would leak sensitive information.
 
-In the general case, there are two types buffers involved in a trace. When
+In the general case, there are two types of buffers involved in a trace. When
 pulling data from the Linux kernel's ftrace infrastructure, there is a third
 stage of buffering (one per-CPU) involved:
 
@@ -76,7 +75,7 @@ between two ftrace read cycles (`TraceConfig.FtraceConfig.drain_period_ms`).
 
 Here is a summary to understand the dataflow of trace packets across buffers.
 Consider the case of a producer process hosting two data sources writing packets
-at a different rates, both targeting the same central buffer.
+at different rates, both targeting the same central buffer.
 
 1. When each data source starts writing, it will grab a free page of the shared
    memory buffer and directly serialize proto-encoded tracing data onto it.
@@ -92,7 +91,7 @@ at a different rates, both targeting the same central buffer.
 
 4. When the tracing session ends, the service sends a `Flush` request to all
    data sources. In reaction to this, data sources will commit all outstanding
-   shared memory pages, even if not completely full. The services copies these
+   shared memory pages, even if not completely full. The service copies these
    pages into the service's central buffer.
 
 ![Dataflow animation](/docs/images/dataflow.svg)
@@ -101,19 +100,18 @@ at a different rates, both targeting the same central buffer.
 
 #### Central buffer sizing
 
-The math for sizing the central buffer is quite straightforward: in the default
-case of tracing without `write_into_file` (when the trace file is written only
-at the end of the trace), the buffer will hold as much data as it has been
-written by the various data sources.
+When tracing without `write_into_file` (the default), the trace file is written
+only at the end of the trace. Until then, the central buffer holds the data
+written by the data sources.
 
 The total length of the trace will be `(buffer size) / (aggregated write rate)`.
 If all producers write at a combined rate of 2 MB/s, a 16 MB buffer will hold
 ~ 8 seconds of tracing data.
 
-The write rate is highly dependent on the data sources configured and by the
+The write rate is highly dependent on the data sources configured and the
 activity of the system. 1-2 MB/s is a typical figure on Android traces with
-scheduler tracing, but can go up easily by 1+ orders of magnitude if chattier
-data sources are enabled (e.g., syscall or pagefault tracing).
+scheduler tracing, but can increase by 1+ orders of magnitude if chattier data
+sources are enabled (e.g., syscall or pagefault tracing).
 
 When using [streaming mode] the buffer needs to be able to hold enough data
 between two `file_write_period_ms` periods (default: 5s).
@@ -129,22 +127,23 @@ The sizing of the shared memory buffer depends on:
  the kernel configuration and nice-ness level of the `traced` process.
 * The max write rate of all data sources within a producer process.
 
-Suppose that a producer produce at a max rate of 8 MB/s. If `traced` gets
-blocked for 10 ms, the shared memory buffer need to be at least 8 * 0.01 = 80 KB
-to avoid losses.
+Suppose a producer writes at a maximum rate of 8 MB/s. If `traced` gets blocked
+for 10 ms, the shared memory buffer needs to be at least 8 * 0.01 = 80 KB to
+avoid losses.
 
 Empirical measurements suggest that on most Android systems a shared memory
 buffer size of 128-512 KB is good enough.
 
 The default shared memory buffer size is 256 KB. When using the Perfetto Client
-Library, this value can be tweaked setting `TracingInitArgs.shmem_size_hint_kb`.
+Library, you can adjust this value by setting
+`TracingInitArgs.shmem_size_hint_kb`.
 
 WARNING: if a data source writes very large trace packets in a single batch,
 either the shared memory buffer needs to be big enough to handle that or
 `BufferExhaustedPolicy.kStall` must be employed.
 
-For instance, consider a data source that emits a 2MB screenshot every 10s.
-Its (simplified) code, would look like:
+For instance, consider a data source that emits a 2MB screenshot every 10s. Its
+simplified code would look like:
 ```c++
 for (;;) {
   ScreenshotDataSource::Trace([](ScreenshotDataSource::TraceContext ctx) {
@@ -161,7 +160,7 @@ tracing serialization overhead. In practice, it will write the 2MB buffer at
 O(GB/s). If the shared memory buffer is < 2 MB, the tracing service will be
 unlikely to catch up at that rate and data losses will be experienced.
 
-In a case like this these options are:
+In a case like this, the options are:
 
 * Increase the size of the shared memory buffer in the producer that hosts the
   data source.
@@ -189,8 +188,8 @@ At the trace proto level, losses in this path are recorded:
 * In the [`FtraceCpuStats`][FtraceCpuStats] messages, emitted both at the
   beginning and end of the trace. If the `overrun` field is non-zero, data has
   been lost.
-* In the [`FtraceEventBundle.lost_events`][FtraceEventBundle] field. This allows
-  to locate precisely the point where data loss happened.
+* In the [`FtraceEventBundle.lost_events`][FtraceEventBundle] field. This
+  identifies the precise point where data loss happened.
 
 At the TraceProcessor SQL level, this data is available in the `stats` table:
 
@@ -208,9 +207,8 @@ ftrace_cpu_overrun_e                    6 info                 trace       0
 ftrace_cpu_overrun_e                    7 info                 trace       0
 ```
 
-These losses can be mitigated either increasing
-[`TraceConfig.FtraceConfig.buffer_size_kb`][FtraceConfig]
- or decreasing 
+You can mitigate these losses by increasing
+[`TraceConfig.FtraceConfig.buffer_size_kb`][FtraceConfig] or decreasing
 [`TraceConfig.FtraceConfig.drain_period_ms`][FtraceConfig]
 
 #### Shared memory losses
@@ -299,8 +297,8 @@ typically create one TraceWriter per thread.
   the opposite order.
 
 * Trace packets are atomic. If a trace packet is emitted in the trace file, it
-  is guaranteed to be contain all the fields that the data source wrote. If a
-  trace packet is large and spans across several shared memory buffer pages, the
+  is guaranteed to contain all the fields that the data source wrote. If a trace
+  packet is large and spans across several shared memory buffer pages, the
   service will save it in the trace file only if it can observe that all
   fragments have been committed without gaps.
 
@@ -341,19 +339,19 @@ Here are two concrete examples:
     timestamp: 95054977528943; sched_switch: prev_pid: 610 prev_prio: 98
     ```
   The /proc entry is emitted only once per process to avoid bloating the size of
-  the trace. In lack of data losses this is fine to be able to reconstruct all
-  scheduling events for that pid. If, however, the process_stats packet gets
-  dropped in the ring buffer, there will be no way left to work out the process
-  details for all the other ftrace events that refer to that PID.
+  the trace. Without data loss, this is enough to reconstruct all scheduling
+  events for that pid. If, however, the process_stats packet gets dropped in the
+  ring buffer, there will be no way left to work out the process details for all
+  the other ftrace events that refer to that PID.
 
 2. The [Track Event library](/docs/instrumentation/track-events) in the Perfetto
    SDK makes extensive use of string interning. Most strings and descriptors
    (e.g. details about processes / threads) are emitted only once and later
-   referred to using a monotonic ID. In case a loss of the descriptor packet,
-   it is not possible to make fully sense of those events.
+   referred to using a monotonic ID. If the descriptor packet is lost, those
+   events cannot be fully interpreted.
 
-Trace Processor has built-in mechanism that detect loss of interning data and
-skips ingesting packets that refer to missing interned strings or descriptors.
+Trace Processor detects loss of interning data and skips ingesting packets that
+refer to missing interned strings or descriptors.
 
 When using tracing in ring-buffer mode, these types of losses are very likely to
 happen.
@@ -370,10 +368,10 @@ There are two mitigations for this:
    of trace data in the central trace buffer.
 
 2. Recording the incremental state into a dedicated buffer (via
-   `DataSourceConfig.target_buffer`). This technique is quite commonly used with
-   in the ftrace + process_stats example mentioned before, recording the
-   process_stats packet in a dedicated buffer less likely to wrap (ftrace events
-   are much more frequent than descriptors for new processes).
+   `DataSourceConfig.target_buffer`). This technique is commonly used in the
+   ftrace + process_stats example mentioned before, recording the process_stats
+   packet in a dedicated buffer less likely to wrap (ftrace events are much more
+   frequent than descriptors for new processes).
 
 ## Flushes and windowed trace importing
 
@@ -381,9 +379,9 @@ Another common problem experienced in traces that involve multiple data sources
 is the non-synchronous nature of trace commits. As explained in the
 [Life of a trace packet](#life-of-a-trace-packet) section above, trace data is
 committed only when a full memory page of the shared memory buffer is filled (or
-at when the tracing session ends). In most cases, if data sources produce events
-at a regular cadence, pages are filled quite quickly and events are committed
-in the central buffers within seconds.
+when the tracing session ends). In most cases, if data sources produce events at
+a regular cadence, pages are filled quite quickly and events are committed in
+the central buffers within seconds.
 
 In some other cases, however, a data source can emit events only sporadically.
 Imagine the case of a data source that emits events when the display is turned
@@ -408,21 +406,21 @@ bugs:
   followed by the stream of recent events.
 
 * When recording long traces, Trace Processor can show import errors of the form
-  "XXX event out-of-order". This is because. in order to limit the memory usage
-  at import time, Trace Processor sorts events using a sliding window. If trace
-  packets are too out-of-order (trace file order vs timestamp order), the
-  sorting will fail and some packets will be dropped.
+  "XXX event out-of-order". To limit memory usage at import time, Trace
+  Processor sorts events using a sliding window. If trace packets are too
+  out-of-order (trace file order vs timestamp order), the sorting will fail and
+  some packets will be dropped.
 
 #### Mitigations
 
-The best mitigation for these sort of problems is to specify a
+The best mitigation for these sorts of problems is to specify a
 [`flush_period_ms`][TraceConfig] in the trace config (10-30 seconds is usually
 good enough for most cases), especially when recording long traces.
 
 This will cause the tracing service to issue periodic flush requests to data
-sources. A flush requests causes the data source to commit the shared memory
-buffer pages into the central buffer, even if they are not completely full.
-By default, a flush issued only at the end of the trace.
+sources. A flush request causes the data source to commit the shared memory
+buffer pages into the central buffer, even if they are not completely full. By
+default, a flush is issued only at the end of the trace.
 
 In case of long traces recorded without `flush_period_ms`, another option is to
 pass the `--full-sort` option to `trace_processor_shell` when importing the

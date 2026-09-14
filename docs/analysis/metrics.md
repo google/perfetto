@@ -3,8 +3,7 @@
 WARNING: This page describes the legacy (v1) metric system. For all new use
 cases, please refer to the
 [Trace Summarization](/docs/analysis/trace-summary.md) documentation, which is
-the successor to this system. This page is only kept around as a historical
-reference.
+the successor to this system. This page is kept as a historical reference.
 
 _The metrics subsystem is a part of the
 [trace processor](/docs/analysis/trace-processor.md) which uses traces to
@@ -17,8 +16,8 @@ examples include benchmarks, lab tests and on large corpuses of traces._
 
 ### Motivation
 
-Performance metrics are useful to monitor for the health of a system and ensure
-that a system does not regress over time as new features are added.
+Performance metrics help you monitor a system's health and check for regressions
+as new features are added.
 
 However, metrics retrieved directly from the system have a downside: if there is
 a regression, it is difficult to root-cause the issue. Often, the problem may
@@ -37,7 +36,7 @@ The metric subsystem is a part of the
 against traces and produces a metric which summarizes some performance attribute
 (e.g. CPU, memory, startup latency etc.).
 
-For example, generating the Android CPU metrics on a trace is as simple as:
+For example, to generate the Android CPU metrics on a trace, run:
 
 ```python
 > ./trace_processor --run-metrics android_cpu <trace>
@@ -66,8 +65,7 @@ android_cpu {
 
 ## Metric development guide
 
-As metric writing requires a lot of iterations to get right, there are several
-tips which make the experience a lot smoother.
+Writing metrics takes iteration. The following tips help you shorten that cycle.
 
 ### Hot reloading metrics
 
@@ -76,11 +74,10 @@ possible to hot reload any changes to SQL; this will skip over both
 recompilation (for builtin metrics) and trace load (for both builtin and custom
 metrics).
 
-To do this, trace processor is started in _interactive mode_ while still
-specifying command line flags about which metrics should be run and the paths of
-any extensions. Then, in the REPL shell, the commands `.load-metrics-sql` (which
-causes any SQL on disk to be re-read) and `.run-metrics` (to run the metrics and
-print the result).
+To do this, start trace processor in _interactive mode_, specifying command-line
+flags for the metrics to run and the paths of any extensions. Then, in the REPL
+shell, run `.load-metrics-sql` to re-read SQL on disk and `.run-metrics` to run
+the metrics and print the result.
 
 For example, suppose we want to iterate on the `android_startup` metric. We can
 run the following commands from a Perfetto checkout:
@@ -138,7 +135,7 @@ will remain available e.g. to RUN_METRIC invocations.
 
 It is possible to override the SQL of built-in metrics at runtime without
 needing to recompile trace processor. To do this, the flag `--metric-extension`
-needs to be specified with the disk path where the built-metrics live and the
+needs to be specified with the disk path where the built-in metrics live and the
 special string `/` for the virtual path.
 
 For example, from inside a Perfetto checkout:
@@ -159,7 +156,7 @@ changed a recompile of trace processor is required for the changes to be
 available.
 
 NOTE: the `--dev` flag is required for the use of this feature. This flag
-ensures that this feature is not accidentally in production as it is only
+ensures that this feature is not accidentally used in production as it is only
 intended for local development.
 
 WARNING: protos are _not_ overridden in the same way - if any proto messages are
@@ -269,9 +266,9 @@ get trace processor and run the metrics code.
 As a setup step, create a folder to act as a scratch workspace; this folder will
 be referred to using the env variable `$WORKSPACE` in Step 4.
 
-The other requirement is trace processor. This can downloaded from
-[here](https://get.perfetto.dev/trace_processor) or can be built from source
-using the instructions [here](trace-processor.md). Whichever method is chosen,
+You also need trace processor. Download it from
+[here](https://get.perfetto.dev/trace_processor) or build it from source using
+the instructions [here](trace-processor.md). Whichever method is chosen,
 $TRACE_PROCESSOR env variable will be used to refer to the location of the
 binary in Step 4.
 
@@ -292,7 +289,7 @@ message ProcessInfo {
 }
 ```
 
-Next , create a wrapping message which will hold the repeated field containing
+Next, create a wrapping message which will hold the repeated field containing
 the top 5 processes.
 
 ```protobuf
@@ -384,10 +381,10 @@ Let's break this query down:
 3. The final table is the process table. This gives the name of the process
    associated with the original sched slice.
 4. With the process, thread and duration for each sched slice, all the slices
-   for a single processes are collected and their durations summed to get the
-   CPU time (dividing by 1e6 as sched's duration is in nanoseconds) and the
-   number of distinct threads.
-5. Finally, we order by the cpu time and limit to the top 5 results.
+   for a single process are collected and their durations summed to get the CPU
+   time (dividing by 1e6 as sched's duration is in nanoseconds) and the number
+   of distinct threads.
+5. Finally, we order by the CPU time and limit to the top 5 results.
 
 ### Step 3
 
@@ -428,10 +425,8 @@ Breaking this down again:
    `top_five_processes_by_cpu` table. The output will be the fully filled
    ProcessInfo proto.
 
-   The call to the `RepeatedField` function is the most interesting part and
-   also the most important. In technical terms, `RepeatedField` is an aggregate
-   function. Practically, this means that it takes a full table of values and
-   generates a single array which contains all the values passed to it.
+   The `RepeatedField` function is an aggregate function: it takes a full table
+   of values and generates a single array containing all of them.
 
    Therefore, the output of this whole SELECT statement is an array of 5
    ProcessInfo protos.
@@ -486,9 +481,9 @@ SELECT TopProcesses(
 );
 ```
 
-NOTE: The name of the SQL file should be the same as the name of TraceMetrics
-extension field. This is to allow the metrics platform to associated the proto
-extension field with the SQL which needs to be run to generate it.
+NOTE: The name of the SQL file should match the name of the TraceMetrics
+extension field. This allows the metrics platform to associate the proto
+extension field with the SQL needed to generate it.
 
 ### Step 4
 
@@ -559,10 +554,10 @@ NOTE: Googlers: for internal usage of metrics in Google3 (i.e. metrics which are
 confidential), please see [this internal page](https://goto.google.com/viecd).
 
 Authors are strongly encouraged to add all metrics derived on Perfetto traces to
-the Perfetto repo unless there is a clear usecase (e.g. confidentiality) why
+the Perfetto repo unless there is a clear use case (e.g. confidentiality) why
 these metrics should not be publicly available.
 
-In return for upstreaming metrics, authors will have first class support for
+In return for upstreaming metrics, authors will have first-class support for
 running metrics locally and the confidence that their metrics will remain stable
 as trace processor is developed.
 

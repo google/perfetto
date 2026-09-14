@@ -2,19 +2,18 @@
 *This page documents the syntax of PerfettoSQL, a dialect of SQL used in trace
 processor and other Perfetto analysis tools to query traces.*
 
-PerfettoSQL is a direct descendent of the
+PerfettoSQL is a direct descendant of the
 [dialect of SQL implemented by SQLite](https://www.sqlite.org/lang.html).
 Specifically, any SQL valid in SQLite is also valid in PerfettoSQL.
 
-Unfortunately, the SQLite syntax alone is not sufficient for two reasons:
-1. It is quite basic e.g. it does not support creating functions or macros
-2. It cannot be used to access features which are only available in Perfetto
-tooling e.g. it cannot be used to create efficient analytic tables, import
-modules from the PerfettoSQL standard library etc.
+SQLite syntax alone does not support:
 
-For this reason, PerfettoSQL adds new pieces of syntax which make the experience
-of writing SQL queries better. All such additions include the keyword `PERFETTO`
-to make it clear that they are PerfettoSQL-only.
+1. Creating functions or macros.
+2. Accessing Perfetto-specific features, such as creating efficient analytic
+   tables or importing modules from the PerfettoSQL standard library.
+
+PerfettoSQL adds syntax for these features. All such additions include the
+keyword `PERFETTO` to make it clear that they are PerfettoSQL-only.
 
 <!-- TODO(b/290185551): we should really talk about our "recommendations" (e.g.
 using CREATE PERFETTO TABLE instead of CREATE TABLE) somewhere and reference it
@@ -25,10 +24,9 @@ here. -->
 defined in a PerfettoSQL module (e.g. from the
 [PerfettoSQL standard library](/docs/analysis/stdlib-docs.autogen)).
 
-Note that this statement acts more similar to `#include` statements in C++
-rather than `import` statements from Java/Python. Specifically, all objects
-in the module become available in the global namespace without being qualified
-by the module name.
+This statement behaves more like `#include` in C++ than `import` in Java/Python.
+Specifically, all objects in the module become available in the global namespace
+without being qualified by the module name.
 
 Example:
 
@@ -43,7 +41,7 @@ SELECT *
 FROM android_startups;
 ```
 
-For interactive development, the key can contain a wildcards:
+For interactive development, the key can contain wildcards:
 ```sql
 -- Include all modules under android/.
 INCLUDE PERFETTO MODULE android.*;
@@ -75,12 +73,15 @@ schemas, function arguments and return types:
 
 ## Defining functions
 `CREATE PERFETTO FUNCTION` allows functions to be defined in SQL, which can be
-either scalar (returning a single value) or table-value (returning a set of rows).
-The syntax is similar to the syntax in PostgreSQL or GoogleSQL:
-- Scalar: `CREATE PERFETTO FUNCTION function_name(arg_list) RETURNS return_type AS sql_select_statement;`
-- Table-valued: `CREATE PERFETTO FUNCTION function_name(arg_list) RETURNS TABLE(column_list) AS sql_select_statement;`
+either scalar (returning a single value) or table-valued (returning a set of
+rows). The syntax is similar to the syntax in PostgreSQL or GoogleSQL:
+- Scalar:
+  `CREATE PERFETTO FUNCTION function_name(arg_list) RETURNS return_type AS sql_select_statement;`
+- Table-valued:
+  `CREATE PERFETTO FUNCTION function_name(arg_list) RETURNS TABLE(column_list) AS sql_select_statement;`
 
-`arg_list` and `column_list` is a comma-separated list of an arbitrary number `argument_name argument_type` pairs.
+`arg_list` and `column_list` are comma-separated lists containing any number of
+`argument_name argument_type` pairs.
 
 `sql_select_statement` should be a valid SQL statement, which can use `$argument_name` syntax to refer to the argument values.
 
@@ -115,10 +116,10 @@ WHERE utid = $utid;
 on traces. These tables are both more performant and more memory efficient than
 SQLite native tables created with `CREATE TABLE`.
 
-Note however the full feature set of `CREATE TABLE` is not supported:
+The full feature set of `CREATE TABLE` is not supported:
 1. Perfetto tables cannot be inserted into and are read-only after creation
 2. Perfetto tables must be defined and populated using a `SELECT` statement.
-  They cannot be defined by column names and types.
+   They cannot be defined by column names and types.
 
 Example:
 
@@ -142,9 +143,9 @@ WHERE name = 'foo';
 ### Schema
 
 Perfetto tables can have an optional explicit schema. The schema syntax is the
-same as the function argument or returned-from-a-function table,
-i.e. a comma-separated list of (column name, column type) pairs in parenthesis
-after table or view name.
+same as the function argument or returned-from-a-function table, i.e. a
+comma-separated list of (column name, column type) pairs in parentheses after
+the table or view name.
 
 ```sql
 CREATE PERFETTO TABLE foo(x LONG, y STRING) AS
@@ -160,11 +161,11 @@ This means operations benefiting from sorting on an indexed column (or group of
 columns) will be significantly faster, as if you were operating on a column
 that's already sorted.
 
-NOTE: Indexes have non-trivial memory cost, so it's important to only use them
-when there is a need for performance improvement.
+NOTE: Indexes have a non-trivial memory cost, so use them only when you need to
+improve performance.
 
 NOTE: Indexes will be used by views created on the indexed table, but they will
-not be inherited by any child tables, as shown in the below SQL.
+not be inherited by any child tables, as shown in the SQL below.
 
 NOTE: If the query filters/joins on `id` column of the table (one that is a
 primary key of the table) there is no need to add a Perfetto index, as Perfetto
@@ -227,18 +228,16 @@ The following are recommended uses of macros:
 - Passing tables as arguments to a "function-like" snippet of SQL.
 - Defining simple constants for performance-sensitive queries.
 
-Macros are powerful but also dangerous if used incorrectly, making debugging
-extremely difficult. For this reason, it's recommended that they are used
-sparingly when they are needed and only for the recommended uses described
-above.
+Incorrect use of macros can make debugging difficult. Use them sparingly and
+only for the recommended uses above.
 
-If only passing around scalar SQL values, functions are generally preferred
-for their clarity. However, for simple constants used many times in a
+If only passing around scalar SQL values, functions are generally preferred for
+their clarity. However, for simple constants used many times in a
 performance-sensitive query, a macro can be more efficient as it avoids the
-potential overhead of function calls in a large number.
+potential overhead of many function calls.
 
 NOTE: Macros are expanded with a pre-processing step *before* any execution
-happens. Expansion is a purely syntactic operation involves replacing the macro
+happens. Expansion is a purely syntactic operation that replaces the macro
 invocation with the SQL tokens in the macro definition.
 
 As macros are syntactic, the types of arguments and return types in macros are

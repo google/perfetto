@@ -5,10 +5,8 @@ disconnect from the device and collect the trace file later.
 
 ## Use Case
 
-Let's say you want to start recording a long-running trace on an Android device
-or a Linux server, then terminate your adb/ssh shell and come back later to stop
-the tracing session and collect the trace file. This page shows you how to do
-this while ensuring the trace remains intact.
+You can start a long-running trace on an Android device or Linux server, close
+your adb/ssh shell, and return later to stop tracing and collect the trace file.
 
 To run tracing in the background, use the `--background-wait` argument with the
 `perfetto` command. This will daemonize Perfetto (i.e., run it as a background
@@ -26,12 +24,12 @@ Start recording a trace using `tracebox` or `perfetto`.
 perfetto -c config.cfg --txt -o trace.pftrace --background-wait
 ```
 
-This will print the pid of the background perfetto process to stdout.
+This prints the PID of the background Perfetto process to stdout.
 
-When you are ready to stop tracing, you need to send a `SIGINT` or `SIGTERM`
-signal to the background Perfetto process. However, simply killing the process
-creates a race condition: the `kill` command returns immediately, but Perfetto
-may still be writing the final parts of the trace file to disk.
+To stop tracing, send a `SIGINT` or `SIGTERM` signal to the background Perfetto
+process. However, killing the process creates a race condition: the `kill`
+command returns immediately, but Perfetto may still be writing the final parts
+of the trace file to disk.
 
 If you collect the file too soon, it may be incomplete. To prevent this, you
 must wait for the `close_write` event on the trace file, which confirms that
@@ -42,7 +40,7 @@ platform-specific `inotify` tools.
 
 TAB: Linux
 
-On Debian Linux we can use `inotifywait` from the `inotify-tools` package.
+On Debian Linux, use `inotifywait` from the `inotify-tools` package.
 
 ```bash
 kill <pid> && inotifywait -e close_write trace.pftrace
@@ -50,7 +48,7 @@ kill <pid> && inotifywait -e close_write trace.pftrace
 
 TAB: Android
 
-On Android we can use `inotifyd` from toybox.
+On Android, use `inotifyd` from toybox.
 
 ```sh
 kill <pid> && inotifyd - trace.pftrace:w | head -n0

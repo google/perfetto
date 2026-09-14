@@ -1,34 +1,29 @@
 # How do I start using Perfetto?
 
-TIP: If you are unfamiliar with the word "tracing" or in general, are new to the
-world of performance, we suggest reading the
+TIP: If you are new to tracing or performance analysis, read the
 [What is Tracing?](/docs/tracing-101.md) page first. If you are not quite sure
 what Perfetto is and why it's useful, check out the
 [Perfetto homepage](/docs/README.md) first.
 
-Perfetto is a large project and it can be daunting for someone new to understand
-what parts of the documentation are relevant to them. By focusing on what
-technology you are using and what you are trying to accomplish, this page will
-guide you through our documentation and help you solve problems with Perfetto as
-quickly as possible.
+This page helps you find the relevant Perfetto documentation based on the
+technology you use and what you want to accomplish.
 
-Our docs make use of the terms "Tutorials", "Cookbooks" and "Case Studies":
+Our docs use the terms "Tutorials", "Cookbooks" and "Case Studies":
 
 - **Tutorials** are guides which explain how to get started using Perfetto
   tools. They are focused on teaching you the tools themselves and _not_ so much
   on how the tools can be used to solve real world problems.
 - **Cookbooks** are pages containing small, bite-sized guides (recipes) which
-  give you a quick idea on how to solve a concrete problem with Perfetto. They
-  will have snippets of code you can copy-paste or a sequence of instructions
-  you can follow.
-- **Case Studies** are detailed, opinionated guides which take you step-by-step
-  how you can debug and root-cause a "vertical" problem using Perfetto. They
-  focus more on helping you solve the problem and less on teaching you Perfetto
-  tools. They may also make signifcant use of non-Perfetto based tools
+  show you how to solve a concrete problem with Perfetto. They will have
+  snippets of code you can copy-paste or a sequence of instructions you can
+  follow.
+- **Case Studies** are detailed, opinionated guides which show you step by step
+  how to debug and find the root cause of a "vertical" problem using Perfetto.
+  They focus more on helping you solve the problem and less on teaching you
+  Perfetto tools. They may also make significant use of tools outside Perfetto
   or commands where appropriate.
 
-Based on what technology you are interested in, please choose one of the
-following sections to go to next:
+Choose a section based on the technology you use:
 
 ```mermaid
 graph TD
@@ -53,12 +48,10 @@ graph TD
     B --> E["<a href='#android-diagnosing-memory-issues'>Diagnose memory issues</a>"];
 ```
 
-Perfetto is the **default tracing system** on Android. It provides a powerful
-way to understand the intricate workings of the Android OS and applications,
-enabling developers to diagnose not only performance bottlenecks but also
-complex functional issues and unexpected behaviors. By capturing a detailed,
-chronological record of system and application activity, Perfetto helps you see
-how different components interact over time.
+Perfetto is the **default tracing system** on Android. It records system and
+application activity chronologically, helping you understand how components
+interact over time and diagnose performance bottlenecks, functional issues, and
+unexpected behavior.
 
 If you are a developer working on an Android app or on Android platform code
 (i.e. the Android OS itself), Perfetto can help you answer a wide array of
@@ -85,16 +78,13 @@ the app-focused tools which use Perfetto under the hood. Examples include:
 - [AndroidX Macrobenchmark Library](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)
 - [ProfilingManager API in Android SDK](https://developer.android.com/reference/android/os/ProfilingManager)
 
-These projects use Perfetto trace tooling under the hoods to expose a more
-polished and curated experience to app developers. On the other hand, they tend
-to expose a reduced set of features to favour ease of use and reduce cognitive
-overwhelming.
+These projects use Perfetto trace tools to provide an experience tailored to app
+developers. They tend to expose fewer features to make the tools easier to learn
+and use.
 
-If you are just getting started with app tracing you should likely look first
-into the aforementioned tools, as they offer a smoother learning curve.
-If, on the other hand, you want to use the full set of features, and accept the
-cost of dealing with a larger complexity and expertise demand, you can use
-Perfetto directly and take advantage of its bleeding edge features.
+If you are getting started with app tracing, you should likely try these tools
+first, as they offer a smoother learning curve. To use the full set of features,
+you can use Perfetto directly, though it requires more expertise.
 
 This guide, and the rest of these docs, can help you start using Perfetto to
 gain deeper insights into your app's behavior and its interaction with the
@@ -102,35 +92,32 @@ Android system.
 
 TAB: Google Platform Developers
 
-As a Google Platform Developer, Perfetto is deeply integrated
-throughout the whole development process for Android platform changes. Platform
-developers can (links are for Googlers only):
+Perfetto is integrated throughout Google's Android platform development process.
+Platform developers can (links are for Googlers only):
 
 - Collect Perfetto traces locally while developing features or fixing bugs
-- Collect, analyse and visualize Perfetto traces in Android
+- Collect, analyze and visualize Perfetto traces in Android
   [lab tests](http://go/crystalball)
-- Collect, analyse and visualize Perfetto traces from Android
+- Collect, analyze and visualize Perfetto traces from Android
   [field telemetry](http://go/perfetto-project) systems
 
-The below guidance can help you understand the range of low-level tooling
-Perfetto makes available for comprehensive system analysis and debugging.
+The guidance below covers Perfetto's low-level tools for system analysis and
+debugging.
 
 TAB: AOSP/OEM/Partner Platform Developers
 
-Many OEMs and partners also have equivalent to the above local/lab/field systems
-inside their own companies: please consult your internal company documentation
-for details on this.
+Many OEMs and partners have equivalent local, lab, and field systems. Consult
+your company's internal documentation for details.
 
-The below guidance can help you understand the range of low-level tooling
-Perfetto makes available for comprehensive system analysis and debugging.
+The guidance below covers Perfetto's low-level tools for system analysis and
+debugging.
 
 </tabs?>
 
 ### {#android-understanding-system-behavior} Understanding System Behavior & Debugging Functional Issues
 
-When you need to understand how different parts of the system interact, debug a
-complex functional bug, or see the sequence of events leading to an unexpected
-state, Perfetto provides powerful insights.
+Use Perfetto to examine how parts of the system interact and trace the sequence
+of events leading to a bug or unexpected state.
 
 - **How do different components interact? What is the sequence of events leading
   to an issue?** System traces provide a detailed, time-correlated view of
@@ -158,7 +145,7 @@ state, Perfetto provides powerful insights.
 
 - **How can I use existing diagnostic files like bugreports or logcat with
   Perfetto?** Perfetto tools can often work with common Android diagnostic
-  outputs, allowing you to leverage its visualization and analysis capabilities.
+  outputs for visualization and analysis.
   - Android `bugreport.zip` files often contain Perfetto traces. The Perfetto UI
     can open these directly, automatically extracting and loading the traces.
     - **Tutorial**:
@@ -198,7 +185,7 @@ section below.
   - **UI Jank**: Correlate system activity with frame production and
     presentation, often in conjunction with FrameTimeline data.
 
-  Starting points includes:
+  Starting points include:
 
   - **Tutorial**:
     [Recording and Analyzing System Traces](/docs/getting-started/system-tracing.md)
@@ -229,8 +216,7 @@ section below.
 
 High memory usage can lead to poor performance, increased garbage collection
 pauses (for Java/Kotlin), and even apps or services being killed by the Low
-Memory Killer (LMK). For a comprehensive approach to these problems, start with
-our detailed case study:
+Memory Killer (LMK). To investigate these problems, start with our case study:
 
 - **Case Study**:
   [Debugging memory usage on Android](/docs/case-studies/memory.md)
@@ -271,13 +257,12 @@ Perfetto also provides specific tools to investigate and attribute memory usage:
 
 ## {#linux-kernel-developers} Linux Kernel Developer
 
-Perfetto offers deep integration with the Linux kernel, providing powerful tools
-for kernel developers to understand system behavior, debug issues, and optimize
-performance. It interfaces with:
+Perfetto integrates with the Linux kernel to help you understand system
+behavior, debug issues, and optimize performance. It interfaces with:
 
 - **ftrace**: For capturing detailed, high-frequency kernel events like
   scheduling changes, syscalls, interrupts, and custom tracepoints. Perfetto
-  acts as an efficient userspace daemon for ftrace. Perfetto supports also
+  acts as an efficient userspace daemon for ftrace. Perfetto also supports
   recording and visualizing whole funcgraph traces via ftrace, to track each
   kernel function entry/exit on the timeline.
 - **/proc and /sys interfaces**: For polling lower-frequency kernel statistics,
@@ -425,10 +410,9 @@ can query them with SQL.
 
 ## {#trace-like-data} Anyone with "trace-like" data to analyse/visualize
 
-Perfetto's powerful UI and Trace Processor are not limited to traces recorded by
-Perfetto itself. If you have existing traces from other systems or custom
-timestamped data, you can often leverage Perfetto for visualization and
-analysis.
+Perfetto's UI and Trace Processor can also analyze traces from other systems. If
+you have existing traces or custom timestamped data, you can often use Perfetto
+to visualize and analyze them.
 
 - **Can I open traces from other tools (e.g., Chrome JSON, Android Systrace,
   Linux perf, Fuchsia, Firefox Profiler) in Perfetto?** Yes, the Perfetto UI and
@@ -453,10 +437,8 @@ analysis.
 
 ## {#not-listed} Anyone not listed above
 
-If your specific role or use case wasn't directly covered by the categories
-above, don't worry! Perfetto is a versatile suite of tools, and its core
-capabilities might still be highly relevant to your needs. At its heart,
-Perfetto excels in several key areas:
+If your role or use case isn't covered above, Perfetto might still help. Its
+core capabilities include:
 
 1.  **Recording Rich Timeline Data:** Perfetto provides a reasonably
     high-performance [Tracing SDK](/docs/instrumentation/tracing-sdk.md) and
@@ -472,14 +454,14 @@ Perfetto excels in several key areas:
       might be convertible to a format Perfetto understands. See our
       [guide on converting custom data](/docs/getting-started/converting.md).
 
-2.  **Powerful Timeline Visualization (No Code Required):** The
-    [Perfetto UI](/docs/visualization/perfetto-ui.md) is designed to intuitively
-    explore large, complex traces. You can navigate timelines, zoom into
-    nanosecond-level details, inspect event properties, and correlate activity
-    across different processes and hardware components, all through a graphical
-    interface without writing any code. Features like track filtering,
-    expanding/collapsing process threads, and visualizing event flows help you
-    understand what your system is doing.
+2.  **Timeline Visualization (No Code Required):** The
+    [Perfetto UI](/docs/visualization/perfetto-ui.md) lets you explore large,
+    complex traces. You can navigate timelines, zoom into nanosecond-level
+    details, inspect event properties, and correlate activity across different
+    processes and hardware components, all through a graphical interface without
+    writing any code. Features like track filtering, expanding/collapsing
+    process threads, and visualizing event flows help you understand what your
+    system is doing.
 
     - **Explore diverse data:** Perfetto can open various
       [external trace formats](/docs/getting-started/other-formats.md) directly
@@ -492,14 +474,12 @@ Perfetto excels in several key areas:
 3.  **In-depth Programmatic Trace Analysis:** For going beyond visual
     inspection, automating analysis, or extracting custom metrics, Perfetto's
     [Trace Processor](/docs/analysis/getting-started.md) engine allows you to
-    query traces using SQL. This powerful backend can be accessed
-    programmatically.
+    query traces using SQL. You can also access it programmatically.
     - **Automate your insights:** If you have recurring analysis tasks or want
       to extract specific metrics from any trace (Perfetto-native or converted),
       the [Trace Processor](/docs/analysis/getting-started.md) is invaluable.
 
-For further inspiration on how Perfetto's flexible architecture has been adapted
-for a wide range of complex diagnostic scenarios, see:
+For examples of how others have adapted Perfetto to diagnose problems, see:
 
 - Snap's presentation on
   [Client Tracing at Scale](https://www.droidcon.com/2022/06/28/client-tracing-at-scale/).

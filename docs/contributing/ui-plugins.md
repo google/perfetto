@@ -1,13 +1,11 @@
 # UI Plugins
 
-UI plugins allow developers to add new visualizations and analysis tools
-directly into the Perfetto interface. By leveraging a rich set of extension
-points, plugins can tailor Perfetto to specific use cases.
+UI plugins let you add visualizations and analysis tools to the Perfetto
+interface through extension points.
 
-This guide provides comprehensive instructions on how to create and contribute
-UI plugins to Perfetto.
+This guide explains how to create and contribute UI plugins to Perfetto.
 
-If this is your first time contributing to Perfetto, please first follow
+If this is your first time contributing to Perfetto, follow
 [Perfetto getting started](getting-started) and then
 [UI getting started](ui-getting-started).
 
@@ -19,8 +17,8 @@ If this is your first time contributing to Perfetto, please first follow
 
 The plugins that start with 'com.example'
 [here](https://github.com/google/perfetto/tree/main/ui/src/plugins) provide live
-examples of the features listed in this doc, so please do take a look at those
-if one is present for your particular feature.
+examples of the features listed in this guide. Look for an example of the
+feature you want to use.
 
 The public plugin API, which you'll be using in this doc, can be browsed
 [here](https://github.com/google/perfetto/tree/main/ui/src/public).
@@ -39,8 +37,8 @@ of `SKELETON: <instruction>` in the file and follow the instructions.
 Notes on naming:
 
 - Plugins should be prefixed with the reversed components of a domain name you
-  control. For example if `example.com` is your domain your plugin should be
-  named `com.example.Foo`.
+  control. For example, if `example.com` is your domain, name your plugin
+  `com.example.Foo`.
 - Avoid including the term 'plugin' in the name.
 - The `pluginId` and directory name must match.
 - The prefix `dev.perfetto.` is reserved for plugins maintained by the core
@@ -62,8 +60,8 @@ Now navigate to [localhost:10000](http://localhost:10000/)
 - Enabling/disabling plugins requires a restart of the UI, so refresh the page
   to start your plugin.
 
-You can request for your plugin to be enabled by default. Follow the
-[default plugins](#default-plugins) section for this.
+To request that your plugin be enabled by default, follow the
+[default plugins](#default-plugins) section.
 
 ### Adding Styles
 
@@ -87,16 +85,15 @@ For example, to change the background color of a component in your plugin:
 All class names should be prefixed with `pf-` to avoid conflicts with other
 libraries.
 
-It's recommended to scope your styles to your plugin to avoid conflicts with
-other plugins or the core UI. A good practice is to wrap your plugin's UI in a
-container with a unique class name.
+Scope your styles to your plugin to avoid conflicts with other plugins or the
+core UI. Wrap your plugin's UI in a container with a unique class name.
 
 ### Upload your plugin for review
 
 - Update `ui/src/plugins/<your-plugin-name>/OWNERS` to include your email.
 - Follow the [Contributing](./getting-started#contributing) instructions to
   upload your PR to GitHub.
-- Once uploaded add `stevegolton@google.com` as a reviewer for your PR.
+- Once uploaded, add `stevegolton@google.com` as a reviewer for your PR.
 
 ## Plugin lifecycle
 
@@ -116,12 +113,11 @@ available while that trace is loaded, and will disappear when switching traces.
 Typically, if this is done in the `onTraceLoad()` hook then the extension is
 re-registered automatically with every new trace that is loaded.
 
-> Note: Don't put any code the main body of the plugin file as there is no
+> Note: Don't put any code in the main body of the plugin file as there is no
 > guarantee the core will be set up by that point. Instead, wait for the core to
 > call the plugin either via `onActivate` or `onTraceLoad`.
 
-To demonstrate the lifecycle of a plugin, let's examine a minimal plugin that
-implements the key lifecycle hooks and logs to the terminal:
+This minimal plugin implements the key lifecycle hooks and logs to the terminal:
 
 ```ts
 export default class implements PerfettoPlugin {
@@ -156,15 +152,14 @@ after another.
 ## Performance
 
 `onActivate()` and `onTraceLoad()` should generally complete as quickly as
-possible, however sometimes `onTraceLoad()` may need to perform async operations
-on trace processor such as performing queries and/or creating views and tables.
-Thus, `onTraceLoad()` should return a promise (or you can simply make it an
+possible. However, `onTraceLoad()` may need to perform async operations on trace
+processor, such as running queries or creating views and tables.
+Thus, `onTraceLoad()` should return a promise (or you can make it an
 async function). When this promise resolves it tells the core that the plugin is
 fully initialized.
 
-> Note: It's important that any async operations done in onTraceLoad() are
-> awaited so that all async operations are completed by the time the promise is
-> resolved. This is so that plugins can be properly timed and synchronized.
+> Note: Await all async operations in onTraceLoad() so they complete before the
+> promise resolves. This allows plugins to be timed and synchronized correctly.
 
 ```ts
 // GOOD
@@ -204,22 +199,21 @@ for (const iter = result.iter(schema); iter.valid(); iter.next()) {
 }
 ```
 
-Typically queries returns a list of rows, which can be iterated through like in
+Queries typically return a list of rows that you can iterate through, as in
 the example.
 
 The schema:
 
 - Informs the engine what types we expect the columns to have and what
   JavaScript type to convert each column to. An error is thrown if the returned
-  typed cannot be coerced into the desired one.
-- Informs typescript what types to expect at compile time, the `iter` object
-  assumes the same type as that of the schema.
+  type cannot be coerced into the desired one.
+- Informs TypeScript what types to expect at compile time. The `iter` object
+  assumes the same type as the schema.
 
-> Note: The problem with JavaScript numbers. A javascript number type is
-> actually a double precision float, and thus can only represent integers up to
-> 2^53-1. Trace processor can represent 64 bit integers, so when converting to
-> js numbers, we can lost precision. THis is a problem for large numbers such as
-> timestamps and durations.
+> Note: A JavaScript number is a double-precision float and can only represent
+> integers up to 2^53-1. Trace processor can represent 64-bit integers, so
+> converting to JavaScript numbers can lose precision. This is a problem for
+> large numbers such as timestamps and durations.
 
 The possible schema types are as follows:
 
@@ -278,7 +272,7 @@ trace.selection.selectTrackEvent('my.track', 123);
 
 #### Selecting an Area (Time Range)
 
-To select a specific time range, potentially across multiple tracks. The `Area`
+To select a specific time range, potentially across multiple tracks, the `Area`
 object requires `start` (time), `end` (time), and an array of `trackUris`
 (string[]).
 
@@ -320,11 +314,9 @@ trace.selection.clearSelection();
 
 ### Pinning Tracks
 
-A common task for plugins are to pin certain interesting tracks (usually as a
-result of a command).
-
-This can be achieved by finding the appropriate track in the workspace and
-calling its `pin()` method. This will pin it to the top of its parent workspace.
+Plugins often pin tracks in response to a command. Find the track in the
+workspace and call its `pin()` method to pin it to the top of its parent
+workspace.
 
 ```ts
 trace.workspace.flatTracks
@@ -541,10 +533,8 @@ parentGroup.expand(); // Show the CPU frequency tracks
 cpu0FreqTrack.pin(); // Pin CPU 0 frequency track
 ```
 
-This structure allows plugins to dynamically build complex and organized track
-layouts tailored to specific analysis tasks. Remember to register your actual
-`TrackRenderer`s using `trace.tracks.registerTrack` before creating `TrackNode`s
-that reference their URIs.
+Register your `TrackRenderer`s using `trace.tracks.registerTrack` before
+creating `TrackNode`s that reference their URIs.
 
 ### Commands
 
@@ -555,8 +545,8 @@ but can also be invoked programmatically.
 
 #### Registering Commands
 
-To add a command, the `CommandManager` (available as `app.commands` or
-`trace.commands`) provides the `registerCommand` method for this purpose.
+To add a command, use the `registerCommand` method on `CommandManager`
+(available as `app.commands` or `trace.commands`).
 
 ```ts
 registerCommand(command: {
@@ -597,7 +587,7 @@ appOrTrace.commands.registerCommand({
 Notes on naming:
 
 - Commands should have ids with the pattern `<pluginId>#doSomething`
-- Commands ids should be prefixed with the id of the plugin which provides them.
+- Command IDs should be prefixed with the id of the plugin which provides them.
 - Command names should have the form "Verb something something", and should be
   in normal sentence case. I.e. don't capitalize the first letter of each word.
   - Good: "Pin janky frame timeline tracks"
@@ -655,7 +645,7 @@ Examples:
 
 ### Tracks
 
-In order to add a new track to the timeline, you'll need to create two entities:
+To add a new track to the timeline, create two entities:
 
 - A track which controls what the track looks like and how it fetches data from
   trace processor.
@@ -683,9 +673,8 @@ Registers a new track with Perfetto. Pass a `Track` object which includes:
 - `description`: A human readable description or help text for this track.
 - `tags`: Arbitrary key-value pairs.
 
-Track renderers are powerful but complex so it's strongly advised not to create
-your own. Instead, by far the easiest way to get started with tracks is to use
-the `SliceTrack.create` and `CounterTrack.create` helpers.
+Track renderers are complex, so we strongly recommend using the
+`SliceTrack.create` and `CounterTrack.create` helpers to get started.
 
 **Example:**
 
@@ -824,7 +813,7 @@ https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Tracks/i
 
 #### Grouping Tracks
 
-Any track can have children. Just add child nodes any `TrackNode` object using
+Any track can have children. Add child nodes to any `TrackNode` object using
 its `addChildXYZ()` methods. Nested tracks are rendered as a collapsible tree.
 
 ```ts
@@ -835,7 +824,7 @@ group.addChildLast(new TrackNode({name: 'Child Track B'}));
 group.addChildLast(new TrackNode({name: 'Child Track C'}));
 ```
 
-Tracks nodes with children can be collapsed and expanded manually by the user at
+Track nodes with children can be collapsed and expanded manually by the user at
 runtime, or programmatically using their `expand()` and `collapse()` methods. By
 default tracks are collapsed, so to have tracks automatically expanded on
 startup you'll need to call `expand()` after adding the track node.
@@ -846,8 +835,7 @@ group.expand();
 
 ![Nested tracks](../images/ui-plugins/nested_tracks.png)
 
-Summary tracks are behave slightly differently to ordinary tracks. Summary
-tracks:
+Summary tracks behave slightly differently from ordinary tracks. They:
 
 - Are rendered with a light blue background when collapsed, dark blue when
   expanded.
@@ -882,13 +870,12 @@ for detailed usage.
 
 However, when several plugins add tracks to the same node or the workspace, no
 single plugin has complete control over the sorting of child nodes within this
-node. Thus, the sortOrder property is be used to decentralize the sorting logic
+node. The sortOrder property distributes the sorting logic
 between plugins.
 
-In order to do this we simply give the track a `sortOrder` and call
-`addChildInOrder()` on the parent node and the track will be placed before the
-first track with a greater `sortOrder` in the list. (i.e. lower `sortOrder`s
-appear higher in the stack).
+Give the track a `sortOrder` and call `addChildInOrder()` on the parent node.
+The track will be placed before the first track with a greater `sortOrder` in
+the list (i.e., lower `sortOrder`s appear higher in the stack).
 
 ```ts
 // PluginA
@@ -898,8 +885,8 @@ workspace.addChildInOrder(new TrackNode({name: 'Foo', sortOrder: 10}));
 workspace.addChildInOrder(new TrackNode({name: 'Bar', sortOrder: -10}));
 ```
 
-Now it doesn't matter which order plugin are initialized, track `Bar` will
-appear above track `Foo` (unless reordered later).
+Track `Bar` will appear above track `Foo` regardless of the order in which
+plugins are initialized (unless reordered later).
 
 If no `sortOrder` is defined, the track assumes a `sortOrder` of 0.
 
@@ -1012,8 +999,7 @@ const trackNode = new TrackNode({
 trace.workspace.addChildInOrder(trackNode);
 ```
 
-This approach gives you significant flexibility in how your track data is
-queried, processed, and displayed. Remember to consult the source code of
+See the source code of
 [`SliceTrack`](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/slice_track.ts)
 and related interfaces for the most up-to-date details and advanced usage
 patterns.
@@ -1108,9 +1094,8 @@ You'll need to pass in a tab-like object, something that implements the `Tab`
 interface. Tabs only need to define their title and a render function which
 specifies how to render the tab.
 
-Registered tabs don't appear immediately - we need to show it first. All
-registered tabs are displayed in the tab dropdown menu, and can be shown or
-hidden by clicking on the entries in the drop down menu.
+Registered tabs don't appear immediately. Show or hide them by clicking their
+entries in the tab dropdown menu.
 
 Tabs can also be hidden by clicking the little x in the top right of their
 handle.
@@ -1125,7 +1110,7 @@ trace.tabs.hideTab('com.example.MyPlugin#MyTab');
 Tabs have the following properties:
 
 - Each tab has a unique URI.
-- Only once instance of the tab may be open at a time. Calling showTab multiple
+- Only one instance of the tab may be open at a time. Calling showTab multiple
   times with the same URI will only activate the tab, not add a new instance of
   the tab to the tab bar.
 
@@ -1154,7 +1139,7 @@ trace.tabs.registerTab({
 ```
 
 Ephemeral tabs are usually added as a result of some user action, such as
-running a command. Thus, it's common pattern to register a tab and show the tab
+running a command. Thus, it's a common pattern to register and show the tab
 simultaneously.
 
 Motivating example:
@@ -1286,10 +1271,9 @@ for more detailed usage.
 
 ### Pages
 
-Pages are entities that can be routed via the URL args, and whose content take
-up the entire available space to the right of the sidebar and underneath the
-topbar. Examples of pages are the timeline, record page, and query page, just to
-name a few common examples.
+Pages are routed via the URL args. Their content takes up the available space
+to the right of the sidebar and underneath the topbar. Examples include the
+timeline, record page, and query page.
 
 E.g.
 
@@ -1300,16 +1284,15 @@ http://ui.perfetto.dev/#!/viewer <-- 'viewer' is the current page.
 Pages are added from a plugin by calling the `pages.registerPage` function.
 
 Pages may be registered with the trace or the app contexts. Pages registered
-with the trace are automatically removed when switching traces. Traces
-registered on the app will help will appear before a trace is loaded.
+with the trace are automatically removed when switching traces. Pages
+registered on the app appear before a trace is loaded.
 
-Traces registered with the app should be done so in `onActivate()`, while traces
-registered with the trace should be done in `onTraceLoad()`.
+Register pages with the app in `onActivate()`, and with the trace in
+`onTraceLoad()`.
 
-A page is simply a render function which is called every Mithril render cycle
-while that page is active. It should return the mithril components which will be
-displayed within the page area. Within the render function, just render mithril
-components as normal.
+A page is a render function called every Mithril render cycle while that page
+is active. It should return the Mithril components to display within the page
+area.
 
 ```ts
 trace.pages.registerPage({
@@ -1320,10 +1303,9 @@ trace.pages.registerPage({
 
 #### Subpage
 
-The `render()` callback takes a single argument `subpage` which is an optional
-string that is defined which defines the sub-route if present. E.g. anything
-after the first `/` after the page `#!/<route>/<subpage>`. This can be used to
-add additional sub-sections to your page.
+The `render()` callback takes a single argument, `subpage`, an optional string
+that defines the sub-route: anything after the first `/` after the page
+`#!/<route>/<subpage>`. You can use this to add subsections to your page.
 
 Examples:
 
@@ -1363,7 +1345,7 @@ displayed in a popup when the statusbar item is clicked.
 
 ### Omnibox Prompts
 
-Plugins can leverage the omnibox to prompt users for input. This is more
+Plugins can use the omnibox to prompt users for input. This is more
 integrated than a standard browser `window.prompt()` and can be used for
 free-form text or selecting from a predefined list of choices. The
 `OmniboxManager` is available via `app.omnibox` (in `onActivate`) or
@@ -1463,9 +1445,6 @@ async function selectProcess(
 // selectProcess(appOrTrace.omnibox, exampleProcesses);
 ```
 
-This feature allows for creating interactive workflows directly within the
-omnibox, guided by your plugin.
-
 ### Selection Tabs
 
 Plugins can register custom subtabs in the bottom details panel for timeline selections.
@@ -1523,10 +1502,9 @@ Examples:
 
 ### State
 
-NOTE: It is important to consider version skew when using persistent state.
+NOTE: Consider version skew when using persistent state.
 
-Plugins can persist information into permalinks. This allows plugins to
-gracefully handle permalinking and is an opt-in - not automatic - mechanism.
+Plugins can opt in to storing information in permalinks.
 
 Persistent plugin state works using a `Store<T>` where `T` is some JSON
 serializable object. `Store` is implemented
@@ -1613,13 +1591,10 @@ In the permalink case, your migration function is called with the state of the
 plugin store at the time the permalink was generated. This may be from an older
 or newer version of the plugin.
 
-**Plugins must not make assumptions about the contents of `initialState`!**
+**Plugins must not make assumptions about the contents of `initialState`.**
 
-In this case you need to carefully validate the state object. This could be
-achieved in several ways, none of which are particularly straight forward. State
-migration is difficult!
-
-One brute force way would be to use a version number.
+Validate the state object carefully. State migration is difficult; one approach
+is to use a version number.
 
 ```typescript
 interface MyState {
@@ -1641,7 +1616,7 @@ function migrate(initialState: unknown): MyState {
 }
 ```
 
-You'll need to remember to update your version number when making changes!
+Update your version number when making changes.
 Migration should be unit-tested to ensure compatibility.
 
 Examples:
@@ -1747,8 +1722,7 @@ To register a setting, you provide a `SettingDescriptor<T>`:
 - `name` (string): A human-readable name displayed in the settings UI.
 - `description` (string): A detailed explanation of what the setting does.
 - `schema` (`z.ZodType<T>`): A [Zod](https://zod.dev/) schema that defines the
-  type and validation rules for the setting's value. This is crucial for
-  ensuring type safety and data integrity.
+  type and validation rules for the setting's value.
 - `defaultValue` (T): The value the setting will have if not explicitly set by
   the user.
 - `requiresReload` (boolean, optional): If `true`, the user will be prompted to
@@ -1859,9 +1833,8 @@ export default class MySettingsPlugin implements PerfettoPlugin {
 }
 ```
 
-Using Zod schemas ensures that settings are type-safe and validated, preventing
-invalid data from being stored. Custom renderers provide a powerful way to
-create intuitive UIs for complex settings.
+Zod schemas validate settings and prevent invalid data from being stored.
+Custom renderers let you create UIs for complex settings.
 
 Examples:
 
@@ -1935,9 +1908,6 @@ export default class implements PerfettoPlugin {
   }
 }
 ```
-
-By using the provided analytics interface, plugins can integrate their telemetry
-with the main application in a consistent way.
 
 ### Adding Timeline Notes and Spans
 
@@ -2195,14 +2165,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 }
 ```
 
-By declaring dependencies, plugins can build upon each other, creating a more
-modular and extensible system.
-
 ## Default plugins
 
 Some plugins are enabled by default. These plugins are held to a higher quality
-than non-default plugins since changes to those plugins effect all users of the
-UI. The list of default plugins is specified at
+standard than non-default plugins because changes to them affect all UI users.
+The list of default plugins is specified at
 [ui/src/core/embedder/default_plugins.ts](https://github.com/google/perfetto/blob/main/ui/src/core/embedder/default_plugins.ts).
 
 In particular the startup time of your plugin will be scrutinized and your
@@ -2211,9 +2178,9 @@ aren't using your plugin's features. To see a list of plugins and their startup
 times, visit the [plugins page](https://ui.perfetto.dev/#!/plugins) and sort
 plugins by their startup time.
 
-The majority of default plugins are Android and Chrome related due to the
-lineage of the Perfetto project, ui.perfetto.dev is mostly to server the Android
-and Chrome telemetry teams.
+Most default plugins are related to Android and Chrome due to the Perfetto
+project's origins. ui.perfetto.dev primarily serves the Android and Chrome
+telemetry teams.
 
 ## Misc notes
 

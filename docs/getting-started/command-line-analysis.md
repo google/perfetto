@@ -36,10 +36,10 @@ cached locally under `~/.cache/perfetto/`.
 
 ## Iterate without re-parsing: sessions
 
-Parsing the trace is the expensive part (tens of seconds for large
-traces), and a plain `query` invocation pays it every time. When you'll
-run more than one query against the same trace, load it once into a named
-background **session** and point each invocation at it with `--remote`:
+Parsing a trace can take tens of seconds for large traces, and each plain
+`query` invocation repeats this work. When you'll run more than one query
+against the same trace, load it once into a named background **session** and
+point each invocation at it with `--remote`:
 
 ```bash
 # 1. Load the trace into a background session (once per trace).
@@ -53,19 +53,18 @@ trace_processor query --remote mysession \
 trace_processor server kill mysession
 ```
 
-Session state persists across `--remote` invocations: a
-`CREATE PERFETTO TABLE` or `INCLUDE PERFETTO MODULE` from one call is
-visible to the next, exactly as within a single interactive shell, so
-materializing intermediate results pays off across calls. Idle sessions
-are reaped automatically after 30 minutes.
+Session state persists across `--remote` invocations: a `CREATE PERFETTO TABLE`
+or `INCLUDE PERFETTO MODULE` from one call is visible to the next, exactly as
+within a single interactive shell, so materializing intermediate results pays
+off across calls. Idle sessions are stopped automatically after 30 minutes.
 
 Two things to know:
 
 - Flags that configure trace loading (`--full-sort`,
   `--add-sql-package`, ...) belong on the `server unix` invocation;
   `query --remote` rejects them.
-- `--remote` works with `interactive` and `summarize` too, so you can
-  drop into a REPL on an already-warm session, or summarize it.
+- `--remote` works with `interactive` and `summarize` too, so you can open a
+  REPL on an already-loaded session, or summarize it.
 
 Session naming, socket paths and idle-timeout tuning:
 [reference](/docs/reference/trace-processor-cli.md#subcommand-server).
@@ -89,8 +88,8 @@ of trace files opens the same way, so without a `trace_processor`
 dependency you can pack them yourself:
 `tar cf merged.tar trace1.pftrace trace2.pftrace`.
 
-Do not merge by concatenating the files with `cat`; that is not a merge,
-see [Trace merging](/docs/concepts/merging-traces.md).
+Do not merge by concatenating the files with `cat`; see
+[Trace merging](/docs/concepts/merging-traces.md).
 
 When you need control over how the traces combine (keeping devices' data
 separate, aligning unsynchronized clocks, naming machines), pass a trace

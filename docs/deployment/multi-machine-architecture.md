@@ -7,8 +7,7 @@ workload. The result is one timeline in which causality across machines is
 visible and queryable, instead of one trace per machine that has to be
 correlated by hand.
 
-This page explains *what* multi-machine tracing is and *how* the pieces fit
-together. For the step-by-step setup, see
+For step-by-step setup instructions, see
 [Multi-machine recording](/docs/learning-more/multi-machine-tracing.md).
 
 ## Problem statement
@@ -62,7 +61,7 @@ local producer socket, exchanges a small amount of metadata with the host
 not buffer trace data, does not parse trace packets, and does not implement
 any consumer-side functionality.
 
-The consumer (`perfetto` cmdline or the UI's WebSocket bridge) only ever
+The consumer (`perfetto` command line or the UI's WebSocket bridge) only
 talks to the host's `traced`. Trace configuration, buffer ownership, and
 final read-back stay on a single machine.
 
@@ -77,7 +76,7 @@ reconnects of the same kernel, but distinct between different kernels.
 The host's `traced` maps each unique hint to a small integer `MachineId`
 and stamps every `TracePacket` arriving from that relay with it (the
 `machine_id` field on `TracePacket`). At import time, [Trace Processor]
-materialises one row per machine in the `machine` table:
+materializes one row per machine in the `machine` table:
 
 | Column | Description |
 | ------ | ----------- |
@@ -116,7 +115,7 @@ protocol.
 
 ## {#data-source-dispatch} Data source dispatch
 
-By default `traced` only dispatches data sources to producers on the host
+By default, `traced` only dispatches data sources to producers on the host
 machine. To collect data from remote machines, the consumer's
 `TraceConfig` must opt in, either globally with `trace_all_machines: true`
 or per-data-source with `DataSource.machine_name_filter`. Without one of
@@ -146,7 +145,7 @@ namespaces, etc.).
 * Every remote machine must have a network path to the host's relay
   endpoint, on TCP or vsock.
 * Cross-machine clock alignment is only as good as the ping protocol's
-  measurement of the offset; a roughly-aligned wall clock (NTP or
+  measurement of the offset; a roughly aligned wall clock (NTP or
   similar) helps the first snapshots but is not strictly required.
 * UI per-machine track rendering is still maturing. SQL on the `machine`
   table and `machine_id` columns is the authoritative way to slice

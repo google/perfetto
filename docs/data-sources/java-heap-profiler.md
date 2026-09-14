@@ -1,6 +1,6 @@
 # Memory: ART Heap Dumps for Java/Kotlin Heap
 
-NOTE: Capturing Heap dumps requires Android 11 or higher
+NOTE: Capturing heap dumps requires Android 11 or higher.
 
 NOTE: Perfetto ART Heap Dumps are distinct from standard JVM / HPROF heap
 dumps. Unlike HPROF dumps, these only contain the reference graph - not the
@@ -9,14 +9,14 @@ data within objects.
 See the [Memory Guide](/docs/case-studies/memory.md#java-hprof) for getting
 started with ART (Android RunTime) heap dumps.
 
-Conversely from [heap profiles](native-heap-profiler.md), heap dumps report
-full retention graphs of Java objects but not call-stacks. The information
-recorded in a heap dump is of the form: _Object X retains
-object Y, which is N bytes large, through its class member named Z_.
+Unlike [heap profiles](native-heap-profiler.md), heap dumps report full
+retention graphs of Java objects but not call-stacks. The information recorded
+in a heap dump is of the form: _Object X retains object Y, which is N bytes
+large, through its class member named Z_.
 
-Heap dumps are not to be confused with profiles taken by the
-[ART Allocation Profiling](native-heap-profiler.md#art-allocation-profiling), which
-records allocation events / call stacks.
+Do not confuse heap dumps with profiles taken by
+[ART Allocation Profiling](native-heap-profiler.md#art-allocation-profiling),
+which records allocation events / call stacks.
 
 ## UI
 
@@ -34,7 +34,7 @@ This is available only on Android 13 or higher.
 
 ## SQL
 
-Information about the Java Heap is written to the following tables:
+Information about the Java heap is written to the following tables:
 
 * [`heap_graph_class`](/docs/analysis/sql-tables.autogen#heap_graph_class)
 * [`heap_graph_object`](/docs/analysis/sql-tables.autogen#heap_graph_object)
@@ -62,9 +62,9 @@ select c.name, sum(o.self_size)
 |char[]              |              357720|
 |byte[]              |              350423|
 
-Using the standard library, we can query the normalize the graph into a tree,
-always taking the shortest path to the root and get cumulative sizes.
-From this we can see how much memory is being held by each type of object
+Use the standard library to normalize the graph into a tree, always taking the
+shortest path to the root, and calculate cumulative sizes. This shows how much
+memory each type of object retains.
 
 ```sql
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_summary_tree;

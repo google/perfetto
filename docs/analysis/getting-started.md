@@ -1,9 +1,7 @@
 # Trace Analysis Overview
 
-This page is the entrypoint to the world of trace analysis with Perfetto. It
-provides an overview of the different tools and concepts you can use to extract
-meaningful information from traces, guiding you from interactive exploration to
-large-scale automated analysis.
+This page introduces Perfetto's trace analysis tools and concepts, from
+interactive exploration to large-scale automated analysis.
 
 ## The Challenge: Making Sense of Raw Traces
 
@@ -14,9 +12,8 @@ and need to be supported in trace analysis tools.
 
 ## The Solution: The Trace Processor and PerfettoSQL
 
-At the heart of all trace analysis in Perfetto is the **Trace Processor**, a C++
-library that solves this complexity. It does the heavy lifting of parsing,
-structuring, and querying trace data.
+The **Trace Processor** is the C++ library behind all trace analysis in
+Perfetto. It parses, structures, and queries trace data.
 
 The Trace Processor abstracts away the underlying trace format and exposes the
 data through **PerfettoSQL**, a dialect of SQL that allows you to query the
@@ -26,7 +23,7 @@ The Trace Processor is responsible for:
 
 - **Parsing traces**: Ingesting a wide variety of trace formats, including
   Perfetto, ftrace, and Chrome JSON.
-- **Structuring data**: Massaging the raw trace data into a structured format.
+- **Structuring data**: Converting raw trace data into a structured format.
 - **Exposing a query interface**: Providing a PerfettoSQL interface for querying
   the structured data.
 - **Bundling the standard library**: Including the PerfettoSQL standard library
@@ -47,26 +44,24 @@ interactive exploration to narrow, automated analysis.
     trace, you can automate your queries and build more complex analysis
     pipelines using the Trace Processor libraries for Python and C++.
 
-3.  **Large-Scale Analysis**: For building robust, automated analysis pipelines,
-    Trace Summarization is the recommended approach. It allows you to define a
-    stable, structured output for your analysis, making it perfect for
-    performance monitoring and regression detection at scale.
+3.  **Large-Scale Analysis**: Trace Summarization is the recommended approach
+    for automated analysis pipelines. It lets you define stable, structured
+    output for performance monitoring and regression detection at scale.
 
 ## Where to Go Next
 
 ### Learn the Language: PerfettoSQL
 
-Before diving into the tools, it's helpful to have a foundational understanding
-of PerfettoSQL.
+Start by learning the basics of PerfettoSQL.
 
 - **[Getting Started with PerfettoSQL](perfetto-sql-getting-started.md)**: Learn
   the core concepts of PerfettoSQL and how to write queries.
 - **[PerfettoSQL Syntax](perfetto-sql-syntax.md)**: Learn about the SQL syntax
   supported by Perfetto, including special features for creating functions,
   tables, and views.
-- **[Standard Library](stdlib-docs.autogen)**: Explore the rich set of modules
-  available in the standard library for analyzing common scenarios like CPU
-  usage, memory, and power.
+- **[Standard Library](stdlib-docs.autogen)**: Explore the modules available in
+  the standard library for analyzing common scenarios like CPU usage, memory,
+  and power.
 
 ### Explore the Tools
 
@@ -75,9 +70,8 @@ different ways to use the Trace Processor.
 
 - **[Trace Processor (C++)](trace-processor.md)**: Learn how to use the
   interactive shell and the underlying C++ library.
-- **[Trace Processor (Python)](trace-processor-python.md)**: Leverage the Python
-  API to combine trace analysis with the rich data science and visualization
-  ecosystem.
+- **[Trace Processor (Python)](trace-processor-python.md)**: Use the Python API
+  to combine trace analysis with data science and visualization tools.
 
 ### Automate Your Analysis
 

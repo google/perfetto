@@ -50,8 +50,7 @@ against SDK version 29, so will work on Android 10 or newer.
 WARNING: Only use the header from the checkout you used to build the library,
          as the API is not stable yet.
 
-To make debugging in the future easier, make note of the revision at the time
-you built.
+Record the revision you built to help with future debugging.
 
 ```
 git rev-parse HEAD > perfetto-version.txt
@@ -94,18 +93,18 @@ void my_free(void* ptr) {
 }
 ```
 
-Don't forget to link `heapprofd_standalone_client.so` and including it in
-your app.
+Link `heapprofd_standalone_client.so` and include it in your app.
 
 ## Profile your App
 
-Then, use the [heap_profile](
+Then, use the
+[heap_profile](
 https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile)
-script to get a profile to generate textpb of the config.
-To convert to a binary proto, you additionally need to download
+script to get a profile to generate textpb of the config. To convert to a binary
+proto, you additionally need to download
 [`perfetto_trace.proto`](
 https://raw.githubusercontent.com/google/perfetto/main/protos/perfetto/trace/perfetto_trace.proto)
-and have recent version of the protoc compiler installed.
+and have a recent version of the protoc compiler installed.
 [Learn how to install protoc](https://grpc.io/docs/protoc-installation).
 
 On Linux, you can start a profile using the following pipeline (substitute
@@ -120,8 +119,8 @@ heap_profile android -n $APP_NAME --heaps $HEAP --print-config | \
 
 On Windows, you will need [python 3.6](https://www.python.org/downloads/) or
 later. You can start a profile using the following pipeline from a command
-prompt (substitute`%APP_NAME%` for the name of your app and `%HEAP%` for
-the name of the heap you registered using `AHeapProfile_registerHeap`):
+prompt (substitute `%APP_NAME%` for the name of your app and `%HEAP%` for the
+name of the heap you registered using `AHeapProfile_registerHeap`):
 
 ```
 python /path/to/heap_profile android -n %APP_NAME% --heaps %HEAP% --print-config | ^
@@ -129,8 +128,8 @@ python /path/to/heap_profile android -n %APP_NAME% --heaps %HEAP% --print-config
  adb shell perfetto -c - -o /data/misc/perfetto-traces/profile
 ```
 
-Play around with the app to make it cause custom allocations, then stop the
-profile using `adb shell killall perfetto`. Once it is done, pull the profile
-from `/data/misc/perfetto-traces/profile` using `adb pull`.
+Use the app to trigger custom allocations, then stop the profile using
+`adb shell killall perfetto`. Once it is done, pull the profile from
+`/data/misc/perfetto-traces/profile` using `adb pull`.
 
 Upload the profile to the [Perfetto UI](https://ui.perfetto.dev).

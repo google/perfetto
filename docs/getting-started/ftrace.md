@@ -9,8 +9,8 @@ In this guide, you'll learn how to:
 This guide is intended for **kernel and systems developers** who want to add
 custom instrumentation to the Linux kernel and integrate it with perfetto.
 
-People tinkering with a local kernel and wanting simple track visualisations
-without touching perfetto code can skim [Part C][section-c-link] instead.
+If you want basic track visualizations for a local kernel without changing
+Perfetto code, see [Part C][section-c-link].
 
 ## Introduction
 
@@ -32,10 +32,11 @@ The query engine and UI in turn have domain-specific parsing of ftrace events.
 For example raw context switch and wakeup events are turned into per-cpu and
 per-thread scheduling tracks in the UI, backed by queryable SQL tables.
 
-TIP: if you simply want to visualise the execution of kernel functions, perfetto
-has built-in visualisation for the `function_graph` tracer built into ftrace,
-which does not require any additional instrumentation. See the
-[function graph data source](/docs/data-sources/funcgraph.md) page (or [these
+TIP: To visualize the execution of kernel functions, Perfetto has built-in
+visualization for ftrace's `function_graph` tracer, which does not require any
+additional instrumentation. See the
+[function graph data source](/docs/data-sources/funcgraph.md) page (or
+[these
 config options][funcgraph-cfg-link]) for more details.
 
 This page is split into three sections:
@@ -60,9 +61,9 @@ This page is split into three sections:
 
 ### Create the kernel module source files
 
-For this example we are going to create a kernel module called `ticker` which
-contains a tracepoint called `ticker_tick` which is called every second with an
-incrementing counter as the argument.
+In this example, you'll create a kernel module called `ticker` with a tracepoint
+called `ticker_tick`. It is called every second with an incrementing counter as
+the argument.
 
 Create a new directory and copy the following file contents into the following
 directory structure:
@@ -138,9 +139,8 @@ module_init(ticker_init);
 module_exit(ticker_exit);
 ```
 
-The header defining the tracepoints. Note that it is important for the header to
-be under `trace/events/` and not at the root of the directory. Otherwise the
-kernel macros won't expand correctly:
+The header defines the tracepoints. It must be under `trace/events/`, not at the
+root of the directory, for the kernel macros to expand correctly:
 
 ```h
 // trace/events/ticker.h
@@ -255,9 +255,8 @@ the `TP_printk(...)` part of the tracepoint definition above.
 
 ### Record a perfetto trace with tracebox
 
-In order to record our ticker events, we are going to record a system trace
-using `tracebox`. First we need to create a recording config file that's
-configured to do so:
+To record the ticker events in a system trace using `tracebox`, first create a
+recording config file:
 
 ```
 # ticker.cfg
@@ -304,7 +303,7 @@ Expand the "Ftrace Events" track group for a per-cpu view of events, which can
 be selected to show their fields. Additionally, `Ctrl+shift+P -> "Show ftrace
 tab"` opens up a tab with an approximation of the textual output. However note
 that because perfetto records the binary representation of events, it does not
-textualise the events according to the `TP_printk(..)` specifier.
+textualize the events according to the `TP_printk(..)` specifier.
 
 ![Raw ticker events](https://storage.googleapis.com/perfetto-misc/ticker-raw.gif)
 
@@ -316,7 +315,7 @@ SELECT * FROM ftrace_event JOIN args USING (arg_set_id)
 ## Part B: Integrating new tracepoints with perfetto
 
 To add dedicated parsing for this new tracepoint in Perfetto, we need to:
-- generate a protobuf description of the event, so that the serialising code (in
+- generate a protobuf description of the event, so that the serializing code (in
   traced\_probes or tracebox) can write the events as that protobuf type,
   instead of a generic fallback encoding that was implicitly used above.
 - add a decoder to trace\_processor (the query engine) that creates the desired
@@ -343,8 +342,8 @@ Then add the event to the following list:
 echo "ticker/ticker_tick" >> src/tools/ftrace_proto_gen/event_list
 ```
 
-Then run the generator scripts to create the protobuf description and
-other compile-time files for both the serialising and decoding code:
+Then run the generator scripts to create the protobuf description and other
+compile-time files for both the serializing and decoding code:
 ```sh
 tools/run_ftrace_proto_gen
 tools/gen_all out/YOUR_BUILD_DIRECTORY
@@ -356,9 +355,9 @@ This should create/modify at least the following files:
 `src/traced/probes/ftrace/event_info.cc`,
 `protos/perfetto/trace/perfetto_trace.proto`.
 
-This is sufficient for the serialising logic to start using the dedicated
+This is sufficient for the serializing logic to start using the dedicated
 protobuf type for your events. Note: when recording, perfetto reads the event's
-format file in tracefs at runtime, and serialises only the fields that were
+format file in tracefs at runtime, and serializes only the fields that were
 known at perfetto's compile time.
 
 Rebuild `tracebox` locally with your changes and re-record the trace.
@@ -421,10 +420,9 @@ WHERE ct.type = 'ticker'
 
 ### Visualise the track in the UI
 
-In order to actually see this track in the UI it needs to be added by some UI
-code (organised in perfetto as plugins). We'll use the simplest option,
-`dev.perfetto.TraceProcessorTrack`. Make the following edit to add all counter
-tracks of type "ticker" to the `SYSTEM` top level group:
+To display this track in the UI, add it through a Perfetto UI plugin. We'll use
+the simplest option, `dev.perfetto.TraceProcessorTrack`. Make the following edit
+to add all counter tracks of type "ticker" to the `SYSTEM` top level group:
 
 ```ts
 // ui/src/plugins/dev.perfetto.TraceProcessorTrack/counter_tracks.ts
@@ -469,11 +467,11 @@ convention, trace\_processor and the UI will automatically try to group the
 events on tracks. With grouping (scoping) controlled by further conventions.
 
 The following sections give an example tracepoint template for a few common
-cases, and their expected visualisation:
+cases, and their expected visualization:
 * slice tracks for synchronous code, where the operations are ended on the same
   thread that they're started, for example before and after a loop in a single
   function.
-* process-scoped slice tracks for events that are best visualised when grouped
+* process-scoped slice tracks for events that are best visualized when grouped
   at the process level.
 * cpu-scoped counter tracks for events that represent per-cpu counters.
 
@@ -484,12 +482,12 @@ NOTE: The full reference with details on scoping and track naming options is at
 
 ### Thread-scoped slice tracks
 
-The simplest case if you want to visualise the duration of (potentially nested)
+The simplest case if you want to visualize the duration of (potentially nested)
 regions of code where the beginning and the end happen on the same thread.
 
-Perfetto can be hinted that your tracepoint should be parsed into thread-scoped
-slice tracks simply by having two fields with "well known" names and types in
-the layout of the tracepoint (`TP_STRUCT__entry(...`):
+To have Perfetto parse your tracepoint into thread-scoped slice tracks, add two
+fields with specific names and types to the tracepoint layout
+(`TP_STRUCT__entry(...`):
 * `char track_event_type`
 * `__string slice_name`
 
@@ -546,8 +544,8 @@ TRACE_EVENT(tid_track_example,
 #include <trace/define_trace.h>
 ```
 
-Note that only the types and names of `TP_STRUCT__entry` matter, there are no
-constraints on extra fields, the printk specifier, or even field order.
+Only the types and names in `TP_STRUCT__entry` matter. There are no constraints
+on extra fields, the printk specifier, or field order.
 
 For convenience, the tracepoint invocations can be wrapped with macros:
 ```h
@@ -688,7 +686,7 @@ for (int i=0; i < 3; i++) {
 TRACE_EX_END();
 ```
 
-Resulting visualisation, when recorded using the config from the preceding
+Resulting visualization, when recorded using the config from the preceding
 example. All slice stacks are aggregated at the process level:
 
 ![process scoped slice UI](/docs/images/kernel-trackevent-tgid-slice.png)
@@ -700,7 +698,7 @@ automatically presented as tracks in perfetto. The counters can also be grouped
 by thread/process, but this example demonstrates per-cpu grouping.
 
 The expected fields in `TP_STRUCT__entry` for this type of parsing:
-* `u64 counter_value` (any intergral type is accepted)
+* `u64 counter_value` (any integral type is accepted)
 * `int scope_cpu`
 
 Tracepoint declaration example, named `trk_example/cpu_counter_example`:
@@ -751,13 +749,12 @@ static unsigned int n = 0
 trace_cpu_counter_example(n++, smp_processor_id());
 ```
 
-Resulting visualisation, when recorded using the config from the preceding
+Resulting visualization, when recorded using the config from the preceding
 examples. With counter increments being attributed to the cpu that executed the
 tracepoint (due to the use of `smp_processor_id()` as the cpu index, but we
 could've equally used a static index if that made more sense for the tracepoint
 in question):
 
 ![cpu scoped counter UI](/docs/images/kernel-trackevent-cpu-counter.png)
-
 
 

@@ -6,31 +6,29 @@ perfetto - capture traces
 
 ## DESCRIPTION
 
-This section describes how to use the `perfetto` commandline binary to capture
-traces. Examples are given in terms of an Android device connected over ADB.
+Use the `perfetto` command-line binary to capture traces. The examples use an
+Android device connected over ADB.
 
 `perfetto` has two modes for configuring the tracing session (i.e. what and how
 to collect):
 
 __lightweight mode__
-: all config options are supplied as commandline flags,
-  but the available data sources are restricted to ftrace and atrace. This mode
-  is similar to
+: you supply all config options as command-line flags, but the available data
+  sources are restricted to ftrace and atrace. This mode is similar to
   [`systrace`](https://developer.android.com/topic/performance/tracing/command-line).
 
 __normal mode__
 : the configuration is specified in a protocol buffer. This allows for full
-  customisation of collected traces.
+  customization of collected traces.
 
 
 ## GENERAL OPTIONS
 
-The following table lists the available options when using `perfetto` in either
-mode.
+These options are available when using `perfetto` in either mode.
 
 `-d`, `--background`
 :    Perfetto immediately exits the command-line interface and continues
-     recording your trace in background.
+     recording your trace in the background.
 
 `-D`, `--background-wait`
 :    Like `--background`, but waits (up to 30s) for all data sources to be
@@ -43,9 +41,8 @@ mode.
      Windows.
 
 `-o`, `--out` _OUT_FILE_
-:    Specifies the desired path to the output trace file, or `-` for stdout.
-     `perfetto` writes the output to the file described in the flags above.
-     The output format compiles with the format defined in
+:    Specifies the path to the output trace file, or `-` for stdout.
+     `perfetto` writes output in the format defined in
      [AOSP `trace.proto`](/protos/perfetto/trace/trace.proto).
 
 `--no-clobber`
@@ -141,12 +138,11 @@ mode.
 
 ## SIMPLE MODE
 
-For ease of use, the `perfetto` command includes support for a subset of
-configurations via command line arguments. On-device, these
-configurations behave equivalently to the same configurations provided
-by a *CONFIG_FILE* (see below).
+The `perfetto` command supports a subset of configurations through command-line
+arguments. On the device, these behave the same as configurations provided in a
+*CONFIG_FILE* (see below).
 
-The general syntax for using `perfetto` in *simple mode* is as follows:
+Use this syntax for `perfetto` in *simple mode*:
 
 ```
  adb shell perfetto [ --time TIMESPEC ] [ --buffer SIZE ] [ --size SIZE ]
@@ -155,8 +151,7 @@ The general syntax for using `perfetto` in *simple mode* is as follows:
 ```
 
 
-The following table lists the available options when using `perfetto` in
-*simple mode*.
+These options are available when using `perfetto` in *simple mode*.
 
 `-t`, `--time` _TIME[s|m|h]_
 :    Specifies the trace duration in seconds, minutes, or hours.
@@ -169,7 +164,7 @@ The following table lists the available options when using `perfetto` in
 
 `-s`, `--size` _SIZE[mb|gb]_
 :    Specifies the max file size in megabytes (mb) or gigabytes (gb).
-     By default `perfetto` uses only in-memory ring-buffer.
+     By default, `perfetto` uses only an in-memory ring buffer.
 
 `-a`, `--app` _APP_NAME_
 :    Specifies an Android app name for atrace app-level tracing.
@@ -192,14 +187,13 @@ This is followed by a list of event specifiers:
 
 ## NORMAL MODE
 
-The general syntax for using `perfetto` in *normal mode* is as follows:
+Use this syntax for `perfetto` in *normal mode*:
 
 ```
  adb shell perfetto [ --txt ] --config CONFIG_FILE
 ```
 
-The following table lists the available options when using `perfetto` in
-*normal* mode.
+These options are available when using `perfetto` in *normal* mode.
 
 `-c`, `--config` _CONFIG_FILE_
 :    Specifies the path to a configuration file. In normal mode, some

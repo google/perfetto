@@ -15,8 +15,8 @@ or system configuration, without restarting tracing each time.
 
 Imagine you are tuning device or system parameters (e.g. writing to `/proc` or
 `/sys` nodes) and want to see the effect on power, thermals and CPU behavior
-within seconds. The traditional workflow of "start trace, stop trace, pull,
-analyze" adds unnecessary friction.
+within seconds. Repeating the "start trace, stop trace, pull, analyze" workflow
+slows this down.
 
 With **periodic trace snapshots** you start a single ring-buffer trace once,
 then clone it as many times as you like. Each clone is an independent snapshot
@@ -369,7 +369,7 @@ for more details.
 
 If you want to analyze multiple snapshots together,
 [Batch Trace Processor](/docs/analysis/batch-trace-processor.md) lets you run a
-single query across a set of traces in one go.
+single query across a set of traces.
 
 ## Automating snapshots
 

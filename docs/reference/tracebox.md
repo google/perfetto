@@ -7,24 +7,24 @@ tracebox - all-in-one binary for Perfetto tracing services
 ## DESCRIPTION
 
 `tracebox` is a bundle containing all the tracing services (`traced`,
-`traced_probes`) and the `perfetto` commandline client in one binary.
+`traced_probes`) and the `perfetto` command-line client in one binary.
 
-It can be used either to spawn manually the various subprocess or in "autostart"
-mode, which will take care of starting and tearing down the services for you.
+You can spawn the subprocesses manually or use "autostart" mode to start and
+stop the services for you.
 
 ## AUTOSTART MODE
 
-If no applet name is specified, `tracebox` will behave like the `perfetto`
-command, but will also start `traced` and `traced_probes`.
+If you omit the applet name, `tracebox` behaves like the `perfetto` command and
+also starts `traced` and `traced_probes`.
 
-See [perfetto(1)](perfetto-cli.md) for the documentation of the commandline client.
+See [perfetto(1)](perfetto-cli.md) for the command-line client documentation.
 
 ### Autostart Mode Usage
 
 The autostart mode supports both simple and normal modes of `perfetto`'s
-operation, and additionally provides a `--system-sockets` flag.
+operation and also provides a `--system-sockets` flag.
 
-The general syntax for using `tracebox` in *autostart mode* is as follows:
+Use this syntax for `tracebox` in *autostart mode*:
 
 ```
  tracebox [PERFETTO_OPTIONS] [TRACEBOX_OPTIONS] [EVENT_SPECIFIERS]
@@ -71,9 +71,9 @@ tracebox -c config.pbtx --txt -o custom_trace.perfetto-trace
 
 ## MANUAL MODE
 
-`tracebox` can be used to invoke the bundled applets.
+Use `tracebox` to invoke the bundled applets.
 
-The general syntax for using `tracebox` in *manual mode* is as follows:
+Use this syntax for `tracebox` in *manual mode*:
 
 ```
  tracebox [applet_name] [args ...]
@@ -99,7 +99,7 @@ The following applets are available:
 :    Perf-based CPU profiling data source.
 
 `perfetto`
-:    The commandline client for controlling tracing sessions.
+:    The command-line client for controlling tracing sessions.
 
 `trigger_perfetto`
 :    A utility to activate triggers for a tracing session.

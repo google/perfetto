@@ -1,30 +1,30 @@
 # Trace Summarization
 
 This guide explains how to use Perfetto's trace summarization feature to extract
-structured, actionable data from your traces.
+structured data from your traces.
 
 ## Why Use Trace Summarization?
 
-PerfettoSQL is a powerful tool for interactively exploring traces. You can write
-any query you want, and the results are immediately available. However, this
-flexibility presents a challenge for automation and large-scale analysis. The
-output of a `SELECT` statement has an arbitrary schema (column names and types),
-which can change from one query to the next. This makes it difficult to build
-generic tools, dashboards, or regression-detection systems that consume this
-data, as they cannot rely on a stable data structure.
+You can use PerfettoSQL to explore traces interactively. You can write any query
+you want, and the results are immediately available. However, this flexibility
+presents a challenge for automation and large-scale analysis. The output of a
+`SELECT` statement has an arbitrary schema (column names and types), which can
+change from one query to the next. This makes it difficult to build generic
+tools, dashboards, or regression-detection systems that consume this data, as
+they cannot rely on a stable data structure.
 
-**Trace summarization solves this problem.** It provides a way to define a
-stable, structured schema for the data you want to extract from a trace. Instead
-of producing arbitrary tables, it generates a consistent protobuf message
+Trace summarization lets you define a stable, structured schema for the data you
+want to extract from a trace. Instead of producing arbitrary tables, it
+generates a consistent protobuf message
 ([`TraceSummary`](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace_summary/file.proto;l=53?q=tracesummaryspec))
 that is easy for tools to parse and process.
 
-This is especially powerful for **cross-trace analysis**. By running the same
-summary specification across hundreds or thousands of traces, you can reliably
-aggregate the results to track performance metrics over time, compare different
-versions of your application, and automatically detect regressions.
+This supports **cross-trace analysis**. By running the same summary
+specification across hundreds or thousands of traces, you can reliably aggregate
+the results to track performance metrics over time, compare different versions
+of your application, and automatically detect regressions.
 
-In short, use trace summarization when you need to:
+Use trace summarization when you need to:
 
 - Extract data for automated tooling.
 - Ensure a stable output schema for your analysis.
@@ -32,13 +32,13 @@ In short, use trace summarization when you need to:
 
 ## Using Summaries with the Standard Library
 
-The easiest way to get started is by using the modules in the
+To get started, use the modules in the
 [PerfettoSQL Standard Library](/docs/analysis/stdlib-docs.autogen).
 
 Let's walk through an example. Suppose we want to compute the average memory
 usage (specifically, RSS + Swap) for each process in a trace. The
 `linux.memory.process` module already provides a table,
-`memory_rss_and_swap_per_process`, that is perfect for this.
+`memory_rss_and_swap_per_process`, for this.
 
 We can define a `TraceSummarySpec` to compute this metric:
 
@@ -189,9 +189,8 @@ trace_processor_shell summarize \
 
 ## Adding Units and Polarity
 
-To make automated analysis and visualization of metrics more powerful, you can
-add units and polarity (i.e., whether a higher or lower value is better) to your
-metrics.
+You can add units and polarity (i.e., whether a higher or lower value is better)
+to your metrics for automated analysis and visualization.
 
 This is done by using the `value_column_specs` field in a
 `TraceMetricV2TemplateSpec` instead of the simpler `value_columns`. This allows
@@ -250,17 +249,15 @@ metric_template_spec {
 ```
 
 This will add the specified `unit` and `polarity` to the `TraceMetricV2Spec` of
-each generated metric, making the output richer and more useful for automated
-tooling.
+each generated metric.
 
 ## Using Summaries with Custom SQL Modules
 
-While the standard library is powerful, you will often need to analyze custom
-events specific to your application. You can achieve this by writing your own
-SQL modules and loading them into Trace Processor.
+To analyze custom events specific to your application, write your own SQL
+modules and load them into Trace Processor.
 
-A SQL package is simply a directory containing `.sql` files. This directory can
-be loaded into Trace Processor, and its files become available as modules.
+A SQL package is a directory containing `.sql` files. This directory can be
+loaded into Trace Processor, and its files become available as modules.
 
 Let's say you have custom slices named `game_frame` and you want to calculate
 the average, minimum, and maximum frame duration.
@@ -372,9 +369,8 @@ trace_processor_shell summarize \
 
 ### Column Transformations
 
-The `select_columns` field provides a powerful way to manipulate the columns of
-your query result. You can rename columns and perform transformations using SQL
-expressions.
+Use the `select_columns` field to rename columns in your query result and
+transform them using SQL expressions.
 
 Each `SelectColumn` message has two fields:
 
@@ -408,7 +404,7 @@ query: {
 
 A common analysis pattern is to analyze data from one source (e.g., CPU usage)
 within specific time windows from another (e.g., a "Critical User Journey"
-slice). The `interval_intersect` query makes this easy.
+slice). Use the `interval_intersect` query for this.
 
 It works by taking a `base` query and one or more `interval` queries. The result
 includes only the rows from the `base` query that overlap in time with at least
@@ -626,24 +622,23 @@ metric_bundles {
 
 Perfetto previously had a different system for computing metrics, often referred
 to as "v1 metrics." Trace summarization is the successor to this system,
-designed to be more robust and easier to use.
+designed to be easier to use.
 
 Here are the key differences:
 
 - **Output Schema**: The legacy system required users to define their own output
-  protobuf schemas. This was powerful but had a steep learning curve and led to
-  inconsistent, hard-to-maintain outputs. Trace summarization uses a single,
-  well-defined output proto (`TraceSummary`), ensuring that all summaries are
-  structured consistently.
+  protobuf schemas. This had a steep learning curve and led to inconsistent,
+  hard-to-maintain outputs. Trace summarization uses a single, well-defined
+  output proto (`TraceSummary`), ensuring that all summaries are structured
+  consistently.
 - **Ease of Use**: With trace summarization, you do not need to write or manage
   any `.proto` files for the output. You only need to define _what_ data to
   compute (the query) and its _shape_ (dimensions and value). Perfetto handles
   the rest.
 - **Flexibility vs. Tooling**: While the legacy system offered more flexibility
-  in the output structure, this came at the cost of toolability. The
-  standardized output of trace summarization makes it far easier to build
-  reliable, long-term tools for analysis, visualization, and regression
-  tracking.
+  in the output structure, this made it harder to build tools. The standardized
+  output of trace summarization makes it far easier to build reliable, long-term
+  tools for analysis, visualization, and regression tracking.
 
 ## Extending
 

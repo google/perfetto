@@ -14,20 +14,20 @@ This allows you to see log events time-synced with the rest of the trace. When r
 logs indefinitely, regardless of the Android log daemon buffer size
 (i.e. log events are periodically fetched and copied into the trace buffer).
 
-The data source can be configured to filter event from specific log buffers and
-keep only the events matching specific tags or priority.
+You can configure the data source to filter events from specific log buffers and
+keep only events matching specific tags or priority.
 
 [EventLog]: https://developer.android.com/reference/android/util/EventLog
 
 ### UI
 
-At the UI level, log events are showed in two widgets:
+The UI shows log events in two widgets:
 
-1. A summary track that allows to quickly glance at the distribution of events
-   and their severity on the timeline.
+1. A summary track showing the distribution of events and their severity on the
+   timeline.
 
-2. A table, time-synced with the viewport, that allows to see events within the
-   selected time range.
+2. A table, time-synced with the viewport, showing events within the selected
+   time range.
 
 ![](/docs/images/android_logs.png "Android logs in the UI")
 

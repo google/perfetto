@@ -6,12 +6,12 @@ In this guide, you'll learn how to:
 - Collect callstack profiles to identify performance bottlenecks.
 - Visualize and analyze CPU profiles in the Perfetto UI.
 
-On linux and android, perfetto can record per-cpu
+On Linux and Android, Perfetto can record per-CPU
 [perf counters](https://perfwiki.github.io/main/), for example hardware events
-such as executed instructions or cache misses. Additionally, perfetto can be
-configured to sample callstacks of running processes based on these performance
-counters. Both modes are analogous to the `perf record` command from the perf
-tool, and use the same system call (`perf_event_open`).
+such as executed instructions or cache misses. You can also configure Perfetto
+to sample callstacks of running processes based on these performance counters.
+Both modes are analogous to the `perf record` command from the perf tool, and
+use the same system call (`perf_event_open`).
 
 If you're only interested in the profiling (i.e. flamegraphs), skip to
 ["Collecting a callstack profile"](#collecting-a-callstack-profile).
@@ -20,8 +20,8 @@ If you're only interested in the profiling (i.e. flamegraphs), skip to
 
 The recording is defined using the usual perfetto config protobuf, and can be
 freely combined with other data sources such as ftrace. This allows for hybrid
-traces with a single timeline showing both the sampled counter values as well as
-other traced data, e.g. process scheduling.
+traces with a single timeline showing both the sampled counter values and other
+traced data, e.g. process scheduling.
 
 The data source configuration
 ([PerfEventConfig](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/config/profiling/perf_event_config.proto?q=PerfEventConfig))
@@ -38,10 +38,9 @@ defines the following:
   time as the timebase event.
 
 One tracing configuration can define multiple "linux.perf" data sources for
-separate sampling groups. But note that you need to be careful not to exceed the
-PMU capacity of the platform if counting hardware events. Otherwise the kernel
-will multiplex (repeatedly switch in and out) the event groups, leading to
-undercounting (see
+separate sampling groups. When counting hardware events, take care not to exceed
+the platform's PMU capacity. Otherwise the kernel will multiplex (repeatedly
+switch in and out) the event groups, leading to undercounting (see
 [this perfwiki page](https://perfwiki.github.io/main/tutorial/#multiplexing-and-scaling-events)
 for more info).
 
@@ -98,9 +97,9 @@ data_sources: {
 }
 ```
 
-Which should look similar to the following in the UI, after expanding the "Perf
-counters" track groups. The counter tracks show the values as counting rates by
-default.
+After you expand the "Perf counters" track groups in the UI, the trace should
+look similar to the following. The counter tracks show the values as counting
+rates by default.
 
 ![Perf counter trace in the UI](/docs/images/perf-counter-ui.png)
 
@@ -121,8 +120,8 @@ TAB: Android (command line)
 Prerequisites:
 - [ADB](https://developer.android.com/studio/command-line/adb) installed on the
   host machine.
-- A device running Android 15+, connected to the host machine using USB with
-  ADB authorised.
+- A device running Android 15+, connected to the host machine using USB with ADB
+  authorized.
 
 Download the `tools/record_android_trace` python script from the perfetto repo.
 The script automates pushing the config to the device, invoking perfetto,
@@ -176,7 +175,7 @@ The counter recording can also be configured to include a callstack (list of
 function frames that called each other) of the process that was interrupted at
 the time of the counter sampling. This is achieved by asking the kernel to
 record additional state (userspace register state, top of the stack memory) in
-each sample, and unwinding + symbolising the callstack in the profiler. The
+each sample, and unwinding + symbolizing the callstack in the profiler. The
 unwinding happens outside of the process, without any need for instrumentation
 or injected libraries in the processes being profiled.
 
@@ -264,19 +263,19 @@ TAB: Android (command line)
 Prerequisites:
 - [ADB](https://developer.android.com/studio/command-line/adb) installed on the
   host machine.
-- A device running Android 15+, connected to the host machine using USB with
-  ADB authorised.
-- A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+- A device running Android 15+, connected to the host machine using USB with ADB
+  authorized.
+- A
+  [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
   app. If you are running on a "user" build of Android (as opposed to
   "userdebug" or "eng"), your app needs to be marked as profileable or
   debuggable in its manifest.
 
-For android, the `tools/cpu_profile` helper python script simplifies
+For Android, the `tools/cpu_profile` helper Python script simplifies
 construction of the trace config, and has additional options for
-post-symbolisation of the profile (in case of libraries without symbol info)
-and conversion to the [pprof](https://github.com/google/pprof) format that is
-better suited for pure flamegraph visualisations. It can be downloaded as
-follows:
+post-symbolization of the profile (in case of libraries without symbol info) and
+conversion to the [pprof](https://github.com/google/pprof) format that is better
+suited for pure flamegraph visualizations. It can be downloaded as follows:
 ```bash
 curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/cpu_profile
 ```
@@ -289,11 +288,10 @@ we recommend keeping the sampling frequency below 200 Hz per cpu.
 python3 cpu_profile -n com.android.example -f 100
 ```
 
-The recording can be stopped by pressing ctrl-c. The script will then print a
-path under /tmp/ where it placed the outputs, the `raw-trace` file in that
-directory can be opened in the [Perfetto UI](https://ui.perfetto.dev), while
-the `profile.*.pb` are the per-process aggregate profiles in the "pprof" file
-format.
+Press Ctrl-C to stop recording. The script then prints the path under /tmp/
+where it placed the output files. Open `raw-trace` in the
+[Perfetto UI](https://ui.perfetto.dev). The `profile.*.pb` files contain
+per-process aggregate profiles in the "pprof" format.
 
 See `cpu_profile --help` for more flags, notably `-c` lets you supply your own
 textproto config, while taking advantage of the scripted recording and
@@ -303,7 +301,7 @@ output conversion.
 
 If your profiles are missing native libraries' function names, but you have
 access to the debug version of the libraries (with symbol data), you can
-symbolise the profile on the host by following the
+symbolize the profile on the host by following the
 [symbolization and deobfuscation guide](/docs/learning-more/symbolization.md).
 `trace_processor bundle` is the recommended entry point.
 
@@ -349,7 +347,7 @@ python3 trace_processor convert profile --perf /tmp/trace.pb
 
 If your profiles are missing native libraries' function names, but you have
 access to the debug version of the libraries (with symbol data), you can
-symbolise the profile after the fact by following the
+symbolize the profile after the fact by following the
 [symbolization and deobfuscation guide](/docs/learning-more/symbolization.md).
 `trace_processor bundle` is the recommended entry point.
 
@@ -383,7 +381,7 @@ directly in the UI.
 
     ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
 
-3.  You can then execute queries Ctrl/Cmd + Enter:
+3.  Execute queries with Ctrl/Cmd + Enter:
 
 For example, by running:
 
@@ -418,8 +416,8 @@ you can see the summary tree of all the callstacks captured in the trace.
 
 ### Alternatives
 
-The perfetto profiling implementation is built for continuous (streaming)
-collection, and is therefore less optimised for short, high-frequency profiling.
+The Perfetto profiling implementation is built for continuous (streaming)
+collection, and is therefore less optimized for short, high-frequency profiling.
 If all you need is a short CPU profile, consider recording with `simpleperf` on
 Android or `perf` on Linux instead. These recorders have a simpler command line
 for this use case, and you can still open their profiles in the Perfetto UI: see

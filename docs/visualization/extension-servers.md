@@ -15,9 +15,8 @@ automatically.
 
 ## Key properties
 
-Extension servers are **optional and never load-bearing**. The Perfetto UI works
-fully without any servers configured — servers only provide optional
-enhancements.
+Extension servers are **optional**. The Perfetto UI works fully without any
+servers configured.
 
 All extensions are **declarative and safe**:
 
@@ -106,7 +105,7 @@ Extension servers come in two types:
 
 - **GitHub** — Extensions hosted in a GitHub repository. The UI fetches files
   directly from `raw.githubusercontent.com` (public repos) or the GitHub API
-  (private repos). This is the easiest option — no server infrastructure needed.
+  (private repos). This option needs no server infrastructure.
 - **HTTPS** — Extensions hosted on any HTTPS endpoint: a static file host
   (GCS, S3, nginx), a dynamic server (Flask, Express), or corporate
   infrastructure. The server must set
@@ -131,8 +130,8 @@ for the exact headers the UI sends for each auth type.
 
 ## Creating extensions with GitHub
 
-The easiest way to create an extension server is to use a GitHub repository — no
-custom server infrastructure needed.
+You can use a GitHub repository as an extension server without setting up custom
+server infrastructure.
 
 ### Fork the template repository
 

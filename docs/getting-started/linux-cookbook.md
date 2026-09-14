@@ -27,9 +27,9 @@ downloads:
   curl -LO https://get.perfetto.dev/tracebox
   chmod +x tracebox
   ```
-- **`trace_processor`**: a host-side toolkit for converting and, importantly here,
-  symbolizing traces. It is a thin Python wrapper that downloads the right native
-  binary for your platform on first use.
+- **`trace_processor`**: a host-side toolkit for converting and symbolizing
+  traces. It is a thin Python wrapper that downloads the right native binary for
+  your platform on first use.
   ```bash
   curl -LO https://get.perfetto.dev/trace_processor
   chmod +x trace_processor
@@ -66,7 +66,7 @@ code, only the DWARF debug info attached to it:
 gcc -g -O2 -o myapp myapp.c        # or clang, same flags
 ```
 
-`-O2 -g` is the recommended combination for profiling: optimised code (so you
+`-O2 -g` is the recommended combination for profiling: optimized code (so you
 profile what you actually ship) with enough debug info to map addresses back to
 source lines.
 
@@ -79,8 +79,7 @@ readelf -n ./myapp | grep -A1 'Build ID'
 
 The Build ID is how Perfetto matches a binary on disk to the mapping recorded in
 the trace. Two different builds have different Build IDs, and Perfetto will
-refuse to apply mismatched symbols (this is a feature, it prevents wrong
-symbolization).
+refuse to apply mismatched symbols to prevent incorrect symbolization.
 
 **3. (Optional) Ship stripped, keep the symbols.** You do not need to deploy
 debug info to the target. Split it into a sidecar file and strip the deployed
@@ -273,11 +272,11 @@ sudo ./tracebox -c funcgraph.cfg --txt -o /tmp/funcgraph.pftrace
 
 Open `/tmp/funcgraph.pftrace` in the UI; the calls appear as nested slices on a
 per-thread `Funcgraph` track. See the dedicated
-[function graph data source](/docs/data-sources/funcgraph.md) page for the kernel
-requirements (`CONFIG_FUNCTION_GRAPH_TRACER`), the filtering options, and how the
-calls are visualised. Note that, unlike the [CPU profile](#cpu-profiling) recipe,
-these kernel symbols come from `symbolize_ksyms` and **cannot** be added later
-with `trace_processor bundle`.
+[function graph data source](/docs/data-sources/funcgraph.md) page for the
+kernel requirements (`CONFIG_FUNCTION_GRAPH_TRACER`), the filtering options, and
+how the calls are visualized. Note that, unlike the
+[CPU profile](#cpu-profiling) recipe, these kernel symbols come from
+`symbolize_ksyms` and **cannot** be added later with `trace_processor bundle`.
 
 ## Recipe: Finding why a thread is blocked {#blocked-thread}
 

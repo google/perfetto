@@ -1,10 +1,10 @@
 # Cookbook: Viewing CPU profiles from other profilers
 
-This page collects **recipes** for opening CPU profiles recorded by other
-profilers in the [Perfetto UI](https://ui.perfetto.dev): pprof, Linux `perf`
-and Android `simpleperf`. Each recipe gives the commands to produce a profile
-that Perfetto can open with function names intact, and describes what you will
-see once it is loaded.
+This page provides **recipes** for opening CPU profiles recorded by other
+profilers in the [Perfetto UI](https://ui.perfetto.dev): pprof, Linux `perf` and
+Android `simpleperf`. Each recipe gives the commands to produce a profile that
+Perfetto can open with function names intact, and describes what you will see
+once it is loaded.
 
 The Perfetto UI runs entirely in your browser: profiles are processed locally
 and never uploaded anywhere. To open a profile, either drag and drop the file
@@ -172,8 +172,7 @@ Perfetto also opens:
 
 ## {#exploring} Exploring the profile
 
-Whichever way a profile is opened, it is explored with the same flamegraph
-panel:
+You can explore any profile with the same flamegraph panel:
 
 - Switch between **Flamegraph**, **Call Tree** and **Functions** views, and
   between **Top Down** and **Bottom Up** orderings.

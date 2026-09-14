@@ -7,18 +7,16 @@ traced - The Perfetto Tracing Service
 ## DESCRIPTION
 
 `traced` is the central daemon in Perfetto's
-[service-based architecture](/docs/concepts/service-model.md). It acts as the
-grand central station for all tracing activity on the system, mediating
-interactions between entities that want to record data (Producers) and entities
-that want to control and read traces (Consumers).
+[service-based architecture](/docs/concepts/service-model.md). It coordinates
+interactions between clients that record data (Producers) and clients that
+control and read traces (Consumers).
 
 In a typical system-wide tracing setup (like on Android or Linux), `traced` runs
 as a long-lived background daemon, often started at system boot.
 
 ## Architecture
 
-Perfetto's architecture is designed for security and robustness, with `traced`
-at its core. The model consists of three main components:
+Perfetto's architecture has three main components, with `traced` at its core:
 
 *   **Consumers:** Trusted clients that configure and initiate tracing sessions.
     The `perfetto` command-line tool is a common example of a consumer.
@@ -29,9 +27,8 @@ at its core. The model consists of three main components:
     producer is [`traced_probes`](/docs/reference/traced_probes.md), which
     provides a wide range of system-level data sources.
 
-This decoupled architecture allows for multiple, independent producers and
-consumers to interact with the tracing system simultaneously without interfering
-with each other.
+Multiple independent producers and consumers can interact with the tracing
+system at the same time without interfering with each other.
 
 ## Core Responsibilities
 
@@ -39,22 +36,22 @@ with each other.
 logistics of one or more tracing sessions:
 
 *   **Session Management**: It can handle multiple concurrent tracing sessions,
-    each with its own configuration. It multiplexes these sessions efficiently,
-    ensuring that data from different sessions is kept separate.
+    each with its own configuration. It multiplexes these sessions and keeps
+    their data separate.
 *   **Buffer Management**: It owns the central trace buffers where the final
-    trace data is assembled. It is responsible for allocating, managing, and
-    freeing these buffers according to the trace configuration (e.g., ring
-    buffer vs. stop-when-full policies).
+    trace data is assembled. It allocates, manages, and frees these buffers
+    according to the trace configuration (e.g., ring buffer vs. stop-when-full
+    policies).
 *   **Producer and Data Source Registry**: It maintains a registry of all
     connected Producers and the Data Sources they advertise.
 *   **Config Routing**: When a Consumer initiates a trace, it sends a trace
     config to `traced`. The service then parses this config and forwards
     relevant sub-configurations to the appropriate Producers to start their data
     sources.
-*   **Data Consolidation & Security**: It facilitates the secure movement of
-    data from the Producers' untrusted shared memory pages into its own secure
-    central trace buffers. This isolation prevents a malicious or buggy producer
-    from corrupting the trace data of others.
+*   **Data Consolidation & Security**: It securely copies data from the
+    Producers' untrusted shared memory pages into its own central trace buffers.
+    This isolation prevents a malicious or buggy producer from corrupting the
+    trace data of others.
 
 ## Interaction Model
 
@@ -81,8 +78,8 @@ Entities interact with `traced` primarily through two channels:
 *   `--version`: Prints the version number and exits.
 *   `--set-socket-permissions
     <prod_group>:<prod_mode>:<cons_group>:<cons_mode>`: Sets the group ownership
-    and permission mode for the producer and consumer sockets. This is important
-    for controlling which users and processes can connect to `traced`.
+    and permission mode for the producer and consumer sockets. This controls
+    which users and processes can connect to `traced`.
 *   `--enable-relay-endpoint`: Exposes the `RelayPort` service used by
     [multi-machine tracing](/docs/deployment/multi-machine-architecture.md)
     on every producer socket named by `PERFETTO_PRODUCER_SOCK_NAME` (or the
@@ -125,7 +122,6 @@ responsibilities:
 
 ## Security
 
-The service-based architecture is designed with security in mind. Producers are
-untrusted and isolated from each other and from the central service. The use of
-UNIX socket permissions allows administrators to control who can connect to the
-tracing service as a producer or a consumer.
+Producers are untrusted and isolated from each other and from the central
+service. Administrators can use UNIX socket permissions to control who connects
+to the tracing service as a producer or a consumer.

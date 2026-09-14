@@ -1,7 +1,7 @@
 # Advanced Guide to Programmatic Trace Generation
 
-This page serves as an advanced reference for programmatically creating Perfetto
-trace files. It builds upon the foundational concepts and examples presented in
+This page is an advanced reference for creating Perfetto trace files
+programmatically. It builds on the concepts and examples in
 "[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/converting.md)".
 
 We assume you are familiar with:
@@ -15,8 +15,7 @@ We assume you are familiar with:
   traces, and that the Python examples provided here are intended to be used
   within its `populate_packets(builder)` function.
 
-This guide covers advanced `TrackEvent` features, grouped into the following
-areas:
+This guide covers the following advanced `TrackEvent` features:
 
 - **Associating tracks with OS concepts:** attaching your timeline data to
   operating system (OS) processes and threads for richer integration.
@@ -33,9 +32,9 @@ While `TrackEvent` is a primary method for representing timeline data,
 `TracePacket` is a versatile container. In the future, this guide may expand to
 cover other `TracePacket` payloads useful for synthetic trace generation.
 
-The examples will continue to use Python, but the principles apply to any
-language with Protocol Buffer support. For complete definitions of all available
-fields, always refer to the official Perfetto protobuf sources, particularly
+The examples use Python, but the principles apply to any language with Protocol
+Buffer support. For complete field definitions, see the Perfetto protobuf
+sources, particularly
 [TracePacket](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/trace_packet.proto)
 and its various sub-messages, including
 [TrackEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/track_event.proto).
@@ -53,26 +52,25 @@ richer integration and better correlation with other system-wide data.
 
 You can create a top-level track that represents an OS process. Any other custom
 tracks (which might contain slices or counters) can then be parented to this
-process track. This helps in:
+process track. This provides:
 
 - **UI Grouping:** Your custom tracks will appear under the specified process
   name and PID in the Perfetto UI, alongside any other data collected for that
   process (e.g., CPU scheduling, memory counters).
-- **Correlation:** Events on your custom tracks can be more easily correlated
-  with system-level activity related to that process.
+- **Correlation:** You can correlate events on your custom tracks with
+  system-level activity related to that process.
 - **Clear Identification:** Explicitly naming the process and providing its PID
-  makes it unambiguous which process your custom data pertains to.
+  identifies which process your custom data belongs to.
 
-To define a process track, you populate the `process` field within its
+To define a process track, populate the `process` field within its
 `TrackDescriptor`. At a minimum, you should provide a `pid` and ideally a
 `process_name`.
 
-It is also recommended to add a `timestamp` to the `TracePacket` containing the
+We also recommend adding a `timestamp` to the `TracePacket` containing the
 process's `TrackDescriptor`. This is especially important when the trace
 contains data from other sources (e.g. scheduling information from the kernel).
-Unlike with "global" tracks, these track types may interact with other data
-sources and as such having a timestamp makes sure that Trace Processor can
-accurately sort the descriptor into the right place.
+Unlike "global" tracks, these track types may interact with other data sources.
+A timestamp lets Trace Processor sort the descriptor into the right place.
 
 #### Python Example: Process-Scoped Counter
 
@@ -180,18 +178,18 @@ To define a thread track:
 2.  Populate its `thread` field, providing the `pid` of the process this thread
     belongs to and the unique `tid` of the thread. You should also set
     `thread_name`.
-3.  Optionally and encouraged, you can also define a separate `TrackDescriptor`
-    for the parent process itself (using its `process` field and `pid`), though
-    it's not strictly required for the thread track to be recognized _as a
-    thread of that PID_. The UI often infers process groupings from PIDs present
-    in thread tracks.
+3.  We also recommend defining a separate `TrackDescriptor` for the parent
+    process itself (using its `process` field and `pid`), though it's not
+    strictly required for the thread track to be recognized _as a thread of that
+    PID_. The UI often infers process groupings from PIDs present in thread
+    tracks.
 
-Similarly to process tracks, it is also recommended to add a `timestamp` to the
-`TracePacket` containing the thread's `TrackDescriptor`. This is especially
-important when the trace contains data from other sources (e.g. scheduling
-information from the kernel). Unlike with "global" tracks, these track types may
-interact with other data sources and as such having a timestamp makes sure that
-Trace Processor can accurately sort the descriptor into the right place.
+As with process tracks, we recommend adding a `timestamp` to the `TracePacket`
+containing the thread's `TrackDescriptor`. This is especially important when the
+trace contains data from other sources (e.g. scheduling information from the
+kernel). Unlike "global" tracks, these track types may interact with other data
+sources. A timestamp lets Trace Processor sort the descriptor into the right
+place.
 
 #### Python Example: Thread-Specific Slices
 
@@ -500,11 +498,10 @@ your `trace_converter_template.py` script.
 
 ### {#controlling-track-merging} Controlling Track Merging
 
-By default, the Perfetto UI merges tracks that share the same name. This is
-often the desired behavior for grouping related asynchronous events. However,
-there are scenarios where you need more explicit control. You can override this
-default merging logic using the `sibling_merge_behavior` and `sibling_merge_key`
-fields in the `TrackDescriptor`.
+By default, the Perfetto UI merges tracks that share the same name to group
+related asynchronous events. You can override this behavior using the
+`sibling_merge_behavior` and `sibling_merge_key` fields in the
+`TrackDescriptor`.
 
 This allows you to:
 
@@ -627,10 +624,8 @@ of the tracks (usually the one with the lower UUID).
 
 ### Sharing Y-Axis Between Counters
 
-When visualizing multiple counter tracks, it is often useful to have them share
-the same Y-axis range. This allows for easy comparison of their values. Perfetto
-supports this feature through the `y_axis_share_key` field in the
-`CounterDescriptor`.
+Sharing a Y-axis range across counter tracks helps you compare their values. To
+do this, use the `y_axis_share_key` field in the `CounterDescriptor`.
 
 All counter tracks that have the same `y_axis_share_key` and the same parent
 track will share their Y-axis range in the UI.
@@ -693,8 +688,8 @@ popup when the user clicks the help icon next to the track's name. This is
 useful for explaining what a track represents, the meaning of its events, or how
 it should be interpreted, especially in complex custom traces.
 
-To add a description, you simply set the optional `description` field in the
-track's `TrackDescriptor`.
+To add a description, set the optional `description` field in the track's
+`TrackDescriptor`.
 
 #### Python Example: Track Descriptions
 
@@ -897,9 +892,9 @@ callstacks for efficiency when callstacks repeat or when you need binary
 mapping information for symbolization.
 
 Interned callstacks define the callstack structure once in `InternedData` and
-reference it by ID from multiple events. At a minimum you only need to define
-**frames**, **callstacks**, and reference those callstacks from your events. The
-other pieces are optional and can be supplied when you have that information:
+reference it by ID from multiple events. At a minimum, define **frames** and
+**callstacks**, and reference those callstacks from your events. The other
+pieces are optional and can be supplied when you have that information:
 
 1.  **Build IDs** and **Mapping Paths** → **Mappings** (binaries/libraries). You
     may skip this entirely if you do not have binary metadata.
@@ -1602,9 +1597,9 @@ entire trace in memory before writing it to a file. This is simple and effective
 for moderately sized traces, but can lead to high memory consumption if you are
 generating traces with millions of events.
 
-For these scenarios, the `StreamingTraceProtoBuilder` is the recommended
-solution. It writes each `TracePacket` to a file as it's created, keeping memory
-usage minimal regardless of the trace size.
+For these traces, use `StreamingTraceProtoBuilder`. It writes each `TracePacket`
+to a file as it's created, keeping memory usage minimal regardless of the trace
+size.
 
 ### How it Works
 

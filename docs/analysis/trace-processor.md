@@ -174,7 +174,7 @@ std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
 ### Loading a trace
 
 To ingest a trace, call `Parse` repeatedly with chunks of trace bytes, then
-`NotifyEndOfFile` once the whole trace has been pushed:
+`NotifyEndOfFile` once you have passed in the whole trace:
 
 ```cpp
 while (/* more data available */) {
@@ -185,8 +185,7 @@ while (/* more data available */) {
 base::Status status = tp->NotifyEndOfFile();
 ```
 
-Because reading a trace from the filesystem is a common case, a helper
-`ReadTrace` is provided in
+To read a trace from the filesystem, use the `ReadTrace` helper in
 [`read_trace.h`](/include/perfetto/trace_processor/read_trace.h):
 
 ```cpp

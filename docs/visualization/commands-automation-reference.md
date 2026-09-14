@@ -1,9 +1,8 @@
 # Commands Automation Reference
 
-This page documents Perfetto UI's stable command surface specifically for
-automation use cases. These commands have backwards compatibility guarantees and
-can be safely used in automated workflows, startup configurations, macros, and
-deep linking.
+This page documents Perfetto UI's stable commands for automation. These commands
+have backward compatibility guarantees for automated workflows, startup
+configurations, macros, and deep linking.
 
 ## Overview
 
@@ -159,10 +158,10 @@ analysis.
 Create custom visualization tracks from SQL queries. Debug tracks are overlaid
 on the timeline and update automatically when the view changes.
 
-**Important:** If your queries use Perfetto modules (e.g., `android.screen_state`,
-`android.memory.lmk`), you must first execute a `RunQuery` command with the module
-include statement before creating the debug track. The module include must come
-first in the command sequence.
+**Important:** If your queries use Perfetto modules (e.g.,
+`android.screen_state`, `android.memory.lmk`), you must first execute a
+`RunQuery` command with the module include statement before creating the debug
+track.
 
 #### `dev.perfetto.AddDebugSliceTrack`
 
@@ -528,7 +527,7 @@ For practical automation examples and recipes, see the
 
 ## Requesting New Stable Automation Commands
 
-To request a command be added to the stable automation surface:
+To request that a command be added to the stable automation interface:
 
 1. File an issue at https://github.com/google/perfetto/issues
 2. Include:

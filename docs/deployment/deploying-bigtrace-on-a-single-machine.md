@@ -1,6 +1,7 @@
 # Deploying Bigtrace on a single machine
 
-NOTE: This doc is designed for administrators of Bigtrace services NOT Bigtrace users. This is also designed for non-Googlers - Googlers should look at `go/bigtrace` instead.
+NOTE: This page is for administrators of Bigtrace services, not Bigtrace users.
+Googlers should see `go/bigtrace` instead.
 
 There are multiple ways to deploy Bigtrace on a single machine:
 
@@ -8,13 +9,18 @@ There are multiple ways to deploy Bigtrace on a single machine:
 2. docker-compose
 3. minikube
 
-NOTE: Options 1 and 2 are intended for development purposes and are not recommended for production. For production purposes instead follow the instructions on [Deploying Bigtrace on Kubernetes.](deploying-bigtrace-on-kubernetes)
+NOTE: Options 1 and 2 are intended for development and are not recommended for
+production. For production, follow the instructions on
+[Deploying Bigtrace on Kubernetes.](deploying-bigtrace-on-kubernetes)
 
 ## Prerequisites
-To build Bigtrace you must first follow the [Quickstart setup and building](/docs/contributing/getting-started.md#quickstart) steps but using `tools/install-build-deps --grpc` in order to install the required dependencies for Bigtrace and gRPC.
+To build Bigtrace you must first follow the
+[Quickstart setup and building](/docs/contributing/getting-started.md#quickstart)
+steps, but use `tools/install-build-deps --grpc` to install the required
+dependencies for Bigtrace and gRPC.
 
 ## Running the Orchestrator and Worker executables manually
-To manually run Bigtrace locally with the executables you must first build the executables before running them as follows:
+Build the executables before running them locally:
 
 ### Building the Orchestrator and Worker executables
 ```bash
@@ -31,7 +37,8 @@ Run the Orchestrator and Worker executables using command-line arguments:
 ```
 
 ### Example
-Creates a service with an Orchestrator and three Workers which can be interacted with using the Python API locally.
+This example creates a service with an Orchestrator and three Workers. You can
+interact with it locally using the Python API.
 ```bash
 tools/ninja -C out/linux_clang_release orchestrator_main
 tools/ninja -C out/linux_clang_release worker_main
@@ -43,7 +50,9 @@ tools/ninja -C out/linux_clang_release worker_main
 ```
 
 ## docker-compose
-To allow testing of gRPC without the overhead of Kubernetes, docker-compose can be used which builds the Dockerfiles specified in infra/bigtrace/docker and creates containerised instances of the Orchestrator and the specified set of Worker replicas.
+Use docker-compose to test gRPC without the overhead of Kubernetes. It builds
+the Dockerfiles specified in infra/bigtrace/docker and creates containerized
+instances of the Orchestrator and the specified set of Worker replicas.
 
 ```bash
 cd infra/bigtrace/docker
@@ -54,7 +63,10 @@ docker-compose up
 This will build and start the Workers (default of 3) and Orchestrator as specified in the `compose.yaml`.
 
 ## minikube
-A minikube cluster can be used to emulate the Kubernetes cluster setup on a local machine. This can be created with the script `tools/setup_minikube_cluster.sh`.
+Use a minikube cluster to emulate the Kubernetes cluster setup on a local
+machine. Create it with the script `tools/setup_minikube_cluster.sh`.
 
-This starts a minikube cluster, builds the Orchestrator and Worker images and deploys them on the cluster. This can then be interacted with using the `minikube ip:30051` as the Orchestrator service address through a client such as the Python API.
+This starts a minikube cluster, builds the Orchestrator and Worker images and
+deploys them on the cluster. You can then connect through a client such as the
+Python API, using `minikube ip:30051` as the Orchestrator service address.
 

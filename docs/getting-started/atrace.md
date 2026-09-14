@@ -18,19 +18,20 @@ This page is mainly intended for:
 
 ![Atrace slices example](/docs/images/atrace_slices.png)
 
-Atrace is an API introduced in Android 4.3 that predates Perfetto and allows you to add
+Atrace is an API introduced in Android 4.3, before Perfetto, that lets you add
 instrumentation to your code. It is still supported and in use, and
 interoperates well with Perfetto.
 
-Under the hood, Atrace forwards events up to the kernel ftrace ring-buffer and
-gets fetched together with the rest of scheduling data and other system-level
-trace data. Atrace is both:
+Atrace forwards events to the kernel ftrace ring buffer. These events are
+fetched along with scheduling data and other system-level trace data. Atrace is
+both:
 
 1. A public API, exposed both to Java/Kt code via the Android SDK and C/C++ code
-   via the NDK, that developers can use to enrich traces annotating their apps.
+   via the NDK, that developers can use to enrich traces by annotating their
+   apps.
 2. A private platform API used to annotate several framework functions and the
    implementation of core system services. It provides developers with insights
-   about what the framework is doing under the hoods.
+   about what the framework is doing under the hood.
 
 The main difference between the two is that the private platform API allows
 specifying a _tag_ (also known as _category_), while the SDK/NDK interface
@@ -45,7 +46,7 @@ functions, logical user journeys, state changes.
 Slices are used to create rectangles around the execution of code and visually
 form a pseudo-callstack.
 
-Semantic and constraints:
+Semantics and constraints:
 
 - **API**: Slices are emitted with begin/end APIs.
 - **Balancing**: Begin/end MUST be balanced and must happen on the same thread.
@@ -197,7 +198,7 @@ void PlaySound(const char* path) {
 
 ## Counters
 
-Semantic and constraints:
+Semantics and constraints:
 
 - **Threading**: Counters can be emitted from any thread.
 - **Visualization**: Counters are visualized in a process-scoped track named
@@ -293,16 +294,16 @@ void PlaySound(const char* path) {
 
 ## Cross-thread async slices
 
-Async slices allow to trace logical operations that might begin and end on
-different threads. They are the same concept of _track events_ in the Perfetto
+Async slices let you trace logical operations that might begin and end on
+different threads. They use the same concept as _track events_ in the Perfetto
 SDK.
 
-Because begin/end can happen on different thread, you need to pass a _cookie_ to
-each begin/end function. The cookie is just an integer number used to match
+Because begin/end can happen on different threads, you need to pass a _cookie_
+to each begin/end function. The cookie is just an integer number used to match
 begin/end pairs. The cookie is usually derived from a pointer or a unique ID
 that represents the logical operation being traced (e.g. a job id).
 
-Semantic and constraints:
+Semantics and constraints:
 
 - **Overlapping**: Because of their async nature, slices can overlap temporally:
   one operation might begin before the previous one has ended.
@@ -317,13 +318,13 @@ Semantic and constraints:
   will be grouped in the same process-scoped track in the UI. Within a track,
   nesting is controlled by the `cookie` parameter. The SDK/NDK API does not
   support nesting, and the track is derived from the event name.
-- **Stacking**: Visually, the UI lays slice within each track using a greedy
-  stacking algorithm. Each slice is placed in the uppermost lane that doesn’t
-  overlap with any other slice. This sometimes generates confusion amongst users
-  as it creates a false sense of "parent/child" relationship. However, unlike
-  sync slices, the relationship is purely temporal and not causal and you cannot
-  control it (other than grouping events into tracks, if you have access to the
-  private platform API).
+- **Stacking**: Visually, the UI lays out slices within each track using a
+  greedy stacking algorithm. Each slice is placed in the uppermost lane that
+  doesn’t overlap with any other slice. This sometimes generates confusion among
+  users as it creates a false sense of "parent/child" relationship. However,
+  unlike sync slices, the relationship is purely temporal and not causal and you
+  cannot control it (other than grouping events into tracks, if you have access
+  to the private platform API).
 
 <?tabs>
 
@@ -445,7 +446,7 @@ use cases, but we are not there yet. So the answer is: _depends_.
 | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | You need something simple that just works.                                                                                      | You need more advanced features (e.g. flows).                                                                  |
 | You are okay with one on/off toggle for the whole app. (If you are in the Android system you can only use a limited set of tags) | You need fine-grained control over tracing categories.                                                         |
-| You are okay with events being multiplexed in the main ftace buffer.                                                            | You want control over muxing events in different buffers.                                                       |
+| You are okay with events being multiplexed in the main ftrace buffer.                                                            | You want control over muxing events in different buffers.                                                       |
 | Instrumentation overhead is not a big concern, your trace points are hit sporadically.                                          | You want minimal overhead for your instrumentation points. Your trace points are frequent (every 10ms or less) |
 
 #### If you are an unbundled app
@@ -457,8 +458,8 @@ is going to lead to a smoother migration path once we improve our SDK.
 
 ## Recording the trace
 
-In order to record atrace you must enable the `linux.ftrace` data source and add
-in the `ftrace_config`:
+To record atrace, enable the `linux.ftrace` data source and add the following to
+`ftrace_config`:
 
 - For platform private system services: `atrace_categories: tag_name`
 - For apps: `atrace_apps: "com.myapp"` or `atrace_apps: "*"` for all apps.

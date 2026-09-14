@@ -74,8 +74,8 @@ track). **Startup commands** run automatically every time you open a trace.
 **Macros** are named sequences of commands you trigger manually from the command
 palette.
 
-These are configured locally in Settings and are the simplest way to customize
-your own workflow. No server or sharing infrastructure needed.
+Configure these locally in Settings to customize your workflow. You do not need
+a server or sharing infrastructure.
 
 See [Commands and Macros](/docs/visualization/ui-automation.md) for how to set
 these up, and the
@@ -99,8 +99,8 @@ work and how to set one up.
 
 **Plugins** are TypeScript modules that run inside the Perfetto UI and can add
 new tracks, tabs, commands, and visualizations. Unlike macros and extension
-servers (which are declarative), plugins can execute code and deeply integrate
-with the UI.
+servers (which are declarative), plugins can execute code and integrate with the
+UI.
 
 If you want to contribute a plugin upstream, see
 [UI Plugins](/docs/contributing/ui-plugins.md).

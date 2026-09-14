@@ -12,9 +12,9 @@ NOTE: The Rust SDK is a community-maintained project. It may not have
 the same level of support, stability, or feature coverage as the
 official C++ SDK.
 
-The Perfetto Rust SDK provides safe and ergonomic bindings for the
-Perfetto tracing framework. It wraps the Perfetto C API with Rust
-abstractions for tracing sessions, data sources, and track events.
+The Perfetto Rust SDK provides safe bindings for the Perfetto tracing framework.
+It wraps the Perfetto C API with Rust abstractions for tracing sessions, data
+sources, and track events.
 
 ## Crates
 
@@ -220,10 +220,9 @@ for a complete example.
 
 ## Track event extensions
 
-Track events can be extended with custom protobuf fields using the
-extension mechanism. The `perfetto-sdk-protos-gpu` crate defines GPU
-extensions such as `gpu_api` that tag track events with the GPU API
-type.
+You can extend track events with custom protobuf fields using the extension
+mechanism. The `perfetto-sdk-protos-gpu` crate defines GPU extensions such as
+`gpu_api` that tag track events with the GPU API type.
 
 Use `set_proto_fields` on `EventContext` to add extension fields:
 

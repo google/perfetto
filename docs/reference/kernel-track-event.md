@@ -1,14 +1,14 @@
 # Kernel track events: format and conventions
 
-This page describes a convention for structuring Linux kernel tracepoints in a
-way that enables perfetto to automatically present them as slice/counter tracks
-at the UI and SQL levels, without having to change or rebuild perfetto code.
+This page describes a convention for structuring Linux kernel tracepoints so
+Perfetto can automatically present them as slice/counter tracks in the UI and
+SQL, without changes to or rebuilds of Perfetto code.
 
-This is a perfetto convention, and does not have (or need) any dedicated
-upstream kernel code. It's best used when hacking on a local kernel, or writing
-a self-contained module that won't be upstreamed. It is also not explicitly
-tied to static tracepoints, a dynamic probe (e.g. kprobe) that creates a
-`tracefs` entry with the relevant fields will also work.
+This Perfetto convention does not have or need dedicated upstream kernel code.
+It's best used when working on a local kernel or writing a self-contained module
+that won't be upstreamed. It is not limited to static tracepoints: a dynamic
+probe (e.g., kprobe) that creates a `tracefs` entry with the relevant fields
+also works.
 
 This page is structured as a reference, an introduction with **examples and
 screenshots** of resulting UI is at ["Intrumenting the Linux kernel with
@@ -16,9 +16,8 @@ ftrace"][ftrace-intro-link].
 
 [ftrace-intro-link]: /docs/getting-started/ftrace#part-c-simple-slice-counter-visualisations-without-modifying-perfetto-code-kernel-track-events-
 
-*This convention is still malleable, if you end up using it and/or finding
-issues with the design, please send an email to our mailing list or file a
-github issue.*
+*This convention is still open to change. If you use it or find issues with the
+design, please email our mailing list or file a GitHub issue.*
 
 ## Slices and instants
 
@@ -67,9 +66,9 @@ tracepoint's name.
 
 Additionally:
 
-The tracepoint name and the subsystem can be arbitrary. Your headers can
-declare an arbitrary amount of tracepoints that match these templates. Each
-tracepoint will be processed indepdendently.
+The tracepoint name and subsystem can be arbitrary. Your headers can declare
+any number of tracepoints that match these templates. Each tracepoint is
+processed independently.
 
 There are no constraints on having additional fields, the field order or other
 parts of the `TRACE_EVENT()` declaration. Note that this includes the printk
@@ -88,16 +87,15 @@ For representing counter values, grouped by tracks, the well-known fields are:
 
 ## Details on scoping (grouping) events
 
-This section explains the rules of how the recorded events get grouped into
-tracks, as generally a trace recorded using a single tracepoint can result in N
-separate tracks. The grouping rules are the same for slice and counter tracks.
+A trace recorded using a single tracepoint can result in N separate tracks.
+The grouping rules are the same for slice and counter tracks.
 
 **NB:** slices on slice tracks *must* have strict nesting - all slices must
 terminate before their parents (see the concept of [async
 slices][async-slice-link] for more details). You need to use track naming or
-scoping to ensure that that invariant is preserved.
+scoping to ensure that this invariant is preserved.
 
-The default behaviour (if you only specify the mandatory fields) is
+The default behavior (if you only specify the mandatory fields) is
 thread-scoped. Events are grouped by the thread id of the thread(s) hitting the
 tracepoints. There will be one track per thread with events. The end ('E')
 events will terminate the last opened slice on that thread.
@@ -113,7 +111,6 @@ that name as an additional dimension to the above. That is, the end ('E') event
 will terminate the last opened slice with that exact track name, even if there
 are multiple named tracks within the same thread/process/cpu/etc scope.
 
-The net effect is that recorded events are grouped by the unique combination
-of: `{tracepoint} x {track name} x {scope id}`. With the last two defaulting to
-the tracepoint name and thread id respectively.
-
+Recorded events are grouped by the unique combination of
+`{tracepoint} x {track name} x {scope id}`. The last two default to the
+tracepoint name and thread ID, respectively.

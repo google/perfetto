@@ -6,11 +6,11 @@ traced_probes - System & OS Probes
 
 ## DESCRIPTION
 
-`traced_probes` is a specialized daemon that acts as a privileged
+`traced_probes` is a daemon that acts as a privileged
 [Producer](/docs/concepts/service-model.md#producer) in the Perfetto
 architecture. While any application can act as a producer to contribute its own
-trace data, `traced_probes` is specifically responsible for collecting
-system-level and kernel-level data that typically requires elevated privileges.
+trace data, `traced_probes` collects system-level and kernel-level data that
+typically requires elevated privileges.
 
 ## Relationship with `traced`
 
@@ -19,11 +19,9 @@ service. It connects to `traced`'s producer socket and registers a set of data
 sources. `traced` then sends requests to `traced_probes` to start or stop these
 data sources as part of a tracing session.
 
-This separation of concerns is a key part of Perfetto's design. `traced` is the
-central manager, while `traced_probes` is a specialized data provider. This
-decoupled architecture allows for multiple, independent producers and consumers
-to interact with the tracing system simultaneously without interfering with each
-other.
+`traced` manages tracing sessions, while `traced_probes` provides system data.
+This separation lets multiple independent producers and consumers interact with
+the tracing system simultaneously without interfering with each other.
 
 ![traced_probes and traced](/docs/images/platform-tracing.png)
 
@@ -31,23 +29,21 @@ other.
 
 `traced_probes` often needs to run with elevated privileges (e.g., `root` or
 `system` user on Android) to access kernel interfaces like `debugfs` or `/proc`.
-Separating these high-privilege probes into their own daemon is a key part of
-Perfetto's security model. It ensures that only a minimal amount of code runs
-with high privileges, adhering to the principle of least privilege.
+Separating these probes into their own daemon minimizes the amount of code that
+runs with high privileges, following the principle of least privilege.
 
 ## Configuration
 
-The data sources provided by `traced_probes` are configured within the main
-trace configuration protobuf that is sent to `traced`. For example, to enable
-ftrace, you would include an `FtraceConfig` within the `DataSourceConfig` for
-the `linux.ftrace` data source.
+Configure the data sources provided by `traced_probes` in the main trace
+configuration protobuf sent to `traced`. For example, to enable ftrace, include
+an `FtraceConfig` within the `DataSourceConfig` for the `linux.ftrace` data
+source.
 
 ## Data Sources
 
-`traced_probes` provides a wide range of data sources, collecting system-level
-and kernel-level data. The configuration for these data sources is specified in
-the `data_sources` section of the overall trace configuration. Each data source
-has its own configuration message within a `data_source_config` block.
+Configure `traced_probes` data sources in the `data_sources` section of the
+trace configuration. Each data source has its own configuration message within a
+`data_source_config` block.
 
 Here is an example of the general structure:
 
@@ -70,8 +66,7 @@ data_sources: {
 }
 ```
 
-Below is a detailed list of the main data sources provided by `traced_probes`,
-separated by platform.
+The main data sources provided by `traced_probes` are listed below by platform.
 
 ## Linux Data Sources
 
@@ -113,8 +108,8 @@ data_sources: {
 
 *   **Description**: This is the primary data source for high-frequency kernel
     events. It enables and reads raw ftrace data from the Linux kernel's ftrace
-    interface, providing insights into process scheduling, system calls,
-    interrupts, and other kernel activities.
+    interface, recording process scheduling, system calls, interrupts, and other
+    kernel activities.
 *   **Configuration Example**:
     ```protobuf
     data_sources: {

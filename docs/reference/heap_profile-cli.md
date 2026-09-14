@@ -78,28 +78,31 @@ These flags apply to both `android` and `host` subcommands.
 :    Output directory. Must already exist and be empty.
 
 `--all-heaps`
-:    Collect allocations from all heaps registered by target.
+:    Collect allocations from all heaps registered by the target.
 
 `--heaps` _HEAPS_
 :    Comma-separated list of heaps to collect, e.g.: `libc.malloc,com.android.art`. Requires Android 12.
 
 `--block-client`
-:    When buffer is full, block the client to wait for buffer space. Use with caution as this can significantly slow down the client. This is the default.
+:    When the buffer is full, block the client until buffer space is available.
+     Use with caution, as this can significantly slow down the client. This is
+     the default.
 
 `--block-client-timeout`
 :    If `--block-client` is given, do not block any allocation for longer than this timeout (us).
 
 `--no-block-client`
-:    When buffer is full, stop the profile early.
+:    When the buffer is full, stop the profile early.
 
 `-c`, `--continuous-dump`
 :    Dump interval in ms. 0 to disable continuous dump.
 
 `-d`, `--duration`
-:    Duration of profile (ms). 0 to run until interrupted. Default: until interrupted by user.
+:    Profile duration (ms). Use 0 to run until you interrupt it (the default).
 
 `--disable-fork-teardown`
-:    Do not tear down client in forks. This can be useful for programs that use vfork. Android 11+ only.
+:    Do not tear down the client in forks. This can be useful for programs that
+     use vfork. Android 11+ only.
 
 `--dump-at-max`
 :    Dump the maximum memory usage rather than at the time of the dump.
@@ -123,7 +126,8 @@ These flags apply to both `android` and `host` subcommands.
 :    Print config instead of running. For debugging.
 
 `--shmem-size`
-:    Size of buffer between client and heapprofd. Default 8MiB. Needs to be a power of two multiple of 4096, at least 8192.
+:    Size of the buffer between the client and heapprofd. Default 8MiB. Must be
+     a power-of-two multiple of 4096 and at least 8192.
 
 `--traceconv-binary`
 :    Path to local trace_processor. For debugging.
@@ -137,7 +141,7 @@ These flags are gated on `args.subcommand == 'android'` in the script and
 have no effect when passed to `host`.
 
 `--disable-selinux`
-:    Disable SELinux enforcement for duration of profile.
+:    Disable SELinux enforcement for the duration of the profile.
 
 `--no-android-tree-symbolization`
 :    Do not symbolize using currently lunched target in the Android tree.
@@ -151,7 +155,7 @@ have no effect when passed to `host`.
 ## HOST-ONLY OPTIONS
 
 `--preload-library` _PRELOAD\_LIBRARY_
-:    Path to `libheapprofd_glibc_preload.so`. If omitted the prebuilt is
+:    Path to `libheapprofd_glibc_preload.so`. If omitted, the prebuilt is
      downloaded automatically (linux-amd64/arm/arm64).
 
 `--tracebox-binary` _TRACEBOX\_BINARY_

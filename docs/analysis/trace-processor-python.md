@@ -1,9 +1,8 @@
 # Trace Processor (Python)
 
 The trace processor Python API is built on the trace processor
-[C++ library](/docs/analysis/trace-processor.md). By integrating with Python,
-the library allows using Python's rich data analysis ecosystem to process
-traces.
+[C++ library](/docs/analysis/trace-processor.md). It lets you process traces
+with Python's data analysis tools.
 
 ## Setup
 
@@ -16,8 +15,6 @@ NOTE: The API is only compatible with Python3.
 The main entry point to the API is the `TraceProcessor` class.
 
 ## Example Usage
-
-The following examples demonstrate basic usage of the Python API.
 
 ### Querying Slices
 
@@ -231,7 +228,7 @@ shape: (5, 3)
 └─────────────────────┴────────┴─────────────────────────────┘
 ```
 
-You can use Pandas DataFrames to easily create visualizations from trace data.
+You can use Pandas DataFrames to visualize trace data.
 
 ```python
 from perfetto.trace_processor import TraceProcessor
@@ -253,8 +250,7 @@ The `trace_summary()` function computes a structured summary of the trace. This
 is useful for creating structured protobuf messages for consumption by other
 tools. This function is the replacement for the deprecated `metric()` function.
 
-See the [Trace Summarization docs](/docs/analysis/trace-summary.md) for a deep
-dive into this feature.
+See the [Trace Summarization docs](/docs/analysis/trace-summary.md) for details.
 
 ```python
 from perfetto.trace_processor import TraceProcessor

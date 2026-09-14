@@ -4,8 +4,8 @@ This document describes how to turn raw instruction addresses and obfuscated
 Java/Kotlin names in a collected trace into human-readable function names,
 source locations, and class/method names.
 
-The right approach depends on **what kind of trace you have**, so this page is
-organised around that question. Two definitions used throughout:
+The right approach depends on **what kind of trace you have**. This page uses
+two terms:
 
 - **Symbolization**: mapping native instruction addresses back to function
   names, source files, and line numbers, using the unstripped ELF binaries (or
@@ -67,9 +67,9 @@ section.
 
 ### {#option-1-traceconv-bundle} Option 1: `trace_processor bundle` (recommended)
 
-`trace_processor bundle` is a one-shot command that takes a trace and produces an
-**enriched trace**: the original trace plus all the symbol and deobfuscation
-data needed to analyse it, packaged together in a single file.
+`trace_processor bundle` is a one-shot command that takes a trace and produces
+an **enriched trace**: the original trace plus all the symbol and deobfuscation
+data needed to analyze it, packaged together in a single file.
 
 ```bash
 trace_processor bundle input.perfetto-trace enriched-trace
@@ -98,14 +98,14 @@ format transparently, so you normally don't need to unpack it yourself.
 
 The main advantage over
 [Option 2](#option-2-legacy-traceconv-symbolize-deobfuscate) is that `bundle`
-looks for symbols and mapping files in all the obvious places without
-configuration. It searches:
+looks for symbols and mapping files in standard locations without configuration.
+It searches:
 
 - The AOSP build output (`$ANDROID_PRODUCT_OUT/symbols`) when running inside a
   `lunch`-ed AOSP checkout.
 - Standard system debug directories (`$HOME/.debug`, `/usr/lib/debug`).
 - Absolute library paths recorded in the trace's `stack_profile_mapping` (useful
-  when profiling on the same machine you are analysing on).
+  when profiling on the same machine you are analyzing on).
 - The standard Android Gradle project layout for ProGuard/R8 mapping files
   (`./app/build/outputs/mapping/<variant>/mapping.txt`).
 
@@ -150,8 +150,8 @@ hand.
 
 #### Native symbolization
 
-All tools (`trace_processor`, the `heap_profile` script)
-honour the `PERFETTO_BINARY_PATH` environment variable:
+All tools (`trace_processor`, the `heap_profile` script) honor the
+`PERFETTO_BINARY_PATH` environment variable:
 
 ```bash
 PERFETTO_BINARY_PATH=somedir tools/heap_profile android --name ${NAME}
@@ -187,7 +187,7 @@ PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt \
 #### Attaching the output to a trace
 
 Both `symbols` and `deobfuscation_map` above are serialized `TracePacket`
-protos, so for a **Perfetto protobuf trace** you can simply concatenate them:
+protos, so for a **Perfetto protobuf trace** you can concatenate them:
 
 ```bash
 cat ${TRACE} symbols > symbolized-trace
@@ -243,16 +243,16 @@ under `src/` rather than `include/` and is not part of the public API surface.
 
 If you need this, please +1 on
 [GitHub issue #5534](https://github.com/google/perfetto/issues/5534) so we can
-gauge demand and prioritise.
+gauge demand and prioritize the work.
 
 ### Troubleshooting
 
 `trace_processor bundle` always produces a bundle containing at least the
-original trace. When it cannot add all the enrichment it wants, it prints a
-summary of what is missing and how to fix it, then still exits successfully
-&mdash; so check the output of the command even when it succeeds. It exits
-non-zero only for genuine failures (unreadable input, unwritable output, or
-an explicitly-provided `--proguard-map` that cannot be read).
+original trace. When it cannot add all symbol and deobfuscation data, it prints
+a summary of what is missing and how to fix it, then exits successfully &mdash;
+so check the output of the command even when it succeeds. It exits non-zero only
+for genuine failures (unreadable input, unwritable output, or an
+explicitly-provided `--proguard-map` that cannot be read).
 
 Common messages and what they mean:
 

@@ -1,7 +1,7 @@
 # PerfettoSQL Built-ins
 
-These are functions built into C++ which reduce the amount of boilerplate which
-needs to be written in SQL.
+These functions are implemented in C++ and reduce the boilerplate you need to
+write in SQL.
 
 ## Profile Functions
 
@@ -31,9 +31,9 @@ frame_id | StackProfileFrameTable::Id | reference to the [stack_profile_frame](s
 #### Description
 
 Creates a stack by taking a `callsite_id` (reference to the
-[stack_profile_callsite]](sql-tables.autogen#stack_profile_callsite) table) and
+[stack_profile_callsite](sql-tables.autogen#stack_profile_callsite) table) and
 generating a list of frames (by walking the
-[stack_profile_callsite]](sql-tables.autogen#stack_profile_callsite) table)
+[stack_profile_callsite](sql-tables.autogen#stack_profile_callsite) table)
 
 #### Return Type
 
@@ -43,7 +43,7 @@ generating a list of frames (by walking the
 
 Argument | Type | Description
 -------- | ---- | -----------
-callsite_id | StackProfileCallsiteTable::Id | reference to the [stack_profile_callsite]](sql-tables.autogen#stack_profile_callsite) table
+callsite_id | StackProfileCallsiteTable::Id | reference to the [stack_profile_callsite](sql-tables.autogen#stack_profile_callsite) table
 
 ### CAT_STACKS
 
@@ -52,7 +52,7 @@ callsite_id | StackProfileCallsiteTable::Id | reference to the [stack_profile_ca
 #### Description
 
 Creates a Stack by concatenating other Stacks. Also accepts STRING values for
-which it generates a fake Frame. Null values are just ignored.
+which it generates a fake Frame. Null values are ignored.
 
 #### Return Type
 
@@ -90,9 +90,9 @@ sample_value | LONG | Value for the sample
 
 Multiple samples can be specified.
 
-If only the `stack` argument is present, a `"samples"`, `"count"`, and `1` are
-used as defaults for `sample_type`, `sample_units`, and `sample_value`
- respectively.
+If only the `stack` argument is present, `"samples"`, `"count"`, and `1` are
+used as defaults for `sample_type`, `sample_units`, and `sample_value`,
+respectively.
 
 #### Example
 

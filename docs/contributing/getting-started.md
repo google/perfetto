@@ -2,7 +2,7 @@
 
 ## Quickstart
 
-Follow those steps if you are new to contributing to Perfetto.
+Follow these steps if you are new to contributing to Perfetto.
 
 ### Setup
 
@@ -81,8 +81,8 @@ For more information on building Perfetto go to [build instructions](build-instr
 
 ### Contributing
 
-NOTE: In March 2025 our team has moved the primary development of Perfetto
-to GitHub (previously on Android Gerrit).
+NOTE: In March 2025, our team moved the primary development of Perfetto to
+GitHub (previously on Android Gerrit).
 
 #### Googlers
 
@@ -95,7 +95,7 @@ NOTE: Follow the instructions at [go/perfetto-github-instructions](http://go/per
 git checkout -b first-contribution
 ```
 
-3. Make change in the repo.
+3. Make your change in the repo.
 4. Add, commit and upload the change:
 
 ```sh
@@ -104,7 +104,9 @@ git commit -m "My first contribution"
 gh pr create  # Requires cli.github.com
 ```
 
-Please note our project follows the [Google C++ style](https://google.github.io/styleguide/cppguide.html), and targets `-std=c++17`.
+Our project follows the
+[Google C++ style](https://google.github.io/styleguide/cppguide.html), and
+targets `-std=c++17`.
 
 #### External contributors
 
@@ -113,8 +115,8 @@ A good explanation of how to do it can be found [here](https://docs.github.com/e
 
 ### Testing
 
-As Perfetto has a rather complicated testing strategy, we will automatically run our presubmit on each push into the repo.
-For manual run: `tools/run_presubmit`.
+Presubmit checks run automatically on each push to the repo. To run them
+manually, use `tools/run_presubmit`.
 
 For more information on testing Perfetto go to [testing page](testing).
 
@@ -126,7 +128,8 @@ You might want to contribute to the UI, Trace Processor, SDK or various data imp
 - If you want to edit the core functionality of the UI: it's a much bigger change which would require in depth understanding of Perfetto UI. Most requests/bugs now are related to various plugins, not the core.
 - If you want to add a new ftrace event take a look at [common tasks page](common-tasks).
 - If you want to add a new table/view/function to Perfetto SQL standard library you need to first understand [the Perfetto SQL syntax](/docs/analysis/perfetto-sql-syntax.md), and then read the details of updating the standard library at [common tasks page](common-tasks).
-- If you want to add a support of a new file type into Perfetto, you need to add a new `importer` to Trace Processor C++ code.
+- To support a new file type in Perfetto, add a new `importer` to the Trace
+  Processor C++ code.
 
 ## {#community} Communication
 
@@ -154,9 +157,9 @@ For bugs affecting Chrome Tracing:
 
 Contributions to this project must be accompanied by a Contributor License
 Agreement. You (or your employer) retain the copyright to your contribution;
-this simply gives us permission to use and redistribute your contributions as
-part of the project. Head over to <https://cla.developers.google.com/> to see
-your current agreements on file or to sign a new one.
+this gives us permission to use and redistribute your contributions as part of
+the project. Head over to <https://cla.developers.google.com/> to see your
+current agreements on file or to sign a new one.
 
 You generally only need to submit a CLA once, so if you've already submitted one
 (even if it was for a different project), you probably don't need to do it

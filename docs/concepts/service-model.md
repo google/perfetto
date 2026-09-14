@@ -17,10 +17,10 @@ a service in Chrome) that has the following responsibilities:
 
 ## Producer
 
-A producer is an untrusted entity that offers the ability to contribute to the
-trace. In a multiprocess model, a producer almost always corresponds to a client
-process of the tracing service. It advertises its ability to contribute to the trace with one or more data sources.
-Each producer has exactly:
+A producer is an untrusted entity that can contribute data to the trace. In a
+multiprocess model, a producer almost always corresponds to a client process of
+the tracing service. It advertises its ability to contribute to the trace with
+one or more data sources. Each producer has exactly:
 
 * One shared memory buffer, shared exclusively with the tracing service.
 * One IPC channel with the tracing service.
@@ -83,16 +83,16 @@ Perfetto provides a POSIX-friendly IPC implementation, based on protobufs over a
 UNIX socket (see
 [Socket protocol](/docs/design-docs/api-and-abi#socket-protocol)).
 
-That IPC implementation is not mandated. Perfetto allows the embedder:
+That IPC implementation is optional. Perfetto allows the embedder to:
 
 * Wrap its own IPC subsystem (e.g., Perfetto in Chromium uses Mojo)
 * Not use an IPC mechanism at all and just short circuit the
   Producer <> Service <> Consumer interaction via `PostTask(s)`.
 
 ## Shared memory buffer
-Producer(s) write tracing data, in the form of protobuf-encoded binary blobs,
-directly into its shared memory buffer, using a special library called
-[ProtoZero](/docs/design-docs/protozero.md). The shared memory buffer:
+Each producer writes tracing data as protobuf-encoded binary blobs directly into
+its shared memory buffer using [ProtoZero](/docs/design-docs/protozero.md). The
+shared memory buffer:
 
 * Has a fixed and typically small size (configurable, default: 256 KB).
 * Is an ABI and must maintain backwards compatibility.
@@ -104,10 +104,9 @@ directly into its shared memory buffer, using a special library called
 Each chunk:
 
 * Is owned exclusively by one Producer thread (or shared through a mutex).
-* Contains a linear sequence of `TracePacket(s)`, or
-  fragments of that. A `TracePacket` can span across several chunks, the
-  fragmentation is not exposed to the consumers (consumers always see whole
-  packets as if they were never fragmented).
+* Contains a linear sequence of `TracePacket(s)` or fragments of them. A
+  `TracePacket` can span several chunks. Consumers always see whole packets;
+  fragmentation is not exposed to them.
 * Can be owned and written by exactly one `TraceWriter`.
 * Is part of a reliable and ordered sequence, identified by the `WriterID`:
   packets in a sequence are guaranteed to be read back in order, without gaps

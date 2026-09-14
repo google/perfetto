@@ -71,8 +71,8 @@ Use the process table to:
 
   ![Memscope filtered to the Mandelbrot process, with an arrow pointing to the Profile button](../images/memscope-mandelbrot-hover.png)
 
-  In this example, we are going to test a dummy app that intentionally leaks
-  native memory.
+  In this example, we'll test a dummy app that intentionally leaks native
+  memory.
 
 ### Recording and opening a trace
 
@@ -97,8 +97,7 @@ using the stacked area graph on this page.
 
 The Memory Overview page opens by default for any trace that contains smaps
 snapshots, but you can also find it in the sidebar under **Memory Overview**. It
-provides a comprehensive view of memory usage for a given process over the
-duration of the trace.
+shows memory usage for a given process over the duration of the trace.
 
 NOTE: For Googlers, you can find good examples of traces with smaps dumps via
 the
@@ -128,8 +127,8 @@ is used for top-level temporal navigation for the rest of the page. You can:
 
 ![Composition over time chart for the profiled app](../images/memscope-composition-over-time.png)
 
-In this example, we can see that native memory started increasing rapidly
-towards the end of the trace (after we started interacting with the app).
+In this example, native memory started increasing rapidly toward the end of the
+trace (after we started interacting with the app).
 
 #### Where the growth went
 
@@ -150,7 +149,7 @@ below are consuming the most memory.
 
 ![Where did all the memory go section with the resident memory breakdown](../images/memscope-where-did-memory-go.png)
 
-In this example, we can see that native memory is using a large proportion.
+In this example, native memory accounts for a large proportion of usage.
 
 #### Java heap
 
@@ -181,9 +180,9 @@ We can see that a native function in the mandelbrot engine has allocated 182 MB
 without freeing it. This function originates from a native tile rendering
 library in the dummy app used to generate the mandelbrot bitmaps and send them
 back to the Java runtime for composition. It should not retain much, if any,
-memory. The intentional leak was, in fact, caused by skipping the call to free
-the image buffer for rendered tiles, so every call into the native code would
-leak one 512x512px buffer, which has added up steadily over time.
+memory. The intentional leak came from skipping the call to free the image
+buffer for rendered tiles. Every call into the native code leaked one 512x512px
+buffer, adding up steadily over time.
 
 Click on the 'Show in timeline' button to drill down into the native allocation
 flamegraph in more detail.
@@ -198,7 +197,7 @@ groups mappings using the same categories as the composition chart.
 
 ## Putting it together: A workflow
 
-In summary, a typical memory investigation workflow looks like this:
+A typical memory investigation follows these steps:
 
 1. **Find the process** - use Memscope to monitor memory live and identify which
    process is growing or find the process you're looking to monitor.
@@ -215,8 +214,8 @@ In summary, a typical memory investigation workflow looks like this:
   of native heap profiling, ART heap dumps, and allocation profiling.
 - [Memory counters](/docs/data-sources/memory-counters.md) - per-process memory
   counters and events from the kernel.
-- [Native heap profiler](/docs/data-sources/native-heap-profiler.md) - deep dive
-  into heapprofd allocation profiling.
+- [Native heap profiler](/docs/data-sources/native-heap-profiler.md) - details
+  of heapprofd allocation profiling.
 - [Heap Dump Explorer](/docs/visualization/heap-dump-explorer.md) - analyzing
   ART heap dumps object by object.
 - [Memory usage case study](/docs/case-studies/memory.md) - end-to-end guide to

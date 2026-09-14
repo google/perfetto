@@ -15,10 +15,10 @@ is the fallback.
 
 The package ships the prebuilt manifests under
 `python/perfetto/prebuilts/manifests`, and `TraceProcessor` downloads the
-`trace_processor` pinned there. Those manifests are rolled on `main` only
-after a release is tagged, because they hash the binaries LUCI builds from the
-tag. So the tree at tag `vX.Y` still pins the previous release, and a package
-built naively from the tag ships the wrong `trace_processor`.
+`trace_processor` pinned there. Those manifests are rolled on `main` only after
+a release is tagged, because they hash the binaries LUCI builds from the tag. So
+the tree at tag `vX.Y` still pins the previous release, and a package built
+directly from the tag ships the wrong `trace_processor`.
 
 Both release paths therefore regenerate the manifests for `vX.Y` before
 building, and `python/setup.py` refuses to build when
@@ -50,18 +50,18 @@ COMMIT=$(git rev-parse v56.0^{commit})
 tools/release/release_python.py --publish --commit "$COMMIT"
 ```
 
-The script will then perform the following steps:
+The script performs these steps:
 
-- **Checkout**: It will check out the specified commit.
-- **Roll manifests**: It will run
-  `tools/release/roll-prebuilts --manifests-only vX.Y` so the package pins
-  the prebuilts of the release being published. The LUCI builds for the tag
-  must have finished, otherwise the download fails.
-- **Build & Publish**: It will temporarily update the `download_url` in
-  `python/setup.py` to that commit's source archive, build the package (the
-  version is read from the `CHANGELOG`), and, after you confirm, upload it to
+- **Checkout**: It checks out the specified commit.
+- **Roll manifests**: It runs
+  `tools/release/roll-prebuilts --manifests-only vX.Y` so the package pins the
+  prebuilts of the release being published. The LUCI builds for the tag must
+  have finished, otherwise the download fails.
+- **Build & Publish**: It temporarily updates the `download_url` in
+  `python/setup.py` to that commit's source archive, builds the package (the
+  version is read from the `CHANGELOG`), and, after you confirm, uploads it to
   PyPI. You will be prompted for your PyPI credentials.
-- **Cleanup**: It will remove the temporary build artifacts and restore
+- **Cleanup**: It removes the temporary build artifacts and restores
   `python/setup.py` and the manifests.
 - **Final URL Update**: After publishing, the script will prompt you for a new
   branch name. It will then create a new commit on that branch that updates the

@@ -1,26 +1,36 @@
 # Deploying Bigtrace on Kubernetes
 
-NOTE: This doc is designed for administrators of Bigtrace services NOT Bigtrace users. This is also designed for non-Googlers - Googlers should look at `go/bigtrace` instead.
+NOTE: This guide is for administrators of Bigtrace services, not Bigtrace users.
+Googlers should use `go/bigtrace` instead.
 
 ## Overview of Bigtrace
 
-Bigtrace is a tool which facilitates the processing of traces in the O(million) by distributing instances of TraceProcessor across a Kubernetes cluster.
+Bigtrace processes O(million) traces by distributing instances of TraceProcessor
+across a Kubernetes cluster.
 
 The design of Bigtrace consists of four main parts:
 
 ![](/docs/images/bigtrace/bigtrace-diagram.png)
 
 ### Client
-There are three clients to interact with Bigtrace: a Python API, clickhouse-client and Apache Superset.
-- The Python API exists in the Perfetto python library and can be used similar to the TraceProcessor and BatchTraceProcessor APIs.
-- Clickhouse is a data warehousing solution which gives a SQL based interface for the user to write queries which are sent through gRPC to the Orchestrator. This can be accessed natively using the clickhouse-client which provides a CLI which allows the user to write queries to the DB.
-- Superset is a GUI for Clickhouse which offers an SQLLab to run queries offering support for modern features such as multiple tabs, autocomplete and syntax highlighting as well as providing data visualization tools to create charts easily from query results.
+You can interact with Bigtrace through three clients: a Python API,
+clickhouse-client, and Apache Superset.
+- The Python API is part of the Perfetto Python library. You can use it
+  similarly to the TraceProcessor and BatchTraceProcessor APIs.
+- Clickhouse is a data warehouse with a SQL interface. It sends queries through
+  gRPC to the Orchestrator. Use clickhouse-client to query the database from the
+  command line.
+- Superset is a GUI for Clickhouse. Its SQLLab lets you run queries with
+  multiple tabs, autocomplete, and syntax highlighting. It also provides tools
+  to create charts from query results.
 
 ### Orchestrator
-The Orchestrator is the central component of the service and is responsible for sharding traces to the various Worker pods and streaming the results to the Client.
+The Orchestrator shards traces across Worker pods and streams results to the
+Client.
 
 ### Worker
-Each Worker runs an instance of TraceProcessor and performs the inputted query on a given trace. Each Worker runs on its own pod in the cluster.
+Each Worker runs an instance of TraceProcessor to execute the supplied query on
+a given trace. Each Worker runs in its own pod in the cluster.
 
 ### Object Store (GCS)
 The object store contains the set of traces the service can query from and is accessed by the Worker.
@@ -31,7 +41,8 @@ Additional integrations can be added by creating a new repository policy in src/
 ## Deploying Bigtrace on GKE
 
 ### GKE
-The recommended way to deploy Bigtrace is on Google Kubernetes Engine and this guide will explain the process.
+This guide covers the recommended deployment process using Google Kubernetes
+Engine.
 
 **Prerequisites:**
 - A GCP Project
@@ -63,9 +74,10 @@ These can be added on GCP through IAM & Admin > IAM > Permissions.
 6. Create the cluster
 
 #### Accessing the cluster
-To use kubectl to apply the yaml files for deployments and services you must first connect and authenticate with the cluster.
+Before using kubectl to apply the YAML files for deployments and services,
+connect and authenticate with the cluster.
 
-You can follow these instructions on device or in cloud shell using the following command:
+Run the following command on your device or in Cloud Shell:
 
 ```bash
 gcloud auth login
@@ -77,7 +89,8 @@ gcloud container clusters get-credentials [CLUSTER_NAME] --zone [ZONE] --project
 ---
 
 ### Deploying the Orchestrator
-The deployment of Orchestrator requires two main steps: Building and pushing the images to Artifact Registry & deploying to the cluster.
+Deploying the Orchestrator has two steps: build and push the images to Artifact
+Registry, then deploy to the cluster.
 
 #### Building and uploading the Orchestrator image
 Configure docker to push into the Google Cloud artifact registry
@@ -193,11 +206,11 @@ The env variable BIGTRACE_ORCHESTRATOR_ADDRESS must also be changed to the addre
           value: # Address of Orchestrator service
 ```
 
-If you want to verify whether the deployments were successful you can run:
+To verify the deployments, run:
 ```
 kubectl get deployments
 ```
-Which should generate an output similar to this:
+The output should look similar to this:
 ```
 NAME           READY   UP-TO-DATE   AVAILABLE   AGE
 clickhouse     0/1     1            0           106s
@@ -214,7 +227,9 @@ Contains the image of the Clickhouse server and configures the necessary volumes
 
 #### Internal Load Balancer Service (ILB)
 
-This Internal Load Balancer is used to allow for the Clickhouse server pod to be reached from within the VPC in GKE. This means that VMs outside the cluster are able to access the Clickhouse server through Clickhouse Client, without exposing the service to the public.
+The Internal Load Balancer makes the Clickhouse server pod reachable from within
+the VPC in GKE. VMs outside the cluster can access the server through Clickhouse
+Client without exposing the service to the public.
 
 #### Persistent Volume and Persistent Volume Claim
 

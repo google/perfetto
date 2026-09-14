@@ -30,12 +30,11 @@ ui/build
 
 ### Run the devserver
 
-The devserver has a live reload functionality: once you make a change in
-TypeScript files, the resulting code will be recompiled and the page is going to
-reload automatically. By default, this logic uses a timeout in order to prevent
-successive reloads on rapid changes. This logic can be disabled via
-development-only "Rapid live reload" flag in the UI. Disabling it will reload
-the page earlier, at the cost of sometimes making multiple reloads in a row.
+The devserver recompiles TypeScript files and reloads the page automatically
+when you make changes. By default, it uses a timeout to prevent successive
+reloads during rapid changes. Enable the development-only "Rapid live reload"
+flag in the UI to disable this timeout. The page will reload sooner, but may
+reload multiple times in a row.
 
 ```bash
 # This will automatically build the UI. There is no need to manually run
@@ -57,27 +56,24 @@ tests:
 ui/run-unittests
 ```
 
-This command will perform the build first; which is not necessary if you
-already have a development server running. In this case, to avoid interference
-with the rebuild done by development server and to get the results faster, you
-can use
+This command builds the UI first. If you already have a development server
+running, use the following command to skip the build steps, avoid interfering
+with the server's rebuild, and get results faster:
 
 ```bash
 ui/run-unittests --no-build
 ```
 
-to skip the build steps.
-
-Script `ui/run-unittests` also supports `--watch` parameter, which would
-restart the testing when the underlying source files are changed. This can be
-used in conjunction with `--no-build`, and on its own as well.
+The `ui/run-unittests` script also supports the `--watch` parameter, which
+reruns tests when source files change. You can use it with `--no-build` or on
+its own.
 
 ## Development environment
 
 If you're looking for an IDE to write the TypeScript code, Visual Studio Code
 works well out of the box. WebStorm or IntelliJ Idea Ultimate (Community does
-not have JavaScript/TypeScript support) also work really well. The code is
-located in the `ui` folder.
+not have JavaScript/TypeScript support) also work well. The code is located in
+the `ui` folder.
 
 For VSCode users, we recommend using the eslint & prettier extensions to handle
 this entirely from within the IDE. See the
@@ -116,9 +112,9 @@ rendered when the component is present on the page.
 
 ### Component state
 
-Local state of components can reside in class members and accessed directly in
-methods via accessing `this`. State that needs to be persisted (e.g. into
-permalinks) is kept in a `Store` mounted via `trace.mountStore()`, see
+Component-local state can reside in class members and be accessed directly in
+methods through `this`. State that needs to be persisted (e.g. into permalinks)
+is kept in a `Store` mounted via `trace.mountStore()`, see
 [UI plugins](ui-plugins#state).
 
 There are restrictions on what can be used in a store: plain JS objects

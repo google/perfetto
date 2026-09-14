@@ -1,56 +1,53 @@
 # Tracing across reboot
 
-_This data source is supported only on the linux-based systems._
+_This data source is supported only on Linux-based systems._
 
-The "linux.frozen_ftrace" data source is used for reading the ftrace
-trace data recorded in the previous boot on the persistent ring buffer.
+The "linux.frozen_ftrace" data source reads ftrace data recorded during the
+previous boot in the persistent ring buffer.
 
-This data source allows you to dump the last seconds of the ftrace
-trace data in the previous boot time, for analyzing the system crash
-reason from the ftrace trace log.
+You can dump the last seconds of ftrace data from the previous boot to
+investigate a system crash.
 
-Therefore, this is expected that the user ran the another perfetto
-trace session in background on the special persistent ring buffer.
+This requires another Perfetto trace session to have run in the background using
+the persistent ring buffer.
 
 ### Creating a persistent ring buffer
 
-You have to set up a ftrace persistent ring buffer via the kernel
-cmdline. If you need a 20MiB persistent ring buffer, you need to
-add following kernel options to the kernel cmdline when boot.
+Set up an ftrace persistent ring buffer through the kernel command line. For a
+20MiB persistent ring buffer, add the following kernel options at boot.
 
 ```
 reserve_mem=20M:2M:trace trace_instance=boot_mapped^traceoff@trace
 ```
 
-This creates a `boot_mapped` ftrace instance on a reserved memory area,
-which will preseve the data and be attatched again in the next boot.
-(Note: this is not 100% sure if the kernel configuration has been
- changed or kernel address mapping is changed by KASLR.)
+This creates a `boot_mapped` ftrace instance on a reserved memory area, which
+will preserve the data and be attached again on the next boot. (Note: this is
+not 100% guaranteed if the kernel configuration has changed or KASLR changes the
+kernel address mapping.)
 
 ### Use the persistent ring buffer
 
-Normally, perfetto will record the ftrace data in the top level instance
-instead of the sub-instances. Thus you need to specify `instance_name:`
-option to your trace config. Also, you need to run the trace session as
-long-time backend session. What you need are;
+Perfetto normally records ftrace data in the top-level instance rather than
+sub-instances, so you need to specify the `instance_name:` option in your trace
+config. You also need to run a long-running background session:
 
-- Specify `RING_BUFFER` fill_policy to all buffers which receives ftrace
-  data source.
-- Specify `instance_name: "boot_mapped"` to the ftrace data source.
-  (NOTE: Split the `atrace` data source from this data source, since
-   atrace related events can not be used for this instance.)
+- Specify the `RING_BUFFER` fill_policy for all buffers that receive ftrace
+  data.
+- Specify `instance_name: "boot_mapped"` to the ftrace data source. (NOTE: Split
+  the `atrace` data source from this data source, since atrace related events
+  cannot be used for this instance.)
 - Do not specify `duration_ms:`.
 
-And run the perfetto command with `--background` option.
+Run the perfetto command with the `--background` option.
 
-Once you have done it, prepare for a crash.
+Once the session is running, prepare for a crash.
 
 ### Read out the data after crash
 
-After the system crash, you will see the `boot_mapped` instance, which
-should keep the trace data recorded in the last seconds.
+After a system crash, you will see the `boot_mapped` instance, which should keep
+the trace data recorded in the last seconds.
 
-Run the perfetto with `"linux.frozen_ftrace"` data source like;
+Run perfetto with the `"linux.frozen_ftrace"` data source:
 
 ```
 buffers {

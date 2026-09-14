@@ -93,7 +93,7 @@ Debug tracks visualize SQL query results on the timeline. The query must return:
 
 ### Standard analysis setup
 
-This comprehensive startup configuration prepares the UI for system analysis:
+This startup configuration prepares the UI for system analysis:
 
 ```json
 [

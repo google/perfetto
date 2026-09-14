@@ -1,13 +1,12 @@
 # Embedding the Perfetto UI
 
 This guide shows you how to embed the Perfetto trace viewer _inside_ your own
-tool or dashboard via an `<iframe>` and feed it traces programmatically. This is
-the right approach when you want the trace view to live within your app's
-chrome, as real tools like Dart DevTools and various profiler frontends do. If
-instead you just want to launch the full Perfetto UI in a new browser tab (the
-`window.open()` flow), see [Deep linking to the Perfetto UI](/docs/visualization/deep-linking-to-perfetto-ui.md);
-that page also covers sharing URLs and `appStateHash`, which this guide does not
-duplicate.
+tool or dashboard via an `<iframe>` and feed it traces programmatically. Use
+this approach when you want the trace view within your app's interface, as in
+Dart DevTools and various profiler frontends. If instead you just want to launch
+the full Perfetto UI in a new browser tab (the `window.open()` flow), see
+[Deep linking to the Perfetto UI](/docs/visualization/deep-linking-to-perfetto-ui.md);
+that page also covers sharing URLs and `appStateHash`.
 
 ## Before you begin
 
@@ -24,8 +23,7 @@ duplicate.
 ## Step 1: Add the iframe
 
 Embed the UI with `mode=embedded` in the URL. This fully disables the sidebar
-(not just hides it), which is what you want for an embedded view. The route is
-hash-based:
+rather than just hiding it. The route is hash-based:
 
 ```html
 <iframe
@@ -243,8 +241,8 @@ Paste this into a file (e.g. `index.html`), serve it over `http(s)` from
 The UI guards which origins may push traces:
 
 - `localhost`, `127.0.0.1`, `[::1]`, same-origin, and a few hardcoded Google
-  origins are trusted. Traces from these open immediately with no prompt, so
-  local development just works.
+  origins are trusted. Traces from these origins open immediately with no
+  prompt.
 - From any other origin (e.g. your production domain), the UI shows a modal:
   _"&lt;origin&gt; is trying to open a trace file. Do you trust the origin and
   want to proceed?"_
@@ -281,7 +279,7 @@ python3 -m http.server 8080
 
 then open `http://localhost:8080`.
 
-A few things to keep in mind when serving it for real:
+When serving the UI in production:
 
 - Serve the files at the root of their own origin (e.g. `perfetto.example.com`,
   not `example.com/perfetto/`). The service worker, which handles offline
@@ -295,10 +293,6 @@ A few things to keep in mind when serving it for real:
   [Before you begin](#before-you-begin) above).
 - Each release's zip pins that release's UI exactly; there is no auto-update.
   To move to a newer release, deploy the newer release's zip in its place.
-
-Because a self-hosted UI is served from your own domain, a host page on that
-same origin is automatically trusted, so no trust prompt appears when it posts
-traces to the embedded iframe.
 
 ## A complete example
 

@@ -108,8 +108,8 @@ reason it did not help.
 ### {#subcommand-query} `query`: run SQL
 
 `query` loads a trace, runs one or more `;`-separated SQL statements, prints
-the results to stdout, and exits. SQL can be passed as an argument, read from
-a file, or piped on stdin:
+the results to stdout, and exits. You can pass SQL as an argument, read it from
+a file, or pipe it on stdin:
 
 ```bash
 # Pass SQL as an argument.
@@ -232,7 +232,7 @@ Spec files are detected as binary or text by extension (`.pb` for binary,
 ### {#subcommand-export} `export`: write trace data to a file
 
 `export` writes the parsed trace data to a file. The format is the first
-positional argument, the output path is given with `-o`:
+positional argument; specify the output path with `-o`:
 
 ```bash
 # Version-coupled archive, loadable by the same version of trace processor.

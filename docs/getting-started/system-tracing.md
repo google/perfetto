@@ -6,13 +6,11 @@ In this guide, you'll learn how to:
 - Visualize the trace in the Perfetto UI.
 - Programmatically analyze the trace using PerfettoSQL.
 
-A powerful use of Perfetto is to collect tracing information from many different
-processes and data sources on a single machine and combine them all into a
-single trace. This allows debugging a wide range of performance and functional
-problems including complex ones. Examples include problems which might span
-multiple processes, between an app and the OS or even interactions between
-hardware and the OS. Such traces are known as **system traces** or commonly
-abbreviated to just **systraces**.
+Perfetto can collect tracing information from many processes and data sources on
+a single machine and combine it into one trace. These **system traces**,
+commonly abbreviated to **systraces**, help you debug performance and functional
+problems that might span multiple processes, an app and the OS, or hardware and
+the OS.
 
 NOTE: Recording system traces with Perfetto is only supported out of the box on
 **Android** and **Linux**. While trace recording daemons work on Windows and
@@ -21,10 +19,8 @@ unlikely to be useful.
 
 ## Recording your first system trace
 
-This section walks you through the process of recording your first system-wide
-trace. There are multiple paths depending on whether you want to record on
-Android with a GUI, on Android using the command line or on Linux (with the
-command line only).
+Choose the tab for your recording method: Android with the Perfetto UI, Android
+with the command line, or Linux with the command line.
 
 <?tabs>
 
@@ -39,18 +35,16 @@ TAB: Android (Perfetto UI)
 
 **Instructions**
 
-1. Start by navigating to [ui.perfetto.dev](https://ui.perfetto.dev). This is
-   the **Perfetto UI**, our all-in-one graphical UI for recording, analysing and
-   visualizing traces; we'll be making heavy use of this throughout the rest of
-   the guide.
+1. Open [ui.perfetto.dev](https://ui.perfetto.dev), the **Perfetto UI** for
+   recording, analyzing and visualizing traces.
 2. Click on "Record New Trace" on the left sidebar.
 3. This should take you to the _Recording page_ of the UI which looks like this:
    ![Record page of the Perfetto UI](/docs/images/record-trace-adb-websocket-success.png)
 4. You can choose between different ways of connecting to your Android device.
-    Follow the instructions on the screen to connect to your device. Perfetto UI
-    will check if all the condition is met or show a descriptive error message
-    otherwise. For example, for the _ABD+Websocket_ transport the success
-    message will look like on the screenshot above.
+   Follow the instructions on the screen to connect to your device. Perfetto UI
+   will check whether all conditions are met and show a descriptive error
+   message if they aren't. For example, for the _ABD+Websocket_ transport the
+   success message will look like the screenshot above.
 
 5. On the **Recording Settings** page, you can leave the default settings for
    this guide. These settings control how the trace is recorded:
@@ -65,11 +59,9 @@ TAB: Android (Perfetto UI)
    - **Max duration**: Sets a time limit for the trace. You can also stop it
      manually at any time.
 
-6. Now we can configure the exact types of tracing information we want to
-   collect in the **Probes** sections. Feel free to explore the tabs and the
-   options they contain: the UI should briefly explain what each option does and
-   why it might be useful. For the purposes of this guide, we will want to
-   enable the following probes:
+6. Configure the tracing information to collect in the **Probes** sections. The
+   tabs explain what each option does and why it might be useful. For this
+   guide, enable the following probes:
 
    - **CPU**:
      - **Scheduling details**: See what process/thread is running on each CPU
@@ -86,7 +78,7 @@ TAB: Android (Perfetto UI)
    take some action on the Android device (e.g. opening an app, unlocking the
    phone etc).
 8. After 10s, the trace will automatically stop and you will switch to the
-   timeline view of the collected trace; this discussed in the next section.
+   timeline view of the collected trace; this is discussed in the next section.
 
 TAB: Android (command line)
 
@@ -99,9 +91,8 @@ TAB: Android (command line)
     https://developer.android.com/studio/releases/platform-tools
 
 The Perfetto team provides a helper script for recording traces from the command
-line on Android called `record_android_trace`. This takes care of much of the
-heavy lifiting of collecting the trace, pulling it from the server and even
-opening it in the Perfetto UI:
+line on Android called `record_android_trace`. It collects the trace, pulls it
+from the server and opens it in the Perfetto UI:
 
 ```bash
 curl -O https://raw.githubusercontent.com/google/perfetto/main/tools/record_android_trace
@@ -139,8 +130,8 @@ Perfetto can capture system traces on Linux. All ftrace-based data sources and
 most other procfs / sysfs-based data sources are supported.
 
 Due to Perfetto's [service-based architecture](/docs/concepts/service-model.md),
-in order to capture a trace, the `traced` (session daemon) and `traced_probes`
-(probes and ftrace-interop daemon) need to be running. As per Perfetto v16, the
+to capture a trace, the `traced` (session daemon) and `traced_probes` (probes
+and ftrace-interop daemon) need to be running. As per Perfetto v16, the
 `tracebox` binary bundles together all the binaries you need in a single
 statically linked executable (a bit like `toybox` or `busybox`), which makes it
 easy to copy and run on different machines.
@@ -155,9 +146,8 @@ chmod +x tracebox
 
 To capture a trace you need to pass the config file to the downloaded `tracebox`
 binary. We have some sample config files in the [/test/configs/](/test/configs/)
-directory.
-Lets say you want to capture a trace with the scheduling information. You can
-do so by downloading the config file
+directory. To capture a trace with scheduling information, download the config
+file
 ```bash
 curl -LO https://raw.githubusercontent.com/google/perfetto/refs/heads/main/test/configs/scheduling.cfg
 ```
@@ -172,8 +162,7 @@ the `tracebox` with root privileges.
 
 ## Viewing your first trace
 
-We can now explore the captured trace visually by using the web-based trace
-visualizer: the Perfetto UI.
+You can now explore the captured trace in the Perfetto UI.
 
 NOTE: The Perfetto UI runs fully locally, in-browser using JavaScript +
 WebAssembly. The trace file is **not** uploaded anywhere by default, unless you
@@ -182,21 +171,20 @@ explicitly click on the 'Share' link.
 NOTE: The 'Share' link is available only to Googlers.
 
 The recording instructions above should all have caused the trace to
-automatically open in the browser. However, if they did not work for any reasons
+automatically open in the browser. However, if they did not work for any reason
 (most likely if you are running the commands over SSH), you can also open the
 traces manually:
 
 1. Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) in a browser.
 2. Click the **Open trace file** on the left-hand menu, and load the captured
-   traces or simply drag and drop your trace into the Perfetto UI.
+   traces or drag and drop your trace into the Perfetto UI.
 
 ![Perfetto UI open trace](/docs/images/perfetto-ui-open-trace.png)
 
 ![Perfetto UI with a trace loaded](/docs/images/system-tracing-trace-view.png)
 
-- Explore the trace by zooming/panning using WASD, and mouse for expanding
-  process tracks (rows) into their constituent thread tracks. Press "?" for
-  further navigation controls.
+- Use WASD to zoom and pan, and the mouse to expand process tracks (rows) into
+  their thread tracks. Press "?" for further navigation controls.
 - Please also take a look at our Perfetto UI
   [documentation page](/docs/visualization/perfetto-ui.md)
 

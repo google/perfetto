@@ -1,9 +1,8 @@
 # Branching Perfetto for Chrome milestones
 
-Merging a (set of) Perfetto change(s) to a Chrome milestone release requires
-creation of a branch in the perfetto repo, cherry-picking of the change(s) to
-the branch, and updating the `DEPS` file in Chrome's milestone branch to point
-to the new perfetto branch's head.
+To merge Perfetto changes into a Chrome milestone release, create a branch in
+the Perfetto repo, cherry-pick the changes to it, and update the `DEPS` file in
+Chrome's milestone branch to point to the new Perfetto branch's head.
 
 ## Creating the perfetto branch {#branch}
 
@@ -32,8 +31,8 @@ to the new perfetto branch's head.
 
 ## Cherry-picking the change(s) {#cherry-pick}
 
-1.  Cherry-pick the commit locally and send a pull-request against the branch
-    as usual.
+1.  Cherry-pick the commit locally and send a pull request against the branch as
+    usual.
 
     ```
     $ git fetch origin
@@ -49,8 +48,8 @@ to the new perfetto branch's head.
 ## Updating the DEPS file in Chromium
 
 1.  Create, send for review, and land a Chromium patch that edits the top-level
-    `DEPS` file on the Chromium's milestone branch. You can also combine this
-    step with cherry-picks of any chromium changes. For details, see
+    `DEPS` file on Chromium's milestone branch. You can also combine this step
+    with cherry-picks of any chromium changes. For details, see
     [Chromium's docs](https://www.chromium.org/developers/how-tos/drover). It
     amounts to:
 

@@ -34,8 +34,7 @@ zooms in and out.
 
 ## Track Event Selections
 
-Selecting entities on the tace is the primary way to dig into events of a trace
-and reveal more data about those events.
+Select events in the trace to see their details.
 
 Select a track event by clicking on it. Details about the selected event will
 appear in the 'Current Selection' tab in the tab drawer.
@@ -73,25 +72,24 @@ shells to modify the list of tracks in the selection.
 </video>
 
 You can also convert a single selection into an area selection using the 'R'
-hotkey. This turns the currently selected track event in to an area selection
+hotkey. This turns the currently selected track event into an area selection
 using the bounds of the selected event.
 
 ## Commands
 
 Commands provide a quick way to run common tasks throughout the UI. Press
-'Ctrl+Shift+P' ('Cmd+Shift+P' on Mac) to open the command palette, or by
-entering '>' in the omnibox. The omnibox transforms into a command palette.
-Commands can be searched using fuzzy matching. Press up or down to highlight a
-command and Enter to run it.
+'Ctrl+Shift+P' ('Cmd+Shift+P' on Mac) to open the command palette, or enter '>'
+in the omnibox. The omnibox transforms into a command palette. Commands can be
+searched using fuzzy matching. Press up or down to highlight a command and Enter
+to run it.
 
 <video width="800" controls>
   <source src="https://storage.googleapis.com/perfetto-misc/commands.webm" type="video/webm">
 </video>
 
-For comprehensive documentation on automating the UI with commands, startup
-commands, and macros, see
-[Commands and Macros](/docs/visualization/ui-automation.md). For an overview of
-all extension mechanisms, see
+For documentation on automating the UI with commands, startup commands, and
+macros, see [Commands and Macros](/docs/visualization/ui-automation.md). For an
+overview of all extension mechanisms, see
 [Extending the UI](/docs/visualization/extending-the-ui.md).
 
 ## Showing/hiding the tab drawer
@@ -123,9 +121,8 @@ again. While filters are active, the filter icon appears filled.
 ## Pinning Tracks
 
 Press the 'Pin' icon in the track shell to pin a track to the top of the
-timeline. This operation moves the track to the top of the workspace. This can
-be handy if you want to keep important tracks in view while scrolling through
-the main timeline.
+timeline. This keeps important tracks in view while you scroll through the main
+timeline.
 
 <video width="800" controls>
   <source src="https://storage.googleapis.com/perfetto-misc/pinning-tracks.webm" type="video/webm">

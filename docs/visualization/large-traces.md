@@ -1,17 +1,16 @@
 # Visualising large traces
 
-Browsers often limit the amount of memory a site can use.
-This can cause problems when visualising large traces, including
-[merged multi-trace sessions](/docs/visualization/merging-traces.md), which
-are often large by construction.
+Browsers often limit the amount of memory a site can use. This can cause
+problems when visualizing large traces, including
+[merged multi-trace sessions](/docs/visualization/merging-traces.md), which are
+often large by construction.
 
 ## Using TraceProcessor as a native accelerator
 
 Perfetto UI supports offloading the parsing and processing of the trace to a
-'server' instance of TraceProcessor running natively on your local machine.
-This server process can take full advantage of the RAM of your machine as well
-as running at full native (rather than WebAssembly) performance, leveraging
-SSE on modern x86_64 machines.
+'server' instance of TraceProcessor running natively on your local machine. This
+server process can use your machine's full RAM and runs natively, using SSE on
+modern x86_64 machines.
 
 ```bash
 curl -LO https://get.perfetto.dev/trace_processor
@@ -23,8 +22,8 @@ Then open https://ui.perfetto.dev as usual.
 
 The Perfetto UI will automatically detect the presence of
 `trace_processor server http` by probing http://127.0.0.1:9001 . When detected
-it will prompt a dialog that asks if you want to use the external accelerator
-via a WebSocket or the built-in WebAssembly runtime that runs in the browser.
+it displays a dialog asking if you want to use the external accelerator via a
+WebSocket or the built-in WebAssembly runtime that runs in the browser.
 
 NOTE: The classic `./trace_processor --httpd /path/to/trace.pftrace` invocation
 is still supported and behaves identically.
@@ -77,11 +76,10 @@ Then open the UI in three tabs as follows:
 
 ## How big is too big?
 
-The exact memory limit can vary by browser, architecture, and OS however 2GB is
-typical. This limit is a limit on the total memory used at runtime, not on the
-binary size of the trace.
+The memory limit varies by browser, architecture, and OS, but 2GB is typical.
+This limits the total memory used at runtime, not the binary size of the trace.
 The `trace_processor` (and hence the UI) representation of a trace at runtime is
-normally larger than the binary size of that trace.
-This is because the representation is optimized for query performance rather
-than size. The exact inflation factor varies depending on the trace format but
-can be 2-4x for uncompressed proto traces.
+normally larger than the binary size of that trace. This is because the
+representation is optimized for query performance rather than size. The exact
+inflation factor varies depending on the trace format but can be 2-4x for
+uncompressed proto traces.

@@ -2,23 +2,26 @@
 
 _This data source is supported only on Android userdebug builds._
 
-The "android.game_interventions" data source gathers  the list of available game modes and game interventions of each game.
+The "android.game_interventions" data source gathers the available game modes
+and game interventions for each game.
 
-This allows you to better compare between or document traces of the same game but under different game mode or with different game intervention.
+Use this data to compare or document traces of the same game under different
+game modes or interventions.
 
 ### UI
 
-At the UI level, game interventions are shown as a table in trace info page.
+The trace info page shows game interventions in a table.
 
 ![](/docs/images/android_game_interventions.png "Android game intervention list in the UI")
 
 ### SQL
 
-At the SQL level, game interventions data is written in the following table:
+Game intervention data is stored in the following SQL table:
 
 * [`android_game_intervention_list`](/docs/analysis/sql-tables.autogen#android_game_intervention_list)
 
-Below is an example of querying what modes are supported (with interventions) and the current game mode of each game.
+This query shows each game's supported modes (with interventions) and current
+game mode.
 
 ```sql
 select package_name, current_mode, standard_mode_supported, perf_mode_supported, battery_mode_supported

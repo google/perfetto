@@ -53,9 +53,9 @@ The key features are:
 
 ### Projects
 
-Work in the Data Explorer is organized into **projects**. Each project
-contains one query graph and any number of dashboards. You can maintain
-multiple projects to keep separate analyses distinct, or do them all on in one project - the choice is yours.
+Work in the Data Explorer is organized into **projects**. Each project contains
+one query graph and any number of dashboards. You can maintain multiple projects
+to keep analyses separate, or combine them in one project.
 
 ### Nodes
 
@@ -430,16 +430,11 @@ visualization.
 
 #### Add Columns {#add-columns}
 
-The mental model for this node is simple: take everything from the
-upstream node, and add one or more new columns to it. Every row passes
-through unchanged - the node only widens the result. Reach for it
-whenever you look at a result and think "I wish this also had a column
-for X."
+This node adds one or more columns to the upstream result. Every row passes
+through unchanged.
 
-Because "X" can mean many different things - a value from another
-table, a computed expression, a label derived from a raw ID, a trace
-argument - the node supports six different ways to produce a new
-column:
+The node supports six ways to produce a column, including values from another
+table, computed expressions, labels derived from raw IDs, and trace arguments:
 
 <?tabs>
 
@@ -606,11 +601,10 @@ The join condition can be configured in two modes:
 You can select which columns from each side appear in the output, and
 rename them with aliases.
 
-NOTE: For simply enriching a result with columns from a related table,
-[Add Columns](#add-columns) with "Join from another source" is usually
-more convenient - it handles key suggestions automatically and is a
-left join by default. Use this Join node when you need an inner join
-or a freeform condition.
+NOTE: For enriching a result with columns from a related table,
+[Add Columns](#add-columns) with "Join from another source" is usually more
+convenient - it handles key suggestions automatically and is a left join by
+default. Use this Join node when you need an inner join or a freeform condition.
 
 #### Union {#union}
 
@@ -623,10 +617,10 @@ more sources is silently excluded from the output rather than causing
 an error. Use [Modify Columns](#modify-columns) upstream to rename
 columns if the names don't align across sources.
 
-NOTE: This is more permissive than SQL `UNION` / `UNION ALL`, which
-requires all inputs to have identical columns. Here, you can freely
-add sources with different schemas - columns that don't appear in all
-of them simply won't be in the result.
+NOTE: This is more permissive than SQL `UNION` / `UNION ALL`, which requires all
+inputs to have identical columns. Here, you can freely add sources with
+different schemas - columns that don't appear in all of them won't be in the
+result.
 
 #### Interval Intersect {#interval-intersect}
 

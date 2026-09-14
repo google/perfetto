@@ -1,11 +1,11 @@
 # Common tasks
 
-Most contributions to Perfetto falls into one of below categories.
+Most contributions to Perfetto fall into one of the categories below.
 
 ## UI
 
-With the pluginization of the UI most of the contributions to the UI should be related to creating/modifying plugins.
-Go to [UI plugins page](ui-plugins) to learn how to do it.
+Most UI contributions should involve creating or modifying plugins.
+See the [UI plugins page](ui-plugins) for instructions.
 
 ## Trace Processor
 
@@ -15,7 +15,9 @@ Go to [UI plugins page](ui-plugins) to learn how to do it.
 2. For a new file inside an existing package add the file to the corresponding `BUILD.gn`.
 3. For a new package (subdirectory of `/stdlib/`), the package name (directory name) has to be added to the list in `/stdlib/BUILD.gn`.
 
-Files inside the standard library have to be formatted in a very specific way, as its structure is used to generate documentation. There are presubmit checks, but they are not infallible.
+Standard library files must follow a specific format because their structure is
+used to generate documentation. Presubmit checks catch some formatting errors,
+but they are not infallible.
 
 - Running the file cannot generate any data. There can be only `CREATE PERFETTO {FUNCTION|TABLE|VIEW|MACRO}` statements inside.
 - The name of each standard library object needs to start with `{module_name}_` or be prefixed with an underscore(`_`) for internal objects.
@@ -24,23 +26,31 @@ Files inside the standard library have to be formatted in a very specific way, a
 
 #### Documentation
 
-- Every non internal object, as well as its function arguments and columns in its schema have to be prefixed with an SQL comment documenting it.
-- Any text is going to be parsed as markdown, so usage of markdown functionality (code, links, lists) is encouraged.
-  Whitespaces in anything apart from descriptions are ignored, so comments can be formatted neatly.
-  If the line with description exceeds 80 chars, description can be continued in following lines.
-  - **Table/view**: each has to have schema, object description and a comment above each column's definition in the schema.
-    - Description is any text in the comment above `CREATE PERFETTO {TABLE,VIEW}` statement.
-    - Column's comment is the text immediately above column definition in the schema.
-  - **Scalar Functions**: each has to have a function description and description of return value in this order.
-    - Function description is any text in the comment above `CREATE PERFETTO FUNCTION` statement.
-    - For each argument there has to be a comment line immediately above argument definition.
-    - Return comment should immediately precede `RETURNS`.
-  - **Table Functions**: each has to have a function description, list of arguments (names, types, description) and list of columns.
-    - Function description is any text in the comment above `CREATE PERFETTO FUNCTION` statement.
-    - For each argument there has to be a comment line immediately above argument definition.
-    - For each column there has to be a comment line immediately above column definition.
+- Every non-internal object, its function arguments, and its schema columns must
+  have a preceding SQL comment documenting them.
+- Text is parsed as Markdown, so use formatting such as code, links, and lists.
+  Whitespace outside descriptions is ignored, so you can format comments neatly.
+  If a description exceeds 80 characters, continue it on the following lines.
+  - **Table/view**: each must have a schema, an object description, and a
+    comment above each column's definition in the schema.
+    - The description is the text in the comment above the
+      `CREATE PERFETTO {TABLE,VIEW}` statement.
+    - A column's comment is the text immediately above its definition in the
+      schema.
+  - **Scalar Functions**: each must have a function description followed by a
+    return value description.
+    - The function description is the text in the comment above the
+      `CREATE PERFETTO FUNCTION` statement.
+    - Each argument must have a comment line immediately above its definition.
+    - The return comment should immediately precede `RETURNS`.
+  - **Table Functions**: each must have a function description, a list of
+    arguments (names, types, descriptions), and a list of columns.
+    - The function description is the text in the comment above the
+      `CREATE PERFETTO FUNCTION` statement.
+    - Each argument must have a comment line immediately above its definition.
+    - Each column must have a comment line immediately above its definition.
 
-NOTE: Break lines outside of import description will be ignored.
+NOTE: Line breaks outside the import description are ignored.
 
 Example of properly formatted view in module `android`:
 
@@ -120,18 +130,17 @@ WHERE launch_id = $launch_id AND slice_name GLOB $slice_name;
 
 ### Update `TRACE_PROCESSOR_CURRENT_API_VERSION`
 
-Generally you do not have to worry about version skew between the UI
-and the `trace_processor` since they are built together at the same
-commit. However version skew can occur when running `trace_processor`
-in HTTP RPC mode (`trace_processor server http`), which allows a
-native `trace_processor` instance to be used with the UI.
+Generally, you do not have to worry about version skew between the UI and
+`trace_processor` because they are built together at the same commit. However,
+version skew can occur when running `trace_processor` in HTTP RPC mode
+(`trace_processor server http`), which lets you use a native `trace_processor`
+instance with the UI.
 
-A common case is when the UI is more recent than `trace_processor`
-and depends on a new table definition. With older versions of
-`trace_processor` in HTTP RPC mode the UI crashes attempting to query
-a non-existent table. To avoid this we use a version number. If the
-version number `trace_processor` reports is older than the one the UI
-was built with we prompt the user to update.
+A common case is when the UI is more recent than `trace_processor` and depends
+on a new table definition. With older versions of `trace_processor` in HTTP RPC
+mode, the UI crashes when it tries to query a nonexistent table. To avoid this,
+we use a version number. If `trace_processor` reports a version older than the
+one the UI was built with, we prompt the user to update.
 
 1. Go to `protos/perfetto/trace_processor/trace_processor.proto`
 2. Increment `TRACE_PROCESSOR_CURRENT_API_VERSION`
@@ -169,7 +178,11 @@ was built with we prompt the user to update.
 6. If special handling in `trace_processor` is desired update [src/trace_processor/importers/ftrace/ftrace_parser.cc](/src/trace_processor/importers/ftrace/ftrace_parser.cc) to parse the event.
 7. Upload and land your change as normal.
 
-Here is an [example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/3343525) which added a new event. Note: Perfetto's source of truth has moved to GitHub since the change was made so while the content of that change is accurate, you should send the patch via GitHub *not* on AOSP Gerrit.
+This
+[example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/3343525)
+added a new event. Note: Perfetto's source of truth has since moved to GitHub.
+The change's content is still accurate, but you should send patches via GitHub,
+not AOSP Gerrit.
 
 To test your changes, you can sideload your locally built `tracebox` binary on an Android device. See [Sideloading on Android](#sideloading) for more details.
 
@@ -203,11 +216,11 @@ you can use the `record_android_trace` script to sideload a locally built
 
 ### Update statsd descriptor
 
-Perfetto has limited support for statsd atoms it does not know about.
+Perfetto has limited support for statsd atoms it does not know about:
 
-- Must be referred to using `raw_atom_id` in the config.
-- Show up as `atom_xxx.field_yyy` in trace processor.
-- Only top level messages are parsed.
+- You must refer to them using `raw_atom_id` in the config.
+- They appear as `atom_xxx.field_yyy` in trace processor.
+- Only top-level messages are parsed.
 
 To update Perfetto's descriptor and handle new atoms from AOSP without these
 limitations:

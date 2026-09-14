@@ -1,11 +1,11 @@
 # Screen Recording
 
-The **android.display.video** data source records what each physical
-display showed while a trace was being captured. Perfetto stores the
-frames as an encoded video stream inside the trace, and the UI adds a
-per-display timeline track that decodes them in the browser. You can
-hover the track to preview a frame, play the frames back like a video,
-and click any frame to line it up with the tracks below it.
+The **android.display.video** data source records what each physical display
+showed while a trace was being captured. Perfetto stores the frames as an
+encoded video stream inside the trace, and the UI adds a per-display timeline
+track that decodes them in the browser. You can hover over the track to preview
+a frame, play the frames back like a video, and click any frame to line it up
+with the tracks below it.
 
 It records the actual contents of the screen, so any trace that contains
 it is sensitive: it shows exactly what was on the display. On `userdebug`
@@ -44,16 +44,15 @@ When the data source is off, it costs nothing.
 
 ## Capturing display video
 
-There are three ways to turn on display-video capture, from the simplest
-to the most control. On `user` builds there is also a one-time-per-boot
-property to set first — see the prerequisite below.
+There are three ways to turn on display-video capture, with increasing control
+over the settings. On `user` builds there is also a one-time-per-boot property
+to set first — see the prerequisite below.
 
 ### Prerequisite on `user` builds {#prerequisite-on-user-builds}
 
-On `userdebug` (debuggable) devices, display-video capture works out of
-the box, and you can skip this step. On `user` (production) builds it is
-disabled by default: unlock it first by setting a system property over
-ADB.
+On `userdebug` (debuggable) devices, display-video capture works out of the box,
+and you can skip this step. On `user` (production) builds it is disabled by
+default: enable it first by setting a system property over ADB.
 
 ```
 adb shell setprop debug.tracing_video_allowed true
@@ -66,10 +65,9 @@ below: the on-device toggle, the record page, or a raw config.
 
 ### On the device, with System Tracing
 
-The System Tracing app has a **Record display video** toggle under
-**Trace settings**. Enable it, then record a trace as usual — the capture
-is included automatically. This is the quickest route on a device you are
-holding — no config to write.
+The System Tracing app has a **Record display video** toggle under **Trace
+settings**. Enable it, then record a trace as usual — the capture is included
+automatically. You don't need to write a config.
 
 ![The "Record display video" toggle in the System Tracing app's Trace settings, enabled, described as "Captures encoded display frames (adds encoder overhead, can cause jank, and records screen contents)".](../images/video_frames/01-traceur.png)
 
@@ -133,21 +131,20 @@ places:
   stream when it loads the trace, so raising the on-device cap alone will
   not get you more frames in the UI.
 
-On a long session or at a high resolution, the video can therefore stop
-before the end of the trace. Both limits exist because of the memory cost
-of holding the stream, not a fundamental constraint. If they get in your
-way, comment on and upvote the tracking issue so it can be prioritised:
+On a long session or at a high resolution, the video can therefore stop before
+the end of the trace. Both limits exist because of the memory cost of holding
+the stream, not a fundamental constraint. If they get in your way, comment on
+and upvote the tracking issue so it can be prioritized:
 [perfetto#6609](https://github.com/google/perfetto/issues/6609).
 
 ## Viewing display video
 
 ### The timeline track
 
-A trace that contains display video shows a **Video Frames** group with
-one track per display (for a phone, typically a single **Built-in
-Screen**). Each slice on the track is one captured frame, labelled with a
-frame number. That number is just a sequential counter of captured frames
-— it has nothing to do with the vsync ids in the frame timeline.
+A trace that contains display video shows a **Video Frames** group with one
+track per display (for a phone, typically a single **Built-in Screen**). Each
+slice on the track is one captured frame, labeled with a frame number. This
+sequential counter is unrelated to the vsync ids in the frame timeline.
 
 ![The Perfetto timeline with the "Video Frames" group's "Built-in Screen" track pinned to the top — a row of coloured slices labelled Frame 30, Frame 57, and so on — above the CPU scheduling tracks.](../images/video_frames/03-track.png)
 
@@ -162,14 +159,15 @@ to find the frame you want.
 ### Playing back
 
 Click a frame to open its details. The panel shows the frame number and
-timestamp on the left and a decoded **Preview** on the right, with
-playback controls in the header: previous frame, play/pause, next frame,
-and a playback-speed selector. Press play and the capture runs as a
-video: the preview advances through the frames and the timeline selection
-moves with it, so the rest of the UI stays lined up with what is on
-screen. Step one frame at a time with the previous/next buttons, or change
-the speed selector to play back slower (down to 0.1×) or faster (up to
-2×).
+timestamp on the left and a decoded **Preview** on the right, with playback
+controls in the header: previous frame, play/pause, next frame, and a
+playback-speed selector.
+
+Press play to run the capture as a video: the preview advances through the
+frames and the timeline selection moves with it, so the rest of the UI stays
+lined up with what is on screen. Step one frame at a time with the previous/next
+buttons, or change the speed selector to play back slower (down to 0.1×) or
+faster (up to 2×).
 
 ![Playing a display-video capture back with the video-frames track pinned at the top: in the details panel the decoded preview advances from the settings screen to the launcher while the frame number and timestamp update.](../images/video_frames/05-playback.gif)
 

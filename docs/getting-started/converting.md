@@ -6,14 +6,9 @@ In this guide, you'll learn how to:
 - Create custom tracks, slices, and counters.
 - Visualize your custom data in the Perfetto UI.
 
-If you have existing logs or timestamped data from your own systems, you don't
-need to miss out on Perfetto's powerful visualization and analysis capabilities.
-By converting your data into Perfetto's native protobuf-based trace format, you
-can create synthetic traces that can be opened in the Perfetto UI and queried
-with Trace Processor.
-
-This page provides a guide on how to programmatically generate these synthetic
-traces.
+You can convert existing logs or timestamped data into Perfetto's native
+protobuf-based trace format to create synthetic traces. Open these traces in the
+Perfetto UI or query them with Trace Processor.
 
 ## The Basics: Perfetto's Trace Format
 
@@ -27,7 +22,7 @@ use within a `TracePacket` is the
 [TrackEvent](/protos/perfetto/trace/track_event/track_event.proto). `TrackEvent`
 allows you to define:
 
-- **Tracks**: A single sequence of events (slices or counter) over time.
+- **Tracks**: A single sequence of events (slices or counters) over time.
   Corresponds to a single "swim-lane" in the Perfetto UI.
 - **Slices**: Events with a name, start timestamp, and duration (e.g., function
   calls, tasks).
@@ -153,20 +148,17 @@ if __name__ == "__main__":
 3. Run the script: `python trace_converter_template.py`. This will generate
    `my_custom_trace.pftrace`.
 
-The TraceProtoBuilder class (which is imported from `perfetto` pip package)
-helps manage the list of `TracePacket` messages that form the `Trace`. The
+The TraceProtoBuilder class (imported from the `perfetto` pip package) helps
+manage the list of `TracePacket` messages that form the `Trace`. The
 `populate_packets` function is where you'll define the content of these packets
 based on your specific data.
 
 ## Creating Basic Timeline Slices
 
-The most fundamental way to represent an activity in Perfetto is as a "slice." A
-slice is simply a named event that has a start time and a duration. Slices live
-on "tracks," which are visual timelines in the Perfetto UI. Essentially, slices
-are used in any situation where you want to say "a named activity was happening
-during this specific interval of time."
+A "slice" represents a named activity with a start time and a duration. Slices
+live on "tracks," which are visual timelines in the Perfetto UI.
 
-Common examples of what slices can represent include:
+Examples of slices include:
 
 - The interval of time during which a particular **function was executing**.
 - The interval of time spent **waiting for a server to respond** to a network
@@ -248,8 +240,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Basic Timeline Slices](/docs/images/converting-basic-slices.png)
 
@@ -263,10 +255,9 @@ WHERE track.name = 'My Custom Data Timeline';
 ## Nested Slices (Hierarchical Activities)
 
 Often, an activity or operation is made up of several sub-activities that must
-complete before the main activity can finish. Nested slices are perfect for
-representing these hierarchical relationships. The key rule is that child slices
-must start after their parent slice begins and finish before their parent slice
-ends.
+complete before the main activity can finish. Nested slices represent these
+hierarchical relationships. Child slices must start after their parent slice
+begins and finish before their parent slice ends.
 
 This is very common for:
 
@@ -346,8 +337,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Nested Slices](/docs/images/converting-nested.png)
 
@@ -445,8 +436,8 @@ your `trace_converter_template.py` script:
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Asynchronous Slices](/docs/images/converting-async-slices.png)
 
@@ -460,9 +451,8 @@ ORDER BY ts;
 
 ## Counters (Values Changing Over Time)
 
-Counters are used to represent a numerical value that changes over time. They
-are excellent for tracking metrics or states that are not event-based but rather
-reflect a continuous or sampled quantity.
+Counters represent numerical values that change over time. Use them to track
+metrics or states that reflect a continuous or sampled quantity.
 
 Common examples of what counters can represent include:
 
@@ -478,8 +468,8 @@ Common examples of what counters can represent include:
 To create a counter track, you'll:
 
 1.  Define a `TrackDescriptor` for your counter. This track needs a `uuid`, a
-    `name`, and importantly, its `counter` field should be populated. This tells
-    Perfetto to treat this track as a counter.
+    `name`, and its `counter` field should be populated. This tells Perfetto to
+    treat this track as a counter.
 2.  Emit `TrackEvent` packets with `type: TYPE_COUNTER`. Each such packet should
     have a `timestamp` and either a `counter_value` (an integer) or a
     `double_counter_value` (a double).
@@ -530,8 +520,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Counters](/docs/images/converting-counters.png)
 
@@ -546,9 +536,8 @@ WHERE track.name = 'Outstanding Network Requests';
 
 Flows are used to visually connect slices that have an explicit causal or
 dependency relationship, especially when these slices occur on different tracks
-(like different threads or even different processes). They are crucial for
-understanding how an action in one part of a system triggers or enables an
-action in another.
+(like different threads or even different processes). They help you understand
+how an action in one part of a system triggers or enables an action in another.
 
 Think of flows as drawing an arrow from a "cause" or "dispatch" event to an
 "effect" or "handling" event. Common scenarios include:
@@ -651,8 +640,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Flows](/docs/images/converting-flows.png)
 
@@ -768,8 +757,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Grouping Tracks with Hierarchies](/docs/images/converting-track-groups.png)
 
@@ -784,12 +773,12 @@ ORDER BY slice.ts;
 
 ## Track Hierarchies for Waterfall / Trace Views
 
-Another powerful use of track hierarchies is to visualize the breakdown of a
-complex operation or request, similar to how "trace views" or "span views" are
-displayed in distributed tracing systems. This is useful when an operation
-involves sequential or parallel steps, potentially across different logical
-components, and you want to see the timing and relationship of these steps in a
-waterfall or Gantt-like chart.
+You can also use track hierarchies to visualize the breakdown of a complex
+operation or request, similar to how "trace views" or "span views" are displayed
+in distributed tracing systems. This is useful when an operation involves
+sequential or parallel steps, potentially across different logical components,
+and you want to see the timing and relationship of these steps in a waterfall or
+Gantt-like chart.
 
 In this model:
 
@@ -885,8 +874,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Track Hierarchies for Waterfall / Trace Views](/docs/images/converting-waterfall.png)
 
@@ -1006,8 +995,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Adding Debug Annotations](/docs/images/converting-debug-basic.png)
 
@@ -1090,8 +1079,8 @@ your `trace_converter_template.py` script.
 
 </details>
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Nested Debug Annotations](/docs/images/converting-debug-nested.png)
 
@@ -1109,10 +1098,9 @@ WHERE track.name = 'Nested Debug Annotations';
 
 Callstacks (also known as stack traces or backtraces) show the sequence of
 function calls that led to a particular event. Adding callstacks to your trace
-events can be invaluable for understanding the code paths that triggered
-specific operations.
+events helps you understand the code paths that triggered specific operations.
 
-There are two different ways to associate a callstack to an event:
+There are two ways to associate a callstack with an event:
 
 1. **Inline callstacks**: Embed stack frames directly in each event with
    function names and optional source locations. This is simple and requires no
@@ -1122,8 +1110,8 @@ There are two different ways to associate a callstack to an event:
    it by ID from multiple events. This is much more efficient when callstacks repeat
    frequently or when you need binary/mapping information for symbolization.
 
-This guide covers inline callstacks, which are perfect for getting started. For
-repeated callstacks or when you need binary mapping information, use
+This guide covers inline callstacks. For repeated callstacks or when you need
+binary mapping information, use
 [interned callstacks](/docs/reference/synthetic-track-event.md#callstacks)
 instead.
 
@@ -1221,12 +1209,12 @@ When you provide a callstack on the slice end event, Trace Processor stores it
 separately from the begin callstack (as `end_callsite_id` rather than
 `callsite_id`). This is handy for quickly comparing entry/exit stacks.
 
-After running the script, opening the generated `my_custom_trace.pftrace` in the
-[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+Run the script and open the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) to see the output:
 
 ![Inline Callstacks](/docs/images/converting-inline-callstacks.png)
 
-Note that you can also do an "area selection" (AKA box selection) to get a
+You can also use an "area selection" (also called a box selection) to get a
 flamegraph of the callstacks:
 
 ![Inline Callstacks Area Select](/docs/images/inline-callstacks-flamegraph.png)

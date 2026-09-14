@@ -107,9 +107,9 @@ git push origin vX.Y
 
 ## Creating a GitHub release with prebuilts and SDK sources
 
-3. Within few mins the LUCI scheduler will trigger builds of prebuilt binaries
-   on https://luci-scheduler.appspot.com/jobs/perfetto . Wait for all the bots
-   to have completed successfully and be back into the WAITING state.
+3. Within a few minutes, the LUCI scheduler will trigger builds of prebuilt
+   binaries on https://luci-scheduler.appspot.com/jobs/perfetto . Wait for all
+   the bots to complete successfully and return to the WAITING state.
 
 4. **IMPORTANT**: Check out the release tag before running the packaging script:
 
@@ -127,8 +127,8 @@ git checkout vX.Y
     - 10 prebuilt binaries: linux-{arm,arm64,amd64},
       android-{arm,arm64,x86,x64}, mac-{amd64,arm64}, windows-amd64
     - 2 SDK source zips: perfetto-cpp-sdk-src.zip, perfetto-c-sdk-src.zip
-  - If one or more prebuilt zips are missing it means that one of the LUCI bots failed,
-    check the logs (follow the "Task URL: " link) from the invocation log.
+  - If one or more prebuilt zips are missing, one of the LUCI bots failed. Check
+    the logs (follow the "Task URL: " link) from the invocation log.
   - If this happens you'll need to respin a vX.(Y+1) release with the fix
     (look at the history v20.1, where a Windows failure required a respin).
 
@@ -145,4 +145,4 @@ git checkout vX.Y
 8. Send an email with the CHANGELOG to perfetto-dev@ (internal) and to the
    [public perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev).
 
-9. Phew, you're done!
+9. The release is complete.

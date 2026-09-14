@@ -2,14 +2,13 @@
 
 The Linux kernel's `function_graph` tracer records **every entry into and exit
 from kernel functions**, letting you see the exact call tree the kernel executed
-on a CPU, with per-function durations. Perfetto can drive this tracer through the
-`linux.ftrace` data source and visualises the resulting calls as nested slices
-on the timeline, just like userspace slices.
+on a CPU, with per-function durations. Perfetto can drive this tracer through
+the `linux.ftrace` data source and visualizes the resulting calls as nested
+slices on the timeline, just like userspace slices.
 
-This is a powerful way to answer "what was the kernel actually doing here?"
-without adding any instrumentation of your own. It is, however, a high-bandwidth
-feature: tracing too many functions will overwhelm the trace buffer, so it is
-designed to be used together with filters.
+This lets you see what the kernel was doing without adding instrumentation.
+Tracing too many functions will overwhelm the trace buffer, so use filters to
+limit the functions you trace.
 
 If instead you want to add your **own** tracepoints to the kernel, see
 [Instrumenting the kernel with ftrace](/docs/getting-started/ftrace.md).
@@ -29,12 +28,12 @@ If instead you want to add your **own** tracepoints to the kernel, see
   afterwards with `trace_processor bundle`.
 - On **Android**, function graph tracing is available only on `debuggable`
   (userdebug/eng) builds, and was introduced in Android U.
-- `traced_probes` must run as root (or `kptr_restrict` lowered), both to read
-  `/proc/kallsyms` and to control the kernel tracer.
+- `traced_probes` must run as root (or `kptr_restrict` must be lowered), both to
+  read `/proc/kallsyms` and to control the kernel tracer.
 
 ## TraceConfig
 
-The relevant options live in `FtraceConfig`:
+The relevant options are in `FtraceConfig`:
 
 - `enable_function_graph`: turns on the `function_graph` tracer.
 - `function_filters`: a set of globs; only matching functions are traced.
@@ -98,9 +97,9 @@ flamegraph/aggregation features as with any other slice track.
 
 ## SQL
 
-Function graph calls are ordinary slices, so they live in the `slice` table and
-can be queried like any other slice. For example, to find the kernel functions
-that accounted for the most aggregate time:
+Function graph calls are stored in the `slice` table and can be queried like
+other slices. For example, to find the kernel functions that accounted for the
+most aggregate time:
 
 ```sql
 SELECT slice.name, COUNT(*) AS calls, SUM(dur) AS total_dur

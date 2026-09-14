@@ -29,20 +29,15 @@ benchmarking framework tracing a client and a server, a test harness
 recording one trace per device, or a pipeline capturing an app trace next
 to a system trace.
 
-Such a tool should not make every user reconstruct the merge configuration
-in a dialog for every capture. It knows how its traces relate; the manifest
-is how it writes that knowledge down. The tool emits the manifest alongside
-the traces and packs everything into one archive, and that archive becomes
-a single self-describing artifact: anyone can open it in the UI or in
-`trace_processor` and get the correctly merged view with zero
-configuration, today or years later.
+The tool records how its traces relate in a manifest and packs it alongside the
+traces in one archive. Anyone can open the archive in the UI or in
+`trace_processor` and get the correctly merged view without reconstructing the
+configuration for each capture, now or in the future.
 
-The interactive dialog and the manifest are two faces of the same
-mechanism: the dialog generates a manifest under the hood, and its "Copy
-manifest" button is a convenient way to get a starting template. Since file
-names, offsets and machine names usually vary per capture, tools generally
-generate the manifest programmatically for each run and pack it into the
-archive together with the trace files.
+The dialog generates a manifest; use its "Copy manifest" button to get a
+starting template. Since file names, offsets and machine names usually vary per
+capture, tools generally generate the manifest programmatically for each run and
+pack it into the archive with the trace files.
 
 ## Example
 
@@ -102,8 +97,8 @@ key, containing:
 | `files` | array | no | Per-file configuration entries. See [files](#files). |
 | `attributes` | object | no | Key/value pairs annotating the archive. See [attributes](#attributes). |
 
-Files present in the archive but not listed in `files` are still imported;
-they just get no overrides and follow the default merging rules described in
+Files present in the archive but not listed in `files` are still imported; they
+receive no overrides and follow the default merging rules described in
 [Trace merging](/docs/concepts/merging-traces.md).
 
 ## {#trace-time} trace_time
@@ -266,14 +261,14 @@ Setting the same key twice overwrites: the last value wins.
 
 ## {#clock-names} Clock names
 
-Wherever a clock name is expected, one of:
+Wherever a clock name is expected, use one of:
 
 `REALTIME`, `REALTIME_COARSE`, `MONOTONIC`, `MONOTONIC_COARSE`,
 `MONOTONIC_RAW`, `BOOTTIME`
 
-These correspond to the builtin clocks in
-[builtin_clock.proto](/protos/perfetto/common/builtin_clock.proto) and the
-POSIX `clock_gettime` domains of the same names.
+These correspond to the built-in clocks in
+[builtin_clock.proto](/protos/perfetto/common/builtin_clock.proto) and the POSIX
+`clock_gettime` domains of the same names.
 
 ## {#sql} Effects on the SQL surface
 
@@ -295,8 +290,8 @@ After import, the manifest's effects are visible in the trace:
 
 ## {#errors} Errors
 
-The manifest is validated up front; any violation fails the whole import
-with an error prefixed by `perfetto_manifest:`. The conditions:
+The manifest is validated up front; any violation fails the whole import with an
+error prefixed by `perfetto_manifest:`. The following conditions cause errors:
 
 | Condition | Error |
 |-----------|-------|

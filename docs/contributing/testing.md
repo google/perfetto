@@ -1,12 +1,12 @@
 # Testing
 
-The testing strategy for Perfetto is rather complex due to the wide variety
-of build configurations and embedding targets.
+Perfetto's testing strategy covers many build configurations and embedding
+targets.
 
 Common test targets (all platforms / checkouts):
 
 `perfetto_unittests`:  
-Platform-agnostic unit-tests.
+Platform-agnostic unit tests.
 
 `perfetto_integrationtests`:  
 End-to-end tests, involving the protobuf-based IPC transport and ftrace
@@ -25,8 +25,8 @@ tools/ninja -C out/default perfetto_{unittests,integrationtests,benchmarks}
 out/default/perfetto_unittests --gtest_help
 ```
 
-`perfetto_integrationtests` requires that the ftrace debugfs directory is
-is readable/writable by the current user on Linux:
+On Linux, `perfetto_integrationtests` requires read and write access to the
+ftrace debugfs directory:
 
 ```bash
 sudo chown  -R $USER /sys/kernel/debug/tracing
@@ -54,8 +54,9 @@ Perfetto is tested in a variety of locations:
 
 **Perfetto CI**: https://ci.perfetto.dev/  
 Builds and runs perfetto\_{unittests,integrationtests,benchmarks} from the
-standalone checkout. Benchmarks are ran in a reduced form for smoke testing.
-See [this doc](/docs/design-docs/continuous-integration.md) for more details.
+standalone checkout. Benchmarks run in a reduced form for smoke testing.
+See
+[this doc](/docs/design-docs/continuous-integration.md) for more details.
 
 **Android CI** (see go/apct and go/apct-guide):  
 runs only `perfetto_integrationtests`
@@ -63,7 +64,7 @@ runs only `perfetto_integrationtests`
 **Android presubmits (TreeHugger)**:  
 Runs before submission of every AOSP CL of `external/perfetto`.
 
-**Android CTS** (Android test suite used run to ensure API compatibility):  
+**Android CTS** (Android test suite used to ensure API compatibility):  
 Rolling runs internally.
 
 Note that Perfetto CI uses the standalone build system and the others build as
@@ -74,13 +75,13 @@ part of the Android tree.
 Unit tests exist for most of the code in Perfetto on the class level. They
 ensure that each class broadly works as expected.
 
-Unit tests are currently ran on ci.perfetto.dev and build.chromium.org.
-Running unit tests on APCT and Treehugger is WIP.
+Unit tests currently run on ci.perfetto.dev and build.chromium.org. Running unit
+tests on APCT and Treehugger is WIP.
 
 ## Integration tests
 
-Integration tests ensure that subsystems (importantly ftrace and the IPC layer)
-and Perfetto as a whole is working correctly end-to-end.
+Integration tests check that subsystems (especially ftrace and the IPC layer)
+and Perfetto as a whole work correctly end to end.
 
 There are two configurations in which integration tests can be run:
 
@@ -97,13 +98,11 @@ run integration tests on Linux and MacOS.
 
 ## Trace Processor diff tests
 
-Trace Processor is mainly tested using so called "diff tests" rather than
-unit tests. Unit tests have proven too brittle when dealing with code that
-parses traces — they require painful mechanical updates whenever the
-parsing logic is refactored — so they are reserved for the low-level
-building blocks the rest of Trace Processor is built on. Everything else
-(parsing events, table schemas, stdlib modules, dynamic tables) is covered
-by diff tests.
+Trace Processor is mainly tested using "diff tests". Unit tests for trace
+parsing have proven brittle, requiring mechanical updates whenever the parsing
+logic is refactored. They are reserved for the low-level building blocks of
+Trace Processor. Diff tests cover everything else: parsing events, table
+schemas, stdlib modules, and dynamic tables.
 
 For these tests, Trace Processor parses a known trace and executes a query
 string or file. The output of these queries is then compared (i.e. "diff"ed)
@@ -205,23 +204,21 @@ _Answer_: Add the test to `tables`.
 
 ## UI pixel diff tests
 
-The pixel tests are used to ensure core user journeys work by verifying they
-are the same pixel to pixel against a golden screenshot. They use a headless
-chrome to load the webpage and take a screenshot and compare pixel by pixel a
-golden screenshot. You can run these tests by using `ui/run-integrationtests`.
+Pixel tests check core user journeys by loading the webpage in headless Chrome
+and comparing a screenshot pixel by pixel against a golden screenshot. Run these
+tests with `ui/run-integrationtests`.
 
-These test fail when a certain number of pixels are different. If these tests
-fail, you'll need to investigate the diff and determine if its intentional. If
-its a desired change you will need to update the screenshots on a linux machine
-to get the CI to pass. You can update them by generating and uploading a new
-baseline (this requires access to a google bucket through gcloud which only
-googlers have access to, googlers can install gcloud
-[here](https://g3doc.corp.google.com/cloud/sdk/g3doc/index.md#installing-and-using-the-cloud-sdk)).
+These tests fail when a certain number of pixels differ. Investigate the diff to
+determine whether the change is intentional. If it is, generate and upload a new
+screenshot baseline on a Linux machine so CI passes. This requires access to a
+Google bucket through gcloud, which is restricted to Googlers. Googlers can
+install gcloud
+[here](https://g3doc.corp.google.com/cloud/sdk/g3doc/index.md#installing-and-using-the-cloud-sdk).
 
-The tests are run in a docker container by default, unless -`-no-docker` is
-passed. It's recommended to use the container for a stable and reproducible
-testing environment, especially for rebaselining, otherwise it's very likely the
-screenshots will not match when run on the CI.
+The tests run in a Docker container by default, unless -`-no-docker` is passed.
+It's recommended to use the container for a stable and reproducible testing
+environment, especially for rebaselining. Otherwise, the screenshots are very
+likely to differ when run in CI.
 
 ```
 ui/run-integrationtests --rebaseline
@@ -231,30 +228,30 @@ tools/test_data upload
 Once finished you can commit and upload as part of your CL to cause the CI to
 use your new screenshots.
 
-NOTE: If you see a failing diff test you can see the pixel differences on the CI
-by using a link ending with `ui-test-artifacts/index.html`. Report located on
-that page contains changed screenshots as well as a command to accept the
-changes if these are desirable.
+NOTE: For a failing diff test, view the pixel differences in CI using a link
+ending with `ui-test-artifacts/index.html`. The report contains changed
+screenshots and a command to accept the changes if they are intentional.
 
 ## Android CTS tests
 
 CTS tests ensure that any vendors who modify Android remain compliant with the
 platform API.
 
-These tests include a subset of the integration tests above as well as adding
-more complex tests which ensure interaction between platform (e.g. Android apps
-etc.) and Perfetto is not broken.
+These tests include a subset of the integration tests above and more complex
+tests that check interactions between the platform (e.g. Android apps) and
+Perfetto.
 
-The relevant targets are `CtsPerfettoProducerApp` and `CtsPerfettoTestCases`. Once these are built, the following commands should be run:
+The relevant targets are `CtsPerfettoProducerApp` and `CtsPerfettoTestCases`.
+After building them, run:
 
 ```bash
 adb push $ANDROID_HOST_OUT/cts/android-cts/testcases/CtsPerfettoTestCases64 /data/local/tmp/
 adb install -r $ANDROID_HOST_OUT/cts/android-cts/testcases/CtsPerfettoProducerApp.apk
 ```
 
-Next, the app named `android.perfetto.producer` should be run on the device.
+Next, run the `android.perfetto.producer` app on the device.
 
-Finally, the following command should be run:
+Finally, run:
 
 ```bash
 adb shell /data/local/tmp/CtsPerfettoTestCases64
@@ -262,21 +259,18 @@ adb shell /data/local/tmp/CtsPerfettoTestCases64
 
 ## {#chromium} Chromium waterfall
 
-Perfetto is constantly rolled into chromium's //third_party/perfetto via
+Perfetto is continually rolled into Chromium's //third_party/perfetto via
 [this autoroller](https://autoroll.skia.org/r/perfetto-chromium-autoroll).
 
 The [Chromium CI](https://build.chromium.org) runs the `perfetto_unittests`
 target, as defined in the [buildbot config][chromium_buildbot].
 
-You can also test a pending Perfetto CL against Chromium's CI / TryBots
-before submitting it. This can be useful when making trickier API changes or to
-test on platforms that the Perfetto CI doesn't cover (e.g. Windows, MacOS),
-allowing you to verify the patch before you submit it (and it then eventually
-auto-rolls into Chromium).
+You can also test a pending Perfetto CL against Chromium's CI / TryBots before
+submitting it. This can help with complex API changes or testing on platforms
+that Perfetto CI doesn't cover (e.g. Windows, MacOS).
 
-To do this, first make sure you have uploaded pull request to GitHub.
-Next, create a new Chromium CL that modifies Chromium's
-`//src/DEPS` file.
+To do this, first make sure you have uploaded a pull request to GitHub. Next,
+create a new Chromium CL that modifies Chromium's `//src/DEPS` file.
 
 If you recently uploaded your change, it may be enough to modify the git commit
 hash in the `DEPS` entry for `src/third_party/perfetto`:

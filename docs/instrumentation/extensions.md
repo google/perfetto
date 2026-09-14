@@ -2,9 +2,9 @@
 
 Perfetto's trace format is extensible: you can attach your own strongly-typed
 fields to `TrackEvent` without forking Perfetto or modifying its upstream proto
-definitions. This is done with
+definitions. This uses
 [protobuf extensions](https://developers.google.com/protocol-buffers/docs/overview#extensions),
-and it is a fully supported mechanism.
+a fully supported mechanism.
 
 This is the recommended way to add custom structured data to your traces. It
 works end-to-end: events are written with type-safe accessors from the C++
@@ -93,10 +93,10 @@ won't collide with other extension producers you share traces with.
 
 ### Making extensions visible to Trace Processor and the UI
 
-Trace Processor needs the proto descriptors for your extensions in order to
-parse them. Once the descriptors are available, every extension field is
-automatically decoded and inserted into the `args` table — no per-field
-registration is required in Trace Processor itself.
+Trace Processor needs the proto descriptors for your extensions to parse them.
+Once the descriptors are available, every extension field is automatically
+decoded and inserted into the `args` table — no per-field registration is
+required in Trace Processor itself.
 
 There are three ways to deliver descriptors:
 

@@ -1,9 +1,8 @@
 # Multi-machine recording
 
 This document describes how to record a single Perfetto trace that captures
-events from two Linux machines simultaneously. It uses `traced_relay` on
-the second machine to forward producer IPC to a `traced` running on the
-first machine.
+events from two Linux machines simultaneously. It uses `traced_relay` on the
+second machine to forward producer IPC to `traced` running on the first machine.
 
 For background on what multi-machine tracing is and how it works under the
 hood, see
@@ -158,10 +157,9 @@ In a second shell on `guest`:
 sudo tracebox traced_probes
 ```
 
-No env var is needed: with `PERFETTO_PRODUCER_SOCK_NAME` unset,
-`traced_probes` connects to the default Linux producer socket — which is
-exactly the path `traced_relay` is listening on — so the two find each
-other automatically.
+No environment variable is needed: with `PERFETTO_PRODUCER_SOCK_NAME` unset,
+`traced_probes` connects to the default Linux producer socket, where
+`traced_relay` is listening.
 
 ### Step 5: Record a trace from the host
 
@@ -236,8 +234,8 @@ machine through different dimensions.
   `PERFETTO_RELAY_SOCK_NAME` is unset or empty — `traced_relay` has no
   host to forward to.
 * **`traced_probes` on the guest fails with a connect error.** Make sure
-  `traced_relay` is running on the guest (Step 3) and that no stale
-  `traced` is also running there contesting the producer socket.
+  `traced_relay` is running on the guest (Step 3) and that no stale `traced` is
+  also running there competing for the producer socket.
 * **Producers on the host fail to connect.** Confirm `traced` started
   with `PERFETTO_PRODUCER_SOCK_NAME=0.0.0.0:20001` (Step 1) and that the
   producers are pointed at the same address (Step 2).

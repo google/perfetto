@@ -7,9 +7,9 @@ behind that merging: how events from independent files end up with
 comparable timestamps, and how data stays attributed to the machine it came
 from.
 
-This is an explanation of the machinery. For task-oriented guides see
-[Merging traces in the UI](/docs/visualization/merging-traces.md)
-and [Merging traces from the command line](/docs/analysis/merging-traces.md).
+For instructions, see
+[Merging traces in the UI](/docs/visualization/merging-traces.md) and
+[Merging traces from the command line](/docs/analysis/merging-traces.md).
 
 ## The problem
 
@@ -86,9 +86,9 @@ a trace-time clock wins; since a manifest is always processed first, its
 declare.
 
 The merged trace's time bounds are the union of every (machine, file) pair's
-recording window. Two traces recorded minutes apart therefore merge into a
-long timeline with a cluster of activity at each end: "merging" places files
-at their true relative time, it does not overlay them.
+recording window. Two traces recorded minutes apart therefore merge into a long
+timeline with a cluster of activity at each end: merging places files at their
+true relative time; it does not overlay them.
 
 Timestamps that convert to before the start of trace time cannot be
 represented and are dropped, again recorded in the trace's error stats. The

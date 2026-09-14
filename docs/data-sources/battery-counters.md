@@ -1,13 +1,13 @@
 # Power data sources
 
-On Android Perfetto bundles data sources to retrieve power
-counters from the device power management units (where supported).
+On Android, Perfetto bundles data sources to retrieve power counters from the
+device power management units (where supported).
 
 ## Battery counters
 
-_This data source has been introduced in Android 10 (Q) and requires the
-presence of power-management hardware on the device. This is available on 
-most Google Pixel smartphones._
+_This data source was introduced in Android 10 (Q) and requires the presence of
+power-management hardware on the device. This is available on most Google Pixel
+smartphones._
 
 Modern smartphones are equipped with a power monitoring IC which is able to
 measure the charge flowing in and out of the battery. This allows Perfetto to
@@ -24,35 +24,32 @@ These counters report:
 * The remaining battery capacity in %.
 * The remaining battery charge in microampere-hours (µAh).
 * The instantaneous (typically the average over a small window of time) current
-  in microampere (µA)
+  in microamperes (µA).
 
-The presence and the resolution of these counters depends on the device
-manufacturer. At the platform level this data is obtained polling the
-Android [IHealth HAL][health-hal].
-For more details on HW specs and resolution see
+The availability and resolution of these counters depend on the device
+manufacturer. At the platform level this data is obtained by polling the Android
+[IHealth HAL][health-hal]. For more details on HW specs and resolution see
 [Measuring Device Power](https://source.android.com/devices/tech/power/device).
 
 [health-hal]: https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/health/2.0/IHealth.hal?q=IHealth
 
 #### Measuring charge while plugged on USB
 
-Battery counters measure the charge flowing *in* and *out* of
-the battery. If the device is plugged to a USB cable, you will likely observe
-a positive instantaneous current and an increase of the total charge, denoting
-the fact that charge is flowing in the battery (i.e. charging it) rather
-than out.
+Battery counters measure the charge flowing *in* and *out* of the battery. If
+the device is connected to a USB cable, you will likely observe a positive
+instantaneous current and an increase in the total charge, indicating that
+charge is flowing into the battery (i.e. charging it) rather than out.
 
 This can make measurements in lab settings problematic. The known workarounds
 for this are:
 
-* Using specialized USB hubs that allow to electrically disconnect the USB ports
-  from the host side. This allows to effectively disconnect the phone while the
-  tests are running.
+* Using specialized USB hubs that let you electrically disconnect the USB ports
+  from the host side. This disconnects the phone while the tests are running.
 
-* On rooted phones the power management IC driver allows to disconnect the USB
-  charging while keeping the USB data link active. This feature is
-  SoC-specific, is undocumented and not exposed through any HAL.
-  For instance on a Pixel 2 this can be achieved running, as root:
+* On rooted phones the power management IC driver lets you disconnect USB
+  charging while keeping the USB data link active. This feature is SoC-specific,
+  is undocumented and not exposed through any HAL. For instance, on a Pixel 2,
+  run this as root:
   `echo 1 > /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-02/800f000.qcom,spmi:qcom,pmi8998@2:qcom,qpnp-smb2/power_supply/battery/input_suspend`.
   Note that in most devices the kernel USB driver holds a wakelock to keep the
   USB data link active, so the device will never fully suspend even when turning
@@ -114,21 +111,21 @@ data_sources: {
 
 ## {#odpm} On-Device Power Rails Monitor (ODPM)
 
-_This data source has been introduced in Android 10 (Q) and requires the
-dedicated hardware on the device. This hardware is not yet available on
-most production phones._
+_This data source was introduced in Android 10 (Q) and requires the dedicated
+hardware on the device. This hardware is not yet available on most production
+phones._
 
-Recent version of Android introduced the support for more advanced power
-monitoring at the hardware subsystem level, known as
-"On-Device Power Rail Monitors" (ODPMs).
-These counters measure the energy drained by (groups of) hardware units.
+Recent versions of Android introduced support for more advanced power monitoring
+at the hardware subsystem level, known as "On-Device Power Rail Monitors"
+(ODPMs). These counters measure the energy drained by (groups of) hardware
+units.
 
 Unlike the battery counters, they are not affected by the charging/discharging
 state of the battery, because they measure power downstream of the battery.
 
-The presence and the resolution of power rail counters depends on the device
-manufacturer. At the platform level this data is obtained polling the
-Android [IPowerStats HAL][power-hal].
+The availability and resolution of power rail counters depend on the device
+manufacturer. At the platform level this data is obtained by polling the Android
+[IPowerStats HAL][power-hal].
 
 Googlers: See [go/power-rails-internal-doc](http://go/power-rails-internal-doc)
 for instructions on how to change the default rail selection on Pixel devices.

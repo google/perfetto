@@ -1,12 +1,12 @@
 # Trace packet interceptors (Tracing SDK)
 
-A trace packet interceptor is used to redirect trace packets written by a
-data source into a custom backend instead of the normal Perfetto tracing
-service. For example, the console interceptor prints all trace packets to the
-console as they are generated. Another potential use is exporting trace data
-to another tracing service such as Android ATrace or Windows ETW.
+A trace packet interceptor redirects packets written by a data source to a
+custom backend instead of the normal Perfetto tracing service. For example, the
+console interceptor prints all trace packets to the console as they are
+generated. Another potential use is exporting trace data to another tracing
+service such as Android ATrace or Windows ETW.
 
-An interceptor is defined by subclassing the `perfetto::Interceptor` template:
+Define an interceptor by subclassing the `perfetto::Interceptor` template:
 
 ```C++
 class MyInterceptor : public perfetto::Interceptor<MyInterceptor> {
@@ -30,9 +30,8 @@ class MyInterceptor : public perfetto::Interceptor<MyInterceptor> {
 };
 ```
 
-An interceptor should be registered before any tracing sessions are started.
-Note that the interceptor also needs to be activated through the trace config
-shown below.
+Register the interceptor before starting any tracing sessions. You also need to
+activate it through the trace config shown below.
 
 ```C++
 perfetto::InterceptorDescriptor desc;
@@ -40,7 +39,7 @@ desc.set_name("my_interceptor");
 MyInterceptor::Register(desc);
 ```
 
-Finally, an interceptor is enabled through the trace config like this:
+Finally, enable the interceptor through the trace config:
 
 ```C++
 perfetto::TraceConfig cfg;

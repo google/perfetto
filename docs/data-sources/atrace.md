@@ -13,34 +13,33 @@ The ATrace API is exposed through the following surfaces:
     [`libcutils/trace.h`](https://cs.android.com/android/platform/superproject/main/+/main:system/core/libcutils/include/cutils/trace.h?q=f:trace%20libcutils)
 
 This API has been available since Android 4.3 (API level 18) and predates
-Perfetto. All these annotations, which internally are all routed through the
-internal libcutils API, are and will continue to be supported by Perfetto.
+Perfetto. All these annotations are routed through the internal libcutils API.
+Perfetto supports them and will continue to do so.
 
 There are two types of atrace events: System and App events.
 
-**System events**: are emitted only by Android internals using libcutils.
+**System events** are emitted only by Android internals using libcutils.
 These events are grouped in categories (also known as _tags_), e.g.
 "am" (ActivityManager), "pm" (PackageManager).
 For a full list of categories see the _Record new trace_ page of the
 [Perfetto UI](https://ui.perfetto.dev).
 
-Categories can be used to enable group of events across several processes,
-without having to worry about which particular system process emits them.
+You can use categories to enable groups of events across several processes
+without needing to know which system process emits them.
 
-**App events**: have the same semantics of system events. Unlike system events,
-however, they don't have any tag-filtering capability (all app events share the
-same tag `ATRACE_TAG_APP`) but can be enabled on a per-app basis.
+**App events** have the same semantics as system events. They have no
+tag-filtering capability (all app events share the same tag `ATRACE_TAG_APP`),
+but you can enable them on a per-app basis.
 
 See the [TraceConfig](#traceconfig) section below for instructions on how to
 enable both system and app events.
 
 #### Instrumentation overhead
 
-ATrace instrumentation a non-negligible cost of 1-10us per event.
-This is because each event involves a stringification, a JNI call if coming from
-a managed execution environment, and a user-space <-> kernel-space roundtrip to
-write the marker into `/sys/kernel/tracing/trace_marker` (which is the
-most expensive part).
+ATrace instrumentation costs 1-10us per event. Each event involves
+stringification, a JNI call if it comes from a managed execution environment,
+and a user-space <-> kernel-space round trip to write the marker into
+`/sys/kernel/tracing/trace_marker` (the most expensive part).
 
 Our team is looking into a migration path for Android, in light of the newly
 introduced [Tracing SDK](/docs/instrumentation/tracing-sdk.md). At the moment
@@ -57,9 +56,8 @@ a process track group, as follows:
 
 ## SQL
 
-At the SQL level, ATrace events are available in the standard `slice` and
-`counter` tables, together with other counters and slices coming from other
-data sources.
+ATrace events are available in the standard `slice` and `counter` SQL tables,
+alongside slices and counters from other data sources.
 
 ### Slices
 

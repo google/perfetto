@@ -22,9 +22,8 @@ for more details on which applications can be targeted.
 
 ## dumpsys meminfo
 
-A good place to get started investigating memory usage of a process is
-`dumpsys meminfo` which gives a high-level overview of how much of the various
-types of memory are being used by a process.
+Start with `dumpsys meminfo` to see how much of each type of memory a process
+uses.
 
 ```bash
 $ adb shell dumpsys meminfo com.android.systemui
@@ -48,8 +47,8 @@ native heap it's 17M.
 
 ## Linux memory management
 
-But what does _clean_, _dirty_, _Rss_, _Pss_, _Swap_ actually mean? To answer
-this question, we need to delve into Linux memory management a bit.
+To understand _clean_, _dirty_, _Rss_, _Pss_, and _Swap_, you need some
+background on Linux memory management.
 
 From the kernel's point of view, memory is split into equally sized blocks
 called _pages_. These are generally 4KiB.
@@ -65,17 +64,17 @@ RunTime for Java apps.
 
 VMAs can be of two types: file-backed and anonymous.
 
-**File-backed VMAs** are a view of a file in memory. They are obtained passing a
-file descriptor to `mmap()`. The kernel will serve page faults on the VMA
-through the passed file, so reading a pointer to the VMA becomes the equivalent
-of a `read()` on the file. File-backed VMAs are used, for instance, by the
-dynamic linker (`ld`) when executing new processes or dynamically loading
+**File-backed VMAs** are a view of a file in memory. They are obtained by
+passing a file descriptor to `mmap()`. The kernel will serve page faults on the
+VMA through the passed file, so reading a pointer to the VMA becomes the
+equivalent of a `read()` on the file. File-backed VMAs are used, for instance,
+by the dynamic linker (`ld`) when executing new processes or dynamically loading
 libraries, or by the Android framework, when loading a new .dex library or
 accessing resources in the APK.
 
 **Anonymous VMAs** are memory-only areas not backed by any file. This is the way
 allocators request dynamic memory from the kernel. Anonymous VMAs are obtained
-calling `mmap(... MAP_ANONYMOUS ...)`.
+by calling `mmap(... MAP_ANONYMOUS ...)`.
 
 Physical memory is only allocated, in page granularity, once the application
 tries to read/write from a VMA. If you allocate 32 MiB worth of pages but only
@@ -88,8 +87,8 @@ footprint in _physical memory_. High _virtual memory_ use is generally not a
 cause for concern on modern platforms (except if you run out of address space,
 which is very hard on 64 bit systems).
 
-We call the amount a process' memory that is resident in _physical memory_ its
-**RSS** (Resident Set Size). Not all resident memory is equal though.
+We call the amount of a process' memory that is resident in _physical memory_
+its **RSS** (Resident Set Size). Not all resident memory is equal though.
 
 From a memory-consumption viewpoint, individual pages within a VMA can have the
 following states:
@@ -97,7 +96,7 @@ following states:
 - **Resident**: the page is mapped to a physical memory page. Resident pages can
   be in two states:
   - **Clean** (only for file-backed pages): the contents of the page are the
-    same of the contents on-disk. The kernel can evict clean pages more easily
+    same as the contents on disk. The kernel can evict clean pages more easily
     in case of memory pressure. This is because if they should be needed again,
     the kernel knows it can re-create its contents by reading them from the
     underlying file.
@@ -132,21 +131,21 @@ will increase by 1KiB.
 #### Recap
 
 - Dynamically allocated memory, whether allocated through C's `malloc()`, C++'s
-  `operator new()` or Java's `new X()` starts always as _anonymous_ and _dirty_,
+  `operator new()` or Java's `new X()` always starts as _anonymous_ and _dirty_,
   unless it is never used.
 - If this memory is not read/written for a while, or in case of memory pressure,
   it gets swapped out on ZRAM and becomes _swapped_.
 - Anonymous memory, whether _resident_ (and hence _dirty_) or _swapped_ is
   always a resource hog and should be avoided if unnecessary.
-- File-mapped memory comes from code (java or native), libraries and resource
+- File-mapped memory comes from code (Java or native), libraries and resources
   and is almost always _clean_. Clean memory also erodes the system memory
-  budget but typically application developers have less control on it.
+  budget but typically application developers have less control over it.
 
 ## Memory over time
 
 `dumpsys meminfo` is good to get a snapshot of the current memory usage, but
 even very short memory spikes can lead to low-memory situations, which will lead
-to [LMKs](#lmk). We have two tools to investigate situations like this
+to [LMKs](#lmk). You can investigate these situations with two tools:
 
 - RSS High Watermark.
 - Memory tracepoints.
@@ -220,10 +219,10 @@ EOF
 While it is running, take a photo if you are following along.
 
 Pull the file using `adb pull /data/misc/perfetto-traces/trace ~/mem-trace` and
-upload to the [Perfetto UI](https://ui.perfetto.dev). This will show overall
-stats about system ION usage, and per-process stats to expand. Scroll
-down (or Ctrl-F for) to `com.google.android.GoogleCamera` and expand. This will
-show a timeline for various memory stats for camera.
+upload it to the [Perfetto UI](https://ui.perfetto.dev). This will show overall
+stats about system ION usage, and per-process stats to expand. Scroll down (or
+Ctrl-F for) to `com.google.android.GoogleCamera` and expand. This will show a
+timeline for various memory stats for camera.
 
 ![Camera Memory Trace](/docs/images/trace-rss-camera.png)
 
@@ -250,9 +249,9 @@ If you want to drill down into file-mapped memory the best option is to use
 ## {#lmk} Low-memory kills
 
 When an Android device becomes low on memory, a daemon called `lmkd` will start
-killing processes in order to free up memory. Devices' strategies differ, but in
-general processes will be killed in order of descending `oom_score_adj` score
-(i.e. background apps and processes first, foreground processes last).
+killing processes to free up memory. Devices' strategies differ, but in general
+processes will be killed in order of descending `oom_score_adj` score (i.e.
+background apps and processes first, foreground processes last).
 
 Apps on Android are not killed when switching away from them. They instead
 remain _cached_ even after the user finishes using them. This is to make
@@ -301,7 +300,7 @@ EOF
 ```
 
 Pull the file using `adb pull /data/misc/perfetto-traces/trace ~/oom-trace` and
-upload to the [Perfetto UI](https://ui.perfetto.dev).
+upload it to the [Perfetto UI](https://ui.perfetto.dev).
 
 ![OOM Score](/docs/images/oom-score.png)
 
@@ -324,8 +323,7 @@ from asking the kernel remains low.
 We can log the native allocations and frees that a process does using
 _heapprofd_. The resulting profile can be used to attribute memory usage to
 particular function callstacks, supporting a mix of both native and Java code.
-The profile _will only show allocations done while it was running_, any
-allocations done before will not be shown.
+The profile _only shows allocations made while it was running_.
 
 ### {#capture-profile-native} Capturing the profile
 
@@ -353,11 +351,12 @@ apps.
 ### Viewing the data
 
 Then upload the `raw-trace` file from the output directory to the
-[Perfetto UI](https://ui.perfetto.dev) and click on diamond marker that shows.
+[Perfetto UI](https://ui.perfetto.dev) and click the diamond marker that
+appears.
 
 ![Profile Diamond](/docs/images/profile-diamond.png)
 
-The measures available in the **Measure** picker are
+The measures available in the **Measure** picker are:
 
 - **Unreleased malloc size**: how many bytes were allocated but not freed at
   this callstack the moment the dump was created.
@@ -390,8 +389,8 @@ Heap Profiler above) sees. However, some components (e.g. ART, graphics drivers,
 custom allocators) may request memory directly from the kernel using
 `mmap`. These allocations are invisible to `heapprofd`.
 
-To debug these, we can leverage the fact that `mmap` calls are relatively rare
-(compared to `malloc`). Unlike CPU profiling where we _sample_ frequently to
+To debug these, we can use the fact that `mmap` calls are relatively rare
+compared to `malloc`. Unlike CPU profiling where we _sample_ frequently to
 minimize overhead, for `mmap` we can record **every single event** without
 significant performance impact.
 
@@ -496,8 +495,8 @@ failing with
 
 ### Viewing the Data
 
-Upload the trace to the [Perfetto UI](https://ui.perfetto.dev) and click on
-diamond marker that shows.
+Upload the trace to the [Perfetto UI](https://ui.perfetto.dev) and click the
+diamond marker that appears.
 
 ![Profile Diamond](/docs/images/profile-diamond.png)
 
@@ -510,15 +509,11 @@ This will present a set of flamegraph views as explained below.
 These views show the memory attributed to the shortest path to a
 garbage-collection root. In general an object is reachable by many paths, we
 only show the shortest as that reduces the complexity of the data displayed and
-is generally the highest-signal. The rightmost `(merged)` stacks is the sum of
+is generally the highest-signal. The rightmost `(merged)` stack is the sum of
 all objects that are too small to be displayed.
 
 - **Object Size**: how many bytes are retained via this path to the GC root.
 - **Object Count**: how many objects are retained via this path to the GC root.
-
-If we want to only see callstacks that have a frame that contains some string,
-we can use the Filters box. If we want to know all allocations that have to do
-with notifications, we can put "notification" in the Filters box.
 
 As with native heap profiles, if we want to focus on some specific aspect of the
 graph, we can filter by the names of the classes. If we wanted to see everything
@@ -540,9 +535,9 @@ Another way to present the heap graph as a flamegraph (a tree) is to show its
 [dominator tree](/docs/analysis/stdlib-docs.autogen#android-memory-heap_graph-dominator_tree).
 In a heap graph, an object `a` dominates an object `b` if `b` is reachable from
 the root only via paths that go through `a`. The dominators of an object form a
-chain from the root and the object is exclusvely retained by all objects on this
-chain. For all reachable objects in the graph those chains form a tree, i.e. the
-dominator tree.
+chain from the root and the object is exclusively retained by all objects on
+this chain. For all reachable objects in the graph those chains form a tree,
+i.e. the dominator tree.
 
 We aggregate the tree paths per class name, and each element (tree node)
 represents a set of objects that have the same class name and position in the

@@ -30,7 +30,7 @@ and links to the tracking
 
 ## Opening multiple traces
 
-Three equivalent entry points:
+You can open multiple traces in three ways:
 
 - Click **Open multiple trace files** in the sidebar (just below "Open trace
   file") and multi-select the files.
@@ -48,9 +48,8 @@ or the trash icon to remove a file.
 
 ## Configuring the merge
 
-The dialog only shows controls where there is a real choice to make; a set
-of traces that align on their own just shows the green status and an **Open
-Traces** button.
+The dialog shows controls only when you need to make a choice. For traces that
+align automatically, it shows a green status and an **Open Traces** button.
 
 ### Align to: the shared timeline
 
@@ -115,9 +114,9 @@ recorded on a different machine, on one timeline:
 
 ![A merged trace: a phone app and a backend server on one timeline](/docs/images/merging-traces-merged-timeline.png)
 
-The timeline spans the union of all traces' recording windows, so two
-traces recorded minutes apart legitimately produce a long timeline with
-activity clustered at each end.
+The timeline spans the union of all traces' recording windows, so two traces
+recorded minutes apart produce a long timeline with activity clustered at each
+end.
 
 The Trace Info page (info icon in the sidebar) breaks stats, import errors
 and data losses down per input trace and machine.
@@ -133,7 +132,7 @@ capture. Instead have the tool bundle its traces and a
 that archive opens directly, in the UI or in `trace_processor`, with the
 merge pre-configured.
 
-The dialog's footer helps bootstrap exactly that:
+The dialog's footer provides two ways to reuse the configuration:
 
 - **Copy manifest** copies the current merge configuration as manifest
   JSON. Treat it as a template: file names, offsets and machine names

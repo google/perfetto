@@ -134,16 +134,16 @@ end of the trace) store snapshots (continuous dumps), for example every 5000ms
 
 ![Continuous dump flamegraph](/docs/images/heap_prof_continuous.png)
 
-The resulting visualization shows multiple slices. Clicking on each slice
-shows a summary of the allocations/frees during that slice. You can drag & select multiple consecutive slices to summarize allocations during that window of time.
+The resulting visualization shows multiple slices. Clicking on each slice shows
+a summary of the allocations/frees during that slice. Drag to select multiple
+consecutive slices and summarize allocations during that time window.
 
 ## Sampling interval
 
 Heapprofd samples heap allocations by hooking calls to malloc/free and C++'s
 operator new/delete. Given a sampling interval of n bytes, one allocation is
-sampled, on average, every n bytes allocated. This allows to reduce the
-performance impact on the target process. The default sampling rate
-is 4096 bytes.
+sampled, on average, every n bytes allocated. This reduces the performance
+impact on the target process. The default sampling rate is 4096 bytes.
 
 The easiest way to reason about this is to imagine the memory allocations as a
 stream of one byte allocations. From this stream, every byte has a 1/n
@@ -156,10 +156,10 @@ details.
 
 ## Startup profiling
 
-When specifying a target process name (as opposite to the PID), new processes
+When specifying a target process name (as opposed to the PID), new processes
 matching that name are profiled from their startup. The resulting profile will
-contain all allocations done between the start of the process and the end
-of the profiling session.
+contain all allocations done between the start of the process and the end of the
+profiling session.
 
 On Android, Java apps are usually not exec()-ed from scratch, but fork()-ed from
 the [zygote], which then specializes into the desired app. If the app's name
@@ -178,11 +178,11 @@ message. This is not surfaced in the converted pprof compatible proto.
 
 ## Runtime profiling
 
-When a profiling session is started, all matching processes (by name or PID)
-are enumerated and are signalled to request profiling. Profiling isn't actually
-enabled until a few hundred milliseconds after the next allocation that is
-done by the application. If the application is idle when profiling is
-requested, and then does a burst of allocations, these may be missed.
+When a profiling session is started, all matching processes (by name or PID) are
+enumerated and signaled to request profiling. Profiling isn't actually enabled
+until a few hundred milliseconds after the next allocation that is done by the
+application. If the application is idle when profiling is requested, and then
+does a burst of allocations, these may be missed.
 
 The resulting profile will contain all allocations done between when profiling
 is enabled, and the end of the profiling session.
@@ -212,8 +212,8 @@ surfaced in the converted pprof compatible proto.
 
 ## {#heapprofd-targets} Target processes
 
-Depending on the build of Android that heapprofd is run on, some processes
-are not be eligible to be profiled.
+Depending on the build of Android that heapprofd is run on, some processes are
+not eligible for profiling.
 
 On _user_ (i.e. production, non-rootable) builds, only Java applications with
 either the profileable or the debuggable manifest flag set can be profiled.
@@ -260,7 +260,7 @@ NOTE: **Java allocation profiling is not to be confused with [Heap
 dumps](/docs/data-sources/java-heap-profiler.md)**
 
 Heapprofd can be configured to track Java allocations instead of native ones.
-* By setting adding `heaps: "com.android.art"` in
+* By adding `heaps: "com.android.art"` in
   [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
 * By adding `--heaps com.android.art` to the invocation of
   [`tools/heap_profile android`](/docs/reference/heap_profile-cli).
@@ -279,7 +279,7 @@ The resulting profile proto contains two views on the data:
 * **Total allocation size**: how many bytes were allocated at this callstack
   over time of the profile until this point. The bytes might have been freed or
   not, the tool does not keep track of that.
-* **Total allocation count**: how many object were allocated at this callstack
+* **Total allocation count**: how many objects were allocated at this callstack
   over time of the profile until this point. The objects might have been freed
   or not, the tool does not keep track of that.
 
@@ -296,7 +296,7 @@ called.
 
 ## Triggering heap snapshots on demand
 
-Heap snapshot are recorded into the trace either at regular time intervals, if
+Heap snapshots are recorded into the trace either at regular time intervals, if
 using the `continuous_dump_config` field, or at the end of the session.
 
 You can also trigger a snapshot of all currently profiled processes by running
@@ -336,8 +336,8 @@ Also check the [Known Issues](#known-issues).
 
 ### Implausible callstacks
 
-If you see a callstack that seems to impossible from looking at the code, make
-sure no [DEDUPED frames](#deduped-frames) are involved.
+If you see a callstack that seems impossible from looking at the code, make sure
+no [DEDUPED frames](#deduped-frames) are involved.
 
 Also, if your code is linked using _Identical Code Folding_
 (ICF), i.e. passing `-Wl,--icf=...` to the linker, most trivial functions, often
@@ -433,15 +433,14 @@ tools/heap_profile host \
   resolved in Android 12.
 * 32-bit programs cannot be targeted on 64-bit devices.
 * x86 / x86_64 platforms are not supported. This includes the Android
-_Cuttlefish_.
-  emulator.
+  _Cuttlefish_ emulator.
 * On ARM32, the bottom-most frame is always `ERROR 2`. This is harmless and
   the callstacks are still complete.
 * If heapprofd is run standalone (by running `heapprofd` in a root shell, rather
-  than through init), `/dev/socket/heapprofd` get assigned an incorrect SELinux
+  than through init), `/dev/socket/heapprofd` gets assigned an incorrect SELinux
   domain. You will not be able to profile any processes unless you disable
-  SELinux enforcement.
-  Run `restorecon /dev/socket/heapprofd` in a root shell to resolve.
+  SELinux enforcement. Run `restorecon /dev/socket/heapprofd` in a root shell to
+  resolve.
 * Using `vfork(2)` or `clone(2)` with `CLONE_VM` and allocating / freeing
   memory in the child process will prematurely end the profile.
   `java.lang.Runtime.exec` does this, calling it will prematurely end
@@ -456,9 +455,8 @@ _Cuttlefish_.
 
 ## Heapprofd vs malloc_info() vs RSS
 
-When using heapprofd and interpreting results, it is important to know the
-precise meaning of the different memory metrics that can be obtained from the
-operating system.
+To interpret heapprofd results, you need to understand what each operating
+system memory metric measures.
 
 **heapprofd** gives you the number of bytes the target program
 requested from the default C/C++ allocator. If you are profiling a Java app from
@@ -477,10 +475,10 @@ thread caches.
 allocator. This is larger than the previous two numbers because memory can only
 be obtained in page size chunks, and fragmentation causes some of that memory to
 be wasted. This can be obtained by running `adb shell dumpsys meminfo <PID>` and
-looking at the "Private Dirty" column.
-RSS can also end up being smaller than the other two if the device kernel uses
-memory compression (ZRAM, enabled by default on recent versions of android) and
-the memory of the process get swapped out onto ZRAM.
+looking at the "Private Dirty" column. RSS can also end up being smaller than
+the other two if the device kernel uses memory compression (ZRAM, enabled by
+default on recent versions of android) and the process's memory gets swapped out
+onto ZRAM.
 
 |                     | heapprofd         | malloc\_info | RSS |
 |---------------------|:-----------------:|:------------:|:---:|
@@ -512,11 +510,11 @@ to get gzipped protos, which tools handling pprof profile protos expect.
 
 ## {#heapprofd-example-queries} Example SQL Queries
 
-We can get the callstacks that allocated using an SQL Query in the
-Trace Processor. For each frame, we get one row for the number of allocated
-bytes, where `count` and `size` is positive, and, if any of them were already
-freed, another line with negative `count` and `size`. The sum of those gets us
-the `Unreleased malloc size` view.
+We can get the callstacks that allocated using an SQL Query in the Trace
+Processor. For each frame, we get one row for the number of allocated bytes,
+where `count` and `size` are positive, and, if any of them were already freed,
+another line with negative `count` and `size`. The sum of those gets us the
+`Unreleased malloc size` view.
 
 ```sql
 select a.callsite_id, a.ts, a.upid, f.name, f.rel_pc, m.build_id, m.name as mapping_name,

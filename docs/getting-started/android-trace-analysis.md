@@ -1,7 +1,7 @@
 # Cookbook: Analyzing Android Traces
 
-This page will take you through some real world examples on how you can analyse
-issues with SQL and more advanced features of the Perfetto UI.
+This page walks you through real-world examples of analyzing issues with SQL and
+advanced features of the Perfetto UI.
 
 ## Using AI for trace analysis {#using-ai}
 
@@ -174,9 +174,9 @@ find the UPID of your process.
 of the trace as opposed to the PID (process ID) which can change. Many
 [standard library tables](https://perfetto.dev/docs/analysis/stdlib-docs) in
 Perfetto such as `android_lmk_events`, `cpu_cycles_per_process` etc use UPID to
-point to processes. This comes in handy specially when you need data filtered
-against your process. UPID is also useful for performing `JOIN` operations with
-other tables. Example for getting the cold start reason for GoogleCamera:
+point to processes. This is useful when you need to filter data for your
+process. UPID is also useful for performing `JOIN` operations with other tables.
+Example for getting the cold start reason for GoogleCamera:
 
 ```sql
 INCLUDE PERFETTO MODULE android.app_process_starts;
@@ -193,7 +193,7 @@ FROM android_app_process_starts
 WHERE upid = 844;
 ```
 
-**UID** is the Android app User ID is also useful. In cases where a
+**UID**, the Android app User ID, is also useful. In cases where a
 `package_name` does **not** exist, standard library tables are populated in the
 format `uid=$X`. For example, `android_network_packets`. Example for getting
 network bytes transmitted for a process:
@@ -215,8 +215,8 @@ Demonstrates:
 - Querying memory usage per process
 - Finding peak memory usage during a trace
 
-Android provides comprehensive memory tracking through various metrics including
-RSS (Resident Set Size), swap usage, and oom_score_adj
+Android tracks memory through metrics including RSS (Resident Set Size), swap
+usage, and oom_score_adj
 ([OOM-killer adjustment scores](https://man7.org/linux/man-pages/man5/proc_pid_oom_score_adj.5.html),
 a measure of process importance). The `android.memory.process` module provides
 standardized tables for analyzing memory consumption patterns.
@@ -256,8 +256,7 @@ WHERE process_name GLOB 'com.android.systemui*'
 GROUP BY process_name;
 ```
 
-**Note:** For comprehensive documentation on available memory tables and
-metrics, refer to the
+**Note:** For documentation on available memory tables and metrics, refer to the
 [Android Memory Process module documentation](https://perfetto.dev/docs/analysis/stdlib-docs#android-memory-process).
 
 ## Find top causes for uninterruptible sleep
@@ -352,7 +351,7 @@ Demonstrates:
 
 - Projecting a string column into one or more columns using substring
   substitution.
-- Creating a custom Debug Tracks in the Perfetto Timeline view.
+- Creating custom debug tracks in the Perfetto Timeline view.
 - Views.
 - `PARTITION` to subdivide slices by another column value.
 - `LEAD` to find the next event in a partition by timestamp order.
@@ -641,7 +640,7 @@ Result:
 
 ### Slice Level CPU utilisation
 
-To see cpu utilisation for an interesting slice, use the following query:
+To see CPU utilization for a slice of interest, use the following query:
 
 ```sql
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
@@ -679,7 +678,7 @@ When the CPU is idle, it enters a low-power state to conserve energy. Wake-ups
 disrupt this state, forcing the CPU to ramp up its activity and consume more
 power.
 
-The number of times cpu exits idle state during the trace duration:
+The number of times the CPU exits the idle state during the trace:
 
 ```sql
 select
@@ -707,8 +706,7 @@ following adverse effects:
 ### Number of events scheduled on the cpu by your process
 
 To see if your process's threads are being evenly distributed across available
-CPU cores you can check the number of events scheduled on the cpu by your
-process per cpu core:
+CPU cores, check the number of events scheduled by your process per CPU core:
 
 ```sql
 SELECT

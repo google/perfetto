@@ -1,13 +1,11 @@
 # Merging traces from the command line
 
-Trace Processor can import several trace files as one merged trace: events
-from every file end up on a single timeline, with their processes, threads
-and CPUs kept attributed to the machine they came from. This page shows how
-to do it from the command line and in scripted or CI setups. For the
-interactive equivalent see
-[Merging traces in the UI](/docs/visualization/merging-traces.md);
-for how the merging actually works see
-[Trace merging](/docs/concepts/merging-traces.md).
+Trace Processor can import several trace files as one merged trace: events from
+every file end up on a single timeline, with their processes, threads and CPUs
+kept attributed to the machine they came from. This page shows how to do it from
+the command line and in scripted or CI setups. For the interactive equivalent
+see [Merging traces in the UI](/docs/visualization/merging-traces.md); for how
+merging works, see [Trace merging](/docs/concepts/merging-traces.md).
 
 ## The model: one archive in, one trace out
 
@@ -31,8 +29,8 @@ and the [C++](/docs/analysis/trace-processor.md#embedding) and
 [Python](/docs/analysis/trace-processor-python.md) APIs, which stream the
 archive bytes like any other trace.
 
-How the files line up on the timeline is decided by clocks. Three setups
-cover most cases, in increasing order of configuration needed.
+Clocks determine how the files line up on the timeline. Three setups cover most
+cases, in increasing order of configuration needed.
 
 ## {#no-config} Merging that needs no configuration
 
@@ -89,8 +87,9 @@ the same thing from the command line, with some validation on top.
 
 ### Keeping two devices' data separate
 
-By default, two same-device-looking traces merge onto one machine. Naming
-machines keeps each file's processes, threads and CPUs grouped separately:
+By default, two traces that appear to come from the same device merge onto one
+machine. Naming machines keeps each file's processes, threads and CPUs grouped
+separately:
 
 ```json
 {
@@ -229,7 +228,7 @@ or, at a higher level, the `_metadata_by_trace` view in the
   component starting with a `.` is skipped and never parsed as a trace. This
   covers the metadata that archiving tools add automatically, most notably the
   AppleDouble resource-fork files (`._foo`) and `.DS_Store` entries that macOS
-  `tar` and Finder-created ZIPs sprinkle next to the real files. As a result a
+  `tar` and Finder-created ZIPs add alongside the trace files. As a result, a
   `.tar`/`.zip` built on macOS loads without a spurious "unknown trace type"
   error. If you deliberately want a dot-prefixed file to be parsed, rename it so
   no path component starts with a `.`.

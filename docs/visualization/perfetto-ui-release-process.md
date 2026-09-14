@@ -10,7 +10,7 @@ long-lived branch:
 - `autopush`, the current HEAD version of the UI. Unstable. Served from the
   `main` branch.
 
-The release process is based around a four week cycle.
+The release process follows a four-week cycle.
 
 - Week 1: Cut `canary` from `main`.
 - Week 2: Cut `canary` from `main`.
@@ -19,8 +19,7 @@ The release process is based around a four week cycle.
 - Week 3: Canary stabilization week 2/2.
 - Week 4: Promote current `canary` to `stable`, then cut `canary` from `main`.
 
-After the fourth week the cycle repeats from week one.
-This is so that:
+After the fourth week, the cycle repeats. This ensures that:
 
 - Canary soaks for two weeks before being promoted to stable.
 - Newer features can be tried out in Canary within a week, or two at most (if
@@ -31,13 +30,13 @@ This is so that:
 
 NOTE: The channel setting is persistent across page reloads.
 
-The channel the UI is currently using is displayed in the top left corner.
-If the tag after the logo shows `autopush` or `canary` that is the current channel
-and if no tag is displayed the current channel is `stable`.
+The current channel appears in the top left corner. A tag after the logo shows
+`autopush` or `canary`. If there is no tag, the channel is `stable`.
 
 ![perfetto-ui-channel.png](/docs/images/perfetto-ui-channel.png)
 
-To change the channel the UI is using between `stable` and `canary` you can use the toggle on the [entrance page](https://ui.perfetto.dev).
+To switch between `stable` and `canary`, use the toggle on the
+[entrance page](https://ui.perfetto.dev).
 
 ![perfetto-ui-channel-toggle.png](/docs/images/perfetto-ui-channel-toggle.png)
 
@@ -48,7 +47,7 @@ section of the sidebar, and choose `Autopush` in `Release channel`.
 
 ## Which version am I using?
 
-You can see the version of the UI you are currently using in the bottom left hand corner of the UI.
+The current UI version appears in the bottom left corner.
 
 ![perfetto-ui-version.png](/docs/images/perfetto-ui-version.png)
 

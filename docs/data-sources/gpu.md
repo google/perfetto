@@ -1,7 +1,7 @@
 # GPU
 
-Perfetto supports tracing GPU activity across a range of use-cases, from
-Android mobile graphics to high-end multi-GPU compute workloads.
+Perfetto supports tracing GPU activity from Android mobile graphics to high-end
+multi-GPU compute workloads.
 
 ![](/docs/images/gpu-counters.png)
 
@@ -225,11 +225,10 @@ data_sources: {
 }
 ```
 
-Counter descriptor mode 2 is recommended for GPGPU use-cases: the producer
-emits an `InternedGpuCounterDescriptor` referenced by IID, giving each
-trusted sequence its own scoped counter IDs. This avoids the global
-coordination required by mode 1 and supports multiple producers and GPUs
-naturally. See
+Counter descriptor mode 2 is recommended for GPGPU use cases: the producer emits
+an `InternedGpuCounterDescriptor` referenced by IID, giving each trusted
+sequence its own scoped counter IDs. This avoids the global coordination
+required by mode 1 and supports multiple producers and GPUs. See
 [gpu\_counter\_event.proto](/protos/perfetto/trace/gpu/gpu_counter_event.proto)
 for details on both modes.
 
@@ -238,11 +237,11 @@ the data source descriptor, which includes measurement units and descriptions.
 
 ### Counter groups
 
-Counter groups are used by the Perfetto UI to organize counter tracks into
-groups. Counters can be assigned to built-in groups (SYSTEM, VERTICES,
-FRAGMENTS, PRIMITIVES, MEMORY, COMPUTE, RAY_TRACING) via
-`GpuCounterSpec.groups`. Producers can also define custom counter groups
-using the `GpuCounterGroupSpec` message in `GpuCounterDescriptor`:
+The Perfetto UI uses counter groups to organize counter tracks. Counters can be
+assigned to built-in groups (SYSTEM, VERTICES, FRAGMENTS, PRIMITIVES, MEMORY,
+COMPUTE, RAY_TRACING) via `GpuCounterSpec.groups`. Producers can also define
+custom counter groups using the `GpuCounterGroupSpec` message in
+`GpuCounterDescriptor`:
 
 ```
 message GpuCounterGroupSpec {
@@ -396,9 +395,10 @@ tracks are nested under per-GPU sub-groups.
 
 ### com.meta.GpuCompute
 
-Compute-kernel deep dive. Adds three tabs that are populated whenever a
-compute `gpu_render_stage` slice (i.e. `gpu_slice.render_stage_category =
-COMPUTE`) is selected:
+Adds three tabs for analyzing compute kernels. The tabs are populated whenever
+you select a compute `gpu_render_stage` slice (i.e.
+`gpu_slice.render_stage_category =
+COMPUTE`):
 
 - **Summary** — table of every kernel launch in the trace, sortable by
   duration, occupancy, and other hardware metrics. Double-click jumps to

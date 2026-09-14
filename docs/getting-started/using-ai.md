@@ -104,8 +104,8 @@ clustering, trace recording), see
 
 ## Debugging GPU performance
 
-Guided workflows answering "is this workload GPU-bound or host-bound?", then
-drilling into whichever side is the problem. Deepest counter support is
+Guided workflows help you determine whether a workload is GPU-bound or
+host-bound, then investigate the cause. Counter support is most detailed for
 NVIDIA/CUDA today.
 
 ```

@@ -1,19 +1,21 @@
 # Getting Started with PerfettoSQL
 
-PerfettoSQL is the foundation of trace analysis in Perfetto. It is a dialect of
-SQL that allows you to query the contents of your traces as if they were a
-database. This page introduces the core concepts of trace querying with PerfettoSQL
-and provides guidance on how to write queries.
+PerfettoSQL is a dialect of SQL that lets you query your traces as if they were
+a database. This page introduces the core concepts and shows you how to write
+queries.
 
 ## Overview of Trace Querying
 
-The Perfetto UI is a powerful tool for visual analysis, offering call stacks, timeline views, thread tracks, and slices. However, it also includes a robust SQL query language (PerfettoSQL) which is interpreted by a query engine ([TraceProcessor](trace-processor.md)) which allows you to extract data programmatically.
+The Perfetto UI offers call stacks, timeline views, thread tracks, and slices
+for visual analysis. You can also extract data programmatically with
+PerfettoSQL, which runs in the [TraceProcessor](trace-processor.md) query
+engine.
 
-While the UI is powerful for myriad of analyses, users are able to write and execute queries within the Perfetto UI for multiple purposes such as:
+You can write and run queries in the Perfetto UI to:
 
-- Extracting performance data from traces.
+- Extract performance data from traces.
 - Create custom visualizations (Debug tracks) to perform more complex analyses.
-- Creating derived metrics.
+- Create derived metrics.
 - Identify performance bottlenecks using data-driven logic.
 
 Beyond the Perfetto UI, you can query traces programmatically using the [Python Trace Processor API](trace-processor-python.md) or the [C++ Trace Processor](trace-processor.md).
@@ -22,15 +24,13 @@ Perfetto also supports bulk trace analysis through the [Batch Trace Processor](b
 
 ## Core Concepts
 
-Before writing queries, it's important to understand the foundational concepts
-of how Perfetto structures trace data.
+Before writing queries, learn how Perfetto structures trace data.
 
 ### Events
 
-In the most general sense, a trace is simply a collection of timestamped
-"events". Events can have associated metadata and context which allows them to
-be interpreted and analyzed. Timestamps are in nanoseconds; the values
-themselves depend on the
+A trace is a collection of timestamped "events". Events can have associated
+metadata and context which allows them to be interpreted and analyzed.
+Timestamps are in nanoseconds; the values themselves depend on the
 [clock](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/config/trace_config.proto;l=114;drc=c74c8cf69e20d7b3261fb8c5ab4d057e8badce3e)
 selected in TraceConfig.
 
@@ -42,7 +42,7 @@ and counters.
 ![Examples of slices](/docs/images/slices.png)
 
 A slice refers to an interval of time with some data describing what was
-happening in that interval. Some example of slices include:
+happening in that interval. Examples of slices include:
 
 - Atrace slices on Android
 - Userspace slices from Chrome
@@ -72,10 +72,10 @@ context. A track associates events with a particular context such as a thread
 Tracks can be split into various types based on the type of event they contain
 and the context they are associated with. Examples include:
 
-- Global tracks are not associated to any context and contain slices
-- Thread tracks are associated to a single thread and contain slices
-- Counter tracks are not associated to any context and contain counters
-- CPU counter tracks are associated to a single CPU and contain counters
+- Global tracks are not associated with any context and contain slices
+- Thread tracks are associated with a single thread and contain slices
+- Counter tracks are not associated with any context and contain counters
+- CPU counter tracks are associated with a single CPU and contain counters
 
 Note that the Perfetto UI also uses the term "tracks" to refer to the visual
 rows on the timeline. These are a UI-level concept for organizing the display
@@ -251,7 +251,7 @@ when querying tables in trace processor.
 
 To solve this problem, the trace processor uses `utid` (_unique_ tid) for
 threads and `upid` (_unique_ pid) for processes. All references to threads and
-processes (e.g. in CPU scheduling data, thread tracks) uses `utid` and `upid`
+processes (e.g. in CPU scheduling data, thread tracks) use `utid` and `upid`
 instead of the system identifiers.
 
 ### Querying traces in the Perfetto UI
@@ -274,19 +274,22 @@ To use the Query tab:
 
 ![Query (SQL) Tab](/docs/images/perfettosql_query_tab.png)
 
-Upon selecting this tab, the querying UI will show up and you will be able to free-form write your PerfettoSQL queries, it will let you write queries, show query results and query history as shown in the image below.
+The tab opens a SQL editor with query results and query history, as shown below.
 
 ![Query UI](/docs/images/perfetto-sql-cli-description.png)
 
 3. Enter your query in the Query UI area and press Ctrl + Enter (or Cmd + Enter) to execute.
 
-Once executed query results will be shown within the same window.
+Query results appear in the same window.
 
 This method of querying is useful when you have some degree of knowledge about how and what to query.
 
-In order to find out how to write queries refer to the [Syntax guide](perfetto-sql-syntax.md), then in order to find available tables, modules, functions, etc. refer to the [Standard Library](stdlib-docs.autogen).
+For help writing queries, see the [Syntax guide](perfetto-sql-syntax.md). To
+find available tables, modules, and functions, see the
+[Standard Library](stdlib-docs.autogen).
 
-A lot of times, it will be useful to transform query results into tracks to perform complex analyses within the UI, we encourage readers to take a look at [Debug Tracks](debug-tracks.md) for more information on how to achieve this.
+You can turn query results into tracks for visual analysis in the UI. See
+[Debug Tracks](debug-tracks.md) for instructions.
 
 ### Example: Executing a basic query
 
@@ -297,7 +300,8 @@ example, to see the first 10 slices in a trace, you can run:
 SELECT ts, dur, name FROM slice LIMIT 10;
 ```
 
-Which you can write and execute by clicking on **Run Query** within the PerfettoSQL  querying UI, below is an example from a trace.
+Click **Run Query** in the SQL editor to execute it. The example below shows the
+results from a trace.
 
 ![Basic Query](/docs/images/perfetto-sql-basic-query.png)
 
@@ -425,8 +429,8 @@ abstractions, PerfettoSQL provides several advanced features.
 
 ### Helper functions
 
-Helper functions are functions built into C++ which reduce the amount of
-boilerplate which needs to be written in SQL.
+Helper functions are implemented in C++ and reduce the boilerplate you need to
+write in SQL.
 
 #### Extract args
 
@@ -461,7 +465,7 @@ WHERE name = 'sched_switch'
 ### Operator tables
 
 SQL queries are usually sufficient to retrieve data from trace processor.
-Sometimes though, certain constructs can be difficult to express pure SQL.
+Sometimes though, certain constructs can be difficult to express in pure SQL.
 
 In these situations, trace processor has special "operator tables" which solve a
 particular problem in C++ but expose an SQL interface for queries to take
@@ -471,7 +475,7 @@ advantage of.
 
 Span join is a custom operator table which computes the intersection of spans of
 time from two tables or views. A span in this concept is a row in a table/view
-which contains a "ts" (timestamp) and "dur" (duration) columns.
+which contains "ts" (timestamp) and "dur" (duration) columns.
 
 A column (called the _partition_) can optionally be specified which divides the
 rows from each table into partitions before computing the intersection.
@@ -514,9 +518,9 @@ same table in the same partition _cannot_ overlap. For performance reasons, span
 join does not attempt to detect and error out in this situation; instead,
 incorrect rows will silently be produced.
 
-WARNING: Partitions mush be integers. Importantly, string partitions are _not_
-supported; note that strings _can_ be converted to integers by applying the
-`HASH` function to the string column.
+WARNING: Partitions must be integers. String partitions are _not_ supported, but
+you _can_ convert strings to integers by applying the `HASH` function to the
+string column.
 
 Left and outer span joins are also supported; both function analogously to the
 left and outer joins from SQL.
@@ -656,17 +660,15 @@ SELECT (SELECT COUNT(*) FROM FOLLOWING_FLOW(slice_id)) as following FROM slice;
 
 ## Next Steps
 
-Now that you have a foundational understanding of PerfettoSQL, you can explore
-the following topics to deepen your knowledge:
+For more on PerfettoSQL and trace analysis, see:
 
 - **[PerfettoSQL Syntax](perfetto-sql-syntax.md)**: Learn about the SQL syntax
   supported by Perfetto, including special features for creating functions,
   tables, and views.
-- **[Standard Library](stdlib-docs.autogen)**: Explore the rich set of modules
-  available in the standard library for analyzing common scenarios like CPU
-  usage, memory, and power.
+- **[Standard Library](stdlib-docs.autogen)**: Explore the modules available in
+  the standard library for analyzing common scenarios like CPU usage, memory,
+  and power.
 - **[Trace Processor (C++)](trace-processor.md)**: Learn how to use the
   interactive shell and the underlying C++ library.
-- **[Trace Processor (Python)](trace-processor-python.md)**: Leverage the Python
-  API to combine trace analysis with the rich data science and visualization
-  ecosystem.
+- **[Trace Processor (Python)](trace-processor-python.md)**: Use the Python API
+  to combine trace analysis with data science and visualization tools.

@@ -1,10 +1,9 @@
 # Heap Dump Explorer
 
-The Heap Dump Explorer is a page in the Perfetto UI for analyzing Android
-ART heap dumps. For every reachable object it shows the class, the
-shallow and retained sizes, and the reference path from a GC root — so
-you can answer what is in the heap, what is keeping each object alive,
-and how much memory each one retains.
+The Heap Dump Explorer is a page in the Perfetto UI for analyzing Android ART
+heap dumps. For every reachable object, it shows the class, shallow and retained
+sizes, and reference path from a GC root. This helps you see what is in the
+heap, what keeps each object alive, and how much memory each one retains.
 
 This guide covers:
 
@@ -76,9 +75,9 @@ Two formats are supported.
 
 ### Perfetto heap graph (lightweight)
 
-Captures the object graph — classes, references, sizes, GC roots — but
-not field values, strings, primitive array bytes or bitmap pixels.
-Enough for retention, dominator and class-breakdown analysis.
+This format captures the object graph — classes, references, sizes, GC roots —
+but not field values, strings, primitive array bytes or bitmap pixels. It
+provides enough data for retention, dominator and class-breakdown analysis.
 
 **Pros:**
 
@@ -246,15 +245,13 @@ variant are covered at the end under
 A heap is a _graph_ — objects reference each other freely — but a
 flamegraph draws a _tree_, so the graph is first converted:
 
-- Starting from the GC roots, every reachable object is placed at its
-  **shortest reference path** from a root (a breadth-first search;
-  ties are broken deterministically). Each object appears in the tree
-  exactly once.
-- Objects at the same path are then **merged by class**: one node per
-  class per path. A node labelled `ArrayList` sitting under
-  `Class<ProfileActivity>` means "all `ArrayList` instances whose
-  shortest path from a root goes through a `ProfileActivity` class
-  object".
+- Starting from the GC roots, every reachable object is placed at its **shortest
+  reference path** from a root (a breadth-first search; ties are broken
+  deterministically). Each object appears in the tree exactly once.
+- Objects at the same path are then **merged by class**: one node per class per
+  path. A node labeled `ArrayList` sitting under `Class<ProfileActivity>` means
+  "all `ArrayList` instances whose shortest path from a root goes through a
+  `ProfileActivity` class object".
 
 Reading top-down: the synthetic `root` row at the top spans the whole
 dump; each row below it is one more reference hop away from the GC
@@ -262,16 +259,15 @@ roots. The width of a node is proportional to the selected metric
 (bytes or object count) in that node's entire subtree. Objects with
 no known class name show as `unknown`.
 
-One caveat that trips people up: in this shortest-path tree, a node's
-subtree is **not** the same as its retained size. An object referenced
-from two places is drawn only under its shortest path, but it would
-survive the other reference being dropped. When you need "what would
-actually be freed", switch to the
+In this shortest-path tree, a node's subtree is **not** the same as its retained
+size. An object referenced from two places is drawn only under its shortest
+path, but it would survive the other reference being dropped. When you need
+"what would actually be freed", switch to the
 [dominator metrics](#choosing-a-metric) below.
 
-Nodes too narrow to draw (less than ~3 pixels) are collapsed into a
-grey `(merged)` node. They are still counted in every total; zoom in
-or add a filter to see them individually.
+Nodes too narrow to draw (less than ~3 pixels) are collapsed into a gray
+`(merged)` node. They are still counted in every total; zoom in or add a filter
+to see them individually.
 
 ### Choosing a metric
 
@@ -293,14 +289,12 @@ unreachable. Use _Object Size_ to follow the actual reference
 structure of the heap, and _Dominated Object Size_ to attribute
 memory to the objects responsible for keeping it alive.
 
-Sizes count the Java shallow size of each object. Native memory
-registered against a Java object (for example bitmap pixel buffers on
-modern Android) is shown as a separate child node labelled
-`[native] <ClassName>` and is counted in all cumulative totals.
-Native memory that is not registered this way does not appear in the
-dump at all; use the
-[native heap profiler](/docs/data-sources/native-heap-profiler.md)
-for that.
+Sizes count the Java shallow size of each object. Native memory registered
+against a Java object (for example bitmap pixel buffers on modern Android) is
+shown as a separate child node labeled `[native] <ClassName>` and is counted in
+all cumulative totals. Native memory that is not registered this way does not
+appear in the dump at all; use the
+[native heap profiler](/docs/data-sources/native-heap-profiler.md) for that.
 
 ### Cumulative, Self and Self Count
 
@@ -351,11 +345,10 @@ The radio buttons at the top-right flip the direction of aggregation:
 
 ### Zooming
 
-Double-click a node (or use _Zoom in_ from its popup) to stretch it
-to the full width. Nothing is filtered out — ancestors stay visible,
-greyed, and totals don't change. Double-click the `root` row to zoom
-back out. Zooming is purely visual; to actually cut the data down,
-use filters.
+Double-click a node (or use _Zoom in_ from its popup) to stretch it to the full
+width. Nothing is filtered out — ancestors stay visible, grayed out, and totals
+don't change. Double-click the `root` row to zoom back out. Zooming is purely
+visual; to reduce the data shown, use filters.
 
 ### Filters
 
@@ -561,8 +554,8 @@ _Root Type_ (e.g. `THREAD`, `STATIC`, `JNI_GLOBAL`) identifies how each
 dominator is itself kept alive. Click a row to open its object tab and
 walk the reference path.
 
-Use this tab when there is no specific suspect and the question is
-simply where the memory has gone.
+Use this tab to find where the memory has gone when you have no specific
+suspect.
 
 ## Bitmaps
 
@@ -685,11 +678,10 @@ tab — useful for comparing two call stacks side by side.
 
 ### Finding a leaked Activity
 
-A developer on a Kotlin app reports that rotating their profile
-screen a few times drives the Java heap upward and never comes back
-down. The screen is unremarkable — an `Activity`, a view hierarchy,
-one avatar — and rotating _should_ destroy the old instance. It
-doesn't.
+A developer on a Kotlin app reports that rotating their profile screen a few
+times increases Java heap usage, which never comes back down. The screen is
+unremarkable — an `Activity`, a view hierarchy, one avatar — and rotating
+_should_ destroy the old instance. It doesn't.
 
 A quick grep turns up a "breadcrumb" list the team added a while
 ago for crash reporting. It stores every `ProfileActivity` instance
@@ -892,9 +884,8 @@ recognize on future investigations:
   first ([previous case study](#finding-a-leaked-activity)); the
   bitmaps will follow.
 
-**Fix.** There's no real reason to keep a side list of `Bitmap`s at
-all — Android already has a `LruCache<K, Bitmap>`, scoped to the
-application, with eviction you control:
+**Fix.** Replace the side list of `Bitmap`s with Android's
+`LruCache<K, Bitmap>`, scoped to the application, with eviction you control:
 
 ```kotlin
 class FeedAdapter(private val res: Resources) : RecyclerView.Adapter<VH>() {
@@ -919,9 +910,8 @@ app-heap retained bytes should drop accordingly:
 
 ![Overview tab on the fixed trace. The Duplicate Bitmaps card now reads "No duplicate bitmaps found" and app-heap retained memory has dropped from 2.1 MiB to 580.2 KiB.](../images/heap_docs/16-fixed-overview.png)
 
-The _wasted bytes_ total across all groups on the Overview is the
-cleanest single-number scorecard — watching it drop from dump to
-dump is how you confirm each fix and catch regressions.
+Track the _wasted bytes_ total across all groups on the Overview from dump to
+dump to confirm fixes and catch regressions.
 
 ## See also
 

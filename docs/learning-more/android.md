@@ -1,7 +1,7 @@
 # Advanced System Tracing on Android
 
-This guide dives deeper into recording system traces on Android, building on the
-concepts introduced in the
+This guide explains the details of recording system traces on Android, building
+on the concepts introduced in the
 [System Tracing](/docs/getting-started/system-tracing.md) guide.
 
 Before you continue, you should be familiar with the basics of recording a
@@ -55,8 +55,7 @@ adb shell perfetto \
   sched freq idle am wm gfx view binder_driver hal dalvik input res memory
 ```
 
-However, there are several caveats to be aware of when using
-`adb shell perfetto` directly:
+When using `adb shell perfetto` directly, keep these limitations in mind:
 
 - **Stopping the trace**: `Ctrl+C` does not work reliably with
   `adb shell perfetto`. It is only propagated correctly when using an
@@ -87,7 +86,7 @@ multiple data sources and fine-tune their settings.
 See the [Trace Configuration](/docs/concepts/config.md) page for a detailed
 guide on writing trace configs.
 
-WARNING: The below command does not work on Android P because the `--txt` option
+WARNING: The command below does not work on Android P because the `--txt` option
 was introduced in Q. The binary protobuf format should be used instead; the
 details of this can be found on the
 [_Trace configuration_ page](https://perfetto.dev/docs/concepts/config#pbtx-vs-binary-format).
@@ -141,7 +140,7 @@ EOF
 ./record_android_trace -c config.pbtx -o trace_file.perfetto-trace
 ```
 
-Or alternatively, when using directly the on-device command:
+Or, when using the on-device command directly:
 
 ```bash
 cat config.pbtx | adb shell perfetto -c - --txt -o /data/misc/perfetto-traces/trace.perfetto-trace
@@ -154,10 +153,10 @@ adb push config.pbtx /data/local/tmp/config.pbtx
 adb shell 'cat /data/local/tmp/config.pbtx | perfetto --txt -c - -o /data/misc/perfetto-traces/trace.perfetto-trace'
 ```
 
-NOTE: because of strict SELinux rules, on non-rooted builds of Android, passing
-directly the file path as `-c /data/local/tmp/config` will fail, hence the
-`-c -` + stdin piping above. From Android 12 (S), `/data/misc/perfetto-configs/`
-can be used instead.
+NOTE: On non-rooted builds of Android, SELinux rules prevent passing the file
+path directly as `-c /data/local/tmp/config`. Use `-c -` with stdin piping as
+shown above. From Android 12 (S), you can use `/data/misc/perfetto-configs/`
+instead.
 
 Pull the file using
 `adb pull /data/misc/perfetto-traces/trace ~/trace.perfetto-trace` and open it
@@ -166,7 +165,7 @@ in the [Perfetto UI](https://ui.perfetto.dev).
 NOTE: On devices before Android 10, adb cannot directly pull
 `/data/misc/perfetto-traces`. Use
 `adb shell cat /data/misc/perfetto-traces/trace > trace.perfetto-trace` to work
-around.
+around this.
 
 The full reference for the `perfetto` cmdline interface can be found
 [here](/docs/reference/perfetto-cli.md).
@@ -175,11 +174,12 @@ The full reference for the `perfetto` cmdline interface can be found
 
 Perfetto is designed to support [multiple concurrent tracing sessions](/docs/concepts/concurrent-tracing-sessions.md) from different sources (e.g., adb, on-device apps, automated testing). While this works for most data sources, some advanced features cannot be reliably multiplexed, and sensitive performance measurements require minimizing interference from other traces. In these situations, Perfetto requires a guarantee that no other tracing session is active.
 
-To address this, Perfetto offers an "exclusive" mode. When a session is started in exclusive mode, it ensures no other sessions are running, providing a clean tracing environment. This is controlled by the `exclusive_prio` field in the `TraceConfig`.
+Perfetto's "exclusive" mode ensures that no other sessions are running. The
+`exclusive_prio` field in the `TraceConfig` controls this mode.
 
 ### When to use exclusive mode
 
-You should use an exclusive session in the following scenarios:
+Use an exclusive session in these situations:
 
 * For sensitive performance measurements where you need to minimize interference from other concurrent tracing activities.
 * When using data sources with high overhead, such as `function_graph` in ftrace, to ensure their behavior is not affected by other sessions.
@@ -191,7 +191,7 @@ You should use an exclusive session in the following scenarios:
 
 ### Behavior
 
-An exclusive session has the following behavior:
+Exclusive sessions follow these rules:
 
 *   **Priority System**: The `exclusive_prio` is an unsigned integer where a higher number indicates a higher priority. A session is only considered "exclusive" if its priority is greater than 0.
 *   **Preemption**: If a new exclusive session is requested with a priority strictly higher than any other active session, it will be started, and all other existing sessions (both exclusive and non-exclusive) will be aborted. Consumers of aborted sessions will receive an error message (e.g., `Aborted due to user requested higher-priority (#priority) exclusive session.`).

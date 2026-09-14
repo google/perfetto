@@ -25,21 +25,21 @@ There are a few main types of track events:
     to when it returns, the time spent loading a file from the network or the
     time to complete a user journey.
 
-- **Counters**, which are snapshots of time-varying numeric values. For
-    example, a track event can record instantaneous the memory usage of a
-    process during its execution.
+- **Counters**, which are snapshots of time-varying numeric values. For example,
+    a track event can record the instantaneous memory usage of a process during
+    its execution.
 
 - **Flows**, which are used to connect related slices that span different
     tracks together. For example, if an image file is first loaded from
     the network and then decoded on a thread pool, a flow event can be used to
     highlight its path through the system.
 
-The [Perfetto UI](https://ui.perfetto.dev) has built in support for track
-events, which provides a useful way to quickly visualize the internal
-processing of an app. For example, the [Chrome
+The [Perfetto UI](https://ui.perfetto.dev) has built-in support for track
+events, so you can visualize an app's internal processing. For example, the
+[Chrome
 browser](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool)
-is deeply instrumented with track events to assist in debugging, development
-and performance analysis.
+is deeply instrumented with track events to assist in debugging, development and
+performance analysis.
 
 To start using track events, first define the set of categories that your events
 will fall into. Each category can be separately enabled or disabled for tracing
@@ -89,9 +89,9 @@ void DrawPlayer() {
 }
 ```
 
-This type of trace event is scoped, under the hood it uses C++ [RAII]. The
-event will cover the time from when the `TRACE_EVENT` annotation is encountered
-to the end of the block (in the example above, until the function returns).
+This type of trace event is scoped and uses C++ [RAII]. The event will cover the
+time from when the `TRACE_EVENT` annotation is encountered to the end of the
+block (in the example above, until the function returns).
 
 For events that don't follow function scoping, use `TRACE_EVENT_BEGIN` and
 `TRACE_EVENT_END`:
@@ -110,13 +110,13 @@ void LoadGame() {
 }
 ```
 
-Note that you don't need to give a name for `TRACE_EVENT_END`, since it
-automatically closes the most recent event that began on the same thread. In
-other words, all events on a given thread share the same stack. This means
-that it's not recommended to have a matching pair of `TRACE_EVENT_BEGIN` and
-`TRACE_EVENT_END` markers in separate functions, since an unrelated event
-might terminate the original event unexpectedly; for events that cross
-function boundaries it's usually best to emit them on a [separate
+You don't need to give a name for `TRACE_EVENT_END`, since it automatically
+closes the most recent event that began on the same thread. In other words, all
+events on a given thread share the same stack. This means that it's not
+recommended to have a matching pair of `TRACE_EVENT_BEGIN` and `TRACE_EVENT_END`
+markers in separate functions, since an unrelated event might terminate the
+original event unexpectedly; for events that cross function boundaries it's
+usually best to emit them on a [separate
 track](#tracks).
 
 You can also supply (up to two) debug annotations together with the event.
@@ -193,7 +193,7 @@ start [recording traces](tracing-sdk.md#recording).
 
 ## Category configuration
 
-All track events are assigned to one more trace categories. For example:
+All track events are assigned to one or more trace categories. For example:
 
 ```C++
 TRACE_EVENT("rendering", ...);  // Event in the "rendering" category.
@@ -268,7 +268,7 @@ If none of the steps produced a match, the category:
 * is disabled by default in the C API.
 
 Specifying an `enabled_categories: "*"` or `disabled_categories: "*"` helps
-achieving a consistent behavior explicitly.
+make behavior consistent.
 
 For example:
 
@@ -310,21 +310,21 @@ PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES(
 
 ## Dynamic event names
 
-Ideally all event name should be compile time string constants. For example:
+Ideally, all event names should be compile-time string constants. For example:
 
 ```C++
 TRACE_EVENT_BEGIN("rendering", "DrawGame");
 ```
 
-Here `"DrawGame"` is a compile time string. If we pass a dynamic string here,
-we will get compile time static_assert failure. For example :
+Here `"DrawGame"` is a compile-time string. Passing a dynamic string here causes
+a compile-time static_assert failure. For example:
 
 ```C++
 const char* name = "DrawGame";
 TRACE_EVENT_BEGIN("rendering", name);  // Error. Event name is not static.
 ```
 
-There are two ways to use dynamic event name:
+There are two ways to use dynamic event names:
 
 1) If the event name is actually dynamic (e.g., std::string), write it using
    `perfetto::DynamicString`:
@@ -472,7 +472,7 @@ Some examples of valid combinations:
                  });
    ```
 
-11. A track and any combination of debug annotions and TrackEvent fields:
+11. A track and any combination of debug annotations and TrackEvent fields:
 
    ```C++
      TRACE_EVENT("category", "Name", perfetto::Track(1234),
@@ -757,9 +757,9 @@ custom type, combine both techniques: return `{kMyClockId, value}` from your
 ### Interning
 
 Interning can be used to avoid repeating the same constant data (e.g., event
-names) throughout the trace. Perfetto automatically performs interning for
-most strings passed to `TRACE_EVENT`, but it's also possible to also define
-your own types of interned data.
+names) throughout the trace. Perfetto automatically performs interning for most
+strings passed to `TRACE_EVENT`, but you can also define your own types of
+interned data.
 
 First, define an interning index for your type. It should map to a specific
 field of
@@ -826,8 +826,7 @@ class Observer : public perfetto::TrackEventSessionObserver {
 };
 ```
 
-Note that all methods of the interface are called on an internal Perfetto
-thread.
+All methods of the interface are called on an internal Perfetto thread.
 
 For example, here's how to wait for any tracing session to start:
 

@@ -1,7 +1,6 @@
 # System calls
 
-On Linux and Android (userdebug builds only) Perfetto can keep track of system
-calls.
+Perfetto can record system calls on Linux and Android (userdebug builds only).
 
 The syscall number and its raw argument values are recorded on entry, and the
 return value on exit.
@@ -13,15 +12,14 @@ generated through the
 
 ## UI
 
-At the UI level system calls are shown inlined with the per-thread slice tracks:
+The UI shows system calls inline with the per-thread slice tracks:
 
 ![](/docs/images/syscalls.png 'System calls in the thread tracks')
 
 ## SQL
 
-At the SQL level, syscalls are no different than any other userspace slice
-event. They get interleaved in the per-thread slice stack and can be easily
-filtered by looking for the 'sys\_' prefix:
+In SQL, syscalls behave like other userspace slice events. They are interleaved
+in the per-thread slice stack. You can filter them by the 'sys\_' prefix:
 
 ```sql
 select ts, dur, t.name as thread, s.name, depth from slices as s

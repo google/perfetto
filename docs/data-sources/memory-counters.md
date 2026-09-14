@@ -1,16 +1,15 @@
 # Memory counters and events
 
-Perfetto allows to gather a number of memory events and counters on Android and
-Linux. These events come from kernel interfaces, both ftrace and /proc
-interfaces, and are of two types: polled counters and events pushed by the
-kernel in the ftrace buffer.
+Perfetto collects memory events and counters on Android and Linux through
+ftrace and /proc interfaces. These are either polled counters or events pushed
+by the kernel into the ftrace buffer.
 
 ## Per-process polled counters {#per-process-polled-counters}
 
-The process stats data source allows to poll `/proc/<pid>/status` and
+The process stats data source polls `/proc/<pid>/status` and
 `/proc/<pid>/oom_score_adj` at user-defined intervals.
 
-See [`man 5 proc`][man-proc] for their semantic.
+See [`man 5 proc`][man-proc] for their semantics.
 
 ### UI {#per-process-ui}
 
@@ -42,9 +41,10 @@ where t.name like 'mem.%'
 
 ### TraceConfig {#per-process-traceconfig}
 
-To collect process stat counters every X ms set `proc_stats_poll_ms = X` in your
-process stats config. X must be greater than 100ms to avoid excessive CPU usage.
-Details about the specific counters being collected can be found in the
+To collect process stat counters every X ms, set `proc_stats_poll_ms = X` in
+your process stats config. X must be greater than 100ms to avoid excessive CPU
+usage.
+For details about the counters collected, see the
 [ProcessStats reference](/docs/reference/trace-packet-proto.autogen#ProcessStats).
 
 ```protobuf
@@ -63,24 +63,23 @@ data_sources: {
 
 ### rss_stat
 
-Recent versions of the Linux kernel allow to report ftrace events when the
-Resident Set Size (RSS) mm counters change. This is the same counter available
-in `/proc/pid/status` as `VmRSS`. The main advantage of this event is that by
-being an event-driven push event it allows to detect very short memory usage
-bursts that would be otherwise undetectable by using /proc counters.
+Recent versions of the Linux kernel can report ftrace events when the Resident
+Set Size (RSS) mm counters change. This is the same counter available in
+`/proc/pid/status` as `VmRSS`. These events let you detect brief memory usage
+bursts that polling /proc counters would miss.
 
-Memory usage peaks of hundreds of MB can have dramatically negative impact on
-Android, even if they last only few ms, as they can cause mass low memory kills
-to reclaim memory.
+Memory usage peaks of hundreds of MB can harm performance on Android, even if
+they last only a few ms, because they can cause mass low memory kills to reclaim
+memory.
 
 For examples of analyzing memory usage, see the
 [memory usage section](/docs/getting-started/android-trace-analysis#memory-metrics)
 in the Android trace analysis cookbook.
 
-The kernel feature that supports this has been introduced in the Linux Kernel in
-[b3d1411b6] and later improved by [e4dcad20]. They are available in upstream
-since Linux v5.5-rc1. This patch has been backported in several Google Pixel
-kernels running Android 10 (Q).
+The kernel feature that supports this was introduced in [b3d1411b6] and later
+improved by [e4dcad20]. Both changes have been available upstream since Linux
+v5.5-rc1. This patch has been backported to several Google Pixel kernels running
+Android 10 (Q).
 
 [b3d1411b6]:
   https://github.com/torvalds/linux/commit/b3d1411b6726ea6930222f8f12587d89762477c6
@@ -91,9 +90,9 @@ kernels running Android 10 (Q).
 
 `mm_event` is an ftrace event that captures statistics about key memory events
 (a subset of the ones exposed by `/proc/vmstat`). Unlike RSS-stat counter
-updates, mm events are extremely high volume and tracing them individually would
-be unfeasible. `mm_event` instead reports only periodic histograms in the trace,
-reducing sensibly the overhead.
+updates, mm events occur too frequently to trace individually. `mm_event`
+instead reports only periodic histograms in the trace, substantially reducing
+overhead.
 
 `mm_event` is available only on some Google Pixel kernels running Android 10 (Q)
 and beyond.
@@ -125,9 +124,9 @@ than querying this data directly. See
 [memory usage section](/docs/getting-started/android-trace-analysis#memory-metrics)
 in the Android trace analysis cookbook.
 
-At the SQL level, these events are imported and exposed in the same way as the
-corresponding polled events. This allows to collect both types of events (pushed
-and polled) and treat them uniformly in queries and scripts.
+These events are imported and exposed in SQL in the same way as the
+corresponding polled events. You can collect both pushed and polled events and
+treat them uniformly in queries and scripts.
 
 ```sql
 select c.ts, c.value, t.name as counter_name, p.name as proc_name, p.pid
@@ -173,7 +172,7 @@ This data source allows periodic polling of system data from:
 - `/proc/vmstat`
 - `/proc/meminfo`
 
-See [`man 5 proc`][man-proc] for their semantic.
+See [`man 5 proc`][man-proc] for their semantics.
 
 ### UI {#system-wide-ui}
 
@@ -234,23 +233,20 @@ The Android framework kills apps and services, especially background ones, to
 make room for newly opened apps when memory is needed. These are known as low
 memory kills (LMK).
 
-Note LMKs are not always the symptom of a performance problem. The rule of thumb
-is that the severity (as in: user perceived impact) is proportional to the state
-of the app being killed. The app state can be derived in a trace from the OOM
-adjustment score.
+LMKs are not always a symptom of a performance problem. As a rule of thumb,
+their impact on the user depends on the state of the app being killed. You can
+derive the app state in a trace from the OOM adjustment score.
 
-A LMK of a foreground app or service is typically a big concern. This happens
-when the app that the user was using disappeared under their fingers, or their
-favorite music player service suddenly stopped playing music.
+An LMK of a foreground app or service is typically a major concern. The app the
+user was using disappears, or their music player service suddenly stops playing
+music.
 
-A LMK of a cached app or service, instead, is frequently business-as-usual and
-in most cases won't be noticed by the end user until they try to go back to the
-app, which will then cold-start.
+An LMK of a cached app or service is frequently routine. In most cases, the user
+won't notice until they return to the app, which will then cold-start.
 
-The situation in between these extremes is more nuanced. LMKs of cached
-apps/service can be still problematic if it happens in storms (i.e. observing
-that most processes get LMK-ed in a short time frame) and are often the symptom
-of some component of the system causing memory spikes.
+LMKs of cached apps or services can still be problematic if they happen in
+storms (i.e., most processes are killed in a short time frame). These storms are
+often a symptom of a system component causing memory spikes.
 
 ### lowmemorykiller vs lmkd
 
@@ -258,7 +254,7 @@ of some component of the system causing memory spikes.
 
 In Android, LMK used to be handled by an ad-hoc kernel-driver, Linux's
 [drivers/staging/android/lowmemorykiller.c](https://github.com/torvalds/linux/blob/v3.8/drivers/staging/android/lowmemorykiller.c).
-This driver uses to emit the ftrace event `lowmemorykiller/lowmemory_kill` in
+This driver used to emit the ftrace event `lowmemorykiller/lowmemory_kill` in
 the trace.
 
 #### Userspace lmkd
@@ -268,7 +264,7 @@ responsibility: `lmkd`. Not all devices running Android 9 will necessarily use
 `lmkd` as the ultimate choice of in-kernel vs userspace is up to the phone
 manufacturer, their kernel version and kernel config.
 
-On Google Pixel phones, `lmkd`-side killing is used since Pixel 2 running
+On Google Pixel phones, `lmkd`-side killing has been used since Pixel 2 running
 Android 9.
 
 See https://source.android.com/devices/tech/perf/lmkd for details.
@@ -280,10 +276,10 @@ See https://source.android.com/devices/tech/perf/lmkd for details.
 LMKs on Android, whether the old in-kernel `lowmemkiller` or the newer `lmkd`,
 use a completely different mechanism than the standard
 [Linux kernel's OOM Killer](https://linux-mm.org/OOM_Killer). Perfetto at the
-moment supports only Android LMK events (Both in-kernel and user-space) and does
+moment supports only Android LMK events (both in-kernel and user-space) and does
 not support tracing of Linux kernel OOM Killer events. Linux OOMKiller events
 are still theoretically possible on Android but extremely unlikely to happen. If
-they happen, they are more likely the symptom of a mis-configured BSP.
+they happen, they are more likely the symptom of a misconfigured BSP.
 
 ### UI {#lmk-ui}
 
@@ -314,7 +310,7 @@ WHERE instant.name = 'mem.lmk'
 
 ### TraceConfig {#lmk-traceconfig}
 
-To enable tracing of low memory kills add the following options to trace config:
+To trace low memory kills, add the following options to the trace config:
 
 ```protobuf
 data_sources: {
@@ -337,9 +333,9 @@ data_sources: {
 
 ## {#oom-adj} App states and OOM adjustment score
 
-The Android app state can be inferred in a trace from the process
-`oom_score_adj`. The mapping is not 1:1, there are more states than
-oom_score_adj value groups and the `oom_score_adj` range for cached processes
+You can infer the Android app state in a trace from the process
+`oom_score_adj`. The mapping is not 1:1: there are more states than
+oom_score_adj value groups, and the `oom_score_adj` range for cached processes
 spans from 900 to 1000.
 
 The mapping can be inferred from the

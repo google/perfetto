@@ -1,7 +1,7 @@
 # Extension Server Protocol Reference
 
-This page documents the HTTP protocol that extension servers must implement. Use
-this if you are building a custom extension server rather than using the
+This page describes the HTTP protocol that extension servers must implement.
+For setup using a template, see the
 [GitHub template approach](/docs/visualization/extension-servers.md).
 
 ## Endpoints
@@ -184,8 +184,8 @@ configured auth type:
 | `https_sso` | No header; request sent with `credentials: 'include'` |
 
 For SSO authentication, if a request returns HTTP 403, the UI loads the server's
-base URL in a hidden iframe to refresh the SSO session cookie, then retries the
-request once.
+base URL in a hidden iframe to refresh the SSO session cookie. It then retries
+the request once.
 
 ## GitHub server URL construction
 

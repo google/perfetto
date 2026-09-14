@@ -3,7 +3,7 @@
 The Perfetto Tracing SDK is a C++17 library that allows userspace applications
 to emit trace events and add more app-specific context to a Perfetto trace.
 
-When using the Tracing SDK there are two main aspects to consider:
+When using the Tracing SDK, consider two questions:
 
 1. Whether you are interested only in tracing events coming from your own app or
    want to collect full-stack traces that overlay app trace events with system
@@ -15,11 +15,11 @@ When using the Tracing SDK there are two main aspects to consider:
    custom strongly-typed schema (e.g., for dumping the state of a subsystem of
    your app into the trace).
 
-For Android-only instrumentation, the advice is to keep using the existing
-[android.os.Trace (SDK)][atrace-sdk] / [ATrace\_\* (NDK)][atrace-ndk] if they
-are sufficient for your use cases. Atrace-based instrumentation is fully
-supported in Perfetto. See the [Data Sources -> Android System -> Atrace
-Instrumentation][atrace-ds] for details.
+For Android-only instrumentation, keep using the existing [android.os.Trace
+(SDK)][atrace-sdk] / [ATrace\_\* (NDK)][atrace-ndk] if they are sufficient for
+your use cases. Atrace-based instrumentation is fully supported in Perfetto. See
+the [Data Sources -> Android System -> Atrace Instrumentation][atrace-ds] for
+details.
 
 ## Getting started
 
@@ -43,8 +43,8 @@ cmake --build build
 ```
 
 The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
-an amalgamation of the Client API designed to easy to integrate to existing
-build systems. The sources are self-contained and require only a C++17 compliant
+an amalgamation of the Client API designed for integration with existing build
+systems. The sources are self-contained and require only a C++17 compliant
 standard library.
 
 For example, to add the SDK to a CMake project, edit your CMakeLists.txt:
@@ -106,9 +106,9 @@ You are now ready to instrument your app with trace events.
 
 ## Optional features
 
-The amalgamated SDK ships three optional features. They are off by default;
-opt in by dropping a header named `perfetto_sdk_config.h` on the SDK's
-include path and defining the matching macro inside it:
+The amalgamated SDK ships three optional features. They are off by default; opt
+in by adding a header named `perfetto_sdk_config.h` on the SDK's include path
+and defining the matching macro inside it:
 
 ```C++
 // perfetto_sdk_config.h
@@ -117,9 +117,9 @@ include path and defining the matching macro inside it:
 #define PERFETTO_SDK_ENABLE_RE2  1   // optional
 ```
 
-`build_config.h` detects the file via `__has_include` and reads the macros
-from there; no cflag plumbing is required. The features are
-independent — set any combination, or none.
+`build_config.h` detects the file via `__has_include` and reads the macros from
+there; no compiler flag configuration is required. The features are independent
+— set any combination, or none.
 
 | Macro | Link | System header | What it does |
 | --- | --- | --- | --- |
@@ -142,10 +142,10 @@ each other, which trade off code complexity vs expressive power:
 
 ### Track events
 
-Track events are the suggested option when dealing with app-specific tracing as
-they take care of a number of subtleties (e.g., thread safety, flushing, string
-interning). Track events are time bounded events (e.g., slices, counter) based
-on simple `TRACE_EVENT` annotation tags in the codebase, like this:
+Track events are the recommended option for app-specific tracing because they
+handle details (e.g., thread safety, flushing, string interning). Track events
+are time-bounded events (e.g., slices, counters) based on simple `TRACE_EVENT`
+annotation tags in the codebase, like this:
 
 ```c++
 #include <perfetto.h>
@@ -177,7 +177,7 @@ void LayerTreeHost::DoUpdateLayers() {
 }
 ```
 
-Which are rendered in the UI as follows:
+These events appear in the UI as follows:
 
 ![Track event example](/docs/images/track-events.png)
 
@@ -284,7 +284,7 @@ CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
 ```
 
 If necessary the `Trace()` method can access the custom data source state
-(`my_custom_state` in the example above). Doing so, will take a mutex to ensure
+(`my_custom_state` in the example above). Doing so takes a mutex to ensure the
 data source isn't destroyed (e.g., because of stopping tracing) while the
 `Trace()` method is called on another thread. For example:
 
@@ -342,9 +342,9 @@ requests. Both modes generate the same trace file format.
 
 ### In-process mode
 
-In this mode both the perfetto service and the app-defined data sources are
-hosted fully in-process, in the same process of the profiled app. No connection
-to the system `traced` daemon will be attempted.
+In this mode, both the perfetto service and the app-defined data sources run in
+the profiled app's process. No connection to the system `traced` daemon will be
+attempted.
 
 In-process mode can be enabled by setting
 `TracingInitArgs.backends = perfetto::kInProcessBackend` when initializing the
@@ -377,7 +377,7 @@ System mode can be enabled by setting
 see examples below.
 
 The main advantage of this mode is that it is possible to create fused traces
-where app events are overlaid on the same timeline of OS events. This enables
+where app events are overlaid on the same timeline as OS events. This enables
 full-stack performance investigations, looking all the way through syscalls and
 kernel scheduling events.
 
@@ -414,7 +414,7 @@ guides)._
 First initialize a [TraceConfig](/docs/reference/trace-config-proto.autogen)
 message which specifies what type of data to record.
 
-If your app includes [track events](track-events.md) (i.e, `TRACE_EVENT`), you
+If your app includes [track events](track-events.md) (i.e., `TRACE_EVENT`), you
 typically want to choose the categories which are enabled for tracing.
 
 By default, all non-debug categories are enabled, but you can enable a specific

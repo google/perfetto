@@ -1,8 +1,7 @@
 # Android Version Notes
-This page documents all the caveats of using Perfetto on older versions of
-Android. Because of the yearly release cycle, it's often the case that a
-feature is shipped but we later discover a bug/problem which makes the feature
-not usable or needs to be used in a very specific way.
+This page documents caveats for using Perfetto on older Android versions.
+Android's yearly release cycle means that bugs discovered after a feature ships
+can leave it unusable or require a specific workaround.
 
 ## U-
 ### New features
@@ -11,7 +10,7 @@ not usable or needs to be used in a very specific way.
 
 ### Caveats
 * On the CLONE_SNAPSHOT codepath, the trace UUID gets rewritten when the session
-  is clone but a statsd atom linking the two is not emitted. This means we
+  is cloned but a statsd atom linking the two is not emitted. This means we
   should be careful to exclude any "clone-only" sessions as being "failed"
   sessions.
 
@@ -26,7 +25,7 @@ not usable or needs to be used in a very specific way.
 
 ## P
 ### New features
-* Perfetto was included in the system image!
+* Perfetto was included in the system image.
 
 ### Caveats
 * --txt option is not supported so configs must be binary encoded.
