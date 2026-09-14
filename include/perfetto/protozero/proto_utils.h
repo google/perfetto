@@ -18,10 +18,12 @@
 #define INCLUDE_PERFETTO_PROTOZERO_PROTO_UTILS_H_
 
 #include <stddef.h>
+#include <string.h>
 
 #include <cinttypes>
 #include <type_traits>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_utils.h"
@@ -37,6 +39,28 @@
 
 namespace protozero {
 namespace proto_utils {
+
+// Reorders the bytes of a fixed32/fixed64/float/double so that the in memory
+// representation matches the little endian proto wire format.
+template <typename T>
+inline T FixedToFromLittleEndian(T value) {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "FixedToFromLittleEndian requires a trivially copyable type");
+#if PERFETTO_IS_LITTLE_ENDIAN()
+  return value;
+#else
+  uint8_t bytes[sizeof(T)];
+  memcpy(bytes, &value, sizeof(T));
+  for (size_t i = 0; i < sizeof(T) / 2; ++i) {
+    uint8_t tmp = bytes[i];
+    bytes[i] = bytes[sizeof(T) - 1 - i];
+    bytes[sizeof(T) - 1 - i] = tmp;
+  }
+  T result;
+  memcpy(&result, bytes, sizeof(T));
+  return result;
+#endif
+}
 
 // See https://developers.google.com/protocol-buffers/docs/encoding wire types.
 // This is a type encoded into the proto that provides just enough info to
