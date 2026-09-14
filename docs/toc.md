@@ -2,6 +2,11 @@
 
   - [What is Perfetto?](README.md) {.type-concept}
   - [Tracing and profiling, explained](tracing-101.md) {.type-concept}
+  - [Perfetto for Android developers](start/android.md) {.tag-android .type-start}
+  - [Perfetto for Linux developers](start/linux.md) {.tag-linux .type-start}
+  - [Perfetto for C, C++ and Rust developers](start/cpp-rust.md) {.tag-cpp-rust .type-start}
+  - [Perfetto for Chromium developers](start/chrome.md) {.tag-chrome .type-start}
+  - [Perfetto for performance engineers](start/performance.md) {.tag-performance .type-start}
 
 - [Tutorials](#)
 

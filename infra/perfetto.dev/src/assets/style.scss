@@ -1627,3 +1627,110 @@ $page-type-colors: (
     border: 1px solid rgba($color, 0.3);
   }
 }
+
+// ---- Docs landing pages ----
+.md-content .docs-home {
+  // Shared patterns for the docs landing page (docs/README.md). Icon colours
+  // match the roles in docs/images/perfetto-stack.svg.
+  --role-color: #0e7c86;
+  --role-tint: #e3f2f3;
+  margin: 18px 0 28px;
+
+  .role-use { --role-color: #3d5a98; --role-tint: #e8eef8; }
+  .role-engine { --role-color: #a86a12; --role-tint: #fbf1dc; }
+  .role-import { --role-color: #5a6577; --role-tint: #edf1f5; }
+  .role-no { --role-color: #b4443c; --role-tint: #fbecea; }
+
+  .home-icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 20px;
+    color: var(--role-color);
+    background: var(--role-tint);
+  }
+
+  h3 {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: var(--color-primary);
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  a:visited {
+    color: var(--color-link);
+  }
+
+  // Task and help cards.
+  .home-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .home-card {
+    display: flex;
+    flex-direction: column;
+    padding: 18px 20px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    h3 {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-size: 1.05rem;
+    }
+    p {
+      margin-bottom: 10px;
+      font-size: 0.93rem;
+      line-height: 1.5;
+      color: var(--color-text-secondary);
+    }
+    ul {
+      list-style: none;
+      margin: auto 0 0;
+      padding: 10px 0 0;
+      border-top: 1px solid var(--color-border-light);
+    }
+    li {
+      margin: 0;
+      padding: 3px 0;
+      font-size: 0.93rem;
+      line-height: 1.45;
+      &:before {
+        display: none;
+      }
+    }
+    li.home-note {
+      padding-top: 6px;
+      font-size: 0.85rem;
+      color: var(--color-text-secondary);
+    }
+  }
+
+  // Two cards per row, for pages with four cards.
+  .home-pair {
+    grid-template-columns: repeat(2, 1fr);
+    @media #{$mobile} {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  // Help cards have short descriptions: keep their links under the text
+  // rather than pinned to the bottom of the card.
+  .home-help ul {
+    margin-top: 0;
+  }
+}
