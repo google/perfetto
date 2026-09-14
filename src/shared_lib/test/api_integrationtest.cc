@@ -2942,10 +2942,11 @@ TEST_F(SharedLibTracingV2Test, DsPacketBeginUsesProtoGroupOnAV2Writer) {
   bool uses_proto_group = false;
   PERFETTO_DS_TRACE(data_source_v2, ctx) {
     traced = true;
-    struct PerfettoDsRootTracePacket trace_packet;
+    struct PerfettoDsRootTracePacket trace_packet{};
     PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
     // Checked after the loop: an ASSERT here would leave the packet open.
-    uses_proto_group = PerfettoPbMsgIsProtoGroup(&trace_packet.msg.msg);
+    uses_proto_group =
+        trace_packet.msg.msg.encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
     WriteNestedPacket(&trace_packet);
     PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
   }
@@ -2968,9 +2969,10 @@ TEST_F(SharedLibTracingV2Test,
   bool uses_proto_group = true;
   PERFETTO_DS_TRACE(data_source_v2, ctx) {
     traced = true;
-    struct PerfettoDsRootTracePacket trace_packet;
+    struct PerfettoDsRootTracePacket trace_packet{};
     PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
-    uses_proto_group = PerfettoPbMsgIsProtoGroup(&trace_packet.msg.msg);
+    uses_proto_group =
+        trace_packet.msg.msg.encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
     WriteNestedPacket(&trace_packet);
     PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
   }
