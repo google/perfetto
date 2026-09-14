@@ -1,74 +1,32 @@
-# CPU Scheduling events
+# CPU scheduling (`linux.ftrace`)
 
-On Android and Linux Perfetto can gather scheduler traces via the Linux Kernel
-[ftrace](https://www.kernel.org/doc/Documentation/trace/ftrace.txt)
-infrastructure.
+Records every context switch and thread wakeup from the Linux kernel scheduler
+through [ftrace](https://www.kernel.org/doc/Documentation/trace/ftrace.txt).
+Enable it to see which thread ran on which CPU at any moment and why each thread
+stopped running (preempted, sleeping, blocked on I/O). You can also see which
+thread woke it up and how long it then waited for a CPU.
 
-This allows to get fine grained scheduling events such as:
+| | |
+|---|---|
+| Data source | `linux.ftrace` with the `sched/*` and `task/*` events below |
+| Producer | `traced_probes` |
+| Platforms | Android 9 (P) and later. Linux with ftrace (`tracefs` mounted at `/sys/kernel/tracing` or `/sys/kernel/debug/tracing`) |
+| Privileges | Android: none beyond `adb shell`. Linux: `traced_probes` (or `tracebox`) needs write access to `tracefs`, usually root |
+| Config | [FtraceConfig](/docs/reference/trace-config-proto.autogen#FtraceConfig) |
+| Trace packets | [FtraceEventBundle](/docs/reference/trace-packet-proto.autogen#FtraceEventBundle) (`TracePacket.ftrace_events`), [FtraceStats](/docs/reference/trace-packet-proto.autogen#FtraceStats) (`TracePacket.ftrace_stats`) |
+| Overhead | Among the highest-rate ftrace events: thousands of events per second per CPU on a busy device. Use the default compact encoding and size the buffers accordingly |
 
-* Which threads were scheduled on which CPU core at any point in time, with
-  nanosecond accuracy.
-* The reason why a running thread got descheduled (e.g. pre-emption, blocked on
-  a mutex, blocking syscall or any other wait queue).
-* The point in time when a thread became eligible to be executed, even if it was
-  not put immediately on any CPU run queue, together with the source thread that
-  made it executable.
+## Configuration
 
-## UI
-
-The UI represents individual scheduling events as slices:
-
-![](/docs/images/cpu-zoomed.png "Detailed view of CPU run queues")
-
-Clicking on a CPU slice shows the relevant information in the details panel:
-
-![](/docs/images/cpu-sched-details.png "CPU scheduling details")
-
-Scrolling down, when expanding individual processes, the scheduling events also
-create one track for each thread, which allows to follow the evolution of the
-state of individual threads:
-
-![](/docs/images/thread-states.png "States of individual threads")
-
-## SQL
-
-At the SQL level, the scheduling data is exposed in the
-[`sched_slice`](/docs/analysis/sql-tables.autogen#sched_slice) table.
-
-```sql
-select ts, dur, cpu, end_state, priority, process.name, thread.name
-from sched_slice left join thread using(utid) left join process using(upid)
-```
-
-ts | dur | cpu | end_state | priority | process.name, | thread.name
----|-----|-----|-----------|----------|---------------|------------
-261187012170995 | 247188 | 2 | S | 130 | /system/bin/logd | logd.klogd
-261187012418183 | 12812 | 2 | D | 120 | /system/bin/traced_probes | traced_probes0
-261187012421099 | 220000 | 4 | D | 120 | kthreadd | kworker/u16:2
-261187012430995 | 72396 | 2 | D | 120 | /system/bin/traced_probes | traced_probes1
-261187012454537 | 13958 | 0 | D | 120 | /system/bin/traced_probes | traced_probes0
-261187012460318 | 46354 | 3 | S | 120 | /system/bin/traced_probes | traced_probes2
-261187012468495 | 10625 | 0 | R | 120 | [NULL] | swapper/0
-261187012479120 | 6459 | 0 | D | 120 | /system/bin/traced_probes | traced_probes0
-261187012485579 | 7760 | 0 | R | 120 | [NULL] | swapper/0
-261187012493339 | 34896 | 0 | D | 120 | /system/bin/traced_probes | traced_probes0
-
-## TraceConfig
-
-To collect this data, include the following data sources:
+Minimal config:
 
 ```protobuf
-# Scheduling data from the kernel.
 data_sources: {
   config {
     name: "linux.ftrace"
     ftrace_config {
-      compact_sched: {
-        enabled: true
-      }
       ftrace_events: "sched/sched_switch"
-      # optional: precise thread lifetime tracking:
-      ftrace_events: "sched/sched_process_exit"
+      ftrace_events: "sched/sched_waking"
       ftrace_events: "sched/sched_process_free"
       ftrace_events: "task/task_newtask"
       ftrace_events: "task/task_rename"
@@ -76,7 +34,7 @@ data_sources: {
   }
 }
 
-# Adds full process names and thread<>process relationships:
+# Process names and thread<>process association.
 data_sources: {
   config {
     name: "linux.process_stats"
@@ -84,98 +42,201 @@ data_sources: {
 }
 ```
 
-## Scheduling wakeups and latency analysis
+Relevant `FtraceConfig` fields:
 
-By further enabling the following in the TraceConfig, the ftrace data source
-will record also scheduling wake up events:
+| Field | Default | Description |
+|---|---|---|
+| `ftrace_events: "sched/sched_switch"` | off | Context switches. Required: produces CPU slices and the Running / end states of threads. |
+| `ftrace_events: "sched/sched_waking"` | off | Wakeups, emitted in the waker's context. Produces the Runnable state, the waker thread and scheduling latency. |
+| `ftrace_events: "sched/sched_wakeup"` | off | Emitted when the wakee is enqueued. Not used by the importer; rows appear only in the `ftrace_event` table. |
+| `ftrace_events: "sched/sched_wakeup_new"` | off | First wakeup of a new task. Not used by the importer; `task/task_newtask` provides the initial Runnable state. |
+| `ftrace_events: "sched/sched_blocked_reason"` | off | Android kernels only. Fills `io_wait` and, with `symbolize_ksyms`, `blocked_function`. |
+| `ftrace_events: "sched/sched_process_exit"` | off | Recorded, but not used by the importer. |
+| `ftrace_events: "sched/sched_process_free"` | off | Marks the end of a thread's lifetime (`thread.end_ts`). |
+| `ftrace_events: "task/task_newtask"` | off | Thread and process creation, with the parent thread as waker. |
+| `ftrace_events: "task/task_rename"` | off | Thread name changes. |
+| `compact_sched.enabled` | `true` (perfetto v42+) | Encodes `sched_switch` and `sched_waking` in a denser format. Compact `sched_waking` also requires `sched_switch`. |
+| `symbolize_ksyms` | `false` | Resolves kernel addresses via `/proc/kallsyms`. Needed for `blocked_function`. Requires root or a lowered `kptr_restrict` (on Android, userdebug/eng builds). |
+| `buffer_size_kb` | 2048, or 8192 on devices with 7 GB+ of RAM | Size of each per-CPU kernel ring buffer. |
+| `drain_period_ms` | chosen by `traced_probes` | How often `traced_probes` reads the kernel buffers. |
 
-```protobuf
-  ftrace_events: "sched/sched_wakeup_new"
-  ftrace_events: "sched/sched_waking"
+## Recording
+
+- **Perfetto UI:** Record new trace > CPU > **Scheduling details**. It also
+  enables `sched_wakeup`, `sched_wakeup_new`, `sched_blocked_reason`,
+  `sched_process_exit` and `power/suspend_resume`, and turns on process
+  association.
+- **`perfetto` command (Android):**
+  `adb shell perfetto -o /data/misc/perfetto-traces/trace -t 10s sched`. The
+  `sched` category enables `sched_switch`, `sched_waking`,
+  `sched_blocked_reason`, `sched_cpu_hotplug`, `sched_pi_setprio`,
+  `sched_process_exit`, `task_newtask`, `task_rename`, `cgroup/*` and
+  `oom/oom_score_adj_update`.
+- **`tracebox` (Linux):**
+  `sudo ./tracebox -t 10s -o trace sched/sched_switch sched/sched_waking`.
+- **Config file:** use the config above, or
+  [`test/configs/scheduling.cfg`](/test/configs/scheduling.cfg).
+
+See [Record your first system trace](/docs/getting-started/system-tracing.md) for the
+end-to-end steps.
+
+## Trace data
+
+### In the UI
+
+- **CPU Scheduling** group: one **CPU N Scheduling** track per CPU (with the
+  core type, e.g. `(big)`, when known). Each slice is a thread running on that
+  CPU.
+
+  ![](/docs/images/cpu-zoomed.png "CPU scheduling tracks")
+
+- **Scheduler** group: **Runnable thread count**, **Uninterruptible Sleep
+  thread count** and **Active CPU count** tracks.
+- **Thread state tracks**: inside each process group, one track per thread
+  (named `<thread name> <tid>`) showing Running, Runnable, Sleeping and so on.
+
+  ![](/docs/images/thread-states.png "Thread state tracks")
+
+- **Selecting a CPU slice** opens **CPU Sched Slice**: process, thread,
+  cmdline, start time, duration, priority, end state and SQL ID. With
+  `sched_waking`, a **Scheduling Latency** section shows the wakeup time and
+  the waker thread, and the timeline draws a marker on the waker's CPU and an
+  arrow spanning the latency.
+
+  ![](/docs/images/cpu-sched-details.png "CPU Sched Slice details")
+
+  ![](/docs/images/latency.png "Scheduling latency in the timeline")
+
+- **Selecting a thread state** opens **Thread State**: start time, duration,
+  state, blocked function, process, thread, priority, previous and next
+  state, **Woken by**, **Woken threads**, and a link to the CPU slice.
+
+### In SQL
+
+The [`sched`](/docs/analysis/sql-tables.autogen#sched) table has one row per
+CPU slice:
+
+| Column | Description |
+|---|---|
+| `ts`, `dur` | Start and duration of the slice, in nanoseconds. |
+| `cpu`, `ucpu` | CPU number; unique CPU id across machines. |
+| `utid` | Thread (join with `thread`). |
+| `end_state` | Why the thread stopped running. See [Thread end states](#decoding-end-state). |
+| `priority` | Kernel priority the thread ran at. |
+
+The [`thread_state`](/docs/analysis/sql-tables.autogen#thread_state) table has
+one row per state interval of each thread. `state` is `Running` or one of the
+end state codes. It adds `io_wait`, `blocked_function`, `waker_utid`,
+`waker_id` and `irq_context`. Every `sched` row has a matching `thread_state`
+row with `state = 'Running'`.
+
+NOTE: `sched_slice` is a legacy alias of `sched`. Use `sched` in new queries.
+
+CPU time per thread:
+
+```sql
+SELECT
+  process.name AS process_name,
+  thread.name AS thread_name,
+  thread.tid,
+  SUM(sched.dur) AS cpu_time_ns,
+  COUNT(*) AS slices
+FROM sched
+JOIN thread USING (utid)
+LEFT JOIN process USING (upid)
+WHERE NOT thread.is_idle AND sched.dur > 0
+GROUP BY utid
+ORDER BY cpu_time_ns DESC
+LIMIT 5;
 ```
 
-While `sched_switch` events are emitted only when a thread is in the
-`R(unnable)` state AND is running on a CPU run queue, `sched_waking` events are
-emitted when any event causes a thread state to change.
+| process_name | thread_name | tid | cpu_time_ns | slices |
+|---|---|---|---|---|
+| com.android.chrome:sandboxed_process0 | CrRendererMain | 5363 | 2272827323 | 1581 |
+| /system/bin/traced_probes | traced_probes | 906 | 1495805120 | 2306 |
+| com.android.chrome | .android.chrome | 5313 | 1442039916 | 3571 |
+| com.android.chrome:privileged_process0 | CrGpuMain | 5395 | 1384421474 | 2837 |
+| kswapd0 | kswapd0 | 150 | 1377437355 | 1967 |
 
-Consider the following example:
+For wakeup latency, runnable time and blocking analysis, see the `sched.*`
+modules in the
+[Standard library](/docs/analysis/stdlib-docs.autogen).
 
-```
-Thread A
-condition_variable.wait()
-                                     Thread B
-                                     condition_variable.notify()
-```
+### Stats
 
-When Thread A suspends on the wait() it will enter the state `S(sleeping)` and
-get removed from the CPU run queue. When Thread B notifies the variable, the
-kernel will transition Thread A into the `R(unnable)` state. Thread A at that
-point is eligible to be put back on a run queue. However this might not happen
-for some time because, for instance:
+Relevant rows in the `stats` table:
 
-* All CPUs might be busy running some other thread, and Thread A needs to wait
-  to get a run queue slot assigned (or the other threads have higher priority).
-* Some other CPUs other than the current one, but the scheduler load balancer
-  might take some time to move the thread on another CPU.
+| Name | Meaning |
+|---|---|
+| `ftrace_cpu_has_data_loss` | Indexed by CPU. The kernel overwrote events before `traced_probes` read them; scheduling data for that CPU is unreliable. |
+| `ftrace_cpu_overrun_delta` | Indexed by CPU. Number of events lost to kernel ring buffer overruns during the trace. |
+| `ftrace_setup_errors` | One or more requested events or categories failed to enable. |
+| `mismatched_sched_switch_tids` | A `sched_switch` switched out a thread other than the one last switched in on that CPU, usually because of data loss. |
+| `compact_sched_has_parse_errors` | The compact sched data could not be fully decoded. |
 
-Unless using real-time thread priorities, most Linux Kernel scheduler
-configurations are not strictly work-conserving. For instance the scheduler
-might prefer to wait some time in the hope that the thread running on the
-current CPU goes to idle, avoiding a cross-cpu migration which might be more
-costly both in terms of overhead and power.
+## {#decoding-end-state} Thread end states
 
-NOTE: `sched_waking` and `sched_wakeup` provide nearly the same information. The
-      difference lies in wakeup events across CPUs, which involve
-      inter-processor interrupts. The former is always emitted on the source (wakee)
-      CPU, the latter may be executed on either the source or the destination (waked) CPU
-      depending on several factors. `sched_waking` is usually sufficient for latency
-      analysis, unless you are looking into breaking down latency due to
-      the scheduler's wake up path, such as inter-processor signaling.
+`sched.end_state` and non-running `thread_state.state` values are one or more
+kernel task state characters. The UI translates them as follows:
 
-When enabling `sched_waking` events, the following will appear in the UI when
-selecting a CPU slice:
+| Code | Translation |
+|---|---|
+| `R` | Runnable |
+| `R+` | Runnable (Preempted) |
+| `S` | Sleeping |
+| `D` | Uninterruptible Sleep |
+| `T` | Stopped |
+| `t` | Traced |
+| `X` | Exit (Dead) |
+| `Z` | Exit (Zombie) |
+| `x` | Task Dead |
+| `I` | Idle |
+| `K` | Wake Kill |
+| `W` | Waking |
+| `P` | Parked |
+| `N` | No Load |
 
-![](/docs/images/latency.png "Scheduling wake-up events in the UI")
+Multiple characters combine, e.g. `DK` is Uninterruptible Sleep + Wake Kill.
+Not all combinations are meaningful.
 
-### {#decoding-end-state} Decoding `end_state`
+If the trace ends while a thread is still running, its last slice has
+`end_state` NULL and `dur` -1.
 
-The [sched_slice](/docs/analysis/sql-tables.autogen#sched_slice) table contains
-information on scheduling activity of the system:
+## Limitations
 
-```
-> select * from sched_slice limit 1
-id  ts          dur    cpu utid end_state priority ucpu
-0   70730062200 125364 0   1    S         130      0
-```
+- Without `sched_waking`, a sleeping thread goes straight to Running: there is
+  no Runnable state, no waker and no latency information.
+- `sched_blocked_reason` exists only on Android kernels, so `io_wait` and
+  `blocked_function` are NULL on upstream Linux.
+- Wakeups from interrupt context have no waker thread. On traces without
+  `irq_context`, the UI shows "Woken by (maybe interrupt)".
+- Thread and process names come from `task_newtask`, `task_rename` and
+  `linux.process_stats`. Without them, tracks show only the tid.
+- The kernel ring buffers are shared by all concurrent ftrace sessions;
+  `buffer_size_kb` is not guaranteed when other sessions are active.
 
-Each row of the table shows when a given thread (`utid`) began running
-(`ts`), on which core it ran (`cpu`), for how long it ran (`dur`), 
-and why it stopped running: `end_state`.
+NOTE: A thread can stay Runnable after its wakeup because every CPU is busy
+with threads of equal or higher priority, or because the load balancer has not
+yet moved it to an idle CPU. Outside real-time priorities, the Linux scheduler
+is not strictly work-conserving and may wait rather than migrate a thread.
+`sched_waking` is emitted in the waker's context, when the wakeup starts;
+`sched_wakeup` is emitted when the wakee is enqueued, possibly on the wakee's
+target CPU. `sched_waking` is sufficient for latency analysis.
 
-`end_state` is encoded as one or more ascii characters. The UI uses
-the following translations to convert `end_state` into human readable
-text:
+## Troubleshooting
 
-| end_state  | Translation            |
-|------------|------------------------|
-| R          | Runnable               |
-| R+         | Runnable (Preempted)   |
-| S          | Sleeping               |
-| D          | Uninterruptible Sleep  |
-| T          | Stopped                |
-| t          | Traced                 |
-| X          | Exit (Dead)            |
-| Z          | Exit (Zombie)          |
-| x          | Task Dead              |
-| I          | Idle                   |
-| K          | Wake Kill              |
-| W          | Waking                 |
-| P          | Parked                 |
-| N          | No Load                |
+| Symptom | Cause | Fix |
+|---|---|---|
+| No CPU Scheduling tracks | `sched/sched_switch` not enabled, or tracefs not writable | Add the event. On Linux, run `tracebox` / `traced_probes` as root. Check `ftrace_setup_errors` in `stats`. |
+| Gaps in CPU tracks, `ftrace_cpu_has_data_loss` set | Kernel buffer overwritten between reads | Increase `buffer_size_kb`, lower `drain_period_ms`, or enable fewer events. See [Buffers and data flow](/docs/concepts/buffers.md). |
+| Threads have no Runnable state and no waker | `sched/sched_waking` not enabled | Add `sched/sched_waking`. |
+| Tracks named only by tid, `process.name` NULL | No process association | Add `linux.process_stats` and `task/task_newtask`, `task/task_rename`. |
+| `blocked_function` always NULL | Missing `sched_blocked_reason` or kernel symbols | Enable `sched/sched_blocked_reason` and `symbolize_ksyms` (Android userdebug/eng). |
+| Recording fails on Android 9 or 10 | Tracing services disabled | `adb shell setprop persist.traced.enable 1`. |
 
-Not all combinations of characters are meaningful.
+## See also
 
-If we do not know when the scheduling ended (for example because the
-trace ended while the thread was still running) `end_state` will be
-`NULL` and `dur` will be -1.
-
+- [Record your first system trace](/docs/getting-started/system-tracing.md)
+- [Profile and trace native code on Linux](/docs/getting-started/linux-cookbook.md#blocked-thread)
+- [Case study: a SystemUI scheduling blockage](/docs/case-studies/scheduling-blockages.md)
+- [Buffers and data flow](/docs/concepts/buffers.md)

@@ -65,6 +65,8 @@
 
   - [Data Sources](#)
 
+    - [Data Sources Index](reference/data-sources.md) {.tag-android .tag-linux}
+
     - [System](#)
 
       - [CPU Scheduling](data-sources/cpu-scheduling.md) {.tag-android .tag-linux}
