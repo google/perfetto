@@ -1671,6 +1671,200 @@ $page-type-colors: (
     color: var(--color-link);
   }
 
+  // What Perfetto consists of: the diagram, then a key whose numbers match
+  // the badges drawn in perfetto-stack.svg.
+  .home-figure {
+    margin: 0;
+    img {
+      display: block;
+      width: 100%;
+    }
+  }
+
+  // Items 1-3 (recording) sit under the left of the diagram, 4-5 under the
+  // right, mirroring its layout.
+  ol.home-key {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, auto);
+    grid-auto-flow: column;
+    align-items: start;
+    gap: 14px 32px;
+    margin: 20px 0 0;
+    padding: 0;
+    list-style: none;
+    li {
+      display: flex;
+      gap: 12px;
+      margin: 0;
+      font-size: 0.93rem;
+      line-height: 1.55;
+      color: var(--color-text-secondary);
+      &:before {
+        display: none;
+      }
+    }
+    strong {
+      color: var(--color-primary);
+    }
+  }
+
+  .home-badge {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  // Officially supported uses, each with a screenshot.
+  .home-features {
+    display: grid;
+    gap: 44px;
+  }
+
+  .home-feature {
+    display: grid;
+    grid-template-columns: 5fr 6fr;
+    align-items: center;
+    gap: 36px;
+    &.flip .home-feature-text {
+      order: 2;
+    }
+    h3 {
+      margin: 12px 0 8px;
+      font-size: 1.25rem;
+      line-height: 1.35;
+    }
+    p {
+      margin-bottom: 12px;
+      color: var(--color-text-secondary);
+    }
+  }
+
+  a.home-more {
+    font-weight: 500;
+    &:after {
+      content: "arrow_forward";
+      font-family: "Material Icons Round";
+      margin-left: 4px;
+      vertical-align: -3px;
+    }
+  }
+
+  .home-shot {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(28, 40, 51, 0.1);
+    img {
+      display: block;
+      width: 100%;
+    }
+  }
+
+  // Other common uses, and what Perfetto isn't for.
+  .home-uses {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 32px;
+  }
+
+  .home-use {
+    display: flex;
+    gap: 14px;
+    padding: 16px 0;
+    border-top: 1px solid var(--color-border-light);
+    strong {
+      display: block;
+      color: var(--color-primary);
+      line-height: 1.4;
+      margin-bottom: 4px;
+    }
+  }
+
+  .home-use-text {
+    font-size: 0.93rem;
+    line-height: 1.55;
+    color: var(--color-text-secondary);
+  }
+
+  ul.home-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    li {
+      margin: 0;
+      padding: 1px 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      background: var(--color-bg);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      &:before {
+        display: none;
+      }
+    }
+  }
+
+  // Label on the left, content on the right: used for the limitations and for
+  // public mentions.
+  .home-row {
+    display: grid;
+    grid-template-columns: 15rem 1fr;
+    gap: 10px 28px;
+    padding: 20px 0;
+    border-top: 1px solid var(--color-border-light);
+    &:last-child {
+      border-bottom: 1px solid var(--color-border-light);
+    }
+  }
+
+  .home-row-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    strong {
+      color: var(--color-primary);
+      line-height: 1.4;
+      padding-top: 6px;
+    }
+  }
+
+  .home-row-body {
+    display: grid;
+    gap: 8px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  .home-however {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #eef7f7;
+    .material-icons-round {
+      flex: none;
+      font-size: 20px;
+      line-height: 1.5;
+      color: #0e7c86;
+    }
+  }
+
   // Task and help cards.
   .home-cards {
     display: grid;
@@ -1732,5 +1926,77 @@ $page-type-colors: (
   // rather than pinned to the bottom of the card.
   .home-help ul {
     margin-top: 0;
+  }
+
+  .home-strip {
+    display: grid;
+    grid-template-columns: 13.5rem 1fr;
+    align-items: baseline;
+    gap: 6px 18px;
+    padding: 12px 0;
+    border-top: 1px solid var(--color-border-light);
+    font-size: 0.93rem;
+  }
+
+  .home-strip-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+
+  .home-strip-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  ul.home-media {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    li {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      &:before {
+        display: none;
+      }
+    }
+    a {
+      font-weight: 500;
+      &:after {
+        display: none;
+      }
+    }
+    p {
+      margin-top: 3px;
+      font-size: 0.87rem;
+      color: var(--color-text-secondary);
+    }
+  }
+
+  .home-source {
+    color: var(--color-text-muted);
+  }
+
+  @media #{$mobile} {
+    .home-uses,
+    .home-feature,
+    .home-row,
+    .home-strip {
+      grid-template-columns: 1fr;
+    }
+    .home-feature.flip .home-feature-text {
+      order: 0;
+    }
+    ol.home-key {
+      grid-template-columns: 1fr;
+      grid-template-rows: none;
+      grid-auto-flow: row;
+    }
   }
 }
