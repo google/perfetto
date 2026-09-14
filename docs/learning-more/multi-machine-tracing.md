@@ -1,4 +1,4 @@
-# Multi-machine recording
+# Trace multiple machines
 
 This document describes how to record a single Perfetto trace that captures
 events from two Linux machines simultaneously. It uses `traced_relay` on the

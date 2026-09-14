@@ -1,4 +1,4 @@
-# Recording traces on Chrome
+# Record a Chrome trace
 
 Perfetto can capture traces across all open tabs in the desktop Chrome browser.
 

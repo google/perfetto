@@ -1,4 +1,4 @@
-# Recording system traces with Perfetto
+# Record your first system trace
 
 In this guide, you'll learn how to:
 

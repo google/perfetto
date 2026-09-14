@@ -1,4 +1,4 @@
-# Contributing to Perfetto
+# Start contributing to Perfetto
 
 ## Quickstart
 

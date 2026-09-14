@@ -1,4 +1,4 @@
-# Deploying Bigtrace on Kubernetes
+# Deploy BigTrace on Kubernetes
 
 NOTE: This guide is for administrators of Bigtrace services, not Bigtrace users.
 Googlers should use `go/bigtrace` instead.

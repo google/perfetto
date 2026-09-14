@@ -1,4 +1,4 @@
-# PerfettoSQL Built-ins
+# PerfettoSQL built-in functions
 
 These functions are implemented in C++ and reduce the boilerplate you need to
 write in SQL.

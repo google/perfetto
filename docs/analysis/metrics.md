@@ -1,4 +1,4 @@
-# Trace-based metrics
+# Legacy (v1) metrics
 
 WARNING: This page describes the legacy (v1) metric system. For all new use
 cases, please refer to the

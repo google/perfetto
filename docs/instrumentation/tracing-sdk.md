@@ -1,4 +1,4 @@
-# Tracing SDK
+# Tracing SDK (C++)
 
 The Perfetto Tracing SDK is a C++17 library that allows userspace applications
 to emit trace events and add more app-specific context to a Perfetto trace.

@@ -1,4 +1,4 @@
-# Debug Tracks
+# Turn query results into debug tracks
 
 Debug tracks display PerfettoSQL query results on the timeline. You can create a
 debug track from a result table that can be visualized as slices (e.g. the

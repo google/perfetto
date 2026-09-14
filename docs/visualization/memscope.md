@@ -1,4 +1,4 @@
-# Memscope and Memory Overview
+# Monitor memory live with Memscope
 
 NOTE: Memscope and Memory Overview are currently under heavy development, so
 while they are now available on all branches, you may get better results using

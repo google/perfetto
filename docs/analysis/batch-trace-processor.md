@@ -1,4 +1,4 @@
-# Batch Trace Processor
+# Analyze many traces at once
 
 _The Batch Trace Processor is a Python library wrapping the
 [Trace Processor](/docs/analysis/trace-processor.md): it allows fast (<1s)

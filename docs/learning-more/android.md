@@ -1,4 +1,4 @@
-# Advanced System Tracing on Android
+# Record from the command line on Android
 
 This guide explains the details of recording system traces on Android, building
 on the concepts introduced in the

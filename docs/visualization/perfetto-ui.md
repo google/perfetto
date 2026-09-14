@@ -1,4 +1,4 @@
-# Perfetto UI
+# Tour the Perfetto UI
 
 The [Perfetto UI](https://ui.perfetto.dev) enables you to view and analyze
 traces in the browser. It supports several different tracing formats, including

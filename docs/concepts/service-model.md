@@ -1,4 +1,4 @@
-# Service-based model
+# How Perfetto works
 
 ![Perfetto Stack](https://storage.googleapis.com/perfetto/markdown_img/producer-service-consumer.png)
 

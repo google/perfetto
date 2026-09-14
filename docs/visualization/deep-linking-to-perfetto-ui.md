@@ -1,4 +1,4 @@
-# Deep linking to the Perfetto UI
+# Open traces in Perfetto from your tool
 
 This document describes how to open traces hosted on external servers with the
 Perfetto UI. Use this to integrate the Perfetto UI with custom dashboards and

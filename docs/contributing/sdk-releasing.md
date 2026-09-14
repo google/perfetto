@@ -1,4 +1,4 @@
-# Making a new SDK release
+# Release the SDK
 
 This guide shows how to make a new Perfetto SDK release.
 

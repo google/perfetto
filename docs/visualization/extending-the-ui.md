@@ -1,4 +1,4 @@
-# Extending the Perfetto UI
+# Choose how to extend the UI
 
 Perfetto offers several ways to extend and customize the UI. The right choice
 depends on what you want to do and who you want to share it with.

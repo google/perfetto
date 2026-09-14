@@ -1,4 +1,4 @@
-# Trace Analysis Overview
+# How trace analysis works
 
 This page introduces Perfetto's trace analysis tools and concepts, from
 interactive exploration to large-scale automated analysis.

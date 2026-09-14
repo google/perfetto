@@ -1,4 +1,4 @@
-# Getting Started with PerfettoSQL
+# Query traces with PerfettoSQL
 
 PerfettoSQL is a dialect of SQL that lets you query your traces as if they were
 a database. This page introduces the core concepts and shows you how to write

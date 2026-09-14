@@ -1,4 +1,4 @@
-# Trace Processor (C++)
+# Use the Trace Processor shell and C++ library
 
 Trace Processor is a C++ library ([src/trace_processor](/src/trace_processor))
 that ingests traces in a variety of formats and exposes an SQL interface for

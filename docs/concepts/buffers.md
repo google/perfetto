@@ -1,4 +1,4 @@
-# Buffers and dataflow
+# Buffers and data flow
 
 This page describes how trace data flows through Perfetto's buffers, how to size
 them, and how to debug data loss.

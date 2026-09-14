@@ -1,4 +1,4 @@
-# Instrumenting Android apps/platform with atrace
+# Instrument Android code with atrace
 
 In this guide, you'll learn how to:
 

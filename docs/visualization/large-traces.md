@@ -1,4 +1,4 @@
-# Visualising large traces
+# Open large traces
 
 Browsers often limit the amount of memory a site can use. This can cause
 problems when visualizing large traces, including

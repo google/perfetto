@@ -1,4 +1,4 @@
-# Trace merging
+# How traces are merged
 
 Trace Processor can open several trace files together and merge them onto a
 single timeline: traces from different devices, from different processes on

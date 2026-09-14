@@ -1,4 +1,4 @@
-# Commands Automation Reference
+# UI commands reference
 
 This page documents Perfetto UI's stable commands for automation. These commands
 have backward compatibility guarantees for automated workflows, startup

@@ -1,4 +1,4 @@
-# Deploying Bigtrace on a single machine
+# Deploy BigTrace on a single machine
 
 NOTE: This page is for administrators of Bigtrace services, not Bigtrace users.
 Googlers should see `go/bigtrace` instead.

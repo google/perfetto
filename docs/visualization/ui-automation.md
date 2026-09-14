@@ -1,4 +1,4 @@
-# Commands and Macros
+# Automate the UI with commands and macros
 
 This page covers how to automate common Perfetto UI tasks using commands,
 startup commands, and macros. For an overview of all ways to extend the UI, see

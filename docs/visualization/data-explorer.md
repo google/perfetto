@@ -1,4 +1,4 @@
-# Data Explorer
+# Explore data with the Data Explorer
 
 The Data Explorer is a tool for interactively exploring trace data without
 writing SQL. The core idea is to think of your analysis as a **pipeline**:

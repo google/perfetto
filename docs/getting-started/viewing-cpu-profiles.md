@@ -1,4 +1,4 @@
-# Cookbook: Viewing CPU profiles from other profilers
+# Open a pprof, perf, simpleperf or samply profile
 
 This page provides **recipes** for opening CPU profiles recorded by other
 profilers in the [Perfetto UI](https://ui.perfetto.dev): pprof, Linux `perf` and
@@ -12,10 +12,10 @@ onto [ui.perfetto.dev](https://ui.perfetto.dev) or click "Open trace file" in
 the sidebar.
 
 For the full details of each file format, see
-[Opening traces and profiles from other tools](/docs/getting-started/other-formats.md).
+[Supported trace and profile formats](/docs/getting-started/other-formats.md).
 If instead you want to record CPU profiles on Android or Linux with Perfetto's
 own tooling, alongside other system data, see
-[Recording CPU profiles](/docs/getting-started/cpu-profiling.md).
+[Record CPU profiles and perf counters](/docs/getting-started/cpu-profiling.md).
 
 ## {#pprof} pprof profiles
 
@@ -104,7 +104,8 @@ by build ID) and package their symbols together with the profile:
     (e.g. `sudo apt install llvm`). If your binaries with symbols live
     somewhere else, pass `--symbol-paths /path/to/dir`. Add `--verbose` to see
     where `trace_processor` looked. See
-    [Symbolization](/docs/learning-more/symbolization.md) for more details.
+    [Symbolize and deobfuscate profiles](/docs/learning-more/symbolization.md)
+    for more details.
 
 3.  Open `profile.tar` in the Perfetto UI.
 
@@ -184,7 +185,7 @@ For profiles shown on the timeline, see
 [Area Selections](/docs/visualization/perfetto-ui.md#area-selections) for how
 to select samples. Their samples can also be queried with SQL through the
 `stack_sample` table: see
-[PerfettoSQL Getting Started](/docs/analysis/perfetto-sql-getting-started.md).
+[Query traces with PerfettoSQL](/docs/analysis/perfetto-sql-getting-started.md).
 
 ## {#memory} Memory profiles
 

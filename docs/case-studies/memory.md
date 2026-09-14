@@ -1,4 +1,4 @@
-# Debugging memory usage on Android
+# Investigate memory use on Android
 
 In this guide, you'll learn how to:
 

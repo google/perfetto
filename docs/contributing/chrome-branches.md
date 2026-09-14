@@ -1,4 +1,4 @@
-# Branching Perfetto for Chrome milestones
+# Branch for a Chrome milestone
 
 To merge Perfetto changes into a Chrome milestone release, create a branch in
 the Perfetto repo, cherry-pick the changes to it, and update the `DEPS` file in

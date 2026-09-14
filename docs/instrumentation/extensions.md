@@ -1,4 +1,4 @@
-# Extending TrackEvent with Custom Protos
+# Add custom fields with proto extensions
 
 Perfetto's trace format is extensible: you can attach your own strongly-typed
 fields to `TrackEvent` without forking Perfetto or modifying its upstream proto

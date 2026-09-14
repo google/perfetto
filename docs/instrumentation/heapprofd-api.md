@@ -1,4 +1,4 @@
-# heapprofd Custom Allocator API - Early Access
+# Profile a custom allocator
 
 WARNING: The heapprofd Custom Allocator API is currently in **beta** stage.
          Please file [bugs](https://github.com/google/perfetto/issues/new)

@@ -1,4 +1,4 @@
-# Power data sources
+# Battery and power rails
 
 On Android, Perfetto bundles data sources to retrieve power counters from the
 device power management units (where supported).

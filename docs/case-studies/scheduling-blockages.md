@@ -1,4 +1,4 @@
-# Debugging scheduling blockages with tracing and callstack sampling
+# Case study: a SystemUI scheduling blockage
 
 In this guide, you'll learn how to:
 

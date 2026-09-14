@@ -1,4 +1,4 @@
-# PerfettoSQL: backwards compatibility
+# PerfettoSQL backwards compatibility
 
 PerfettoSQL minimizes backward-incompatible changes, but some are unavoidable.
 For changes expected to have a substantial impact, this page documents:

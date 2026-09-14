@@ -1,4 +1,4 @@
-# Synchronization of multiple clock domains
+# Clock synchronization
 
 As per [6756fb05][6756fb05] Perfetto handles events using different
 clock domains. On top of the default set of builtin clock domains, new clock

@@ -1,4 +1,4 @@
-# Recording Traces with the Rust SDK
+# Instrument a Rust app
 
 In this guide, you'll learn how to:
 

@@ -1,4 +1,4 @@
-# Tracing in Background
+# Record in the background
 
 This document describes how to run Perfetto in the background, allowing you to
 disconnect from the device and collect the trace file later.

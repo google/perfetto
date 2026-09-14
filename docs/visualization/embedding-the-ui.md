@@ -1,4 +1,4 @@
-# Embedding the Perfetto UI
+# Embed the Perfetto UI
 
 This guide shows you how to embed the Perfetto trace viewer _inside_ your own
 tool or dashboard via an `<iframe>` and feed it traces programmatically. Use

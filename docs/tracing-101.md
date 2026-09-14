@@ -1,4 +1,4 @@
-# What is Tracing?
+# Tracing and profiling, explained
 
 NOTE: the word "tracing" in this document is used in the context of
 **client-side** software (e.g. programs running on a single machine). In the

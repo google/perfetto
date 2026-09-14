@@ -1,4 +1,4 @@
-# PerfettoSQL Syntax
+# PerfettoSQL syntax
 *This page documents the syntax of PerfettoSQL, a dialect of SQL used in trace
 processor and other Perfetto analysis tools to query traces.*
 

@@ -1,4 +1,4 @@
-# Android Aflags
+# Aflags
 
 _This data source is supported only on Android. It requires the `/system/bin/aflags` tool, which is present on recent Android releases._
 

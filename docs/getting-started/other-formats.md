@@ -1,4 +1,4 @@
-# Visualizing external trace formats with Perfetto
+# Supported trace and profile formats
 
 In this guide, you'll learn about:
 

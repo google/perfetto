@@ -1,4 +1,4 @@
-# Trace packet interceptors (Tracing SDK)
+# Redirect trace data with interceptors
 
 A trace packet interceptor redirects packets written by a data source to a
 custom backend instead of the normal Perfetto tracing service. For example, the

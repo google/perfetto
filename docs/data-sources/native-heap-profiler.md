@@ -1,4 +1,4 @@
-# Memory: Callstack-based Allocation Profiling
+# Native heap profiler (heapprofd)
 
 NOTE: **heapprofd requires Android 10 or higher**
 

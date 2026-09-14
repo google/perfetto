@@ -1,4 +1,4 @@
-# Android Jank detection with FrameTimeline
+# FrameTimeline
 
 NOTE: **FrameTimeline requires Android 12(S) or higher**
 

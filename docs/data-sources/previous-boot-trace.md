@@ -1,4 +1,4 @@
-# Tracing across reboot
+# Capture ftrace data across a reboot
 
 _This data source is supported only on Linux-based systems._
 

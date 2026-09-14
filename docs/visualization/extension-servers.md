@@ -1,4 +1,4 @@
-# Extension Servers
+# Share macros and SQL modules with extension servers
 
 Extension servers are HTTP(S) endpoints that distribute shared
 [macros](/docs/visualization/ui-automation.md), SQL modules, and proto

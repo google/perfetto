@@ -1,4 +1,4 @@
-# Merging traces in the UI
+# Merge traces in the UI
 
 The Perfetto UI can open several trace files at once and merge them onto a
 single shared timeline: traces from two devices, an app trace next to a

@@ -1,4 +1,4 @@
-# Cookbook: Tracing on Linux
+# Profile and trace native code on Linux
 
 This page collects **end-to-end recipes** for profiling and tracing your own
 programs on Linux: how to build so that traces can be symbolized, how to record

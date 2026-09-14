@@ -1,4 +1,4 @@
-# Track events (Tracing SDK)
+# Track events (C++ SDK)
 
 Track events are part of the [Perfetto Tracing SDK](tracing-sdk.md).
 

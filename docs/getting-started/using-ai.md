@@ -1,4 +1,4 @@
-# Cookbook: Using AI with Perfetto
+# Use Perfetto with AI agents
 
 NOTE: **Googlers**: use [go/perfetto-ai-skills](http://go/perfetto-ai-skills)
 and

@@ -1,4 +1,4 @@
-# Cookbook: Recording Android Traces Locally
+# Record boot traces and heap dumps on OOM
 
 This page provides recipes for recording Perfetto traces on Android in
 situations that the standard interactive workflow does not cover.

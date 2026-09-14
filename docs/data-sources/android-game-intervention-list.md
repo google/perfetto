@@ -1,4 +1,4 @@
-# Android Game Intervention List
+# Game interventions
 
 _This data source is supported only on Android userdebug builds._
 

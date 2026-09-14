@@ -1,4 +1,4 @@
-# Trace Summarization
+# Summarize traces into metrics
 
 This guide explains how to use Perfetto's trace summarization feature to extract
 structured data from your traces.

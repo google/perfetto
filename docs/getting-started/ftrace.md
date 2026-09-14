@@ -1,4 +1,4 @@
-# Instrumenting the Linux kernel with ftrace
+# Instrument the Linux kernel with ftrace
 
 In this guide, you'll learn how to:
 - Instrument your kernel code using ftrace events.

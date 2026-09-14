@@ -1,4 +1,4 @@
-# Android Log
+# Logcat
 
 _This data source is supported only on Android userdebug builds._
 

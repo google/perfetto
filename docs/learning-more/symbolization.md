@@ -1,4 +1,4 @@
-# Symbolization and deobfuscation
+# Symbolize and deobfuscate profiles
 
 This document describes how to turn raw instruction addresses and obfuscated
 Java/Kotlin names in a collected trace into human-readable function names,

@@ -1,4 +1,4 @@
-# Advanced Guide to Programmatic Trace Generation
+# Generate traces programmatically: advanced recipes
 
 This page is an advanced reference for creating Perfetto trace files
 programmatically. It builds on the concepts and examples in

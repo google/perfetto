@@ -1,4 +1,4 @@
-# Converting arbitrary timestamped data to Perfetto
+# Convert your own data to a trace
 
 In this guide, you'll learn how to:
 

@@ -1,4 +1,4 @@
-# Perfetto build instructions
+# Build Perfetto from source
 
 The source of truth for the Perfetto codebase is
 https://github.com/google/perfetto.

@@ -1,4 +1,4 @@
-# UI development
+# Set up UI development
 
 ## Getting started
 

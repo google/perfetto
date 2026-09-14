@@ -1,4 +1,4 @@
-# Merging traces from the command line
+# Merge traces from the command line
 
 Trace Processor can import several trace files as one merged trace: events from
 every file end up on a single timeline, with their processes, threads and CPUs

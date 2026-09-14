@@ -1,4 +1,4 @@
-# Recording In-App Traces with Perfetto
+# Instrument a C++ app
 
 In this guide, you'll learn how to:
 

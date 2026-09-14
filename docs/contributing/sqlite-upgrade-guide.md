@@ -1,4 +1,4 @@
-# SQLite Upgrade Guide
+# Upgrade SQLite
 
 ## Overview
 

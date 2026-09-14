@@ -1,4 +1,4 @@
-# Making a new Python library release
+# Release the Python library
 
 This guide shows how to make a new Perfetto Python library release to PyPI.
 

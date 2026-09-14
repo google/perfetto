@@ -1,4 +1,4 @@
-# Recording performance counters and CPU profiling with Perfetto
+# Record CPU profiles and perf counters
 
 In this guide, you'll learn how to:
 
