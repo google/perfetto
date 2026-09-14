@@ -18,4 +18,17 @@
 -- come from the wattson plugin (see
 -- src/trace_processor/plugins/wattson/).
 CREATE PERFETTO TABLE _device_curves_2d AS
+SELECT
+  (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device,
+  policy,
+  freq_khz,
+  dep_policy,
+  dep_freq,
+  static_mw AS static,
+  active_mw AS active,
+  idle0_mw AS idle0,
+  idle1_mw AS idle1,
+  interconnect_mw AS interconnect
+FROM __intrinsic_wattson_custom_curves_cpu_2d
+UNION ALL
 SELECT * FROM __intrinsic_wattson_curves_cpu_2d();

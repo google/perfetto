@@ -16,4 +16,12 @@
 -- Device specific GPU curves. The rows come from the wattson plugin
 -- (see src/trace_processor/plugins/wattson/).
 CREATE PERFETTO TABLE _gpu_device_curves AS
+SELECT
+  (SELECT device_name FROM __intrinsic_wattson_custom_device_info LIMIT 1) AS device,
+  freq_khz,
+  active_mw AS active,
+  idle1_mw AS idle1,
+  idle2_mw AS idle2
+FROM __intrinsic_wattson_custom_curves_gpu
+UNION ALL
 SELECT * FROM __intrinsic_wattson_curves_gpu();
