@@ -515,13 +515,10 @@ TEST_F(TracingMuxerImplV2Test, PendingFlushReleasesWriterBeforeEndpoint) {
   EXPECT_TRUE(completed);
 }
 
-// Without a v2 connection ProducerImpl acks flushes the way v1 always did.
-// Asynchronous completions are acked in order, coalesced into the newest
-// completed request. A request whose data sources all completed synchronously
-// is acked at once, regardless of older requests still in flight: the service
-// takes NotifyFlushComplete(N) as an ack for every request up to N, so those
-// older requests are dropped locally too and a late completion for one of
-// them is ignored.
+// Preserve v1 flush behavior before the connection selects v2:
+// - Asynchronous completions are coalesced into the newest completed request.
+// - Synchronous requests are acked immediately, including all older requests.
+// Remove those older requests locally so late callbacks are ignored.
 TEST_F(TracingMuxerImplV2Test, NeverV2ConnectionKeepsV1FlushAcks) {
   auto endpoint = std::make_shared<testing::NiceMock<MockProducerEndpoint>>();
   auto producer = std::make_unique<ProducerImpl>(nullptr, 0, 0, false);
@@ -548,9 +545,8 @@ TEST_F(TracingMuxerImplV2Test, NeverV2ConnectionKeepsV1FlushAcks) {
   EXPECT_FALSE(producer->tracing_v2_connection_);
 }
 
-// A v1 request that a newer synchronous one has already acked (cumulatively)
-// must not stall the ordered queue once the connection selects v2, and its
-// late completion is a no-op.
+// A newer synchronous v1 flush also acks older requests. Their late callbacks
+// must be ignored, and they must not block the queue when v2 is selected.
 TEST_F(TracingMuxerImplV2Test, CumulativelyAckedV1FlushDoesNotBlockV2Queue) {
   auto endpoint = std::make_shared<testing::NiceMock<MockProducerEndpoint>>();
   auto producer = std::make_unique<ProducerImpl>(nullptr, 0, 0, false);
@@ -825,12 +821,9 @@ size_t CountInstancesUsingTracingV2() {
   return count;
 }
 
-// Runs |body| in a fresh copy of this process: the death test re-executes the
-// binary for this one test, so the child's producer connection has never seen
-// v2, whatever ran before in the parent. It is also the only way to test
-// Tracing::Shutdown(), which is terminal for the process. A failed assertion
-// in |body| fails the child, and is repeated on stderr because that is the
-// only output of the child the parent shows.
+// Re-executes this test so |body| starts with fresh producer connections.
+// This also isolates Tracing::Shutdown(), which is terminal for the process.
+// Assertion failures fail the child and are printed to stderr for the parent.
 void RunInFreshProcess(std::function<void()> body) {
   const std::string previous_death_test_style =
       testing::GTEST_FLAG(death_test_style);
@@ -925,10 +918,8 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
 
   enum class WriterSelection { kAbsent, kV1, kV2 };
 
-  // All tests share one producer connection, and a connection that once
-  // selected v2 stays on the v2 control path until it disconnects. Tests that
-  // rely on that path call this first, so that they don't depend on the tests
-  // that ran before them.
+  // Put the shared connection on the v2 control path explicitly so callers
+  // are independent of test order. It stays on that path until disconnect.
   static void PutConnectionOnTracingV2() {
     StopAndParse(
         StartSession(MakeConfigFor({"tracing_v2_test"}, WriterSelection::kV2))
@@ -1053,12 +1044,11 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
           later_done.Notify();
         },
         /*timeout_ms=*/30000);
-    // The later request's OnFlush() is done, but its ring barrier cannot start
-    // while the older request remains at the front of the queue.
+    // The later request's OnFlush() is done, but its ring buffer barrier cannot
+    // start while the older request remains at the front of the queue.
     later_flush_ran.Wait();
 
-    // Round-trip the producer and the in-process service sequence so anything
-    // that was going to complete has.
+    // Wait for queued producer and service tasks before checking completion.
     perfetto::test::SyncProducers();
     {
       std::lock_guard<std::mutex> lock(mutex);
@@ -1075,8 +1065,7 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
       EXPECT_TRUE(later_succeeded);
     }
 
-    // The packet the held callback wrote just before completing is in the trace
-    // its flush was waiting for.
+    // The flush includes the packet written just before its callback completed.
     const auto packets = ReadTestPackets(older.get());
     ASSERT_EQ(packets.size(), 1u);
     EXPECT_EQ(packets[0].for_testing().str(), "async flush");
@@ -1141,7 +1130,7 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
       produced.Wait();
       EXPECT_GT(TracingV2PressureDataSource::drops.load(), 0u);
     } else {
-      // With the relay blocked, the muxer thread stalls on the full ring.
+      // The blocked relay leaves the muxer waiting for ring buffer space.
       WaitForFullRing(bridge.get());
     }
     release_relay.Notify();
@@ -1303,8 +1292,7 @@ TEST_F(TracingV2InProcessTest, TheConfigSelectsTheWriterPerInstance) {
 class TracingV2ChunkSizeTest : public TracingV2InProcessTest {};
 
 TEST_F(TracingV2ChunkSizeTest, ConfiguredSizeReachesRingAndRemainsFixed) {
-  // Size resolution first, through the friend seam: default, explicit,
-  // non-power-of-two and max chunk size.
+  // Check default, explicit, non-power-of-two and maximum chunk sizes.
   CheckConnectionSizing(0, 4096, 256, 16);
   CheckConnectionSizing(256, 4096, 256, 16);
   CheckConnectionSizing(260, 4096, 260, 8);
@@ -1429,7 +1417,7 @@ TEST_F(TracingV2InProcessTest, PacketLargerThanRingMakesProgressAndRecovers) {
       });
   initial_flushed.Wait();
 
-  // Twice the 256 KiB ring.
+  // Twice the 256 KiB ring buffer.
   const std::string payload(512 * 1024, 'z');
   TracingV2TestDataSource::Trace(
       [&payload](TracingV2TestDataSource::TraceContext ctx) {
@@ -1500,7 +1488,7 @@ TEST_F(TracingV2InProcessTest, SeveralThreadsWriteConcurrently) {
   const protos::gen::Trace trace = StopAndParse(session.get());
   const auto packets = TestPackets(trace);
   ASSERT_EQ(packets.size(), kNumThreads * kPacketsPerThread);
-  // Per writer the order is guaranteed; across writers it is not, so check the
+  // Per writer the order is guaranteed. Across writers it is not, so check the
   // set rather than the sequence.
   std::set<uint64_t> timestamps;
   for (const protos::gen::TracePacket& packet : packets)
@@ -1522,7 +1510,7 @@ TEST_F(TracingV2InProcessTest, TwoSessionsWithDifferentBuffersStayApart) {
       [](TracingV2TestDataSource::TraceContext ctx) { ctx.Flush(); });
 
   // Two instances of the data source means two writers with different target
-  // buffers; each session must see its own copy and nothing else.
+  // buffers. Each session must see its own copy and nothing else.
   const protos::gen::Trace second_trace = StopAndParse(second.get());
   const protos::gen::Trace first_trace = StopAndParse(first.get());
   ASSERT_EQ(TestPackets(first_trace).size(), 1u);
@@ -1532,7 +1520,7 @@ TEST_F(TracingV2InProcessTest, TwoSessionsWithDifferentBuffersStayApart) {
 }
 
 // The service normally scrapes no_flush data sources instead of flushing them.
-// It can't scrape the ring, so for v2 it asks the producer anyway
+// It can't scrape the ring buffer, so for v2 it asks the producer anyway
 // (RequiresProducerFlush()), and the tail must be there when the flush
 // completes.
 TEST_F(TracingV2InProcessTest,
@@ -1609,10 +1597,9 @@ TEST_F(TracingV2InProcessTest, FlushAndCloneSessionIncludesNoFlushTail) {
   session->StopBlocking();
 }
 
-// Flushing a v2 instance for the ring's sake must not call OnFlush() on a
-// no_flush data source. One consumer flush: one OnFlush() for the flushing
-// data source, none for the no_flush one, and all the data (including what
-// OnFlush() wrote) in the service when it completes.
+// A consumer flush drains both v2 instances but calls OnFlush() only for the
+// one that supports it. The completed trace must include both instances' data
+// and the packet written by OnFlush().
 TEST_F(TracingV2InProcessTest, DeclaredNoFlushDataSourceGetsNoOnFlushCallback) {
   auto session = StartSession(
       MakeConfigFor({"tracing_v2_flushing", "tracing_v2_declared_no_flush"},
@@ -1642,21 +1629,17 @@ TEST_F(TracingV2InProcessTest, DeclaredNoFlushDataSourceGetsNoOnFlushCallback) {
   session->StopBlocking();
 }
 
-// Acking a flush implicitly acks all the older ones. So a request whose data
-// sources complete synchronously must still wait behind an older request that
-// is stuck in an async OnFlush(), or the older consumer flush would complete
-// without the packets that callback is about to write.
+// A synchronous flush must wait for an older asynchronous OnFlush() to finish.
+// Otherwise its cumulative ack would complete the older flush before its final
+// packets were written.
 TEST_F(TracingV2InProcessTest, LaterFlushDoesNotAcknowledgeAnOlderOne) {
   CheckFlushFifo(WriterSelection::kV2);
 }
 
-// Once the connection is on v2, requests made of v1 instances only take part
-// in the same ordered queue. (A connection that never selected v2 keeps the
-// v1 behaviour, where a synchronously completed request is acked at once; see
-// TracingMuxerImplV2Test.NeverV2ConnectionKeepsV1FlushAcks.)
-// The consumer timing out does not cancel the producer's outstanding callback.
-// Later requests remain queued until that callback completes (or its source
-// stops).
+// On a v2 connection, v1-only requests also wait in the ordered queue.
+// A consumer timeout leaves the producer's callback pending, so later requests
+// wait until it completes or its data source stops.
+// NeverV2ConnectionKeepsV1FlushAcks covers connections that stay on v1.
 TEST_F(TracingV2InProcessTest, TimedOutFlushStillBlocksLaterProducerRequests) {
   RunInFreshProcess([] {
     auto older = StartSession(
@@ -1718,7 +1701,7 @@ TEST_F(TracingV2InProcessTest,
   CheckStoppedFlush(WriterSelection::kV1);
 }
 
-// A request made of v1 instances only doesn't need the ring, but on a v2
+// A request made of v1 instances only doesn't need the ring buffer, but on a v2
 // connection it is acked in order: block the relay so that an older v2 request
 // cannot complete, and check that a later v1 request waits for it.
 TEST_F(TracingV2InProcessTest, V1FlushOnAV2ConnectionWaitsBehindAV2Barrier) {
@@ -1795,11 +1778,9 @@ TEST_F(TracingV2InProcessTest, V1FlushOnAV2ConnectionDoesNotWaitForTheRelay) {
   session->StopBlocking();
 }
 
-// The service never flushes a v1 no_flush instance, but an older service that
-// does not know no_flush does. The muxer must then call OnFlush() as it always
-// did. Only a v2 instance, which the service flushes for the ring's sake, is
-// exempt (DeclaredNoFlushDataSourceGetsNoOnFlushCallback covers that through
-// the real service).
+// An older service can flush a v1 no_flush instance. Preserve its OnFlush().
+// Only v2 instances skip that callback when the service requests a drain.
+// DeclaredNoFlushDataSourceGetsNoOnFlushCallback covers the v2 case.
 TEST_F(TracingV2InProcessTest,
        OlderServiceFlushOfAV1NoFlushInstanceCallsOnFlush) {
   // Acks are cumulative: NotifyFlushComplete(N) completes every request of
@@ -1887,8 +1868,7 @@ TEST_F(TracingV2InProcessTest, StoppedAsyncFlushKeepsRingBarrier) {
   later->StopBlocking();
 }
 
-// Block the relay until StopDataSource_AsyncEnd() has sampled the ring
-// position, then check that the stop still delivers what was in the ring.
+// Hold the relay while stop samples its target, then check the final packets.
 //
 // That the service waits for the ack is covered by
 // OnTracingDisabledWaitsForTracingV2StopAck, the drain ordering by the bridge
@@ -1963,9 +1943,9 @@ TEST_F(TracingV2InProcessTest, StopOfAV1InstanceDoesNotWaitForTheRelay) {
   EXPECT_EQ(packets[0].for_testing().str(), "v1 tail");
 }
 
-// A process that never selects v2 gets no ring, bridge or relay. Its writers
-// come straight from the endpoint, its flushes (synchronous and asynchronous)
-// complete without any of that, and Shutdown() takes the v1 path.
+// A process that never selects v2 gets no ring buffer, bridge or relay. Its
+// writers come straight from the endpoint, its flushes (synchronous and
+// asynchronous) complete without any of that, and Shutdown() takes the v1 path.
 TEST_F(TracingV2InProcessTest, NeverSelectingV2StaysOnV1ThroughShutdown) {
   RunInFreshProcess([] {
     EXPECT_FALSE(HasRelay());
@@ -2013,10 +1993,8 @@ TEST_F(TracingV2InProcessTest, NeverSelectingV2StaysOnV1ThroughShutdown) {
   });
 }
 
-// The v1 flush path does not clean up after a stopped instance: a request
-// waiting for its OnFlush() stays queued. Once the connection selects v2 that
-// leftover is dropped and the request acked right there, without waiting for
-// a later flush to come along, so the ordered queue starts out empty.
+// V1 can leave a flush waiting for a stopped instance. Selecting v2 removes
+// that wait and acks the completed request immediately.
 TEST_F(TracingV2InProcessTest,
        StoppedV1AsyncFlushBeforeSelectingV2DoesNotBlockV2Flushes) {
   RunInFreshProcess([] {
@@ -2041,12 +2019,9 @@ TEST_F(TracingV2InProcessTest,
   });
 }
 
-// The service takes NotifyFlushComplete(N) as an ack for every request up to
-// N. So when a newer v1 request completes synchronously, the older one, still
-// held in its OnFlush() here, is complete as far as the service is concerned,
-// and the producer must not keep it either: it would otherwise sit in front
-// of the ordered queue once the connection selects v2. Its completion, when it
-// finally arrives, is ignored.
+// A synchronous v1 flush also acks the older request held in OnFlush().
+// Remove that request before switching to v2 so it cannot block the queue.
+// Ignore its late callback.
 TEST_F(TracingV2InProcessTest,
        CumulativeV1AckBeforeSelectingV2DoesNotBlockV2Flushes) {
   RunInFreshProcess([] {
@@ -2169,15 +2144,12 @@ TEST_F(TracingV2InProcessTest, PendingDrainCompletionIsDiscardedAfterReset) {
   });
 }
 
-// The in-process and IPC endpoints don't send a flush ack on its own: the
-// arbiter puts it on the next CommitData, behind whatever chunks are queued.
-// That hides the order in which the muxer asked for the two, which is what the
-// ProducerEndpoint contract is about. This endpoint acks directly and records
-// the order.
+// Real endpoints batch flush acks into CommitData, which can hide a muxer
+// ordering bug. This endpoint records and sends acks directly so the test can
+// check that the muxer posts packet commits first.
 //
-// The arbiter has to be this endpoint's own, so that the commits pass through
-// here. It shares the SMB with the wrapped in-process endpoint, whose own
-// arbiter is then only ever used to forward the acks.
+// Its arbiter shares the wrapped endpoint's SMB and routes commits through
+// this wrapper. The wrapped endpoint's arbiter only forwards acks.
 class DirectAckProducerEndpoint : public ProxyProducerEndpoint {
  public:
   DirectAckProducerEndpoint(std::unique_ptr<ProducerEndpoint> wrapped,
@@ -2279,10 +2251,9 @@ class TracingV2DirectAckTest : public TracingV2InProcessTest {
   }
 };
 
-// On a v2 connection, stopping a v1 instance can ack a flush that was waiting
-// for it. Whatever that instance wrote last is queued in the arbiter (commits
-// are batched here so that it stays there), and must be committed before that
-// ack goes out, or the service completes the flush without it.
+// Stopping a v1 instance on a v2 connection can release a waiting flush.
+// Batch its final packets in the arbiter and check they are committed before
+// that flush is acknowledged.
 TEST_F(TracingV2DirectAckTest, StoppedV1InstanceCommitsBeforeItsFlushIsAcked) {
   RunInFreshProcess([] {
     // Leaked: the muxer keeps using it until the process exits.
