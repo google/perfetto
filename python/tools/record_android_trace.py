@@ -17,22 +17,18 @@ import atexit
 import argparse
 import datetime
 import hashlib
-import http.server
-import json
 import os
 import re
 import shutil
 import signal
-import socketserver
 import subprocess
 import sys
 import time
-import urllib.parse
-import webbrowser
 
 from perfetto.prebuilts.manifests.tracebox import *
 from perfetto.prebuilts.perfetto_prebuilts import *
 from perfetto.common.repo_utils import *
+from perfetto.common.open_trace_server import *
 
 # This is not required. It's only used as a fallback if no adb is found on the
 # PATH. It's fine if it doesn't exist so this script can be copied elsewhere.
@@ -65,26 +61,6 @@ class ANSI:
   BG_BLUE = '\033[44m'
 
 
-# HTTP Server used to open the trace in the browser.
-class HttpHandler(http.server.SimpleHTTPRequestHandler):
-
-  def end_headers(self):
-    self.send_header('Access-Control-Allow-Origin', self.server.allow_origin)
-    self.send_header('Cache-Control', 'no-cache')
-    super().end_headers()
-
-  def do_GET(self):
-    if self.path != '/' + self.server.expected_fname:
-      self.send_error(404, "File not found")
-      return
-
-    self.server.fname_get_completed = True
-    super().do_GET()
-
-  def do_POST(self):
-    self.send_error(404, "File not found")
-
-
 def setup_arguments():
   atexit.register(kill_all_subprocs_on_exit)
   default_out_dir_str = '~/traces/'
@@ -110,6 +86,11 @@ def setup_arguments():
 
   help = 'Don\'t open in browser, but still serve trace (good for remote use)'
   parser.add_argument('--no-open-browser', action='store_true', help=help)
+
+  help = ('The browser runs on another machine (e.g. this is an ssh session). '
+          'Serves the trace on all interfaces and prints a URL that hands it '
+          'to the UI, so no port forwarding is needed')
+  parser.add_argument('--remote-browser', action='store_true', help=help)
 
   help = 'The web address used to open trace files'
   parser.add_argument('--origin', default='https://ui.perfetto.dev', help=help)
@@ -480,8 +461,14 @@ def start_trace(args, print_log=True):
       prt('\n')
       prt('Opening the trace (%s) in the browser' % host_file)
     open_browser = not args.no_open_browser
-    open_trace_in_browser(host_file, open_browser, args.origin,
-                          args.ui_url_params, args.ui_startup_commands)
+    open_trace_in_browser(
+        host_file,
+        open_browser,
+        args.origin,
+        referrer='record_android_trace',
+        url_params=args.ui_url_params,
+        startup_commands=args.ui_startup_commands,
+        remote_browser=args.remote_browser)
 
   return host_file
 
@@ -514,53 +501,6 @@ def find_adb():
     prt('Could not find a suitable adb binary in the PATH. ', ANSI.RED)
     prt('You can download adb from %s' % sdk_url, ANSI.RED)
     sys.exit(1)
-
-
-def open_trace_in_browser(path,
-                          open_browser,
-                          origin,
-                          url_params,
-                          startup_commands=None):
-  # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
-  PORT = 9001
-  path = os.path.abspath(path)
-  os.chdir(os.path.dirname(path))
-  fname = os.path.basename(path)
-  socketserver.TCPServer.allow_reuse_address = True
-  with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
-    address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}&referrer=record_android_trace'
-
-    # Build URL parameters list
-    params = []
-    if url_params:
-      params.extend(url_params)
-
-    # Add startup commands if provided
-    if startup_commands:
-      try:
-        # Validate that startup_commands is valid JSON
-        json.loads(startup_commands)  # Validate JSON format
-
-        # URL-encode the startup commands parameter
-        encoded_commands = urllib.parse.quote(startup_commands)
-        params.append(f'startupCommands={encoded_commands}')
-      except (json.JSONDecodeError, TypeError) as e:
-        prt(f'Warning: Invalid startup commands JSON, ignoring. Error: {e}',
-            ANSI.RED)
-
-    if params:
-      address += '&' + '&'.join(params)
-
-    if open_browser:
-      webbrowser.open_new_tab(address)
-    else:
-      print(f'Open URL in browser: {address}')
-
-    httpd.expected_fname = fname
-    httpd.fname_get_completed = None
-    httpd.allow_origin = origin
-    while httpd.fname_get_completed is None:
-      httpd.handle_request()
 
 
 def adb(*args, stdin=devnull, stdout=None, stderr=None):
