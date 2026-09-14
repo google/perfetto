@@ -47,6 +47,7 @@ internal, OEM or CI images), use that instead.
    - Many heap dumps, find common leak patterns: [heap_dump_cluster.md]($SKILL_ROOT/workflows/android_memory/heap_dump_cluster.md)
    - Native (C/C++) heap profile: [native_heap.md]($SKILL_ROOT/workflows/android_memory/native_heap.md)
    - Java allocation churn / GC pressure: [java_allocation_profile.md]($SKILL_ROOT/workflows/android_memory/java_allocation_profile.md)
+   - Compare two native or Java heap profiles (before/after diff): [heap_profile_diff.md]($SKILL_ROOT/workflows/android_memory/heap_profile_diff.md)
 
 3. **GPU / accelerator** (GPU-bound or host-bound?)
    - Which GPUs are in the trace: [gpu_info.md]($SKILL_ROOT/workflows/gpu/gpu_info.md)
