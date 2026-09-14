@@ -40,7 +40,7 @@ Pass `--agent <claude|codex|opencode|antigravity|pi>` instead of `--target` to
 install into that agent's default directory.
 
 To share the setup with your team, point `--target` at a per-agent directory
-in your repo (for example `.claude/skills/`) and commit the result.
+in your repo (for example `.claude/`) and commit the result.
 
 ### Offline install
 
@@ -68,7 +68,7 @@ cp trace_processor_shell ~/.local/share/perfetto/prebuilts/trace_processor_shell
 The wrapper trusts any file already present under that name, so the binary
 must come from the same release. On Windows the cache directory is
 `%USERPROFILE%\.local\share\perfetto\prebuilts` and the file is
-`trace_processor_shell.exe-<sha256 prefix>`.
+`trace_processor_shell-<sha256 prefix>.exe`.
 
 ## Update
 

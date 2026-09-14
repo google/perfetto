@@ -102,8 +102,10 @@ The full set of fields on the `perfetto` object:
 - `url` (optional): sharing URL. See [Deep linking](/docs/visualization/deep-linking-to-perfetto-ui.md)
   for how `url` and `appStateHash` enable sharing.
 - `appStateHash` (optional): 40-char hex hash restoring saved UI state.
-- `localOnly` (optional): defaults to `true` for posted traces, which disables
-  download/share. Set `false` to re-enable them.
+- `shareable` / `downloadable` (optional): both default to `false` for posted
+  traces, which disables share/download. Set `true` to enable them.
+- `localOnly` (optional, legacy): `false` sets both `shareable` and
+  `downloadable` to `true`.
 - `keepApiOpen` (optional): if `true`, the listener stays active so you can post
   more traces later. If omitted, the handler removes its listener after the
   first trace.
@@ -210,7 +212,8 @@ The UI guards which origins may push traces:
   origins are trusted. Traces from these open immediately with no prompt, so
   local development just works.
 - From any other origin (e.g. your production domain), the UI shows a modal:
-  _"&lt;origin&gt; is trying to open a trace file. Do you trust the origin?"_
+  _"&lt;origin&gt; is trying to open a trace file. Do you trust the origin and
+  want to proceed?"_
   with **No / Yes / Always trust**. "Always trust" persists the origin in
   `localStorage`, so each of your users sees the prompt at most once.
 

@@ -41,7 +41,7 @@ usage: heap_profile android [-h] [-i INTERVAL] [-d DURATION] [--no-start]
                             [--no-block-client] [--idle-allocations]
                             [--dump-at-max] [--disable-fork-teardown]
                             [--simpleperf]
-                            [--trace-processor-binary TRACE_PROCESSOR_BINARY]
+                            [--traceconv-binary TRACECONV_BINARY]
                             [--no-annotations] [--print-config] [-o DIRECTORY]
 ```
 
@@ -53,7 +53,7 @@ usage: heap_profile host [-h] [-i INTERVAL] [-d DURATION] [--no-start]
                          [--block-client-timeout BLOCK_CLIENT_TIMEOUT]
                          [--no-block-client] [--idle-allocations]
                          [--dump-at-max] [--disable-fork-teardown]
-                         [--trace-processor-binary TRACE_PROCESSOR_BINARY]
+                         [--traceconv-binary TRACECONV_BINARY]
                          [--no-annotations] [--print-config] [-o DIRECTORY]
                          [--preload-library PRELOAD_LIBRARY]
                          [--tracebox-binary TRACEBOX_BINARY]
@@ -68,11 +68,14 @@ These flags apply to both `android` and `host` subcommands.
 :    Comma-separated list of process names to profile. On `host`, if omitted,
      the basename of the command after `--` is used.
 
+`-p`, `--pid` _PIDS_
+:    Comma-separated list of PIDs to profile.
+
 `-i`, `--interval`
 :    Sampling interval. Default 4096 (4KiB).
 
 `-o`, `--output` _DIRECTORY_
-:    Output directory. Must be empty if it already exists.
+:    Output directory. Must already exist and be empty.
 
 `--all-heaps`
 :    Collect allocations from all heaps registered by target.
@@ -122,7 +125,7 @@ These flags apply to both `android` and `host` subcommands.
 `--shmem-size`
 :    Size of buffer between client and heapprofd. Default 8MiB. Needs to be a power of two multiple of 4096, at least 8192.
 
-`--trace-processor-binary`
+`--traceconv-binary`
 :    Path to local trace_processor. For debugging.
 
 `-h`, `--help`
@@ -132,9 +135,6 @@ These flags apply to both `android` and `host` subcommands.
 
 These flags are gated on `args.subcommand == 'android'` in the script and
 have no effect when passed to `host`.
-
-`-p`, `--pid` _PIDS_
-:    Comma-separated list of PIDs to profile.
 
 `--disable-selinux`
 :    Disable SELinux enforcement for duration of profile.

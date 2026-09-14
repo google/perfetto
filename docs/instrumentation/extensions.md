@@ -88,7 +88,7 @@ project/
 └── acme_extension.proto
 ```
 
-Field numbers 1000 and above are reserved for extensions. Pick a range that
+Field numbers 1000 to 9999 are reserved for extensions. Pick a range that
 won't collide with other extension producers you share traces with.
 
 ### Making extensions visible to Trace Processor and the UI
@@ -192,7 +192,7 @@ setters for the extended fields alongside all built-in `TrackEvent` fields:
 #include "acme_extension.pbzero.h"  // Generated from your .proto.
 
 TRACE_EVENT("my_cat", "HandleRequest", [&](perfetto::EventContext ctx) {
-  auto* event = ctx.event<perfetto::protos::pbzero::AcmeExtension>();
+  auto* event = ctx.event<com::acme::pbzero::AcmeExtension>();
   event->set_request_id("req-42");
   event->add_retry_latencies_ms(12);
   event->add_retry_latencies_ms(34);
@@ -208,8 +208,8 @@ For simple cases, pass field metadata and values directly as extra arguments to
 ```cpp
 TRACE_EVENT(
     "my_cat", "HandleRequest",
-    perfetto::protos::pbzero::AcmeExtension::kRequestId, "req-42",
-    perfetto::protos::pbzero::AcmeExtension::kRetryLatenciesMs,
+    com::acme::pbzero::AcmeExtension::kRequestId, "req-42",
+    com::acme::pbzero::AcmeExtension::kRetryLatenciesMs,
         std::vector<int>{12, 34});
 ```
 

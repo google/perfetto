@@ -109,7 +109,7 @@ tp = TraceProcessor(trace='trace.perfetto-trace', addr='localhost:9001')
 The `TraceProcessor` can be customized using the `TraceProcessorConfig` class.
 
 ```python
-from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig, SqlPackage
+from perfetto.trace_processor.api import TraceProcessor, TraceProcessorConfig, SqlPackage
 
 config = TraceProcessorConfig(
     bin_path='/path/to/trace_processor', # Path to custom binary
@@ -288,7 +288,7 @@ with TraceProcessor(trace='trace.perfetto-trace') as tp:
 ### Export
 
 The `export()` function writes the parsed trace data to a file, streaming
-directly to disk. The format is one of `arrow_tar` or `perfetto`:
+directly to disk. The format is one of `arrow_tar`, `perfetto` or `sqlite`:
 
 ```python
 from perfetto.trace_processor import TraceProcessor
@@ -306,8 +306,8 @@ tp.export('tables.tar', 'arrow_tar')
 same version (a different version may load it, but this is not guaranteed).
 `arrow_tar` produces one standard [Apache Arrow](https://arrow.apache.org/)
 file per statically registered table, for analysis with pandas, Polars or
-pyarrow; it cannot be loaded back into trace processor. The Python API
-supports these two formats; to export to SQLite, use the
+pyarrow; it cannot be loaded back into trace processor. `sqlite` writes all
+SQL-visible tables and views into a standard SQLite database, like the
 [`export` shell subcommand](/docs/reference/trace-processor-cli.md#subcommand-export).
 
 ### Metatracing

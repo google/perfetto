@@ -425,11 +425,11 @@ for that sequence, sorted by ChunkID order.
 The "list" is actually a CircularQueue of offsets, which has O(1)
 `push_back()` and `pop_front()` operations.
 
-* TraceBuffer holds a hashmap of `ProducerAndWriterId` -> `SequenceState`.
+* TraceBuffer holds a hashmap of `ProducerAndWriterID` -> `SequenceState`.
 * There is one `SequenceState` for each {Producer,Writer} active in the buffer.
 * `SequenceState` holds:
   * The identity of the producer (uid, pid, ...)
-  * The `last_chunk_id_consumed`, to detect gaps in the ChunkID sequence
+  * The `last_chunk_consumed`, to detect gaps in the ChunkID sequence
     (data losses)
   * A sorted list (a `CircularQueue<size_t>`) of chunks, which stores their
     offset in the buffer.
@@ -450,7 +450,7 @@ The lifetime of a `SequenceState` has a subtle tradeoff:
   consumes the buffer, hence making all sequences eligible to be destroyed if we
   were to be aggressive.
 * The problem here lies in the fact that `SequenceState` holds the
-  `last_chunk_id_consumed` which is used to detect gaps in the chunk ids .
+  `last_chunk_consumed` which is used to detect gaps in the chunk ids .
 
 TraceBufferV2 balances this using a lazy sweeping approach: it allows the most
 recently deleted `SequenceState`s to stay alive, up to
@@ -514,7 +514,7 @@ contiguously with 32-bit alignment.
 The offset of the chunk is also appended in the `SequenceState.chunks` list.
 
 After the first wrapping, writing a chunk involves deleting one or more
-existing chunks. The deletion operation `RemoveNextChunksFor()` is as complex
+existing chunks. The deletion operation `DeleteNextChunksFor()` is as complex
 as a readback, because it reconstructs packets being deleted in order, to pass
 them to ProtoVM.
 
@@ -709,7 +709,7 @@ In order to deal with this we introduce a two layer walk in the readback code:
 
 In the code, the outer layer walk is implemented by
 `TraceBufferV2::ReadNextTracePacket()` while the inner walk is implemented by
-the `class ChunkSeqReader::ReadNextPacket()`.
+the `class ChunkSeqReader::ReadNextPacketInSeqOrder()`.
 
 ## Benchmarks
 

@@ -481,8 +481,8 @@ To create a counter track, you'll:
     `name`, and importantly, its `counter` field should be populated. This tells
     Perfetto to treat this track as a counter.
 2.  Emit `TrackEvent` packets with `type: TYPE_COUNTER`. Each such packet should
-    have a `timestamp` and a `counter_value` (which can be an integer or a
-    double).
+    have a `timestamp` and either a `counter_value` (an integer) or a
+    `double_counter_value` (a double).
 
 ### Python Example: Counters
 
@@ -1218,8 +1218,8 @@ NOTE: Frames are ordered from outermost (bottom of stack, e.g.,
 `main()`) to innermost (top of stack, where the event occurred).
 
 When you provide a callstack on the slice end event, Trace Processor stores it
-separately from the begin callstack (under the `end_callsite_id` argument in the
-`slice` table). This is handy for quickly comparing entry/exit stacks.
+separately from the begin callstack (as `end_callsite_id` rather than
+`callsite_id`). This is handy for quickly comparing entry/exit stacks.
 
 After running the script, opening the generated `my_custom_trace.pftrace` in the
 [Perfetto UI](https://ui.perfetto.dev) will display the following output:
@@ -1307,10 +1307,10 @@ Unlike the other examples on this page, there's no track or slice to look at
 in the timeline view. Instead, after running the script and opening
 `my_custom_trace.pftrace` in the [Perfetto UI](https://ui.perfetto.dev), these
 attributes show up on the "Overview" page, reachable from the left sidebar,
-under the "Info and Stats (advanced)" tab, alongside the rest of the trace's
-metadata.
+under the "Trace Attributes" section of the "Metadata" tab, alongside the rest
+of the trace's metadata.
 
-![Trace attributes in the Info and Stats page](/docs/images/converting-trace-attributes.png)
+![Trace attributes in the Overview page](/docs/images/converting-trace-attributes.png)
 
 In Trace Processor, each attribute becomes a row in the `metadata` table, with
 its key prefixed by `trace_attribute.` to keep custom attributes separate from

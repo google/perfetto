@@ -69,7 +69,7 @@ archive together with the trace files.
 ## {#detection} Detection and placement
 
 Trace Processor detects a manifest by content, not by file name: any file
-whose contents (after leading whitespace) start with `{"perfetto_manifest"`
+whose contents (ignoring whitespace) start with `{"perfetto_manifest"`
 is treated as a manifest. By convention the file is named
 `perfetto_manifest.json`, and that is the name the Perfetto UI uses when it
 generates one, but any name works.

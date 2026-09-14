@@ -144,8 +144,8 @@ information on scheduling activity of the system:
 
 ```
 > select * from sched_slice limit 1
-id  type        ts          dur    cpu utid end_state priority
-0   sched_slice 70730062200 125364 0   1    S         130     
+id  ts          dur    cpu utid end_state priority ucpu
+0   70730062200 125364 0   1    S         130      0
 ```
 
 Each row of the table shows when a given thread (`utid`) began running
