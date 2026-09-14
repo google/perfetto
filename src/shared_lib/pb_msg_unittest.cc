@@ -40,55 +40,6 @@ PERFETTO_PB_FIELD(PbMsgTestFields, STRING, const char*, bytes, 1);
 PERFETTO_PB_FIELD(PbMsgTestFields, PACKED, Uint32, values, 2);
 
 // ---------------------------------------------------------------------------
-// The public C message layout.
-//
-// The proto-group state lives in the high bits of PerfettoPbMsg::size so that
-// generated C message objects and nested-message frames keep their existing
-// size and layout.
-// ---------------------------------------------------------------------------
-
-struct LegacyPerfettoPbMsg {
-  uint8_t* size_field;
-  uint32_t size;
-  struct PerfettoPbMsgWriter* writer;
-  struct LegacyPerfettoPbMsg* nested;
-  struct LegacyPerfettoPbMsg* parent;
-};
-
-static_assert(sizeof(PerfettoPbMsg) == sizeof(LegacyPerfettoPbMsg),
-              "PerfettoPbMsg changed size");
-static_assert(alignof(PerfettoPbMsg) == alignof(LegacyPerfettoPbMsg),
-              "PerfettoPbMsg changed alignment");
-static_assert(offsetof(PerfettoPbMsg, size_field) ==
-                  offsetof(LegacyPerfettoPbMsg, size_field),
-              "PerfettoPbMsg::size_field changed offset");
-static_assert(offsetof(PerfettoPbMsg, size) ==
-                  offsetof(LegacyPerfettoPbMsg, size),
-              "PerfettoPbMsg::size changed offset");
-static_assert(offsetof(PerfettoPbMsg, writer) ==
-                  offsetof(LegacyPerfettoPbMsg, writer),
-              "PerfettoPbMsg::writer changed offset");
-static_assert(offsetof(PerfettoPbMsg, nested) ==
-                  offsetof(LegacyPerfettoPbMsg, nested),
-              "PerfettoPbMsg::nested changed offset");
-static_assert(offsetof(PerfettoPbMsg, parent) ==
-                  offsetof(LegacyPerfettoPbMsg, parent),
-              "PerfettoPbMsg::parent changed offset");
-
-// The state bits sit above Protozero's supported message-size domain, so that
-// a plain `size += n` within that domain never disturbs them.
-static_assert(PERFETTO_PB_MSG_SIZE_MASK >=
-                  protozero::proto_utils::kMaxMessageLength,
-              "The state bits must not shrink the representable message size");
-
-// The state bits are exactly the bits the size does not use: none of them
-// overlaps it, and none of the remaining bits is left unaccounted for.
-static_assert((PERFETTO_PB_MSG_PROTO_GROUP_BIT |
-               PERFETTO_PB_MSG_PROTO_GROUP_END_WRITTEN_BIT) ==
-                  ~PERFETTO_PB_MSG_SIZE_MASK,
-              "The state bits must be exactly the bits above the size");
-
-// ---------------------------------------------------------------------------
 // Test plumbing.
 // ---------------------------------------------------------------------------
 
@@ -194,13 +145,13 @@ std::vector<uint8_t> BuildWithCpp(protozero::NestedMessageEncoding encoding) {
 // wants an explicit EndNested - but the bytes they produce must match exactly.
 std::vector<uint8_t> BuildWithC(enum PerfettoPbMsgEncoding encoding) {
   FlatCBuffer buffer;
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   PerfettoPbMsgInitWithEncoding(&root, buffer.writer(), encoding);
   PerfettoPbMsgAppendType0Field(&root, 1, 7);
-  PerfettoPbMsg nested;
+  PerfettoPbMsg nested{};
   PerfettoPbMsgBeginNested(&root, &nested, 2);
   PerfettoPbMsgAppendType0Field(&nested, 3, 8);
-  PerfettoPbMsg inner;
+  PerfettoPbMsg inner{};
   PerfettoPbMsgBeginNested(&nested, &inner, 4);
   PerfettoPbMsgAppendType2Field(&inner, 5,
                                 reinterpret_cast<const uint8_t*>("abc"), 3);
@@ -217,13 +168,13 @@ std::vector<uint8_t> BuildWithC(enum PerfettoPbMsgEncoding encoding) {
 
 TEST(PbMsgTest, DefaultInitIsLengthDelimited) {
   FlatCBuffer buffer;
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   PerfettoPbMsgInit(&root, buffer.writer());
-  EXPECT_FALSE(PerfettoPbMsgIsProtoGroup(&root));
+  EXPECT_EQ(root.encoding, PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED);
 
-  PerfettoPbMsg nested;
+  PerfettoPbMsg nested{};
   PerfettoPbMsgBeginNested(&root, &nested, /*field_id=*/1);
-  EXPECT_FALSE(PerfettoPbMsgIsProtoGroup(&nested));
+  EXPECT_EQ(nested.encoding, PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED);
   PerfettoPbMsgAppendType0Field(&nested, /*field_id=*/2, 2);
   PerfettoPbMsgFinalize(&root);
 
@@ -235,13 +186,13 @@ TEST(PbMsgTest, DefaultInitIsLengthDelimited) {
 
 TEST(PbMsgTest, ProtoGroupEmptyNestedMessage) {
   FlatCBuffer buffer;
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   InitProtoGroupRoot(&root, &buffer);
-  EXPECT_TRUE(PerfettoPbMsgIsProtoGroup(&root));
+  EXPECT_EQ(root.encoding, PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
 
-  PerfettoPbMsg nested;
+  PerfettoPbMsg nested{};
   PerfettoPbMsgBeginNested(&root, &nested, /*field_id=*/1);
-  EXPECT_TRUE(PerfettoPbMsgIsProtoGroup(&nested));
+  EXPECT_EQ(nested.encoding, PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
   EXPECT_EQ(nested.size_field, nullptr);
   PerfettoPbMsgFinalize(&root);
 
@@ -251,7 +202,7 @@ TEST(PbMsgTest, ProtoGroupEmptyNestedMessage) {
 
 TEST(PbMsgTest, ProtoGroupRootEmitsNoEndByte) {
   FlatCBuffer buffer;
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   InitProtoGroupRoot(&root, &buffer);
   PerfettoPbMsgAppendType0Field(&root, /*field_id=*/1, 42);
   PerfettoPbMsgFinalize(&root);
@@ -263,13 +214,13 @@ TEST(PbMsgTest, ProtoGroupRootEmitsNoEndByte) {
 TEST(PbMsgTest, FinalizeIsIdempotentInBothModes) {
   {
     FlatCBuffer buffer;
-    PerfettoPbMsg root;
+    PerfettoPbMsg root{};
     InitProtoGroupRoot(&root, &buffer);
-    PerfettoPbMsg nested;
+    PerfettoPbMsg nested{};
     PerfettoPbMsgBeginNested(&root, &nested, /*field_id=*/1);
-    EXPECT_FALSE(PerfettoPbMsgHasWrittenProtoGroupEnd(&nested));
+    EXPECT_FALSE(nested.proto_group_end_written);
     EXPECT_EQ(PerfettoPbMsgFinalize(&nested), 1u);
-    EXPECT_TRUE(PerfettoPbMsgHasWrittenProtoGroupEnd(&nested));
+    EXPECT_TRUE(nested.proto_group_end_written);
     // A second call must not emit another end byte.
     EXPECT_EQ(PerfettoPbMsgFinalize(&nested), 1u);
     PerfettoPbMsgEndNested(&root);
@@ -280,7 +231,7 @@ TEST(PbMsgTest, FinalizeIsIdempotentInBothModes) {
   }
   {
     FlatCBuffer buffer;
-    PerfettoPbMsg root;
+    PerfettoPbMsg root{};
     PerfettoPbMsgInit(&root, buffer.writer());
     PerfettoPbMsgAppendType0Field(&root, /*field_id=*/1, 1);
     EXPECT_EQ(PerfettoPbMsgFinalize(&root), 2u);
@@ -291,60 +242,36 @@ TEST(PbMsgTest, FinalizeIsIdempotentInBothModes) {
 }
 
 // ---------------------------------------------------------------------------
-// The state bits.
+// Message size and encoding state.
 // ---------------------------------------------------------------------------
 
-TEST(PbMsgTest, SizeIsReportedWithTheStateBitsMaskedOff) {
-  FlatCBuffer buffer;
-  PerfettoPbMsg root;
-  InitProtoGroupRoot(&root, &buffer);
-  EXPECT_EQ(PerfettoPbMsgSize(&root), 0u);
-  EXPECT_TRUE(PerfettoPbMsgIsProtoGroup(&root));
-  EXPECT_FALSE(PerfettoPbMsgHasWrittenProtoGroupEnd(&root));
+TEST(PbMsgTest, SizeIsAPlainByteCountInBothModes) {
+  for (auto encoding : {PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED,
+                        PERFETTO_PB_MSG_ENCODING_PROTO_GROUP}) {
+    FlatCBuffer buffer;
+    PerfettoPbMsg root{};
+    PerfettoPbMsgInitWithEncoding(&root, buffer.writer(), encoding);
+    EXPECT_EQ(root.size, 0u);
 
-  PerfettoPbMsgAppendType0Field(&root, /*field_id=*/1, 300);
-  EXPECT_EQ(PerfettoPbMsgSize(&root), 3u);
-  EXPECT_TRUE(PerfettoPbMsgIsProtoGroup(&root));
-
-  EXPECT_EQ(PerfettoPbMsgFinalize(&root), 3u);
-  // The root has no end byte; finalizing must not change its state or size.
-  EXPECT_FALSE(PerfettoPbMsgHasWrittenProtoGroupEnd(&root));
-  EXPECT_TRUE(PerfettoPbMsgIsProtoGroup(&root));
-  EXPECT_EQ(PerfettoPbMsgSize(&root), 3u);
+    PerfettoPbMsgAppendType0Field(&root, /*field_id=*/1, 300);
+    EXPECT_EQ(root.size, 3u);
+    EXPECT_EQ(PerfettoPbMsgFinalize(&root), 3u);
+    EXPECT_EQ(root.size, 3u);
+    EXPECT_EQ(PerfettoPbMsgFinalize(&root), 3u);
+    EXPECT_EQ(root.size, 3u);
+    EXPECT_EQ(root.encoding, encoding);
+    EXPECT_FALSE(root.proto_group_end_written);
+    const uint8_t kExpected[] = {0x08, 0xac, 0x02};
+    EXPECT_THAT(buffer.bytes(), ElementsAreArray(kExpected));
+  }
 }
 
-// The public field, on the mode every existing caller uses. `size` is
-// documented as the current size and callers read it directly, so it has to
-// stay a plain byte count on both sides of Finalize().
-TEST(PbMsgTest, LengthDelimitedSizeKeepsItsRawMeaning) {
+TEST(PbMsgTest, LengthDelimitedNestedSizesAndPatch) {
   FlatCBuffer buffer;
-  PerfettoPbMsg root;
-  PerfettoPbMsgInit(&root, buffer.writer());
-  EXPECT_EQ(root.size, 0u);
-
-  PerfettoPbMsgAppendType0Field(&root, /*field_id=*/1, 300);
-  EXPECT_EQ(root.size, 3u);
-
-  EXPECT_EQ(PerfettoPbMsgFinalize(&root), 3u);
-  EXPECT_EQ(root.size, 3u);
-  EXPECT_EQ(PerfettoPbMsgSize(&root), 3u);
-  EXPECT_FALSE(PerfettoPbMsgIsProtoGroup(&root));
-  EXPECT_FALSE(PerfettoPbMsgHasWrittenProtoGroupEnd(&root));
-
-  // And a second finalization is still a no-op.
-  EXPECT_EQ(PerfettoPbMsgFinalize(&root), 3u);
-  EXPECT_EQ(root.size, 3u);
-}
-
-// The same for a nested message, where finalization also patches a length. Both
-// the parent's raw size and the nested message's have to be what they were
-// before this encoding existed, and the patched bytes have to be identical.
-TEST(PbMsgTest, LengthDelimitedNestedSizesAndPatchAreUnchanged) {
-  FlatCBuffer buffer;
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   PerfettoPbMsgInit(&root, buffer.writer());
 
-  PerfettoPbMsg nested;
+  PerfettoPbMsg nested{};
   PerfettoPbMsgBeginNested(&root, &nested, /*field_id=*/2);
   PerfettoPbMsgAppendType0Field(&nested, /*field_id=*/1, 7);
   EXPECT_EQ(nested.size, 2u);
@@ -361,16 +288,36 @@ TEST(PbMsgTest, LengthDelimitedNestedSizesAndPatchAreUnchanged) {
   EXPECT_THAT(buffer.bytes(), ElementsAreArray(kExpected));
 }
 
-TEST(PbMsgTest, LargeSizesDoNotReachTheStateBits) {
-  // A size just below the four-byte varint limit must still leave the state
-  // bits alone; this is what makes the plain `size += n` in AppendBytes() safe.
-  PerfettoPbMsg msg{};
-  msg.size = PERFETTO_PB_MSG_PROTO_GROUP_BIT;
-  msg.size += static_cast<uint32_t>(protozero::proto_utils::kMaxMessageLength);
-  EXPECT_TRUE(PerfettoPbMsgIsProtoGroup(&msg));
-  EXPECT_FALSE(PerfettoPbMsgHasWrittenProtoGroupEnd(&msg));
-  EXPECT_EQ(PerfettoPbMsgSize(&msg),
-            static_cast<uint32_t>(protozero::proto_utils::kMaxMessageLength));
+TEST(PbMsgTest, ReusedMessagesResetEncodingAndClosingState) {
+  FlatCBuffer buffer;
+  PerfettoPbMsg root{};
+  PerfettoPbMsg nested{};
+  // Reuse both objects across packets, including a switch back to the default
+  // encoding. Reusing the child must allow it to write another closing byte.
+  for (auto encoding : {PERFETTO_PB_MSG_ENCODING_PROTO_GROUP,
+                        PERFETTO_PB_MSG_ENCODING_PROTO_GROUP,
+                        PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED}) {
+    PerfettoPbMsgInitWithEncoding(&root, buffer.writer(), encoding);
+    EXPECT_EQ(root.size, 0u);
+    EXPECT_EQ(root.encoding, encoding);
+    EXPECT_FALSE(root.proto_group_end_written);
+    PerfettoPbMsgBeginNested(&root, &nested, /*field_id=*/1);
+    EXPECT_EQ(nested.size, 0u);
+    EXPECT_EQ(nested.encoding, encoding);
+    EXPECT_FALSE(nested.proto_group_end_written);
+    PerfettoPbMsgAppendType0Field(&nested, /*field_id=*/2, 7);
+    PerfettoPbMsgFinalize(&root);
+    EXPECT_EQ(root.size,
+              encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP ? 4u : 7u);
+    EXPECT_EQ(nested.size,
+              encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP ? 3u : 2u);
+    EXPECT_FALSE(root.proto_group_end_written);
+    EXPECT_EQ(nested.proto_group_end_written,
+              encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  }
+  const uint8_t kExpected[] = {0x0b, 0x10, 0x07, 0x04, 0x0b, 0x10, 0x07, 0x04,
+                               0x0a, 0x82, 0x80, 0x80, 0x00, 0x10, 0x07};
+  EXPECT_THAT(buffer.bytes(), ElementsAreArray(kExpected));
 }
 
 // ---------------------------------------------------------------------------
@@ -405,7 +352,7 @@ TEST(PbMsgTest, CAndCppEmitIdenticalBytes) {
 
 TEST(PbMsgTest, ProtoGroupWholeValueSettersStayLengthDelimited) {
   FlatCBuffer buffer;
-  PbMsgTestFields root;
+  PbMsgTestFields root{};
   InitProtoGroupRoot(&root.msg, &buffer);
 
   PbMsgTestFields_set_cstr_bytes(&root, "a");
@@ -425,28 +372,28 @@ TEST(PbMsgTest, ProtoGroupWholeValueSettersStayLengthDelimited) {
 // or any payload byte reaches the packet.
 TEST(PbMsgTest, ProtoGroupRejectsIncrementalString) {
   FlatCBuffer buffer;
-  PbMsgTestFields root;
+  PbMsgTestFields root{};
   InitProtoGroupRoot(&root.msg, &buffer);
 
-  PerfettoPbMsg bytes;
+  PerfettoPbMsg bytes{};
   EXPECT_DEATH_IF_SUPPORTED(PbMsgTestFields_begin_bytes(&root, &bytes), "");
 }
 
 TEST(PbMsgTest, ProtoGroupRejectsIncrementalPackedField) {
   FlatCBuffer buffer;
-  PbMsgTestFields root;
+  PbMsgTestFields root{};
   InitProtoGroupRoot(&root.msg, &buffer);
 
-  PerfettoPbPackedMsgUint32 values;
+  PerfettoPbPackedMsgUint32 values{};
   EXPECT_DEATH_IF_SUPPORTED(PbMsgTestFields_begin_values(&root, &values), "");
 }
 
 TEST(PbMsgTest, LengthDelimitedIncrementalStringIsUnchanged) {
   FlatCBuffer buffer;
-  PbMsgTestFields root;
+  PbMsgTestFields root{};
   PerfettoPbMsgInit(&root.msg, buffer.writer());
 
-  PerfettoPbMsg bytes;
+  PerfettoPbMsg bytes{};
   PbMsgTestFields_begin_bytes(&root, &bytes);
   const uint8_t kPayload[] = {'a', 'b', 'c'};
   PerfettoPbMsgAppendBytes(&bytes, kPayload, sizeof(kPayload));
@@ -459,10 +406,10 @@ TEST(PbMsgTest, LengthDelimitedIncrementalStringIsUnchanged) {
 
 TEST(PbMsgTest, LengthDelimitedIncrementalPackedFieldIsUnchanged) {
   FlatCBuffer buffer;
-  PbMsgTestFields root;
+  PbMsgTestFields root{};
   PerfettoPbMsgInit(&root.msg, buffer.writer());
 
-  PerfettoPbPackedMsgUint32 values;
+  PerfettoPbPackedMsgUint32 values{};
   PbMsgTestFields_begin_values(&root, &values);
   PerfettoPbPackedMsgUint32Append(&values, 4);
   PerfettoPbPackedMsgUint32Append(&values, 2);
@@ -481,9 +428,9 @@ TEST(PbMsgTest, ProtoGroupMessagesCrossRanges) {
   // Small ranges force the stream writer through its slow path. Proto-group
   // messages have no size field, so there is nothing to patch on rollover.
   ChunkedCBuffer buffer(/*range_size=*/32);
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   InitProtoGroupRoot(&root, &buffer);
-  PerfettoPbMsg nested;
+  PerfettoPbMsg nested{};
   PerfettoPbMsgBeginNested(&root, &nested, /*field_id=*/1);
 
   const std::vector<uint8_t> payload(50, 0xab);
@@ -503,9 +450,9 @@ TEST(PbMsgTest, ProtoGroupMessagesCrossRanges) {
 
 TEST(PbMsgTest, LengthDelimitedMessagesStillPatchAcrossRanges) {
   ChunkedCBuffer buffer(/*range_size=*/32);
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   PerfettoPbMsgInit(&root, buffer.writer());
-  PerfettoPbMsg nested;
+  PerfettoPbMsg nested{};
   PerfettoPbMsgBeginNested(&root, &nested, /*field_id=*/1);
 
   const std::vector<uint8_t> payload(50, 0xcd);
@@ -533,7 +480,7 @@ TEST(PbMsgTest, LengthDelimitedMessagesStillPatchAcrossRanges) {
 
 TEST(PbMsgTest, UnknownEncodingAborts) {
   FlatCBuffer buffer;
-  PerfettoPbMsg root;
+  PerfettoPbMsg root{};
   EXPECT_DEATH_IF_SUPPORTED(
       PerfettoPbMsgInitWithEncoding(
           &root, buffer.writer(),
