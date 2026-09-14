@@ -100,9 +100,10 @@ by build ID) and package their symbols together with the profile:
     ./trace_processor bundle perf.data profile.tar
     ```
 
-    If your binaries with symbols live somewhere else, pass
-    `--symbol-paths /path/to/dir`. Add `--verbose` to see where
-    `trace_processor` looked. See
+    `trace_processor` needs `llvm-symbolizer` on your `PATH` to read symbols
+    (e.g. `sudo apt install llvm`). If your binaries with symbols live
+    somewhere else, pass `--symbol-paths /path/to/dir`. Add `--verbose` to see
+    where `trace_processor` looked. See
     [Symbolization](/docs/learning-more/symbolization.md) for more details.
 
 3.  Open `profile.tar` in the Perfetto UI.
@@ -189,6 +190,9 @@ to select samples. Their samples can also be queried with SQL through the
 ## {#memory} Memory profiles
 
 Perfetto is also a memory profile viewer. pprof heap profiles open on the
-Aggregate Profiles page as above. For native heap profiles and Java heap dumps
-on Android and Linux, see
-[Memory Profiling](/docs/getting-started/memory-profiling.md).
+Aggregate Profiles page as above. For native heap profiles on Android, see
+[Profile native memory on Android](/docs/getting-started/memory-profiling.md);
+on Linux, see
+[Native heap profiling](/docs/getting-started/linux-cookbook.md#heap-profiling).
+For Java and Kotlin heap dumps, see
+[Take an ART heap dump](/docs/how-to/art-heap-dump.md).

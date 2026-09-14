@@ -12,7 +12,7 @@
     - [In-App Tracing](getting-started/in-app-tracing.md) {.tag-cpp-rust}
     - [Rust SDK](getting-started/rust-sdk.md) {.tag-cpp-rust}
     - [Recording CPU Profiles](getting-started/cpu-profiling.md) {.tag-android .tag-linux .tag-performance}
-    - [Memory Profiling](getting-started/memory-profiling.md) {.tag-android .tag-linux .tag-performance}
+    - [Native Memory Profiling](getting-started/memory-profiling.md) {.tag-android}
     - [Instrumenting with atrace](getting-started/atrace.md) {.tag-android}
     - [Instrumenting with ftrace](getting-started/ftrace.md) {.tag-linux .tag-android}
     - [Recording Chrome Traces](getting-started/chrome-tracing.md) {.tag-chrome}
@@ -24,6 +24,7 @@
     - [Recording Android Traces Locally](getting-started/local-android-trace-recording.md) {.tag-android}
     - [Analyzing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
     - [Viewing CPU Profiles](getting-started/viewing-cpu-profiles.md) {.tag-android .tag-linux .tag-cpp-rust .tag-performance}
+    - [Taking ART Heap Dumps](how-to/art-heap-dump.md) {.tag-android}
     - [Analyzing Traces from the Command Line](getting-started/command-line-analysis.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-performance}
     - [Tracing on Linux](getting-started/linux-cookbook.md) {.tag-linux}
     - [Capturing Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
