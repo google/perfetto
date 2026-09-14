@@ -155,7 +155,7 @@ them in /tmp/heap_profile-latest. Look for the message that says
 
 ```bash
 Wrote profiles to /tmp/53dace (symlink /tmp/heap_profile-latest)
-The raw-trace file can be viewed using https://ui.perfetto.dev
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
 ```
 
 TAB: Linux (Command line)
@@ -233,7 +233,7 @@ for more details.
 
 ### Visualizing your first heap profile
 
-Open the `/tmp/heap_profile-latest` file in the
+Open the `/tmp/heap_profile-latest/raw-trace` file in the
 [Perfetto UI](https://ui.perfetto.dev) and click on the slice in the UI
 track labeled _"Native heap profile"_.
 
@@ -283,27 +283,40 @@ directly in the UI.
 For example, by running:
 
 ```
-INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
+INCLUDE PERFETTO MODULE android.memory.heap_profile.summary_tree;
 
 SELECT
-  -- Class name (deobfuscated if available)
-  type_name,
-  -- Count of class instances
-  obj_count,
-  -- Size of class instances
-  size_bytes,
-  -- Native size of class instances
-  native_size_bytes,
-  -- Count of reachable class instances
-  reachable_obj_count,
-  -- Size of reachable class instances
-  reachable_size_bytes,
-  -- Native size of reachable class instances
-  reachable_native_size_bytes
-FROM android_heap_graph_class_aggregation;
+  -- The id of the callstack. A callstack in this context
+  -- is a unique set of frames up to the root.
+  id,
+  -- The id of the parent callstack for this callstack.
+  parent_id,
+  -- The function name of the frame for this callstack.
+  name,
+  -- The name of the mapping containing the frame. This
+  -- can be a native binary, library, JAR or APK.
+  mapping_name,
+  -- The name of the file containing the function.
+  source_file,
+  -- The line number in the file the function is located at.
+  line_number,
+  -- The amount of memory allocated and *not freed* with this
+  -- function as the leaf frame.
+  self_size,
+  -- The amount of memory allocated and *not freed* with this
+  -- function appearing anywhere on the callstack.
+  cumulative_size,
+  -- The amount of memory allocated with this function as the leaf
+  -- frame. This may include memory which was later freed.
+  self_alloc_size,
+  -- The amount of memory allocated with this function appearing
+  -- anywhere on the callstack. This may include memory which was
+  -- later freed.
+  cumulative_alloc_size
+FROM android_heap_profile_summary_tree;
 ```
 
-you can see a summary of the reachable aggregate object sizes and object counts.
+you can see the memory allocated by every unique callstack in the trace.
 
 ## ART Heap Dumps
 
@@ -340,7 +353,7 @@ implementation.
 
 #### Prerequisites
 
-* A device running Android 10+.
+* A device running Android 11+.
 * A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
   app. If you are running on a _"user"_ build of Android (as opposed to
   _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
@@ -373,7 +386,7 @@ implementation.
 * [ADB](https://developer.android.com/studio/command-line/adb) installed.
 * _Windows users_: Make sure that the downloaded adb.exe is in the PATH.
   `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
-* A device running Android 10+.
+* A device running Android 11+.
 * A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
   app. If you are running on a _"user"_ build of Android (as opposed to
   _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
@@ -454,40 +467,27 @@ directly in the UI.
 For example, by running:
 
 ```
-INCLUDE PERFETTO MODULE android.memory.heap_profile.summary_tree;
+INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
 
 SELECT
-  -- The id of the callstack. A callstack in this context
-  -- is a unique set of frames up to the root.
-  id,
-  -- The id of the parent callstack for this callstack.
-  parent_id,
-  -- The function name of the frame for this callstack.
-  name,
-  -- The name of the mapping containing the frame. This
-  -- can be a native binary, library, JAR or APK.
-  mapping_name,
-  -- The name of the file containing the function.
-  source_file,
-  -- The line number in the file the function is located at.
-  line_number,
-  -- The amount of memory allocated and *not freed* with this
-  -- function as the leaf frame.
-  self_size,
-  -- The amount of memory allocated and *not freed* with this
-  -- function appearing anywhere on the callstack.
-  cumulative_size,
-  -- The amount of memory allocated with this function as the leaf
-  -- frame. This may include memory which was later freed.
-  self_alloc_size,
-  -- The amount of memory allocated with this function appearing
-  -- anywhere on the callstack. This may include memory which was
-  -- later freed.
-  cumulative_alloc_size
-FROM android_heap_profile_summary_tree;
+  -- Class name (deobfuscated if available)
+  type_name,
+  -- Count of class instances
+  obj_count,
+  -- Size of class instances
+  size_bytes,
+  -- Native size of class instances
+  native_size_bytes,
+  -- Count of reachable class instances
+  reachable_obj_count,
+  -- Size of reachable class instances
+  reachable_size_bytes,
+  -- Native size of reachable class instances
+  reachable_native_size_bytes
+FROM android_heap_graph_class_aggregation;
 ```
 
-you can see the memory allocated by every unique callstack in the trace.
+you can see a summary of the reachable aggregate object sizes and object counts.
 
 ## Other types of memory
 

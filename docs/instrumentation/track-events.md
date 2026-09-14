@@ -131,10 +131,10 @@ event arguments. For more complex arguments, you can define [your own
 protobuf messages](/protos/perfetto/trace/track_event/track_event.proto) and
 emit them as a parameter for the event.
 
-NOTE: Currently custom protobuf messages need to be added directly to the
+NOTE: The approach below adds custom protobuf messages directly to the
       Perfetto repository under `protos/perfetto/trace`, and Perfetto itself
-      must also be rebuilt. We are working
-      [to lift this limitation](https://github.com/google/perfetto/issues/11).
+      must also be rebuilt. To avoid this, define them as
+      [TrackEvent extensions](extensions.md) instead.
 
 As an example of a custom track event argument type, save the following as
 `protos/perfetto/trace/track_event/player_info.proto`:
@@ -167,8 +167,9 @@ import "protos/perfetto/trace/track_event/player_info.proto";
 
 message TrackEvent {
   ...
-  // New argument types go here.
-  optional PlayerInfo player_info = 1000;
+  // New argument types go here. Use the "Next id" from the comment above
+  // TrackEvent.
+  optional PlayerInfo player_info = 58;
 }
 ```
 
@@ -179,7 +180,7 @@ Player my_player;
 TRACE_EVENT("category", "MyEvent", [&](perfetto::EventContext ctx) {
   auto player = ctx.event()->set_player_info();
   player->set_name(my_player.name());
-  player->set_player_score(my_player.score());
+  player->set_score(my_player.score());
 });
 ```
 
@@ -608,8 +609,8 @@ as kilobytes (to reduce trace binary size) can be defined like this:
 
 ```C++
 perfetto::CounterTrack memory_track = perfetto::CounterTrack("Memory")
-    .set_unit("bytes")
-    .set_multiplier(1024);
+    .set_unit_name("bytes")
+    .set_unit_multiplier(1024);
 TRACE_COUNTER("category", memory_track, 4 /* = 4096 bytes */);
 ```
 
@@ -853,7 +854,7 @@ class Observer : public perfetto::TrackEventSessionObserver {
 };
 
 Observer observer;
-observer.WaitForTracingToStart();
+observer.WaitForTracingStart();
 ```
 
 [RAII]: https://en.cppreference.com/w/cpp/language/raii

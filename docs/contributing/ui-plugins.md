@@ -72,8 +72,9 @@ plugin's directory, next to your `index.ts` file.
 
 `ui/src/plugins/<your-plugin-name>/styles.scss`
 
-The build system will automatically detect this file and include it in the main
-stylesheet. You can use any standard SCSS syntax in this file.
+Import it from your `index.ts` (`import './styles.scss';`) and the build system
+will include it in the main stylesheet. You can use any standard SCSS syntax in
+this file.
 
 For example, to change the background color of a component in your plugin:
 
@@ -128,7 +129,7 @@ export default class implements PerfettoPlugin {
 
   static onActivate(app: App): void {
     // Called once on app startup
-    console.log('MyPlugin::onActivate()', app.pluginId);
+    console.log('MyPlugin::onActivate()');
     // Note: It's rare that plugins would need this hook as most plugins are
     // interested in trace details. Thus, this function can usually be omitted.
   }
@@ -326,9 +327,8 @@ This can be achieved by finding the appropriate track in the workspace and
 calling its `pin()` method. This will pin it to the top of its parent workspace.
 
 ```ts
-trace.workspace
-  .flatTracks()
-  .find((t) => t.name.startsWith('foo'))
+trace.workspace.flatTracks
+  .filter((t) => t.name.startsWith('foo'))
   .forEach((t) => t.pin());
 ```
 
@@ -461,8 +461,7 @@ properties (defined in [`TrackNodeArgs`]):
   is not displayed, and its children are rendered as if they are direct children
   of this node's parent. Useful for logical grouping without visual nesting.
 - `sortOrder: number`: A number used for ordering nodes when `addChildInOrder`
-  is called. Higher numbers typically appear first (or as per specific parent
-  implementation).
+  is called. Lower numbers appear first.
 - `collapsed: boolean` (default `true`): Whether the node should start in a
   collapsed state (children hidden).
 - `isSummary: boolean` (default `false`): If `true`, this track acts as a
@@ -565,7 +564,7 @@ registerCommand(command: {
   name: string;
   callback: (...args: any[]) => any;
   defaultHotkey?: Hotkey
-}): void;
+}): Disposable;
 ```
 
 Registers a new command. Takes a `Command` object which looks like this:
@@ -589,7 +588,7 @@ for the available hotkey keys and modifiers.
 
 ```ts
 appOrTrace.commands.registerCommand({
-  id: `${app.pluginId}#sayHello`,
+  id: 'com.example.MyPlugin#sayHello',
   name: 'Say hello',
   callback: () => console.log('Hello, world!'),
 });
@@ -613,7 +612,7 @@ plugins or by the Perfetto core. The `CommandManager` (available as
 purpose.
 
 ```ts
-runCommand(commandId: string, ...args: any[]): any;
+runCommand(commandId: string, ...args: any[]): Promise<unknown>;
 ```
 
 Executes the command identified by `commandId`, passing any additional arguments
@@ -624,7 +623,7 @@ the command's callback, if any.
   - `commandId`: The id of the command to run.
   - `...args`: Passed directly to the command callback.
 - Returns
-  - `any`: Whatever is returned from the command callback.
+  - `Promise<unknown>`: Whatever is returned from the command callback.
 
 **Example:**
 
@@ -638,7 +637,7 @@ appOrTrace.commands.registerCommand({
 
 // PluginB
 try {
-  const result = appOrTrace.commands.runCommand('PluginA#increment', 1);
+  const result = await appOrTrace.commands.runCommand('PluginA#increment', 1);
   // result should be 2
 } catch (e) {
   console.error(`Failed to run command: ${(e as Error).message}`);
@@ -650,9 +649,9 @@ by referring to documentation for core commands.
 
 Examples:
 
-- [com.example.ExampleSimpleCommand](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.ExampleSimpleCommand/index.ts).
-- [perfetto.CoreCommands](https://github.com/google/perfetto/blob/main/ui/src/core_plugins/commands/index.ts).
-- [com.example.ExampleState](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.ExampleState/index.ts).
+- [com.example.Commands](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Commands/index.ts).
+- [dev.perfetto.CoreCommands](https://github.com/google/perfetto/blob/main/ui/src/core_plugins/dev.perfetto.CoreCommands/index.ts).
+- [com.example.State](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.State/index.ts).
 
 ### Tracks
 
@@ -670,44 +669,42 @@ To add a track use `trace.tracks.registerTrack`.
 ```ts
 registerTrack(track: {
   uri: string;
-  track: TrackRenderer;
+  renderer: TrackRenderer;
   description?: string | (() => m.Children);
-  subtitle?: string;
   tags?: TrackTags;
-  chips?: ReadonlyArray<string>;
 }): void;
 ```
 
 Registers a new track with Perfetto. Pass a `Track` object which includes:
 
 - `uri`: Unique id for this track.
-- `track`: Track renderer - describes how this track loads data and renders it
-  to the canvas.
+- `renderer`: Track renderer - describes how this track loads data and renders
+  it to the canvas.
 - `description`: A human readable description or help text for this track.
-- `subtitle`: Shown underneath the track title.
 - `tags`: Arbitrary key-value pairs.
-- `chipd`: A list of strings displayed to the right of the track title.
 
 Track renderers are powerful but complex so it's strongly advised not to create
 your own. Instead, by far the easiest way to get started with tracks is to use
-the `createQuerySliceTrack` and `createQueryCounterTrack` helpers.
+the `SliceTrack.create` and `CounterTrack.create` helpers.
 
 **Example:**
 
 ```ts
-import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {SliceTrack} from '../../components/tracks/slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 
 // ~~ snip ~~
 
-const uri = `${trace.pluginId}#MyTrack`;
+const uri = 'com.example.MyPlugin#MyTrack';
 
 // Create a new track renderer based on a query
-const renderer = await createQuerySliceTrack({
+const renderer = SliceTrack.create({
   trace,
   uri,
-  data: {
-    sqlSource: 'select * from slice where track_id = 123',
-  },
+  dataset: new SourceDataset({
+    src: 'select id, ts, dur, depth, name from slice where track_id = 123',
+    schema: {id: NUM, ts: LONG, dur: LONG, depth: NUM, name: STR},
+  }),
 });
 
 // Register the track renderer with the core
@@ -721,36 +718,34 @@ trace.workspace.addChildInOrder(trackNode);
 ```
 
 See
-[the source](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/query_slice_track.ts)
+[the source](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/slice_track.ts)
 for detailed usage.
 
-You can also add a counter track using `createQueryCounterTrack` which works in
+You can also add a counter track using `CounterTrack.create` which works in
 a similar way.
 
 ```ts
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
   async onTraceLoad(trace: Trace) {
-    const title = 'My Counter Track';
-    const uri = `${trace.pluginId}#MyCounterTrack`;
-    const query = 'select * from counter where track_id = 123';
+    const name = 'My Counter Track';
+    const uri = 'com.example.MyPlugin#MyCounterTrack';
+    const query = 'select ts, value from counter where track_id = 123';
 
     // Create a new track renderer based on a query
-    const renderer = await createQueryCounterTrack({
+    const renderer = CounterTrack.create({
       trace,
       uri,
-      data: {
-        sqlSource: query,
-      },
+      sqlSource: query,
     });
 
     // Register the track renderer with the core
-    trace.tracks.registerTrack({uri, title, renderer});
+    trace.tracks.registerTrack({uri, renderer});
 
     // Create a track node that references the track using its uri
-    const trackNode = new TrackNode({uri, title});
+    const trackNode = new TrackNode({uri, name});
 
     // Add the track node to the current workspace
     trace.workspace.addChildInOrder(trackNode);
@@ -759,7 +754,7 @@ export default class implements PerfettoPlugin {
 ```
 
 See
-[the source](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/query_counter_track.ts)
+[the source](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/counter_track.ts)
 for detailed usage.
 
 ### Track Descriptions / Help Text
@@ -833,11 +828,11 @@ Any track can have children. Just add child nodes any `TrackNode` object using
 its `addChildXYZ()` methods. Nested tracks are rendered as a collapsible tree.
 
 ```ts
-const group = new TrackNode({title: 'Group'});
+const group = new TrackNode({name: 'Group'});
 trace.workspace.addChildInOrder(group);
-group.addChildLast(new TrackNode({title: 'Child Track A'}));
-group.addChildLast(new TrackNode({title: 'Child Track B'}));
-group.addChildLast(new TrackNode({title: 'Child Track C'}));
+group.addChildLast(new TrackNode({name: 'Child Track A'}));
+group.addChildLast(new TrackNode({name: 'Child Track B'}));
+group.addChildLast(new TrackNode({name: 'Child Track C'}));
 ```
 
 Tracks nodes with children can be collapsed and expanded manually by the user at
@@ -864,7 +859,7 @@ To create a summary track, set the `isSummary: true` option in its initializer
 list at creation time or set its `isSummary` property to true after creation.
 
 ```ts
-const group = new TrackNode({title: 'Group', isSummary: true});
+const group = new TrackNode({name: 'Group', isSummary: true});
 // ~~~ or ~~~
 group.isSummary = true;
 ```
@@ -873,7 +868,7 @@ group.isSummary = true;
 
 Examples
 
-- [com.example.ExampleNestedTracks](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.ExampleNestedTracks/index.ts).
+- [com.example.Tracks](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Tracks/index.ts).
 
 #### Track Ordering
 
@@ -897,10 +892,10 @@ appear higher in the stack).
 
 ```ts
 // PluginA
-workspace.addChildInOrder(new TrackNode({title: 'Foo', sortOrder: 10}));
+workspace.addChildInOrder(new TrackNode({name: 'Foo', sortOrder: 10}));
 
 // Plugin B
-workspace.addChildInOrder(new TrackNode({title: 'Bar', sortOrder: -10}));
+workspace.addChildInOrder(new TrackNode({name: 'Bar', sortOrder: -10}));
 ```
 
 Now it doesn't matter which order plugin are initialized, track `Bar` will
@@ -912,15 +907,13 @@ If no `sortOrder` is defined, the track assumes a `sortOrder` of 0.
 > tracks to the `workspace`, especially if you want your plugin to be enabled by
 > default, as this will ensure it respects the sortOrder of other plugins.
 
-#### DatasetSliceTrack
+#### SliceTrack
 
-`DatasetSliceTrack` is a versatile track renderer class that allows for more
+`SliceTrack` is a versatile track renderer class that allows for more
 fine-grained control over the behavior and appearance of slice-based tracks.
-It's the underlying component used by `createQuerySliceTrack` but offers a
-richer set of customization options.
 
-To use `DatasetSliceTrack`, you instantiate it with `DatasetSliceTrackAttrs`,
-which include:
+To use `SliceTrack`, you create it via `SliceTrack.create()` with
+`SliceTrackAttrs`, which include:
 
 - `trace`: The `Trace` object.
 - `uri`: A unique URI for the track.
@@ -928,23 +921,23 @@ which include:
   a function returning one) that defines the SQL query or table and the schema
   for the slices.
   - **Required columns**:
-    - `id` (NUM): Unique identifier for each slice.
     - `ts` (LONG): Timestamp of the event (nanoseconds). This is the start time
       if `dur` is present, or the instant time otherwise.
   - **Optional columns**:
+    - `id` (NUM): Unique identifier for each slice. Auto-generated if absent.
     - `dur` (LONG): Duration of the event (nanoseconds). If absent, slices are
       instant.
     - `depth` (NUM): Vertical arrangement of slices.
     - `layer` (NUM): Influences mipmap generation; higher layers render on top.
 - `sliceLayout` (optional): An object to customize the geometry and layout of
-  slices (e.g., `padding`, `rowHeight`).
+  slices (e.g., `padding`, `sliceHeight`).
 - `instantStyle` (optional): An object to define custom rendering for instant
   events (those without a `dur`). It requires a `width` and a `render` function.
 - `colorizer` (optional): A function `(row: T) => ColorScheme` to dynamically
   set the color of each slice based on its data.
 - `sliceName` (optional): A function `(row: T) => string` to set the text
   displayed on each slice. Defaults to the `name` column in the dataset.
-- `tooltip` (optional): A function `(slice: SliceWithRow<T>) => m.Children` to
+- `tooltip` (optional): A function `(slice: SliceOrInstant<T>) => m.Children` to
   provide custom Mithril content for the tooltip when hovering over a slice.
 - `detailsPanel` (optional): A function `(row: T) => TrackEventDetailsPanel` to
   define a custom details panel when a slice is selected.
@@ -956,18 +949,14 @@ which include:
 - `initialMaxDepth` (optional): An estimate for the maximum depth to stabilize
   track height during initial load.
 - `rootTableName` (optional): A base table name for ID namespace resolution.
-- `forceTsRenderOrder` (optional): If true, forces rendering in timestamp order,
-  which can be useful for tracks with many overlapping instant events,
-  potentially at a small performance cost.
 
 **Example:**
 
 ```ts
-const trackUri = `${trace.pluginId}#MyCustomSliceTrack`;
+const trackUri = 'com.example.MyPlugin#MyCustomSliceTrack';
 
 // Define your dataset
-const myDataset: SourceDataset<MySliceRow> = {
-  name: 'my_custom_slices', // A descriptive name
+const myDataset = new SourceDataset({
   schema: {
     id: NUM,
     ts: LONG,
@@ -976,7 +965,7 @@ const myDataset: SourceDataset<MySliceRow> = {
     dur: LONG, // Assuming your events have duration
     depth: NUM, // Assuming you want to control depth
   },
-  query: `
+  src: `
     SELECT
       slice_id as id,
       ts,
@@ -986,24 +975,24 @@ const myDataset: SourceDataset<MySliceRow> = {
       category
     FROM my_slice_table_or_view
   `,
-};
+});
 
-const renderer = new DatasetSliceTrack<MySliceRow>({
+const renderer = SliceTrack.create({
   trace,
   uri: trackUri,
   dataset: myDataset,
   sliceName: (row) => `${row.category}: ${row.name}`,
   colorizer: (row) => {
     if (row.category === 'important') {
-      return {background: '#FF0000', foreground: '#FFFFFF'}; // Red
+      return makeColorScheme(new HSLColor({h: 0, s: 50, l: 50})); // Red
     }
-    return {background: '#0000FF', foreground: '#FFFFFF'}; // Blue
+    return makeColorScheme(new HSLColor({h: 240, s: 50, l: 50})); // Blue
   },
   tooltip: (slice) => {
     return m('div', [
       m('div', `Name: ${slice.row.name}`),
       m('div', `Category: ${slice.row.category}`),
-      m('div', `Duration: ${formatDuration(trace, slice.dur)}`),
+      m('div', `Duration: ${formatDuration(trace, slice.row.dur)}`),
     ]);
   },
   // Add other customizers like detailsPanel, fillRatio etc.
@@ -1012,21 +1001,20 @@ const renderer = new DatasetSliceTrack<MySliceRow>({
 // Register the track renderer
 trace.tracks.registerTrack({
   uri: trackUri,
-  title: 'My Custom Slices',
   renderer,
 });
 
 // Add the track node to the workspace as normal
 const trackNode = new TrackNode({
   uri: trackUri,
-  title: 'My Custom Slices',
+  name: 'My Custom Slices',
 });
 trace.workspace.addChildInOrder(trackNode);
 ```
 
 This approach gives you significant flexibility in how your track data is
 queried, processed, and displayed. Remember to consult the source code of
-[`DatasetSliceTrack`](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/dataset_slice_track.ts)
+[`SliceTrack`](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/slice_track.ts)
 and related interfaces for the most up-to-date details and advanced usage
 patterns.
 
@@ -1092,7 +1080,7 @@ in `ui/src/plugins/dev.perfetto.Sched/waker_overlay.ts`.
 Tabs are a useful way to display contextual information about the trace, the
 current selection, or to show the results of an operation.
 
-To register a tab from a plugin, use the `Trace.registerTab` method.
+To register a tab from a plugin, use the `trace.tabs.registerTab` method.
 
 ```ts
 class MyTab implements Tab {
@@ -1108,8 +1096,8 @@ class MyTab implements Tab {
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
   async onTraceLoad(trace: Trace) {
-    trace.registerTab({
-      uri: `${trace.pluginId}#MyTab`,
+    trace.tabs.registerTab({
+      uri: 'com.example.MyPlugin#MyTab',
       content: new MyTab(),
     });
   }
@@ -1130,8 +1118,8 @@ handle.
 Alternatively, tabs may be shown or hidden programmatically using the tabs API.
 
 ```ts
-trace.tabs.showTab(`${trace.pluginId}#MyTab`);
-trace.tabs.hideTab(`${trace.pluginId}#MyTab`);
+trace.tabs.showTab('com.example.MyPlugin#MyTab');
+trace.tabs.hideTab('com.example.MyPlugin#MyTab');
 ```
 
 Tabs have the following properties:
@@ -1158,9 +1146,9 @@ Ephemeral tabs can be registered by setting the `isEphemeral` flag when
 registering the tab.
 
 ```ts
-trace.registerTab({
+trace.tabs.registerTab({
   isEphemeral: true,
-  uri: `${trace.pluginId}#MyTab`,
+  uri: 'com.example.MyPlugin#MyTab',
   content: new MyEphemeralTab(),
 });
 ```
@@ -1188,8 +1176,8 @@ class MyNameTab implements Tab {
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
   async onTraceLoad(trace: Trace): Promise<void> {
-    trace.registerCommand({
-      id: `${trace.pluginId}#AddNewEphemeralTab`,
+    trace.commands.registerCommand({
+      id: 'com.example.MyPlugin#AddNewEphemeralTab',
       name: 'Add new ephemeral tab',
       callback: () => handleCommand(trace),
     });
@@ -1199,16 +1187,16 @@ export default class implements PerfettoPlugin {
 function handleCommand(trace: Trace): void {
   const name = prompt('What is your name');
   if (name) {
-    const uri = `${trace.pluginId}#MyName${uuidv4()}`;
+    const uri = `com.example.MyPlugin#MyName${uuidv4()}`;
     // This makes the tab available to perfetto
-    ctx.registerTab({
+    trace.tabs.registerTab({
       isEphemeral: true,
       uri,
       content: new MyNameTab(name),
     });
 
     // This opens the tab in the tab bar
-    ctx.tabs.showTab(uri);
+    trace.tabs.showTab(uri);
   }
 }
 ```
@@ -1249,7 +1237,7 @@ internal link to a page, or an external link.
 
 ```ts
 trace.sidebar.addMenuItem({
-  section: 'navigation',
+  section: 'settings',
   text: 'Plugins',
   href: '#!/plugins',
 });
@@ -1285,11 +1273,11 @@ Optional params for all types of sidebar items:
   See full list [here](https://fonts.google.com/icons).
 - `tooltip` - Displayed on hover
 - `section` - Where to place the menu item.
-  - `navigation`
   - `current_trace`
-  - `convert_trace`
-  - `example_traces`
+  - `trace_files`
+  - `settings`
   - `support`
+  - `convert_trace`
 - `sortOrder` - The lower the sortOrder the higher the bar.
 
 See the
@@ -1371,7 +1359,7 @@ The `renderItem` callback should return an object with the following properties:
 The `popupContent` callback is optional and should return mithril content to be
 displayed in a popup when the statusbar item is clicked.
 
-- [core_plugins/flags_page/index.ts](https://github.com/google/perfetto/blob/main/ui/src/core_plugins/flags_page/index.ts).
+- [dev.perfetto.TimelineSync](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.TimelineSync/index.ts).
 
 ### Omnibox Prompts
 
@@ -1585,13 +1573,13 @@ interface MyState {
 ```
 
 To access permalink state, call `mountStore()` on your `Trace` object, passing
-in a migration function.
+in a store id and a migration function.
 
 ```typescript
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.MyPlugin';
   async onTraceLoad(trace: Trace): Promise<void> {
-    const store = trace.mountStore(migrate);
+    const store = trace.mountStore('com.example.MyPlugin', migrate);
   }
 }
 
@@ -1658,7 +1646,7 @@ Migration should be unit-tested to ensure compatibility.
 
 Examples:
 
-- [dev.perfetto.ExampleState](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
+- [com.example.State](https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.State/index.ts).
 
 ### Feature Flags
 
@@ -1702,7 +1690,7 @@ interact with the flag's state:
 **Example:**
 
 ```typescript
-import {Flag, FlagSettings} from '../../public/featureflag'; // Adjust path as needed
+import {Flag, FlagSettings} from '../../public/feature_flag'; // Adjust path as needed
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -1787,7 +1775,7 @@ the descriptor and provides methods to interact with the setting:
 **Example:**
 
 ```typescript
-import {Setting, SettingDescriptor} from '../../public/setting'; // Adjust path as needed
+import {Setting, SettingDescriptor} from '../../public/settings'; // Adjust path as needed
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -1985,7 +1973,7 @@ any context where the `Trace` object is accessible.
 **Example:**
 
 ```typescript
-import {Trace, time} from '../../public'; // Adjust path as needed
+import {Trace, Time} from '../../public'; // Adjust path as needed
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.MyTimelineNotesPlugin';
@@ -1993,7 +1981,7 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     // Example: Add a point note at 10 seconds into the trace
     const noteId = trace.notes.addNote({
-      timestamp: time.fromSeconds(10),
+      timestamp: Time.fromSeconds(10),
       text: 'Interesting event occurred here!',
       color: '#FF00FF', // Magenta
     });
@@ -2001,8 +1989,8 @@ export default class implements PerfettoPlugin {
 
     // Example: Add a span note from 15s to 20s
     const spanNoteId = trace.notes.addSpanNote({
-      start: time.fromSeconds(15),
-      end: time.fromSeconds(20),
+      start: Time.fromSeconds(15),
+      end: Time.fromSeconds(20),
       text: 'Critical duration under investigation',
       color: 'rgba(255, 165, 0, 0.5)', // Orange, semi-transparent
     });
@@ -2058,7 +2046,7 @@ import {
   MinimapCell,
   HighPrecisionTimeSpan,
   duration,
-  time,
+  Time,
 } from '../../public'; // Adjust path
 
 class MyMinimapDataProvider implements MinimapContentProvider {
@@ -2077,7 +2065,7 @@ class MyMinimapDataProvider implements MinimapContentProvider {
     const step = resolution; // Use the provided resolution as step
 
     while (currentTs < timeSpan.end) {
-      const cellEnd = time.add(currentTs, step);
+      const cellEnd = Time.add(currentTs, step);
       cells.push({
         ts: currentTs,
         dur: step,
@@ -2215,7 +2203,7 @@ modular and extensible system.
 Some plugins are enabled by default. These plugins are held to a higher quality
 than non-default plugins since changes to those plugins effect all users of the
 UI. The list of default plugins is specified at
-[ui/src/core/default_plugins.ts](https://github.com/google/perfetto/blob/main/ui/src/core/default_plugins.ts).
+[ui/src/core/embedder/default_plugins.ts](https://github.com/google/perfetto/blob/main/ui/src/core/embedder/default_plugins.ts).
 
 In particular the startup time of your plugin will be scrutinized and your
 plugin may be disabled by default if it has a significant impact on users who

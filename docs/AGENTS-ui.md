@@ -50,7 +50,7 @@ The UI uses:
 
 - **TypeScript** for type safety
 - **Mithril** as the UI framework
-- **Rollup** for bundling
+- **Vite** for bundling
 - **pnpm** for package management
 - **ESLint** for linting (based on Google style)
 - **Playwright** for integration tests
@@ -112,7 +112,7 @@ export default class MyPlugin implements PerfettoPlugin {
 - `trace.commands` - Register commands
 - `trace.tabs` - Register tabs in the details panel
 - `trace.timeline` - Access timeline state
-- `trace.workspace` - Manage the track tree structure
+- `trace.workspaces`, `trace.currentWorkspace` - Manage the track tree structure
 
 ## Mithril Patterns and Best Practices
 
@@ -143,7 +143,7 @@ export class MyComponent implements m.ClassComponent<MyComponentAttrs> {
 **Mithril Rules:**
 
 - No need to call`m.redraw()` most of the times. We automatically schedules redraws: (1) in Mithril's DOM event handlers; (2) after trace processor queries complete. But NOT after manually registered JS event handlers.
-- Use `constructor` for initialization if no DOM access is needed, or `onCreate` if DOM is needed.
+- Use `constructor` for initialization if no DOM access is needed, or `oncreate` if DOM is needed.
 - Prefer using the existing widget library (`ui/src/widgets/`) over creating new components.
 - Use `readonly` for attrs properties to prevent accidental mutation. We like things to be immutable.
 
@@ -297,7 +297,7 @@ The `ui/src/widgets/` directory contains reusable components. Always check here 
 - `Modal` - Modal dialogs
 - `TextInput`, `Select`, `Checkbox`, `Switch` - Form controls
 - `Tree` - Tree view component
-- `DataGrid` - Tabular data grid component
+- `DataGrid` - Tabular data grid component (in `ui/src/components/widgets/`)
 - `Tabs` - Tabbed interface
 - `Spinner` - Loading indicator
 - `EmptyState` - Empty state placeholder
@@ -325,8 +325,8 @@ Follow these guidelines for TypeScript code:
 - **Strict boolean expressions**: Don't use numbers or strings in boolean contexts implicitly.
 - **Readonly by default**: Use `readonly` for interface properties and function parameters.
 - **Use existing utilities**: Check `ui/src/base/` for utilities before writing your own:
-  - `time.ts`, `duration.ts` - Time handling
-  - `logging.ts` - `assertTrue()`, `assertExists()`, `assertFalse()`
+  - `time.ts` - Time handling
+  - `assert.ts` - `assertTrue()`, `assertExists()`, `assertFalse()`
   - `disposable_stack.ts` - Resource cleanup
   - `deferred.ts` - Promise utilities
   - `string_utils.ts` - String manipulation
@@ -396,7 +396,7 @@ Because `time` is branded, TypeScript will reject passing a `duration` or plain 
 ## Track creation
 
 Rarely you need to create a new Track from scratch.
-In most cases you can use higher level components in ui/src/components/tracks/, especially DatasetSliceTrack (examples in /docs/contributing/ui-plugins.md).
+In most cases you can use higher level components in ui/src/components/tracks/, especially SliceTrack (examples in /docs/contributing/ui-plugins.md).
 Look at those examples first and keep creating a track via trace.tracks.registerTrack as a last-resort.
 
 ## CSS/SCSS Conventions
@@ -459,7 +459,7 @@ const cls = classNames('pf-row', isSelected && 'pf-row--selected', isDisabled &&
 
 **Use `assertUnreachable()` in switch default cases:**
 ```typescript
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 
 switch (value) {
   case 'a': return handleA();
@@ -510,7 +510,7 @@ m('.pf-my-component', 'content') // with styles in .scss file
 
 // Good
 .pf-my-component {
-  color: var(--pf-color-foreground);
+  color: var(--pf-color-text);
   background: var(--pf-color-background);
 }
 ```
@@ -536,7 +536,7 @@ view() {
 **Use the `Anchor` widget for links:**
 ```typescript
 import {Anchor} from '../widgets/anchor';
-import {Icons} from '../widgets/icons';
+import {Icons} from '../base/semantic_icons';
 
 // Bad
 m('a', {href: 'https://example.com', target: '_blank'}, 'Link')
@@ -597,10 +597,10 @@ const config = ConfigSchema.parse(JSON.parse(data));
 
 Unit tests are run with:
 ```sh
-$ui/run-unittests
+ui/run-unittests
 ```
 
-TypeScript unit tests follow the pattern `*_unittest.ts` and use Jest.
+TypeScript unit tests follow the pattern `*_unittest.ts` and use Vitest.
 
 ### UI Integration Tests
 

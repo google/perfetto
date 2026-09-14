@@ -141,7 +141,7 @@ format is for:
   tables, enabling flamegraph visualization in the Perfetto UI.
 - **Markers:** Each Firefox marker becomes a Perfetto slice. The track layout
   mirrors the Firefox Profiler's marker chart: one track per
-  `(thread, marker name)` so e.g. every `Awake` marker appears on the
+  `(thread, category, marker name)` so e.g. every `Awake` marker appears on the
   thread's `Awake` track, every `BINARY_OP` opcode marker on the thread's
   `BINARY_OP` track, and so on.
   - `Instant` markers (phase 0) become zero-duration slices.
@@ -1019,11 +1019,10 @@ occasionally adding fields.
   `.ninja_log` files.
   - Each build step recorded in the `.ninja_log` is typically imported as a
     distinct slice into the `slice` table.
-  - To visualize these build steps on a timeline, Perfetto often synthesizes
-    process and thread information. For instance, all build steps might be
-    grouped under a single "Ninja Build" process, with individual tracks
-    potentially created for each unique output file path or based on other
-    heuristics to represent concurrency.
+  - To visualize these build steps on a timeline, Perfetto synthesizes
+    process and thread information: all build steps are grouped under a
+    single "Build" process, with "Worker" tracks inferred from overlapping
+    timestamps to represent concurrency.
   - The timestamps (start and end times) are converted from milliseconds to
     nanoseconds for consistency within Perfetto.
   - This allows the build process to be visualized in the Perfetto UI, showing
@@ -1077,10 +1076,9 @@ Error, Fatal/Assert), a tag identifying the source of the log, the Process ID
   - In the Perfetto UI, these logs appear in the "Android Logs" panel, where
     they are displayed chronologically and can be filtered. This allows
     correlation of log messages with other trace events on the main timeline.
-- **Supported Formats:** Perfetto's parser is designed to handle common
-  `adb logcat` output formats, with good support for `logcat -v long` and
-  `logcat -v threadtime`. Other, more esoteric or heavily customized logcat
-  formats might not be fully parsed.
+- **Supported Formats:** Perfetto's parser handles the `logcat -v threadtime`
+  output format, optionally combined with `-v uid` or `-v year`. Other logcat
+  formats, such as `logcat -v long`, are not parsed.
 
 **How to Generate Textual Logcat Files:**
 
@@ -1089,15 +1087,11 @@ Error, Fatal/Assert), a tag identifying the source of the log, the Process ID
   - To dump the current contents of the log buffers and then exit (useful for a
     snapshot):
     ```bash
-    # Dumps logs in 'long' format
-    adb logcat -d -v long > logcat_dump_long.txt
     # Dumps logs in 'threadtime' format (timestamp, PID, TID, priority, tag, message)
     adb logcat -d -v threadtime > logcat_dump_threadtime.txt
     ```
   - To stream live logs to a file (press Ctrl-C to stop):
     ```bash
-    adb logcat -v long > logcat_stream_long.txt
-    # Or, for a more parse-friendly streaming format:
     adb logcat -v threadtime > logcat_stream_threadtime.txt
     ```
 - **From Android Bug Reports:** Logcat data is a standard component of bug
@@ -1135,29 +1129,24 @@ board-level information and specific service dumps like `batterystats`.
 - **Perfetto UI & Trace Processor:** Perfetto can directly open and process
   Android bugreport `.zip` files.
   - When a bugreport zip is loaded, Perfetto automatically:
-    - Scans the archive for **Perfetto trace files** (`.pftrace`,
-      `.perfetto-trace`) in known locations (e.g.,
-      `FS/data/misc/perfetto-traces/`, `proto/perfetto-trace.gz`). The primary
-      Perfetto trace found is loaded for visualization and SQL querying.
-    - Parses the main **`dumpstate` board-level information** (often found in
-      files like `bugreport-*.txt` or `dumpstate_board.txt`) into the
-      `dumpstate` SQL table. This table includes system properties, kernel
-      version, build fingerprints, and other hardware/software details.
-    - Extracts detailed **battery statistics** from the `batterystats` section
-      of the dumpstate into the `battery_stats` SQL table. This provides
-      information on battery levels, charging status, and power events over
-      time.
-  - This integrated approach allows users to analyze not only the system trace
-    but also key system state (from `dumpstate`) and battery information (from
-    `battery_stats`) from the bugreport within a unified Perfetto environment,
-    without needing to manually extract these components.
-  - **Note:** Perfetto's focus when processing bugreports is on its own native
-    trace format and specific, structured parts of the `dumpstate` like
-    `batterystats`. It generally does **not** attempt to import or parse legacy
-    Systrace files (`systrace.html` or `systrace.txt`) that might be present in
-    older bugreports. For analyzing those, you'd typically extract them manually
-    and open them as per the [Android systrace format](#android-systrace-format)
-    section.
+    - Parses the main **`dumpstate` output** (the `bugreport-*.txt` file) into
+      the `android_dumpstate` SQL table, one row per line, tagged with the
+      dumpstate `section` and dumpsys `service` it came from.
+    - Imports the **logcat** sections of the dumpstate output and the
+      persistent logcat files (`FS/data/misc/logd/logcat*`) into the
+      `android_logs` SQL table.
+    - Extracts **battery statistics** from the `CHECKIN BATTERYSTATS` section
+      of the dumpstate into `battery_stats.*` counter and event tracks.
+  - This integrated approach allows users to analyze key system state (from
+    `dumpstate`), logs and battery information from the bugreport within a
+    unified Perfetto environment, without needing to manually extract these
+    components.
+  - **Note:** Perfetto's focus when processing bugreports is on these specific,
+    structured parts of the `dumpstate`. It does **not** load Perfetto trace
+    files or legacy Systrace files (`systrace.html` or `systrace.txt`) that
+    might be present in the bugreport. For analyzing those, extract them
+    manually and open them directly (for Systrace files, see the
+    [Android systrace format](#android-systrace-format) section).
 
 **How to Generate:**
 
@@ -1238,8 +1227,8 @@ into Zircon Virtual Memory Objects (VMOs) for efficiency.
   visualization. The UI can display various Fuchsia-specific events and system
   activities.
 - **Trace Processor:** Perfetto's Trace Processor supports parsing the Fuchsia
-  binary format. This allows the trace data, including events, scheduling
-  records, and logs, to be imported into standard Perfetto SQL tables, making it
+  binary format. This allows the trace data, including events and scheduling
+  records, to be imported into standard Perfetto SQL tables, making it
   available for query-based analysis.
 
 **How to Generate:**

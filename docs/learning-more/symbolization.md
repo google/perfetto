@@ -257,17 +257,21 @@ Common messages and what they mean:
   (`--no-auto-symbol-paths`) and no explicit paths were given. Pass
   `--symbol-paths` with the directories to search.
 
-- **`failed to open output file ...`**: the output path could not be created
+- **`cannot create output file ...`**: the output path could not be created
   (e.g. the parent directory does not exist or is not writable). Check the
   path.
 
 #### Could not find library
 
-When symbolizing a profile you may see messages like:
+When symbolizing a profile with `--verbose` you may see messages like:
 
 ```text
-Could not find /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so
-(Build ID: 44b7138abd5957b8d0a56ce86216d478).
+  No matching symbols in searched paths for 1 mapping (12 frames):
+    /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so (12 frames)
+      build ID: 44b7138abd5957b8d0a56ce86216d478
+      paths searched:
+        /path/to/symbols/somelib.so (file not found)
+      hint: use --symbol-paths to specify symbol files or directories
 ```
 
 Check that `somelib.so` exists somewhere under one of the search paths
