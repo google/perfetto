@@ -495,6 +495,58 @@ void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
   rr.set_android_user_id(uid / 100000);
 }
 
+void ProcessTracker::ReleasePid(UniquePid upid) {
+  auto process = (*context_->storage->mutable_process_table())[upid];
+  int64_t pid = process.pid();
+  // Only drop the mapping if |upid| still owns it: the pid may already have
+  // been handed to a newer incarnation.
+  if (auto* mapped_upid = pids_.Find(pid);
+      mapped_upid && *mapped_upid == upid) {
+    pids_.Erase(pid);
+  }
+  InvalidateProcessThreads(upid);
+}
+
+void ProcessTracker::EndProcess(std::optional<int64_t> ts, UniquePid upid) {
+  auto& process_table = *context_->storage->mutable_process_table();
+  auto process = process_table[upid];
+  int64_t pid = process.pid();
+
+  // Best effort: if our own main thread is still live, EndThread() does the
+  // full job (ends the thread, the process, and drops the pid mapping). Check
+  // the thread really belongs to |upid|, because after ReleasePid() the live
+  // thread for |pid| is a newer incarnation's and must not be touched.
+  bool ended_via_thread = false;
+  if (ts.has_value()) {
+    if (auto utid = GetThreadOrNull(pid); utid.has_value()) {
+      auto thread = (*context_->storage->mutable_thread_table())[*utid];
+      if (thread.upid() == upid) {
+        EndThread(*ts, pid);
+        ended_via_thread = true;
+      }
+    }
+  }
+  // The pid no longer resolves to us, so close our threads directly rather
+  // than through the pid. Without this they would stay open-ended even though
+  // we know the process is gone.
+  if (ts.has_value() && !ended_via_thread) {
+    if (auto* threads = process_threads_.Find(upid); threads) {
+      auto& thread_table = *context_->storage->mutable_thread_table();
+      for (UniqueTid utid : *threads) {
+        auto thread = thread_table[utid];
+        if (!thread.end_ts().has_value()) {
+          thread.set_end_ts(*ts);
+        }
+      }
+    }
+  }
+  if (ts.has_value() && !process.end_ts().has_value()) {
+    process.set_end_ts(*ts);
+  }
+  // Guarantee the mapping is gone even if EndThread() bailed out early.
+  ReleasePid(upid);
+}
+
 void ProcessTracker::SetProcessSortIndex(UniquePid upid,
                                          int32_t sort_index,
                                          SortIndexPriority priority) {

@@ -19,7 +19,12 @@
 #include <string>
 
 #include "perfetto/ext/base/string_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/importers/android/android_process_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -112,7 +117,106 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   process_state_table_->Insert(row);
 }
 
+void AndroidProcessStateTracker::OnConfigDetected(
+    bool ftrace_configured,
+    std::optional<bool> dump_process_metadata) {
+  if (ftrace_configured) {
+    ftrace_configured_ = true;
+  } else if (!ftrace_configured_.has_value()) {
+    ftrace_configured_ = false;
+  }
+
+  if (dump_process_metadata.value_or(false)) {
+    dump_process_metadata_ = true;
+  } else if (!dump_process_metadata_.has_value() &&
+             dump_process_metadata.has_value()) {
+    dump_process_metadata_ = false;
+  }
+
+  // The framework is only authoritative when it is the sole source of process
+  // lifecycles: dump_process_metadata is on and there is no ftrace supplying
+  // kernel-level process events. Anything else leaves the kernel in charge.
+  bool framework_is_authority = !ftrace_configured_.value_or(false) &&
+                                dump_process_metadata_.value_or(false);
+  context_->android_process_tracker->SetFrameworkIsProcessAuthority(
+      framework_is_authority);
+}
+
+std::optional<int64_t> AndroidProcessStateTracker::ToTraceTs(
+    int64_t start_time_ms) {
+  int64_t boottime_ns = 0;
+  if (start_time_ms < 0 ||
+      __builtin_mul_overflow(start_time_ms, 1000000LL, &boottime_ns)) {
+    context_->stats_tracker->IncrementStats(
+        stats::android_process_state_invalid_start_time);
+    return std::nullopt;
+  }
+  if (!context_->clock_tracker) {
+    return std::nullopt;
+  }
+  auto opt_trace_ts = context_->clock_tracker->ToTraceTime(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), boottime_ns);
+  if (!opt_trace_ts.has_value() && !boottime_unresolvable_) {
+    boottime_unresolvable_ = true;
+  }
+  return opt_trace_ts;
+}
+
+UniquePid AndroidProcessStateTracker::ResolveUserspaceAuthority(
+    const RecordDecoder& rec) {
+  std::optional<int64_t> opt_start_ts;
+  if (rec.has_start_time_ms()) {
+    opt_start_ts = ToTraceTs(rec.start_time_ms());
+  }
+  StringId name_id = rec.has_process_name()
+                         ? context_->storage->InternString(
+                               base::StringView(rec.process_name()))
+                         : kNullStringId;
+  std::optional<int64_t> start_seq_id;
+  if (rec.has_start_seq_id()) {
+    start_seq_id = rec.start_seq_id();
+  }
+
+  auto prev_upid = context_->process_tracker->GetProcessOrNull(
+      static_cast<uint32_t>(rec.pid()));
+  if (prev_upid.has_value()) {
+    auto prev_seq_id =
+        context_->android_process_tracker->GetStartSeqId(*prev_upid);
+    if (prev_seq_id.has_value() && start_seq_id.has_value() &&
+        *prev_seq_id != *start_seq_id && !opt_start_ts.has_value()) {
+      context_->stats_tracker->IncrementStats(
+          stats::android_process_state_reuse_unknown_ts);
+    }
+  }
+
+  UniquePid upid = context_->android_process_tracker->GetOrStartProcess(
+      opt_start_ts, static_cast<uint32_t>(rec.pid()), start_seq_id, name_id,
+      ThreadNamePriority::kTrackDescriptor);
+
+  if (rec.has_process_name()) {
+    context_->process_tracker->UpdateProcessName(
+        upid, name_id, ProcessNamePriority::kAndroidFramework);
+  }
+  if (rec.has_uid()) {
+    context_->process_tracker->SetProcessUid(upid,
+                                             static_cast<uint32_t>(rec.uid()));
+  }
+  // start_seq_id is already recorded by GetOrStartProcess() above.
+  if (opt_start_ts.has_value()) {
+    context_->process_tracker->SetStartTsIfUnset(upid, *opt_start_ts);
+  }
+
+  return upid;
+}
+
+UniquePid AndroidProcessStateTracker::ResolveKernelAuthority(
+    const RecordDecoder& rec) {
+  return context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(rec.pid()));
+}
+
 void AndroidProcessStateTracker::ParseProcessStateDump(
+    int64_t /*ts*/,
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
   for (auto it = dump.record(); it; ++it) {
@@ -120,20 +224,19 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
     if (!rec.has_pid()) {
       continue;
     }
-    ProcessStateValues v;
-    v.upid = context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(rec.pid()));
 
-    // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
-    // during serialization on Android, so unset fields in the dump snapshot
-    // represent 0.
-    //
-    // TODO: Consider setting process_name and uid on the core `process` table
-    // from dump records in a future update.
+    UniquePid upid =
+        context_->android_process_tracker->FrameworkIsProcessAuthority()
+            ? ResolveUserspaceAuthority(rec)
+            : ResolveKernelAuthority(rec);
+
+    ProcessStateValues v;
+    v.upid = upid;
     v.proc_state = rec.has_proc_state()
                        ? static_cast<int32_t>(rec.proc_state())
                        : static_cast<int32_t>(
                              fb::ProcessStateEnum::PROCESS_STATE_UNSPECIFIED);
+    // Default to 0 when omitted due to proto zero-suppression.
     v.oom_score = rec.has_oom_score() ? rec.oom_score() : 0;
     v.capability_flags =
         rec.has_capability_flags() ? rec.capability_flags() : 0;
@@ -178,8 +281,7 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
     FreezerStateValues v;
     v.upid = context_->process_tracker->GetOrCreateProcess(
         static_cast<uint32_t>(rec.pid()));
-    // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
-    // during serialization on Android, so unset fields represent UFR_NONE (0).
+    // Default to UFR_NONE when omitted due to proto zero-suppression.
     v.unfreeze_reason =
         rec.has_unfreeze_reason()
             ? static_cast<int32_t>(rec.unfreeze_reason())
@@ -230,6 +332,9 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
   row.upid = v.upid;
   row.ts = std::nullopt;
   row.is_initial = 1;
+  // AndroidProcessTracker only keeps the seq id while parsing, so copy it
+  // here to keep it queryable.
+  row.start_seq_id = context_->android_process_tracker->GetStartSeqId(v.upid);
   if (v.proc_state.has_value()) {
     row.proc_state =
         InternEnum(context_, proc_state_cache_,

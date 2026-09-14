@@ -60,6 +60,10 @@ enum class ProcessNamePriority : uint8_t {
   kTrackDescriptor = 2,
   kChromeProcessLabelRenderer = 3,
   kSystem = 4,
+  // Android framework provides canonical package or process names (e.g. from
+  // ActivityManager / AMS track events or dumps), which outrank kernel-derived
+  // names (e.g. truncated /proc/pid/cmdline or comm).
+  kAndroidFramework = 5,
 };
 
 // Sort index priorities for process and thread tracks. Higher values overwrite
@@ -181,6 +185,20 @@ class ProcessTracker {
 
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);
+
+  // Detaches |upid| from its pid, so that a subsequent GetOrCreateProcess() or
+  // StartNewProcess() for that pid resolves to a new incarnation. Does not
+  // record an end_ts: use this when a pid is known to have been handed to a new
+  // process but the previous one's death time is unknown. Callers that do know
+  // when the process ended should use EndProcess() instead.
+  void ReleasePid(UniquePid upid);
+
+  // Ends the process |upid| and releases its pid. |ts| is recorded as the
+  // process's end_ts; pass nullopt when the process is known to have ended but
+  // the timestamp cannot be established, in which case end_ts is left unset
+  // rather than guessed. Safe to call on a process which has already had its
+  // pid released: the pid's current owner is left untouched.
+  void EndProcess(std::optional<int64_t> ts, UniquePid upid);
 
   // Sets the sort index of a process with priority semantics.
   void SetProcessSortIndex(UniquePid upid,

@@ -13,33 +13,31 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
-import("../../../../gn/perfetto_tp_tables.gni")
 
-assert(enable_perfetto_trace_processor_sqlite)
-
-perfetto_tp_tables("tables") {
-  sources = [ "tables.py" ]
-  deps = [ "../../tables:tables_python" ]
-}
-
-source_set("android_framework_track_event") {
+source_set("android") {
   sources = [
-    "android_framework_track_event.cc",
-    "android_framework_track_event.h",
+    "android_process_tracker.cc",
+    "android_process_tracker.h",
   ]
   deps = [
-    ":tables",
     "../../../../gn:default_deps",
-    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
     "../../../base",
-    "../../../protozero",
-    "../../core/plugin",
-    "../../importers/android",
-    "../../importers/common",
-    "../../importers/proto:minimal",
     "../../storage",
-    "../../tables",
     "../../types",
-    "../../util:descriptors",
+    "../common",
+  ]
+}
+
+source_set("unittests") {
+  testonly = true
+  sources = [ "android_process_tracker_unittest.cc" ]
+  deps = [
+    ":android",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../base",
+    "../../storage",
+    "../../types",
+    "../common",
   ]
 }
