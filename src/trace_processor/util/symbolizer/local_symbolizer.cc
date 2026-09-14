@@ -837,7 +837,8 @@ std::optional<FoundBinary> FindKernelBinary(
 }  // namespace
 
 bool ParseLlvmSymbolizerJsonLine(const std::string& line,
-                                 std::vector<SymbolizedFrame>* result) {
+                                 std::vector<SymbolizedFrame>* result,
+                                 std::string* error) {
   // Parse Json of the format:
   // ```
   // {"Address":"0x1b72f","ModuleName":"...","Symbol":[{"Column":0,
@@ -881,20 +882,15 @@ bool ParseLlvmSymbolizerJsonLine(const std::string& line,
             return true;
           });
         }
-        if (key == "Error") {
-          std::string message;
-          if (!ParseJsonObject(it, end,
-                               [&](const char*& it, const char* end,
-                                   const std::string& key) {
-                                 if (key == "Message") {
-                                   return ParseJsonString(it, end, &message);
-                                 }
-                                 return SkipJsonValue(it, end);
-                               })) {
-            return false;
-          }
-          PERFETTO_ELOG("Failed to symbolize: %s.", message.c_str());
-          return true;
+        if (key == "Error" && error) {
+          return ParseJsonObject(
+              it, end,
+              [&](const char*& it, const char* end, const std::string& key) {
+                if (key == "Message") {
+                  return ParseJsonString(it, end, error);
+                }
+                return SkipJsonValue(it, end);
+              });
         }
         return SkipJsonValue(it, end);
       });
@@ -988,11 +984,28 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
     return subprocess_.Read(read_buffer, buffer_size);
   });
   // llvm-symbolizer writes out records as one JSON per line.
-  if (!ParseLlvmSymbolizerJsonLine(line, &result)) {
+  std::string error;
+  if (!ParseLlvmSymbolizerJsonLine(line, &result, &error)) {
     PERFETTO_ELOG("Failed to parse llvm-symbolizer JSON: %s", line.c_str());
     return {};
   }
+  if (!error.empty()) {
+    PERFETTO_ELOG("Failed to symbolize: %s.", error.c_str());
+  }
   return result;
+}
+
+bool LLVMSymbolizerProcess::Probe() {
+  // llvm-symbolizer replies with JSON even if the binary doesn't exist.
+  static constexpr char kProbeRequest[] = "\"/nonexistent\" 0x0\n";
+  if (subprocess_.Write(kProbeRequest, sizeof(kProbeRequest) - 1) < 0) {
+    return false;
+  }
+  auto line = GetLine([&](char* read_buffer, size_t buffer_size) {
+    return subprocess_.Read(read_buffer, buffer_size);
+  });
+  std::vector<SymbolizedFrame> frames;
+  return ParseLlvmSymbolizerJsonLine(line, &frames);
 }
 
 namespace {
@@ -1127,6 +1140,16 @@ LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder)
     : LocalSymbolizer(kDefaultSymbolizer, std::move(finder)) {}
 
 LocalSymbolizer::~LocalSymbolizer() = default;
+
+bool IsLlvmSymbolizerAvailable() {
+  return LLVMSymbolizerProcess(kDefaultSymbolizer).Probe();
+}
+
+#else  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+
+bool IsLlvmSymbolizerAvailable() {
+  return false;
+}
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 

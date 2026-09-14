@@ -94,6 +94,20 @@ constexpr const char* kQueryUnsymbolized =
         spf.rel_pc
     )";
 
+// Keep in sync with the filter in kQueryUnsymbolized.
+constexpr const char* kQueryHasUnsymbolized =
+    R"(
+      select 1
+      from __intrinsic_stack_profile_frame spf
+      join __intrinsic_stack_profile_mapping spm on spf.mapping = spm.id
+      where (
+          spm.build_id != ''
+          or spm.name GLOB '[[]kernel.kallsyms]*'
+        )
+        and spf.symbol_set_id IS NULL
+      limit 1
+    )";
+
 // Query to get mappings with empty build IDs and their frame counts.
 // These frames cannot be symbolized because we cannot look up symbols without
 // a build ID.
@@ -264,6 +278,12 @@ std::string SymbolPathHint(bool colorize) {
              colorize,
              "use --symbol-paths to specify symbol files or directories") +
          "\n";
+}
+
+std::string LlvmSymbolizerUnavailableMessage() {
+  return "llvm-symbolizer could not be run, so no symbols were read from "
+         "native binaries. Install LLVM (e.g. 'apt install llvm' or "
+         "'brew install llvm') and make sure llvm-symbolizer is on the PATH.\n";
 }
 
 // Hint text for missing build IDs.
@@ -482,20 +502,38 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
     }
   };
 
-  // Run "index" mode symbolizer if paths are provided.
-  if (auto symbolizer = CreateIndexSymbolizer(config); symbolizer) {
-    collect_output(SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get()));
+  // Only require llvm-symbolizer if there is something to symbolize.
+  bool has_local_paths = !config.index_symbol_paths.empty() ||
+                         !config.symbol_files.empty() ||
+                         !config.find_symbol_paths.empty();
+  if (has_local_paths && tp->ExecuteQuery(kQueryHasUnsymbolized).Next() &&
+      !IsLlvmSymbolizerAvailable()) {
+    result.llvm_symbolizer_unavailable = true;
   }
 
-  // Run "find" mode symbolizer if paths are provided.
-  if (auto symbolizer = CreateFindSymbolizer(config); symbolizer) {
-    collect_output(SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get()));
+  if (!result.llvm_symbolizer_unavailable) {
+    // Run "index" mode symbolizer if paths are provided.
+    if (auto symbolizer = CreateIndexSymbolizer(config); symbolizer) {
+      collect_output(SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get()));
+    }
+
+    // Run "find" mode symbolizer if paths are provided.
+    if (auto symbolizer = CreateFindSymbolizer(config); symbolizer) {
+      collect_output(SymbolizeDatabaseWithSymbolizer(tp, symbolizer.get()));
+    }
   }
 
   // Run breakpad symbolizers for each breakpad path.
   for (const std::string& breakpad_path : config.breakpad_paths) {
     BreakpadSymbolizer symbolizer(breakpad_path);
     collect_output(SymbolizeDatabaseWithSymbolizer(tp, &symbolizer));
+  }
+
+  if (result.llvm_symbolizer_unavailable &&
+      result.successful_mappings.empty()) {
+    result.error = SymbolizerError::kSymbolizerNotAvailable;
+    result.error_details = LlvmSymbolizerUnavailableMessage();
+    return result;
   }
 
   result.error = SymbolizerError::kOk;
@@ -533,6 +571,10 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
     skipped_frames += count;
   }
   uint32_t unsymbolized_frames = failed_frames + skipped_frames;
+
+  if (result.llvm_symbolizer_unavailable) {
+    summary += Colorize(colorize, kYellow, LlvmSymbolizerUnavailableMessage());
+  }
 
   // If everything succeeded, don't log anything.
   if (failed_count == 0 && skipped_count == 0) {
