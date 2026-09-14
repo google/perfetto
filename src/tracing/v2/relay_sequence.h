@@ -27,21 +27,15 @@
 
 namespace perfetto::tracing_v2 {
 
-// Wraps the task runner that drains the in-process v2 bridges, adding one
-// thing: a way to stop accepting work before the runner is destroyed.
+// Lets the v2 relay stop accepting tasks before its runner is destroyed.
 //
-// Tasks come from arbitrary SDK threads (ring buffer notifications, writer
-// destruction), from the muxer sequence (flush and stop barriers) and from the
-// relay itself. Some of them race with Tracing::Shutdown(), e.g. the TLS
-// v2 writers destroyed during shutdown request destruction of their v1 writers.
+// SDK threads, the muxer and the relay itself post tasks here. Posts can race
+// with Tracing::Shutdown(), including requests to destroy retained v1 writers.
 //
-// Holding |mutex_| across the post means that a caller either gets its task
-// onto the live runner, or is told that the sequence is closed and has to deal
-// with it. It can never post to a runner that Close() has already handed back
-// to the caller.
+// PostTask() and Close() hold the same mutex. A task is either posted to the
+// live runner or rejected after Close() takes ownership of the runner.
 //
-// Bridges hold a shared_ptr to this, so a bridge that outlives shutdown sees a
-// closed sequence rather than a dangling pointer.
+// Bridges retain this handle after shutdown. Later posts fail safely.
 class RelaySequence {
  public:
   explicit RelaySequence(std::unique_ptr<base::TaskRunner> task_runner)
@@ -52,9 +46,8 @@ class RelaySequence {
   RelaySequence(const RelaySequence&) = delete;
   RelaySequence& operator=(const RelaySequence&) = delete;
 
-  // Queues |task| on the relay. Returns false if the sequence is closed, in
-  // which case |task| is dropped and the caller is responsible for completing
-  // whatever was waiting on it. Thread-safe.
+  // Queues |task| on the relay. Returns false and drops it after Close().
+  // The caller decides how to handle rejected work. Thread-safe.
   bool PostTask(std::function<void()> task) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!task_runner_)
@@ -65,7 +58,7 @@ class RelaySequence {
 
   // Stops accepting tasks and returns the runner to its owner. Posts after
   // this return false. Tasks already queued are neither run nor cancelled
-  // here; what happens to them is up to the runner's destructor.
+  // here. What happens to them is up to the runner's destructor.
   //
   // The caller must destroy the runner outside both the relay and muxer
   // sequences, and keep the muxer and its endpoints alive until destruction

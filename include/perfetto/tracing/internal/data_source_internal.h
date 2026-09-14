@@ -115,16 +115,13 @@ struct DataSourceState {
   // when it's stopped.
   bool will_notify_on_stop = false;
 
-  // Copy of DataSourceDescriptor.no_flush. FlushDataSource_AsyncBegin() only
-  // has the instance state, not the descriptor, and needs this to skip
-  // OnFlush() when the service flushes a v2 instance just to drain the ring
-  // buffer.
+  // Copy of DataSourceDescriptor.no_flush, used to skip OnFlush() when the
+  // service only needs the v2 ring buffer drained.
   bool no_flush = false;
 
-  // Copy of DataSourceConfig.use_tracing_v2. Set before this instance is
-  // published through |valid_instances| and unchanged while it remains
-  // published. Trace-writer threads read it without |lock| and cannot use
-  // |config|, which is replaced on setup and cleared on stop.
+  // Selects v1 or v2 when a thread creates this instance's trace writer.
+  // Set before publishing the instance and left intact on stop.
+  // An in-flight trace call may still need it after |config| is freed.
   bool use_tracing_v2 = false;
 
   // The wanted behavior for this data source instance when a TraceWriter runs

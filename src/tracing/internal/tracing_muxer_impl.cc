@@ -276,14 +276,11 @@ void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
 }
 
 void TracingMuxerImpl::ProducerImpl::DisposeConnection() {
-  // Flushes belong to this connection.
-  // Drop them before its endpoint can be released on either v1 or v2.
+  // Drop this connection's pending flushes before releasing its endpoint.
   pending_flushes_.clear();
   if (tracing_v2_connection_) {
-    // Stop handing out v2 writers for this connection. Existing writers keep
-    // the bridge alive through their delegate pointer, and the bridge keeps its
-    // v1 writers, so the old endpoint stays in |dead_services_| until they are
-    // gone.
+    // Existing v2 writers keep the bridge and its v1 writers alive.
+    // Keep their endpoint in |dead_services_| until those writers are gone.
     ReleaseTracingV2Connection();
   }
   // Keep the old service around as a dead connection in case it has active
@@ -316,9 +313,8 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (tracing_v2_connection_)
     return;
-  // Startup reservations can defer downstream commits past a v2 stop ack.
-  // Keep this prototype off connections that have ever used startup tracing,
-  // even after adoption, rather than inspect the arbiter's changing bind state.
+  // Startup reservations can delay commits until after a v2 stop ack.
+  // Reject connections that have used startup tracing, including adopted ones.
   if (last_startup_target_buffer_reservation_ != 0) {
     PERFETTO_FATAL(
         "DataSourceConfig.use_tracing_v2 cannot share a producer connection "
@@ -373,12 +369,10 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
       muxer_->tracing_v2_relay_, num_chunks, chunk_size);
   std::atomic_store(&tracing_v2_connection_, std::move(connection));
 
-  // Flush() now takes the ordered path, where a request that can never
-  // complete holds up every later one. The v1 path used so far never dropped
-  // a stopped instance from |pending_flushes_|, and no completion can arrive
-  // for one anymore. Drop them once here (StopDataSource_AsyncEnd() does it
-  // from now on) and ack whatever that leaves complete, rather than waiting
-  // for some later flush to come along.
+  // Remove stopped instances left in the v1 flush queue: their callbacks can
+  // no longer complete, so they would block the ordered v2 queue.
+  // Ack completed requests now.
+  // StopDataSource_AsyncEnd() handles later stops.
   for (auto& [flush_id, flush] : pending_flushes_) {
     auto& ds_ids = flush.pending_data_sources;
     for (auto it = ds_ids.begin(); it != ds_ids.end();) {
@@ -473,9 +467,8 @@ void TracingMuxerImpl::ProducerImpl::Flush(
   }
 
   if (all_handled) {
-    // The service takes this as an ack for every request up to |flush_id|, so
-    // nothing older is owed anymore. A completion for one of those requests
-    // that still arrives finds no entry and is ignored.
+    // This ack also completes all older requests. Remove them so any late
+    // callbacks are ignored.
     pending_flushes_.erase(pending_flushes_.begin(),
                            pending_flushes_.upper_bound(flush_id));
     service_->NotifyFlushComplete(flush_id);
@@ -570,10 +563,8 @@ void TracingMuxerImpl::ProducerImpl::FlushWithTracingV2(
     FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(tracing_v2_connection_);
-  // Queue the request even if every data source flushes synchronously. Acking
-  // a flush implicitly acks all the older ones (see
-  // AdvanceTracingV2FlushQueue()), so it still has to wait behind an older
-  // request that is still in flight.
+  // Even a synchronous flush must wait for older requests: its ack would
+  // complete them too. See AdvanceTracingV2FlushQueue().
   PendingFlush& pending = pending_flushes_[flush_id];
   if (muxer_) {
     for (size_t i = 0; i < instance_count; i++) {
@@ -593,12 +584,10 @@ void TracingMuxerImpl::ProducerImpl::FlushWithTracingV2(
 void TracingMuxerImpl::ProducerImpl::AdvanceTracingV2FlushQueue() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(tracing_v2_connection_);
-  // NotifyFlushComplete(id) implicitly acks every request older than |id|, so
-  // we resolve requests strictly in order and only ever work on the oldest.
-  // A service timeout does not cancel the producer request. A data source that
-  // never completes OnFlush() therefore blocks later requests and can grow this
-  // queue until stop/disconnect. Expiry needs a service cancellation protocol;
-  // a producer-only timeout would falsely acknowledge the missing data.
+  // NotifyFlushComplete(id) also acks older requests, so process the queue in
+  // order. A service timeout does not cancel the producer's request.
+  // An unfinished OnFlush() blocks later requests until stop or disconnect.
+  // The queue can grow while blocked. Safe expiry needs service cancellation.
   std::optional<FlushRequestID> flush_id_to_acknowledge;
   while (!pending_flushes_.empty()) {
     auto it = pending_flushes_.begin();
@@ -609,10 +598,8 @@ void TracingMuxerImpl::ProducerImpl::AdvanceTracingV2FlushQueue() {
       break;
     if (pending.ring_buffer_drain == RingBufferDrainState::kPending) {
       pending.ring_buffer_drain = RingBufferDrainState::kInProgress;
-      // DrainPendingData() samples the ring buffer's write position now,
-      // after every OnFlush() of this request has run, so it covers what
-      // those callbacks wrote. The position is fixed at that point: a data
-      // source that keeps writing cannot postpone the ack forever.
+      // Sample after OnFlush() callbacks finish to include their final packets.
+      // Later writes cannot extend this drain's target.
       const TracingBackendId backend_id = backend_id_;
       const uint32_t connection_id =
           connection_id_.load(std::memory_order_relaxed);
@@ -1447,9 +1434,8 @@ static bool MaybeAdoptStartupTracingInDataSource(
     DataSourceInstanceID instance_id,
     const DataSourceConfig& cfg,
     const std::vector<RegisteredDataSource>& data_sources) {
-  // Startup tracing only works with v1 writers. Don't adopt a startup instance
-  // for a v2 config: let it go through the normal setup path, which validates
-  // the v2 request.
+  // Startup tracing uses v1 writers. Send v2 configs through normal setup
+  // so its compatibility checks run.
   if (cfg.use_tracing_v2())
     return false;
 
@@ -1642,9 +1628,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
       }
     }
 
-    // use_tracing_v2 is honoured or fatal, never silently downgraded to v1.
-    // The service reads the same field and selects the v2 flush and stop
-    // protocol, so the two sides must agree.
+    // The service uses this flag to select the v2 flush and stop protocol.
+    // Honor it or fail setup so the producer and service agree.
     internal_state->use_tracing_v2 = cfg.use_tracing_v2();
     if (internal_state->use_tracing_v2) {
       if (startup_session_id) {
@@ -1849,8 +1834,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
   ds.static_state->valid_instances.fetch_and(mask, std::memory_order_acq_rel);
 
   bool will_notify_on_stop;
-  // Read this before the instance is torn down and possibly reused by a new
-  // setup.
+  // Save the mode before teardown allows the instance slot to be reused.
   const bool uses_tracing_v2 = ds.internal_state->use_tracing_v2;
   // Take the mutex to prevent that the data source is in the middle of
   // a Trace() execution where it called GetDataSourceLocked() while we
@@ -1920,29 +1904,21 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     // Flush any commits that might have been batched by SharedMemoryArbiter.
     producer->service_->MaybeSharedMemoryArbiter()
         ->FlushPendingCommitDataRequests();
-    // On a v2 connection flushes are acked in order, so a request still
-    // waiting for this instance (v1 or v2 alike) would hold up all the later
-    // ones. This may ack right away, hence after the commits above: the ack
-    // must not overtake what the instance wrote last. The v1 path doesn't
-    // keep that order and doesn't need this.
+    // Release flushes waiting for this stopped instance so the v2 queue can
+    // advance. Do this after posting its final commits: advancing may ack
+    // a flush immediately.
     if (producer->tracing_v2_connection_) {
-      // Late callbacks fail the instance identity check. Remove their callback
-      // obligations, but retain the ring buffer barriers covering the stopped
-      // data.
+      // Remove the callback wait. Keep any drain needed for the final packets.
+      // The instance identity check rejects late callbacks.
       for (auto& [flush_id, flush] : producer->pending_flushes_)
         flush.pending_data_sources.erase(instance_id);
       producer->AdvanceTracingV2FlushQueue();
     }
-    // When an active v2 instance stops, the service waits for our ack (see
-    // DataSourceInstance::RequiresProducerStopAck()): it can scrape the SMB but
-    // not the ring buffer, which lives in this process. So drain the ring
-    // buffer first.
-    //
-    // The drain samples the ring buffer position now, after OnStop() has
-    // returned, and therefore covers the last packets that callback wrote.
+    // The service cannot scrape this process's ring buffer, so drain it before
+    // acknowledging the stop (DataSourceInstance::RequiresProducerStopAck()).
+    // Sampling after OnStop() includes the callback's final packets.
     if (instance_id && uses_tracing_v2) {
-      // Setup created the bridge on this connection; the connection-generation
-      // check above keeps its lifetime valid through this stop.
+      // The connection check above identifies the bridge created during setup.
       DrainTracingV2RingBufferThenPostToMuxer(
           producer->tracing_v2_connection_->bridge,
           [this, backend_id, backend_connection_id, instance_id] {
@@ -1996,15 +1972,11 @@ bool TracingMuxerImpl::FlushDataSource_AsyncBegin(
     PERFETTO_ELOG("Could not find data source to flush");
     return true;
   }
-  // A no_flush data source asked not to have OnFlush() called. The service
-  // still sends us a flush for a v2 instance
-  // (DataSourceInstance::RequiresProducerFlush()) because that is its only way
-  // to get the ring buffer drained. Report it as done here without calling
-  // OnFlush(), the caller takes care of the ring buffer barrier.
+  // For a v2 no_flush instance, the service requests a flush only to drain the
+  // ring buffer (DataSourceInstance::RequiresProducerFlush()). Skip OnFlush().
+  // the caller handles the drain.
   //
-  // Both conditions matter: a v1 no_flush instance still gets OnFlush() when
-  // a service asks for it, which an older service that doesn't know no_flush
-  // does.
+  // Older services can flush v1 no_flush instances. Preserve their OnFlush().
   if (ds.internal_state->use_tracing_v2 && ds.internal_state->no_flush)
     return true;
 
@@ -2748,10 +2720,8 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
   }
 
   if (data_source->use_tracing_v2) {
-    // |service| and the v2 connection are loaded separately, so a reconnect
-    // can sneak in between the two loads. If they don't match, hand out a null
-    // writer rather than pairing an endpoint with the bridge of another
-    // connection.
+    // A reconnect can occur between these loads. Return a null writer if the
+    // endpoint and bridge belong to different connections.
     std::shared_ptr<ProducerImpl::TracingV2Connection> v2_connection =
         std::atomic_load(&producer->tracing_v2_connection_);
     if (PERFETTO_UNLIKELY(!v2_connection || v2_connection->endpoint != service))
@@ -3175,14 +3145,11 @@ void TracingMuxerImpl::Shutdown() {
   // Shutting down on the muxer thread would lead to a deadlock.
   PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
 
-  // The v2 relay sequence exists only if a data source instance selected v2.
-  // It writes into v1 trace writers backed by the producers' arbiters, which
-  // die with `delete muxer` below. Close it now and destroy its task runner
-  // once this thread's writers are gone.
+  // Close the relay before destroying this thread's writers, then join it
+  // before deleting the muxer and the arbiters backing its v1 writers.
   //
-  // Writer destruction requests posted from now on are dropped. Nothing
-  // reuses WriterIDs after shutdown and ~ProducerImpl releases the retained v1
-  // writers anyway.
+  // Close rejects new writer destruction requests. The bridge releases retained
+  // v1 writers when it dies. WriterIDs are not reused after shutdown.
   auto relay = std::atomic_load(&muxer->tracing_v2_relay_);
   std::unique_ptr<base::TaskRunner> relay_task_runner;
   if (relay)
@@ -3194,10 +3161,9 @@ void TracingMuxerImpl::Shutdown() {
   muxer->DestroyAllTraceWritersForCurrentThread();
 
   if (relay) {
-    // Destroy the relay's task runner. Tasks already queued may still run, so
-    // the muxer and its endpoints must stay alive until this returns. We are
-    // on neither the muxer nor the relay sequence (see the checks above and in
-    // RelaySequence::Close()).
+    // Queued tasks may run during destruction, so keep the muxer and endpoints
+    // alive until it returns. The checks above and in RelaySequence::Close()
+    // ensure we are on neither sequence.
     relay_task_runner.reset();
   }
 

@@ -210,9 +210,7 @@ bool TracingMuxerImplInternalsForTest::PostToTracingV2Relay(
     std::function<void()> task) {
   auto* muxer =
       reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
-  // Same discipline as the muxer: a non-muxer thread reads the handle
-  // atomically and works on its own strong reference. Whether the sequence is
-  // still open is up to PostTask().
+  // Retain an atomic snapshot while posting. PostTask() handles relay closure.
   std::shared_ptr<tracing_v2::RelaySequence> relay =
       std::atomic_load(&muxer->tracing_v2_relay_);
   if (!relay)

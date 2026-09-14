@@ -7113,10 +7113,9 @@ TEST_P(PerfettoApiTest, StartTracingWhileExecutingTracepoint) {
   EXPECT_THAT(test_strings, AllOf(Not(IsEmpty()), Each("My String")));
 }
 
-// A reconnect gives the producer a new endpoint and a new v2 bridge. Leave
-// ring data, a barrier and a consumer flush pending on the old connection
-// while the service restarts, then check that the new connection works and
-// that no packet crosses over. The bridge-level isolation is covered by
+// Restart the service with ring buffer data, a barrier and a flush pending.
+// Verify that the new connection works and receives only its own packets.
+// Bridge isolation is also covered by:
 // InProcessTracingV2BridgeLifetimeTest.TwoBridgesWithTheSameWriterIdStayIndependent.
 TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   if (GetParam() != perfetto::kSystemBackend) {
@@ -7134,9 +7133,7 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   session_a->get()->StartBlocking();
   data_source->on_start.Wait();
 
-  // Block the relay so A's barrier can't finish, then leave a consumer flush
-  // stuck behind it. SyncProducers() establishes that setup is complete; the
-  // relay itself is obtained through an atomic shared-pointer snapshot.
+  // Wait for setup, then block the relay to hold A's flush and barrier.
   perfetto::test::SyncProducers();
   WaitableTestEvent relay_blocked;
   WaitableTestEvent release_relay;
@@ -7155,7 +7152,7 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   data_source->on_flush.Reset();
   session_a->get()->Flush([](bool) {}, /*timeout_ms=*/30000);
   // OnFlush proves the request reached ProducerImpl. The following muxer task
-  // runs after it has queued the ring drain behind the blocked relay.
+  // runs after it has queued the ring buffer drain behind the blocked relay.
   data_source->on_flush.Wait();
   WaitableTestEvent flush_queued;
   perfetto::test::TracingMuxerImplInternalsForTest::PostToMuxerSequence(
@@ -7169,8 +7166,7 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   release_relay.Notify();
   perfetto::test::SyncProducers();
 
-  // Connection B. Its arbiter is fresh, so it starts handing out WriterIDs from
-  // the beginning again.
+  // Connection B's new arbiter can reuse A's WriterIDs.
   data_source->on_start.Reset();
   auto* session_b = NewTrace(cfg);
   session_b->get()->StartBlocking();
@@ -7192,7 +7188,7 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
     if (packet.has_for_testing())
       payloads.push_back(packet.for_testing().str());
   }
-  // Only B's data: A's writer forwards into A's bridge, which went with A.
+  // Only B's packets arrive here. A's writer still uses A's bridge.
   EXPECT_THAT(payloads, ElementsAre("connection B"));
 }
 

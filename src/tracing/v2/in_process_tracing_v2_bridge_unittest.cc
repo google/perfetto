@@ -71,8 +71,7 @@ class InProcessTracingV2BridgeTestPeer {
 
 namespace {
 
-// Fake for the v1 writer the bridge forwards into. The bridge takes the
-// WriterID from it, hence the ctor argument.
+// Downstream writer fake whose WriterID is also used by the v2 writer.
 class FakeV1Writer : public TraceWriter {
  public:
   struct Recorded {
@@ -221,8 +220,8 @@ class QueuedTaskRunner : public base::TaskRunner {
   std::vector<std::function<void()>> queued_;
 };
 
-// RelaySequence owns its task runner, but most tests here want to keep driving
-// one they hold on the stack. This forwards to it and owns nothing.
+// Lets RelaySequence use a test-owned runner. The test keeps control of its
+// lifetime and queued tasks.
 class BorrowedTaskRunner : public base::TaskRunner {
  public:
   explicit BorrowedTaskRunner(base::TaskRunner* task_runner)
@@ -270,7 +269,7 @@ class InProcessTracingV2BridgeTest : public ::testing::Test {
     task_runner_.RunUntilIdle();
   }
 
-  // Waits until preceding ring data has been flushed to v1.
+  // Waits until preceding ring buffer data has been flushed to v1.
   void DrainRelay() {
     const std::string name = "relay-quiescent-" + std::to_string(++drains_);
     std::function<void()> quiescent = task_runner_.CreateCheckpoint(name);
@@ -719,8 +718,7 @@ TEST_F(InProcessTracingV2BridgeTest, PacketsKeepTheirOrderAndTheirWriter) {
   }
 }
 
-// Wake-up coalescing: a commit that finds a drain task already queued must not
-// post another one. Counted on a runner that does nothing but count.
+// Multiple notifications before the relay runs should post one drain task.
 TEST(InProcessTracingV2BridgeBurstTest, CommitsWhileATaskIsQueuedPostNothing) {
   QueuedTaskRunner task_runner;
   std::map<WriterID, FakeV1Writer::Recorded> recorded;
@@ -897,20 +895,16 @@ TEST(InProcessTracingV2BridgeBurstTest,
   task_runner.RunQueuedTasks();
 }
 
-// A barrier only covers what was in the ring when it sampled the write
-// position. Packets written after that (which does happen: flushing a v1
-// writer from the drain runs arbitrary callbacks) belong to the next drain,
-// not to this completion.
+// Writing during a drain must not extend the barrier's sampled target.
+// Put later packets in new positions so they belong to a subsequent drain.
 TEST_F(InProcessTracingV2BridgeTest, DrainPendingDataStopsAtItsWatermark) {
   std::unique_ptr<TraceWriter> writer = CreateWriter(7, 11);
   for (uint32_t i = 0; i < 50; ++i)
     writer->NewTracePacket()->set_timestamp(i);
   writer->Flush();
 
-  // This task runs after the barrier has sampled its position. It arms
-  // on_forward below, which writes one more packet from inside the drain.
-  // Neither packet may be counted by the completion. No threads or timing
-  // involved.
+  // Write after sampling the target, then arm on_forward to write during the
+  // drain. Both packets must remain outside this barrier.
   bool armed = false;
   task_runner_.PostTask([&] {
     armed = true;
@@ -929,9 +923,8 @@ TEST_F(InProcessTracingV2BridgeTest, DrainPendingDataStopsAtItsWatermark) {
     if (!armed)
       return;
     armed = false;
-    // Give up the chunk the writer is holding first, so the new packet has to
-    // reserve a position of its own rather than being appended inside one the
-    // watermark already covers.
+    // Release the cached chunk so the next packet reserves a new position
+    // beyond the barrier's target.
     writer->Flush();
     writer->NewTracePacket()->set_timestamp(999);
     writer->Flush();
@@ -940,8 +933,8 @@ TEST_F(InProcessTracingV2BridgeTest, DrainPendingDataStopsAtItsWatermark) {
   task_runner_.RunUntilIdle();
 
   EXPECT_TRUE(done);
-  // Exactly the 50 packets that were in the ring at sampling time. The other
-  // two are not lost, the next drain picks them up.
+  // Exactly the 50 packets that were in the ring buffer at sampling time. The
+  // other two are not lost, the next drain picks them up.
   EXPECT_EQ(packets_at_completion, 50u);
   ASSERT_EQ(recorded_[7].packets.size(), 52u);
   EXPECT_EQ(recorded_[7].packets[50].timestamp(), 500u);
@@ -1045,7 +1038,7 @@ TEST_F(InProcessTracingV2BridgeTest,
 }
 
 TEST_F(InProcessTracingV2BridgeTest, DataLossIsReportedOnTheNextPacket) {
-  // A ring this small fills immediately, so the writer has to drop.
+  // A ring buffer this small fills immediately, so the writer has to drop.
   bridge_ = InProcessTracingV2Bridge::Create(relay_, /*num_chunks=*/2,
                                              /*chunk_size=*/256);
   ASSERT_NE(bridge_, nullptr);
@@ -1113,14 +1106,14 @@ TEST_F(InProcessTracingV2BridgeTest,
   EXPECT_EQ(recorded_[7].flushes, 1u);
 }
 
-// Dropping our last reference does not lose what is in the ring. The queued
-// destruction request keeps the bridge alive until it has forwarded everything.
+// The queued destruction request retains the bridge and drains its final data
+// after the test releases its reference.
 TEST_F(InProcessTracingV2BridgeTest, TeardownDrainsWhatIsStillInTheRing) {
   std::unique_ptr<TraceWriter> writer = CreateWriter(7, 11);
   for (uint32_t i = 0; i < 10; ++i)
     writer->NewTracePacket()->set_timestamp(i);
   writer->FinishTracePacket();
-  // Nothing has run yet: the packets are in the ring and nowhere else.
+  // Nothing has run yet: the packets are in the ring buffer and nowhere else.
   ASSERT_TRUE(recorded_[7].packets.empty());
 
   // Drop the writer, then our reference. The queued writer destruction barrier
@@ -1146,10 +1139,8 @@ TEST_F(InProcessTracingV2BridgeTest, WriterOutlivingTheBridgeReferenceIsSafe) {
   task_runner_.RunUntilIdle();
 }
 
-// Queued relay tasks own the bridge through shared_ptr. Discarding the queue
-// releases those references. After the explicit owners are gone, the bridge
-// and its retained v1 writers are destroyed. A raw pointer here would be a
-// lifetime bug.
+// Queued tasks retain the bridge. Once other owners are gone, discarding the
+// queue destroys the bridge and its retained v1 writers.
 TEST(InProcessTracingV2BridgeLifetimeTest,
      DiscardingTheRelayQueueDestroysTheBridgeAndItsWriters) {
   QueuedTaskRunner task_runner;
@@ -1257,12 +1248,9 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   EXPECT_FALSE(flushed);
 }
 
-// The flush ack callback ends up owned by the endpoint, which can outlive the
-// arbiter. If that callback owned the bridge it would keep the v1 writers
-// alive past their arbiter, and they would touch it on destruction.
-//
-// So the bridge must hand the caller's callback through as is, without
-// capturing itself.
+// The endpoint can retain a flush callback after the arbiter dies.
+// Pass the callback through without capturing the bridge: its v1 writers need
+// the arbiter during destruction.
 TEST(InProcessTracingV2BridgeLifetimeTest,
      ALateDownstreamAcknowledgementDoesNotOwnTheBridge) {
   auto queued_runner =
@@ -1300,7 +1288,7 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   EXPECT_EQ(queued->posts(), posts_after_close);
 }
 
-// A 32 KiB packet in an 8 KiB ring: the writer stalls until a real relay
+// A 32 KiB packet in an 8 KiB ring buffer: the writer stalls until a real relay
 // thread frees space. The fake v1 writer never drops, so this checks the
 // reassembly exactly.
 TEST(InProcessTracingV2BridgeTestWithThread,
@@ -1356,13 +1344,9 @@ TEST(InProcessTracingV2BridgeLifetimeTest, ClosingARealRelayThreadIsSafe) {
   EXPECT_EQ(recorded[7].destructions, 1u);
 }
 
-// After a reconnect the new arbiter hands out WriterIDs from 1 again, so the
-// same id can be live on the old and the new connection at once. Each
-// connection has its own bridge, with its own ring and writer map, so the two
-// never mix.
-//
-// TracingV2SurvivesASystemServiceRestart in api_integrationtest.cc relies on
-// this.
+// Reconnects can reuse WriterIDs while old writers are still alive. Separate
+// bridges keep their packets isolated. TracingV2SurvivesASystemServiceRestart
+// in api_integrationtest.cc covers this through the system backend.
 TEST(InProcessTracingV2BridgeLifetimeTest,
      TwoBridgesWithTheSameWriterIdStayIndependent) {
   base::TestTaskRunner task_runner;
@@ -1398,9 +1382,8 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   task_runner.RunUntilIdle();
 }
 
-// The ring is sized from the SMB, which is any multiple of 4 KiB and does not
-// necessarily hold a power-of-two number of chunks. Round down rather than
-// reject.
+// Round the SMB capacity down to a power-of-two chunk count.
+// SMB sizes can be any multiple of 4 KiB.
 TEST(InProcessTracingV2BridgeSizingTest, CapacityRoundsDownToAPowerOfTwo) {
   constexpr uint32_t kChunkSize = InProcessTracingV2Bridge::kDefaultChunkSize;
   const auto chunks = [](size_t bytes) {
