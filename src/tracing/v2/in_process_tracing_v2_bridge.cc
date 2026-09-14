@@ -40,7 +40,7 @@ using ::perfetto::protos::pbzero::TracePacket;
 // Bound each relay task so a busy bridge cannot starve the others.
 constexpr uint32_t kMaxPositionsPerPass = 256;
 
-// Reject oversized packets before malformed input can grow this without bound.
+// Bound packet reassembly and rewritten output, including malformed input.
 // TODO(sashwinbalaji): use a total per-producer budget in traced.
 constexpr size_t kMaxPacketSize = protozero::proto_utils::kMaxMessageLength;
 
@@ -48,7 +48,7 @@ constexpr size_t kMaxPacketSize = protozero::proto_utils::kMaxMessageLength;
 constexpr uint64_t kMaxChunkStorage = 32 * 1024 * 1024;
 
 void AddDataLoss(uint32_t* pending_data_loss, uint32_t reason = 0) {
-  // Accumulate loss reasons until a packet reaches v1.
+  // Record loss for the next complete packet forwarded to v1.
   *pending_data_loss |= TracePacket::DATA_LOSS_PRESENT | reason;
 }
 
@@ -301,8 +301,7 @@ void InProcessTracingV2Bridge::ForwardPacket(WriterState* state) {
 
 void InProcessTracingV2Bridge::DrainPendingData(
     std::function<void()> completion) {
-  // Copy the completion callback into the barrier. If posting fails, invoke
-  // the original callback here.
+  // Keep a copy to complete inline if the relay rejects the barrier.
   const bool queued = EnqueueBarrier(BarrierType::kFlushDirtyWriters,
                                      /*writer_id=*/0, completion);
   if (!queued && completion) {
@@ -312,13 +311,13 @@ void InProcessTracingV2Bridge::DrainPendingData(
 
 void InProcessTracingV2Bridge::Flush(WriterID writer_id,
                                      std::function<void()> callback) {
-  // Disconnect may discard a writer flush, but cannot acknowledge its data.
+  // A rejected flush drops the callback without acknowledging its data.
   EnqueueBarrier(BarrierType::kFlushWriter, writer_id, std::move(callback));
 }
 
 void InProcessTracingV2Bridge::OnWriterDestroyed(WriterID writer_id) {
-  // The queued task keeps the bridge and WriterID alive until the drain. If
-  // admission is closed, the retained writer dies with the bridge instead.
+  // The queued task retains the bridge and WriterID until the drain finishes.
+  // If the relay is closed, the retained writer dies with the bridge.
   EnqueueBarrier(BarrierType::kDestroyWriter, writer_id, {});
 }
 
@@ -327,10 +326,9 @@ bool InProcessTracingV2Bridge::EnqueueBarrier(
     WriterID writer_id,
     std::function<void()> completion) {
   Barrier barrier;
-  // The caller has synchronized with the writers whose preceding data this
-  // flush/stop covers, so this snapshot includes at least their reservations.
-  // Seeing a newer position only adds work to the barrier. Chunk state, rather
-  // than this position, determines which reservations have published payload.
+  // The caller synchronizes with the writers covered by this flush or stop,
+  // so the snapshot includes their preceding reservations. A newer position
+  // only adds work. Chunk state determines which payload is published.
   barrier.drain_target_pos = ring_buffer_.LoadWritePosRelaxed();
   barrier.type = type;
   barrier.writer_id = writer_id;
@@ -387,9 +385,8 @@ void InProcessTracingV2Bridge::RunFrontBarrier() {
   pending_control_barriers_.pop_front();
   switch (barrier.type) {
     case BarrierType::kFlushWriter: {
-      // Registration precedes every writer request. The queued destruction
-      // removes the entry after its earlier requests. Even a clean writer must
-      // request an ACK.
+      // Registration and queued destruction keep the writer alive for this
+      // request. Flush even a clean writer to obtain an ACK.
       WriterState* state = FindWriterState(barrier.writer_id);
       PERFETTO_CHECK(state);
       state->v1_writer->Flush(std::move(barrier.completion));
@@ -412,9 +409,9 @@ void InProcessTracingV2Bridge::RunFrontBarrier() {
         state->has_unflushed_v1_data = false;
       }
 
-      // Startup tracing cannot share this connection, so the bound arbiter
-      // posts CommitData before Flush() returns. The completion's muxer task
-      // lands behind those commits without waiting for their service ACKs.
+      // Startup tracing is excluded, so the bound arbiter posts CommitData
+      // before Flush() returns. The completion's muxer task follows those
+      // commits. It does not wait for their service ACKs.
       if (barrier.completion)
         barrier.completion();
       break;
@@ -439,10 +436,9 @@ void InProcessTracingV2Bridge::RunFrontBarrier() {
   if (pending_control_barriers_.empty())
     return;
 
-  // Yield between batches and barriers. Closing the relay drops this task and
-  // leaves the remaining barriers incomplete.
-  // Only this method removes the front and posts at most one continuation.
-  // Enqueue tasks can append work but cannot advance a non-empty queue.
+  // Yield before the next barrier. Only this method advances a non-empty queue
+  // and posts its continuation. If the relay closes, remaining barriers stay
+  // incomplete.
   relay_->PostTask([self = shared_from_this()] { self->RunFrontBarrier(); });
 }
 

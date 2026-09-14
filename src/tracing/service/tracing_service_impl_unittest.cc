@@ -4280,8 +4280,8 @@ TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
   }
 }
 
-// The service cannot scrape a v2 ring, so it must wait for the stop ack of a
-// v2 instance even if the data source did not declare will_notify_on_stop.
+// The service cannot scrape a v2 ring buffer, so it must wait for the stop ack
+// of a v2 instance even if the data source did not declare will_notify_on_stop.
 TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForTracingV2StopAck) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());

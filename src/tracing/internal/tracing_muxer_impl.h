@@ -256,9 +256,8 @@ class TracingMuxerImpl : public TracingMuxer {
     // A v1-only connection never creates a TracingV2Connection or calls these
     // helpers.
 
-    // Keeps the endpoint and its v2 bridge in one atomic snapshot, so a writer
-    // cannot combine parts of two connection generations. |endpoint| is
-    // declared first so it outlives the bridge and its retained v1 writers.
+    // Publishes the endpoint and bridge together so writers use one connection.
+    // Declare |endpoint| first so it outlives the bridge's retained v1 writers.
     struct TracingV2Connection {
       // Creates the downstream v1 writer and wraps it in a v2 writer. The
       // caller's exhaustion policy applies only to the v2 ring buffer.
@@ -279,18 +278,16 @@ class TracingMuxerImpl : public TracingMuxer {
     // Release the bridge before |service_| releases its v1 arbiter.
     void ReleaseTracingV2Connection();
 
-    // Flush() for a connection that has a v2 bridge. Requests are acked in
-    // FlushRequestID order and one that includes a v2 instance drains the
-    // ring buffer first. Requests made of v1 instances only go through here
-    // too: they queue behind older requests but don't need the ring buffer.
+    // Flushes a connection's requests in FlushRequestID order.
+    // Requests with v2 instances drain the ring buffer before their ack.
+    // V1-only requests wait in the same queue.
     void FlushWithTracingV2(FlushRequestID,
                             const DataSourceInstanceID*,
                             size_t,
                             FlushFlags);
 
-    // Acks the completed requests at the front of |pending_flushes_|. If the
-    // front request still has to drain the ring buffer, starts the drain (once)
-    // and stops there: nothing behind it can be acked until it has completed.
+    // Acks completed requests from the front of |pending_flushes_|.
+    // Starts any required drain and waits for it before advancing the queue.
     void AdvanceTracingV2FlushQueue();
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
@@ -335,10 +332,9 @@ class TracingMuxerImpl : public TracingMuxer {
       // change to kInProgress.
       kPending,
 
-      // Drain requested; wait for its completion callback on the muxer.
-      // The relay reads up to the sampled position, then flushes its v1
-      // writers. After their commits are posted, the callback changes this
-      // to kNone.
+      // Wait for the drain's completion callback on the muxer.
+      // The relay reads to the sampled position and flushes its v1 writers.
+      // After their commits are posted, the callback changes this to kNone.
       // This does not wait for the service to acknowledge those commits.
       kInProgress,
     };
@@ -356,10 +352,9 @@ class TracingMuxerImpl : public TracingMuxer {
     };
     std::map<FlushRequestID, PendingFlush> pending_flushes_;
 
-    // Null until the first data source instance on the current connection
-    // selects tracing v2. It stays non-null until the connection is disposed,
-    // even after its last v2 instance stops. Later v1-only flushes therefore
-    // still use the ordered queue. A reconnect starts from null again.
+    // Created by the first v2 instance and retained until disconnect, even if
+    // all v2 instances stop. Later v1-only flushes still use the ordered queue.
+    // Each new connection starts with this null.
     //
     // WARNING: as for |service_|, any *write* access or any *read* access from
     // a non-muxer thread must go through std::atomic_{load,store}.
@@ -638,9 +633,8 @@ class TracingMuxerImpl : public TracingMuxer {
   void DrainTracingV2RingBufferThenPostToMuxer(
       const std::shared_ptr<tracing_v2::InProcessTracingV2Bridge>& bridge,
       std::function<void()> on_drained);
-  // Called on the muxer thread once the v2 bridge has drained the ring buffer
-  // and flushed its v1 writers, for a flush request and for a stopping instance
-  // respectively.
+  // Finish a flush or stop on the muxer after draining the ring buffer and
+  // flushing the bridge's v1 writers.
   void FlushTracingV2RingBuffer_AsyncEnd(TracingBackendId,
                                          uint32_t backend_connection_id,
                                          FlushRequestID);
@@ -658,8 +652,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // first instance that selects v2. Like |task_runner_| it survives
   // ResetForTesting() and is only closed by Shutdown().
   //
-  // Bridges hold a shared_ptr to it, so a bridge outliving shutdown sees a
-  // closed sequence rather than a dangling task runner.
+  // Bridges retain this handle after shutdown. Posts then fail safely.
   //
   // WARNING: as for ProducerImpl::service_, any *write* access or any *read*
   // access from a non-muxer thread (Shutdown()) must go through

@@ -52,9 +52,8 @@ class InProcessTracingV2BridgeTestPeer;
 // Temporary adapter that lets SDK data sources write through the tracing v2
 // ring buffer while traced still only understands the v1 shared memory buffer
 // (SMB). It reads the ring buffer in the producer process and re-emits the
-// packets through ordinary v1 TraceWriters. NotifyReader() schedules a
-// coalesced drain on the relay sequence; the other arrows show packet data
-// flow.
+// packets through ordinary v1 TraceWriters. NotifyReader() schedules draining
+// on the relay sequence. The other arrows show packet data flow.
 //
 //   Producer process
 //   SDK thread                  Relay sequence
@@ -96,17 +95,17 @@ class InProcessTracingV2BridgeTestPeer;
 // is guarded by |mutex_|. Draining, reassembly, v1 forwarding and control
 // barriers run one task at a time on the relay sequence.
 //
-// Lifetime: every TraceWriterV2Impl holds a shared_ptr to its bridge (the
-// bridge is their Delegate), and so does every queued relay task. The last
-// reference can go away on any thread. ProducerImpl keeps the endpoint and the
-// arbiter backing those v1 writers alive until then (see |dead_services_|).
+// Each TraceWriterV2Impl retains the bridge as its Delegate. Queued relay tasks
+// also hold shared references, so destruction can happen on any thread.
+// ProducerImpl keeps the endpoint and arbiter alive while the retained v1
+// writers need them (see |dead_services_|).
 //
-// Shutdown, i.e. after RelaySequence::Close():
+// After RelaySequence::Close():
 // - New internal drains complete inline without draining the ring buffer.
 // - New explicit writer flushes discard their callbacks without
 //   acknowledgement.
-// - New writer destruction requests are dropped. Nobody waits for them.
-//   WriterIDs are not reused after shutdown.
+// - New writer destruction requests are dropped. The bridge releases retained
+//   writers when it dies. WriterIDs are not reused after shutdown.
 // - Tasks queued before the close may still run while the task runner is being
 //   destroyed. A drain accepted before the close may not finish if its next
 //   batch is posted after the close.
@@ -117,17 +116,16 @@ class InProcessTracingV2Bridge
  public:
   static constexpr uint32_t kDefaultChunkSize = 256;
 
-  // Bounds per-writer scratch for configured writers; matches the v1 page
+  // Bounds per-writer scratch for configured writers. Matches the v1 page
   // limit. Keep in sync with kMaxTracingV2ChunkSize in
   // src/tracing/service/tracing_service_impl.cc.
   // TODO(sashwinbalaji): Consider a common internal header under src/tracing/
   // if this policy is needed beyond the temporary adapter.
   static constexpr uint32_t kMaxConfiguredChunkSize = 32 * 1024;
 
-  // Largest power-of-two number of chunks that fits in |capacity_bytes|, or 0
-  // if fewer than two fit. Power of two because the ring buffer masks positions
-  // by the chunk count. CHECKs that |chunk_size| is nonzero. Capacity covers
-  // chunk storage only. The ring buffer header is allocated in addition to it.
+  // Returns the largest power-of-two chunk count that fits, or 0 if fewer than
+  // two fit. The ring buffer uses this count to mask positions into indices.
+  // |chunk_size| must be nonzero. Capacity excludes the ring buffer header.
   static uint32_t NumChunksForCapacity(size_t capacity_bytes,
                                        uint32_t chunk_size);
 
@@ -148,14 +146,14 @@ class InProcessTracingV2Bridge
   InProcessTracingV2Bridge(InProcessTracingV2Bridge&&) = delete;
   InProcessTracingV2Bridge& operator=(InProcessTracingV2Bridge&&) = delete;
 
-  // Samples the ring's write position and reads the published fragments through
-  // that position. Flushes the v1 writers that received complete packets, then
-  // runs |completion| on the relay sequence. Callers must finish the packets
-  // they want included before requesting the drain.
+  // Samples the ring buffer's write position and reads published fragments up
+  // to it. Flushes the v1 writers that received complete packets, then runs
+  // |completion| on the relay sequence. Finish packets before requesting the
+  // drain to include them.
   //
-  // With a fully bound v1 arbiter, commits are posted to the muxer sequence
-  // before |completion| runs; the service has not necessarily acknowledged
-  // them. Anything the completion posts there lands behind those commits.
+  // With a fully bound v1 arbiter, commits are posted to the muxer before
+  // |completion| runs. Work it posts to the muxer follows those commits.
+  // Completion does not wait for the service to acknowledge the commits.
   // If the relay is closed, |completion| runs inline without draining.
   // Thread-safe. See the class comment for interrupted drains during shutdown.
   void DrainPendingData(std::function<void()> completion);
@@ -185,9 +183,9 @@ class InProcessTracingV2Bridge
     std::vector<uint8_t> partial_packet;
     bool expecting_continuation = false;
     bool discarding_packet = false;
-    // TracePacket::DataLossReason bits to set on the next packet forwarded to
-    // v1. If v1 then drops that packet the reason is lost and the trace only
-    // shows v1's own DATA_LOSS_SMB_FULL.
+    // Loss bits for the next complete packet's previous_packet_dropped field.
+    // Cleared on forwarding. If v1 drops the packet, these bits are lost.
+    // V1 reports DATA_LOSS_SMB_FULL on recovery.
     uint32_t pending_data_loss = 0;
     // Set after forwarding a packet, cleared when the v1 writer is flushed.
     bool has_unflushed_v1_data = false;
@@ -227,17 +225,15 @@ class InProcessTracingV2Bridge
   void OnChunkRead(const SharedRingBufferReader::ChunkContents&) override;
   void OnDataLoss(WriterID) override;
 
-  // The returned pointer stays valid without holding |mutex_|: entries are
-  // heap allocated, so a concurrent insert cannot move them, and only the
-  // relay sequence ever removes them.
+  // The pointer remains valid after unlocking: inserts do not move the heap
+  // allocation, and only this relay sequence removes entries.
   WriterState* FindWriterState(WriterID);
   static void DiscardCurrentPacket(WriterState*, uint32_t reason);
   void ForwardPacket(WriterState*);
 
-  // Barrier submission: thread-safe.
-  // Samples write_pos and posts a barrier for it. Returns false if the relay
-  // is closed. Takes ownership of |completion| even on rejection. Callers that
-  // need to invoke the callback after rejection must pass a copy.
+  // Samples write_pos and queues a barrier. Thread-safe.
+  // Returns false if the relay is closed and drops |completion| in that case.
+  // Pass a copy if the caller needs to invoke it after rejection.
   bool EnqueueBarrier(BarrierType, WriterID, std::function<void()> completion);
 
   // Barrier execution: relay sequence only.
