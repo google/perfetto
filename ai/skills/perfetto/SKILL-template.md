@@ -42,6 +42,7 @@ internal, OEM or CI images), use that instead.
 
 2. **Memory** (heap dumps, leaks, churn)
    - Leak or retention in one Java heap dump: [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md)
+   - Compare two Java heap dumps (before/after diff): [heap_dump_diff.md]($SKILL_ROOT/workflows/android_memory/heap_dump_diff.md)
    - Duplicate objects, caching opportunities: [heap_dump_caching_optimizer.md]($SKILL_ROOT/workflows/android_memory/heap_dump_caching_optimizer.md)
    - Many heap dumps, find common leak patterns: [heap_dump_cluster.md]($SKILL_ROOT/workflows/android_memory/heap_dump_cluster.md)
    - Native (C/C++) heap profile: [native_heap.md]($SKILL_ROOT/workflows/android_memory/native_heap.md)
