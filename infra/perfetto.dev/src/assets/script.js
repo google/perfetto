@@ -149,6 +149,35 @@ function tagLabel(tag) {
   return TAG_LABELS[tag] || tag.charAt(0).toUpperCase() + tag.slice(1);
 }
 
+// Returns a key identifying a sidebar group by the labels of it and all its
+// ancestor groups (e.g. "How-to guides/Record"), so groups with the same label
+// in different sections keep separate collapsed state.
+function navGroupKey(li) {
+  const labels = [];
+  for (let el = li; el; el = el.parentElement.closest('li')) {
+    const link = el.querySelector(':scope > p > a') ||
+                 el.querySelector(':scope > a');
+    if (link) labels.unshift(link.textContent.trim());
+  }
+  return `docs.nav.compressed[${labels.join('/')}]`;
+}
+
+// [Material icon name, label] for each page type.
+const PAGE_TYPES = {
+  'type-tutorial': ['school', 'Tutorial'],
+  'type-howto': ['checklist', 'How-to guide'],
+  'type-concept': ['lightbulb', 'Concept'],
+  'type-reference': ['menu_book', 'Reference'],
+  'type-start': ['explore', 'Start here'],
+};
+
+function pageTypeOf(li) {
+  for (const cls of li.classList) {
+    if (PAGE_TYPES[cls]) return cls;
+  }
+  return null;
+}
+
 // This function needs to be idempotent as it is called more than once (on every
 // resize).
 function updateNav() {
@@ -268,7 +297,7 @@ function updateNav() {
 
     sec.classList.add('compressible');
 
-    const memoKey = `docs.nav.compressed[${link.innerHTML}]`;
+    const memoKey = navGroupKey(sec);
     const memo = sessionStorage.getItem(memoKey);
     if (memo === '1') {
       sec.classList.add('compressed');
@@ -289,6 +318,21 @@ function updateNav() {
         sessionStorage.setItem(memoKey, '0');
       }
     };
+  }
+
+  // --- Step 5b: Mark each entry with an icon for its page type. ---
+  for (const li of rootUl.querySelectorAll('li')) {
+    const type = pageTypeOf(li);
+    const link = li.querySelector(':scope > p > a') ||
+                 li.querySelector(':scope > a');
+    if (!type || !link || link.querySelector('.nav-type')) continue;
+    const icon = document.createElement('span');
+    icon.className = `nav-type material-icons-round ${type}`;
+    icon.textContent = PAGE_TYPES[type][0];
+    icon.title = li.classList.contains('planned') ?
+        `${PAGE_TYPES[type][1]} (planned)` : PAGE_TYPES[type][1];
+    icon.setAttribute('aria-hidden', 'true');
+    link.prepend(icon);
   }
 
   // --- Step 6: Highlight the current page. ---
@@ -313,12 +357,7 @@ function updateNav() {
         if (el.classList.contains('compressible') &&
             el.classList.contains('compressed')) {
           el.classList.remove('compressed');
-          const elLink = el.querySelector(':scope > p > a') ||
-                         el.querySelector(':scope > a');
-          if (elLink) {
-            sessionStorage.setItem(
-              `docs.nav.compressed[${elLink.innerHTML}]`, '0');
-          }
+          sessionStorage.setItem(navGroupKey(el), '0');
         }
         el = el.parentElement ? el.parentElement.closest('li') : null;
       }
@@ -327,6 +366,18 @@ function updateNav() {
         scrollIntoViewIfNeeded(x, nav);
       }
       found = true;
+
+      // Show the page type above the page title (but not on the docs home).
+      const type = pageTypeOf(x.closest('li'));
+      const h1 = document.querySelector('.md-content h1');
+      const isHome = curFileName === '/docs/index.html';
+      if (type && h1 && !isHome && !document.querySelector('.page-type')) {
+        const badge = document.createElement('div');
+        badge.className = `page-type ${type}`;
+        const planned = x.closest('li').classList.contains('planned');
+        badge.textContent = PAGE_TYPES[type][1] + (planned ? ' · planned' : '');
+        h1.parentElement.insertBefore(badge, h1);
+      }
     } else {
       x.classList.remove('selected');
     }

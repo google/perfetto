@@ -661,7 +661,7 @@ h3 {
 // Docs shell: nav | doc | toc
 // -----------------------------------------------------------------------------
 .docs {
-  --nav-width: 260px;
+  --nav-width: 320px;
 
   // 1665px is the clientWidth on a macbook pro. Adjust the layout so that
   // the max-width of the central .md-content fits precisely when the browser is
@@ -1580,5 +1580,50 @@ h3 {
   time {
     color: var(--color-text-muted);
     font-size: 0.9rem;
+  }
+}
+
+// ---- Page types ----
+$page-type-colors: (
+  "type-tutorial": #2f7a4d,
+  "type-howto": #2a62a3,
+  "type-concept": #85499c,
+  "type-reference": #a3572a,
+  "type-start": #4b5a69,
+);
+
+.nav-type {
+  font-size: 15px;
+  line-height: 1;
+  margin-right: 7px;
+  vertical-align: -3px;
+  flex-shrink: 0;
+}
+
+.docs .nav li.planned > a,
+.docs .nav li.planned > p > a {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.page-type {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@each $name, $color in $page-type-colors {
+  .nav-type.#{$name} {
+    color: $color;
+  }
+  .page-type.#{$name} {
+    color: $color;
+    background: rgba($color, 0.1);
+    border: 1px solid rgba($color, 0.3);
   }
 }

@@ -284,6 +284,15 @@ function renderParagraph(text) {
 
 function renderHtml(ctx, originalHtmlFn, raw) {
   if (!raw.trim().startsWith("<?tabs>")) {
+    // Raw HTML (e.g. the docs landing page) references docs pages and images
+    // directly: check the links and copy the images like markdown ones.
+    for (const [, attr, href] of raw.matchAll(/\b(src|href)="(\/docs\/[^"]*)"/g)) {
+      if (attr === "href") {
+        assertNoDeadLink(ctx, href);
+      } else {
+        ctx.assets.set(href.replace(/^\//, ""), ROOT_DIR + href);
+      }
+    }
     return originalHtmlFn(raw);
   }
   const sanitized = raw.replace("<?tabs>", "").replace("</tabs?>", "");
