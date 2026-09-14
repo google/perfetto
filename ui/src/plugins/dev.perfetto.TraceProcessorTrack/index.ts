@@ -82,6 +82,9 @@ interface SliceFlamegraphData extends AsyncDisposable {
   readonly fetcher: TreeExplorerFetcher;
 }
 
+// Identifies the slice table sub-tab within the tree explorer's tab strip.
+const SLICE_TABLE_SUB_TAB_KEY = 'table';
+
 function createDetailsPanel(trace: Trace, utid: number | null) {
   if (utid === null) {
     return undefined;
@@ -647,9 +650,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       createAggregationTab(ctx, new CounterSelectionAggregator()),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ThreadSliceAggregator(ctx)),
-    );
-    ctx.selection.registerAreaSelectionTab(
       this.createSliceFlameGraphPanel(ctx),
     );
   }
@@ -658,9 +658,21 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     const queue = new AtomicTaskQueue();
     const memo = new AsyncMemo<SliceFlamegraphData | undefined>(queue);
 
+    // The slice table is the same data as the flamegraph, just aggregated into
+    // a (pivotable) grid, so it lives as a sub-tab of the tree explorer rather
+    // than as a top-level area selection tab of its own.
+    const sliceTableTab = createAggregationTab(
+      trace,
+      new ThreadSliceAggregator(trace),
+    );
+    // The sub-tab lives out here, not in the panel, so that switching to the
+    // flamegraph (or back) sticks across selection changes, and across the
+    // panel being remounted as other area selection tabs come and go.
+    let activeSubTab: string | undefined = SLICE_TABLE_SUB_TAB_KEY;
+
     return {
       id: 'slice_flamegraph_selection',
-      name: 'Slice Flamegraph',
+      name: 'Slices',
       render: (selection: AreaSelection) => {
         const selectionKey = areaSelectionKey(selection);
         const {isPending, data: computed} = memo.use({
@@ -669,15 +681,20 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           },
           compute: () => this.computeSliceFlamegraph(trace, queue, selection),
         });
+        const tableContent = sliceTableTab.render(selection);
 
         // No data returned, return undefined to hide the tab.
-        if (computed === undefined && !isPending) {
+        if (
+          computed === undefined &&
+          !isPending &&
+          tableContent === undefined
+        ) {
           return undefined;
         }
 
         const store = ensureExists(this.store);
         return {
-          isLoading: isPending,
+          isLoading: isPending || Boolean(tableContent?.isLoading),
           content:
             computed &&
             m(TreeExplorerPanel, {
@@ -688,7 +705,24 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
                   draft.areaSelectionFlamegraphState = state;
                 });
               },
+              extraTabs: removeFalsyValues([
+                tableContent && {
+                  key: SLICE_TABLE_SUB_TAB_KEY,
+                  title: 'Table',
+                  render: () => tableContent.content,
+                },
+              ]),
+              activeExtraTabKey: activeSubTab,
+              onActiveExtraTabChange: (key) => {
+                activeSubTab = key;
+              },
             }),
+          // The grid's export button lives in the details shell header, which
+          // only the top-level tab can populate.
+          buttons:
+            activeSubTab === SLICE_TABLE_SUB_TAB_KEY
+              ? tableContent?.buttons
+              : undefined,
         };
       },
     };
