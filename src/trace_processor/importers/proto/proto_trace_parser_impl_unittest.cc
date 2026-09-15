@@ -2697,6 +2697,11 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
     pkg->set_profileable_from_shell(false);
     pkg->set_version_code(43);
   }
+  {
+    auto* pkg = pkg_list->add_packages();
+    pkg->set_name("com.test.app3");
+    pkg->set_uid(1002);
+  }
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -2712,7 +2717,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   // structure, make an assumption that metadata storage is filled in in the
   // FIFO order of seen packages.
   const auto& package_list = context_.storage->package_list_table();
-  ASSERT_EQ(package_list.row_count(), 2u);
+  ASSERT_EQ(package_list.row_count(), 3u);
 
   EXPECT_STREQ(storage_->GetString(package_list[0].package_name()).c_str(),
                "com.test.app");
@@ -2727,6 +2732,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   EXPECT_EQ(package_list[1].debuggable(), false);
   EXPECT_EQ(package_list[1].profileable_from_shell(), false);
   EXPECT_EQ(package_list[1].version_code(), 43);
+
+  EXPECT_STREQ(storage_->GetString(package_list[2].package_name()).c_str(),
+               "com.test.app3");
+  EXPECT_FALSE(package_list[2].version_code().has_value());
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
