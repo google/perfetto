@@ -47,6 +47,7 @@ export interface TraceUrlSource {
 export interface TraceStreamSource {
   type: 'STREAM';
   stream: TraceStream;
+  title?: string;
 }
 
 export interface TraceHttpRpcSource {

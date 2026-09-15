@@ -226,8 +226,12 @@ export class AppImpl implements App {
     return this.openTrace({type: 'URL', url, serializedAppState});
   }
 
-  openTraceFromStream(stream: TraceStream) {
-    return this.openTrace({type: 'STREAM', stream});
+  openTraceFromStream(
+    stream: TraceStream,
+    title?: string,
+    serializedAppState?: SerializedAppState,
+  ) {
+    return this.openTrace({type: 'STREAM', stream, title, serializedAppState});
   }
 
   openTraceFromBuffer(
