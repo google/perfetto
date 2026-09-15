@@ -125,6 +125,55 @@ TEST_F(TracingV2IngressTest, WholePacketReachesBuffer) {
   EXPECT_FALSE(ReadPacketBytes(&bytes));
 }
 
+TEST_F(TracingV2IngressTest, RetirementSeparatesRetainedWriterIncarnations) {
+  auto ingress = MakeIngress();
+  {
+    tracing_v2::SharedRingBufferWriter writer(
+        ring_.get(), 1, 1, BufferExhaustedPolicy::kDrop, &writer_delegate_);
+    WriteWholePacket(&writer, {0x08, 0x01});
+  }
+  ASSERT_TRUE(ingress->DrainToCompletion());
+  ingress->RetireWriter(1);
+  {
+    tracing_v2::SharedRingBufferWriter writer(
+        ring_.get(), 1, 1, BufferExhaustedPolicy::kDrop, &writer_delegate_);
+    WriteWholePacket(&writer, {0x08, 0x02});
+    WriteWholePacket(&writer, {0x08, 0x03});
+  }
+  ASSERT_TRUE(ingress->DrainToCompletion());
+  buffer_->BeginRead();
+  std::vector<uint8_t> bytes;
+  uint32_t dropped = 0;
+  ASSERT_TRUE(ReadPacketBytes(&bytes, &dropped));
+  EXPECT_THAT(bytes, ElementsAreArray<uint8_t>({0x08, 0x01}));
+  EXPECT_EQ(dropped, 0u);
+  ASSERT_TRUE(ReadPacketBytes(&bytes, &dropped));
+  EXPECT_THAT(bytes, ElementsAreArray<uint8_t>({0x08, 0x02}));
+  EXPECT_NE(dropped, 0u);
+  ASSERT_TRUE(ReadPacketBytes(&bytes, &dropped));
+  EXPECT_EQ(dropped, 0u);
+}
+
+TEST_F(TracingV2IngressTest, FixedBoundaryDoesNotFollowNewReservations) {
+  auto ingress = MakeIngress();
+  tracing_v2::SharedRingBufferWriter first(
+      ring_.get(), 1, 1, BufferExhaustedPolicy::kDrop, &writer_delegate_);
+  WriteWholePacket(&first, {0x08, 0x01});
+  const uint32_t boundary = ingress->write_pos();
+  tracing_v2::SharedRingBufferWriter second(
+      ring_.get(), 2, 1, BufferExhaustedPolicy::kDrop, &writer_delegate_);
+  WriteWholePacket(&second, {0x08, 0x02});
+  ASSERT_FALSE(ingress->DrainUntil(boundary));
+  buffer_->BeginRead();
+  std::vector<uint8_t> bytes;
+  ASSERT_TRUE(ReadPacketBytes(&bytes));
+  EXPECT_FALSE(ReadPacketBytes(&bytes));
+  ASSERT_TRUE(ingress->DrainToCompletion());
+  buffer_->BeginRead();
+  ASSERT_TRUE(ReadPacketBytes(&bytes));
+  EXPECT_THAT(bytes, ElementsAreArray<uint8_t>({0x08, 0x02}));
+}
+
 TEST_F(TracingV2IngressTest, NestedProtoGroupCanonicalizedEndToEnd) {
   auto ingress = MakeIngress();
   tracing_v2::SharedRingBufferWriter writer(

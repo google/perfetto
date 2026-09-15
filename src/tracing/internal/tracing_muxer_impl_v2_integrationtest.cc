@@ -90,6 +90,23 @@ class TracingMuxerImplV2Test : public testing::Test {
     return connection;
   }
 
+  // Holds an accepted drain reply after the muxer has requested the barrier.
+  static std::function<void(bool)> HoldDrain(std::function<void()> completion) {
+    std::function<void(bool)> reply;
+    RunOnMuxerAndWait([&](auto* muxer) {
+      auto endpoint =
+          std::make_shared<testing::StrictMock<MockProducerEndpoint>>();
+      auto connection = std::make_shared<ProducerImpl::TracingV2Connection>();
+      connection->endpoint = endpoint;
+      EXPECT_CALL(*endpoint, NotifyTracingV2RingData(testing::_))
+          .WillOnce(
+              [&](std::function<void(bool)> cb) { reply = std::move(cb); });
+      muxer->DrainTracingV2RingBufferThenPostToMuxer(connection,
+                                                     std::move(completion));
+    });
+    return reply;
+  }
+
   // Number of flush requests the connected producers are still tracking.
   static size_t PendingFlushCount() {
     size_t count = 0;
@@ -127,9 +144,7 @@ class TracingMuxerImplV2Test : public testing::Test {
   }
 
   // Drives EnsureTracingV2Connection() with a mock endpoint and checks the ring
-  // it builds. The ring capacity is fixed (independent of any v1 SMB), so only
-  // the chunk size follows the config; |expected_num_chunks| is what that fixed
-  // capacity yields for |requested_chunk_size|.
+  // it builds for a 256 KiB negotiated budget and the requested chunk size.
   static void CheckConnectionSizing(uint32_t requested_chunk_size,
                                     uint32_t expected_chunk_size,
                                     uint32_t expected_num_chunks) {
@@ -142,6 +157,8 @@ class TracingMuxerImplV2Test : public testing::Test {
           .WillOnce(testing::Return(true));
       EXPECT_CALL(*endpoint, tracing_v2_chunk_size_bytes())
           .WillOnce(testing::Return(requested_chunk_size));
+      EXPECT_CALL(*endpoint, tracing_v2_ring_size_bytes())
+          .WillOnce(testing::Return(256 * 1024));
       EXPECT_CALL(*endpoint, CreateTracingV2Ring(testing::_))
           .WillOnce([](size_t size) {
             return std::shared_ptr<SharedMemory>(
@@ -951,8 +968,7 @@ TEST_F(TracingV2InProcessTest, TheConfigSelectsTheWriterPerInstance) {
 class TracingV2ChunkSizeTest : public TracingV2InProcessTest {};
 
 TEST_F(TracingV2ChunkSizeTest, ConfiguredSizeReachesRingAndRemainsFixed) {
-  // The configured chunk size reaches the ring; the chunk count follows from
-  // the fixed producer-ring capacity (independent of any v1 SMB size). Cover
+  // The chunk count follows from the negotiated allocation budget. Cover
   // default, explicit, non-power-of-two and maximum chunk sizes.
   CheckConnectionSizing(/*requested=*/0, /*chunk=*/4096, /*num_chunks=*/32);
   CheckConnectionSizing(256, 256, 512);
@@ -1076,7 +1092,7 @@ TEST_F(TracingV2InProcessTest, PacketLargerThanRingMakesProgressAndRecovers) {
       });
   initial_flushed.Wait();
 
-  // Twice the 256 KiB ring buffer.
+  // Exceeds the ring's 256 KiB allocation budget.
   const std::string payload(512 * 1024, 'z');
   TracingV2TestDataSource::Trace(
       [&payload](TracingV2TestDataSource::TraceContext ctx) {
@@ -1577,6 +1593,22 @@ TEST_F(TracingV2InProcessTest,
 // Verify delivery before shutdown after v2 use. In this in-process test, the
 // service drains on the muxer sequence. Shutdown() uses the common teardown
 // path because direct transport has no separate relay runner to destroy.
+TEST_F(TracingV2InProcessTest, AcceptedDrainDoesNotCompleteAfterReset) {
+  RunInFreshProcess([] {
+    std::atomic<bool> completed{false};
+    auto reply = HoldDrain([&] { completed.store(true); });
+    ASSERT_TRUE(reply);
+    TearDownTestSuite();
+    SetUpTestSuite();
+    reply(true);
+    WaitForMuxerSequence();
+    EXPECT_FALSE(completed.load());
+    auto session = StartSession(MakeConfig());
+    EXPECT_TRUE(session->FlushBlocking());
+    session->StopBlocking();
+  });
+}
+
 TEST_F(TracingV2InProcessTest, ShutdownAfterV2Use) {
   RunInFreshProcess([] {
     auto session =
@@ -1729,10 +1761,9 @@ TEST_F(TracingV2DirectAckTest, StoppedV1InstanceCommitsBeforeItsFlushIsAcked) {
         MakeConfigFor({"tracing_v2_test"}, WriterSelection::kV2))
         ->StopBlocking();
     WaitForMuxerSequence();
-    perfetto::test::SetBatchCommitsDuration(60000, perfetto::kCustomBackend);
-
     auto session = StartCustomBackendSession(
         MakeConfigFor({"tracing_v2_async_flush"}, WriterSelection::kV1));
+    perfetto::test::SetBatchCommitsDuration(60000, perfetto::kCustomBackend);
     base::WaitableEvent flush_held;
     TracingV2AsyncFlushDataSource::hold_next_flush.store(&flush_held);
     session->Flush([](bool) {}, /*timeout_ms=*/30000);

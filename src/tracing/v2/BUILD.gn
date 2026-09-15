@@ -24,11 +24,11 @@ source_set("producer_ring") {
     ":v2",
     "../../../include/perfetto/ext/tracing/core",
     "../../../include/perfetto/tracing",
+    "../core",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../base",
-    "../core",
   ]
   sources = [
     "producer_ring.cc",

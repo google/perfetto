@@ -116,6 +116,7 @@
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#include "src/tracing/service/tracing_v2_ingress.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include "src/tracing/service/zlib_compressor.h"
 #endif
@@ -845,12 +846,10 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // numeric target, so they cannot run before name resolution.
   std::vector<bool> buffer_has_v2(num_buffers, false);
   std::vector<bool> buffer_has_vm(num_buffers, false);
-  // The largest ring chunk a producer might use for a v2 data source. A
-  // per-producer config can raise it up to kMaxChunkSizeBytes; a producer with
-  // no config uses the default. The data source to producer binding is not
-  // known here, so a v2 target buffer must fit the largest configured chunk.
-  uint32_t v2_worst_chunk = TracingService::ProducerEndpoint::
-      AdoptTracingV2RingArgs::kDefaultChunkSizeBytes;
+  // Producer binding happens later. Each v2 target must fit the largest
+  // explicit chunk in this config. Setup adapts default chunks to small
+  // buffers.
+  uint32_t v2_worst_chunk = 0;
   for (const auto& producer_cfg : cfg.producers()) {
     if (producer_cfg.tracing_v2_chunk_size_bytes() > v2_worst_chunk)
       v2_worst_chunk = producer_cfg.tracing_v2_chunk_size_bytes();
@@ -913,13 +912,13 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
             "buffer %zu)",
             ds_config.name().c_str(), target_buffer);
       }
-      // The target buffer must hold one worst-case ring chunk plus its TBChunk
-      // framing, or every full chunk would be dropped on admission. Reject the
-      // unsupported geometry here so it is explicit, not a silent loss.
+      // Explicit chunk sizes must fit. Setup reduces the default chunk size
+      // for small buffers before it creates the connection's ring.
       const uint64_t buf_bytes =
           uint64_t{cfg.buffers()[target_buffer].size_kb()} * 1024;
       constexpr uint64_t kV2ChunkFramingOverhead = 64;
-      if (buf_bytes < uint64_t{v2_worst_chunk} + kV2ChunkFramingOverhead) {
+      if (v2_worst_chunk &&
+          buf_bytes < uint64_t{v2_worst_chunk} + kV2ChunkFramingOverhead) {
         return PERFETTO_SVC_ERR(
             "DataSourceConfig.use_tracing_v2 target buffer %zu is %" PRIu64
             " bytes, too small for a v2 ring chunk of up to %u bytes plus "
@@ -2417,6 +2416,12 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
 void TracingServiceImpl::ScrapeSharedMemoryBuffers(
     TracingSession* tracing_session,
     ProducerEndpointImpl* producer) {
+  // Collect published v2 fragments even if the producer cannot answer a flush
+  // or stop request. This does not turn a timeout into a successful flush.
+  if (producer->v2_ingress_ &&
+      tracing_session->data_source_instances.count(producer->id_)) {
+    producer->v2_ingress_->DrainToCompletion();
+  }
   if (!producer->smb_scraping_enabled_ || producer->IsShmemEmulated())
     return;
 
@@ -3567,6 +3572,23 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   // translated to the global BufferID before passing it to the producers, which
   // don't know anything about tracing sessions and consumers.
 
+  if (ds_cfg.use_tracing_v2() &&
+      !producer->IsTracingV2DirectTransportSupported()) {
+    PERFETTO_ELOG("Producer %s does not support use_tracing_v2",
+                  producer->name_.c_str());
+    return nullptr;
+  }
+  if (ds_cfg.use_tracing_v2() && producer->tracing_v2_ring_size_bytes() &&
+      uint64_t(
+          tracing_session->config.buffers()[relative_buffer_id].size_kb()) *
+              1024 <
+          uint64_t(producer->tracing_v2_chunk_size_bytes()) + 64) {
+    PERFETTO_ELOG(
+        "Data source %s target is smaller than the active v2 ring chunk",
+        ds_cfg.name().c_str());
+    return nullptr;
+  }
+
   DataSourceInstanceID inst_id = ++last_data_source_instance_id_;
   auto insert_iter = tracing_session->data_source_instances.emplace(
       std::piecewise_construct,  //
@@ -3620,7 +3642,8 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
 
   PERFETTO_DLOG("Setting up data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
-  if (!producer->shared_memory()) {
+  if ((!ds_config.use_tracing_v2() && !producer->shared_memory()) ||
+      (ds_config.use_tracing_v2() && !producer->tracing_v2_ring_size_bytes())) {
     // Determine the SMB page size. Must be an integer multiple of 4k.
     // As for the SMB size below, the decision tree is as follows:
     // 1. Give priority to what is defined in the trace config.
@@ -3649,21 +3672,39 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     }
     std::tie(shm_size, page_size) = valid_sizes;
 
-    // TODO(primiano): right now Create() will suicide in case of OOM if the
-    // mmap fails. We should instead gracefully fail the request and tell the
-    // client to go away.
-    PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"", shm_size / 1024,
-                  producer->name_.c_str());
-    // In the case the producer is using shmem emulation, because we use
-    // MMAP to allocate the memory and we never write to it, the shared
-    // memory is mapped to the zero page, essentially costing zero
-    // physical memory.
-    auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
-    auto shmem_mode =
-        GetShmemMode(producer->client_identity(), producer->in_process_);
-    producer->SetupSharedMemory(std::move(shared_memory), page_size,
-                                /*provided_by_producer=*/false, shmem_mode,
-                                producer_config.tracing_v2_chunk_size_bytes());
+    if (ds_config.use_tracing_v2()) {
+      uint32_t chunk_size = producer_config.tracing_v2_chunk_size_bytes();
+      if (!chunk_size) {
+        chunk_size =
+            ProducerEndpoint::AdoptTracingV2RingArgs::kDefaultChunkSizeBytes;
+        // Use a size that fits every TBv2 destination in this session. The
+        // connection keeps this geometry when later sources start.
+        for (const auto& buffer_config : tracing_session->config.buffers()) {
+          if (buffer_config.experimental_mode() ==
+              TraceConfig::BufferConfig::TRACE_BUFFER_V2) {
+            const uint64_t bytes = uint64_t(buffer_config.size_kb()) * 1024;
+            chunk_size = static_cast<uint32_t>(
+                std::min<uint64_t>(chunk_size, bytes - 64));
+          }
+        }
+      }
+      producer->SetupTracingV2(shm_size, chunk_size);
+    } else {
+      // TODO(primiano): reject allocation failure without aborting the service.
+      PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"",
+                    shm_size / 1024, producer->name_.c_str());
+      // In the case the producer is using shmem emulation, because we use
+      // MMAP to allocate the memory and we never write to it, the shared
+      // memory is mapped to the zero page, essentially costing zero
+      // physical memory.
+      auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
+      auto shmem_mode =
+          GetShmemMode(producer->client_identity(), producer->in_process_);
+      producer->SetupSharedMemory(
+          std::move(shared_memory), page_size,
+          /*provided_by_producer=*/false, shmem_mode,
+          producer_config.tracing_v2_chunk_size_bytes());
+    }
   }
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;

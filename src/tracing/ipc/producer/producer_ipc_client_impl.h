@@ -82,7 +82,11 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t size) override;
   void AdoptTracingV2Ring(AdoptTracingV2RingArgs,
                           std::function<void(bool)> on_result) override;
-  void NotifyTracingV2RingData(std::function<void()> on_drained) override;
+  void NotifyTracingV2RingData(std::function<void(bool)> on_drained) override;
+  void RetireTracingV2Writer(WriterID, std::function<void(bool)>) override;
+  size_t tracing_v2_ring_size_bytes() const override {
+    return tracing_v2_ring_size_bytes_;
+  }
   bool IsTracingV2DrainOnCurrentThread() const override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
@@ -107,17 +111,18 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();
+  void SendTracingV2RingNotify(WriterID, std::function<void(bool)>);
 
   // Invoked soon after having established the connection with the service.
-  void OnConnectionInitialized(bool connection_succeeded,
-                               bool using_shmem_provided_by_producer,
+  void OnConnectionInitialized(bool using_shmem_provided_by_producer,
                                bool direct_smb_patching_supported,
                                bool use_shmem_emulation,
                                bool tracing_v2_direct_transport_supported);
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
-  void OnServiceRequest(const protos::gen::GetAsyncCommandResponse&);
+  void OnServiceRequest(const protos::gen::GetAsyncCommandResponse&,
+                        base::ScopedFile);
 
   // TODO think to destruction order, do we rely on any specific dtor sequence?
   Producer* const producer_;
@@ -149,6 +154,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
   uint32_t tracing_v2_chunk_size_bytes_ = 0;
+  size_t tracing_v2_ring_size_bytes_ = 0;
+  bool disconnect_scheduled_ = false;
   std::set<DataSourceInstanceID> data_sources_setup_;
   bool connected_ = false;
   std::string const name_;

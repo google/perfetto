@@ -22,10 +22,12 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "src/tracing/core/id_allocator.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/trace_writer_v2_impl.h"
 
@@ -69,6 +71,11 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
     // own sequence, drains the ring into the trace buffer and then runs
     // |on_picked_up| (used to re-arm coalescing). |on_picked_up| may be empty.
     virtual void NotifyRingData(std::function<void()> on_picked_up) = 0;
+    // Replies asynchronously after final data is consumed and retirement is
+    // recorded. A false reply leaves the ID reserved until disconnect.
+    virtual void RetireWriter(WriterID, std::function<void(bool)> callback) {
+      callback(false);
+    }
 
     // True if the service drains this ring on the calling thread, so a writer
     // that parks waiting for space would deadlock the drain. Lets a stalling
@@ -80,6 +87,8 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   // LogicalSize(num_chunks, chunk_size) bytes and zero-filled. |channel| must
   // outlive the ring's control use (until DetachFromService()). Returns null if
   // the geometry is invalid.
+  // A null channel permits early writes. Attach after adoption succeeds. Until
+  // then, a full ring drops data because no reader can release space.
   //
   // Ownership of |memory| is shared: writers keep the ProducerRing (and hence
   // the memory) alive after disconnect, and for the in-process backend the
@@ -100,10 +109,9 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   // SharedMemory.
   static size_t LogicalSize(uint32_t num_chunks, uint32_t chunk_size);
 
-  // Creates a v2 TraceWriter targeting |target_buffer|. Ids are monotonic and
-  // never reused within a connection. Once the id space (kMaxWriterID) is
-  // exhausted this returns a NullTraceWriter and counts the refusal; existing
-  // writers keep working, and a reconnect starts a fresh id space. Thread-safe.
+  // Creates a v2 TraceWriter targeting |target_buffer|. IDs become reusable
+  // after the service drains final data and acknowledges retirement. Returns a
+  // NullTraceWriter if all IDs are active or await retirement. Thread-safe.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy);
@@ -120,6 +128,10 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   // After this, NotifyReader()/Flush() no longer notify the service, but the
   // ring stays valid for surviving writers. Idempotent.
   void DetachFromService();
+  // Connects a ring created without a channel after successful adoption.
+  // A detached connection cannot attach again. Its surviving writers keep
+  // the old mapping and must not enter a new connection's identity namespace.
+  bool AttachToService(ServiceChannel*);
 
  private:
   ProducerRing(std::shared_ptr<SharedMemory> memory,
@@ -133,6 +145,8 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   bool DrainRunsOnCurrentThread() override;
   void Flush(WriterID, std::function<void()> callback) override;
   void OnWriterDestroyed(WriterID) override;
+  // Sends retirement while holding |mutex_|. Successful replies must be async.
+  void RetireWriterLocked(WriterID);
 
   // Sends one coalesced steady-state notification. |mutex_| must be held.
   void SendBatchedNotifyLocked();
@@ -148,11 +162,11 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   std::mutex mutex_;
   // Cleared by DetachFromService(); guarded by |mutex_|.
   ServiceChannel* channel_;
-  // Monotonic writer-id allocation, 1..kMaxWriterID. Ids are not reused within
-  // a connection, so a new writer can never splice onto a retired writer's data
-  // still retained in the trace buffer. Exhaustion yields a NullTraceWriter for
-  // further writers on this connection; a reconnect starts a fresh id space.
-  WriterID next_writer_id_ = 1;
+  bool was_attached_;
+  // Independent of v1 allocation. Retirement separates retained incarnations
+  // before the producer can reuse an ID.
+  IdAllocator<WriterID> writer_ids_{kMaxWriterID};
+  std::vector<WriterID> retired_before_attach_;
   // Count of CreateTraceWriter() calls refused because the id space was
   // exhausted. Existing writers keep working; only new writers are refused.
   uint64_t writer_id_exhausted_count_ = 0;

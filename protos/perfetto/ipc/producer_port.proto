@@ -190,6 +190,8 @@ message InitializeConnectionRequest {
   // SHM region and passes the name (an unguessable token) back to the service.
   // Introduced in v13.
   optional string shm_key_windows = 7;
+  // Supports direct ring adoption and setup without a v1 shared buffer.
+  optional bool tracing_v2_direct_transport_supported = 9;
 }
 
 message InitializeConnectionResponse {
@@ -245,13 +247,22 @@ message AdoptTracingV2RingRequest {
   // tracing_v2::IsValidRingGeometry / RingLogicalSize.
   optional uint32 num_chunks = 1;
   optional uint32 chunk_size_bytes = 2;
+  message TargetBinding {
+    optional uint32 ring_target = 1;
+    optional uint32 service_target = 2;
+  }
+  repeated TargetBinding target_bindings = 3;
 }
 
 message AdoptTracingV2RingResponse {}
 
 // Arguments for rpc NotifyTracingV2RingData().
 
-message NotifyTracingV2RingDataRequest {}
+message NotifyTracingV2RingDataRequest {
+  // If nonzero, retire this writer after the drain. The producer must not
+  // reuse its ID until the successful response arrives.
+  optional uint32 retire_writer_id = 1;
+}
 
 message NotifyTracingV2RingDataResponse {}
 
@@ -356,6 +367,9 @@ message GetAsyncCommandResponse {
     // TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes. 0 or absent
     // selects the producer's default chunk size.
     optional uint32 tracing_v2_chunk_size_bytes = 3;
+    // Resolved ring budget in bytes. A v2-only setup has no shared buffer FD
+    // and a zero shared_buffer_page_size_kb. A later v1 setup can supply it.
+    optional uint32 tracing_v2_ring_size_bytes = 4;
   }
 
   message Flush {

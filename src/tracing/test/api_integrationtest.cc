@@ -7606,8 +7606,8 @@ TEST_P(PerfettoStartupTracingApiTest, CompatibleConfig) {
   EXPECT_THAT(slices, ElementsAre("B:foo.Event", "E"));
 }
 
-// An unresolved v1 startup reservation can defer bridge commits past a v2 stop
-// acknowledgement. This temporary adapter rejects sharing that connection.
+// Unresolved v1 startup reservations can defer commits beyond a v2 barrier.
+// Mixing that startup API with a v2 connection remains unsupported.
 TEST_P(PerfettoStartupTracingApiTest, TracingV2RejectsV1StartupConnection) {
   const std::string previous_style = testing::GTEST_FLAG(death_test_style);
   testing::GTEST_FLAG(death_test_style) = "threadsafe";
@@ -7616,7 +7616,10 @@ TEST_P(PerfettoStartupTracingApiTest, TracingV2RejectsV1StartupConnection) {
         SetupStartupTracing();
         TRACE_EVENT_BEGIN("test", "StartupEvent");
         perfetto::TraceConfig cfg;
-        cfg.add_buffers()->set_size_kb(1024);
+        auto* buffer = cfg.add_buffers();
+        buffer->set_size_kb(1024);
+        buffer->set_experimental_mode(
+            perfetto::protos::gen::TraceConfig::BufferConfig::TRACE_BUFFER_V2);
         auto* ds_cfg = cfg.add_data_sources()->mutable_config();
         ds_cfg->set_name("track_event");
         ds_cfg->set_use_tracing_v2(true);

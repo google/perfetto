@@ -46,7 +46,8 @@ std::shared_ptr<ProducerRing> ProducerRing::Create(
   // untrusted input, but returning null keeps callers non-fatal.
   if (!IsValidRingGeometry(num_chunks, chunk_size))
     return nullptr;
-  if (!memory || memory->size() < LogicalSize(num_chunks, chunk_size))
+  if (!memory ||
+      uint64_t(memory->size()) < RingLogicalSize(num_chunks, chunk_size))
     return nullptr;
   return std::shared_ptr<ProducerRing>(
       new ProducerRing(std::move(memory), num_chunks, chunk_size, channel));
@@ -64,9 +65,8 @@ ProducerRing::ProducerRing(std::shared_ptr<SharedMemory> memory,
       ring_(static_cast<uint8_t*>(memory_->start()),
             LogicalSize(num_chunks, chunk_size),
             chunk_size),
-      channel_(channel) {
-  PERFETTO_DCHECK(channel_);
-}
+      channel_(channel),
+      was_attached_(channel != nullptr) {}
 
 ProducerRing::~ProducerRing() = default;
 
@@ -76,20 +76,17 @@ std::unique_ptr<TraceWriter> ProducerRing::CreateTraceWriter(
   WriterID writer_id;
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (next_writer_id_ > kMaxWriterID) {
-      // Writer-id space exhausted. Ids are monotonic and not reused within a
-      // connection, so a new writer can never splice onto a retired writer's
-      // data still retained in the trace buffer. Do not stop tracing silently:
-      // count the refusal and log it once. Existing writers keep working, and a
-      // reconnect starts a fresh id space.
+    writer_id = writer_ids_.Allocate();
+    if (!writer_id) {
+      // Pending retirements still reserve their IDs. Keep existing writers
+      // running and report exhaustion once for this connection.
       if (writer_id_exhausted_count_++ == 0) {
         PERFETTO_ELOG(
             "tracing v2: writer-id space exhausted on this connection; new "
-            "writers get a NullTraceWriter until the producer reconnects");
+            "writers get a NullTraceWriter until an ID retires");
       }
       return std::unique_ptr<TraceWriter>(new NullTraceWriter());
     }
-    writer_id = next_writer_id_++;
   }
   TraceWriterV2Impl::InitArgs args;
   args.delegate = shared_from_this();
@@ -103,6 +100,20 @@ std::unique_ptr<TraceWriter> ProducerRing::CreateTraceWriter(
 void ProducerRing::DetachFromService() {
   std::lock_guard<std::mutex> lock(mutex_);
   channel_ = nullptr;
+  was_attached_ = true;
+}
+
+bool ProducerRing::AttachToService(ServiceChannel* channel) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!channel || was_attached_)
+    return false;
+  channel_ = channel;
+  was_attached_ = true;
+  channel_->NotifyRingData({});
+  for (WriterID id : retired_before_attach_)
+    RetireWriterLocked(id);
+  retired_before_attach_.clear();
+  return true;
 }
 
 void ProducerRing::NotifyReader() {
@@ -164,31 +175,39 @@ void ProducerRing::OnBatchedNotifyDrained() {
 
 bool ProducerRing::DrainRunsOnCurrentThread() {
   std::lock_guard<std::mutex> lock(mutex_);
-  return channel_ && channel_->DrainRunsOnCurrentThread();
+  return !channel_ || channel_->DrainRunsOnCurrentThread();
 }
 
 void ProducerRing::Flush(WriterID, std::function<void()> callback) {
   // The writer has already published its data. Ask the service to drain, then
   // run the flush callback once it has.
-  std::unique_lock<std::mutex> lock(mutex_);
-  if (channel_) {
-    channel_->NotifyRingData(std::move(callback));
-    return;
-  }
-  // Detached: the service can no longer complete the flush. TraceWriter::Flush
-  // allows discarding the callback on disconnect; run it so callers do not
-  // hang.
-  lock.unlock();
-  if (callback)
-    callback();
-}
-
-void ProducerRing::OnWriterDestroyed(WriterID) {
-  // Ids are monotonic and not reused, so there is nothing to retire here. Nudge
-  // the service so the writer's final published data is drained promptly.
   std::lock_guard<std::mutex> lock(mutex_);
   if (channel_)
-    channel_->NotifyRingData({});
+    channel_->NotifyRingData(std::move(callback));
+  // Without a channel there is no service acknowledgement. Drop the callback,
+  // as TraceWriter::Flush permits when the connection is unavailable.
+}
+
+void ProducerRing::OnWriterDestroyed(WriterID writer_id) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!channel_) {
+    if (!was_attached_)
+      retired_before_attach_.push_back(writer_id);
+    return;
+  }
+  RetireWriterLocked(writer_id);
+}
+
+void ProducerRing::RetireWriterLocked(WriterID writer_id) {
+  std::weak_ptr<ProducerRing> weak = weak_from_this();
+  channel_->RetireWriter(writer_id, [weak, writer_id](bool success) {
+    if (!success)
+      return;
+    if (auto self = weak.lock()) {
+      std::lock_guard<std::mutex> guard(self->mutex_);
+      self->writer_ids_.Free(writer_id);
+    }
+  });
 }
 
 }  // namespace tracing_v2

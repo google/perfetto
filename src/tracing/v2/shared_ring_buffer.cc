@@ -426,13 +426,13 @@ SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
 #endif  // PERFETTO_TRACING_V2_HAS_FUTEX()
 }
 
-void SharedRingBuffer::PublishReadPos(uint32_t read_pos) {
+bool SharedRingBuffer::PublishReadPos(uint32_t read_pos) {
   // This load only supplies the initial expected value for the CAS below.
-  PublishReadPosFromSnapshot(
+  return PublishReadPosFromSnapshot(
       header()->rw_positions.load(std::memory_order_relaxed), read_pos);
 }
 
-void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
+bool SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
                                                   uint32_t read_pos) {
   RingBufferHeader* ring_header = header();
 
@@ -455,7 +455,7 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   // this pass rather than spin on producer-mutated shared memory. The header
   // read_pos then stays at its previous value, so a writer sees less free
   // space, never more, and the next drain pass publishes the latest read_pos.
-  const uint32_t kMaxPublishAttempts = 2 * num_chunks_ + 64;
+  constexpr uint32_t kMaxPublishAttempts = 64;
   bool published = false;
   for (uint32_t attempt = 0; attempt < kMaxPublishAttempts; ++attempt) {
     if (ring_header->rw_positions.compare_exchange_weak(
@@ -467,7 +467,7 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   if (!published) {
     PERFETTO_DLOG(
         "tracing v2: read_pos publication contended out, retry next pass");
-    return;
+    return false;
   }
 
 #if PERFETTO_TRACING_V2_HAS_FUTEX()
@@ -476,7 +476,7 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   std::atomic_thread_fence(std::memory_order_seq_cst);
 
   if (ring_header->num_writers_waiting.load(std::memory_order_relaxed) == 0)
-    return;
+    return true;
 
   // Wake everyone because one drain pass can free many chunks. Waking one
   // writer could leave capacity unused.
@@ -490,6 +490,7 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
     PERFETTO_DPLOG("tracing v2: futex wake on read_pos failed");
   }
 #endif  // PERFETTO_TRACING_V2_HAS_FUTEX()
+  return true;
 }
 
 }  // namespace perfetto::tracing_v2

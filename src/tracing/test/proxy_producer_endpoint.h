@@ -45,6 +45,7 @@ class ProxyProducerEndpoint : public ProducerEndpoint {
   SharedMemory* shared_memory() const override;
   size_t shared_buffer_page_size_kb() const override;
   uint32_t tracing_v2_chunk_size_bytes() const override;
+  size_t tracing_v2_ring_size_bytes() const override;
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy) override;
@@ -59,7 +60,8 @@ class ProxyProducerEndpoint : public ProducerEndpoint {
   std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t size) override;
   void AdoptTracingV2Ring(AdoptTracingV2RingArgs,
                           std::function<void(bool)> on_result) override;
-  void NotifyTracingV2RingData(std::function<void()> on_drained) override;
+  void NotifyTracingV2RingData(std::function<void(bool)> on_drained) override;
+  void RetireTracingV2Writer(WriterID, std::function<void(bool)>) override;
   bool IsTracingV2DrainOnCurrentThread() const override;
   // End ProducerEndpoint implementation
 

@@ -14,12 +14,18 @@
  * limitations under the License.
  */
 
+#include <chrono>
 #include <cinttypes>
+#include <thread>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -39,10 +45,14 @@
 #include "test/gtest_and_gmock.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <fcntl.h>
+#include <signal.h>
+#include "src/tracing/ipc/memfd.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 #endif
 
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/ipc/producer_port.ipc.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -147,7 +157,17 @@ class EndpointServiceChannel : public tracing_v2::ProducerRing::ServiceChannel {
   explicit EndpointServiceChannel(TracingService::ProducerEndpoint* endpoint)
       : endpoint_(endpoint) {}
   void NotifyRingData(std::function<void()> on_picked_up) override {
-    endpoint_->NotifyTracingV2RingData(std::move(on_picked_up));
+    endpoint_->NotifyTracingV2RingData(
+        [cb = std::move(on_picked_up)](bool success) {
+          if (success && cb)
+            cb();
+        });
+  }
+  void RetireWriter(WriterID writer_id, std::function<void(bool)> cb) override {
+    endpoint_->RetireTracingV2Writer(writer_id, std::move(cb));
+  }
+  bool DrainRunsOnCurrentThread() override {
+    return endpoint_->IsTracingV2DrainOnCurrentThread();
   }
 
  private:
@@ -164,9 +184,7 @@ class TracingIntegrationTest : public ::testing::Test {
     kConsumerSock.Destroy();
     task_runner_.reset(new base::TestTaskRunner());
 
-    // Create the service host.
-    svc_ = ServiceIPCHost::CreateInstance(task_runner_.get());
-    svc_->Start(kProducerSock.name(), kConsumerSock.name());
+    StartService();
 
     // Create and connect a Producer.
     producer_endpoint_ = ProducerIPCClient::Connect(
@@ -207,6 +225,8 @@ class TracingIntegrationTest : public ::testing::Test {
     EXPECT_CALL(consumer_, OnDisconnect()).WillOnce(on_consumer_disconnect);
 
     svc_.reset();
+    if (service_process_.status() == base::Subprocess::kRunning)
+      service_process_.KillAndWaitForTermination();
     task_runner_->RunUntilCheckpoint("on_producer_disconnect");
     task_runner_->RunUntilCheckpoint("on_consumer_disconnect");
 
@@ -222,6 +242,13 @@ class TracingIntegrationTest : public ::testing::Test {
     return TracingService::ProducerSMBScrapingMode::kDefault;
   }
 
+  virtual void StartService() {
+    svc_ = ServiceIPCHost::CreateInstance(task_runner_.get());
+    svc_->Start(kProducerSock.name(), kConsumerSock.name());
+  }
+
+  base::Subprocess service_process_;
+
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<ServiceIPCHost> svc_;
   std::unique_ptr<TracingService::ProducerEndpoint> producer_endpoint_;
@@ -233,6 +260,327 @@ class TracingIntegrationTest : public ::testing::Test {
 class TracingIntegrationTestWithChunkSize
     : public TracingIntegrationTest,
       public testing::WithParamInterface<uint32_t> {};
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+namespace {
+class RingAdoptionListener : public ipc::ServiceProxy::EventListener {
+ public:
+  std::function<void()> connected;
+  void OnConnect() override { connected(); }
+};
+
+// Exercises the FD and geometry trust boundary through the real IPC service.
+void ExpectRingAdoption(base::TestTaskRunner* runner,
+                        int fd,
+                        uint32_t chunks,
+                        uint32_t chunk_size,
+                        bool should_accept,
+                        bool check_notification = false,
+                        bool supports_v2 = true) {
+  RingAdoptionListener listener;
+  listener.connected = runner->CreateCheckpoint("ring_bound");
+  auto client =
+      ipc::Client::CreateInstance({kProducerSock.name(), false}, runner);
+  protos::gen::ProducerPortProxy proxy(&listener);
+  client->BindService(proxy.GetWeakPtr());
+  runner->RunUntilCheckpoint("ring_bound");
+  auto initialized = runner->CreateCheckpoint("ring_initialized");
+  ipc::Deferred<protos::gen::InitializeConnectionResponse> init_response;
+  init_response.Bind([&](auto response) {
+    EXPECT_TRUE(response.success());
+    if (response.success())
+      EXPECT_EQ(response->tracing_v2_direct_transport_supported(), supports_v2);
+    initialized();
+  });
+  protos::gen::InitializeConnectionRequest init;
+  init.set_producer_name("ring-producer");
+  if (supports_v2)
+    init.set_tracing_v2_direct_transport_supported(true);
+  proxy.InitializeConnection(init, std::move(init_response));
+  runner->RunUntilCheckpoint("ring_initialized");
+
+  auto adopted = runner->CreateCheckpoint("ring_adopted");
+  ipc::Deferred<protos::gen::AdoptTracingV2RingResponse> response;
+  response.Bind([&](auto result) {
+    EXPECT_EQ(result.success(), should_accept);
+    adopted();
+  });
+  protos::gen::AdoptTracingV2RingRequest req;
+  req.set_num_chunks(chunks);
+  req.set_chunk_size_bytes(chunk_size);
+  proxy.AdoptTracingV2Ring(req, std::move(response), fd);
+  runner->RunUntilCheckpoint("ring_adopted");
+
+  if (check_notification) {
+    auto notified = runner->CreateCheckpoint("ring_notified");
+    ipc::Deferred<protos::gen::NotifyTracingV2RingDataResponse> notify_response;
+    notify_response.Bind([&](auto result) {
+      EXPECT_FALSE(result.success())
+          << "A protocol error must not ACK a successful drain";
+      notified();
+    });
+    proxy.NotifyTracingV2RingData({}, std::move(notify_response));
+    runner->RunUntilCheckpoint("ring_notified");
+  }
+}
+}  // namespace
+
+TEST_F(TracingIntegrationTest, TracingV2EmptySealedRingRejectedNonfatally) {
+  auto fd = CreateMemfd("ring-empty", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+  ASSERT_TRUE(fd);
+  ASSERT_EQ(fcntl(*fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL),
+            0);
+  ExpectRingAdoption(task_runner_.get(), *fd, 2, 256, false);
+}
+
+TEST_F(TracingIntegrationTest, TracingV2RequiresProducerCapability) {
+  auto memory = PosixSharedMemory::Create(tracing_v2::RingLogicalSize(2, 256));
+  ASSERT_TRUE(memory);
+  ExpectRingAdoption(task_runner_.get(), memory->fd(), 2, 256, false,
+                     /*check_notification=*/false, /*supports_v2=*/false);
+}
+
+TEST_F(TracingIntegrationTest, TracingV2ReadOnlyRingRejectedNonfatally) {
+  auto memory = PosixSharedMemory::Create(tracing_v2::RingLogicalSize(2, 256));
+  ASSERT_TRUE(memory);
+  std::string path = "/proc/self/fd/" + std::to_string(memory->fd());
+  base::ScopedFile readonly(open(path.c_str(), O_RDONLY | O_CLOEXEC));
+  ASSERT_TRUE(readonly);
+  ExpectRingAdoption(task_runner_.get(), *readonly, 2, 256, false);
+}
+
+TEST_F(TracingIntegrationTest, TracingV2InvalidGeometryReturnsFailure) {
+  auto memory = PosixSharedMemory::Create(64 * 1024);
+  ASSERT_TRUE(memory);
+  ExpectRingAdoption(task_runner_.get(), memory->fd(), 3, 4096, false);
+}
+
+TEST_F(TracingIntegrationTest, TracingV2WriteSealedRingRejectedNonfatally) {
+  auto fd = CreateMemfd("ring-write-sealed", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+  ASSERT_TRUE(fd);
+  ASSERT_EQ(ftruncate(*fd, 4096), 0);
+  ASSERT_EQ(fcntl(*fd, F_ADD_SEALS,
+                  F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE | F_SEAL_SEAL),
+            0);
+  ExpectRingAdoption(task_runner_.get(), *fd, 2, 256, false);
+}
+
+TEST_F(TracingIntegrationTest, TracingV2AdoptionCallbackCanDeleteClient) {
+  testing::NiceMock<MockProducer> producer;
+  auto connected = task_runner_->CreateCheckpoint("extra_connected");
+  EXPECT_CALL(producer, OnConnect()).WillOnce(connected);
+  auto endpoint = ProducerIPCClient::Connect(kProducerSock.name(), &producer,
+                                             "extra", task_runner_.get());
+  task_runner_->RunUntilCheckpoint("extra_connected");
+  auto done = task_runner_->CreateCheckpoint("rejected");
+  TracingService::ProducerEndpoint::AdoptTracingV2RingArgs args;
+  args.shared_memory = endpoint->CreateTracingV2Ring(4096);
+  args.num_chunks = 3;
+  args.chunk_size = 256;
+  endpoint->AdoptTracingV2Ring(std::move(args), [&](bool success) {
+    EXPECT_FALSE(success);
+    endpoint.reset();
+    done();
+  });
+  task_runner_->RunUntilCheckpoint("rejected");
+}
+
+TEST_F(TracingIntegrationTest, TracingV2ProtocolErrorDoesNotAckDrain) {
+  auto memory = PosixSharedMemory::Create(tracing_v2::RingLogicalSize(2, 256));
+  ASSERT_TRUE(memory);
+  auto* header = static_cast<tracing_v2::RingBufferHeader*>(memory->start());
+  header->rw_positions.store(tracing_v2::PackRwPositions(3, 0));
+  ExpectRingAdoption(task_runner_.get(), memory->fd(), 2, 256, true, true);
+}
+
+class TracingV2ProcessTest : public TracingIntegrationTest {
+ public:
+  void StartService() override {
+    // Publish before either process opens a service connection. Adoption binds
+    // target 42 after setup and must preserve these bytes and positions.
+    early_memory_ =
+        PosixSharedMemory::Create(tracing_v2::RingLogicalSize(4, 4096));
+    early_ring_ =
+        tracing_v2::ProducerRing::Create(early_memory_, 4, 4096, nullptr);
+    auto writer =
+        early_ring_->CreateTraceWriter(42, BufferExhaustedPolicy::kDrop);
+    writer->NewTracePacket()->set_for_testing()->set_str("before_handshake");
+    writer.reset();
+    auto ready = base::Pipe::Create();
+    const int ready_fd = *ready.wr;
+    service_process_.args.exec_cmd = {base::GetCurExecutableDir() + "/traced"};
+    service_process_.args.env = {
+        "PERFETTO_PRODUCER_SOCK_NAME=" + std::string(kProducerSock.name()),
+        "PERFETTO_CONSUMER_SOCK_NAME=" + std::string(kConsumerSock.name()),
+        "TRACED_NOTIFY_FD=" + std::to_string(ready_fd)};
+    if (const char* libraries = getenv("LD_LIBRARY_PATH"))
+      service_process_.args.env.push_back(std::string("LD_LIBRARY_PATH=") +
+                                          libraries);
+    service_process_.args.preserve_fds = {ready_fd};
+    service_process_.Start();
+    ready.wr.reset();
+    auto started = task_runner_->CreateCheckpoint("service_ready");
+    task_runner_->AddFileDescriptorWatch(*ready.rd, [&] {
+      char byte = 0;
+      ASSERT_EQ(read(*ready.rd, &byte, 1), 1);
+      ASSERT_EQ(byte, '1');
+      task_runner_->RemoveFileDescriptorWatch(*ready.rd);
+      started();
+    });
+    task_runner_->RunUntilCheckpoint("service_ready");
+  }
+  std::shared_ptr<SharedMemory> early_memory_;
+  std::shared_ptr<tracing_v2::ProducerRing> early_ring_;
+};
+
+TEST_F(TracingV2ProcessTest, FullRingWakesProducerAcrossProcesses) {
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(4096);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds = config.add_data_sources()->mutable_config();
+  ds->set_name("perfetto.test");
+  ds->set_use_tracing_v2(true);
+  config.add_producers()->set_shm_size_kb(32);
+  config.mutable_producers()->back().set_producer_name(
+      "perfetto.mock_producer");
+  BufferID target = 0;
+  auto started = task_runner_->CreateCheckpoint("started");
+  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _));
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID, const DataSourceConfig& cfg) {
+        target = static_cast<BufferID>(cfg.target_buffer());
+        started();
+      });
+  consumer_endpoint_->EnableTracing(config);
+  task_runner_->RunUntilCheckpoint("started");
+  ASSERT_EQ(producer_endpoint_->shared_memory(), nullptr);
+  ASSERT_EQ(producer_endpoint_->MaybeSharedMemoryArbiter(), nullptr);
+  ASSERT_EQ(producer_endpoint_->tracing_v2_ring_size_bytes(), 32u * 1024);
+
+  constexpr uint32_t kChunks = 4;
+  constexpr uint32_t kChunkSize = 4096;
+  auto memory = early_memory_;
+  EndpointServiceChannel channel(producer_endpoint_.get());
+  auto ring = early_ring_;
+  ASSERT_TRUE(ring);
+  auto adopted = task_runner_->CreateCheckpoint("adopted");
+  producer_endpoint_->AdoptTracingV2Ring(
+      {memory, kChunks, kChunkSize, {{42, target}}}, [&](bool success) {
+        ASSERT_TRUE(success);
+        adopted();
+      });
+  task_runner_->RunUntilCheckpoint("adopted");
+  ASSERT_TRUE(ring->AttachToService(&channel));
+
+  // Stop only this test's service. The writer must park on the shared futex
+  // before the service resumes, so the test proves an actual cross-process
+  // wake.
+  ASSERT_EQ(kill(service_process_.pid(), SIGSTOP), 0);
+  const std::string payload(300 * 1024, 'p');
+  auto flushed = task_runner_->CreateCheckpoint("flushed");
+  std::thread writer_thread([&] {
+    auto writer = ring->CreateTraceWriter(42, BufferExhaustedPolicy::kStall);
+    writer->NewTracePacket()->set_for_testing()->set_str(payload);
+    writer->Flush(flushed);
+  });
+  auto* header = static_cast<tracing_v2::RingBufferHeader*>(memory->start());
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  while (!header->num_writers_waiting.load() &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  EXPECT_GT(header->num_writers_waiting.load(), 0u);
+  EXPECT_EQ(kill(service_process_.pid(), SIGCONT), 0);
+  task_runner_->RunUntilCheckpoint("flushed");
+  writer_thread.join();
+
+  auto read_done = task_runner_->CreateCheckpoint("read_done");
+  size_t received = 0;
+  size_t early_received = 0;
+  EXPECT_CALL(consumer_, OnTracePackets(_, _))
+      .WillRepeatedly([&](std::vector<TracePacket>* packets, bool more) {
+        for (auto& packet : *packets) {
+          protos::gen::TracePacket decoded;
+          ASSERT_TRUE(decoded.ParseFromString(packet.GetRawBytesForTesting()));
+          if (decoded.has_for_testing()) {
+            if (decoded.for_testing().str() == "before_handshake") {
+              EXPECT_EQ(decoded.previous_packet_dropped(), 0u);
+              ++early_received;
+              continue;
+            }
+            EXPECT_EQ(decoded.for_testing().str(), payload);
+            ++received;
+          }
+        }
+        if (!more)
+          read_done();
+      });
+  consumer_endpoint_->ReadBuffers();
+  task_runner_->RunUntilCheckpoint("read_done");
+  EXPECT_EQ(received, 1u);
+  EXPECT_EQ(early_received, 1u);
+
+  // This thread sends drain RPCs. Both stall policies must drop when this
+  // thread fills the ring, since parking here prevents those RPCs from running.
+  size_t recovery_count = 0;
+  for (auto policy :
+       {BufferExhaustedPolicy::kStall, BufferExhaustedPolicy::kStallThenDrop}) {
+    auto writer = ring->CreateTraceWriter(42, policy);
+    writer->NewTracePacket()->set_for_testing()->set_str(payload);
+    auto drained = task_runner_->CreateCheckpoint(
+        "drain_pressure_" + std::to_string(recovery_count));
+    writer->Flush(drained);
+    task_runner_->RunUntilCheckpoint("drain_pressure_" +
+                                     std::to_string(recovery_count));
+    writer->NewTracePacket()->set_for_testing()->set_str("loss_marker");
+    auto marker = task_runner_->CreateCheckpoint(
+        "drain_marker_" + std::to_string(recovery_count));
+    writer->Flush(marker);
+    task_runner_->RunUntilCheckpoint("drain_marker_" +
+                                     std::to_string(recovery_count));
+    writer->NewTracePacket()->set_for_testing()->set_str("recovered");
+    auto recovered = task_runner_->CreateCheckpoint(
+        "recovered_" + std::to_string(recovery_count));
+    writer->Flush(recovered);
+    task_runner_->RunUntilCheckpoint("recovered_" +
+                                     std::to_string(recovery_count));
+    ++recovery_count;
+  }
+  auto recovered_data = task_runner_->CreateCheckpoint("recovered_data");
+  recovery_count = 0;
+  EXPECT_CALL(consumer_, OnTracePackets(_, _))
+      .WillRepeatedly([&](std::vector<TracePacket>* packets, bool more) {
+        for (auto& packet : *packets) {
+          protos::gen::TracePacket decoded;
+          ASSERT_TRUE(decoded.ParseFromString(packet.GetRawBytesForTesting()));
+          if (decoded.has_for_testing()) {
+            EXPECT_EQ(decoded.for_testing().str(), "recovered");
+            EXPECT_NE(decoded.previous_packet_dropped(), 0u);
+            ++recovery_count;
+          }
+        }
+        if (!more)
+          recovered_data();
+      });
+  consumer_endpoint_->ReadBuffers();
+  task_runner_->RunUntilCheckpoint("recovered_data");
+  EXPECT_EQ(recovery_count, 2u);
+  ring->DetachFromService();
+  auto stopped = task_runner_->CreateCheckpoint("stopped");
+  EXPECT_CALL(producer_, StopDataSource(_))
+      .WillOnce([&](DataSourceInstanceID id) {
+        producer_endpoint_->NotifyDataSourceStopped(id);
+      });
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(stopped));
+  consumer_endpoint_->DisableTracing();
+  task_runner_->RunUntilCheckpoint("stopped");
+}
+#endif
 
 TEST_P(TracingIntegrationTestWithChunkSize, WithIPCTransport) {
   // Start tracing.
@@ -388,6 +736,10 @@ TEST_F(TracingIntegrationTest, TracingV2DirectRingOverIPC) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("perfetto.test");
   ds_config->set_target_buffer(0);
+  ds_config->set_use_tracing_v2(true);
+  auto* producer_config = trace_config.add_producers();
+  producer_config->set_producer_name("perfetto.mock_producer");
+  producer_config->set_shm_size_kb(1024);
   consumer_endpoint_->EnableTracing(trace_config);
 
   BufferID global_buf_id = 0;
@@ -474,10 +826,14 @@ TEST_F(TracingIntegrationTest, TracingV2DirectRingOverIPC) {
   consumer_endpoint_->DisableTracing();
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
-  EXPECT_CALL(producer_, StopDataSource(_));
+  EXPECT_CALL(producer_, StopDataSource(_))
+      .WillOnce([&](DataSourceInstanceID id) {
+        producer_endpoint_->NotifyDataSourceStopped(id);
+      });
   EXPECT_CALL(consumer_, OnTracingDisabled(_))
       .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
+  ring->DetachFromService();
 }
 #endif  // !PERFETTO_OS_WIN
 

@@ -129,6 +129,9 @@ class SharedRingBufferInternalsForTest {
   static void SetReaderPos(SharedRingBufferReader* reader, uint32_t chunk_pos) {
     reader->read_pos_ = chunk_pos;
   }
+  static void SetReadPosPublicationPending(SharedRingBufferReader* reader) {
+    reader->read_pos_publication_pending_ = true;
+  }
 
   static SharedRingBufferReader::ConsumeResult ConsumeNextPosition(
       SharedRingBufferReader* reader) {

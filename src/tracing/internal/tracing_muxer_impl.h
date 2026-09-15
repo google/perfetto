@@ -272,6 +272,7 @@ class TracingMuxerImpl : public TracingMuxer {
       // still gets the ring drained. Ring detach (mutex-guarded) quiesces this
       // before the connection is dropped.
       void NotifyRingData(std::function<void()> on_picked_up) override;
+      void RetireWriter(WriterID, std::function<void(bool)>) override;
 
       // True if the endpoint drains the ring on the calling thread, so a
       // stalling writer here would deadlock the drain and should drop instead
@@ -280,6 +281,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
       std::shared_ptr<ProducerEndpoint> endpoint;
       std::shared_ptr<tracing_v2::ProducerRing> ring;
+      std::function<void()> on_failure;
     };
 
     // Lazily allocates this connection's ring and asks the service to adopt it.
@@ -372,6 +374,7 @@ class TracingMuxerImpl : public TracingMuxer {
     // WARNING: as for |service_|, any *write* access or any *read* access from
     // a non-muxer thread must go through std::atomic_{load,store}.
     std::shared_ptr<TracingV2Connection> tracing_v2_connection_;
+    bool tracing_v2_failed_ = false;
 
     // The currently active service endpoint is maintained as an atomic shared
     // pointer so it won't get deleted from underneath threads that are creating

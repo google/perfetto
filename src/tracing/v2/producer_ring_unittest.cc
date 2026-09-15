@@ -15,6 +15,7 @@
  */
 
 #include "src/tracing/v2/producer_ring.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #include <functional>
 #include <utility>
@@ -36,6 +37,9 @@ class RecordingChannel : public ProducerRing::ServiceChannel {
   void NotifyRingData(std::function<void()> on_picked_up) override {
     ++notify_count;
     pending_.push_back(std::move(on_picked_up));
+  }
+  void RetireWriter(WriterID, std::function<void(bool)> callback) override {
+    NotifyRingData([cb = std::move(callback)] { cb(true); });
   }
 
   // Runs the outstanding pick-up callbacks, as if the service had drained.
@@ -69,7 +73,7 @@ TraceWriterV2Impl::Delegate* AsV2Delegate(ProducerRing* ring) {
   return static_cast<TraceWriterV2Impl::Delegate*>(ring);
 }
 
-TEST(ProducerRingTest, AllocatesMonotonicWriterIds) {
+TEST(ProducerRingTest, AllocatesDistinctWriterIds) {
   RecordingChannel channel;
   auto ring = ProducerRing::Create(MakeMemory(4, 256), 4, 256, &channel);
   ASSERT_TRUE(ring);
@@ -79,6 +83,49 @@ TEST(ProducerRingTest, AllocatesMonotonicWriterIds) {
   EXPECT_EQ(w1->writer_id(), 1u);
   EXPECT_EQ(w2->writer_id(), 2u);
   EXPECT_EQ(w3->writer_id(), 3u);
+}
+
+TEST(ProducerRingTest, WriterIdsWaitForRetirementAndCanBeReused) {
+  RecordingChannel channel;
+  auto ring = ProducerRing::Create(MakeMemory(4, 256), 4, 256, &channel);
+  for (uint32_t i = 0; i < kMaxWriterID; ++i) {
+    auto writer = ring->CreateTraceWriter(1, BufferExhaustedPolicy::kDrop);
+    ASSERT_NE(writer->writer_id(), 0u);
+  }
+  EXPECT_EQ(
+      ring->CreateTraceWriter(1, BufferExhaustedPolicy::kDrop)->writer_id(),
+      0u);
+  channel.PickUpAll();
+  EXPECT_NE(
+      ring->CreateTraceWriter(1, BufferExhaustedPolicy::kDrop)->writer_id(),
+      0u);
+}
+
+TEST(ProducerRingTest, ActualPacketsCoalesceNotifications) {
+  RecordingChannel channel;
+  auto ring = ProducerRing::Create(MakeMemory(64, 4096), 64, 4096, &channel);
+  auto writer = ring->CreateTraceWriter(1, BufferExhaustedPolicy::kDrop);
+  for (uint32_t i = 0; i < 1000; ++i)
+    writer->NewTracePacket()->set_timestamp(i);
+  EXPECT_EQ(channel.notify_count, 1);
+  channel.PickUpAll();
+  EXPECT_EQ(channel.notify_count, 2);
+  channel.PickUpAll();
+  EXPECT_EQ(channel.notify_count, 2);
+}
+
+TEST(ProducerRingTest, OfflineRingAttachesOnceAndDropsInsteadOfWaiting) {
+  auto ring = ProducerRing::Create(MakeMemory(2, 256), 2, 256, nullptr);
+  ASSERT_TRUE(ring);
+  EXPECT_TRUE(AsWriterDelegate(ring.get())->DrainRunsOnCurrentThread());
+  auto writer = ring->CreateTraceWriter(1, BufferExhaustedPolicy::kStall);
+  writer->NewTracePacket()->set_timestamp(42);
+  RecordingChannel channel;
+  EXPECT_TRUE(ring->AttachToService(&channel));
+  EXPECT_EQ(channel.notify_count, 1);
+  EXPECT_FALSE(ring->AttachToService(&channel));
+  ring->DetachFromService();
+  EXPECT_FALSE(ring->AttachToService(&channel));
 }
 
 TEST(ProducerRingTest, RejectsInvalidGeometry) {
@@ -172,10 +219,10 @@ TEST(ProducerRingTest, DetachStopsServiceNotifications) {
   delegate->NotifyReader();
   EXPECT_EQ(channel.notify_count, 0);  // No calls after detach.
 
-  // A detached flush still runs its callback so callers do not hang.
+  // An unavailable service must not acknowledge this flush.
   bool flushed = false;
   AsV2Delegate(ring.get())->Flush(WriterID(1), [&flushed] { flushed = true; });
-  EXPECT_TRUE(flushed);
+  EXPECT_FALSE(flushed);
 }
 
 TEST(ProducerRingTest, SurvivingWriterKeepsRingAlive) {

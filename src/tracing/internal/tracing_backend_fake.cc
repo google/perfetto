@@ -97,11 +97,11 @@ class UnsupportedProducerEndpoint : public ProducerEndpoint {
     if (on_result)
       on_result(false);
   }
-  void NotifyTracingV2RingData(std::function<void()> on_drained) override {
+  void NotifyTracingV2RingData(std::function<void(bool)> on_drained) override {
     // No ring is ever adopted here, but run the callback so a caller cannot
     // hang.
     if (on_drained)
-      on_drained();
+      on_drained(false);
   }
 
  private:

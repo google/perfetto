@@ -152,20 +152,22 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
 
 ProducerIPCClientImpl::~ProducerIPCClientImpl() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // Destroy the proxy while callback state and the weak factory still exist.
+  // Its destructor rejects outstanding replies, which can request disconnect.
+  disconnected_ = true;
+  connected_ = false;
+  producer_port_.reset();
+  ipc_channel_.reset();
 }
 
 void ProducerIPCClientImpl::Disconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // Complete the teardown exactly once. |producer_port_| cannot be the guard:
-  // ScheduleDisconnect() drops it before posting this, so guarding on it here
-  // would skip the channel teardown and the OnDisconnect() notification.
+  // Complete teardown exactly once, including failures during reply dispatch.
   if (disconnected_)
     return;
   disconnected_ = true;
-  // Reset the producer port so that no further IPCs are received and IPC
-  // callbacks are no longer executed (may already be null after
-  // ScheduleDisconnect()). Also reset the IPC channel so that the service is
-  // notified of the disconnection.
+  // Reject pending replies before releasing the channel. The disconnected flag
+  // prevents those callbacks from scheduling another disconnect.
   producer_port_.reset();
   ipc_channel_.reset();
   // Perform disconnect synchronously.
@@ -177,19 +179,23 @@ void ProducerIPCClientImpl::OnConnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   connected_ = true;
 
-  // The IPC layer guarantees that any outstanding callback will be dropped on
-  // the floor if producer_port_ is destroyed between the request and the reply.
-  // Binding |this| is hence safe.
+  // Run producer callbacks outside proxy dispatch. OnConnect can disconnect and
+  // destroy the proxy, for example when startup SMB adoption was rejected.
   ipc::Deferred<protos::gen::InitializeConnectionResponse> on_init;
   on_init.Bind(
       [this](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
-        OnConnectionInitialized(
-            resp.success(),
-            resp.success() ? resp->using_shmem_provided_by_producer() : false,
-            resp.success() ? resp->direct_smb_patching_supported() : false,
-            resp.success() ? resp->use_shmem_emulation() : false,
-            resp.success() ? resp->tracing_v2_direct_transport_supported()
-                           : false);
+        if (!resp.success())
+          return;
+        task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr(),
+                                response = *resp] {
+          if (weak_this && weak_this->connected_ && !weak_this->disconnected_) {
+            weak_this->OnConnectionInitialized(
+                response.using_shmem_provided_by_producer(),
+                response.direct_smb_patching_supported(),
+                response.use_shmem_emulation(),
+                response.tracing_v2_direct_transport_supported());
+          }
+        });
       });
   protos::gen::InitializeConnectionRequest req;
   req.set_producer_name(name_);
@@ -224,6 +230,10 @@ void ProducerIPCClientImpl::OnConnect() {
   }
 
   req.set_sdk_version(base::GetVersionString());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  req.set_tracing_v2_direct_transport_supported(true);
+#endif
   producer_port_->InitializeConnection(req, std::move(on_init), shm_fd);
 
   // Create the back channel to receive commands from the Service.
@@ -232,7 +242,19 @@ void ProducerIPCClientImpl::OnConnect() {
       [this](ipc::AsyncResult<protos::gen::GetAsyncCommandResponse> resp) {
         if (!resp)
           return;  // The IPC channel was closed and |resp| was auto-rejected.
-        OnServiceRequest(*resp);
+        // Preserve ordering with initialization and leave proxy dispatch before
+        // calling producer code. Take the FD now, before another frame arrives.
+        struct PendingCommand {
+          protos::gen::GetAsyncCommandResponse command;
+          base::ScopedFile fd;
+        };
+        auto pending = std::make_shared<PendingCommand>();
+        pending->command = *resp;
+        pending->fd = ipc_channel_->TakeReceivedFD();
+        weak_runner_.PostTask([this, pending] {
+          if (connected_ && !disconnected_)
+            OnServiceRequest(pending->command, std::move(pending->fd));
+        });
       });
   producer_port_->GetAsyncCommand(protos::gen::GetAsyncCommandRequest(),
                                   std::move(on_cmd));
@@ -252,37 +274,24 @@ void ProducerIPCClientImpl::OnDisconnect() {
 }
 
 void ProducerIPCClientImpl::ScheduleDisconnect() {
-  // |ipc_channel| doesn't allow disconnection in the middle of handling
-  // an IPC call, so the connection drop must take place over two phases.
-
-  // First, synchronously drop the |producer_port_| so that no more IPC
-  // messages are handled.
-  producer_port_.reset();
-
-  // Then schedule an async task for performing the remainder of the
-  // disconnection operations outside the context of the IPC method handler.
-  // Disconnect() runs its teardown exactly once, guarded by |disconnected_|
-  // rather than by |producer_port_| (which we just cleared), so the channel
-  // teardown and the OnDisconnect() notification still happen here.
+  // A reply callback must not destroy the proxy that dispatches it.
+  if (disconnect_scheduled_ || disconnected_)
+    return;
+  disconnect_scheduled_ = true;
+  connected_ = false;
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this]() {
-    if (weak_this) {
+  task_runner_->PostTask([weak_this] {
+    if (weak_this)
       weak_this->Disconnect();
-    }
   });
 }
 
 void ProducerIPCClientImpl::OnConnectionInitialized(
-    bool connection_succeeded,
     bool using_shmem_provided_by_producer,
     bool direct_smb_patching_supported,
     bool use_shmem_emulation,
     bool tracing_v2_direct_transport_supported) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // If connection_succeeded == false, the OnDisconnect() call will follow next
-  // and there we'll notify the |producer_|. TODO: add a test for this.
-  if (!connection_succeeded)
-    return;
   is_shmem_provided_by_producer_ = using_shmem_provided_by_producer;
   direct_smb_patching_supported_ = direct_smb_patching_supported;
   tracing_v2_direct_transport_supported_ =
@@ -292,20 +301,24 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
   // the service via a relay service:
   // client <-Unix socket-> relay service <- vsock -> tracing service.
   use_shmem_emulation_ = use_shmem_emulation;
+  auto weak_this = weak_factory_.GetWeakPtr();
   producer_->OnConnect();
-
+  if (!weak_this || disconnected_)
+    return;
   // Bail out if the service failed to adopt our producer-allocated SMB.
   // TODO(eseckler): Handle adoption failure more gracefully.
   if (shared_memory_ && !is_shmem_provided_by_producer_) {
     PERFETTO_DLOG("Service failed adopt producer-provided SMB, disconnecting.");
-    Disconnect();
+    ScheduleDisconnect();
     return;
   }
 }
 
 void ProducerIPCClientImpl::OnServiceRequest(
-    const protos::gen::GetAsyncCommandResponse& cmd) {
+    const protos::gen::GetAsyncCommandResponse& cmd,
+    base::ScopedFile received_fd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  base::ignore_result(received_fd);
 
   // This message is sent only when connecting to a service running Android Q+.
   // See comment below in kStartDataSource.
@@ -324,7 +337,10 @@ void ProducerIPCClientImpl::OnServiceRequest(
     if (!data_sources_setup_.count(dsid)) {
       // When connecting with an older (Android P) service, the service will not
       // send a SetupDataSource message. We synthesize it here in that case.
+      auto weak_this = weak_factory_.GetWeakPtr();
       producer_->SetupDataSource(dsid, cfg);
+      if (!weak_this || disconnected_)
+        return;
     }
     producer_->StartDataSource(dsid, cfg);
     return;
@@ -332,12 +348,21 @@ void ProducerIPCClientImpl::OnServiceRequest(
 
   if (cmd.has_stop_data_source()) {
     const DataSourceInstanceID dsid = cmd.stop_data_source().instance_id();
-    producer_->StopDataSource(dsid);
     data_sources_setup_.erase(dsid);
+    producer_->StopDataSource(dsid);
     return;
   }
 
   if (cmd.has_setup_tracing()) {
+    const auto& setup = cmd.setup_tracing();
+    if (setup.tracing_v2_ring_size_bytes()) {
+      tracing_v2_ring_size_bytes_ = setup.tracing_v2_ring_size_bytes();
+      tracing_v2_chunk_size_bytes_ = setup.tracing_v2_chunk_size_bytes();
+      if (!setup.shared_buffer_page_size_kb()) {
+        producer_->OnTracingSetup();
+        return;
+      }
+    }
     std::unique_ptr<SharedMemory> ipc_shared_memory;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     const std::string& shm_key = cmd.setup_tracing().shm_key_windows();
@@ -361,7 +386,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
         PosixSharedMemory::AttachToFd(std::move(shmem_fd),
                                       /*require_seals_if_supported=*/false);
 #else
-    base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
+    base::ScopedFile shmem_fd = std::move(received_fd);
     if (shmem_fd) {
       // TODO(primiano): handle mmap failure in case of OOM.
       ipc_shared_memory =
@@ -396,8 +421,8 @@ void ProducerIPCClientImpl::OnServiceRequest(
       PERFETTO_CHECK(is_shmem_provided_by_producer_ && shared_memory_ &&
                      shared_memory_arbiter_);
     }
-    tracing_v2_chunk_size_bytes_ =
-        cmd.setup_tracing().tracing_v2_chunk_size_bytes();
+    if (!tracing_v2_ring_size_bytes_)
+      tracing_v2_chunk_size_bytes_ = setup.tracing_v2_chunk_size_bytes();
     producer_->OnTracingSetup();
     return;
   }
@@ -648,15 +673,23 @@ void ProducerIPCClientImpl::AdoptTracingV2Ring(
   protos::gen::AdoptTracingV2RingRequest req;
   req.set_num_chunks(args.num_chunks);
   req.set_chunk_size_bytes(args.chunk_size);
+  for (const auto& binding : args.target_bindings) {
+    auto* out = req.add_target_bindings();
+    out->set_ring_target(binding.ring_target);
+    out->set_service_target(binding.service_target);
+  }
   ipc::Deferred<protos::gen::AdoptTracingV2RingResponse> resp;
-  resp.Bind([on_result = std::move(on_result)](
-                ipc::AsyncResult<protos::gen::AdoptTracingV2RingResponse> r) {
-    // Runs when the adoption RPC resolves, or on channel close (auto-reject).
-    // |r| is false if the service rejected the ring.
-    if (!r)
-      PERFETTO_ELOG("Service rejected the v2 ring adoption");
-    if (on_result)
-      on_result(static_cast<bool>(r));
+  resp.Bind([this, on_result = std::move(on_result)](
+                ipc::AsyncResult<protos::gen::AdoptTracingV2RingResponse>
+                    result) mutable {
+    const bool accepted = static_cast<bool>(result);
+    if (!accepted)
+      ScheduleDisconnect();
+    task_runner_->PostTask(
+        [on_result = std::move(on_result), accepted]() mutable {
+          if (on_result)
+            on_result(accepted);
+        });
   });
   // The ring memory FD rides out-of-band on this invocation. The producer's
   // ProducerRing keeps the mapping alive, so the descriptor stays valid.
@@ -664,30 +697,41 @@ void ProducerIPCClientImpl::AdoptTracingV2Ring(
 }
 
 void ProducerIPCClientImpl::NotifyTracingV2RingData(
-    std::function<void()> on_drained) {
-  // Called from any writer thread (ring backpressure / a writer's Flush) as
-  // well as from the muxer sequence. Hop to the client sequence to touch the
-  // IPC channel; the WeakRunner drops the task if this endpoint is gone.
-  weak_runner_.PostTask([this, cb = std::move(on_drained)]() mutable {
+    std::function<void(bool)> on_drained) {
+  SendTracingV2RingNotify(0, std::move(on_drained));
+}
+
+void ProducerIPCClientImpl::RetireTracingV2Writer(
+    WriterID writer_id,
+    std::function<void(bool)> on_retired) {
+  SendTracingV2RingNotify(writer_id, std::move(on_retired));
+}
+
+void ProducerIPCClientImpl::SendTracingV2RingNotify(
+    WriterID writer_id,
+    std::function<void(bool)> callback) {
+  weak_runner_.PostTask([this, writer_id, cb = std::move(callback)]() mutable {
     if (!connected_ || !producer_port_) {
-      // Nothing will drain the ring; run the callback so the ProducerRing does
-      // not stall a flush waiting for a reply that will never come.
       if (cb)
-        cb();
+        cb(false);
       return;
     }
+    protos::gen::NotifyTracingV2RingDataRequest req;
+    req.set_retire_writer_id(writer_id);
     ipc::Deferred<protos::gen::NotifyTracingV2RingDataResponse> resp;
-    resp.Bind([cb = std::move(cb)](
-                  ipc::AsyncResult<
-                      protos::gen::NotifyTracingV2RingDataResponse>) mutable {
-      // Runs on reply, i.e. after the service has drained up to this point (or
-      // on channel close, where the reply is auto-rejected). Either way, let
-      // the ProducerRing re-arm / complete its flush.
-      if (cb)
-        cb();
+    resp.Bind([this, cb = std::move(cb)](
+                  ipc::AsyncResult<protos::gen::NotifyTracingV2RingDataResponse>
+                      result) mutable {
+      const bool success = static_cast<bool>(result);
+      if (!success)
+        ScheduleDisconnect();
+      // A caller can delete this endpoint. Dispatch outside the proxy callback.
+      task_runner_->PostTask([cb = std::move(cb), success]() mutable {
+        if (cb)
+          cb(success);
+      });
     });
-    producer_port_->NotifyTracingV2RingData(
-        protos::gen::NotifyTracingV2RingDataRequest(), std::move(resp));
+    producer_port_->NotifyTracingV2RingData(req, std::move(resp));
   });
 }
 
@@ -716,6 +760,12 @@ bool ProducerIPCClientImpl::IsShmemProvidedByProducer() const {
 }
 
 void ProducerIPCClientImpl::NotifyFlushComplete(FlushRequestID req_id) {
+  if (!shared_memory_arbiter_) {
+    CommitDataRequest req;
+    req.set_flush_request_id(req_id);
+    CommitData(req, {});
+    return;
+  }
   shared_memory_arbiter_->NotifyFlushComplete(req_id);
 
   // NB: For producers using SMB emulation, the actual value of

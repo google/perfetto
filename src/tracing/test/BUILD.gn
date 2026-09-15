@@ -69,6 +69,8 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "..:client_api_without_backends",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
+      "../../../include/perfetto/ext/ipc",
+      "../../../protos/perfetto/ipc",
       "../../base",
       "../../base:test_support",
       "../ipc:common",

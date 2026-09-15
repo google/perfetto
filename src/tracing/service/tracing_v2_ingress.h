@@ -79,6 +79,11 @@ class TracingV2Ingress : public tracing_v2::SharedRingBufferReader::Delegate {
   // Returns true if the reader may have more work (the caller should schedule
   // another Drain()), false if it caught up or hit a protocol error.
   bool Drain();
+  // Reads only reservations before this fixed boundary. Returns true while
+  // more work or a deferred read-position publication remains.
+  bool DrainUntil(uint32_t end_pos);
+  uint32_t write_pos() const;
+  void RetireWriter(WriterID);
 
   // Drains repeatedly until the reader catches up or latches a protocol error,
   // capping the number of passes. The cap keeps teardown finite even if a
@@ -86,7 +91,7 @@ class TracingV2Ingress : public tracing_v2::SharedRingBufferReader::Delegate {
   // write position for at most one full ring, then stops. Used only off the
   // steady-state path (an in-process backpressure unblock and endpoint
   // teardown), never for an ordinary remote notification.
-  void DrainToCompletion();
+  bool DrainToCompletion();
 
   // True once the reader latched an unrecoverable ring protocol error. The
   // producer's ring can no longer be trusted; the caller should stop draining
@@ -109,19 +114,14 @@ class TracingV2Ingress : public tracing_v2::SharedRingBufferReader::Delegate {
       const tracing_v2::SharedRingBufferReader::ChunkContents&) override;
   void OnDataLoss(WriterID) override;
 
-  // Per-writer routing and loss-placement state, keyed by the validated wire
-  // writer id. The producer allocates ids monotonically and never reuses them
-  // within a connection, so this map is bounded by the 15-bit writer-id space
-  // and entries are not pruned. A reconnect starts a fresh id space.
+  // Keep the ordinal through retirement because TBv2 can retain old chunks.
+  // The validated 15-bit wire ID bounds this map for the connection's lifetime.
   struct WriterState {
-    // Contiguous id assigned to each stored chunk (receipt order). The trace
-    // buffer uses it for sequence ordering, not for loss placement.
+    // Next admission ordinal. Known loss skips one ID before successful
+    // storage.
     ChunkID next_chunk_id = 0;
-    // A transport loss occurred in this writer's stream since its last stored
-    // chunk (a ring OnDataLoss, a denied target, or a dropped admission). It is
-    // handed to the next successful admission, which attaches it to that chunk
-    // so the loss surfaces on that chunk's first read packet and cannot be
-    // attributed to earlier packets. Cleared only when successfully stored.
+    // Coalesces transport loss, denied routing and rejected storage. Retirement
+    // also sets this boundary to separate the next writer incarnation.
     bool loss_pending = false;
   };
 

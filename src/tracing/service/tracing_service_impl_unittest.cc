@@ -3999,7 +3999,7 @@ TEST_F(TracingServiceImplTest, TracingV2SmallBufferWithDefaultChunkAccepted) {
   consumer->Connect(svc.get());
   TraceConfig config;
   auto* buf = config.add_buffers();
-  buf->set_size_kb(16);  // 16 KiB comfortably holds the 4 KiB default chunk.
+  buf->set_size_kb(4);
   buf->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
   auto* ds = config.add_data_sources()->mutable_config();
   ds->set_name("ds_v2");
@@ -4009,6 +4009,9 @@ TEST_F(TracingServiceImplTest, TracingV2SmallBufferWithDefaultChunkAccepted) {
   producer->WaitForDataSourceSetup("ds_v2");
   DataSourceInstanceID id = producer->GetDataSourceInstanceId("ds_v2");
   producer->WaitForDataSourceStart("ds_v2");
+  EXPECT_EQ(producer->endpoint()->tracing_v2_chunk_size_bytes(), 4032u);
+  EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
+  EXPECT_EQ(producer->endpoint()->MaybeSharedMemoryArbiter(), nullptr);
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_v2");
   producer->endpoint()->NotifyDataSourceStopped(id);
@@ -9162,13 +9165,129 @@ class EndpointServiceChannel : public tracing_v2::ProducerRing::ServiceChannel {
   explicit EndpointServiceChannel(TracingService::ProducerEndpoint* endpoint)
       : endpoint_(endpoint) {}
   void NotifyRingData(std::function<void()> on_picked_up) override {
-    endpoint_->NotifyTracingV2RingData(std::move(on_picked_up));
+    endpoint_->NotifyTracingV2RingData(
+        [cb = std::move(on_picked_up)](bool success) {
+          EXPECT_TRUE(success);
+          if (cb)
+            cb();
+        });
   }
 
  private:
   TracingService::ProducerEndpoint* const endpoint_;
 };
 }  // namespace
+
+TEST_F(TracingServiceImplTest,
+       TracingV2AdoptsEarlyDataWithExplicitTargetBindings) {
+  for (bool exhaust_before_connect : {false, true}) {
+    SCOPED_TRACE(exhaust_before_connect);
+    const std::string producer_name =
+        exhaust_before_connect ? "early_loss" : "early_intact";
+    std::shared_ptr<SharedMemory> memory = InProcessSharedMemory::Create(
+        tracing_v2::ProducerRing::LogicalSize(2, 256));
+    auto ring = tracing_v2::ProducerRing::Create(memory, 2, 256, nullptr);
+    auto writer = ring->CreateTraceWriter(42, BufferExhaustedPolicy::kStall);
+    writer->NewTracePacket()->set_for_testing()->set_str("before_connect");
+    if (exhaust_before_connect)
+      writer->NewTracePacket()->set_for_testing()->set_str(
+          std::string(8192, 'x'));
+
+    auto consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    TraceConfig config;
+    auto* buffer = config.add_buffers();
+    buffer->set_size_kb(128);
+    buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+    auto* ds = config.add_data_sources()->mutable_config();
+    ds->set_name("early");
+    ds->set_use_tracing_v2(true);
+    config.add_data_sources()->mutable_config()->set_name("later_v1");
+    config.set_data_source_stop_timeout_ms(10);
+    auto* producer_config = config.add_producers();
+    producer_config->set_producer_name(producer_name);
+    producer_config->set_shm_size_kb(64);
+    consumer->EnableTracing(config);
+    auto producer = CreateMockProducer();
+    producer->Connect(svc.get(), producer_name);
+    producer->RegisterDataSource("early");
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("early");
+    producer->WaitForDataSourceStart("early");
+    const auto target = producer->GetDataSourceInstance("early")->target_buffer;
+    EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
+    EXPECT_EQ(producer->endpoint()->MaybeSharedMemoryArbiter(), nullptr);
+    EXPECT_EQ(producer->endpoint()->tracing_v2_ring_size_bytes(), 64u * 1024);
+
+    TracingService::ProducerEndpoint::AdoptTracingV2RingArgs args;
+    args.shared_memory = memory;
+    args.num_chunks = 2;
+    args.chunk_size = 256;
+    args.target_bindings = {{42, kMaxTraceBufferID}};
+    producer->endpoint()->AdoptTracingV2Ring(args,
+                                             [](bool ok) { EXPECT_FALSE(ok); });
+    args.target_bindings = {{42, target}};
+    producer->endpoint()->AdoptTracingV2Ring(args,
+                                             [](bool ok) { ASSERT_TRUE(ok); });
+    EndpointServiceChannel channel(producer->endpoint());
+    ASSERT_TRUE(ring->AttachToService(&channel));
+    task_runner.RunUntilIdle();
+    if (exhaust_before_connect) {
+      // The ABI discards the entire chunk that publishes pending data loss.
+      writer->NewTracePacket()->set_for_testing()->set_str("loss_marker");
+      writer->Flush();
+      task_runner.RunUntilIdle();
+    }
+    writer->NewTracePacket()->set_for_testing()->set_str("after_connect");
+    writer->Flush();
+    task_runner.RunUntilIdle();
+    auto packets = consumer->ReadBuffers();
+    bool saw_early = false;
+    bool saw_late = false;
+    for (const auto& packet : packets) {
+      if (!packet.has_for_testing())
+        continue;
+      if (packet.for_testing().str() == "before_connect") {
+        saw_early = true;
+        EXPECT_FALSE(packet.previous_packet_dropped());
+      } else if (packet.for_testing().str() == "after_connect") {
+        saw_late = true;
+        EXPECT_EQ(packet.previous_packet_dropped() != 0,
+                  exhaust_before_connect);
+      }
+    }
+    EXPECT_TRUE(saw_late);
+    if (!exhaust_before_connect)
+      EXPECT_TRUE(saw_early);
+
+    // A later v1 source allocates its SMB without changing the adopted ring.
+    producer->RegisterDataSource("later_v1");
+    producer->WaitForTracingSetup();
+    producer->WaitForDataSourceSetup("later_v1");
+    producer->WaitForDataSourceStart("later_v1");
+    ASSERT_NE(producer->endpoint()->shared_memory(), nullptr);
+    ASSERT_NE(producer->endpoint()->MaybeSharedMemoryArbiter(), nullptr);
+    EXPECT_EQ(producer->endpoint()->tracing_v2_ring_size_bytes(), 64u * 1024);
+    ring->DetachFromService();
+    writer->NewTracePacket()->set_for_testing()->set_str("flush_timeout");
+    auto flush = consumer->Flush(10);
+    producer->ExpectFlush(nullptr, /*reply=*/false);
+    EXPECT_FALSE(flush.WaitForReply());
+    EXPECT_THAT(consumer->ReadBuffers(),
+                Contains(Property(&protos::gen::TracePacket::for_testing,
+                                  Property(&protos::gen::TestEvent::str,
+                                           Eq("flush_timeout")))));
+    writer->NewTracePacket()->set_for_testing()->set_str("stop_timeout");
+    consumer->DisableTracing();
+    producer->WaitForDataSourceStop("early");
+    producer->WaitForDataSourceStop("later_v1");
+    consumer->WaitForTracingDisabled();
+    EXPECT_THAT(consumer->ReadBuffers(),
+                Contains(Property(&protos::gen::TracePacket::for_testing,
+                                  Property(&protos::gen::TestEvent::str,
+                                           Eq("stop_timeout")))));
+  }
+}
 
 // End-to-end in-process direct v2 transport: the producer allocates its own
 // ring, hands it to the service, and writes through v2 TraceWriters. The
@@ -9262,7 +9381,10 @@ TEST_F(TracingServiceImplTest, TracingV2DirectRingRejectsInvalidGeometry) {
   task_runner.RunUntilIdle();
 
   bool ran = false;
-  producer->endpoint()->NotifyTracingV2RingData([&ran] { ran = true; });
+  producer->endpoint()->NotifyTracingV2RingData([&ran](bool success) {
+    ran = true;
+    EXPECT_FALSE(success);
+  });
   task_runner.RunUntilIdle();
   EXPECT_TRUE(ran);
 

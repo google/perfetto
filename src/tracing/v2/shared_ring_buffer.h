@@ -242,7 +242,9 @@ class SharedRingBuffer {
   // Publishes read_pos without overwriting a concurrent write_pos update, then
   // wakes waiting writers. Called once per drain pass, so the shared read_pos
   // can lag the reader's local value. The lag only under-reports free capacity.
-  void PublishReadPos(uint32_t read_pos);
+  // Returns false after bounded contention. The reader must retry publication
+  // even if its next pass consumes no positions.
+  bool PublishReadPos(uint32_t read_pos);
 
  private:
   friend class test::SharedRingBufferInternalsForTest;
@@ -251,7 +253,7 @@ class SharedRingBuffer {
   // Tests supply an older value to exercise the CAS retry path
   // deterministically.
   Reservation TryReserveWritePosFromSnapshot(uint64_t rw_positions);
-  void PublishReadPosFromSnapshot(uint64_t rw_positions, uint32_t read_pos);
+  bool PublishReadPosFromSnapshot(uint64_t rw_positions, uint32_t read_pos);
 
   // Shared-memory address and wrap-count helpers.
 

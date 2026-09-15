@@ -100,6 +100,26 @@ TEST(SharedRingBufferReaderTest, EmptyRing) {
   EXPECT_FALSE(result.needs_another_drain());
 }
 
+TEST(SharedRingBufferReaderTest, RetriesPublicationWithoutDeliveringDataTwice) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+  auto writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, "once"));
+  writer.FinishCurrentChunk();
+  ASSERT_EQ(Internals::ConsumeNextPosition(&reader), ConsumeResult::kChunkRead);
+  ASSERT_EQ(reader.read_pos(), 1u);
+  ASSERT_EQ(Internals::GetReadPos(ring.get()), 0u);
+
+  // Model a yielded publication after the chunk was delivered and reclaimed.
+  Internals::SetReadPosPublicationPending(&reader);
+  const auto result = reader.Drain(0);
+  EXPECT_EQ(result.positions_consumed, 0u);
+  EXPECT_FALSE(result.needs_another_drain());
+  EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
+  EXPECT_THAT(delegate.AllFragments(), testing::ElementsAre("once"));
+}
+
 TEST(SharedRingBufferReaderTest, ConsumesCompleteChunk) {
   // A Complete chunk is consumed and freed for the next traversal.
   test::SharedRingBufferForTesting ring(4, 512);

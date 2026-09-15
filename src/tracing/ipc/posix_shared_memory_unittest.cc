@@ -146,6 +146,19 @@ TEST(PosixSharedMemoryTest, CreateAndMap) {
   ASSERT_FALSE(base::vm_test_utils::IsMapped(shm_start, shm_size));
 }
 
+TEST(PosixSharedMemoryTest, RejectsEmptyFile) {
+  auto file = base::TempFile::CreateUnlinked();
+  EXPECT_FALSE(PosixSharedMemory::AttachToFd(file.ReleaseFD(), false));
+}
+
+TEST(PosixSharedMemoryTest, RejectsReadOnlyMapping) {
+  auto file = base::TempFile::Create();
+  ASSERT_EQ(ftruncate(file.fd(), 4096), 0);
+  base::ScopedFile fd(open(file.path().c_str(), O_RDONLY));
+  ASSERT_TRUE(fd);
+  EXPECT_FALSE(PosixSharedMemory::AttachToFd(std::move(fd), false));
+}
+
 }  // namespace
 }  // namespace perfetto
 #endif  // OS_LINUX || OS_ANDROID || OS_APPLE

@@ -69,15 +69,8 @@ using RegisteredDataSource = TracingMuxerImpl::RegisteredDataSource;
 // Tracing v2 producer ring defaults. The chunk size can be overridden per
 // connection via TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes (the
 // service validates it when it accepts the config).
-//
-// TODO(sashwinbalaji): the ring capacity is a fixed default; it does not yet
-// follow the config -> hint -> default sizing policy that the v1 SMB uses. Wire
-// the resolved size through here so the capacity is genuinely configurable, and
-// stop allocating an idle v1 SMB for a v2-only connection (see the connection
-// setup below). Until then the capacity is not "negotiated".
 constexpr uint32_t kDefaultTracingV2ChunkSize = TracingService::
     ProducerEndpoint::AdoptTracingV2RingArgs::kDefaultChunkSizeBytes;
-constexpr size_t kDefaultTracingV2RingCapacityBytes = 256 * 1024;
 
 // Largest power-of-two chunk count whose ring (header + num_chunks*chunk_size)
 // fits in |capacity_bytes|. Returns 0 if not even the minimum fits.
@@ -243,6 +236,7 @@ TracingMuxerImpl::ProducerImpl::~ProducerImpl() {
 void TracingMuxerImpl::ProducerImpl::Initialize(
     std::unique_ptr<ProducerEndpoint> endpoint) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  tracing_v2_failed_ = false;
   PERFETTO_DCHECK(!connected_);
   connection_id_.fetch_add(1, std::memory_order_relaxed);
   is_producer_provided_smb_ = endpoint->shared_memory();
@@ -352,7 +346,26 @@ void TracingMuxerImpl::ProducerImpl::TracingV2Connection::NotifyRingData(
   //
   // ReleaseTracingV2Connection() detaches the ring (mutex-guarded) before the
   // connection is dropped, so no call reaches a torn-down endpoint.
-  endpoint->NotifyTracingV2RingData(std::move(on_picked_up));
+  endpoint->NotifyTracingV2RingData(
+      [done = std::move(on_picked_up), failed = on_failure](bool success) {
+        if (!success) {
+          failed();
+          return;
+        }
+        if (done)
+          done();
+      });
+}
+
+void TracingMuxerImpl::ProducerImpl::TracingV2Connection::RetireWriter(
+    WriterID writer_id,
+    std::function<void(bool)> callback) {
+  endpoint->RetireTracingV2Writer(
+      writer_id, [failed = on_failure, cb = std::move(callback)](bool success) {
+        if (!success)
+          failed();
+        cb(success);
+      });
 }
 
 bool TracingMuxerImpl::ProducerImpl::TracingV2Connection::
@@ -362,7 +375,7 @@ bool TracingMuxerImpl::ProducerImpl::TracingV2Connection::
 
 void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (tracing_v2_connection_)
+  if (tracing_v2_connection_ || tracing_v2_failed_)
     return;
   // An unresolved startup reservation can defer the arbiter's commits while a
   // v2 stop acknowledgement reaches the service. This breaks the requirement
@@ -382,15 +395,13 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
         "DataSourceConfig.use_tracing_v2 requires a service that supports "
         "direct v2 ring transport; this connection does not");
   }
-  // Ring chunk size comes from the config (already validated by the service
-  // when it accepted the trace config); 0 means use the default. The ring
-  // capacity is a fixed default for now (see the sizing TODO above); it is not
-  // yet resolved from the config or a producer hint.
+  // The service resolves the allocation budget from config, hint and default.
+  // Zero chunk size selects the shared default.
   uint32_t chunk_size = service_->tracing_v2_chunk_size_bytes();
   if (chunk_size == 0)
     chunk_size = kDefaultTracingV2ChunkSize;
-  const uint32_t num_chunks =
-      V2NumChunksForCapacity(kDefaultTracingV2RingCapacityBytes, chunk_size);
+  const uint32_t num_chunks = V2NumChunksForCapacity(
+      service_->tracing_v2_ring_size_bytes(), chunk_size);
   if (!tracing_v2::IsValidRingGeometry(num_chunks, chunk_size)) {
     PERFETTO_FATAL(
         "Invalid tracing v2 ring geometry: num_chunks=%u chunk_size=%u",
@@ -429,15 +440,17 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
   // muxer and revalidates the connection by (backend, generation).
   const TracingBackendId backend_id = backend_id_;
   const uint32_t connection_id = connection_id_.load(std::memory_order_relaxed);
+  connection->on_failure = [muxer = muxer_, backend_id, connection_id,
+                            muxer_id = muxer_->muxer_id_for_testing_] {
+    muxer->task_runner_->PostTask([muxer, backend_id, connection_id, muxer_id] {
+      if (muxer_id == muxer->muxer_id_for_testing_)
+        muxer->TracingV2RingAdoptionFailed_AsyncEnd(backend_id, connection_id);
+    });
+  };
   service_->AdoptTracingV2Ring(
-      std::move(adopt_args),
-      [muxer = muxer_, backend_id, connection_id](bool accepted) {
-        if (accepted)
-          return;
-        muxer->task_runner_->PostTask([muxer, backend_id, connection_id] {
-          muxer->TracingV2RingAdoptionFailed_AsyncEnd(backend_id,
-                                                      connection_id);
-        });
+      std::move(adopt_args), [failed = connection->on_failure](bool accepted) {
+        if (!accepted)
+          failed();
       });
   std::atomic_store(&tracing_v2_connection_, std::move(connection));
 
@@ -481,10 +494,10 @@ void TracingMuxerImpl::ProducerImpl::ReleaseTracingV2Connection() {
 void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   did_setup_tracing_ = true;
-  service_->MaybeSharedMemoryArbiter()->SetBatchCommitsDuration(
-      shmem_batch_commits_duration_ms_);
-  if (shmem_direct_patching_enabled_) {
-    service_->MaybeSharedMemoryArbiter()->EnableDirectSMBPatching();
+  if (auto* arbiter = service_->MaybeSharedMemoryArbiter()) {
+    arbiter->SetBatchCommitsDuration(shmem_batch_commits_duration_ms_);
+    if (shmem_direct_patching_enabled_)
+      arbiter->EnableDirectSMBPatching();
   }
 }
 
@@ -525,6 +538,8 @@ void TracingMuxerImpl::ProducerImpl::Flush(
     size_t instance_count,
     FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (tracing_v2_failed_)
+    return;
   if (tracing_v2_connection_) {
     FlushWithTracingV2(flush_id, instances, instance_count, flush_flags);
     return;
@@ -1980,12 +1995,12 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     }
   }
 
-  if (producer->connected_ &&
+  if (producer->connected_ && !producer->tracing_v2_failed_ &&
       backend.producer->connection_id_.load(std::memory_order_relaxed) ==
           backend_connection_id) {
     // Flush any commits that might have been batched by SharedMemoryArbiter.
-    producer->service_->MaybeSharedMemoryArbiter()
-        ->FlushPendingCommitDataRequests();
+    if (auto* arbiter = producer->service_->MaybeSharedMemoryArbiter())
+      arbiter->FlushPendingCommitDataRequests();
     // Final commits must precede any flush acknowledgement that stop releases:
     // 1. FlushPendingCommitDataRequests() above posts the batched v1 commits.
     // 2. Remove this stopped instance from requests that awaited its OnFlush().
@@ -2172,9 +2187,13 @@ void TracingMuxerImpl::DrainTracingV2RingBufferThenPostToMuxer(
   // over IPC after the drain RPC replies). It may run it on the service
   // sequence or the IPC reply, so post it to the muxer sequence.
   connection->endpoint->NotifyTracingV2RingData(
-      [muxer_task_runner,
-       completion_on_muxer = std::move(completion_on_muxer)]() mutable {
-        muxer_task_runner->PostTask(std::move(completion_on_muxer));
+      [muxer_task_runner, failed = connection->on_failure,
+       completion_on_muxer =
+           std::move(completion_on_muxer)](bool success) mutable {
+        if (success)
+          muxer_task_runner->PostTask(std::move(completion_on_muxer));
+        else
+          failed();
       });
 }
 
@@ -2207,6 +2226,7 @@ void TracingMuxerImpl::TracingV2RingAdoptionFailed_AsyncEnd(
   // detaches the ring (mutex-guarded) so writers stop notifying. Surviving
   // writers keep the mapping alive, but their data is no longer read.
   producer->pending_flushes_.clear();
+  producer->tracing_v2_failed_ = true;
   producer->ReleaseTracingV2Connection();
 }
 

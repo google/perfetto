@@ -102,12 +102,14 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
   // Unsigned subtraction also counts positions across uint32_t rollover.
   // Advancing from UINT32_MAX to zero consumes one position.
   result.positions_consumed = read_pos_ - start_pos;
-  if (result.positions_consumed != 0) {
+  if (result.positions_consumed != 0 || read_pos_publication_pending_) {
     // One publication and at most one wake cover the whole pass. Until this
     // point writers can only under-estimate free capacity.
     //
     // TODO(sashwinbalaji): benchmark useful publication batch sizes.
-    ring_->PublishReadPos(read_pos_);
+    read_pos_publication_pending_ = !ring_->PublishReadPos(read_pos_);
+    if (read_pos_publication_pending_ && !has_protocol_error_)
+      result.last_result = ConsumeResult::kRetryImmediately;
   }
   return result;
 }

@@ -16,6 +16,7 @@
 
 #include "src/tracing/service/tracing_v2_ingress.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "src/tracing/v2/shared_ring_buffer.h"
@@ -39,20 +40,42 @@ TracingV2Ingress::TracingV2Ingress(tracing_v2::SharedRingBuffer* ring,
 TracingV2Ingress::~TracingV2Ingress() = default;
 
 bool TracingV2Ingress::Drain() {
-  return reader_.Drain(kMaxPositionsPerDrain).needs_another_drain();
+  return DrainUntil(write_pos());
 }
 
-void TracingV2Ingress::DrainToCompletion() {
-  // Cap the passes so a producer that keeps writing its retained mapping after
-  // disconnect cannot make this loop unbounded. The largest ring the service
-  // accepts (the 8 MiB adoption budget with the 256-byte minimum chunk) holds
-  // fewer than 32768 chunks, about 128 passes of kMaxPositionsPerDrain. 512
-  // passes drain a healthy full ring several times over, then give up.
-  constexpr uint32_t kMaxCompletionPasses = 512;
-  for (uint32_t pass = 0; pass < kMaxCompletionPasses; pass++) {
-    if (has_protocol_error() || !Drain())
-      return;
+uint32_t TracingV2Ingress::write_pos() const {
+  return ring_->LoadWritePosRelaxed();
+}
+
+bool TracingV2Ingress::DrainUntil(uint32_t end_pos) {
+  if (write_pos() - reader_.read_pos() > ring_->num_chunks()) {
+    reader_.Drain(1);  // Latch and diagnose the invalid reservation window.
+    return false;
   }
+  const uint32_t remaining = end_pos - reader_.read_pos();
+  // A previous inline or timeout drain can already have passed this boundary.
+  if (static_cast<int32_t>(remaining) < 0)
+    return reader_.Drain(0).needs_another_drain();
+  reader_.Drain(std::min(remaining, kMaxPositionsPerDrain));
+  return !has_protocol_error() && (reader_.read_pos() != end_pos ||
+                                   reader_.Drain(0).needs_another_drain());
+}
+
+bool TracingV2Ingress::DrainToCompletion() {
+  const uint32_t end_pos = write_pos();
+  // Bound contention as well as the number of reservations. Healthy full
+  // rings need at most 128 passes under the service's allocation limit.
+  for (uint32_t pass = 0; pass < 512; ++pass) {
+    if (!DrainUntil(end_pos))
+      return !has_protocol_error();
+  }
+  return false;
+}
+
+void TracingV2Ingress::RetireWriter(WriterID writer_id) {
+  // Preserve the ordinal while old fragments remain in TBv2 or a clone.
+  // The next incarnation starts after a gap, so fragments cannot join it.
+  GetWriterState(writer_id).loss_pending = true;
 }
 
 bool TracingV2Ingress::has_protocol_error() const {
@@ -60,9 +83,12 @@ bool TracingV2Ingress::has_protocol_error() const {
 }
 
 size_t TracingV2Ingress::GetMemoryUsageBytes() const {
+  // Count allocated slots, including unused capacity and hash-table tags.
+  // Pair padding and the extra bytes cover alignment without scanning entries.
   return reader_.GetMemoryUsageBytes() +
          frag_scratch_.capacity() * sizeof(TraceBufferV2::RingChunkFragment) +
-         writers_.size() * (sizeof(WriterID) + sizeof(WriterState));
+         writers_.capacity() * (sizeof(std::pair<WriterID, WriterState>) + 1) +
+         32;
 }
 
 TracingV2Ingress::WriterState& TracingV2Ingress::GetWriterState(
@@ -104,19 +130,19 @@ void TracingV2Ingress::OnChunkRead(
       chunk.payload_flags & tracing_v2::kFlagContinuesFromPrevChunk;
   const bool cont_on_next =
       chunk.payload_flags & tracing_v2::kFlagContinuesOnNextChunk;
+  const ChunkID chunk_id = ws.next_chunk_id + (ws.loss_pending ? 1u : 0u);
   const TraceBufferV2::AdmitResult result = target->CopyRingChunkFragmentsV2(
-      producer_id_, client_identity_, chunk.writer_id, ws.next_chunk_id,
+      producer_id_, client_identity_, chunk.writer_id, chunk_id,
       frag_scratch_.data(), frag_scratch_.size(), cont_from_prev, cont_on_next,
       ws.loss_pending);
 
   if (result == TraceBufferV2::AdmitResult::kStored) {
     // Stored: this chunk carries any pending loss now, and takes the next id.
-    ws.next_chunk_id++;
+    ws.next_chunk_id = chunk_id + 1;
     ws.loss_pending = false;
   } else {
-    // Dropped (discard-sealed, or larger than the buffer): the pending loss was
-    // not attached to a stored chunk, so keep it for the next one. The id is
-    // not consumed, so stored chunk ids stay contiguous.
+    // Keep a single pending gap until admission succeeds. Repeated failures
+    // must not wrap the chunk counter and hide loss.
     ws.loss_pending = true;
   }
 }

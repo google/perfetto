@@ -27,6 +27,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -137,6 +138,14 @@ void ProducerIPCService::InitializeConnection(
   }
 
   bool use_shmem_emulation = ipc::Service::use_shmem_emulation();
+  bool v2_supported = false;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  v2_supported =
+      !use_shmem_emulation && req.tracing_v2_direct_transport_supported();
+#endif
+  producer->service_endpoint->SetTracingV2DirectTransportSupported(
+      v2_supported);
   bool using_producer_shmem =
       !use_shmem_emulation &&
       producer->service_endpoint->IsShmemProvidedByProducer();
@@ -155,9 +164,7 @@ void ProducerIPCService::InitializeConnection(
   // transport) does not pass the ring FD through either. Advertise support only
   // when the real FD-passing path is in use, so a producer on an emulated
   // transport keeps to the v1 path instead of failing.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  async_res->set_tracing_v2_direct_transport_supported(!use_shmem_emulation);
-#endif
+  async_res->set_tracing_v2_direct_transport_supported(v2_supported);
   response.Resolve(std::move(async_res));
 }
 
@@ -406,16 +413,32 @@ void ProducerIPCService::AdoptTracingV2Ring(
     return;
   }
 
-  // The ring FD is producer-controlled and untrusted. Validate it nonfatally
-  // before mapping. PosixSharedMemory::AttachToFd fatally CHECKs a positive
-  // size and a successful writable mmap, so a zero-length FD or a read-only FD
-  // would abort the whole service. Reject a non-positive or over-budget size,
-  // and a descriptor that is not read-write, so the fatal helper only sees an
-  // FD it can map.
+  // Validate the untrusted extent before mapping. Attach also checks resize
+  // seals and returns null if a writable mapping cannot be created.
   using AdoptArgs = TracingService::ProducerEndpoint::AdoptTracingV2RingArgs;
+  if (!producer->service_endpoint->IsTracingV2DirectTransportSupported()) {
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  const int seals = fcntl(ring_fd.get(), F_GET_SEALS);
+  constexpr int kResizeSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
+  if (seals < 0 || (seals & kResizeSeals) != kResizeSeals) {
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+#endif
   struct stat st = {};
   if (fstat(ring_fd.get(), &st) != 0 || st.st_size <= 0 ||
-      static_cast<uint64_t>(st.st_size) > AdoptArgs::kMaxRingSizeBytes) {
+      static_cast<uint64_t>(st.st_size) > AdoptArgs::kMaxRingSizeBytes ||
+      !tracing_v2::IsValidRingGeometry(req.num_chunks(),
+                                       req.chunk_size_bytes()) ||
+      req.chunk_size_bytes() > AdoptArgs::kMaxChunkSizeBytes ||
+      tracing_v2::RingLogicalSize(req.num_chunks(), req.chunk_size_bytes()) >
+          static_cast<uint64_t>(st.st_size)) {
     PERFETTO_ELOG("AdoptTracingV2Ring() FD has an invalid or too-large size");
     if (resp.IsBound())
       resp.Reject();
@@ -441,6 +464,20 @@ void ProducerIPCService::AdoptTracingV2Ring(
   args.shared_memory = std::move(shmem);
   args.num_chunks = req.num_chunks();
   args.chunk_size = req.chunk_size_bytes();
+  if (req.target_bindings_size() > kMaxTraceBufferID) {
+    resp.Reject();
+    return;
+  }
+  for (const auto& binding : req.target_bindings()) {
+    if (binding.ring_target() > kMaxTraceBufferID ||
+        binding.service_target() > kMaxTraceBufferID) {
+      resp.Reject();
+      return;
+    }
+    args.target_bindings.push_back(
+        {static_cast<BufferID>(binding.ring_target()),
+         static_cast<BufferID>(binding.service_target())});
+  }
   // The endpoint validates the geometry against the mapped size. It runs the
   // callback synchronously, so resolve the RPC on success and reject it on
   // failure. The client must not treat an unread ring as adopted.
@@ -459,7 +496,7 @@ void ProducerIPCService::AdoptTracingV2Ring(
 }
 
 void ProducerIPCService::NotifyTracingV2RingData(
-    const protos::gen::NotifyTracingV2RingDataRequest&,
+    const protos::gen::NotifyTracingV2RingDataRequest& req,
     DeferredNotifyTracingV2RingDataResponse resp) {
   RemoteProducer* producer = GetProducerForCurrentRequest();
   if (!producer) {
@@ -476,13 +513,26 @@ void ProducerIPCService::NotifyTracingV2RingData(
   // shared_ptr so the drain callback (a std::function) can hold it.
   auto shared_resp = std::make_shared<DeferredNotifyTracingV2RingDataResponse>(
       std::move(resp));
-  producer->service_endpoint->NotifyTracingV2RingData([shared_resp]() {
+  auto callback = [shared_resp](bool success) {
     if (shared_resp->IsBound()) {
+      if (!success) {
+        shared_resp->Reject();
+        return;
+      }
       shared_resp->Resolve(
           ipc::AsyncResult<
               protos::gen::NotifyTracingV2RingDataResponse>::Create());
     }
-  });
+  };
+  if (req.retire_writer_id()) {
+    if (req.retire_writer_id() > kMaxWriterID)
+      callback(false);
+    else
+      producer->service_endpoint->RetireTracingV2Writer(
+          static_cast<WriterID>(req.retire_writer_id()), std::move(callback));
+  } else {
+    producer->service_endpoint->NotifyTracingV2RingData(std::move(callback));
+  }
 }
 
 void ProducerIPCService::GetAsyncCommand(
@@ -602,14 +652,16 @@ void ProducerIPCService::RemoteProducer::OnTracingSetup() {
 
 void ProducerIPCService::RemoteProducer::SendSetupTracing() {
   PERFETTO_CHECK(async_producer_commands.IsBound());
-  PERFETTO_CHECK(service_endpoint->shared_memory());
   auto cmd = ipc::AsyncResult<protos::gen::GetAsyncCommandResponse>::Create();
   cmd.set_has_more(true);
   auto setup_tracing = cmd->mutable_setup_tracing();
+  setup_tracing->set_tracing_v2_ring_size_bytes(
+      static_cast<uint32_t>(service_endpoint->tracing_v2_ring_size_bytes()));
   const uint32_t chunk_size = service_endpoint->tracing_v2_chunk_size_bytes();
   if (chunk_size != 0)
     setup_tracing->set_tracing_v2_chunk_size_bytes(chunk_size);
-  if (!service_endpoint->IsShmemProvidedByProducer()) {
+  if (service_endpoint->shared_memory() &&
+      !service_endpoint->IsShmemProvidedByProducer()) {
     // Nominal case (% Chrome): service provides SMB.
     setup_tracing->set_shared_buffer_page_size_kb(
         static_cast<uint32_t>(service_endpoint->shared_buffer_page_size_kb()));

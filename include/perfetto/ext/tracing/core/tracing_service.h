@@ -101,9 +101,8 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // See shared_memory_abi.h
   virtual size_t shared_buffer_page_size_kb() const = 0;
 
-  // Chunk size in bytes for tracing v2 writers on this connection, fixed when
-  // the shared memory is set up. 0 means "use the default". Ignored by v1
-  // writers.
+  // Chunk size for v2 writers, fixed at the first v2 setup. Before that, zero
+  // selects the default. V1 writers ignore this setting.
   virtual uint32_t tracing_v2_chunk_size_bytes() const = 0;
 
   // Creates a trace writer, which allows to create events, handling the
@@ -165,14 +164,26 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // through a v1 SharedMemoryArbiter. Only used when both sides agreed on it.
 
   struct AdoptTracingV2RingArgs {
-    // The producer-allocated ring memory, holding a valid zero-initialized ring
-    // of |num_chunks| * |chunk_size| (see tracing_v2::RingLogicalSize). The
+    // The producer-allocated ring memory, initialized from zero and possibly
+    // containing published data (see tracing_v2::RingLogicalSize). The
     // producer's ProducerRing shares ownership so the mapping outlives both
     // sides. For the system backend the transport passes the ring by file
     // descriptor and the service maps its own view into this field.
     std::shared_ptr<SharedMemory> shared_memory;
     uint32_t num_chunks = 0;
     uint32_t chunk_size = 0;
+
+    // Optional bindings for data written before service setup. Each pair maps
+    // a nonzero ring-local target to a resolved service BufferID. With
+    // bindings, every ring target must occur in this table. An empty table uses
+    // service IDs. Bindings stay fixed for this connection. Freeing buffers
+    // revokes them permanently, even if a later session reuses the service
+    // BufferID.
+    struct TargetBinding {
+      BufferID ring_target;
+      BufferID service_target;
+    };
+    std::vector<TargetBinding> target_bindings;
 
     // Service transport limits the service enforces on the untrusted geometry
     // and mapping at adoption. They are distinct from the ring ABI structural
@@ -194,6 +205,10 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // connection setup. A producer must not call AdoptTracingV2Ring() when this
   // is false.
   virtual bool IsTracingV2DirectTransportSupported() const = 0;
+  // The transport sets the negotiated capability before data-source setup.
+  virtual void SetTracingV2DirectTransportSupported(bool) {}
+  // Resolved allocation budget, including the ring header and page rounding.
+  virtual size_t tracing_v2_ring_size_bytes() const { return 0; }
 
   // Allocates shared memory of the type this connection's transport needs for a
   // v2 ring (a plain in-process mapping in process; a sealed, FD-backed mapping
@@ -216,15 +231,20 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
       AdoptTracingV2RingArgs,
       std::function<void(bool accepted)> on_result) = 0;
 
-  // Doorbell: the producer published new data into its adopted v2 ring. The
-  // service drains its reader and then runs |on_drained|. The ProducerRing uses
-  // |on_drained| to complete flushes and stops, so it runs only after the ring
-  // has been drained up to the point this call observed. May be called from any
-  // thread. The service runs |on_drained| synchronously when this call already
-  // runs on the service sequence in process (an inline drain that unblocks a
-  // writer stalling on that sequence); otherwise it posts to the service
-  // sequence and runs |on_drained| there.
-  virtual void NotifyTracingV2RingData(std::function<void()> on_drained) = 0;
+  // Requests a drain through the reservation boundary observed by the service.
+  // The async callback reports true only after that boundary is consumed and
+  // reader progress is published. Missing ingress, protocol errors and teardown
+  // report false. In-process calls can free space inline, but defer callbacks
+  // because a writer can hold its ring mutex. Callable from any thread.
+  virtual void NotifyTracingV2RingData(
+      std::function<void(bool)> on_drained) = 0;
+
+  // Retires a writer after its final publication. Reuse its ID only after a
+  // successful reply. Stored chunks retain their IDs across this boundary.
+  virtual void RetireTracingV2Writer(WriterID,
+                                     std::function<void(bool)> on_retired) {
+    on_retired(false);
+  }
 
   // True if this endpoint services the ring drain on the calling thread, so a
   // writer that parks for ring space here would deadlock the drain. The muxer

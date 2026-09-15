@@ -206,6 +206,7 @@ class SharedRingBufferReader {
   // The reader owns this value and publishes it once per Drain().
   uint32_t read_pos_ = 0;
   bool has_protocol_error_ = false;
+  bool read_pos_publication_pending_ = false;
 
   // Test callback, called just before the reader's chunk-state CAS.
   // - The reader has loaded the state and copied any readable fragments.

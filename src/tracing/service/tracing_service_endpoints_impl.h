@@ -101,11 +101,21 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   uint32_t tracing_v2_chunk_size_bytes() const override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
-  bool IsTracingV2DirectTransportSupported() const override { return true; }
+  bool IsTracingV2DirectTransportSupported() const override {
+    return in_process_ || tracing_v2_supported_;
+  }
+  void SetTracingV2DirectTransportSupported(bool supported) override {
+    tracing_v2_supported_ = supported;
+  }
+  size_t tracing_v2_ring_size_bytes() const override {
+    return tracing_v2_ring_size_bytes_;
+  }
+  void SetupTracingV2(size_t ring_size_bytes, uint32_t chunk_size_bytes);
   std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t size) override;
   void AdoptTracingV2Ring(AdoptTracingV2RingArgs,
                           std::function<void(bool)> on_result) override;
-  void NotifyTracingV2RingData(std::function<void()> on_drained) override;
+  void NotifyTracingV2RingData(std::function<void(bool)> on_drained) override;
+  void RetireTracingV2Writer(WriterID, std::function<void(bool)>) override;
 
   void OnTracingSetup();
   void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&);
@@ -153,12 +163,12 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   // ProtoVM combination.
   TraceBufferV2* ResolveTracingV2TargetBuffer(BufferID);
   // Appends |on_drained| and ensures a drain pass is scheduled.
-  void OnTracingV2RingNotify(std::function<void()> on_drained);
-  // One bounded drain pass; re-posts itself while there is more, then runs the
-  // accumulated drain acknowledgements once the reader has caught up.
+  void OnTracingV2RingNotify(std::function<void(bool)> on_drained);
+  // Runs one bounded pass toward the oldest barrier, then yields or completes
+  // it.
   void DrainTracingV2RingStep();
-  // Synchronously drains whatever is left (used at teardown) and runs any
-  // pending acknowledgements so flushes/stops in flight do not hang.
+  // Attempts a bounded final drain and cancels outstanding barriers at
+  // teardown.
   void DrainTracingV2RingToCompletion();
   // Service-owned v2 transport memory: the ring mapping plus the ingress and
   // reader scratch. Added to the memory guardrail (UpdateMemoryGuardrail).
@@ -171,6 +181,8 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   std::unique_ptr<SharedMemory> shared_memory_;
   size_t shared_buffer_page_size_kb_ = 0;
   uint32_t tracing_v2_chunk_size_bytes_ = 0;
+  size_t tracing_v2_ring_size_bytes_ = 0;
+  bool tracing_v2_supported_ = true;
   SharedMemoryABI shmem_abi_;
   size_t shmem_size_hint_bytes_ = 0;
   size_t shmem_page_size_hint_bytes_ = 0;
@@ -211,9 +223,15 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   std::shared_ptr<SharedMemory> v2_ring_memory_;
   std::unique_ptr<tracing_v2::SharedRingBuffer> v2_ring_;
   std::unique_ptr<TracingV2Ingress> v2_ingress_;
+  std::vector<AdoptTracingV2RingArgs::TargetBinding> v2_target_bindings_;
   // Callbacks to run once the ring has been drained up to the point their
   // NotifyTracingV2RingData() call observed (ring re-arm, flush and stop acks).
-  std::vector<std::function<void()>> v2_drain_acks_;
+  struct V2Drain {
+    uint32_t end_pos;
+    std::function<void(bool)> callback;
+    uint32_t passes_left = 512;
+  };
+  base::CircularQueue<V2Drain> v2_drain_acks_{1};
   // Whether a DrainTracingV2RingStep() chain is currently posted.
   bool v2_drain_scheduled_ = false;
 

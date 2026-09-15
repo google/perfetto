@@ -162,10 +162,10 @@ void ProxyProducerEndpoint::AdoptTracingV2Ring(
   backend_->AdoptTracingV2Ring(std::move(args), std::move(on_result));
 }
 void ProxyProducerEndpoint::NotifyTracingV2RingData(
-    std::function<void()> on_drained) {
+    std::function<void(bool)> on_drained) {
   if (!backend_) {
     if (on_drained)
-      on_drained();
+      on_drained(false);
     return;
   }
   backend_->NotifyTracingV2RingData(std::move(on_drained));
@@ -173,6 +173,19 @@ void ProxyProducerEndpoint::NotifyTracingV2RingData(
 
 bool ProxyProducerEndpoint::IsTracingV2DrainOnCurrentThread() const {
   return backend_ && backend_->IsTracingV2DrainOnCurrentThread();
+}
+
+size_t ProxyProducerEndpoint::tracing_v2_ring_size_bytes() const {
+  return backend_ ? backend_->tracing_v2_ring_size_bytes() : 0;
+}
+
+void ProxyProducerEndpoint::RetireTracingV2Writer(
+    WriterID writer_id,
+    std::function<void(bool)> callback) {
+  if (backend_)
+    backend_->RetireTracingV2Writer(writer_id, std::move(callback));
+  else
+    callback(false);
 }
 
 }  // namespace perfetto
