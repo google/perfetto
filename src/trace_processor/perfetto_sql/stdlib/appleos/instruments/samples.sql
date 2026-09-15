@@ -62,7 +62,15 @@ CREATE PERFETTO TABLE appleos_instruments_samples_summary_tree(
   cumulative_count LONG
 )
 AS
-SELECT r.*, a.cumulative_count
+SELECT
+  r.id,
+  r.parent_id,
+  r.name,
+  r.mapping_name,
+  r.source_file,
+  r.line_number,
+  r.self_count,
+  a.cumulative_count
 FROM _callstacks_self_to_cumulative!((
   SELECT id, parent_id, self_count
   FROM _appleos_instruments_raw_callstacks
