@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Synthetic trace generator for StatsD App Freezer (AppFreezeChanged) atoms.
 
 Note on why TextProto cannot be used here:
@@ -66,12 +65,9 @@ def build_app_freeze_atom(state, pid, process_name, uid, frozen_reason):
       Field 6 (frozen_reason): varint
   """
   payload = (
-      encode_varint_field(1, state)
-      + encode_varint_field(2, pid)
-      + encode_length_delimited(3, process_name)
-      + encode_varint_field(4, uid)
-      + encode_varint_field(6, frozen_reason)
-  )
+      encode_varint_field(1, state) + encode_varint_field(2, pid) +
+      encode_length_delimited(3, process_name) + encode_varint_field(4, uid) +
+      encode_varint_field(6, frozen_reason))
   return encode_length_delimited(254, payload)
 
 
@@ -95,20 +91,17 @@ def main():
 
   # TracePacket 1: statsd_atom with atom1 at ts=1s
   payload1 = encode_length_delimited(1, atom1) + encode_varint_field(
-      2, 1000000000
-  )
+      2, 1000000000)
   packet1 = encode_length_delimited(84, payload1)
 
   # TracePacket 2: statsd_atom with atom2 at ts=5s
   payload2 = encode_length_delimited(1, atom2) + encode_varint_field(
-      2, 5000000000
-  )
+      2, 5000000000)
   packet2 = encode_length_delimited(84, payload2)
 
   # Trace containing repeated TracePackets (field 1)
   trace = encode_length_delimited(1, packet1) + encode_length_delimited(
-      1, packet2
-  )
+      1, packet2)
   sys.stdout.buffer.write(trace)
 
 

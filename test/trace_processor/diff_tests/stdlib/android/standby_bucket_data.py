@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Synthetic trace generator for StatsD App Standby Bucket atoms.
 
 Note on why TextProto cannot be used here:
@@ -64,10 +63,8 @@ def build_standby_atom(package_name, bucket, reason):
       Field 4 (reason): varint
   """
   payload = (
-      encode_length_delimited(1, package_name)
-      + encode_varint_field(3, bucket)
-      + encode_varint_field(4, reason)
-  )
+      encode_length_delimited(1, package_name) +
+      encode_varint_field(3, bucket) + encode_varint_field(4, reason))
   return encode_length_delimited(258, payload)
 
 
@@ -81,11 +78,8 @@ def main():
   #   Field 1 (nested atom): Atom submessage
   #   Field 2 (atom_timestamp_nanos): int64 timestamp
   statsd_atom_payload = (
-      encode_length_delimited(1, atom1)
-      + encode_length_delimited(1, atom2)
-      + encode_varint_field(2, 1000000000)
-      + encode_varint_field(2, 5000000000)
-  )
+      encode_length_delimited(1, atom1) + encode_length_delimited(1, atom2) +
+      encode_varint_field(2, 1000000000) + encode_varint_field(2, 5000000000))
 
   # TracePacket (Trace field 1) containing statsd_atom (field 84)
   packet = encode_length_delimited(84, statsd_atom_payload)

@@ -478,11 +478,7 @@ CREATE PERFETTO VIEW android_job_scheduler_sdk(
   package_name STRING
 )
 AS
-SELECT
-  ts,
-  dur,
-  job_name,
-  package_name
+SELECT ts, dur, job_name, package_name
 FROM android_job_scheduler_states_track_events;
 
 -- View for StatsD sourced JobScheduler events.
