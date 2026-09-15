@@ -17,12 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_CONNECTION_CATALOG_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_CONNECTION_CATALOG_H_
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
 
 #include "src/perfetto_sql/analysis/relation.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto::trace_processor::lineage {
 
@@ -30,16 +32,23 @@ namespace analysis = ::perfetto::perfetto_sql::analysis;
 
 // Adapts one trace processor connection to semantic analysis. Serves each
 // dataframe as a leaf relation whose columns carry their storage type.
+//
+// Takes the SQLite connection and a way to find dataframes rather than the
+// PerfettoSQL connection itself, so the PerfettoSQL engine can depend on it.
 class ConnectionCatalog final : public analysis::Catalog {
  public:
-  explicit ConnectionCatalog(PerfettoSqlConnection*);
+  using DataframeLookup =
+      std::function<const dataframe::Dataframe*(std::string_view)>;
+
+  ConnectionCatalog(SqliteConnection*, DataframeLookup);
 
   std::optional<analysis::LeafRelation> FindLeafRelation(
       std::string_view name) const override;
   std::optional<std::string> FindViewSql(std::string_view name) const override;
 
  private:
-  PerfettoSqlConnection* connection_;
+  SqliteConnection* connection_;
+  DataframeLookup find_dataframe_;
 };
 
 }  // namespace perfetto::trace_processor::lineage

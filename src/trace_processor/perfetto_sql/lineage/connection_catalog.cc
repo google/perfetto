@@ -22,14 +22,15 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto::trace_processor::lineage {
 namespace {
@@ -65,12 +66,13 @@ std::string Quoted(std::string_view name) {
 
 }  // namespace
 
-ConnectionCatalog::ConnectionCatalog(PerfettoSqlConnection* connection)
-    : connection_(connection) {}
+ConnectionCatalog::ConnectionCatalog(SqliteConnection* connection,
+                                     DataframeLookup find_dataframe)
+    : connection_(connection), find_dataframe_(std::move(find_dataframe)) {}
 
 std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
     std::string_view name) const {
-  const dataframe::Dataframe* dataframe = connection_->GetDataframeOrNull(name);
+  const dataframe::Dataframe* dataframe = find_dataframe_(name);
   if (!dataframe) {
     return std::nullopt;
   }
@@ -87,13 +89,13 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
 
 std::optional<std::string> ConnectionCatalog::FindViewSql(
     std::string_view name) const {
-  auto res = connection_->ExecuteUntilLastStatement(
-      SqlSource::FromTraceProcessorImplementation(
+  SqliteConnection::PreparedStatement res =
+      connection_->PrepareStatement(SqlSource::FromTraceProcessorImplementation(
           base::ReplaceAll(kFindViewSql, "$name", Quoted(name))));
-  if (!res.ok() || res->stmt.IsDone()) {
+  if (!res.Step()) {
     return std::nullopt;
   }
-  sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+  sqlite3_stmt* stmt = res.sqlite_stmt();
   const auto* sql = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
   return sql ? std::make_optional(std::string(sql)) : std::nullopt;
 }
