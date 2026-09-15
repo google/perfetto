@@ -3844,9 +3844,14 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
       total_buffer_bytes += id_to_producer.second->shared_memory()->size();
   }
 
-  // Sum up all the trace buffers.
+  // Sum up all the trace buffers, plus headroom for the transient memory a
+  // readout of the buffer may allocate on top of its steady-state usage (v2
+  // buffers stitch and rewrite packets during readout; see
+  // TraceBuffer::GetReadoutMemoryReservationBytes()).
   for (const auto& id_to_buffer : buffers_) {
     total_buffer_bytes += id_to_buffer.second->GetMemoryUsageBytes();
+    total_buffer_bytes +=
+        id_to_buffer.second->GetReadoutMemoryReservationBytes();
   }
 
   // Sum up all the cloned traced buffers.
@@ -3857,6 +3862,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
       for (const std::unique_ptr<TraceBuffer>& buf : clone_op.buffers) {
         if (buf) {
           total_buffer_bytes += buf->GetMemoryUsageBytes();
+          total_buffer_bytes += buf->GetReadoutMemoryReservationBytes();
         }
       }
     }

@@ -41,6 +41,9 @@ source_set("service") {
     "../../protozero/filtering:message_filter_config",
     "../../protozero/filtering:string_filter",
     "../core",
+
+    # trace_buffer_v2 canonicalizes v2 proto-group packets on readout.
+    "../v2:proto_rewriter",
   ]
   sources = [
     "clock.cc",

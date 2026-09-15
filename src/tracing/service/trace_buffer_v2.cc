@@ -26,8 +26,10 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/protovm/vm.h"
+#include "src/tracing/v2/proto_rewriter.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -64,8 +66,46 @@ constexpr uint8_t kChunkNeedsPatch =
 // patching.
 constexpr uint8_t kChunkIncomplete = 0x80;
 
+// Internal TBv2 flag (not an ABI flag): a v2 transport data loss occurred in
+// the writer's stream immediately before this chunk. Set by
+// CopyRingChunkFragmentsV2 when the ingress reports a loss since the previous
+// stored chunk. On readout it surfaces as previous_packet_dropped on this
+// chunk's first packet and prevents a fragmented packet from reassembling
+// across the loss. Bit 6 is free: the ABI flags occupy kFlagsMask (bits 0-2)
+// and kChunkIncomplete is bit 7.
+constexpr uint8_t kChunkPrecededByLoss = 0x40;
+
 // Mask out the flags that don't come from the ABI like kChunkIncomplete.
 constexpr uint8_t kFlagsMask = SharedMemoryABI::ChunkHeader::kFlagsMask;
+
+// Bound on a v2 packet after readout canonicalization, matching the SDK-side
+// rewrite bound. A single trace packet cannot exceed the protozero message
+// limit once nested in the root Trace message.
+constexpr size_t kMaxV2CanonicalPacketSize =
+    protozero::proto_utils::kMaxMessageLength;
+
+// A canonicalized v2 packet is handed to the consumer as owned slices no larger
+// than this. A valid packet reassembled across ring chunks can exceed the
+// 128 KiB consumer IPC frame (ipc::kIPCBufferSize), and each slice must fit one
+// frame, so the packet is split. 32 KiB matches the established owned-slice
+// bound used elsewhere in the service read path.
+constexpr size_t kMaxV2OutputSliceSize = 32 * 1024;
+
+// Readout scratch (stitch input, rewrite output) is reused across reads to
+// avoid per-read allocation, but a single large fragmented packet must not pin
+// its worst-case capacity for the buffer's lifetime. Capacity grown beyond this
+// by a large read is released; ordinary small reads keep their scratch.
+constexpr size_t kMaxRetainedV2Scratch = 64 * 1024;
+
+// Number of bytes protozero::proto_utils::WriteVarInt() emits for |value|.
+size_t VarIntSize(uint32_t value) {
+  size_t size = 1;
+  while (value >= 0x80) {
+    value >>= 7;
+    ++size;
+  }
+  return size;
+}
 
 // Compares two ChunkID(s) in a wrapping 32-bit ID space.
 // Returns:
@@ -97,6 +137,18 @@ void AddSeqDataLoss(SequenceState* seq, uint32_t reason) {
   PERFETTO_DCHECK(reason != 0);
   // DATA_LOSS_PRESENT is always set so any nonzero value reads as "dropped".
   seq->data_loss_reasons |= DataLossReason::DATA_LOSS_PRESENT | reason;
+}
+
+// If |chunk| was admitted with a v2 transport loss immediately before it,
+// record the loss on the sequence and clear the flag so it applies once. Called
+// when the reader first reaches |chunk| in FIFO order, so the loss surfaces as
+// previous_packet_dropped on this chunk's first read packet, never on an
+// earlier unread packet.
+void ReportPrecedingLossIfFlagged(SequenceState* seq, TBChunk* chunk) {
+  if (PERFETTO_UNLIKELY(chunk->flags & kChunkPrecededByLoss)) {
+    AddSeqDataLoss(seq, DataLossReason::DATA_LOSS_READ_GAP);
+    chunk->flags = static_cast<uint8_t>(chunk->flags & ~kChunkPrecededByLoss);
+  }
 }
 }  // namespace
 
@@ -314,6 +366,13 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
       AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
     }
   }
+
+  // Surface a v2 transport loss recorded before this (the sequence's first
+  // retained) chunk. This is independent of the anchor-based gap check above,
+  // so it also works before the first chunk and after sequence-state
+  // reclamation.
+  if (mode_ == kReadMode)
+    ReportPrecedingLossIfFlagged(seq_, iter_);
 }
 
 bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
@@ -360,6 +419,8 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         return false;  // There are no more chunks in the sequence.
       iter_ = next_chunk;
       frag_iter_ = FragIterator(next_chunk);
+      if (mode_ == kReadMode)
+        ReportPrecedingLossIfFlagged(seq_, next_chunk);
       continue;
     }
 
@@ -519,6 +580,17 @@ ChunkSeqReader::ReassembleFragmentedPacket(TracePacket* out_packet,
       outcome.reason = DataLossReason::DATA_LOSS_REASSEMBLY_GAP;
       break;
     }
+    if (PERFETTO_UNLIKELY(next_chunk->flags & kChunkPrecededByLoss)) {
+      // A v2 transport loss fell between this chunk and the one that started
+      // the packet, so the middle of the packet is gone. Do not join across it.
+      // Clear the flag: this reports the loss once, and the orphaned
+      // continuation left in |next_chunk| still surfaces on its own read.
+      next_chunk->flags =
+          static_cast<uint8_t>(next_chunk->flags & ~kChunkPrecededByLoss);
+      outcome.result = FragReassemblyResult::kDataLoss;
+      outcome.reason = DataLossReason::DATA_LOSS_REASSEMBLY_GAP;
+      break;
+    }
     FragIterator frag_iter = FragIterator(next_chunk);
     // When we reassemble a fragmented packets we only care about one fragment
     // per chunk. We never need to iterate (more than once) over fragments in a
@@ -671,6 +743,19 @@ bool TraceBufferV2::ReadNextTracePacket(
       // If it returns false, we should continue in buffer order.
       if (chunk_seq_reader_->ReadNextPacketInSeqOrder(out_packet)) {
         SequenceState& s = *chunk_seq_reader_->seq();
+        // v2 sequences store the producer's raw ProtoGroup fragments.
+        // Canonicalize the assembled packet into normal protobuf before it is
+        // exposed to the consumer, validation or filtering.
+        if ((s.writer_id & kTracingV2WriterIdBit) &&
+            PERFETTO_UNLIKELY(!CanonicalizeV2PacketOnRead(out_packet))) {
+          // The packet could not be canonicalized: either the stored ProtoGroup
+          // is not well formed (a buggy or malicious producer) or the rewritten
+          // packet would exceed the size bound. Drop it and record the loss; it
+          // surfaces on the next readable packet of the sequence.
+          internal::AddSeqDataLoss(&s,
+                                   DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
+          continue;
+        }
         *sequence_properties = {s.producer_id, s.client_identity, s.writer_id};
         *previous_packet_on_sequence_dropped = s.data_loss_reasons;
         s.data_loss_reasons = 0;
@@ -695,6 +780,65 @@ bool TraceBufferV2::ReadNextTracePacket(
   }  // for(;;)
 }
 
+bool TraceBufferV2::CanonicalizeV2PacketOnRead(TracePacket* packet) {
+  // Stitch the assembled packet into one contiguous input for the rewriter. The
+  // common case is a single slice (a whole packet within one chunk); only a
+  // reassembled fragmented packet has several. The input lives in |data_| (or
+  // the stitch scratch), never in producer-owned shared memory, and does not
+  // overlap the rewriter output.
+  const uint8_t* in_begin = nullptr;
+  const uint8_t* in_end = nullptr;
+  if (packet->slices().size() == 1) {
+    const Slice& slice = packet->slices()[0];
+    in_begin = static_cast<const uint8_t*>(slice.start);
+    in_end = in_begin + slice.size;
+  } else {
+    packet->GetRawBytes(&v2_stitch_scratch_);
+    in_begin = reinterpret_cast<const uint8_t*>(v2_stitch_scratch_.data());
+    in_end = in_begin + v2_stitch_scratch_.size();
+  }
+
+  const tracing_v2::RewriteResult result =
+      tracing_v2::RewriteProtoGroupToLengthDelimited(
+          in_begin, in_end, &v2_rewrite_output_, kMaxV2CanonicalPacketSize);
+  if (result != tracing_v2::RewriteResult::kSuccess) {
+    packet->Clear();
+    ReleaseOversizedV2Scratch();
+    return false;
+  }
+
+  // The stitched input fed the rewriter and is no longer read. Free it now if
+  // it grew large, before allocating the owned output. This keeps at most two
+  // packet-sized workspaces resident at once (the rewrite output and the owned
+  // slices), never three, so GetReadoutMemoryReservationBytes() can bound the
+  // readout peak at two buffer capacities. A small buffer stays for reuse.
+  if (v2_stitch_scratch_.capacity() > kMaxRetainedV2Scratch)
+    std::string().swap(v2_stitch_scratch_);
+
+  // Hand the canonical bytes to the packet as owned slices no larger than one
+  // consumer IPC frame, concatenating to the exact rewritten packet. Ownership
+  // keeps them valid for the whole read pass (like v1 slices into |data_|); the
+  // size bound keeps each slice transportable.
+  packet->Clear();
+  const uint8_t* const out = v2_rewrite_output_.data();
+  const size_t out_size = v2_rewrite_output_.size();
+  for (size_t off = 0; off < out_size; off += kMaxV2OutputSliceSize) {
+    const size_t n = std::min(kMaxV2OutputSliceSize, out_size - off);
+    Slice slice = Slice::Allocate(n);
+    memcpy(slice.own_data(), out + off, n);
+    packet->AddSlice(std::move(slice));
+  }
+  ReleaseOversizedV2Scratch();
+  return true;
+}
+
+void TraceBufferV2::ReleaseOversizedV2Scratch() {
+  if (v2_stitch_scratch_.capacity() > kMaxRetainedV2Scratch)
+    std::string().swap(v2_stitch_scratch_);
+  if (v2_rewrite_output_.capacity() > kMaxRetainedV2Scratch)
+    std::vector<uint8_t>().swap(v2_rewrite_output_);
+}
+
 void TraceBufferV2::CopyChunkUntrusted(
     ProducerID producer_id_trusted,
     const ClientIdentity& client_identity_trusted,
@@ -711,6 +855,19 @@ void TraceBufferV2::CopyChunkUntrusted(
     DumpForTesting();
 
   PERFETTO_CHECK(!read_only_);
+
+  // |writer_id| is read from untrusted producer memory on the v1 SMB path. The
+  // SDK allocates writer ids in the low 15 bits (kMaxWriterID); the service
+  // reserves the top bit (kTracingV2WriterIdBit) to mark v2 ProtoGroup
+  // sequences on readout. Reject a v1 chunk whose writer id sets that bit, so a
+  // buggy or malicious v1 producer cannot land its length-delimited data in a
+  // v2 sequence (which the readout would then try to rewrite) or alias a
+  // genuine v2 writer's stored identity. This is untrusted input, so reject it
+  // nonfatally in every build; do not DCHECK.
+  if (PERFETTO_UNLIKELY(writer_id > kMaxWriterID)) {
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
+    return;
+  }
 
   if (PERFETTO_UNLIKELY(discard_writes_))
     return DiscardWrite();
@@ -927,27 +1084,9 @@ void TraceBufferV2::CopyChunkUntrusted(
     internal::ChunkSeqIterator(this, &seq).EraseCurrentChunk();
   }  // if (recommit_chunk)
 
-  // If there isn't enough room from the given write position: write a padding
-  // record to clear the end of the buffer, wrap and start at offset 0.
-  const size_t cached_size_to_end = size_to_end();
-  if (PERFETTO_UNLIKELY(tbchunk_outer_size > cached_size_to_end)) {
-    // If we reached the end of the buffer and we are using discard policy,
-    // this is where we stop. This buffer will no longer accept data.
-    if (overwrite_policy_ == kDiscard)
-      return DiscardWrite();
-
-    // Skip the tail cleanup if the previous write landed exactly at the end
-    // of the buffer (|wr_| == |size_|): there is no leftover tail to clear.
-    if (cached_size_to_end > 0)
-      DeleteNextChunksFor(cached_size_to_end);
-
-    wr_ = 0;
-    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
-    PERFETTO_DCHECK(size_to_end() >= tbchunk_outer_size);
-  }
-
-  // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
-  DeleteNextChunksFor(tbchunk_outer_size);
+  // Reserve space at |wr_| for the chunk, wrapping and evicting as needed.
+  if (PERFETTO_UNLIKELY(!MakeSpaceForWrite(tbchunk_outer_size)))
+    return;  // kDiscard buffer sealed: no more room.
 
   // |insert_pos| is invalid if any chunk was removed from this sequence since
   // it was computed: either by the DeleteNextChunksFor above, or by the
@@ -1000,6 +1139,153 @@ void TraceBufferV2::CopyChunkUntrusted(
   // pointers via seq_iter_ acros invocations.
   if (empty_sequences_ > kEmptySequencesGcTreshold)
     DeleteStaleEmptySequences();
+}
+
+bool TraceBufferV2::MakeSpaceForWrite(size_t tbchunk_outer_size) {
+  // If there isn't enough room from the current write position: write a padding
+  // record to clear the end of the buffer, wrap and start at offset 0.
+  const size_t cached_size_to_end = size_to_end();
+  if (PERFETTO_UNLIKELY(tbchunk_outer_size > cached_size_to_end)) {
+    // If we reached the end of the buffer and we are using discard policy, this
+    // is where we stop. This buffer will no longer accept data.
+    if (overwrite_policy_ == kDiscard) {
+      DiscardWrite();
+      return false;
+    }
+
+    // Skip the tail cleanup if the previous write landed exactly at the end of
+    // the buffer (|wr_| == |size_|): there is no leftover tail to clear.
+    if (cached_size_to_end > 0)
+      DeleteNextChunksFor(cached_size_to_end);
+
+    wr_ = 0;
+    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
+    PERFETTO_DCHECK(size_to_end() >= tbchunk_outer_size);
+  }
+
+  // Deletes all chunks from |wr_| to |wr_| + |tbchunk_outer_size|.
+  DeleteNextChunksFor(tbchunk_outer_size);
+  return true;
+}
+
+TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
+    ProducerID producer_id_trusted,
+    const ClientIdentity& client_identity_trusted,
+    WriterID writer_id,
+    ChunkID chunk_id,
+    const RingChunkFragment* fragments,
+    size_t num_fragments,
+    bool first_frag_continues_from_prev,
+    bool last_frag_continues_on_next,
+    bool loss_before_this_chunk) {
+  TRACE_BUFFER_V2_DLOG("CopyRingChunkFragmentsV2(nfrags=%zu) @ wr_=%zu",
+                       num_fragments, wr_);
+  PERFETTO_CHECK(!read_only_);
+  // The ingress validates the untrusted wire writer id before calling; a valid
+  // v2 writer id fits the public 15-bit range.
+  PERFETTO_DCHECK(writer_id != 0 && writer_id <= kMaxWriterID);
+
+  if (PERFETTO_UNLIKELY(discard_writes_)) {
+    DiscardWrite();
+    return AdmitResult::kDropped;
+  }
+
+  // The stored payload is [varint frag_size][frag_bytes] per fragment: the same
+  // layout CopyChunkUntrusted() stores and FragIterator reads back. The ring
+  // reader already validated each fragment size against the chunk bounds.
+  size_t all_frags_size = 0;
+  for (size_t i = 0; i < num_fragments; i++)
+    all_frags_size += VarIntSize(fragments[i].size) + fragments[i].size;
+
+  // A stored chunk's payload must fit TBChunk::kMaxSize (a 16-bit size). The
+  // ring reader validated each fragment against the ring chunk, and setup caps
+  // the ring chunk size below this limit, so a valid producer never reaches
+  // here. The ring chunk size is still producer-influenced, so treat an
+  // oversized total as untrusted input: drop it and count it, never assert.
+  if (PERFETTO_UNLIKELY(all_frags_size > TBChunk::kMaxSize)) {
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
+    return AdmitResult::kDropped;
+  }
+  const uint16_t all_frags_size_u16 = static_cast<uint16_t>(all_frags_size);
+  const size_t tbchunk_outer_size = TBChunk::OuterSize(all_frags_size);
+
+  // The chunk must fit the buffer. A ring chunk up to the negotiated chunk size
+  // does not necessarily fit a small TBv2 (e.g. 4 or 16 KiB) once the TBChunk
+  // header and alignment overhead are added. This is the storage-side safety
+  // net: drop the chunk and keep the loss pending. It is not a producer ABI
+  // violation, so it does not fatally assert on a legitimate but unsupported
+  // geometry.
+  if (PERFETTO_UNLIKELY(tbchunk_outer_size > size_)) {
+    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
+    return AdmitResult::kDropped;
+  }
+
+  uint8_t chunk_flags = 0;
+  if (first_frag_continues_from_prev)
+    chunk_flags |= kFirstPacketContFromPrevChunk;
+  if (last_frag_continues_on_next)
+    chunk_flags |= kLastPacketContOnNextChunk;
+  if (loss_before_this_chunk)
+    chunk_flags |= kChunkPrecededByLoss;
+
+  // Reserve the v2 half of the stored writer-id namespace so a v2 sequence
+  // never collides with a v1 sequence in a shared buffer. Keying both
+  // |sequences_| and |writer_stats_| on the stored id keeps a v2 sequence's
+  // packets and its writer stats mapped to the same trusted_packet_sequence_id.
+  // The wire id was range-validated by the caller, so stamping the top bit is
+  // unambiguous.
+  const WriterID stored_writer_id =
+      static_cast<WriterID>(writer_id | kTracingV2WriterIdBit);
+  const auto seq_key =
+      MkProducerAndWriterID(producer_id_trusted, stored_writer_id);
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size));
+
+  auto [seq_it, seq_is_new] = sequences_.try_emplace(
+      seq_key, SequenceState(producer_id_trusted, stored_writer_id,
+                             client_identity_trusted));
+
+  if (PERFETTO_UNLIKELY(!MakeSpaceForWrite(tbchunk_outer_size)))
+    return AdmitResult::kDropped;  // kDiscard buffer sealed: no more room.
+
+  // MakeSpaceForWrite() may evict chunks from any sequence, but never erases
+  // SequenceState map entries (that happens in DeleteStaleEmptySequences
+  // below), so |seq_it| remains valid.
+  SequenceState& seq = seq_it->second;
+
+  TBChunk* tbchunk = CreateTBChunk(wr_, all_frags_size);
+  tbchunk->payload_size = all_frags_size_u16;
+  tbchunk->payload_avail = all_frags_size_u16;
+  tbchunk->chunk_id = chunk_id;
+  tbchunk->flags = chunk_flags;
+  tbchunk->pri_wri_id = seq_key;
+
+  uint8_t* wptr = tbchunk->fragments_begin();
+  for (size_t i = 0; i < num_fragments; i++) {
+    wptr = protozero::proto_utils::WriteVarInt(fragments[i].size, wptr);
+    memcpy(wptr, fragments[i].data, fragments[i].size);
+    wptr += fragments[i].size;
+  }
+  PERFETTO_DCHECK(wptr == tbchunk->fragments_begin() + all_frags_size);
+  PERFETTO_DCHECK(wr_ == OffsetOf(tbchunk));
+
+  // v2 chunk ids are contiguous per writer, so the newest chunk always sorts
+  // last: append at the end of the sequence's chunk list. There are no
+  // out-of-order commits, scraping or re-commits on this path.
+  seq.chunks.emplace_back(wr_);
+  if (seq.chunks.size() == 1 && !seq_is_new) {
+    PERFETTO_DCHECK(empty_sequences_ > 0);
+    --empty_sequences_;
+  }
+
+  wr_ += tbchunk_outer_size;
+  PERFETTO_DCHECK(wr_ <= size_ && wr_ <= used_size_);
+
+  stats_.set_chunks_written(stats_.chunks_written() + 1);
+  stats_.set_bytes_written(stats_.bytes_written() + tbchunk_outer_size);
+
+  if (empty_sequences_ > kEmptySequencesGcTreshold)
+    DeleteStaleEmptySequences();
+  return AdmitResult::kStored;
 }
 
 TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
@@ -1071,7 +1357,12 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
       if (!csr.ReadNextPacketInSeqOrder(maybe_packet)) {
         break;
       }
-      if (maybe_packet) {
+      // Feed only v1 sequences to a ProtoVM. A v2 sequence stores raw
+      // ProtoGroup fragments that are canonicalized on the consumer read path,
+      // not on this eviction path, so a VM would misread them. This keeps the
+      // encoding boundary explicit even if a VM and v2 data ever share a
+      // buffer.
+      if (maybe_packet && !(csr.seq()->writer_id & kTracingV2WriterIdBit)) {
         MaybeProcessOverwrittenPacketWithProtoVm(*maybe_packet,
                                                  csr.seq()->producer_id);
       }
@@ -1238,7 +1529,37 @@ size_t TraceBufferV2::GetMemoryUsageBytes() const {
   for (const Vm& vm : protovms_) {
     total_bytes += vm.instance->GetMemoryUsageBytes();
   }
+  // Buffer-owned readout scratch for v2 canonicalization. The consumer-owned
+  // output slices are not counted here: the returned TracePacket owns them and
+  // frees them when the consumer is done, so they are not buffer memory.
+  total_bytes += v2_stitch_scratch_.capacity() + v2_rewrite_output_.capacity();
   return total_bytes;
+}
+
+size_t TraceBufferV2::GetReadoutMemoryReservationBytes() const {
+  // Headroom for the transient memory a readout allocates on top of the
+  // steady-state usage GetMemoryUsageBytes() reports (which counts only the
+  // scratch retained between reads, at most kMaxRetainedV2Scratch each).
+  //
+  // Canonicalizing one packet (CanonicalizeV2PacketOnRead) runs in two phases
+  // and at most two packet-sized workspaces are resident at once:
+  //
+  //  1. Rewrite: the stitched input feeds RewriteProtoGroupToLengthDelimited,
+  //     which writes the rewrite output. Both are resident (stitch + rewrite).
+  //  2. Emit: the stitched input is freed, then the rewrite output is copied
+  //     into consumer-owned slices (rewrite + owned output).
+  //
+  // Each workspace holds one packet. A reassembled packet cannot exceed the
+  // bytes stored for it, so it is bounded by the buffer capacity |size_|. The
+  // rewrite output has the same order as the input and is additionally capped
+  // at kMaxV2CanonicalPacketSize. Two coexisting workspaces therefore reserve
+  // two buffer capacities.
+  //
+  // This is a conservative source-analysis reservation, not a measured peak.
+  // Over-reserving is the safe direction for a memory watchdog: it keeps a
+  // legitimate large read from tripping the guardrail while still bounding a
+  // runaway to a fixed multiple of the configured capacity.
+  return 2 * size_;
 }
 
 TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)

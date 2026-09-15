@@ -410,6 +410,22 @@ class TraceBufferV2 : public TraceBuffer {
     base::FlatSet<ProducerID> producers;
   };
 
+  // Bit set in the stored writer id of every sequence admitted through the
+  // tracing-v2 path (CopyRingChunkFragmentsV2). Producers allocate v2 writer
+  // ids independently from the v1 SharedMemoryArbiter, so both allocators can
+  // hand out the same low id. Reserving the top bit for v2 keeps v1 and v2
+  // sequences disjoint in a buffer that receives both. Public writer ids are
+  // 15-bit (kMaxWriterID), so this bit is otherwise always zero.
+  static constexpr WriterID kTracingV2WriterIdBit = 1u << 15;
+
+  // One decoded fragment of a producer's tracing-v2 shared-ring chunk: a view
+  // into the ring reader's scratch, valid only for the duration of the
+  // CopyRingChunkFragmentsV2() call.
+  struct RingChunkFragment {
+    const uint8_t* data = nullptr;
+    uint32_t size = 0;
+  };
+
   // Can return nullptr if the memory allocation fails.
   static std::unique_ptr<TraceBufferV2> Create(size_t size_in_bytes,
                                                OverwritePolicy = kOverwrite);
@@ -442,6 +458,54 @@ class TraceBufferV2 : public TraceBuffer {
                           bool chunk_complete,
                           const uint8_t* src,
                           size_t size) override;
+
+  // Outcome of admitting a v2 ring chunk. The ingress uses it to keep a pending
+  // transport loss when the chunk was not stored.
+  enum class AdmitResult {
+    kStored,   // The chunk's fragments were stored.
+    kDropped,  // The chunk was not stored (discard-sealed, or larger than the
+               // whole buffer). Not an error; the caller retains any pending
+               // loss so it lands on the next stored chunk.
+  };
+
+  // Admits the fragments of one producer tracing-v2 shared-ring chunk. It is
+  // the native ingress path for v2: the service ring reader has already copied
+  // and size-validated the fragments out of shared memory, so this stores the
+  // producer's raw ProtoGroup payload bytes verbatim. Reassembly across chunks
+  // and rewriting into normal protobuf happen later, on readout. Returns
+  // whether the chunk was actually stored.
+  //
+  // Unlike CopyChunkUntrusted() this path never scrapes, patches or re-commits:
+  // a v2 ring chunk is final by the time the reader hands it over. Chunks are
+  // stored in receipt order with monotonically increasing |chunk_id|.
+  //
+  // - |chunk_id| is assigned by the ingress, contiguous per writer.
+  // - |loss_before_this_chunk| records that a transport loss occurred in the
+  //   writer's stream since its previous stored chunk. When set and the chunk
+  //   is stored, the loss is attached to this chunk (kChunkPrecededByLoss) and
+  //   surfaces as previous_packet_dropped on its first read packet, and breaks
+  //   any packet that would otherwise reassemble across it. This is storage-
+  //   owned, so it is correct before the first chunk, after older sequence
+  //   state is reclaimed, and without marking earlier unread packets.
+  // - |first_frag_continues_from_prev| / |last_frag_continues_on_next| carry
+  // the
+  //   ring's cross-chunk continuation, mapped to the buffer's fragment flags.
+  // - The fragment views are valid only for the duration of the call.
+  //
+  // |writer_id| must be a valid public writer id (1..kMaxWriterID); the caller
+  // (the ingress) validates the untrusted wire id first. The buffer stamps
+  // kTracingV2WriterIdBit into the stored identity to keep v2 sequences
+  // disjoint from v1.
+  AdmitResult CopyRingChunkFragmentsV2(
+      ProducerID producer_id_trusted,
+      const ClientIdentity& client_identity_trusted,
+      WriterID writer_id,
+      ChunkID chunk_id,
+      const RingChunkFragment* fragments,
+      size_t num_fragments,
+      bool first_frag_continues_from_prev,
+      bool last_frag_continues_on_next,
+      bool loss_before_this_chunk);
 
   // Applies a batch of |patches| to the given chunk, if the given chunk is
   // still in the buffer. Does nothing if the given ChunkID is gone.
@@ -521,6 +585,7 @@ class TraceBufferV2 : public TraceBuffer {
   size_t size() const override { return size_; }
   size_t used_size() const override { return used_size_; }
   size_t GetMemoryUsageBytes() const override;
+  size_t GetReadoutMemoryReservationBytes() const override;
   OverwritePolicy overwrite_policy() const override {
     return overwrite_policy_;
   }
@@ -553,6 +618,26 @@ class TraceBufferV2 : public TraceBuffer {
   bool Initialize(size_t size);
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
+
+  // Reserves |tbchunk_outer_size| contiguous bytes at |wr_| for the next chunk,
+  // wrapping (with a padding record) and evicting older chunks as needed.
+  // Returns false if the write must be dropped, i.e. a kDiscard buffer that has
+  // no more room; the caller must not write in that case.
+  bool MakeSpaceForWrite(size_t tbchunk_outer_size);
+
+  // Rewrites |packet|, read from a v2 sequence, from the producer's ProtoGroup
+  // encoding into normal length-delimited protobuf, split into consumer-safe
+  // owned slices. On success |packet| owns the rewritten bytes. Returns false
+  // in two cases: the stored bytes are not a well-formed proto-group packet, or
+  // the rewritten output would exceed kMaxV2CanonicalPacketSize. Both come from
+  // a buggy or malicious producer. On failure |packet| is left cleared and the
+  // caller accounts a data loss.
+  bool CanonicalizeV2PacketOnRead(TracePacket* packet);
+
+  // Frees the v2 readout scratch when a large read grew it past the retention
+  // cap, so a single big packet does not pin worst-case capacity for the
+  // buffer's lifetime.
+  void ReleaseOversizedV2Scratch();
 
   void DcheckIsAlignedAndWithinBounds(size_t off) const {
     PERFETTO_DCHECK((off & (alignof(TBChunk) - 1)) == 0);
@@ -660,6 +745,23 @@ class TraceBufferV2 : public TraceBuffer {
   // that the memory is re-used across overwritten packets, thus involving
   // allocations only when the storage needs to be expanded.
   std::string protovm_patch_;
+
+  // Scratch reused across reads to canonicalize v2 packets (see
+  // CanonicalizeV2PacketOnRead). |v2_stitch_scratch_| stitches a fragmented
+  // packet's slices into one contiguous input; |v2_rewrite_output_| holds the
+  // rewriter output before it is split into the packet's owned slices.
+  //
+  // Working-set bound: while canonicalizing one packet the live workspace is
+  // the stitched input (<= the reassembled packet, which is bounded by the
+  // stored bytes and hence the buffer capacity), the rewrite output (<= the
+  // protozero message limit, and in practice a small multiple of the input) and
+  // the owned output slices handed to the consumer (freed by the consumer).
+  // Between reads the retained scratch is bounded: ReleaseOversizedV2Scratch()
+  // frees anything above kMaxRetainedV2Scratch, and GetMemoryUsageBytes()
+  // counts what remains. The service reserves headroom for this peak in its
+  // memory guardrail when it wires the producer ring to this buffer.
+  std::string v2_stitch_scratch_;
+  std::vector<uint8_t> v2_rewrite_output_;
 };
 
 }  // namespace perfetto

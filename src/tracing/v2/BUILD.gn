@@ -15,6 +15,21 @@
 import("../../../gn/fuzzer.gni")
 import("../../../gn/test.gni")
 
+# Rewrites a v2 append-only proto-group packet into normal length-delimited
+# protobuf. Kept as its own target so the service (trace_buffer_v2) can
+# canonicalize v2 packets on readout without depending on the transport ring.
+source_set("proto_rewriter") {
+  public_deps = [ "../../../include/perfetto/protozero" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  sources = [
+    "proto_rewriter.cc",
+    "proto_rewriter.h",
+  ]
+}
+
 # The tracing v2 producer-local shared ring buffer: its ABI, writer and reader.
 # TraceWriterV2Impl and ProtoRewriter handle the proto group fragment payloads.
 # Protocol: RFC 0046,
@@ -22,6 +37,7 @@ import("../../../gn/test.gni")
 # Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
 source_set("v2") {
   public_deps = [
+    ":proto_rewriter",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/ext/tracing/core",
     "../../../include/perfetto/protozero",
@@ -36,8 +52,6 @@ source_set("v2") {
     "../../base",
   ]
   sources = [
-    "proto_rewriter.cc",
-    "proto_rewriter.h",
     "shared_ring_buffer.cc",
     "shared_ring_buffer.h",
     "shared_ring_buffer_abi.h",
@@ -110,7 +124,7 @@ perfetto_unittest_source_set("unittests") {
 perfetto_fuzzer_test("proto_rewriter_fuzzer") {
   sources = [ "proto_rewriter_fuzzer.cc" ]
   deps = [
-    ":v2",
+    ":proto_rewriter",
     "../../../gn:default_deps",
   ]
 }
