@@ -479,16 +479,12 @@ class TraceBufferV2 : public TraceBuffer {
   // a v2 ring chunk is final by the time the reader hands it over. Chunks are
   // stored in receipt order with monotonically increasing |chunk_id|.
   //
-  // - |chunk_id| is assigned by the ingress, contiguous per writer.
-  // - |loss_before_this_chunk| records that a transport loss occurred in the
-  //   writer's stream since its previous stored chunk. When set and the chunk
-  //   is stored, the loss is attached to this chunk (kChunkPrecededByLoss) and
-  //   surfaces as previous_packet_dropped on its first read packet, and breaks
-  //   any packet that would otherwise reassemble across it. This is storage-
-  //   owned, so it is correct before the first chunk, after older sequence
-  //   state is reclaimed, and without marking earlier unread packets.
+  // - |chunk_id| increases per writer. The ingress skips one ID after loss.
+  //   Existing read and reassembly paths detect that gap.
+  // - |loss_before_this_chunk| initializes loss after successful admission
+  //   when the sequence has neither retained chunks nor consumed history.
+  //   Otherwise, the ID gap places loss after any older unread packets.
   // - |first_frag_continues_from_prev| / |last_frag_continues_on_next| carry
-  // the
   //   ring's cross-chunk continuation, mapped to the buffer's fragment flags.
   // - The fragment views are valid only for the duration of the call.
   //
@@ -704,6 +700,8 @@ class TraceBufferV2 : public TraceBuffer {
   // Note: we need stable pointers for SequenceState, as they get cached in
   // BufIterator.
   std::unordered_map<ProducerAndWriterID, SequenceState> sequences_;
+  // Sum of sequence queue capacities. Keep guardrail accounting O(1).
+  size_t sequence_queue_bytes_ = 0;
 
   // COUNT(sequences_) WHERE sequence.chunks.empty().
   // This is maintained best effort and needs revalidation against sequences_.

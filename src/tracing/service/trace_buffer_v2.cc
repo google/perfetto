@@ -66,15 +66,6 @@ constexpr uint8_t kChunkNeedsPatch =
 // patching.
 constexpr uint8_t kChunkIncomplete = 0x80;
 
-// Internal TBv2 flag (not an ABI flag): a v2 transport data loss occurred in
-// the writer's stream immediately before this chunk. Set by
-// CopyRingChunkFragmentsV2 when the ingress reports a loss since the previous
-// stored chunk. On readout it surfaces as previous_packet_dropped on this
-// chunk's first packet and prevents a fragmented packet from reassembling
-// across the loss. Bit 6 is free: the ABI flags occupy kFlagsMask (bits 0-2)
-// and kChunkIncomplete is bit 7.
-constexpr uint8_t kChunkPrecededByLoss = 0x40;
-
 // Mask out the flags that don't come from the ABI like kChunkIncomplete.
 constexpr uint8_t kFlagsMask = SharedMemoryABI::ChunkHeader::kFlagsMask;
 
@@ -139,17 +130,6 @@ void AddSeqDataLoss(SequenceState* seq, uint32_t reason) {
   seq->data_loss_reasons |= DataLossReason::DATA_LOSS_PRESENT | reason;
 }
 
-// If |chunk| was admitted with a v2 transport loss immediately before it,
-// record the loss on the sequence and clear the flag so it applies once. Called
-// when the reader first reaches |chunk| in FIFO order, so the loss surfaces as
-// previous_packet_dropped on this chunk's first read packet, never on an
-// earlier unread packet.
-void ReportPrecedingLossIfFlagged(SequenceState* seq, TBChunk* chunk) {
-  if (PERFETTO_UNLIKELY(chunk->flags & kChunkPrecededByLoss)) {
-    AddSeqDataLoss(seq, DataLossReason::DATA_LOSS_READ_GAP);
-    chunk->flags = static_cast<uint8_t>(chunk->flags & ~kChunkPrecededByLoss);
-  }
-}
 }  // namespace
 
 SequenceState::SequenceState(ProducerID p, WriterID w, ClientIdentity c)
@@ -366,13 +346,6 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
       AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
     }
   }
-
-  // Surface a v2 transport loss recorded before this (the sequence's first
-  // retained) chunk. This is independent of the anchor-based gap check above,
-  // so it also works before the first chunk and after sequence-state
-  // reclamation.
-  if (mode_ == kReadMode)
-    ReportPrecedingLossIfFlagged(seq_, iter_);
 }
 
 bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
@@ -419,8 +392,6 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         return false;  // There are no more chunks in the sequence.
       iter_ = next_chunk;
       frag_iter_ = FragIterator(next_chunk);
-      if (mode_ == kReadMode)
-        ReportPrecedingLossIfFlagged(seq_, next_chunk);
       continue;
     }
 
@@ -576,17 +547,6 @@ ChunkSeqReader::ReassembleFragmentedPacket(TracePacket* out_packet,
     }
     if (chunk_iter.sequence_gap_detected()) {
       // There is a gap in the sequence ID.
-      outcome.result = FragReassemblyResult::kDataLoss;
-      outcome.reason = DataLossReason::DATA_LOSS_REASSEMBLY_GAP;
-      break;
-    }
-    if (PERFETTO_UNLIKELY(next_chunk->flags & kChunkPrecededByLoss)) {
-      // A v2 transport loss fell between this chunk and the one that started
-      // the packet, so the middle of the packet is gone. Do not join across it.
-      // Clear the flag: this reports the loss once, and the orphaned
-      // continuation left in |next_chunk| still surfaces on its own read.
-      next_chunk->flags =
-          static_cast<uint8_t>(next_chunk->flags & ~kChunkPrecededByLoss);
       outcome.result = FragReassemblyResult::kDataLoss;
       outcome.reason = DataLossReason::DATA_LOSS_REASSEMBLY_GAP;
       break;
@@ -781,6 +741,12 @@ bool TraceBufferV2::ReadNextTracePacket(
 }
 
 bool TraceBufferV2::CanonicalizeV2PacketOnRead(TracePacket* packet) {
+  // Each two-byte empty group becomes a five-byte length-delimited message.
+  // Reserve that worst case once, so vector growth does not duplicate a large
+  // output allocation. Malformed input must obey the same output bound.
+  const size_t max_output_size = static_cast<size_t>(std::min<uint64_t>(
+      kMaxV2CanonicalPacketSize, uint64_t(packet->size()) * 5 / 2));
+  v2_rewrite_output_.reserve(max_output_size);
   // Stitch the assembled packet into one contiguous input for the rewriter. The
   // common case is a single slice (a whole packet within one chunk); only a
   // reassembled fragmented packet has several. The input lives in |data_| (or
@@ -800,18 +766,15 @@ bool TraceBufferV2::CanonicalizeV2PacketOnRead(TracePacket* packet) {
 
   const tracing_v2::RewriteResult result =
       tracing_v2::RewriteProtoGroupToLengthDelimited(
-          in_begin, in_end, &v2_rewrite_output_, kMaxV2CanonicalPacketSize);
+          in_begin, in_end, &v2_rewrite_output_, max_output_size);
   if (result != tracing_v2::RewriteResult::kSuccess) {
     packet->Clear();
     ReleaseOversizedV2Scratch();
     return false;
   }
 
-  // The stitched input fed the rewriter and is no longer read. Free it now if
-  // it grew large, before allocating the owned output. This keeps at most two
-  // packet-sized workspaces resident at once (the rewrite output and the owned
-  // slices), never three, so GetReadoutMemoryReservationBytes() can bound the
-  // readout peak at two buffer capacities. A small buffer stays for reuse.
+  // Release large input scratch before the owned output allocation. Small
+  // scratch remains available for the next packet.
   if (v2_stitch_scratch_.capacity() > kMaxRetainedV2Scratch)
     std::string().swap(v2_stitch_scratch_);
 
@@ -936,9 +899,9 @@ void TraceBufferV2::CopyChunkUntrusted(
   writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size));
 
   auto [seq_it, seq_is_new] = sequences_.try_emplace(
-      seq_key,
-      SequenceState(producer_id_trusted, writer_id, client_identity_trusted));
+      seq_key, producer_id_trusted, writer_id, client_identity_trusted);
   if (seq_is_new) {
+    sequence_queue_bytes_ += seq_it->second.chunks.capacity() * sizeof(size_t);
     TRACE_BUFFER_V2_DLOG("  Added seq %x", seq_key);
   }
 
@@ -1119,7 +1082,10 @@ void TraceBufferV2::CopyChunkUntrusted(
     stats_.set_chunks_committed_out_of_order(
         stats_.chunks_committed_out_of_order() + 1);
   }
+  const size_t old_capacity = chunk_list.capacity();
   chunk_list.InsertAfter(insert_pos, wr_);
+  sequence_queue_bytes_ +=
+      (chunk_list.capacity() - old_capacity) * sizeof(size_t);
   if (chunk_list.size() == 1 && !seq_is_new) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1225,8 +1191,6 @@ TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
     chunk_flags |= kFirstPacketContFromPrevChunk;
   if (last_frag_continues_on_next)
     chunk_flags |= kLastPacketContOnNextChunk;
-  if (loss_before_this_chunk)
-    chunk_flags |= kChunkPrecededByLoss;
 
   // Reserve the v2 half of the stored writer-id namespace so a v2 sequence
   // never collides with a v1 sequence in a shared buffer. Keying both
@@ -1240,17 +1204,22 @@ TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
       MkProducerAndWriterID(producer_id_trusted, stored_writer_id);
   writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size));
 
-  auto [seq_it, seq_is_new] = sequences_.try_emplace(
-      seq_key, SequenceState(producer_id_trusted, stored_writer_id,
-                             client_identity_trusted));
-
   if (PERFETTO_UNLIKELY(!MakeSpaceForWrite(tbchunk_outer_size)))
     return AdmitResult::kDropped;  // kDiscard buffer sealed: no more room.
 
-  // MakeSpaceForWrite() may evict chunks from any sequence, but never erases
-  // SequenceState map entries (that happens in DeleteStaleEmptySequences
-  // below), so |seq_it| remains valid.
+  // Create the sequence only after admission succeeds. A rejected first chunk
+  // must not leave an uncounted empty sequence behind.
+  auto [seq_it, seq_is_new] = sequences_.try_emplace(
+      seq_key, producer_id_trusted, stored_writer_id, client_identity_trusted);
   SequenceState& seq = seq_it->second;
+  if (seq_is_new)
+    sequence_queue_bytes_ += seq.chunks.capacity() * sizeof(size_t);
+  // Existing sequences detect loss through chunk-ID gaps. Without history,
+  // initialize the loss state here, before the first surviving packet.
+  if (loss_before_this_chunk && seq.chunks.empty() &&
+      !seq.last_chunk_consumed.has_value()) {
+    internal::AddSeqDataLoss(&seq, DataLossReason::DATA_LOSS_READ_GAP);
+  }
 
   TBChunk* tbchunk = CreateTBChunk(wr_, all_frags_size);
   tbchunk->payload_size = all_frags_size_u16;
@@ -1268,10 +1237,11 @@ TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
   PERFETTO_DCHECK(wptr == tbchunk->fragments_begin() + all_frags_size);
   PERFETTO_DCHECK(wr_ == OffsetOf(tbchunk));
 
-  // v2 chunk ids are contiguous per writer, so the newest chunk always sorts
-  // last: append at the end of the sequence's chunk list. There are no
-  // out-of-order commits, scraping or re-commits on this path.
+  // V2 chunk IDs increase per writer, with gaps for loss. Append in order.
+  const size_t old_capacity = seq.chunks.capacity();
   seq.chunks.emplace_back(wr_);
+  sequence_queue_bytes_ +=
+      (seq.chunks.capacity() - old_capacity) * sizeof(size_t);
   if (seq.chunks.size() == 1 && !seq_is_new) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1505,6 +1475,8 @@ void TraceBufferV2::DeleteStaleEmptySequences() {
 
   size_t n_oldest = empty_seqs.size() - kKeepLastEmptySeq;
   for (size_t i = 0; i < n_oldest; ++i) {
+    sequence_queue_bytes_ -=
+        empty_seqs[i]->second.chunks.capacity() * sizeof(size_t);
     sequences_.erase(empty_seqs[i]);
   }
   empty_sequences_ = kKeepLastEmptySeq;
@@ -1526,6 +1498,13 @@ std::unique_ptr<TraceBuffer> TraceBufferV2::CloneReadOnly() const {
 
 size_t TraceBufferV2::GetMemoryUsageBytes() const {
   size_t total_bytes = size();
+  // Include bucket pointers, map nodes and retained chunk-index arrays.
+  // Two pointers estimate the node's link and cached hash on supported STL
+  // ABIs.
+  total_bytes += sequences_.bucket_count() * sizeof(void*) +
+                 sequences_.size() * (sizeof(decltype(sequences_)::value_type) +
+                                      2 * sizeof(void*)) +
+                 sequence_queue_bytes_;
   for (const Vm& vm : protovms_) {
     total_bytes += vm.instance->GetMemoryUsageBytes();
   }
@@ -1537,29 +1516,11 @@ size_t TraceBufferV2::GetMemoryUsageBytes() const {
 }
 
 size_t TraceBufferV2::GetReadoutMemoryReservationBytes() const {
-  // Headroom for the transient memory a readout allocates on top of the
-  // steady-state usage GetMemoryUsageBytes() reports (which counts only the
-  // scratch retained between reads, at most kMaxRetainedV2Scratch each).
-  //
-  // Canonicalizing one packet (CanonicalizeV2PacketOnRead) runs in two phases
-  // and at most two packet-sized workspaces are resident at once:
-  //
-  //  1. Rewrite: the stitched input feeds RewriteProtoGroupToLengthDelimited,
-  //     which writes the rewrite output. Both are resident (stitch + rewrite).
-  //  2. Emit: the stitched input is freed, then the rewrite output is copied
-  //     into consumer-owned slices (rewrite + owned output).
-  //
-  // Each workspace holds one packet. A reassembled packet cannot exceed the
-  // bytes stored for it, so it is bounded by the buffer capacity |size_|. The
-  // rewrite output has the same order as the input and is additionally capped
-  // at kMaxV2CanonicalPacketSize. Two coexisting workspaces therefore reserve
-  // two buffer capacities.
-  //
-  // This is a conservative source-analysis reservation, not a measured peak.
-  // Over-reserving is the safe direction for a memory watchdog: it keeps a
-  // legitimate large read from tripping the guardrail while still bounding a
-  // runaway to a fixed multiple of the configured capacity.
-  return 2 * size_;
+  // For B stored bytes, input scratch needs at most B and rewritten bytes
+  // need at most 2.5B. Owned output from the read pass needs at most 2.5B.
+  // Reserve their sum. Retained scratch is counted by GetMemoryUsageBytes().
+  // Saturate on 32-bit hosts rather than wrap the watchdog allowance.
+  return size_ > SIZE_MAX / 6 ? SIZE_MAX : 6 * size_;
 }
 
 TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
@@ -1585,6 +1546,7 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
 
   // Finally copy over the SequenceState map.
   sequences_ = src.sequences_;
+  sequence_queue_bytes_ = src.sequence_queue_bytes_;
 
   for (const auto& vm : src.protovms_) {
     auto vm_cloned = vm.CloneReadOnly();

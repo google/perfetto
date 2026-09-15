@@ -3714,7 +3714,7 @@ TEST_F(TraceBufferV2Test, V2_TransportLossSurfacesOnNextPacket) {
   const std::vector<uint8_t> p1 = {0x08, 0x02};
   // A transport loss between two packets is carried on the following chunk.
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(0), {p0});
-  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(1), {p1},
+  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(2), {p1},
                   /*cont_from_prev=*/false, /*cont_on_next=*/false,
                   /*loss_before=*/true);
 
@@ -3732,18 +3732,16 @@ TEST_F(TraceBufferV2Test, V2_TransportLossSurfacesOnNextPacket) {
 
 TEST_F(TraceBufferV2Test, V2_LossBreaksFragmentReassembly) {
   ResetBuffer(4096);
-  // A packet begins in chunk 0 and would end in chunk 1, but the middle was
-  // lost in transit: chunk 1 carries loss_before. The fragments must not be
-  // joined.
+  // Chunk 1 was lost. The reader must not join fragments across its ID.
   const std::vector<uint8_t> frag_a = {0x08, 0x2a};
   const std::vector<uint8_t> frag_b = {0x10, 0x07};
   const std::vector<uint8_t> good = {0x08, 0x63};
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(0), {frag_a},
                   /*cont_from_prev=*/false, /*cont_on_next=*/true);
-  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(1), {frag_b},
+  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(2), {frag_b},
                   /*cont_from_prev=*/true, /*cont_on_next=*/false,
                   /*loss_before=*/true);
-  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(2), {good});
+  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(3), {good});
 
   trace_buffer()->BeginRead();
   uint32_t dropped = 0;
@@ -3855,46 +3853,68 @@ TEST_F(TraceBufferV2Test, V2_ReadoutScratchAccountedAndReleased) {
   const std::vector<uint8_t> medium = MakeFlatPacket(40 * 1024, 0x11);
   AdmitFragmentedV2(ProducerID(1), WriterID(1), ChunkID(0), medium,
                     /*frag_size=*/16 * 1024);
+  const std::vector<uint8_t> large = MakeFlatPacket(200 * 1024, 0x22);
+  AdmitFragmentedV2(ProducerID(1), WriterID(2), ChunkID(0), large,
+                    /*frag_size=*/16 * 1024);
+  const size_t with_sequences = trace_buffer()->GetMemoryUsageBytes();
   trace_buffer()->BeginRead();
   std::vector<uint8_t> bytes;
   std::vector<size_t> sizes;
   ASSERT_TRUE(ReadOnePacketRaw(&bytes, &sizes));
   ASSERT_EQ(bytes, medium);
-  EXPECT_GT(trace_buffer()->GetMemoryUsageBytes(), base);
+  EXPECT_GT(trace_buffer()->GetMemoryUsageBytes(), with_sequences);
 
   // A large fragmented packet (~200 KiB) grows the scratch past the cap; after
   // the read it is released and no longer counted.
-  const std::vector<uint8_t> large = MakeFlatPacket(200 * 1024, 0x22);
-  AdmitFragmentedV2(ProducerID(1), WriterID(2), ChunkID(0), large,
-                    /*frag_size=*/16 * 1024);
   trace_buffer()->BeginRead();
   ASSERT_TRUE(ReadOnePacketRaw(&bytes, &sizes));  // large writer 2 packet.
   // Drain any remaining packets so the last read released oversized scratch.
   while (ReadOnePacketRaw(&bytes, &sizes)) {
   }
-  EXPECT_EQ(trace_buffer()->GetMemoryUsageBytes(), base);
+  EXPECT_EQ(trace_buffer()->GetMemoryUsageBytes(), with_sequences);
 }
 
 // The service adds a per-v2-buffer readout reservation to its memory guardrail
-// so a large canonicalization pass does not trip the watchdog. Canonicalizing a
-// packet keeps at most two packet-sized workspaces resident at once and a
-// packet cannot exceed the buffer capacity, so the reservation is two buffer
-// capacities and does not depend on the current fill level.
-TEST_F(TraceBufferV2Test, V2_ReadoutReservationCoversTwoPacketWorkspaces) {
+// to cover expansion, scratch and owned output across the read pass.
+TEST_F(TraceBufferV2Test, V2_ReadoutReservationCoversExpandedWorkspaces) {
   ResetBuffer(1 << 20);
   const size_t cap = trace_buffer()->size();
-  EXPECT_EQ(trace_buffer()->GetReadoutMemoryReservationBytes(), 2 * cap);
+  EXPECT_EQ(trace_buffer()->GetReadoutMemoryReservationBytes(), 6 * cap);
 
   // Storing data does not change the reservation: it bounds transient readout
   // memory, which is a function of capacity, not of the current fill level.
   const std::vector<uint8_t> pkt = MakeFlatPacket(64 * 1024, 0x33);
   AdmitFragmentedV2(ProducerID(1), WriterID(1), ChunkID(0), pkt,
                     /*frag_size=*/16 * 1024);
-  EXPECT_EQ(trace_buffer()->GetReadoutMemoryReservationBytes(), 2 * cap);
+  EXPECT_EQ(trace_buffer()->GetReadoutMemoryReservationBytes(), 6 * cap);
 
   // A smaller buffer reserves proportionally less.
   ResetBuffer(4096);
-  EXPECT_EQ(trace_buffer()->GetReadoutMemoryReservationBytes(), 2 * 4096u);
+  EXPECT_EQ(trace_buffer()->GetReadoutMemoryReservationBytes(), 6 * 4096u);
+}
+
+TEST_F(TraceBufferV2Test, V2_SequenceIndexMemorySurvivesReadAndClone) {
+  ResetBuffer(32 * 1024);
+  const auto empty_bytes = trace_buffer()->GetMemoryUsageBytes();
+  const auto packet = MakeFlatPacket(8, 0x33);
+  for (ChunkID id = 0; id < 200; ++id) {
+    ASSERT_EQ(CopyRingChunkV2(1, 1, id, {packet}),
+              TraceBufferV2::AdmitResult::kStored);
+  }
+  const auto with_index = trace_buffer()->GetMemoryUsageBytes();
+  EXPECT_GE(with_index, empty_bytes + 200 * sizeof(size_t));
+  auto clone = trace_buffer()->CloneReadOnly();
+  ASSERT_TRUE(clone);
+  EXPECT_EQ(clone->GetMemoryUsageBytes(), with_index);
+
+  trace_buffer()->BeginRead();
+  std::vector<uint8_t> bytes;
+  std::vector<size_t> sizes;
+  while (ReadOnePacketRaw(&bytes, &sizes)) {
+  }
+  // The empty sequence retains its queue for later writes. Only scratch
+  // changes.
+  EXPECT_GE(trace_buffer()->GetMemoryUsageBytes(), with_index);
 }
 
 // Reads a fragmented packet that nearly fills the buffer and confirms the
@@ -3906,7 +3926,6 @@ TEST_F(TraceBufferV2Test, V2_ReadoutReservationBoundsTransientWorkspace) {
   ResetBuffer(256 * 1024);
   const size_t cap = trace_buffer()->size();
   const size_t reservation = trace_buffer()->GetReadoutMemoryReservationBytes();
-  const size_t base = trace_buffer()->GetMemoryUsageBytes();
 
   // A packet close to the buffer capacity, fragmented across chunks so the read
   // must stitch it, rewrite it, and emit owned slices.
@@ -3914,6 +3933,7 @@ TEST_F(TraceBufferV2Test, V2_ReadoutReservationBoundsTransientWorkspace) {
   AdmitFragmentedV2(ProducerID(1), WriterID(1), ChunkID(0), big,
                     /*frag_size=*/16 * 1024);
 
+  const size_t base = trace_buffer()->GetMemoryUsageBytes();
   trace_buffer()->BeginRead();
   std::vector<uint8_t> bytes;
   std::vector<size_t> sizes;
@@ -3924,7 +3944,7 @@ TEST_F(TraceBufferV2Test, V2_ReadoutReservationBoundsTransientWorkspace) {
   // read allocates. Each is bounded by the packet, which is bounded by
   // capacity.
   EXPECT_GE(reservation, 2 * big.size());
-  EXPECT_LE(reservation, 2 * cap);
+  EXPECT_LE(reservation, 6 * cap);
 
   // Drain and confirm the oversized scratch was released: steady-state memory
   // returns to base, so the workspace was transient, within the reservation.
@@ -3986,6 +4006,48 @@ TEST_F(TraceBufferV2Test, V2_LossBeforeFirstChunkSurfaces) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+TEST_F(TraceBufferV2Test, V2_LossAfterSequenceReclamation) {
+  ResetBuffer(4096);
+  const std::vector<uint8_t> pkt = {0x08, 0x2a};
+  for (WriterID writer = 1; writer < 1300; ++writer) {
+    ASSERT_EQ(CopyRingChunkV2(1, writer, 0, {pkt}),
+              TraceBufferV2::AdmitResult::kStored);
+    trace_buffer()->BeginRead();
+    ASSERT_FALSE(ReadPacket().empty());
+    ASSERT_TRUE(ReadPacket().empty());
+  }
+  // Writer 1 has no retained history. The first successful admission must
+  // retain known loss even though no previous chunk remains for comparison.
+  ASSERT_EQ(CopyRingChunkV2(1, 1, 2, {pkt}, false, false, true),
+            TraceBufferV2::AdmitResult::kStored);
+  ASSERT_EQ(CopyRingChunkV2(1, 1, 3, {pkt}),
+            TraceBufferV2::AdmitResult::kStored);
+  trace_buffer()->BeginRead();
+  uint32_t dropped = 0;
+  ASSERT_FALSE(ReadPacket(nullptr, &dropped).empty());
+  EXPECT_TRUE(dropped & DataLossReason::DATA_LOSS_READ_GAP);
+  ASSERT_FALSE(ReadPacket(nullptr, &dropped).empty());
+  EXPECT_EQ(dropped, 0u);
+}
+
+TEST_F(TraceBufferV2Test, V2_EmptyGroupsExpandOnReadout) {
+  ResetBuffer(256 * 1024);
+  std::vector<uint8_t> groups;
+  std::vector<uint8_t> expected;
+  for (size_t i = 0; i < 100000; ++i) {
+    groups.insert(groups.end(), {0x0b, 0x04});
+    expected.insert(expected.end(), {0x0a, 0x80, 0x80, 0x80, 0x00});
+  }
+  AdmitFragmentedV2(1, 1, 0, groups, 16 * 1024);
+  trace_buffer()->BeginRead();
+  std::vector<uint8_t> bytes;
+  std::vector<size_t> sizes;
+  ASSERT_TRUE(ReadOnePacketRaw(&bytes, &sizes));
+  EXPECT_EQ(bytes, expected);
+  EXPECT_GE(trace_buffer()->GetReadoutMemoryReservationBytes(),
+            groups.size() + 2 * expected.size());
+}
+
 // The loss attaches to the chunk that follows it, never to earlier unread data.
 TEST_F(TraceBufferV2Test, V2_LossDoesNotMarkOlderUnreadData) {
   ResetBuffer(4096);
@@ -3995,7 +4057,7 @@ TEST_F(TraceBufferV2Test, V2_LossDoesNotMarkOlderUnreadData) {
   // p0 and p1 buffered before the loss; p2 stored with loss_before.
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(0), {p0});
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(1), {p1});
-  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(2), {p2},
+  CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(3), {p2},
                   /*cont_from_prev=*/false, /*cont_on_next=*/false,
                   /*loss_before=*/true);
 
