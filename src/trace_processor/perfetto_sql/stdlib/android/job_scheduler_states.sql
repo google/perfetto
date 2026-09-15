@@ -20,43 +20,7 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE android.battery_stats;
 
--- Extracts the package name from a formatted job name.
--- The job name is expected to contain the package name either before a '/'
--- (e.g., 'com.example/Service') or after the last ':' (e.g., '...:com.example.app').
-CREATE PERFETTO FUNCTION android_job_scheduler_extract_package_name(
-  -- The formatted job name.
-  job_name STRING
-)
--- Returns the extracted package name, or NULL if not found.
-RETURNS STRING
-AS
-SELECT
-  coalesce(
-    regexp_extract($job_name, '([a-zA-Z0-9_.-]+)/'),
-    regexp_extract($job_name, ':([a-zA-Z0-9_.-]*)$')
-  );
-
--- Extracts the namespace from a formatted job name.
--- The namespace is expected to be enclosed in '@' symbols (e.g., '@namespace@...').
-CREATE PERFETTO FUNCTION android_job_scheduler_extract_namespace(
-  -- The formatted job name.
-  job_name STRING
-)
--- Returns the extracted namespace, or empty string if not found.
-RETURNS STRING
-AS
-SELECT coalesce(regexp_extract($job_name, '@(.*)@'), '');
-
--- Extracts the trace tag from a formatted job name.
--- The trace tag is expected to be enclosed in '#' symbols (e.g., '#tag#...').
-CREATE PERFETTO FUNCTION android_job_scheduler_extract_trace_tag(
-  -- The formatted job name.
-  job_name STRING
-)
--- Returns the extracted trace tag, or empty string if not found.
-RETURNS STRING
-AS
-SELECT coalesce(regexp_extract($job_name, '#(.*)#'), '');
+INCLUDE PERFETTO MODULE android.job_scheduler_states_track_events;
 
 CREATE PERFETTO TABLE _job_states AS
 SELECT
@@ -514,45 +478,12 @@ CREATE PERFETTO VIEW android_job_scheduler_sdk(
   package_name STRING
 )
 AS
-WITH
-  raw_events AS (
-    SELECT
-      s.ts,
-      s.name AS job_name,
-      extract_arg(s.arg_set_id, 'job_scheduler_job.job_id') AS job_id,
-      extract_arg(s.arg_set_id, 'job_scheduler_job.source_uid') AS uid,
-      CAST(extract_arg(s.arg_set_id, 'job_scheduler_job.state') AS INTEGER) AS state
-    FROM track AS t
-    JOIN slice AS s
-      ON s.track_id = t.id
-    WHERE
-      s.category = 'jobscheduler'
-  ),
-  states_with_lead AS (
-    SELECT
-      ts,
-      job_name,
-      state,
-      lead(state, 1) OVER job_asc AS lead_state,
-      lead(ts, 1, trace_end()) OVER job_asc AS ts_lead,
-      lead(ts, 1) OVER job_asc IS NULL AS is_end_slice
-    FROM raw_events
-    WHERE
-      state != 3 -- CANCELLED
-    WINDOW
-      job_asc AS (PARTITION BY uid, job_name, job_id ORDER BY ts)
-  )
 SELECT
   ts,
-  ts_lead - ts AS dur,
+  dur,
   job_name,
-  android_job_scheduler_extract_package_name(job_name) AS package_name
-FROM states_with_lead
-WHERE
-  is_end_slice = FALSE
-  AND (ts_lead - ts) > 0
-  AND state = 1 -- STARTED
-  AND lead_state IN (0, 2); -- FINISHED, SCHEDULED
+  package_name
+FROM android_job_scheduler_states_track_events;
 
 -- View for StatsD sourced JobScheduler events.
 -- Suggested minimal config:
@@ -605,7 +536,7 @@ SELECT
   ts,
   dur,
   str_value AS job_name,
-  android_job_scheduler_extract_package_name(str_value) AS package_name
+  _android_js_extract_package_name(str_value) AS package_name
 FROM android_battery_stats_event_slices
 WHERE
   track_name = 'battery_stats.job';
