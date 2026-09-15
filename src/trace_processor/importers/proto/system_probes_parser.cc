@@ -280,7 +280,8 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       pages_per_slab_id_(context->storage->InternString("pages_per_slab")),
       num_slabs_id_(context->storage->InternString("num_slabs")),
       meminfo_strs_(BuildMeminfoCounterNames()),
-      vmstat_strs_(BuildVmstatCounterNames()) {
+      vmstat_strs_(BuildVmstatCounterNames()),
+      cgroup_strs_(BuildCgroupCounterNames()) {
   for (size_t i = 0; i < base::ArraySize(base::kCpuInfoFeatures); ++i) {
     base::StackString<1024> key("cpu_features.%s", base::kCpuInfoFeatures[i]);
     cpu_features_ids_[i] = context->storage->InternString(key.string_view());
@@ -621,6 +622,50 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 
   for (auto it = sys_stats.slab_info(); it; ++it) {
     ParseSlabInfo(ts, *it);
+  }
+
+  for (auto it = sys_stats.cgroup(); it; ++it) {
+    ParseCgroup(ts, *it);
+  }
+}
+
+void SystemProbesParser::ParseCgroup(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SysStats::Cgroup::Decoder cgroup(blob);
+  base::StringView path = cgroup.path();
+
+  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+      "cgroup", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("cgroup_path"),
+          tracks::StringDimensionBlueprint("cgroup_name"),
+          tracks::StringDimensionBlueprint("cgroup_device")),
+      tracks::FnNameBlueprint([](base::StringView cgroup_path,
+                                 base::StringView name,
+                                 base::StringView device) {
+        if (device.empty()) {
+          return base::StackString<1024>(
+              "cgroup %.*s %.*s", int(cgroup_path.size()), cgroup_path.data(),
+              int(name.size()), name.data());
+        }
+        return base::StackString<1024>(
+            "cgroup %.*s %.*s %.*s", int(cgroup_path.size()),
+            cgroup_path.data(), int(name.size()), name.data(),
+            int(device.size()), device.data());
+      }));
+
+  for (auto it = cgroup.counter(); it; ++it) {
+    protos::pbzero::SysStats::Cgroup::Counter::Decoder counter(*it);
+    auto key = static_cast<size_t>(counter.key());
+    if (PERFETTO_UNLIKELY(key == 0 || key >= cgroup_strs_.size() ||
+                          !cgroup_strs_[key])) {
+      PERFETTO_ELOG("Cgroup counter key %zu is not recognized.", key);
+      continue;
+    }
+    TrackId track = context_->track_tracker->InternTrack(
+        kBlueprint,
+        tracks::Dimensions(path, cgroup_strs_[key], counter.device()));
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(counter.value()), track);
   }
 }
 
