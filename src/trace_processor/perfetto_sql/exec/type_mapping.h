@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_TYPE_MAPPING_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_TYPE_MAPPING_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_EXEC_TYPE_MAPPING_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_EXEC_TYPE_MAPPING_H_
 
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/common/storage_types.h"
 
-namespace perfetto::trace_processor::lineage {
+namespace perfetto::trace_processor::exec {
 
 namespace analysis = ::perfetto::perfetto_sql::analysis;
 
@@ -52,6 +52,6 @@ inline core::StorageType ToStorageType(analysis::ColumnType type) {
   return type.MapByIndex<core::StorageType>();
 }
 
-}  // namespace perfetto::trace_processor::lineage
+}  // namespace perfetto::trace_processor::exec
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_TYPE_MAPPING_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_EXEC_TYPE_MAPPING_H_
