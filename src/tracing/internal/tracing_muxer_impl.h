@@ -45,6 +45,7 @@
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/tracing.h"
+#include "src/tracing/v2/producer_ring.h"
 
 #include "protos/perfetto/common/interceptor_descriptor.gen.h"
 
@@ -62,11 +63,6 @@ struct TracingInitArgs;
 namespace base {
 class TaskRunner;
 }
-
-namespace tracing_v2 {
-class InProcessTracingV2Bridge;
-class RelaySequence;
-}  // namespace tracing_v2
 
 namespace shlib {
 void ResetForTesting();
@@ -256,29 +252,44 @@ class TracingMuxerImpl : public TracingMuxer {
     // A v1-only connection never creates a TracingV2Connection or calls these
     // helpers.
 
-    // Publishes the endpoint and bridge together so writer creation can check
-    // that both belong to the same connection. Declare |endpoint| first so this
-    // object's bridge reference is released before its endpoint reference.
-    // Other bridge owners can survive this object. ProducerImpl::dead_services_
-    // then retains the endpoint while the bridge's v1 writers still need it.
-    struct TracingV2Connection {
-      // Creates the downstream v1 writer and wraps it in a v2 writer. The
-      // caller's exhaustion policy applies only to the v2 ring buffer.
-      // Thread-safe.
+    // Publishes the endpoint and ring together so writer creation can check
+    // that both belong to the same connection. Implements the ring's control
+    // channel to the service (ProducerRing::ServiceChannel).
+    // ReleaseTracingV2Connection() detaches this channel before releasing the
+    // connection. Surviving writers retain the ring, which no longer calls
+    // this object. Declare |endpoint| first so its reference is released last.
+    struct TracingV2Connection
+        : public tracing_v2::ProducerRing::ServiceChannel {
+      // Creates a v2 TraceWriter on the producer-owned ring. Thread-safe.
       std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
                                                      BufferExhaustedPolicy);
 
+      // ProducerRing::ServiceChannel. Called from any writer thread while the
+      // ring is attached; asks the service to drain. It calls the endpoint
+      // directly (not via the muxer sequence): the endpoint hops to its own
+      // drain sequence (the service task runner in process, an IPC send over
+      // the wire), so a writer stalling on the muxer sequence during OnFlush
+      // still gets the ring drained. Ring detach (mutex-guarded) quiesces this
+      // before the connection is dropped.
+      void NotifyRingData(std::function<void()> on_picked_up) override;
+
+      // True if the endpoint drains the ring on the calling thread, so a
+      // stalling writer here would deadlock the drain and should drop instead
+      // (an IPC writer on the client sequence). Forwards to the endpoint.
+      bool DrainRunsOnCurrentThread() override;
+
       std::shared_ptr<ProducerEndpoint> endpoint;
-      std::shared_ptr<tracing_v2::InProcessTracingV2Bridge> bridge;
+      std::shared_ptr<tracing_v2::ProducerRing> ring;
     };
 
-    // Lazily creates this connection's bridge and the process-wide relay.
-    // Rejects incompatible startup tracing and invalid ring buffer settings.
-    // Moves existing flushes to the ordered v2 path.
+    // Lazily allocates this connection's ring and asks the service to adopt it.
+    // Rejects unsupported direct transport, incompatible startup tracing, and
+    // invalid ring geometry. Moves existing flushes to the ordered v2 path.
     void EnsureTracingV2Connection();
 
-    // Drops |tracing_v2_connection_| after the caller clears pending flushes.
-    // Release the bridge before |service_| releases its v1 arbiter.
+    // Detaches the ring from the service and drops |tracing_v2_connection_|
+    // after the caller clears pending flushes. Surviving writers keep the ring
+    // (and its memory) alive; after detach it no longer notifies the service.
     void ReleaseTracingV2Connection();
 
     // Flushes a connection's requests in FlushRequestID order.
@@ -336,9 +347,8 @@ class TracingMuxerImpl : public TracingMuxer {
       kPending,
 
       // Wait for the drain's completion callback on the muxer.
-      // The relay reads to the sampled position and flushes its v1 writers.
-      // After their commits are posted, the callback changes this to kNone.
-      // This does not wait for the service to acknowledge those commits.
+      // The service reads the ring up to what the producer has published and
+      // admits it to the trace buffer; the callback then changes this to kNone.
       kInProgress,
     };
 
@@ -349,7 +359,7 @@ class TracingMuxerImpl : public TracingMuxer {
       // Instances whose asynchronous OnFlush() has not completed yet.
       std::set<DataSourceInstanceID> pending_data_sources;
 
-      // Drains use the bridge owned by tracing_v2_connection_.
+      // Drains go through tracing_v2_connection_'s endpoint.
       // DisposeConnection() clears this queue before releasing the connection.
       RingBufferDrainState ring_buffer_drain = RingBufferDrainState::kNone;
     };
@@ -627,24 +637,28 @@ class TracingMuxerImpl : public TracingMuxer {
                                 DataSourceInstanceID,
                                 const FindDataSourceRes&,
                                 FlushRequestID);
-  // Finds the producer only if |backend_connection_id| is still current. Relay
+  // Finds the producer only if |backend_connection_id| is still current. Drain
   // completions must not touch a replacement connection.
   ProducerImpl* FindProducerForConnection(TracingBackendId,
                                           uint32_t backend_connection_id);
-  // Drains the ring buffer on the relay sequence, then posts to the muxer.
+  // Asks the service to drain the connection's ring, then posts to the muxer.
   // Runs |on_drained| only if the muxer generation still matches. The callback
   // must also check that its producer connection is still current.
   void DrainTracingV2RingBufferThenPostToMuxer(
-      const std::shared_ptr<tracing_v2::InProcessTracingV2Bridge>& bridge,
+      const std::shared_ptr<ProducerImpl::TracingV2Connection>& connection,
       std::function<void()> on_drained);
-  // Finish a flush or stop on the muxer after draining the ring buffer and
-  // flushing the bridge's v1 writers.
+  // Finish a flush or stop on the muxer after the service has drained the ring.
   void FlushTracingV2RingBuffer_AsyncEnd(TracingBackendId,
                                          uint32_t backend_connection_id,
                                          FlushRequestID);
   void StopTracingV2RingBuffer_AsyncEnd(TracingBackendId,
                                         uint32_t backend_connection_id,
                                         DataSourceInstanceID);
+  // Drops a connection's v2 ring after the service rejected adoption, so no
+  // writer keeps producing into a ring the service is not reading and no flush
+  // is acknowledged into it. Revalidates the connection after the thread hop.
+  void TracingV2RingAdoptionFailed_AsyncEnd(TracingBackendId,
+                                            uint32_t backend_connection_id);
   void AbortStartupTracingSession(TracingSessionGlobalID, BackendType);
   // When ResetForTesting() is executed, `cb` will be called on the calling
   // thread and on the muxer thread.
@@ -652,16 +666,6 @@ class TracingMuxerImpl : public TracingMuxer {
 
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
-  // The sequence that drains the v2 bridges of all backends. Created by the
-  // first instance that selects v2. Like |task_runner_| it survives
-  // ResetForTesting() and is only closed by Shutdown().
-  //
-  // Bridges retain this handle after shutdown. Posts then fail safely.
-  //
-  // WARNING: as for ProducerImpl::service_, any *write* access or any *read*
-  // access from a non-muxer thread (Shutdown()) must go through
-  // std::atomic_{load,store}.
-  std::shared_ptr<tracing_v2::RelaySequence> tracing_v2_relay_;
   std::vector<RegisteredDataSource> data_sources_;
   // These lists can only have one backend per BackendType. The elements are
   // sorted by BackendType priority (see BackendTypePriority). They always

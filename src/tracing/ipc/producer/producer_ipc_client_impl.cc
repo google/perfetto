@@ -102,6 +102,7 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     CreateSocketAsync create_socket_async)
     : producer_(producer),
       task_runner_(task_runner),
+      weak_runner_(task_runner),
       receive_shmem_fd_cb_fuchsia_(
           std::move(conn_args.receive_shmem_fd_cb_fuchsia)),
       producer_port_(
@@ -155,15 +156,20 @@ ProducerIPCClientImpl::~ProducerIPCClientImpl() {
 
 void ProducerIPCClientImpl::Disconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!producer_port_)
+  // Complete the teardown exactly once. |producer_port_| cannot be the guard:
+  // ScheduleDisconnect() drops it before posting this, so guarding on it here
+  // would skip the channel teardown and the OnDisconnect() notification.
+  if (disconnected_)
     return;
+  disconnected_ = true;
   // Reset the producer port so that no further IPCs are received and IPC
-  // callbacks are no longer executed. Also reset the IPC channel so that the
-  // service is notified of the disconnection.
+  // callbacks are no longer executed (may already be null after
+  // ScheduleDisconnect()). Also reset the IPC channel so that the service is
+  // notified of the disconnection.
   producer_port_.reset();
   ipc_channel_.reset();
   // Perform disconnect synchronously.
-  OnDisconnect();
+  OnDisconnect();  // Note: may delete |this|.
 }
 
 // Called by the IPC layer if the BindService() succeeds.
@@ -181,7 +187,9 @@ void ProducerIPCClientImpl::OnConnect() {
             resp.success(),
             resp.success() ? resp->using_shmem_provided_by_producer() : false,
             resp.success() ? resp->direct_smb_patching_supported() : false,
-            resp.success() ? resp->use_shmem_emulation() : false);
+            resp.success() ? resp->use_shmem_emulation() : false,
+            resp.success() ? resp->tracing_v2_direct_transport_supported()
+                           : false);
       });
   protos::gen::InitializeConnectionRequest req;
   req.set_producer_name(name_);
@@ -253,6 +261,9 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
 
   // Then schedule an async task for performing the remainder of the
   // disconnection operations outside the context of the IPC method handler.
+  // Disconnect() runs its teardown exactly once, guarded by |disconnected_|
+  // rather than by |producer_port_| (which we just cleared), so the channel
+  // teardown and the OnDisconnect() notification still happen here.
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this]() {
     if (weak_this) {
@@ -265,7 +276,8 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
     bool connection_succeeded,
     bool using_shmem_provided_by_producer,
     bool direct_smb_patching_supported,
-    bool use_shmem_emulation) {
+    bool use_shmem_emulation,
+    bool tracing_v2_direct_transport_supported) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // If connection_succeeded == false, the OnDisconnect() call will follow next
   // and there we'll notify the |producer_|. TODO: add a test for this.
@@ -273,6 +285,8 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
     return;
   is_shmem_provided_by_producer_ = using_shmem_provided_by_producer;
   direct_smb_patching_supported_ = direct_smb_patching_supported;
+  tracing_v2_direct_transport_supported_ =
+      tracing_v2_direct_transport_supported;
   // The tracing service may reject using shared memory and tell the client to
   // commit data over the socket. This can happen when the client connects to
   // the service via a relay service:
@@ -585,6 +599,103 @@ void ProducerIPCClientImpl::Sync(std::function<void()> callback) {
     callback();
   });
   producer_port_->Sync(protos::gen::SyncRequest(), std::move(resp));
+}
+
+bool ProducerIPCClientImpl::IsTracingV2DirectTransportSupported() const {
+  return tracing_v2_direct_transport_supported_;
+}
+
+std::shared_ptr<SharedMemory> ProducerIPCClientImpl::CreateTracingV2Ring(
+    size_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Direct v2 transport needs FD passing, unavailable on the Windows shared
+  // memory path; the service does not advertise support there.
+  (void)size;
+  return nullptr;
+#else
+  // A sealed memfd, so the service can map it and the producer cannot shrink it
+  // under the reader.
+  return PosixSharedMemory::Create(size);
+#endif
+}
+
+void ProducerIPCClientImpl::AdoptTracingV2Ring(
+    AdoptTracingV2RingArgs args,
+    std::function<void(bool)> on_result) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto reject = [&on_result] {
+    if (on_result)
+      on_result(false);
+  };
+  if (!connected_ || !producer_port_)
+    return reject();
+  if (!tracing_v2_direct_transport_supported_) {
+    // The muxer must gate on IsTracingV2DirectTransportSupported() before using
+    // the direct path; reaching here means that gate was skipped.
+    PERFETTO_ELOG("Service does not support direct v2 ring transport");
+    return reject();
+  }
+  int shm_fd = -1;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Direct v2 transport over IPC needs FD passing, which the Windows shared
+  // memory path does not provide. The service does not advertise support on
+  // Windows, so this branch is defensive only.
+  PERFETTO_ELOG("Direct v2 ring transport over IPC is unsupported on Windows");
+  return reject();
+#else
+  shm_fd = static_cast<PosixSharedMemory*>(args.shared_memory.get())->fd();
+#endif
+  protos::gen::AdoptTracingV2RingRequest req;
+  req.set_num_chunks(args.num_chunks);
+  req.set_chunk_size_bytes(args.chunk_size);
+  ipc::Deferred<protos::gen::AdoptTracingV2RingResponse> resp;
+  resp.Bind([on_result = std::move(on_result)](
+                ipc::AsyncResult<protos::gen::AdoptTracingV2RingResponse> r) {
+    // Runs when the adoption RPC resolves, or on channel close (auto-reject).
+    // |r| is false if the service rejected the ring.
+    if (!r)
+      PERFETTO_ELOG("Service rejected the v2 ring adoption");
+    if (on_result)
+      on_result(static_cast<bool>(r));
+  });
+  // The ring memory FD rides out-of-band on this invocation. The producer's
+  // ProducerRing keeps the mapping alive, so the descriptor stays valid.
+  producer_port_->AdoptTracingV2Ring(req, std::move(resp), shm_fd);
+}
+
+void ProducerIPCClientImpl::NotifyTracingV2RingData(
+    std::function<void()> on_drained) {
+  // Called from any writer thread (ring backpressure / a writer's Flush) as
+  // well as from the muxer sequence. Hop to the client sequence to touch the
+  // IPC channel; the WeakRunner drops the task if this endpoint is gone.
+  weak_runner_.PostTask([this, cb = std::move(on_drained)]() mutable {
+    if (!connected_ || !producer_port_) {
+      // Nothing will drain the ring; run the callback so the ProducerRing does
+      // not stall a flush waiting for a reply that will never come.
+      if (cb)
+        cb();
+      return;
+    }
+    ipc::Deferred<protos::gen::NotifyTracingV2RingDataResponse> resp;
+    resp.Bind([cb = std::move(cb)](
+                  ipc::AsyncResult<
+                      protos::gen::NotifyTracingV2RingDataResponse>) mutable {
+      // Runs on reply, i.e. after the service has drained up to this point (or
+      // on channel close, where the reply is auto-rejected). Either way, let
+      // the ProducerRing re-arm / complete its flush.
+      if (cb)
+        cb();
+    });
+    producer_port_->NotifyTracingV2RingData(
+        protos::gen::NotifyTracingV2RingDataRequest(), std::move(resp));
+  });
+}
+
+bool ProducerIPCClientImpl::IsTracingV2DrainOnCurrentThread() const {
+  // NotifyTracingV2RingData() posts the drain RPC to the client task runner. A
+  // writer running on that sequence cannot be woken by that task, so it must
+  // drop rather than park on a full ring.
+  return weak_runner_.task_runner()->RunsTasksOnCurrentThread();
 }
 
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(

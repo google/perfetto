@@ -293,6 +293,18 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
       return exhausted_result;
     }
 
+    // If the drain task runs on this thread, a wait here prevents it from
+    // freeing space. For example, an IPC writer can run on the client sequence
+    // that also handles drain requests. Drop instead of waiting for that task.
+    // On other threads, the writer can wait while the drain task makes progress.
+    if (delegate_->DrainRunsOnCurrentThread()) {
+      PERFETTO_DLOG(
+          "tracing v2: writer %u: drain runs on this thread, dropping instead "
+          "of stalling",
+          writer_id_);
+      return exhausted_result;
+    }
+
     const base::TimeMillis now = base::GetWallTimeMs();
     // Set one deadline for this acquisition. Retries must not extend the stall.
     if (!stall_deadline)

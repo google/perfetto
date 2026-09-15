@@ -234,8 +234,8 @@ message TraceConfig {
     //
     // Zero or absent selects 256 bytes. Other values must be a multiple of 4
     // from 256 through 32768 bytes (the current v1 SMB page-size limit).
-    // At least two chunks must fit within the producer's SMB size. The adapter
-    // uses this size as the ring's chunk-storage budget and adds a ring header.
+    // The SDK currently uses a separate 256 KiB budget for ring chunks and
+    // allocates the ring header in addition. At least two chunks must fit.
     //
     // The value is fixed when shared memory is set up. Changing it requires the
     // producer to reconnect. A producer-provided SMB is set up at connection

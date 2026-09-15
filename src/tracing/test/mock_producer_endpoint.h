@@ -64,6 +64,19 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
               (const std::vector<std::string>&),
               (override));
   MOCK_METHOD(void, Sync, (std::function<void()>), (override));
+  MOCK_METHOD(bool, IsTracingV2DirectTransportSupported, (), (const, override));
+  MOCK_METHOD(std::shared_ptr<SharedMemory>,
+              CreateTracingV2Ring,
+              (size_t),
+              (override));
+  MOCK_METHOD(void,
+              AdoptTracingV2Ring,
+              (AdoptTracingV2RingArgs, std::function<void(bool)>),
+              (override));
+  MOCK_METHOD(void,
+              NotifyTracingV2RingData,
+              (std::function<void()>),
+              (override));
 };
 
 }  // namespace perfetto

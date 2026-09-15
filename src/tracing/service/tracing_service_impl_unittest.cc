@@ -62,12 +62,15 @@
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
 #include "src/tracing/test/mock_producer.h"
 #include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
+#include "src/tracing/v2/producer_ring.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/semantic_type.gen.h"
@@ -3890,6 +3893,128 @@ TEST_F(TracingServiceImplTest, InvalidTracingV2ChunkSizeRejectsConfig) {
   }
 }
 
+TEST_F(TracingServiceImplTest, TracingV2DataSourceRequiresV2Buffer) {
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer");
+  producer->RegisterDataSource("ds_v2");
+  EXPECT_CALL(*producer, OnTracingSetup()).Times(0);
+
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig config;
+  // A default (v1) buffer paired with a use_tracing_v2 data source: rejected,
+  // because the v2 ring admits only into a TraceBufferV2 (would silently drop).
+  config.add_buffers()->set_size_kb(128);
+  auto* ds = config.add_data_sources()->mutable_config();
+  ds->set_name("ds_v2");
+  ds->set_use_tracing_v2(true);
+  consumer->EnableTracing(config);
+  consumer->WaitForTracingDisabledWithError(
+      HasSubstr("experimental_mode = TRACE_BUFFER_V2"));
+}
+
+// A use_tracing_v2 source addressing a TraceBufferV2 by name is accepted, even
+// though the numeric target_buffer defaults to 0 (a v1 buffer). The v2/TBv2
+// check runs on the resolved buffer, not the raw numeric target.
+TEST_F(TracingServiceImplTest, TracingV2NamedTargetBufferResolvedBeforeCheck) {
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer");
+  producer->RegisterDataSource("ds_v2");
+
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig config;
+  config.add_buffers()->set_size_kb(128);  // buffer 0: v1, unnamed.
+  auto* v2buf = config.add_buffers();      // buffer 1: named TraceBufferV2.
+  v2buf->set_size_kb(128);
+  v2buf->set_name("v2buf");
+  v2buf->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds = config.add_data_sources()->mutable_config();
+  ds->set_name("ds_v2");
+  ds->set_use_tracing_v2(true);
+  ds->set_target_buffer_name("v2buf");  // Numeric target defaults to 0 (v1).
+  consumer->EnableTracing(config);
+
+  // Accepted: setup proceeds instead of a rejection.
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_v2");
+  DataSourceInstanceID id = producer->GetDataSourceInstanceId("ds_v2");
+  producer->WaitForDataSourceStart("ds_v2");
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_v2");
+  // A v2 data source acknowledges its stop before tracing is disabled.
+  producer->endpoint()->NotifyDataSourceStopped(id);
+  consumer->WaitForTracingDisabled();
+}
+
+// A TraceBufferV2 targeted by both a use_tracing_v2 source and a ProtoVM source
+// is rejected at setup: the VM reads stored packets as v1 sequences and would
+// misread raw v2 fragments, including on eviction.
+TEST_F(TracingServiceImplTest, TracingV2AndProtoVmOnSameBufferRejected) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig config;
+  auto* buf = config.add_buffers();
+  buf->set_size_kb(128);
+  buf->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* v2ds = config.add_data_sources()->mutable_config();
+  v2ds->set_name("ds_v2");
+  v2ds->set_use_tracing_v2(true);
+  auto* vmds = config.add_data_sources()->mutable_config();
+  vmds->set_name("ds_vm");
+  vmds->mutable_protovm_config()->set_memory_limit_kb(64);
+  consumer->EnableTracing(config);
+  consumer->WaitForTracingDisabledWithError(
+      HasSubstr("not a supported combination"));
+}
+
+// A configured v2 ring chunk that cannot fit its target TraceBufferV2 is
+// rejected at EnableTracing, rather than silently dropping every full chunk on
+// admission later.
+TEST_F(TracingServiceImplTest, TracingV2ChunkLargerThanBufferRejected) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig config;
+  auto* buf = config.add_buffers();
+  buf->set_size_kb(8);  // 8 KiB target buffer.
+  buf->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds = config.add_data_sources()->mutable_config();
+  ds->set_name("ds_v2");
+  ds->set_use_tracing_v2(true);
+  auto* pc = config.add_producers();
+  pc->set_producer_name("big_chunk_producer");
+  pc->set_tracing_v2_chunk_size_bytes(32768);  // 32 KiB cannot fit 8 KiB.
+  consumer->EnableTracing(config);
+  consumer->WaitForTracingDisabledWithError(
+      HasSubstr("too small for a v2 ring chunk"));
+}
+
+// A small TraceBufferV2 is accepted with the default ring chunk: setup does not
+// over-reject a legitimate small buffer when no large chunk is configured.
+TEST_F(TracingServiceImplTest, TracingV2SmallBufferWithDefaultChunkAccepted) {
+  auto producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer");
+  producer->RegisterDataSource("ds_v2");
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig config;
+  auto* buf = config.add_buffers();
+  buf->set_size_kb(16);  // 16 KiB comfortably holds the 4 KiB default chunk.
+  buf->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds = config.add_data_sources()->mutable_config();
+  ds->set_name("ds_v2");
+  ds->set_use_tracing_v2(true);
+  consumer->EnableTracing(config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_v2");
+  DataSourceInstanceID id = producer->GetDataSourceInstanceId("ds_v2");
+  producer->WaitForDataSourceStart("ds_v2");
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_v2");
+  producer->endpoint()->NotifyDataSourceStopped(id);
+  consumer->WaitForTracingDisabled();
+}
+
 TEST_F(TracingServiceImplTest, ValidTracingV2ChunkSizeBoundariesReachProducer) {
   // A new producer is needed each time: the setting is fixed at SMB setup.
   for (uint32_t size : {0u, 256u, 260u, 32768u}) {
@@ -4291,7 +4416,12 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForTracingV2StopAck) {
   producer->RegisterDataSource("ds_v2");
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(128);
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  // A v2 data source stores into a TraceBufferV2 (the service rejects pairing
+  // it with a v1 buffer). The buffer type is orthogonal to the stop-ack
+  // protocol this test exercises.
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("ds_v2");
   ds_config->set_use_tracing_v2(true);
@@ -9021,6 +9151,186 @@ TEST_F(TracingServiceImplTest, TraceProvenance) {
                       Property(
                           &protos::gen::TraceProvenance::Sequence::producer_id,
                           Not(Eq(0)))))))));
+}
+
+namespace {
+// Bridges a producer-owned ProducerRing's data notifications to a service
+// endpoint. In production this adapter lives in the muxer; here it lets the
+// service-level tests drive the direct v2 transport without the muxer.
+class EndpointServiceChannel : public tracing_v2::ProducerRing::ServiceChannel {
+ public:
+  explicit EndpointServiceChannel(TracingService::ProducerEndpoint* endpoint)
+      : endpoint_(endpoint) {}
+  void NotifyRingData(std::function<void()> on_picked_up) override {
+    endpoint_->NotifyTracingV2RingData(std::move(on_picked_up));
+  }
+
+ private:
+  TracingService::ProducerEndpoint* const endpoint_;
+};
+}  // namespace
+
+// End-to-end in-process direct v2 transport: the producer allocates its own
+// ring, hands it to the service, and writes through v2 TraceWriters. The
+// service reads the ring directly (no v1 SMB relay) and the packet comes out of
+// the consumer.
+TEST_F(TracingServiceImplTest, TracingV2DirectRingDeliversPackets) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds");
+  consumer->EnableTracing(trace_config);
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer");
+  producer->RegisterDataSource("ds");
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds");
+  producer->WaitForDataSourceStart("ds");
+
+  const BufferID buf_id = producer->GetDataSourceInstance("ds")->target_buffer;
+
+  constexpr uint32_t kNumChunks = 4;
+  constexpr uint32_t kChunkSize = 4096;
+  auto shmem = std::shared_ptr<SharedMemory>(InProcessSharedMemory::Create(
+      tracing_v2::ProducerRing::LogicalSize(kNumChunks, kChunkSize)));
+  EndpointServiceChannel channel(producer->endpoint());
+  auto ring =
+      tracing_v2::ProducerRing::Create(shmem, kNumChunks, kChunkSize, &channel);
+  ASSERT_TRUE(ring);
+
+  TracingService::ProducerEndpoint::AdoptTracingV2RingArgs args;
+  args.shared_memory = shmem;
+  args.num_chunks = kNumChunks;
+  args.chunk_size = kChunkSize;
+  bool adopted = false;
+  producer->endpoint()->AdoptTracingV2Ring(
+      std::move(args), [&adopted](bool ok) { adopted = ok; });
+  EXPECT_TRUE(adopted);
+
+  std::unique_ptr<TraceWriter> writer =
+      ring->CreateTraceWriter(buf_id, BufferExhaustedPolicy::kDrop);
+  writer->NewTracePacket()->set_for_testing()->set_str("direct_v2");
+  writer->Flush();
+  task_runner.RunUntilIdle();
+
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("direct_v2")))));
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds");
+  consumer->WaitForTracingDisabled();
+}
+
+// A producer that sends invalid ring geometry is rejected without crashing the
+// service, and a later notification simply runs its callback (nothing hangs).
+TEST_F(TracingServiceImplTest, TracingV2DirectRingRejectsInvalidGeometry) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds");
+  consumer->EnableTracing(trace_config);
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer");
+  producer->RegisterDataSource("ds");
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds");
+  producer->WaitForDataSourceStart("ds");
+
+  // num_chunks = 3 is not a power of two: rejected nonfatally, no ring adopted.
+  auto shmem =
+      std::shared_ptr<SharedMemory>(InProcessSharedMemory::Create(64 * 1024));
+  TracingService::ProducerEndpoint::AdoptTracingV2RingArgs args;
+  args.shared_memory = shmem;
+  args.num_chunks = 3;
+  args.chunk_size = 4096;
+  bool adopted = true;
+  producer->endpoint()->AdoptTracingV2Ring(
+      std::move(args), [&adopted](bool ok) { adopted = ok; });
+  EXPECT_FALSE(
+      adopted);  // Invalid geometry: rejection is reported, not success.
+  task_runner.RunUntilIdle();
+
+  bool ran = false;
+  producer->endpoint()->NotifyTracingV2RingData([&ran] { ran = true; });
+  task_runner.RunUntilIdle();
+  EXPECT_TRUE(ran);
+
+  // The service is still healthy: a normal teardown completes.
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds");
+  consumer->WaitForTracingDisabled();
+}
+
+// Data still sitting in the ring when the producer disconnects is drained into
+// the buffer before teardown, mirroring the v1 SMB scrape on disconnect.
+TEST_F(TracingServiceImplTest, TracingV2DirectRingDrainsOnDisconnect) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds");
+  consumer->EnableTracing(trace_config);
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "producer");
+  producer->RegisterDataSource("ds");
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds");
+  producer->WaitForDataSourceStart("ds");
+
+  const BufferID buf_id = producer->GetDataSourceInstance("ds")->target_buffer;
+
+  constexpr uint32_t kNumChunks = 4;
+  constexpr uint32_t kChunkSize = 4096;
+  auto shmem = std::shared_ptr<SharedMemory>(InProcessSharedMemory::Create(
+      tracing_v2::ProducerRing::LogicalSize(kNumChunks, kChunkSize)));
+  EndpointServiceChannel channel(producer->endpoint());
+  auto ring =
+      tracing_v2::ProducerRing::Create(shmem, kNumChunks, kChunkSize, &channel);
+  ASSERT_TRUE(ring);
+  TracingService::ProducerEndpoint::AdoptTracingV2RingArgs args;
+  args.shared_memory = shmem;
+  args.num_chunks = kNumChunks;
+  args.chunk_size = kChunkSize;
+  bool adopted = false;
+  producer->endpoint()->AdoptTracingV2Ring(
+      std::move(args), [&adopted](bool ok) { adopted = ok; });
+  EXPECT_TRUE(adopted);
+
+  std::unique_ptr<TraceWriter> writer =
+      ring->CreateTraceWriter(buf_id, BufferExhaustedPolicy::kDrop);
+  writer->NewTracePacket()->set_for_testing()->set_str("on_disconnect");
+  // Publishes the chunk. Destroying the writer nudges the reader (a posted
+  // drain), but no task is pumped and no flush is issued before the detach
+  // below, so the disconnect drain is what admits this data.
+  writer.reset();
+  ring->DetachFromService();
+  ring.reset();  // The endpoint still holds the mapping for its final drain.
+
+  // Disconnect the producer: ~ProducerEndpointImpl drains the ring first.
+  producer.reset();
+  task_runner.RunUntilIdle();
+
+  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("on_disconnect")))));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
 }
 
 void WriteProtoVmPatches(TraceWriter& writer,

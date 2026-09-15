@@ -49,6 +49,16 @@ class CountingSharedRingBufferWriterDelegate
   uint32_t num_notifications = 0;
 };
 
+// Reports that the reader drains on the calling thread and never frees space,
+// to exercise the drop-instead-of-stall path (the R3 IPC client-thread case).
+class OnDrainThreadWriterDelegate : public SharedRingBufferWriter::Delegate {
+ public:
+  void NotifyReader() override { ++num_notifications; }
+  bool DrainRunsOnCurrentThread() override { return true; }
+
+  uint32_t num_notifications = 0;
+};
+
 // Waits for the chosen number of notifications, then frees one chunk per call.
 // The chunk at read_pos must be Complete or RewriteAcknowledged. It becomes
 // Free and read_pos moves past it.
@@ -516,6 +526,25 @@ TEST(SharedRingBufferWriterTest, SleepFallbackRetriesUntilSpaceIsAvailable) {
     EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(0)).fragments,
               std::vector<std::string>{"recovered"});
   }
+}
+
+TEST(SharedRingBufferWriterTest, StallDropsWhenDrainRunsOnCurrentThread) {
+  // A stalling writer whose reader drains on this same thread must drop rather
+  // than park: parking would deadlock the drain that frees space. This is the
+  // R3 case of an IPC writer running on the client sequence.
+  test::SharedRingBufferForTesting ring(2, 256);
+  SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
+  ASSERT_TRUE(WriteFragment(&first, "first"));
+  first.FinishCurrentChunk();
+  ASSERT_TRUE(WriteFragment(&first, "second"));
+  first.FinishCurrentChunk();
+
+  OnDrainThreadWriterDelegate delegate;
+  SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer,
+                                BufferExhaustedPolicy::kStall, &delegate);
+  // The ring is full and no space will be freed. The writer drops immediately
+  // instead of stalling to the deadline (which for kStall would be fatal).
+  EXPECT_EQ(second.BeginFragment(1, false).result, BeginFragmentResult::kFull);
 }
 
 TEST(SharedRingBufferWriterTest, StallThenDropEpisode) {

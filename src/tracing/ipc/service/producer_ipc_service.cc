@@ -31,6 +31,9 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
 #else
+#include <fcntl.h>
+#include <sys/stat.h>
+
 #include "src/tracing/ipc/posix_shared_memory.h"
 #endif
 
@@ -146,6 +149,15 @@ void ProducerIPCService::InitializeConnection(
   async_res->set_using_shmem_provided_by_producer(using_producer_shmem);
   async_res->set_direct_smb_patching_supported(true);
   async_res->set_use_shmem_emulation(use_shmem_emulation);
+  // Direct v2 ring transport needs end-to-end FD passing to hand the
+  // producer-allocated ring to the service. The Windows shared-memory path does
+  // not provide it, and shared-memory emulation (for example a relay or vsock
+  // transport) does not pass the ring FD through either. Advertise support only
+  // when the real FD-passing path is in use, so a producer on an emulated
+  // transport keeps to the v1 path instead of failing.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  async_res->set_tracing_v2_direct_transport_supported(!use_shmem_emulation);
+#endif
   response.Resolve(std::move(async_res));
 }
 
@@ -365,6 +377,112 @@ void ProducerIPCService::ActivateTriggers(
     resp.Resolve(
         ipc::AsyncResult<protos::gen::ActivateTriggersResponse>::Create());
   }
+}
+
+void ProducerIPCService::AdoptTracingV2Ring(
+    const protos::gen::AdoptTracingV2RingRequest& req,
+    DeferredAdoptTracingV2RingResponse resp) {
+  RemoteProducer* producer = GetProducerForCurrentRequest();
+  if (!producer) {
+    PERFETTO_DLOG(
+        "Producer invoked AdoptTracingV2Ring() before InitializeConnection()");
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // FD passing (and hence direct v2 transport) is unavailable on Windows; the
+  // service does not advertise support there, so this is defensive only.
+  PERFETTO_ELOG("AdoptTracingV2Ring is unsupported on Windows");
+  if (resp.IsBound())
+    resp.Reject();
+#else
+  // Take the ring FD the producer sent out-of-band.
+  base::ScopedFile ring_fd = ipc::Service::TakeReceivedFD();
+  if (!ring_fd) {
+    PERFETTO_ELOG("AdoptTracingV2Ring() without a ring FD");
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+
+  // The ring FD is producer-controlled and untrusted. Validate it nonfatally
+  // before mapping. PosixSharedMemory::AttachToFd fatally CHECKs a positive
+  // size and a successful writable mmap, so a zero-length FD or a read-only FD
+  // would abort the whole service. Reject a non-positive or over-budget size,
+  // and a descriptor that is not read-write, so the fatal helper only sees an
+  // FD it can map.
+  using AdoptArgs = TracingService::ProducerEndpoint::AdoptTracingV2RingArgs;
+  struct stat st = {};
+  if (fstat(ring_fd.get(), &st) != 0 || st.st_size <= 0 ||
+      static_cast<uint64_t>(st.st_size) > AdoptArgs::kMaxRingSizeBytes) {
+    PERFETTO_ELOG("AdoptTracingV2Ring() FD has an invalid or too-large size");
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+  const int fl = fcntl(ring_fd.get(), F_GETFL);
+  if (fl == -1 || (fl & O_ACCMODE) != O_RDWR) {
+    PERFETTO_ELOG("AdoptTracingV2Ring() FD is not read-write");
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+
+  std::unique_ptr<SharedMemory> shmem = PosixSharedMemory::AttachToFd(
+      std::move(ring_fd), /*require_seals_if_supported=*/true);
+  if (!shmem) {
+    PERFETTO_ELOG("Couldn't map the producer-provided v2 ring");
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+  AdoptArgs args;
+  args.shared_memory = std::move(shmem);
+  args.num_chunks = req.num_chunks();
+  args.chunk_size = req.chunk_size_bytes();
+  // The endpoint validates the geometry against the mapped size. It runs the
+  // callback synchronously, so resolve the RPC on success and reject it on
+  // failure. The client must not treat an unread ring as adopted.
+  bool accepted = false;
+  producer->service_endpoint->AdoptTracingV2Ring(
+      std::move(args), [&accepted](bool a) { accepted = a; });
+  if (resp.IsBound()) {
+    if (accepted) {
+      resp.Resolve(
+          ipc::AsyncResult<protos::gen::AdoptTracingV2RingResponse>::Create());
+    } else {
+      resp.Reject();
+    }
+  }
+#endif
+}
+
+void ProducerIPCService::NotifyTracingV2RingData(
+    const protos::gen::NotifyTracingV2RingDataRequest&,
+    DeferredNotifyTracingV2RingDataResponse resp) {
+  RemoteProducer* producer = GetProducerForCurrentRequest();
+  if (!producer) {
+    PERFETTO_DLOG(
+        "Producer invoked NotifyTracingV2RingData() before "
+        "InitializeConnection()");
+    if (resp.IsBound())
+      resp.Reject();
+    return;
+  }
+  // Drain the producer's ring, then reply. The producer uses the reply to
+  // complete a flush/stop and to re-arm its notification coalescing, so the
+  // response must wait for the drain. |resp| is move-only; keep it alive in a
+  // shared_ptr so the drain callback (a std::function) can hold it.
+  auto shared_resp = std::make_shared<DeferredNotifyTracingV2RingDataResponse>(
+      std::move(resp));
+  producer->service_endpoint->NotifyTracingV2RingData([shared_resp]() {
+    if (shared_resp->IsBound()) {
+      shared_resp->Resolve(
+          ipc::AsyncResult<
+              protos::gen::NotifyTracingV2RingDataResponse>::Create());
+    }
+  });
 }
 
 void ProducerIPCService::GetAsyncCommand(

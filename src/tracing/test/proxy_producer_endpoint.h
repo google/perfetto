@@ -55,6 +55,12 @@ class ProxyProducerEndpoint : public ProducerEndpoint {
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
+  bool IsTracingV2DirectTransportSupported() const override;
+  std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t size) override;
+  void AdoptTracingV2Ring(AdoptTracingV2RingArgs,
+                          std::function<void(bool)> on_result) override;
+  void NotifyTracingV2RingData(std::function<void()> on_drained) override;
+  bool IsTracingV2DrainOnCurrentThread() const override;
   // End ProducerEndpoint implementation
 
  private:

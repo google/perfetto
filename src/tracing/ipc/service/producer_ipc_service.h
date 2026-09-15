@@ -66,6 +66,11 @@ class ProducerIPCService : public protos::gen::ProducerPort {
       DeferredNotifyDataSourceStoppedResponse) override;
   void ActivateTriggers(const protos::gen::ActivateTriggersRequest&,
                         DeferredActivateTriggersResponse) override;
+  void AdoptTracingV2Ring(const protos::gen::AdoptTracingV2RingRequest&,
+                          DeferredAdoptTracingV2RingResponse) override;
+  void NotifyTracingV2RingData(
+      const protos::gen::NotifyTracingV2RingDataRequest&,
+      DeferredNotifyTracingV2RingDataResponse) override;
 
   void GetAsyncCommand(const protos::gen::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;

@@ -46,6 +46,12 @@
 namespace perfetto {
 
 class SharedMemoryArbiterImpl;
+class TraceBufferV2;
+class TracingV2Ingress;
+
+namespace tracing_v2 {
+class SharedRingBuffer;
+}  // namespace tracing_v2
 
 namespace tracing_service {
 
@@ -95,6 +101,11 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   uint32_t tracing_v2_chunk_size_bytes() const override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
+  bool IsTracingV2DirectTransportSupported() const override { return true; }
+  std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t size) override;
+  void AdoptTracingV2Ring(AdoptTracingV2RingArgs,
+                          std::function<void(bool)> on_result) override;
+  void NotifyTracingV2RingData(std::function<void()> on_drained) override;
 
   void OnTracingSetup();
   void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&);
@@ -130,6 +141,29 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
   ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
+  // Tracing v2 direct transport (see ProducerEndpoint::AdoptTracingV2Ring).
+  // Runs on the service sequence.
+
+  // Validates the untrusted geometry and mapping and, if they pass, installs
+  // the ring and its ingress. Returns whether the ring was accepted.
+  bool AdoptTracingV2RingImpl(AdoptTracingV2RingArgs);
+  // Resolves a v2 ring chunk's target buffer to the destination TraceBufferV2,
+  // applying this producer's target permissions. Returns nullptr to drop the
+  // chunk: not a configured target, not a v2 buffer, or an unsupported v2 +
+  // ProtoVM combination.
+  TraceBufferV2* ResolveTracingV2TargetBuffer(BufferID);
+  // Appends |on_drained| and ensures a drain pass is scheduled.
+  void OnTracingV2RingNotify(std::function<void()> on_drained);
+  // One bounded drain pass; re-posts itself while there is more, then runs the
+  // accumulated drain acknowledgements once the reader has caught up.
+  void DrainTracingV2RingStep();
+  // Synchronously drains whatever is left (used at teardown) and runs any
+  // pending acknowledgements so flushes/stops in flight do not hang.
+  void DrainTracingV2RingToCompletion();
+  // Service-owned v2 transport memory: the ring mapping plus the ingress and
+  // reader scratch. Added to the memory guardrail (UpdateMemoryGuardrail).
+  uint64_t GetTracingV2MemoryUsageBytes() const;
+
   ProducerID const id_;
   ClientIdentity const client_identity_;
   TracingServiceImpl* const service_;
@@ -164,6 +198,24 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   // This is used only in in-process configurations.
   // SharedMemoryArbiterImpl methods themselves are thread-safe.
   std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
+
+  // Tracing v2 direct transport state. Populated by AdoptTracingV2Ring() and
+  // owned by the endpoint; the service is the ring's sole reader. All of these
+  // are touched only on the service sequence, except that the producer may call
+  // NotifyTracingV2RingData() from any thread; that hops to the service
+  // sequence, or drains inline when it already runs on it in process.
+  //
+  // |v2_ring_memory_| shares ownership of the producer-allocated mapping so it
+  // stays valid while the ingress reads it. |v2_ring_| is the service's view
+  // over that mapping; |v2_ingress_| reads it and admits fragments to TBv2.
+  std::shared_ptr<SharedMemory> v2_ring_memory_;
+  std::unique_ptr<tracing_v2::SharedRingBuffer> v2_ring_;
+  std::unique_ptr<TracingV2Ingress> v2_ingress_;
+  // Callbacks to run once the ring has been drained up to the point their
+  // NotifyTracingV2RingData() call observed (ring re-arm, flush and stop acks).
+  std::vector<std::function<void()>> v2_drain_acks_;
+  // Whether a DrainTracingV2RingStep() chain is currently posted.
+  bool v2_drain_scheduled_ = false;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;

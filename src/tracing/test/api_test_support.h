@@ -98,16 +98,6 @@ class TracingMuxerImplInternalsForTest {
   static bool DoesSystemBackendHaveSMB();
   static void ClearIncrementalState();
 
-  // Whether a v2 instance has created the relay. It persists until Shutdown(),
-  // so tests must account for earlier tests that created it.
-  // Safe from any thread while the muxer is alive.
-  static bool HasTracingV2Relay();
-
-  // Posts |task| to the v2 relay, or returns false if it is absent or closed.
-  // Tests can block the relay to check drain ordering and detect shutdown.
-  // Safe from any thread while the muxer is alive.
-  static bool PostToTracingV2Relay(std::function<void()> task);
-
   // Posts |task| to the muxer thread. Useful as a checkpoint: once |task| has
   // run, everything the muxer had queued before it has run too.
   static void PostToMuxerSequence(std::function<void()> task);

@@ -149,6 +149,13 @@ class SharedRingBufferReader {
   bool has_protocol_error() const { return has_protocol_error_; }
   uint32_t read_pos() const { return read_pos_; }
 
+  // Heap held by the reader's copy-out scratch. Bounded by one chunk's payload
+  // and fragment count. The service adds this to its memory guardrail.
+  size_t GetMemoryUsageBytes() const {
+    return copied_payload_.capacity() +
+           copied_fragments_.capacity() * sizeof(Fragment);
+  }
+
   // For diagnostics only. The protocol never reads these counters.
   // TODO(sashwinbalaji): Wire these counters into service statistics.
   struct Stats {

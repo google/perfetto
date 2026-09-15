@@ -16,6 +16,8 @@
 
 #include "src/tracing/test/proxy_producer_endpoint.h"
 
+#include <utility>
+
 #include "perfetto/ext/tracing/core/trace_writer.h"
 
 namespace perfetto {
@@ -135,6 +137,42 @@ void ProxyProducerEndpoint::Sync(std::function<void()> callback) {
     return;
   }
   backend_->Sync(callback);
+}
+bool ProxyProducerEndpoint::IsTracingV2DirectTransportSupported() const {
+  if (!backend_) {
+    return false;
+  }
+  return backend_->IsTracingV2DirectTransportSupported();
+}
+std::shared_ptr<SharedMemory> ProxyProducerEndpoint::CreateTracingV2Ring(
+    size_t size) {
+  if (!backend_) {
+    return nullptr;
+  }
+  return backend_->CreateTracingV2Ring(size);
+}
+void ProxyProducerEndpoint::AdoptTracingV2Ring(
+    AdoptTracingV2RingArgs args,
+    std::function<void(bool)> on_result) {
+  if (!backend_) {
+    if (on_result)
+      on_result(false);
+    return;
+  }
+  backend_->AdoptTracingV2Ring(std::move(args), std::move(on_result));
+}
+void ProxyProducerEndpoint::NotifyTracingV2RingData(
+    std::function<void()> on_drained) {
+  if (!backend_) {
+    if (on_drained)
+      on_drained();
+    return;
+  }
+  backend_->NotifyTracingV2RingData(std::move(on_drained));
+}
+
+bool ProxyProducerEndpoint::IsTracingV2DrainOnCurrentThread() const {
+  return backend_ && backend_->IsTracingV2DrainOnCurrentThread();
 }
 
 }  // namespace perfetto

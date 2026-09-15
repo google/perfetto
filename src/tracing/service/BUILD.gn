@@ -44,6 +44,9 @@ source_set("service") {
 
     # trace_buffer_v2 canonicalizes v2 proto-group packets on readout.
     "../v2:proto_rewriter",
+
+    # tracing_v2_ingress reads the producer's v2 shared ring into TraceBufferV2.
+    "../v2:v2",
   ]
   sources = [
     "clock.cc",
@@ -68,6 +71,8 @@ source_set("service") {
     "tracing_service_session.cc",
     "tracing_service_session.h",
     "tracing_service_structs.h",
+    "tracing_v2_ingress.cc",
+    "tracing_v2_ingress.h",
   ]
   if (is_android && perfetto_build_with_android) {
     deps += [
@@ -149,6 +154,8 @@ perfetto_unittest_source_set("unittests") {
     "../../base:test_support",
     "../core",
     "../test:test_support",
+    "../v2:producer_ring",
+    "../v2:test_support",
   ]
 
   if (enable_perfetto_zlib) {
@@ -170,6 +177,7 @@ perfetto_unittest_source_set("unittests") {
     "packet_stream_validator_unittest.cc",
     "trace_buffer_v1_unittest.cc",
     "trace_buffer_v2_unittest.cc",
+    "tracing_v2_ingress_unittest.cc",
   ]
 
   if (enable_perfetto_zlib || enable_perfetto_zstd) {

@@ -157,6 +157,82 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // seen and processed all the requests sent by this producer prior to the
   // Sync() call. Used mainly in tests.
   virtual void Sync(std::function<void()> callback) = 0;
+
+  // Tracing v2 direct transport
+  // ---------------------------
+  // Opt-in path where the producer allocates its own shared ring and the
+  // service becomes its sole reader, instead of the producer forwarding v2 data
+  // through a v1 SharedMemoryArbiter. Only used when both sides agreed on it.
+
+  struct AdoptTracingV2RingArgs {
+    // The producer-allocated ring memory, holding a valid zero-initialized ring
+    // of |num_chunks| * |chunk_size| (see tracing_v2::RingLogicalSize). The
+    // producer's ProducerRing shares ownership so the mapping outlives both
+    // sides. For the system backend the transport passes the ring by file
+    // descriptor and the service maps its own view into this field.
+    std::shared_ptr<SharedMemory> shared_memory;
+    uint32_t num_chunks = 0;
+    uint32_t chunk_size = 0;
+
+    // Service transport limits the service enforces on the untrusted geometry
+    // and mapping at adoption. They are distinct from the ring ABI structural
+    // limits (tracing_v2::IsValidRingGeometry). |kMaxChunkSizeBytes| bounds one
+    // ring chunk; |kMaxRingSizeBytes| bounds the whole mapping the service maps
+    // for one connection, so a producer cannot force a large service mapping.
+    static constexpr uint32_t kMaxChunkSizeBytes = 32 * 1024;
+    static constexpr uint64_t kMaxRingSizeBytes = 8 * 1024 * 1024;
+
+    // Ring chunk size a producer uses when its config leaves
+    // tracing_v2_chunk_size_bytes at 0. The producer (muxer) sizes its ring
+    // from this, and the service assumes it when checking that a v2 data
+    // source's ring chunk fits its target buffer.
+    static constexpr uint32_t kDefaultChunkSizeBytes = 4096;
+  };
+
+  // Whether this connection supports direct v2 ring transport. In process this
+  // is always true; over IPC it reflects the service capability negotiated at
+  // connection setup. A producer must not call AdoptTracingV2Ring() when this
+  // is false.
+  virtual bool IsTracingV2DirectTransportSupported() const = 0;
+
+  // Allocates shared memory of the type this connection's transport needs for a
+  // v2 ring (a plain in-process mapping in process; a sealed, FD-backed mapping
+  // over IPC), so the producer need not know the transport. Returns null if the
+  // allocation failed or the transport cannot pass a ring (see
+  // IsTracingV2DirectTransportSupported()). The caller builds a ProducerRing
+  // over it and hands it back with AdoptTracingV2Ring().
+  virtual std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t size) = 0;
+
+  // Hands the service a producer-allocated v2 ring to read directly. Called
+  // once per connection, after it is initialized. The service validates the
+  // untrusted geometry, the mapping size and (over IPC) the file descriptor,
+  // and rejects a bad ring without crashing. |on_result| reports the outcome:
+  // true if the ring was adopted and is being read, false if it was rejected.
+  // The caller must not treat a producer's writes as delivered until
+  // |on_result| reports true, and must drop the connection on false. In process
+  // |on_result| runs before this returns; over IPC it runs when the adoption
+  // RPC resolves.
+  virtual void AdoptTracingV2Ring(
+      AdoptTracingV2RingArgs,
+      std::function<void(bool accepted)> on_result) = 0;
+
+  // Doorbell: the producer published new data into its adopted v2 ring. The
+  // service drains its reader and then runs |on_drained|. The ProducerRing uses
+  // |on_drained| to complete flushes and stops, so it runs only after the ring
+  // has been drained up to the point this call observed. May be called from any
+  // thread. The service runs |on_drained| synchronously when this call already
+  // runs on the service sequence in process (an inline drain that unblocks a
+  // writer stalling on that sequence); otherwise it posts to the service
+  // sequence and runs |on_drained| there.
+  virtual void NotifyTracingV2RingData(std::function<void()> on_drained) = 0;
+
+  // True if this endpoint services the ring drain on the calling thread, so a
+  // writer that parks for ring space here would deadlock the drain. The muxer
+  // uses this to let a stalling writer drop instead of waiting forever. Default
+  // false: in process the drain runs inline or on a different thread, so
+  // waiting is safe. Over IPC it is true only when called on the client
+  // sequence that posts the drain RPC.
+  virtual bool IsTracingV2DrainOnCurrentThread() const { return false; }
 };  // class ProducerEndpoint.
 
 // The API for the Consumer port of the Service.

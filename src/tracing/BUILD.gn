@@ -79,7 +79,7 @@ source_set("client_api_without_backends") {
     "../../protos/perfetto/config/track_event:cpp",
     "../base",
     "core",
-    "v2:in_process_adapter",
+    "v2:producer_ring",
   ]
   public_deps = [ "../../include/perfetto/tracing" ]
   sources = [
@@ -134,7 +134,7 @@ if (enable_perfetto_integration_tests) {
       "core",
       "test:api_test_support",
       "test:test_support",
-      "v2:in_process_adapter",
+      "v2:producer_ring",
     ]
     sources = [
       "internal/tracing_muxer_impl_integrationtest.cc",

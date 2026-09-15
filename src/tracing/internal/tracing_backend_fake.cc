@@ -88,6 +88,22 @@ class UnsupportedProducerEndpoint : public ProducerEndpoint {
     }
   }
 
+  bool IsTracingV2DirectTransportSupported() const override { return false; }
+  std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t) override {
+    return nullptr;
+  }
+  void AdoptTracingV2Ring(AdoptTracingV2RingArgs,
+                          std::function<void(bool)> on_result) override {
+    if (on_result)
+      on_result(false);
+  }
+  void NotifyTracingV2RingData(std::function<void()> on_drained) override {
+    // No ring is ever adopted here, but run the callback so a caller cannot
+    // hang.
+    if (on_drained)
+      on_drained();
+  }
+
  private:
   Producer* const producer_;
   base::TaskRunner* const task_runner_;

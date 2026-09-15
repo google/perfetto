@@ -7115,8 +7115,6 @@ TEST_P(PerfettoApiTest, StartTracingWhileExecutingTracepoint) {
 
 // Restart the service with ring buffer data, a barrier and a flush pending.
 // Verify that the new connection works and receives only its own packets.
-// Bridge isolation is also covered by:
-// InProcessTracingV2BridgeLifetimeTest.TwoBridgesWithTheSameWriterIdStayIndependent.
 TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   if (GetParam() != perfetto::kSystemBackend) {
     GTEST_SKIP();
@@ -7124,7 +7122,13 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   auto* data_source = &data_sources_["my_data_source"];
 
   perfetto::TraceConfig cfg;
-  cfg.add_buffers()->set_size_kb(1024);
+  // A use_tracing_v2 data source stores into a TraceBufferV2; the service
+  // rejects pairing it with a v1 buffer, which would otherwise make this test
+  // wait forever for a data source that never starts.
+  auto* buf = cfg.add_buffers();
+  buf->set_size_kb(1024);
+  buf->set_experimental_mode(
+      perfetto::protos::gen::TraceConfig::BufferConfig::TRACE_BUFFER_V2);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("my_data_source");
   ds_cfg->set_use_tracing_v2(true);
@@ -7133,17 +7137,10 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   session_a->get()->StartBlocking();
   data_source->on_start.Wait();
 
-  // Wait for setup, then block the relay to hold A's flush and barrier.
+  // Wait for setup, then hold A's flush inside its data source's OnFlush so the
+  // request (and its ring drain) is still pending when the service restarts.
   perfetto::test::SyncProducers();
-  WaitableTestEvent relay_blocked;
-  WaitableTestEvent release_relay;
-  ASSERT_TRUE(
-      perfetto::test::TracingMuxerImplInternalsForTest::PostToTracingV2Relay(
-          [&relay_blocked, &release_relay] {
-            relay_blocked.Notify();
-            release_relay.Wait();
-          }));
-  relay_blocked.Wait();
+  data_source->handle_flush_asynchronously = true;
 
   MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
     ctx.NewTracePacket()->set_for_testing()->set_str("connection A");
@@ -7151,20 +7148,20 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   });
   data_source->on_flush.Reset();
   session_a->get()->Flush([](bool) {}, /*timeout_ms=*/30000);
-  // OnFlush() confirms that ProducerImpl received the request. The muxer
-  // checkpoint runs after ProducerImpl queues the drain behind the blocked
-  // relay task.
+  // OnFlush() confirms that ProducerImpl received the request. The test holds
+  // its asynchronous completion so the flush remains pending across restart.
   data_source->on_flush.Wait();
   WaitableTestEvent flush_queued;
   perfetto::test::TracingMuxerImplInternalsForTest::PostToMuxerSequence(
       [&flush_queued] { flush_queued.Notify(); });
   flush_queued.Wait();
 
-  // Disconnect while the old writer is alive and its barrier and flush remain
-  // pending.
+  // Disconnect while the old writer is alive and its flush remains pending.
   system_service_.Restart();
   data_source->on_stop.Wait();
-  release_relay.Notify();
+  // The held flush belonged to the now-dead connection; drop it.
+  data_source->handle_flush_asynchronously = false;
+  data_source->async_flush_closure = {};
   perfetto::test::SyncProducers();
 
   // Connection B's new arbiter can reuse A's WriterIDs.
@@ -7189,7 +7186,7 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
     if (packet.has_for_testing())
       payloads.push_back(packet.for_testing().str());
   }
-  // Only B's packets arrive here. A's writer still uses A's bridge.
+  // Only B's packets arrive here; A's stale request and data do not leak in.
   EXPECT_THAT(payloads, ElementsAre("connection B"));
 }
 

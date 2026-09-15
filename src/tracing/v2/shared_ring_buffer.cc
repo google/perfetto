@@ -406,8 +406,12 @@ SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
 
     // FUTEX_WAIT checks the value again before sleeping. If read_pos changed
     // after the load above, the syscall returns EAGAIN and no wake is lost.
-    if (FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions),
-                     FUTEX_WAIT_PRIVATE, read_pos_for_wait, &timeout) != 0) {
+    //
+    // The shared (non-private) op is required: the writer waits in the producer
+    // process while the reader wakes it from traced. It also works within a
+    // single process (the in-process backend), so the ring needs no mode flag.
+    if (FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions), FUTEX_WAIT,
+                     read_pos_for_wait, &timeout) != 0) {
       const int wait_errno = errno;
       result = ClassifyWriterWaitErrno(wait_errno);
       if (result == WriterWaitResult::kUnavailable) {
@@ -444,8 +448,26 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   //   this pass's Free words.
   // - Failure: relaxed because the returned word only supplies the next
   //   CAS attempt. No payload access depends on it.
-  while (!ring_header->rw_positions.compare_exchange_weak(
-      rw_positions, ReplaceReadPos(rw_positions, read_pos))) {
+  // Bounded retry. The only legitimate reason this CAS fails is a writer
+  // advancing write_pos (the other half of the word). A writer can advance it
+  // at most ~num_chunks times before the ring is full and it must wait for this
+  // very publication, so the cap covers all real contention. Beyond it, give up
+  // this pass rather than spin on producer-mutated shared memory. The header
+  // read_pos then stays at its previous value, so a writer sees less free
+  // space, never more, and the next drain pass publishes the latest read_pos.
+  const uint32_t kMaxPublishAttempts = 2 * num_chunks_ + 64;
+  bool published = false;
+  for (uint32_t attempt = 0; attempt < kMaxPublishAttempts; ++attempt) {
+    if (ring_header->rw_positions.compare_exchange_weak(
+            rw_positions, ReplaceReadPos(rw_positions, read_pos))) {
+      published = true;
+      break;
+    }
+  }
+  if (!published) {
+    PERFETTO_DLOG(
+        "tracing v2: read_pos publication contended out, retry next pass");
+    return;
   }
 
 #if PERFETTO_TRACING_V2_HAS_FUTEX()
@@ -463,9 +485,8 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   //
   // Waits are bounded, so a failed wake delays writers but cannot strand them.
   if (PERFETTO_UNLIKELY(
-          FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions),
-                       FUTEX_WAKE_PRIVATE, static_cast<uint32_t>(INT32_MAX),
-                       nullptr) < 0)) {
+          FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions), FUTEX_WAKE,
+                       static_cast<uint32_t>(INT32_MAX), nullptr) < 0)) {
     PERFETTO_DPLOG("tracing v2: futex wake on read_pos failed");
   }
 #endif  // PERFETTO_TRACING_V2_HAS_FUTEX()

@@ -24,6 +24,7 @@
 
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/base/weak_runner.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/ipc/service_proxy.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -77,6 +78,12 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
+  bool IsTracingV2DirectTransportSupported() const override;
+  std::shared_ptr<SharedMemory> CreateTracingV2Ring(size_t size) override;
+  void AdoptTracingV2Ring(AdoptTracingV2RingArgs,
+                          std::function<void(bool)> on_result) override;
+  void NotifyTracingV2RingData(std::function<void()> on_drained) override;
+  bool IsTracingV2DrainOnCurrentThread() const override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
@@ -105,7 +112,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void OnConnectionInitialized(bool connection_succeeded,
                                bool using_shmem_provided_by_producer,
                                bool direct_smb_patching_supported,
-                               bool use_shmem_emulation);
+                               bool use_shmem_emulation,
+                               bool tracing_v2_direct_transport_supported);
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
@@ -114,6 +122,11 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   // TODO think to destruction order, do we rely on any specific dtor sequence?
   Producer* const producer_;
   base::TaskRunner* const task_runner_;
+
+  // Lets NotifyTracingV2RingData() be called from any writer thread: it hops to
+  // the client sequence to send the RPC, and the post becomes a no-op if this
+  // endpoint is destroyed first.
+  base::WeakRunner weak_runner_;
 
   // A callback used to receive the shmem region out of band of the socket.
   std::function<int(void)> receive_shmem_fd_cb_fuchsia_;
@@ -145,6 +158,11 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool is_shmem_provided_by_producer_ = false;
   bool direct_smb_patching_supported_ = false;
   bool use_shmem_emulation_ = false;
+  bool tracing_v2_direct_transport_supported_ = false;
+  // Once-only guard so Disconnect() completes exactly one teardown, whether it
+  // is called directly or after ScheduleDisconnect() has already dropped the
+  // port. See ScheduleDisconnect().
+  bool disconnected_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)

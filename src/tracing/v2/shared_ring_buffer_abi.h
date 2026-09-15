@@ -155,6 +155,36 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
 
+// Nonfatally checks the geometry constraints for a ring with |num_chunks|
+// chunks of |chunk_size| bytes. It does NOT check any backing-memory size.
+//
+// The SharedRingBuffer constructor CHECKs the same invariants fatally (see
+// NumChunksForRingLayout), which is fine for a ring the local process built,
+// but not for geometry that came from an untrusted producer over IPC. Validate
+// such geometry with this first and reject it without constructing the ring.
+inline bool IsValidRingGeometry(uint32_t num_chunks, uint32_t chunk_size) {
+  return chunk_size >= kMinChunkSize &&
+         chunk_size % kChunkAlignmentBytes == 0 &&
+         num_chunks >= kMinChunksPerRing && num_chunks <= kMaxChunksPerRing &&
+         base::IsPowerOfTwo(num_chunks);
+}
+
+// Exact logical byte extent of a ring with this geometry: the header plus the
+// chunk area. This is the |size| the SharedRingBuffer constructor expects, and
+// it is independent of any OS page rounding applied to the backing mapping.
+//
+// The value is computed and returned in 64-bit, so it never overflows for any
+// geometry (num_chunks <= 2^30 and chunk_size <= UINT32_MAX give a product
+// below 2^62). A service that received an untrusted geometry over IPC must
+// compare the mapped size against this value and reject a smaller mapping,
+// before building the ring. On a 32-bit target the true extent can exceed
+// SIZE_MAX; the caller keeps the comparison in 64-bit so it still rejects
+// correctly instead of wrapping.
+constexpr uint64_t RingLogicalSize(uint32_t num_chunks, uint32_t chunk_size) {
+  return uint64_t{sizeof(RingBufferHeader)} +
+         uint64_t{num_chunks} * uint64_t{chunk_size};
+}
+
 constexpr uint64_t PackRwPositions(uint32_t write_pos, uint32_t read_pos) {
   return (static_cast<uint64_t>(write_pos) << 32) | read_pos;
 }

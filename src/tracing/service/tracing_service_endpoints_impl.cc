@@ -15,6 +15,11 @@
  */
 
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
+
+#include <inttypes.h>
+
+#include <utility>
+
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
@@ -23,12 +28,18 @@
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
+#include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#include "src/tracing/service/tracing_v2_ingress.h"
+#include "src/tracing/v2/shared_ring_buffer.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
@@ -440,6 +451,18 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       weak_runner_(task_runner) {}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
+  // Drain whatever the producer published into its v2 ring before the buffers
+  // are torn down, mirroring the v1 SMB scrape in DisconnectProducer(). A
+  // disconnected producer with surviving writers can keep writing its retained
+  // mapping, so the write position is not necessarily fixed;
+  // DrainTracingV2RingToCompletion() is pass-capped and terminates regardless.
+  // The mapping stays alive via |v2_ring_memory_| until the ingress is
+  // destroyed below.
+  DrainTracingV2RingToCompletion();
+  v2_ingress_.reset();
+  v2_ring_.reset();
+  v2_ring_memory_.reset();
+
   service_->DisconnectProducer(id_);
   producer_->OnDisconnect();
 }
@@ -717,6 +740,200 @@ void ProducerEndpointImpl::ClearIncrementalState(
 
 void ProducerEndpointImpl::Sync(std::function<void()> callback) {
   weak_runner_.task_runner()->PostTask(callback);
+}
+
+std::shared_ptr<SharedMemory> ProducerEndpointImpl::CreateTracingV2Ring(
+    size_t size) {
+  // In process the service reads the producer's ring at the same address, so a
+  // plain in-process mapping is enough; no FD needs to cross a process
+  // boundary.
+  return InProcessSharedMemory::Create(size);
+}
+
+void ProducerEndpointImpl::AdoptTracingV2Ring(
+    AdoptTracingV2RingArgs args,
+    std::function<void(bool)> on_result) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  const bool accepted = AdoptTracingV2RingImpl(std::move(args));
+  if (on_result)
+    on_result(accepted);
+}
+
+uint64_t ProducerEndpointImpl::GetTracingV2MemoryUsageBytes() const {
+  uint64_t bytes = 0;
+  if (v2_ring_memory_)
+    bytes += v2_ring_memory_->size();
+  if (v2_ingress_)
+    bytes += v2_ingress_->GetMemoryUsageBytes();
+  return bytes;
+}
+
+bool ProducerEndpointImpl::AdoptTracingV2RingImpl(AdoptTracingV2RingArgs args) {
+  if (v2_ingress_) {
+    // One ring per connection. A second adoption is a producer/protocol error;
+    // reject it without disturbing the ring already in use.
+    PERFETTO_ELOG("Producer %" PRIu16 " tried to adopt a second v2 ring", id_);
+    return false;
+  }
+  // The geometry, the mapping and (over IPC) the file descriptor are
+  // producer-controlled. Validate the ring ABI structure and the service
+  // transport budget nonfatally, before trusting the mapping: the
+  // SharedRingBuffer constructor would CHECK these instead.
+  if (!tracing_v2::IsValidRingGeometry(args.num_chunks, args.chunk_size) ||
+      args.chunk_size > AdoptTracingV2RingArgs::kMaxChunkSizeBytes) {
+    PERFETTO_ELOG("Producer %" PRIu16
+                  " sent an unsupported v2 ring geometry "
+                  "(num_chunks=%" PRIu32 ", chunk_size=%" PRIu32 ")",
+                  id_, args.num_chunks, args.chunk_size);
+    return false;
+  }
+  // The extent is computed and compared in 64-bit, so it never wraps, including
+  // on a 32-bit target. Bound it by the per-connection ring budget before
+  // comparing it against the mapped size.
+  const uint64_t logical_size =
+      tracing_v2::RingLogicalSize(args.num_chunks, args.chunk_size);
+  if (logical_size > AdoptTracingV2RingArgs::kMaxRingSizeBytes) {
+    PERFETTO_ELOG("Producer %" PRIu16 " v2 ring is too large (%" PRIu64
+                  " bytes, limit %" PRIu64 ")",
+                  id_, logical_size, AdoptTracingV2RingArgs::kMaxRingSizeBytes);
+    return false;
+  }
+  if (!args.shared_memory || args.shared_memory->start() == nullptr ||
+      static_cast<uint64_t>(args.shared_memory->size()) < logical_size) {
+    PERFETTO_ELOG("Producer %" PRIu16 " v2 ring mapping is too small", id_);
+    return false;
+  }
+
+  v2_ring_memory_ = std::move(args.shared_memory);
+  v2_ring_ = std::make_unique<tracing_v2::SharedRingBuffer>(
+      static_cast<uint8_t*>(v2_ring_memory_->start()),
+      static_cast<size_t>(logical_size), args.chunk_size);
+  v2_ingress_ = std::make_unique<TracingV2Ingress>(
+      v2_ring_.get(), id_, client_identity_, [this](BufferID buffer_id) {
+        return ResolveTracingV2TargetBuffer(buffer_id);
+      });
+
+  // Account the new service-owned mapping in the memory guardrail.
+  service_->UpdateMemoryGuardrail();
+  return true;
+}
+
+TraceBufferV2* ProducerEndpointImpl::ResolveTracingV2TargetBuffer(
+    BufferID buffer_id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // The producer must be configured to write into this buffer in some active
+  // session. |allowed_target_buffers_| is the authoritative permission set; the
+  // (untrusted) writer registration map is deliberately not consulted, because
+  // v2 writer ids are allocated independently of v1 and could alias.
+  if (!is_allowed_target_buffer(buffer_id))
+    return nullptr;
+  TraceBuffer* buf = service_->GetBufferByID(buffer_id);
+  if (!buf || buf->buf_type() != TraceBuffer::BufType::kV2)
+    return nullptr;
+  auto* v2_buf = static_cast<TraceBufferV2*>(buf);
+  // v2 direct receipt stores raw fragments that are canonicalized only on
+  // readout. A ProtoVM on this buffer consumes packets on the eviction path
+  // without that canonicalization, so the combination is unsupported: drop the
+  // chunk rather than feed the VM un-rewritten proto-group bytes.
+  if (!v2_buf->GetProtoVmInstances().empty())
+    return nullptr;
+  return v2_buf;
+}
+
+void ProducerEndpointImpl::NotifyTracingV2RingData(
+    std::function<void()> on_drained) {
+  // May be called from any writer thread.
+  //
+  // In process the service shares the producer's task runner. A writer can fill
+  // the ring while running on that very sequence (e.g. inside a data source's
+  // OnFlush()) and then park waiting for the reader to free space. A posted
+  // drain could not run until that writer unblocks, which needs the drain: a
+  // deadlock. Break it by draining synchronously right here when we are already
+  // on the service sequence. The drain only reads the ring and admits into the
+  // (same-sequence) trace buffer; it does not touch the ProducerRing's lock or
+  // call back into any writer, so it is safe to run inline while a writer holds
+  // that lock. It frees ring space so the parked writer's retry succeeds.
+  //
+  // The acknowledgement (|on_drained|: ProducerRing re-arm / flush completion)
+  // may re-enter the ProducerRing lock, so it must NOT run inline; it goes
+  // through the normal posted path below.
+  //
+  // Only the in-process backend needs this inline drain: there the writer and
+  // the service share a sequence, so a posted drain cannot run until the writer
+  // unblocks. Over IPC the writer is in another process and the notification
+  // arrives as an RPC on the service sequence with no local writer parked, so
+  // an inline drain there is unnecessary and would run an unbounded drain on
+  // every ordinary notification. Route the IPC path through the bounded posted
+  // step below instead. The inline drain is itself pass-capped.
+  if (v2_ingress_ && in_process_ &&
+      weak_runner_.task_runner()->RunsTasksOnCurrentThread()) {
+    v2_ingress_->DrainToCompletion();
+  }
+  // Off the service sequence this hop reaches it; on it, it schedules the
+  // bounded drain that ultimately runs |on_drained| once caught up. The
+  // WeakRunner turns the post into a no-op if the endpoint is already gone.
+  weak_runner_.PostTask([this, cb = std::move(on_drained)]() mutable {
+    OnTracingV2RingNotify(std::move(cb));
+  });
+}
+
+void ProducerEndpointImpl::OnTracingV2RingNotify(
+    std::function<void()> on_drained) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (on_drained)
+    v2_drain_acks_.push_back(std::move(on_drained));
+  if (!v2_drain_scheduled_) {
+    v2_drain_scheduled_ = true;
+    DrainTracingV2RingStep();
+  }
+}
+
+void ProducerEndpointImpl::DrainTracingV2RingStep() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // The ingress may have been dropped (disconnect); complete outstanding acks.
+  bool caught_up = true;
+  if (v2_ingress_ && !v2_ingress_->has_protocol_error())
+    caught_up = !v2_ingress_->Drain();
+
+  if (!caught_up) {
+    weak_runner_.PostTask([this]() { DrainTracingV2RingStep(); });
+    return;
+  }
+
+  // Stop draining and run the pending acks. Three cases reach here:
+  // - Caught up: every pending ack's data was published before its
+  //   notification, so it has been drained.
+  // - Protocol error: the reader latched a corrupt ring and stopped. Data after
+  //   the error is NOT drained and is lost. The acks still run so a flush or
+  //   stop waiting on them does not hang; this is a truthful completion of the
+  //   wait, not a claim that all data arrived. The reader already logged the
+  //   corruption.
+  // - Ring gone (disconnect): nothing left to drain.
+  std::vector<std::function<void()>> acks = std::move(v2_drain_acks_);
+  v2_drain_acks_.clear();
+  v2_drain_scheduled_ = false;
+  for (auto& cb : acks) {
+    if (cb)
+      cb();
+  }
+}
+
+void ProducerEndpointImpl::DrainTracingV2RingToCompletion() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (v2_ingress_) {
+    // Pass-capped: a disconnected producer with surviving writers can keep
+    // writing its retained mapping, so the write position is not necessarily
+    // fixed. DrainToCompletion() drains at most one full ring, then stops, so
+    // teardown cannot chase a live writer forever.
+    v2_ingress_->DrainToCompletion();
+  }
+  std::vector<std::function<void()>> acks = std::move(v2_drain_acks_);
+  v2_drain_acks_.clear();
+  v2_drain_scheduled_ = false;
+  for (auto& cb : acks) {
+    if (cb)
+      cb();
+  }
 }
 
 bool ProducerEndpointImpl::IsAndroidProcessFrozen() {

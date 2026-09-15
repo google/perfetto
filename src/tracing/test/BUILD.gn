@@ -71,10 +71,12 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "../../../gn:gtest_and_gmock",
       "../../base",
       "../../base:test_support",
+      "../ipc:common",
       "../ipc/consumer",
       "../ipc/producer",
       "../ipc/service",
       "../service",
+      "../v2:producer_ring",
     ]
     sources = [ "tracing_integration_test.cc" ]
 
@@ -130,9 +132,6 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:default_deps",
       "../../base",
       "../../tracing:client_api_without_backends",
-
-      # For RelaySequence, used by the test hooks that block the v2 relay.
-      "../v2:in_process_adapter",
     ]
 
     # The system tracing backend requires IPC support.

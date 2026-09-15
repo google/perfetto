@@ -16,6 +16,7 @@
 
 #include <cinttypes>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -33,7 +34,13 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
 #include "src/tracing/service/tracing_service_impl.h"
+#include "src/tracing/v2/producer_ring.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "test/gtest_and_gmock.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include "src/tracing/ipc/posix_shared_memory.h"
+#endif
 
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
@@ -130,6 +137,23 @@ static_assert(TracingServiceImpl::kMaxTracePacketSliceSize <=
                   ipc::kIPCBufferSize - 512,
               "Tracing service max packet slice should be smaller than IPC "
               "buffer size (with some headroom)");
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Forwards a producer ProducerRing's data notifications to its IPC endpoint. In
+// production this adapter lives in the muxer; here it drives the direct v2 path
+// through the real IPC client.
+class EndpointServiceChannel : public tracing_v2::ProducerRing::ServiceChannel {
+ public:
+  explicit EndpointServiceChannel(TracingService::ProducerEndpoint* endpoint)
+      : endpoint_(endpoint) {}
+  void NotifyRingData(std::function<void()> on_picked_up) override {
+    endpoint_->NotifyTracingV2RingData(std::move(on_picked_up));
+  }
+
+ private:
+  TracingService::ProducerEndpoint* const endpoint_;
+};
+#endif  // !PERFETTO_OS_WIN
 
 }  // namespace
 
@@ -347,6 +371,115 @@ TEST_P(TracingIntegrationTestWithChunkSize, WithIPCTransport) {
 INSTANTIATE_TEST_SUITE_P(ChunkSize,
                          TracingIntegrationTestWithChunkSize,
                          testing::Values(0u, 1024u, 260u));
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Exercises the direct v2 ring transport across a real IPC socket: the producer
+// allocates a sealed memfd ring, adopts it over IPC (real FD passing), writes
+// v2 packets including one that fragments across many chunks (>128 KiB), and
+// the service reads the ring directly and delivers the packets to the consumer.
+TEST_F(TracingIntegrationTest, TracingV2DirectRingOverIPC) {
+  // The service advertised direct v2 transport support at connection setup.
+  ASSERT_TRUE(producer_endpoint_->IsTracingV2DirectTransportSupported());
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(4096);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("perfetto.test");
+  ds_config->set_target_buffer(0);
+  consumer_endpoint_->EnableTracing(trace_config);
+
+  BufferID global_buf_id = 0;
+  auto on_create_ds_instance =
+      task_runner_->CreateCheckpoint("on_create_ds_instance");
+  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _));
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce([on_create_ds_instance, &global_buf_id](
+                    DataSourceInstanceID, const DataSourceConfig& cfg) {
+        global_buf_id = static_cast<BufferID>(cfg.target_buffer());
+        on_create_ds_instance();
+      });
+  task_runner_->RunUntilCheckpoint("on_create_ds_instance");
+  ASSERT_NE(global_buf_id, 0u);
+
+  // The producer allocates its own ring in a sealed memfd and hands it to the
+  // service over IPC. 128 chunks of 4 KiB (512 KiB) comfortably hold the large
+  // packet below without the single-threaded writer having to stall.
+  constexpr uint32_t kNumChunks = 128;
+  constexpr uint32_t kChunkSize = 4096;
+  auto shmem = std::shared_ptr<SharedMemory>(
+      PosixSharedMemory::Create(static_cast<size_t>(
+          tracing_v2::RingLogicalSize(kNumChunks, kChunkSize))));
+  ASSERT_TRUE(shmem);
+  EndpointServiceChannel channel(producer_endpoint_.get());
+  auto ring =
+      tracing_v2::ProducerRing::Create(shmem, kNumChunks, kChunkSize, &channel);
+  ASSERT_TRUE(ring);
+  TracingService::ProducerEndpoint::AdoptTracingV2RingArgs adopt_args;
+  adopt_args.shared_memory = shmem;
+  adopt_args.num_chunks = kNumChunks;
+  adopt_args.chunk_size = kChunkSize;
+  bool ring_adopted = false;
+  producer_endpoint_->AdoptTracingV2Ring(
+      std::move(adopt_args),
+      [&ring_adopted](bool accepted) { ring_adopted = accepted; });
+
+  std::unique_ptr<TraceWriter> writer =
+      ring->CreateTraceWriter(global_buf_id, BufferExhaustedPolicy::kDrop);
+  ASSERT_TRUE(writer);
+  writer->NewTracePacket()->set_for_testing()->set_str("small_before");
+  const std::string big(160 * 1024,
+                        'x');  // > 128 KiB: fragments across chunks.
+  writer->NewTracePacket()->set_for_testing()->set_str(big);
+  writer->NewTracePacket()->set_for_testing()->set_str("small_after");
+
+  // Flush hands the data to the service over IPC (NotifyTracingV2RingData),
+  // which drains the ring and replies; the flush callback fires on that reply.
+  auto on_flush = task_runner_->CreateCheckpoint("on_flush");
+  writer->Flush(on_flush);
+  task_runner_->RunUntilCheckpoint("on_flush");
+
+  // The adoption RPC resolved before the flush drained the ring.
+  EXPECT_TRUE(ring_adopted);
+
+  consumer_endpoint_->ReadBuffers();
+  bool saw_small_before = false, saw_big = false, saw_small_after = false;
+  auto all_packets_rx = task_runner_->CreateCheckpoint("all_packets_rx");
+  EXPECT_CALL(consumer_, OnTracePackets(_, _))
+      .WillRepeatedly([&](std::vector<TracePacket>* packets, bool has_more) {
+        for (auto& encoded_packet : *packets) {
+          protos::gen::TracePacket packet;
+          ASSERT_TRUE(
+              packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
+          if (!packet.has_for_testing())
+            continue;
+          const std::string& s = packet.for_testing().str();
+          if (s == "small_before")
+            saw_small_before = true;
+          else if (s == "small_after")
+            saw_small_after = true;
+          else if (s == big)
+            saw_big = true;
+        }
+        if (!has_more)
+          all_packets_rx();
+      });
+  task_runner_->RunUntilCheckpoint("all_packets_rx");
+  EXPECT_TRUE(saw_small_before);
+  EXPECT_TRUE(saw_big);
+  EXPECT_TRUE(saw_small_after);
+
+  consumer_endpoint_->DisableTracing();
+  auto on_tracing_disabled =
+      task_runner_->CreateCheckpoint("on_tracing_disabled");
+  EXPECT_CALL(producer_, StopDataSource(_));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
+  task_runner_->RunUntilCheckpoint("on_tracing_disabled");
+}
+#endif  // !PERFETTO_OS_WIN
 
 TEST_F(TracingIntegrationTest, InvalidTracingV2ChunkSizeRejectsConfig) {
   TraceConfig trace_config;

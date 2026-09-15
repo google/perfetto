@@ -89,9 +89,25 @@ class SharedRingBufferWriter {
    public:
     virtual ~Delegate();
 
-    // Schedules reader work after failed claims leave reservations unclaimed
-    // and before this writer waits for read_pos to advance.
+    // Progress-critical: schedules reader work after failed claims leave
+    // reservations unclaimed and before this writer waits for read_pos to
+    // advance. Must reach the reader immediately, never coalesced, or a writer
+    // filling the ring could wait for space the reader was never asked to free.
     virtual void NotifyReader() = 0;
+
+    // Steady-state: a packet was finalized without needing more space. The
+    // reader can drain when convenient, so an implementation may coalesce a
+    // burst of these into one notification (with a recheck so the last packet
+    // is never stranded). The default forwards to NotifyReader() for the simple
+    // implementations that do not coalesce.
+    virtual void NotifyReaderBatched() { NotifyReader(); }
+
+    // True if the reader's drain is serviced on the calling thread, so a writer
+    // that parks here waiting for space would deadlock the very task that frees
+    // it (an IPC writer on the client sequence). When true a stalling writer
+    // drops instead of waiting. The default is false: the drain runs elsewhere
+    // (a different thread, or inline in process), so waiting is safe.
+    virtual bool DrainRunsOnCurrentThread() { return false; }
   };
 
   SharedRingBufferWriter(SharedRingBuffer* ring,

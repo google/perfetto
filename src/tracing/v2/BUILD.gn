@@ -15,6 +15,27 @@
 import("../../../gn/fuzzer.gni")
 import("../../../gn/test.gni")
 
+# Producer-side owner of a v2 shared ring: allocation-agnostic, owns the ring
+# view and independent writer ids, and is the writers' shared delegate. Kept
+# separate from ":v2" because it pulls in core (NullTraceWriter) for the
+# exhausted-writer case; ":v2" itself stays free of that dependency.
+source_set("producer_ring") {
+  public_deps = [
+    ":v2",
+    "../../../include/perfetto/ext/tracing/core",
+    "../../../include/perfetto/tracing",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../core",
+  ]
+  sources = [
+    "producer_ring.cc",
+    "producer_ring.h",
+  ]
+}
+
 # Rewrites a v2 append-only proto-group packet into normal length-delimited
 # protobuf. Kept as its own target so the service (trace_buffer_v2) can
 # canonicalize v2 packets on readout without depending on the transport ring.
@@ -64,42 +85,22 @@ source_set("v2") {
   ]
 }
 
-# Temporary SDK-side forwarding through v1 until traced reads the ring buffer.
-source_set("in_process_adapter") {
-  public_deps = [ ":v2" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../protos/perfetto/trace:zero",
-    "../../base",
-  ]
-  sources = [
-    "in_process_tracing_v2_bridge.cc",
-    "in_process_tracing_v2_bridge.h",
-    "relay_sequence.h",
-  ]
-}
-
-perfetto_unittest_source_set("in_process_adapter_unittests") {
+# Header-only test helper (SharedRingBufferForTesting), shared by the v2 unit
+# tests and the service-side ingress test.
+source_set("test_support") {
   testonly = true
-  deps = [
-    ":in_process_adapter",
-    "../../../gn:default_deps",
-    "../../../gn:gtest_and_gmock",
-    "../../../protos/perfetto/trace:cpp",
-    "../../../protos/perfetto/trace:zero",
+  public_deps = [
+    ":v2",
     "../../base",
-    "../../base:test_support",
-    "../../protozero",
   ]
-  sources = [
-    "in_process_tracing_v2_bridge_unittest.cc",
-    "shared_ring_buffer_test_utils.h",
-  ]
+  deps = [ "../../../gn:default_deps" ]
+  sources = [ "shared_ring_buffer_test_utils.h" ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":producer_ring",
     ":v2",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
@@ -108,8 +109,10 @@ perfetto_unittest_source_set("unittests") {
     "../../base",
     "../../base:test_support",
     "../../protozero",
+    "../core",
   ]
   sources = [
+    "producer_ring_unittest.cc",
     "proto_rewriter_unittest.cc",
     "shared_ring_buffer_abi_unittest.cc",
     "shared_ring_buffer_concurrency_unittest.cc",

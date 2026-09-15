@@ -128,15 +128,9 @@ class TraceWriterV2Impl : public TraceWriter,
     //     publish last chunk
     //     OnWriterDestroyed(id) -----------> arrange retirement of id
     //
-    // In the prototype, InProcessTracingV2Bridge forwards v2 packets through a
-    // retained v1 writer:
-    // 1. The v2 writer publishes its final chunk and calls OnWriterDestroyed().
-    // 2. The reader consumes the remaining positions. The bridge still needs
-    //    the v1 writer and reassembly state to forward those packets.
-    // 3. After the reader passes the final publication, the bridge can release
-    //    the v1 writer and reassembly state.
-    // Revisit this cleanup when the service reads the v2 ring buffer directly
-    // and the bridge is no longer needed.
+    // ProducerRing implements this delegate and never reuses writer IDs within
+    // a connection. The service reads the ring directly, so destruction only
+    // needs to notify the reader. There is no bridge state or ID to reclaim.
     virtual void OnWriterDestroyed(WriterID) = 0;
   };
 

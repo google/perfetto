@@ -106,7 +106,10 @@ void TraceWriterV2Impl::FinishTracePacket() {
 
   // Failed chunk claims can leave earlier reservations unclaimed. Notify the
   // reader so it can consume those positions and this packet's fragments.
-  delegate_->NotifyReader();
+  // The packet is complete, so this notification can be batched with others.
+  // GetNewBuffer() uses NotifyReader() immediately before it requests space
+  // for a continuation, so a writer does not wait for a batched notification.
+  delegate_->NotifyReaderBatched();
 }
 
 void TraceWriterV2Impl::Flush(std::function<void()> callback) {

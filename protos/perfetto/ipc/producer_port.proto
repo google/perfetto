@@ -103,6 +103,23 @@ service ProducerPort {
   // The data_source_descriptor.name cannot be changed.
   rpc UpdateDataSource(UpdateDataSourceRequest)
       returns (UpdateDataSourceResponse) {}
+
+  // Tracing v2 direct transport.
+  // Only valid when the service advertised
+  // InitializeConnectionResponse.tracing_v2_direct_transport_supported.
+
+  // Hands the service a producer-allocated tracing v2 shared ring to read
+  // directly. The ring memory file descriptor is transported out-of-band on the
+  // IPC frame (not a proto field), like the v1 shared memory FD. Called at most
+  // once per connection.
+  rpc AdoptTracingV2Ring(AdoptTracingV2RingRequest)
+      returns (AdoptTracingV2RingResponse) {}
+
+  // Doorbell: the producer published new data into its adopted v2 ring. The
+  // service drains its reader and only then sends the response, so the producer
+  // can use the reply to complete a flush/stop and to re-arm its coalescing.
+  rpc NotifyTracingV2RingData(NotifyTracingV2RingDataRequest)
+      returns (NotifyTracingV2RingDataResponse) {}
 }
 
 // Arguments for rpc InitializeConnection().
@@ -190,6 +207,12 @@ message InitializeConnectionResponse {
   // connection, and request the client to send chunk data over the socket e.g.
   // for remote connection from a VM guest.
   optional bool use_shmem_emulation = 3;
+
+  // Indicates that the service supports direct tracing v2 ring transport, i.e.
+  // the AdoptTracingV2Ring and NotifyTracingV2RingData methods. When false (an
+  // older service, or a platform without FD passing), a producer must not use
+  // the direct v2 path on this connection.
+  optional bool tracing_v2_direct_transport_supported = 4;
 }
 
 // Arguments for rpc RegisterDataSource().
@@ -212,6 +235,25 @@ message UpdateDataSourceRequest {
 }
 
 message UpdateDataSourceResponse {};
+
+// Arguments for rpc AdoptTracingV2Ring().
+
+message AdoptTracingV2RingRequest {
+  // Geometry of the producer-allocated v2 ring. The ring memory FD is
+  // transported out-of-band on the IPC frame (not a proto field). The service
+  // validates these against the ring ABI and the mapped size before use; see
+  // tracing_v2::IsValidRingGeometry / RingLogicalSize.
+  optional uint32 num_chunks = 1;
+  optional uint32 chunk_size_bytes = 2;
+}
+
+message AdoptTracingV2RingResponse {}
+
+// Arguments for rpc NotifyTracingV2RingData().
+
+message NotifyTracingV2RingDataRequest {}
+
+message NotifyTracingV2RingDataResponse {}
 
 // Arguments for rpc UnregisterDataSource().
 

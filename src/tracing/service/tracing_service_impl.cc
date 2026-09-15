@@ -168,18 +168,12 @@ std::unique_ptr<TracingService> TracingService::CreateInstance(
 namespace tracing_service {
 
 namespace {
-// The service validates chunk sizes before passing them to the producer's
-// temporary v2 adapter. These limits are duplicated here to avoid making the
-// service depend on the adapter. When changing them, update both copies:
-// - kMinTracingV2ChunkSize must match kMinChunkSize, and
-//   kTracingV2ChunkAlignment must match kChunkAlignmentBytes, both in
-//   src/tracing/v2/shared_ring_buffer_abi.h.
-// - kMaxTracingV2ChunkSize must match
-//   InProcessTracingV2Bridge::kMaxConfiguredChunkSize in
-//   src/tracing/v2/in_process_tracing_v2_bridge.h.
-//
-// TODO(sashwinbalaji): Consider a common internal header under src/tracing/
-// if this policy is needed beyond the temporary adapter.
+// The service validates a producer's configured tracing v2 chunk size before
+// accepting the trace config; the producer sizes its ring from that value. The
+// lower/alignment limits mirror the ring ABI (kMinChunkSize and
+// kChunkAlignmentBytes in src/tracing/v2/shared_ring_buffer_abi.h); the upper
+// limit caps a single producer ring chunk. Keep kMin/kTracingV2ChunkAlignment
+// in sync with the ABI header if it changes.
 constexpr uint32_t kMinTracingV2ChunkSize = 256;
 constexpr uint32_t kMaxTracingV2ChunkSize = 32 * 1024;
 constexpr uint32_t kTracingV2ChunkAlignment = 4;
@@ -844,6 +838,23 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // Check that the config specifies all buffers for its data sources. This
   // is also checked in SetupDataSource, but it is simpler to return a proper
   // error to the consumer from here (and there will be less state to undo).
+  //
+  // The same loop resolves each data source's target buffer once and records,
+  // per resolved buffer, whether it receives tracing v2 data and whether it
+  // hosts a ProtoVM. Both checks below need the resolved index, not the raw
+  // numeric target, so they cannot run before name resolution.
+  std::vector<bool> buffer_has_v2(num_buffers, false);
+  std::vector<bool> buffer_has_vm(num_buffers, false);
+  // The largest ring chunk a producer might use for a v2 data source. A
+  // per-producer config can raise it up to kMaxChunkSizeBytes; a producer with
+  // no config uses the default. The data source to producer binding is not
+  // known here, so a v2 target buffer must fit the largest configured chunk.
+  uint32_t v2_worst_chunk = TracingService::ProducerEndpoint::
+      AdoptTracingV2RingArgs::kDefaultChunkSizeBytes;
+  for (const auto& producer_cfg : cfg.producers()) {
+    if (producer_cfg.tracing_v2_chunk_size_bytes() > v2_worst_chunk)
+      v2_worst_chunk = producer_cfg.tracing_v2_chunk_size_bytes();
+  }
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
 
@@ -887,6 +898,53 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           "Data source \"%s\" specified an out of bounds target_buffer (%zu >= "
           "%zu)",
           ds_config.name().c_str(), target_buffer, num_buffers);
+    }
+
+    // A tracing v2 data source stores its data through the producer's v2 ring
+    // into a TraceBufferV2. Targeting a v1 buffer would silently drop every
+    // packet (the ring reader admits only into TraceBufferV2), so reject that
+    // combination loudly rather than producing an empty trace.
+    if (ds_config.use_tracing_v2()) {
+      if (cfg.buffers()[target_buffer].experimental_mode() !=
+          TraceConfig::BufferConfig::TRACE_BUFFER_V2) {
+        return PERFETTO_SVC_ERR(
+            "DataSourceConfig.use_tracing_v2 requires its target buffer to set "
+            "experimental_mode = TRACE_BUFFER_V2 (data source \"%s\", target "
+            "buffer %zu)",
+            ds_config.name().c_str(), target_buffer);
+      }
+      // The target buffer must hold one worst-case ring chunk plus its TBChunk
+      // framing, or every full chunk would be dropped on admission. Reject the
+      // unsupported geometry here so it is explicit, not a silent loss.
+      const uint64_t buf_bytes =
+          uint64_t{cfg.buffers()[target_buffer].size_kb()} * 1024;
+      constexpr uint64_t kV2ChunkFramingOverhead = 64;
+      if (buf_bytes < uint64_t{v2_worst_chunk} + kV2ChunkFramingOverhead) {
+        return PERFETTO_SVC_ERR(
+            "DataSourceConfig.use_tracing_v2 target buffer %zu is %" PRIu64
+            " bytes, too small for a v2 ring chunk of up to %u bytes plus "
+            "framing. Increase the buffer size or reduce "
+            "TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes.",
+            target_buffer, buf_bytes, v2_worst_chunk);
+      }
+      buffer_has_v2[target_buffer] = true;
+    }
+    if (ds_config.has_protovm_config())
+      buffer_has_vm[target_buffer] = true;
+  }
+
+  // A ProtoVM reads a buffer's stored packets as v1 sequences. A tracing v2
+  // data source stores raw ProtoGroup fragments that are canonicalized only on
+  // the consumer read path, so a ProtoVM on the same buffer would misread them,
+  // including on eviction. Reject the combination at setup, where both sides
+  // are known, rather than dropping v2 data at receipt. Implementing a v2
+  // ProtoVM is out of scope; a safe rejection is not.
+  for (size_t i = 0; i < num_buffers; i++) {
+    if (buffer_has_v2[i] && buffer_has_vm[i]) {
+      return PERFETTO_SVC_ERR(
+          "Buffer %zu targets both a tracing v2 data source and a ProtoVM data "
+          "source, which is not a supported combination",
+          i);
     }
   }
 
@@ -3842,6 +3900,9 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   for (const auto& id_to_producer : producers_) {
     if (id_to_producer.second->shared_memory())
       total_buffer_bytes += id_to_producer.second->shared_memory()->size();
+    // The v2 direct-transport ring mapping and its ingress/reader scratch are
+    // service-owned memory too, separate from the v1 SMB summed above.
+    total_buffer_bytes += id_to_producer.second->GetTracingV2MemoryUsageBytes();
   }
 
   // Count trace buffers and their transient readout memory allowance.
