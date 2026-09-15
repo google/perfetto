@@ -16,6 +16,7 @@
 
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
+#include <sys/file.h>
 #include <sys/sendfile.h>
 #include <sys/system_properties.h>
 
@@ -204,7 +205,10 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
   }
 
   if (!persistent_file_path_.empty()) {
-    PERFETTO_CHECK(!unlink(persistent_file_path_.c_str()));
+    // Explicitly release the advisory lock before unlinking the file.
+    flock(trace_fd, LOCK_UN);
+    PERFETTO_CHECK(unlink(persistent_file_path_.c_str()) == 0 ||
+                   errno == ENOENT);
   }
 }
 
@@ -284,15 +288,16 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
   return fd;
 }
 
-void PerfettoCmd::WaitForPreviousRebootTraceUpload(
+base::Status PerfettoCmd::WaitForRebootTraceUploadOrCleanup(
     const std::string& session_name,
     const std::string& target_file_path) {
   // Only block if a persistent trace file with the SAME session name exists on
   // disk.
   if (!base::FileExists(target_file_path)) {
-    return;
+    return base::OkStatus();
   }
 
+  // Wait for after reboot task to unlink traces.
   const auto deadline = base::GetBootTimeNs() + kBootTraceCleanupTimeoutNs;
   std::string cur_prop;
   do {
@@ -301,6 +306,29 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
       base::SleepMicroseconds(500 * 1000);
     }
   } while (cur_prop.empty() && base::GetBootTimeNs() < deadline);
+
+  if (!base::FileExists(target_file_path)) {
+    return base::OkStatus();
+  }
+
+  // File exists after waiting for reboot task. Check if an active session is
+  // holding the lock before doing any cleanup.
+  {
+    base::ScopedFile existing_fd =
+        base::OpenFile(target_file_path, O_RDWR | O_CLOEXEC);
+    if (existing_fd) {
+      if (flock(existing_fd.get(), LOCK_EX | LOCK_NB) != 0) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+          return base::ErrStatus(
+              "A persistent tracing session for '%s' is already running (%s is "
+              "locked).",
+              session_name.c_str(), target_file_path.c_str());
+        }
+        PERFETTO_PLOG("Failed to check flock on %s", target_file_path.c_str());
+      }
+      existing_fd.reset();
+    }
+  }
 
   if (cur_prop.empty()) {
     android_stats::MaybeLogUploadEvent(
@@ -311,21 +339,20 @@ void PerfettoCmd::WaitForPreviousRebootTraceUpload(
         "Timed out waiting for uploader to set property status for session "
         "'%s'! Unlinked '%s'.",
         session_name.c_str(), target_file_path.c_str());
-    return;
-  }
-
-  // If property is set, but the persistent trace file STILL exists on disk,
-  // log error and unlink file.
-  if (base::FileExists(target_file_path)) {
+  } else {
+    // If property is set, but the persistent trace file STILL exists on disk,
+    // and not used by other sessions, log error and unlink file.
     android_stats::MaybeLogUploadEvent(
         PerfettoStatsdAtom::kRebootTraceUploadLeftover, /*uuid_lsb=*/0,
         /*uuid_msb=*/0, session_name);
     remove(target_file_path.c_str());
     PERFETTO_ELOG(
         "Persistent trace file '%s' still exists on disk even though property "
-        "is set to '%s'! Unlinked file.",
+        "is set to '%s'! A previous crash or failed reboot cleanup may have "
+        "left this file behind. Unlinked file.",
         target_file_path.c_str(), cur_prop.c_str());
   }
+  return base::OkStatus();
 }
 
 // static
@@ -337,22 +364,31 @@ base::ScopedFile PerfettoCmd::WaitForUploadCompleteAndCreatePersistentTmpFile(
   base::StackString<256> file_path("%s/%s.tmp", dir_path.c_str(),
                                    sanitized_name.c_str());
 
-  // Wait for any previous pending reboot trace upload for this session name to
-  // complete if the persistent trace file exists on disk.
-  WaitForPreviousRebootTraceUpload(sanitized_name, file_path.c_str());
-
-  // Unconditionally unlink any pre-existing file on disk before creating a new
-  // one. If another process (e.g. background uploader) is currently reading the
-  // previous file, unlinking preserves its open inode so the upload is not
-  // corrupted while allowing us to create a fresh file for the new session.
-  remove(file_path.c_str());
+  // Handle pre-existing persistent trace files (waiting for reboot uploader,
+  // detecting active sessions, and cleaning up leftovers from crashes).
+  base::Status status =
+      WaitForRebootTraceUploadOrCleanup(sanitized_name, file_path.c_str());
+  if (!status.ok()) {
+    PERFETTO_LOG("%s", status.c_message());
+    return base::ScopedFile();
+  }
 
   auto fd = base::OpenFile(file_path.c_str(),
                            O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
   if (!fd) {
     PERFETTO_PLOG("Could not create persistent trace file %s",
                   file_path.c_str());
-  } else if (out_file_path) {
+    return fd;
+  }
+
+  // Acquire an advisory exclusive lock on the newly created persistent file so
+  // any future duplicate session knows this file is actively in use.
+  if (flock(fd.get(), LOCK_EX | LOCK_NB) != 0) {
+    PERFETTO_PLOG("Failed to acquire flock on persistent trace file %s",
+                  file_path.c_str());
+  }
+
+  if (out_file_path) {
     *out_file_path = file_path.c_str();
   }
   return fd;
@@ -444,6 +480,15 @@ int PerfettoCmd::UploadPersistentTracesAfterReboot() {
     if (!fd) {
       PERFETTO_PLOG("reboot-trace: Failed to open persistent trace %s",
                     full_path.c_str());
+    }
+    if (fd && flock(fd.get(), LOCK_EX | LOCK_NB) != 0) {
+      if (errno == EWOULDBLOCK || errno == EAGAIN) {
+        PERFETTO_LOG(
+            "reboot-trace: Persistent trace %s is locked by an active session, "
+            "skipping.",
+            full_path.c_str());
+        continue;
+      }
     }
     // Unlink immediately regardless of open status to guarantee disk cleanup.
     unlink(full_path.c_str());
