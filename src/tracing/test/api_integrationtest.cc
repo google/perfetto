@@ -7151,15 +7151,16 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   });
   data_source->on_flush.Reset();
   session_a->get()->Flush([](bool) {}, /*timeout_ms=*/30000);
-  // OnFlush proves the request reached ProducerImpl. The following muxer task
-  // runs after it has queued the ring buffer drain behind the blocked relay.
+  // OnFlush() confirms that ProducerImpl received the request. The muxer
+  // checkpoint runs after ProducerImpl queues the drain behind the blocked
+  // relay task.
   data_source->on_flush.Wait();
   WaitableTestEvent flush_queued;
   perfetto::test::TracingMuxerImplInternalsForTest::PostToMuxerSequence(
       [&flush_queued] { flush_queued.Notify(); });
   flush_queued.Wait();
 
-  // Kills the connection while the writer, the barrier and the flush are all
+  // Disconnect while the old writer is alive and its barrier and flush remain
   // pending.
   system_service_.Restart();
   data_source->on_stop.Wait();

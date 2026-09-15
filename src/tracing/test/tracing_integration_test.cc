@@ -341,9 +341,9 @@ TEST_P(TracingIntegrationTestWithChunkSize, WithIPCTransport) {
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
 
-// 0 leaves the field out of the config. Valid explicit values are transported
-// even when the producer only creates v1 writers. 260 need not be a power of
-// two.
+// Zero leaves the field absent. Valid explicit values reach the producer even
+// if it only creates v1 writers. The 260-byte case verifies that chunk sizes
+// need not be powers of two.
 INSTANTIATE_TEST_SUITE_P(ChunkSize,
                          TracingIntegrationTestWithChunkSize,
                          testing::Values(0u, 1024u, 260u));

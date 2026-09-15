@@ -50,10 +50,10 @@ namespace perfetto::tracing_v2 {
 class InProcessTracingV2BridgeTestPeer;
 
 // Temporary adapter that lets SDK data sources write through the tracing v2
-// ring buffer while traced still only understands the v1 shared memory buffer
-// (SMB). It reads the ring buffer in the producer process and re-emits the
-// packets through ordinary v1 TraceWriters. NotifyReader() schedules draining
-// on the relay sequence. The other arrows show packet data flow.
+// ring buffer while traced reads the v1 shared memory buffer (SMB). The bridge
+// reads the ring buffer in the producer process and forwards complete packets
+// through v1 TraceWriters. NotifyReader() schedules a drain on the relay
+// sequence. The other arrows show packet data flow.
 //
 //   Producer process
 //   SDK thread                  Relay sequence
@@ -90,10 +90,12 @@ class InProcessTracingV2BridgeTestPeer;
 //                                                   v
 //                                               TraceBuffer
 //
-// The bridge owns the ring buffer memory and its reader, the per-writer
-// reassembly state and one v1 TraceWriter per v2 WriterID. Writer registration
-// is guarded by |mutex_|. Draining, reassembly, v1 forwarding and control
-// barriers run one task at a time on the relay sequence.
+// The bridge owns the ring buffer memory, its reader, and one WriterState per
+// v2 WriterID. Each WriterState holds packet reassembly state and a v1 writer.
+// SDK threads register writers under |mutex_|. The relay reads the ring buffer,
+// reassembles packets, forwards them to v1, and processes barriers.
+// A barrier delays a control operation until the reader reaches a sampled
+// ring buffer position. See Barrier below.
 //
 // Each TraceWriterV2Impl retains the bridge as its Delegate. Queued relay tasks
 // also hold shared references, so destruction can happen on any thread.
@@ -106,9 +108,9 @@ class InProcessTracingV2BridgeTestPeer;
 //   acknowledgement.
 // - New writer destruction requests are dropped. The bridge releases retained
 //   writers when it dies. WriterIDs are not reused after shutdown.
-// - Tasks queued before the close may still run while the task runner is being
-//   destroyed. A drain accepted before the close may not finish if its next
-//   batch is posted after the close.
+// - Tasks queued before the close can still run during task runner destruction.
+//   A drain can need several tasks. If Close() rejects its next batch, the
+//   drain remains incomplete even though its first task was accepted.
 class InProcessTracingV2Bridge
     : public TraceWriterV2Impl::Delegate,
       public SharedRingBufferReader::Delegate,
@@ -129,11 +131,12 @@ class InProcessTracingV2Bridge
   static uint32_t NumChunksForCapacity(size_t capacity_bytes,
                                        uint32_t chunk_size);
 
-  // CHECKs the shared ring buffer ABI layout constraints, a non-null relay,
-  // a power-of-two chunk count of at least two and at most 32 MiB of storage.
-  // Allocates the ring buffer header in addition. The 32 KiB maximum chunk size
-  // is producer setup policy (kMaxConfiguredChunkSize), not a factory
-  // constraint.
+  // Requires a non-null relay and a layout that satisfies SharedRingBuffer's
+  // ABI checks. The chunk count must be a power of two and at least two.
+  // Chunk storage must not exceed 32 MiB. Invalid arguments fail a CHECK.
+  // Allocates the ring buffer header in addition to that storage.
+  // Producer setup enforces kMaxConfiguredChunkSize (32 KiB). This factory
+  // accepts larger chunks if the layout and total storage satisfy its checks.
   static std::shared_ptr<InProcessTracingV2Bridge> Create(
       std::shared_ptr<RelaySequence> relay,
       uint32_t num_chunks,
@@ -146,10 +149,10 @@ class InProcessTracingV2Bridge
   InProcessTracingV2Bridge(InProcessTracingV2Bridge&&) = delete;
   InProcessTracingV2Bridge& operator=(InProcessTracingV2Bridge&&) = delete;
 
-  // Samples the ring buffer's write position and reads published fragments up
-  // to it. Flushes the v1 writers that received complete packets, then runs
-  // |completion| on the relay sequence. Finish packets before requesting the
-  // drain to include them.
+  // Samples the ring buffer's write position, then queues a drain up to it.
+  // The relay forwards complete packets and flushes the v1 writers that
+  // received them. It then runs |completion| on the relay sequence.
+  // Finish packets before requesting the drain to include them.
   //
   // With a fully bound v1 arbiter, commits are posted to the muxer before
   // |completion| runs. Work it posts to the muxer follows those commits.
@@ -167,9 +170,10 @@ class InProcessTracingV2Bridge
                            uint32_t chunk_size,
                            std::shared_ptr<RelaySequence> relay);
 
-  // Takes ownership of |v1_writer| and returns a TraceWriterV2Impl with the
-  // same WriterID that forwards into it. If |v1_writer| has no usable WriterID,
-  // it is returned as is. Called by TracingV2Connection. Thread-safe.
+  // Retains |v1_writer| as the destination for a new TraceWriterV2Impl with the
+  // same WriterID. The relay forwards that v2 writer's complete packets to it.
+  // If |v1_writer| has no usable WriterID, returns it unchanged.
+  // Called by TracingV2Connection. Thread-safe.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       std::unique_ptr<TraceWriter> v1_writer,
       BufferID target_buffer,
@@ -184,7 +188,8 @@ class InProcessTracingV2Bridge
     bool expecting_continuation = false;
     bool discarding_packet = false;
     // Loss bits for the next complete packet's previous_packet_dropped field.
-    // Cleared on forwarding. If v1 drops the packet, these bits are lost.
+    // ForwardPacket() clears them after it writes the field to the v1 writer.
+    // If v1 drops that packet, these bits are lost.
     // V1 reports DATA_LOSS_SMB_FULL on recovery.
     uint32_t pending_data_loss = 0;
     // Set after forwarding a packet, cleared when the v1 writer is flushed.
@@ -204,7 +209,9 @@ class InProcessTracingV2Bridge
   // A control operation (flush, drain, writer destruction) ordered after
   // earlier packet publication:
   //   sample write_pos -> read published fragments -> flush v1 -> completion
-  // Barriers run one at a time, in request order, on the relay sequence.
+  // The relay processes barriers in the order their enqueue tasks run.
+  // It submits each v1 flush before starting the next barrier, but does not
+  // wait for that flush's service acknowledgement.
   struct Barrier {
     uint32_t drain_target_pos = 0;
     BarrierType type = BarrierType::kFlushDirtyWriters;
@@ -225,8 +232,9 @@ class InProcessTracingV2Bridge
   void OnChunkRead(const SharedRingBufferReader::ChunkContents&) override;
   void OnDataLoss(WriterID) override;
 
-  // The pointer remains valid after unlocking: inserts do not move the heap
-  // allocation, and only this relay sequence removes entries.
+  // Called only on the relay sequence. The returned pointer remains valid
+  // after unlocking: registration does not move WriterState objects, and only
+  // the relay removes them.
   WriterState* FindWriterState(WriterID);
   static void DiscardCurrentPacket(WriterState*, uint32_t reason);
   void ForwardPacket(WriterState*);
@@ -250,12 +258,14 @@ class InProcessTracingV2Bridge
 
   std::vector<uint8_t> rewritten_packet_;
 
-  // Enqueue tasks append. RunFrontBarrier drains and removes the front.
+  // Relay sequence only. Enqueue tasks append barriers. RunFrontBarrier()
+  // drains to the front barrier's target, then removes and executes it.
   std::deque<Barrier> pending_control_barriers_;
 
-  // Guards |writers_| only, as any SDK thread can insert into it. The
-  // WriterState contents are relay-sequence only. The unique_ptr keeps them
-  // stable across rehashes.
+  // Guards |writers_| because SDK threads register writers while the relay
+  // reads and removes entries. After registration, only the relay accesses
+  // WriterState contents. The unique_ptr keeps their addresses stable across
+  // rehashes.
   std::mutex mutex_;
   base::FlatHashMap<WriterID, std::unique_ptr<WriterState>> writers_;
 

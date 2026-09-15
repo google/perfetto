@@ -41,7 +41,8 @@ using ::perfetto::protos::pbzero::TracePacket;
 constexpr uint32_t kMaxPositionsPerPass = 256;
 
 // Bound packet reassembly and rewritten output, including malformed input.
-// TODO(sashwinbalaji): use a total per-producer budget in traced.
+// TODO(sashwinbalaji): Bound total reassembly memory per producer when this
+// moves into traced. Each writer can currently retain a partial packet.
 constexpr size_t kMaxPacketSize = protozero::proto_utils::kMaxMessageLength;
 
 // Match the maximum v1 SMB size.
@@ -107,8 +108,8 @@ InProcessTracingV2Bridge::InProcessTracingV2Bridge(
   PERFETTO_DETACH_FROM_THREAD(thread_checker_);
 }
 
-// May run on any thread. Relay tasks hold a reference to the bridge, so none
-// can still be running when destruction begins.
+// Can run on any thread. Each relay task retains the bridge until it finishes
+// or is discarded, so no relay task can access it after destruction begins.
 InProcessTracingV2Bridge::~InProcessTracingV2Bridge() = default;
 
 std::unique_ptr<TraceWriter> InProcessTracingV2Bridge::CreateTraceWriter(
@@ -144,10 +145,15 @@ std::unique_ptr<TraceWriter> InProcessTracingV2Bridge::CreateTraceWriter(
 // --- TraceWriterV2Impl::Delegate: SDK writer threads. ---
 
 void InProcessTracingV2Bridge::NotifyReader() {
-  // Coalesce notifications into one relay task. The exchanges make each
-  // writer's ring buffer updates visible to the drain. The task clears the flag
-  // before draining so later writes can schedule another pass. A failed post
-  // leaves the flag set.
+  // Coalesce notifications while a drain task is queued:
+  // 1. Each writer publishes data, then exchanges drain_scheduled_ with true.
+  // 2. The first writer posts a task. Later writers see true and return.
+  // 3. The task exchanges the flag with false before it reads the ring buffer.
+  //    The acquire pairs with the writers' releases through the exchanges.
+  // 4. A writer that publishes after the flag clears can post another task.
+  //    Its data can miss this drain, so clearing the flag afterward could lose
+  //    the notification and leave that data unread.
+  // If Close() rejects the post, the flag stays true. The relay cannot reopen.
   if (drain_scheduled_.exchange(true, std::memory_order_acq_rel))
     return;
   relay_->PostTask([self = shared_from_this()] {
@@ -194,7 +200,8 @@ void InProcessTracingV2Bridge::OnChunkRead(
         is_last && (contents.payload_flags & kFlagContinuesOnNextChunk) != 0;
 
     if (!continues_from_prev) {
-      // A promised continuation did not arrive.
+      // This fragment starts a new packet. If the previous packet required a
+      // continuation, discard its incomplete prefix and report the gap.
       if (PERFETTO_UNLIKELY(state->expecting_continuation)) {
         AddDataLoss(&state->pending_data_loss,
                     TracePacket::DATA_LOSS_REASSEMBLY_GAP);
@@ -202,7 +209,8 @@ void InProcessTracingV2Bridge::OnChunkRead(
       state->partial_packet.clear();
       state->discarding_packet = false;
     } else if (PERFETTO_UNLIKELY(!state->expecting_continuation)) {
-      // The packet's first fragment did not arrive.
+      // This fragment continues a packet whose prefix is missing. Discard it
+      // and any further continuations until a new packet can begin.
       state->discarding_packet = true;
       AddDataLoss(&state->pending_data_loss,
                   TracePacket::DATA_LOSS_ORPHAN_CONTINUATION);
@@ -252,8 +260,8 @@ InProcessTracingV2Bridge::FindWriterState(WriterID writer_id) {
 void InProcessTracingV2Bridge::DiscardCurrentPacket(WriterState* state,
                                                     uint32_t reason) {
   state->partial_packet.clear();
-  // We don't know where the rejected chunk's packet ended. Keep discarding
-  // until a fragment that starts a new packet shows up.
+  // The rejected chunk can contain the packet's end. Discard continuations
+  // until a fragment starts a new packet.
   state->expecting_continuation = false;
   state->discarding_packet = true;
   AddDataLoss(&state->pending_data_loss, reason);
@@ -288,8 +296,8 @@ void InProcessTracingV2Bridge::ForwardPacket(WriterState* state) {
                                   rewritten_packet_.size());
     }
     if (PERFETTO_UNLIKELY(state->pending_data_loss != 0)) {
-      // Appended after the payload: with proto last-value-wins this overrides
-      // any previous_packet_dropped the writer itself set.
+      // Write this field after the payload. Protobuf uses the last value of a
+      // singular scalar field, so this replaces any earlier loss value.
       packet->set_previous_packet_dropped(state->pending_data_loss);
       state->pending_data_loss = 0;
     }
@@ -326,9 +334,12 @@ bool InProcessTracingV2Bridge::EnqueueBarrier(
     WriterID writer_id,
     std::function<void()> completion) {
   Barrier barrier;
-  // The caller synchronizes with the writers covered by this flush or stop,
-  // so the snapshot includes their preceding reservations. A newer position
-  // only adds work. Chunk state determines which payload is published.
+  // The caller synchronizes with the writers covered by this flush or stop.
+  // Their completed packets precede this snapshot. Concurrent writers can
+  // advance write_pos further, which adds work to the drain.
+  // The position bounds reservations, not packet contents: chunk state tells
+  // the reader which fragments are published. Later packets can still appear
+  // in a cached chunk whose reservation precedes this target.
   barrier.drain_target_pos = ring_buffer_.LoadWritePosRelaxed();
   barrier.type = type;
   barrier.writer_id = writer_id;
@@ -347,7 +358,8 @@ bool InProcessTracingV2Bridge::EnqueueBarrier(
 
 bool InProcessTracingV2Bridge::DrainBarrierBatch(uint32_t target_pos) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // An ordinary drain may already have passed the sampled target.
+  // NotifyReader() can run a drain before this barrier task. If that drain
+  // already reached or passed the target, no further read is needed.
   const int32_t positions_to_target =
       static_cast<int32_t>(target_pos - ring_buffer_reader_.read_pos());
   if (positions_to_target <= 0)
@@ -409,9 +421,12 @@ void InProcessTracingV2Bridge::RunFrontBarrier() {
         state->has_unflushed_v1_data = false;
       }
 
-      // Startup tracing is excluded, so the bound arbiter posts CommitData
-      // before Flush() returns. The completion's muxer task follows those
-      // commits. It does not wait for their service ACKs.
+      // Startup tracing is excluded, so the arbiter is fully bound. For muxer
+      // flush and stop requests, this gives the following order:
+      // 1. Each Flush() posts CommitData work to the muxer before returning.
+      // 2. The completion posts its flush or stop acknowledgement to the muxer.
+      // 3. The muxer processes the commits before that acknowledgement.
+      // This orders the posts without waiting for service acknowledgements.
       if (barrier.completion)
         barrier.completion();
       break;

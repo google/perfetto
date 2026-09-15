@@ -4307,15 +4307,15 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForTracingV2StopAck) {
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_v2");
 
-  // Nothing else is pending: if the service weren't waiting for our ack,
-  // OnTracingDisabled() would fire here.
+  // Only the producer's stop acknowledgement remains pending. If the service
+  // did not require it, OnTracingDisabled() would run here.
   EXPECT_CALL(*consumer, OnTracingDisabled(_)).Times(0);
   task_runner.RunUntilIdle();
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(consumer.get()));
 
   producer->endpoint()->NotifyDataSourceStopped(id);
-  // Half the stop timeout: fails if the service only got there via the
-  // timeout rather than the ack.
+  // Wait for half the stop timeout. The acknowledgement must complete stop
+  // before the service can use its timeout to complete it.
   consumer->WaitForTracingDisabled(kDataSourceStopTimeoutMs / 2);
 }
 
