@@ -84,9 +84,9 @@ const char* BundleSubcommand::usage_args() const {
 const char* BundleSubcommand::detailed_help() const {
   return R"(Create a self-contained bundle from a trace.
 
-Outputs a TAR containing the trace plus the symbols and deobfuscation
-mappings needed to make it self-contained. Both <input> and <output> must be
-real file paths (stdin/stdout are not supported).)";
+Outputs a TAR containing the trace plus the symbols, deobfuscation mappings
+and source files needed to make it self-contained. Both <input> and <output>
+must be real file paths (stdin/stdout are not supported).)";
 }
 
 std::vector<FlagSpec> BundleSubcommand::GetFlags() {
@@ -104,6 +104,18 @@ std::vector<FlagSpec> BundleSubcommand::GetFlags() {
       BoolFlag("no-auto-proguard-maps", '\0',
                "Disable automatic ProGuard/R8 mapping discovery.",
                &no_auto_proguard_maps_),
+      BoolFlag("no-sources", '\0',
+               "Do not bundle the source files referenced by symbolized "
+               "frames.",
+               &no_source_files_),
+      FlagSpec{
+          "source-prefix-map", '\0', true, "FROM=TO",
+          "Read source files whose path in the debug info starts with FROM "
+          "from the same path under TO instead (may be repeated).",
+          [this](const char* v) { source_prefix_maps_.emplace_back(v); }},
+      BoolFlag("no-disassembly", '\0',
+               "Do not bundle the disassembly of sampled functions.",
+               &no_disassembly_),
       BoolFlag("verbose", '\0', "Print more detailed output.", &verbose_),
   };
 }
@@ -198,6 +210,18 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
   }
   context.no_auto_symbol_paths = no_auto_symbol_paths_;
   context.no_auto_proguard_maps = no_auto_proguard_maps_;
+  context.no_source_files = no_source_files_;
+  for (const std::string& map : source_prefix_maps_) {
+    size_t eq = map.find('=');
+    if (eq == std::string::npos) {
+      return base::ErrStatus(
+          "bundle: --source-prefix-map expects FROM=TO, got '%s'.",
+          map.c_str());
+    }
+    context.source_prefix_maps.emplace_back(map.substr(0, eq),
+                                            map.substr(eq + 1));
+  }
+  context.no_disassembly = no_disassembly_;
   context.verbose = verbose_;
   if (const char* val = getenv("ANDROID_PRODUCT_OUT"))
     context.android_product_out = val;

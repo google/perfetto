@@ -76,6 +76,11 @@ struct SuccessfulMapping {
   std::string symbol_path;
   // Number of frames that were symbolized.
   uint32_t frame_count = 0;
+  // The binary the symbols were read from and the value to add to a
+  // mapping-relative address to obtain its link-time virtual address in it.
+  // See SymbolizeResult. Empty when symbols came from a symbol file.
+  std::string binary_path;
+  uint64_t address_correction = 0;
 };
 
 // Record of a failed symbolization attempt for a mapping.
