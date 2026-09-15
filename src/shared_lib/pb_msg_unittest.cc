@@ -43,9 +43,8 @@ PERFETTO_PB_FIELD(PbMsgTestFields, PACKED, Uint32, values, 2);
 // Test plumbing.
 // ---------------------------------------------------------------------------
 
-// A flat, oversized buffer. Nothing written through it comes close to the end,
-// so the stream writer's slow paths are never taken; ChunkedCBuffer below is
-// what exercises those.
+// One buffer large enough for each test message. These tests do not request a
+// second range. ChunkedCBuffer below exercises the stream writer's slow paths.
 class FlatCBuffer {
  public:
   FlatCBuffer() {
@@ -67,9 +66,9 @@ class FlatCBuffer {
   PerfettoPbMsgWriter writer_{};
 };
 
-// A real protozero::ScatteredStreamWriter behind the C stream writer, handing
-// out deliberately small ranges so that everything the C code writes crosses
-// several of them. This is what makes PerfettoPbMsgPatchStack() run.
+// Uses protozero::ScatteredStreamWriter to supply small ranges to the C writer.
+// Messages cross range boundaries, which makes the C runtime call
+// PerfettoPbMsgPatchStack() before it requests another range.
 class ChunkedCBuffer : public protozero::ScatteredStreamWriter::Delegate {
  public:
   explicit ChunkedCBuffer(size_t range_size)
@@ -89,7 +88,7 @@ class ChunkedCBuffer : public protozero::ScatteredStreamWriter::Delegate {
   PerfettoPbMsgWriter* writer() { return &writer_; }
   size_t num_ranges() const { return ranges_.size(); }
 
-  // Everything written so far, stitched back into one buffer.
+  // Returns all written bytes in one contiguous buffer.
   std::vector<uint8_t> bytes() {
     stream_writer_.set_write_ptr(writer_.writer.write_ptr);
     std::vector<uint8_t> out;
@@ -139,10 +138,11 @@ std::vector<uint8_t> BuildWithCpp(protozero::NestedMessageEncoding encoding) {
   return std::vector<uint8_t>(buffer.storage, buffer.stream_writer.write_ptr());
 }
 
-// The same shape through the C runtime. The call sequences are not identical
-// because the two APIs differ in an unrelated way - the C++ runtime closes an
-// open nested message when the parent's next field is written, while the C one
-// wants an explicit EndNested - but the bytes they produce must match exactly.
+// Writes the same message through the C runtime. The two APIs close children
+// differently:
+// - C++ closes an open child when the caller writes the parent's next field.
+// - C requires an explicit PerfettoPbMsgEndNested() call.
+// The resulting bytes must match despite these different call sequences.
 std::vector<uint8_t> BuildWithC(enum PerfettoPbMsgEncoding encoding) {
   FlatCBuffer buffer;
   PerfettoPbMsg root{};
@@ -282,8 +282,8 @@ TEST(PbMsgTest, LengthDelimitedNestedSizesAndPatch) {
   EXPECT_EQ(PerfettoPbMsgFinalize(&root), 7u);
   EXPECT_EQ(root.size, 7u);
 
-  // Field 2, wire type 2; the redundant four-byte length of 2; then the two
-  // payload bytes.
+  // Field 2 with wire type 2, followed by the four-byte encoding of length 2
+  // and the two payload bytes.
   const uint8_t kExpected[] = {0x12, 0x82, 0x80, 0x80, 0x00, 0x08, 0x07};
   EXPECT_THAT(buffer.bytes(), ElementsAreArray(kExpected));
 }
@@ -328,8 +328,7 @@ TEST(PbMsgTest, CAndCppEmitIdenticalBytes) {
   EXPECT_EQ(BuildWithC(PERFETTO_PB_MSG_ENCODING_PROTO_GROUP),
             BuildWithCpp(protozero::NestedMessageEncoding::kProtoGroup));
 
-  // The exact expected bytes, so a shared misunderstanding cannot make the
-  // comparison above pass:
+  // Check explicit bytes as well, since both runtimes can have the same bug:
   //   08 07                 field 1 = 7
   //   13                    start field 2
   //   18 08                 field 3 = 8
@@ -344,10 +343,11 @@ TEST(PbMsgTest, CAndCppEmitIdenticalBytes) {
 }
 
 // ---------------------------------------------------------------------------
-// STRING and PACKED fields. Their payload is arbitrary bytes, so a proto group
-// cannot frame them. A complete setter emits an ordinary length-delimited
-// field in either encoding; the piecewise builders need a length that is not
-// known yet, so proto-group mode rejects them.
+// STRING and PACKED fields contain arbitrary bytes, so group tags cannot frame
+// them. They require a length before their payload.
+// Complete setters know that length and emit a length-delimited field in either
+// encoding. Incremental builders know the length only when the field closes,
+// so the append-only proto group encoding rejects them.
 // ---------------------------------------------------------------------------
 
 TEST(PbMsgTest, ProtoGroupWholeValueSettersStayLengthDelimited) {
@@ -367,9 +367,9 @@ TEST(PbMsgTest, ProtoGroupWholeValueSettersStayLengthDelimited) {
   EXPECT_THAT(buffer.bytes(), ElementsAreArray(kExpected));
 }
 
-// The piecewise builders reserve a length and fill it in on end, which the
-// append-only encoding cannot do. They must fail at begin, before a start tag
-// or any payload byte reaches the packet.
+// Incremental builders reserve a length field and fill it at the end.
+// Append-only writes cannot update that length. Reject the begin call before
+// a tag or payload byte reaches the packet.
 TEST(PbMsgTest, ProtoGroupRejectsIncrementalString) {
   FlatCBuffer buffer;
   PbMsgTestFields root{};
@@ -425,8 +425,8 @@ TEST(PbMsgTest, LengthDelimitedIncrementalPackedFieldIsUnchanged) {
 // ---------------------------------------------------------------------------
 
 TEST(PbMsgTest, ProtoGroupMessagesCrossRanges) {
-  // Small ranges force the stream writer through its slow path. Proto-group
-  // messages have no size field, so there is nothing to patch on rollover.
+  // Small ranges force the stream writer through its slow path. Messages in
+  // proto group mode have no size field, so range changes require no patches.
   ChunkedCBuffer buffer(/*range_size=*/32);
   PerfettoPbMsg root{};
   InitProtoGroupRoot(&root, &buffer);
@@ -438,8 +438,8 @@ TEST(PbMsgTest, ProtoGroupMessagesCrossRanges) {
     PerfettoPbMsgAppendType2Field(&nested, 2, payload.data(), payload.size());
   PerfettoPbMsgFinalize(&root);
 
-  // If a future change made the ranges big enough to hold everything, this test
-  // would silently stop testing the slow path.
+  // Require a range change so the test continues to exercise the slow path
+  // even if the fixture's buffer sizes change.
   EXPECT_GT(buffer.num_ranges(), 1u);
 
   const std::vector<uint8_t> bytes = buffer.bytes();
@@ -474,8 +474,7 @@ TEST(PbMsgTest, LengthDelimitedMessagesStillPatchAcrossRanges) {
 }
 
 // ---------------------------------------------------------------------------
-// An encoding this build has never heard of must fail before any byte is
-// written, not quietly become length-delimited.
+// Reject an unknown encoding before any byte reaches the stream.
 // ---------------------------------------------------------------------------
 
 TEST(PbMsgTest, UnknownEncodingAborts) {

@@ -64,8 +64,8 @@ class CountingDelegate : public TraceWriterV2Impl::Delegate {
   std::vector<WriterID> destroyed_writers;
 };
 
-// Drains the ring buffer synchronously from the notification to test
-// notification timing deterministic.
+// Drains the ring buffer synchronously on notification so tests can verify
+// the notification order without thread scheduling.
 class DrainingDelegate : public TraceWriterV2Impl::Delegate {
  public:
   void NotifyReader() override {
@@ -83,9 +83,9 @@ class DrainingDelegate : public TraceWriterV2Impl::Delegate {
   uint32_t notifications = 0;
 };
 
-// Puts the writer's fragments back together into packets and rewrites them to
-// canonical protobuf. Uses fragment order, continuation flags and loss reports
-// to check that only complete packets reach the decoder.
+// Reassembles the writer's fragments into packets and rewrites them to
+// length-delimited protobuf. Uses fragment order, continuation flags and loss
+// reports to check that only complete packets reach the decoder.
 class PacketReassembler : public SharedRingBufferReader::Delegate {
  public:
   void OnChunkRead(
@@ -187,9 +187,12 @@ TEST(TraceWriterV2ImplTest, FirstDropAfterRelocationFailure) {
   Fixture f(/*num_chunks=*/2, /*chunk_size=*/256);
   f.writer->NewTracePacket()->set_timestamp(1);
 
-  // Occupy the other chunk, then request a rewrite of the writer's cached
-  // chunk. Model the reader paused before it advances read_pos, so the writer
-  // cannot reserve a replacement for its unpublished fragment.
+  // Force the first drop through relocation failure:
+  // 1. A second writer occupies the other chunk. Both positions are reserved.
+  // 2. The reader requests a rewrite of this writer's chunk, then pauses before
+  //    it advances read_pos. The ring buffer still appears full to the writer.
+  // 3. EndFragment() acknowledges the request but cannot reserve a replacement.
+  //    GetNewBuffer() must allocate the drop buffer for the remaining bytes.
   SharedRingBufferWriter blocker(f.ring.get(), 9, kBufferA,
                                  BufferExhaustedPolicy::kDrop,
                                  test::GetNoopWriterDelegate());
@@ -204,7 +207,7 @@ TEST(TraceWriterV2ImplTest, FirstDropAfterRelocationFailure) {
     ASSERT_TRUE(f.ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
     const std::string payload(1024, 'x');
     packet->AppendRawProtoBytes(payload.data(), payload.size());
-    // Relocation records the drop before GetNewBuffer calls EnterDropMode.
+    // Relocation records the drop before GetNewBuffer() calls EnterDropMode().
     // Allocation must happen even though in_drop_mode_ is already true.
     EXPECT_EQ(f.ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
               kRewriteAcknowledgedStateWord);
@@ -362,8 +365,9 @@ TEST(TraceWriterV2ImplTest, NestedMessagesUseThePrivateFramingOnTheWire) {
   f.writer->Flush();
   f.reader.Drain(64);
 
-  // Proto-group packets are not directly parseable as protobuf. They become
-  // ordinary protobuf after rewriting.
+  // The proto group closing bytes make this packet invalid as standard
+  // protobuf. The rewriter converts the nested messages to length-delimited
+  // fields.
   ASSERT_EQ(f.reassembler.packets.size(), 1u);
   const std::vector<uint8_t>& raw = f.reassembler.packets[0];
   EXPECT_NE(std::find(raw.begin(), raw.end(),
@@ -383,8 +387,8 @@ TEST(TraceWriterV2ImplTest, NestedMessagesUseThePrivateFramingOnTheWire) {
 }
 
 TEST(TraceWriterV2ImplTest, PacketSpanningSeveralChunksReconstructsExactly) {
-  // 256-byte chunks give about 249 payload bytes, so a 2 KiB string has to be
-  // split across many of them.
+  // A 256-byte chunk holds at most 248 payload bytes after its header and size
+  // entry. The 2 KiB string must therefore span several chunks.
   Fixture f(/*num_chunks=*/64, /*chunk_size=*/256);
   const std::string payload(2048, 'x');
   {
@@ -406,10 +410,12 @@ TEST(TraceWriterV2ImplTest, PacketSpanningSeveralChunksReconstructsExactly) {
 TEST(TraceWriterV2ImplTest, FinalizingAPacketCanCrossAChunkBoundary) {
   Fixture f(/*num_chunks=*/8, /*chunk_size=*/256);
 
-  // An empty chunk holds a 248-byte fragment. The three-byte first-packet
-  // marker, two-byte opening tag for TracePacket.for_testing, string tag,
-  // two-byte length and payload fill it exactly. Finalize() has to write the
-  // nested-message close byte into another chunk.
+  // A 256-byte chunk holds a 248-byte fragment after its header and size entry.
+  // Fill that fragment exactly:
+  // - 3 bytes for first_packet_on_sequence.
+  // - 2 bytes for the opening tag of TracePacket.for_testing.
+  // - 1 byte for the string tag, 2 for its length, and 240 for its payload.
+  // Finalize() must then append the nested-message closing byte in a new chunk.
   const std::string payload(240, 'z');
   auto packet = f.writer->NewTracePacket();
   packet->set_for_testing()->set_str(payload);
@@ -430,8 +436,8 @@ TEST(TraceWriterV2ImplTest, FinalizingAPacketCanCrossAChunkBoundary) {
 //   kDrop would lose the remaining bytes. kStall would wait for a reader
 //   that was never told to run.
 //
-// kDrop deliberately, so that the failure is a wrong answer in milliseconds
-// rather than a 30-second stall.
+// Use kDrop so a missing notification fails through lost data without a
+// 30-second stall.
 TEST(TraceWriterV2ImplTest, PacketLargerThanTheWholeRingSurvives) {
   test::SharedRingBufferForTesting ring(/*num_chunks=*/2, /*chunk_size=*/256);
   PacketReassembler reassembler;
@@ -479,8 +485,8 @@ TEST(TraceWriterV2ImplTest,
   SharedRingBufferReader reader(ring.get(), &reassembler);
   auto delegate = std::make_shared<CountingDelegate>();
 
-  // Both chunks pinned by a writer that stopped mid-rewrite, so no claim the
-  // writer below makes can succeed.
+  // Both chunks await rewrite acknowledgement from an earlier writer.
+  // The new writer cannot claim either chunk until the reader reclaims it.
   const uint32_t being_written =
       MakeDataStateWord(ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer,
                         0, 0, kWriterA + 1);
@@ -502,7 +508,7 @@ TEST(TraceWriterV2ImplTest,
 
   TraceWriter::TracePacketHandle packet = writer.NewTracePacket();
   packet->set_timestamp(1);
-  // Still open, and the reader has already been told.
+  // The packet is still open, but the reader already received a notification.
   EXPECT_GT(delegate->notifications, 0u);
   EXPECT_GT(ring->LoadWritePosRelaxed(), 0u);
 }
@@ -554,9 +560,9 @@ TEST(TraceWriterV2ImplTest, PacketsFromTwoWritersKeepTheirOwnBuffersAndIds) {
   EXPECT_EQ(packets[1].timestamp(), 2u);
 }
 
-// The reader takes the chunk while a packet is still being written. The writer
-// relocates only the part it had not published, and the packet still comes out
-// once and whole.
+// The reader copies the first packet and requests a rewrite while the writer
+// fills the second packet. The writer relocates only that unpublished packet.
+// The reader must deliver both packets exactly once.
 TEST(TraceWriterV2ImplTest,
      ScrapeDuringAnOpenPacketProducesOneCanonicalPacket) {
   Fixture f(/*num_chunks=*/16, /*chunk_size=*/512);

@@ -46,22 +46,25 @@ class SharedRingBuffer;
 // TraceWriter implementation backed by a tracing v2 shared ring buffer.
 //
 // A packet normally occupies one fragment. If it crosses a chunk boundary, the
-// writer sets the continuation flags and carries on in the next chunk. The
+// writer sets the continuation flags and continues in the next chunk. The
 // reader joins those fragments to reassemble the packet.
 //
 // A nested message can span chunks and still be open when the reader copies
 // an earlier fragment. The two encodings handle this differently:
 //
-// - Length-delimited (v1): Protozero reserves a length field before each nested
-//   message and fills it in when the message finishes. If the chunk containing
-//   that field must be released first, TraceWriterImpl redirects the length
-//   write to a patch record. Once the message finishes, the arbiter sends the
-//   completed patch to the service to update its copy of the chunk.
+// - Length-delimited (v1):
+//   1. Protozero reserves a length field before each nested message.
+//   2. If the chunk must be released before the message ends, TraceWriterImpl
+//      redirects the length write to a patch record.
+//   3. When the message ends, Protozero writes its length. The arbiter sends
+//      any completed patch to the service, which updates its copy of the chunk.
 //
-// - Proto-group (this writer): Each nested message starts with a group tag and
-//   ends with an appended closing byte. Previously published bytes need no
-//   length update. After reassembly, ProtoRewriter converts the packet to
-//   ordinary length-delimited protobuf.
+// - Proto group (this writer):
+//   1. Each nested message starts with a group tag.
+//   2. When the message ends, Protozero appends a closing byte. Previously
+//      published bytes need no length update.
+//   3. After reassembly, ProtoRewriter converts the packet to ordinary
+//      length-delimited protobuf.
 //
 // If the writer drops any part of a packet:
 // - Its remaining bytes go to the drop buffer.
@@ -70,8 +73,8 @@ class SharedRingBuffer;
 // - Packet reassembly discards orphan continuations. Later complete packets
 //   in unflagged chunks can be delivered.
 //
-// As with TraceWriterImpl, an instance may be used by only one thread at a
-// time. Packet writes go straight to the ring buffer. The delegate handles
+// As with TraceWriterImpl, use each instance from one thread at a time.
+// Packet writes go directly to the ring buffer. The delegate handles
 // reader notifications, flush completion and WriterID retirement.
 class TraceWriterV2Impl : public TraceWriter,
                           public protozero::MessageFinalizationListener,
@@ -90,29 +93,32 @@ class TraceWriterV2Impl : public TraceWriter,
   //                         v
   //                      Delegate
   //
-  // Several writers can share this delegate. Each keeps it alive for as long
-  // as it needs it, independently of when the other writers are destroyed.
+  // Each writer retains its own reference until destruction. Destroying one
+  // writer must not destroy a delegate that other writers still use.
   //
   // Refcounting manages lifetime only. Each writer still needs a single
   // calling thread or external synchronization.
   //
-  // Calls run on the writer's thread and may overlap across writers.
+  // Calls run on each writer's thread and can overlap across writers.
   // Implementations must synchronize access to their shared state.
   class Delegate : public SharedRingBufferWriter::Delegate {
    public:
     ~Delegate() override;
 
     // Called after this writer publishes its data. For a non-empty callback:
-    // - Wait for service acknowledgement before invoking it.
+    // - Invoke it after service acknowledgement.
     // - The delegate chooses the callback sequence.
-    // - Disconnect may discard it, as allowed by TraceWriter::Flush().
+    // - On disconnect, the delegate can discard it, as TraceWriter::Flush()
+    //   permits.
     virtual void Flush(WriterID, std::function<void()> callback) = 0;
 
     // The caller owns the writer, while the writer retains this delegate.
-    // Releasing that reference does not tell the delegate which writer ended.
-    // Called after this writer publishes its final chunk. The delegate decides
-    // when the reader no longer needs the writer's resources and its WriterID
-    // can be used by another writer.
+    // Reference release alone does not identify which writer ended.
+    // OnWriterDestroyed() supplies that identity after the final publication.
+    //
+    // The reader can still have unconsumed positions for this writer. The
+    // delegate must retain its resources until the reader no longer needs them.
+    // Only then can another writer use this WriterID.
     //
     // Like v1, where ~TraceWriterImpl() flushes remaining data and calls
     // SharedMemoryArbiterImpl::ReleaseWriterID():
@@ -122,17 +128,20 @@ class TraceWriterV2Impl : public TraceWriter,
     //     publish last chunk
     //     OnWriterDestroyed(id) -----------> arrange retirement of id
     //
-    // Prototype note: InProcessTracingV2Bridge forwards v2 ring data through a
-    // retained v1 writer. It waits for the reader to pass the final publication
-    // before releasing that writer and its reassembly state, so unread packets
-    // can still be forwarded. Once we have validated the v2 ring buffer and the
-    // service reads it directly, check whether writer cleanup can be simpler
-    // without the bridge.
+    // In the prototype, InProcessTracingV2Bridge forwards v2 packets through a
+    // retained v1 writer:
+    // 1. The v2 writer publishes its final chunk and calls OnWriterDestroyed().
+    // 2. The reader consumes the remaining positions. The bridge still needs
+    //    the v1 writer and reassembly state to forward those packets.
+    // 3. After the reader passes the final publication, the bridge can release
+    //    the v1 writer and reassembly state.
+    // Revisit this cleanup when the service reads the v2 ring buffer directly
+    // and the bridge is no longer needed.
     virtual void OnWriterDestroyed(WriterID) = 0;
   };
 
   struct InitArgs {
-    // Must be non-null. Retained until the writer is destroyed.
+    // Must be non-null. Each writer retains a reference until its destruction.
     std::shared_ptr<Delegate> delegate;
     // Identifies this writer and the trace buffer its packets target.
     WriterID writer_id = 0;
@@ -188,17 +197,19 @@ class TraceWriterV2Impl : public TraceWriter,
   std::unique_ptr<protozero::RootMessage<protos::pbzero::TracePacket>>
       cur_packet_;
 
-  // Start of the fragment currently being filled. Null while writes are going
-  // to |drop_buffer_|.
+  // Start of the open fragment in shared memory. Null after the fragment closes
+  // and while writes use |drop_buffer_|.
   uint8_t* fragment_begin_ = nullptr;
 
-  // When a packet is dropped, protozero writes its remaining bytes here so
-  // the data source can finish writing normally. These bytes are discarded.
+  // If a packet is dropped, Protozero writes its remaining bytes here so the
+  // data source can finish the packet. These bytes are never published.
+  // Each writer needs its own buffer because writes use ordinary stores.
+  // A global buffer would allow concurrent writers to modify the same bytes.
   //
   // Allocate this buffer only when needed, then reuse it for later drops.
   // Writers that never drop avoid the extra memory. The tradeoff is an
-  // allocation on the first drop. Use one chunk so raw stream callers can
-  // still reserve a contiguous range of bytes.
+  // allocation on the first drop. Match the chunk size so raw stream callers
+  // can still reserve a contiguous range as large as a normal fragment.
   std::vector<uint8_t> drop_buffer_;
 
   bool packet_open_ = false;

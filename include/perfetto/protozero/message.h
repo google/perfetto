@@ -41,17 +41,17 @@ namespace protozero {
 class MessageArena;
 class MessageHandleBase;
 
-// Encoding used for nested messages. The caller picks it when resetting the
-// root message and all its children use the same one.
+// Encoding for nested messages. The caller selects it in the root's Reset()
+// call. Each child inherits its parent's encoding.
 //
-// kLengthDelimited is normal protobuf. It reserves space for the message
-// length and fills it in when the message is finalized.
+// kLengthDelimited uses standard protobuf. It reserves a length field before
+// each nested message. Finalize() writes the message's length into that field.
 //
 // kProtoGroup is the append-only encoding used by tracing v2. It opens a nested
 // message with a protobuf start-group tag and closes it with
 // proto_utils::kProtoGroupEndByte. Unlike a protobuf group, the closing byte
-// does not repeat the field id. ProtoRewriter converts an assembled packet back
-// into length-delimited protobuf.
+// does not repeat the field id. ProtoRewriter converts the reassembled packet
+// to length-delimited protobuf.
 enum class NestedMessageEncoding : uint8_t {
   kLengthDelimited = 0,
   kProtoGroup = 1,
@@ -74,38 +74,39 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // static_assert()s in the Reset() method.
   Message() = default;
 
-  // Clears up the state, allowing the message to be reused as a fresh one.
-  // Uses length-delimited encoding and initializes a root message.
+  // Resets this object as an empty root message with length-delimited encoding.
   void Reset(ScatteredStreamWriter*, MessageArena*);
 
-  // As above, but selects the encoding and whether this is a root message.
-  // In proto-group mode only nested messages append a closing byte.
+  // Resets this object with the selected encoding and root status.
+  // In proto group mode, Finalize() appends a closing byte only if |is_root|
+  // is false. The packet boundary marks the end of a root message.
   void Reset(ScatteredStreamWriter*,
              MessageArena*,
              NestedMessageEncoding,
              bool is_root);
 
-  // Commits all the changes to the buffer and seals the message. In
-  // length-delimited mode this backfills the size field of this and all nested
-  // messages. In proto-group mode each nested message appends its close byte
-  // and the root appends nothing. Returns the size of the message (and all
-  // nested sub-messages), without taking into account any chunking.
-  // Finalize is idempotent and can be called several times w/o side effects.
-  // Short length-delimited messages may be compacted in memory into the size
-  // field, since their size can be represented with fewer than
-  // proto_utils::kMessageLengthFieldSize bytes.
+  // Finalizes all open children, then seals this message:
+  // - Length-delimited: writes the encoded size into the reserved length field,
+  //   if present. Short messages can use fewer than
+  //   proto_utils::kMessageLengthFieldSize bytes for that field through
+  //   compaction within the current chunk.
+  // - Proto group: appends a closing byte for a nested message. The root has no
+  //   closing byte.
+  //
+  // Returns the encoded size, including nested messages and any closing byte.
+  // The size excludes this message's tag and reserved length field.
+  // Repeated calls return the same size without further writes.
   uint32_t Finalize();
 
-  // Optional. If is_valid() == true, the corresponding memory region (its
-  // length == proto_utils::kMessageLengthFieldSize) is backfilled with the size
-  // of this message. This is the mechanism used by messages to backfill their
-  // corresponding size field in the parent message. In most cases this is only
-  // used for nested messages and the ScatteredStreamWriter::Delegate (e.g.
-  // TraceWriterImpl), takes case of the outer message.
+  // Optional reserved length field with proto_utils::kMessageLengthFieldSize
+  // bytes. If non-null, Finalize() writes this message's encoded size there
+  // and can compact the field as described above.
+  // TraceWriterImpl tracks root fragment sizes separately, so its root has no
+  // length field. In proto group mode, this pointer must always be null.
   uint8_t* size_field() const { return size_field_; }
   void set_size_field(uint8_t* size_field) { size_field_ = size_field; }
 
-  // Returns the encoding a new child should inherit.
+  // Returns the encoding each new child inherits.
   NestedMessageEncoding nested_message_encoding() const { return encoding_; }
 
   Message* nested_message() { return nested_message_; }
@@ -212,7 +213,7 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // proto-encoded and each field has a proto preamble.
   //
   // In kProtoGroup mode, |data| must not contain protobuf group fields. Wire
-  // types 3 and 4 belong to the surrounding proto-group framing in that mode.
+  // types 3 and 4 belong to the surrounding proto group framing in that mode.
   void AppendRawProtoBytes(const void* data, size_t size) {
     if (nested_message_)
       EndNestedMessage();
@@ -260,7 +261,7 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // has kMessageLengthFieldSize bytes and may be unaligned. Finalize() writes
   // this message's encoded size there, then sets this pointer to null.
   //
-  // In proto-group mode, this pointer is unused and always null. That encoding
+  // In proto group mode, this pointer is unused and always null. That encoding
   // reserves no length field. A nested message appends a closing byte when it
   // finishes, and the packet boundary marks the end of the root message.
   uint8_t* size_field_;
@@ -285,13 +286,16 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // Selected by the root and inherited by every nested message.
   NestedMessageEncoding encoding_;
 
-  // Whether this message is the packet root. In proto-group mode, Finalize()
+  // Whether this message is the packet root. In proto group mode, Finalize()
   // closes nested messages with an end byte. The packet boundary closes the
   // root, which has no start tag or end byte.
   //
-  // MessageHandleBase finalizes through Message*, and packet handles expose
-  // the generated message type. Both call Message::Finalize(), so the root
-  // identity must be stored in Message even when RootMessage owns the arena.
+  // Finalization does not always use the RootMessage type:
+  // - MessageHandleBase calls Finalize() through Message*.
+  // - Packet handles expose the generated message type, which inherits
+  //   Message::Finalize().
+  // Both paths must recognize the root. An override in RootMessage alone
+  // cannot handle them, so Message stores the root identity.
   //
   // Example: a root packet containing just one nested message:
   //

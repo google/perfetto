@@ -33,7 +33,7 @@
 namespace perfetto::tracing_v2 {
 namespace {
 
-// Avoid starting a fragment without room for protozero's largest scalar field.
+// A new fragment must fit Protozero's largest scalar field.
 constexpr uint32_t kMinFragmentPayloadSize =
     protozero::proto_utils::kMaxSimpleFieldEncodedSize;
 
@@ -53,15 +53,17 @@ TraceWriterV2Impl::TraceWriterV2Impl(const InitArgs& args)
 
 TraceWriterV2Impl::~TraceWriterV2Impl() {
   FinishTracePacket();
-  // Publish the last chunk before the delegate starts retiring this WriterID.
+  // Publish the last chunk before the delegate starts retirement of this
+  // WriterID. The reader can still need its resources after destruction.
   ring_buffer_writer_.FinishCurrentChunk();
   stream_writer_.Reset({nullptr, nullptr});
   delegate_->OnWriterDestroyed(writer_id());
 }
 
 TraceWriter::TracePacketHandle TraceWriterV2Impl::NewTracePacket() {
-  // Direct Message::Finalize() bypasses the handle's finalization callback.
-  // Close the previous packet's fragment before starting another packet.
+  // A caller can invoke Message::Finalize() directly, without the handle's
+  // finalization callback. The message then closes, but packet_open_ stays true
+  // and its fragment still needs publication. Finish that packet before reuse.
   if (packet_open_ && cur_packet_->is_finalized())
     FinishTracePacket();
   PERFETTO_CHECK(!packet_open_);
@@ -76,6 +78,8 @@ TraceWriter::TracePacketHandle TraceWriterV2Impl::NewTracePacket() {
     stream_writer_.Reset(EnterDropMode());
   }
 
+  // Reset selects proto group for the root. Each BeginNestedMessage() call
+  // inherits its parent's encoding, so all children use append-only framing.
   cur_packet_->Reset(&stream_writer_,
                      protozero::NestedMessageEncoding::kProtoGroup);
   packet_open_ = true;
@@ -93,24 +97,28 @@ void TraceWriterV2Impl::FinishTracePacket() {
   if (!packet_open_)
     return;
 
+  // Finalize() can append closing bytes that cross a chunk boundary. Keep
+  // packet_open_ true until it returns so GetNewBuffer() can obtain space for
+  // those bytes. Then publish the final fragment without a continuation flag.
   cur_packet_->Finalize();
   packet_open_ = false;
   ClosePacketFragment(/*continues_on_next=*/false);
 
-  // Failed chunk claims may have left earlier reservations unclaimed.
-  // The reader must consume those positions before reaching this packet.
+  // Failed chunk claims can leave earlier reservations unclaimed. Notify the
+  // reader so it can consume those positions and this packet's fragments.
   delegate_->NotifyReader();
 }
 
 void TraceWriterV2Impl::Flush(std::function<void()> callback) {
-  // Close any fragment left open by direct Message::Finalize() before flushing.
-  // Raw stream callers must still call FinishTracePacket() themselves.
+  // Direct Message::Finalize() closes the message without the handle callback.
+  // Publish its remaining fragment before the flush. Raw stream callers bypass
+  // message finalization, so they must call FinishTracePacket() themselves.
   if (packet_open_ && cur_packet_->is_finalized())
     FinishTracePacket();
   PERFETTO_CHECK(!packet_open_);
 
-  // A completed fragment leaves its chunk cached so that the next packet can
-  // append to it. Release it before delegating flush completion.
+  // A completed fragment leaves its chunk cached for later packets. Release
+  // that chunk before Delegate::Flush() so later packets use new reservations.
   ring_buffer_writer_.FinishCurrentChunk();
   stream_writer_.Reset({nullptr, nullptr});
   delegate_->Flush(writer_id(), std::move(callback));
@@ -122,8 +130,8 @@ void TraceWriterV2Impl::OnMessageFinalized(protozero::Message*) {
 
 protozero::ContiguousMemoryRange TraceWriterV2Impl::GetNewBuffer() {
   if (!packet_open_) {
-    // protozero asked for space outside a packet. That only happens if a
-    // caller writes through a stale handle, which is a data-source bug.
+    // The caller requested space without an open packet, for example through
+    // a stale handle. This violates the data-source API contract.
     PERFETTO_DFATAL("TraceWriterV2Impl: write outside an open packet");
     return EnterDropMode();
   }
@@ -134,15 +142,20 @@ protozero::ContiguousMemoryRange TraceWriterV2Impl::GetNewBuffer() {
   if (in_drop_mode_)
     return EnterDropMode();
 
-  // The packet did not fit. Publish this fragment with ContinuesOnNext and
-  // continue the packet in another chunk.
+  // The current range cannot satisfy the stream's request. Publish this
+  // fragment with kFlagContinuesOnNextChunk and continue in another chunk.
   ClosePacketFragment(/*continues_on_next=*/true);
 
-  // Notify before reserving the continuation. A packet can fill the entire
-  // ring buffer without finishing. A stalling writer would wait for space
-  // before the reader had been asked to release any.
+  // Notify before the next reservation. Otherwise, a packet larger than the
+  // ring buffer can stall before the reader receives any notification:
+  // 1. The writer fills the ring buffer without completing the packet.
+  // 2. The next fragment needs space, so the writer waits for the reader.
+  // 3. The reader has no notification to consume the published fragments.
   delegate_->NotifyReader();
 
+  // ClosePacketFragment() can fail to relocate after the reader requests a
+  // rewrite.
+  // In that case, discard the remainder instead of reserving a continuation.
   if (in_drop_mode_)
     return EnterDropMode();
 
@@ -170,9 +183,14 @@ void TraceWriterV2Impl::ClosePacketFragment(bool continues_on_next) {
       static_cast<uint32_t>(stream_writer_.write_ptr() - fragment_begin_);
   fragment_begin_ = nullptr;
 
-  // A failed relocation leaves this packet incomplete. Finish it in the drop
-  // buffer. SharedRingBufferWriter flags the loss on its next publication.
+  // EndFragment() can need space even though this fragment already has a chunk:
+  // 1. The reader copies the published fragments while this fragment is open.
+  // 2. It sets RewriteRequested and advances past the reservation.
+  // 3. EndFragment() cannot publish here. It saves this fragment, acknowledges
+  //    the request, and tries to publish the fragment in another chunk.
   const auto result = ring_buffer_writer_.EndFragment(used, continues_on_next);
+  // On failure to acquire that chunk, discard this packet's remaining bytes.
+  // SharedRingBufferWriter reports the loss on its next publication.
   if (result == SharedRingBufferWriter::EndFragmentResult::kRelocationDropped) {
     in_drop_mode_ = true;
     ++drop_count_;
@@ -182,8 +200,8 @@ void TraceWriterV2Impl::ClosePacketFragment(bool continues_on_next) {
 protozero::ContiguousMemoryRange TraceWriterV2Impl::EnterDropMode() {
   fragment_begin_ = nullptr;
 
-  // A failed relocation may already have set in_drop_mode_. Allocate on the
-  // first use independently of how the packet entered drop mode.
+  // A relocation failure can set in_drop_mode_ before the first use of this
+  // buffer. Check the buffer itself so that path also allocates storage.
   if (drop_buffer_.empty())
     drop_buffer_.resize(ring_buffer_writer_.chunk_size());
 

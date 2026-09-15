@@ -66,7 +66,7 @@ bool AppendToOutput(const uint8_t* source_begin,
   return true;
 }
 
-// Never leave the caller with the prefix written before the error was found.
+// Discard the partial output so the caller cannot use an incomplete packet.
 RewriteResult Reject(std::vector<uint8_t>* output, RewriteResult result) {
   PERFETTO_DCHECK(result != RewriteResult::kSuccess);
   output->clear();
@@ -83,18 +83,24 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
   PERFETTO_CHECK(max_output_size <= UINT32_MAX);
   output->clear();
 
-  // Open-message stack, stored in output length placeholders:
-  // - Each slot holds the output offset of its enclosing message's length
-  //   field, or kNoOpenMessage if its parent is the root.
-  // - Offsets survive output reallocations.
-  // - A four-byte slot must fit within max_output_size <= UINT32_MAX, so its
-  //   offset is at most UINT32_MAX - 4 and cannot equal kNoOpenMessage.
+  // Store the stack of open messages in their output length fields:
+  // 1. On an opening tag, reserve four bytes for the length. Store the parent's
+  //    length-field offset there, or kNoOpenMessage if the parent is the root.
+  // 2. On a closing byte, read that enclosing offset before replacing it with
+  //    the completed message's length.
+  // 3. Continue with the enclosing message as the innermost open message.
+  //
+  // Offsets remain valid if the output vector reallocates its storage.
+  // Each four-byte field must fit within max_output_size <= UINT32_MAX.
+  // Its offset is therefore at most UINT32_MAX - 4 and cannot equal
+  // kNoOpenMessage.
   uint32_t innermost_length_offset = kNoOpenMessage;
   const uint8_t* read_ptr = input_begin;
 
   while (read_ptr < input_end) {
-    // 1. Close the innermost message and backfill its length. 0x04 is a close
-    // marker only at a field boundary; field parsers consume embedded bytes.
+    // 1. Close the innermost message and fill its length field.
+    //    Only interpret 0x04 as a closing byte at a field boundary. The parsers
+    //    below consume complete field values, including any embedded 0x04 byte.
     if (*read_ptr == kProtoGroupEndByte) {
       if (innermost_length_offset == kNoOpenMessage)
         return Reject(output, RewriteResult::kMalformedInput);
@@ -105,6 +111,7 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
       PERFETTO_DCHECK(kMessageLengthFieldSize <=
                       output->size() - length_offset);
       uint32_t enclosing_length_offset;
+      // Save the enclosing offset before the length write overwrites the link.
       memcpy(&enclosing_length_offset, output->data() + length_offset,
              sizeof(enclosing_length_offset));
       const size_t content_size =
@@ -150,7 +157,8 @@ RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
     }
 
     if (wire_type == kWireTypeEndGroup) {
-      // Proto-group uses the field-id-less end byte handled above.
+      // The proto group format requires the single 0x04 closing byte above.
+      // A standard end-group tag or a multi-byte encoding of 0x04 is invalid.
       return Reject(output, RewriteResult::kMalformedInput);
     }
 

@@ -277,9 +277,9 @@ struct PerfettoDsRootTracePacket {
   struct perfetto_protos_TracePacket msg;
 };
 
-// The data-source ABI and pb_msg.h define separate encoding enums. Convert with
-// a switch rather than a cast, so an unknown value aborts below instead of
-// picking the wrong framing.
+// Converts the data-source ABI encoding to pb_msg.h's separate enum.
+// Unknown values abort because the caller cannot encode a packet without a
+// supported format.
 static inline enum PerfettoPbMsgEncoding PerfettoDsPacketEncodingToPbMsg(
     uint32_t encoding) {
   switch (encoding) {
@@ -289,8 +289,8 @@ static inline enum PerfettoPbMsgEncoding PerfettoDsPacketEncodingToPbMsg(
       return PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
   }
 
-  // The caller and tracing library disagree about the encoding ABI. Choosing
-  // another framing would corrupt the packet.
+  // The caller does not support the encoding returned by the tracing library.
+  // Substituting another encoding would corrupt the packet.
   abort();
 }
 
