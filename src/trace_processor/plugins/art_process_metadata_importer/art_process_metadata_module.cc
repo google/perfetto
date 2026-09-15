@@ -24,6 +24,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/profiling/art_process_metadata.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -73,7 +74,8 @@ void UpdatePackageList(TraceProcessorContext* context,
                        base::StringView package_name,
                        int64_t uid) {
   StringId package_name_id = context->storage->InternString(package_name);
-  cursor.SetFilterValueUnchecked(0, package_name_id.raw_id());
+  NullTermStringView pkg_str = context->storage->GetString(package_name_id);
+  cursor.SetFilterValueUnchecked(0, pkg_str.c_str());
   cursor.SetFilterValueUnchecked(1, uid);
   cursor.Execute();
   bool found = !cursor.Eof();
