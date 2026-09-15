@@ -84,12 +84,17 @@ class PerfInvocation : public RefCounted {
   // call sites when parsing call chains (i.e. if the trace comes from linux
   // perf).
   bool needs_pc_adjustment() const { return !is_simpleperf_; }
+  bool is_simpleperf() const { return is_simpleperf_; }
 
   void SetIsSimpleperf() { is_simpleperf_ = true; }
+  void SetSimpleperfMetaInfo(
+      const base::FlatHashMap<std::string, std::string>& entries);
 
   bool HasPerfClock() const;
 
  private:
+  void SetIsThreadScoped(bool is_thread_scoped);
+  void SetIsSystemWide(bool is_system_wide);
   struct BuildIdMapKey {
     int32_t pid;
     std::string filename;

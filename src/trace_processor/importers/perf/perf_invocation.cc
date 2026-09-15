@@ -230,11 +230,73 @@ std::optional<BuildId> PerfInvocation::LookupBuildId(
 }
 
 void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
+  bool is_system_wide = false;
+  bool is_thread_scoped = false;
+  for (const auto& arg : args) {
+    if (arg == "--") {
+      break;
+    }
+    if (arg == "-a" || arg == "--all-cpus" || arg == "--system-wide") {
+      is_system_wide = true;
+      break;
+    }
+    if (arg == "-p" ||
+        (arg.size() > 2 && arg.rfind("-p", 0) == 0 && isdigit(arg[2])) ||
+        arg == "--pid" || arg.rfind("--pid=", 0) == 0 || arg == "-t" ||
+        (arg.size() > 2 && arg.rfind("-t", 0) == 0 && isdigit(arg[2])) ||
+        arg == "--tid" || arg.rfind("--tid=", 0) == 0 || arg == "--app" ||
+        arg.rfind("--app=", 0) == 0) {
+      is_thread_scoped = true;
+    }
+  }
+
+  if (is_system_wide) {
+    SetIsSystemWide(true);
+  } else if (is_thread_scoped) {
+    SetIsThreadScoped(true);
+  }
+
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     auto session_id = it.value()->perf_session_id();
     (*context_->storage->mutable_profiler_session_table())[session_id]
         .set_cmdline(context_->storage->InternString(
             base::StringView(base::Join(args, " "))));
+  }
+}
+
+void PerfInvocation::SetSimpleperfMetaInfo(
+    const base::FlatHashMap<std::string, std::string>& entries) {
+  // If profiling a specific app (e.g. Chrome via --app), simpleperf records
+  // the package name in meta_info.
+  if (const auto* app = entries.Find("app_package_name")) {
+    if (!app->empty()) {
+      SetIsThreadScoped(true);
+    }
+  }
+
+  // If simpleperf explicitly declared system-wide collection (-a), respect it.
+  if (const auto* sys = entries.Find("system_wide_collection")) {
+    if (*sys == "true") {
+      SetIsSystemWide(true);
+    }
+  }
+}
+
+void PerfInvocation::SetIsThreadScoped(bool is_thread_scoped) {
+  if (first_attr_) {
+    first_attr_->set_is_thread_scoped(is_thread_scoped);
+  }
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    it.value()->set_is_thread_scoped(is_thread_scoped);
+  }
+}
+
+void PerfInvocation::SetIsSystemWide(bool is_system_wide) {
+  if (first_attr_) {
+    first_attr_->set_is_system_wide(is_system_wide);
+  }
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    it.value()->set_is_system_wide(is_system_wide);
   }
 }
 
