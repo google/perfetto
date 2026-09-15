@@ -30,6 +30,7 @@ These flags are accepted in addition to the subcommand-specific flags below
 and behave the same across all subcommands:
 
 - **Help and version:** `-h, --help`, `-v, --version`.
+- **Progress:** `--no-progress` disables live progress output.
 - **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
   `--analyze-trace-proto-content`, `--crop-track-events`.
 - **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
@@ -43,6 +44,17 @@ and behave the same across all subcommands:
   `--metatrace-categories CATEGORIES`. This produces a Perfetto trace of
   trace processor itself, which you can load back into the UI for
   performance debugging.
+
+## Progress and color
+
+Diagnostics go to stderr. Live progress and ANSI color are used only when
+stderr is a terminal and `TERM` is not `dumb`. `--no-progress` disables live
+progress; warnings and errors are unaffected.
+
+Color can be overridden with the [FORCE_COLOR](https://force-color.org/) and
+[NO_COLOR](https://no-color.org/) environment variables. A nonempty
+`FORCE_COLOR` forces color on and takes precedence over a nonempty `NO_COLOR`,
+which forces it off.
 
 ## {#subcommands} Commands
 

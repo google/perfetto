@@ -638,5 +638,27 @@ TEST_F(TraceconvShellBundleTest, BundleRejectsSymbolPathsAsSeparateArgs) {
   EXPECT_NE(invoker.Run(), 0);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST_F(TraceconvShellBundleTest, RedirectedProgressIsPlainAndWarningsRemain) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(false));
+  for (bool no_progress : {false, true}) {
+    ArgvInvoker invoker;
+    invoker.Add("trace_processor_shell");
+    invoker.Add("bundle");
+    invoker.Add("--no-auto-symbol-paths");
+    if (no_progress)
+      invoker.Add("--no-progress");
+    invoker.Add(trace.path());
+    invoker.Add(output_path_);
+    ScopedStderrCapture capture;
+    ASSERT_EQ(invoker.Run(), 0);
+    auto output = capture.Get();
+    EXPECT_THAT(output, Not(HasSubstr("\r")));
+    EXPECT_THAT(output, HasSubstr("Read trace:"));
+    EXPECT_THAT(output, HasSubstr("symbolize_ksyms"));
+  }
+}
+#endif
+
 }  // namespace
 }  // namespace perfetto::trace_processor

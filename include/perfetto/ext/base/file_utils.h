@@ -101,6 +101,9 @@ int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);
 
 bool FlushFile(int fd);
 
+// Duplicates an open descriptor. The duplicate is not inherited across exec.
+ScopedFile DupFile(int fd);
+
 // Moves the file offset to |offset| bytes from the beginning of the file.
 // Returns false if |offset| cannot be represented by the platform or the seek
 // fails.
