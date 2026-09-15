@@ -40,7 +40,7 @@
 #include "src/trace_processor/core/exec/tree_order.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
+#include "src/trace_processor/perfetto_sql/exec/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "test/gtest_and_gmock.h"
@@ -95,23 +95,22 @@ TestColumn Typed(std::string name, core::StorageType type) {
   return {std::move(name), type};
 }
 
-class TestCatalog : public lineage::analysis::Catalog {
+class TestCatalog : public analysis::Catalog {
  public:
   void Add(std::string name, std::vector<TestColumn> columns) {
     dataframes_[std::move(name)] = std::move(columns);
   }
 
-  std::optional<lineage::analysis::LeafRelation> FindLeafRelation(
+  std::optional<analysis::LeafRelation> FindLeafRelation(
       std::string_view name) const override {
     auto dataframe = dataframes_.find(std::string(name));
     if (dataframe == dataframes_.end()) {
       return std::nullopt;
     }
-    lineage::analysis::LeafRelation relation;
+    analysis::LeafRelation relation;
     relation.name = name;
     for (const TestColumn& column : dataframe->second) {
-      relation.columns.push_back(
-          {column.name, lineage::ToAnalysisType(column.type)});
+      relation.columns.push_back({column.name, ToAnalysisType(column.type)});
     }
     return relation;
   }
@@ -140,7 +139,7 @@ class SqlScanTest : public ::testing::Test {
 
   base::StatusOr<std::unique_ptr<SqlScan>> Scan(
       const std::string& sql,
-      const lineage::analysis::Catalog& catalog) {
+      const analysis::Catalog& catalog) {
     return SqlScan::Create(connection_.get(), SqlSource::FromExecuteQuery(sql),
                            &pool_, catalog);
   }

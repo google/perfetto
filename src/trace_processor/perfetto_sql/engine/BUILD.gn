@@ -51,7 +51,7 @@ source_set("engine") {
     "../../util:owned_sql_value",
     "../../util:sql_argument",
     "../../util:stdlib",
-    "../lineage",
+    "../exec",
     "../parser",
     "../tokenizer",
   ]
@@ -81,7 +81,7 @@ perfetto_unittest_source_set("unittests") {
     "../../core/plugin",
     "../../sqlite",
     "../../util:stdlib",
-    "../lineage",
+    "../exec",
   ]
 }
 
