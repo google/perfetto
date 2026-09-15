@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -71,6 +72,135 @@ std::vector<FrameId> JavaFramesForName(const JavaFrameMap& java_frames_for_name,
   }
   return {};
 }
+
+/// In-memory tree for a merged class hierarchy. Parsed once per
+// ObfuscatedClass to avoid redundant protobuf decoding for each object.
+struct ParsedMergedClassNode {
+  base::StringView name;
+
+  // Field used to disambiguate children. Optional for unconditioned merges.
+  std::optional<StringId> class_id_field_name;
+
+  base::FlatHashMap<int32_t, std::unique_ptr<ParsedMergedClassNode>>
+      discriminator_id_to_child;
+  // Children with no non-zero discriminator IDs.
+  std::vector<std::unique_ptr<ParsedMergedClassNode>> no_id_children;
+
+  bool HasChildren() const {
+    return discriminator_id_to_child.size() != 0 || !no_id_children.empty();
+  }
+
+  // Recursively decodes a serialized MergedClasses proto into an in-memory
+  // tree. Children with non-zero discriminator IDs are indexed in
+  // `discriminator_id_to_child` for fast lookup. Children with discriminator ID
+  // 0 or no ID are stored in `no_id_children`. Note that 0 and no ID are
+  // identical since there is no way to tell if a field was explicitly set to 0
+  // or just uninitialized.
+  static ParsedMergedClassNode Parse(protozero::ConstBytes merged_cls_bytes,
+                                     TraceStorage& storage,
+                                     base::StringView owner_name) {
+    ObfuscatedClass::MergedClasses::Decoder mcs(merged_cls_bytes);
+    ParsedMergedClassNode node;
+    node.name = owner_name;
+    if (mcs.has_class_id_field_name()) {
+      node.class_id_field_name =
+          storage.InternString(mcs.class_id_field_name());
+    }
+    for (auto it = mcs.merged_classes(); it; ++it) {
+      ObfuscatedClass::MergedClass::Decoder mc(*it);
+      base::StringView child_name =
+          mc.has_name() ? mc.name() : base::StringView();
+      auto child_node = mc.has_merged_classes()
+                            ? std::make_unique<ParsedMergedClassNode>(Parse(
+                                  mc.merged_classes(), storage, child_name))
+                            : std::make_unique<ParsedMergedClassNode>();
+      child_node->name = child_name;
+      if (mc.has_class_id() && mc.class_id() != 0) {
+        node.discriminator_id_to_child.Insert(mc.class_id(),
+                                              std::move(child_node));
+      } else {
+        node.no_id_children.push_back(std::move(child_node));
+      }
+    }
+    return node;
+  }
+
+  // Disambiguates which class an object belongs to by matching its non-zero
+  // discriminators (e.g. $cid, $cid2) against the tree. Returns the resolved
+  // class name on a unique match, or std::nullopt if ambiguous or unknown.
+  std::optional<base::StringView> Resolve(
+      const HeapGraphTracker::DiscriminatorList& discriminators) const {
+    size_t non_zero_total = 0;
+    for (const auto& [unused_field_name, value] : discriminators) {
+      if (value != 0) {
+        ++non_zero_total;
+      }
+    }
+
+    return ResolveInternal(discriminators, non_zero_total, 0);
+  }
+
+ private:
+  // Recursively walks the tree matching non-zero discriminators:
+  // - Once all non-zero discriminators are matched, returns this node's name if
+  //   it is a leaf, or if it uniquely represents the owner class (a single
+  //   matching no-id child). Otherwise returns std::nullopt (ambiguous).
+  // - If class_id_field_name matches a discriminator value, recurses into that
+  //   child; otherwise searches no_id_children branches.
+  std::optional<base::StringView> ResolveInternal(
+      const HeapGraphTracker::DiscriminatorList& discriminators,
+      size_t non_zero_total,
+      size_t matched_non_zero_count) const {
+    if (matched_non_zero_count == non_zero_total) {
+      // If there are no children, this leaf node is the unique match.
+      if (!HasChildren()) {
+        return std::make_optional(name);
+      }
+      // When one merged_classes owns another, typically the first element
+      // of that one has the same name as the owner class. If an object has
+      // no non-zero discriminators, we only return a resolution if there is a
+      // single child with no discriminator id and its name matches the owner
+      // class name. Otherwise, it is ambiguous.
+      if (no_id_children.size() == 1 && no_id_children[0]->name == name) {
+        return std::make_optional(name);
+      }
+      return std::nullopt;
+    }
+    if (!HasChildren()) {
+      // matched_non_zero_count != non_zero_total shouldn't generally happen for
+      // a well formed map file and program.
+      return std::nullopt;
+    }
+
+    if (class_id_field_name.has_value()) {
+      // There should never be more than a couple discriminators;
+      // linear search is sufficient.
+      for (const auto& [field_name, value] : discriminators) {
+        if (field_name != *class_id_field_name) {
+          continue;
+        }
+        if (value == 0) {
+          break;
+        }
+        auto* child = discriminator_id_to_child.Find(value);
+        if (child != nullptr) {
+          return (*child)->ResolveInternal(discriminators, non_zero_total,
+                                           matched_non_zero_count + 1);
+        }
+        return std::nullopt;
+      }
+    }
+    // Discriminator was 0 or unset. Search zero/no-id branches.
+    for (const auto& child : no_id_children) {
+      auto res = child->ResolveInternal(discriminators, non_zero_total,
+                                        matched_non_zero_count);
+      if (res.has_value()) {
+        return res;
+      }
+    }
+    return std::nullopt;
+  }
+};
 
 }  // namespace
 
@@ -149,6 +279,8 @@ void DeobfuscationTracker::OnEventsFullyExtracted() {
     DeobfuscateProfiles(java_frames_for_name, mapping);
     DeobfuscateHeapGraph(mapping);
   }
+
+  HeapGraphTracker::Get(context_)->ClearDisambiguatedObjects();
 }
 
 void DeobfuscationTracker::DeobfuscateProfiles(
@@ -395,23 +527,80 @@ void DeobfuscationTracker::DeobfuscateHeapGraphClass(
   const std::vector<ClassTable::RowNumber>* cls_objects =
       heap_graph_tracker->RowsForType(package_name_id,
                                       obfuscated_class_name_id);
-  if (cls_objects) {
-    auto* class_table = context_->storage->mutable_heap_graph_class_table();
-    for (ClassTable::RowNumber class_row_num : *cls_objects) {
-      auto class_ref = class_row_num.ToRowReference(class_table);
-      const StringId obfuscated_type_name_id = class_ref.name();
-      const base::StringView obfuscated_type_name =
-          context_->storage->GetString(obfuscated_type_name_id);
-      NormalizedType normalized_type = GetNormalizedType(obfuscated_type_name);
-      std::string deobfuscated_type_name =
-          DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
-      StringId deobfuscated_type_name_id = context_->storage->InternString(
-          base::StringView(deobfuscated_type_name));
-      class_ref.set_deobfuscated_name(deobfuscated_type_name_id);
-    }
-  } else {
+  if (!cls_objects) {
     PERFETTO_DLOG("Class %s not found",
                   cls.obfuscated_name().ToStdString().c_str());
+    return;
+  }
+
+  std::optional<ParsedMergedClassNode> parsed_tree;
+  if (cls.has_merged_classes()) {
+    base::StringView owner_name = cls.has_deobfuscated_name()
+                                      ? cls.deobfuscated_name()
+                                      : base::StringView();
+    parsed_tree = ParsedMergedClassNode::Parse(cls.merged_classes(),
+                                               *context_->storage, owner_name);
+  }
+
+  auto* class_table = context_->storage->mutable_heap_graph_class_table();
+  auto* object_table = context_->storage->mutable_heap_graph_object_table();
+  for (ClassTable::RowNumber class_row_num : *cls_objects) {
+    auto class_ref = class_row_num.ToRowReference(class_table);
+
+    const StringId obfuscated_type_name_id = class_ref.name();
+    const base::StringView obfuscated_type_name =
+        context_->storage->GetString(obfuscated_type_name_id);
+    NormalizedType normalized_type = GetNormalizedType(obfuscated_type_name);
+    std::string base_deobfuscated_type_name =
+        DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
+    StringId base_deobfuscated_type_name_id = context_->storage->InternString(
+        base::StringView(base_deobfuscated_type_name));
+    class_ref.set_deobfuscated_name(base_deobfuscated_type_name_id);
+
+    if (parsed_tree.has_value()) {
+      const auto* disambiguated_objects =
+          heap_graph_tracker->ObjectsForMergedClass(class_ref.id());
+      if (disambiguated_objects != nullptr) {
+        base::FlatHashMap<base::StringView, ClassTable::Id>
+            class_name_to_class_row;
+        if (cls.has_deobfuscated_name()) {
+          class_name_to_class_row.Insert(cls.deobfuscated_name(),
+                                         class_ref.id());
+        }
+        for (const auto& disambiguated_obj : *disambiguated_objects) {
+          auto obj_ref =
+              disambiguated_obj.row_number.ToRowReference(object_table);
+
+          std::optional<base::StringView> true_class_name =
+              parsed_tree->Resolve(disambiguated_obj.discriminators);
+
+          if (true_class_name.has_value()) {
+            ClassTable::Id target_class_id;
+            auto* cached_id = class_name_to_class_row.Find(*true_class_name);
+            if (cached_id) {
+              target_class_id = *cached_id;
+            } else {
+              std::string deobfuscated_type_name =
+                  DenormalizeTypeName(normalized_type, *true_class_name);
+              StringId deobfuscated_type_name_id =
+                  context_->storage->InternString(
+                      base::StringView(deobfuscated_type_name));
+
+              ClassTable::Row new_class_row;
+              new_class_row.name = class_ref.name();
+              new_class_row.deobfuscated_name = deobfuscated_type_name_id;
+              new_class_row.location = class_ref.location();
+              new_class_row.superclass_id = class_ref.superclass_id();
+              new_class_row.classloader_id = class_ref.classloader_id();
+              new_class_row.kind = class_ref.kind();
+              target_class_id = class_table->Insert(new_class_row).id;
+              class_name_to_class_row.Insert(*true_class_name, target_class_id);
+            }
+            obj_ref.set_type_id(target_class_id);
+          }
+        }
+      }
+    }
   }
 }
 

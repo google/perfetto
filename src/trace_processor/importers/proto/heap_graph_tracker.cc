@@ -467,6 +467,11 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
         owner_row_ref.ToRowNumber());
   }
 
+  if (!obj.discriminators.empty()) {
+    InsertObjectDiscriminators(type_id, owner_row_ref.ToRowNumber(),
+                               std::move(obj.discriminators));
+  }
+
   uint32_t reference_set_id =
       storage_->heap_graph_reference_table().row_count();
   bool any_references = false;
@@ -1123,6 +1128,16 @@ StringId HeapGraphTracker::InternTypeKindString(
   }
 
   return type_kind_string_ids_[idx];
+}
+
+void HeapGraphTracker::InsertObjectDiscriminators(
+    tables::HeapGraphClassTable::Id class_id,
+    tables::HeapGraphObjectTable::RowNumber row,
+    DiscriminatorList discriminators) {
+  if (!discriminators.empty()) {
+    class_to_disambiguated_objects_[class_id].push_back(
+        {row, std::move(discriminators)});
+  }
 }
 
 HeapGraphTracker::~HeapGraphTracker() = default;

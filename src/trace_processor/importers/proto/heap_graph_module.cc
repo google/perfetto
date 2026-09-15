@@ -174,6 +174,14 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     if (object.has_bitmap_height_field()) {
       obj.bitmap_height = object.bitmap_height_field();
     }
+    for (auto d_it = object.merged_class_discriminators(); d_it; ++d_it) {
+      ::com::android::art::tracing::pbzero::HeapGraphObject::
+          MergedClassDiscriminator::Decoder d(*d_it);
+      if (d.has_field_name() && d.has_value()) {
+        obj.discriminators.emplace_back(
+            context_->storage->InternString(d.field_name()), d.value());
+      }
+    }
 
     if (parse_error) {
       context_->stats_tracker->IncrementIndexedStats(
