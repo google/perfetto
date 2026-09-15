@@ -1052,10 +1052,15 @@ std::vector<SymbolPathAttempt> ToSymbolPathAttempts(
 //     information so we set the value to zero in
 //     `__intrinsic_stack_profile_mapping`. This gives us an incorrect value for
 //     `rel_pc`.
+//   - For Mach-O, `rel_pc` is relative to the image, so add the __TEXT vmaddr.
 //
 uint64_t ComputeUserSpaceAddressCorrection(
     const UnsymbolizedMapping& runtime_mapping,
     const FoundBinary& binary) {
+  if (binary.type == BinaryType::kMachO ||
+      binary.type == BinaryType::kMachODsym) {
+    return binary.load_info.p_vaddr;
+  }
   if (binary.type != BinaryType::kElf) {
     return 0;
   }
