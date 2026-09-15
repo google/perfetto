@@ -31,7 +31,7 @@ import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {MinimapRow} from '../../public/minimap';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {areaSelectionKey, type AreaSelection} from '../../public/selection';
-import type {Trace} from '../../public/trace';
+import type {Storage, Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getMachineCount, getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -60,7 +60,6 @@ import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {createTraceProcessorStateTrack} from './trace_processor_state_track';
 import type {TopLevelTrackGroup, TrackGroupSchema} from './types';
-import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {
   createPerfettoIndex,
@@ -103,19 +102,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   ];
 
   private groups = new Map<string, TrackNode>();
-  private store?: Store<TraceProcessorTrackPluginState>;
-
-  private migrateTraceProcessorTrackPluginState(
-    init: unknown,
-  ): TraceProcessorTrackPluginState {
-    const result = TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
+  private storage?: Storage<TraceProcessorTrackPluginState>;
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(TraceProcessorTrackPlugin.id, (init) =>
-      this.migrateTraceProcessorTrackPluginState(init),
-    );
+    this.storage = ctx.registerStorage({
+      id: TraceProcessorTrackPlugin.id,
+      schema: TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA,
+      defaultValue: {},
+    });
 
     await this.addCounters(ctx);
     await this.addSlices(ctx);
@@ -674,18 +668,19 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         if (computed === undefined && !isPending) {
           return undefined;
         }
-
-        const store = ensureExists(this.store);
+        const storage = ensureExists(this.storage);
         return {
           isLoading: isPending,
           content:
             computed &&
             m(TreeExplorerPanel, {
               fetcher: computed.fetcher,
-              state: store.state.areaSelectionFlamegraphState,
+              state: storage.get().areaSelectionFlamegraphState,
               onStateChange: (state) => {
-                store.edit((draft) => {
-                  draft.areaSelectionFlamegraphState = state;
+                const current = storage.get();
+                storage.set({
+                  ...current,
+                  areaSelectionFlamegraphState: state,
                 });
               },
             }),
@@ -818,12 +813,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Slice Name',
     });
-    const store = ensureExists(this.store);
-    store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = updateTreeExplorerState(
-        draft.areaSelectionFlamegraphState,
+    const storage = ensureExists(this.storage);
+    const current = storage.get();
+    storage.set({
+      ...current,
+      areaSelectionFlamegraphState: updateTreeExplorerState(
+        current.areaSelectionFlamegraphState,
         metrics,
-      );
+      ),
     });
     // The fetcher is created here, next to the metrics it serves, and moved
     // into the returned object: it dies with this generation, so its virtual

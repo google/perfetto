@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type {z} from 'zod';
+import {deepFreeze} from '../base/object_utils';
 import type {
   Setting,
   SettingDescriptor,
@@ -22,13 +23,6 @@ import type {
 import type {Storage} from './storage';
 
 export const PERFETTO_SETTINGS_STORAGE_KEY = 'perfettoSettings';
-
-function deepFreeze<T>(obj: T): T {
-  if (obj === null || typeof obj !== 'object') return obj;
-  Object.freeze(obj);
-  Object.values(obj).forEach(deepFreeze);
-  return obj;
-}
 
 // Implement the Setting interface for registered settings
 export class SettingImpl<T> implements Setting<T> {

@@ -16,7 +16,6 @@ import m from 'mithril';
 import {z} from 'zod';
 import {ensureExists} from '../../base/assert';
 import {Memo} from '../../base/memo';
-import type {Store} from '../../base/store';
 import {
   metricsFromTableOrSubquery,
   TreeExplorerFetcher,
@@ -29,7 +28,7 @@ import {
   type AreaSelection,
   type AreaSelectionTab,
 } from '../../public/selection';
-import type {Trace} from '../../public/trace';
+import type {Storage, Trace} from '../../public/trace';
 import type {Track} from '../../public/track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -384,14 +383,15 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.StackSamples';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
-  private store?: Store<StackSamplesPluginState>;
+  private storage?: Storage<StackSamplesPluginState>;
   private readonly counterNamesBySession = new Map<number, string[]>();
   private readonly counterNamesBySource = new Map<string, string[]>();
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(StackSamplesPlugin.id, (init) => {
-      const result = STACK_SAMPLES_PLUGIN_STATE_SCHEMA.safeParse(init);
-      return result.data ?? {};
+    this.storage = trace.registerStorage({
+      id: StackSamplesPlugin.id,
+      schema: STACK_SAMPLES_PLUGIN_STATE_SCHEMA,
+      defaultValue: {},
     });
     await this.cacheCounterNames(trace);
 
@@ -410,7 +410,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     );
     for (const config of configs) {
       await this.addTracksForSource(trace, config);
-      const store = ensureExists(this.store);
+      const storage = ensureExists(this.storage);
       trace.selection.registerAreaSelectionTab(
         createStackSampleAreaSelectionTab(trace, {
           source: config.source,
@@ -418,11 +418,15 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
           counterNames: this.counterNamesBySource.get(config.source) ?? [],
           counterNamesBySession: this.counterNamesBySession,
           getState: () =>
-            store.state.areaSelectionFlamegraphStates?.[config.source],
+            storage.get().areaSelectionFlamegraphStates?.[config.source],
           setState: (state) => {
-            store.edit((draft) => {
-              draft.areaSelectionFlamegraphStates ??= {};
-              draft.areaSelectionFlamegraphStates[config.source] = state;
+            const current = storage.get();
+            storage.set({
+              ...current,
+              areaSelectionFlamegraphStates: {
+                ...current.areaSelectionFlamegraphStates,
+                [config.source]: state,
+              },
             });
           },
         }),
@@ -561,7 +565,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       readonly sortOrder: number;
     },
   ): TrackNode {
-    const store = ensureExists(this.store);
+    const storage = ensureExists(this.storage);
     const registerTrack = (
       uri: string,
       sessionId: SessionId | undefined,
@@ -579,11 +583,15 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
             sessionId,
             summary,
           },
-          store.state.detailsPanelFlamegraphStates?.[config.source],
+          storage.get().detailsPanelFlamegraphStates?.[config.source],
           (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphStates ??= {};
-              draft.detailsPanelFlamegraphStates[config.source] = state;
+            const current = storage.get();
+            storage.set({
+              ...current,
+              detailsPanelFlamegraphStates: {
+                ...current.detailsPanelFlamegraphStates,
+                [config.source]: state,
+              },
             });
           },
         ),

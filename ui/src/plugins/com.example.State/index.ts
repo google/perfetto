@@ -12,52 +12,45 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createStore, type Store} from '../../base/store';
-import {exists} from '../../base/utils';
+import {z} from 'zod';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 
-interface State {
-  counter: number;
-}
+const STATE_SCHEMA = z.object({
+  counter: z.number().default(0),
+});
+
+type State = z.infer<typeof STATE_SCHEMA>;
+
+const DEFAULT_STATE: State = {
+  counter: 0,
+};
 
 // This example plugin shows using state that is persisted in the
 // permalink.
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.State';
   static readonly dependencies = [QueryPagePlugin];
-  private store: Store<State> = createStore({counter: 0});
-
-  private migrate(initialState: unknown): State {
-    if (
-      exists(initialState) &&
-      typeof initialState === 'object' &&
-      'counter' in initialState &&
-      typeof initialState.counter === 'number'
-    ) {
-      return {counter: initialState.counter};
-    } else {
-      return {counter: 0};
-    }
-  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore('com.example.SkeletonStore', (init: unknown) =>
-      this.migrate(init),
-    );
+    const storage = ctx.registerStorage({
+      id: 'com.example.SkeletonStore',
+      schema: STATE_SCHEMA,
+      defaultValue: DEFAULT_STATE,
+    });
 
     ctx.commands.registerCommand({
       id: 'com.example.ShowCounter',
       name: 'Show ExampleState counter',
       callback: () => {
-        const counter = this.store.state.counter;
+        const counter = storage.get().counter;
         ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `SELECT ${counter} as counter;`,
           title: `Show counter ${counter}`,
         });
-        this.store.edit((draft) => {
-          ++draft.counter;
+        storage.set({
+          counter: counter + 1,
         });
       },
     });
