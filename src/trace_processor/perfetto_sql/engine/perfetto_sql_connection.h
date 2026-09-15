@@ -457,6 +457,17 @@ class PerfettoSqlConnection {
 
   base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
 
+  // A pipeline, readable by SQLite as `table` for as long as `handle` lives.
+  struct RegisteredPipeline {
+    std::string table;
+    std::shared_ptr<void> handle;
+  };
+  base::StatusOr<RegisteredPipeline> RegisterPipeline(const SqlSource&);
+  // Like GetDataframeOrNull(), but keeps the dataframe alive even if its
+  // table is replaced.
+  std::shared_ptr<const dataframe::Dataframe> ShareDataframeOrNull(
+      std::string_view name) const;
+
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
 
   base::Status DropIndexBeforeCreate(const PerfettoSqlParser::CreateIndex&);
@@ -564,6 +575,8 @@ class PerfettoSqlConnection {
   base::SmallVector<ExecutionFrame, 1> execution_stack_;
 
   uint64_t function_count_ = 0;
+  // Names each registered pipeline's table uniquely.
+  uint64_t pipeline_count_ = 0;
   uint64_t aggregate_function_count_ = 0;
   uint64_t window_function_count_ = 0;
 

@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -60,6 +61,10 @@ class SqliteConnection {
   // Wrapper class for SQLite's |sqlite3_stmt| struct and associated functions.
   struct PreparedStatement {
    public:
+    PreparedStatement(PreparedStatement&&) noexcept;
+    PreparedStatement& operator=(PreparedStatement&&) noexcept;
+    ~PreparedStatement();
+
     bool Step();
     bool IsDone() const;
 
@@ -71,11 +76,19 @@ class SqliteConnection {
     const base::Status& status() const { return status_; }
     sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }
 
+    // Keeps `dependency` alive until the statement is finalized: for
+    // something the statement reads which SQLite does not own.
+    void KeepAlive(std::shared_ptr<void> dependency) {
+      dependency_ = std::move(dependency);
+    }
+
    private:
     friend class SqliteConnection;
 
     explicit PreparedStatement(ScopedStmt, SqlSource);
 
+    // Declared before |stmt_| so the statement is finalized first.
+    std::shared_ptr<void> dependency_;
     ScopedStmt stmt_;
     ScopedSqliteString expanded_sql_;
     SqlSource sql_source_;
@@ -143,6 +156,10 @@ class SqliteConnection {
                                   const sqlite3_module* module,
                                   void* ctx,
                                   ModuleContextDestructor destructor);
+
+  // Removes a module registered with RegisterVirtualTableModule(). No
+  // statement which reads it may still exist.
+  void UnregisterVirtualTableModule(const std::string& module_name);
 
   // Sets a callback to be called when a transaction is committed.
   //

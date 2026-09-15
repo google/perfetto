@@ -16,11 +16,14 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -758,6 +761,169 @@ TEST_F(PerfettoSqlConnectionTest, NextStatement_TrailingDummyStatement) {
   ASSERT_TRUE(res.ok()) << res.status().c_message();
   ASSERT_TRUE(res->has_value());
   ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 2);
+}
+
+// Pipelines run on the batch executor; SQLite reads their rows from it.
+class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
+ protected:
+  void SetUp() override {
+    auto res = connection_->Execute(SqlSource::FromExecuteQuery(R"(
+      CREATE TABLE tree(id INTEGER, parent_id INTEGER, self INTEGER,
+                        name TEXT);
+      INSERT INTO tree VALUES
+        (0, NULL, 10, 'root'), (1, 0, 20, 'a'), (2, 0, 30, NULL),
+        (3, 1, 40, 'c');
+    )"));
+    ASSERT_TRUE(res.ok()) << res.status().c_message();
+  }
+
+  // Runs `sql` and returns each row of its last statement as text, sorted.
+  base::StatusOr<std::vector<std::string>> Rows(const std::string& sql) {
+    auto res = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(sql));
+    RETURN_IF_ERROR(res.status());
+    std::vector<std::string> rows;
+    sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+    for (bool more = !res->stmt.IsDone(); more; more = res->stmt.Step()) {
+      std::string row;
+      for (int i = 0; i < sqlite3_column_count(stmt); ++i) {
+        const auto* text =
+            reinterpret_cast<const char*>(sqlite3_column_text(stmt, i));
+        row += (i ? "," : "") + std::string(text ? text : "NULL");
+      }
+      rows.push_back(std::move(row));
+    }
+    RETURN_IF_ERROR(res->stmt.status());
+    std::sort(rows.begin(), rows.end());
+    return rows;
+  }
+
+  std::vector<std::string> ColumnNames(const std::string& sql) {
+    auto res = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(sql));
+    PERFETTO_CHECK(res.ok());
+    std::vector<std::string> names;
+    for (uint32_t i = 0; i < res->stats.column_count; ++i) {
+      names.push_back(
+          sqlite3_column_name(res->stmt.sqlite_stmt(), static_cast<int>(i)));
+    }
+    return names;
+  }
+};
+
+TEST_F(PerfettoSqlConnectionPipelineTest, AccumulateUpAndDown) {
+  const char kQuery[] = R"(
+    FROM tree
+    |> TREE ACCUMULATE UP SUM(self) AS total
+    |> TREE ACCUMULATE DOWN SUM(self) AS path
+  )";
+  EXPECT_THAT(
+      ColumnNames(kQuery),
+      testing::ElementsAre("id", "parent_id", "self", "name", "total", "path"));
+  auto rows = Rows(kQuery);
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows,
+              testing::ElementsAre("0,NULL,10,root,100,10", "1,0,20,a,60,30",
+                                   "2,0,30,NULL,30,40", "3,1,40,c,40,70"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromAnySql) {
+  auto rows = Rows(R"(
+    FROM (SELECT id, parent_id, self * 2 AS doubled FROM tree WHERE id < 10)
+    |> TREE ACCUMULATE UP SUM(doubled) AS total
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,20,200", "1,0,40,120",
+                                          "2,0,60,60", "3,1,80,80"));
+}
+
+// A perfetto table is a dataframe, which the pipeline reads directly.
+TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromAPerfettoTable) {
+  auto rows = Rows(R"(
+    CREATE PERFETTO TABLE df AS SELECT * FROM tree;
+    FROM df |> TREE ACCUMULATE UP SUM(self) AS total
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,10,root,100", "1,0,20,a,60",
+                                          "2,0,30,NULL,30", "3,1,40,c,40"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, CreatePerfettoTableAsPipeline) {
+  auto rows = Rows(R"(
+    CREATE PERFETTO TABLE totals AS
+    FROM tree |> TREE ACCUMULATE UP SUM(self) AS total;
+    SELECT id, total FROM totals
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, RunsBetweenOtherStatements) {
+  auto rows = Rows(R"(
+    FROM tree |> TREE ACCUMULATE UP SUM(self) AS total;
+    FROM tree |> TREE ACCUMULATE DOWN SUM(self) AS path;
+    SELECT count(*) FROM tree
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("4"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, ExpandsMacros) {
+  auto rows = Rows(R"(
+    CREATE PERFETTO MACRO leaves_of(t TableOrSubquery)
+    RETURNS TableOrSubquery AS (SELECT * FROM $t WHERE id != 3);
+    FROM leaves_of!(tree) |> TREE ACCUMULATE UP SUM(self) AS total
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,10,root,60", "1,0,20,a,20",
+                                          "2,0,30,NULL,30"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, Errors) {
+  EXPECT_THAT(Rows("FROM tree |> TREE ACCUMULATE UP SUM(nope) AS total")
+                  .status()
+                  .message(),
+              testing::HasSubstr("no such column: 'nope'"));
+  EXPECT_THAT(Rows("FROM tree |> TREE ACCUMULATE UP SUM(name) AS total")
+                  .status()
+                  .message(),
+              testing::HasSubstr("'name'"));
+  EXPECT_THAT(Rows("CREATE PERFETTO TABLE t AS FROM tree |> WHERE id = 1")
+                  .status()
+                  .message(),
+              testing::HasSubstr("Unsupported pipe operator 'WHERE'"));
+}
+
+// A table a pipeline reads directly can be replaced while it is being read:
+// the pipeline goes on reading what the table held when it started.
+TEST_F(PerfettoSqlConnectionPipelineTest, AReadTableCanBeReplaced) {
+  ASSERT_TRUE(connection_
+                  ->Execute(SqlSource::FromExecuteQuery(
+                      "CREATE PERFETTO TABLE df AS SELECT * FROM tree"))
+                  .ok());
+  auto res = connection_->ExecuteUntilLastStatement(SqlSource::FromExecuteQuery(
+      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_FALSE(res->stmt.IsDone());
+
+  auto replace = connection_->Execute(SqlSource::FromExecuteQuery(
+      "CREATE OR REPLACE PERFETTO TABLE df AS SELECT 1 AS id"));
+  ASSERT_TRUE(replace.ok()) << replace.status().c_message();
+
+  uint32_t rows = 1;
+  while (res->stmt.Step()) {
+    ++rows;
+  }
+  ASSERT_TRUE(res->stmt.status().ok()) << res->stmt.status().c_message();
+  EXPECT_EQ(rows, 4u);
+}
+
+// Once its result is gone, nothing is left of a pipeline for SQLite to read.
+TEST_F(PerfettoSqlConnectionPipelineTest, ARunPipelineIsUnregistered) {
+  ASSERT_TRUE(Rows("FROM tree").ok());
+  auto res = Rows("SELECT * FROM __intrinsic_pipeline_0");
+  EXPECT_THAT(res.status().message(),
+              testing::HasSubstr("no such table: __intrinsic_pipeline_0"));
 }
 
 }  // namespace
