@@ -96,7 +96,7 @@ class MessageTest : public ::testing::Test {
     return msg;
   }
 
-  // A root using the tracing v2 proto-group encoding.
+  // Creates a root with tracing v2's proto group encoding.
   FakeRootMessage* NewProtoGroupMessage() {
     FakeRootMessage* msg = NewMessage();
     msg->Reset(stream_writer_.get(), NestedMessageEncoding::kProtoGroup);
@@ -482,7 +482,7 @@ TEST_F(MessageTest, FinalizeWithoutCompaction) {
 // ---------------------------------------------------------------------------
 // Nested-message encodings.
 //
-// The proto-group encoding is specified at proto_utils::kProtoGroupEndByte.
+// The proto group encoding is specified at proto_utils::kProtoGroupEndByte.
 // Check exact bytes because this is a wire-format contract.
 // ---------------------------------------------------------------------------
 
@@ -496,9 +496,9 @@ TEST_F(MessageTest, DefaultEncodingIsLengthDelimited) {
             NestedMessageEncoding::kLengthDelimited);
   msg->Finalize();
 
-  // Field 1 as wire type 2 and its length. The empty message fits in one chunk
-  // and is short, so the canonical path compacts the four reserved bytes down
-  // to one. The proto-group path must not change this behavior.
+  // Field 1 uses wire type 2. Its empty message fits in one chunk. Finalize()
+  // therefore compacts the four reserved length bytes to one. The default must
+  // retain this behavior after the addition of proto group support.
   EXPECT_EQ(2u, GetNumSerializedBytes());
   EXPECT_EQ("0A00", GetNextSerializedBytes(2));
 }
@@ -508,7 +508,7 @@ TEST_F(MessageTest, ProtoGroupEmptyNestedMessage) {
   msg->BeginNestedMessage<FakeChildMessage>(1);
   msg->Finalize();
 
-  // The worked example: 0b 04.
+  // 0b opens field 1. 04 closes that empty nested message.
   EXPECT_EQ(2u, GetNumSerializedBytes());
   EXPECT_EQ("0B04", GetNextSerializedBytes(2));
 }
@@ -523,7 +523,7 @@ TEST_F(MessageTest, ProtoGroupChildInheritsTheRootEncoding) {
   EXPECT_EQ(grandchild->nested_message_encoding(),
             NestedMessageEncoding::kProtoGroup);
 
-  // Proto-group messages never reserve a length.
+  // Messages in proto group mode never reserve a length.
   EXPECT_EQ(nullptr, child->size_field());
   EXPECT_EQ(nullptr, grandchild->size_field());
   msg->Finalize();
@@ -573,7 +573,7 @@ TEST_F(MessageTest, ProtoGroupRootEmitsNoEndByte) {
   msg->AppendVarInt(1, 42);
   msg->Finalize();
 
-  // Just the field: the root's framing belongs to whoever owns the stream.
+  // Only the scalar field is emitted. The packet boundary closes the root.
   EXPECT_EQ(2u, GetNumSerializedBytes());
   EXPECT_EQ("082A", GetNextSerializedBytes(2));
 }
@@ -640,8 +640,8 @@ TEST_F(MessageTest, ProtoGroupMultiByteFieldId) {
 }
 
 TEST_F(MessageTest, ProtoGroupFramingCrossesChunkBoundaries) {
-  // The fixture hands out 16-byte chunks, so a payload this size puts the start
-  // tag and the end byte in different chunks.
+  // The fixture supplies 16-byte chunks. The start tag and closing byte must
+  // appear in different chunks because the nested payload exceeds that size.
   FakeRootMessage* msg = NewProtoGroupMessage();
   Message* child = msg->BeginNestedMessage<FakeChildMessage>(1);
   for (uint32_t i = 0; i < 8; ++i)

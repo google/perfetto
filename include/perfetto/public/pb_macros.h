@@ -25,7 +25,8 @@
 // This header contains macros that define types and accessors for protobuf
 // messages.
 //
-// ProtoGroup supports scalar, complete-value and nested-message accessors.
+// The proto group encoding supports scalar, complete-value and nested-message
+// accessors.
 // Incremental STRING/PACKED begin/append/end accessors abort.
 // See PerfettoPbMsgEncoding in pb_msg.h.
 //

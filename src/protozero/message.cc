@@ -154,17 +154,16 @@ uint32_t Message::Finalize() {
 
   if (encoding_ == NestedMessageEncoding::kProtoGroup) {
     PERFETTO_DCHECK(!size_field_);
-    // Packet framing closes the root. Only a nested group needs a close byte.
+    // The packet boundary marks the end of the root. Only a nested message
+    // appends kProtoGroupEndByte, after all its children close.
     if (!is_root_) {
       const uint8_t end = proto_utils::kProtoGroupEndByte;
       WriteToStream(&end, &end + 1);
     }
     message_state_ = MessageState::kFinalized;
   } else if (size_field_) {
-    // Write the length of the nested message a posteriori, using a leading-zero
-    // redundant varint encoding. This can be nullptr for the root message,
-    // among many reasons, because the TraceWriterImpl delegate is keeping track
-    // of the root fragment size independently.
+    // Write the length into the reserved field. Use all four bytes unless
+    // the message fits the compaction case below.
     PERFETTO_DCHECK(!is_finalized());
     PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);
     //
@@ -237,9 +236,8 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
   message->Reset(stream_writer_, arena_, encoding_, /*is_root=*/false);
 
   if (encoding_ == NestedMessageEncoding::kLengthDelimited) {
-    // The length of the nested message cannot be known upfront. So right now
-    // just reserve the bytes to encode the size after the nested message is
-    // done.
+    // The child's length is unknown until Finalize(). Reserve its length field
+    // now so Finalize() can fill it after the child is complete.
     message->set_size_field(
         stream_writer_->ReserveBytes(proto_utils::kMessageLengthFieldSize));
     size_ += proto_utils::kMessageLengthFieldSize;

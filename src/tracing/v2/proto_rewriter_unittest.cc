@@ -212,13 +212,14 @@ TEST(ProtoRewriterTest, SiblingsAndDeepNestingRoundTrip) {
             }));
 }
 
-// No per-level state, so protos nest as deep as protozero lets them.
+// Length fields store the nesting links, so depth requires no separate stack.
+// The output size bounds the supported depth.
 TEST(ProtoRewriterTest, NestingWellBeyondSixtyFourLevels) {
   std::vector<uint8_t> out;
   ASSERT_EQ(Rewrite(NestedTo(65), &out), RewriteResult::kSuccess);
   // Every level becomes a one-byte tag plus a four-byte length.
   ASSERT_EQ(out.size(), 65u * 5u);
-  // The outermost length names everything inside it: 64 levels of 5 bytes.
+  // The outermost length includes all 64 nested levels, each with 5 bytes.
   EXPECT_EQ(std::vector<uint8_t>(out.begin(), out.begin() + 5),
             Bytes({0x0a, 0xc0, 0x82, 0x80, 0x00}));
   // The innermost is empty.
@@ -236,7 +237,7 @@ TEST(ProtoRewriterTest, NestingWellBeyondSixtyFourLevels) {
 TEST(ProtoRewriterTest, StandardEndGroupTagIsRejected) {
   std::vector<uint8_t> out;
   // 0b = start field 1, 0c = the standard end-group tag for field 1. The
-  // proto-group closes with 0x04, so this is not a close.
+  // The proto group closing byte is 0x04, so this is not a close.
   EXPECT_EQ(Rewrite(Bytes({0x0b, 0x0c}), &out), RewriteResult::kMalformedInput);
   EXPECT_TRUE(out.empty());
 }
@@ -355,8 +356,8 @@ TEST(ProtoRewriterTest, TenByteVarintsFollowProtozeroParsing) {
   EXPECT_EQ(out, legal);
 }
 
-// Arbitrary producer bytes: any result is fine, and a rejection leaves
-// nothing behind.
+// Arbitrary producer bytes must not crash the rewriter. A rejection must leave
+// the output empty.
 TEST(ProtoRewriterTest, ArbitraryBytesNeverLeavePartialOutput) {
   std::vector<uint8_t> out;
   std::vector<uint8_t> in;
@@ -408,7 +409,7 @@ TEST(ProtoRewriterTest, OutputLimitIsExactAndClearsOutput) {
             RewriteResult::kOutputTooLarge);
   EXPECT_TRUE(out.empty());
 
-  // Four input bytes expand to ten. The limit is about the output.
+  // Four input bytes expand to ten output bytes, which determines the limit.
   EXPECT_EQ(Rewrite(Bytes({0x0b, 0x13, 0x04, 0x04}), &out, /*max_output=*/10),
             RewriteResult::kSuccess);
   EXPECT_EQ(out.size(), 10u);
@@ -416,7 +417,7 @@ TEST(ProtoRewriterTest, OutputLimitIsExactAndClearsOutput) {
             RewriteResult::kOutputTooLarge);
   EXPECT_TRUE(out.empty());
 
-  // A scalar that does not fit after a nested message already went out.
+  // The nested message fits, but the following scalar exceeds the output limit.
   EXPECT_EQ(Rewrite(Bytes({0x0b, 0x04, 0x08, 0x01}), &out, /*max_output=*/6),
             RewriteResult::kOutputTooLarge);
   EXPECT_TRUE(out.empty());
@@ -474,8 +475,8 @@ TEST(ProtoRewriterTest, GeneratedTracePacketRoundTrips) {
   ASSERT_EQ(decoded.for_testing().payload().str().size(), 1u);
   EXPECT_EQ(decoded.for_testing().payload().str()[0], "nested");
 
-  // The private bytes are not a valid protobuf on their own: the whole point is
-  // that they need this pass.
+  // The private closing bytes are invalid in standard protobuf. Decode only
+  // after the rewriter replaces the nested-message framing.
   protos::gen::TracePacket not_decoded;
   EXPECT_FALSE(
       not_decoded.ParseFromArray(private_bytes.data(), private_bytes.size()));

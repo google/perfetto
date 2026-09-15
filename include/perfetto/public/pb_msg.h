@@ -33,13 +33,13 @@
 // proto_utils.h.
 #define PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE 4
 
-// Encoding used for nested messages. The root picks it when it is initialized
-// and all its children use the same one.
+// Encoding for nested messages. The caller selects it when it initializes the
+// root. Each child inherits its parent's encoding.
 enum PerfettoPbMsgEncoding {
-  // Normal protobuf. The nested-message length is filled in on finalization.
+  // Standard protobuf. Finalization fills the reserved nested-message length.
   PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED = 0,
 
-  // Append-only proto-group encoding used by tracing v2.
+  // Append-only proto group encoding used by tracing v2.
   // - Supports scalars, whole string/bytes/packed values and nested messages.
   // - Incremental STRING/PACKED builders abort before writing a start tag.
   // See PERFETTO_PB_PROTO_GROUP_END_BYTE in pb_utils.h for the wire format.
@@ -56,9 +56,9 @@ struct PerfettoPbMsg {
   // unaligned and has PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE bytes.
   // PerfettoPbMsgFinalize() fills in the length, then clears this pointer.
   //
-  // In proto-group mode, a nested message ends with a closing byte and the
-  // root ends at the packet boundary. Neither reserves a length before its
-  // contents, so this pointer stays NULL.
+  // In proto group mode, this pointer is unused and always NULL. This encoding
+  // reserves no length field. A nested message appends a closing byte, and the
+  // packet boundary marks the end of the root.
   uint8_t* size_field;
 
   // Current size of the buffer.
@@ -68,37 +68,38 @@ struct PerfettoPbMsg {
 
   struct PerfettoPbMsg* nested;
 
-  // NULL for the root; otherwise the message that opened this child.
-  // In proto-group mode, PerfettoPbMsgFinalize() uses this to distinguish:
-  // - Nested messages: append a closing byte after finalizing their children.
-  // - Root messages: finalize their children without appending a closing byte
-  //   for the root itself. The caller ends the packet, whose boundary marks
-  //   the end of the root message.
+  // NULL for the root. Otherwise, points to the message that opened this child.
+  // In proto group mode, PerfettoPbMsgFinalize() uses this to distinguish:
+  // - Nested messages: finalize their children, then append a closing byte.
+  // - Root messages: finalize their children without a closing byte for the
+  //   root. The caller ends the packet, whose boundary marks the root's end.
   struct PerfettoPbMsg* parent;
 
   // Selected by the root and inherited by its children.
   enum PerfettoPbMsgEncoding encoding;
 
-  // A caller can call PerfettoPbMsgFinalize(child), then close that child
-  // with PerfettoPbMsgEndNested(parent), which calls Finalize(child) again.
+  // A child can be finalized twice through this sequence:
+  // 1. The caller calls PerfettoPbMsgFinalize(child) directly.
+  // 2. The caller calls PerfettoPbMsgEndNested(parent), which calls
+  //    PerfettoPbMsgFinalize(child) again.
+  //
   // - Length-delimited: the first call writes the length and clears
-  //   size_field. The second call has nothing left to patch and is safe.
-  // - Proto-group: the first call appends a closing byte. A second closing
-  //   byte would corrupt the packet. There is no size_field to clear, so
-  //   this flag tells the second call to skip writing that byte again.
+  //   size_field. The second call has no length field to patch.
+  // - Proto group: size_field is always NULL. The first call appends a closing
+  //   byte and sets this flag. The second call must not append another closing
+  //   byte because it would close the parent or corrupt the packet.
   bool proto_group_end_written;
 };
 
-// Initializes a root message. See PerfettoPbMsgEncoding for supported
-// operations.
+// Initializes a root message with the selected encoding. Unknown encodings
+// abort. See PerfettoPbMsgEncoding for supported operations.
 static inline void PerfettoPbMsgInitWithEncoding(
     struct PerfettoPbMsg* msg,
     struct PerfettoPbMsgWriter* writer,
     enum PerfettoPbMsgEncoding encoding) {
   if (encoding != PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED &&
       encoding != PERFETTO_PB_MSG_ENCODING_PROTO_GROUP) {
-    // Choosing another framing for an unknown encoding would corrupt the
-    // packet.
+    // A substitute encoding would produce a different wire format.
     abort();
   }
   msg->size_field = PERFETTO_NULL;
@@ -110,7 +111,7 @@ static inline void PerfettoPbMsgInitWithEncoding(
   msg->proto_group_end_written = false;
 }
 
-// Existing callers continue to write normal length-delimited protobuf.
+// Initializes a root message with the default length-delimited encoding.
 static inline void PerfettoPbMsgInit(struct PerfettoPbMsg* msg,
                                      struct PerfettoPbMsgWriter* writer) {
   PerfettoPbMsgInitWithEncoding(msg, writer,
@@ -128,7 +129,7 @@ static inline void PerfettoPbMsgPatch(struct PerfettoPbMsg* msg) {
 static inline void PerfettoPbMsgPatchStack(struct PerfettoPbMsg* msg) {
   uint8_t* const cur_range_end = msg->writer->writer.end;
   uint8_t* const cur_range_begin = msg->writer->writer.begin;
-  // Stop at the root or a proto-group message; neither has a length field.
+  // Stop at the root or a proto group message. Neither has a length field.
   while (msg && msg->size_field && cur_range_begin <= msg->size_field &&
          msg->size_field < cur_range_end) {
     PerfettoPbMsgPatch(msg);
@@ -284,12 +285,14 @@ static inline void PerfettoPbMsgBeginNested(struct PerfettoPbMsg* parent,
   parent->nested = nested;
 }
 
-// STRING and PACKED fields use the begin/end API too, but their payload is a
-// length-delimited value rather than a nested message.
-// - Length-delimited: reserve the length and backfill it when the field closes.
-// - Proto-group: abort before writing the tag. PerfettoPbMsgAppendBytes() may
-//   publish the payload before its length is known, so a reserved length could
-//   not be patched later.
+// STRING and PACKED fields require a length before their payload in both
+// encodings. Their incremental begin/append/end accessors handle it as follows:
+// - Length-delimited: reserve the length and fill it when the field closes.
+// - Proto group: abort before the tag is written. PerfettoPbMsgAppendBytes()
+//   can release a fragment before the field closes. The reader can copy that
+//   fragment while the total length is still unknown. Append-only writes
+//   cannot update a length field in those published bytes.
+//
 // TODO(sashwinbalaji): Buffer the value and emit it when the field closes if a
 // tracing v2 caller needs incremental fields.
 static inline void PerfettoPbMsgBeginLengthDelimitedField(
@@ -316,8 +319,8 @@ static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg) {
 
   if (PERFETTO_UNLIKELY(msg->encoding ==
                         PERFETTO_PB_MSG_ENCODING_PROTO_GROUP)) {
-    // A child writes its end byte once. The root only finalizes its children;
-    // its packet boundary takes the place of an end byte (see |parent| above).
+    // A child appends its closing byte once. The root only finalizes its
+    // children because the packet boundary marks its end. See `parent` above.
     if (msg->parent && !msg->proto_group_end_written) {
       PerfettoPbMsgAppendByte(
           msg, PERFETTO_STATIC_CAST(uint8_t, PERFETTO_PB_PROTO_GROUP_END_BYTE));

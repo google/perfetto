@@ -25,9 +25,9 @@
 namespace perfetto::tracing_v2 {
 namespace {
 
-// The bytes come from a producer, so the rewriter has to survive anything. The
-// first input byte picks the output bound, so that small inputs reach the
-// size-limit paths as well as the malformed ones.
+// Check arbitrary producer input for crashes, output overflow, and partial
+// output after rejection. The first byte selects the output limit so small
+// inputs can exercise both malformed-input and output-limit paths.
 int FuzzProtoRewriter(const uint8_t* data, size_t size) {
   if (size == 0)
     return 0;

@@ -609,7 +609,7 @@ struct PerfettoDsPacketBeginResult PerfettoDsTracerImplPacketBeginWithEncoding(
 struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
     struct PerfettoDsTracerImpl* tracer) {
   const auto result = PerfettoDsTracerImplPacketBeginWithEncoding(tracer);
-  // The legacy entry point cannot tell its caller to use proto-group encoding.
+  // The legacy entry point cannot tell its caller to use proto group encoding.
   PERFETTO_CHECK(result.encoding ==
                  PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED);
   return result.writer;

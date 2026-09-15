@@ -42,15 +42,19 @@ static inline uint32_t PerfettoPbMakeTag(int32_t field_id,
          PERFETTO_STATIC_CAST(uint32_t, wire_type);
 }
 
-// Constants for the append-only nested-message encoding used by tracing v2:
+// Tracing v2's private proto group encoding uses wire type 3 to open a nested
+// message. The closing byte does not repeat the field number, so this differs
+// from standard protobuf groups. See RFC 0014:
+// https://github.com/google/perfetto/discussions/4508.
 //
 //   open nested field f:  varint((f << 3) | 3)
 //   close current nested: 0x04
 //   root:                 no wrapper and no close byte
 //
-// Opens carry the field number. 0x04 is field-zero/end-group, which cannot be
-// an ordinary field, and closes the innermost message. Packet framing bounds
-// the root, so it needs neither marker.
+// The opening tag carries the field number. The closing byte, 0x04, encodes
+// field number zero with the end-group wire type. Field zero is invalid in
+// ordinary protobuf, so this byte closes the innermost message at a field
+// boundary. The packet boundary marks the end of the root.
 enum {
   PERFETTO_PB_PROTO_GROUP_START_WIRE_TYPE = 3,
   PERFETTO_PB_PROTO_GROUP_END_BYTE = 0x04,

@@ -16,8 +16,8 @@ import("../../../gn/fuzzer.gni")
 import("../../../gn/test.gni")
 
 # The tracing v2 producer-local shared ring buffer: its ABI, writer and reader.
-# TraceWriterV2Impl and ProtoRewriter handle the ProtoGroup fragment payloads.
-# Protocol and alternatives: RFC 0046,
+# TraceWriterV2Impl and ProtoRewriter handle the proto group fragment payloads.
+# Protocol: RFC 0046,
 # https://github.com/google/perfetto/discussions/7120.
 # Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
 source_set("v2") {

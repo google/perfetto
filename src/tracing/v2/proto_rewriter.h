@@ -26,16 +26,16 @@ namespace perfetto::tracing_v2 {
 
 enum class RewriteResult {
   kSuccess,
-  // Not a well-formed proto-group packet: a bad tag, value or length, a stray
-  // close marker, or a message left open.
+  // The input has an invalid tag, value or length, an unmatched closing byte,
+  // or a nested message without a closing byte.
   kMalformedInput,
   // The rewritten packet would exceed |max_output_size|, or a nested message
   // would not fit its four-byte length field. The input itself may be valid.
   kOutputTooLarge,
 };
 
-// Rewrites one packet from tracing v2's append-only proto-group encoding to
-// normal, length-delimited protobuf. For example, this nested message:
+// Rewrites one packet from tracing v2's append-only proto group encoding to
+// standard length-delimited protobuf. For example, this nested message:
 //
 //   field 1 {
 //     field 2: 7
@@ -43,7 +43,7 @@ enum class RewriteResult {
 //
 // is encoded and rewritten as follows:
 //
-//   proto-group (hex):
+//   proto group (hex):
 //   0b              10 07       04
 //   |               |           |
 //   start field 1   contents    end current message
@@ -53,17 +53,22 @@ enum class RewriteResult {
 //   |               |                         |
 //   field 1         length 2 (four bytes)     contents
 //
-// The root message has no marker. Ordinary protobuf fields are copied
-// unchanged. A standard protobuf end-group tag is not a valid proto-group
-// close marker. Nesting depth is bounded only by the output size.
+// The root message has no marker. The rewriter copies ordinary protobuf fields
+// unchanged. A standard protobuf end-group tag is invalid in proto group.
+// Each nested message requires a tag and four length bytes in the output,
+// so the output size also bounds nesting depth.
 //
-// Requirements:
-// - Input is a private copy, outside producer-owned shared memory.
-// - Input must not overlap |output|'s storage.
-// - |max_output_size| bounds the root and must be <= UINT32_MAX (CHECKed).
-//   Nesting links use 32-bit offsets.
-// - Each nested message must fit its four-byte length field.
-// - |output| is empty unless the result is kSuccess.
+// Caller requirements:
+// - Input must be a private copy, outside producer-owned shared memory.
+//   Otherwise, the producer can change bytes between validation and the copy.
+// - Input must not overlap |output|'s storage, which this function clears.
+// - |max_output_size| must be <= UINT32_MAX because nesting links use 32-bit
+//   output offsets. A larger limit fails a CHECK.
+//
+// The rewriter limits the entire output to |max_output_size|. Each nested
+// message must also fit its four-byte length field. Either limit can produce
+// kOutputTooLarge even if the input is valid.
+// On failure, |output| is empty. On success, it contains the rewritten packet.
 RewriteResult RewriteProtoGroupToLengthDelimited(const uint8_t* input_begin,
                                                  const uint8_t* input_end,
                                                  std::vector<uint8_t>* output,
