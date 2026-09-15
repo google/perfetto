@@ -168,6 +168,22 @@ std::unique_ptr<TracingService> TracingService::CreateInstance(
 namespace tracing_service {
 
 namespace {
+// The service validates chunk sizes before passing them to the producer's
+// temporary v2 adapter. These limits are duplicated here to avoid making the
+// service depend on the adapter. When changing them, update both copies:
+// - kMinTracingV2ChunkSize must match kMinChunkSize, and
+//   kTracingV2ChunkAlignment must match kChunkAlignmentBytes, both in
+//   src/tracing/v2/shared_ring_buffer_abi.h.
+// - kMaxTracingV2ChunkSize must match
+//   InProcessTracingV2Bridge::kMaxConfiguredChunkSize in
+//   src/tracing/v2/in_process_tracing_v2_bridge.h.
+//
+// TODO(sashwinbalaji): Consider a common internal header under src/tracing/
+// if this policy is needed beyond the temporary adapter.
+constexpr uint32_t kMinTracingV2ChunkSize = 256;
+constexpr uint32_t kMaxTracingV2ChunkSize = 32 * 1024;
+constexpr uint32_t kTracingV2ChunkAlignment = 4;
+
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr uint32_t kDefaultSnapshotsIntervalMs = 10 * 1000;
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
@@ -458,8 +474,12 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
           "Adopting producer-provided SMB of %zu kB for producer \"%s\"",
           shm_size / 1024, endpoint->name_.c_str());
       auto shmem_mode = GetShmemMode(client_identity, in_process);
-      endpoint->SetupSharedMemory(std::move(shm), page_size,
-                                  /*provided_by_producer=*/true, shmem_mode);
+      endpoint->SetupSharedMemory(
+          std::move(shm), page_size,
+          /*provided_by_producer=*/true, shmem_mode,
+          // No TraceConfig exists at producer connect;
+          // a producer-provided SMB uses the v2 default.
+          /*tracing_v2_chunk_size_bytes=*/0);
     } else {
       PERFETTO_LOG(
           "Discarding incorrectly sized producer-provided SMB for producer "
@@ -653,6 +673,20 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       return PERFETTO_SVC_ERR(
           "A Consumer is trying to EnableTracing() but another tracing "
           "session is already active (forgot a call to FreeBuffers() ?)");
+    }
+  }
+
+  // Reject malformed v2 setup policy before any selected producer sees it.
+  for (const auto& producer : cfg.producers()) {
+    const uint32_t chunk_size = producer.tracing_v2_chunk_size_bytes();
+    if (chunk_size != 0 && (chunk_size < kMinTracingV2ChunkSize ||
+                            chunk_size > kMaxTracingV2ChunkSize ||
+                            chunk_size % kTracingV2ChunkAlignment != 0)) {
+      return PERFETTO_SVC_ERR(
+          "TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes must be zero "
+          "or a multiple of %u between %u and %u bytes (received %u)",
+          kTracingV2ChunkAlignment, kMinTracingV2ChunkSize,
+          kMaxTracingV2ChunkSize, chunk_size);
     }
   }
 
@@ -2133,7 +2167,7 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
   for (const auto& [producer_id, ds_inst] :
        tracing_session->data_source_instances) {
-    if (!ds_inst.no_flush) {
+    if (ds_inst.RequiresProducerFlush()) {
       data_source_instances[producer_id].push_back(ds_inst.instance_id);
       continue;
     }
@@ -3295,7 +3329,7 @@ void TracingServiceImpl::StopDataSourceInstance(ProducerEndpointImpl* producer,
         static_cast<int>(producer->pid()));
     disable_immediately = true;
   }
-  if (instance->will_notify_on_stop && !disable_immediately) {
+  if (instance->RequiresProducerStopAck() && !disable_immediately) {
     instance->state = DataSourceInstance::STOPPING;
   } else {
     instance->state = DataSourceInstance::STOPPED;
@@ -3569,7 +3603,8 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     auto shmem_mode =
         GetShmemMode(producer->client_identity(), producer->in_process_);
     producer->SetupSharedMemory(std::move(shared_memory), page_size,
-                                /*provided_by_producer=*/false, shmem_mode);
+                                /*provided_by_producer=*/false, shmem_mode,
+                                producer_config.tracing_v2_chunk_size_bytes());
   }
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;
@@ -4811,7 +4846,7 @@ TracingServiceImpl::GetFlushableDataSourceInstancesForBuffers(
   for (const auto& [producer_id, ds_inst] : session->data_source_instances) {
     // TODO(ddiproietto): Consider if we should skip instances if ds_inst.state
     // != DataSourceInstance::STARTED
-    if (ds_inst.no_flush) {
+    if (!ds_inst.RequiresProducerFlush()) {
       continue;
     }
     if (!bufs.count(static_cast<BufferID>(ds_inst.config.target_buffer()))) {

@@ -115,6 +115,15 @@ struct DataSourceState {
   // when it's stopped.
   bool will_notify_on_stop = false;
 
+  // Copy of DataSourceDescriptor.no_flush, used to skip OnFlush() when the
+  // service only needs the v2 ring buffer drained.
+  bool no_flush = false;
+
+  // Selects v1 or v2 when a thread creates this instance's trace writer.
+  // Set before publishing the instance and left intact on stop.
+  // An in-flight trace call may still need it after |config| is freed.
+  bool use_tracing_v2 = false;
+
   // The wanted behavior for this data source instance when a TraceWriter runs
   // out of space in the shared memory buffer.
   BufferExhaustedPolicy buffer_exhausted_policy = BufferExhaustedPolicy::kDrop;

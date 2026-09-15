@@ -106,6 +106,18 @@ struct DataSourceInstance {
   DataSourceInstance(const DataSourceInstance&) = delete;
   DataSourceInstance& operator=(const DataSourceInstance&) = delete;
 
+  // The v2 ring buffer lives in the producer process and is not shared with
+  // the service. Ask the producer to drain it even for no_flush instances.
+  bool RequiresProducerFlush() const {
+    return !no_flush || config.use_tracing_v2();
+  }
+
+  // V2 producers must drain before acknowledging stop, even when the data
+  // source did not declare will_notify_on_stop.
+  bool RequiresProducerStopAck() const {
+    return will_notify_on_stop || config.use_tracing_v2();
+  }
+
   DataSourceInstanceID instance_id;
   DataSourceConfig config;
   std::string data_source_name;
