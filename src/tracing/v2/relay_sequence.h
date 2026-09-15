@@ -32,8 +32,11 @@ namespace perfetto::tracing_v2 {
 // SDK threads, the muxer and the relay itself post tasks here. Posts can race
 // with Tracing::Shutdown(), including requests to destroy retained v1 writers.
 //
-// PostTask() and Close() hold the same mutex. A task is either posted to the
-// live runner or rejected after Close() takes ownership of the runner.
+// PostTask() and Close() hold the same mutex:
+// - If PostTask() gets the lock first, it posts before Close() removes the
+//   runner.
+// - If Close() gets the lock first, PostTask() sees no runner and rejects the
+//   task.
 //
 // Bridges retain this handle after shutdown. Later posts fail safely.
 class RelaySequence {
@@ -56,17 +59,16 @@ class RelaySequence {
     return true;
   }
 
-  // Stops accepting tasks and returns the runner to its owner. Posts after
-  // this return false. Tasks already queued are neither run nor cancelled
-  // here. What happens to them is up to the runner's destructor.
+  // Stops accepting tasks and returns ownership of the runner to the caller.
+  // Later PostTask() calls return false. Close() leaves queued tasks untouched.
+  // The runner's destructor determines whether to run or discard those tasks.
   //
   // The caller must destroy the runner outside both the relay and muxer
-  // sequences, and keep the muxer and its endpoints alive until destruction
-  // returns, as queued tasks may still run.
+  // sequences. Keep the muxer and its endpoints alive until destruction returns
+  // because queued tasks can still use them.
   //
-  // Destroying the runner cannot deadlock on the muxer: the v1 writers the
-  // bridges forward into use kDrop, so a drain never waits for the SMB to be
-  // freed.
+  // The bridge's v1 writers use kDrop. A drain therefore does not wait for the
+  // muxer to free SMB space while the caller waits for runner destruction.
   std::unique_ptr<base::TaskRunner> Close() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (task_runner_)

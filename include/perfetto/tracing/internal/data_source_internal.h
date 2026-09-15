@@ -120,8 +120,9 @@ struct DataSourceState {
   bool no_flush = false;
 
   // Selects v1 or v2 when a thread creates this instance's trace writer.
-  // Set before publishing the instance and left intact on stop.
-  // An in-flight trace call may still need it after |config| is freed.
+  // Set before the instance is published and preserved when it stops.
+  // A Trace() call that started before stop can still need this value after
+  // stop frees |config|.
   bool use_tracing_v2 = false;
 
   // The wanted behavior for this data source instance when a TraceWriter runs

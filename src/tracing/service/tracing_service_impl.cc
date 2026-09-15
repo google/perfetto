@@ -477,8 +477,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
       endpoint->SetupSharedMemory(
           std::move(shm), page_size,
           /*provided_by_producer=*/true, shmem_mode,
-          // No TraceConfig exists at producer connect;
-          // a producer-provided SMB uses the v2 default.
+          // This connection has no TraceConfig at SMB setup, so a
+          // producer-provided SMB uses the default v2 chunk size.
           /*tracing_v2_chunk_size_bytes=*/0);
     } else {
       PERFETTO_LOG(
@@ -676,7 +676,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
-  // Reject malformed v2 setup policy before any selected producer sees it.
+  // Validate the chunk size before sending it to a selected producer, whose
+  // SDK aborts setup if the value is invalid.
   for (const auto& producer : cfg.producers()) {
     const uint32_t chunk_size = producer.tracing_v2_chunk_size_bytes();
     if (chunk_size != 0 && (chunk_size < kMinTracingV2ChunkSize ||

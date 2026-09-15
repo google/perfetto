@@ -176,8 +176,10 @@ message DataSourceConfig {
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
 
-  // Experimental. Writes this data source instance through the tracing v2
-  // ring buffer instead of the v1 shared memory buffer. Off by default.
+  // Experimental. Selects a tracing v2 ring buffer writer for this data source
+  // instance. Off by default. The temporary adapter reads the ring buffer in
+  // the producer process and forwards packets through the v1 shared memory
+  // buffer to the service.
   //
   // Only enable this for a producer known to support tracing v2. A producer
   // that understands the field but cannot honor it aborts instead of falling
@@ -185,17 +187,18 @@ message DataSourceConfig {
   //
   // The service also changes how it handles this instance:
   // - It sends flush requests even if the data source declared no_flush (see
-  //   DataSourceDescriptor.no_flush).
-  // - It waits for the producer to ack the stop, even if the data source did
-  //   not declare will_notify_on_stop.
+  //   DataSourceDescriptor.no_flush). The SDK drains the ring buffer without
+  //   calling OnFlush() for those instances.
+  // - It waits for the producer to acknowledge stop after the final drain,
+  //   even if the data source did not declare will_notify_on_stop.
   //
   // Older producers ignore this field. If the data source did not declare
   // will_notify_on_stop, stopping waits for data_source_stop_timeout_ms.
   //
-  // The producer must support writer waits. Startup tracing and interceptors
-  // are not supported and abort when this field is enabled. This adapter also
-  // rejects v2 on a producer connection that has used startup tracing (even if
-  // already adopted), and rejects later startup tracing on a v2 connection.
+  // Startup tracing and interceptors are unsupported and abort when this
+  // field is enabled. The adapter also rejects v2 on a connection that used
+  // startup tracing, even after adoption. A connection that selects v2 cannot
+  // later start startup tracing.
   optional bool use_tracing_v2 = 13;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to

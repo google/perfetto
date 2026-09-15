@@ -173,8 +173,9 @@ std::unique_ptr<TraceWriter> CreateV2Writer(InProcessTracingV2Bridge* bridge,
   return writer;
 }
 
-// A task runner that only queues. Tests decide when tasks run, or drop them,
-// and can count the posts. Always claims to be another thread.
+// Queues tasks for the test to run or discard explicitly. Counts posts so
+// tests can detect extra drain tasks. RunsTasksOnCurrentThread() returns false
+// so tests can call RelaySequence::Close() from their own thread.
 class QueuedTaskRunner : public base::TaskRunner {
  public:
   void PostTask(std::function<void()> task) override {
@@ -264,12 +265,13 @@ class InProcessTracingV2BridgeTest : public ::testing::Test {
 
   void TearDown() override {
     bridge_.reset();
-    // Relay tasks hold their own reference, so the bridge outlives ours until
-    // they have run. Run them before the task runner goes away.
+    // Queued relay tasks retain the bridge after bridge_.reset(). Run them
+    // while the task runner and the fake writers' recorded state still exist.
     task_runner_.RunUntilIdle();
   }
 
-  // Waits until preceding ring buffer data has been flushed to v1.
+  // Waits until the bridge forwards earlier complete packets and flushes v1.
+  // Internal drain completion does not wait for a service acknowledgement.
   void DrainRelay() {
     const std::string name = "relay-quiescent-" + std::to_string(++drains_);
     std::function<void()> quiescent = task_runner_.CreateCheckpoint(name);
@@ -306,8 +308,9 @@ class InProcessTracingV2BridgeTest : public ::testing::Test {
                                         BufferExhaustedPolicy::kDrop,
                                         test::GetNoopWriterDelegate());
 
-    // Each fragment is a whole proto field on purpose: if the bridge wrongly
-    // glued prefix and tail together, the result would still parse.
+    // Each fragment contains a complete proto field. If the bridge incorrectly
+    // joins the prefix and tail across a gap, the result still parses. Check
+    // packet contents to detect that error.
     ASSERT_TRUE(test::WriteFragment(&chunk_writer, "\x40\x01", false, true));
     chunk_writer.FinishCurrentChunk();
     DrainRelay();
@@ -718,7 +721,7 @@ TEST_F(InProcessTracingV2BridgeTest, PacketsKeepTheirOrderAndTheirWriter) {
   }
 }
 
-// Multiple notifications before the relay runs should post one drain task.
+// Multiple notifications before the relay runs must post only one drain task.
 TEST(InProcessTracingV2BridgeBurstTest, CommitsWhileATaskIsQueuedPostNothing) {
   QueuedTaskRunner task_runner;
   std::map<WriterID, FakeV1Writer::Recorded> recorded;
@@ -751,7 +754,8 @@ TEST(InProcessTracingV2BridgeBurstTest, CommitsWhileATaskIsQueuedPostNothing) {
   task_runner.RunQueuedTasks();
 }
 
-// A commit made while the drain task is running must schedule another pass.
+// A packet published during a drain must schedule another pass. The drain
+// clears its notification flag before reading, so it cannot suppress that post.
 TEST(InProcessTracingV2BridgeBurstTest, CommitDuringDrainSchedulesAnotherPass) {
   QueuedTaskRunner task_runner;
   std::map<WriterID, FakeV1Writer::Recorded> recorded;
@@ -853,8 +857,8 @@ TEST(InProcessTracingV2BridgeBurstTest,
             kBatchSize);
   EXPECT_TRUE(completions.empty());
   ASSERT_EQ(task_runner.queued(), 3u);  // B, second barrier, continuation.
-  // A keeps writing after both watermarks were sampled. Neither continuation
-  // may extend its target to include this position.
+  // A publishes another position after both barriers sample their targets.
+  // Each barrier must keep its original target when it schedules another batch.
   ASSERT_TRUE(test::WriteFragment(&chunk_writer, "\x40\x03"));
   chunk_writer.FinishCurrentChunk();
   task_runner.RunNextTask();  // B runs before A's continuation.
@@ -933,8 +937,8 @@ TEST_F(InProcessTracingV2BridgeTest, DrainPendingDataStopsAtItsWatermark) {
   task_runner_.RunUntilIdle();
 
   EXPECT_TRUE(done);
-  // Exactly the 50 packets that were in the ring buffer at sampling time. The
-  // other two are not lost, the next drain picks them up.
+  // The barrier covers the 50 packets published before its target was sampled.
+  // The other two occupy later positions and remain for the next drain.
   EXPECT_EQ(packets_at_completion, 50u);
   ASSERT_EQ(recorded_[7].packets.size(), 52u);
   EXPECT_EQ(recorded_[7].packets[50].timestamp(), 500u);
@@ -1116,8 +1120,9 @@ TEST_F(InProcessTracingV2BridgeTest, TeardownDrainsWhatIsStillInTheRing) {
   // Nothing has run yet: the packets are in the ring buffer and nowhere else.
   ASSERT_TRUE(recorded_[7].packets.empty());
 
-  // Drop the writer, then our reference. The queued writer destruction barrier
-  // is now the only owner, and it drains before it goes away.
+  // Destroy the writer, then release the test's bridge reference. Only queued
+  // relay tasks retain the bridge now. The destruction barrier must drain the
+  // final packets before it releases the retained v1 writer.
   writer.reset();
   bridge_.reset();
   task_runner_.RunUntilIdle();
@@ -1165,8 +1170,8 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   EXPECT_EQ(recorded[7].destructions, 1u);
 }
 
-// A TraceWriter::Flush() callback is handed to the v1 writer. Its ack must not
-// go through the relay, which may be closed by then.
+// Pass a TraceWriter::Flush() callback directly to the v1 writer. Its service
+// acknowledgement must still reach the caller if the relay closes meanwhile.
 TEST(InProcessTracingV2BridgeLifetimeTest,
      ExplicitFlushAcknowledgementDoesNotNeedRelay) {
   auto queued_runner =
@@ -1190,8 +1195,8 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   ASSERT_EQ(recorded[7].pending_flush_callbacks.size(), 1u);
   ASSERT_FALSE(flush_complete);
 
-  // Same as TracingMuxerImpl::Shutdown(): Close(), then destroy the runner.
-  // Everything below happens in between.
+  // Follow TracingMuxerImpl::Shutdown(): close the relay before destroying its
+  // runner. Deliver the acknowledgement between those two steps.
   std::unique_ptr<base::TaskRunner> relay_task_runner = relay->Close();
   ASSERT_EQ(relay_task_runner.get(), queued);
   const size_t posts_after_close = queued->posts();
@@ -1206,13 +1211,15 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   EXPECT_EQ(recorded[7].destructions, 0u);
 
   relay_task_runner.reset();
-  // The v1 writer is still retained, so it goes when the bridge does.
+  // The closed relay rejected writer retirement. Bridge destruction must now
+  // release the retained v1 writer.
   bridge.reset();
   EXPECT_EQ(recorded[7].destructions, 1u);
 }
 
-// Internal drains release lifecycle waiters after close. Explicit writer flush
-// callbacks require a service acknowledgement and must be discarded instead.
+// If a closed relay rejects an internal drain, its completion runs inline
+// without forwarding data. If it rejects a new writer flush, that callback is
+// discarded because no service acknowledgement can follow.
 TEST(InProcessTracingV2BridgeLifetimeTest,
      ClosedRelayDiscardsWriterFlushButCompletesInternalDrain) {
   auto queued_runner =
@@ -1248,9 +1255,13 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   EXPECT_FALSE(flushed);
 }
 
-// The endpoint can retain a flush callback after the arbiter dies.
-// Pass the callback through without capturing the bridge: its v1 writers need
-// the arbiter during destruction.
+// A flush acknowledgement can outlive the arbiter:
+// 1. The bridge passes the callback to the v1 writer.
+// 2. The endpoint retains the callback while shutdown releases the bridge.
+// 3. The bridge destroys its v1 writers while their arbiter still exists.
+// 4. The endpoint can invoke the callback after that arbiter is destroyed.
+// Capturing the bridge in the callback can delay v1 writer destruction past
+// the arbiter's lifetime. The callback must retain no bridge reference.
 TEST(InProcessTracingV2BridgeLifetimeTest,
      ALateDownstreamAcknowledgementDoesNotOwnTheBridge) {
   auto queued_runner =
@@ -1274,8 +1285,8 @@ TEST(InProcessTracingV2BridgeLifetimeTest,
   std::unique_ptr<base::TaskRunner> relay_task_runner = relay->Close();
   const size_t posts_after_close = queued->posts();
 
-  // Drop every legitimate owner. The pending ack must not keep the bridge, and
-  // its v1 writer, alive.
+  // Release the writer and the test's bridge reference. The pending
+  // acknowledgement must not retain the bridge or its v1 writer.
   writer.reset();
   bridge.reset();
   EXPECT_EQ(recorded[7].destructions, 1u);
@@ -1334,8 +1345,8 @@ TEST(InProcessTracingV2BridgeLifetimeTest, ClosingARealRelayThreadIsSafe) {
   std::unique_ptr<base::TaskRunner> relay_task_runner = relay->Close();
   EXPECT_FALSE(relay->PostTask([] { ADD_FAILURE() << "ran after Close()"; }));
 
-  // The destruction request is refused after close, so the v1 writer goes with
-  // the bridge rather than being handed back.
+  // Close() rejects the destruction request, so bridge destruction releases
+  // the v1 writer without another relay task.
   writer.reset();
   bridge.reset();
   // The task that ran the completion may hold the last bridge reference until
@@ -1417,8 +1428,8 @@ TEST(InProcessTracingV2BridgeSizingTest, FewerThanTwoChunksIsRefused) {
       "");
 }
 
-// Block a PostTask() inside the runner, i.e. while holding the RelaySequence
-// mutex. Close() must not look at or take the runner until that post is done.
+// Block the runner's PostTask() while RelaySequence still holds its mutex.
+// Close() must wait for that post before it accesses or removes the runner.
 TEST(RelaySequenceTest, CloseWaitsForAnAdmittedPost) {
   base::WaitableEvent post_entered;
   base::WaitableEvent release_post;

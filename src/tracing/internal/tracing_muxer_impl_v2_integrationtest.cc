@@ -126,8 +126,8 @@ class TracingMuxerImplV2Test : public testing::Test {
     return count;
   }
 
-  // Calls ProducerImpl::Flush() for |instance_id| on the muxer thread, as if
-  // the service had asked for it. Returns once the producer has handled it.
+  // Calls ProducerImpl::Flush() for |instance_id| on the muxer thread.
+  // Returns after that call, which can leave callbacks or a ring drain pending.
   static void FlushInstanceOnProducer(internal::TracingBackendId backend_id,
                                       DataSourceInstanceID instance_id,
                                       FlushRequestID flush_id) {
@@ -516,7 +516,7 @@ TEST_F(TracingMuxerImplV2Test, PendingFlushReleasesWriterBeforeEndpoint) {
 }
 
 // Preserve v1 flush behavior before the connection selects v2:
-// - Asynchronous completions are coalesced into the newest completed request.
+// - Asynchronous completions acknowledge the completed prefix of the queue.
 // - Synchronous requests are acked immediately, including all older requests.
 // Remove those older requests locally so late callbacks are ignored.
 TEST_F(TracingMuxerImplV2Test, NeverV2ConnectionKeepsV1FlushAcks) {
@@ -624,9 +624,9 @@ namespace {
 
 using Internals = test::TracingMuxerImplInternalsForTest;
 
-// End-to-end through the in-process backend. The bridge emits exactly the
-// packets a v1 writer would, so these tests look at the muxer's per-instance
-// state to tell v1 from v2.
+// Tests complete sessions through the in-process backend. Both writer modes
+// produce length-delimited protobuf after forwarding. Inspect the muxer's
+// instance state to verify which writer the config selected.
 
 class TracingV2TestDataSource
     : public perfetto::DataSource<TracingV2TestDataSource> {
@@ -695,8 +695,9 @@ std::atomic<uint32_t> TracingV2FlushingDataSource::flushes{0};
 std::atomic<base::WaitableEvent*> TracingV2FlushingDataSource::on_flush_done{
     nullptr};
 
-// Overrides OnFlush() but is registered with no_flush: the service must never
-// call it.
+// Registers with no_flush despite an OnFlush() override. V2 drain requests
+// must skip this callback. A simulated older service also tests the v1 path,
+// which preserves the callback if the service explicitly requests a flush.
 class TracingV2DeclaredNoFlushDataSource
     : public perfetto::DataSource<TracingV2DeclaredNoFlushDataSource> {
  public:
@@ -1134,9 +1135,9 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
       WaitForFullRing(bridge.get());
     }
     release_relay.Notify();
-    // OnFlush() writes 2 MiB without returning to the muxer thread, so the
-    // 256 KiB v1 SMB fills up too. The relay must keep making progress
-    // regardless, dropping on v1.
+    // OnFlush() writes 2 MiB on the muxer thread. While it runs, that thread
+    // cannot process commits, so the 256 KiB v1 SMB also fills. The relay must
+    // drop v1 packets and keep draining the ring so OnFlush() can finish.
     flushed.Wait();
     WaitForMuxerSequence();
     if (policy ==
@@ -1204,8 +1205,8 @@ TEST_F(TracingV2InProcessTest, TracingV2WithAnInterceptorIsFatal) {
   ds_cfg->set_use_tracing_v2(true);
   ds_cfg->mutable_interceptor_config()->set_name("unknown");
 
-  // The abort happens on the muxer sequence, so the death test has to re-exec
-  // rather than fork: a forked child has no muxer thread to run the setup on.
+  // Setup aborts on the muxer sequence. Re-execute the test so the child starts
+  // its own muxer thread. Fork alone leaves no thread to process setup.
   const std::string previous_death_test_style =
       testing::GTEST_FLAG(death_test_style);
   testing::GTEST_FLAG(death_test_style) = "threadsafe";
@@ -1273,8 +1274,8 @@ TEST_F(TracingV2InProcessTest, TheConfigSelectsTheWriterPerInstance) {
       StartSession(MakeConfigFor({"tracing_v2_test"}, WriterSelection::kV2));
   EXPECT_EQ(CountInstancesUsingTracingV2<TracingV2TestDataSource>(), 1u);
 
-  // One Trace() call fans out to all three instances, each through the writer
-  // its own config asked for and into its own session's buffer.
+  // One Trace() call writes to all three instances. Each must use the writer
+  // selected by its config and deliver packets to its own session's buffer.
   TracingV2TestDataSource::Trace([](TracingV2TestDataSource::TraceContext ctx) {
     ctx.NewTracePacket()->set_for_testing()->set_str("mixed");
     ctx.Flush();
@@ -1341,7 +1342,7 @@ TEST_F(TracingV2InProcessTest, EnabledProducesAValidTraceThroughTheRing) {
           packet->set_timestamp(i);
           auto* event = packet->set_for_testing();
           event->set_str("v2");
-          // Exercise the proto-group rewrite with a nested message.
+          // Exercise the proto group rewrite with a nested message.
           auto* payload = event->set_payload();
           payload->set_single_int(static_cast<int32_t>(i));
           payload->add_str("nested");
@@ -1400,10 +1401,10 @@ TEST_F(TracingV2InProcessTest, MuxerDropUnderPressureMakesProgress) {
   CheckMuxerPressure(protos::gen::DataSourceConfig::BUFFER_EXHAUSTED_DROP);
 }
 
-// The v1 hop drops, so the large packet may or may not make it. This only
-// checks that we make progress and recover.
-// PacketLargerThanRingReassemblesExactly checks the reassembly itself, with a
-// fake v1 writer that never drops.
+// The downstream v1 writer can drop the large packet. Check that the writer
+// makes progress and later packets reach the trace.
+// PacketLargerThanRingReassemblesExactly verifies reassembly with a fake v1
+// writer that never drops.
 TEST_F(TracingV2InProcessTest, PacketLargerThanRingMakesProgressAndRecovers) {
   auto session = StartSession(MakeStallingConfig());
 
@@ -1450,8 +1451,8 @@ TEST_F(TracingV2InProcessTest, PacketLargerThanRingMakesProgressAndRecovers) {
               0u);
   }
 
-  // No reassembly error may show up. Not a full check: the v1 hop can drop the
-  // packet carrying the reason bits.
+  // Delivered packets must not report reassembly errors. This check cannot
+  // detect an error if v1 drops the packet that carries its reason bits.
   constexpr uint32_t kV2ReassemblyLoss =
       protos::gen::TracePacket::DATA_LOSS_ORPHAN_CONTINUATION |
       protos::gen::TracePacket::DATA_LOSS_REASSEMBLY_GAP |
@@ -1509,7 +1510,7 @@ TEST_F(TracingV2InProcessTest, TwoSessionsWithDifferentBuffersStayApart) {
   TracingV2TestDataSource::Trace(
       [](TracingV2TestDataSource::TraceContext ctx) { ctx.Flush(); });
 
-  // Two instances of the data source means two writers with different target
+  // Two instances of the data source use two writers with different target
   // buffers. Each session must see its own copy and nothing else.
   const protos::gen::Trace second_trace = StopAndParse(second.get());
   const protos::gen::Trace first_trace = StopAndParse(first.get());
@@ -1519,10 +1520,9 @@ TEST_F(TracingV2InProcessTest, TwoSessionsWithDifferentBuffersStayApart) {
   EXPECT_EQ(TestPackets(second_trace)[0].for_testing().str(), "both");
 }
 
-// The service normally scrapes no_flush data sources instead of flushing them.
-// It can't scrape the ring buffer, so for v2 it asks the producer anyway
-// (RequiresProducerFlush()), and the tail must be there when the flush
-// completes.
+// For v1 no_flush instances, the service scrapes the shared memory buffer.
+// It cannot access the producer's v2 ring, so RequiresProducerFlush() requests
+// a producer drain. The final packet must reach the trace before completion.
 TEST_F(TracingV2InProcessTest,
        NoFlushDataSourceTailIsPresentWhenFlushCompletes) {
   auto session = StartSession(
@@ -1693,17 +1693,18 @@ TEST_F(TracingV2InProcessTest, StoppedAsyncFlushDoesNotBlockLaterFlush) {
   CheckStoppedFlush(WriterSelection::kV2);
 }
 
-// A stopped v1 instance can be what an older request, queued in front of a v2
-// barrier, is waiting for. Its stop must release that request.
+// An older flush can await a v1 instance's callback while a v2 flush waits
+// behind it. Stopping the v1 instance must release the older request.
 TEST_F(TracingV2InProcessTest,
        StoppedV1AsyncFlushOnAV2ConnectionDoesNotBlockLaterFlush) {
   PutConnectionOnTracingV2();
   CheckStoppedFlush(WriterSelection::kV1);
 }
 
-// A request made of v1 instances only doesn't need the ring buffer, but on a v2
-// connection it is acked in order: block the relay so that an older v2 request
-// cannot complete, and check that a later v1 request waits for it.
+// A v1-only flush needs no ring drain, but must respect the connection's queue:
+// 1. Block the relay so an older v2 flush cannot finish its drain.
+// 2. Submit a v1-only flush and let its OnFlush() callback complete.
+// 3. Verify that its acknowledgement waits for the older v2 flush.
 TEST_F(TracingV2InProcessTest, V1FlushOnAV2ConnectionWaitsBehindAV2Barrier) {
   auto v2 = StartSession(
       MakeConfigFor({"tracing_v2_flushing"}, WriterSelection::kV2));
@@ -1757,8 +1758,8 @@ TEST_F(TracingV2InProcessTest, V1FlushOnAV2ConnectionWaitsBehindAV2Barrier) {
   v1->StopBlocking();
 }
 
-// The counterpart: with no older v2 request in the queue, a v1-only request
-// on a v2 connection doesn't touch the relay at all.
+// With no older v2 request in the queue, a v1-only flush can complete while
+// the relay is blocked, even if the connection previously selected v2.
 TEST_F(TracingV2InProcessTest, V1FlushOnAV2ConnectionDoesNotWaitForTheRelay) {
   PutConnectionOnTracingV2();
   auto session = StartSession(
@@ -1870,10 +1871,11 @@ TEST_F(TracingV2InProcessTest, StoppedAsyncFlushKeepsRingBarrier) {
 
 // Hold the relay while stop samples its target, then check the final packets.
 //
-// That the service waits for the ack is covered by
-// OnTracingDisabledWaitsForTracingV2StopAck, the drain ordering by the bridge
-// tests. This test cannot assert that the consumer's stop callback is still
-// pending: it goes through more muxer tasks than the checkpoint covers.
+// OnTracingDisabledWaitsForTracingV2StopAck checks that the service waits for
+// acknowledgement. The bridge tests check drain ordering.
+// This test's checkpoint covers the producer's stop task. The consumer's stop
+// callback needs additional muxer tasks, so the checkpoint cannot establish
+// whether that callback is still pending.
 TEST_F(TracingV2InProcessTest, StopDeliversWhatWasStillInTheRing) {
   base::WaitableEvent stop_started;
   TracingV2AsyncStopDataSource::stop_started.store(&stop_started);
@@ -1913,9 +1915,8 @@ TEST_F(TracingV2InProcessTest, StopDeliversWhatWasStillInTheRing) {
   EXPECT_EQ(packets[0].for_testing().str(), "stop tail");
 }
 
-// The same data source on v1 keeps the old behaviour: it never declared
-// will_notify_on_stop, so the service does not wait for it and a held relay
-// cannot delay its stop.
+// This v1 data source does not declare will_notify_on_stop. The service does
+// not wait for an acknowledgement, and a blocked relay cannot delay the stop.
 TEST_F(TracingV2InProcessTest, StopOfAV1InstanceDoesNotWaitForTheRelay) {
   // The relay only exists once something has selected v2, so make one.
   PutConnectionOnTracingV2();
@@ -1943,9 +1944,9 @@ TEST_F(TracingV2InProcessTest, StopOfAV1InstanceDoesNotWaitForTheRelay) {
   EXPECT_EQ(packets[0].for_testing().str(), "v1 tail");
 }
 
-// A process that never selects v2 gets no ring buffer, bridge or relay. Its
-// writers come straight from the endpoint, its flushes (synchronous and
-// asynchronous) complete without any of that, and Shutdown() takes the v1 path.
+// A process that never selects v2 creates no ring buffer, bridge, or relay.
+// Its writers come from the endpoint. Both synchronous and asynchronous
+// flushes complete through the v1 path, as does Shutdown().
 TEST_F(TracingV2InProcessTest, NeverSelectingV2StaysOnV1ThroughShutdown) {
   RunInFreshProcess([] {
     EXPECT_FALSE(HasRelay());
@@ -2060,10 +2061,11 @@ TEST_F(TracingV2InProcessTest,
   });
 }
 
-// Relay work accepted before Shutdown() closes the relay still runs, during
-// the join, while the muxer and its endpoints are alive: a drain that writes
-// into a retained v1 writer, and a stop completion that posts back to the
-// muxer. Only after that is the muxer deleted.
+// Keep the muxer and its endpoints alive while Shutdown() destroys the relay
+// runner. In this test, accepted tasks still run during that destruction:
+// - A drain forwards packets through a retained v1 writer.
+// - A stop completion posts back to the muxer.
+// Delete the muxer only after the runner finishes those tasks.
 TEST_F(TracingV2InProcessTest, ShutdownAfterV2UseJoinsAcceptedRelayWork) {
   RunInFreshProcess([] {
     base::WaitableEvent stop_started;
@@ -2079,24 +2081,23 @@ TEST_F(TracingV2InProcessTest, ShutdownAfterV2UseJoinsAcceptedRelayWork) {
       release_relay.Wait();
     }));
     relay_held.Wait();
-    // Queued behind the held task: the drain for this packet, ...
+    // Queue the packet's drain behind the blocked relay task.
     TracingV2AsyncStopDataSource::Trace(
         [](TracingV2AsyncStopDataSource::TraceContext ctx) {
           ctx.NewTracePacket()->set_for_testing()->set_str("shutdown");
         });
-    // ... the stop's drain (destroying the session stops the data source
-    // without waiting for it), ...
+    // Queue the stop's drain next. Session destruction requests stop without
+    // waiting for its completion.
     session.reset();
     stop_started.Wait();
     TracingV2AsyncStopDataSource::CompleteHeldStop();
     WaitForMuxerSequence();
-    // ... and a marker that proves the queue ran to the end.
+    // Queue a marker last to prove that the runner processed the earlier tasks.
     std::atomic<bool> marker_ran{false};
     ASSERT_TRUE(PostToRelay([&] { marker_ran.store(true); }));
 
-    // Shutdown() blocks on the relay join, so release the relay from another
-    // thread once the relay stops accepting tasks, i.e. once Shutdown() has
-    // closed it.
+    // Shutdown() waits for the relay thread. Use another thread to detect when
+    // Close() rejects new posts, then release the blocked relay task.
     std::thread releaser([&] {
       const auto deadline =
           std::chrono::steady_clock::now() + std::chrono::seconds(30);
@@ -2163,8 +2164,8 @@ class DirectAckProducerEndpoint : public ProxyProducerEndpoint {
     set_backend(wrapped_.get());
   }
 
-  // First called by OnTracingSetup() on the muxer thread, before any trace
-  // writer exists. From then on only read.
+  // OnTracingSetup() first calls this on the muxer thread, before any writer
+  // exists. Later calls only read the initialized arbiter pointer.
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override {
     if (!arbiter_) {
       SharedMemory* shm = backend()->shared_memory();
@@ -2256,7 +2257,7 @@ class TracingV2DirectAckTest : public TracingV2InProcessTest {
 // that flush is acknowledged.
 TEST_F(TracingV2DirectAckTest, StoppedV1InstanceCommitsBeforeItsFlushIsAcked) {
   RunInFreshProcess([] {
-    // Leaked: the muxer keeps using it until the process exits.
+    // Retain the backend until process exit because the muxer still uses it.
     auto* backend = new DirectAckBackend();
     perfetto::TracingInitArgs args;
     args.backends = perfetto::kCustomBackend;

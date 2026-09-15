@@ -2859,9 +2859,8 @@ TEST_F(SharedLibTrackEventTest, TrackEventIsCategoryEnabled) {
   EXPECT_FALSE(PERFETTO_TE_IS_CATEGORY_ENABLED(cat1));
 }
 
-// C SDK on top of a tracing v2 writer. The encoding itself is covered by
-// pb_msg_unittest.cc. These tests check that the trace config selects the
-// writer and that the packets make it to the trace.
+// Checks that the trace config selects a v2 writer for the C SDK and that its
+// nested messages reach the trace. pb_msg_unittest.cc checks the wire format.
 
 constexpr char kTracingV2DataSourceName[] = "dev.perfetto.tracing_v2_c_sdk";
 struct PerfettoDs data_source_v2 = PERFETTO_DS_INIT();
@@ -2944,7 +2943,8 @@ TEST_F(SharedLibTracingV2Test, DsPacketBeginUsesProtoGroupOnAV2Writer) {
     traced = true;
     struct PerfettoDsRootTracePacket trace_packet{};
     PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
-    // Checked after the loop: an ASSERT here would leave the packet open.
+    // Check after the loop. A failed ASSERT here would skip
+    // PerfettoDsTracerPacketEnd() and leave the packet open.
     uses_proto_group =
         trace_packet.msg.msg.encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP;
     WriteNestedPacket(&trace_packet);
@@ -2984,8 +2984,9 @@ TEST_F(SharedLibTracingV2Test,
   ExpectNestedPacket(tracing_session.ReadBlocking());
 }
 
-// The legacy entry point has no way to tell the C message which encoding the
-// writer uses, so on a v2 writer it must fail loudly rather than corrupt.
+// The legacy entry point cannot tell the C message which encoding its writer
+// requires. It must reject a v2 writer before the caller can write a packet
+// with the wrong encoding.
 TEST_F(SharedLibTracingV2Test, LegacyPacketBeginOnAV2WriterFailsLoudly) {
   StartProducer();
   TracingSession tracing_session =

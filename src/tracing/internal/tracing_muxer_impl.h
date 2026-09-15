@@ -256,8 +256,11 @@ class TracingMuxerImpl : public TracingMuxer {
     // A v1-only connection never creates a TracingV2Connection or calls these
     // helpers.
 
-    // Publishes the endpoint and bridge together so writers use one connection.
-    // Declare |endpoint| first so it outlives the bridge's retained v1 writers.
+    // Publishes the endpoint and bridge together so writer creation can check
+    // that both belong to the same connection. Declare |endpoint| first so this
+    // object's bridge reference is released before its endpoint reference.
+    // Other bridge owners can survive this object. ProducerImpl::dead_services_
+    // then retains the endpoint while the bridge's v1 writers still need it.
     struct TracingV2Connection {
       // Creates the downstream v1 writer and wraps it in a v2 writer. The
       // caller's exhaustion policy applies only to the v2 ring buffer.
@@ -270,8 +273,8 @@ class TracingMuxerImpl : public TracingMuxer {
     };
 
     // Lazily creates this connection's bridge and the process-wide relay.
-    // Fails if v2 is unsupported, and moves existing flushes to the ordered
-    // v2 path.
+    // Rejects incompatible startup tracing and invalid ring buffer settings.
+    // Moves existing flushes to the ordered v2 path.
     void EnsureTracingV2Connection();
 
     // Drops |tracing_v2_connection_| after the caller clears pending flushes.
@@ -286,7 +289,7 @@ class TracingMuxerImpl : public TracingMuxer {
                             size_t,
                             FlushFlags);
 
-    // Acks completed requests from the front of |pending_flushes_|.
+    // Acknowledges completed requests from the front of |pending_flushes_|.
     // Starts any required drain and waits for it before advancing the queue.
     void AdvanceTracingV2FlushQueue();
 
@@ -321,7 +324,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
     // Ring buffer work needed before acknowledging a flush request.
     enum class RingBufferDrainState {
-      // No drain to wait for: the request is v1-only, or its drain is done.
+      // No drain to wait for: the request is v1-only, or its drain is complete.
       // It still has to wait for its OnFlush() callbacks and earlier requests
       // before it can be acknowledged.
       kNone,
@@ -339,7 +342,7 @@ class TracingMuxerImpl : public TracingMuxer {
       kInProgress,
     };
 
-    // A flush request the service is waiting on. The v1 path only uses
+    // A flush request awaiting producer acknowledgement. The v1 path only uses
     // |pending_data_sources| and leaves the drain kNone, so
     // FlushWithTracingV2() can take over a queue the v1 path started.
     struct PendingFlush {
@@ -613,8 +616,8 @@ class TracingMuxerImpl : public TracingMuxer {
                                uint32_t backend_connection_id,
                                DataSourceInstanceID,
                                const FindDataSourceRes&);
-  // Returns true if the flush completed synchronously, false if OnFlush() will
-  // complete it later.
+  // Returns true if no OnFlush() completion remains pending, false otherwise.
+  // A v2 ring buffer drain can still be required after this returns true.
   bool FlushDataSource_AsyncBegin(TracingBackendId,
                                   DataSourceInstanceID,
                                   FlushRequestID,
@@ -628,8 +631,9 @@ class TracingMuxerImpl : public TracingMuxer {
   // completions must not touch a replacement connection.
   ProducerImpl* FindProducerForConnection(TracingBackendId,
                                           uint32_t backend_connection_id);
-  // Drains the ring buffer on the relay sequence, then runs |on_drained| on the
-  // muxer thread. The callback must revalidate the connection after both hops.
+  // Drains the ring buffer on the relay sequence, then posts to the muxer.
+  // Runs |on_drained| only if the muxer generation still matches. The callback
+  // must also check that its producer connection is still current.
   void DrainTracingV2RingBufferThenPostToMuxer(
       const std::shared_ptr<tracing_v2::InProcessTracingV2Bridge>& bridge,
       std::function<void()> on_drained);
