@@ -116,6 +116,13 @@ class SharedRingBufferWriter {
   // |continues_from_prev| describes the packet this fragment belongs to:
   // - true: continues the packet from this writer's previous chunk.
   // - false: starts a new packet.
+  // The flag describes the first fragment of a chunk.
+  //
+  // If BeginFragment(..., true) cannot acquire space, the caller can abandon
+  // the rest of the packet. The next packet must start with
+  // BeginFragment(..., false), even though the previous chunk still marks a
+  // continuation. Only the caller knows that a new packet starts. The writer
+  // cannot infer |continues_from_prev| from the previous chunk's flag.
   FragmentRange BeginFragment(uint32_t min_size, bool continues_from_prev);
 
   // Finishes the fragment with the |size| bytes the caller wrote.
@@ -123,40 +130,26 @@ class SharedRingBufferWriter {
   // - Records the size and publishes the fragment, making it readable.
   // - Set |continues_on_next| if the packet needs another chunk.
   //   Leave it false if this fragment ends the packet.
-  EndFragmentResult EndFragment(uint32_t size, bool continues_on_next);
-
-  // Packet continuation
-  // -------------------
+  //   The flag describes the last fragment, so the writer cannot append more
+  //   fragments to this chunk after EndFragment(..., true).
   //
-  // A packet split across chunks publishes matching continuation flags:
+  // A packet split across chunks uses matching continuation flags:
   //
   //   chunk A: EndFragment(..., true)   ContinuesOnNext
   //   chunk B: BeginFragment(..., true) ContinuesFromPrev
   //
-  // Each chunk has one pair of continuation flags:
-  // - ContinuesFromPrev describes its first fragment.
-  // - ContinuesOnNext describes its last fragment.
-  // - After EndFragment(..., true), this writer stops appending to that chunk.
-  //   Appending would make another fragment the last one. The flag would then
-  //   describe the wrong fragment.
-
-  // If BeginFragment(..., true) cannot acquire space for the continuation:
-  // - The caller may abandon the rest of the packet.
-  // - If it does, the next packet starts with BeginFragment(..., false).
-  //   The previous chunk still marks the abandoned packet as continuing.
-  // - Only the caller knows it has started a new packet. This writer handles
-  //   bytes, so it cannot infer continues_from_prev from the previous flag.
-
-  // A reader can reach the chunk while the caller is still filling a fragment:
-  // - It consumes the published fragments and requests a rewrite.
-  //   It discards those fragments if the chunk carries kFlagDataLoss.
-  // - It moves on without reading the fragment still being filled.
-  //   It will not revisit that reservation to read more fragments.
-  // - EndFragment() saves the new fragment and acknowledges the request.
-  // - It then tries to publish that fragment in another chunk.
-  //   EndFragment() can therefore need space to finish an open fragment.
-  // - Getting that space follows the configured buffer-exhaustion policy.
-  //   It may wait. If it fails, EndFragment() returns kRelocationDropped.
+  // If the reader reaches the chunk before EndFragment() publishes:
+  // - It consumes the published fragments and requests a rewrite. If the chunk
+  //   carries kFlagDataLoss, it discards those fragments.
+  // - It advances past the reservation without access to the open fragment.
+  //   It will not return to this reservation for more fragments.
+  // - EndFragment() saves the unpublished fragment in private memory and
+  //   acknowledges the request. It then tries to publish that fragment in
+  //   another chunk.
+  //
+  // Relocation uses the configured buffer-exhaustion policy and can wait for
+  // space. If acquisition fails, EndFragment() returns kRelocationDropped.
+  EndFragmentResult EndFragment(uint32_t size, bool continues_on_next);
 
   // Publishes whatever is held and lets go of the chunk. Any open fragment is
   // abandoned: its bytes were never counted, so nothing is published for it.

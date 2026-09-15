@@ -34,7 +34,7 @@
 namespace perfetto::tracing_v2 {
 
 // Shared-memory ABI for a tracing-v2 producer ring buffer.
-// Protocol and alternatives: RFC 0046,
+// Protocol: RFC 0046,
 // https://github.com/google/perfetto/discussions/7120.
 // Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
 //
@@ -56,11 +56,10 @@ namespace perfetto::tracing_v2 {
 //   +------------------------+---------+---------+---------+-----+
 //   0                        64
 
-// Chunks must be large enough to hold several small fragments and amortize
-// their header. RFC 0014 sets the minimum at 256 bytes.
+// Chunks must hold several small fragments to amortize their header overhead.
 constexpr uint32_t kMinChunkSize = 256;
 
-// Contiguous chunks must keep every 32-bit state word aligned.
+// Each chunk's atomic<uint32_t> requires four-byte alignment.
 constexpr uint32_t kChunkAlignmentBytes = 4;
 
 // Minimum supported chunk count.
@@ -129,10 +128,12 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 //
 // The number of reserved positions not yet handled by the reader is:
 //
-//   outstanding = uint32_t(write_pos - read_pos)
-//   outstanding <= num_chunks < 2^31
+//   outstanding = uint32_t(write_pos - read_pos) <= num_chunks < 2^31
 //
-// Zero means empty. Exactly num_chunks means full.
+// - If outstanding is zero, write_pos == read_pos and the ring buffer is empty.
+// - If outstanding equals num_chunks, the ring buffer is full:
+//   write_pos == uint32_t(read_pos + num_chunks). Writers cannot advance
+//   write_pos until the reader advances read_pos to make space.
 //
 // Unsigned subtraction also works when write_pos wraps back to zero. For
 // example:
@@ -144,10 +145,10 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // A legal result is at most num_chunks. A larger result means that the two
 // positions do not describe a valid ring buffer state.
 //
-// This also means that at most one outstanding reservation maps to each
-// physical chunk (the one exception is the wrap-count alias described at
-// WrapCountForPosition()), which is why an exact-value compare-and-swap on the
-// chunk's state word is enough to arbitrate ownership.
+// At most one outstanding reservation maps to each physical chunk. An exact
+// comparison of the chunk's state word therefore determines ownership.
+// A delayed claim can match a later traversal after the wrap count repeats.
+// See WrapCountForPosition() for this limit.
 
 // The unsigned subtraction above is unambiguous only while fewer than 2^31
 // positions are outstanding. num_chunks is a power of two, so 2^30 is the
@@ -241,8 +242,6 @@ class ChunkIndex {
 //   and WriterID (16 bits).
 // - RewriteAcknowledged has no other fields so its upper bits are all zero.
 //
-// Whole-word diagrams below show bytes in increasing address order.
-//
 // A Free word contains:
 //
 //   +------------------+------------------+------------------+
@@ -253,8 +252,10 @@ class ChunkIndex {
 //   |    no flags)     |                  |                  |
 //   +------------------+------------------+------------------+
 //
-// A Free word is wrap_count << 16, making a zero-filled ring buffer valid and
-// empty.
+// On the first traversal, wrap_count is zero and every chunk's Free word is
+// zero. A zero-filled ring buffer therefore starts with all chunks Free and
+// read_pos == write_pos == 0. Later traversals use wrap_count << 16 as the
+// Free word.
 //
 // BeingWritten, Complete and RewriteRequested contain:
 //
@@ -440,13 +441,16 @@ enum PayloadFlags : uint32_t {
 // N and M count published fragments. A claim starts at N = 0. Reuse takes
 // Complete(M) back to BeingWritten(M).
 //
-// Publication and scraping race on the same BeingWritten word, including its
-// fields. The winning CAS settles ownership. No second atomic is needed.
+// The writer's publication and the reader's rewrite request compare the entire
+// BeingWritten word, including format, flags, num_fragments and WriterID.
+// Only one CAS can succeed against that word. No second atomic is needed.
 // If scraping wins, the writer relocates only the unpublished fragment after
 // the N published fragments.
 //
-// A reservation allows one claim against Free(wrap_count(chunk_pos)). On
-// failure, the writer must reserve a new position, never retry the new word.
+// A reservation allows one claim against Free(wrap_count(chunk_pos)).
+// On failure, the writer must reserve a new position. The returned word can
+// belong to another writer or a position beyond the one the reader consumed.
+// A retry against that word can overwrite another reservation's chunk.
 //
 //   Actor   From                   Action                   To
 //   ------  ---------------------  -----------------------  -------------------
@@ -587,13 +591,20 @@ constexpr uint32_t ReplaceChunkState(uint32_t state_word, ChunkState state) {
 //   +-----------------+----------+-----------+------+--------------+
 //                                                     ... N-1  1  0
 //
-// Fragment 0's size is stored at the end of the chunk. num_fragments publishes
-// the same number of payload fragments and size varints. The writer fills
-// those bytes before its release transition out of BeingWritten. The reader
-// acquire-loads the state word, then decodes and checks every size before
-// copying the payload. The first publication also makes BufferID visible.
-// The reader must not load BufferID when num_fragments is zero.
-// A chunk marked kFlagDataLoss is discarded without reading its payload.
+// Fragment 0's size is at the end of the chunk. num_fragments specifies the
+// number of published payload fragments and size varints.
+//
+// Publication and access:
+// - The writer fills each fragment and its size entry before the release
+//   transition from BeingWritten to Complete.
+// - The reader acquire-loads the state word. It decodes and validates each size
+//   before it copies the payload.
+//
+// BufferID becomes visible with the first fragment publication.
+// If num_fragments is zero, the reader must not load BufferID.
+//
+// If kFlagDataLoss is set, the reader discards the chunk's published fragments
+// without access to their payload.
 
 constexpr uint32_t kTargetBufferIdOffset = 4;
 constexpr uint32_t kTargetBufferPayloadOffset = 6;
@@ -631,18 +642,12 @@ constexpr uint32_t kMaxFragmentSizeVarIntBytes = 4;
 
 // Returns the largest supported n with n + varint_size(n) <= available_bytes.
 // Returns zero if no payload byte fits.
+// |available_bytes| includes both the payload and its size entry. Each size
+// byte carries seven bits, so the limits below include the corresponding
+// number of size bytes.
 inline uint32_t MaxFragmentSizeForAvailableBytes(uint32_t available_bytes) {
   if (available_bytes <= 1)
     return 0;
-  // available_bytes includes both the payload and its size entry.
-  // Each size byte carries seven bits. The branches below:
-  // - Compare against the largest payload plus its size entry.
-  // - Subtract the reserved size bytes to get the payload capacity.
-  //
-  // At a boundary, this can leave one byte unused. For example:
-  // - 129 exceeds the one-byte limit of 128, so take the two-byte case.
-  // - Return 129 - 2 = 127. That payload actually needs only one size byte.
-  // - A payload of 128 would need two size bytes, and 128 + 2 > 129.
 
   // One size byte: (2^7 - 1) + 1 = 2^7 total. Subtract one size byte.
   if (available_bytes <= (1u << 7))
@@ -666,8 +671,8 @@ inline uint32_t MaxFragmentSizeForEmptyChunk(uint32_t chunk_size) {
 }
 
 // Writes the size into the directory immediately before |sizes_begin| and
-// returns the new directory start. The caller must leave enough space before
-// |sizes_begin| for the size's minimal varint encoding.
+// returns the new directory start.
+// Requires varint_size(size) writable bytes before |sizes_begin|.
 // |size| must be at most protozero::proto_utils::kMaxMessageLength.
 inline uint8_t* WriteFragmentSizeReversed(uint8_t* sizes_begin, uint32_t size) {
   PERFETTO_DCHECK(size <= protozero::proto_utils::kMaxMessageLength);

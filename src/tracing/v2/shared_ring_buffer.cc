@@ -58,8 +58,7 @@ uint32_t NumChunksForRingLayout(const uint8_t* start,
       reinterpret_cast<uintptr_t>(start) % alignof(RingBufferHeader) == 0);
   PERFETTO_CHECK(chunk_size >= kMinChunkSize);
   PERFETTO_CHECK(chunk_size % kChunkAlignmentBytes == 0);
-  // Check before subtracting. Adding the header and chunk sizes can overflow
-  // size_t on 32-bit builds.
+  // Subtract the header after this check to avoid overflow on 32-bit builds.
   PERFETTO_CHECK(size >= sizeof(RingBufferHeader));
   const size_t chunks_size = size - sizeof(RingBufferHeader);
   PERFETTO_CHECK(chunks_size % chunk_size == 0);
@@ -143,12 +142,14 @@ SharedRingBuffer::Reservation SharedRingBuffer::TryReserveWritePosFromSnapshot(
     }
 
     // (write_pos, read_pos) -> (write_pos + 1, read_pos).
-    // The CAS can lose to:
-    // - another writer reserving first.
-    // - the reader publishing read_pos.
     //
-    // Failure reloads both halves. The loop rechecks capacity, and no position
-    // was taken.
+    // On failure, no position is reserved. The CAS stores the current write_pos
+    // and read_pos in the local rw_positions value. The loop rechecks capacity
+    // before another attempt. A competing update can come from:
+    // - Another writer that advances write_pos.
+    // - The reader that publishes read_pos.
+    //
+    // compare_exchange_weak can also fail spuriously.
     //
     // Proposed memory ordering:
     // - Success: acquire to observe the Free words published with read_pos.
@@ -165,22 +166,21 @@ SharedRingBuffer::Reservation SharedRingBuffer::TryReserveWritePosFromSnapshot(
 
 // --- Writer-side chunk transitions. ---
 
-// Every chunk CAS compares the whole state word, not just the state bits.
-// In the transitions below, N is the published fragment count. The expected
-// data word also includes its format, flags and WriterID.
-
 bool SharedRingBuffer::TryAcquireChunkForWriting(uint32_t chunk_pos,
                                                  uint32_t being_written_word) {
   PERFETTO_DCHECK(ChunkStateOf(being_written_word) ==
                   ChunkState::kBeingWritten);
   PERFETTO_DCHECK(NumFragmentsOf(being_written_word) == 0);
 
-  // Free(wrap(chunk_pos)) -> BeingWritten(0).
-  // The claim can fail because:
-  // - the reader consumed this position as unclaimed.
-  // - an older reservation still owns the chunk.
+  // Free(wrap_count(chunk_pos)) -> BeingWritten(0).
   //
-  // Either way, leave this reservation unclaimed and reserve a new position.
+  // On failure, the chunk does not match this reservation's Free word:
+  // - The reader advanced the wrap count before this writer claimed the chunk.
+  // - A writer from an earlier reservation still owns the physical chunk, or
+  //   the reader has not reclaimed its RewriteAcknowledged state yet.
+  //
+  // The caller must reserve a new position. A retry against the returned word
+  // can claim a consumed position or overwrite another writer's chunk.
   //
   // Proposed memory ordering:
   // - Success: acquire to observe the reader's release of Free.
@@ -198,8 +198,9 @@ bool SharedRingBuffer::TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
   PERFETTO_DCHECK(ChunkStateOf(complete_word) == ChunkState::kComplete);
 
   // BeingWritten(N) -> Complete(M).
-  // The reader can request a rewrite first. Failure then returns
-  // RewriteRequested(N), and the caller relocates the unpublished fragment.
+  //
+  // On failure, the reader requested a rewrite first. |*expected| receives
+  // RewriteRequested(N), and the caller relocates any unpublished fragment.
   //
   // Proposed memory ordering:
   // - Success: release to publish M fragments and their sizes.
@@ -215,8 +216,9 @@ bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
   PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kComplete);
 
   // Complete(N) -> BeingWritten(N).
-  // The reader can reclaim the chunk first. The writer then drops its cached
-  // handle and does not touch the chunk again.
+  //
+  // On failure, the reader reclaimed the chunk first. The writer discards its
+  // cached handle and acquires another chunk.
   //
   // Proposed memory ordering:
   // - Success: relaxed because reuse publishes no new bytes.
@@ -233,8 +235,10 @@ bool SharedRingBuffer::TryAcknowledgeRewrite(ChunkIndex chunk_idx,
                                              uint32_t observed) {
   PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kRewriteRequested);
 
-  // The observed RewriteRequested word -> canonical RewriteAcknowledged.
-  // Only this writer may acknowledge, so failure is a protocol error.
+  // RewriteRequested -> RewriteAcknowledged, with all other bits zero.
+  //
+  // On failure, report a protocol error. Only this writer can change
+  // RewriteRequested, so the observed word must still match.
   //
   // Proposed memory ordering:
   // - Success: release to save the unpublished fragment before
@@ -250,10 +254,12 @@ bool SharedRingBuffer::TryAcknowledgeRewrite(ChunkIndex chunk_idx,
 
 uint32_t SharedRingBuffer::LoadChunkStateWordAcquire(
     ChunkIndex chunk_idx) const {
-  // The acquire load pairs with the writer's publication of the fragments.
-  // The published count makes those fragments and their sizes visible.
-  // The first publication also makes BufferID visible. Reusing Complete as
-  // BeingWritten preserves that count and the visibility of its bytes.
+  // The acquire load pairs with the writer's release publication of fragments
+  // and their sizes. The first publication also makes BufferID visible.
+  //
+  // If the writer reuses Complete(N) as BeingWritten(N), its CAS preserves the
+  // fragment count and extends the release sequence. This load still makes
+  // those N fragments, their sizes and BufferID visible when N is nonzero.
   return chunk_state_word_at(chunk_idx)->load(std::memory_order_acquire);
 }
 
@@ -268,10 +274,10 @@ bool SharedRingBuffer::TryRequestRewrite(ChunkIndex chunk_idx,
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kBeingWritten);
 
   // BeingWritten(N) -> RewriteRequested(N).
-  // The writer can publish first. The reader then discards its copy and retries
-  // this position immediately within Drain().
+  // |*expected| is the word the reader used to copy the N fragments.
   //
-  // The expected word is the BeingWritten(N) word used to copy the fragments.
+  // On failure, the writer published first. The reader discards its copy and
+  // retries this position immediately in Drain() to include the new fragments.
   //
   // Proposed memory ordering:
   // - Success: release to finish that copy before the writer observes
@@ -287,9 +293,10 @@ bool SharedRingBuffer::TryMoveFreeChunkToNextWrap(uint32_t chunk_pos,
                                                   uint32_t* expected) {
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kFree);
 
-  // Free(wrap(chunk_pos)) -> Free(next wrap).
-  // A delayed writer can claim first. The reader then retries this position
-  // immediately and finds the chunk BeingWritten or Complete.
+  // Free(wrap_count(chunk_pos)) -> Free(next wrap).
+  //
+  // On failure, the delayed writer claimed the chunk first. The reader retries
+  // this position immediately in Drain() to consume BeingWritten or Complete.
   //
   // Proposed memory ordering:
   // - Success: release to publish the next Free wrap to a claiming writer.
@@ -305,10 +312,14 @@ bool SharedRingBuffer::TryReleaseCompleteChunkAsFree(uint32_t chunk_pos,
   PERFETTO_DCHECK(ChunkStateOf(*expected) == ChunkState::kComplete);
 
   // Complete(N) -> Free(next wrap).
-  // The writer can reuse the chunk first. The reader then discards its copy and
-  // retries this position immediately within Drain().
+  // |*expected| is the word the reader used to copy the N fragments.
   //
-  // The expected word is the Complete(N) word used to copy the fragments.
+  // On failure, the writer reused the chunk first. It can also publish more
+  // fragments before the reader retries, so the N-fragment copy can be stale.
+  // Drain() reloads the state and copies the current published fragments.
+  // If the state is BeingWritten, the reader then requests a rewrite.
+  // Otherwise, it tries to release Complete again. The reader delivers the
+  // copy only after a successful transition, so retries cannot duplicate data.
   //
   // Proposed memory ordering:
   // - Success: release to finish the copy before another writer acquires
@@ -324,11 +335,10 @@ bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
     uint32_t chunk_pos,
     uint32_t* observed) {
   // RewriteAcknowledged -> Free(next wrap).
-  // Only this reader changes an acknowledged chunk. The expected value is the
-  // one canonical RewriteAcknowledged word.
+  // The expected word contains only the RewriteAcknowledged state bits.
   //
-  // Failure is therefore a protocol error. The caller gets the unexpected
-  // word in |*observed|.
+  // On failure, |*observed| receives the unexpected word. This is a protocol
+  // error because only this reader can change an acknowledged chunk.
   //
   // Proposed memory ordering:
   // - Success: acq_rel for two handoffs:
@@ -423,10 +433,11 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   RingBufferHeader* ring_header = header();
 
   // (write_pos, old read_pos) -> (write_pos, read_pos).
-  // A writer can advance write_pos first.
   //
-  // Failure reloads both halves. The retry keeps the new write_pos while
-  // replacing read_pos again.
+  // On failure, the CAS stores the current positions in the local rw_positions.
+  // A writer can advance write_pos first, or compare_exchange_weak can fail
+  // spuriously. The loop preserves that write_pos and retries the read_pos
+  // update.
   //
   // Proposed memory ordering:
   // - Success: release so writers that acquire the new read_pos also see

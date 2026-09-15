@@ -33,9 +33,9 @@ class SharedRingBufferInternalsForTest;
 
 // Provides the atomic operations on a shared ring buffer.
 //
-// Like SharedMemoryABI in v1, this class only interprets memory that somebody
-// else owns: the ring buffer's owner supplies the region and keeps it mapped
-// for as long as this view, its reader and its writers are around.
+// Like SharedMemoryABI in v1, this class interprets memory from its owner.
+// The owner must keep the region mapped until this view, its reader and its
+// writers are destroyed.
 //
 // The ring buffer is lock-free, with multiple writers and a single reader:
 // - Writers reserve positions concurrently. When the ring buffer is full,
@@ -46,11 +46,15 @@ class SharedRingBufferInternalsForTest;
 // - All updates to rw_positions and the chunk state words go through this
 //   class.
 //
-// Compare-and-exchange operations use the default sequentially consistent
-// order. Their comments describe proposed weaker orders and intended handoffs.
+// Chunk transitions use compare-and-exchange (CAS):
+// - Each CAS compares the entire state word, including all fields.
+// - For BeingWritten, Complete and RewriteRequested, those fields are format,
+//   flags, num_fragments and WriterID. Free contains the wrap count instead.
+// - In transition comments, N and M are published fragment counts.
 //
-// TODO(sashwinbalaji): Validate weaker CAS ordering in a later optimization
-// pass. Prove these handoffs and measure the benefit before
+// TODO(sashwinbalaji): CAS operations currently use the default seq_cst order.
+// Their implementation comments propose weaker orders for a later optimization
+// pass. Audit the synchronization guarantees and measure the benefit before
 // replacing seq_cst.
 class SharedRingBuffer {
  public:
@@ -58,9 +62,10 @@ class SharedRingBuffer {
   //
   //   size = sizeof(RingBufferHeader) + num_chunks * chunk_size
   //
+  // - sizeof(RingBufferHeader) is 64 bytes. |start| must be 64-byte aligned.
   // - num_chunks must be a power of two, from 2 to 2^30.
-  // - |chunk_size| must be at least 256 and a multiple of four. It does not
-  //   need to be a power of two.
+  // - |chunk_size| must be at least 256 bytes and a multiple of four.
+  //   It does not need to be a power of two.
   // - |size| must match the equation exactly, with no trailing bytes.
   //   It does not need to be a power of two.
   //
@@ -90,14 +95,16 @@ class SharedRingBuffer {
 
   // Writer-side reservation.
   //
-  // Reserving a position and acquiring its physical chunk are deliberately
-  // separate operations. TryReserveWritePos() advances write_pos first.
-  // The writer then changes Free(wrap_count(chunk_pos)) to BeingWritten.
-  // If the reader reaches the unclaimed reservation first, it must atomically
-  // advance the chunk's wrap count before advancing read_pos. The delayed
-  // writer's claim then fails, so it cannot publish behind the reader.
-  // Both outcomes are described under "Chunk ownership and wrap identity"
-  // in shared_ring_buffer_abi.h.
+  // A writer reserves a position and acquires its physical chunk in separate
+  // operations:
+  // 1. TryReserveWritePos() advances write_pos.
+  // 2. TryAcquireChunkForWriting() changes Free(wrap_count(chunk_pos)) to
+  //    BeingWritten.
+  //
+  // If the reader reaches the reservation before step 2, it must atomically
+  // advance the chunk's wrap count before it advances read_pos.
+  // The delayed writer's claim then fails because its expected wrap count no
+  // longer matches. This prevents publication at a consumed position.
 
   enum class ReserveResult {
     kReserved,
@@ -116,41 +123,54 @@ class SharedRingBuffer {
     uint32_t read_pos_for_wait = 0;
   };
 
-  // Reserves the next position if the ring buffer has room. Retries a lost CAS.
+  // Reserves the next position if the ring buffer has room.
+  // If another writer or the reader updates rw_positions first, it rechecks
+  // capacity with the updated positions before another reservation attempt.
   Reservation TryReserveWritePos();
 
   // Writer-side chunk transitions.
 
-  // Free(wrap_count(chunk_pos)) -> BeingWritten. |being_written_word| must be a
-  // BeingWritten word for this writer with zero fragments.
+  // Free(wrap_count(chunk_pos)) -> BeingWritten(0).
+  // |being_written_word| supplies this writer's WriterID, format and initial
+  // flags. Its fragment count must be zero because the chunk has no published
+  // payload for this reservation.
   //
-  // If the compare-and-swap fails, leave this reservation unclaimed. Do not
-  // retry against the returned word. Reserve a later position.
+  // On failure, reserve a later position. The reader can consume this position
+  // before the claim, or a writer from an earlier reservation can still own
+  // the chunk. A retry against the returned word can overwrite that writer's
+  // chunk or claim a position the reader already consumed.
   bool TryAcquireChunkForWriting(uint32_t chunk_pos,
                                  uint32_t being_written_word);
 
-  // BeingWritten -> Complete. |*expected| is the last BeingWritten word.
-  // On failure it receives the current word. It must be RewriteRequested with
-  // the same contents. No other actor may change a chunk while this writer owns
-  // it.
+  // BeingWritten(N) -> Complete(M). |*expected| is the last BeingWritten word.
+  //
+  // On failure, |*expected| receives the reader's RewriteRequested(N) word,
+  // which must preserve the format, flags, fragment count and WriterID.
+  // Only the reader's rewrite request can change the word while this writer
+  // owns the chunk. The caller must relocate any unpublished fragment.
   bool TryReleaseChunkAsComplete(ChunkIndex chunk_idx,
                                  uint32_t complete_word,
                                  uint32_t* expected);
 
-  // Complete -> BeingWritten, for a writer taking its own cached chunk back to
-  // append more fragments. Failure means the reader reclaimed it first. The
-  // writer just drops its handle.
+  // Complete(N) -> BeingWritten(N), so the writer can append fragments to its
+  // cached chunk. |observed| is the Complete word this writer published.
+  //
+  // On failure, the reader reclaimed the chunk first. The writer must discard
+  // its cached handle and acquire another chunk.
   bool TryReacquireChunkForWriting(ChunkIndex chunk_idx, uint32_t observed);
 
-  // RewriteRequested -> RewriteAcknowledged after the writer has stopped
-  // touching the old chunk. Failure is a protocol error.
+  // RewriteRequested -> RewriteAcknowledged after the writer saves any
+  // unpublished fragment and stops access to the old chunk.
+  //
+  // On failure, report a protocol error. Only this writer can change
+  // RewriteRequested, so |observed| must still match the shared word.
   bool TryAcknowledgeRewrite(ChunkIndex chunk_idx, uint32_t observed);
 
   // Reader side.
 
-  // Returns the current chunk state word. A writer publishes fragments before
-  // changing this word, so the returned word also makes those fragments
-  // visible to the reader.
+  // Returns the current chunk state word with acquire ordering. For a data
+  // state, the reader can access the published fragments and their sizes.
+  // BufferID is visible only when the published fragment count is nonzero.
   uint32_t LoadChunkStateWordAcquire(ChunkIndex chunk_idx) const;
 
   // Returns the next logical position a writer can reserve.
@@ -161,27 +181,37 @@ class SharedRingBuffer {
   //   the remaining reservations.
   uint32_t LoadWritePosRelaxed() const;
 
-  // BeingWritten -> RewriteRequested, passing format, flags, num_fragments and
-  // the WriterID through untouched. |*expected| is the last BeingWritten word.
-  // On failure it receives the word that won the race.
+  // BeingWritten(N) -> RewriteRequested(N), with all other fields unchanged.
+  // |*expected| must be the word the reader used to copy the fragments.
+  //
+  // On failure, the writer published first and |*expected| receives the current
+  // word. The reader must discard its copy and retry this position in Drain().
   bool TryRequestRewrite(ChunkIndex chunk_idx, uint32_t* expected);
 
   // The following transitions are the only ones that expose a chunk to the
   // next pass around the ring buffer. The new wrap count comes from
   // |chunk_pos|, not from the old state word.
 
-  // Free(wrap_count(chunk_pos)) -> Free(next_wrap(chunk_pos)). This consumes a
-  // position whose writer never entered BeingWritten and prepares the chunk
-  // for chunk_pos + num_chunks. |*expected| is the Free word for this position.
-  // On failure it receives the current word.
+  // Free(wrap_count(chunk_pos)) -> Free(next_wrap(chunk_pos)).
+  // Consumes an unclaimed position and prepares the chunk for
+  // chunk_pos + num_chunks. |*expected| must be this position's Free word.
+  //
+  // On failure, the delayed writer claimed the chunk first and |*expected|
+  // receives the current word. The reader must retry this position in Drain().
   bool TryMoveFreeChunkToNextWrap(uint32_t chunk_pos, uint32_t* expected);
 
-  // Complete -> Free(next_wrap(chunk_pos)). |*expected| is the last Complete
-  // word. On failure it receives the current word.
+  // Complete(N) -> Free(next_wrap(chunk_pos)).
+  // |*expected| must be the word the reader used to copy the fragments.
+  //
+  // On failure, the writer reused the chunk first and |*expected| receives the
+  // current word. The reader must discard its copy and retry this position in
+  // Drain(). If the chunk is now BeingWritten, that retry requests a rewrite.
   bool TryReleaseCompleteChunkAsFree(uint32_t chunk_pos, uint32_t* expected);
 
-  // RewriteAcknowledged -> Free(next_wrap(chunk_pos)). Failure is a protocol
-  // error and updates |*observed| with the unexpected word.
+  // RewriteAcknowledged -> Free(next_wrap(chunk_pos)).
+  //
+  // On failure, |*observed| receives the unexpected word. This is a protocol
+  // error because only this reader can change an acknowledged chunk.
   bool TryReleaseRewriteAcknowledgedChunkAsFree(uint32_t chunk_pos,
                                                 uint32_t* observed);
 
@@ -192,9 +222,8 @@ class SharedRingBuffer {
   // always decided from rw_positions.
 
   enum class WriterWaitResult {
-    // The writer must recheck capacity. A wake, a timeout and an interrupted
-    // or spurious return all land here: the wait never decides when a writer
-    // gives up, the writer's own deadline does.
+    // The writer must recheck capacity after a wake, timeout, interruption or
+    // spurious return. The writer's deadline determines when it stops retries.
     kRetry,
     // This build or kernel cannot provide the wait. Do not retry the syscall.
     // The writer can sleep and retry acquisition instead.

@@ -83,9 +83,9 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
   const uint32_t start_pos = read_pos_;
   DrainResult result{};
   for (uint32_t i = 0; i < max_positions; ++i) {
-    // Retry before spending this position's budget. Each attempt reloads the
-    // state and recopies any published fragments. A descheduled writer does
-    // not block us because an unchanged state lets the next CAS succeed.
+    // A failed CAS leaves read_pos_ unchanged. Retry the same position with
+    // a fresh state and fragment copy before it counts towards max_positions.
+    // Limit attempts so repeated writer updates cannot monopolize this pass.
     for (uint32_t attempt = 0; attempt < kMaxAttemptsPerPosition; ++attempt) {
       result.last_result = ConsumeNextPosition();
       if (result.last_result != ConsumeResult::kRetryImmediately)
@@ -123,10 +123,12 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
 // 4. RewriteRequested: skip. The writer still owns the chunk. Once it becomes
 //    RewriteAcknowledged, only the reader may reclaim it on a later traversal.
 //
-// In the first three cases, a lost CAS leaves read_pos unchanged. Drain()
-// retries immediately. Deliver the copy only after winning, so a retry cannot
-// deliver the same fragments twice. RewriteAcknowledged has no competing writer
-// transition. Failure to reclaim it is a protocol error.
+// In the first three cases, a failed CAS leaves read_pos unchanged. Drain()
+// retries immediately. Deliver the copy only after a successful transition,
+// so a retry cannot deliver the same fragments twice.
+//
+// RewriteAcknowledged has no competing writer transition. On failure to reclaim
+// it, report a protocol error.
 SharedRingBufferReader::ConsumeResult
 SharedRingBufferReader::ConsumeNextPosition() {
   if (PERFETTO_UNLIKELY(has_protocol_error_))
@@ -169,11 +171,11 @@ SharedRingBufferReader::ConsumeNextPosition() {
         return StopOnProtocolError(
             "Free word carries another position's wrap count", state_word);
       }
-      // Nobody claimed this reservation, so the reader advances the wrap
-      // count. A writer can still claim between the load and this CAS. The
-      // CAS then fails and the same position is retried as BeingWritten.
       if (before_state_transition_for_testing_)
         before_state_transition_for_testing_();
+      // Advance the wrap count to consume this unclaimed reservation.
+      // On failure, the delayed writer claimed first. Drain() retries this
+      // position with the writer's BeingWritten or Complete state.
       if (!ring_->TryMoveFreeChunkToNextWrap(chunk_pos, &state_word))
         return ConsumeResult::kRetryImmediately;
       ++read_pos_;
@@ -183,10 +185,11 @@ SharedRingBufferReader::ConsumeNextPosition() {
 
     case ChunkState::kBeingWritten: {
       const auto status = CopyPublishedFragments(chunk_idx, state_word);
-      // Validation does not settle ownership. Even a malformed chunk must win
-      // the state transition before the reader can advance.
       if (before_state_transition_for_testing_)
         before_state_transition_for_testing_();
+      // Request a rewrite before read_pos_ advances, even if validation failed.
+      // On failure, the writer published first. Drain() retries with a fresh
+      // copy before it delivers fragments or reports loss for this position.
       if (!ring_->TryRequestRewrite(chunk_idx, &state_word))
         return ConsumeResult::kRetryImmediately;
       ++read_pos_;
@@ -196,19 +199,22 @@ SharedRingBufferReader::ConsumeNextPosition() {
 
     case ChunkState::kComplete: {
       const auto status = CopyPublishedFragments(chunk_idx, state_word);
-      // The writer may have taken the chunk back, turning Complete(N) into
-      // BeingWritten(N). The reader discards its copy and retries the same
-      // position instead of delivering data from a lost race.
       if (before_state_transition_for_testing_)
         before_state_transition_for_testing_();
+      // Reclaim the chunk before read_pos_ advances, even if validation failed.
+      // On failure, the writer reused the chunk and can publish more fragments.
+      // Drain() reloads the state and copies the current published fragments.
+      // If the state is BeingWritten, that attempt requests a rewrite.
+      // Deliver fragments or report loss only after a successful transition.
       if (!ring_->TryReleaseCompleteChunkAsFree(chunk_pos, &state_word))
         return ConsumeResult::kRetryImmediately;
       ++read_pos_;
-      // A Complete chunk with no fragments can still carry kFlagDataLoss, and
-      // this reclaim was the last chance to see it: the writer's reuse CAS
-      // now fails and it forgets the chunk. The kBeingWritten case above
-      // stays silent for the same shape because that chunk still has an
-      // owner, which moves the flag to the relocated fragment.
+      // Report loss even if the Complete chunk has no fragments. The writer
+      // cannot reuse the reclaimed chunk, so no later publication can report
+      // its flag.
+      //
+      // For BeingWritten(0), the writer still owns the chunk and transfers
+      // kFlagDataLoss to the relocated fragment instead.
       if (status == CopiedChunkStatus::kNoFragments &&
           (copied_chunk_.payload_flags & kFlagDataLoss)) {
         delegate_->OnDataLoss(copied_chunk_.writer_id);
@@ -229,10 +235,9 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // No fragments are delivered. The chunk becomes available for a later
       // reservation.
       //
-      // RewriteAcknowledged has one canonical word with no payload fields.
-      // Reclaiming compares against exactly that word. The writer has finished
-      // with the chunk and only this reader may change it. A failed reclaim
-      // means the word was invalid or another actor changed it.
+      // The expected word contains only the RewriteAcknowledged state bits.
+      // Only this reader can change it after the writer's acknowledgement.
+      // On failure, the word was invalid or another actor changed it.
       if (!ring_->TryReleaseRewriteAcknowledgedChunkAsFree(chunk_pos,
                                                            &state_word)) {
         return StopOnProtocolError(
