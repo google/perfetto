@@ -1271,3 +1271,63 @@ class Profiling(TestSuite):
         "ts","dump_reason","heap_size"
         10,"[NULL]",100000
         """))
+
+  def test_art_process_metadata_package_list(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          packages_list {
+            packages {
+              name: "com.example.sampleapp"
+              uid: 10362
+              version_code: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 10
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 2
+            uid: 10362
+            package_name: "com.example.sampleapp"
+          }
+        }
+        packet {
+          timestamp: 20
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 2
+            uid: 10362
+            package_name: "com.example.sampleapp"
+          }
+        }
+        packet {
+          timestamp: 30
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 3
+            uid: 10363
+            package_name: "com.example.fallback"
+          }
+        }
+        packet {
+          timestamp: 40
+          trusted_packet_sequence_id: 1
+          art_process_metadata {
+            pid: 3
+            uid: 10363
+            package_name: "com.example.fallback"
+          }
+        }
+        """),
+        query="""
+        SELECT package_name, uid, debuggable, profileable_from_shell, version_code
+        FROM package_list
+        ORDER BY package_name;
+        """,
+        out=Csv("""
+        "package_name","uid","debuggable","profileable_from_shell","version_code"
+        "com.example.fallback",10363,0,0,"[NULL]"
+        "com.example.sampleapp",10362,0,0,1
+        """))
