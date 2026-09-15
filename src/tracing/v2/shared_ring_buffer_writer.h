@@ -172,6 +172,7 @@ class SharedRingBufferWriter {
   void RecordDataLoss() { data_loss_pending_ = true; }
 
   WriterID writer_id() const { return writer_id_; }
+  uint32_t chunk_size() const { return chunk_size_; }
 
   // For diagnostics only. The protocol never reads these counters.
   // TODO(sashwinbalaji): Wire these counters into service statistics.
