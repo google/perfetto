@@ -509,6 +509,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -826,6 +828,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -4273,6 +4277,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std/stack_sample:stack_sample
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_std_stack_sample_stack_sample",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/stack_sample/flamechart.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/stack_sample/mapping.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/std/thread:thread
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_thread_thread",
@@ -4404,6 +4417,7 @@ perfetto_cpp_blob_header(
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
         ":src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_std_metasql_metasql",
+        ":src_trace_processor_perfetto_sql_stdlib_std_stack_sample_stack_sample",
         ":src_trace_processor_perfetto_sql_stdlib_std_thread_thread",
         ":src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
         ":src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
@@ -4844,6 +4858,24 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/experimental_slice_layout/all_tables_fwd.h",
         "src/trace_processor/plugins/experimental_slice_layout/tables_fwd.h",
         "src/trace_processor/plugins/experimental_slice_layout/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/flamechart:flamechart
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamechart_flamechart",
+    srcs = [
+        "src/trace_processor/plugins/flamechart/flamechart.cc",
+        "src/trace_processor/plugins/flamechart/flamechart.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/flamechart:intrinsics
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamechart_intrinsics",
+    srcs = [
+        "src/trace_processor/plugins/flamechart/flamechart_function.cc",
+        "src/trace_processor/plugins/flamechart/flamechart_function.h",
     ],
 )
 
@@ -11745,6 +11777,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -12093,6 +12127,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
