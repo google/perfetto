@@ -163,6 +163,27 @@ select_body_start(A) ::= . { A = pCtx->cur_shift_start; }
 %type select_body_end {uint32_t}
 select_body_end(A) ::= . { A = pCtx->last_shifted_end; }
 
+// ---------- Pipelines ----------
+
+// Pipeline stages: consumes arbitrary tokens via the %wildcard ANY mechanism.
+// Pipe syntax needs `|>`, which the SQLite tokenizer reads as `|` then `>`, so
+// the stages are split and parsed by the trace processor instead.
+%type perfetto_pipeline_tokens {int}
+perfetto_pipeline_tokens(A) ::= ANY. { A = 0; }
+perfetto_pipeline_tokens(A) ::= perfetto_pipeline_tokens ANY. { A = 0; }
+
+%type perfetto_pipeline {uint32_t}
+perfetto_pipeline(A) ::= select_body_start(BS) FROM perfetto_pipeline_tokens
+                         select_body_end(BE). {
+    SyntaqliteTextSpan body = {
+        .offset = BS,
+        .length = BE - BS,
+    };
+    A = synq_parse_perfetto_pipeline(pCtx, body);
+}
+
+cmd(A) ::= perfetto_pipeline(P). { A = P; }
+
 // ---------- CREATE PERFETTO TABLE ----------
 
 cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
@@ -175,7 +196,16 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
         R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        I, S, E, select_span);
+        I, S, E, select_span, SYNTAQLITE_NULL_NODE);
+}
+
+cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
+           perfetto_table_impl(I) perfetto_table_schema(S)
+           AS perfetto_pipeline(P). {
+    A = synq_parse_create_perfetto_table_stmt(pCtx,
+        synq_span(pCtx, N),
+        R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        I, S, SYNTAQLITE_NULL_NODE, SYNQ_NO_SPAN, P);
 }
 
 // ---------- CREATE PERFETTO VIEW ----------

@@ -366,11 +366,13 @@ base::StatusOr<Statement> ParseCreateTable(
                              impl_name.c_str());
   }
   ASSIGN_OR_RETURN(auto schema, BuildArgDefs(p, n.schema));
+  bool is_pipeline = syntaqlite_node_is_present(n.pipeline);
   return Statement(PerfettoSqlParser::CreateTable{
       n.or_replace == SYNTAQLITE_BOOL_TRUE,
       SpanText(p, n.table_name),
       std::move(schema),
-      NodeSource(rb, n.select),
+      NodeSource(rb, is_pipeline ? n.pipeline : n.select),
+      is_pipeline,
   });
 }
 
@@ -496,6 +498,7 @@ Statement ParseCreateMacro(SyntaqliteParser* p,
 base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
                                          const MacroRewriteBuilder& rb,
                                          const SqlSource& stmt,
+                                         const SqlSource& stmt_sql,
                                          uint32_t stmt_doc_offset,
                                          const SyntaqliteNode* node) {
   // Cast to int to suppress -Wswitch-enum: we intentionally handle only
@@ -520,6 +523,8 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
       return Statement(PerfettoSqlParser::Include{
           SpanText(p, node->include_perfetto_module_stmt.module_name),
       });
+    case SYNTAQLITE_NODE_PERFETTO_PIPELINE:
+      return Statement(PerfettoSqlParser::Pipeline{stmt_sql});
     case SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT:
       return Statement(PerfettoSqlParser::DropIndex{
           SpanText(p, node->drop_perfetto_index_stmt.index_name),
@@ -669,7 +674,8 @@ bool PerfettoSqlParser::Impl::Next(
 
   const auto* node =
       static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(synq, root));
-  auto result = ParseStatement(synq, rb, stmt, stmt_doc_offset, node);
+  auto result =
+      ParseStatement(synq, rb, stmt, *out_statement_sql, stmt_doc_offset, node);
   if (!result.ok()) {
     status = result.status();
     return false;

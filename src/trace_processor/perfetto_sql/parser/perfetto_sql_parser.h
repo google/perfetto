@@ -81,7 +81,14 @@ class PerfettoSqlParser {
     bool replace;
     std::string name;
     std::vector<sql_argument::ArgumentDefinition> schema;
-    // SQL source for the select statement.
+    // SQL source for the select statement, or for the pipeline if
+    // |is_pipeline|.
+    SqlSource sql;
+    bool is_pipeline = false;
+  };
+  // Indicates that the specified SQL was a pipeline: FROM followed by `|>`
+  // stages. The stages are not parsed here.
+  struct Pipeline {
     SqlSource sql;
   };
   // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
@@ -131,6 +138,7 @@ class PerfettoSqlParser {
                                  CreateView,
                                  DropIndex,
                                  Include,
+                                 Pipeline,
                                  SqliteSql>;
 
   // Reset(SqlSource) must be called before iterating. The underlying

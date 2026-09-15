@@ -2229,6 +2229,7 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT = 93,
     SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT = 94,
     SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT = 95,
+    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 96,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -2901,6 +2902,7 @@ typedef struct SyntaqliteCreatePerfettoTableStmt {
     uint32_t schema;
     uint32_t select;
     SyntaqliteTextSpan select_span;
+    uint32_t pipeline;
 } SyntaqliteCreatePerfettoTableStmt;
 
 typedef struct SyntaqliteCreatePerfettoViewStmt {
@@ -2958,6 +2960,11 @@ typedef struct SyntaqliteDropPerfettoIndexStmt {
     SyntaqliteTextSpan index_name;
     SyntaqliteTextSpan table_name;
 } SyntaqliteDropPerfettoIndexStmt;
+
+typedef struct SyntaqlitePerfettoPipeline {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan body;
+} SyntaqlitePerfettoPipeline;
 
 // ============ Node Union ============
 
@@ -3058,6 +3065,7 @@ typedef union SyntaqliteNode {
     SyntaqliteCreatePerfettoMacroStmt create_perfetto_macro_stmt;
     SyntaqliteIncludePerfettoModuleStmt include_perfetto_module_stmt;
     SyntaqliteDropPerfettoIndexStmt drop_perfetto_index_stmt;
+    SyntaqlitePerfettoPipeline perfetto_pipeline;
 } SyntaqliteNode;
 
 // ============ Abstract Type: Select ============
@@ -3875,6 +3883,10 @@ template <> struct NodeTag<SyntaqliteIncludePerfettoModuleStmt> {
 template <> struct NodeTag<SyntaqliteDropPerfettoIndexStmt> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPELINE;
 };
 
 }  // namespace syntaqlite

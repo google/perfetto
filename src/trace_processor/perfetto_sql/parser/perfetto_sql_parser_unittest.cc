@@ -43,6 +43,7 @@ using CreateView = PerfettoSqlParser::CreateView;
 using Include = PerfettoSqlParser::Include;
 using CreateMacro = PerfettoSqlParser::CreateMacro;
 using CreateIndex = PerfettoSqlParser::CreateIndex;
+using Pipeline = PerfettoSqlParser::Pipeline;
 
 namespace {
 
@@ -518,6 +519,56 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
             Statement(CreateTable{
                 false, "foo", {}, FindSubstr(res, "SELECT 42 AS bar")}));
   ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, Pipeline) {
+  auto res = SqlSource::FromExecuteQuery(
+      "FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total; SELECT 1");
+  PerfettoSqlParser parser(macros_);
+  parser.Reset(res);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(),
+            Statement(Pipeline{FindSubstr(
+                res, "FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total")}));
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
+  ASSERT_FALSE(parser.Next());
+  ASSERT_TRUE(parser.status().ok());
+}
+
+// A pipeline can start from anything a FROM clause can, parentheses included.
+TEST_F(PerfettoSqlParserTest, PipelineFromSubquery) {
+  auto res = SqlSource::FromExecuteQuery(
+      "FROM (SELECT id, parent_id FROM slice WHERE dur > 0)\n"
+      "|> TREE ACCUMULATE DOWN SUM(depth) AS d");
+  ASSERT_EQ(*Parse(res), std::vector<Statement>{Statement(Pipeline{res})});
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineExpandsMacros) {
+  RegisterMacro("stacks", {}, "(SELECT * FROM slice)");
+  auto res = SqlSource::FromExecuteQuery(
+      "FROM stacks!() |> TREE ACCUMULATE UP SUM(dur) AS total");
+  auto parsed = Parse(res);
+  ASSERT_TRUE(parsed.ok()) << parsed.status().message();
+  ASSERT_EQ(parsed->size(), 1u);
+  const auto* pipeline = std::get_if<Pipeline>(&(*parsed)[0]);
+  ASSERT_NE(pipeline, nullptr);
+  ASSERT_EQ(pipeline->sql.sql(),
+            "FROM (SELECT * FROM slice) |> TREE ACCUMULATE UP SUM(dur) AS "
+            "total");
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAsPipeline) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo AS FROM slice |> TREE ACCUMULATE UP "
+      "SUM(dur) AS total");
+  CreateTable expected{
+      false,
+      "foo",
+      {},
+      FindSubstr(res, "FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total")};
+  expected.is_pipeline = true;
+  ASSERT_EQ(*Parse(res), std::vector<Statement>{Statement(expected)});
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {

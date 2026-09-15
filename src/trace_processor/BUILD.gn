@@ -475,6 +475,7 @@ perfetto_unittest_source_set("unittests") {
       "perfetto_sql/exec:unittests",
       "perfetto_sql/lineage:unittests",
       "perfetto_sql/parser:unittests",
+      "perfetto_sql/pipeline:unittests",
       "perfetto_sql/tokenizer:unittests",
       "plugins/ancestor:unittests",
       "plugins/android_job_scheduler:unittests",

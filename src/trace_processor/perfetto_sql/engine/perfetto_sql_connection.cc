@@ -794,6 +794,9 @@ base::StatusOr<SqlSource> PerfettoSqlConnection::ResolveExtensionStatement(
   } else if (const auto* drop_index =
                  std::get_if<PerfettoSqlParser::DropIndex>(&stmt)) {
     RETURN_IF_ERROR(ExecuteDropIndex(*drop_index));
+  } else if (std::holds_alternative<PerfettoSqlParser::Pipeline>(stmt)) {
+    return AddTracebackIfNeeded(
+        base::ErrStatus("Pipelines cannot be executed yet"), stmt_sql);
   } else {
     // SqliteSql is inlined in ProcessFrame's hot path.
     PERFETTO_FATAL("Unexpected statement variant");
@@ -942,6 +945,9 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
+  if (create_table.is_pipeline) {
+    return base::ErrStatus("Pipelines cannot be executed yet");
+  }
   auto stmt_or = connection_->PrepareStatement(create_table.sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteConnection::PreparedStatement stmt = std::move(stmt_or);
