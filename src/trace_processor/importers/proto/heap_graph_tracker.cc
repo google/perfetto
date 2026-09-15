@@ -403,7 +403,14 @@ void HeapGraphTracker::IndexClassName(ClassTable::RowNumber row,
   StringId normalized_id = normalized.size() == type_name.size()
                                ? name
                                : storage_->InternString(normalized);
-  class_to_rows_[std::make_pair(package, normalized_id)].emplace_back(row);
+  std::vector<ClassRows>& by_package = class_to_rows_[normalized_id];
+  auto it = std::find_if(
+      by_package.begin(), by_package.end(),
+      [package](const ClassRows& c) { return c.package == package; });
+  if (it == by_package.end()) {
+    it = by_package.insert(it, ClassRows{package, {}});
+  }
+  it->rows.push_back(row);
 }
 
 void HeapGraphTracker::IndexReferenceField(ReferenceTable::RowNumber row,
