@@ -29,14 +29,43 @@ source_set("syntax") {
   ]
 }
 
+source_set("plan") {
+  sources = [
+    "pipeline_plan.cc",
+    "pipeline_plan.h",
+  ]
+  public_deps = [ ":syntax" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../../perfetto_sql/analysis",
+    "../../containers",
+    "../../core/common",
+    "../../core/dataframe",
+    "../../core/exec",
+    "../../sqlite",
+    "../exec",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "pipeline_syntax_unittest.cc" ]
+  sources = [
+    "pipeline_plan_unittest.cc",
+    "pipeline_syntax_unittest.cc",
+  ]
   deps = [
+    ":plan",
     ":syntax",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",
+    "../../../perfetto_sql/analysis",
+    "../../containers",
+    "../../core/common",
+    "../../core/dataframe",
+    "../../core/exec",
+    "../../core/util",
     "../../sqlite",
   ]
 }
