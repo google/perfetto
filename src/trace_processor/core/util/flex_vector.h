@@ -188,6 +188,9 @@ class FlexVector {
   // Shrinks the memory allocated by the vector to be as small as possible while
   // still maintaining the invariants of the class.
   void shrink_to_fit() {
+    if (base::AlignUp(size_, kCapacityMultiple) == capacity()) {
+      return;
+    }
     if (size_ == 0) {
       slab_ = Slab<T>::Alloc(0);
     } else {

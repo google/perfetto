@@ -22,9 +22,14 @@ def main():
       '.css': 'text/css',
       '.js': 'text/javascript',
       '.gz': 'application/gzip',
+      '.jpeg': 'image/jpeg',
       '.jpg': 'image/jpeg',
+      '.mp4': 'video/mp4',
       '.png': 'image/png',
       '.svg': 'image/svg+xml',
+      '.webm': 'video/webm',
+      # The only .xml we publish is the blog's Atom feed.
+      '.xml': 'application/atom+xml',
   }
   print(ext_map.get(ext, 'text/html'))
   return 0

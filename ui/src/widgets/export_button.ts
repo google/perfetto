@@ -12,21 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './export_button.scss';
 import m from 'mithril';
 import {download} from '../base/download_utils';
 import {Icons} from '../base/semantic_icons';
 import {Button} from './button';
 import {ActionButtonHelper} from './action_button_helper';
 import {copyToClipboard} from '../base/clipboard';
-import {MenuItem, PopupMenu} from './menu';
+import {MenuDivider, MenuItem, PopupMenu} from './menu';
 
 export type ExportFormat = 'tsv' | 'json' | 'markdown';
 
+// A download the host produces itself, for formats this widget cannot build
+// out of the data it is showing.
+export interface ExportDownloadItem {
+  readonly label: string;
+  readonly icon?: string;
+  // Muted second line under the label. Use it to spell out how the item
+  // differs from the built-in exports, e.g. that filters do not apply to it.
+  readonly description?: string;
+  readonly title?: string;
+  readonly onDownload: () => Promise<void>;
+}
+
 export interface ExportButtonAttrs {
+  // Builds the exported representation of the currently displayed data.
   readonly onExportData: (format: ExportFormat) => Promise<string>;
 
   // Base name used for downloaded files. Defaults to 'data_export'.
   readonly fileBaseName?: string;
+
+  // Host-provided downloads, appended to the Download submenu.
+  readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
 }
 
 /**
@@ -46,6 +63,7 @@ export class ExportButton implements m.ClassComponent<ExportButtonAttrs> {
     const loading = this.helper.state === 'working';
     const icon = this.helper.state === 'done' ? Icons.Check : Icons.Download;
     const baseName = fileBaseName ?? 'data_export';
+    const extras = attrs.extraDownloadItems ?? [];
 
     return m(
       PopupMenu,
@@ -125,8 +143,28 @@ export class ExportButton implements m.ClassComponent<ExportButtonAttrs> {
               });
             },
           }),
+          extras.length > 0 && m(MenuDivider),
+          extras.map((item) => this.renderExtraItem(item)),
         ]),
       ],
     );
+  }
+
+  private renderExtraItem(item: ExportDownloadItem): m.Children {
+    return m(MenuItem, {
+      icon: item.icon,
+      title: item.title,
+      label:
+        item.description === undefined
+          ? item.label
+          : m(
+              '.pf-export-item',
+              m('div', item.label),
+              m('.pf-export-item__desc', item.description),
+            ),
+      onclick: async () => {
+        await this.helper.execute(item.onDownload);
+      },
+    });
   }
 }

@@ -15,7 +15,9 @@
 import './styles.scss';
 import m from 'mithril';
 import {z} from 'zod';
+import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import HeapProfilePlugin, {
@@ -27,9 +29,21 @@ import {migrateHdeState} from './persisted_state';
 
 const PLUGIN_ID = 'com.android.HeapDumpExplorer';
 
-export default class implements PerfettoPlugin {
+export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
+  private static defaultFlamegraphSetting: Setting<boolean>;
+
+  static onActivate(app: App) {
+    HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
+      id: 'com.android.HeapDumpExplorerDefaultFlamegraph',
+      name: 'Heap Dump Explorer: Default to Flamegraph',
+      description:
+        'Make the flamegraph the first selected tab rather than the overview page in Heap Dump Explorer',
+      schema: z.boolean(),
+      defaultValue: false,
+    });
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const hideDefaultChangedHint = ctx.settings.register({
@@ -41,8 +55,10 @@ export default class implements PerfettoPlugin {
       defaultValue: false,
     });
 
+    const defaultFlamegraph = HeapDumpExplorerPlugin.defaultFlamegraphSetting;
+
     const res = await ctx.engine.query(
-      'SELECT count(*) AS cnt FROM heap_graph_object LIMIT 1',
+      'SELECT count(*) AS cnt FROM heap_graph LIMIT 1',
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
@@ -54,6 +70,7 @@ export default class implements PerfettoPlugin {
       ctx,
       ctx.engine,
       hideDefaultChangedHint,
+      defaultFlamegraph,
       store,
     );
     const restored = await session.loadDumps();

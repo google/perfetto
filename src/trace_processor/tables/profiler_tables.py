@@ -233,7 +233,7 @@ PACKAGE_LIST_TABLE = Table(
         ),
         C(
             'version_code',
-            CppInt64(),
+            CppOptional(CppInt64()),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
@@ -1130,7 +1130,8 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
         C(
             'object_data_id',
             CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            flags=ColumnFlag.DENSE,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
     ],
     tabledoc=TableDoc(

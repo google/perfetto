@@ -14,15 +14,18 @@
 
 import m from 'mithril';
 
+import {download} from '../../base/download_utils';
 import {extensions} from '../../components/extensions';
 import type {time} from '../../base/time';
 import {
   type TreeExplorerQueryMetric,
+  TreeExplorerFetcher,
   metricsFromTableOrSubquery,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
-import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
+import {type PprofProfileType, convertTrace} from '../../base/trace_converter';
+
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {
   TrackEventDetailsPanel,
@@ -30,8 +33,7 @@ import type {
 } from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
+import type {ExportDownloadItem} from '../../widgets/export_button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {showModal} from '../../widgets/modal';
 import {incompleteFlamegraphModal} from './incomplete_flamegraph';
@@ -176,7 +178,9 @@ interface Props {
   type: ProfileType;
 }
 
-export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel {
+export class HeapProfileFlamegraphDetailsPanel
+  implements TrackEventDetailsPanel, Disposable
+{
   private readonly props: Props;
   private flamegraphModalDismissed = false;
   private oomeDetails?: OomeDetails;
@@ -193,6 +197,11 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
 
   readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
 
+  // Created next to the metrics it serves and owned by this panel: whoever
+  // replaces the panel is responsible for disposing it (see the area-selection
+  // tab and track details panel which create these panels).
+  private readonly fetcher: TreeExplorerFetcher;
+
   constructor(
     private readonly trace: Trace,
     private readonly heapGraphIncomplete: boolean,
@@ -202,6 +211,10 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
     private readonly tsEnd: time,
     private state: TreeExplorerState | undefined,
     private readonly onStateChange: (state: TreeExplorerState) => void,
+    // True when `ts`/`tsEnd` come from an area selection rather than from a
+    // single snapshot. traceconv can only convert a snapshot it can name by
+    // timestamp, so the pprof export is not offered in that case.
+    private readonly isAreaSelection: boolean,
     onNodeSelected?: (args: {
       pathHashes: string;
       isDominator: boolean;
@@ -225,6 +238,11 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
       this.state = createDefaultTreeExplorerState(this.metrics);
       onStateChange(this.state);
     }
+    this.fetcher = new TreeExplorerFetcher(this.trace, this.metrics);
+  }
+
+  [Symbol.dispose](): void {
+    this.fetcher[Symbol.dispose]();
   }
 
   async load() {
@@ -264,40 +282,47 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
             }),
             renderOomeDetails(this.oomeDetails),
           ),
-          buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
-            m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
-            (type === ProfileType.NATIVE_HEAP_PROFILE ||
-              type === ProfileType.JAVA_HEAP_SAMPLES) &&
-              m(
-                PopupMenu,
-                {
-                  trigger: m(Button, {
-                    icon: 'file_download',
-                    label: 'Download',
-                    title: 'Download profile',
-                  }),
-                },
-                m(MenuItem, {
-                  icon: 'file_download',
-                  label: 'Pprof profile',
-                  onclick: async () => {
-                    await downloadPprof(this.trace, this.upid, ts);
-                  },
-                }),
-              ),
-          ]),
+          buttons: m(
+            'span',
+            `Snapshot time: `,
+            m(Timestamp, {trace: this.trace, ts}),
+          ),
         },
         m(TreeExplorerPanel, {
-          trace: this.trace,
-          metrics: this.metrics,
+          fetcher: this.fetcher,
           state: this.state,
           onStateChange: (state) => {
             this.state = state;
             this.onStateChange(state);
           },
+          extraDownloadItems: this.pprofDownloadItems(type, ts),
         }),
       ),
     );
+  }
+
+  // The pprof is produced by traceconv from the raw trace, so it always
+  // covers the whole snapshot: nothing the tree explorer does to the
+  // displayed tree can be reflected in it.
+  private pprofDownloadItems(
+    type: ProfileType,
+    ts: time,
+  ): ReadonlyArray<ExportDownloadItem> {
+    const profileType = pprofProfileType(type);
+    if (profileType === undefined || this.isAreaSelection) {
+      return [];
+    }
+    return [
+      {
+        label: 'Pprof profile (.pb)',
+        icon: 'file_download',
+        description:
+          'Whole snapshot, converted from the trace: filters, the selected ' +
+          'measure and the view direction are not applied.',
+        title: 'Download the full profile as pprof, for use with pprof tools',
+        onDownload: () => downloadPprof(this.trace, this.upid, ts, profileType),
+      },
+    ];
   }
 
   private maybeShowModal(
@@ -617,8 +642,8 @@ function flamegraphMetricsForHeapProfile(
         from _android_heap_profile_callstacks_for_allocations!((
           select
             callsite_id,
-            iif(positive_alloc, size, 0) as size,
-            iif(positive_alloc, count, 0) as count,
+            max(iif(positive_alloc, size, 0), 0) as size,
+            max(iif(positive_alloc, count, 0), 0) as count,
             max(size, 0) as alloc_size,
             max(count, 0) as alloc_count
           from heap_profile_allocation a
@@ -643,7 +668,30 @@ function flamegraphMetricsForHeapProfile(
   });
 }
 
-async function downloadPprof(trace: Trace, upid: number, ts: time) {
+// The traceconv conversion mode for a profile type, or undefined for the
+// types traceconv cannot emit as pprof. All heapprofd-backed heaps (native,
+// ART samples and custom allocators) are allocator profiles; the ART heap
+// dump is a heap graph. The OOME callstack is a single stack rather than a
+// profile, so it has no pprof of its own.
+function pprofProfileType(type: ProfileType): PprofProfileType | undefined {
+  switch (type) {
+    case ProfileType.NATIVE_HEAP_PROFILE:
+    case ProfileType.JAVA_HEAP_SAMPLES:
+    case ProfileType.GENERIC_HEAP_PROFILE:
+      return 'alloc';
+    case ProfileType.JAVA_HEAP_GRAPH:
+      return 'java-heap';
+    case ProfileType.OOME_CALLSTACK:
+      return undefined;
+  }
+}
+
+async function downloadPprof(
+  trace: Trace,
+  upid: number,
+  ts: time,
+  profileType: PprofProfileType,
+) {
   const pid = await trace.engine.query(
     `select pid from process where upid = ${upid}`,
   );
@@ -655,14 +703,21 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
     return;
   }
   const blob = await trace.getTraceFile();
-  // This is only reachable for heapprofd-based profiles (native heap and
-  // Java heap samples), which are both allocator profiles for traceconv.
-  await convertTraceToPprofAndDownload(
-    blob,
-    'alloc',
-    pid.firstRow({pid: NUM}).pid,
+  const result = await convertTrace(blob, {
+    format: 'pprof',
+    profileType,
+    pid: pid.firstRow({pid: NUM}).pid,
     ts,
-  );
+    onStatus: (s) => trace.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    showModal({
+      title: 'Pprof conversion failed',
+      content: m('div', result.error.message),
+    });
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 function getHeapGraphDuplicateObjectsView(

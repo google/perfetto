@@ -40,11 +40,11 @@ BlobPacketWriter::~BlobPacketWriter() = default;
 protos::pbzero::TracePacket* BlobPacketWriter::BeginPacket() {
   if (!slab_ || packet_start_ptr_ >= slab_->data() + slab_->size()) {
     slab_.reset(new TraceBlob(TraceBlob::Allocate(kSlabSize)));
-    packet_start_ptr_ = slab_->data();
+    packet_start_ptr_ = slab_->mutable_data();
   }
 
   protozero::ContiguousMemoryRange range{packet_start_ptr_,
-                                         slab_->data() + slab_->size()};
+                                         slab_->mutable_data() + slab_->size()};
   msg_.Reset(&writer_);
   writer_.Reset(range);
   slices_.push_back(range);
@@ -76,7 +76,7 @@ TraceBlobView BlobPacketWriter::EndPacket() {
 
   TraceBlob stitched = TraceBlob::Allocate(total);
   {
-    uint8_t* dst = stitched.data();
+    uint8_t* dst = stitched.mutable_data();
     for (const auto& s : slices_) {
       memcpy(dst, s.begin, s.size());
       dst += s.size();
@@ -100,8 +100,8 @@ protozero::ContiguousMemoryRange BlobPacketWriter::GetNewBuffer() {
   overflow_slabs_.emplace_front(new TraceBlob(TraceBlob::Allocate(kSlabSize)));
 
   auto& blob = *overflow_slabs_.front();
-  protozero::ContiguousMemoryRange range{blob.data(),
-                                         blob.data() + blob.size()};
+  protozero::ContiguousMemoryRange range{blob.mutable_data(),
+                                         blob.mutable_data() + blob.size()};
   slices_.push_back(range);
   return range;
 }

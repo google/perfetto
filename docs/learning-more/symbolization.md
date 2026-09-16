@@ -101,20 +101,19 @@ trace_processor bundle \
   input.perfetto-trace enriched-trace
 ```
 
-The properties of the `bundle` flags are:
+Point `--symbol-paths` at directories containing the matching unstripped
+binaries or native debug files, for example your build's symbols directory.
+Bundle searches recursively and matches build IDs, so you do not need to
+recreate the device's directory layout. Pass Java/Kotlin `mapping.txt` files
+separately with `--proguard-map`.
 
-- `--symbol-paths PATH1,PATH2,...`: additional directories to search for native
-  symbols (in addition to the auto-discovered ones).
-- `--no-auto-symbol-paths`: disable auto-discovery of native symbol paths. Only
-  paths given via `--symbol-paths` are searched.
-- `--proguard-map [pkg=]PATH`: additional ProGuard/R8 `mapping.txt` to apply for
-  Java/Kotlin deobfuscation. Repeat the flag for multiple maps. The optional
-  `pkg=` prefix scopes a map to a specific Java package.
-- `--no-auto-proguard-maps`: disable auto-discovery of ProGuard/R8 mapping files
-  (e.g. the standard Android Gradle layout). Only maps given via
-  `--proguard-map` are applied.
-- `--verbose`: print every path tried and every library looked up &mdash; useful
-  when debugging "could not find" errors.
+Use `--verbose` to diagnose missing symbols. To disable automatic discovery,
+add `--no-auto-symbol-paths` and `--no-auto-proguard-maps`. Native paths from
+`PERFETTO_BINARY_PATH` still apply; unset that variable to restrict lookup to
+`--symbol-paths`.
+
+See the [bundle command reference](/docs/reference/trace-processor-cli.md#subcommand-bundle)
+for option semantics, color controls, output replacement, and exit status.
 
 ### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `trace_processor util symbolize` / `util deobfuscate`
 
@@ -258,17 +257,21 @@ Common messages and what they mean:
   (`--no-auto-symbol-paths`) and no explicit paths were given. Pass
   `--symbol-paths` with the directories to search.
 
-- **`failed to open output file ...`**: the output path could not be created
+- **`cannot create output file ...`**: the output path could not be created
   (e.g. the parent directory does not exist or is not writable). Check the
   path.
 
 #### Could not find library
 
-When symbolizing a profile you may see messages like:
+When symbolizing a profile with `--verbose` you may see messages like:
 
 ```text
-Could not find /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so
-(Build ID: 44b7138abd5957b8d0a56ce86216d478).
+  No matching symbols in searched paths for 1 mapping (12 frames):
+    /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so (12 frames)
+      build ID: 44b7138abd5957b8d0a56ce86216d478
+      paths searched:
+        /path/to/symbols/somelib.so (file not found)
+      hint: use --symbol-paths to specify symbol files or directories
 ```
 
 Check that `somelib.so` exists somewhere under one of the search paths

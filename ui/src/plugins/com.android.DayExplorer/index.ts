@@ -19,17 +19,19 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
-import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
+import {STR, LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
-import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {areaSelectionKey, type AreaSelection} from '../../public/selection';
 import {
   TREE_EXPLORER_STATE_SCHEMA,
   updateTreeExplorerState,
 } from '../../widgets/tree_explorer';
 import {
   metricsFromTableOrSubquery,
+  TreeExplorerFetcher,
   type TreeExplorerQueryMetric,
 } from '../../components/tree_explorer_fetcher';
+import {Memo} from '../../base/memo';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 import type {Store} from '../../base/store';
@@ -71,14 +73,14 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     );
 
     const group = support.getOrCreateGroup(ctx, groupName);
-    await this.addDayExplorerRecursive(ctx, group, limit, -1n);
+    await this.addDayExplorerRecursive(ctx, group, limit, -1);
   }
 
   private async addDayExplorerRecursive(
     ctx: Trace,
     parent: TrackNode,
     limit: number,
-    parentId: bigint,
+    parentId: number,
   ): Promise<void> {
     const children = await ctx.engine.query(`
       SELECT track_id, display_name, cast(round(total_energy_uws / 3600000) as int) as energy_mwh
@@ -90,7 +92,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     `);
 
     const childIter = children.iter({
-      track_id: LONG,
+      track_id: NUM,
       display_name: STR,
       energy_mwh: LONG,
     });
@@ -121,7 +123,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     name: string,
     groupKey: string,
     query: string,
-    trackId: bigint,
+    trackId: number,
   ): Promise<TrackNode> {
     const uri = `/day_explorer_${uuidv4()}`;
     const renderer = await CounterTrack.createMaterialized({
@@ -136,7 +138,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
       renderer,
       tags: {
         kinds: [DAY_EXPLORER_TRACK_KIND],
-        trackId: Number(trackId),
+        trackId: trackId,
       },
     });
 
@@ -147,28 +149,26 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
   }
 
   private createDayExplorerFlameGraphPanel(trace: Trace) {
-    let previousSelection: AreaSelection | undefined;
-    let flamegraphMetrics: ReadonlyArray<TreeExplorerQueryMetric> | undefined;
+    const fetcherMemo = new Memo<TreeExplorerFetcher | undefined>();
     return {
       id: 'day_explorer_flamegraph_selection',
       name: 'Day Explorer Flamegraph',
       render: (selection: AreaSelection) => {
-        const selectionChanged =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        previousSelection = selection;
-        if (selectionChanged) {
-          flamegraphMetrics = this.computeDayExplorerFlameGraph(selection);
-        }
-        if (flamegraphMetrics === undefined) {
+        const fetcher = fetcherMemo.use({
+          key: areaSelectionKey(selection),
+          compute: () => {
+            const metrics = this.computeDayExplorerFlameGraph(selection);
+            return metrics && new TreeExplorerFetcher(trace, metrics);
+          },
+        });
+        if (fetcher === undefined) {
           return undefined;
         }
         const store = ensureExists(this.store);
         return {
           isLoading: false,
           content: m(TreeExplorerPanel, {
-            trace,
-            metrics: flamegraphMetrics,
+            fetcher,
             state: store.state.areaSelectionFlamegraphState,
             onStateChange: (state) => {
               store.edit((draft) => {
@@ -188,7 +188,7 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     // selection. The selection is used to filter by time, and we filter the graph
     // to only include energy from the selected tracks and their recursive descendants.
     // If a physical track is selected, we exclude label roots to avoid double-counting.
-    const selectedTrackIds: bigint[] = [];
+    const selectedTrackIds: number[] = [];
 
     for (const trackInfo of currentSelection.tracks) {
       if (
@@ -196,8 +196,8 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
         trackInfo.tags.trackId !== undefined
       ) {
         const trackId = trackInfo.tags.trackId;
-        if (typeof trackId === 'string' || typeof trackId === 'number') {
-          selectedTrackIds.push(BigInt(trackId));
+        if (typeof trackId === 'number') {
+          selectedTrackIds.push(trackId);
         }
       }
     }
@@ -215,31 +215,17 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
             ),
             descendants(track_id) AS (
               SELECT track_id FROM selected_roots
-              UNION ALL
+              UNION
               SELECT child.track_id
               FROM day_explorer_ui_hierarchy child
               JOIN descendants parent ON child.parent_id = parent.track_id
-            ),
-            ancestors(track_id, parent_id) AS (
-              SELECT track_id, parent_id 
-              FROM day_explorer_ui_hierarchy 
-              WHERE track_id IN (SELECT track_id FROM selected_roots)
-              UNION ALL
-              SELECT parent.track_id, parent.parent_id
-              FROM day_explorer_ui_hierarchy parent
-              JOIN ancestors child ON child.parent_id = parent.track_id
-            ),
-            all_nodes(track_id) AS (
-              SELECT track_id FROM descendants
-              UNION
-              SELECT track_id FROM ancestors
             ),
             total_energy AS (
               SELECT track_id, parent_id, display_name, SUM(energy_uws) AS energy_uws
               FROM day_explorer_ui_hierarchy_per_ts
               WHERE ts >= ${currentSelection.start}
                 AND ts <= ${currentSelection.end}
-                AND track_id IN (SELECT track_id FROM all_nodes)
+                AND track_id IN (SELECT track_id FROM descendants)
               GROUP BY 1, 2, 3
             ),
             with_child AS (

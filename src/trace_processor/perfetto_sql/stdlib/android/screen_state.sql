@@ -24,6 +24,8 @@ CREATE PERFETTO TABLE android_screen_state(
   ts TIMESTAMP,
   -- Duration.
   dur DURATION,
+  -- Machine whose screen state is described.
+  machine_id JOINID(machine.id),
   -- Simplified screen state: 'unknown', 'off', 'doze' (AoD) or 'on'
   simple_screen_state STRING,
   -- Full screen state, adding VR and suspended-while-displaying states.
@@ -36,7 +38,7 @@ WITH
   screen_state_span AS (
     SELECT *
     FROM counter_leading_intervals!((
-        SELECT counter.id, ts, 0 AS track_id, value
+        SELECT counter.id, ts, counter.track_id, value
         FROM counter
         JOIN counter_track ON counter_track.id = counter.track_id
         WHERE
@@ -45,11 +47,12 @@ WITH
   ),
   mapped_names AS (
     SELECT
-      id,
-      ts,
-      dur,
+      screen_state_span.id,
+      screen_state_span.ts,
+      screen_state_span.dur,
+      counter_track.machine_id,
       -- Should be kept in sync with the enums in Display.java
-      CASE value
+      CASE screen_state_span.value
         -- Display.STATE_OFF
         WHEN 1 THEN 'off'
         -- Display.STATE_ON
@@ -63,7 +66,7 @@ WITH
         -- Display.STATE_ON_SUSPEND
         WHEN 6 THEN 'on'
       END AS simple_screen_state,
-      CASE value
+      CASE screen_state_span.value
         -- Display.STATE_OFF
         WHEN 1 THEN 'off'
         -- Display.STATE_ON
@@ -77,7 +80,7 @@ WITH
         -- Display.STATE_ON_SUSPEND
         WHEN 6 THEN 'on-suspend'
       END AS short_screen_state,
-      CASE value
+      CASE screen_state_span.value
         -- Display.STATE_OFF
         WHEN 1 THEN 'Screen off'
         -- Display.STATE_ON
@@ -92,6 +95,8 @@ WITH
         WHEN 6 THEN 'Screen on (suspend)'
       END AS screen_state
     FROM screen_state_span
+    JOIN counter_track
+      ON counter_track.id = screen_state_span.track_id
     WHERE
       dur > 0
   )
@@ -99,9 +104,10 @@ SELECT
   ROW_NUMBER() OVER () AS id,
   ts,
   dur,
+  machine_id,
   COALESCE(simple_screen_state, 'unknown') AS simple_screen_state,
   COALESCE(short_screen_state, 'unknown') AS short_screen_state,
   COALESCE(screen_state, 'Unknown') AS screen_state
-FROM _intervals_fill_gaps!((NULL), (simple_screen_state,
+FROM _intervals_fill_gaps!((machine_id), (simple_screen_state,
   short_screen_state,
   screen_state), mapped_names);

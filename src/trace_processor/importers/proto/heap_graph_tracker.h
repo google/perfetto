@@ -93,6 +93,16 @@ class HeapGraphTracker : public Destructible {
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
   }
 
+  // Shared by proto and HPROF importers. Named rows are also indexed for
+  // deobfuscation; proto rows can receive their names after insertion.
+  tables::HeapGraphClassTable::IdAndRow InsertClass(
+      const tables::HeapGraphClassTable::Row& row);
+  // Skip indexing for unnamed references and synthetic edges (array elements
+  // and runtime-internal references), which cannot match a field mapping.
+  tables::HeapGraphReferenceTable::IdAndRow InsertReference(
+      const tables::HeapGraphReferenceTable::Row& row,
+      bool index_field = true);
+
   void AddRoot(uint32_t seq_id, UniquePid upid, int64_t ts, SourceRoot root);
   void AddObject(uint32_t seq_id, UniquePid upid, int64_t ts, SourceObject obj);
   void AddInternedType(
@@ -143,6 +153,13 @@ class HeapGraphTracker : public Destructible {
   }
 
  private:
+  // Index names when they become available without rewriting stored columns.
+  void IndexClassName(tables::HeapGraphClassTable::RowNumber row,
+                      StringId name,
+                      std::optional<StringId> package);
+  void IndexReferenceField(tables::HeapGraphReferenceTable::RowNumber row,
+                           StringId name);
+
   struct InternedField {
     StringId name;
     StringId type_name;

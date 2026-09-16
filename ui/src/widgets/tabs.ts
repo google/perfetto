@@ -46,22 +46,25 @@ export interface TabsAttrs {
   // If not provided, the component manages its own state (uncontrolled mode).
   readonly activeTabKey?: string;
   // Called when a tab is clicked.
-  onTabChange?(key: string): void;
+  readonly onTabChange?: (key: string) => void;
   // Called when a tab's close button is clicked.
-  onTabClose?(key: string): void;
+  readonly onTabClose?: (key: string) => void;
   // Called when a tab's title is renamed via inline editing. When set, tabs
   // with a string title become renamable on double-click (tabs with non-string
   // titles are not affected). If the input is cleared (empty after trim) or
   // Escape is pressed, the rename is cancelled and this callback is not fired.
-  onTabRename?(key: string, newTitle: string): void;
+  readonly onTabRename?: (key: string, newTitle: string) => void;
   // Whether tabs can be reordered via drag and drop.
   readonly reorderable?: boolean;
   // Called when tabs are reordered. Receives the key of the dragged tab and
   // the key of the tab it was dropped before (or undefined if dropped at end).
-  onTabReorder?(draggedKey: string, beforeKey: string | undefined): void;
+  readonly onTabReorder?: (
+    draggedKey: string,
+    beforeKey: string | undefined,
+  ) => void;
   // Called when the "new tab" button is clicked. When set, a "+" button is
   // shown at the end of the tab bar.
-  onNewTab?(): void;
+  readonly onNewTab?: () => void;
   // Custom content to render in place of the default "+" button. When set,
   // onNewTab is ignored and this content is rendered instead.
   readonly newTabContent?: m.Children;

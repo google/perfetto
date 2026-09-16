@@ -50,7 +50,6 @@ export class PollingController {
 
         if (status !== undefined && status !== null) {
           this.applyStatus(tab, status);
-          await this.maybeAutoFetchProgress(tab);
         }
 
         const isTerminal =
@@ -106,6 +105,11 @@ export class PollingController {
 
   // ----- Internals -----
 
+  // Progress only — the poll never pulls result rows. A page fetch costs a
+  // full count over the result table under the same lock the worker writes
+  // through, so doing it every 3s would fight the query it is reporting on.
+  // The status bar's refresh button (lit while processedRows is ahead of
+  // lastProcessedRows) is how a partial result gets asked for.
   private applyStatus(tab: BigTraceEditorTab, status: RawQueryExecution): void {
     if (!tab.queryUuid) return;
     queryStore.update(tab.queryUuid, {
@@ -115,21 +119,6 @@ export class PollingController {
       status: status.status ?? 'N/A',
     });
     this.cb.redraw();
-  }
-
-  private async maybeAutoFetchProgress(tab: BigTraceEditorTab): Promise<void> {
-    const isTerminal =
-      tab.execution?.status !== undefined &&
-      TERMINAL_STATUSES.has(tab.execution.status);
-    if (isTerminal) return;
-
-    const processedRows = tab.execution?.processedRows ?? 0;
-    if (processedRows <= tab.lastProcessedRows) return;
-
-    if (tab.dataSource instanceof BigtraceAsyncDataSource) {
-      await tab.dataSource.refresh();
-      tab.lastProcessedRows = processedRows;
-    }
   }
 
   private async finalize(

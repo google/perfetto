@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
-import {BigtraceQueryClient} from './bigtrace_query_client';
+import {
+  BigtraceQueryClient,
+  type ExperimentFilterSpec,
+} from './bigtrace_query_client';
 import type {QueryExecution} from './query_store';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {SettingFilter} from '../settings/settings_types';
@@ -32,6 +35,7 @@ export interface RawQueryExecution {
   readonly errorMessage?: string;
   readonly perfettoSql?: string;
   readonly limit?: number;
+  readonly traceLimit?: number;
   readonly materialized?: boolean;
   readonly tableName?: string;
   readonly tableLink?: string;
@@ -43,6 +47,7 @@ export interface RawQueryExecution {
   readonly traceFilters?: ReadonlyArray<Filter>;
   readonly traceMetadataColumns?: ReadonlyArray<string>;
   readonly traceOrderBy?: string;
+  readonly experimentFilter?: ExperimentFilterSpec;
 }
 
 // Snapshot settings as echoed on the wire. Responses are camelCase (like every
@@ -114,6 +119,7 @@ export class QueryHistoryStorage {
     );
   }
 
+  // Takes the query's table with it; see deleteQueryExecution.
   async deleteQuery(uuid: string): Promise<void> {
     await this.client().deleteQueryExecution(uuid);
   }

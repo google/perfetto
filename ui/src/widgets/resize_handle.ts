@@ -19,11 +19,11 @@ import type {MithrilEvent} from '../base/mithril_utils';
 
 export interface ResizeHandleAttrs extends HTMLAttrs {
   // Called with delta (relative change)
-  onResize?(deltaPx: number): void;
+  readonly onResize?: (deltaPx: number) => void;
   // Called with absolute position relative to offsetParent
-  onResizeAbsolute?(positionPx: number): void;
-  onResizeStart?(): void;
-  onResizeEnd?(): void;
+  readonly onResizeAbsolute?: (positionPx: number) => void;
+  readonly onResizeStart?: () => void;
+  readonly onResizeEnd?: () => void;
   // Direction of the resize handle:
   // - 'vertical' (default): horizontal bar that can be dragged up/down
   // - 'horizontal': vertical bar that can be dragged left/right
@@ -122,7 +122,7 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
       onpointercancel: (e: PointerEvent) => {
         this.endDrag(attrs, e.pointerId);
       },
-      onpointercapturelost: (e: PointerEvent) => {
+      onlostpointercapture: (e: PointerEvent) => {
         this.endDrag(attrs, e.pointerId);
       },
       ...rest,

@@ -570,6 +570,49 @@ TEST(BitVectorTest, CompactSingleWord) {
   }
 }
 
+// Every alignment of source and destination against the word boundary, and a
+// count long enough to span several words.
+TEST(BitVectorTest, SetBitsFromEveryAlignment) {
+  constexpr uint64_t kSize = 400;
+  BitVector src = BitVector::CreateWithSize(kSize);
+  for (uint64_t i = 0; i < kSize; ++i) {
+    if (i % 7 == 0 || i % 11 == 3) {
+      src.set(i);
+    }
+  }
+  for (uint64_t from : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+    for (uint64_t at : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+      uint64_t count = kSize - std::max(from, at);
+      BitVector dst = BitVector::CreateWithSize(kSize);
+      dst.SetBitsFrom(at, src, from, count);
+      for (uint64_t i = 0; i < kSize; ++i) {
+        bool expected = i >= at && i < at + count && src.is_set(from + i - at);
+        EXPECT_EQ(dst.is_set(i), expected)
+            << "from=" << from << " at=" << at << " bit=" << i;
+      }
+    }
+  }
+}
+
+TEST(BitVectorTest, SetBitsFromMergesRatherThanOverwrites) {
+  BitVector src = BitVector::CreateWithSize(64);
+  BitVector dst = BitVector::CreateWithSize(64);
+  src.set(1);
+  dst.set(2);
+  dst.SetBitsFrom(0, src, 0, 64);
+  EXPECT_TRUE(dst.is_set(1));
+  EXPECT_TRUE(dst.is_set(2));
+}
+
+TEST(BitVectorTest, SetBitsFromNothing) {
+  BitVector src = BitVector::CreateWithSize(64, true);
+  BitVector dst = BitVector::CreateWithSize(64);
+  dst.SetBitsFrom(0, src, 0, 0);
+  EXPECT_EQ(dst.CountSetBits(), 0u);
+}
+
 TEST(BitVectorTest, CompactCrossWordBoundary) {
   // 128 bits: set bits at positions 63 and 64 (word boundary).
   // Keep only those two positions.

@@ -783,14 +783,14 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       const canProfile = p.debuggable || isUserDebug;
       const profileButton = m(Button, {
         label: 'Profile',
+        icon: canProfile ? undefined : 'warning',
         rightIcon: 'arrow_forward',
         rounded: true,
         variant: ButtonVariant.Filled,
         intent: Intent.Primary,
-        disabled: !canProfile,
         tooltip: canProfile
           ? undefined
-          : 'Process is not debuggable. A userdebug or eng build is required to heap profile.',
+          : 'Process is not marked debuggable. Profiling may fail if the device is not a userdebug or eng build.',
         onclick: () =>
           session.startProfile(p.pid, p.processName).then(() => m.redraw()),
       });

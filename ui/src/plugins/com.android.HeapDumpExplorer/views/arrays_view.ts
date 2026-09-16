@@ -31,6 +31,8 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -61,9 +63,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('object', {id, label: display}),
           },
           display,
@@ -143,17 +144,25 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
     view(vnode) {
       const {navigate} = vnode.attrs;
       if (vnode.attrs.hasFieldValues === false) {
-        return m(EmptyState, {
-          icon: 'data_array',
-          title: 'Array data requires an ART heap dump (.hprof)',
-          fillHeight: true,
-        });
+        return m(
+          DetailsShell,
+          {title: 'Arrays', fillHeight: true},
+          m(EmptyState, {
+            icon: 'data_array',
+            title: 'Array data requires an ART heap dump (.hprof)',
+            fillHeight: true,
+          }),
+        );
       }
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Arrays')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Arrays'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           data: dataSource,
@@ -173,7 +182,7 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
             counter.onFiltersChanged(f);
           },
         }),
-      ]);
+      );
     },
   };
 }

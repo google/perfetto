@@ -49,6 +49,7 @@ struct GlobalOptions {
   // (unsupported yet) host:port.
   std::string remote_addr;
 
+  bool no_progress = false;
   bool force_full_sort = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;

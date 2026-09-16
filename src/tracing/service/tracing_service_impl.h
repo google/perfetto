@@ -343,8 +343,11 @@ class TracingServiceImpl : public TracingService {
                           std::vector<TracePacket>* packets);
 
   // If `*tracing_session` has compression enabled, compress `*packets`.
+  // `skip_compression_of_first_n_packets` is the number of packets to skip
+  // compression of (i.e. TraceConfig, UUID packets).
   void MaybeCompressPackets(TracingSession* tracing_session,
-                            std::vector<TracePacket>* packets);
+                            std::vector<TracePacket>* packets,
+                            size_t skip_compression_of_first_n_packets);
 
   // If `*tracing_session` is configured to write into a file, writes `packets`
   // into the file.

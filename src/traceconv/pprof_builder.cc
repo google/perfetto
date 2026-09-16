@@ -31,7 +31,9 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
@@ -901,7 +903,7 @@ bool WriteAllocations(
 //   * For each location we iterate over all its parents until we find
 //     the root and use this list of locations as a 'callstack' (which is
 //     actually list of class names)
-LocationTracker PreprocessLocationsForJavaHeap(
+base::StatusOr<LocationTracker> PreprocessLocationsForJavaHeap(
     trace_processor::TraceProcessor* tp,
     trace_processor::StringPool* interner,
     const std::vector<View>& views,
@@ -958,9 +960,8 @@ LocationTracker PreprocessLocationsForJavaHeap(
   }
 
   if (!it.Status().ok()) {
-    PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
-                            it.Status().message().c_str());
-    return {};
+    return base::ErrStatus("failed to build the heap dump flamegraph: %s",
+                           it.Status().message().c_str());
   }
 
   // Iterate over all known locations again and build root-first paths
@@ -1022,10 +1023,14 @@ bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
     views.assign(std::begin(kJavaAllocationViews),
                  std::end(kJavaAllocationViews));
 
-    LocationTracker locations = PreprocessLocationsForJavaHeap(
+    base::StatusOr<LocationTracker> locations = PreprocessLocationsForJavaHeap(
         tp, &interner, views, view_values, upid, ts);
+    if (!locations.ok()) {
+      PERFETTO_DFATAL_OR_ELOG("%s", locations.status().c_message());
+      return false;
+    }
 
-    GProfileBuilder builder(locations, &interner);
+    GProfileBuilder builder(*locations, &interner);
 
     std::vector<std::pair<std::string, std::string>> sample_types;
     for (const auto& view : views) {

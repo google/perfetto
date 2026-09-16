@@ -37,11 +37,6 @@ namespace perfetto::trace_processor {
 
 // Field numbers to be added to args table automatically via reflection
 //
-// TODO(ddrone): replace with a predicate on field id to import new fields
-// automatically
-static constexpr uint16_t kReflectFields[] = {
-    24, 25, 26, 27, 28, 29, 32, 33, 34, 35, 38, 39, 40, 41, 43, 49, 50};
-
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 class TrackEventTracker;
@@ -71,14 +66,23 @@ class TrackEventParser {
  private:
   friend class TrackEventEventImporter;
 
-  bool has_parsers() const {
-    return !extension_parser_context_->parsers.empty();
+  // Consecutive events tend to carry the same fields, so the field looked
+  // up last is remembered, including a field without a parser. Parsers are
+  // only ever added, so a changed count means the answer may have changed.
+  TrackEventExtensionParser* ParserForField(uint32_t field_id) {
+    const auto& by_field = extension_parser_context_->parsers_by_field;
+    if (field_id != last_parser_field_id_ ||
+        by_field.size() != last_parser_count_) {
+      auto* it = by_field.Find(field_id);
+      last_parser_ = it ? *it : nullptr;
+      last_parser_field_id_ = field_id;
+      last_parser_count_ = by_field.size();
+    }
+    return last_parser_;
   }
 
-  TrackEventExtensionParser* ParserForField(uint32_t field_id) const {
-    auto* it = extension_parser_context_->parsers_by_field.Find(field_id);
-    return it ? *it : nullptr;
-  }
+  // The TrackEvent descriptor's index in the pool, resolved once.
+  std::optional<uint32_t> TrackEventDescriptorIdx();
 
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
@@ -94,18 +98,7 @@ class TrackEventParser {
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;
-  const StringId task_file_name_args_key_id_;
-  const StringId task_function_name_args_key_id_;
-  const StringId task_line_number_args_key_id_;
   const StringId job_scheduler_job_name_args_key_id_;
-  const StringId log_message_body_key_id_;
-  const StringId log_message_source_location_function_name_key_id_;
-  const StringId log_message_source_location_file_name_key_id_;
-  const StringId log_message_source_location_line_number_key_id_;
-  const StringId log_message_priority_id_;
-  const StringId source_location_function_name_key_id_;
-  const StringId source_location_file_name_key_id_;
-  const StringId source_location_line_number_key_id_;
   const StringId raw_legacy_event_id_;
   const StringId legacy_event_passthrough_utid_id_;
   const StringId legacy_event_category_key_id_;
@@ -124,7 +117,6 @@ class TrackEventParser {
   const StringId legacy_event_bind_id_key_id_;
   const StringId legacy_event_bind_to_enclosing_key_id_;
   const StringId legacy_event_flow_direction_key_id_;
-  const StringId histogram_name_key_id_;
   const StringId flow_direction_value_in_id_;
   const StringId flow_direction_value_out_id_;
   const StringId flow_direction_value_inout_id_;
@@ -143,7 +135,10 @@ class TrackEventParser {
 
   TrackEventExtensionParserContext* extension_parser_context_;
   ChromeStringLookup chrome_string_lookup_;
-  std::vector<uint32_t> reflect_fields_;
+  std::optional<uint32_t> track_event_descriptor_idx_;
+  TrackEventExtensionParser* last_parser_ = nullptr;
+  uint32_t last_parser_field_id_ = 0;
+  size_t last_parser_count_ = 0;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
   DummyMemoryMapping* inline_callstack_dummy_mapping_ = nullptr;
 };

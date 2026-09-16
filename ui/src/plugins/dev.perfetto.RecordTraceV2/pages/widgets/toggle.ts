@@ -45,9 +45,7 @@ export class Toggle implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
-    if (state === true || state === false) {
-      this._enabled = state;
-    }
+    this.setEnabled(typeof state === 'boolean' ? state : undefined);
   }
 
   render() {

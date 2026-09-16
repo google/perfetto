@@ -13,20 +13,20 @@
 // limitations under the License.
 
 import m from 'mithril';
-
-import {Monitor} from '../../base/monitor';
-import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
+import {assertExists, assertIsInstance} from '../../base/assert';
+import {Memo} from '../../base/memo';
+import {maybeUndefined} from '../../base/utils';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
+import {TreeExplorerFetcher} from '../../components/tree_explorer_fetcher';
 import type {Trace} from '../../public/trace';
-import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
-import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
-import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
-import {
-  createDefaultTreeExplorerState,
-  updateTreeExplorerState,
-} from '../../widgets/tree_explorer';
+import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
+import {EmptyState} from '../../widgets/empty_state';
+import {HotkeyContext} from '../../widgets/hotkey_context';
+import {Select} from '../../widgets/select';
+import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
+import {updateTreeExplorerState} from '../../widgets/tree_explorer';
 import type {AggregateProfile, AggregateProfilesPageState} from './types';
 
 const HIDE_PAGE_EXPLANATION_KEY = 'hideAggregateProfilesPageExplanation';
@@ -35,83 +35,110 @@ const HIDE_VIEW_EXPLANATION_KEY = 'hideAggregateProfilesViewExplanation';
 export interface AggregateProfilesPageAttrs {
   readonly trace: Trace;
   readonly state: AggregateProfilesPageState;
-  readonly onStateChange: (state: AggregateProfilesPageState) => void;
   readonly profiles: ReadonlyArray<AggregateProfile>;
+  readonly onStateChange: (state: AggregateProfilesPageState) => void;
 }
 
 export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
-  private profiles?: ReadonlyArray<AggregateProfile>;
-  private readonly monitor = new Monitor([() => this.profiles]);
-  private flamegraphMetrics?: ReadonlyArray<TreeExplorerQueryMetric>;
+  // The fetcher (and so the virtual tables built for the metrics) is created
+  // for the profile it serves and disposed by the memo when the user switches
+  // profile, so at most one generation is alive at a time.
+  private readonly fetcherMemo = new Memo<TreeExplorerFetcher>();
 
   view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
-    this.profiles = attrs.profiles;
-    if (this.monitor.ifStateChanged()) {
-      const selectedProfile =
-        attrs.profiles.find((p) => p.id === attrs.state.selectedProfileId) ||
-        (attrs.profiles.length > 0 ? attrs.profiles[0] : undefined);
-      attrs.onStateChange({
-        flamegraphState: undefined,
-        selectedProfileId: selectedProfile?.id,
-      });
-      if (selectedProfile) {
-        this.createFlamegraph(attrs, selectedProfile);
-      }
+    // Use the selected profile from the state or just use the first one if none
+    // supplied, or if we can't find a match.
+    const selectedProfile =
+      attrs.profiles.find((p) => p.id === attrs.state.selectedProfileId) ??
+      maybeUndefined(attrs.profiles[0]);
+
+    if (selectedProfile === undefined) {
+      return this.renderEmptyState();
     }
+
     return m(
-      Stack,
+      HotkeyContext,
       {
         fillHeight: true,
-        spacing: 'medium',
-        className: 'pf-aggregate-profiles-page',
+        autoFocus: true,
+        hotkeys: [
+          {
+            hotkey: 'ArrowLeft',
+            callback: () => this.stepProfile(attrs, -1),
+          },
+          {
+            hotkey: 'ArrowRight',
+            callback: () => this.stepProfile(attrs, 1),
+          },
+        ],
       },
-      [
-        attrs.profiles.length > 1 &&
-          m(StackFixed, this.renderControlsRow(attrs)),
-        this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
-          m(StackFixed, this.renderPageExplanation()),
-        this.renderHelpRow(),
-        this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
-          m(StackFixed, this.renderViewExplanation()),
-        m(StackAuto, [
-          this.flamegraphMetrics &&
-            attrs.state.flamegraphState &&
-            m(TreeExplorerPanel, {
-              trace: attrs.trace,
-              metrics: this.flamegraphMetrics,
-              state: attrs.state.flamegraphState,
-              onStateChange: (state) => {
-                attrs.onStateChange({
-                  ...attrs.state,
-                  flamegraphState: state,
-                });
-              },
-            }),
-          !this.flamegraphMetrics && this.renderEmptyState(),
-        ]),
-      ],
+      m(
+        Stack,
+        {
+          fillHeight: true,
+          spacing: 'medium',
+          className: 'pf-aggregate-profiles-page',
+        },
+        [
+          this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
+            m(StackFixed, this.renderPageExplanation()),
+          this.renderControlsRow(attrs, selectedProfile),
+          this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
+            m(StackFixed, this.renderViewExplanation()),
+          m(StackAuto, [this.renderFlamegraph(selectedProfile, attrs)]),
+        ],
+      ),
     );
   }
 
-  private createFlamegraph(
+  onremove(): void {
+    this.fetcherMemo.dispose();
+  }
+
+  private stepProfile(attrs: AggregateProfilesPageAttrs, step: number): void {
+    if (attrs.profiles.length < 2) return;
+    const cur = attrs.profiles.findIndex(
+      (p) => p.id === attrs.state.selectedProfileId,
+    );
+    const next = Math.max(cur, 0) + step;
+    if (next >= 0 && next < attrs.profiles.length) {
+      this.selectProfile(attrs, attrs.profiles[next]);
+    }
+  }
+
+  private selectProfile(
     attrs: AggregateProfilesPageAttrs,
     profile: AggregateProfile,
   ): void {
-    if (profile.metrics.length === 0) {
-      this.flamegraphMetrics = undefined;
-      attrs.onStateChange({
-        ...attrs.state,
-        flamegraphState: undefined,
-      });
-      return;
-    }
     attrs.onStateChange({
-      ...attrs.state,
-      flamegraphState: attrs.state.flamegraphState
-        ? updateTreeExplorerState(attrs.state.flamegraphState, profile.metrics)
-        : createDefaultTreeExplorerState(profile.metrics),
+      selectedProfileId: profile.id,
+      flamegraphState: updateTreeExplorerState(
+        attrs.state.flamegraphState,
+        profile.metrics,
+      ),
     });
-    this.flamegraphMetrics = profile.metrics;
+  }
+
+  private renderFlamegraph(
+    selectedProfile: AggregateProfile,
+    attrs: AggregateProfilesPageAttrs,
+  ): m.Children {
+    const fetcher = this.fetcherMemo.use({
+      key: {profileId: selectedProfile.id},
+      compute: () =>
+        new TreeExplorerFetcher(attrs.trace, selectedProfile.metrics),
+    });
+
+    return m(TreeExplorerPanel, {
+      fetcher,
+      state: attrs.state.flamegraphState,
+      onStateChange: (state) => {
+        attrs.onStateChange({
+          ...attrs.state,
+          flamegraphState: state,
+        });
+      },
+    });
   }
 
   private shouldShowExplanation(key: string): boolean {
@@ -126,18 +153,24 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     localStorage.removeItem(key);
   }
 
-  // The view tabs themselves live in the TreeExplorerPanel's own switcher;
-  // this row only hosts the help buttons that used to hang off the old
-  // single-tab strip.
-  private renderHelpRow(): m.Children {
+  // The page's controls: the profile selector on the left, the help buttons
+  // on the right. The view tabs are not here -- they live in the
+  // TreeExplorerPanel's own switcher.
+  private renderControlsRow(
+    attrs: AggregateProfilesPageAttrs,
+    selectedProfile: AggregateProfile,
+  ): m.Children {
     const showViewHelp = !this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY);
     const showPageHelp = this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY);
-    if (!showViewHelp && !showPageHelp) {
+    const showSelector = attrs.profiles.length > 1;
+    if (!showViewHelp && !showPageHelp && !showSelector) {
       return undefined;
     }
     return m(
       StackFixed,
       m(Stack, {orientation: 'horizontal', spacing: 'medium'}, [
+        showSelector &&
+          m(StackFixed, this.renderProfileSelector(attrs, selectedProfile)),
         m(StackAuto),
         showViewHelp &&
           m(
@@ -203,23 +236,10 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     );
   }
 
-  private renderControlsRow(attrs: AggregateProfilesPageAttrs): m.Children {
-    return m(
-      Stack,
-      {
-        orientation: 'horizontal',
-        spacing: 'medium',
-        className: 'pf-aggregate-profiles-page__controls',
-      },
-      [
-        m(StackAuto),
-        m(StackFixed, this.renderProfileSelector(attrs)),
-        m(StackAuto),
-      ],
-    );
-  }
-
-  private renderProfileSelector(attrs: AggregateProfilesPageAttrs): m.Children {
+  private renderProfileSelector(
+    attrs: AggregateProfilesPageAttrs,
+    selectedProfile: AggregateProfile,
+  ): m.Children {
     return m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
       m(
         'label',
@@ -231,28 +251,31 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         {
           className: 'pf-aggregate-profiles-page__profile-select',
           oninput: (e: Event) => {
-            const selectedIndex = parseInt(
-              (e.target as HTMLSelectElement).value,
+            assertIsInstance(e.target, HTMLSelectElement);
+            const newProfileId = e.target.value;
+            const newProfile = attrs.profiles.find(
+              (p) => p.id === newProfileId,
             );
-            const newProfile = attrs.profiles[selectedIndex];
-            attrs.onStateChange({
-              ...attrs.state,
-              selectedProfileId: newProfile.id,
-            });
-            this.createFlamegraph(attrs, newProfile);
+            assertExists(newProfile); // Assume this profile actually exists
+            this.selectProfile(attrs, newProfile);
           },
         },
-        attrs.profiles.map((profile, index) =>
+        attrs.profiles.map((profile) =>
           m(
             'option',
             {
-              value: index.toString(),
-              selected: attrs.state.selectedProfileId === profile.id,
+              value: profile.id,
+              selected: selectedProfile.id === profile.id,
             },
             profile.displayName,
           ),
         ),
       ),
+      // The name is only in <option> text, which the mouse cannot select.
+      m(CopyToClipboardButton, {
+        textToCopy: () => selectedProfile.displayName,
+        tooltip: 'Copy profile name',
+      }),
     ]);
   }
 

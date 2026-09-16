@@ -23,12 +23,88 @@ import {Tree, TreeNode} from '../../widgets/tree';
 import type {
   AreaSelection,
   NoteSelection,
+  Selection,
+  SelectionTab,
+  TrackEventSelection,
   TrackSelection,
 } from '../../public/selection';
 import {assertUnreachable} from '../../base/assert';
 import {Button, ButtonBar} from '../../widgets/button';
 import {NoteEditor} from './note_editor';
 import {Gate} from '../../base/mithril_utils';
+
+interface TabEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly content: m.Children;
+  readonly isLoading: boolean;
+  readonly buttons?: m.Children;
+}
+
+function renderTabs(
+  tabs: ReadonlyArray<SelectionTab>,
+  selection: Selection,
+): TabEntry[] {
+  return tabs
+    .slice()
+    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+    .flatMap((tab) => {
+      const content = tab.render(selection);
+      if (!content) return [];
+      return [
+        {
+          id: tab.id,
+          name: tab.name,
+          content: content.content,
+          isLoading: content.isLoading,
+          buttons: content.buttons,
+        },
+      ];
+    });
+}
+
+function renderTabbedDetails(
+  trace: TraceImpl,
+  title: string,
+  tabs: ReadonlyArray<TabEntry>,
+) {
+  if (tabs.length === 0) {
+    return undefined;
+  }
+
+  // Find the active tab or just pick the first one if that selected tab is
+  // not available.
+  const activeTab =
+    tabs.find((tab) => tab.id === trace.selection.currentSelectionSubTab) ??
+    tabs[0];
+
+  // Determine if any tab content is loading
+  const isLoading = tabs.some((tab) => tab.isLoading);
+
+  return {
+    isLoading,
+    content: m(
+      DetailsShell,
+      {
+        title,
+        description: m(
+          ButtonBar,
+          tabs.map((tab) =>
+            m(Button, {
+              label: tab.name,
+              key: tab.id,
+              active: activeTab === tab,
+              onclick: () => trace.selection.setCurrentSelectionSubTab(tab.id),
+            }),
+          ),
+        ),
+        buttons: activeTab.buttons,
+      },
+      // Render all tabs but control visibility with Gate
+      tabs.map((tab) => m(Gate, {open: activeTab === tab}, tab.content)),
+    ),
+  };
+}
 
 export interface CurrentSelectionTabAttrs {
   readonly trace: TraceImpl;
@@ -56,7 +132,7 @@ export class CurrentSelectionTab implements m.ClassComponent<CurrentSelectionTab
       case 'track':
         return this.renderTrackSelection(trace, selection);
       case 'track_event':
-        return this.renderTrackEventSelection(trace);
+        return this.renderTrackEventSelection(trace, selection);
       case 'area':
         return this.renderAreaSelection(trace, selection);
       case 'note':
@@ -83,72 +159,47 @@ export class CurrentSelectionTab implements m.ClassComponent<CurrentSelectionTab
     };
   }
 
-  private renderTrackEventSelection(trace: TraceImpl) {
+  private renderTrackEventSelection(
+    trace: TraceImpl,
+    selection: TrackEventSelection,
+  ) {
     // The selection panel has already loaded the details panel for us... let's
     // hope it's the right one!
     const detailsPanel = trace.selection.getDetailsPanelForSelection();
-    if (detailsPanel) {
-      return {
-        isLoading: detailsPanel.isLoading,
-        content: detailsPanel.render(),
-      };
-    } else {
+    const extraTabs = renderTabs(trace.selection.selectionTabs, selection);
+
+    if (extraTabs.length === 0) {
+      if (detailsPanel) {
+        return {
+          isLoading: detailsPanel.isLoading,
+          content: detailsPanel.render(),
+        };
+      }
       return {
         isLoading: true,
         content: 'Loading...',
       };
     }
+
+    const allTabs: TabEntry[] = [
+      {
+        id: 'overview',
+        name: 'Details',
+        content: detailsPanel ? detailsPanel.render() : 'Loading...',
+        isLoading: detailsPanel ? detailsPanel.isLoading : true,
+      },
+      ...extraTabs,
+    ];
+
+    return renderTabbedDetails(trace, 'Selection', allTabs)!;
   }
 
   private renderAreaSelection(trace: TraceImpl, selection: AreaSelection) {
-    const tabs = trace.selection.areaSelectionTabs.sort(
-      (a, b) => (b.priority ?? 0) - (a.priority ?? 0),
+    const tabs = renderTabs(trace.selection.selectionTabs, selection);
+    return (
+      renderTabbedDetails(trace, 'Area Selection', tabs) ??
+      this.renderEmptySelection('No details available for selection')
     );
-
-    const renderedTabs = tabs
-      .map((tab) => [tab, tab.render(selection)] as const)
-      .filter(([_, content]) => content !== undefined);
-
-    if (renderedTabs.length === 0) {
-      return this.renderEmptySelection('No details available for selection');
-    }
-
-    // Find the active tab or just pick the first one if that selected tab is
-    // not available.
-    const [activeTab, activeTabContent] =
-      renderedTabs.find(
-        ([tab]) => tab.id === trace.selection.currentSelectionSubTab,
-      ) ?? renderedTabs[0];
-
-    // Determine if any tab content is loading
-    const isLoading = renderedTabs.some(([_, content]) => content?.isLoading);
-
-    return {
-      isLoading,
-      content: m(
-        DetailsShell,
-        {
-          title: 'Area Selection',
-          description: m(
-            ButtonBar,
-            renderedTabs.map(([tab]) => {
-              return m(Button, {
-                label: tab.name,
-                key: tab.id,
-                active: activeTab === tab,
-                onclick: () =>
-                  trace.selection.setCurrentSelectionSubTab(tab.id),
-              });
-            }),
-          ),
-          buttons: activeTabContent?.buttons,
-        },
-        // Render all tabs but control visibility with Gate
-        renderedTabs.map(([tab, content]) =>
-          m(Gate, {open: activeTab === tab}, content?.content),
-        ),
-      ),
-    };
   }
 
   private renderNoteSelection(trace: TraceImpl, selection: NoteSelection) {

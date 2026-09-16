@@ -121,234 +121,37 @@ The `query`, `interactive`, `metrics` and `summarize` subcommands all accept
 `--remote`, which talks to a session over the same TraceProcessor RPC
 interface the Perfetto UI uses. See
 [Analyzing traces from the command line](/docs/getting-started/command-line-analysis.md)
-for a walkthrough, and the [`server` subcommand](#subcommand-server) below
+for a walkthrough, and the [`server` reference](/docs/reference/trace-processor-cli.md#subcommand-server)
 for the mode and flag details.
 
-### {#subcommands} Subcommand interface
+### {#subcommands} Command-line reference
 
-Besides the interactive REPL, `trace_processor` takes a subcommand as its
-first argument for non-interactive workflows:
+See the [Trace Processor command-line reference](/docs/reference/trace-processor-cli.md)
+for commands, options, environment variables, and output behavior.
 
-```text
-trace_processor <command> [flags] [positional args]
-```
+#### {#subcommand-query} query
 
-`trace_processor --help` prints the top-level summary below. To see the flags
-of one subcommand, run `trace_processor <command> --help` (equivalently
-`trace_processor help <command>`):
+See [query](/docs/reference/trace-processor-cli.md#subcommand-query) in the CLI reference.
 
-```text
-Perfetto Trace Processor.
-Usage: trace_processor [command] [flags] [trace_file]
+#### {#subcommand-interactive} interactive
 
-If no command is given, opens an interactive SQL shell on the trace file.
+See [interactive](/docs/reference/trace-processor-cli.md#subcommand-interactive) in the CLI reference.
 
-Commands:
-  query         Load a trace and run a SQL query.
-  interactive   Interactive SQL shell (default if no command is given).
-  server        Start an RPC server.
-  summarize     Compute a trace summary from specs and/or built-in metrics.
-  export        Export trace data (sqlite, arrow_tar, perfetto).
-  metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
-  convert       Convert trace format.
+#### {#subcommand-server} server
 
-Common flags (apply to all commands):
-  -h, --help                  Show help (per-command if after a command).
-  -v, --version               Print version.
-      --full-sort             Force full sort ignoring windowing.
-      --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
-      --add-sql-package PATH  Register SQL files from a directory as a package.
-  -m, --metatrace FILE        Enable metatracing, write to FILE.
-```
+See [server](/docs/reference/trace-processor-cli.md#subcommand-server) in the CLI reference.
 
-> **Backwards compatibility.** The classic flat-flag interface (`-q`, `-Q`,
-> `--httpd`, `--summary`, `--run-metrics`, `-e`, `--stdiod`) is still
-> supported through an internal translation layer, so existing scripts keep
-> working unchanged. Run `trace_processor --help-classic` for the full list
-> of classic flags.
+#### {#subcommand-summarize} summarize
 
-#### {#subcommand-query} `query`: run SQL
+See [summarize](/docs/reference/trace-processor-cli.md#subcommand-summarize) in the CLI reference.
 
-`query` loads a trace, runs one or more `;`-separated SQL statements, prints
-the results to stdout, and exits. SQL can be passed as an argument, read from
-a file, or piped on stdin:
+#### {#subcommand-export} export
 
-```bash
-# Pass SQL as an argument.
-trace_processor query trace.pftrace "SELECT ts, dur, name FROM slice LIMIT 5"
+See [export](/docs/reference/trace-processor-cli.md#subcommand-export) in the CLI reference.
 
-# Read SQL from a file.
-trace_processor query -f queries.sql trace.pftrace
+#### {#global-flags} Global flags
 
-# Pipe SQL on stdin.
-cat queries.sql | trace_processor query trace.pftrace
-```
-
-Each statement's result set is printed as CSV, and consecutive result sets
-are separated by a single blank line. The separator is unambiguous because
-every string value is quoted.
-
-Flags:
-
-- `--remote ADDR`: run against a warm session instead of loading a local
-  trace; see [sessions](#sessions). `ADDR` is a session name, a `*.sock` or
-  absolute socket path, or `host:port`. No trace-file argument is passed in
-  this mode.
-- `-f, --query-file FILE`: read SQL from `FILE`; pass `-` to read from stdin.
-- `-i, --interactive`: drop into the interactive REPL after the queries
-  finish.
-- `-W, --wide`: use double-width columns when printing results.
-- `--perf-file FILE`: write trace-load and query timings to `FILE`.
-- `--structured-query-id ID` plus `--summary-spec FILE` _(advanced)_: run a
-  single structured query by ID from one or more
-  [TraceSummarySpec](trace-summary.md) files, instead of the SQL sources
-  above.
-
-#### {#subcommand-interactive} `interactive`: REPL
-
-`interactive` opens the same interactive PerfettoSQL prompt shown in the
-previous section. It is the default subcommand, so
-`trace_processor trace.pftrace` and
-`trace_processor interactive trace.pftrace` are equivalent. The only
-subcommand-specific flag is `-W, --wide`.
-
-#### {#subcommand-server} `server`: HTTP, stdio, or unix RPC
-
-`server` exposes trace processor over a remote-procedure-call protocol:
-
-```bash
-# HTTP server, used by ui.perfetto.dev. Listens on port 9001 by default.
-trace_processor server http
-
-# Pre-load a trace and serve it over HTTP.
-trace_processor server http trace.pftrace
-
-# stdio server: length-prefixed RPC for tooling that embeds
-# trace_processor as a subprocess.
-trace_processor server stdio
-
-# Named unix-socket session: keeps the trace warm for repeated
-# `query --remote <name>` calls (see the sessions section above).
-trace_processor server unix --name mysession --daemonize trace.pftrace
-
-# Stop a unix session by name or socket path.
-trace_processor server kill mysession
-```
-
-Flags:
-
-- `--port PORT`: HTTP port (default 9001).
-- `--ip-address IP`: HTTP bind address.
-- `--additional-cors-origins O1,O2,...`: extra CORS-allowed origins on top
-  of the defaults (`https://ui.perfetto.dev`, `http://localhost:10000`,
-  `http://127.0.0.1:10000`).
-- `--name NAME`: session name for unix mode (default: auto-generated).
-- `--path PATH`: explicit socket path for unix mode (mutually exclusive
-  with `--name`).
-- `--daemonize`: detach into the background (unix mode, POSIX only).
-- `--idle-timeout auto|DUR`: reap the server after this much inactivity
-  (e.g. `30m`, `90s`); `auto` means 30 minutes for unix and never for
-  http, `0`/`never` disables.
-- `--idle-start auto|orphaned|last-query`: when the idle clock applies
-  (default `auto`: owner-aware).
-
-The trace file is optional in `http` and `unix` modes; clients can also
-load traces remotely. The most common client is the Perfetto UI, which
-auto-detects a local server and offloads trace parsing to it. See
-[Visualising large traces](/docs/visualization/large-traces.md) for the
-end-user flow, or
-[trace_processor.proto](/protos/perfetto/trace_processor/trace_processor.proto)
-for the RPC wire schema.
-
-#### {#subcommand-summarize} `summarize`: compute trace summaries
-
-`summarize` computes a [trace summary](trace-summary.md). Pass the trace
-file first, then any spec files; select built-in v2 metrics with
-`--metrics-v2`:
-
-```bash
-# Run every available v2 metric.
-trace_processor summarize --metrics-v2 all trace.pftrace
-
-# Run two specific metrics defined in spec.textproto.
-trace_processor summarize \
-  --metrics-v2 startup_metric,memory_metric \
-  trace.pftrace spec.textproto
-```
-
-Flags:
-
-- `--metrics-v2 IDS`: comma-separated metric ids, or the literal `all`.
-- `--metadata-query ID`: query id used to populate the summary's
-  `metadata` field.
-- `--format text|binary`: output format for the `TraceSummary` proto
-  (default `text`).
-- `--post-query FILE`: run this SQL file after summarization. When set, the
-  summary proto is not printed; the SQL output is printed instead.
-- `--perf-file FILE`: write load/query timings to `FILE`.
-- `-i, --interactive`: drop into the REPL after summarization finishes.
-
-Spec files are detected as binary or text by extension (`.pb` for binary,
-`.textproto` for text), with content sniffing as a fallback.
-
-#### {#subcommand-export} `export`: write trace data to a file
-
-`export` writes the parsed trace data to a file. The format is the first
-positional argument, the output path is given with `-o`:
-
-```bash
-# Version-coupled archive, loadable by the same version of trace processor.
-trace_processor export perfetto -o archive.tar trace.pftrace
-
-# Static tables as standard Arrow files in a tar.
-trace_processor export arrow_tar -o tables.tar trace.pftrace
-
-# Static tables and views as a SQLite database.
-trace_processor export sqlite -o trace.db trace.pftrace
-```
-
-Formats:
-
-- **`perfetto`**: a version-coupled archive of the non-empty static tables.
-  A fresh trace processor instance from the same version can load it back as
-  a trace; a different version may load it, but this is not guaranteed. The
-  only format that can be reloaded.
-- **`arrow_tar`**: a tar of standard [Apache Arrow](https://arrow.apache.org/)
-  files, one per statically registered table, including empty tables and
-  implicit ID columns. Stable and forwards-compatible across versions, for
-  external consumers (e.g. pandas, Polars, pyarrow). Cannot be loaded back
-  into trace processor.
-- **`sqlite`**: the statically registered tables plus the trace's views, as
-  a SQLite database readable by any SQLite tool.
-
-Flags:
-
-- `-o, --output FILE`: output file path (required).
-
-All three formats export the statically registered tables; only `sqlite` also
-includes views. Runtime tables created during the session (e.g.
-`CREATE PERFETTO TABLE`) are not exported. Exports stream to disk, so memory
-use stays bounded for large traces. For task-oriented recipes, see
-[Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data).
-
-#### {#global-flags} Global flags (apply to every subcommand)
-
-These flags are accepted in addition to the subcommand-specific flags above
-and behave the same across all subcommands:
-
-- **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
-  `--analyze-trace-proto-content`, `--crop-track-events`.
-- **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
-  `--override-sql-package PATH[@PKG]`, `--override-stdlib PATH`
-  (requires `--dev`).
-- **Metric extensions:** `--metric-extension DISK_PATH@VIRTUAL_PATH`.
-- **Auxiliary file content:** `--register-files-dir PATH` exposes the
-  contents of files under `PATH` to importers (e.g. ETM decoders).
-- **Development:** `--dev`, `--dev-flag KEY=VALUE`, `--extra-checks`.
-- **Metatracing:** `-m, --metatrace FILE`, `--metatrace-buffer-capacity N`,
-  `--metatrace-categories CATEGORIES`. This produces a Perfetto trace of
-  trace processor itself, which you can load back into the UI for
-  performance debugging.
+See [Global flags](/docs/reference/trace-processor-cli.md#global-flags) in the CLI reference.
 
 ## {#embedding} Embedding the C++ library
 

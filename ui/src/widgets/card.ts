@@ -20,7 +20,7 @@ import {classNames} from '../base/classnames';
 
 export interface CardAttrs extends HTMLAttrs {
   // Whether the card should have a hover effect.
-  interactive?: boolean;
+  readonly interactive?: boolean;
 }
 
 export class Card implements m.ClassComponent<CardAttrs> {
@@ -39,7 +39,7 @@ export class Card implements m.ClassComponent<CardAttrs> {
 
 export interface CardStackAttrs extends HTMLAttrs {
   // The direction of the stack, defaults to 'vertical'.
-  direction?: 'vertical' | 'horizontal';
+  readonly direction?: 'vertical' | 'horizontal';
 }
 
 export class CardStack implements m.ClassComponent<CardStackAttrs> {

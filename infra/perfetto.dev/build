@@ -41,4 +41,15 @@ if ! test node_modules/.stamp -nt pnpm-lock.yaml; then
   touch node_modules/.stamp
 fi
 
-../../tools/node ./build.js "$@"
+# Exit code 75 means "sources changed, re-exec me" (see EXIT_RESTART in
+# build.mjs). Re-execing from here rather than from node keeps Ctrl-C working
+# and avoids stacking up one parent process per edit.
+while true; do
+  set +e
+  ../../tools/node ./src/build.mjs "$@"
+  readonly_code=$?
+  set -e
+  if [ $readonly_code -ne 75 ]; then
+    exit $readonly_code
+  fi
+done

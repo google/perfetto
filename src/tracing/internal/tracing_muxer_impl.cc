@@ -1842,6 +1842,23 @@ void TracingMuxerImpl::SyncProducersForTesting() {
   PERFETTO_DCHECK(all_producers_connected);
 }
 
+void TracingMuxerImpl::DestroyAllTraceWritersForCurrentThread() {
+  // Forcefully reset all trace writers on the current thread, regardless of
+  // whether their data source instances are stopped.
+  auto* root_tls = GetOrCreateTracingTLS();
+  auto destroy_all_instances = [](DataSourceThreadLocalState& tls) {
+    for (auto& ds_tls : tls.per_instance) {
+      ds_tls.Reset();
+    }
+  };
+  for (auto& tls : root_tls->data_sources_tls)
+    destroy_all_instances(tls);
+  destroy_all_instances(root_tls->track_event_tls);
+  // Unlike DestroyStoppedTraceWritersForCurrentThread(), we deliberately don't
+  // sync |root_tls->generation|: this only runs at shutdown, after which any
+  // trace point on this thread aborts in TracingMuxerFake anyway.
+}
+
 void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
   // Iterate across all possible data source types.
   auto cur_generation = generation_.load(std::memory_order_acquire);
@@ -2793,7 +2810,10 @@ void TracingMuxerImpl::Shutdown() {
 
   // Shutting down on the muxer thread would lead to a deadlock.
   PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
-  muxer->DestroyStoppedTraceWritersForCurrentThread();
+  // Destroy this thread's trace writers, including those of still-running data
+  // sources: the SMB dies with `delete muxer` below, but this thread's TLS only
+  // at platform->Shutdown() further down. Flushing then is a UAF (b/534222391).
+  muxer->DestroyAllTraceWritersForCurrentThread();
 
   std::unique_ptr<base::TaskRunner> owned_task_runner(
       muxer->task_runner_.get());
@@ -2808,10 +2828,9 @@ void TracingMuxerImpl::Shutdown() {
         PERFETTO_CHECK(!consumer->service_);
       }
     }
-    // Make sure no trace writers are lingering around on the muxer thread. Note
-    // that we can't do this for any arbitrary thread in the process; it is the
-    // caller's responsibility to clean them up before shutting down Perfetto.
-    muxer->DestroyStoppedTraceWritersForCurrentThread();
+    // Destroy all writers before delete muxer frees the SMB; any writer left
+    // alive would UAF when the muxer thread exits (b/534222391).
+    muxer->DestroyAllTraceWritersForCurrentThread();
     // The task runner must be deleted outside the muxer thread. This is done by
     // `owned_task_runner` above.
     muxer->task_runner_.release();

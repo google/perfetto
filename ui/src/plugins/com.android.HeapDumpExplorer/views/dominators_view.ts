@@ -30,6 +30,8 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
@@ -71,9 +73,8 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
-          'button',
+          Anchor,
           {
-            class: 'pf-hde-link',
             onclick: () => navigate('object', {id, label: display}),
           },
           display,
@@ -163,8 +164,12 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
 
       if (!dataSource) return null;
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Dominators')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Dominators'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
           data: dataSource,
@@ -185,7 +190,7 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
           showExportButton: true,
           onFiltersChanged: counter.onFiltersChanged,
         }),
-      ]);
+      );
     },
   };
 }

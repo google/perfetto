@@ -1100,6 +1100,12 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             context_->storage->InternString(packet.android_serial_console())));
   }
 
+  for (auto it = packet.device_tree_compatibles(); it; ++it) {
+    context_->metadata_tracker->AppendMetadata(
+        metadata::device_tree_compatible,
+        Variadic::String(context_->storage->InternString(it->as_string())));
+  }
+
   page_size_ = packet.page_size();
   if (!page_size_) {
     page_size_ = 4096;

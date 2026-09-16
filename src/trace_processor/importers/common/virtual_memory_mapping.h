@@ -86,6 +86,16 @@ class VirtualMemoryMapping {
       std::optional<base::StringView> source_file = std::nullopt,
       std::optional<uint32_t> line_number = std::nullopt);
 
+  // Same as `InternFrame` but also returns whether this call created the
+  // frame, as opposed to returning an already interned one. Callers that
+  // populate a frame after interning it (e.g. with a symbol set) use this to
+  // do so exactly once.
+  std::pair<FrameId, bool> InternFrameAndCheckIfNew(
+      uint64_t rel_pc,
+      base::StringView function_name,
+      std::optional<base::StringView> source_file = std::nullopt,
+      std::optional<uint32_t> line_number = std::nullopt);
+
   // Returns all frames ever created in this mapping for the given `rel_pc`.
   std::vector<FrameId> FindFrameIds(uint64_t rel_pc) const;
 

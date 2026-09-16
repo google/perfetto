@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
@@ -21,6 +21,7 @@ import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {SuspendResumeDetailsPanel} from './suspend_resume_details';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
+import {getMachineCount, getTrackName} from '../../public/utils';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.kernel.SuspendResumeLatency';
@@ -29,17 +30,22 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
     const {engine} = ctx;
+    const numMachines = await getMachineCount(engine);
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks_grouped as (
         select
-          name,
+          t.machine_id as machineId,
           group_concat(distinct t.id) as trackIds,
           count() as trackCount
         from track t
         where t.type = 'suspend_resume'
+        group by t.machine_id
       )
       select
         t.trackIds as trackIds,
+        t.machineId as machineId,
+        machine.name as machineName,
+        machine.label_index as machineLabelIndex,
         case
           when
             t.trackCount > 0
@@ -48,37 +54,45 @@ export default class implements PerfettoPlugin {
           else 0
         end as maxDepth
       from global_tracks_grouped t
+      left join machine on machine.id = t.machineId
+      order by t.machineId
     `);
     const it = rawGlobalAsyncTracks.iter({
-      trackIds: STR_NULL,
+      trackIds: STR,
+      machineId: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
       maxDepth: NUM,
     });
-    // If no Suspend/Resume tracks exist, then nothing to do.
-    if (it.trackIds == null) {
-      return;
-    }
-    const rawTrackIds = it.trackIds;
-    const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-    const maxDepth = it.maxDepth;
+    for (; it.valid(); it.next()) {
+      const trackIds = it.trackIds.split(',').map((v) => Number(v));
+      const maxDepth = it.maxDepth;
 
-    const uri = `/suspend_resume_latency`;
-    ctx.tracks.registerTrack({
-      uri,
-      tags: {
-        trackIds,
-        kinds: [SLICE_TRACK_KIND],
-      },
-      renderer: await createTraceProcessorSliceTrack({
-        trace: ctx,
+      const uri = `/suspend_resume_latency_${it.machineId}`;
+      ctx.tracks.registerTrack({
         uri,
-        maxDepth,
-        trackIds,
-        detailsPanel: () => new SuspendResumeDetailsPanel(ctx, threads),
-      }),
-    });
+        tags: {
+          trackIds,
+          kinds: [SLICE_TRACK_KIND],
+        },
+        renderer: await createTraceProcessorSliceTrack({
+          trace: ctx,
+          uri,
+          maxDepth,
+          trackIds,
+          detailsPanel: () => new SuspendResumeDetailsPanel(ctx, threads),
+        }),
+      });
 
-    // Display the track in the UI.
-    const track = new TrackNode({uri, name: 'Suspend/Resume Latency'});
-    ctx.defaultWorkspace.addChildInOrder(track);
+      // Display the track in the UI.
+      const name = getTrackName({
+        name: 'Suspend/Resume Latency',
+        machineName: it.machineName,
+        machineLabelIndex: it.machineLabelIndex,
+        numMachines,
+      });
+      const track = new TrackNode({uri, name});
+      ctx.defaultWorkspace.addChildInOrder(track);
+    }
   }
 }

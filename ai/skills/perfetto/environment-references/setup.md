@@ -1,53 +1,29 @@
 # Getting `trace_processor` working
 
-Two things must be set up once per session: `$SKILL_ROOT` and
-`trace_processor`.
+Two things are set up once per session: `$SKILL_ROOT` and
+`trace_processor`. (`SKILL.md` repeats this; it is here so workflow
+files have something to point at.)
 
-## 1. Set `$SKILL_ROOT`
+1. **`$SKILL_ROOT`** is the absolute path of the directory containing this
+   skill's `SKILL.md`. Every file the skill references is written as
+   `$SKILL_ROOT/<path>`, never relative to the file doing the referencing,
+   because the skill is loaded from a plugin directory, not from the
+   user's workspace.
 
-Every file this skill references — workflow markdown, reference docs,
-helper scripts, and the `trace_processor` wrapper — is named by a path
-of the form `$SKILL_ROOT/...`, relative to the **skill root** (the
-directory holding this skill's `SKILL.md`). Set it once, to the absolute
-path of the directory you loaded `SKILL.md` from:
+2. **`trace_processor`** is bundled at `$SKILL_ROOT/bin/trace_processor`:
 
 ```sh
-# Substitute the directory this SKILL.md lives in.
 export SKILL_ROOT="/absolute/path/to/skills/perfetto"
-```
-
-## 2. Put the bundled `trace_processor` on the `PATH`
-
-The skill ships a `trace_processor` wrapper at
-`$SKILL_ROOT/bin/trace_processor`. Make it invokable for this session:
-
-```sh
-chmod +x "$SKILL_ROOT/bin/trace_processor"  # some installs lose the exec bit
+chmod +x "$SKILL_ROOT/bin/trace_processor"   # some installs lose the exec bit
 export PATH="$SKILL_ROOT/bin:$PATH"
-trace_processor --version                   # smoke test
+trace_processor --version                     # smoke test
 ```
 
-After this, every bare `trace_processor ...` command in this skill works
-verbatim. On Windows, skip the `PATH` setup and invoke it as
-`python "$SKILL_ROOT/bin/trace_processor" ...` instead.
-
-Notes:
-
-- The first invocation downloads the prebuilt native binary (picking the
-  right one for the host platform) into
-  `~/.local/share/perfetto/prebuilts/` and caches it; only the first
-  call pays the download cost.
-- Do **not** download `trace_processor` separately — the wrapper is
-  pinned to the skill's release.
-- If the user's environment has its own mandatory `trace_processor`
-  (Google-internal, OEM build environments, CI images), prefer that
-  team-specific setup instead.
-
-When the user asks what to do after installing `trace_processor` (or `perfetto-trace-processor-shell`):
-
-1. Respond directly to the user in your message text instructing them to run the smoke test command:
-   ```bash
-   trace_processor --version
-   ```
-   *(Do NOT execute `run_command` yourself to run `--version`; provide it as instructions for the user).*
-2. Defer explicitly to `[querying.md]($SKILL_ROOT/infra-references/querying.md)` for all instructions on how to write trace queries, execute SQL, start HTTP server mode, or connect via Python.
+- The first invocation downloads the prebuilt binary for the host
+  platform into `~/.local/share/perfetto/prebuilts/` and caches it.
+- Do not download `trace_processor` separately: the wrapper is pinned to
+  the release the skill was built for.
+- On Windows skip the `PATH` step and run
+  `python "$SKILL_ROOT/bin/trace_processor" ...`.
+- If the environment mandates its own `trace_processor` (Google internal,
+  OEM build environments, CI images), prefer that team-specific setup.

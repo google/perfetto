@@ -29,8 +29,8 @@ captures traces across all open tabs.
     > NOTE: "Long trace" mode is not yet available for Chrome desktop.
     > Tips:
     >
-    > - To save the current config settings and apply them later go to the "Saved configs" menu.
-    > - To share your config settings go to the "Recording command" menu.
+    > - To save the current config settings and apply them later use the "User configs" section of the "Overview" page.
+    > - To share your config settings go to the "Cmdline instructions" menu.
 
 4.  Select which categories (or top level tags) in the
     [**Chrome browser**](https://ui.perfetto.dev/#!/record/chrome) probe section
@@ -39,13 +39,13 @@ captures traces across all open tabs.
     > NOTE: The tags at the top enable groups of related categories, but there
     > is currently no direct way to see them when targeting Chrome. However, you
     > can switch the target to "Android" and then see the categories in the
-    > generated config in the "Recording Command" section if you are curious.
+    > generated config in the "Cmdline instructions" section if you are curious.
 
     The list at the bottom can be used to select additional categories.
 
     ![Tracing categories of Chrome](/docs/images/tracing-categories-chrome.png)
 
-5.  Now you can start the trace recording. Press the **"Start recording"**
+5.  Now you can start the trace recording. Press the **"Start tracing"**
     button when ready.
 6.  Proceed to use the browser to capture the action you want to trace, and wait
     for the trace to finish. You can also stop the trace manually by pressing

@@ -63,7 +63,7 @@ class PacketSequenceStateBuilder {
   bool IsIncrementalStateValid() const { return !packet_loss_; }
 
   // Returns a ref-counted ptr to the current generation.
-  RefPtr<PacketSequenceStateGeneration> current_generation() const {
+  const RefPtr<PacketSequenceStateGeneration>& current_generation() const {
     return generation_;
   }
 

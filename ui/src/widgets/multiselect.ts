@@ -42,11 +42,11 @@ export interface MultiSelectDiff {
 }
 
 export interface MultiSelectAttrs {
-  options: MultiSelectOption[];
-  onChange?: (diffs: MultiSelectDiff[]) => void;
-  repeatCheckedItemsAtTop?: boolean;
-  showNumSelected?: boolean;
-  fixedSize?: boolean;
+  readonly options: MultiSelectOption[];
+  readonly onChange?: (diffs: MultiSelectDiff[]) => void;
+  readonly repeatCheckedItemsAtTop?: boolean;
+  readonly showNumSelected?: boolean;
+  readonly fixedSize?: boolean;
   readonly showSelectAllButton?: boolean;
 }
 

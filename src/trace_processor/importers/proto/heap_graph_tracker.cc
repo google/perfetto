@@ -376,14 +376,48 @@ ObjectTable::RowReference HeapGraphTracker::GetOrInsertObject(
   return ptr->ToRowReference(object_table);
 }
 
+ClassTable::IdAndRow HeapGraphTracker::InsertClass(const ClassTable::Row& row) {
+  auto inserted = storage_->mutable_heap_graph_class_table()->Insert(row);
+  if (row.name != StringId()) {
+    IndexClassName(inserted.row_number, row.name, std::nullopt);
+  }
+  return inserted;
+}
+
+ReferenceTable::IdAndRow HeapGraphTracker::InsertReference(
+    const ReferenceTable::Row& row,
+    bool index_field) {
+  auto inserted = storage_->mutable_heap_graph_reference_table()->Insert(row);
+  if (index_field) {
+    IndexReferenceField(inserted.row_number, row.field_name);
+  }
+  return inserted;
+}
+
+void HeapGraphTracker::IndexClassName(ClassTable::RowNumber row,
+                                      StringId name,
+                                      std::optional<StringId> package) {
+  base::StringView type_name = storage_->GetString(name);
+  base::StringView normalized = NormalizeTypeName(type_name);
+  // Most classes need no normalization, so reuse their interned name.
+  StringId normalized_id = normalized.size() == type_name.size()
+                               ? name
+                               : storage_->InternString(normalized);
+  class_to_rows_[std::make_pair(package, normalized_id)].emplace_back(row);
+}
+
+void HeapGraphTracker::IndexReferenceField(ReferenceTable::RowNumber row,
+                                           StringId name) {
+  field_to_rows_[name].emplace_back(row);
+}
+
 ClassTable::RowReference HeapGraphTracker::GetOrInsertType(
     SequenceState* sequence_state,
     uint64_t type_id) {
   auto* class_table = storage_->mutable_heap_graph_class_table();
   auto* ptr = sequence_state->type_id_to_db_row.Find(type_id);
   if (!ptr) {
-    auto id_and_row =
-        class_table->Insert({StringId(), std::nullopt, std::nullopt});
+    auto id_and_row = InsertClass({StringId(), std::nullopt, std::nullopt});
     bool inserted;
     std::tie(ptr, inserted) = sequence_state->type_id_to_db_row.Insert(
         type_id, id_and_row.row_number);
@@ -446,15 +480,14 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     if (owned_object_id != 0)
       owned_row_ref = GetOrInsertObject(&sequence_state, owned_object_id);
 
-    auto ref_id_and_row =
-        storage_->mutable_heap_graph_reference_table()->Insert(
-            {reference_set_id,
-             owner_id,
-             owned_row_ref ? std::make_optional(owned_row_ref->id())
-                           : std::nullopt,
-             {},
-             {},
-             /*deobfuscated_field_name=*/std::nullopt});
+    auto ref_id_and_row = InsertReference(
+        {reference_set_id,
+         owner_id,
+         owned_row_ref ? std::make_optional(owned_row_ref->id()) : std::nullopt,
+         {},
+         {},
+         /*deobfuscated_field_name=*/std::nullopt},
+        /*index_field=*/false);
     if (!obj.field_name_ids.empty()) {
       sequence_state.references_for_field_name_id[obj.field_name_ids[i]]
           .push_back(ref_id_and_row.row_number);
@@ -467,13 +500,13 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     ObjectTable::RowReference owned_row_ref =
         GetOrInsertObject(&sequence_state, owned_object_id);
 
-    storage_->mutable_heap_graph_reference_table()->Insert(
-        {reference_set_id,
-         owner_id,
-         std::make_optional(owned_row_ref.id()),
-         storage_->InternString("runtimeInternalObjects"),
-         {},
-         /*deobfuscated_field_name=*/std::nullopt});
+    InsertReference({reference_set_id,
+                     owner_id,
+                     std::make_optional(owned_row_ref.id()),
+                     storage_->InternString("runtimeInternalObjects"),
+                     {},
+                     /*deobfuscated_field_name=*/std::nullopt},
+                    /*index_field=*/false);
     any_native_references = true;
   }
   if (any_references || any_native_references) {
@@ -598,7 +631,7 @@ void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
       auto row_ref = reference_row_num.ToRowReference(hgr);
       row_ref.set_field_name(field_name);
       row_ref.set_field_type_name(type_name);
-      field_to_rows_[field_name].emplace_back(reference_row_num);
+      IndexReferenceField(reference_row_num, field_name);
     }
   }
 }
@@ -727,7 +760,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
               const InternedField& field = *ptr;
               ref.set_field_name(field.name);
               ref.set_field_type_name(field.type_name);
-              field_to_rows_[field.name].emplace_back(ref.ToRowNumber());
+              IndexReferenceField(ref.ToRowNumber(), field.name);
               return true;
             });
       }
@@ -744,9 +777,6 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       type_row_ref.set_location(location_name);
     }
     type_row_ref.set_kind(InternTypeKindString(interned_type.kind));
-
-    base::StringView normalized_type =
-        NormalizeTypeName(storage_->GetString(interned_type.name));
 
     std::optional<StringId> class_package;
     if (location_name) {
@@ -769,9 +799,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       }
     }
 
-    class_to_rows_[std::make_pair(class_package,
-                                  storage_->InternString(normalized_type))]
-        .emplace_back(type_row_ref.ToRowNumber());
+    IndexClassName(type_row_ref.ToRowNumber(), interned_type.name,
+                   class_package);
   }
 
   if (!sequence_state.deferred_size_objects_for_type_.empty() ||

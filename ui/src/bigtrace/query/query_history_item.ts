@@ -115,9 +115,10 @@ function makeFullSqlExpander(
 export function renderHistoryItem(
   entry: QueryExecution,
   index: number,
-  isMaterialized: boolean,
   openQuery?: OpenQueryFn,
 ): m.Children {
+  // One mixed list, so the kind comes from the entry itself.
+  const isMaterialized = entry.materialized === true;
   const queryText = entry.perfettoSql || '';
   const uuid = entry.uuid;
   const startTime = entry.startTime;
@@ -216,6 +217,15 @@ export function renderHistoryItem(
               class: `pf-bt-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
             },
             statusDisplayLabel(entry.status),
+          ),
+          m(
+            'span.pf-bt-history-item-kind',
+            {
+              title: isMaterialized
+                ? 'Results saved to a backend table — reopen to browse them.'
+                : 'Results were shown inline at run time and not saved.',
+            },
+            isMaterialized ? 'Persistent' : 'Ephemeral',
           ),
           m(
             'span.pf-bt-history-item-date',

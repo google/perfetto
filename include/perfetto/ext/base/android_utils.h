@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 
@@ -57,6 +58,7 @@ struct SystemInfo {
   std::string android_storage_model;
   std::string android_ram_model;
   std::string android_serial_console;
+  std::vector<std::string> device_tree_compatibles;
 };
 
 // Returns the device's utsname information.

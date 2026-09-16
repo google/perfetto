@@ -34,7 +34,7 @@ template <typename T>
 TraceBlobView TraceBlobViewFromVector(std::vector<T> nums) {
   size_t data_size = sizeof(T) * nums.size();
   auto blob = TraceBlob::Allocate(data_size);
-  memcpy(blob.data(), nums.data(), data_size);
+  memcpy(blob.mutable_data(), nums.data(), data_size);
   return TraceBlobView(std::move(blob));
 }
 

@@ -201,7 +201,7 @@ _Answer_: Add the test to `stdlib/dynamic_tables`.
 test is to ensure Trace Processor is correctly filtering/sorting important
 built-in tables.
 
-_Answer_: Add the test to `parser/core_tables`.
+_Answer_: Add the test to `tables`.
 
 ## UI pixel diff tests
 

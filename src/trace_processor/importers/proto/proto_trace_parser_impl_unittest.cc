@@ -80,9 +80,11 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -2695,6 +2697,11 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
     pkg->set_profileable_from_shell(false);
     pkg->set_version_code(43);
   }
+  {
+    auto* pkg = pkg_list->add_packages();
+    pkg->set_name("com.test.app3");
+    pkg->set_uid(1002);
+  }
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -2710,7 +2717,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   // structure, make an assumption that metadata storage is filled in in the
   // FIFO order of seen packages.
   const auto& package_list = context_.storage->package_list_table();
-  ASSERT_EQ(package_list.row_count(), 2u);
+  ASSERT_EQ(package_list.row_count(), 3u);
 
   EXPECT_STREQ(storage_->GetString(package_list[0].package_name()).c_str(),
                "com.test.app");
@@ -2725,6 +2732,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   EXPECT_EQ(package_list[1].debuggable(), false);
   EXPECT_EQ(package_list[1].profileable_from_shell(), false);
   EXPECT_EQ(package_list[1].version_code(), 43);
+
+  EXPECT_STREQ(storage_->GetString(package_list[2].package_name()).c_str(),
+               "com.test.app3");
+  EXPECT_FALSE(package_list[2].version_code().has_value());
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
@@ -3010,6 +3021,47 @@ TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
   EXPECT_THAT(value.string_value, HasSubstr("size_kb: 42"));
 }
 
+TEST_F(ProtoTraceParserTest, RecoveredTraceInfoWithReason) {
+  auto* packet = trace_->add_packet();
+  auto* info = packet->set_recovered_trace_info();
+  info->set_reason(
+      protos::pbzero::RecoveredTraceInfo::REASON_UNEXPECTED_REBOOT);
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  SqlValue reason =
+      context_.metadata_tracker->GetMetadata(metadata::trace_recovery_reason)
+          .value();
+  EXPECT_STREQ(reason.string_value, "REASON_UNEXPECTED_REBOOT");
+}
+
+TEST_F(ProtoTraceParserTest,
+       RecoveredTraceInfoOmittedReasonDefaultsToUnspecified) {
+  trace_->add_packet()->set_recovered_trace_info();
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  SqlValue reason =
+      context_.metadata_tracker->GetMetadata(metadata::trace_recovery_reason)
+          .value();
+  EXPECT_STREQ(reason.string_value, "REASON_UNSPECIFIED");
+}
+
+TEST_F(ProtoTraceParserTest, RecoveredTraceInfoNotPresentIsNull) {
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_timestamp(1000);
+  }
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  auto reason =
+      context_.metadata_tracker->GetMetadata(metadata::trace_recovery_reason);
+  EXPECT_FALSE(reason.has_value());
+}
+
 TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   {
     auto* packet = trace_->add_packet();
@@ -3141,6 +3193,30 @@ TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
   EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
                "ARMv8 Processor rev 0 (v8l)");
   EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+}
+
+TEST_F(ProtoTraceParserTest, SystemInfoDeviceTreeCompatible) {
+  auto* packet = trace_->add_packet();
+  packet->set_trusted_packet_sequence_id(1);
+  packet->set_timestamp(1000);
+  auto* sys_info = packet->set_system_info();
+  sys_info->add_device_tree_compatibles("google,gs101-oriole");
+  sys_info->add_device_tree_compatibles("google,gs101");
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& metadata_table = context_.storage->metadata_table();
+  std::vector<std::string> compatibles;
+  StringId key_id = context_.storage->InternString("device_tree_compatible");
+  for (uint32_t i = 0; i < metadata_table.row_count(); ++i) {
+    if (metadata_table[i].name() == key_id) {
+      compatibles.push_back(
+          context_.storage->GetString(*metadata_table[i].str_value()).c_str());
+    }
+  }
+  EXPECT_THAT(compatibles,
+              testing::ElementsAre("google,gs101-oriole", "google,gs101"));
 }
 
 }  // namespace

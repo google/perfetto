@@ -628,8 +628,14 @@ class FlamegraphBuilder {
 };
 
 bool IsValidConfig(const core::Tree& input, const Config& config) {
-  if (!config.name || !config.name->type.Is<core::String>() ||
-      config.value_columns.empty()) {
+  // A name column holding no values at all is typed Null rather than String
+  // (e.g. a heap graph whose class names were all stripped). Every frame is
+  // then unnamed, which is an unhelpful but perfectly well-formed flamegraph,
+  // so accept it instead of failing the whole build.
+  const bool name_is_valid =
+      config.name && (config.name->type.Is<core::String>() ||
+                      config.name->type.Is<core::Null>());
+  if (!name_is_valid || config.value_columns.empty()) {
     return false;
   }
   for (const core::Tree::Column* value : config.value_columns) {
@@ -804,7 +810,12 @@ void FlamegraphBuilder::AnalyzePaths() {
       frame_match_index;
   base::FlatHashMapV2<StringPool::Id, uint32_t> name_match_index;
   std::vector<FilterMatches> match_pool;
-  const StringPool::Id* names = config_.name->unchecked_data<StringPool::Id>();
+  // A Null-typed name column carries no payload, so its data must not be
+  // read; every row reads as unnamed instead.
+  const bool name_is_null_typed = config_.name->type.Is<core::Null>();
+  const StringPool::Id* names =
+      name_is_null_typed ? nullptr
+                         : config_.name->unchecked_data<StringPool::Id>();
 
   for (uint32_t row = 0; row < input_.row_count; ++row) {
     // Tree guarantees parents precede children, so inheritance is an O(1)
@@ -826,8 +837,9 @@ void FlamegraphBuilder::AnalyzePaths() {
       bool inserted;
       StringPool::Id matched_name;
       if (config_.grouping_columns.empty()) {
-        const bool is_null = config_.name->null_bv.size() > 0 &&
-                             !config_.name->null_bv.is_set(row);
+        const bool is_null =
+            name_is_null_typed || (config_.name->null_bv.size() > 0 &&
+                                   !config_.name->null_bv.is_set(row));
         matched_name = is_null ? StringPool::Id() : names[row];
         std::tie(index, inserted) =
             name_match_index.Insert(matched_name, next_index);

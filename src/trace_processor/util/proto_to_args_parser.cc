@@ -69,6 +69,16 @@ bool IsFieldAllowed(const FieldDescriptor& field,
                    field.number()) != allowed_fields->end();
 }
 
+int& RepeatedFieldIndexFor(std::vector<std::pair<uint32_t, int>>& index,
+                           uint32_t field_id) {
+  for (auto& entry : index) {
+    if (entry.first == field_id)
+      return entry.second;
+  }
+  index.emplace_back(field_id, 0);
+  return index.back().second;
+}
+
 }  // namespace
 
 struct ProtoToArgsParser::WorkItem {
@@ -80,7 +90,7 @@ struct ProtoToArgsParser::WorkItem {
   const ProtoDescriptor* descriptor;
 
   // A map to track the index of repeated fields *at this nesting level*.
-  std::unordered_map<size_t, int> repeated_field_index;
+  RepeatedFieldIndex repeated_field_index;
 
   // The set of fields seen in this message, for handling defaults.
   std::unordered_set<uint32_t> existing_fields;
@@ -208,7 +218,9 @@ uint32_t ProtoToArgsParser::CreatePathChild(uint64_t key,
   // key_prefix_.flat_key already has this field's name appended by the caller.
   StringPool::Id flat_key_id =
       string_pool_.InternString(base::StringView(key_prefix_.flat_key));
-  return AppendPathNode(key, flat_key_id, has_array);
+  uint32_t idx = AppendPathNode(key, flat_key_id, has_array);
+  path_nodes_[idx].override = FindOverrideForKey();
+  return idx;
 }
 
 uint32_t ProtoToArgsParser::AppendPathNode(uint64_t key,
@@ -218,7 +230,7 @@ uint32_t ProtoToArgsParser::AppendPathNode(uint64_t key,
   PathNode node;
   node.flat_key_id = flat_key_id;
   node.has_array = has_array;
-  path_nodes_.push_back(node);
+  path_nodes_.push_back(std::move(node));
   path_index_.Insert(key, idx);
   return idx;
 }
@@ -274,6 +286,9 @@ base::Status ProtoToArgsParser::ParseMessage(
   uint32_t root_path = slot ? *slot
                             : AppendPathNode(root_key, StringPool::Id::Null(),
                                              /*has_array=*/false);
+  if (!allowed_fields_ && TryRunFlatMessage(root_path, *idx, cb, delegate)) {
+    return base::OkStatus();
+  }
   work_stack_.emplace_back(WorkItem{protozero::ProtoDecoder(cb),
                                     root_descriptor,
                                     {},
@@ -282,6 +297,61 @@ base::Status ProtoToArgsParser::ParseMessage(
                                     true,
                                     root_path});
   return RunWorkLoop(delegate);
+}
+
+base::Status ProtoToArgsParser::ParseMessageField(
+    uint32_t descriptor_idx,
+    const protozero::Field& field,
+    Delegate& delegate,
+    int* unknown_extensions,
+    RepeatedFieldIndex* repeated_field_index) {
+  PERFETTO_DCHECK(work_stack_.empty());
+  PERFETTO_DCHECK(descriptor_idx < pool_.descriptors().size());
+  allowed_fields_ = nullptr;
+  unknown_extensions_ = unknown_extensions;
+  add_defaults_ = false;
+  uint64_t root_key = PathEdgeKey(kNoPath, descriptor_idx);
+  uint32_t* slot = path_index_.Find(root_key);
+  uint32_t root_path = slot ? *slot
+                            : AppendPathNode(root_key, StringPool::Id::Null(),
+                                             /*has_array=*/false);
+  if (field.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+    if (auto* child = path_index_.Find(PathEdgeKey(root_path, field.id()))) {
+      uint32_t node = *child;
+      const auto& path = path_nodes_[node];
+      if (!path.override && path.resolved_idx &&
+          pool_.descriptors()[*path.resolved_idx].type() ==
+              ProtoDescriptor::Type::kMessage &&
+          TryRunFlatMessage(node, *path.resolved_idx, field.as_bytes(),
+                            delegate)) {
+        return base::OkStatus();
+      }
+    }
+  }
+  // The root item has nothing left to read: the loop only drains whatever
+  // HandleField pushes for the field.
+  work_stack_.emplace_back(WorkItem{protozero::ProtoDecoder(nullptr, 0),
+                                    &pool_.descriptors()[descriptor_idx],
+                                    {},
+                                    {},
+                                    ScopedNestedKeyContext(key_prefix_),
+                                    false,
+                                    root_path});
+  // The caller's index is lent to the root item for the field.
+  if (repeated_field_index) {
+    std::get<WorkItem>(work_stack_.back())
+        .repeated_field_index.swap(*repeated_field_index);
+  }
+  base::Status status =
+      HandleField(std::get<WorkItem>(work_stack_.back()), field, delegate);
+  if (repeated_field_index) {
+    // HandleField may have pushed an item; the root is the first.
+    std::get<WorkItem>(work_stack_.front())
+        .repeated_field_index.swap(*repeated_field_index);
+  }
+  // Drain the stack even after an error, as ParseMessage does.
+  base::Status loop_status = RunWorkLoop(delegate);
+  return status.ok() ? loop_status : status;
 }
 
 base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
@@ -314,116 +384,93 @@ base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
   return base::OkStatus();
 }
 
+void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
+                                           uint32_t descriptor_idx) {
+  using FD = protos::pbzero::FieldDescriptorProto;
+  path_nodes_[node].flat_fields.Clear();
+  path_nodes_[node].flat_generation = pool_.generation();
+  path_nodes_[node].flat_eligible = false;
+  const auto& descriptor = pool_.descriptors()[descriptor_idx];
+  for (const auto& [id, field] : descriptor.fields()) {
+    if (field.is_repeated() || field.is_pid() || field.is_tid() ||
+        field.flags_enum_descriptor_idx() || field.type() == FD::TYPE_MESSAGE ||
+        field.type() == FD::TYPE_GROUP || field.type() < FD::TYPE_DOUBLE ||
+        field.type() > FD::TYPE_SINT64) {
+      return;
+    }
+  }
+  ScopedNestedKeyContext message_context(key_prefix_);
+  auto key = path_nodes_[node].flat_key_id;
+  if (key != StringPool::Id::Null()) {
+    auto prefix = string_pool_.Get(key);
+    key_prefix_.flat_key.assign(prefix.c_str(), prefix.size());
+    key_prefix_.key = key_prefix_.flat_key;
+  }
+  for (const auto& [id, field] : descriptor.fields()) {
+    ScopedNestedKeyContext field_context(key_prefix_);
+    AppendProtoType(key_prefix_.flat_key, field.name());
+    AppendProtoType(key_prefix_.key, field.name());
+    uint32_t child = GetOrCreatePathChild(node, id, false);
+    if (field_overrides_.Find(key_prefix_.flat_key)) {
+      return;
+    }
+    path_nodes_[child].resolved_done = false;
+    path_nodes_[node].flat_fields.Insert(
+        id, {&field, child, path_nodes_[child].flat_key_id});
+  }
+  path_nodes_[node].flat_eligible = true;
+}
+
+bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
+                                          uint32_t descriptor_idx,
+                                          protozero::ConstBytes bytes,
+                                          Delegate& delegate) {
+  if (node == kNoPath || add_defaults_ || path_nodes_[node].has_array) {
+    return false;
+  }
+  if (path_nodes_[node].flat_generation != pool_.generation()) {
+    PrepareFlatMessage(node, descriptor_idx);
+  }
+  if (!path_nodes_[node].flat_eligible) {
+    return false;
+  }
+  const auto& fields = path_nodes_[node].flat_fields;
+  protozero::ProtoDecoder decoder(bytes);
+  bool empty = true;
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    empty = false;
+    auto* cached = fields.Find(field.id());
+    if (!cached) {
+      if (unknown_extensions_) {
+        ++*unknown_extensions_;
+      }
+      continue;
+    }
+    key_prefix_.flat_key_id = cached->key;
+    key_prefix_.key_id = cached->key;
+    auto status =
+        ParseSimpleField(*cached->descriptor, field, cached->node, delegate);
+    PERFETTO_DCHECK(status.ok());
+  }
+  if (empty) {
+    auto key = path_nodes_[node].flat_key_id;
+    if (key == StringPool::Id::Null()) {
+      InternCurrentKey();
+      delegate.AddNull(key_prefix_.flat_key_id, key_prefix_.key_id);
+    } else {
+      delegate.AddNull(key, key);
+    }
+  }
+  return true;
+}
+
 base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item,
                                                  Delegate& delegate,
                                                  bool& done) {
   protozero::Field field = item.decoder.ReadField();
   if (field.valid()) {
-    item.empty_message = false;
-    const auto* field_descriptor = item.descriptor->FindFieldByTag(field.id());
-    if (!field_descriptor) {
-      if (unknown_extensions_ != nullptr) {
-        (*unknown_extensions_)++;
-      }
-      // Unknown field, possibly an unknown extension.
-      return base::OkStatus();
-    }
-
-    if (add_defaults_) {
-      item.existing_fields.insert(field_descriptor->number());
-    }
-
-    // The allowlist only applies to the top-level message.
-    if (work_stack_.size() == 1 &&
-        !IsFieldAllowed(*field_descriptor, allowed_fields_)) {
-      // Field is neither an extension, nor is allowed to be reflected.
-      return base::OkStatus();
-    }
-
-    // Detect packed fields based on the serialized wire type instead of the
-    // descriptor flag to tolerate proto/descriptor mismatches.
-    using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-    using PWT = protozero::proto_utils::ProtoWireType;
-    const auto descriptor_type = field_descriptor->type();
-    const bool is_length_delimited = field.type() == PWT::kLengthDelimited;
-    const bool looks_packed =
-        field_descriptor->is_repeated() && is_length_delimited &&
-        descriptor_type != FieldDescriptorProto::TYPE_MESSAGE &&
-        descriptor_type != FieldDescriptorProto::TYPE_STRING &&
-        descriptor_type != FieldDescriptorProto::TYPE_BYTES;
-    if (looks_packed) {
-      return ParsePackedField(*field_descriptor, item.repeated_field_index,
-                              field, item.path, delegate);
-    }
-
-    ScopedNestedKeyContext field_key_context(key_prefix_);
-    AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
-    if (field_descriptor->is_repeated()) {
-      std::string prefix_part = field_descriptor->name();
-      int& index = item.repeated_field_index[field.id()];
-      std::string number = std::to_string(index);
-      prefix_part.reserve(prefix_part.length() + number.length() + 2);
-      prefix_part.append("[");
-      prefix_part.append(number);
-      prefix_part.append("]");
-      index++;
-      AppendProtoType(key_prefix_.key, prefix_part);
-    } else {
-      AppendProtoType(key_prefix_.key, field_descriptor->name());
-    }
-
-    // kNoPath for dynamic DebugAnnotation subtrees, which intern keys directly.
-    uint32_t node =
-        item.path != kNoPath
-            ? GetOrCreatePathChild(item.path, field_descriptor->number(),
-                                   field_descriptor->is_repeated())
-            : kNoPath;
-
-    if (std::optional<base::Status> status =
-            MaybeApplyOverrideForField(field, delegate)) {
-      return *status;
-    }
-
-    if (field_descriptor->type() == FieldDescriptorProto::TYPE_MESSAGE) {
-      const std::string& resolved = field_descriptor->resolved_type_name();
-      if (debug_annotation_enabled_ && resolved == kDebugAnnotationTypeName) {
-        // Hand off to the DebugAnnotation path on the same work stack so
-        // DebugAnnotation -> proto_value -> DebugAnnotation cycles do not
-        // grow the C++ stack. DebugAnnotation entries use their own naming
-        // via the "name" field, so the field name we just appended is
-        // dropped before the DA item enters the dictionary.
-        field_key_context.RemoveFieldSuffix();
-        return PushDebugAnnotation(field.as_bytes(), delegate);
-      }
-      std::optional<uint32_t> desc_idx =
-          ResolveTypeDescriptorIdx(*field_descriptor, node);
-      if (!desc_idx) {
-        return base::ErrStatus("Failed to find proto descriptor for %s",
-                               resolved.c_str());
-      }
-      work_stack_.emplace_back(
-          WorkItem{protozero::ProtoDecoder(field.as_bytes()),
-                   &pool_.descriptors()[*desc_idx],
-                   {},
-                   {},
-                   std::move(field_key_context),
-                   true,
-                   node});
-      return base::OkStatus();
-    }
-    // Leaf scalar: reuse the cached flat_key id; only the per-occurrence key
-    // (with an array on the path) needs interning. No node => intern directly.
-    if (node != kNoPath) {
-      const PathNode& n = path_nodes_[node];
-      key_prefix_.flat_key_id = n.flat_key_id;
-      key_prefix_.key_id =
-          n.has_array
-              ? string_pool_.InternString(base::StringView(key_prefix_.key))
-              : n.flat_key_id;
-    } else {
-      InternCurrentKey();
-    }
-    return ParseSimpleField(*field_descriptor, field, node, delegate);
+    return HandleField(item, field, delegate);
   }
 
   done = true;
@@ -435,6 +482,122 @@ base::Status ProtoToArgsParser::StepProtoMessage(WorkItem& item,
     delegate.AddNull(key_prefix_.flat_key_id, key_prefix_.key_id);
   }
   return base::OkStatus();
+}
+
+base::Status ProtoToArgsParser::HandleField(WorkItem& item,
+                                            const protozero::Field& field,
+                                            Delegate& delegate) {
+  item.empty_message = false;
+  const auto* field_descriptor = item.descriptor->FindFieldByTag(field.id());
+  if (!field_descriptor) {
+    if (unknown_extensions_ != nullptr) {
+      (*unknown_extensions_)++;
+    }
+    // Unknown field, possibly an unknown extension.
+    return base::OkStatus();
+  }
+
+  if (add_defaults_) {
+    item.existing_fields.insert(field_descriptor->number());
+  }
+
+  // The allowlist only applies to the top-level message.
+  if (work_stack_.size() == 1 &&
+      !IsFieldAllowed(*field_descriptor, allowed_fields_)) {
+    // Field is neither an extension, nor is allowed to be reflected.
+    return base::OkStatus();
+  }
+
+  // Detect packed fields based on the serialized wire type instead of the
+  // descriptor flag to tolerate proto/descriptor mismatches.
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  using PWT = protozero::proto_utils::ProtoWireType;
+  const auto descriptor_type = field_descriptor->type();
+  const bool is_length_delimited = field.type() == PWT::kLengthDelimited;
+  const bool looks_packed =
+      field_descriptor->is_repeated() && is_length_delimited &&
+      descriptor_type != FieldDescriptorProto::TYPE_MESSAGE &&
+      descriptor_type != FieldDescriptorProto::TYPE_STRING &&
+      descriptor_type != FieldDescriptorProto::TYPE_BYTES;
+  if (looks_packed) {
+    return ParsePackedField(*field_descriptor, item.repeated_field_index, field,
+                            item.path, delegate);
+  }
+
+  ScopedNestedKeyContext field_key_context(key_prefix_);
+  AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
+  if (field_descriptor->is_repeated()) {
+    std::string prefix_part = field_descriptor->name();
+    int& index = RepeatedFieldIndexFor(item.repeated_field_index, field.id());
+    std::string number = std::to_string(index);
+    prefix_part.reserve(prefix_part.length() + number.length() + 2);
+    prefix_part.append("[");
+    prefix_part.append(number);
+    prefix_part.append("]");
+    index++;
+    AppendProtoType(key_prefix_.key, prefix_part);
+  } else {
+    AppendProtoType(key_prefix_.key, field_descriptor->name());
+  }
+
+  // kNoPath for dynamic DebugAnnotation subtrees, which intern keys directly.
+  uint32_t node =
+      item.path != kNoPath
+          ? GetOrCreatePathChild(item.path, field_descriptor->number(),
+                                 field_descriptor->is_repeated())
+          : kNoPath;
+
+  // kNoPath subtrees intern keys directly and look the override up by key.
+  ParsingOverrideForField* override =
+      node != kNoPath ? path_nodes_[node].override : FindOverrideForKey();
+  if (override) {
+    if (std::optional<base::Status> status = (*override)(field, delegate)) {
+      return *status;
+    }
+  }
+
+  if (field_descriptor->type() == FieldDescriptorProto::TYPE_MESSAGE) {
+    const std::string& resolved = field_descriptor->resolved_type_name();
+    if (debug_annotation_enabled_ && resolved == kDebugAnnotationTypeName) {
+      // Hand off to the DebugAnnotation path on the same work stack so
+      // DebugAnnotation -> proto_value -> DebugAnnotation cycles do not
+      // grow the C++ stack. DebugAnnotation entries use their own naming
+      // via the "name" field, so the field name we just appended is
+      // dropped before the DA item enters the dictionary.
+      field_key_context.RemoveFieldSuffix();
+      return PushDebugAnnotation(field.as_bytes(), delegate);
+    }
+    std::optional<uint32_t> desc_idx =
+        ResolveTypeDescriptorIdx(*field_descriptor, node);
+    if (!desc_idx) {
+      return base::ErrStatus("Failed to find proto descriptor for %s",
+                             resolved.c_str());
+    }
+    if (TryRunFlatMessage(node, *desc_idx, field.as_bytes(), delegate)) {
+      return base::OkStatus();
+    }
+    work_stack_.emplace_back(WorkItem{protozero::ProtoDecoder(field.as_bytes()),
+                                      &pool_.descriptors()[*desc_idx],
+                                      {},
+                                      {},
+                                      std::move(field_key_context),
+                                      true,
+                                      node});
+    return base::OkStatus();
+  }
+  // Leaf scalar: reuse the cached flat_key id; only the per-occurrence key
+  // (with an array on the path) needs interning. No node => intern directly.
+  if (node != kNoPath) {
+    const PathNode& n = path_nodes_[node];
+    key_prefix_.flat_key_id = n.flat_key_id;
+    key_prefix_.key_id =
+        n.has_array
+            ? string_pool_.InternString(base::StringView(key_prefix_.key))
+            : n.flat_key_id;
+  } else {
+    InternCurrentKey();
+  }
+  return ParseSimpleField(*field_descriptor, field, node, delegate);
 }
 
 base::Status ProtoToArgsParser::AddMessageDefaults(WorkItem& item,
@@ -462,7 +625,7 @@ base::Status ProtoToArgsParser::AddMessageDefaults(WorkItem& item,
 
 base::Status ProtoToArgsParser::ParsePackedField(
     const FieldDescriptor& field_descriptor,
-    std::unordered_map<size_t, int>& repeated_field_index,
+    RepeatedFieldIndex& repeated_field_index,
     protozero::Field field,
     uint32_t parent_path,
     Delegate& delegate) {
@@ -486,7 +649,7 @@ base::Status ProtoToArgsParser::ParsePackedField(
     f.initialize(field.id(), static_cast<uint8_t>(wire_type), new_value, 0);
 
     std::string prefix_part = field_descriptor.name();
-    int& index = repeated_field_index[field.id()];
+    int& index = RepeatedFieldIndexFor(repeated_field_index, field.id());
     std::string number = std::to_string(index);
     prefix_part.reserve(prefix_part.length() + number.length() + 2);
     prefix_part.append("[");
@@ -510,9 +673,12 @@ base::Status ProtoToArgsParser::ParsePackedField(
       InternCurrentKey();
     }
 
-    if (std::optional<base::Status> status =
-            MaybeApplyOverrideForField(f, delegate)) {
-      return *status;
+    ParsingOverrideForField* override =
+        node != kNoPath ? path_nodes_[node].override : FindOverrideForKey();
+    if (override) {
+      if (std::optional<base::Status> status = (*override)(f, delegate)) {
+        return *status;
+      }
     }
     return ParseSimpleField(field_descriptor, f, node, delegate);
   };
@@ -554,19 +720,21 @@ void ProtoToArgsParser::AddParsingOverrideForField(
     const std::string& field,
     ParsingOverrideForField func) {
   field_overrides_[field] = std::move(func);
+  for (auto& node : path_nodes_) {
+    node.flat_generation = 0;
+    node.override = node.flat_key_id.is_null()
+                        ? nullptr
+                        : field_overrides_.Find(
+                              string_pool_.Get(node.flat_key_id).ToStdString());
+  }
 }
 
-std::optional<base::Status> ProtoToArgsParser::MaybeApplyOverrideForField(
-    const protozero::Field& field,
-    Delegate& delegate) {
-  // Avoid hashing the flat_key on the per-field hot path when no field
-  // overrides are registered.
+ProtoToArgsParser::ParsingOverrideForField*
+ProtoToArgsParser::FindOverrideForKey() {
+  // Avoid hashing the flat_key when no field overrides are registered.
   if (field_overrides_.size() == 0)
-    return std::nullopt;
-  ParsingOverrideForField* func = field_overrides_.Find(key_prefix_.flat_key);
-  if (!func)
-    return std::nullopt;
-  return (*func)(field, delegate);
+    return nullptr;
+  return field_overrides_.Find(key_prefix_.flat_key);
 }
 
 base::Status ProtoToArgsParser::ParseSimpleField(

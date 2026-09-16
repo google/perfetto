@@ -109,7 +109,7 @@ tp = TraceProcessor(trace='trace.perfetto-trace', addr='localhost:9001')
 The `TraceProcessor` can be customized using the `TraceProcessorConfig` class.
 
 ```python
-from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig, SqlPackage
+from perfetto.trace_processor.api import TraceProcessor, TraceProcessorConfig, SqlPackage
 
 config = TraceProcessorConfig(
     bin_path='/path/to/trace_processor', # Path to custom binary
@@ -135,7 +135,8 @@ instance. The most important are:
 - `bin_path`: Path to the `trace_processor` binary. If not given, the
   `trace_processor` version pinned to (and shipped with) the installed
   `perfetto` package is downloaded and used. This keeps results reproducible:
-  upgrading the binary means upgrading the package.
+  upgrading the binary means upgrading the package. The pinned release is
+  `perfetto.prebuilts.manifests.version.PREBUILTS_VERSION`.
 - `fetch_latest_trace_processor`: If `True` (and `bin_path` is not set), fetch
   the latest available prebuilt from `get.perfetto.dev` instead of the version
   pinned to the package. Use this to always run the newest build, at the cost of
@@ -287,7 +288,7 @@ with TraceProcessor(trace='trace.perfetto-trace') as tp:
 ### Export
 
 The `export()` function writes the parsed trace data to a file, streaming
-directly to disk. The format is one of `arrow_tar` or `perfetto`:
+directly to disk. The format is one of `arrow_tar`, `perfetto` or `sqlite`:
 
 ```python
 from perfetto.trace_processor import TraceProcessor
@@ -305,9 +306,9 @@ tp.export('tables.tar', 'arrow_tar')
 same version (a different version may load it, but this is not guaranteed).
 `arrow_tar` produces one standard [Apache Arrow](https://arrow.apache.org/)
 file per statically registered table, for analysis with pandas, Polars or
-pyarrow; it cannot be loaded back into trace processor. The Python API
-supports these two formats; to export to SQLite, use the
-[`export` shell subcommand](/docs/analysis/trace-processor.md#subcommand-export).
+pyarrow; it cannot be loaded back into trace processor. `sqlite` writes all
+SQL-visible tables and views into a standard SQLite database, like the
+[`export` shell subcommand](/docs/reference/trace-processor-cli.md#subcommand-export).
 
 ### Metatracing
 

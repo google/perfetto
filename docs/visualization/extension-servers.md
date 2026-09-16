@@ -237,12 +237,12 @@ automatically.
 2. Click **Add Server** and select **GitHub**.
 3. Enter the repository in `owner/repo` format (e.g.,
    `my-org/perfetto-extensions`).
-4. Enter the branch or tag in the **Ref** field (e.g., `main`).
+4. Enter the branch or tag in the **Branch/Tag** field (e.g., `main`).
 5. The UI fetches the manifest and shows available modules. The `default` module
    is selected automatically; enable others as needed.
-6. Click **Save** and reload the page.
+6. Click **Add** and reload the page.
 
-For **private repositories**, select **Personal Access Token (PAT)** under
+For **private repositories**, select **Personal Access Token** under
 authentication:
 
 1. Go to
@@ -260,7 +260,7 @@ authentication:
 2. Enter the server URL (e.g., `https://perfetto-ext.corp.example.com`). The
    `https://` prefix is added automatically if omitted.
 3. Select modules and configure authentication (see below).
-4. Click **Save** and reload the page.
+4. Click **Add** and reload the page.
 
 ## Sharing extension servers
 
@@ -269,8 +269,8 @@ When someone opens the link:
 
 - If they don't have the server configured, the **Add Server** dialog opens
   pre-populated with the shared configuration.
-- If they already have the server, the **Edit** dialog opens with the shared
-  modules merged in.
+- If they already have the server, the **Edit** dialog opens with its enabled
+  modules replaced by the shared ones.
 
 Secrets (PATs, passwords, API keys) are automatically stripped from shared URLs.
 Recipients enter their own credentials if the server requires authentication.

@@ -17,7 +17,7 @@
 #ifndef SRC_TOOLS_PROTO_MERGER_PROTO_MERGER_H_
 #define SRC_TOOLS_PROTO_MERGER_PROTO_MERGER_H_
 
-#include <set>
+#include <unordered_set>
 
 #include "perfetto/base/status.h"
 #include "src/tools/proto_merger/allowlist.h"
@@ -42,7 +42,7 @@ base::Status MergeProtoFiles(
     const ProtoFile& upstream,
     const Allowlist& allowlist,
     ProtoFile& out,
-    const std::set<std::string>& allowlisted_options = {});
+    const std::unordered_set<std::string>& allowlisted_options = {});
 
 }  // namespace proto_merger
 }  // namespace perfetto

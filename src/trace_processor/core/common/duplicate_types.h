@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_DUPLICATE_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_COMMON_DUPLICATE_TYPES_H_
 
-#include "src/trace_processor/core/util/type_set.h"
+#include "perfetto/ext/base/type_set.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -29,7 +29,7 @@ struct NoDuplicates {};
 struct HasDuplicates {};
 
 // TypeSet of all possible column duplicate states.
-using DuplicateState = core::TypeSet<NoDuplicates, HasDuplicates>;
+using DuplicateState = base::TypeSet<NoDuplicates, HasDuplicates>;
 
 }  // namespace perfetto::trace_processor::core
 

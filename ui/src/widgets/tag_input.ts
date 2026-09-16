@@ -21,16 +21,16 @@ import {Stack} from './stack';
 import {Icon} from './icon';
 
 export interface TagInputAttrs extends HTMLFocusableAttrs {
-  value?: string;
-  onChange?: (text: string) => void;
-  tags: ReadonlyArray<string>;
-  onTagAdd: (text: string) => void;
-  onTagRemove: (index: number) => void;
-  placeholder?: string;
+  readonly value?: string;
+  readonly onChange?: (text: string) => void;
+  readonly tags: ReadonlyArray<string>;
+  readonly onTagAdd: (text: string) => void;
+  readonly onTagRemove: (index: number) => void;
+  readonly placeholder?: string;
   // Optional icon to display on the left of the text field.
-  leftIcon?: string;
+  readonly leftIcon?: string;
   // Optional custom tag renderer (e.g., to use MiddleEllipsis for label)
-  renderTag?: (text: string, onRemove: () => void) => m.Children;
+  readonly renderTag?: (text: string, onRemove: () => void) => m.Children;
 }
 
 const INPUT_REF = 'input';

@@ -114,10 +114,13 @@ base::Status CheckExtensionField(
                            field.name().c_str());
   }
 
-  const bool is_msg_or_enum =
-      field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
-      field.type() == FieldDescriptorProto::TYPE_ENUM;
-  if (is_msg_or_enum &&
+  const bool both_messages =
+      field.type() == FieldDescriptorProto::TYPE_MESSAGE &&
+      existing_field->type() == FieldDescriptorProto::TYPE_MESSAGE;
+  const bool both_enums =
+      field.type() == FieldDescriptorProto::TYPE_ENUM &&
+      existing_field->type() == FieldDescriptorProto::TYPE_ENUM;
+  if ((both_messages || both_enums) &&
       field.raw_type_name() != existing_field->raw_type_name()) {
     // Same tag, same fundamental type, but the message/enum is named
     // differently (e.g. a package rename during an out-of-tree migration).
@@ -429,6 +432,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     size_t size,
     const std::vector<std::string>& skip_prefixes,
     bool merge_existing_messages) {
+  generation_++;
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
   std::vector<ExtensionInfo> extensions;
@@ -493,6 +497,9 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
   // Fourth pass: verify deferred type checks are structurally compatible
   // now that all field types have been resolved.
   for (const auto& check : extension_type_checks) {
+    if (check.existing_raw_type.empty() || check.new_raw_type.empty()) {
+      continue;
+    }
     std::optional<uint32_t> opt_existing_idx =
         ResolveShortType(check.extendee_full_name, check.existing_raw_type);
     std::optional<uint32_t> opt_new_idx =

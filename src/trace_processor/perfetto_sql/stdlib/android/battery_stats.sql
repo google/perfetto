@@ -113,6 +113,8 @@ CREATE PERFETTO VIEW android_battery_stats_state(
   dur DURATION,
   -- The same as `dur`, but extends to trace end for incomplete slices.
   safe_dur DURATION,
+  -- Machine that emitted the battery state.
+  machine_id JOINID(machine.id),
   -- The name of the counter track.
   track_name STRING,
   -- The counter value as a number.
@@ -123,8 +125,18 @@ CREATE PERFETTO VIEW android_battery_stats_state(
 AS
 SELECT
   ts,
-  coalesce(lead(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
-  lead(ts, 1, trace_end()) OVER (PARTITION BY name ORDER BY ts) - ts AS safe_dur,
+  coalesce(
+    lead(ts) OVER (PARTITION BY counter_track.machine_id, name ORDER BY ts) - ts,
+    -1
+  ) AS dur,
+  lead(ts, 1, trace_end()) OVER (
+    PARTITION BY
+      counter_track.machine_id,
+      name
+    ORDER BY ts
+  )
+  - ts AS safe_dur,
+  counter_track.machine_id,
   name AS track_name,
   cast_int!(value) AS value,
   android_battery_stats_counter_to_string(name, value) AS value_name
@@ -158,6 +170,8 @@ CREATE PERFETTO VIEW android_battery_stats_event_slices(
   dur DURATION,
   -- The same as `dur`, but extends to trace end for incomplete slices.
   safe_dur DURATION,
+  -- Machine that emitted the battery event.
+  machine_id JOINID(machine.id),
   -- The name of the counter track.
   track_name STRING,
   -- String value.
@@ -170,6 +184,7 @@ WITH
   event_markers AS (
     SELECT
       ts,
+      track.machine_id,
       track.name AS track_name,
       str_split(slice.name, '=', 1) AS key,
       substr(slice.name, 1, 1) = '+' AS start
@@ -183,8 +198,8 @@ WITH
   with_neighbors AS (
     SELECT
       *,
-      lag(ts) OVER (PARTITION BY track_name, key ORDER BY ts) AS last_ts,
-      lead(ts) OVER (PARTITION BY track_name, key ORDER BY ts) AS next_ts
+      lag(ts) OVER (PARTITION BY machine_id, track_name, key ORDER BY ts) AS last_ts,
+      lead(ts) OVER (PARTITION BY machine_id, track_name, key ORDER BY ts) AS next_ts
     FROM event_markers
   ),
   -- Note: query performance depends on the ability to push down filters on
@@ -193,6 +208,7 @@ WITH
   event_spans AS (
     SELECT
       track_name,
+      machine_id,
       key,
       iif(start, ts, trace_start()) AS ts,
       iif(start, next_ts, ts) AS end_ts
@@ -208,6 +224,7 @@ SELECT
   ts,
   coalesce(end_ts - ts, -1) AS dur,
   coalesce(end_ts, trace_end()) - ts AS safe_dur,
+  machine_id,
   track_name,
   str_split(key, '"', 1) AS str_value,
   cast_int!(str_split(key, ':', 0)) AS int_value

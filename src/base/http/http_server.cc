@@ -15,6 +15,8 @@
  */
 #include "perfetto/ext/base/http/http_server.h"
 
+#include <algorithm>
+
 #include <cinttypes>
 
 #include <cstddef>
@@ -41,7 +43,9 @@ namespace perfetto::base {
 
 namespace {
 constexpr size_t kMaxPayloadSize = 64 * 1024 * 1024;
-constexpr size_t kMaxRequestSize = kMaxPayloadSize + 4096;
+// |rxbuf| holds only headers, so this also bounds how much of a payload can
+// arrive in the same read() as them and has to be moved to the handler.
+constexpr size_t kMaxHeadersSize = 64 * 1024;
 
 enum WebsocketOpcode : uint8_t {
   kOpcodeContinuation = 0x0,
@@ -142,22 +146,20 @@ void HttpServer::OnDataAvailable(UnixSocket* sock) {
   PERFETTO_CHECK(conn);
 
   char* rxbuf = reinterpret_cast<char*>(conn->rxbuf.Get());
+  // Reading and parsing interleave: it's the parser that discovers that the
+  // bytes still on the socket are a payload, not headers.
   for (;;) {
-    size_t avail = conn->rxbuf_avail();
-    PERFETTO_CHECK(avail <= kMaxRequestSize);
-    if (avail == 0) {
-      conn->SendResponseAndClose("413 Payload Too Large");
-      return;
+    if (conn->payload_used_ < conn->payload_size_) {
+      size_t rsize = sock->Receive(conn->payload_ + conn->payload_used_,
+                                   conn->payload_size_ - conn->payload_used_);
+      if (rsize == 0)
+        return;
+      conn->payload_used_ += rsize;
+      continue;
     }
-    size_t rsize = sock->Receive(&rxbuf[conn->rxbuf_used], avail);
-    conn->rxbuf_used += rsize;
-    if (rsize == 0 || conn->rxbuf_avail() == 0)
-      break;
-  }
 
-  // At this point |rxbuf| can contain a partial HTTP request, a full one or
-  // more (in case of HTTP Keepalive pipelining).
-  for (;;) {
+    // At this point |rxbuf| can contain a partial HTTP request, a full one or
+    // more (in case of HTTP Keepalive pipelining).
     size_t bytes_consumed;
 
     if (conn->is_websocket()) {
@@ -166,11 +168,31 @@ void HttpServer::OnDataAvailable(UnixSocket* sock) {
       bytes_consumed = ParseOneHttpRequest(conn);
     }
 
-    if (bytes_consumed == 0)
-      break;
-    memmove(rxbuf, &rxbuf[bytes_consumed], conn->rxbuf_used - bytes_consumed);
-    conn->rxbuf_used -= bytes_consumed;
+    if (bytes_consumed != 0) {
+      memmove(rxbuf, &rxbuf[bytes_consumed], conn->rxbuf_used - bytes_consumed);
+      conn->rxbuf_used -= bytes_consumed;
+      continue;
+    }
+    // The parse may have just installed a payload sink.
+    if (conn->payload_used_ < conn->payload_size_)
+      continue;
+
+    size_t avail = conn->rxbuf_avail();
+    if (avail == 0) {
+      conn->SendResponseAndClose("431 Request Header Fields Too Large");
+      return;
+    }
+    size_t rsize = sock->Receive(&rxbuf[conn->rxbuf_used], avail);
+    if (rsize == 0)
+      return;
+    conn->rxbuf_used += rsize;
   }
+}
+
+void HttpServerConnection::ClearPayload() {
+  payload_ = nullptr;
+  payload_size_ = 0;
+  payload_used_ = 0;
 }
 
 // Parses the HTTP request and invokes HandleRequest(). It returns the size of
@@ -251,18 +273,50 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
   PERFETTO_CHECK(buf_view.size() <= conn->rxbuf_used);
   const size_t headers_size = conn->rxbuf_used - buf_view.size();
 
-  if (body_size + headers_size >= kMaxRequestSize ||
-      body_size > kMaxPayloadSize) {
+  if (body_size > kMaxPayloadSize) {
     conn->SendResponseAndClose("413 Payload Too Large");
     return 0;
   }
 
   // If we can't read the full request return and try again next time with more
   // data.
-  if (!all_headers_received || buf_view.size() < body_size)
+  if (!all_headers_received)
     return 0;
 
-  http_req.body = buf_view.substr(0, body_size);
+  // CSRF defense: reject cross-origin requests from outside the allowlist.
+  // Before the body is requested, so a request about to be refused is never
+  // handed a payload sink. OPTIONS is the preflight itself, handled below.
+  if (http_req.method != "OPTIONS" && !http_req.origin.empty() &&
+      !IsOriginAllowed(http_req.origin)) {
+    conn->SendResponseAndClose("403 Forbidden", {}, "Origin not allowed");
+    return 0;
+  }
+
+  // Only what arrived in the same read() as the headers has to be moved; the
+  // rest is read from the socket into |dst|. The headers stay in |rxbuf| and
+  // are re-parsed on completion, rather than kept alive across the read.
+  if (body_size > 0 && conn->payload_ == nullptr) {
+    uint8_t* dst = req_handler_->OnHttpRequestBody(http_req, body_size);
+    if (dst == nullptr) {
+      conn->SendResponseAndClose("413 Payload Too Large");
+      return 0;
+    }
+    conn->payload_ = dst;
+    conn->payload_size_ = body_size;
+    conn->payload_used_ = std::min(buf_view.size(), body_size);
+    memcpy(dst, buf_view.data(), conn->payload_used_);
+    memmove(&rxbuf[headers_size], &rxbuf[headers_size + conn->payload_used_],
+            conn->rxbuf_used - headers_size - conn->payload_used_);
+    conn->rxbuf_used -= conn->payload_used_;
+  }
+  if (conn->payload_used_ < conn->payload_size_)
+    return 0;
+
+  http_req.body =
+      body_size == 0 ? buf_view.substr(0, 0)
+                     : StringView(reinterpret_cast<const char*>(conn->payload_),
+                                  body_size);
+  conn->ClearPayload();
 
   PERFETTO_LOG("[HTTP] %.*s %.*s [body=%zuB, origin=\"%.*s\"]",
                static_cast<int>(http_req.method.size()), http_req.method.data(),
@@ -272,9 +326,6 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
 
   if (http_req.method == "OPTIONS") {
     HandleCorsPreflightRequest(http_req);
-  } else if (!http_req.origin.empty() && !IsOriginAllowed(http_req.origin)) {
-    // CSRF defense: reject cross-origin requests from outside the allowlist.
-    conn->SendResponseAndClose("403 Forbidden", {}, "Origin not allowed");
   } else {
     req_handler_->OnHttpRequest(http_req);
   }
@@ -286,7 +337,7 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
   // Allow chaining multiple responses in the same HTTP-Keepalive connection.
   conn->headers_sent_ = false;
 
-  return headers_size + body_size;
+  return headers_size;
 }
 
 void HttpServer::HandleCorsPreflightRequest(const HttpRequest& req) {
@@ -447,9 +498,39 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
   memcpy(mask, rd, sizeof(mask));
   rd += sizeof(mask);
 
-  if (avail() < payload_len)
-    return 0;  // Not enough data to read the payload.
-  uint8_t* const payload_start = rd;
+  // Control frames are capped at 125 bytes by RFC 6455 and are answered below
+  // rather than by the handler, so they stay in |rxbuf|.
+  const bool is_data_frame = opcode == kOpcodeBinary || opcode == kOpcodeText ||
+                             opcode == kOpcodeContinuation;
+  const size_t hdr_size = static_cast<size_t>(rd - rxbuf);
+  uint8_t* payload_start;
+  if (is_data_frame && payload_len > 0) {
+    if (conn->payload_ == nullptr) {
+      uint8_t* dst = req_handler_->OnWebsocketPayload(conn, payload_len);
+      if (dst == nullptr) {
+        PERFETTO_ELOG("[HTTP] Websocket payload rejected by the handler");
+        conn->Close();
+        return 0;
+      }
+      conn->payload_ = dst;
+      conn->payload_size_ = payload_len;
+      conn->payload_used_ = std::min(avail(), payload_len);
+      memcpy(dst, rd, conn->payload_used_);
+      memcpy(conn->payload_mask_, mask, sizeof(mask));
+      memmove(&rxbuf[hdr_size], &rxbuf[hdr_size + conn->payload_used_],
+              conn->rxbuf_used - hdr_size - conn->payload_used_);
+      conn->rxbuf_used -= conn->payload_used_;
+    }
+    if (conn->payload_used_ < conn->payload_size_)
+      return 0;
+    payload_start = conn->payload_;
+    memcpy(mask, conn->payload_mask_, sizeof(mask));
+    conn->ClearPayload();
+  } else {
+    if (avail() < payload_len)
+      return 0;  // Not enough data to read the payload.
+    payload_start = rd;
+  }
 
   // Unmask the payload, one 4-byte mask period per iteration.
   // Deliberately NOT written as the more natural `payload[i] ^= mask[i % 4]`:
@@ -490,7 +571,8 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
   } else {
     PERFETTO_LOG("Unsupported WebSocket opcode: %d", opcode);
   }
-  return static_cast<size_t>(rd - rxbuf) + payload_len;
+  // A data frame's payload went to the handler, leaving only the header.
+  return hdr_size + (is_data_frame && payload_len > 0 ? 0 : payload_len);
 }
 
 void HttpServerConnection::SendResponseHeaders(
@@ -607,7 +689,7 @@ void HttpServerConnection::SendWebsocketFrame(uint8_t opcode,
 }
 
 HttpServerConnection::HttpServerConnection(std::unique_ptr<UnixSocket> s)
-    : sock(std::move(s)), rxbuf(PagedMemory::Allocate(kMaxRequestSize)) {}
+    : sock(std::move(s)), rxbuf(PagedMemory::Allocate(kMaxHeadersSize)) {}
 
 HttpServerConnection::~HttpServerConnection() = default;
 

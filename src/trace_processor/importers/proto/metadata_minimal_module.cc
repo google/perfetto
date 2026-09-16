@@ -44,7 +44,8 @@ MetadataMinimalModule::MetadataMinimalModule(
     ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
     : ProtoImporterModule(module_context), context_(context) {
-  RegisterForField(TracePacket::kChromeMetadataFieldNumber);
+  // Chrome metadata is decoded by name for timestamp handling and dispatched
+  // directly by ProtoTraceReader.
   RegisterForField(TracePacket::kChromeBenchmarkMetadataFieldNumber);
 }
 

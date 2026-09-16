@@ -139,28 +139,24 @@ std::pair<BumpAllocator::AllocId, uint8_t*> TraceTokenBuffer::AppendCommon(
     Desc& desc,
     const TraceBlobView& packet,
     RefPtr<PacketSequenceStateGeneration> sequence_state) {
-  BumpAllocator::AllocId alloc_id =
-      AllocAndResizeInternedVectors(GetAllocSize(desc));
-  InternedIndex interned_index = GetInternedIndex(alloc_id);
+  void* raw;
+  BumpAllocator::AllocId alloc_id = allocator_.Alloc(GetAllocSize(desc), &raw);
+  CurrentChunk& chunk = ChunkFor(alloc_id.chunk_index);
 
-  desc.intern_blob_offset = InternTraceBlob(interned_index, packet);
-  desc.intern_blob_index =
-      static_cast<uint16_t>(interned_blobs_.at(interned_index).size() - 1);
+  desc.intern_blob_offset = InternTraceBlob(*chunk.blobs, packet);
+  desc.intern_blob_index = static_cast<uint16_t>(chunk.blobs->size() - 1);
   desc.intern_seq_index =
-      InternSeqState(interned_index, std::move(sequence_state));
+      InternSeqState(*chunk.seqs, std::move(sequence_state));
 
-  uint8_t* ptr = static_cast<uint8_t*>(allocator_.GetPointer(alloc_id));
-  ptr = AppendToPtr(ptr, desc);
+  uint8_t* ptr = AppendToPtr(static_cast<uint8_t*>(raw), desc);
   uint64_t packet_size = static_cast<uint64_t>(packet.size());
   ptr = AppendToPtr(ptr, packet_size);
   return {alloc_id, ptr};
 }
 
 template <typename Desc>
-std::pair<TracePacketData, uint8_t*> TraceTokenBuffer::ExtractCommon(
-    Id id,
-    Desc* out_desc) {
-  uint8_t* ptr = static_cast<uint8_t*>(allocator_.GetPointer(id.alloc_id));
+std::pair<TracePacketData, uint8_t*>
+TraceTokenBuffer::ExtractCommon(Id id, Desc* out_desc, uint8_t* ptr) {
   *out_desc = ExtractFromPtr<Desc>(&ptr);
   uint64_t packet_size = ExtractFromPtr<uint64_t>(&ptr);
 
@@ -175,7 +171,7 @@ std::pair<TracePacketData, uint8_t*> TraceTokenBuffer::ExtractCommon(
   return {TracePacketData{std::move(tbv), std::move(seq)}, ptr};
 }
 
-TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData ted) {
+TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData&& ted) {
   // TrackEventData (and TracePacketData) are two big contributors to the size
   // of the peak memory usage by sorted. The main reasons for this are a) object
   // padding and b) using more bits than necessary to store their contents.
@@ -238,16 +234,20 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(FtraceData data) {
 template <>
 TracePacketData TraceTokenBuffer::Extract<TracePacketData>(Id id) {
   TracePacketDataDescriptor desc;
-  auto [data, ptr] = ExtractCommon(id, &desc);
+  auto allocation = allocator_.GetAllocation(id.alloc_id);
+  auto [data, ptr] =
+      ExtractCommon(id, &desc, static_cast<uint8_t*>(allocation.data()));
   base::ignore_result(ptr);
-  allocator_.Free(id.alloc_id);
+  allocator_.Free(allocation);
   return std::move(data);
 }
 
 template <>
 FtraceData TraceTokenBuffer::Extract<FtraceData>(Id id) {
   FtraceDataDescriptor desc;
-  auto [tpd, ptr] = ExtractCommon(id, &desc);
+  auto allocation = allocator_.GetAllocation(id.alloc_id);
+  auto [tpd, ptr] =
+      ExtractCommon(id, &desc, static_cast<uint8_t*>(allocation.data()));
   FtraceData data{std::move(tpd.packet), std::move(tpd.sequence_state),
                   FtraceData::kRawTsUnset};
   if (desc.has_raw_ts) {
@@ -255,14 +255,16 @@ FtraceData TraceTokenBuffer::Extract<FtraceData>(Id id) {
   }
   data.insert_ftrace_event = desc.insert_ftrace_event;
   data.parse_event = desc.parse_event;
-  allocator_.Free(id.alloc_id);
+  allocator_.Free(allocation);
   return data;
 }
 
 template <>
 TrackEventData TraceTokenBuffer::Extract<TrackEventData>(Id id) {
   TrackEventDataDescriptor desc;
-  auto [tpd, ptr] = ExtractCommon(id, &desc);
+  auto allocation = allocator_.GetAllocation(id.alloc_id);
+  auto [tpd, ptr] =
+      ExtractCommon(id, &desc, static_cast<uint8_t*>(allocation.data()));
   TrackEventData ted{std::move(tpd.packet), std::move(tpd.sequence_state)};
   if (desc.has_thread_instruction_count) {
     ted.thread_instruction_count = ExtractFromPtr<int64_t>(&ptr);
@@ -276,27 +278,28 @@ TrackEventData TraceTokenBuffer::Extract<TrackEventData>(Id id) {
   for (uint32_t i = 0; i < desc.extra_counter_count; ++i) {
     ted.extra_counter_values[i] = ExtractFromPtr<double>(&ptr);
   }
-  allocator_.Free(id.alloc_id);
+  allocator_.Free(allocation);
   return ted;
 }
 
-uint32_t TraceTokenBuffer::InternTraceBlob(InternedIndex interned_index,
+uint32_t TraceTokenBuffer::InternTraceBlob(BlobWithOffsets& blobs,
                                            const TraceBlobView& tbv) {
-  BlobWithOffsets& blobs = interned_blobs_.at(interned_index);
+  RefPtr<TraceBlob> blob = tbv.blob();
+  size_t offset = tbv.offset();
   if (blobs.empty()) {
-    return AddTraceBlob(interned_index, tbv);
+    return AddTraceBlob(blobs, std::move(blob), offset);
   }
 
   BlobWithOffset& last_blob = blobs.back();
-  if (last_blob.blob != tbv.blob().get()) {
-    return AddTraceBlob(interned_index, tbv);
+  if (last_blob.blob != blob.get()) {
+    return AddTraceBlob(blobs, std::move(blob), offset);
   }
 
   // Offsets can go backwards when deferred packets (e.g., those waiting for
   // clock snapshots) are pushed after regular packets. In that case, we just
   // add a new blob entry rather than relying on the relative offset.
-  if (last_blob.offset_in_blob > tbv.offset()) {
-    return AddTraceBlob(interned_index, tbv);
+  if (last_blob.offset_in_blob > offset) {
+    return AddTraceBlob(blobs, std::move(blob), offset);
   }
 
   // To allow our offsets in the store to be 16 bits, we intern not only the
@@ -304,9 +307,9 @@ uint32_t TraceTokenBuffer::InternTraceBlob(InternedIndex interned_index,
   // we can store offset always as uint16 at the cost of storing blobs here more
   // often: this more than pays for itself as in the majority of cases the
   // offsets are small anyway.
-  size_t rel_offset = tbv.offset() - last_blob.offset_in_blob;
+  size_t rel_offset = offset - last_blob.offset_in_blob;
   if (rel_offset > TrackEventDataDescriptor::kMaxOffsetFromInternedBlob) {
-    return AddTraceBlob(interned_index, tbv);
+    return AddTraceBlob(blobs, std::move(blob), offset);
   }
 
   // Intentionally "leak" this pointer. This essentially keeps the refcount
@@ -315,18 +318,17 @@ uint32_t TraceTokenBuffer::InternTraceBlob(InternedIndex interned_index,
   //
   // Calls to this function are paired to the matching Extract<T> which picks
   // up this "leaked" pointer.
-  TraceBlob* leaked = tbv.blob().ReleaseUnsafe();
+  TraceBlob* leaked = blob.ReleaseUnsafe();
   base::ignore_result(leaked);
   return static_cast<uint32_t>(rel_offset);
 }
 
 uint16_t TraceTokenBuffer::InternSeqState(
-    InternedIndex interned_index,
+    SequenceStates& states,
     RefPtr<PacketSequenceStateGeneration> ptr) {
   // Look back at most 32 elements. This should be far enough in most cases
   // unless either: a) we are essentially round-robining between >32 sequences
   // b) we are churning through generations. Either case seems pathological.
-  SequenceStates& states = interned_seqs_.at(interned_index);
   size_t lookback = std::min<size_t>(32u, states.size());
   for (uint32_t i = 0; i < lookback; ++i) {
     uint16_t idx = static_cast<uint16_t>(states.size() - 1 - i);
@@ -343,40 +345,39 @@ uint16_t TraceTokenBuffer::InternSeqState(
   return static_cast<uint16_t>(states.size() - 1);
 }
 
-uint32_t TraceTokenBuffer::AddTraceBlob(InternedIndex interned_index,
-                                        const TraceBlobView& tbv) {
-  BlobWithOffsets& blobs = interned_blobs_.at(interned_index);
-  blobs.emplace_back(BlobWithOffset{tbv.blob().ReleaseUnsafe(), tbv.offset()});
+uint32_t TraceTokenBuffer::AddTraceBlob(BlobWithOffsets& blobs,
+                                        RefPtr<TraceBlob> blob,
+                                        size_t offset) {
+  blobs.emplace_back(BlobWithOffset{blob.ReleaseUnsafe(), offset});
   PERFETTO_CHECK(blobs.size() <= std::numeric_limits<uint16_t>::max());
   return 0u;
 }
 
 void TraceTokenBuffer::FreeMemory() {
   uint64_t erased = allocator_.EraseFrontFreeChunks();
+  if (erased == 0) {
+    return;
+  }
   PERFETTO_CHECK(erased <= std::numeric_limits<size_t>::max());
   interned_blobs_.erase_front(static_cast<size_t>(erased));
   interned_seqs_.erase_front(static_cast<size_t>(erased));
   PERFETTO_CHECK(interned_blobs_.size() == interned_seqs_.size());
+  // The queues changed shape so the cached chunk pointers are stale.
+  current_chunk_ = CurrentChunk();
 }
 
-BumpAllocator::AllocId TraceTokenBuffer::AllocAndResizeInternedVectors(
-    uint32_t size) {
-  uint64_t erased = allocator_.erased_front_chunks_count();
-  BumpAllocator::AllocId alloc_id = allocator_.Alloc(size);
-  uint64_t allocator_chunks_size = alloc_id.chunk_index - erased + 1;
-
-  // The allocator should never "remove" chunks from being tracked.
-  PERFETTO_DCHECK(allocator_chunks_size >= interned_blobs_.size());
-
-  // We should add at most one chunk in the allocator.
-  uint64_t chunks_added = allocator_chunks_size - interned_blobs_.size();
-  PERFETTO_DCHECK(chunks_added <= 1);
+void TraceTokenBuffer::SwitchChunk(uint64_t chunk_index) {
+  uint64_t index = chunk_index - allocator_.erased_front_chunks_count();
   PERFETTO_DCHECK(interned_blobs_.size() == interned_seqs_.size());
-  for (uint64_t i = 0; i < chunks_added; ++i) {
+  // The allocator opens at most one chunk per allocation.
+  PERFETTO_DCHECK(index <= interned_blobs_.size());
+  if (index == interned_blobs_.size()) {
     interned_blobs_.emplace_back();
     interned_seqs_.emplace_back();
   }
-  return alloc_id;
+  current_chunk_.chunk_index = chunk_index;
+  current_chunk_.blobs = &interned_blobs_.at(static_cast<size_t>(index));
+  current_chunk_.seqs = &interned_seqs_.at(static_cast<size_t>(index));
 }
 
 TraceTokenBuffer::InternedIndex TraceTokenBuffer::GetInternedIndex(

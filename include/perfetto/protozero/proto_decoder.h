@@ -327,7 +327,8 @@ class UnifiedRepeatedFieldIterator {
 //   static constexpr SelectiveDecodeMask<TracePacket::kTimestampFieldNumber,
 //                                        TracePacket::kInternedDataFieldNumber>
 //       kMask{};
-//   SelectiveTypedProtoDecoder<MAX_FIELD_ID> decoder(data, size, kMask);
+//   SelectiveTypedProtoDecoder<TypedProtoDecoder<MAX_FIELD_ID>> decoder(
+//       data, size, kMask);
 //   for (const Field& f : decoder.unknown_fields()) { ... }
 template <uint32_t... kFieldIds>
 class SelectiveDecodeMask {
@@ -384,6 +385,24 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
     // while decoding. Either way return a shared invalid field: the backing
     // slot cannot stand in for it because the storage is uninitialized.
     return kInvalidField;
+  }
+
+  // True if the message contained at least one field with an id beyond the
+  // highest id known in-tree (typically an out-of-tree extension). Such
+  // fields are not stored here; this lets callers skip a selective re-decode
+  // via unknown_fields() when there is nothing to find.
+  bool has_out_of_range_fields() const { return has_out_of_range_fields_; }
+
+  // True if any field whose bit is set in |mask| is present. |mask| is laid
+  // out like the presence bitmap (bit i of word i / 64 for field id i) and
+  // holds |words| words; bits beyond the known field range are ignored.
+  bool HasAnyField(const uint64_t* mask, size_t words) const {
+    size_t presence_words = (num_fields_ + 63) / 64;
+    for (size_t i = 0; i < words && i < presence_words; ++i) {
+      if (presence_[i] & mask[i])
+        return true;
+    }
+    return false;
   }
 
   // True if the field with the given id was seen while decoding: tests bit
@@ -565,6 +584,9 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
   // |size_| is always <= |capacity_|. But |num_fields_| can be > |size_|.
   uint32_t size_;
 
+  // See has_out_of_range_fields().
+  bool has_out_of_range_fields_ = false;
+
   // Initially equal to kFieldsCapacity of the TypedProtoDecoder
   // specialization. Can grow when falling back on heap-based storage, in which
   // case it represents the size (#fields with each entry of a repeated field
@@ -598,11 +620,16 @@ class PERFETTO_EXPORT_COMPONENT TypedProtoDecoderBase : public ProtoDecoder {
 template <int MAX_FIELD_ID, bool = false>
 class TypedProtoDecoder : public TypedProtoDecoderBase {
  public:
+  // The highest field id known to this decoder; see has_out_of_range_fields().
+  static constexpr uint32_t kMaxFieldId = static_cast<uint32_t>(MAX_FIELD_ID);
+
   TypedProtoDecoder(const uint8_t* buffer, size_t length)
-      : TypedProtoDecoder(SkipParseTag{},
-                          buffer,
-                          length,
-                          /*num_fields=*/MAX_FIELD_ID + 1) {
+      : TypedProtoDecoderBase(on_stack_storage_,
+                              presence_storage_,
+                              /*num_fields=*/MAX_FIELD_ID + 1,
+                              PROTOZERO_DECODER_INITIAL_STACK_CAPACITY,
+                              buffer,
+                              length) {
     TypedProtoDecoderBase::ParseAllFields();
   }
 
@@ -633,21 +660,6 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
     }
     return *this;
   }
-
- protected:
-  // Sets up the storage but does not parse: for subclasses that drive
-  // ParseAllFields() themselves (see SelectiveTypedProtoDecoder).
-  struct SkipParseTag {};
-  TypedProtoDecoder(SkipParseTag,
-                    const uint8_t* buffer,
-                    size_t length,
-                    uint32_t num_fields)
-      : TypedProtoDecoderBase(on_stack_storage_,
-                              presence_storage_,
-                              num_fields,
-                              PROTOZERO_DECODER_INITIAL_STACK_CAPACITY,
-                              buffer,
-                              length) {}
 
  private:
   void MaybeCopyOnStackStorage(const TypedProtoDecoder& other) {
@@ -688,37 +700,34 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
 //   static constexpr SelectiveDecodeMask<TracePacket::kTimestampFieldNumber,
 //                                        TracePacket::kInternedDataFieldNumber>
 //       kMask{};
-//   SelectiveTypedProtoDecoder<MAX_FIELD_ID> decoder(data, size, kMask);
+//   SelectiveTypedProtoDecoder<TypedProtoDecoder<MAX_FIELD_ID>> decoder(
+//       data, size, kMask);
 //   for (const Field& f : decoder.unknown_fields()) { ... }
-template <int MAX_FIELD_ID>
-class SelectiveTypedProtoDecoder : public TypedProtoDecoder<MAX_FIELD_ID> {
-  using Base = TypedProtoDecoder<MAX_FIELD_ID>;
-
+template <typename Decoder>
+class SelectiveTypedProtoDecoder : public Decoder {
  public:
-  // The dense window is capped at the mask's extent: |num_fields_| is the
-  // only id bound the decode loop checks, so capping it both bounds the mask
-  // read and makes every id above the mask spill, letting the mask be sized
-  // to the allowlisted ids only rather than to MAX_FIELD_ID.
-  // |mask| is only read during this call.
+  // |Decoder| is a TypedProtoDecoder or a generated message decoder, whose
+  // typed accessors this class inherits. The dense window is capped at the
+  // mask's extent: |num_fields_| is the only id bound the decode loop checks,
+  // so capping it both bounds the mask read and makes every id above the
+  // mask spill, letting the mask be sized to the allowlisted ids only rather
+  // than to the decoder's max field id. |mask| is only read during this call.
   template <uint32_t... kFieldIds>
   SelectiveTypedProtoDecoder(const uint8_t* buffer,
                              size_t length,
                              const SelectiveDecodeMask<kFieldIds...>& mask)
-      : Base(typename Base::SkipParseTag{},
-             buffer,
-             length,
-             /*num_fields=*/
-             std::min(static_cast<uint32_t>(MAX_FIELD_ID),
-                      SelectiveDecodeMask<kFieldIds...>::kMaxFieldId) +
-                 1) {
-    // The base constructor cleared the presence bitmap only up to the capped
-    // |num_fields_|. at<>() skips the range check for ids below the on-stack
-    // capacity and tests the presence bit directly, so the rest of the bitmap
-    // must be cleared too.
-    constexpr uint32_t kPresenceWords = (MAX_FIELD_ID + 1 + 63) / 64;
-    const uint32_t cleared_words = (this->num_fields_ + 63) / 64;
-    memset(this->presence_ + cleared_words, 0,
-           (kPresenceWords - cleared_words) * sizeof(uint64_t));
+      : Decoder(nullptr, 0) {
+    // The empty decode above set up the storage and cleared the whole
+    // presence bitmap without parsing anything; point it at the real buffer
+    // and parse selectively.
+    this->begin_ = buffer;
+    this->end_ = buffer + length;
+    this->read_ptr_ = buffer;
+    this->num_fields_ =
+        std::min(Decoder::kMaxFieldId,
+                 SelectiveDecodeMask<kFieldIds...>::kMaxFieldId) +
+        1;
+    this->size_ = std::min(this->num_fields_, this->capacity_ - 1);
     spill_ = spill_storage_;
     uint32_t spill_capacity = kSpillStackCapacity;
     this->ParseAllFieldsSelective(mask.data(), &spill_, &spill_capacity,
@@ -732,7 +741,7 @@ class SelectiveTypedProtoDecoder : public TypedProtoDecoder<MAX_FIELD_ID> {
   }
 
   SelectiveTypedProtoDecoder(SelectiveTypedProtoDecoder&& other) noexcept
-      : Base(std::move(other)),
+      : Decoder(std::move(other)),
         spill_(other.spill_),
         spill_size_(other.spill_size_),
         heap_spill_(std::move(other.heap_spill_)) {
