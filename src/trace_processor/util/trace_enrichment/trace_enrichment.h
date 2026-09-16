@@ -70,7 +70,7 @@ struct EnrichmentConfig {
 // Error codes for enrichment operations.
 // Only kExplicitMapsFailed is a hard failure: it means an explicitly-provided
 // ProGuard/R8 map could not be read. All other outcomes still produce a
-// bundle; `details` explains what could not be enriched and how to fix it.
+// bundle; `warnings` explains what could not be enriched and how to fix it.
 enum class EnrichmentError {
   kOk,
   kExplicitMapsFailed,
@@ -80,8 +80,11 @@ enum class EnrichmentError {
 struct EnrichmentResult {
   EnrichmentError error = EnrichmentError::kOk;
 
-  // Human-readable details about the operation.
+  // Routine human-readable summaries (suppressed in quiet mode).
   std::string details;
+
+  // Actionable warnings and resource errors, also printed in quiet mode.
+  std::string warnings;
 
   // Serialized TracePacket protos containing native symbol data.
   // Ready to be appended to the trace or included in a bundle.

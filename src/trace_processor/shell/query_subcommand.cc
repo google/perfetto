@@ -212,7 +212,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   // warm-session use from 0% to >80% of runs; longer guides were not read.
   constexpr double kSlowParseSeconds = 1.0;
   double load_s = static_cast<double>(t_load.count()) / 1e9;
-  if (ctx.global->remote_addr.empty() && !interactive_ &&
+  if (!ctx.global->quiet && ctx.global->remote_addr.empty() && !interactive_ &&
       load_s >= kSlowParseSeconds) {
     fprintf(
         stderr,
@@ -240,7 +240,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 #endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
-  auto status = RunQueries(tp.get(), sql, true);
+  auto status = RunQueries(tp.get(), sql, true, ctx.global->quiet);
   if (!status.ok()) {
     MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path);
     return status;
@@ -253,9 +253,12 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 
   if (interactive_) {
     RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(),
-        InteractiveOptions{
-            wide_ ? 40u : 20u, MetricV1OutputFormat::kNone, {}, {}, nullptr}));
+        tp.get(), InteractiveOptions{wide_ ? 40u : 20u,
+                                     MetricV1OutputFormat::kNone,
+                                     {},
+                                     {},
+                                     nullptr,
+                                     ctx.global->quiet}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
@@ -289,8 +292,9 @@ base::Status QuerySubcommand::RunStructuredQuery(
         structured_query_id_.c_str());
   }
 
-  RETURN_IF_ERROR(
-      RunQueries(tp.get(), "SELECT * FROM " + query_result.table_name, true));
+  RETURN_IF_ERROR(RunQueries(tp.get(),
+                             "SELECT * FROM " + query_result.table_name, true,
+                             ctx.global->quiet));
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!perf_file_.empty()) {

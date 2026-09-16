@@ -183,8 +183,11 @@ class HttpServer : public UnixSocket::EventListener {
   ~HttpServer() override;
   void Start(const std::string& listen_ip, int port);
   void AddAllowedOrigin(const std::string&);
+  // Suppress routine connection and request logs; errors remain enabled.
+  void SetQuiet(bool quiet) { quiet_ = quiet; }
 
  private:
+  bool quiet_ = false;
   size_t ParseOneHttpRequest(HttpServerConnection*);
   size_t ParseOneWebsocketFrame(HttpServerConnection*);
   void HandleCorsPreflightRequest(const HttpRequest&);

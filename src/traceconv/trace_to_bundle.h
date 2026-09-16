@@ -47,6 +47,9 @@ struct BundleContext {
   // If true, output verbose details (all paths tried, etc.)
   bool verbose = false;
 
+  // If true, suppress routine status output; warnings are still printed.
+  bool quiet = false;
+
   // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
   std::string android_product_out;
 
