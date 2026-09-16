@@ -31,7 +31,8 @@ SELECT
   twoshay_ts,
   twoshay_dur,
   in_ts,
-  cast_int!(IFNULL(
+  cast_int!(
+    IFNULL(
       (
         SELECT c.value
         FROM counter AS c
@@ -45,7 +46,8 @@ SELECT
         LIMIT 1
       ),
       0
-    )) AS resample_latency_offset
+    )
+  ) AS resample_latency_offset
 FROM base;
 
 CREATE PERFETTO TABLE _pixel_touch_bottom_half_events AS
