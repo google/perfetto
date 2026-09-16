@@ -445,3 +445,25 @@ class Simpleperf(TestSuite):
         2409280,"bri.ac","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
         2409764,"bri.x","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
         '''))
+
+  def test_perf_fork_exit(self):
+    return DiffTestBlueprint(
+        trace=Path('perf_fork_exit.py'),
+        query='''
+        SELECT
+          t.tid,
+          t.name,
+          p.pid,
+          pp.pid AS parent_pid,
+          t.end_ts
+        FROM thread t
+        JOIN process p USING (upid)
+        LEFT JOIN process pp ON p.parent_upid = pp.upid
+        WHERE t.tid = 1001
+        ORDER BY p.pid;
+        ''',
+        out=Csv('''
+        "tid","name","pid","parent_pid","end_ts"
+        1001,"worker-v1",1000,1,5000
+        1001,"worker-v2",2000,1000,"[NULL]"
+        '''))
