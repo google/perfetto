@@ -884,7 +884,6 @@ base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
 void TraceProcessorImpl::InterruptQuery() {
   if (!engine_->sqlite_connection()->db())
     return;
-  query_interrupted_.store(true);
   sqlite3_interrupt(engine_->sqlite_connection()->db());
 }
 

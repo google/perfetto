@@ -17,18 +17,24 @@
 #include "src/trace_processor/rpc/rpc.h"
 
 #include <cinttypes>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/task_runner.h"
+#include "perfetto/base/thread_annotations.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -55,22 +61,197 @@ namespace perfetto::trace_processor {
 
 // Takes ownership of a Stream's responses and hands them to the transport's
 // RpcResponseFunction one slice at a time.
-class Rpc::Outbox {
+//
+// With a task runner the responses are queued and delivered as tasks on it, in
+// send order; Detach() drops what is queued and stops delivery. Without one
+// they are delivered inline by whoever sends them, so there is never anything
+// queued and Detach() has nothing to do.
+class Rpc::Outbox : public std::enable_shared_from_this<Outbox> {
  public:
-  explicit Outbox(RpcResponseFunction response_fn)
-      : response_fn_(std::move(response_fn)) {}
+  Outbox(base::TaskRunner* task_runner,
+         RpcResponseFunction response_fn,
+         MessageCompleteFunction complete_fn)
+      : task_runner_(task_runner),
+        response_fn_(std::move(response_fn)),
+        complete_fn_(std::move(complete_fn)) {}
 
+  // The senders. Any thread.
   void Send(std::vector<protozero::ScatteredHeapBuffer::Slice> slices) {
-    for (const auto& slice : slices) {
-      auto range = slice.GetUsedRange();
-      response_fn_(range.begin, static_cast<uint32_t>(range.size()));
+    Post({Item::kData, std::move(slices)});
+  }
+  void Close() { Post({Item::kClose, {}}); }
+  void MessageComplete() {
+    if (complete_fn_)
+      Post({Item::kMessageComplete, {}});
+  }
+
+  // Task runner thread only.
+  void Detach() PERFETTO_LOCKS_EXCLUDED(mutex_) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    detached_ = true;
+    queue_.clear();
+  }
+
+ private:
+  struct Item {
+    enum Kind { kData, kClose, kMessageComplete };
+    Kind kind;
+    std::vector<protozero::ScatteredHeapBuffer::Slice> slices;
+  };
+
+  void Post(Item item) PERFETTO_LOCKS_EXCLUDED(mutex_) {
+    if (!task_runner_) {
+      Deliver(std::move(item));
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (detached_)
+        return;
+      queue_.push_back(std::move(item));
+    }
+    task_runner_->PostTask([self = shared_from_this()] { self->Drain(); });
+  }
+
+  // Task runner thread only.
+  void Drain() PERFETTO_LOCKS_EXCLUDED(mutex_) {
+    for (;;) {
+      Item item;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (detached_ || queue_.empty())
+          return;
+        item = std::move(queue_.front());
+        queue_.pop_front();
+      }
+      Deliver(std::move(item));
     }
   }
 
-  void Close() { response_fn_(nullptr, 0); }
+  void Deliver(Item item) {
+    switch (item.kind) {
+      case Item::kData:
+        for (const auto& slice : item.slices) {
+          auto range = slice.GetUsedRange();
+          response_fn_(range.begin, static_cast<uint32_t>(range.size()));
+        }
+        break;
+      case Item::kClose:
+        response_fn_(nullptr, 0);
+        break;
+      case Item::kMessageComplete:
+        complete_fn_();
+        break;
+    }
+  }
+
+  base::TaskRunner* const task_runner_;
+  const RpcResponseFunction response_fn_;
+  const MessageCompleteFunction complete_fn_;
+
+  std::mutex mutex_;
+  std::deque<Item> queue_ PERFETTO_GUARDED_BY(mutex_);
+  bool detached_ PERFETTO_GUARDED_BY(mutex_) = false;
+};
+
+// Runs requests on a dedicated thread, in order. The frontend only ever
+// reaches into the queue to interrupt a query.
+class Rpc::Executor {
+ public:
+  struct Query {
+    std::optional<std::string> tag;
+    bool cancellable = false;
+    bool cancelled = false;
+  };
+  struct Request {
+    protozero::ProtoRingBuffer::Message message;
+    std::shared_ptr<Outbox> outbox;
+    std::optional<Query> query;  // Set for TPM_QUERY_STREAMING.
+  };
+
+  explicit Executor(Rpc* rpc) : rpc_(rpc), thread_(&Executor::Run, this) {}
+
+  // Finishes what is queued, then joins.
+  ~Executor() {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      quit_ = true;
+    }
+    cv_.notify_one();
+    thread_.join();
+  }
+
+  void Enqueue(Request request) PERFETTO_LOCKS_EXCLUDED(mutex_) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      queue_.push_back(std::move(request));
+    }
+    cv_.notify_one();
+  }
+
+  // Cancels the query on |tag|. If it is still queued it is marked dead in
+  // place, so its terminal response keeps its FIFO position; if it is running
+  // it is interrupted. Only well defined with a single request outstanding:
+  // an interrupt may need repeating, and retries would land on whatever query
+  // runs by then.
+  void Interrupt(const std::optional<std::string>& tag)
+      PERFETTO_LOCKS_EXCLUDED(mutex_) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const size_t outstanding = queue_.size() + (running_ ? 1 : 0);
+    if (outstanding > 1) {
+      PERFETTO_ELOG(
+          "Ignoring TPM_INTERRUPT_QUERY: %zu requests outstanding, interrupts "
+          "require at most one (ERR:rpc_interrupt)",
+          outstanding);
+      return;
+    }
+    for (auto it = queue_.rbegin(); it != queue_.rend(); ++it) {
+      if (!it->query || it->query->tag != tag)
+        continue;
+      if (it->query->cancellable)
+        it->query->cancelled = true;
+      return;
+    }
+    if (running_ && running_->cancellable && running_->tag == tag)
+      rpc_->trace_processor_->InterruptQuery();
+  }
 
  private:
-  RpcResponseFunction response_fn_;
+  void Run() PERFETTO_LOCKS_EXCLUDED(mutex_) {
+    for (;;) {
+      Request request;
+      {
+        std::unique_lock<std::mutex> lock(mutex_);
+        cv_.wait(lock, [this]() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+          return quit_ || !queue_.empty();
+        });
+        if (queue_.empty())
+          return;
+        request = std::move(queue_.front());
+        queue_.pop_front();
+        if (request.query && !request.query->cancelled)
+          running_ = request.query;
+      }
+      if (request.query && request.query->cancelled) {
+        rpc_->SendCancelledQueryResponse(*request.outbox);
+      } else {
+        rpc_->ParseRpcRequest(*request.outbox, std::move(request.message));
+      }
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        running_.reset();
+      }
+      request.outbox->MessageComplete();
+    }
+  }
+
+  Rpc* const rpc_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::deque<Request> queue_ PERFETTO_GUARDED_BY(mutex_);
+  std::optional<Query> running_ PERFETTO_GUARDED_BY(mutex_);
+  bool quit_ PERFETTO_GUARDED_BY(mutex_) = false;
+  std::thread thread_;  // Last: it starts running in the constructor.
 };
 
 namespace {
@@ -247,6 +428,11 @@ Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
 Rpc::Rpc() : Rpc(nullptr, false, Config(), nullptr, {}) {}
 Rpc::~Rpc() = default;
 
+void Rpc::EnableThreadedExecution() {
+  PERFETTO_CHECK(!executor_);
+  executor_ = std::make_unique<Executor>(this);
+}
+
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
   current_config_ = config;
   bytes_parsed_ = bytes_last_progress_ = 0;
@@ -268,10 +454,19 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
   // message numbering continues regardless of the reset.
 }
 
-Rpc::Stream::Stream(Rpc& rpc, RpcResponseFunction response_fn)
-    : rpc_(rpc), outbox_(std::make_unique<Outbox>(std::move(response_fn))) {}
+Rpc::Stream::Stream(Rpc& rpc,
+                    RpcResponseFunction response_fn,
+                    MessageCompleteFunction complete_fn,
+                    base::TaskRunner* task_runner)
+    : rpc_(rpc),
+      outbox_(std::make_shared<Outbox>(rpc.executor_ ? task_runner : nullptr,
+                                       std::move(response_fn),
+                                       std::move(complete_fn))) {}
 
-Rpc::Stream::~Stream() = default;
+Rpc::Stream::~Stream() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  outbox_->Detach();
+}
 
 Rpc::RequestHandle::~RequestHandle() {
   PERFETTO_CHECK(stream_ == nullptr);
@@ -304,6 +499,7 @@ void Rpc::RequestHandle::AbortRequest() {
 }
 
 Rpc::RequestHandle Rpc::Stream::BeginRequest(size_t size) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   // The handle keeps the caller from losing a reservation, but not from
   // holding two at once. The ring buffer has the same guard for its own
   // handles; this one is here so the CHECK fires at the Stream API boundary.
@@ -313,24 +509,101 @@ Rpc::RequestHandle Rpc::Stream::BeginRequest(size_t size) {
 }
 
 void Rpc::Stream::FinishRequest() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_CHECK(request_in_flight_);
   request_in_flight_ = false;
 }
 
 void Rpc::DrainStream(Stream& stream) {
+  PERFETTO_DCHECK_THREAD(stream.thread_checker_);
+  // Closing the pipe can destroy |stream| from inside the transport.
+  std::shared_ptr<Outbox> outbox = stream.outbox_;
   for (;;) {
     auto msg = stream.rxbuf_.ReadMessage();
     if (!msg.valid()) {
       if (msg.fatal_framing_error()) {
         protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
         err_msg->add_msg()->set_fatal_error("RPC framing error");
-        stream.outbox_->Send(err_msg.TakeSlices());
-        stream.outbox_->Close();
+        outbox->Send(err_msg.TakeSlices());
+        outbox->Close();
       }
       break;
     }
-    ParseRpcRequest(*stream.outbox_, std::move(msg));
+    if (!DispatchRpcRequest(stream, std::move(msg)))
+      break;
   }
+}
+
+bool Rpc::ValidateRpcSequence(Stream& stream, const RpcProto::Decoder& req) {
+  // We allow restarting the sequence from 0. This happens when refreshing the
+  // browser while using the external trace_processor_shell --httpd.
+  if (req.seq() != 0 && rx_seq_id_ != 0 && req.seq() != rx_seq_id_ + 1) {
+    char err_str[255];
+    // "(ERR:rpc_seq)" is intercepted by error_dialog.ts in the UI.
+    snprintf(err_str, sizeof(err_str),
+             "RPC request out of order. Expected %" PRId64 ", got %" PRId64
+             " (ERR:rpc_seq)",
+             rx_seq_id_ + 1, req.seq());
+    PERFETTO_ELOG("%s", err_str);
+    protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
+    err_msg->add_msg()->set_fatal_error(err_str);
+    std::shared_ptr<Outbox> outbox = stream.outbox_;
+    outbox->Send(err_msg.TakeSlices());
+    outbox->Close();
+    return false;
+  }
+  rx_seq_id_ = req.seq();
+  return true;
+}
+
+// Returns false if the stream was told to close and must not be used further.
+bool Rpc::DispatchRpcRequest(Stream& stream,
+                             protozero::ProtoRingBuffer::Message message) {
+  RpcProto::Decoder req(message.data(), message.size());
+  if (!ValidateRpcSequence(stream, req))
+    return false;
+
+  std::shared_ptr<Outbox> outbox = stream.outbox_;
+  if (!executor_) {
+    ParseRpcRequest(*outbox, std::move(message));
+    outbox->MessageComplete();
+    return true;
+  }
+
+  if (req.request() == RpcProto::TPM_INTERRUPT_QUERY) {
+    std::optional<std::string> tag;
+    if (req.has_interrupt_query_args()) {
+      protos::pbzero::InterruptQueryArgs::Decoder args(
+          req.interrupt_query_args());
+      if (args.has_tag())
+        tag = args.tag().ToStdString();
+    }
+    executor_->Interrupt(tag);
+    outbox->MessageComplete();
+    return true;
+  }
+
+  Executor::Request request;
+  if (req.request() == RpcProto::TPM_QUERY_STREAMING && req.has_query_args()) {
+    protos::pbzero::QueryArgs::Decoder args(req.query_args());
+    Executor::Query& query = request.query.emplace();
+    query.cancellable = args.cancellable();
+    if (args.has_tag())
+      query.tag = args.tag().ToStdString();
+  }
+  request.message = std::move(message);
+  request.outbox = std::move(outbox);
+  executor_->Enqueue(std::move(request));
+  return true;
+}
+
+void Rpc::SendCancelledQueryResponse(Outbox& outbox) {
+  Response resp(tx_seq_id_++, RpcProto::TPM_QUERY_STREAMING);
+  auto* result = resp->set_query_result();
+  result->set_error("Query interrupted");
+  result->set_error_code(protos::pbzero::QueryResult::ERROR_CODE_INTERRUPTED);
+  result->add_batch()->set_is_last_batch(true);
+  resp.Send(outbox);
 }
 
 namespace {
@@ -364,31 +637,13 @@ TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
 
 }  // namespace
 
-// [data, len] here is a tokenized TraceProcessorRpc proto message, without the
-// size header.
+// |message| is a tokenized TraceProcessorRpc proto message, without the size
+// header. Runs on the execution thread when there is one.
 void Rpc::ParseRpcRequest(Outbox& outbox,
                           protozero::ProtoRingBuffer::Message message) {
   RpcProto::Decoder req(message.data(), message.size());
   // Captured up front: TPM_APPEND_TRACE_DATA hands |message| to the parser.
   const size_t len = message.size();
-
-  // We allow restarting the sequence from 0. This happens when refreshing the
-  // browser while using the external trace_processor_shell --httpd.
-  if (req.seq() != 0 && rx_seq_id_ != 0 && req.seq() != rx_seq_id_ + 1) {
-    char err_str[255];
-    // "(ERR:rpc_seq)" is intercepted by error_dialog.ts in the UI.
-    snprintf(err_str, sizeof(err_str),
-             "RPC request out of order. Expected %" PRId64 ", got %" PRId64
-             " (ERR:rpc_seq)",
-             rx_seq_id_ + 1, req.seq());
-    PERFETTO_ELOG("%s", err_str);
-    protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
-    err_msg->add_msg()->set_fatal_error(err_str);
-    outbox.Send(err_msg.TakeSlices());
-    outbox.Close();
-    return;
-  }
-  rx_seq_id_ = req.seq();
 
   // The static cast is to prevent that the compiler breaks future proofness.
   const int req_type = static_cast<int>(req.request());
@@ -546,6 +801,9 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
       resp.Send(outbox);
       break;
     }
+    case RpcProto::TPM_INTERRUPT_QUERY:
+      // Consumed in DispatchRpcRequest() when threaded; a no-op otherwise.
+      break;
     case RpcProto::TPM_DISABLE_AND_READ_METATRACE: {
       Response resp(tx_seq_id_++, req_type);
       DisableAndReadMetatraceInternal(resp->set_metatrace());
@@ -1114,6 +1372,7 @@ std::vector<uint8_t> Rpc::GetStatus() {
     status->set_version_code(version_code);
   }
   status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+  status->set_supports_query_interrupt(supports_query_interrupt());
   return status.SerializeAsArray();
 }
 
