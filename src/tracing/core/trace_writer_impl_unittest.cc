@@ -53,6 +53,12 @@
 namespace perfetto {
 namespace {
 
+// TracePacket handles finalize the packet as a RootMessage<Message>, which
+// relies on TracePacket having the same layout as Message.
+static_assert(TraceWriter::TracePacketHandle::kIsRootMessage, "");
+static_assert(sizeof(protos::pbzero::TracePacket) == sizeof(protozero::Message),
+              "");
+
 using ChunkHeader = SharedMemoryABI::ChunkHeader;
 using ShmemMode = SharedMemoryABI::ShmemMode;
 using ::protozero::ScatteredStreamWriter;

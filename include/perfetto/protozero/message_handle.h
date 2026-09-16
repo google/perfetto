@@ -18,9 +18,11 @@
 #define INCLUDE_PERFETTO_PROTOZERO_MESSAGE_HANDLE_H_
 
 #include <functional>
+#include <type_traits>
 
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
+#include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace protozero {
@@ -33,34 +35,54 @@ class PERFETTO_EXPORT_COMPONENT MessageFinalizationListener {
   virtual void OnMessageFinalized(Message* message) = 0;
 };
 
-// MessageHandle allows to decouple the lifetime of a proto message
-// from the underlying storage. It gives the following guarantees:
-// - The underlying message is finalized (if still alive) if the handle goes
-//   out of scope.
-// - In Debug / DCHECK_ALWAYS_ON builds, the handle becomes null once the
-//   message is finalized. This is to enforce the append-only API. For instance
-//   when adding two repeated messages, the addition of the 2nd one forces
-//   the finalization of the first.
-// Think about this as a WeakPtr<Message> which calls
-// Message::Finalize() when going out of scope.
+// Tells whether the message type T is always used as a root message, i.e.
+// whether every MessageHandle<T> points to a RootMessage<T>. If so,
+// MessageHandle<T> finalizes the message via RootMessage::Finalize() rather
+// than Message::Finalize().
+//
+// protozero doesn't know about specific message types: the layer that owns the
+// root-ness of a type specializes this (e.g., perfetto/tracing/
+// trace_writer_base.h does that for TracePacket).
+//
+// The specialization must be visible wherever MessageHandle<T> is named.
+// Because root-ness is part of the MessageHandle type (see below), a mismatch
+// is diagnosed:
+// - Naming MessageHandle<T> before the specialization, in the same translation
+//   unit, is a compile error ("explicit specialization after instantiation").
+// - Different translation units that disagree on the root-ness of T end up
+//   with different types, hence link errors on the functions that take or
+//   return MessageHandle<T>.
+// Inline code in headers that don't include the specialization is NOT
+// diagnosed: such headers must include it.
+template <typename T>
+struct IsRootMessage : std::false_type {};
 
-class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
+// MessageHandle allows to decouple the lifetime of a proto message from the
+// underlying storage: the message is finalized via Message::Finalize() (or
+// RootMessage::Finalize(), see IsRootMessage) when the handle goes out of scope
+// or is assigned a different message. Finalizing the message directly doesn't
+// invalidate the handle: Finalize() is idempotent.
+//
+// |kIsRoot| is not meant to be passed explicitly. It's a template argument
+// (rather than a lookup of IsRootMessage<T> in the destructor) so that the
+// root-ness is part of the type, see IsRootMessage.
+template <typename T, bool kIsRoot = IsRootMessage<T>::value>
+class MessageHandle {
  public:
-  ~MessageHandleBase() {
-    if (message_) {
-#if PERFETTO_DCHECK_IS_ON()
-      PERFETTO_DCHECK(generation_ == message_->generation_);
-#endif
+  static constexpr bool kIsRootMessage = kIsRoot;
+
+  MessageHandle() : MessageHandle(nullptr) {}
+  explicit MessageHandle(T* message) : message_(message) {}
+
+  ~MessageHandle() {
+    if (message_)
       FinalizeMessage();
-    }
   }
 
   // Move-only type.
-  MessageHandleBase(MessageHandleBase&& other) noexcept {
-    Move(std::move(other));
-  }
+  MessageHandle(MessageHandle&& other) noexcept { Move(std::move(other)); }
 
-  MessageHandleBase& operator=(MessageHandleBase&& other) noexcept {
+  MessageHandle& operator=(MessageHandle&& other) noexcept {
     // If the current handle was pointing to a message and is being reset to a
     // new one, finalize the old message. However, if the other message is the
     // same as the one we point to, don't finalize.
@@ -70,108 +92,50 @@ class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
     return *this;
   }
 
-  explicit operator bool() const {
-#if PERFETTO_DCHECK_IS_ON()
-    PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
-#endif
-    return !!message_;
-  }
+  MessageHandle(const MessageHandle&) = delete;
+  MessageHandle& operator=(const MessageHandle&) = delete;
+
+  explicit operator bool() const { return !!message_; }
+
+  T& operator*() const { return *get(); }
+  T* operator->() const { return get(); }
+  T* get() const { return static_cast<T*>(message_); }
 
   void set_finalization_listener(MessageFinalizationListener* listener) {
     listener_ = listener;
   }
 
-  // Returns a (non-owned, it should not be deleted) pointer to the
-  // ScatteredStreamWriter used to write the message data. The Message becomes
-  // unusable after this point.
-  //
-  // The caller can now write directly, without using protozero::Message.
+  // See Message::TakeStreamWriter(). The handle won't finalize the message
+  // anymore.
   ScatteredStreamWriter* TakeStreamWriter() {
-    ScatteredStreamWriter* stream_writer = message_->stream_writer_;
-#if PERFETTO_DCHECK_IS_ON()
-    message_->set_handle(nullptr);
-#endif
+    ScatteredStreamWriter* stream_writer = message_->TakeStreamWriter();
     message_ = nullptr;
     listener_ = nullptr;
     return stream_writer;
   }
 
- protected:
-  explicit MessageHandleBase(Message* message = nullptr) : message_(message) {
-#if PERFETTO_DCHECK_IS_ON()
-    generation_ = message_ ? message->generation_ : 0;
-    if (message_)
-      message_->set_handle(this);
-#endif
-  }
-
-  Message* operator->() const {
-#if PERFETTO_DCHECK_IS_ON()
-    PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
-#endif
-    return message_;
-  }
-  Message& operator*() const { return *(operator->()); }
-
  private:
-  friend class Message;
-  MessageHandleBase(const MessageHandleBase&) = delete;
-  MessageHandleBase& operator=(const MessageHandleBase&) = delete;
+  // For root messages, the RootMessage<T> is finalized as a
+  // RootMessage<Message>. This is fine because Message subclasses never add
+  // state (see Message::BeginNestedMessage()), so they have the same layout.
+  using FinalizeAs =
+      typename std::conditional<kIsRoot, RootMessage<Message>, Message>::type;
 
-  void reset_message() {
-    // This is called by Message::Finalize().
-    PERFETTO_DCHECK(message_->is_finalized());
-    message_ = nullptr;
-    listener_ = nullptr;
-  }
-
-  void Move(MessageHandleBase&& other) {
+  void Move(MessageHandle&& other) {
     message_ = other.message_;
     other.message_ = nullptr;
     listener_ = other.listener_;
     other.listener_ = nullptr;
-#if PERFETTO_DCHECK_IS_ON()
-    if (message_) {
-      generation_ = message_->generation_;
-      message_->set_handle(this);
-    }
-#endif
   }
 
   void FinalizeMessage() {
-    // |message_| and |listener_| may be cleared by reset_message() during
-    // Message::Finalize().
-    auto* listener = listener_;
-    auto* message = message_;
-    message->Finalize();
-    if (listener)
-      listener->OnMessageFinalized(message);
+    static_cast<FinalizeAs*>(message_)->Finalize();
+    if (listener_)
+      listener_->OnMessageFinalized(message_);
   }
 
   Message* message_;
   MessageFinalizationListener* listener_ = nullptr;
-#if PERFETTO_DCHECK_IS_ON()
-  uint32_t generation_;
-#endif
-};
-
-template <typename T>
-class MessageHandle : public MessageHandleBase {
- public:
-  MessageHandle() : MessageHandle(nullptr) {}
-  explicit MessageHandle(T* message) : MessageHandleBase(message) {}
-
-  explicit operator bool() const { return MessageHandleBase::operator bool(); }
-
-  T& operator*() const {
-    return static_cast<T&>(MessageHandleBase::operator*());
-  }
-
-  T* operator->() const {
-    return static_cast<T*>(MessageHandleBase::operator->());
-  }
-
-  T* get() const { return static_cast<T*>(MessageHandleBase::operator->()); }
 };
 
 }  // namespace protozero
