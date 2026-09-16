@@ -20,10 +20,14 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <condition_variable>
 #include <cstring>
+#include <deque>
 #include <list>
+#include <mutex>
 #include <ostream>
 #include <random>
+#include <thread>
 #include <vector>
 
 #include "perfetto/ext/base/utils.h"
@@ -435,6 +439,56 @@ TEST_F(ProtoRingBufferTest, RetainingOneMessageRecyclesBuffers) {
   // Each message takes up nearly a whole buffer, so every write has to move
   // onto another one. Handing them off must still not allocate per message.
   EXPECT_EQ(buf.num_buffers_for_testing(), 2u);
+}
+
+TEST_F(ProtoRingBufferTest, MessagesCanBeConsumedOnAnotherThread) {
+  ProtoRingBuffer buf;
+  std::mutex mutex;
+  std::condition_variable cv;
+  std::deque<ProtoRingBuffer::Message> queue;
+  bool done = false;
+
+  // Sizes span more than one buffer, so that writes keep replacing and growing
+  // the buffer while the consumer still holds messages tokenized out of it.
+  constexpr uint32_t kNumMessages = 500;
+  auto len_for = [](uint32_t i) { return 1024 + (i * 7919) % (300 * 1024); };
+  auto expected_byte = [](uint32_t len, uint32_t i) {
+    return static_cast<uint8_t>('0' + ((len + i) % 73));
+  };
+
+  std::thread consumer([&] {
+    for (uint32_t i = 0; i < kNumMessages; i++) {
+      ProtoRingBuffer::Message msg;
+      {
+        std::unique_lock<std::mutex> lock(mutex);
+        cv.wait(lock, [&] { return !queue.empty() || done; });
+        ASSERT_FALSE(queue.empty());
+        msg = std::move(queue.front());
+        queue.pop_front();
+      }
+      ASSERT_EQ(msg.field_id(), i + 1);
+      ASSERT_EQ(msg.size(), len_for(i));
+      for (uint32_t j = 0; j < msg.size(); j++)
+        ASSERT_EQ(msg.data()[j], expected_byte(msg.size(), j)) << "msg " << i;
+    }
+  });
+
+  for (uint32_t i = 0; i < kNumMessages; i++) {
+    MakeProtoMessage(/*field_id=*/i + 1, len_for(i));
+    Write(&buf, last_msg_.data(), last_msg_.size());
+    auto msg = buf.ReadMessage();
+    ASSERT_TRUE(msg.valid());
+    std::lock_guard<std::mutex> lock(mutex);
+    queue.push_back(std::move(msg));
+    cv.notify_one();
+  }
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    done = true;
+    cv.notify_one();
+  }
+  consumer.join();
+  EXPECT_TRUE(queue.empty());
 }
 
 }  // namespace
