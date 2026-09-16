@@ -128,6 +128,27 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("quiet", '\0',
                            "Suppresses progress and routine status output.",
                            &opts->quiet));
+  flags.push_back(BoolFlag(
+      "debuginfod", '\0',
+      "Download missing native debug files by build ID (requires curl).",
+      &opts->debuginfod_options.enabled));
+  flags.push_back(
+      {"debuginfod-urls", '\0', true, "URLS",
+       "Space-separated server URLs; overrides DEBUGINFOD_URLS.",
+       [opts](const char* value) { opts->debuginfod_options.urls = value; }});
+  flags.push_back({"debuginfod-cache-path", '\0', true, "PATH",
+                   "Cache directory; overrides DEBUGINFOD_CACHE_PATH.",
+                   [opts](const char* value) {
+                     opts->debuginfod_options.cache_path = value;
+                   }});
+  flags.push_back(
+      StringFlag("debuginfod-connect-timeout", '\0', "SECONDS",
+                 "Connection timeout in positive whole seconds (default: 5).",
+                 &opts->debuginfod_options.connect_timeout));
+  flags.push_back(StringFlag(
+      "debuginfod-stall-timeout", '\0', "SECONDS",
+      "Abort transfers below 1 byte/second for this long (default: 10).",
+      &opts->debuginfod_options.stall_timeout));
   flags.push_back(BoolFlag("full-sort", '\0',
                            "Forces full sort ignoring windowing.",
                            &opts->force_full_sort));
@@ -438,7 +459,8 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
     const std::string& trace_file,
-    bool quiet) {
+    bool quiet,
+    const profiling::DebuginfodConfig& debuginfod) {
   base::TimeNanos t_load_start = base::GetWallTimeNs();
   double size_mb = 0;
   auto& progress = base::ProgressReporter::GetInstance();
@@ -469,6 +491,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   }
 
   profiling::SymbolizerConfig sym_config;
+  sym_config.debuginfod = debuginfod;
   const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
   std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
   if (mode && std::string_view(mode) == "find") {
@@ -477,7 +500,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     sym_config.index_symbol_paths = std::move(paths);
   }
   if (!sym_config.index_symbol_paths.empty() ||
-      !sym_config.find_symbol_paths.empty()) {
+      !sym_config.find_symbol_paths.empty() || !debuginfod.urls.empty()) {
     if (is_proto_trace) {
       tp->Flush();
       auto sym_result = profiling::SymbolizeDatabaseAndLog(
@@ -569,6 +592,7 @@ static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
     bool is_set;
     const char* flag;
   } incompatible[] = {
+      {!opts.debuginfod.urls.empty(), "--debuginfod"},
       {opts.force_full_sort, "--full-sort"},
       {opts.no_ftrace_raw, "--no-ftrace-raw"},
       {opts.analyze_trace_proto_content, "--analyze-trace-proto-content"},
@@ -624,7 +648,8 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
   ASSIGN_OR_RETURN(Config config, BuildConfig(opts, platform));
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
   ASSIGN_OR_RETURN(base::TimeNanos t_load,
-                   LoadTraceFile(tp.get(), platform, trace_file, opts.quiet));
+                   LoadTraceFile(tp.get(), platform, trace_file, opts.quiet,
+                                 opts.debuginfod));
   if (t_load_out)
     *t_load_out = t_load;
   return std::move(tp);

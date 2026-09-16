@@ -16,7 +16,6 @@
 
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 
-#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -26,8 +25,6 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -41,6 +38,7 @@
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
+#include "test/test_helper.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
@@ -108,6 +106,8 @@ std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
 class TraceconvShellBundleTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    base::UnsetEnv("DEBUGINFOD_URLS");
+    base::UnsetEnv("LLVM_SYMBOLIZER_OPTS");
     input_trace_ = base::GetTestDataPath(
         "test/data/heapprofd_standalone_client_example-trace");
     output_path_ = output_file_.path();
@@ -132,6 +132,7 @@ class TraceconvShellBundleTest : public ::testing::Test {
     return names;
   }
 
+  TestEnvCleaner env_{"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"};
   base::TempDir temp_dir_ = base::TempDir::Create();
   base::TempFile output_file_ = base::TempFile::Create();
   std::string input_trace_;
@@ -401,24 +402,6 @@ std::string BuildFuncgraphTrace(bool with_ksyms) {
 // can assert on the shell's diagnostics. POSIX only (the tests that use it
 // are not compiled on Windows; see the #if guards around them below).
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// Debug builds print PERFETTO_DLOG lines ("[123.456] file.cc:12 msg") from
-// library code regardless of --quiet; drop them so assertions on the shell's
-// own output hold in both build modes.
-std::string WithoutDebugLogs(const std::string& text) {
-  std::string out;
-  for (base::StringSplitter lines(text, '\n'); lines.Next();) {
-    base::StringView line(lines.cur_token(), lines.cur_token_size());
-    bool is_log = line.size() > 10 && line.at(0) == '[' && line.at(4) == '.' &&
-                  line.at(8) == ']' && line.at(9) == ' ' &&
-                  isdigit(line.at(1)) && isdigit(line.at(5));
-    if (is_log)
-      continue;
-    out.append(line.data(), line.size());
-    out.push_back('\n');
-  }
-  return out;
-}
-
 class ScopedStderrCapture {
  public:
   ScopedStderrCapture() {

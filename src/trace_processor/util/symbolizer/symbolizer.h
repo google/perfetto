@@ -44,12 +44,25 @@ enum class SymbolPathError : uint8_t {
   // A directory was indexed but didn't contain a binary with the requested
   // build ID.
   kBuildIdNotInIndex,
+  // A debuginfod server answered that it has no file for the build ID.
+  kNotOnServer,
+  // A debuginfod server could not be connected to or stopped responding.
+  kServerUnreachable,
+  // A download was attempted but failed for another reason.
+  kDownloadFailed,
 };
 
-// Record of a single path attempt during symbolization.
+// Record of a single path attempt during symbolization. |path| is a file,
+// directory or server URL.
 struct SymbolPathAttempt {
+  SymbolPathAttempt() = default;
+  SymbolPathAttempt(std::string p, SymbolPathError e, std::string d = {})
+      : path(std::move(p)), error(e), detail(std::move(d)) {}
+
   std::string path;
   SymbolPathError error = SymbolPathError::kOk;
+  // Optional human-readable cause, shown in verbose reports.
+  std::string detail;
 };
 
 // Result of a symbolization operation for a single mapping.

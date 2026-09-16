@@ -374,7 +374,7 @@ int Main(int argc, char** argv) {
     }
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
-        profile_type, verbose, /*quiet=*/false));
+        profile_type, verbose, /*quiet=*/false, profiling::DebuginfodConfig()));
   }
 
   if (format == "java_heap_profile") {
@@ -382,12 +382,13 @@ int Main(int argc, char** argv) {
     return ToExitCode(trace_to_text::TraceToProfile(
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
         trace_to_text::ConversionMode::kJavaHeapProfile, verbose,
-        /*quiet=*/false));
+        /*quiet=*/false, profiling::DebuginfodConfig()));
   }
 
   if (format == "symbolize")
     return ToExitCode(trace_to_text::SymbolizeProfile(
-        input_stream, output_stream, verbose, /*quiet=*/false));
+        input_stream, output_stream, verbose, /*quiet=*/false,
+        profiling::DebuginfodConfig()));
 
   if (format == "deobfuscate")
     return ToExitCode(

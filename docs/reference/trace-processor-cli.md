@@ -62,6 +62,35 @@ which forces it off.
 successful summaries. Command results such as SQL rows and converted traces,
 warnings, and errors are unaffected.
 
+## Debuginfod {#debuginfod}
+
+With `--debuginfod`, native symbolization downloads debug files by build ID
+from [debuginfod](https://sourceware.org/elfutils/Debuginfod.html) servers, so
+local binaries are not required. It applies wherever native symbolization
+runs: trace loading, `bundle`, `util symbolize`, and `convert profile`. It
+needs `curl` and `llvm-symbolizer` on `PATH`. Remote sessions use the server's
+configuration, so pass `--debuginfod` when starting the server.
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--debuginfod` | Enable cache lookup and downloads. | Disabled |
+| `--debuginfod-urls URLS` | Whitespace-separated HTTP(S) server roots. | `DEBUGINFOD_URLS` |
+| `--debuginfod-cache-path PATH` | Directory for downloaded files. | `DEBUGINFOD_CACHE_PATH`, else `$XDG_CACHE_HOME/debuginfod_client`, `~/.cache/debuginfod_client`, or `%LOCALAPPDATA%\debuginfod_client` |
+| `--debuginfod-connect-timeout SECONDS` | Connection timeout per request. | `5` |
+| `--debuginfod-stall-timeout SECONDS` | Abort a transfer that stays below one byte per second for this long. | `10` |
+
+Setting URLs alone does not enable downloads; a configured `DEBUGINFOD_URLS`
+without `--debuginfod` produces a warning. Local symbol paths and Breakpad
+files are searched first and only build IDs that are still unresolved are
+fetched, from the cache and then from each server in order. Downloaded files
+are checked against the requested build ID and published to the cache
+atomically. There is no automatic eviction. `DEBUGINFOD_URLS` and
+`LLVM_SYMBOLIZER_OPTS` are removed from the `llvm-symbolizer` environment so
+it cannot download on its own. The summary counts downloads, cache hits,
+build IDs no server had, and failed lookups, and names servers that could not
+be reached; `--verbose` lists every server tried for each mapping with the
+reason it did not help.
+
 ## {#subcommands} Commands
 
 | Command | Purpose |
