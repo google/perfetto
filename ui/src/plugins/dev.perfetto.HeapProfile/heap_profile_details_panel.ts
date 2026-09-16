@@ -468,6 +468,8 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             false,
+            upid,
+            ts,
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
@@ -505,6 +507,8 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             false,
+            upid,
+            ts,
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
@@ -547,6 +551,8 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             true,
+            upid,
+            ts,
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
@@ -584,6 +590,8 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             true,
+            upid,
+            ts,
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
@@ -738,6 +746,8 @@ function getHeapGraphDuplicateObjectsView(
 function getHeapGraphNodeOptionalActions(
   trace: Trace,
   isDominator: boolean,
+  upid: number,
+  ts: time,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
 ): ReadonlyArray<TreeExplorerOptionalAction> {
   if (!trace.plugins.isPluginEnabled('com.android.HeapDumpExplorer')) {
@@ -750,16 +760,16 @@ function getHeapGraphNodeOptionalActions(
       category: 'DRILL',
       description:
         "Inspect this class's retained objects in the Heap Dump Explorer.",
-      execute: async ({properties, node}) => {
+      execute: async ({properties}) => {
         const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
 
         onNodeSelected?.(pathHashes, isDominator);
 
-        const name = node?.name;
-        const nameSuffix =
-          name !== undefined ? `_${encodeURIComponent(name)}` : '';
-        trace.navigate(`#!/heapdump/flamegraph_objects${nameSuffix}`);
+        const flag = isDominator ? '1' : '0';
+        trace.navigate(
+          `#!/heapdump/${upid}-${ts}/flamegraph_objects_${flag}_${encodeURIComponent(pathHashes)}`,
+        );
       },
     },
   ];

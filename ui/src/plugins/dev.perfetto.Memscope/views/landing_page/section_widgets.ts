@@ -17,6 +17,7 @@
 // the delta cell and the single-ratio bar.
 
 import m from 'mithril';
+import type {time} from '../../../../base/time';
 import {Panel} from '../../components/panel';
 import {Table} from '../../components/table';
 import {deltaColor, formatBytes, formatDelta} from './mem_format';
@@ -127,13 +128,18 @@ export function topTable(opts: {
 // Link to the Heap Dump Explorer's objects list, filtered to one class. The
 // filter goes in the path, not the query (the router drops query params); this
 // matches the explorer's own objects_<class> links.
-export function heapDumpClassHref(cls: string): string {
-  return `#!/heapdump/objects_${encodeURIComponent(cls)}`;
+export function heapDumpClassHref(
+  cls: string,
+  dump?: {upid: number; ts: time},
+): string {
+  const prefix = dump !== undefined ? `/${dump.upid}-${dump.ts}` : '';
+  return `#!/heapdump${prefix}/objects_${encodeURIComponent(cls)}`;
 }
 
 // Link to the Heap Dump Explorer's bitmaps view.
-export function heapDumpBitmapsHref(): string {
-  return '#!/heapdump/bitmaps';
+export function heapDumpBitmapsHref(dump?: {upid: number; ts: time}): string {
+  const prefix = dump !== undefined ? `/${dump.upid}-${dump.ts}` : '';
+  return `#!/heapdump${prefix}/bitmaps`;
 }
 
 // A class-name cell. The class name links to that class's instances in the Heap
@@ -146,6 +152,7 @@ export function heapDumpBitmapsHref(): string {
 export function classNameCell(
   full: string,
   retainers?: ReadonlyArray<{name: string; bytes: number}>,
+  dump?: {upid: number; ts: time},
 ): m.Child {
   const vias = (retainers ?? []).filter((r) => r.name !== full);
   // With one owner the byte count just echoes the row's retained size, so omit
@@ -154,7 +161,7 @@ export function classNameCell(
   return m('.pf-memscope-classcell', [
     m(
       'a.pf-memscope-classname',
-      {href: heapDumpClassHref(full), title: full},
+      {href: heapDumpClassHref(full, dump), title: full},
       shortClassName(full),
     ),
     ...vias.map((r) =>
@@ -165,7 +172,7 @@ export function classNameCell(
           '↳ via ',
           m(
             'a.pf-memscope-classcell__vialink',
-            {href: heapDumpClassHref(r.name)},
+            {href: heapDumpClassHref(r.name, dump)},
             shortClassName(r.name),
           ),
           showBytes ? ` · ${formatBytes(r.bytes)}` : '',

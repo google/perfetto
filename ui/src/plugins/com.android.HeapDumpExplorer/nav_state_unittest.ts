@@ -13,7 +13,14 @@
 // limitations under the License.
 
 import {describe, expect, it} from 'vitest';
-import {stateToPath, stateToSubpage, subpageToState} from './nav_state';
+import {Time} from '../../base/time';
+import {
+  formatHeapDumpSubpage,
+  parseHeapDumpSubpage,
+  stateToPath,
+  stateToSubpage,
+  subpageToState,
+} from './nav_state';
 
 describe('nav_state', () => {
   it('defaults to overview when defaultView is omitted or overview', () => {
@@ -70,5 +77,40 @@ describe('nav_state', () => {
     expect(stateToSubpage({view: 'overview', params: {}})).toBe('overview');
     expect(stateToPath({view: 'flamegraph', params: {}})).toBe('flamegraph');
     expect(stateToSubpage({view: 'flamegraph', params: {}})).toBe('flamegraph');
+  });
+
+  it('parses and formats <upid>-<ts> route segment', () => {
+    expect(
+      parseHeapDumpSubpage('/5-123456789/objects_java.lang.String'),
+    ).toEqual({
+      dump: {upid: 5, ts: Time.fromRaw(123456789n)},
+      navSubpage: 'objects_java.lang.String',
+      state: {
+        view: 'objects',
+        params: {cls: 'java.lang.String'},
+      },
+    });
+    expect(parseHeapDumpSubpage('5-123456789')).toEqual({
+      dump: {upid: 5, ts: Time.fromRaw(123456789n)},
+      navSubpage: '',
+      state: {
+        view: 'overview',
+        params: {},
+      },
+    });
+    expect(parseHeapDumpSubpage('objects_java.lang.String')).toEqual({
+      dump: undefined,
+      navSubpage: 'objects_java.lang.String',
+      state: {
+        view: 'objects',
+        params: {cls: 'java.lang.String'},
+      },
+    });
+    expect(
+      formatHeapDumpSubpage({upid: 5, ts: Time.fromRaw(123456789n)}, 'bitmaps'),
+    ).toBe('5-123456789/bitmaps');
+    expect(
+      formatHeapDumpSubpage({upid: 5, ts: Time.fromRaw(123456789n)}, ''),
+    ).toBe('5-123456789');
   });
 });

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time, type time} from '../../base/time';
+
 export type NavState =
   | {view: 'overview'; params: Record<string, never>}
   | {view: 'classes'; params: {rootClass?: string}}
@@ -197,4 +199,56 @@ export function subpageToState(
     default:
       return {view: 'overview', params: {}};
   }
+}
+
+export interface DumpRouteRef {
+  readonly upid: number;
+  readonly ts: time;
+}
+
+export function formatHeapDumpSubpage(
+  dump: DumpRouteRef | undefined,
+  navSubpage: string,
+): string {
+  if (dump !== undefined) {
+    return navSubpage
+      ? `${dump.upid}-${dump.ts}/${navSubpage}`
+      : `${dump.upid}-${dump.ts}`;
+  }
+  return navSubpage;
+}
+
+export function parseHeapDumpSubpage(
+  subpage: string | undefined,
+  defaultView: DefaultNavView = 'overview',
+): {
+  dump?: DumpRouteRef;
+  navSubpage: string;
+  state: NavState;
+} {
+  if (!subpage) {
+    return {navSubpage: '', state: subpageToState(undefined, defaultView)};
+  }
+
+  const trimmed = subpage.startsWith('/') ? subpage.slice(1) : subpage;
+  if (!trimmed) {
+    return {navSubpage: '', state: subpageToState(undefined, defaultView)};
+  }
+
+  const match = trimmed.match(/^(\d+)-(\d+)(?:\/(.*))?$/);
+  if (match) {
+    const upid = Number(match[1]);
+    const ts = Time.fromRaw(BigInt(match[2]));
+    const navSubpage = match[3] ?? '';
+    return {
+      dump: {upid, ts},
+      navSubpage,
+      state: subpageToState(navSubpage, defaultView),
+    };
+  }
+
+  return {
+    navSubpage: trimmed,
+    state: subpageToState(trimmed, defaultView),
+  };
 }

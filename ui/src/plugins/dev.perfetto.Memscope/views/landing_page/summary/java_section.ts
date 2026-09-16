@@ -584,6 +584,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       {label: 'Retained', num: true},
       {label: 'Share', num: true},
     ];
+    const dump = {upid, ts: cur.ts};
     const classRow = (
       c: ClassAggRow,
       shareMetric: (r: ClassAggRow) => number,
@@ -597,7 +598,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName)),
+        classNameCell(c.typeName, data.retainerOf.get(c.typeName), dump),
         withDelta(
           c.reachableObjCount.toLocaleString(),
           b !== undefined

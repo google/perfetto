@@ -20,7 +20,7 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
 import {formatDuration} from '../../components/time_utils';
-import type {NavState, NavView} from './nav_state';
+import {type NavState, type NavView, parseHeapDumpSubpage} from './nav_state';
 import type {OverviewData} from './types';
 import type * as queries from './queries';
 import {OverviewView} from './views/overview_view';
@@ -299,9 +299,14 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
 }
 
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
-  oncreate({attrs}: m.VnodeDOM<HeapDumpPageAttrs>) {
-    attrs.session.setNavigateCallback((sub) => {
-      window.location.hash = `!/heapdump${sub ? '/' + sub : ''}`;
+  oninit({attrs}: m.Vnode<HeapDumpPageAttrs>) {
+    attrs.session.setNavigateCallback((sub, replace) => {
+      const url = `#!/heapdump${sub ? '/' + sub : ''}`;
+      if (replace) {
+        location.replace(url);
+      } else {
+        window.location.hash = url.slice(1);
+      }
     });
     void attrs.session.loadOverview();
   }
@@ -317,6 +322,14 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     session.syncFlamegraphTabFromNav();
 
     const active = session.activeDump;
+    const {dump} = parseHeapDumpSubpage(subpage, session.defaultView);
+    if (
+      active !== null &&
+      (dump === undefined || dump.upid !== active.upid || dump.ts !== active.ts)
+    ) {
+      location.replace(`#!/heapdump/${session.fullSubpage}`);
+    }
+
     const overview = session.cachedOverview;
     if (active === null || overview === null) {
       return m(

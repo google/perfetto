@@ -83,7 +83,7 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     if (restored) {
       // Restored from a shared link: land on the saved tab (beats the
       // default-open hint below).
-      const sub = session.navPath;
+      const sub = session.fullSubpage;
       ctx.initialPage.suggest(sub ? `/heapdump/${sub}` : '/heapdump', 200);
     } else if (
       HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&

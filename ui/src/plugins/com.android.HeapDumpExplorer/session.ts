@@ -24,8 +24,10 @@ import {flamegraphQuery} from './views/flamegraph_objects_view';
 import * as queries from './queries';
 import {
   type DefaultNavView,
+  formatHeapDumpSubpage,
   type NavState,
   type NavView,
+  parseHeapDumpSubpage,
   stateToPath,
   stateToSubpage,
   subpageToState,
@@ -73,7 +75,7 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 // the store, restoration is automatic. Non-serializable trace-derived data (the
 // dumps, overview, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
-  private _navigateCallback?: (subpage: string) => void;
+  private _navigateCallback?: (subpage: string, replace?: boolean) => void;
 
   private _dumps: ReadonlyArray<queries.HeapDump> = [];
   private _overview: OverviewData | null = null;
@@ -143,6 +145,8 @@ export class HeapDumpExplorerSession {
     const view = this.nav.view;
     if (view === 'object' || view === 'flamegraph-objects') {
       this.navigate(this.defaultView);
+    } else {
+      this._navigateCallback?.(this.fullSubpage);
     }
     m.redraw();
   }
@@ -172,7 +176,16 @@ export class HeapDumpExplorerSession {
     return stateToPath(this.nav);
   }
 
-  setNavigateCallback(cb: ((subpage: string) => void) | undefined): void {
+  // The full subpage including the active dump prefix `<upid>-<ts>`.
+  get fullSubpage(): string {
+    const dump = this.activeDump;
+    const navSub = this.store.state.nav ?? '';
+    return formatHeapDumpSubpage(dump ?? undefined, navSub);
+  }
+
+  setNavigateCallback(
+    cb: ((subpage: string, replace?: boolean) => void) | undefined,
+  ): void {
     this._navigateCallback = cb;
   }
 
@@ -181,7 +194,7 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this._navigateCallback?.(sub);
+    this._navigateCallback?.(this.fullSubpage);
     m.redraw();
   }
 
@@ -211,19 +224,30 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this._navigateCallback?.(sub);
+    this._navigateCallback?.(this.fullSubpage, true);
   };
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
   // change only. The router drops query params, so only the path round-trips.
   syncFromSubpage(subpage: string | undefined): void {
-    const sub = subpage?.startsWith('/') ? subpage.slice(1) : subpage;
-    const incomingPath = (sub ?? '').split('?')[0];
-    if (incomingPath !== this.navPath) {
+    const {dump, navSubpage, state} = parseHeapDumpSubpage(
+      subpage,
+      this.defaultView,
+    );
+    let dumpChanged = false;
+    if (dump !== undefined) {
+      const target = this._dumps.find(
+        (d) => d.upid === dump.upid && d.ts === dump.ts,
+      );
+      if (target && target !== this.activeDump) {
+        this.switchToDump(target);
+        dumpChanged = true;
+      }
+    }
+    const incomingPath = navSubpage.split('?')[0];
+    if (dumpChanged || incomingPath !== this.navPath) {
       this.store.edit((s) => {
-        s.nav = sub
-          ? stateToSubpage(subpageToState(sub, this.defaultView))
-          : undefined;
+        s.nav = navSubpage ? stateToSubpage(state) : undefined;
       });
     }
   }

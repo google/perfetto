@@ -426,7 +426,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
         controls: m(
           Anchor,
           {
-            href: heapDumpBitmapsHref(),
+            href: heapDumpBitmapsHref({upid, ts: cur.ts}),
             icon: Icons.UpdateSelection,
           },
           'Open in Heap Dump Explorer',
