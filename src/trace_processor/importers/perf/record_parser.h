@@ -62,9 +62,11 @@ class RecordParser : public TraceSorter::Sink<Record, RecordParser> {
 
   base::Status InternSample(Sample sample);
 
-  base::StatusOr<std::vector<CounterId>> UpdateCounters(const Sample& sample);
+  base::StatusOr<std::vector<CounterId>> UpdateCounters(const Sample& sample,
+                                                        UniqueTid utid);
   static base::StatusOr<std::vector<CounterId>> UpdateCountersInReadGroups(
-      const Sample& sample);
+      const Sample& sample,
+      UniqueTid utid);
 
   std::optional<CallsiteId> InternCallchain(
       UniquePid upid,

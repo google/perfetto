@@ -96,6 +96,104 @@ class Simpleperf(TestSuite):
           "instructions","[NULL]","[NULL]",40,0
         '''))
 
+  def test_perf_thread_counter_track(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_add_counter.data'),
+        query='''
+        SELECT
+          t.type,
+          t.name,
+          t.perf_session_id,
+          th.tid,
+          t.cpu,
+          t.is_timebase
+        FROM perf_counter_track t
+        JOIN thread th USING (utid)
+        ORDER BY t.perf_session_id, t.name;
+        ''',
+        out=Csv('''
+          "type","name","perf_session_id","tid","cpu","is_timebase"
+          "perf_thread_cpu_counter","cpu-cycles",0,689664,40,1
+          "perf_thread_cpu_counter","instructions",1,689664,40,0
+        '''))
+
+  def test_perf_thread_cpu_counters_migration(self):
+    return DiffTestBlueprint(
+        trace=Path('perf_thread_cpu_counters.py'),
+        query='''
+        SELECT
+          t.type,
+          t.name,
+          th.tid,
+          t.cpu,
+          c.ts,
+          CAST(c.value AS INT) AS value
+        FROM counter c
+        JOIN perf_counter_track t ON c.track_id = t.id
+        JOIN thread th USING (utid)
+        ORDER BY t.type, th.tid, t.name, t.cpu, c.ts;
+        ''',
+        out=Csv('''
+          "type","name","tid","cpu","ts","value"
+          "perf_thread_cpu_counter","cpu-cycles",1001,0,1000,1000
+          "perf_thread_cpu_counter","cpu-cycles",1001,0,3000,1600
+          "perf_thread_cpu_counter","cpu-cycles",1001,1,2000,400
+          "perf_thread_cpu_counter","instructions",1001,0,1000,2000
+          "perf_thread_cpu_counter","instructions",1001,0,3000,3200
+          "perf_thread_cpu_counter","instructions",1001,1,2000,800
+          "perf_thread_cpu_counter","cpu-cycles",1002,1,2500,500
+          "perf_thread_cpu_counter","instructions",1002,1,2500,900
+        '''))
+
+  def test_perf_thread_unbound_counters(self):
+    return DiffTestBlueprint(
+        trace=Path('perf_thread_unbound_counters.py'),
+        query='''
+        SELECT
+          t.type,
+          t.name,
+          th.tid,
+          t.cpu,
+          c.ts,
+          CAST(c.value AS INT) AS value
+        FROM counter c
+        JOIN perf_counter_track t ON c.track_id = t.id
+        JOIN thread th USING (utid)
+        ORDER BY t.type, th.tid, t.name, c.ts;
+        ''',
+        out=Csv('''
+          "type","name","tid","cpu","ts","value"
+          "perf_thread_counter","cpu-cycles",1001,"[NULL]",1000,1000
+          "perf_thread_counter","cpu-cycles",1001,"[NULL]",2000,1500
+          "perf_thread_counter","cpu-cycles",1001,"[NULL]",3000,2200
+          "perf_thread_counter","instructions",1001,"[NULL]",1000,2000
+          "perf_thread_counter","instructions",1001,"[NULL]",2000,3000
+          "perf_thread_counter","instructions",1001,"[NULL]",3000,4400
+        '''))
+
+  def test_perf_system_wide_counters(self):
+    return DiffTestBlueprint(
+        trace=Path('perf_system_wide_counters.py'),
+        query='''
+        SELECT
+          t.type,
+          t.name,
+          t.cpu,
+          t.utid,
+          c.ts,
+          CAST(c.value AS INT) AS value
+        FROM counter c
+        JOIN perf_counter_track t ON c.track_id = t.id
+        ORDER BY t.name, t.cpu, c.ts;
+        ''',
+        out=Csv('''
+          "type","name","cpu","utid","ts","value"
+          "perf_cpu_counter","cpu-cycles",0,"[NULL]",1000,1000
+          "perf_cpu_counter","cpu-cycles",0,"[NULL]",2000,2500
+          "perf_cpu_counter","instructions",0,"[NULL]",1000,2000
+          "perf_cpu_counter","instructions",0,"[NULL]",2000,5000
+        '''))
+
   # simpleperf report -i perf.data --print-event-count --csv
   # The thread name in this trace changes over time. simpleperf shows samples
   # with the old and new name. Perfetto does not support threads changing names,

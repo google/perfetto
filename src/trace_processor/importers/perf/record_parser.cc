@@ -196,7 +196,8 @@ base::Status RecordParser::InternSample(Sample sample) {
       upid, sample.callchain, sample.perf_invocation->needs_pc_adjustment());
 
   // Update counters and create counter set.
-  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids, UpdateCounters(sample));
+  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids,
+                   UpdateCounters(sample, utid));
 
   tables::ProfilerSampleTable::Row row;
   row.ts = sample.trace_ts;
@@ -395,9 +396,10 @@ UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
-    const Sample& sample) {
+    const Sample& sample,
+    UniqueTid utid) {
   if (!sample.read_groups.empty()) {
-    return UpdateCountersInReadGroups(sample);
+    return UpdateCountersInReadGroups(sample, utid);
   }
 
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
@@ -407,13 +409,14 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
   CounterId counter_id =
-      sample.attr->GetOrCreateCounter(sample.cpu)
+      sample.attr->GetOrCreateCounter(sample.cpu, utid)
           .AddDelta(sample.trace_ts, static_cast<double>(period));
   return std::vector<CounterId>{counter_id};
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
-    const Sample& sample) {
+    const Sample& sample,
+    UniqueTid utid) {
   std::vector<CounterId> counter_ids;
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
@@ -423,7 +426,7 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
                              *entry.event_id);
     }
     CounterId counter_id =
-        attr->GetOrCreateCounter(sample.cpu)
+        attr->GetOrCreateCounter(sample.cpu, utid)
             .AddCount(sample.trace_ts, static_cast<double>(entry.value));
     counter_ids.push_back(counter_id);
   }
