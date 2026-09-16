@@ -17639,6 +17639,7 @@ filegroup {
         "src/protozero/proto_decoder_unittest.cc",
         "src/protozero/proto_ring_buffer_unittest.cc",
         "src/protozero/proto_utils_unittest.cc",
+        "src/protozero/scattered_heap_buffer_unittest.cc",
         "src/protozero/scattered_stream_writer_unittest.cc",
         "src/protozero/test/cppgen_conformance_unittest.cc",
         "src/protozero/test/fake_scattered_buffer.cc",
