@@ -64,7 +64,9 @@ WITH
   ),
   flat_slices AS (
     SELECT root_id, id, ts, dur
-    FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices))
+    FROM _intervals_flatten!(
+      _intervals_merge_root_and_children!(root_slices, child_slices)
+    )
   )
 SELECT
   id AS slice_id,

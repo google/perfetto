@@ -83,4 +83,8 @@ SELECT
   machine_id,
   COALESCE(short_charging_state, 'unknown') AS short_charging_state,
   COALESCE(charging_state, 'Unknown') AS charging_state
-FROM _intervals_fill_gaps!((machine_id), (short_charging_state, charging_state), _intervals);
+FROM _intervals_fill_gaps!(
+  (machine_id),
+  (short_charging_state, charging_state),
+  _intervals
+);
