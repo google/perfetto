@@ -42,6 +42,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
@@ -171,6 +172,7 @@ Commands:
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
   -v, --version               Print version.
+      --no-progress           Disable live progress.
       --full-sort             Force full sort ignoring windowing.
       --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
       --add-sql-package PATH  Register SQL files from a directory as a package.
@@ -1005,6 +1007,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                                  usage.c_str());
         }
       }
+      base::ProgressReporter::GetInstance().set_enabled(!global.no_progress);
       if (global.help) {
         printf("%s", usage.c_str());
         return base::OkStatus();

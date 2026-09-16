@@ -345,6 +345,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
   private hoveredSlice?: SliceOrInstant<InferRowType<T>>;
+  private hoveredCompressedRow = false;
   private charWidth = {title: -1, subtitle: -1};
   private computedTrackHeight = 0;
   private currentDataFrame?: DataFrame<InferRowType<T>>;
@@ -1164,6 +1165,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (!this.hoveredSlice) {
       return undefined;
     }
+    if (this.sliceLayout.collapsed && this.hoveredCompressedRow) {
+      return 'Click to expand rows';
+    }
     return (
       this.attrs.tooltip?.(this.hoveredSlice) ??
       renderTooltip(this.trace, this.hoveredSlice)
@@ -1298,6 +1302,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   onMouseMove(e: TrackMouseEvent): void {
     const prevHoveredSlice = this.hoveredSlice;
     this.hoveredSlice = this.findSlice(e);
+    this.hoveredCompressedRow = this.isCompressedRow(e.y);
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
       this.trace.timeline.highlightedSliceName = this.hoveredSlice?.title;
@@ -1317,6 +1322,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   onMouseOut(): void {
     const prevHoveredSlice = this.hoveredSlice;
     this.hoveredSlice = undefined;
+    this.hoveredCompressedRow = false;
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = undefined;
       this.trace.timeline.highlightedSliceName = undefined;
@@ -1327,10 +1333,25 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     }
   }
 
+  private isCompressedRow(y: number): boolean {
+    const {padding, sliceHeight, rowGap, collapsed} = this.sliceLayout;
+    return (
+      collapsed &&
+      y > padding + sliceHeight &&
+      y >= padding + sliceHeight + rowGap
+    );
+  }
+
   onMouseClick(event: TrackMouseEvent): boolean {
     const slice = this.findSlice(event);
     if (slice === undefined) {
       return false;
+    }
+    if (this.isCompressedRow(event.y)) {
+      this.sliceLayout = {...this.sliceLayout, collapsed: false};
+      this.onMouseOut();
+      this.trace.raf.scheduleFullRedraw();
+      return true;
     }
     if (this.attrs.onSliceClick) {
       this.attrs.onSliceClick({slice});

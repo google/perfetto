@@ -30,6 +30,7 @@ These flags are accepted in addition to the subcommand-specific flags below
 and behave the same across all subcommands:
 
 - **Help and version:** `-h, --help`, `-v, --version`.
+- **Progress:** `--no-progress` disables live progress output.
 - **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
   `--analyze-trace-proto-content`, `--crop-track-events`.
 - **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
@@ -43,6 +44,17 @@ and behave the same across all subcommands:
   `--metatrace-categories CATEGORIES`. This produces a Perfetto trace of
   trace processor itself, which you can load back into the UI for
   performance debugging.
+
+## Progress and color
+
+Diagnostics go to stderr. Live progress and ANSI color are used only when
+stderr is a terminal and `TERM` is not `dumb`. `--no-progress` disables live
+progress; warnings and errors are unaffected.
+
+Color can be overridden with the [FORCE_COLOR](https://force-color.org/) and
+[NO_COLOR](https://no-color.org/) environment variables. A nonempty
+`FORCE_COLOR` forces color on and takes precedence over a nonempty `NO_COLOR`,
+which forces it off.
 
 ## {#subcommands} Commands
 
@@ -271,8 +283,12 @@ including common Trace Processor options.
 
 | Argument | Meaning |
 | --- | --- |
-| `input` | Input trace file path. Stdin is not supported. |
+| `input` | Existing regular trace file. Stdin is not supported. |
 | `output` | Destination file path. Stdout is not supported. Its parent directory must exist and be writable. |
+
+Input and output must refer to different files, including through hard links.
+An existing output must be a regular file. Output symlinks are rejected; specify
+the target path directly.
 
 #### Options
 
@@ -327,6 +343,18 @@ The order above describes how paths are collected, not a guaranteed preference
 between duplicate copies of the same build ID during recursive indexing. Prefer
 directories containing the matching unstripped or debug binaries rather than
 mixing stripped and unstripped copies. Use `--verbose` to inspect lookup details.
+
+#### Output replacement and cleanup
+
+The command writes a temporary file beside the destination. It replaces the
+destination only after successfully writing and flushing the complete bundle.
+An existing output is preserved if reading, enrichment, or writing fails.
+
+Ordinary failures remove the temporary file on cleanup. Abrupt termination,
+including Ctrl-C, or a cleanup failure can leave a sibling file named
+`<output>.tmp.<uuid>`. Cleanup is best effort; incomplete data is never published
+as the destination. A leftover temporary file can be deleted once the process
+has stopped.
 
 #### Exit status
 
