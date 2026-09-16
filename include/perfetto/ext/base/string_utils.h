@@ -303,6 +303,9 @@ class StackString {
   }
 
   StringView string_view() const { return StringView(buf_, len_); }
+  std::string_view ToStdStringView() const {
+    return std::string_view(buf_, len_);
+  }
   std::string ToStdString() const { return std::string(buf_, len_); }
   const char* c_str() const { return buf_; }
   size_t len() const { return len_; }

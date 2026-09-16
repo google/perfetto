@@ -42,9 +42,8 @@ base::Status TraceToBundle(const std::string& input_file_path,
       tp.get(), input_file_path.c_str(),
       [&loaded_mb, &progress](uint64_t parsed_size) {
         loaded_mb = static_cast<double>(parsed_size) / 1E6;
-        progress.Update(
-            base::StackString<128>("Reading trace: %.2f MB", loaded_mb)
-                .ToStdString());
+        base::StackString<128> msg("Reading trace: %.2f MB", loaded_mb);
+        progress.Update(msg.ToStdStringView());
       });
   progress.Clear();
   if (!status.ok())

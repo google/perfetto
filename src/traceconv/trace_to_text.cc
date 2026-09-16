@@ -155,10 +155,9 @@ void OnlineTraceToText::EndWrite(size_t size_written) {
     protos::pbzero::TracePacket::Decoder decoder(token.start, token.len);
     bytes_processed_ += token.len;
     if ((packet_++ & 0x3f) == 0) {
-      base::ProgressReporter::GetInstance().Update(
-          base::StackString<128>("Processing trace: %8zu KB",
-                                 bytes_processed_ / 1024)
-              .ToStdString());
+      base::StackString<128> msg("Processing trace: %8zu KB",
+                                 bytes_processed_ / 1024);
+      base::ProgressReporter::GetInstance().Update(msg.ToStdStringView());
     }
     if (decoder.has_compressed_packets()) {
       PrintCompressedPackets(decoder.compressed_packets(),

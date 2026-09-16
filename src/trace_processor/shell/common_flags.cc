@@ -442,9 +442,8 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   base::Status load_status = platform->LoadTrace(
       tp, trace_file, [&size_mb, &progress](size_t parsed_size) {
         size_mb = static_cast<double>(parsed_size) / 1E6;
-        progress.Update(
-            base::StackString<128>("Loading trace: %.2f MB", size_mb)
-                .ToStdString());
+        base::StackString<128> msg("Loading trace: %.2f MB", size_mb);
+        progress.Update(msg.ToStdStringView());
       });
   progress.Clear();
   if (!load_status.ok()) {

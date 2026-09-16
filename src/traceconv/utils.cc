@@ -65,10 +65,9 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
 
   for (int i = 0;; i++) {
     if (i % kStderrRate == 0) {
-      progress.Update(
-          base::StackString<128>("Loading trace %.2f MB",
-                                 static_cast<double>(file_size) / 1.0e6)
-              .ToStdString());
+      base::StackString<128> msg("Loading trace %.2f MB",
+                                 static_cast<double>(file_size) / 1.0e6);
+      progress.Update(msg.ToStdStringView());
     }
 
     std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);

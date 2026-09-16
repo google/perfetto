@@ -19,7 +19,9 @@
 
 #include <cstdint>
 #include <mutex>
-#include <string>
+#include <string_view>
+
+#include "perfetto/base/thread_annotations.h"
 
 namespace perfetto::base {
 
@@ -40,10 +42,10 @@ class ProgressReporter {
   static ProgressReporter& GetInstance();
 
   // Suppresses all progress output. Diagnostics are unaffected.
-  void set_enabled(bool enabled) { enabled_ = enabled; }
+  void set_enabled(bool enabled);
 
   // |message| must be plain ASCII without newlines or terminal escapes.
-  void Update(const std::string& message);
+  void Update(std::string_view message);
   void Clear();
 
  private:
@@ -52,12 +54,12 @@ class ProgressReporter {
   ProgressReporter(const ProgressReporter&) = delete;
   ProgressReporter& operator=(const ProgressReporter&) = delete;
 
-  void ClearLocked();
+  void ClearLocked() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
   std::mutex mutex_;
-  bool enabled_ = true;
-  int64_t last_update_ms_ = 0;
-  size_t visible_width_ = 0;
+  bool enabled_ PERFETTO_GUARDED_BY(mutex_) = true;
+  int64_t last_update_ms_ PERFETTO_GUARDED_BY(mutex_) = 0;
+  size_t visible_width_ PERFETTO_GUARDED_BY(mutex_) = 0;
 };
 
 }  // namespace perfetto::base

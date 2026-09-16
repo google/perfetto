@@ -16,11 +16,13 @@
 
 #include "perfetto/ext/base/progress_reporter.h"
 
+#include <chrono>
 #include <cstdlib>
 #include <functional>
 #include <map>
 #include <optional>
 #include <string>
+#include <thread>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -125,6 +127,20 @@ TEST_F(ProgressReporterTest, TerminalClipsAndClearsBeforeLogging) {
   EXPECT_THAT(output, testing::Not(testing::HasSubstr("overflow")));
   EXPECT_THAT(output, testing::HasSubstr("\r                   \r"));
   EXPECT_THAT(output, testing::HasSubstr("diagnostic"));
+}
+
+TEST_F(ProgressReporterTest, ShrinkingMessageKeepsThrottling) {
+  SetEnv("TERM", "xterm");
+  auto output = OnTerminal([] {
+    auto& progress = ProgressReporter::GetInstance();
+    progress.Update("1234567890");
+    std::this_thread::sleep_for(std::chrono::milliseconds(110));
+    progress.Update("12345");
+    progress.Update("throttled");
+    progress.Clear();
+  });
+  EXPECT_THAT(output, testing::HasSubstr("\r12345"));
+  EXPECT_THAT(output, testing::Not(testing::HasSubstr("throttled")));
 }
 
 TEST_F(ProgressReporterTest, TerminalSuppressionDoesNotSuppressDiagnostics) {

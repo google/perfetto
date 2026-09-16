@@ -125,8 +125,8 @@ class QueryWriter {
       callback(&iterator, &line_writer);
 
       if (global_writer_.pos() + line_writer.pos() >= kFlushThreshold) {
-        base::ProgressReporter::GetInstance().Update(
-            base::StackString<128>("Writing row %" PRIu32, rows).ToStdString());
+        base::StackString<128> msg("Writing row %" PRIu32, rows);
+        base::ProgressReporter::GetInstance().Update(msg.ToStdStringView());
         auto str = global_writer_.GetStringView();
         trace_writer_->Write(str.data(), str.size());
         global_writer_.Clear();

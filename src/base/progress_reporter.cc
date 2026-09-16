@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <string_view>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
@@ -85,6 +86,11 @@ bool StderrSupportsProgress() {
 }
 
 bool StderrSupportsColor() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Attempt this even when colors are forced, so that escapes are interpreted
+  // wherever the console can.
+  static const bool vt_enabled = EnableVirtualTerminalProcessing();
+#endif
   const char* force_color = getenv("FORCE_COLOR");
   if (force_color && *force_color)
     return true;
@@ -94,8 +100,7 @@ bool StderrSupportsColor() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
   return false;
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  static const bool enabled = EnableVirtualTerminalProcessing();
-  return enabled && StderrIsInteractiveTerminal();
+  return vt_enabled && StderrIsInteractiveTerminal();
 #else
   return StderrIsInteractiveTerminal();
 #endif
@@ -106,26 +111,33 @@ ProgressReporter& ProgressReporter::GetInstance() {
   return *instance;
 }
 
-void ProgressReporter::Update(const std::string& message) {
+void ProgressReporter::set_enabled(bool enabled) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  enabled_ = enabled;
+}
+
+void ProgressReporter::Update(std::string_view message) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!enabled_ || !StderrSupportsProgress())
     return;
   int64_t now = GetWallTimeMs().count();
   if (last_update_ms_ && now - last_update_ms_ < kMinUpdateIntervalMs)
     return;
-  last_update_ms_ = now;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  last_update_ms_ = now;
   // stdio reaches the embedder only when a write ends with a newline.
-  fprintf(stderr, "%s\n", message.c_str());
+  fprintf(stderr, "%.*s\n", static_cast<int>(message.size()), message.data());
 #else
   // Leave one column unused to avoid wrapping, including on narrow terminals.
   size_t width = TerminalWidth();
   size_t new_width = std::min(message.size(), width > 1 ? width - 1 : 0);
   if (new_width < visible_width_)
     ClearLocked();
+  // Set after clearing, which resets the throttle for the next phase.
+  last_update_ms_ = now;
   if (!new_width)
     return;
-  fprintf(stderr, "\r%.*s", static_cast<int>(new_width), message.c_str());
+  fprintf(stderr, "\r%.*s", static_cast<int>(new_width), message.data());
   fflush(stderr);
   visible_width_ = new_width;
 #endif
