@@ -448,13 +448,11 @@ bool SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   //   this pass's Free words.
   // - Failure: relaxed because the returned word only supplies the next
   //   CAS attempt. No payload access depends on it.
-  // Bounded retry. The only legitimate reason this CAS fails is a writer
-  // advancing write_pos (the other half of the word). A writer can advance it
-  // at most ~num_chunks times before the ring is full and it must wait for this
-  // very publication, so the cap covers all real contention. Beyond it, give up
-  // this pass rather than spin on producer-mutated shared memory. The header
-  // read_pos then stays at its previous value, so a writer sees less free
-  // space, never more, and the next drain pass publishes the latest read_pos.
+  // A writer can advance write_pos, the other half of this word, between CAS
+  // attempts. Limit retries to bound work on producer-controlled memory.
+  // On exhaustion, leave the shared read_pos unchanged. Writers then see less
+  // free space, never more. The reader must retry publication on its next
+  // drain, even if that drain consumes no new positions.
   constexpr uint32_t kMaxPublishAttempts = 64;
   bool published = false;
   for (uint32_t attempt = 0; attempt < kMaxPublishAttempts; ++attempt) {

@@ -36,7 +36,7 @@ namespace {
 
 using ::testing::ElementsAreArray;
 
-// Ignores NotifyReader(); the test drives ingress Drain() explicitly.
+// Ignores NotifyReader(). The test calls ingress Drain() explicitly.
 class NoopWriterDelegate : public tracing_v2::SharedRingBufferWriter::Delegate {
  public:
   void NotifyReader() override {}
@@ -293,8 +293,8 @@ TEST_F(TracingV2IngressTest, PacketFragmentedAcrossChunksReassembled) {
   EXPECT_FALSE(ReadPacketBytes(&bytes));
 }
 
-// A chunk denied by the target resolver must keep the writer's loss pending, so
-// it surfaces on the next packet stored to a permitted buffer.
+// If the target resolver rejects a chunk, ingress must retain pending loss.
+// The next packet in a permitted buffer must report that loss.
 TEST_F(TracingV2IngressTest, FirstDeniedTargetReportsLossOnNextPacket) {
   bool allowed = false;
   TracingV2Ingress ingress(
@@ -317,8 +317,8 @@ TEST_F(TracingV2IngressTest, FirstDeniedTargetReportsLossOnNextPacket) {
   EXPECT_NE(dropped, 0u);
 }
 
-// A chunk that TBv2 drops (larger than the destination buffer) must keep the
-// pending loss, which then surfaces on the next stored packet.
+// If TBv2 drops an oversized chunk, ingress must retain pending loss.
+// The next stored packet must report that loss.
 TEST_F(TracingV2IngressTest, DroppedAdmissionKeepsPendingLoss) {
   buffer_ = TraceBufferV2::Create(4096);  // Small destination.
   tracing_v2::test::SharedRingBufferForTesting large_ring(8, 16384);

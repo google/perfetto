@@ -128,9 +128,9 @@ class TraceWriterV2Impl : public TraceWriter,
     //     publish last chunk
     //     OnWriterDestroyed(id) -----------> arrange retirement of id
     //
-    // ProducerRing implements this delegate and never reuses writer IDs within
-    // a connection. The service reads the ring directly, so destruction only
-    // needs to notify the reader. There is no bridge state or ID to reclaim.
+    // ProducerRing asks the service to drain the writer's final data and record
+    // retirement. It reuses the writer ID only after a successful reply.
+    // The service preserves a chunk-ID gap between successive uses of the ID.
     virtual void OnWriterDestroyed(WriterID) = 0;
   };
 

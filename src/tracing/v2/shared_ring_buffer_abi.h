@@ -155,13 +155,13 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
 
-// Nonfatally checks the geometry constraints for a ring with |num_chunks|
-// chunks of |chunk_size| bytes. It does NOT check any backing-memory size.
+// Checks ring geometry for |num_chunks| chunks of |chunk_size| bytes without
+// fatal assertions. Does not check the size of the memory allocation.
 //
-// The SharedRingBuffer constructor CHECKs the same invariants fatally (see
-// NumChunksForRingLayout), which is fine for a ring the local process built,
-// but not for geometry that came from an untrusted producer over IPC. Validate
-// such geometry with this first and reject it without constructing the ring.
+// The SharedRingBuffer constructor uses fatal CHECKs for these constraints
+// (see NumChunksForRingLayout). Before construction, validate untrusted
+// producer geometry with this function. If invalid, reject it without
+// construction.
 inline bool IsValidRingGeometry(uint32_t num_chunks, uint32_t chunk_size) {
   return chunk_size >= kMinChunkSize &&
          chunk_size % kChunkAlignmentBytes == 0 &&
@@ -169,17 +169,14 @@ inline bool IsValidRingGeometry(uint32_t num_chunks, uint32_t chunk_size) {
          base::IsPowerOfTwo(num_chunks);
 }
 
-// Exact logical byte extent of a ring with this geometry: the header plus the
-// chunk area. This is the |size| the SharedRingBuffer constructor expects, and
-// it is independent of any OS page rounding applied to the backing mapping.
+// Exact extent in bytes: the ring header plus chunk area. SharedRingBuffer
+// expects this |size|, regardless of OS page rounding for the memory mapping.
 //
-// The value is computed and returned in 64-bit, so it never overflows for any
-// geometry (num_chunks <= 2^30 and chunk_size <= UINT32_MAX give a product
-// below 2^62). A service that received an untrusted geometry over IPC must
-// compare the mapped size against this value and reject a smaller mapping,
-// before building the ring. On a 32-bit target the true extent can exceed
-// SIZE_MAX; the caller keeps the comparison in 64-bit so it still rejects
-// correctly instead of wrapping.
+// The calculation uses 64 bits. Valid geometry has num_chunks <= 2^30 and
+// chunk_size <= UINT32_MAX, so their product is below 2^62.
+// Before construction, the service must reject a mapping smaller than this
+// extent. On 32-bit targets, the extent can exceed SIZE_MAX.
+// Keep the comparison in 64 bits to prevent overflow.
 constexpr uint64_t RingLogicalSize(uint32_t num_chunks, uint32_t chunk_size) {
   return uint64_t{sizeof(RingBufferHeader)} +
          uint64_t{num_chunks} * uint64_t{chunk_size};

@@ -149,9 +149,8 @@ static_assert(TracingServiceImpl::kMaxTracePacketSliceSize <=
               "buffer size (with some headroom)");
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// Forwards a producer ProducerRing's data notifications to its IPC endpoint. In
-// production this adapter lives in the muxer; here it drives the direct v2 path
-// through the real IPC client.
+// Forwards ProducerRing notifications through the real IPC endpoint.
+// The muxer owns this adapter in production.
 class EndpointServiceChannel : public tracing_v2::ProducerRing::ServiceChannel {
  public:
   explicit EndpointServiceChannel(TracingService::ProducerEndpoint* endpoint)
@@ -721,10 +720,10 @@ INSTANTIATE_TEST_SUITE_P(ChunkSize,
                          testing::Values(0u, 1024u, 260u));
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// Exercises the direct v2 ring transport across a real IPC socket: the producer
-// allocates a sealed memfd ring, adopts it over IPC (real FD passing), writes
-// v2 packets including one that fragments across many chunks (>128 KiB), and
-// the service reads the ring directly and delivers the packets to the consumer.
+// Exercises direct v2 transport through a real IPC socket.
+// The producer allocates a sealed memfd ring and passes its FD for adoption.
+// One packet exceeds 128 KiB and spans many chunks. The service must read the
+// ring directly and deliver all packets to the consumer.
 TEST_F(TracingIntegrationTest, TracingV2DirectRingOverIPC) {
   // The service advertised direct v2 transport support at connection setup.
   ASSERT_TRUE(producer_endpoint_->IsTracingV2DirectTransportSupported());
@@ -787,8 +786,9 @@ TEST_F(TracingIntegrationTest, TracingV2DirectRingOverIPC) {
   writer->NewTracePacket()->set_for_testing()->set_str(big);
   writer->NewTracePacket()->set_for_testing()->set_str("small_after");
 
-  // Flush hands the data to the service over IPC (NotifyTracingV2RingData),
-  // which drains the ring and replies; the flush callback fires on that reply.
+  // Flush requests a drain through NotifyTracingV2RingData().
+  // The service drains the ring, then replies. That reply invokes the flush
+  // callback.
   auto on_flush = task_runner_->CreateCheckpoint("on_flush");
   writer->Flush(on_flush);
   task_runner_->RunUntilCheckpoint("on_flush");

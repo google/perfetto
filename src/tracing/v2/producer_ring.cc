@@ -41,9 +41,8 @@ std::shared_ptr<ProducerRing> ProducerRing::Create(
     uint32_t num_chunks,
     uint32_t chunk_size,
     ServiceChannel* channel) {
-  // Validate geometry before constructing the ring, whose ctor CHECKs the same
-  // layout: a producer/service disagreement here is a programming error, not
-  // untrusted input, but returning null keeps callers non-fatal.
+  // Validate geometry before the constructor's fatal checks. Return null for
+  // invalid geometry, so callers can handle a producer/service mismatch.
   if (!IsValidRingGeometry(num_chunks, chunk_size))
     return nullptr;
   if (!memory ||
@@ -117,33 +116,27 @@ bool ProducerRing::AttachToService(ServiceChannel* channel) {
 }
 
 void ProducerRing::NotifyReader() {
-  // Progress-critical. A writer could not claim a chunk and is about to park on
-  // the ring futex, or it published a continuation that filled the ring mid
-  // packet. Ask the service to drain every time -- this path is never
-  // coalesced. When the service reads on this same sequence (in process),
-  // NotifyRingData() drains synchronously and frees space before the writer
-  // parks. Each fill must get its own drain, so a coalescing gate here would
-  // strand a writer that fills the ring several times in a row (e.g. a large
-  // write from OnFlush on the service sequence). Steady-state per-packet
-  // notifications go through NotifyReaderBatched(), which coalesces.
+  // This writer needs space after a failed claim or a continuation fragment.
+  // Request a drain every time. In process, NotifyRingData() can drain inline
+  // on the service sequence before the writer waits on the ring futex.
+  // A large OnFlush() write can fill the ring repeatedly on that sequence.
+  // Each fill needs a separate drain to avoid deadlock.
+  // NotifyReaderBatched() coalesces only notifications for complete packets.
   //
-  // The lock is held across the call so it serializes with DetachFromService():
-  // once |channel_| is null no further notification is sent, and the channel
-  // cannot be destroyed mid-call. An in-process channel may drain inline here;
-  // that only reads the ring and admits into the trace buffer, never
-  // re-entering this lock.
+  // Hold the lock across the call to serialize with DetachFromService().
+  // This prevents channel destruction during notification. After detach clears
+  // |channel_|, no further notification can occur. An inline drain reads the
+  // ring and stores fragments without reacquiring this lock.
   std::lock_guard<std::mutex> lock(mutex_);
   if (channel_)
     channel_->NotifyRingData({});
 }
 
 void ProducerRing::NotifyReaderBatched() {
-  // Steady-state: a packet finished without needing more space, so the reader
-  // can drain when convenient. Coalesce a burst into one outstanding
-  // notification. |batched_notify_dirty_| records that more packets arrived
-  // while a drain was in flight; OnBatchedNotifyDrained() rechecks it so the
-  // last packet is never stranded. This never gates the progress-critical
-  // NotifyReader() path above.
+  // A complete packet needs no immediate space, so coalesce notifications.
+  // |batched_notify_dirty_| records packets that arrive during an outstanding
+  // drain. OnBatchedNotifyDrained() checks that flag to request another drain.
+  // NotifyReader() bypasses this check when a writer needs space immediately.
   std::lock_guard<std::mutex> lock(mutex_);
   if (!channel_)
     return;
@@ -166,9 +159,8 @@ void ProducerRing::SendBatchedNotifyLocked() {
 void ProducerRing::OnBatchedNotifyDrained() {
   std::lock_guard<std::mutex> lock(mutex_);
   batched_notify_in_flight_ = false;
-  // Recheck: if packets finalized while the drain was in flight, send one more
-  // notification so their data is drained. Detach clears |channel_|, which
-  // stops the chain.
+  // If packets finalized during the drain, request another notification.
+  // Detach clears |channel_| to prevent further requests.
   if (batched_notify_dirty_ && channel_)
     SendBatchedNotifyLocked();
 }

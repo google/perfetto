@@ -30,8 +30,8 @@ namespace perfetto {
 namespace tracing_v2 {
 namespace {
 
-// Records NotifyRingData() calls and lets the test run their pick-up callbacks,
-// standing in for the service draining on its own sequence.
+// Records NotifyRingData() calls. Tests invoke their callbacks to simulate
+// service drain completion.
 class RecordingChannel : public ProducerRing::ServiceChannel {
  public:
   void NotifyRingData(std::function<void()> on_picked_up) override {
@@ -148,10 +148,9 @@ TEST(ProducerRingTest, NotifiesServiceOnEachBackpressure) {
   ASSERT_TRUE(ring);
   auto* delegate = AsWriterDelegate(ring.get());
 
-  // Backpressure is not coalesced: a writer that fills the ring again after the
-  // service freed space must get its own drain, so every NotifyReader() reaches
-  // the service. (An in-process channel drains synchronously inside this call;
-  // this fake just counts.)
+  // Each NotifyReader() call must request a drain without coalescing.
+  // A writer that fills the ring repeatedly needs a drain for each fill.
+  // The production in-process channel can drain inline. This fake counts calls.
   delegate->NotifyReader();
   delegate->NotifyReader();
   delegate->NotifyReader();
@@ -232,11 +231,10 @@ TEST(ProducerRingTest, SurvivingWriterKeepsRingAlive) {
   auto writer =
       ring->CreateTraceWriter(BufferID(1), BufferExhaustedPolicy::kDrop);
   SharedRingBuffer* rb = ring->ring_buffer();
-  ring.reset();  // Drop the caller's reference; the writer's shared ref
-                 // remains.
+  ring.reset();  // The writer retains its own reference.
   // The ring view is still valid: the writer holds the ProducerRing alive.
   EXPECT_EQ(rb->num_chunks(), 4u);
-  writer.reset();  // Last reference gone; ring destroyed cleanly.
+  writer.reset();  // The last reference releases the ring.
 }
 
 }  // namespace

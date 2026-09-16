@@ -158,12 +158,9 @@ void ProducerIPCService::InitializeConnection(
   async_res->set_using_shmem_provided_by_producer(using_producer_shmem);
   async_res->set_direct_smb_patching_supported(true);
   async_res->set_use_shmem_emulation(use_shmem_emulation);
-  // Direct v2 ring transport needs end-to-end FD passing to hand the
-  // producer-allocated ring to the service. The Windows shared-memory path does
-  // not provide it, and shared-memory emulation (for example a relay or vsock
-  // transport) does not pass the ring FD through either. Advertise support only
-  // when the real FD-passing path is in use, so a producer on an emulated
-  // transport keeps to the v1 path instead of failing.
+  // Direct v2 transport requires FD passing between producer and service.
+  // Windows shared memory and emulated transports, such as relay or vsock,
+  // cannot pass the ring FD. Advertise support only for transports that can.
   async_res->set_tracing_v2_direct_transport_supported(v2_supported);
   response.Resolve(std::move(async_res));
 }
@@ -398,8 +395,8 @@ void ProducerIPCService::AdoptTracingV2Ring(
     return;
   }
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // FD passing (and hence direct v2 transport) is unavailable on Windows; the
-  // service does not advertise support there, so this is defensive only.
+  // Windows lacks FD passing. Reject direct v2 transport even if a producer
+  // ignores the advertised capability.
   PERFETTO_ELOG("AdoptTracingV2Ring is unsupported on Windows");
   if (resp.IsBound())
     resp.Reject();
@@ -507,10 +504,10 @@ void ProducerIPCService::NotifyTracingV2RingData(
       resp.Reject();
     return;
   }
-  // Drain the producer's ring, then reply. The producer uses the reply to
-  // complete a flush/stop and to re-arm its notification coalescing, so the
-  // response must wait for the drain. |resp| is move-only; keep it alive in a
-  // shared_ptr so the drain callback (a std::function) can hold it.
+  // Reply only after the drain. The producer uses success for flush/stop
+  // completion or to permit another coalesced notification.
+  // |resp| is move-only. Keep it in a shared_ptr so the std::function callback
+  // can retain it.
   auto shared_resp = std::make_shared<DeferredNotifyTracingV2RingDataResponse>(
       std::move(resp));
   auto callback = [shared_resp](bool success) {

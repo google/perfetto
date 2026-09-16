@@ -39,47 +39,41 @@ namespace tracing_v2 {
 
 // Producer-side owner of a tracing v2 shared ring.
 //
-// It does not allocate the ring itself: the caller (the muxer, per backend)
-// provides a SharedMemory, so the same component serves both the in-process and
-// system-IPC backends. It owns the ring view over that memory, hands out v2
-// TraceWriters with independent writer ids, and is the writers' shared delegate
-// (TraceWriterV2Impl::Delegate).
+// The caller provides SharedMemory for either the in-process or system backend.
+// ProducerRing owns the ring view, allocates independent v2 writer IDs, and
+// implements TraceWriterV2Impl::Delegate for those writers.
 //
-// Lifetime: writers hold a std::shared_ptr to the ProducerRing, so the ring and
-// its backing memory outlive the service endpoint while any writer is still
-// alive. On disconnect the muxer calls DetachFromService(): after that, writer
-// notifications no longer touch the (possibly destroyed) service, but writers
-// can keep writing to the ring until they are destroyed.
+// Writers retain the ProducerRing and its memory through std::shared_ptr.
+// On disconnect, the muxer calls DetachFromService(). Surviving writers can
+// still write to the ring, but their notifications no longer reach the service.
 //
-// Threading: CreateTraceWriter() and the TraceWriterV2Impl::Delegate callbacks
-// (NotifyReader/Flush/OnWriterDestroyed) may run on any writer thread and may
-// overlap; the writer-id allocation and the notification/detach state are
-// guarded by |mutex_|. The service notification itself is posted to the service
-// via the ServiceChannel and executed on the service sequence.
+// CreateTraceWriter() and delegate callbacks can run concurrently on different
+// writer threads. |mutex_| guards writer-ID allocation, notifications and
+// detach state. ServiceChannel directs notifications to the service sequence.
 class ProducerRing : public TraceWriterV2Impl::Delegate,
                      public std::enable_shared_from_this<ProducerRing> {
  public:
-  // The producer's control channel to traced. The ring calls these; the
-  // implementation forwards to the service (a direct call in-process, an IPC
-  // notification for the system backend). Its methods may be called from any
-  // thread and must post to the service sequence themselves.
+  // The producer's control channel to traced. Methods accept calls from any
+  // writer thread. The implementation forwards them to the service sequence,
+  // through direct calls or IPC. In process, a call on that sequence can drain
+  // inline. Successful replies must be asynchronous because the ring holds
+  // |mutex_| during these calls.
   class ServiceChannel {
    public:
     virtual ~ServiceChannel();
 
-    // Asks the service to read newly published ring data. The service, on its
-    // own sequence, drains the ring into the trace buffer and then runs
-    // |on_picked_up| (used to re-arm coalescing). |on_picked_up| may be empty.
+    // Asks the service to drain published ring data into the trace buffer.
+    // After the drain, |on_picked_up| permits another coalesced notification.
+    // The callback can be empty.
     virtual void NotifyRingData(std::function<void()> on_picked_up) = 0;
-    // Replies asynchronously after final data is consumed and retirement is
-    // recorded. A false reply leaves the ID reserved until disconnect.
+    // Replies successfully after the service consumes final data and records
+    // retirement. A false reply leaves the ID reserved until disconnect.
     virtual void RetireWriter(WriterID, std::function<void(bool)> callback) {
       callback(false);
     }
 
-    // True if the service drains this ring on the calling thread, so a writer
-    // that parks waiting for space would deadlock the drain. Lets a stalling
-    // writer drop instead. The default is false (the drain runs elsewhere).
+    // True if a wait on this thread prevents the drain task from executing.
+    // A stalling writer then drops data. The default is false.
     virtual bool DrainRunsOnCurrentThread() { return false; }
   };
 
@@ -90,9 +84,8 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   // A null channel permits early writes. Attach after adoption succeeds. Until
   // then, a full ring drops data because no reader can release space.
   //
-  // Ownership of |memory| is shared: writers keep the ProducerRing (and hence
-  // the memory) alive after disconnect, and for the in-process backend the
-  // service endpoint holds the same shared_ptr while it reads the ring.
+  // Writers retain |memory| through ProducerRing after disconnect.
+  // In process, the service endpoint also holds a shared_ptr during reads.
   static std::shared_ptr<ProducerRing> Create(
       std::shared_ptr<SharedMemory> memory,
       uint32_t num_chunks,
@@ -104,9 +97,8 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   ProducerRing(const ProducerRing&) = delete;
   ProducerRing& operator=(const ProducerRing&) = delete;
 
-  // Exact logical byte extent of a ring with this geometry (ring header plus
-  // the chunk area), independent of any OS mapping/page rounding of the
-  // SharedMemory.
+  // Exact extent in bytes: ring header plus chunk area. OS page rounding for
+  // SharedMemory does not affect this value.
   static size_t LogicalSize(uint32_t num_chunks, uint32_t chunk_size);
 
   // Creates a v2 TraceWriter targeting |target_buffer|. IDs become reusable
@@ -145,7 +137,7 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   bool DrainRunsOnCurrentThread() override;
   void Flush(WriterID, std::function<void()> callback) override;
   void OnWriterDestroyed(WriterID) override;
-  // Sends retirement while holding |mutex_|. Successful replies must be async.
+  // Sends retirement under |mutex_|. Successful replies must be asynchronous.
   void RetireWriterLocked(WriterID);
 
   // Sends one coalesced steady-state notification. |mutex_| must be held.
@@ -160,23 +152,22 @@ class ProducerRing : public TraceWriterV2Impl::Delegate,
   SharedRingBuffer ring_;  // A view over |memory_|.
 
   std::mutex mutex_;
-  // Cleared by DetachFromService(); guarded by |mutex_|.
+  // DetachFromService() clears this pointer under |mutex_|.
   ServiceChannel* channel_;
   bool was_attached_;
   // Independent of v1 allocation. Retirement separates retained incarnations
   // before the producer can reuse an ID.
   IdAllocator<WriterID> writer_ids_{kMaxWriterID};
   std::vector<WriterID> retired_before_attach_;
-  // Count of CreateTraceWriter() calls refused because the id space was
-  // exhausted. Existing writers keep working; only new writers are refused.
+  // Count of CreateTraceWriter() calls that exhausted the ID space.
+  // Existing writers remain usable.
   uint64_t writer_id_exhausted_count_ = 0;
 
-  // Coalescing state for the steady-state NotifyReaderBatched() path, guarded
-  // by |mutex_|. |batched_notify_in_flight_| is true while a coalesced drain is
-  // outstanding; |batched_notify_dirty_| records that another packet finalized
-  // meanwhile, so the drain's ack sends one more notification (the recheck).
-  // The progress-critical NotifyReader() path never uses these and always
-  // notifies immediately.
+  // |mutex_| guards these NotifyReaderBatched() flags.
+  // |batched_notify_in_flight_| marks an outstanding coalesced drain.
+  // |batched_notify_dirty_| records packets that finalized during that drain.
+  // Its reply then triggers one more notification to drain those packets.
+  // NotifyReader() bypasses these flags to request immediate progress.
   bool batched_notify_in_flight_ = false;
   bool batched_notify_dirty_ = false;
 };

@@ -451,13 +451,11 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       weak_runner_(task_runner) {}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
-  // Drain whatever the producer published into its v2 ring before the buffers
-  // are torn down, mirroring the v1 SMB scrape in DisconnectProducer(). A
-  // disconnected producer with surviving writers can keep writing its retained
-  // mapping, so the write position is not necessarily fixed;
-  // DrainTracingV2RingToCompletion() is pass-capped and terminates regardless.
-  // The mapping stays alive via |v2_ring_memory_| until the ingress is
-  // destroyed below.
+  // Drain published v2 data before buffer destruction, like the v1 SMB scrape
+  // in DisconnectProducer(). Surviving writers can still advance the write
+  // position after disconnect. DrainTracingV2RingToCompletion() uses a fixed
+  // boundary and a pass limit to bound this work. |v2_ring_memory_| retains the
+  // mapping until ingress destruction below.
   DrainTracingV2RingToCompletion();
   v2_ingress_.reset();
   v2_ring_.reset();
@@ -768,9 +766,8 @@ void ProducerEndpointImpl::Sync(std::function<void()> callback) {
 
 std::shared_ptr<SharedMemory> ProducerEndpointImpl::CreateTracingV2Ring(
     size_t size) {
-  // In process the service reads the producer's ring at the same address, so a
-  // plain in-process mapping is enough; no FD needs to cross a process
-  // boundary.
+  // In process, the service reads the producer's ring at the same address.
+  // A plain mapping needs no file descriptor for transport.
   return InProcessSharedMemory::Create(size);
 }
 
@@ -798,15 +795,14 @@ bool ProducerEndpointImpl::AdoptTracingV2RingImpl(AdoptTracingV2RingArgs args) {
   if (!IsTracingV2DirectTransportSupported())
     return false;
   if (v2_ingress_) {
-    // One ring per connection. A second adoption is a producer/protocol error;
-    // reject it without disturbing the ring already in use.
+    // Each connection supports one ring. Reject a second adoption without
+    // disturbing the existing ring.
     PERFETTO_ELOG("Producer %" PRIu16 " tried to adopt a second v2 ring", id_);
     return false;
   }
-  // The geometry, the mapping and (over IPC) the file descriptor are
-  // producer-controlled. Validate the ring ABI structure and the service
-  // transport budget nonfatally, before trusting the mapping: the
-  // SharedRingBuffer constructor would CHECK these instead.
+  // The producer controls the geometry, mapping and file descriptor.
+  // Validate ABI constraints and the service transport budget before
+  // construction. This avoids fatal checks in SharedRingBuffer for bad input.
   if (!tracing_v2::IsValidRingGeometry(args.num_chunks, args.chunk_size) ||
       args.chunk_size > AdoptTracingV2RingArgs::kMaxChunkSizeBytes ||
       (tracing_v2_ring_size_bytes_ &&
@@ -879,20 +875,19 @@ TraceBufferV2* ProducerEndpointImpl::ResolveTracingV2TargetBuffer(
       return nullptr;
     buffer_id = it->service_target;
   }
-  // The producer must be configured to write into this buffer in some active
-  // session. |allowed_target_buffers_| is the authoritative permission set; the
-  // (untrusted) writer registration map is deliberately not consulted, because
-  // v2 writer ids are allocated independently of v1 and could alias.
+  // An active session must permit this producer to write to the buffer.
+  // |allowed_target_buffers_| supplies those permissions. The writer
+  // registration map is untrusted and describes v1 IDs. Independent v2 writer
+  // IDs can overlap with v1 IDs, so that map cannot authorize v2 writes.
   if (!is_allowed_target_buffer(buffer_id))
     return nullptr;
   TraceBuffer* buf = service_->GetBufferByID(buffer_id);
   if (!buf || buf->buf_type() != TraceBuffer::BufType::kV2)
     return nullptr;
   auto* v2_buf = static_cast<TraceBufferV2*>(buf);
-  // v2 direct receipt stores raw fragments that are canonicalized only on
-  // readout. A ProtoVM on this buffer consumes packets on the eviction path
-  // without that canonicalization, so the combination is unsupported: drop the
-  // chunk rather than feed the VM un-rewritten proto-group bytes.
+  // V2 storage retains raw fragments until consumer readout converts them.
+  // ProtoVM consumes stored packets on eviction and cannot decode these
+  // fragments. Reject this unsupported combination.
   if (!v2_buf->GetProtoVmInstances().empty())
     return nullptr;
   return v2_buf;

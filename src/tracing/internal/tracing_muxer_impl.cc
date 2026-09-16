@@ -66,9 +66,8 @@ namespace {
 
 using RegisteredDataSource = TracingMuxerImpl::RegisteredDataSource;
 
-// Tracing v2 producer ring defaults. The chunk size can be overridden per
-// connection via TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes (the
-// service validates it when it accepts the config).
+// Default v2 chunk size. TraceConfig.ProducerConfig.tracing_v2_chunk_size_bytes
+// overrides it per connection. The service validates the configured value.
 constexpr uint32_t kDefaultTracingV2ChunkSize = TracingService::
     ProducerEndpoint::AdoptTracingV2RingArgs::kDefaultChunkSizeBytes;
 
@@ -304,9 +303,9 @@ void TracingMuxerImpl::ProducerImpl::DisposeConnection() {
   // Drop this connection's pending flushes before releasing its endpoint.
   pending_flushes_.clear();
   if (tracing_v2_connection_) {
-    // Detaches the ring so it no longer notifies this connection. Surviving v2
-    // writers keep the ring (and its memory) alive and keep writing to it; the
-    // endpoint stays in |dead_services_| until those writers are gone.
+    // Detach the ring to stop notifications through this connection.
+    // Surviving v2 writers retain the ring and can still write to it.
+    // |dead_services_| retains the endpoint until those writers are gone.
     ReleaseTracingV2Connection();
   }
   // Keep the old service around as a dead connection in case it has active
@@ -335,17 +334,17 @@ void TracingMuxerImpl::ProducerImpl::TracingV2Connection::NotifyRingData(
   // Called from any writer thread (backpressure, or a writer's Flush) while the
   // ring is attached. Call the endpoint directly, not via the muxer sequence.
   //
-  // In process the endpoint drains on the service sequence, and inline when the
-  // call already runs on it, so a writer that fills the ring while running on
-  // that sequence (e.g. inside OnFlush()) is unblocked before it parks.
+  // In process, the endpoint drains on the service sequence. Calls on that
+  // sequence drain inline. This frees space before a writer waits, including
+  // writes from OnFlush().
   //
-  // Over IPC the endpoint posts the drain RPC to the client sequence. A writer
-  // on a different thread parks and the client sequence drains and wakes it.
-  // A writer running on the client sequence itself cannot be woken that way, so
-  // it drops instead of parking (see DrainRunsOnCurrentThread()).
+  // Over IPC, the endpoint posts the drain RPC to the client sequence.
+  // A writer on another thread can wait for the service to free space.
+  // A writer on the client sequence must drop data to avoid a deadlock.
+  // See DrainRunsOnCurrentThread().
   //
-  // ReleaseTracingV2Connection() detaches the ring (mutex-guarded) before the
-  // connection is dropped, so no call reaches a torn-down endpoint.
+  // ReleaseTracingV2Connection() detaches the ring under its mutex before
+  // disconnect. This prevents calls to a destroyed endpoint.
   endpoint->NotifyTracingV2RingData(
       [done = std::move(on_picked_up), failed = on_failure](bool success) {
         if (!success) {
@@ -386,10 +385,10 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
         "DataSourceConfig.use_tracing_v2 cannot share a producer connection "
         "with startup tracing");
   }
-  // Direct v2 transport requires the service to support it. In process this is
-  // always true; over IPC it is negotiated at connection setup and false on an
-  // older service (or a platform without FD passing). Fail rather than silently
-  // falling back, per the explicit opt-in.
+  // Direct v2 transport requires service support. In process, support is always
+  // available. IPC setup negotiates support, which older services and
+  // transports without FD passing lack. Reject unsupported v2 requests without
+  // v1 fallback.
   if (!service_->IsTracingV2DirectTransportSupported()) {
     PERFETTO_FATAL(
         "DataSourceConfig.use_tracing_v2 requires a service that supports "
@@ -408,10 +407,9 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
         num_chunks, chunk_size);
   }
 
-  // The producer allocates the ring; the transport picks the right kind of
-  // shared memory (in-process mapping or a sealed memfd for IPC). The extent is
-  // computed in 64-bit and fits size_t here because the geometry is within the
-  // service ring budget.
+  // The transport supplies an in-process mapping or a sealed memfd for IPC.
+  // The producer allocates the ring within the service budget.
+  // Its extent calculation uses 64 bits and fits size_t within that budget.
   const size_t ring_size =
       static_cast<size_t>(tracing_v2::RingLogicalSize(num_chunks, chunk_size));
   std::shared_ptr<SharedMemory> ring_memory =
@@ -433,11 +431,10 @@ void TracingMuxerImpl::ProducerImpl::EnsureTracingV2Connection() {
   adopt_args.shared_memory = std::move(ring_memory);
   adopt_args.num_chunks = num_chunks;
   adopt_args.chunk_size = chunk_size;
-  // Act on the adoption outcome. In process the callback runs synchronously
-  // here; over IPC it runs when the adoption RPC resolves. On rejection it hops
-  // to the muxer sequence and drops this connection, so no writer keeps
-  // producing into a ring the service is not reading. The callback captures the
-  // muxer and revalidates the connection by (backend, generation).
+  // In process, adoption completes synchronously. Over IPC, the callback runs
+  // after the adoption RPC resolves. On rejection, post failure to the muxer
+  // sequence to disable this v2 connection. The callback checks the muxer
+  // generation and backend connection ID before it changes state.
   const TracingBackendId backend_id = backend_id_;
   const uint32_t connection_id = connection_id_.load(std::memory_order_relaxed);
   connection->on_failure = [muxer = muxer_, backend_id, connection_id,
@@ -477,14 +474,12 @@ void TracingMuxerImpl::ProducerImpl::ReleaseTracingV2Connection() {
   PERFETTO_DCHECK(tracing_v2_connection_);
   // Release order:
   // - Clear pending flushes first, so they cannot use this connection again.
-  // - Detach the ring from the service so it stops notifying through this
-  //   connection (which is the ServiceChannel). This is mutex-guarded, so once
-  //   it returns no writer thread is or will be inside NotifyRingData(), making
-  //   it safe to drop the connection and, later, the muxer task runner.
-  // - Drop ProducerImpl's connection reference. Surviving trace writers keep
-  // the
-  //   ProducerRing (and its memory) alive and can keep writing to it; the
-  //   detached ring simply no longer notifies the service.
+  // - Detach the ring under its mutex. After detach returns, no writer can
+  //   call NotifyRingData() through this connection. The connection and muxer
+  //   task runner can then be destroyed.
+  // - Release ProducerImpl's connection reference. Surviving writers retain
+  //   ProducerRing and its memory. They can still write without service
+  //   notifications.
   PERFETTO_DCHECK(pending_flushes_.empty());
   tracing_v2_connection_->ring->DetachFromService();
   std::atomic_store(&tracing_v2_connection_,
@@ -2183,9 +2178,8 @@ void TracingMuxerImpl::DrainTracingV2RingBufferThenPostToMuxer(
     if (muxer_id == muxer_id_for_testing_)
       on_drained();
   };
-  // The endpoint runs |on_drained| after it has drained (in process directly;
-  // over IPC after the drain RPC replies). It may run it on the service
-  // sequence or the IPC reply, so post it to the muxer sequence.
+  // The endpoint reports drain completion on the service or IPC client
+  // sequence. Post successful completion to the muxer sequence.
   connection->endpoint->NotifyTracingV2RingData(
       [muxer_task_runner, failed = connection->on_failure,
        completion_on_muxer =
@@ -2221,10 +2215,10 @@ void TracingMuxerImpl::TracingV2RingAdoptionFailed_AsyncEnd(
       "The service rejected the tracing v2 ring. Dropping the v2 connection so "
       "no data source acknowledges a flush into a ring the service is not "
       "reading. v2 data sources on this connection produce no data.");
-  // Clear the pending flushes before releasing, as DisposeConnection() does:
-  // they can no longer drain through this ring. ReleaseTracingV2Connection()
-  // detaches the ring (mutex-guarded) so writers stop notifying. Surviving
-  // writers keep the mapping alive, but their data is no longer read.
+  // Clear pending flushes before release, as DisposeConnection() does.
+  // They can no longer complete through this ring. ReleaseTracingV2Connection()
+  // detaches the ring under its mutex to stop notifications. Surviving writers
+  // retain the mapping, but the service no longer reads their data.
   producer->pending_flushes_.clear();
   producer->tracing_v2_failed_ = true;
   producer->ReleaseTracingV2Connection();
@@ -3280,15 +3274,15 @@ void TracingMuxerImpl::Shutdown() {
   // Shutting down on the muxer thread would lead to a deadlock.
   PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
 
-  // Destroy this thread's trace writers, including those of still-running data
-  // sources: the SMB dies with `delete muxer` below, but this thread's TLS only
-  // at platform->Shutdown() further down. Flushing then is a UAF (b/534222391).
+  // Destroy this thread's trace writers, including those for active data
+  // sources. Muxer destruction frees the SMB before platform->Shutdown()
+  // destroys this thread's TLS. A writer flush at that point accesses freed
+  // memory (b/534222391).
   //
-  // v2 writers on other threads keep their ProducerRing (and its memory) alive.
-  // `delete muxer` below disconnects the producers, which detaches each ring
-  // from the service (ReleaseTracingV2Connection): after that a surviving
-  // writer writes to owned memory without notifying, so there is no dangling
-  // access.
+  // V2 writers on other threads retain their ProducerRing and its memory.
+  // Muxer destruction disconnects producers and calls
+  // ReleaseTracingV2Connection() to detach each ring. Surviving writers then
+  // write to owned memory without service notifications.
   muxer->DestroyAllTraceWritersForCurrentThread();
 
   std::unique_ptr<base::TaskRunner> owned_task_runner(

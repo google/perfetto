@@ -89,24 +89,22 @@ class SharedRingBufferWriter {
    public:
     virtual ~Delegate();
 
-    // Progress-critical: schedules reader work after failed claims leave
-    // reservations unclaimed and before this writer waits for read_pos to
-    // advance. Must reach the reader immediately, never coalesced, or a writer
-    // filling the ring could wait for space the reader was never asked to free.
+    // Requests immediate reader progress after failed claims, before a wait for
+    // read_pos to advance. Failed claims leave unclaimed reservations.
+    // Do not coalesce these requests. Each full ring needs its own drain
+    // request so the writer cannot wait for space without a pending reader
+    // task.
     virtual void NotifyReader() = 0;
 
-    // Steady-state: a packet was finalized without needing more space. The
-    // reader can drain when convenient, so an implementation may coalesce a
-    // burst of these into one notification (with a recheck so the last packet
-    // is never stranded). The default forwards to NotifyReader() for the simple
-    // implementations that do not coalesce.
+    // A complete packet needs no immediate space. Implementations can coalesce
+    // these notifications, but must recheck for packets that arrive during the
+    // drain. The default forwards each request to NotifyReader().
     virtual void NotifyReaderBatched() { NotifyReader(); }
 
-    // True if the reader's drain is serviced on the calling thread, so a writer
-    // that parks here waiting for space would deadlock the very task that frees
-    // it (an IPC writer on the client sequence). When true a stalling writer
-    // drops instead of waiting. The default is false: the drain runs elsewhere
-    // (a different thread, or inline in process), so waiting is safe.
+    // True if a wait on this thread prevents the reader's drain task from
+    // executing, as on the IPC client sequence. If true, a stalling writer
+    // drops data. The default is false: the drain runs inline or on another
+    // thread, so the writer can wait.
     virtual bool DrainRunsOnCurrentThread() { return false; }
   };
 

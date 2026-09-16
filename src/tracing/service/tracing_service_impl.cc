@@ -169,12 +169,10 @@ std::unique_ptr<TracingService> TracingService::CreateInstance(
 namespace tracing_service {
 
 namespace {
-// The service validates a producer's configured tracing v2 chunk size before
-// accepting the trace config; the producer sizes its ring from that value. The
-// lower/alignment limits mirror the ring ABI (kMinChunkSize and
-// kChunkAlignmentBytes in src/tracing/v2/shared_ring_buffer_abi.h); the upper
-// limit caps a single producer ring chunk. Keep kMin/kTracingV2ChunkAlignment
-// in sync with the ABI header if it changes.
+// The service validates the configured v2 chunk size before it accepts a trace
+// config. These minimum and alignment limits mirror kMinChunkSize and
+// kChunkAlignmentBytes in src/tracing/v2/shared_ring_buffer_abi.h.
+// If the ABI changes, update these limits to match.
 constexpr uint32_t kMinTracingV2ChunkSize = 256;
 constexpr uint32_t kMaxTracingV2ChunkSize = 32 * 1024;
 constexpr uint32_t kTracingV2ChunkAlignment = 4;
@@ -836,14 +834,13 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
-  // Check that the config specifies all buffers for its data sources. This
-  // is also checked in SetupDataSource, but it is simpler to return a proper
-  // error to the consumer from here (and there will be less state to undo).
+  // Check that the config specifies all buffers for its data sources.
+  // SetupDataSource also checks this. An early check returns an error to the
+  // consumer before setup creates more state.
   //
-  // The same loop resolves each data source's target buffer once and records,
-  // per resolved buffer, whether it receives tracing v2 data and whether it
-  // hosts a ProtoVM. Both checks below need the resolved index, not the raw
-  // numeric target, so they cannot run before name resolution.
+  // Resolve each data source's target buffer once. For each resolved buffer,
+  // record whether it receives v2 data and hosts a ProtoVM. Both checks below
+  // need the resolved index, so they must follow name resolution.
   std::vector<bool> buffer_has_v2(num_buffers, false);
   std::vector<bool> buffer_has_vm(num_buffers, false);
   // Producer binding happens later. Each v2 target must fit the largest
@@ -899,10 +896,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           ds_config.name().c_str(), target_buffer, num_buffers);
     }
 
-    // A tracing v2 data source stores its data through the producer's v2 ring
-    // into a TraceBufferV2. Targeting a v1 buffer would silently drop every
-    // packet (the ring reader admits only into TraceBufferV2), so reject that
-    // combination loudly rather than producing an empty trace.
+    // The v2 ring reader admits fragments only into TraceBufferV2.
+    // Reject a v1 destination at setup to prevent loss of every v2 packet.
     if (ds_config.use_tracing_v2()) {
       if (cfg.buffers()[target_buffer].experimental_mode() !=
           TraceConfig::BufferConfig::TRACE_BUFFER_V2) {
@@ -932,12 +927,10 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       buffer_has_vm[target_buffer] = true;
   }
 
-  // A ProtoVM reads a buffer's stored packets as v1 sequences. A tracing v2
-  // data source stores raw ProtoGroup fragments that are canonicalized only on
-  // the consumer read path, so a ProtoVM on the same buffer would misread them,
-  // including on eviction. Reject the combination at setup, where both sides
-  // are known, rather than dropping v2 data at receipt. Implementing a v2
-  // ProtoVM is out of scope; a safe rejection is not.
+  // ProtoVM reads stored packets as v1 sequences, including on eviction.
+  // V2 storage contains raw ProtoGroup fragments until consumer readout.
+  // Reject this combination at setup because ProtoVM cannot decode those
+  // fragments.
   for (size_t i = 0; i < num_buffers; i++) {
     if (buffer_has_v2[i] && buffer_has_vm[i]) {
       return PERFETTO_SVC_ERR(
@@ -3693,10 +3686,8 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
       // TODO(primiano): reject allocation failure without aborting the service.
       PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"",
                     shm_size / 1024, producer->name_.c_str());
-      // In the case the producer is using shmem emulation, because we use
-      // MMAP to allocate the memory and we never write to it, the shared
-      // memory is mapped to the zero page, essentially costing zero
-      // physical memory.
+      // With shmem emulation, the service never writes to this mmap allocation.
+      // Its pages reference the zero page without separate physical memory.
       auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
       auto shmem_mode =
           GetShmemMode(producer->client_identity(), producer->in_process_);

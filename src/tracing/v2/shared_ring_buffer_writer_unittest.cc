@@ -49,8 +49,8 @@ class CountingSharedRingBufferWriterDelegate
   uint32_t num_notifications = 0;
 };
 
-// Reports that the reader drains on the calling thread and never frees space,
-// to exercise the drop-instead-of-stall path (the R3 IPC client-thread case).
+// Reports a drain on the current thread without space release.
+// This exercises the drop policy for writers on the IPC client thread.
 class OnDrainThreadWriterDelegate : public SharedRingBufferWriter::Delegate {
  public:
   void NotifyReader() override { ++num_notifications; }
@@ -529,9 +529,8 @@ TEST(SharedRingBufferWriterTest, SleepFallbackRetriesUntilSpaceIsAvailable) {
 }
 
 TEST(SharedRingBufferWriterTest, StallDropsWhenDrainRunsOnCurrentThread) {
-  // A stalling writer whose reader drains on this same thread must drop rather
-  // than park: parking would deadlock the drain that frees space. This is the
-  // R3 case of an IPC writer running on the client sequence.
+  // A writer on the IPC client sequence must drop data when the ring is full.
+  // A wait here prevents the drain task from executing.
   test::SharedRingBufferForTesting ring(2, 256);
   SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
   ASSERT_TRUE(WriteFragment(&first, "first"));

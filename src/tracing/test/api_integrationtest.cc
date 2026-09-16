@@ -7122,9 +7122,8 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   auto* data_source = &data_sources_["my_data_source"];
 
   perfetto::TraceConfig cfg;
-  // A use_tracing_v2 data source stores into a TraceBufferV2; the service
-  // rejects pairing it with a v1 buffer, which would otherwise make this test
-  // wait forever for a data source that never starts.
+  // A use_tracing_v2 source requires a TraceBufferV2 destination.
+  // The service rejects a v1 destination before the data source starts.
   auto* buf = cfg.add_buffers();
   buf->set_size_kb(1024);
   buf->set_experimental_mode(
@@ -7137,8 +7136,8 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   session_a->get()->StartBlocking();
   data_source->on_start.Wait();
 
-  // Wait for setup, then hold A's flush inside its data source's OnFlush so the
-  // request (and its ring drain) is still pending when the service restarts.
+  // Wait for setup. Hold A's flush in OnFlush() across the service restart.
+  // Its request and ring drain must remain pending.
   perfetto::test::SyncProducers();
   data_source->handle_flush_asynchronously = true;
 
@@ -7159,7 +7158,7 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
   // Disconnect while the old writer is alive and its flush remains pending.
   system_service_.Restart();
   data_source->on_stop.Wait();
-  // The held flush belonged to the now-dead connection; drop it.
+  // Discard the held flush from the disconnected producer.
   data_source->handle_flush_asynchronously = false;
   data_source->async_flush_closure = {};
   perfetto::test::SyncProducers();
@@ -7186,7 +7185,8 @@ TEST_P(PerfettoApiTest, TracingV2SurvivesASystemServiceRestart) {
     if (packet.has_for_testing())
       payloads.push_back(packet.for_testing().str());
   }
-  // Only B's packets arrive here; A's stale request and data do not leak in.
+  // Only B's packets must arrive. A's stale request and data must stay
+  // separate.
   EXPECT_THAT(payloads, ElementsAre("connection B"));
 }
 

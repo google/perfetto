@@ -98,29 +98,27 @@ TracingV2Ingress::WriterState& TracingV2Ingress::GetWriterState(
 
 void TracingV2Ingress::OnChunkRead(
     const tracing_v2::SharedRingBufferReader::ChunkContents& chunk) {
-  // The writer id comes from the untrusted ring state word. Validate it against
-  // the public range at this receipt boundary, before any per-writer state
-  // lookup, so ingress and storage use one identity. An out-of-range id cannot
-  // be attributed to a valid writer, so drop the chunk.
+  // The ring state word supplies an untrusted writer ID. Validate its public
+  // range before the state lookup, so ingress and storage use one identity.
+  // If the ID is invalid, drop the chunk without attribution to a writer.
   if (PERFETTO_UNLIKELY(chunk.writer_id == 0 ||
                         chunk.writer_id > kMaxWriterID)) {
     return;
   }
   WriterState& ws = GetWriterState(chunk.writer_id);
 
-  // Resolve the destination under the producer's current permissions. A revoked
-  // or unknown target drops the chunk; keep the loss pending so it lands on the
-  // next packet the writer stores to a permitted buffer.
+  // Resolve the destination under the producer's current permissions.
+  // If the target is revoked or unknown, drop the chunk. Retain pending loss
+  // for the writer's next packet in a permitted buffer.
   TraceBufferV2* target = resolve_target_(chunk.target_buffer);
   if (PERFETTO_UNLIKELY(!target)) {
     ws.loss_pending = true;
     return;
   }
 
-  // Adapt the reader's fragment views (into its own scratch, valid only for
-  // this call) to the trace buffer's input type, then admit them. The
-  // producer's raw ProtoGroup bytes are stored verbatim; reassembly and
-  // canonicalization happen at readout.
+  // Adapt fragment views from the reader's scratch to the trace buffer's type.
+  // These views remain valid only for this call. Admission copies the raw
+  // ProtoGroup bytes unchanged. Readout later reassembles and converts packets.
   frag_scratch_.clear();
   frag_scratch_.reserve(chunk.num_fragments);
   for (uint32_t i = 0; i < chunk.num_fragments; i++) {
@@ -150,8 +148,8 @@ void TracingV2Ingress::OnChunkRead(
 void TracingV2Ingress::OnDataLoss(WriterID writer_id) {
   if (PERFETTO_UNLIKELY(writer_id == 0 || writer_id > kMaxWriterID))
     return;  // Cannot attribute a loss to an out-of-range writer id.
-  // The next stored chunk for this writer carries the loss, so it surfaces on
-  // that chunk's first packet and breaks any packet reassembling across it.
+  // The next stored chunk for this writer carries the loss on its first packet.
+  // The chunk-ID gap also prevents packet reassembly across the loss.
   GetWriterState(writer_id).loss_pending = true;
 }
 

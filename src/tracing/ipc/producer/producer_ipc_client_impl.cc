@@ -633,8 +633,8 @@ bool ProducerIPCClientImpl::IsTracingV2DirectTransportSupported() const {
 std::shared_ptr<SharedMemory> ProducerIPCClientImpl::CreateTracingV2Ring(
     size_t size) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // Direct v2 transport needs FD passing, unavailable on the Windows shared
-  // memory path; the service does not advertise support there.
+  // Windows shared memory lacks FD passing, so direct v2 transport is
+  // unavailable. The service does not advertise support there.
   (void)size;
   return nullptr;
 #else
@@ -655,8 +655,8 @@ void ProducerIPCClientImpl::AdoptTracingV2Ring(
   if (!connected_ || !producer_port_)
     return reject();
   if (!tracing_v2_direct_transport_supported_) {
-    // The muxer must gate on IsTracingV2DirectTransportSupported() before using
-    // the direct path; reaching here means that gate was skipped.
+    // The muxer must check IsTracingV2DirectTransportSupported() before use.
+    // This failure means the caller skipped that check.
     PERFETTO_ELOG("Service does not support direct v2 ring transport");
     return reject();
   }
@@ -691,8 +691,8 @@ void ProducerIPCClientImpl::AdoptTracingV2Ring(
             on_result(accepted);
         });
   });
-  // The ring memory FD rides out-of-band on this invocation. The producer's
-  // ProducerRing keeps the mapping alive, so the descriptor stays valid.
+  // The IPC frame carries the ring FD outside the protobuf message.
+  // ProducerRing retains the mapping, so the descriptor remains valid.
   producer_port_->AdoptTracingV2Ring(req, std::move(resp), shm_fd);
 }
 
@@ -736,9 +736,9 @@ void ProducerIPCClientImpl::SendTracingV2RingNotify(
 }
 
 bool ProducerIPCClientImpl::IsTracingV2DrainOnCurrentThread() const {
-  // NotifyTracingV2RingData() posts the drain RPC to the client task runner. A
-  // writer running on that sequence cannot be woken by that task, so it must
-  // drop rather than park on a full ring.
+  // NotifyTracingV2RingData() posts the drain RPC to the client task runner.
+  // A writer on that sequence must drop data when the ring is full.
+  // A wait here prevents the RPC task from executing.
   return weak_runner_.task_runner()->RunsTasksOnCurrentThread();
 }
 

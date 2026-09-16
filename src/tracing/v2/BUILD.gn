@@ -15,10 +15,9 @@
 import("../../../gn/fuzzer.gni")
 import("../../../gn/test.gni")
 
-# Producer-side owner of a v2 shared ring: allocation-agnostic, owns the ring
-# view and independent writer ids, and is the writers' shared delegate. Kept
-# separate from ":v2" because it pulls in core (NullTraceWriter) for the
-# exhausted-writer case; ":v2" itself stays free of that dependency.
+# ProducerRing owns the ring view and allocates independent writer IDs.
+# It uses core's NullTraceWriter when IDs are exhausted.
+# This separate target keeps that dependency out of ":v2".
 source_set("producer_ring") {
   public_deps = [
     ":v2",

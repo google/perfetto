@@ -264,19 +264,16 @@ class TracingMuxerImpl : public TracingMuxer {
       std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
                                                      BufferExhaustedPolicy);
 
-      // ProducerRing::ServiceChannel. Called from any writer thread while the
-      // ring is attached; asks the service to drain. It calls the endpoint
-      // directly (not via the muxer sequence): the endpoint hops to its own
-      // drain sequence (the service task runner in process, an IPC send over
-      // the wire), so a writer stalling on the muxer sequence during OnFlush
-      // still gets the ring drained. Ring detach (mutex-guarded) quiesces this
-      // before the connection is dropped.
+      // ProducerRing::ServiceChannel accepts calls from any writer thread.
+      // Calls go directly to the endpoint, which forwards to the service
+      // sequence. This permits drains during OnFlush() on the muxer sequence.
+      // Ring detach waits for these calls under the ring mutex before
+      // disconnect.
       void NotifyRingData(std::function<void()> on_picked_up) override;
       void RetireWriter(WriterID, std::function<void(bool)>) override;
 
-      // True if the endpoint drains the ring on the calling thread, so a
-      // stalling writer here would deadlock the drain and should drop instead
-      // (an IPC writer on the client sequence). Forwards to the endpoint.
+      // True if a wait on this thread prevents the endpoint's drain task from
+      // executing. The writer then drops data, as on the IPC client sequence.
       bool DrainRunsOnCurrentThread() override;
 
       std::shared_ptr<ProducerEndpoint> endpoint;
@@ -289,9 +286,9 @@ class TracingMuxerImpl : public TracingMuxer {
     // invalid ring geometry. Moves existing flushes to the ordered v2 path.
     void EnsureTracingV2Connection();
 
-    // Detaches the ring from the service and drops |tracing_v2_connection_|
-    // after the caller clears pending flushes. Surviving writers keep the ring
-    // (and its memory) alive; after detach it no longer notifies the service.
+    // Requires the caller to clear pending flushes first. Detaches the ring
+    // from the service and clears |tracing_v2_connection_|. Surviving writers
+    // retain the ring and memory without further service notifications.
     void ReleaseTracingV2Connection();
 
     // Flushes a connection's requests in FlushRequestID order.
@@ -349,8 +346,8 @@ class TracingMuxerImpl : public TracingMuxer {
       kPending,
 
       // Wait for the drain's completion callback on the muxer.
-      // The service reads the ring up to what the producer has published and
-      // admits it to the trace buffer; the callback then changes this to kNone.
+      // The service drains to its observed reservation boundary and stores
+      // fragments in the trace buffer. The callback then changes this to kNone.
       kInProgress,
     };
 
@@ -657,9 +654,10 @@ class TracingMuxerImpl : public TracingMuxer {
   void StopTracingV2RingBuffer_AsyncEnd(TracingBackendId,
                                         uint32_t backend_connection_id,
                                         DataSourceInstanceID);
-  // Drops a connection's v2 ring after the service rejected adoption, so no
-  // writer keeps producing into a ring the service is not reading and no flush
-  // is acknowledged into it. Revalidates the connection after the thread hop.
+  // Disables the v2 connection after an adoption, drain or retirement failure.
+  // Checks the connection ID on the muxer sequence before state changes.
+  // Cancels pending flushes and detaches the ring to prevent further
+  // notifications. Surviving writers retain their memory.
   void TracingV2RingAdoptionFailed_AsyncEnd(TracingBackendId,
                                             uint32_t backend_connection_id);
   void AbortStartupTracingSession(TracingSessionGlobalID, BackendType);

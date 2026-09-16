@@ -34,9 +34,9 @@ namespace tracing_v2 {
 class SharedRingBuffer;
 }
 
-// Reads one producer's tracing v2 shared ring in traced and admits its
-// fragments into the destination TraceBufferV2. It is the service-side end of
-// the direct v2 data path, replacing the in-process bridge:
+// Reads one producer's tracing v2 shared ring in traced. Copies raw fragments
+// into the destination TraceBufferV2, which assembles and converts packets on
+// consumer readout:
 //
 //   Producer                                    traced
 //   TraceWriterV2Impl -> v2 shared ring -------> TracingV2Ingress (sole reader)
@@ -53,14 +53,13 @@ class SharedRingBuffer;
 //   lifetime. The ingress owns the sole SharedRingBufferReader and its scratch.
 // - All methods run on the service's task-runner sequence. Drain() copies
 //   reader-borrowed fragments into the trace buffer synchronously, before the
-//   borrowed view expires; no shared-memory pointer is retained.
+//   borrowed view expires. It retains no shared-memory pointers.
 // - TraceBufferV2 owns incomplete-packet state, sequence ordering, cursors and
 //   loss. The ingress keeps only bounded per-writer routing/loss control state.
 class TracingV2Ingress : public tracing_v2::SharedRingBufferReader::Delegate {
  public:
-  // Resolves a chunk's target BufferID to the destination v2 trace buffer,
-  // applying the producer's current target permissions. Returns nullptr to drop
-  // the chunk: no such v2 buffer, or the producer may not write to it.
+  // Resolves a target BufferID under the producer's current permissions.
+  // Returns nullptr if no permitted v2 buffer exists for the chunk.
   using TargetBufferResolver = std::function<TraceBufferV2*(BufferID)>;
 
   // |ring| and its backing memory must outlive the ingress. |producer_id| and
@@ -76,8 +75,9 @@ class TracingV2Ingress : public tracing_v2::SharedRingBufferReader::Delegate {
   TracingV2Ingress& operator=(const TracingV2Ingress&) = delete;
 
   // Drains newly published ring data into the target buffers, bounded per call.
-  // Returns true if the reader may have more work (the caller should schedule
-  // another Drain()), false if it caught up or hit a protocol error.
+  // If true, the caller must schedule another Drain() for possible remaining
+  // work. Returns false if the reader reaches the boundary or detects a
+  // protocol error.
   bool Drain();
   // Reads only reservations before this fixed boundary. Returns true while
   // more work or a deferred read-position publication remains.
@@ -85,23 +85,21 @@ class TracingV2Ingress : public tracing_v2::SharedRingBufferReader::Delegate {
   uint32_t write_pos() const;
   void RetireWriter(WriterID);
 
-  // Drains repeatedly until the reader catches up or latches a protocol error,
-  // capping the number of passes. The cap keeps teardown finite even if a
-  // disconnected producer keeps writing its retained mapping: this chases the
-  // write position for at most one full ring, then stops. Used only off the
-  // steady-state path (an in-process backpressure unblock and endpoint
-  // teardown), never for an ordinary remote notification.
+  // Drains to the current reservation boundary with at most 512 passes.
+  // Returns true only after the reader reaches that boundary and publishes
+  // progress without a protocol error. The fixed boundary and pass limit bound
+  // work even if a disconnected producer still writes. Used for in-process
+  // backpressure, final drains and timeout collection, not ordinary remote
+  // notifications.
   bool DrainToCompletion();
 
-  // True once the reader latched an unrecoverable ring protocol error. The
-  // producer's ring can no longer be trusted; the caller should stop draining
-  // it and tear the connection down.
+  // True after the reader detects an unrecoverable ring protocol error.
+  // If true, the caller must stop drains and disconnect the producer.
   bool has_protocol_error() const;
 
-  // Heap the ingress holds on top of the ring mapping: the reader's copy-out
-  // scratch, the fragment-view scratch and the per-writer routing state. All
-  // are bounded (a chunk's payload and the 15-bit writer-id space). The service
-  // adds this to its memory guardrail alongside the mapping.
+  // Heap memory beyond the ring mapping: reader scratch, fragment views and
+  // per-writer state. The chunk payload and 15-bit writer-ID space bound these
+  // allocations. The service adds them to its memory guardrail.
   size_t GetMemoryUsageBytes() const;
 
  private:

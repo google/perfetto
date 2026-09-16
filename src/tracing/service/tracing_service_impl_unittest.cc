@@ -3947,9 +3947,9 @@ TEST_F(TracingServiceImplTest, TracingV2NamedTargetBufferResolvedBeforeCheck) {
   consumer->WaitForTracingDisabled();
 }
 
-// A TraceBufferV2 targeted by both a use_tracing_v2 source and a ProtoVM source
-// is rejected at setup: the VM reads stored packets as v1 sequences and would
-// misread raw v2 fragments, including on eviction.
+// Setup must reject a buffer that receives both v2 data and ProtoVM input.
+// The VM expects stored v1 sequences and cannot decode raw v2 fragments,
+// including on eviction.
 TEST_F(TracingServiceImplTest, TracingV2AndProtoVmOnSameBufferRejected) {
   auto consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -9157,9 +9157,9 @@ TEST_F(TracingServiceImplTest, TraceProvenance) {
 }
 
 namespace {
-// Bridges a producer-owned ProducerRing's data notifications to a service
-// endpoint. In production this adapter lives in the muxer; here it lets the
-// service-level tests drive the direct v2 transport without the muxer.
+// Forwards ProducerRing notifications to the service endpoint.
+// This adapter lets service tests exercise direct v2 transport without the
+// muxer, which owns the production adapter.
 class EndpointServiceChannel : public tracing_v2::ProducerRing::ServiceChannel {
  public:
   explicit EndpointServiceChannel(TracingService::ProducerEndpoint* endpoint)
@@ -9435,9 +9435,9 @@ TEST_F(TracingServiceImplTest, TracingV2DirectRingDrainsOnDisconnect) {
   std::unique_ptr<TraceWriter> writer =
       ring->CreateTraceWriter(buf_id, BufferExhaustedPolicy::kDrop);
   writer->NewTracePacket()->set_for_testing()->set_str("on_disconnect");
-  // Publishes the chunk. Destroying the writer nudges the reader (a posted
-  // drain), but no task is pumped and no flush is issued before the detach
-  // below, so the disconnect drain is what admits this data.
+  // Writer destruction publishes the chunk and posts a drain request.
+  // No tasks or flushes run before detach below. The disconnect drain must
+  // therefore admit this data.
   writer.reset();
   ring->DetachFromService();
   ring.reset();  // The endpoint still holds the mapping for its final drain.

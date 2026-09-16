@@ -128,10 +128,9 @@ class TracingMuxerImplV2Test : public testing::Test {
     });
   }
 
-  // Installs a minimal v2 connection on |producer|: a real producer ring over
-  // an in-process mapping, no service reader. This is enough to route the
-  // producer's flushes through the ordered v2 queue; these queue tests never
-  // write to the ring or drain it.
+  // Installs a v2 connection with a real ring and no service reader.
+  // This routes flushes through the ordered v2 queue. These tests neither write
+  // to the ring nor drain it.
   static void InstallTracingV2Connection(ProducerImpl* producer) {
     auto connection = std::make_shared<ProducerImpl::TracingV2Connection>();
     connection->endpoint = producer->service_;
@@ -595,8 +594,7 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
     done.Wait();
   }
 
-  // Whether any connected producer has selected direct v2 transport (i.e. owns
-  // a producer ring). Replaces the old relay-presence check.
+  // Whether any connected producer owns a ring for direct v2 transport.
   static bool HasV2Connection() {
     WaitForMuxerSequence();
     return GetConnection() != nullptr;
@@ -805,11 +803,9 @@ class TracingV2InProcessTest : public test::TracingMuxerImplV2Test {
     auto session = StartSession(cfg);
     ASSERT_TRUE(HasV2Connection());
 
-    // OnFlush() writes 2 MiB into the small producer ring while running on the
-    // muxer sequence and never returning to it. The service reads that ring on
-    // the same sequence and drains it inline (see
-    // ProducerEndpointImpl::NotifyTracingV2RingData), so a stalling writer
-    // makes progress and the flush completes rather than deadlocking.
+    // OnFlush() writes 2 MiB on the muxer sequence without yielding to tasks.
+    // ProducerEndpointImpl::NotifyTracingV2RingData drains inline on that
+    // sequence. This must let the stalling writer complete without deadlock.
     base::WaitableEvent flushed;
     session->Flush(
         [&](bool success) {
@@ -871,8 +867,8 @@ TEST_F(TracingV2InProcessTest, TracingV2WithAnInterceptorIsFatal) {
   perfetto::TraceConfig cfg;
   auto* buffer = cfg.add_buffers();
   buffer->set_size_kb(1024);
-  // Otherwise valid v2 config (a v2 data source needs a TBv2 target buffer);
-  // the interceptor is the sole reason it must abort on the muxer sequence.
+  // Supply a valid TBv2 target. The interceptor must be the sole cause of the
+  // abort on the muxer sequence.
   buffer->set_experimental_mode(
       perfetto::protos::gen::TraceConfig::BufferConfig::TRACE_BUFFER_V2);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
@@ -1456,9 +1452,8 @@ TEST_F(TracingV2InProcessTest,
   }
 }
 
-// Stopping a v2 instance drains what it left in the producer ring: a packet
-// written (but not explicitly flushed) before the stop must be in the trace,
-// because the stop path drains the ring before acknowledging.
+// The stop path must drain the ring before acknowledgement.
+// A packet without an explicit flush must therefore reach the trace on stop.
 TEST_F(TracingV2InProcessTest, StopDeliversWhatWasStillInTheRing) {
   auto session =
       StartSession(MakeConfigFor({"tracing_v2_test"}, WriterSelection::kV2));

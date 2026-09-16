@@ -157,10 +157,9 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   // Validates the untrusted geometry and mapping and, if they pass, installs
   // the ring and its ingress. Returns whether the ring was accepted.
   bool AdoptTracingV2RingImpl(AdoptTracingV2RingArgs);
-  // Resolves a v2 ring chunk's target buffer to the destination TraceBufferV2,
-  // applying this producer's target permissions. Returns nullptr to drop the
-  // chunk: not a configured target, not a v2 buffer, or an unsupported v2 +
-  // ProtoVM combination.
+  // Resolves a ring target to a permitted TraceBufferV2.
+  // Returns nullptr for an unconfigured target, a v1 buffer, or a buffer with
+  // ProtoVM. The caller then drops the chunk.
   TraceBufferV2* ResolveTracingV2TargetBuffer(BufferID);
   // Appends |on_drained| and ensures a drain pass is scheduled.
   void OnTracingV2RingNotify(std::function<void(bool)> on_drained);
@@ -211,21 +210,20 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   // SharedMemoryArbiterImpl methods themselves are thread-safe.
   std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
 
-  // Tracing v2 direct transport state. Populated by AdoptTracingV2Ring() and
-  // owned by the endpoint; the service is the ring's sole reader. All of these
-  // are touched only on the service sequence, except that the producer may call
-  // NotifyTracingV2RingData() from any thread; that hops to the service
-  // sequence, or drains inline when it already runs on it in process.
+  // AdoptTracingV2Ring() initializes this endpoint-owned transport state.
+  // Only the service sequence accesses it. NotifyTracingV2RingData() accepts
+  // calls from any thread and posts to that sequence. In process, it can drain
+  // inline if the caller already runs on that sequence.
   //
-  // |v2_ring_memory_| shares ownership of the producer-allocated mapping so it
-  // stays valid while the ingress reads it. |v2_ring_| is the service's view
-  // over that mapping; |v2_ingress_| reads it and admits fragments to TBv2.
+  // |v2_ring_memory_| retains the mapping for the ingress lifetime.
+  // |v2_ring_| provides the service's view of that mapping.
+  // |v2_ingress_| is its sole reader and copies fragments into TBv2.
   std::shared_ptr<SharedMemory> v2_ring_memory_;
   std::unique_ptr<tracing_v2::SharedRingBuffer> v2_ring_;
   std::unique_ptr<TracingV2Ingress> v2_ingress_;
   std::vector<AdoptTracingV2RingArgs::TargetBinding> v2_target_bindings_;
-  // Callbacks to run once the ring has been drained up to the point their
-  // NotifyTracingV2RingData() call observed (ring re-arm, flush and stop acks).
+  // Pending drains retain their observed reservation boundaries and callbacks.
+  // Successful completion permits another notification or a flush/stop reply.
   struct V2Drain {
     uint32_t end_pos;
     std::function<void(bool)> callback;

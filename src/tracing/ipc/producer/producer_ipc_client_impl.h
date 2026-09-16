@@ -128,9 +128,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   Producer* const producer_;
   base::TaskRunner* const task_runner_;
 
-  // Lets NotifyTracingV2RingData() be called from any writer thread: it hops to
-  // the client sequence to send the RPC, and the post becomes a no-op if this
-  // endpoint is destroyed first.
+  // NotifyTracingV2RingData() posts from any writer thread to the client
+  // sequence. If the endpoint no longer exists, the posted task does nothing.
   base::WeakRunner weak_runner_;
 
   // A callback used to receive the shmem region out of band of the socket.
@@ -166,9 +165,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool direct_smb_patching_supported_ = false;
   bool use_shmem_emulation_ = false;
   bool tracing_v2_direct_transport_supported_ = false;
-  // Once-only guard so Disconnect() completes exactly one teardown, whether it
-  // is called directly or after ScheduleDisconnect() has already dropped the
-  // port. See ScheduleDisconnect().
+  // Ensures Disconnect() completes once, including after ScheduleDisconnect()
+  // clears the port.
   bool disconnected_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
