@@ -268,6 +268,7 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
             [&ctx](TraceProcessor* new_tp) {
               ctx.platform->OnTraceProcessorCreated(new_tp);
             });
+    rpc.EnableThreadedExecution();
 #if PERFETTO_HAS_SIGNAL_H()
     static Rpc* g_rpc_for_signal_handler = &rpc;
     signal(SIGINT, [](int) {
@@ -293,6 +294,7 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
             [&ctx](TraceProcessor* new_tp) {
               ctx.platform->OnTraceProcessorCreated(new_tp);
             });
+    rpc.EnableThreadedExecution();
 #if PERFETTO_HAS_SIGNAL_H()
     if (ctx.global->metatrace_path.empty()) {
       signal(SIGINT, SIG_DFL);
@@ -354,6 +356,7 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
             [&ctx](TraceProcessor* new_tp) {
               ctx.platform->OnTraceProcessorCreated(new_tp);
             });
+    rpc.EnableThreadedExecution();
     UnixServerArgs server_args;
     server_args.socket_path = socket_path;
     server_args.session_name = session_name;
