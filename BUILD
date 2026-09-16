@@ -188,6 +188,7 @@ perfetto_cc_library(
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
         ":src_tracing_v2_in_process_adapter",
+        ":src_tracing_v2_proto_rewriter",
         ":src_tracing_v2_v2",
     ],
     hdrs = [
@@ -1244,6 +1245,7 @@ perfetto_cc_library(
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
+        ":src_tracing_v2_proto_rewriter",
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
@@ -6950,12 +6952,19 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/tracing/v2:proto_rewriter
+perfetto_filegroup(
+    name = "src_tracing_v2_proto_rewriter",
+    srcs = [
+        "src/tracing/v2/proto_rewriter.cc",
+        "src/tracing/v2/proto_rewriter.h",
+    ],
+)
+
 # GN target: //src/tracing/v2:v2
 perfetto_filegroup(
     name = "src_tracing_v2_v2",
     srcs = [
-        "src/tracing/v2/proto_rewriter.cc",
-        "src/tracing/v2/proto_rewriter.h",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer.h",
         "src/tracing/v2/shared_ring_buffer_abi.h",
@@ -11505,6 +11514,7 @@ perfetto_cc_library(
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
         ":src_tracing_v2_in_process_adapter",
+        ":src_tracing_v2_proto_rewriter",
         ":src_tracing_v2_v2",
     ],
     hdrs = [

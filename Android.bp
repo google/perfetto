@@ -707,6 +707,7 @@ cc_library_shared {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_v2_proto_rewriter",
     ],
     host_supported: true,
     export_include_dirs: [
@@ -986,6 +987,7 @@ cc_library {
         ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_v2_in_process_adapter",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         ":perfetto_src_tracing_v2_v2",
     ],
     host_supported: true,
@@ -1223,6 +1225,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_zstd_compressor",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_v2_in_process_adapter",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         ":perfetto_src_tracing_v2_v2",
     ],
     shared_libs: [
@@ -2081,6 +2084,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         ":perfetto_test_test_helper",
         "test/cts/art_module/heapprofd_java_test_cts.cc",
         "test/cts/device_feature_test_cts.cc",
@@ -2469,6 +2473,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
@@ -3324,6 +3329,7 @@ cc_test {
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_test_tracing_integration_test",
         ":perfetto_src_tracing_v2_in_process_adapter",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_integrationtest_initializer",
         ":perfetto_test_integrationtest_main",
@@ -23269,6 +23275,14 @@ filegroup {
     ],
 }
 
+// GN: //src/tracing/v2:proto_rewriter
+filegroup {
+    name: "perfetto_src_tracing_v2_proto_rewriter",
+    srcs: [
+        "src/tracing/v2/proto_rewriter.cc",
+    ],
+}
+
 // GN: //src/tracing/v2:unittests
 filegroup {
     name: "perfetto_src_tracing_v2_unittests",
@@ -23287,7 +23301,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_v2",
     srcs: [
-        "src/tracing/v2/proto_rewriter.cc",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
         "src/tracing/v2/shared_ring_buffer_writer.cc",
@@ -24732,6 +24745,7 @@ cc_test {
         ":perfetto_src_tracing_unittests",
         ":perfetto_src_tracing_v2_in_process_adapter",
         ":perfetto_src_tracing_v2_in_process_adapter_unittests",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         ":perfetto_src_tracing_v2_unittests",
         ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_sanitizers_unittests",
@@ -25187,6 +25201,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
@@ -26781,6 +26796,7 @@ cc_binary {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_v2_proto_rewriter",
         "src/profiling/perf/main.cc",
     ],
     shared_libs: [
