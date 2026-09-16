@@ -16,8 +16,7 @@
 
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 
-#include <inttypes.h>
-
+#include <cinttypes>
 #include <utility>
 
 #include "perfetto/base/task_runner.h"

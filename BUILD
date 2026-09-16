@@ -187,7 +187,7 @@ perfetto_cc_library(
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
-        ":src_tracing_v2_in_process_adapter",
+        ":src_tracing_v2_producer_ring",
         ":src_tracing_v2_proto_rewriter",
         ":src_tracing_v2_v2",
     ],
@@ -1246,6 +1246,7 @@ perfetto_cc_library(
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_v2_proto_rewriter",
+        ":src_tracing_v2_v2",
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
@@ -6921,6 +6922,8 @@ perfetto_filegroup(
         "src/tracing/service/tracing_service_session.cc",
         "src/tracing/service/tracing_service_session.h",
         "src/tracing/service/tracing_service_structs.h",
+        "src/tracing/service/tracing_v2_ingress.cc",
+        "src/tracing/service/tracing_v2_ingress.h",
     ],
 )
 
@@ -6942,13 +6945,12 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/tracing/v2:in_process_adapter
+# GN target: //src/tracing/v2:producer_ring
 perfetto_filegroup(
-    name = "src_tracing_v2_in_process_adapter",
+    name = "src_tracing_v2_producer_ring",
     srcs = [
-        "src/tracing/v2/in_process_tracing_v2_bridge.cc",
-        "src/tracing/v2/in_process_tracing_v2_bridge.h",
-        "src/tracing/v2/relay_sequence.h",
+        "src/tracing/v2/producer_ring.cc",
+        "src/tracing/v2/producer_ring.h",
     ],
 )
 
@@ -11513,7 +11515,7 @@ perfetto_cc_library(
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
-        ":src_tracing_v2_in_process_adapter",
+        ":src_tracing_v2_producer_ring",
         ":src_tracing_v2_proto_rewriter",
         ":src_tracing_v2_v2",
     ],
