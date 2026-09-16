@@ -75,17 +75,16 @@ constexpr uint8_t kFlagsMask = SharedMemoryABI::ChunkHeader::kFlagsMask;
 constexpr size_t kMaxV2CanonicalPacketSize =
     protozero::proto_utils::kMaxMessageLength;
 
-// A canonicalized v2 packet is handed to the consumer as owned slices no larger
-// than this. A valid packet reassembled across ring chunks can exceed the
-// 128 KiB consumer IPC frame (ipc::kIPCBufferSize), and each slice must fit one
-// frame, so the packet is split. 32 KiB matches the established owned-slice
-// bound used elsewhere in the service read path.
+// Readout splits canonical v2 packets into owned slices of at most this size.
+// A packet can exceed the 128 KiB consumer IPC frame (ipc::kIPCBufferSize).
+// Each slice must fit one frame. Other service read paths also use 32 KiB
+// slices.
 constexpr size_t kMaxV2OutputSliceSize = 32 * 1024;
 
-// Readout scratch (stitch input, rewrite output) is reused across reads to
-// avoid per-read allocation, but a single large fragmented packet must not pin
-// its worst-case capacity for the buffer's lifetime. Capacity grown beyond this
-// by a large read is released; ordinary small reads keep their scratch.
+// Readout reuses input and output scratch to avoid allocations per read.
+// After a large read, it frees scratch above this limit.
+// This prevents one packet from retaining large allocations for the buffer's
+// lifetime. Small reads retain their scratch.
 constexpr size_t kMaxRetainedV2Scratch = 64 * 1024;
 
 // Number of bytes protozero::proto_utils::WriteVarInt() emits for |value|.
@@ -704,14 +703,13 @@ bool TraceBufferV2::ReadNextTracePacket(
       if (chunk_seq_reader_->ReadNextPacketInSeqOrder(out_packet)) {
         SequenceState& s = *chunk_seq_reader_->seq();
         // v2 sequences store the producer's raw ProtoGroup fragments.
-        // Canonicalize the assembled packet into normal protobuf before it is
-        // exposed to the consumer, validation or filtering.
+        // Convert the assembled packet to normal protobuf before consumer
+        // delivery, validation or filtering.
         if ((s.writer_id & kTracingV2WriterIdBit) &&
             PERFETTO_UNLIKELY(!CanonicalizeV2PacketOnRead(out_packet))) {
-          // The packet could not be canonicalized: either the stored ProtoGroup
-          // is not well formed (a buggy or malicious producer) or the rewritten
-          // packet would exceed the size bound. Drop it and record the loss; it
-          // surfaces on the next readable packet of the sequence.
+          // The stored ProtoGroup is malformed or its output exceeds the limit.
+          // Drop the packet. Record loss on the next readable packet in this
+          // sequence.
           internal::AddSeqDataLoss(&s,
                                    DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
           continue;
@@ -747,11 +745,10 @@ bool TraceBufferV2::CanonicalizeV2PacketOnRead(TracePacket* packet) {
   const size_t max_output_size = static_cast<size_t>(std::min<uint64_t>(
       kMaxV2CanonicalPacketSize, uint64_t(packet->size()) * 5 / 2));
   v2_rewrite_output_.reserve(max_output_size);
-  // Stitch the assembled packet into one contiguous input for the rewriter. The
-  // common case is a single slice (a whole packet within one chunk); only a
-  // reassembled fragmented packet has several. The input lives in |data_| (or
-  // the stitch scratch), never in producer-owned shared memory, and does not
-  // overlap the rewriter output.
+  // Give the rewriter contiguous input. A whole packet within one chunk already
+  // occupies one slice. A fragmented packet needs a copy into stitch scratch.
+  // Input resides in |data_| or stitch scratch, separate from the output and
+  // producer-owned shared memory.
   const uint8_t* in_begin = nullptr;
   const uint8_t* in_end = nullptr;
   if (packet->slices().size() == 1) {
@@ -778,10 +775,9 @@ bool TraceBufferV2::CanonicalizeV2PacketOnRead(TracePacket* packet) {
   if (v2_stitch_scratch_.capacity() > kMaxRetainedV2Scratch)
     std::string().swap(v2_stitch_scratch_);
 
-  // Hand the canonical bytes to the packet as owned slices no larger than one
-  // consumer IPC frame, concatenating to the exact rewritten packet. Ownership
-  // keeps them valid for the whole read pass (like v1 slices into |data_|); the
-  // size bound keeps each slice transportable.
+  // Copy the output into owned slices that each fit a consumer IPC frame.
+  // Together, the slices contain the exact rewritten packet. Packet ownership
+  // keeps them valid for the whole read pass, like v1 slices into |data_|.
   packet->Clear();
   const uint8_t* const out = v2_rewrite_output_.data();
   const size_t out_size = v2_rewrite_output_.size();
@@ -819,14 +815,11 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   PERFETTO_CHECK(!read_only_);
 
-  // |writer_id| is read from untrusted producer memory on the v1 SMB path. The
-  // SDK allocates writer ids in the low 15 bits (kMaxWriterID); the service
-  // reserves the top bit (kTracingV2WriterIdBit) to mark v2 ProtoGroup
-  // sequences on readout. Reject a v1 chunk whose writer id sets that bit, so a
-  // buggy or malicious v1 producer cannot land its length-delimited data in a
-  // v2 sequence (which the readout would then try to rewrite) or alias a
-  // genuine v2 writer's stored identity. This is untrusted input, so reject it
-  // nonfatally in every build; do not DCHECK.
+  // The v1 SMB supplies an untrusted |writer_id|. Valid SDK IDs use the low
+  // 15 bits (kMaxWriterID). The service reserves kTracingV2WriterIdBit for v2
+  // ProtoGroup sequences. If a v1 chunk sets that bit, reject it nonfatally in
+  // every build. This prevents v1 data from entering the v2 rewriter or sharing
+  // a v2 writer's stored identity.
   if (PERFETTO_UNLIKELY(writer_id > kMaxWriterID)) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     return;
@@ -1108,8 +1101,8 @@ void TraceBufferV2::CopyChunkUntrusted(
 }
 
 bool TraceBufferV2::MakeSpaceForWrite(size_t tbchunk_outer_size) {
-  // If there isn't enough room from the current write position: write a padding
-  // record to clear the end of the buffer, wrap and start at offset 0.
+  // If the remaining space is insufficient, fill it with a padding record.
+  // Start the next chunk at offset 0.
   const size_t cached_size_to_end = size_to_end();
   if (PERFETTO_UNLIKELY(tbchunk_outer_size > cached_size_to_end)) {
     // If we reached the end of the buffer and we are using discard policy, this
@@ -1119,8 +1112,8 @@ bool TraceBufferV2::MakeSpaceForWrite(size_t tbchunk_outer_size) {
       return false;
     }
 
-    // Skip the tail cleanup if the previous write landed exactly at the end of
-    // the buffer (|wr_| == |size_|): there is no leftover tail to clear.
+    // If the previous write ended at |size_|, skip the tail cleanup.
+    // No unused bytes remain at the end of the buffer.
     if (cached_size_to_end > 0)
       DeleteNextChunksFor(cached_size_to_end);
 
@@ -1147,8 +1140,8 @@ TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
   TRACE_BUFFER_V2_DLOG("CopyRingChunkFragmentsV2(nfrags=%zu) @ wr_=%zu",
                        num_fragments, wr_);
   PERFETTO_CHECK(!read_only_);
-  // The ingress validates the untrusted wire writer id before calling; a valid
-  // v2 writer id fits the public 15-bit range.
+  // The ingress validates the untrusted wire writer ID before this call.
+  // A valid v2 writer ID fits the public 15-bit range.
   PERFETTO_DCHECK(writer_id != 0 && writer_id <= kMaxWriterID);
 
   if (PERFETTO_UNLIKELY(discard_writes_)) {
@@ -1163,11 +1156,11 @@ TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
   for (size_t i = 0; i < num_fragments; i++)
     all_frags_size += VarIntSize(fragments[i].size) + fragments[i].size;
 
-  // A stored chunk's payload must fit TBChunk::kMaxSize (a 16-bit size). The
-  // ring reader validated each fragment against the ring chunk, and setup caps
-  // the ring chunk size below this limit, so a valid producer never reaches
-  // here. The ring chunk size is still producer-influenced, so treat an
-  // oversized total as untrusted input: drop it and count it, never assert.
+  // A stored chunk's payload must fit TBChunk::kMaxSize (a 16-bit size).
+  // The ring reader validates fragment bounds. Setup limits the ring chunk
+  // size, so a valid producer cannot exceed this storage limit.
+  // The producer still controls the input. If the total exceeds the limit,
+  // drop the chunk and count the loss without a fatal assertion.
   if (PERFETTO_UNLIKELY(all_frags_size > TBChunk::kMaxSize)) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     return AdmitResult::kDropped;
@@ -1175,12 +1168,10 @@ TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
   const uint16_t all_frags_size_u16 = static_cast<uint16_t>(all_frags_size);
   const size_t tbchunk_outer_size = TBChunk::OuterSize(all_frags_size);
 
-  // The chunk must fit the buffer. A ring chunk up to the negotiated chunk size
-  // does not necessarily fit a small TBv2 (e.g. 4 or 16 KiB) once the TBChunk
-  // header and alignment overhead are added. This is the storage-side safety
-  // net: drop the chunk and keep the loss pending. It is not a producer ABI
-  // violation, so it does not fatally assert on a legitimate but unsupported
-  // geometry.
+  // The chunk must fit the buffer, including the TBChunk header and alignment.
+  // Even a valid ring chunk can exceed a small TBv2 buffer, such as 4 or 16
+  // KiB. If it cannot fit, drop the chunk and retain pending loss. This size
+  // mismatch is not a producer ABI violation.
   if (PERFETTO_UNLIKELY(tbchunk_outer_size > size_)) {
     stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
     return AdmitResult::kDropped;
@@ -1192,12 +1183,10 @@ TraceBufferV2::AdmitResult TraceBufferV2::CopyRingChunkFragmentsV2(
   if (last_frag_continues_on_next)
     chunk_flags |= kLastPacketContOnNextChunk;
 
-  // Reserve the v2 half of the stored writer-id namespace so a v2 sequence
-  // never collides with a v1 sequence in a shared buffer. Keying both
-  // |sequences_| and |writer_stats_| on the stored id keeps a v2 sequence's
-  // packets and its writer stats mapped to the same trusted_packet_sequence_id.
-  // The wire id was range-validated by the caller, so stamping the top bit is
-  // unambiguous.
+  // Set the reserved bit to separate v1 and v2 sequences within one buffer.
+  // Both |sequences_| and |writer_stats_| use this stored ID. This gives a
+  // sequence's packets and writer stats the same trusted_packet_sequence_id.
+  // The caller validated the wire ID, so the top bit was clear.
   const WriterID stored_writer_id =
       static_cast<WriterID>(writer_id | kTracingV2WriterIdBit);
   const auto seq_key =
@@ -1327,11 +1316,9 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
       if (!csr.ReadNextPacketInSeqOrder(maybe_packet)) {
         break;
       }
-      // Feed only v1 sequences to a ProtoVM. A v2 sequence stores raw
-      // ProtoGroup fragments that are canonicalized on the consumer read path,
-      // not on this eviction path, so a VM would misread them. This keeps the
-      // encoding boundary explicit even if a VM and v2 data ever share a
-      // buffer.
+      // Feed only v1 sequences to a ProtoVM. V2 sequences contain raw
+      // ProtoGroup fragments until consumer readout. The VM cannot decode them
+      // on this eviction path, even if v1 and v2 data share a buffer.
       if (maybe_packet && !(csr.seq()->writer_id & kTracingV2WriterIdBit)) {
         MaybeProcessOverwrittenPacketWithProtoVm(*maybe_packet,
                                                  csr.seq()->producer_id);
@@ -1508,9 +1495,9 @@ size_t TraceBufferV2::GetMemoryUsageBytes() const {
   for (const Vm& vm : protovms_) {
     total_bytes += vm.instance->GetMemoryUsageBytes();
   }
-  // Buffer-owned readout scratch for v2 canonicalization. The consumer-owned
-  // output slices are not counted here: the returned TracePacket owns them and
-  // frees them when the consumer is done, so they are not buffer memory.
+  // Count buffer-owned scratch for v2 conversion. The returned TracePacket
+  // owns its output slices. It frees them after consumption, so those slices
+  // do not count as buffer memory here.
   total_bytes += v2_stitch_scratch_.capacity() + v2_rewrite_output_.capacity();
   return total_bytes;
 }

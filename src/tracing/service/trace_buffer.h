@@ -122,12 +122,11 @@ class TraceBuffer {
   virtual size_t used_size() const = 0;
   virtual size_t GetMemoryUsageBytes() const = 0;
 
-  // Extra transient memory a single readout pass may allocate on top of
-  // GetMemoryUsageBytes(). The service adds this to its memory guardrail so a
-  // large readout does not trip the watchdog. Default zero: a buffer that hands
-  // out packets that point straight into its storage reserves nothing extra.
-  // TraceBufferV2 overrides this because it stitches and rewrites v2 packets
-  // into fresh memory during readout.
+  // Bounds extra transient memory for one readout pass, beyond
+  // GetMemoryUsageBytes(). The service adds this allowance to its memory
+  // guardrail so a large readout does not trigger the watchdog.
+  // The default is zero for buffers whose packets reference stored bytes.
+  // TraceBufferV2 overrides this to cover v2 packet reassembly and conversion.
   virtual size_t GetReadoutMemoryReservationBytes() const { return 0; }
   virtual OverwritePolicy overwrite_policy() const = 0;
   virtual bool has_data() const = 0;

@@ -125,11 +125,10 @@ class TraceBufferV2Test : public testing::Test {
     }
   }
 
-  // Admits one producer tracing-v2 shared-ring chunk via the native ingress
-  // path (CopyRingChunkFragmentsV2). Each element of |frags| is one fragment's
-  // raw payload (as a ProtoGroup-encoded producer would emit). The bytes are
-  // stored verbatim and canonicalized to normal protobuf on readout. Returns
-  // whether the chunk was stored.
+  // Admits one v2 ring chunk through CopyRingChunkFragmentsV2(). Each element
+  // of |frags| contains one raw ProtoGroup fragment. The buffer stores these
+  // bytes unchanged and converts them to normal protobuf on readout.
+  // Returns whether the buffer stored the chunk.
   TraceBufferV2::AdmitResult CopyRingChunkV2(
       ProducerID p,
       WriterID w,
@@ -162,8 +161,8 @@ class TraceBufferV2Test : public testing::Test {
     return pkt;
   }
 
-  // Admits |pkt| split into consecutive fragments of at most |frag_size| bytes,
-  // one per ring chunk, as a single v2 writer sequence with continuation flags.
+  // Splits |pkt| into fragments of at most |frag_size| bytes, one per ring
+  // chunk. Admits them in one v2 writer sequence with continuation flags.
   void AdmitFragmentedV2(ProducerID p,
                          WriterID w,
                          ChunkID first_chunk_id,
@@ -3615,10 +3614,10 @@ TEST_F(TraceBufferV2Test, ScrapeWithLateRecommitAfterRead) {
 // ----------------------
 // TraceBufferV2 tracing-v2 native ingress tests
 // ----------------------
-// These exercise CopyRingChunkFragmentsV2(): the producer's raw ProtoGroup
-// fragments are stored verbatim and reassembled + rewritten into normal
-// protobuf only on readout. Payloads are valid (flat) protobuf unless a nested
-// ProtoGroup is required, so a flat packet canonicalizes to itself.
+// CopyRingChunkFragmentsV2() stores the producer's raw ProtoGroup fragments
+// unchanged. Readout reassembles packets and converts them to normal protobuf.
+// Tests use flat protobuf unless they need a nested ProtoGroup.
+// Conversion leaves flat protobuf unchanged.
 
 TEST_F(TraceBufferV2Test, V2_WholePacket) {
   ResetBuffer(4096);
@@ -3745,7 +3744,7 @@ TEST_F(TraceBufferV2Test, V2_LossBreaksFragmentReassembly) {
 
   trace_buffer()->BeginRead();
   uint32_t dropped = 0;
-  // The broken fragmented packet is dropped; a following packet surfaces loss.
+  // Readout drops the broken packet. The next packet reports loss.
   ASSERT_THAT(ReadPacket(nullptr, &dropped),
               ElementsAre(FakePacketFragment(good.data(), 2)));
   EXPECT_NE(dropped, 0u);
@@ -3864,8 +3863,8 @@ TEST_F(TraceBufferV2Test, V2_ReadoutScratchAccountedAndReleased) {
   ASSERT_EQ(bytes, medium);
   EXPECT_GT(trace_buffer()->GetMemoryUsageBytes(), with_sequences);
 
-  // A large fragmented packet (~200 KiB) grows the scratch past the cap; after
-  // the read it is released and no longer counted.
+  // A large fragmented packet (~200 KiB) grows the scratch past the limit.
+  // Readout then frees this scratch and removes it from the memory count.
   trace_buffer()->BeginRead();
   ASSERT_TRUE(ReadOnePacketRaw(&bytes, &sizes));  // large writer 2 packet.
   // Drain any remaining packets so the last read released oversized scratch.
@@ -3917,11 +3916,9 @@ TEST_F(TraceBufferV2Test, V2_SequenceIndexMemorySurvivesReadAndClone) {
   EXPECT_GE(trace_buffer()->GetMemoryUsageBytes(), with_index);
 }
 
-// Reads a fragmented packet that nearly fills the buffer and confirms the
-// reservation actually covers the transient workspace it needs. The reservation
-// must be at least the reassembled input plus the canonical output the read
-// allocates, and the oversized scratch must be released afterwards so the peak
-// is transient, not retained for the buffer lifetime.
+// A fragmented packet nearly fills the buffer. The reservation must cover the
+// reassembled input and canonical output. Readout must then free large scratch
+// allocations, so the buffer does not retain this peak memory.
 TEST_F(TraceBufferV2Test, V2_ReadoutReservationBoundsTransientWorkspace) {
   ResetBuffer(256 * 1024);
   const size_t cap = trace_buffer()->size();
@@ -3953,10 +3950,10 @@ TEST_F(TraceBufferV2Test, V2_ReadoutReservationBoundsTransientWorkspace) {
   EXPECT_EQ(trace_buffer()->GetMemoryUsageBytes(), base);
 }
 
-// A ring chunk whose fragments total more than TBChunk::kMaxSize (a 16-bit
-// size) cannot be stored. The total is producer-influenced, so admission must
-// drop and count it, never fatally assert. This test deliberately does not call
-// SuppressClientDchecksForTesting(): before the fix a debug build aborted here.
+// A chunk cannot exceed TBChunk::kMaxSize (a 16-bit size). The producer
+// controls fragment sizes, so admission must drop oversized chunks and count
+// the loss. This test leaves client DCHECKs enabled to check for fatal
+// assertions.
 TEST_F(TraceBufferV2Test, V2_OversizedChunkDropsWithoutFatalAssert) {
   ResetBuffer(1 << 20);
   // One fragment above the 64 KiB TBChunk payload limit.
@@ -3974,9 +3971,9 @@ TEST_F(TraceBufferV2Test, V2_OversizedChunkDropsWithoutFatalAssert) {
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(ok.data(), 2)));
 }
 
-// A ring chunk larger than a small target buffer cannot fit once TBChunk header
-// and alignment overhead are added. Admission drops it as the storage-side
-// safety net and keeps the buffer usable. It is not an ABI violation.
+// A valid ring chunk can exceed the target buffer after TBChunk header and
+// alignment overhead. Admission must drop it without an ABI violation.
+// The buffer must remain usable.
 TEST_F(TraceBufferV2Test, V2_ChunkLargerThanSmallBufferDropsNonfatally) {
   ResetBuffer(4096);
   // A ~6 KiB packet cannot fit a 4 KiB buffer.
@@ -3987,10 +3984,9 @@ TEST_F(TraceBufferV2Test, V2_ChunkLargerThanSmallBufferDropsNonfatally) {
   EXPECT_GT(trace_buffer()->stats().chunks_discarded(), 0u);
 }
 
-// A transport loss before a writer's first stored chunk still surfaces: the
-// loss is attached to that chunk (loss_before) and read out on its first
-// packet. This is storage-owned, so it works with no earlier chunk to compare
-// against.
+// The first stored chunk must retain any earlier transport loss (loss_before).
+// Readout reports that loss on the first packet, even without earlier chunk
+// history for comparison.
 TEST_F(TraceBufferV2Test, V2_LossBeforeFirstChunkSurfaces) {
   ResetBuffer(4096);
   const std::vector<uint8_t> pkt = {0x08, 0x2a};
@@ -4054,7 +4050,7 @@ TEST_F(TraceBufferV2Test, V2_LossDoesNotMarkOlderUnreadData) {
   const std::vector<uint8_t> p0 = {0x08, 0x00};
   const std::vector<uint8_t> p1 = {0x08, 0x01};
   const std::vector<uint8_t> p2 = {0x08, 0x02};
-  // p0 and p1 buffered before the loss; p2 stored with loss_before.
+  // The buffer stores p0 and p1 before the loss, then p2 with loss_before.
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(0), {p0});
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(1), {p1});
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(3), {p2},
@@ -4074,9 +4070,9 @@ TEST_F(TraceBufferV2Test, V2_LossDoesNotMarkOlderUnreadData) {
   EXPECT_NE(dropped, 0u);  // The loss lands on the packet after it.
 }
 
-// A v1 chunk whose untrusted writer id sets the reserved v2 bit is rejected at
-// admission, nonfatally in every build, so it cannot enter the v2 canonicalizer
-// or alias a v2 writer.
+// Admission must reject a v1 chunk that sets the reserved v2 writer-ID bit.
+// Rejection must remain nonfatal in every build. The chunk must not enter the
+// v2 rewriter or share a v2 writer's identity.
 TEST_F(TraceBufferV2Test, V2_HostileHighBitV1WriterIdRejected) {
   ResetBuffer(4096);
   // No DCHECK suppression: rejection must be nonfatal without a test-only flag.
@@ -4089,17 +4085,16 @@ TEST_F(TraceBufferV2Test, V2_HostileHighBitV1WriterIdRejected) {
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(0), {v2_pkt});
 
   trace_buffer()->BeginRead();
-  // Only the v2 packet reads back; the hostile v1 chunk was dropped, not
-  // canonicalized or aliased.
+  // Readout returns only the v2 packet. Admission rejected the hostile v1
+  // chunk.
   ASSERT_THAT(ReadPacket(),
               ElementsAre(FakePacketFragment(v2_pkt.data(), v2_pkt.size())));
   ASSERT_THAT(ReadPacket(), IsEmpty());
   EXPECT_GT(trace_buffer()->stats().abi_violations(), 0u);
 }
 
-// A fragmented v2 packet must complete only once both halves have been
-// admitted, across separate read passes, while another writer makes progress in
-// between.
+// Readout must return a fragmented v2 packet only after admission of both
+// halves. Another writer must make progress between those read passes.
 TEST_F(TraceBufferV2Test, V2_IncompletePacketAcrossReadPasses) {
   ResetBuffer(4096);
   const std::vector<uint8_t> frag_a = {0x08, 0x2a};
@@ -4113,11 +4108,11 @@ TEST_F(TraceBufferV2Test, V2_IncompletePacketAcrossReadPasses) {
   CopyRingChunkV2(ProducerID(1), WriterID(2), ChunkID(0), {other});
 
   trace_buffer()->BeginRead();
-  // Writer 2 makes progress; writer 1's packet is still incomplete.
+  // Writer 2 makes progress while writer 1's packet remains incomplete.
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(other.data(), 2)));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
-  // The second half arrives; a new read pass completes the packet exactly once.
+  // After the second half arrives, a new read pass completes the packet once.
   CopyRingChunkV2(ProducerID(1), WriterID(1), ChunkID(1), {frag_b},
                   /*cont_from_prev=*/true, /*cont_on_next=*/false);
   trace_buffer()->BeginRead();
@@ -4155,9 +4150,8 @@ TEST_F(TraceBufferV2Test, V2_DiscardRetainsEarliestAndSeals) {
 }
 
 TEST_F(TraceBufferV2Test, V2_WrapEvictsOldestWithOverwriteLoss) {
-  // The buffer rounds up to a page (4096). Writing far more small chunks than
-  // fit wraps and overwrites the oldest, which must surface as a loss on the
-  // surviving sequence.
+  // The buffer rounds its capacity to a page (4096 bytes). Excess writes
+  // overwrite the oldest chunks. The surviving sequence must report that loss.
   ResetBuffer(4096);
   constexpr uint32_t kNumChunks = 400;
   for (uint32_t i = 0; i < kNumChunks; i++) {

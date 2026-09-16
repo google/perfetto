@@ -410,17 +410,15 @@ class TraceBufferV2 : public TraceBuffer {
     base::FlatSet<ProducerID> producers;
   };
 
-  // Bit set in the stored writer id of every sequence admitted through the
-  // tracing-v2 path (CopyRingChunkFragmentsV2). Producers allocate v2 writer
-  // ids independently from the v1 SharedMemoryArbiter, so both allocators can
-  // hand out the same low id. Reserving the top bit for v2 keeps v1 and v2
-  // sequences disjoint in a buffer that receives both. Public writer ids are
-  // 15-bit (kMaxWriterID), so this bit is otherwise always zero.
+  // CopyRingChunkFragmentsV2() sets this bit in each stored writer ID.
+  // Producers allocate v2 writer IDs independently from the v1
+  // SharedMemoryArbiter. Both allocators can return the same low ID.
+  // The top bit separates v1 and v2 sequences within one buffer.
+  // Public writer IDs use only 15 bits (kMaxWriterID).
   static constexpr WriterID kTracingV2WriterIdBit = 1u << 15;
 
-  // One decoded fragment of a producer's tracing-v2 shared-ring chunk: a view
-  // into the ring reader's scratch, valid only for the duration of the
-  // CopyRingChunkFragmentsV2() call.
+  // A decoded fragment in the ring reader's scratch memory. This view remains
+  // valid only for the duration of the CopyRingChunkFragmentsV2() call.
   struct RingChunkFragment {
     const uint8_t* data = nullptr;
     uint32_t size = 0;
@@ -459,39 +457,36 @@ class TraceBufferV2 : public TraceBuffer {
                           const uint8_t* src,
                           size_t size) override;
 
-  // Outcome of admitting a v2 ring chunk. The ingress uses it to keep a pending
-  // transport loss when the chunk was not stored.
+  // Admission result for a v2 ring chunk. If storage fails, the ingress retains
+  // any pending transport loss for the next chunk.
   enum class AdmitResult {
-    kStored,   // The chunk's fragments were stored.
-    kDropped,  // The chunk was not stored (discard-sealed, or larger than the
-               // whole buffer). Not an error; the caller retains any pending
-               // loss so it lands on the next stored chunk.
+    kStored,   // The buffer stored the chunk's fragments.
+    kDropped,  // The buffer rejected the chunk due to discard policy or size.
+               // The caller retains any pending loss for the next stored chunk.
   };
 
-  // Admits the fragments of one producer tracing-v2 shared-ring chunk. It is
-  // the native ingress path for v2: the service ring reader has already copied
-  // and size-validated the fragments out of shared memory, so this stores the
-  // producer's raw ProtoGroup payload bytes verbatim. Reassembly across chunks
-  // and rewriting into normal protobuf happen later, on readout. Returns
-  // whether the chunk was actually stored.
+  // Stores the raw ProtoGroup fragments from one producer ring chunk.
+  // The service ring reader first copies the fragments from shared memory and
+  // validates their sizes. Readout later reassembles packets and converts them
+  // to normal protobuf. Returns whether the buffer stored the chunk.
   //
-  // Unlike CopyChunkUntrusted() this path never scrapes, patches or re-commits:
-  // a v2 ring chunk is final by the time the reader hands it over. Chunks are
-  // stored in receipt order with monotonically increasing |chunk_id|.
+  // The reader supplies final chunks, so this path needs no scrape, patch or
+  // re-commit operations. The buffer stores chunks in receipt order with
+  // monotonically increasing |chunk_id|.
   //
   // - |chunk_id| increases per writer. The ingress skips one ID after loss.
   //   Existing read and reassembly paths detect that gap.
   // - |loss_before_this_chunk| initializes loss after successful admission
   //   when the sequence has neither retained chunks nor consumed history.
   //   Otherwise, the ID gap places loss after any older unread packets.
-  // - |first_frag_continues_from_prev| / |last_frag_continues_on_next| carry
-  //   ring's cross-chunk continuation, mapped to the buffer's fragment flags.
+  // - |first_frag_continues_from_prev| / |last_frag_continues_on_next| indicate
+  //   continuation across ring chunks. They set the buffer's fragment flags.
   // - The fragment views are valid only for the duration of the call.
   //
-  // |writer_id| must be a valid public writer id (1..kMaxWriterID); the caller
-  // (the ingress) validates the untrusted wire id first. The buffer stamps
-  // kTracingV2WriterIdBit into the stored identity to keep v2 sequences
-  // disjoint from v1.
+  // |writer_id| must be a valid public writer ID (1..kMaxWriterID).
+  // The ingress validates the untrusted wire ID before this call.
+  // The buffer sets kTracingV2WriterIdBit in the stored identity to separate
+  // v2 sequences from v1 sequences.
   AdmitResult CopyRingChunkFragmentsV2(
       ProducerID producer_id_trusted,
       const ClientIdentity& client_identity_trusted,
@@ -615,24 +610,21 @@ class TraceBufferV2 : public TraceBuffer {
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
 
-  // Reserves |tbchunk_outer_size| contiguous bytes at |wr_| for the next chunk,
-  // wrapping (with a padding record) and evicting older chunks as needed.
-  // Returns false if the write must be dropped, i.e. a kDiscard buffer that has
-  // no more room; the caller must not write in that case.
+  // Reserves |tbchunk_outer_size| contiguous bytes at |wr_| for the next chunk.
+  // Adds padding at wraparound and evicts older chunks as needed.
+  // If a kDiscard buffer has no room, returns false. The caller must then drop
+  // the write.
   bool MakeSpaceForWrite(size_t tbchunk_outer_size);
 
-  // Rewrites |packet|, read from a v2 sequence, from the producer's ProtoGroup
-  // encoding into normal length-delimited protobuf, split into consumer-safe
-  // owned slices. On success |packet| owns the rewritten bytes. Returns false
-  // in two cases: the stored bytes are not a well-formed proto-group packet, or
-  // the rewritten output would exceed kMaxV2CanonicalPacketSize. Both come from
-  // a buggy or malicious producer. On failure |packet| is left cleared and the
-  // caller accounts a data loss.
+  // Converts a v2 |packet| from ProtoGroup to length-delimited protobuf.
+  // On success, |packet| owns the output in slices that fit consumer IPC
+  // frames. Returns false for malformed input or output above
+  // kMaxV2CanonicalPacketSize. On failure, clears |packet|. The caller then
+  // records data loss.
   bool CanonicalizeV2PacketOnRead(TracePacket* packet);
 
-  // Frees the v2 readout scratch when a large read grew it past the retention
-  // cap, so a single big packet does not pin worst-case capacity for the
-  // buffer's lifetime.
+  // Frees v2 readout scratch above the retention limit. This prevents one large
+  // packet from retaining its scratch allocation for the buffer's lifetime.
   void ReleaseOversizedV2Scratch();
 
   void DcheckIsAlignedAndWithinBounds(size_t off) const {
@@ -744,20 +736,18 @@ class TraceBufferV2 : public TraceBuffer {
   // allocations only when the storage needs to be expanded.
   std::string protovm_patch_;
 
-  // Scratch reused across reads to canonicalize v2 packets (see
-  // CanonicalizeV2PacketOnRead). |v2_stitch_scratch_| stitches a fragmented
-  // packet's slices into one contiguous input; |v2_rewrite_output_| holds the
-  // rewriter output before it is split into the packet's owned slices.
+  // CanonicalizeV2PacketOnRead() reuses this scratch across packets.
+  // |v2_stitch_scratch_| holds contiguous input for a fragmented packet.
+  // |v2_rewrite_output_| holds the output before the copy into owned slices.
   //
-  // Working-set bound: while canonicalizing one packet the live workspace is
-  // the stitched input (<= the reassembled packet, which is bounded by the
-  // stored bytes and hence the buffer capacity), the rewrite output (<= the
-  // protozero message limit, and in practice a small multiple of the input) and
-  // the owned output slices handed to the consumer (freed by the consumer).
-  // Between reads the retained scratch is bounded: ReleaseOversizedV2Scratch()
-  // frees anything above kMaxRetainedV2Scratch, and GetMemoryUsageBytes()
-  // counts what remains. The service reserves headroom for this peak in its
-  // memory guardrail when it wires the producer ring to this buffer.
+  // The buffer capacity bounds the input size. Each input byte produces at
+  // most 2.5 output bytes, within the protozero message limit.
+  // The consumer owns the output slices until it finishes the read pass.
+  // GetReadoutMemoryReservationBytes() covers input scratch, output scratch
+  // and owned slices in the service memory guardrail.
+  //
+  // ReleaseOversizedV2Scratch() frees scratch above kMaxRetainedV2Scratch.
+  // GetMemoryUsageBytes() counts the retained scratch between reads.
   std::string v2_stitch_scratch_;
   std::vector<uint8_t> v2_rewrite_output_;
 };

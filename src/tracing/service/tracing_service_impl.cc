@@ -3844,10 +3844,9 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
       total_buffer_bytes += id_to_producer.second->shared_memory()->size();
   }
 
-  // Sum up all the trace buffers, plus headroom for the transient memory a
-  // readout of the buffer may allocate on top of its steady-state usage (v2
-  // buffers stitch and rewrite packets during readout; see
-  // TraceBuffer::GetReadoutMemoryReservationBytes()).
+  // Count trace buffers and their transient readout memory allowance.
+  // V2 readout needs extra memory for packet reassembly and conversion.
+  // See TraceBuffer::GetReadoutMemoryReservationBytes().
   for (const auto& id_to_buffer : buffers_) {
     total_buffer_bytes += id_to_buffer.second->GetMemoryUsageBytes();
     total_buffer_bytes +=
