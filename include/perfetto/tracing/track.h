@@ -26,6 +26,7 @@
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/platform.h"
 #include "perfetto/tracing/string_helpers.h"
+#include "perfetto/tracing/trace_writer_base.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"  // IWYU pragma: export
 #include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"  // IWYU pragma: export
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"  // IWYU pragma: export

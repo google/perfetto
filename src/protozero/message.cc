@@ -16,13 +16,11 @@
 
 #include "perfetto/protozero/message.h"
 
-#include <atomic>
 #include <type_traits>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/message_arena.h"
-#include "perfetto/protozero/message_handle.h"
 
 #if !PERFETTO_IS_LITTLE_ENDIAN()
 // The memcpy() for float and double below needs to be adjusted if we want to
@@ -35,10 +33,6 @@ namespace protozero {
 namespace {
 
 constexpr int kBytesToCompact = proto_utils::kMessageLengthFieldSize - 1u;
-
-#if PERFETTO_DCHECK_IS_ON()
-std::atomic<uint32_t> g_generation;
-#endif
 
 }  // namespace
 
@@ -61,10 +55,6 @@ void Message::Reset(ScatteredStreamWriter* stream_writer, MessageArena* arena) {
   size_field_ = nullptr;
   nested_message_ = nullptr;
   message_state_ = MessageState::kNotFinalized;
-#if PERFETTO_DCHECK_IS_ON()
-  handle_ = nullptr;
-  generation_ = g_generation.fetch_add(1, std::memory_order_relaxed);
-#endif
 }
 
 void Message::AppendString(uint32_t field_id, const char* str) {
@@ -174,11 +164,6 @@ uint32_t Message::Finalize() {
   } else {
     message_state_ = MessageState::kFinalized;
   }
-
-#if PERFETTO_DCHECK_IS_ON()
-  if (handle_)
-    handle_->reset_message();
-#endif
 
   return size_;
 }
