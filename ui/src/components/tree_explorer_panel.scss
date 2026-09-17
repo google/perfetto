@@ -19,7 +19,8 @@
   overflow-y: hidden;
 
   > .pf-flamegraph,
-  > .pf-tree-explorer__grid {
+  > .pf-tree-explorer__grid,
+  > .pf-tree-explorer__extra-tab {
     flex: 1;
     min-height: 0;
   }
