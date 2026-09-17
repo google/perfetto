@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TraceReadableStream} from '../core/trace_stream';
 import {isTrustedOrigin, parsePostedTrace} from './post_message_handler';
 
 describe('postMessageHandler', () => {
@@ -87,10 +88,34 @@ describe('parsePostedTrace', () => {
 
       expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
       // Spans exactly the view's bytes, not the full 16-byte buffer.
-      expect(result?.buffer.byteLength).toBe(10);
-      expect(new Uint8Array(result!.buffer)).toEqual(
+      expect(result?.buffer!.byteLength).toBe(10);
+      expect(new Uint8Array(result!.buffer!)).toEqual(
         new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
       );
+    });
+  });
+
+  describe('stream', () => {
+    test('readable stream is preserved', () => {
+      const stream = new ReadableStream();
+      const result = parsePostedTrace({
+        perfetto: {stream, title: 'foo', bytesTotal: 42},
+      });
+
+      expect(result?.stream).toBe(stream);
+      expect(result?.bytesTotal).toBe(42);
+    });
+
+    test('buffer and stream together are rejected', () => {
+      const result = parsePostedTrace({
+        perfetto: {
+          buffer: new ArrayBuffer(),
+          stream: new ReadableStream(),
+          title: 'foo',
+        },
+      });
+
+      expect(result).toBeUndefined();
     });
   });
 
@@ -161,10 +186,44 @@ describe('parsePostedTrace', () => {
 
       expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
       // Spans exactly the view's bytes, not the full 16-byte buffer.
-      expect(result?.buffer.byteLength).toBe(10);
-      expect(new Uint8Array(result!.buffer)).toEqual(
+      expect(result?.buffer!.byteLength).toBe(10);
+      expect(new Uint8Array(result!.buffer!)).toEqual(
         new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
       );
     });
+  });
+});
+
+describe('TraceReadableStream', () => {
+  test('only pulls when readChunk is called', async () => {
+    let pulls = 0;
+    const readable = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          pulls++;
+          controller.enqueue(new Uint8Array([pulls]));
+          if (pulls === 2) controller.close();
+        },
+      },
+      {highWaterMark: 0},
+    );
+    const stream = new TraceReadableStream(readable, 2);
+
+    expect(pulls).toBe(0);
+    await expect(stream.readChunk()).resolves.toMatchObject({
+      data: new Uint8Array([1]),
+      eof: false,
+      bytesRead: 1,
+      bytesTotal: 2,
+    });
+    expect(pulls).toBe(1);
+    await expect(stream.readChunk()).resolves.toMatchObject({
+      data: new Uint8Array([2]),
+      eof: false,
+      bytesRead: 2,
+      bytesTotal: 2,
+    });
+    expect(pulls).toBe(2);
+    await expect(stream.readChunk()).resolves.toMatchObject({eof: true});
   });
 });
