@@ -19,7 +19,6 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   RowCounter,
@@ -28,6 +27,8 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
@@ -35,7 +36,6 @@ import {DetailsShell} from '../../../widgets/details_shell';
 interface ClassesViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly initialRootClass?: string;
 }
@@ -58,7 +58,7 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     cls: {
       title: 'Class',
@@ -66,9 +66,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
       cellRenderer: (value: SqlValue) =>
         m(
           Anchor,
-          {
-            onclick: () => navigate('objects', {cls: String(value)}),
-          },
+          {href: generateNavLink({tab: 'objects', cls: String(value), dump})},
           String(value),
         ),
     },
@@ -160,7 +158,8 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {activeDump} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
 
       if (!dataSource) return null;
 
@@ -171,7 +170,7 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(dump),
           data: dataSource,
           fillHeight: true,
           initialColumns: [

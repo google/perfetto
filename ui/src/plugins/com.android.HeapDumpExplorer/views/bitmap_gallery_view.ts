@@ -25,7 +25,6 @@ import type {Filter} from '../../../components/widgets/datagrid/model';
 import type {BitmapListRow, InstanceDetail} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -34,6 +33,8 @@ import {
   colHeader,
   COL_INFO,
 } from '../components';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import type {PathEntry} from '../types';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
@@ -76,7 +77,7 @@ function bitmapRowToRow(r: BitmapListRow): Row {
   };
 }
 
-function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
+function makeBitmapListSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -87,13 +88,7 @@ function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
           Anchor,
-          {
-            onclick: () =>
-              navigate('object', {
-                id,
-                label: `Bitmap ${row.dimensions}`,
-              }),
-          },
+          {href: generateNavLink({tab: 'object', id, dump})},
           display,
         );
       },
@@ -206,7 +201,6 @@ interface BitmapCardAttrs {
   readonly row: BitmapListRow;
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
   readonly pathMode: PathMode;
   readonly pathData?: PathEntry[] | null;
 }
@@ -252,7 +246,8 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
       obs?.disconnect();
     },
     view(vnode) {
-      const {row, navigate} = vnode.attrs;
+      const {row, activeDump} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
       const dpi = row.density > 0 ? row.density : 420;
       const scale = dpi / 160;
       const dpW = Math.round(row.width / scale);
@@ -333,11 +328,11 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
           m(
             Anchor,
             {
-              onclick: () =>
-                navigate('object', {
-                  id: row.row.id,
-                  label: `Bitmap ${row.width}\u00d7${row.height}`,
-                }),
+              href: generateNavLink({
+                tab: 'object',
+                id: row.row.id,
+                dump,
+              }),
             },
             'Details',
           ),
@@ -354,7 +349,7 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
                 PATH_HEADING[vnode.attrs.pathMode],
               ),
               vnode.attrs.pathData.length > 0
-                ? renderPath(vnode.attrs.pathData, navigate)
+                ? renderPath(vnode.attrs.pathData, dump)
                 : m('span', {class: 'pf-hde-muted'}, 'No path to GC root.'),
             )
           : null,
@@ -366,7 +361,6 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
 interface BitmapGalleryViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly hasFieldValues?: boolean;
   readonly filterKey?: string;
@@ -450,7 +444,8 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {engine, activeDump, navigate} = vnode.attrs;
+      const {engine, activeDump} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
 
       if (!rows) {
         return m(
@@ -482,7 +477,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         );
       }
 
-      const bitmapSchema = makeBitmapListSchema(navigate);
+      const bitmapSchema = makeBitmapListSchema(dump);
       const bitmapColumns = [
         {id: 'id', field: 'id'},
         {id: 'cls', field: 'cls'},
@@ -581,7 +576,6 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                     row: r,
                     engine,
                     activeDump,
-                    navigate,
                     pathMode,
                     pathData:
                       pathMode === 'none'

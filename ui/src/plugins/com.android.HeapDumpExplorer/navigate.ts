@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, type time} from '../../base/time';
+import {Time} from '../../base/time';
+import type {DumpRouteRef} from './nav_state';
 
-export interface DumpRouteRef {
-  readonly upid: number;
-  readonly ts: time;
-}
+export type {DumpRouteRef};
 
 export type NavLinkTab =
   | {tab: 'overview'}

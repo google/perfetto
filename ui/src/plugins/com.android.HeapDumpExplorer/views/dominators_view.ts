@@ -20,7 +20,6 @@ import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_sourc
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {fmtHex} from '../format';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -30,13 +29,14 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
 }
 
 function buildQuery(activeDump: HeapDump): string {
@@ -63,7 +63,7 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -74,9 +74,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
           Anchor,
-          {
-            onclick: () => navigate('object', {id, label: display}),
-          },
+          {href: generateNavLink({tab: 'object', id, dump})},
           display,
         );
       },
@@ -160,7 +158,8 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
       counter.init(engine, query, SQL_PREAMBLE);
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {activeDump} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
 
       if (!dataSource) return null;
 
@@ -171,7 +170,7 @@ export function DominatorsView(): m.Component<DominatorsViewAttrs> {
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(dump),
           data: dataSource,
           fillHeight: true,
           initialColumns: [

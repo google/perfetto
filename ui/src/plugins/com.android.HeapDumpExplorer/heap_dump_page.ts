@@ -20,9 +20,9 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
 import {formatDuration} from '../../components/time_utils';
-import {type NavState, type NavView, parseHeapDumpSubpage} from './nav_state';
+import type {DumpRouteRef, NavState, NavView} from './nav_state';
 import type {OverviewData} from './types';
-import type * as queries from './queries';
+import * as queries from './queries';
 import {OverviewView} from './views/overview_view';
 import {DominatorsView} from './views/dominators_view';
 import {ObjectView} from './views/object_view';
@@ -35,14 +35,125 @@ import {FlamegraphObjectsView} from './views/flamegraph_objects_view';
 import {FlamegraphView} from './views/flamegraph_view';
 import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
+import {generateNavLink, NavLink, parseNavLink} from './navigate';
+import {AsyncMemo} from '../../base/async_memo';
+import type {Trace} from '../../public/trace';
+import {maybeUndefined} from '../../base/utils';
 
 interface HeapDumpPageAttrs {
-  readonly session: HeapDumpExplorerSession;
+  readonly trace: Trace;
   readonly subpage: string | undefined;
+  readonly allDumps: readonly queries.HeapDump[];
+  readonly session: HeapDumpExplorerSession;
 }
 
 const FG_KEY_PREFIX = 'fg-';
 const INSTANCE_KEY_PREFIX = 'inst-';
+
+export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
+  private readonly overviewMemo = new AsyncMemo<OverviewData | undefined>();
+
+  view({attrs}: m.Vnode<HeapDumpPageAttrs>): m.Children {
+    const {trace, subpage, allDumps, session} = attrs;
+
+    // // Mirror URL-driven nav (back/forward, address bar) into the store, and
+    // // make sure any deep-linked object/flamegraph tab exists in the store.
+    // session.syncFromSubpage(subpage);
+    // session.syncInstanceTabFromNav();
+    // session.syncFlamegraphTabFromNav();
+
+    const nav = parseNavLink(subpage);
+    const activeDumpResult = resolveActiveDump(allDumps, nav);
+
+    if (activeDumpResult.status === 'dumpless') {
+      return m(
+        '.pf-hde-page',
+        m('.pf-hde-loading', 'No dumps available in this trace'),
+      );
+    }
+
+    if (activeDumpResult.status === 'no_exist') {
+      return m(
+        '.pf-hde-page',
+        renderDumpSelector(trace, allDumps, undefined),
+        m('.pf-hde-loading', "404: Heap dump doesn't exist"),
+      );
+    }
+
+    const activeDump = activeDumpResult.dump;
+
+    // Load the overview data
+    const {isPending, data: overview} = this.overviewMemo.use({
+      key: {activeDump},
+      compute: async () => {
+        return await queries.getOverview(trace.engine, activeDump);
+      },
+    });
+
+    if (isPending || overview === undefined) {
+      return m(
+        '.pf-hde-page',
+        renderDumpSelector(trace, allDumps, activeDump),
+        m('.pf-hde-loading', m(Spinner, {easing: true})),
+      );
+    }
+
+    const {tabs, actions} = buildTabs(
+      session,
+      activeDump,
+      session.nav,
+      overview,
+    );
+
+    return m(
+      '.pf-hde-page',
+      renderDumpSelector(trace, allDumps, activeDump),
+      m(
+        '.pf-hde-page__tabs',
+        m(Tabs, {
+          tabs,
+          activeTabKey: activeTabKey(session),
+          onTabChange: (key: string) => actions.get(key)?.select(),
+          onTabClose: (key: string) => actions.get(key)?.close?.(),
+        }),
+      ),
+    );
+  }
+}
+
+type ActiveDumpResult =
+  | {status: 'dumpless'}
+  | {status: 'no_exist'}
+  | {status: 'ok'; dump: DumpRouteRef};
+
+function resolveActiveDump(
+  allDumps: readonly queries.HeapDump[],
+  nav: NavLink,
+): ActiveDumpResult {
+  const firstDump = maybeUndefined(allDumps[0]);
+
+  // There are no dumps in this trace at all
+  if (!firstDump) return {status: 'dumpless'};
+
+  const dumpFromLink = nav.dump;
+
+  if (dumpFromLink === undefined) {
+    // No dump found in link - use the first dump instead
+    location.replace(generateNavLink({...nav, dump: firstDump}));
+    return {status: 'ok', dump: firstDump};
+  }
+
+  // Check the dump actually exists in the list of all dumps
+  const dumpExists = allDumps.some(
+    (d) => d.upid === dumpFromLink.upid && d.ts === dumpFromLink.ts,
+  );
+
+  if (!dumpExists) {
+    return {status: 'no_exist'};
+  }
+
+  return {status: 'ok', dump: dumpFromLink};
+}
 
 function fgTabKey(pathHashes: string, isDominator: boolean): string {
   return `${FG_KEY_PREFIX}${isDominator ? 'd' : 'n'}:${pathHashes}`;
@@ -81,11 +192,11 @@ interface TabActions {
 
 function buildTabs(
   session: HeapDumpExplorerSession,
-  activeDump: queries.HeapDump,
+  activeDump: DumpRouteRef,
   state: NavState,
   overview: OverviewData,
 ): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
-  const {engine, trace, navigateWithTabs, clearNavParam} = session;
+  const {engine, trace, clearNavParam} = session;
   const hideExplanationSetting = session.hideDefaultChangedHint;
   const hideHint = hideExplanationSetting.get();
   const actions = new Map<string, TabActions>();
@@ -97,7 +208,6 @@ function buildTabs(
       content: m(OverviewView, {
         overview,
         activeDump,
-        navigate: navigateWithTabs,
         showDefaultChangedHint: session.autoNavigated && !hideHint,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
         onDismissDefaultChangedHint: () => hideExplanationSetting.set(true),
@@ -127,7 +237,6 @@ function buildTabs(
       content: m(ClassesView, {
         engine,
         activeDump,
-        navigate: navigateWithTabs,
         clearNavParam,
         initialRootClass:
           state.view === 'classes' ? state.params.rootClass : undefined,
@@ -139,7 +248,6 @@ function buildTabs(
       content: m(AllObjectsView, {
         engine,
         activeDump,
-        navigate: navigateWithTabs,
         clearNavParam,
         initialClass: state.view === 'objects' ? state.params.cls : undefined,
       }),
@@ -150,7 +258,6 @@ function buildTabs(
       content: m(DominatorsView, {
         engine,
         activeDump,
-        navigate: navigateWithTabs,
       }),
     },
     {
@@ -159,7 +266,6 @@ function buildTabs(
       content: m(BitmapGalleryView, {
         engine,
         activeDump,
-        navigate: navigateWithTabs,
         clearNavParam,
         hasFieldValues: overview.hasFieldValues,
         filterKey:
@@ -172,7 +278,6 @@ function buildTabs(
       content: m(StringsView, {
         engine,
         activeDump,
-        navigate: navigateWithTabs,
         clearNavParam,
         initialQuery: state.view === 'strings' ? state.params.q : undefined,
         hasFieldValues: overview.hasFieldValues,
@@ -184,7 +289,6 @@ function buildTabs(
       content: m(ArraysView, {
         engine,
         activeDump,
-        navigate: navigateWithTabs,
         clearNavParam,
         initialArrayHash:
           state.view === 'arrays' ? state.params.arrayHash : undefined,
@@ -220,7 +324,7 @@ function buildTabs(
       closeButton: true,
       content: m(FlamegraphObjectsView, {
         engine,
-        navigate: navigateWithTabs,
+        activeDump,
         pathHashes: fg.pathHashes,
         isDominator: fg.isDominator,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
@@ -246,7 +350,6 @@ function buildTabs(
         engine,
         activeDump,
         heaps: overview.heaps,
-        navigate: navigateWithTabs,
         openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
         params: {id: obj.objId},
       }),
@@ -266,100 +369,46 @@ function processLabel(d: queries.HeapDump): string {
     : `pid ${d.pid}`;
 }
 
-function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
-  const allDumps = session.dumps;
-  const active = session.activeDump;
-  if (allDumps.length <= 1 || active === null) return null;
+function renderDumpSelector(
+  trace: Trace,
+  allDumps: readonly queries.HeapDump[],
+  activeDump: DumpRouteRef | undefined,
+): m.Children {
+  if (allDumps.length <= 1) return;
+
+  const activeDumpFull = allDumps.find(
+    (d) => d.upid === activeDump?.upid && d.ts === activeDump?.ts,
+  );
 
   return m(
-    'div',
-    {class: 'pf-hde-dump-selector'},
+    '.pf-hde-dump-selector',
     m('span', {class: 'pf-hde-dump-selector__label'}, 'Heap dump:'),
     m(
       PopupMenu,
       {
         trigger: m(Button, {
-          label: processLabel(active),
+          label: activeDumpFull
+            ? processLabel(activeDumpFull)
+            : 'Select a heap dump',
           icon: 'memory',
           rightIcon: 'arrow_drop_down',
           variant: ButtonVariant.Outlined,
-          compact: true,
         }),
       },
       allDumps.map((d) => {
-        const offset = Time.diff(d.ts, session.trace.traceInfo.start);
+        const offset = Time.diff(d.ts, trace.traceInfo.start);
         return m(MenuItem, {
-          label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
-          active: d === active,
-          onclick: () => session.selectDump(d),
+          label: `${processLabel(d)} — ${formatDuration(trace, offset)}`,
+          active: d === activeDumpFull,
+          onclick: () =>
+            trace.navigate(
+              generateNavLink({
+                tab: 'overview',
+                dump: {upid: d.upid, ts: d.ts},
+              }),
+            ),
         });
       }),
     ),
   );
-}
-
-export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
-  oninit({attrs}: m.Vnode<HeapDumpPageAttrs>) {
-    attrs.session.setNavigateCallback((sub, replace) => {
-      const url = `#!/heapdump${sub ? '/' + sub : ''}`;
-      if (replace) {
-        location.replace(url);
-      } else {
-        window.location.hash = url.slice(1);
-      }
-    });
-    void attrs.session.loadOverview();
-  }
-
-  onremove({attrs}: m.VnodeDOM<HeapDumpPageAttrs>) {
-    attrs.session.setNavigateCallback(undefined);
-  }
-
-  view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
-    const {session, subpage} = attrs;
-    session.syncFromSubpage(subpage);
-    session.syncInstanceTabFromNav();
-    session.syncFlamegraphTabFromNav();
-
-    const active = session.activeDump;
-    const {dump} = parseHeapDumpSubpage(subpage, session.defaultView);
-    if (
-      active !== null &&
-      (dump === undefined || dump.upid !== active.upid || dump.ts !== active.ts)
-    ) {
-      location.replace(`#!/heapdump/${session.fullSubpage}`);
-    }
-
-    const overview = session.cachedOverview;
-    if (active === null || overview === null) {
-      return m(
-        'div',
-        {class: 'pf-hde-page'},
-        renderDumpSelector(session),
-        m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
-      );
-    }
-
-    // Keyed so Mithril remounts views (and their SQLDataSources) on
-    // dump switch.
-    const tabsKey = `${active.upid}:${active.ts}`;
-    const {tabs, actions} = buildTabs(session, active, session.nav, overview);
-
-    return m(
-      'div',
-      {class: 'pf-hde-page'},
-      renderDumpSelector(session),
-      m(
-        'main',
-        {class: 'pf-hde-page__tabs'},
-        m(Tabs, {
-          key: tabsKey,
-          tabs,
-          activeTabKey: activeTabKey(session),
-          onTabChange: (key: string) => actions.get(key)?.select(),
-          onTabClose: (key: string) => actions.get(key)?.close?.(),
-        }),
-      ),
-    );
-  }
 }

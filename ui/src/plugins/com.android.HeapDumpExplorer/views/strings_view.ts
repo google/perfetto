@@ -24,7 +24,6 @@ import type {StringListRow} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   SQL_PREAMBLE,
@@ -32,6 +31,8 @@ import {
   COL_INFO,
   colHeader,
 } from '../components';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
@@ -66,7 +67,7 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -79,13 +80,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
           Anchor,
           {
             class: 'pf-hde-str-color',
-            onclick: () =>
-              navigate('object', {
-                id,
-                label: str
-                  ? `"${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`
-                  : display,
-              }),
+            href: generateNavLink({tab: 'object', id, dump}),
           },
           m(
             'span',
@@ -157,7 +152,6 @@ const SUMMARY_SCHEMA: ColumnSchema = {
 interface StringsViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly initialQuery?: string;
   readonly hasFieldValues?: boolean;
@@ -207,7 +201,8 @@ export function StringsView(): m.Component<StringsViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {activeDump} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
 
       if (!allRows) {
         return m(
@@ -266,7 +261,7 @@ export function StringsView(): m.Component<StringsViewAttrs> {
 
           dataSource
             ? m(DataGrid, {
-                schema: makeUiSchema(navigate),
+                schema: makeUiSchema(dump),
                 data: dataSource,
                 fillHeight: true,
                 initialColumns: [

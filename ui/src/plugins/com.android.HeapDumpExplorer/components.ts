@@ -21,15 +21,11 @@ import {filterToSql} from '../../components/widgets/datagrid/sql_utils';
 import type {Engine} from '../../trace_processor/engine';
 import type {InstanceRow, PathEntry, PrimOrRef} from './types';
 import {fmtSize} from './format';
-import type {NavState} from './nav_state';
+import type {DumpRouteRef} from './nav_state';
+import {generateNavLink} from './navigate';
 import {Tooltip} from '../../widgets/tooltip';
 import {Icon} from '../../widgets/icon';
 import {Anchor} from '../../widgets/anchor';
-
-export type NavFn = (
-  view: NavState['view'],
-  params?: Record<string, unknown>,
-) => void;
 
 export type ObjLinkRef = {
   id: number;
@@ -39,12 +35,12 @@ export type ObjLinkRef = {
 
 interface InstanceLinkAttrs {
   readonly row: InstanceRow | ObjLinkRef | null;
-  readonly navigate: NavFn;
+  readonly dump: DumpRouteRef;
 }
 export function InstanceLink(): m.Component<InstanceLinkAttrs> {
   return {
     view(vnode) {
-      const {row, navigate} = vnode.attrs;
+      const {row, dump} = vnode.attrs;
       if (!row || row.id === 0) {
         return m('span', {class: 'pf-hde-badge-referent'}, 'ROOT');
       }
@@ -63,9 +59,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         full?.isRoot ? m('span', {class: 'pf-hde-badge-root'}, 'root') : null,
         m(
           Anchor,
-          {
-            onclick: () => navigate('object', {id: row.id, label: row.display}),
-          },
+          {href: generateNavLink({tab: 'object', id: row.id, dump})},
           row.display,
         ),
         row.str != null
@@ -89,7 +83,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
               ' for ',
               m(InstanceLink, {
                 row: full.referent,
-                navigate,
+                dump,
               }),
             )
           : null,
@@ -339,16 +333,16 @@ export class RowCounter {
 
 interface PrimOrRefCellAttrs {
   readonly v: PrimOrRef;
-  readonly navigate: NavFn;
+  readonly dump: DumpRouteRef;
 }
 export function PrimOrRefCell(): m.Component<PrimOrRefCellAttrs> {
   return {
     view(vnode) {
-      const {v, navigate} = vnode.attrs;
+      const {v, dump} = vnode.attrs;
       if (v.kind === 'ref') {
         return m(InstanceLink, {
           row: {id: v.id, display: v.display, str: v.str},
-          navigate,
+          dump,
         });
       }
       return m('span', {class: 'pf-hde-mono'}, v.v);
@@ -412,7 +406,7 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
 }
 
 /** Renders a single dominator-tree path as an indented arrow chain. */
-export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
+export function renderPath(path: PathEntry[], dump: DumpRouteRef): m.Children {
   return m(
     'div',
     {class: 'pf-hde-view-stack--tight'},
@@ -426,7 +420,7 @@ export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
         },
         [
           m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '\u2192'),
-          m(InstanceLink, {row: pe.row, navigate}),
+          m(InstanceLink, {row: pe.row, dump}),
           pe.field ? m('span', {class: 'pf-hde-path-field'}, pe.field) : null,
         ],
       ),

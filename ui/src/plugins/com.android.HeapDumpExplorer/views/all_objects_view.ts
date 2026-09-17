@@ -21,7 +21,6 @@ import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_s
 import {fmtHex} from '../format';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -31,13 +30,14 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly initialClass?: string;
 }
@@ -71,7 +71,7 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -84,10 +84,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         return m('span', [
           m(
             Anchor,
-            {
-              onclick: () =>
-                navigate('object', {id, label: str ? `"${str}"` : display}),
-            },
+            {href: generateNavLink({tab: 'object', id, dump})},
             display,
           ),
           str
@@ -194,7 +191,8 @@ export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {activeDump} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
 
       if (!dataSource) return null;
 
@@ -205,7 +203,7 @@ export function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(dump),
           data: dataSource,
           fillHeight: true,
           initialColumns: [

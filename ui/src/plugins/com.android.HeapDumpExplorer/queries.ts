@@ -40,6 +40,7 @@ import type {
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
 import {type time, Time} from '../../base/time';
+import type {DumpRouteRef} from './navigate';
 
 /**
  * Reinterpret a SQL int64 as an unsigned 64-bit native pointer.
@@ -91,7 +92,7 @@ export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
   return result;
 }
 
-export function dumpFilterSql(dump: HeapDump, alias: string = 'o'): string {
+export function dumpFilterSql(dump: DumpRouteRef, alias: string = 'o'): string {
   return (
     `${alias}.upid = ${dump.upid} ` +
     `AND ${alias}.graph_sample_ts = ${dump.ts}`
@@ -200,7 +201,7 @@ function collectRows(res: QueryResult): InstanceRow[] {
  */
 async function batchBitmapBufferHashes(
   engine: Engine,
-  activeDump: HeapDump,
+  activeDump: DumpRouteRef,
   bitmaps: Array<{objectId: number; nativePtr: bigint}>,
 ): Promise<Map<number, string>> {
   const result = new Map<number, string>();
@@ -248,7 +249,7 @@ async function batchBitmapBufferHashes(
 
 export async function getOverview(
   engine: Engine,
-  activeDump: HeapDump,
+  activeDump: DumpRouteRef,
 ): Promise<OverviewData> {
   const dumpFilter = dumpFilterSql(activeDump, 'o');
   const oomeInfo = await getOome(engine, activeDump);
@@ -527,7 +528,7 @@ export async function getOverview(
 
 export async function getOome(
   engine: Engine,
-  activeDump: HeapDump,
+  activeDump: DumpRouteRef,
 ): Promise<OomeData | undefined> {
   const oomeRes = await engine.query(`
     INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
@@ -1412,14 +1413,15 @@ interface BitmapDumpData {
   bufferMap: Map<bigint, number>;
 }
 
+// TODO: I think this isnt going to work properly... we need to use asyncmemo or just sack off this special caching...
 const bitmapDumpDataByDump = new WeakMap<
-  HeapDump,
+  DumpRouteRef,
   Promise<BitmapDumpData | null>
 >();
 
 function loadBitmapDumpData(
   engine: Engine,
-  activeDump: HeapDump,
+  activeDump: DumpRouteRef,
 ): Promise<BitmapDumpData | null> {
   const cached = bitmapDumpDataByDump.get(activeDump);
   if (cached !== undefined) return cached;
@@ -1430,7 +1432,7 @@ function loadBitmapDumpData(
 
 async function computeBitmapDumpData(
   engine: Engine,
-  activeDump: HeapDump,
+  activeDump: DumpRouteRef,
 ): Promise<BitmapDumpData | null> {
   const classObjRes = await engine.query(`
     SELECT o.reference_set_id

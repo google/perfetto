@@ -26,6 +26,7 @@ import HeapProfilePlugin, {
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
 import {migrateHdeState} from './persisted_state';
+import * as queries from './queries';
 
 const PLUGIN_ID = 'com.android.HeapDumpExplorer';
 
@@ -62,22 +63,25 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
-    // The core restores this store (phase 1) before plugins run, so the session
-    // reads any shared-link state straight from it.
-    const store = ctx.mountStore(PLUGIN_ID, migrateHdeState);
+    // The core restores this store (phase 1) before plugins run. The session no
+    // longer reads it, but we keep it mounted so the plugin's shared-link state
+    // slot persists.
+    ctx.mountStore(PLUGIN_ID, migrateHdeState);
 
     const session = new HeapDumpExplorerSession(
       ctx,
       ctx.engine,
       hideDefaultChangedHint,
       defaultFlamegraph,
-      store,
     );
     const restored = await session.loadDumps();
 
+    const allDumps = await queries.loadDumpsList(ctx.engine);
+
     ctx.pages.registerPage({
       route: '/heapdump',
-      render: (subpage) => m(HeapDumpPage, {session, subpage}),
+      render: (subpage) =>
+        m(HeapDumpPage, {trace: ctx, subpage, allDumps, session}),
     });
 
     if (restored) {

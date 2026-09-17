@@ -20,7 +20,6 @@ import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_sourc
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {fmtHex} from '../format';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -29,12 +28,15 @@ import {
   COL_INFO,
   colHeader,
 } from '../components';
+import type {HeapDump} from '../queries';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
 interface FlamegraphObjectsViewAttrs {
   readonly engine: Engine;
-  readonly navigate: NavFn;
+  readonly activeDump: HeapDump;
   readonly pathHashes?: string;
   readonly isDominator?: boolean;
   readonly onBackToTimeline?: () => void;
@@ -77,7 +79,7 @@ export function flamegraphQuery(
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -90,10 +92,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         return m('span', [
           m(
             Anchor,
-            {
-              onclick: () =>
-                navigate('object', {id, label: str ? `"${str}"` : display}),
-            },
+            {href: generateNavLink({tab: 'object', id, dump})},
             display,
           ),
           str
@@ -208,7 +207,8 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
       }
     },
     view(vnode) {
-      const {navigate, nodeName, onBackToTimeline} = vnode.attrs;
+      const {activeDump, nodeName, onBackToTimeline} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
 
       if (!dataSource) {
         return m(
@@ -246,7 +246,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             : null,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(dump),
           data: dataSource,
           fillHeight: true,
           initialColumns: [

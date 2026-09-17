@@ -146,6 +146,7 @@ export class MyComponent implements m.ClassComponent<MyComponentAttrs> {
 - Use `constructor` for initialization if no DOM access is needed, or `oncreate` if DOM is needed.
 - Prefer using the existing widget library (`ui/src/widgets/`) over creating new components.
 - Use `readonly` for attrs properties to prevent accidental mutation. We like things to be immutable.
+- Use Mithril's selector shorthand for plain `div`/`span` elements that only need a class: `m('.pf-foo', ...)` rather than `m('div', {class: 'pf-foo'}, ...)`. Only use the explicit tag + attrs form when the element has other attrs (`onclick`, `key`, `style`, ...).
 
 **Conditional Rendering with State Preservation:**
 Use the `Gate` component when you need to conditionally show/hide content while preserving component state:

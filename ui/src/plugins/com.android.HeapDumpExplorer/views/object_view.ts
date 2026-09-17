@@ -29,7 +29,6 @@ import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import {downloadBlob} from '../download';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -42,6 +41,8 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -61,7 +62,6 @@ interface ObjectViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
   readonly heaps: ReadonlyArray<HeapInfo>;
-  readonly navigate: NavFn;
   readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
 }
@@ -245,7 +245,7 @@ const SIZE_SCHEMA: ColumnSchema = {
   },
 };
 
-function makeInstanceSchema(navigate: NavFn): ColumnSchema {
+function makeInstanceSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -258,10 +258,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
         return m('span', [
           m(
             Anchor,
-            {
-              onclick: () =>
-                navigate('object', {id, label: str ? `"${str}"` : display}),
-            },
+            {href: generateNavLink({tab: 'object', id, dump})},
             display,
           ),
           str
@@ -337,7 +334,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeFieldSchema(navigate: NavFn): ColumnSchema {
+function makeFieldSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     name: {
       title: 'Name',
@@ -347,11 +344,11 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
           return m(
             Anchor,
             {
-              onclick: () =>
-                navigate('object', {
-                  id: Number(row.ref_id),
-                  label: String(row.value_display ?? ''),
-                }),
+              href: generateNavLink({
+                tab: 'object',
+                id: Number(row.ref_id),
+                dump,
+              }),
             },
             String(value),
           );
@@ -375,7 +372,7 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
               display: String(value),
               str: row.ref_str != null ? String(row.ref_str) : null,
             },
-            navigate,
+            dump,
           });
         }
         return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
@@ -438,7 +435,7 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
+function makeArraySchema(dump: DumpRouteRef, elemTypeName: string): ColumnSchema {
   return {
     idx: {
       title: 'Index',
@@ -460,7 +457,7 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
               display: String(value),
               str: row.ref_str != null ? String(row.ref_str) : null,
             },
-            navigate,
+            dump,
           });
         }
         return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
@@ -587,7 +584,8 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {navigate, params} = vnode.attrs;
+      const {activeDump, params} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
 
       if (detail === 'loading') {
         return m(
@@ -648,7 +646,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
         },
         m('div', {class: 'pf-hde-view-scroll pf-hde-view-stack'}, [
           m('div', {class: 'pf-hde-action-row'}, [
-            m(InstanceLink, {row, navigate}),
+            m(InstanceLink, {row, dump}),
           ]),
 
           detail.bitmap
@@ -718,7 +716,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                           {class: 'pf-hde-path-arrow'},
                           i === 0 ? '' : '\u2192',
                         ),
-                        m(InstanceLink, {row: pe.row, navigate}),
+                        m(InstanceLink, {row: pe.row, dump}),
                         pe.field
                           ? m('span', {class: 'pf-hde-path-field'}, pe.field)
                           : null,
@@ -753,7 +751,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                           {class: 'pf-hde-path-arrow'},
                           i === 0 ? '' : '\u2192',
                         ),
-                        m(InstanceLink, {row: pe.row, navigate}),
+                        m(InstanceLink, {row: pe.row, dump}),
                         pe.field
                           ? m('span', {class: 'pf-hde-path-field'}, pe.field)
                           : null,
@@ -772,7 +770,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                 detail.classObjRow
                   ? m(InstanceLink, {
                       row: detail.classObjRow,
-                      navigate,
+                      dump,
                     })
                   : '???',
               ),
@@ -855,7 +853,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             ? m(
                 Section,
                 {title: 'Class Hierarchy'},
-                renderClassHierarchy(detail.classHierarchy, navigate),
+                renderClassHierarchy(detail.classHierarchy, dump),
               )
             : null,
 
@@ -863,7 +861,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             ? m(
                 Section,
                 {title: 'Static Fields'},
-                renderFieldsGrid(detail.staticFields, navigate),
+                renderFieldsGrid(detail.staticFields, dump),
               )
             : null,
 
@@ -872,7 +870,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                 Section,
                 {title: 'Fields'},
                 detail.instanceFields.length > 0
-                  ? renderFieldsGrid(detail.instanceFields, navigate)
+                  ? renderFieldsGrid(detail.instanceFields, dump)
                   : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
               )
             : null,
@@ -884,7 +882,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                 renderArrayGrid(
                   detail.arrayElems,
                   detail.elemTypeName ?? 'Object',
-                  navigate,
+                  dump,
                   detail.elemTypeName === 'byte'
                     ? () => {
                         queries
@@ -916,7 +914,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.reverseRefs.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(dump),
                   data: detail.reverseRefs.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -952,7 +950,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.dominated.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(dump),
                   data: detail.dominated.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -982,12 +980,12 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
   };
 }
 
-function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
+function renderFieldsGrid(fields: FieldRow[], dump: DumpRouteRef): m.Children {
   if (fields.length === 0) {
     return m('div', {class: 'pf-hde-info-grid__label'}, 'No fields');
   }
   return m(DataGrid, {
-    schema: makeFieldSchema(navigate),
+    schema: makeFieldSchema(dump),
     data: fields.map(fieldRowToRow),
     initialColumns: [
       {id: 'type_name', field: 'type_name'},
@@ -1011,7 +1009,7 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
 function renderArrayGrid(
   elems: ArrayElemRow[],
   elemTypeName: string,
-  navigate: NavFn,
+  dump: DumpRouteRef,
   onDownloadBytes?: () => void,
 ): m.Children {
   function copyTsv() {
@@ -1045,7 +1043,7 @@ function renderArrayGrid(
         ])
       : null,
     m(DataGrid, {
-      schema: makeArraySchema(navigate, elemTypeName),
+      schema: makeArraySchema(dump, elemTypeName),
       data: elems.map((e) => arrayElemToRow(e, elemTypeName)),
       initialColumns: [
         {id: 'idx', field: 'idx'},
@@ -1103,13 +1101,16 @@ function subclassFilterTarget(className: string): string {
   return className;
 }
 
-function classFilterLink(className: string, navigate: NavFn): m.Child {
+function classFilterLink(className: string, dump: DumpRouteRef): m.Child {
   return m(
     Anchor,
     {
       title: 'Open subclasses of this class',
-      onclick: () =>
-        navigate('classes', {rootClass: subclassFilterTarget(className)}),
+      href: generateNavLink({
+        tab: 'classes',
+        rootClass: subclassFilterTarget(className),
+        dump,
+      }),
     },
     className,
   );
@@ -1117,7 +1118,7 @@ function classFilterLink(className: string, navigate: NavFn): m.Child {
 
 function renderClassHierarchy(
   hierarchy: string[],
-  navigate: NavFn,
+  dump: DumpRouteRef,
 ): m.Children {
   const topDown = hierarchy.slice().reverse();
   return m(
@@ -1133,7 +1134,7 @@ function renderClassHierarchy(
         },
         [
           m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '→'),
-          classFilterLink(className, navigate),
+          classFilterLink(className, dump),
         ],
       ),
     ),

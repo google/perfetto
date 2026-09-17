@@ -22,7 +22,6 @@ import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_s
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {fmtHex} from '../format';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -31,6 +30,8 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import type {DumpRouteRef} from '../nav_state';
+import {generateNavLink} from '../navigate';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -53,7 +54,7 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -64,9 +65,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         return m(
           Anchor,
-          {
-            onclick: () => navigate('object', {id, label: display}),
-          },
+          {href: generateNavLink({tab: 'object', id, dump})},
           display,
         );
       },
@@ -106,7 +105,6 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 interface ArraysViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly initialArrayHash?: string;
   readonly hasFieldValues?: boolean;
@@ -142,7 +140,8 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {activeDump} = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
       if (vnode.attrs.hasFieldValues === false) {
         return m(
           DetailsShell,
@@ -164,7 +163,7 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(dump),
           data: dataSource,
           fillHeight: true,
           initialColumns: [

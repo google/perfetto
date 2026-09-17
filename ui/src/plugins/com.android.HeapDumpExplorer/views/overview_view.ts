@@ -19,8 +19,9 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {OverviewData} from '../types';
 import {fmtSize} from '../format';
-import type {NavState} from '../nav_state';
-import {type NavFn, sizeRenderer} from '../components';
+import type {DumpRouteRef} from '../nav_state';
+import {sizeRenderer} from '../components';
+import {generateNavLink, type NavLink} from '../navigate';
 import type {HeapDump} from '../queries';
 import {Callout} from '../../../widgets/callout';
 import {Button} from '../../../widgets/button';
@@ -60,7 +61,7 @@ const HEAP_SCHEMA: ColumnSchema = {
   },
 };
 
-function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
+function makeDuplicateBitmapSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     dimensions: {
       title: 'Dimensions',
@@ -73,10 +74,11 @@ function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
         m(
           Anchor,
           {
-            onclick: () =>
-              navigate('bitmaps', {
-                filterKey: String(row.groupKey ?? ''),
-              }),
+            href: generateNavLink({
+              tab: 'bitmaps',
+              filterKey: String(row.groupKey ?? ''),
+              dump,
+            }),
           },
           String(value),
         ),
@@ -94,7 +96,7 @@ function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
+function makeDuplicateArraySchema(dump: DumpRouteRef): ColumnSchema {
   return {
     className: {
       title: 'Array Type',
@@ -103,7 +105,11 @@ function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
         m(
           Anchor,
           {
-            onclick: () => navigate('objects', {cls: String(value ?? '')}),
+            href: generateNavLink({
+              tab: 'objects',
+              cls: String(value ?? ''),
+              dump,
+            }),
           },
           String(value ?? ''),
         ),
@@ -119,10 +125,11 @@ function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
         m(
           Anchor,
           {
-            onclick: () =>
-              navigate('arrays', {
-                arrayHash: String(row.arrayHash ?? ''),
-              }),
+            href: generateNavLink({
+              tab: 'arrays',
+              arrayHash: String(row.arrayHash ?? ''),
+              dump,
+            }),
           },
           String(value),
         ),
@@ -140,7 +147,7 @@ function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
+function makeDuplicateStringSchema(dump: DumpRouteRef): ColumnSchema {
   return {
     value: {
       title: 'Value',
@@ -150,10 +157,11 @@ function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
           Anchor,
           {
             class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
-            onclick: () =>
-              navigate('strings', {
-                q: String(value ?? ''),
-              }),
+            href: generateNavLink({
+              tab: 'strings',
+              q: String(value ?? ''),
+              dump,
+            }),
           },
           '"' +
             (String(value ?? '').length > 200
@@ -169,7 +177,11 @@ function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
         m(
           Anchor,
           {
-            onclick: () => navigate('strings', {q: String(row.value ?? '')}),
+            href: generateNavLink({
+              tab: 'strings',
+              q: String(row.value ?? ''),
+              dump,
+            }),
           },
           String(value),
         ),
@@ -191,9 +203,9 @@ function renderDuplicateSection(
   title: string,
   groupCount: number,
   totalWasted: number,
-  targetView: string,
+  target: NavLink,
   linkLabel: string,
-  navigate: NavFn,
+  dump: DumpRouteRef,
   schema: ColumnSchema,
   data: Row[],
   columns: Array<{id: string; field: string}>,
@@ -207,13 +219,7 @@ function renderDuplicateSection(
         ' detected, wasting ',
       m('span', {class: 'pf-hde-mono pf-hde-semibold'}, fmtSize(totalWasted)),
       '. ',
-      m(
-        Anchor,
-        {
-          onclick: () => navigate(targetView as NavState['view']),
-        },
-        linkLabel,
-      ),
+      m(Anchor, {href: generateNavLink({...target, dump})}, linkLabel),
     ]),
     m('div', {class: 'pf-hde-dup-grid-container'}, [
       m(DataGrid, {
@@ -228,8 +234,7 @@ function renderDuplicateSection(
 
 interface OverviewViewAttrs {
   readonly overview: OverviewData;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
+  readonly activeDump: DumpRouteRef;
   readonly showDefaultChangedHint: boolean;
   readonly onBackToTimeline: () => void;
   readonly onDismissDefaultChangedHint: () => void;
@@ -240,11 +245,11 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
       const {
         overview,
         activeDump,
-        navigate,
         showDefaultChangedHint,
         onBackToTimeline,
         onDismissDefaultChangedHint,
       } = vnode.attrs;
+      const dump = {upid: activeDump.upid, ts: activeDump.ts};
       const showHint = showDefaultChangedHint;
       const heapIndices: number[] = [];
       for (let i = 0; i < overview.heaps.length; i++) {
@@ -378,10 +383,10 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   (a, g) => a + g.wastedBytes,
                   0,
                 ),
-                'bitmaps',
+                {tab: 'bitmaps'},
                 'View Bitmaps',
-                navigate,
-                makeDuplicateBitmapSchema(navigate),
+                dump,
+                makeDuplicateBitmapSchema(dump),
                 overview.duplicateBitmaps.map((g) => ({
                   dimensions: `${g.width} \u00d7 ${g.height}`,
                   groupKey: g.groupKey,
@@ -416,10 +421,10 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   (a, g) => a + g.wastedBytes,
                   0,
                 ),
-                'strings',
+                {tab: 'strings'},
                 'View Strings',
-                navigate,
-                makeDuplicateStringSchema(navigate),
+                dump,
+                makeDuplicateStringSchema(dump),
                 overview.duplicateStrings.map((g) => ({
                   value: g.value,
                   copies: g.count,
@@ -449,10 +454,10 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                 'Duplicate Primitive Arrays',
                 overview.duplicateArrays.length,
                 overview.duplicateArrays.reduce((a, g) => a + g.wastedBytes, 0),
-                'arrays',
+                {tab: 'arrays'},
                 'View Arrays',
-                navigate,
-                makeDuplicateArraySchema(navigate),
+                dump,
+                makeDuplicateArraySchema(dump),
                 overview.duplicateArrays.map((g) => ({
                   className: g.className,
                   arrayHash: g.arrayHash,
