@@ -52,6 +52,7 @@ class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
 class StatsTracker;
+class AndroidProcessTracker;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class ProtoTraceReader;
@@ -251,6 +252,7 @@ class TraceProcessorContext {
 
   PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
+  PerMachinePtr<AndroidProcessTracker> android_process_tracker;
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
