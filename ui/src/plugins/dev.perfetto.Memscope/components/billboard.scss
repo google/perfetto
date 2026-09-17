@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use '../tokens' as t;
 .pf-memscope-billboard {
-  padding: 14px 16px;
-  border-radius: 4px;
+  padding: 10px 14px;
+  border-radius: t.$memscope-section-radius;
   border: 0.5px solid var(--pf-col-border);
   background: var(--pf-col-surface);
   box-shadow:
@@ -61,19 +62,20 @@
   }
 }
 
+.pf-memscope-billboard__label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
 .pf-memscope-billboard__label {
   font-size: var(--pf-font-size-s);
   font-weight: 600;
   color: var(--pf-color-text);
-  margin-top: 2px;
   text-transform: uppercase;
 }
 
-.pf-memscope-billboard__desc {
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text-muted);
-  margin-top: 2px;
-}
 
 .pf-memscope-billboard__delta {
   font-size: var(--pf-font-size-s);

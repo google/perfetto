@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use '../tokens' as t;
 .pf-memscope-table {
   border: solid 1px var(--pf-col-border);
-  border-radius: 8px;
+  border-radius: t.$memscope-section-radius;
   overflow-x: auto;
 
   table {

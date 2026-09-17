@@ -43,6 +43,7 @@ import {
   type CategoryId,
 } from '../../process_categories';
 import {Billboard, BillboardStrip} from '../../components/billboard';
+import {HelpTooltip} from '../../components/help_tooltip';
 import {ColorChip, chipColor} from '../../components/color_chip';
 import {
   billboardBytes,
@@ -490,17 +491,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
               .includes(this.processSearch.toLowerCase()),
           );
 
-    const metricInfo = PROCESS_METRIC_OPTIONS.find(
-      (o) => o.key === this.metric,
-    )!;
     const drillName = cat?.name ?? oomBucket?.name;
-    const groupLabel = this.grouping === 'category' ? 'Category' : 'OOM Score';
-    const title = drillName
-      ? `Process Memory: ${drillName}`
-      : `Process Memory by ${groupLabel}`;
-    const subtitle = drillName
-      ? `Stacked ${metricInfo.label} per process. Totals may exceed actual memory usage because RSS counts shared pages (COW, mmap) in every process that maps them.`
-      : `Stacked ${metricInfo.label} per ${groupLabel.toLowerCase()}. Click a ${groupLabel.toLowerCase()} to drill into individual processes.`;
+    const title = drillName ? `Process Memory: ${drillName}` : 'Process Memory';
 
     // Compute billboard totals from all processes.
     const totalAnonSwapKb = latestProcesses.reduce(
@@ -551,6 +543,20 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 },
               }),
             m('h2', title),
+            m(HelpTooltip, {
+              content: m.fragment({}, [
+                m('div', [
+                  'Stacked memory per process (or per category / OOM bucket). '
+                    + 'Totals may exceed actual usage because RSS counts shared '
+                    + 'pages (COW, mmap) in every process that maps them.',
+                ]),
+                m('div', [
+                  'Source: linux.process_stats data source (traced_probes) polling '
+                    + '/proc/<pid>/smem, /proc/<pid>/stat and oom_score_adj; '
+                    + 'DMA-BUF from the dma_heap_stat ftrace event.',
+                ]),
+              ]),
+            }),
             m(
               '.pf-memscope-panel__controls',
               m(
@@ -588,7 +594,6 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
               ),
             ),
           ),
-          m('p', subtitle),
         ),
         m(
           '.pf-memscope-panel__body',
@@ -596,8 +601,6 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
             ? m(LineChartSvg, {
                 data: chartData,
                 height: 350,
-                xAxisLabel: 'Time (s)',
-                yAxisLabel: 'RSS',
                 showLegend: true,
                 showPoints: false,
                 stacked: true,

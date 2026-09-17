@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use '../tokens' as t;
 // Hero connect / idle state.
 .pf-memscope-hero {
   display: flex;
@@ -20,7 +21,7 @@
   justify-content: center;
   gap: 16px;
   padding: 48px 24px;
-  border-radius: 8px;
+  border-radius: t.$memscope-section-radius;
   border: 0.5px dashed var(--pf-col-border);
   text-align: center;
   // Subtle inset shadow for depth

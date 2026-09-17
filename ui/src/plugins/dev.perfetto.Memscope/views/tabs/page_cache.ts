@@ -253,9 +253,15 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'Page Cache',
-        subtitle:
-          'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem. ' +
-          'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
+        help: m.fragment({}, [
+          m('div', [
+            'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
+          ]),
+          m('div', [
+            'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem '
+              + 'via the linux.sys_stats data source (traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -263,8 +269,6 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: pageCacheChartData,
               height: 250,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Cache',
               showLegend: true,
               showPoints: false,
               stacked: true,
@@ -285,11 +289,17 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'Page Cache Activity',
-        subtitle:
-          'Source: /proc/vmstat counters, shown as rates (delta/s). ' +
-          'Refaults = workingset_refault_file (evicted pages needed again). ' +
-          'Stolen = pgsteal_file (pages reclaimed). ' +
-          'Scanned = pgscan_file (pages considered for reclaim).',
+        help: m.fragment({}, [
+          m('div', [
+            'Shown as rates (delta/s). Refaults = workingset_refault_file '
+              + '(evicted pages needed again). Stolen = pgsteal_file (pages reclaimed). '
+              + 'Scanned = pgscan_file (pages considered for reclaim).',
+          ]),
+          m('div', [
+            'Source: /proc/vmstat counters via the linux.sys_stats data source '
+              + '(traced_probes).',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -297,8 +307,6 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: fileCacheActivityData,
               height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Pages/s',
               showLegend: true,
               showPoints: false,
               gridLines: 'both',
