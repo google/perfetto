@@ -575,6 +575,7 @@ class WattsonStdlib(TestSuite):
           SUM(dur) AS dur,
           thread_name
         FROM _wattson_task_slices
+        JOIN _wattson_task_metadata USING (utid)
         GROUP BY thread_name
         ORDER BY dur DESC
         LIMIT 10

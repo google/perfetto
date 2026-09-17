@@ -26,14 +26,7 @@ INCLUDE PERFETTO MODULE wattson.utils;
 CREATE PERFETTO TABLE _idle_w_tasks AS
 WITH
   _ii_idle_tasks AS (
-    SELECT
-      ii.ts,
-      ii.dur,
-      ii.cpu,
-      tasks.utid,
-      tasks.upid,
-      tasks.uid,
-      id_1 AS idle_group
+    SELECT ii.ts, ii.dur, ii.cpu, tasks.utid, id_1 AS idle_group
     FROM _interval_intersect!(
     (
       _ii_subquery!(_wattson_task_slices),
@@ -61,7 +54,7 @@ WITH
   -- to active transition slice, which means this the the task that causes the
   -- idle exit
   first_non_swapper_slice AS (
-    SELECT idle_group, utid, upid, uid, min(ts) AS min, min(ts) + dur AS next_ts
+    SELECT idle_group, utid, min(ts) AS min, min(ts) + dur AS next_ts
     FROM _ii_idle_tasks
     WHERE
       NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
@@ -83,10 +76,11 @@ SELECT
   swapper_info.dur,
   swapper_info.cpu,
   task_info.utid,
-  task_info.upid,
-  task_info.uid
+  md.upid,
+  md.uid
 FROM first_non_swapper_slice AS task_info
 JOIN first_swapper_slice AS swapper_info USING (idle_group)
+JOIN _wattson_task_metadata AS md USING (utid)
 UNION ALL
 -- Adds the last slice to idle transition attribution IF this is a singleton
 -- task wakeup. This is true if there is only one task between swapper idle
@@ -98,10 +92,11 @@ SELECT
   swapper_info.dur,
   swapper_info.cpu,
   task_info.utid,
-  task_info.upid,
-  task_info.uid
+  md.upid,
+  md.uid
 FROM first_non_swapper_slice AS task_info
 JOIN last_swapper_slice AS swapper_info USING (idle_group)
+JOIN _wattson_task_metadata AS md USING (utid)
 WHERE
   ts = next_ts;
 

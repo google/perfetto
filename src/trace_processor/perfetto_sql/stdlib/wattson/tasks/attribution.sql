@@ -95,20 +95,12 @@ FROM _system_state_cpu7_mw
 WHERE
   EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu);
 
+-- Power estimates split by the task that was running.
+--
+-- Only utid is carried here; descriptive metadata lives in _wattson_task_metadata
+-- and is joined once after aggregation.
 CREATE PERFETTO TABLE _estimates_w_tasks_attribution AS
-SELECT
-  ii.ts,
-  ii.dur,
-  ii.cpu,
-  uw.estimated_mw,
-  s.thread_name,
-  s.process_name,
-  s.package_name,
-  s.tid,
-  s.pid,
-  s.uid,
-  s.utid,
-  s.upid
+SELECT ii.ts, ii.dur, ii.cpu, uw.estimated_mw, s.utid
 FROM _interval_intersect!(
   (
     _ii_subquery!(_unioned_wattson_estimates_mw),

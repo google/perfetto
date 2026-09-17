@@ -32,24 +32,10 @@ FROM _adjusted_deep_idle
 WHERE
   idle = -1;
 
--- Establish relationships between tasks, such as thread/process/package
+-- Slices where tasks ran without IRQ information
 CREATE PERFETTO TABLE _task_wo_irq_infos AS
-SELECT
-  sched.ts,
-  sched.dur,
-  sched.cpu,
-  thread.utid,
-  thread.upid,
-  thread.tid,
-  process.pid,
-  package.uid,
-  thread.name AS thread_name,
-  process.name AS process_name,
-  package.package_name
-FROM thread
-JOIN sched USING (utid)
-LEFT JOIN process USING (upid)
-LEFT JOIN android_process_metadata AS package USING (upid)
+SELECT ts, dur, cpu, utid
+FROM sched
 WHERE
   -- Some slices have -1 duration when there is no end (e.g. slices at the end
   -- of a trace), so need this check to exclude negative dur slices.
@@ -106,6 +92,49 @@ SELECT
   hash(coalesce(hard_irq_name, soft_irq_name)) AS irq_id
 FROM _all_irqs_combined_slices;
 
+-- Thread/process/package descriptions of every task, keyed by utid.
+--
+-- Splitting metadata out from task slices avoids dragging 7 descriptive columns
+-- through every slice in task_slices.sql and _estimates_w_tasks_attribution.
+CREATE PERFETTO TABLE _wattson_task_metadata AS
+SELECT
+  0 AS utid,
+  0 AS upid,
+  0 AS tid,
+  0 AS pid,
+  NULL AS uid,
+  'swapper' AS thread_name,
+  NULL AS process_name,
+  NULL AS package_name
+UNION ALL
+SELECT
+  thread.utid,
+  thread.upid,
+  thread.tid,
+  process.pid,
+  package.uid,
+  thread.name AS thread_name,
+  process.name AS process_name,
+  package.package_name
+FROM thread
+LEFT JOIN process USING (upid)
+LEFT JOIN android_process_metadata AS package USING (upid)
+WHERE
+  thread.utid != 0
+UNION ALL
+SELECT DISTINCT
+  irq_id AS utid,
+  irq_id AS upid,
+  irq_id AS tid,
+  irq_id AS pid,
+  irq_id AS uid,
+  irq_name AS thread_name,
+  irq_name AS process_name,
+  irq_name AS package_name
+FROM _all_irqs_flattened_slices;
+
+CREATE PERFETTO INDEX _wattson_task_metadata_idx ON _wattson_task_metadata(utid);
+
 -- SPAN_OUTER_JOIN needed because IRQ table do not have contiguous slices,
 -- whereas tasks table will be contiguous
 CREATE VIRTUAL TABLE _irq_w_tasks_info USING SPAN_OUTER_JOIN(
@@ -121,32 +150,12 @@ SELECT
   dur,
   cpu,
   coalesce(irq_id, utid) AS utid,
-  coalesce(irq_id, upid) AS upid,
-  coalesce(irq_id, tid) AS tid,
-  coalesce(irq_id, pid) AS pid,
-  coalesce(irq_id, uid) AS uid,
-  coalesce(irq_name, thread_name) AS thread_name,
-  coalesce(irq_name, process_name) AS process_name,
-  coalesce(irq_name, package_name) AS package_name,
   NOT (irq_id IS NULL) AS is_irq
 FROM _irq_w_tasks_info;
 
 -- Associate idle states, and specifically the active state, with tasks
 CREATE PERFETTO TABLE _active_state_w_tasks AS
-SELECT
-  ii.ts,
-  ii.dur,
-  ii.cpu,
-  tasks.utid,
-  tasks.upid,
-  tasks.tid,
-  tasks.pid,
-  tasks.uid,
-  tasks.thread_name,
-  tasks.process_name,
-  tasks.package_name,
-  tasks.is_irq,
-  id_1 AS idle_group
+SELECT ii.ts, ii.dur, ii.cpu, tasks.utid, tasks.is_irq, id_1 AS idle_group
 FROM _interval_intersect!(
 (
   _ii_subquery!(_all_tasks_flattened_slices),
@@ -218,32 +227,6 @@ WITH
     FROM activity_islands
   )
 -- Combine the real tasks with the calculated swapper gaps.
-SELECT
-  ts,
-  dur,
-  cpu,
-  utid,
-  upid,
-  tid,
-  pid,
-  uid,
-  thread_name,
-  process_name,
-  package_name
-FROM base_tasks
+SELECT ts, dur, cpu, utid FROM base_tasks
 UNION ALL
-SELECT
-  ts,
-  dur,
-  cpu,
-  0 AS utid,
-  0 AS upid,
-  0 AS tid,
-  0 AS pid,
-  NULL AS uid,
-  'swapper' AS thread_name,
-  NULL AS process_name,
-  NULL AS package_name
-FROM swapper_gaps
-WHERE
-  dur > 0;
+SELECT ts, dur, cpu, 0 AS utid FROM swapper_gaps WHERE dur > 0;
