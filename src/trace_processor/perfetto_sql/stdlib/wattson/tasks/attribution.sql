@@ -32,47 +32,25 @@ INCLUDE PERFETTO MODULE wattson.utils;
 -- Attribute GPU power to each UID based on its active task count.
 -- Formula: attributed_mw = total_gpu_mw / active_tasks
 CREATE PERFETTO TABLE _gpu_tasks_attribution AS
-WITH
-  -- First align tasks with total active task count
-  tasks_with_total AS (
-    SELECT
-      row_number() OVER (ORDER BY ii.ts) AS id,
-      ii.ts,
-      ii.dur,
-      t.uid,
-      t.gpu_id,
-      tot.active_tasks
-    FROM _interval_intersect!(
-      (
-        _ii_subquery!(_gpu_tasks),
-        _ii_subquery!(_gpu_active_task_count)
-      ),
-      ()
-    ) AS ii
-    JOIN _gpu_tasks AS t
-      ON t._auto_id = id_0
-    JOIN _gpu_active_task_count AS tot
-      ON tot._auto_id = id_1
-  )
--- Then align with Wattson's power estimates
 SELECT
   ii.ts,
   ii.dur,
-  ta.uid,
-  ta.gpu_id,
+  t.uid,
+  t.gpu_id,
   -- Calculate attributed power (mW) proportionally shared
-  iif(ta.active_tasks > 0, p.gpu_mw / ta.active_tasks, 0.0) AS estimated_mw
+  iif(ii.id_1 > 0, p.gpu_mw / ii.id_1, 0.0) AS estimated_mw
 FROM _interval_intersect!(
   (
-    tasks_with_total,
+    _ii_subquery!(_gpu_tasks),
+    (SELECT active_tasks AS id, ts, dur FROM _gpu_active_task_count),
     _ii_subquery!(_gpu_estimates_mw)
   ),
   ()
 ) AS ii
-JOIN tasks_with_total AS ta
-  ON ta.id = id_0
+JOIN _gpu_tasks AS t
+  ON t._auto_id = ii.id_0
 JOIN _gpu_estimates_mw AS p
-  ON p._auto_id = id_1;
+  ON p._auto_id = ii.id_2;
 
 CREATE PERFETTO TABLE _unioned_wattson_estimates_mw AS
 SELECT ts, dur, 0 AS cpu, cpu0_mw AS estimated_mw
