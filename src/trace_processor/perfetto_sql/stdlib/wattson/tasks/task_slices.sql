@@ -219,6 +219,13 @@ WITH
     FROM activity_islands
   )
 -- Combine the real tasks with the calculated swapper gaps.
-SELECT ts, dur, cpu, utid FROM base_tasks
+--
+-- `idle_group` is carried through for rows from _active_state_w_tasks since
+-- they are already clipped to a single idle exit. Synthesized swapper gaps
+-- can span multiple idle exits and receive NULL.
+SELECT ts, dur, cpu, utid, idle_group FROM base_tasks
 UNION ALL
-SELECT ts, dur, cpu, 0 AS utid FROM swapper_gaps WHERE dur > 0;
+SELECT ts, dur, cpu, 0 AS utid, NULL AS idle_group
+FROM swapper_gaps
+WHERE
+  dur > 0;

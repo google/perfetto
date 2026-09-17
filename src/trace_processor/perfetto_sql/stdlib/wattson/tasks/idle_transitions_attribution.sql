@@ -21,24 +21,28 @@ INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
+-- Tasks that ran within each deep idle exit, keyed by the idle exit they belong
+-- to. Materialized because the three aggregates in _idle_w_tasks below all read
+-- it.
+CREATE PERFETTO TABLE _ii_idle_tasks AS
+SELECT ts, dur, cpu, utid, idle_group
+FROM _wattson_task_slices
+WHERE
+  idle_group IS NOT NULL
+UNION ALL
+SELECT ii.ts, ii.dur, ii.cpu, 0 AS utid, ii.id_1 AS idle_group
+FROM _interval_intersect!(
+  (
+    (SELECT 0 AS id, ts, dur, cpu FROM _wattson_task_slices WHERE idle_group IS NULL),
+    _ii_subquery!(_idle_exits)
+  ),
+  (cpu)
+) AS ii;
+
 -- Gets the slices where the CPU transitions from deep idle to active, and the
 -- associated task that causes the idle exit
 CREATE PERFETTO TABLE _idle_w_tasks AS
 WITH
-  _ii_idle_tasks AS (
-    SELECT ii.ts, ii.dur, ii.cpu, tasks.utid, id_1 AS idle_group
-    FROM _interval_intersect!(
-    (
-      _ii_subquery!(_wattson_task_slices),
-      _ii_subquery!(_idle_exits)
-    ),
-    (cpu)
-  ) AS ii
-    JOIN _wattson_task_slices AS tasks
-      ON tasks._auto_id = id_0
-    ORDER BY
-      ii.ts
-  ),
   -- Since sorted by time, MIN() is fast aggregate function that will return the
   -- first time slice, which will be the utid = 0 slice immediately succeeding the
   -- idle to active transition, and immediately preceding the active task
