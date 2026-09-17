@@ -175,22 +175,14 @@ CREATE PERFETTO INDEX _active_state_w_tasks_group ON _active_state_w_tasks(
 -- before it (effectively only IRQs and swappers). This logic creates a table
 -- wherein the first task in the table is the one that caused the idle exit.
 CREATE PERFETTO TABLE _task_causing_idle_exit AS
-WITH
-  exit_causer AS (
-    SELECT
-      ts,
-      idle_group,
-      -- If there are non-IRQs in this idle_group, select the first non-IRQ
-      -- task as the first row. Otherwise, select the first IRQ as the first
-      -- row.
-      row_number() OVER (
-        PARTITION BY
-          idle_group
-        ORDER BY (CASE WHEN NOT is_irq AND utid > 0 THEN 0 ELSE 1 END), ts
-      ) AS rn
-    FROM _active_state_w_tasks
-  )
-SELECT ts AS boundary_ts, idle_group FROM exit_causer WHERE rn = 1;
+SELECT
+  -- Prefer the earliest real (non-IRQ, non-swapper) task in the group; if the
+  -- group has none, fall back to the earliest row of any kind.
+  coalesce(min(iif(NOT is_irq AND utid > 0, ts, NULL)), min(ts)) AS boundary_ts,
+  idle_group
+FROM _active_state_w_tasks
+GROUP BY
+  idle_group;
 
 CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(
   idle_group,
