@@ -28,7 +28,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/utils.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
+// Chromium disables interactive progress because isatty() is sandbox-blocked.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 #include <sys/ioctl.h>
 #include <unistd.h>
 #endif
@@ -61,7 +63,8 @@ class ProgressReporterTest : public testing::Test {
     return testing::internal::GetCapturedStderr();
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
   std::string OnTerminal(const std::function<void()>& action) {
     auto master = OpenFile("/dev/ptmx", O_RDWR | O_NOCTTY | O_NONBLOCK);
     PERFETTO_CHECK(master);
@@ -113,7 +116,8 @@ TEST_F(ProgressReporterTest, ForceColorDoesNotForceProgress) {
   EXPECT_TRUE(Output().empty());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 TEST_F(ProgressReporterTest, TerminalClipsAndClearsBeforeLogging) {
   SetEnv("TERM", "xterm");
   SetEnv("NO_COLOR", "1");
