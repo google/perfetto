@@ -15,6 +15,7 @@
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
+import {STR} from '../../trace_processor/query_result';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 
 /**
@@ -43,6 +44,7 @@ export async function addJankCUJDebugTrack(
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   INCLUDE PERFETTO MODULE android.cujs.frames;
+  INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
   INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 `;
 
@@ -195,32 +197,41 @@ const LATENCY_CUJ_QUERY = `
 
 const LATENCY_COLUMNS = ['name', 'dur_ms', 'ts', 'dur', 'track_id', 'slice_id'];
 
-const BLOCKING_CALLS_DURING_CUJS_QUERY = `
-    SELECT
-      s.id AS slice_id,
-      s.name,
-      max(s.ts, cuj.ts) AS ts,
-      min(s.ts + s.dur, cuj.ts_end) as ts_end,
-      min(s.ts + s.dur, cuj.ts_end) - max(s.ts, cuj.ts) AS dur,
-      cuj.cuj_id,
-      cuj.cuj_name,
-      s.process_name,
-      s.upid,
-      s.utid,
-      'slice' AS table_name
-    FROM _android_critical_blocking_calls s
-      JOIN  android_jank_cuj cuj
-      -- only when there is an overlap
-      ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
-          -- and are from the same process
-          AND s.upid = cuj.upid
+const BLOCKING_CALLS_PROCESSES_QUERY = `
+    SELECT DISTINCT bc.process_name
+    FROM android_cuj_blocking_calls bc
+    JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
+    WHERE bc.utid = cuj.ui_thread
+      AND bc.process_name IS NOT NULL
+    ORDER BY bc.process_name
 `;
+
+function blockingCallsDuringCujsQuery(processName: string): string {
+  return `
+    SELECT DISTINCT
+      bc.slice_id,
+      bc.name,
+      bc.ts,
+      bc.ts_end,
+      bc.dur,
+      bc.cuj_id,
+      bc.cuj_name,
+      bc.process_name,
+      bc.upid,
+      bc.utid,
+      'slice' AS table_name
+    FROM android_cuj_blocking_calls bc
+    JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
+    WHERE bc.utid = cuj.ui_thread
+      AND bc.process_name = '${processName}'
+  `;
+}
 
 const BLOCKING_CALLS_DURING_CUJS_COLUMNS = [
   'slice_id',
   'name',
   'ts',
-  'cuj_ts',
+  'ts_end',
   'dur',
   'cuj_id',
   'cuj_name',
@@ -302,18 +313,8 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.PinBlockingCalls',
       name: 'Add track: Android Blocking calls during CUJs',
-      callback: () => {
-        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
-          addDebugSliceTrack({
-            trace: ctx,
-            data: {
-              sqlSource: BLOCKING_CALLS_DURING_CUJS_QUERY,
-              columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
-            },
-            title: 'Blocking calls during CUJs',
-            rawColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
-          }),
-        );
+      callback: async () => {
+        await this.pinBlockingCalls(ctx);
       },
     });
   }
@@ -331,6 +332,38 @@ export default class implements PerfettoPlugin {
         columns: LATENCY_COLUMNS,
       },
       title: 'Latency CUJs',
+    });
+  }
+
+  async pinBlockingCalls(ctx: Trace) {
+    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
+    const result = await ctx.engine.query(BLOCKING_CALLS_PROCESSES_QUERY);
+    const processes: string[] = [];
+    const iter = result.iter({process_name: STR});
+    for (; iter.valid(); iter.next()) {
+      processes.push(iter.process_name);
+    }
+    if (processes.length === 0) {
+      ctx.omnibox.showStatusMessage('No blocking calls during CUJs found');
+      return;
+    }
+
+    const selectedProcess = await ctx.omnibox.prompt(
+      'Choose a process...',
+      processes,
+    );
+    if (selectedProcess === undefined) {
+      return;
+    }
+
+    addDebugSliceTrack({
+      trace: ctx,
+      data: {
+        sqlSource: blockingCallsDuringCujsQuery(selectedProcess),
+        columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+      },
+      title: `Blocking calls during CUJs (${selectedProcess})`,
+      rawColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
     });
   }
 }
