@@ -1,0 +1,478 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-tsv {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--pf-color-background);
+  color: var(--pf-color-text);
+
+  &__loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 24px;
+    color: var(--pf-color-text-muted);
+  }
+
+  // Also a .pf-button-bar (flamegraph-style top row); we add framing + wrap.
+  &__toolbar {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--pf-color-border);
+    background: var(--pf-color-background-secondary);
+    flex: 0 0 auto;
+
+    // Every control is the same height as a standard compact button (which is
+    // the flamegraph header's height, since both use the same widget): keep the
+    // default 2px vertical padding so heights match, only widening the labelled
+    // toggles horizontally for breathing room. Icon-only buttons get matching
+    // vertical padding so they're the same height as the labelled ones (their
+    // default is 0, which is 4px shorter).
+    .pf-button.pf-compact {
+      &:not(.pf-icon-only) {
+        padding: 2px 12px;
+      }
+      &.pf-icon-only {
+        padding: 2px 4px;
+      }
+    }
+  }
+
+  // Flexible gap that pushes trailing items (the help icon) to the right.
+  &__spacer {
+    flex: 1 1 auto;
+  }
+
+  // Vertical divider between toolbar button groups, with generous breathing
+  // room so the groups read as distinct.
+  &__divider {
+    align-self: stretch;
+    width: 1px;
+    margin: 4px 12px;
+    background: var(--pf-color-border-secondary);
+  }
+
+  &__help {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  &__legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: var(--pf-color-background);
+    flex: 0 0 auto;
+    // The strip scrolls; its max-height is the drag-resizable default (set
+    // inline), so a large selection's chips never crowd out the chart.
+    overflow-y: auto;
+  }
+
+  // Draggable splitter between the legend and the chart (drag to resize the
+  // legend). Doubles as the legend's bottom border.
+  &__legend-resize {
+    flex: 0 0 auto;
+    height: 6px;
+    cursor: ns-resize;
+    border-bottom: 1px solid var(--pf-color-border);
+    background: var(--pf-color-background-secondary);
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  &__legend-more {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    align-self: center;
+  }
+
+  // Bulk show/hide buttons at the start of the legend strip.
+  &__legend-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 8px;
+    padding-right: 8px;
+    border-right: 1px solid var(--pf-color-border-secondary);
+  }
+
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 12px;
+    cursor: pointer;
+    user-select: none;
+    // Fade opacity when a line is hidden/shown so the legend doesn't flicker.
+    transition: opacity 0.15s ease;
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+
+    &--off {
+      opacity: 0.4;
+      text-decoration: line-through;
+    }
+
+    // Marks a lane that's part of the stacked-mode multi-select (emphasis).
+    &--emphasized {
+      border-color: var(--pf-color-primary);
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  &__chip-name {
+    cursor: pointer;
+  }
+
+  &__swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--pf-chart-color-1);
+
+    &--1 {
+      background: var(--pf-chart-color-1);
+    }
+    &--2 {
+      background: var(--pf-chart-color-2);
+    }
+    &--3 {
+      background: var(--pf-chart-color-3);
+    }
+    &--4 {
+      background: var(--pf-chart-color-4);
+    }
+    &--5 {
+      background: var(--pf-chart-color-5);
+    }
+    &--6 {
+      background: var(--pf-chart-color-6);
+    }
+    &--7 {
+      background: var(--pf-chart-color-7);
+    }
+    &--8 {
+      background: var(--pf-chart-color-8);
+    }
+  }
+
+  &__style-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    min-width: 220px;
+  }
+
+  &__style-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__style-label {
+    width: 46px;
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__colors {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__color-reset {
+    font-size: 11px;
+    padding: 1px 6px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  &__color-dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 2px solid transparent;
+
+    &--sel {
+      border-color: var(--pf-color-text);
+    }
+
+    &--0 {
+      background: #4285f4;
+    }
+    &--1 {
+      background: #ea4335;
+    }
+    &--2 {
+      background: #fbbc04;
+    }
+    &--3 {
+      background: #34a853;
+    }
+    &--4 {
+      background: #ff6d01;
+    }
+    &--5 {
+      background: #46bdc6;
+    }
+    &--6 {
+      background: #9334e6;
+    }
+    &--7 {
+      background: #e91e63;
+    }
+    &--8 {
+      background: #00acc1;
+    }
+    &--9 {
+      background: #9e9e9e;
+    }
+  }
+
+  &__scale {
+    display: inline-flex;
+    gap: 2px;
+  }
+
+  &__body {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  &__chart {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    touch-action: none; // we handle pinch/pan ourselves
+  }
+
+  // Provides the scroll range; its height is set imperatively to the total
+  // stacked content height (or 100% when everything fits).
+  &__scroll-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  &__canvas {
+    display: block;
+    position: sticky;
+    top: 0;
+    cursor: crosshair;
+  }
+
+  &__picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 420px;
+    max-height: 60vh;
+    padding: 4px;
+
+    // The MultiSelect widget hard-codes a 280px panel; let it fill the picker so
+    // there's no dead margin on the right.
+    .pf-multiselect-panel {
+      width: 100%;
+    }
+
+    // Keep each counter option to a single ellipsized line — owner·metric names
+    // are long and otherwise wrap to 2–3 lines. Lay the row out as flex so the
+    // label can shrink and ellipsize next to the checkbox.
+    .pf-multiselect-item.pf-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
+      .pf-checkbox__label {
+        min-width: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+
+  &__picker-nameby {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+  }
+
+  &__picker-label {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__picker-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+  }
+
+  // Commit row at the bottom of the picker (pending selection -> Apply).
+  &__picker-apply {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 6px;
+    margin-top: 4px;
+    border-top: 1px solid var(--pf-color-border);
+
+    .pf-tsv__picker-count {
+      margin-right: auto; // push Apply/Cancel to the right
+    }
+  }
+
+  &__picker-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 4px;
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  &__picker-count {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+  }
+
+  &__picker-more {
+    padding: 6px 4px;
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-tsv__area-tab {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+}
+
+// Hover tooltip content (rendered inside a Perfetto CursorTooltip portal).
+.pf-tsv__tip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  min-width: 120px;
+
+  .pf-tsv__tip-time {
+    font-weight: 600;
+    margin-bottom: 2px;
+    color: var(--pf-color-text);
+  }
+
+  .pf-tsv__tip-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    // Non-focused rows are greyed while another line is hovered (fade, not snap).
+    transition: opacity 0.15s ease;
+
+    &--dim {
+      opacity: 0.4;
+    }
+
+    // The summary "Total" row: separated and emphasised, no colour dot.
+    &--total {
+      margin-top: 3px;
+      padding-top: 3px;
+      border-top: 1px solid var(--pf-color-border);
+      font-weight: 600;
+
+      .pf-tsv__tip-name,
+      .pf-tsv__tip-val {
+        color: var(--pf-color-text);
+      }
+    }
+  }
+
+  .pf-tsv__tip-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+
+    &--none {
+      visibility: hidden;
+    }
+  }
+
+  .pf-tsv__tip-name {
+    flex: 1 1 auto;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+  }
+
+  .pf-tsv__tip-val {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+  }
+}
+
+// The counter picker popup is portaled outside .pf-tsv, so this is a top-level
+// rule. Lift the default 350px popup cap so the wider option list (long
+// owner·metric names) and the Apply/Cancel row aren't clipped.
+.pf-tsv__picker-popup {
+  max-width: 460px;
+}

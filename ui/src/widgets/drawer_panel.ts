@@ -152,6 +152,13 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   // The height when the panel is 'FULLSCREEN'.
   private fullscreenHeight = 0;
 
+  // Height of the drag handle (tabs + resize buttons) above the drawer. The
+  // drawer is a sibling of the handle inside a fixed-height column, so its
+  // height must be capped at fullscreenHeight - handleHeight; otherwise a
+  // full-height (or dragged-to-max) drawer overflows the panel by the handle's
+  // height and its bottom is clipped off-screen.
+  private handleHeight = 0;
+
   // Current visibility state (if not controlled).
   private visibility = DrawerPanelVisibility.VISIBLE;
 
@@ -182,15 +189,15 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       onVisibilityChange,
     } = attrs;
 
+    // The most the drawer can be without overflowing the panel: the full height
+    // less the handle that sits above it (main content then collapses to 0).
+    const maxHeight = Math.max(0, this.fullscreenHeight - this.handleHeight);
     switch (visibility) {
       case DrawerPanelVisibility.VISIBLE:
-        this.height = Math.min(
-          Math.max(this.resizableHeight, 0),
-          this.fullscreenHeight,
-        );
+        this.height = Math.min(Math.max(this.resizableHeight, 0), maxHeight);
         break;
       case DrawerPanelVisibility.FULLSCREEN:
-        this.height = this.fullscreenHeight;
+        this.height = maxHeight;
         break;
       case DrawerPanelVisibility.COLLAPSED:
         this.height = 0;
@@ -278,6 +285,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<DrawerPanelAttrs, this>) {
+    this.measureHandle(vnode.dom);
     const parent = vnode.dom.parentElement;
     if (parent) {
       this.fullscreenHeight = parent.clientHeight;
@@ -287,6 +295,15 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       });
       this.resizeObserver.observe(parent);
     }
+  }
+
+  onupdate(vnode: m.VnodeDOM<DrawerPanelAttrs, this>) {
+    this.measureHandle(vnode.dom);
+  }
+
+  private measureHandle(dom: Element) {
+    const handle = dom.querySelector('.pf-drawer-panel__handle');
+    if (handle) this.handleHeight = handle.getBoundingClientRect().height;
   }
 
   onremove() {
