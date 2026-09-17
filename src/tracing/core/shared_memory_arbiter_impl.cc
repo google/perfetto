@@ -491,6 +491,10 @@ bool SharedMemoryArbiterImpl::TryDirectPatchLocked(
   for (auto ctm_it = chunks_to_move.rbegin(); ctm_it != chunks_to_move.rend();
        ++ctm_it) {
     uint32_t header_bitmap = shmem_abi_.GetPageHeaderBitmap(ctm_it->page());
+    if (ctm_it->chunk() >=
+        SharedMemoryABI::GetNumChunksFromHeaderBitmap(header_bitmap)) {
+      continue;
+    }
     auto chunk_state = shmem_abi_.GetChunkStateFromHeaderBitmap(
         header_bitmap, ctm_it->chunk());
     // Note: the subset of |commit_data_req_| chunks that still need patching is
@@ -622,6 +626,10 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
       // them to kChunkComplete - otherwise the service won't look at them.
       for (auto& ctm : *commit_data_req_->mutable_chunks_to_move()) {
         uint32_t header_bitmap = shmem_abi_.GetPageHeaderBitmap(ctm.page());
+        if (ctm.chunk() >=
+            SharedMemoryABI::GetNumChunksFromHeaderBitmap(header_bitmap)) {
+          continue;
+        }
         auto chunk_state = shmem_abi_.GetChunkStateFromHeaderBitmap(
             header_bitmap, ctm.chunk());
         // Note: the subset of |commit_data_req_| chunks that still need
