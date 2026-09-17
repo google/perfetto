@@ -37,6 +37,7 @@
 #include "src/profiling/perf/event_reader.h"
 #include "src/profiling/perf/proc_descriptors.h"
 #include "src/profiling/perf/unwinding.h"
+#include "src/profiling/smaps/smaps_data_source.h"
 #include "src/tracing/service/metatrace_writer.h"
 // TODO(rsavitski): move to e.g. src/tracefs/.
 #include "src/traced/probes/ftrace/tracefs.h"
@@ -248,7 +249,10 @@ class PerfProducer : public Producer,
       uint64_t tracing_session_id,
       uint32_t shard_count);
 
+  // Additional data sources implemented by traced_perf.
   void StartMetatraceSource(DataSourceInstanceID ds_id, BufferID target_buffer);
+  void StartSmapsDataSource(DataSourceInstanceID ds_id,
+                            const DataSourceConfig& config);
 
   // Task runner owned by the main thread.
   base::TaskRunner* const task_runner_;
@@ -262,10 +266,6 @@ class PerfProducer : public Producer,
   // Owns shared memory, must outlive trace writing.
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
 
-  // If multiple metatrace sources are enabled concurrently,
-  // only the first one becomes active.
-  std::map<DataSourceInstanceID, MetatraceWriter> metatrace_writers_;
-
   // Interns callstacks across all data sources.
   // TODO(rsavitski): for long profiling sessions, consider purging trie when it
   // grows too large (at the moment purged only when no sources are active).
@@ -276,7 +276,7 @@ class PerfProducer : public Producer,
   // sequences.
   GlobalCallstackTrie callstack_trie_;
 
-  // State associated with perf-sampling data sources.
+  // Perf sampling data source state.
   std::map<DataSourceInstanceID, DataSourceState> data_sources_;
 
   // Unwinding stage, running on a dedicated thread.
@@ -285,6 +285,13 @@ class PerfProducer : public Producer,
   // Used for tracepoint name -> id lookups. Initialized lazily, and in general
   // best effort - can be null if tracefs isn't accessible.
   std::unique_ptr<Tracefs> tracefs_;
+
+  // Metatrace data source state. If multiple such sources are enabled
+  // concurrently, only the first one becomes active.
+  std::map<DataSourceInstanceID, MetatraceWriter> metatrace_writers_;
+
+  // Smaps data source state, not used during perf sampling itself.
+  std::map<DataSourceInstanceID, SmapsDataSource> smaps_data_sources_;
 
   std::function<void()> all_data_sources_registered_cb_;
 

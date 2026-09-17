@@ -267,6 +267,10 @@ void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
     std::string cmdline;
     if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
       return;
+    // A readable but empty cmdline indicates that this is a kthread or a
+    // zombie, which are of no interest to the calling profilers.
+    if (cmdline.empty())
+      return;
     if (glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns))
       pids->insert(pid);
   });
