@@ -152,18 +152,57 @@ PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
 
 PerfEventAttr::~PerfEventAttr() = default;
 
-PerfCounter& PerfEventAttr::GetOrCreateCounter(std::optional<uint32_t> cpu) {
-  if (!cpu) {
-    if (!global_counter_) {
-      global_counter_ = std::make_unique<PerfCounter>(CreateGlobalCounter());
+PerfCounter& PerfEventAttr::GetOrCreateCounter(std::optional<uint32_t> cpu,
+                                               UniqueTid utid) {
+  if (!counter_scope_.has_value()) {
+    // Backwards compatibility fallback when neither PERF_RECORD_ID_INDEX nor
+    // SIMPLEPERF_META_INFO is present in the trace.
+    return GetOrCreateCpuCounter(cpu);
+  }
+  switch (*counter_scope_) {
+    case CounterScope::kThreadAndCpu:
+      return cpu.has_value() ? GetOrCreateThreadCpuCounter(utid, *cpu)
+                             : GetOrCreateThreadCounter(utid);
+    case CounterScope::kThread:
+      return GetOrCreateThreadCounter(utid);
+    case CounterScope::kCpu:
+      return GetOrCreateCpuCounter(cpu);
+    case CounterScope::kGlobal:
+      return GetOrCreateCpuCounter(std::nullopt);
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+PerfCounter& PerfEventAttr::GetOrCreateCpuCounter(std::optional<uint32_t> cpu) {
+  if (cpu.has_value()) {
+    auto [it, inserted] = cpu_counters_.Insert(*cpu, std::nullopt);
+    if (inserted) {
+      it->emplace(CreateCpuCounter(*cpu));
     }
-    return *global_counter_;
+    return **it;
   }
-  auto it = counters_.find(*cpu);
-  if (it == counters_.end()) {
-    it = counters_.emplace(*cpu, CreateCpuCounter(*cpu)).first;
+  if (!global_counter_.has_value()) {
+    global_counter_.emplace(CreateGlobalCounter());
   }
-  return it->second;
+  return *global_counter_;
+}
+
+PerfCounter& PerfEventAttr::GetOrCreateThreadCounter(UniqueTid utid) {
+  auto [it, inserted] = thread_counters_.Insert(utid, std::nullopt);
+  if (inserted) {
+    it->emplace(CreateThreadCounter(utid));
+  }
+  return **it;
+}
+
+PerfCounter& PerfEventAttr::GetOrCreateThreadCpuCounter(UniqueTid utid,
+                                                        uint32_t cpu) {
+  auto [it, inserted] =
+      thread_cpu_counters_.Insert(std::make_pair(utid, cpu), std::nullopt);
+  if (inserted) {
+    it->emplace(CreateThreadCpuCounter(utid, cpu));
+  }
+  return **it;
 }
 
 PerfCounter PerfEventAttr::CreateGlobalCounter() const {
@@ -184,6 +223,33 @@ PerfCounter PerfEventAttr::CreateCpuCounter(uint32_t cpu) const {
   TrackId track_id = context_->track_tracker->InternTrack(
       tracks::kPerfCpuCounterBlueprint,
       tracks::Dimensions(cpu, perf_session_id_.value, name),
+      tracks::DynamicName(context_->storage->InternString(name)),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(context_->storage->InternString("is_timebase"),
+                        Variadic::Boolean(is_timebase()));
+      });
+  return {context_->storage->mutable_counter_table(), track_id, is_timebase()};
+}
+
+PerfCounter PerfEventAttr::CreateThreadCounter(UniqueTid utid) const {
+  base::StringView name(event_name_);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::kPerfThreadCounterBlueprint,
+      tracks::Dimensions(utid, perf_session_id_.value, name),
+      tracks::DynamicName(context_->storage->InternString(name)),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(context_->storage->InternString("is_timebase"),
+                        Variadic::Boolean(is_timebase()));
+      });
+  return {context_->storage->mutable_counter_table(), track_id, is_timebase()};
+}
+
+PerfCounter PerfEventAttr::CreateThreadCpuCounter(UniqueTid utid,
+                                                  uint32_t cpu) const {
+  base::StringView name(event_name_);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::kPerfThreadCpuCounterBlueprint,
+      tracks::Dimensions(utid, cpu, perf_session_id_.value, name),
       tracks::DynamicName(context_->storage->InternString(name)),
       [this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("is_timebase"),
