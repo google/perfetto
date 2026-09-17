@@ -26,7 +26,7 @@ ZIP tool) works too; `util merge` is just a convenience helper, described
 
 Everything that accepts a normal trace accepts such an archive: the
 interactive shell, `-q` batch queries,
-[httpd mode](/docs/analysis/trace-processor.md#subcommands) serving the UI,
+[httpd mode](/docs/reference/trace-processor-cli.md#subcommands) serving the UI,
 and the [C++](/docs/analysis/trace-processor.md#embedding) and
 [Python](/docs/analysis/trace-processor-python.md) APIs, which stream the
 archive bytes like any other trace.

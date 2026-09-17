@@ -17,8 +17,7 @@ import {
   LONG_NULL,
   NUM_NULL,
   STR_NULL,
-  type Row,
-  type SqlValue,
+  type SpecType,
   type QueryResult as DbQueryResult,
 } from '../../trace_processor/query_result';
 import {type duration, Time, Duration} from '../../base/time';
@@ -43,11 +42,10 @@ export interface InputChainRow {
   allTrackUris: string[];
 }
 
-interface InputLifecycleSpec extends Row {
-  input_id: string | null;
-  channel: string | null;
-  total_latency: bigint | null;
-  [key: string]: SqlValue;
+interface InputLifecycleSpec extends SpecType {
+  readonly input_id: typeof STR_NULL;
+  readonly channel: typeof STR_NULL;
+  readonly total_latency: typeof LONG_NULL;
 }
 
 export class AndroidInputEventSource {

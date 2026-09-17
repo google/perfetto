@@ -43,6 +43,7 @@ FROM _tpu_combined_state AS t
 JOIN _tpu_filtered_curves AS c
   ON c.freq = t.freq
   AND c.cluster = t.cluster
-  AND c.requests = min(t.requests, 8)
+  AND c.requests
+  = min(t.requests, (SELECT max(requests) FROM _tpu_filtered_curves))
 ORDER BY
   ts;

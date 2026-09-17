@@ -50,16 +50,7 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
 
   base::Status Parse(TraceBlobView blob) override {
     return tokenizer_.Tokenize(std::move(blob), [this](TraceBlobView packet) {
-      uint8_t buffer[protozero::proto_utils::kMaxSimpleFieldEncodedSize];
-
-      uint8_t* pos = buffer;
-      pos = protozero::proto_utils::WriteVarInt(kTracePacketTag, pos);
-      pos = protozero::proto_utils::WriteVarInt(packet.length(), pos);
-      output_->insert(output_->end(), buffer, pos);
-
-      output_->insert(output_->end(), packet.data(),
-                      packet.data() + packet.length());
-      return base::OkStatus();
+      return ParsePacket(std::move(packet));
     });
   }
 
@@ -67,6 +58,37 @@ class SerializingProtoTraceReader : public ChunkedTraceReader {
   void OnEventsFullyExtracted() override {}
 
  private:
+  base::Status ParsePacket(TraceBlobView packet) {
+    protos::pbzero::TracePacket::Decoder decoder(packet.data(),
+                                                 packet.length());
+    if (decoder.has_compressed_packets() ||
+        decoder.has_zstd_compressed_packets()) {
+      util::CompressionType codec;
+      protozero::ConstBytes field;
+      if (decoder.has_compressed_packets()) {
+        codec = util::CompressionType::kGzip;
+        field = decoder.compressed_packets();
+      } else {
+        codec = util::CompressionType::kZstd;
+        field = decoder.zstd_compressed_packets();
+      }
+      return tokenizer_.TokenizeCompressedPackets(
+          codec, packet.slice(field.data, field.size),
+          [this](TraceBlobView inner) {
+            return ParsePacket(std::move(inner));
+          });
+    }
+
+    uint8_t buffer[protozero::proto_utils::kMaxSimpleFieldEncodedSize];
+    uint8_t* pos = buffer;
+    pos = protozero::proto_utils::WriteVarInt(kTracePacketTag, pos);
+    pos = protozero::proto_utils::WriteVarInt(packet.length(), pos);
+    output_->insert(output_->end(), buffer, pos);
+    output_->insert(output_->end(), packet.data(),
+                    packet.data() + packet.length());
+    return base::OkStatus();
+  }
+
   static constexpr uint8_t kTracePacketTag =
       protozero::proto_utils::MakeTagLengthDelimited(
           protos::pbzero::Trace::kPacketFieldNumber);

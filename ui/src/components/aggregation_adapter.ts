@@ -16,7 +16,11 @@ import './aggregation_adapter.scss';
 import m from 'mithril';
 import {type time, Time} from '../base/time';
 import {exists} from '../base/utils';
-import type {AreaSelection, AreaSelectionTab} from '../public/selection';
+import {
+  areaSelectionKey,
+  type AreaSelection,
+  type AreaSelectionTab,
+} from '../public/selection';
 import type {Trace} from '../public/trace';
 import type {Track} from '../public/track';
 import {
@@ -49,6 +53,7 @@ import {Memo} from '../base/memo';
 import {assertExists} from '../base/assert';
 import {Button, ButtonGroup} from '../widgets/button';
 import {SharedAsyncDisposable} from '../base/shared_disposable';
+import type {LONG, NUM} from '../trace_processor/query_result';
 
 export interface AggregationData extends AsyncDisposable {
   readonly sqlTable: SharedAsyncDisposable<DisposableSqlEntity>;
@@ -172,7 +177,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
  * @returns A disposable SQL entity representing the new table.
  */
 export async function createIITable<
-  T extends {ts: bigint; dur: bigint; id: number},
+  T extends {ts: typeof LONG; dur: typeof LONG; id: typeof NUM},
 >(
   engine: Engine,
   dataset: Dataset<T>,
@@ -314,11 +319,7 @@ export function createAggregationTab(
     name: aggregator.getTabName(),
     priority,
     render(selection: AreaSelection) {
-      const selectionKey = {
-        start: selection.start,
-        end: selection.end,
-        tracks: selection.trackUris,
-      };
+      const selectionKey = areaSelectionKey(selection);
       const aggregation = aggregationMemo.use({
         key: selectionKey,
         compute: () => {

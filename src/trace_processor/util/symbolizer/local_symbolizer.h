@@ -31,7 +31,8 @@
 namespace perfetto::profiling {
 
 bool ParseLlvmSymbolizerJsonLine(const std::string& line,
-                                 std::vector<SymbolizedFrame>* result);
+                                 std::vector<SymbolizedFrame>* result,
+                                 std::string* error = nullptr);
 enum BinaryType : uint8_t {
   kElf,
   kMachO,
@@ -125,6 +126,9 @@ class LLVMSymbolizerProcess {
   std::vector<SymbolizedFrame> Symbolize(const std::string& binary,
                                          uint64_t address);
 
+  // Returns true if llvm-symbolizer can be run and replies with JSON.
+  bool Probe();
+
  private:
   Subprocess subprocess_;
 };
@@ -146,6 +150,8 @@ class LocalSymbolizer : public Symbolizer {
   LLVMSymbolizerProcess llvm_symbolizer_;
   std::unique_ptr<BinaryFinder> finder_;
 };
+
+bool IsLlvmSymbolizerAvailable();
 
 std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
     const std::vector<std::string>& directories,

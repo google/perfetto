@@ -155,13 +155,7 @@ base::Status ParseMergedClass(SimpleJsonParser& parser,
       }
       return FieldResult::Handled{};
     }
-    FieldResult res =
-        ParseMergedClassesField(parser, key, out.nested_merged_classes);
-    if (!res.handled) {
-      PERFETTO_DLOG("Unknown field in merged class JSON: %.*s",
-                    static_cast<int>(key.size()), key.data());
-    }
-    return res;
+    return ParseMergedClassesField(parser, key, out.nested_merged_classes);
   });
 }
 

@@ -1,0 +1,183 @@
+# Exercises the android_process_state plugin: AndroidProcessStateSnapshot,
+# AndroidFreezerStateSnapshot dump packets, and incremental track events
+# (process_state_changed_event and freezer_event).
+
+packet {
+  timestamp: 1000
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 200
+      tid: 200
+      thread_name: "main"
+    }
+  }
+}
+# Track event for process 200: first state change.
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 200
+      uid: 10002
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_IMPORTANT_FOREGROUND
+      prev_oom_score: 0
+      cur_oom_score: 200
+      prev_capability_flags: 1
+      cur_capability_flags: 0
+      reason: 3
+      seq_id: 10
+    }
+  }
+}
+# Track event for process 200: freezer event.
+packet {
+  timestamp: 3000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freezer_event"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 200
+      uid: 10002
+      unfrozen_dur_ms: 100
+      frozen_dur_ms: 300
+      unfreeze_reason: UFR_BIND_SERVICE
+    }
+  }
+}
+# Track event for process 200: second state change.
+packet {
+  timestamp: 4000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 200
+      uid: 10002
+      prev_proc_state: PROCESS_STATE_IMPORTANT_FOREGROUND
+      cur_proc_state: PROCESS_STATE_CACHED_ACTIVITY
+      prev_oom_score: 200
+      cur_oom_score: 900
+      prev_capability_flags: 0
+      cur_capability_flags: 0
+      reason: 4
+      seq_id: 11
+    }
+  }
+}
+# Track event for process 500: same-timestamp deltas to test deduplication.
+# First delta at ts: 2000 has prev=PROCESS_STATE_TOP, cur=PROCESS_STATE_BOUND_FOREGROUND_SERVICE.
+# Second delta at ts: 2000 has prev=PROCESS_STATE_BOUND_FOREGROUND_SERVICE, cur=PROCESS_STATE_IMPORTANT_FOREGROUND.
+# The synthesized initial row should preserve PROCESS_STATE_TOP from the first delta.
+# Also PID 500 is not present in the trace-stop dump (testing delta-only synthesis).
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 500
+      uid: 10005
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_BOUND_FOREGROUND_SERVICE
+      prev_oom_score: 0
+      cur_oom_score: 250
+      prev_capability_flags: 1
+      cur_capability_flags: 0
+      reason: 3
+      seq_id: 20
+    }
+  }
+}
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 500
+      uid: 10005
+      prev_proc_state: PROCESS_STATE_BOUND_FOREGROUND_SERVICE
+      cur_proc_state: PROCESS_STATE_IMPORTANT_FOREGROUND
+      prev_oom_score: 250
+      cur_oom_score: 300
+      prev_capability_flags: 0
+      cur_capability_flags: 0
+      reason: 4
+      seq_id: 21
+    }
+  }
+}
+# Trace-stop dump for process state (contains pid 100, pid 200, pid 300, and pid 400).
+packet {
+  timestamp: 10000
+  [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+    record {
+      pid: 100
+      uid: 10001
+      proc_state: 1002
+      oom_score: 0
+      capability_flags: 1
+    }
+    record {
+      pid: 200
+      uid: 10002
+      proc_state: 1015
+      oom_score: 900
+      capability_flags: 0
+    }
+    # PID 300: Dump-only process with non-zero values.
+    record {
+      pid: 300
+      uid: 10003
+      proc_state: 1000
+      oom_score: -1000
+      capability_flags: 1
+    }
+    # PID 400: Dump-only process with omitted/zero fields (testing 0 fallback).
+    record {
+      pid: 400
+      uid: 10004
+      proc_state: 1003
+    }
+  }
+}
+# Trace-stop dump for freezer state (contains pid 100 and pid 600).
+# PID 600 tests dump-only freezer records.
+packet {
+  timestamp: 10000
+  [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+    record {
+      pid: 100
+      uid: 10001
+      unfrozen_dur_ms: 500
+      frozen_dur_ms: 1200
+      unfreeze_reason: UFR_ACTIVITY
+    }
+    record {
+      pid: 600
+      uid: 10006
+      unfrozen_dur_ms: 50
+      frozen_dur_ms: 600
+      unfreeze_reason: UFR_PING
+    }
+    # PID 700: Dump-only freezer record with omitted unfreeze_reason (testing 0/UFR_NONE fallback).
+    record {
+      pid: 700
+      uid: 10007
+    }
+  }
+}

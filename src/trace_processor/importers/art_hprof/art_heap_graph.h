@@ -38,19 +38,11 @@ class HeapGraph {
   HeapGraph& operator=(HeapGraph&&) = default;
   ~HeapGraph() = default;
 
-  void AddObject(Object object) {
-    objects_[object.GetId()] = std::move(object);
+  void SetObjects(ObjectStore objs) { objects_ = std::move(objs); }
+  void SetClassFields(ClassFieldLayouts fields) {
+    class_fields_ = std::move(fields);
   }
-
-  void AddClass(ClassDefinition cls) { classes_[cls.GetId()] = std::move(cls); }
-
-  void AddString(uint64_t id, StringId interned_id) {
-    strings_[id] = interned_id;
-  }
-
-  void SetObjects(base::FlatHashMap<uint64_t, Object> objs) {
-    objects_ = std::move(objs);
-  }
+  void SetIdSize(uint32_t id_size) { id_size_ = id_size; }
   void SetClasses(base::FlatHashMap<uint64_t, ClassDefinition> cls) {
     classes_ = std::move(cls);
   }
@@ -58,9 +50,14 @@ class HeapGraph {
     strings_ = std::move(strs);
   }
 
-  const base::FlatHashMap<uint64_t, Object>& GetObjects() const {
-    return objects_;
+  const ObjectStore& GetObjects() const { return objects_; }
+
+  // Instance field layout of a class hierarchy, or nullptr if unknown.
+  const ClassFieldLayout* GetClassFields(uint64_t class_id) const {
+    return class_fields_.Find(class_id);
   }
+
+  uint32_t GetIdSize() const { return id_size_; }
 
   const base::FlatHashMap<uint64_t, ClassDefinition>& GetClasses() const {
     return classes_;
@@ -75,6 +72,7 @@ class HeapGraph {
     objects_.Clear();
     classes_.Clear();
     strings_.Clear();
+    class_fields_.Clear();
     heap_id_to_name_.Clear();
   }
 
@@ -114,11 +112,13 @@ class HeapGraph {
   }
 
  private:
-  base::FlatHashMap<uint64_t, Object> objects_;
+  ObjectStore objects_;
+  ClassFieldLayouts class_fields_;
   base::FlatHashMap<uint64_t, ClassDefinition> classes_;
   base::FlatHashMap<uint64_t, StringId> strings_;
   base::FlatHashMap<uint32_t, std::string> heap_id_to_name_;
   uint64_t timestamp_;
+  uint32_t id_size_ = 4;
 };
 }  // namespace perfetto::trace_processor::art_hprof
 

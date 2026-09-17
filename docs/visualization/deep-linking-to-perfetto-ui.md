@@ -197,10 +197,9 @@ This opens the trace at ~261192s with a 100ms wide viewing window.
 
 ### Selecting a slice on load
 
-Pass `ts`, `dur`, `pid`, and/or `tid` parameters. The UI will query the slice
-table and find a slice matching the parameters. If found, the slice is
-highlighted. You don't have to provide all parameters; usually `ts` and `dur`
-suffice to uniquely identify a slice.
+Pass `ts` and, optionally, `dur` parameters. The UI will query the slice table
+and find a slice matching the parameters. If found, the slice is highlighted.
+Usually `ts` and `dur` suffice to uniquely identify a slice.
 
 NOTE: We deliberately do NOT support linking by slice ID because slice IDs are
 not stable across Perfetto versions. Instead, link by passing the exact start
@@ -238,7 +237,7 @@ const commands = [
   {
     id: 'dev.perfetto.AddDebugSliceTrack',
     args: [
-      "SELECT ts, dur as value FROM slice WHERE name LIKE '%render%'",
+      "SELECT ts, dur, name FROM slice WHERE name LIKE '%render%'",
       'Render Operations',
     ],
   },

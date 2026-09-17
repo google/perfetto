@@ -57,6 +57,17 @@ struct SymbolizerConfig {
   std::vector<std::string> breakpad_paths;
 };
 
+// A group of equivalent mappings and their unique relative program counters.
+// |frame_count| retains the number of original frame rows for diagnostics.
+struct UnsymbolizedFrames {
+  UnsymbolizedMapping mapping;
+  std::vector<uint64_t> rel_pcs;
+  uint32_t frame_count = 0;
+};
+
+std::vector<UnsymbolizedFrames> CollectUnsymbolizedFrames(
+    trace_processor::TraceProcessor* tp);
+
 // Record of a successful symbolization for a mapping.
 struct SuccessfulMapping {
   std::string mapping_name;
@@ -100,6 +111,8 @@ struct SymbolizerResult {
   // Callers can use this to decide what/how to log based on whether
   // paths were explicit or speculative.
   std::vector<FailedMapping> failed_mappings;
+
+  bool llvm_symbolizer_unavailable = false;
 };
 
 // Performs native symbolization on a trace.

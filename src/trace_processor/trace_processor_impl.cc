@@ -89,6 +89,8 @@
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/plugins/ancestor/ancestor.h"
 #include "src/trace_processor/plugins/android_framework_track_event/android_framework_track_event.h"
+#include "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler.h"
+#include "src/trace_processor/plugins/android_process_state/android_process_state.h"
 #include "src/trace_processor/plugins/args/args.h"
 #include "src/trace_processor/plugins/art_heap_graph_functions/art_heap_graph_functions.h"
 #include "src/trace_processor/plugins/art_process_metadata_importer/art_process_metadata_importer.h"
@@ -111,6 +113,7 @@
 #include "src/trace_processor/plugins/experimental_flamegraph/experimental_flamegraph.h"
 #include "src/trace_processor/plugins/experimental_flat_slice/experimental_flat_slice.h"
 #include "src/trace_processor/plugins/experimental_slice_layout/experimental_slice_layout.h"
+#include "src/trace_processor/plugins/flamechart/flamechart_function.h"
 #include "src/trace_processor/plugins/flamegraph/flamegraph_function.h"
 #include "src/trace_processor/plugins/graph_scan/graph_scan.h"
 #include "src/trace_processor/plugins/graph_traversal/graph_traversal.h"
@@ -339,6 +342,8 @@ TraceProcessorImpl::TraceProcessorImpl(
   // explicit calls once the static-init based registration is restored.
   ancestor::RegisterPlugin();
   android_framework_track_event::RegisterPlugin();
+  android_job_scheduler::RegisterPlugin();
+  android_process_state::RegisterPlugin();
   args::RegisterPlugin();
   art_heap_graph_functions::RegisterPlugin();
   art_process_metadata_importer::RegisterPlugin();
@@ -361,6 +366,7 @@ TraceProcessorImpl::TraceProcessorImpl(
   experimental_flamegraph::RegisterPlugin();
   experimental_flat_slice::RegisterPlugin();
   experimental_slice_layout::RegisterPlugin();
+  flamechart::RegisterPlugin();
   flamegraph::RegisterPlugin();
   graph_scan::RegisterPlugin();
   graph_traversal::RegisterPlugin();

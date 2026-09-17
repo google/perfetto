@@ -1,0 +1,28 @@
+{
+  "model": "opus",
+  "vars": {
+    "assets": "${EVAL_ASSETS}"
+  },
+  "conditions": {
+    "baseline": {
+      "_doc": "Nothing installed, nothing on PATH: what an agent does on first contact."
+    },
+    "baseline-tp": {
+      "_doc": "trace_processor from <assets>/bin on PATH, no skill.",
+      "path": ["{assets}/bin"]
+    },
+    "skill-published": {
+      "_doc": "The skill from the ai-agents branch (what users install), loaded as a plugin.",
+      "plugin_dirs": ["{assets}/skill-published/plugins/perfetto"]
+    },
+    "skill-local": {
+      "_doc": "This checkout's ai/skills, bundled by setup_assets.py.",
+      "plugin_dirs": ["{assets}/skill-local/plugins/perfetto"]
+    },
+    "skill-local-tp": {
+      "_doc": "Local skill plus trace_processor on PATH (the skill still prefers its bundled wrapper).",
+      "plugin_dirs": ["{assets}/skill-local/plugins/perfetto"],
+      "path": ["{assets}/bin"]
+    }
+  }
+}

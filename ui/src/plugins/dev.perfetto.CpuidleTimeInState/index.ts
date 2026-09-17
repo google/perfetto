@@ -20,7 +20,16 @@ import {
 } from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {getMachineCount, getTrackName} from '../../public/utils';
+import {sqlValueToSqliteString} from '../../trace_processor/sql_utils';
+
+interface MachineInfo {
+  readonly id: number;
+  readonly name: string | null;
+  readonly labelIndex: number | null;
+  readonly count: number;
+}
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuidleTimeInState';
@@ -28,11 +37,11 @@ export default class implements PerfettoPlugin {
 
   private async addCounterTrack(
     ctx: Trace,
+    uri: string,
     name: string,
     group: TrackNode,
     config: Omit<CounterTrackAttrs, 'trace' | 'uri'>,
   ) {
-    const uri = `/cpuidle_time_in_state_${name}`;
     const track = await CounterTrack.createMaterialized({
       trace: ctx,
       uri,
@@ -49,31 +58,53 @@ export default class implements PerfettoPlugin {
   async addIdleStateTrack(
     ctx: Trace,
     state: string,
+    machine: MachineInfo,
     group: TrackNode,
   ): Promise<void> {
-    await this.addCounterTrack(ctx, `cpuidle.${state}`, group, {
-      unit: 'percent',
-      yOverrideMaximum: 100,
-      yOverrideMinimum: 0,
-      sqlSource: `
+    const name = getTrackName({
+      name: `cpuidle.${state}`,
+      machineName: machine.name,
+      machineLabelIndex: machine.labelIndex,
+      numMachines: machine.count,
+    });
+    await this.addCounterTrack(
+      ctx,
+      `/cpuidle_time_in_state_${machine.id}_${encodeURIComponent(state)}`,
+      name,
+      group,
+      {
+        unit: 'percent',
+        yOverrideMaximum: 100,
+        yOverrideMinimum: 0,
+        sqlSource: `
         select
           ts,
           idle_percentage as value
         from linux_cpu_idle_time_in_state_counters
-        where state = '${state}'
+        where machine_id = ${machine.id}
+          and state = ${sqlValueToSqliteString(state)}
       `,
-    });
+      },
+    );
   }
 
   async addPerCpuIdleStateTrack(
     ctx: Trace,
     state: string,
     cpu: number,
+    machine: MachineInfo,
     group: TrackNode,
   ): Promise<void> {
+    const name = getTrackName({
+      name: `cpuidle.cpu${cpu}.${state} Residency`,
+      machineName: machine.name,
+      machineLabelIndex: machine.labelIndex,
+      numMachines: machine.count,
+    });
     await this.addCounterTrack(
       ctx,
-      `cpuidle.cpu${cpu}.${state} Residency`,
+      `/cpuidle_time_in_state_${machine.id}_${cpu}_${encodeURIComponent(state)}`,
+      name,
       group,
       {
         unit: 'percent',
@@ -84,7 +115,9 @@ export default class implements PerfettoPlugin {
           ts,
           idle_percentage as value
         from linux_per_cpu_idle_time_in_state_counters
-        where state = '${state}' AND cpu = ${cpu}
+        where machine_id = ${machine.id}
+          and state = ${sqlValueToSqliteString(state)}
+          and cpu = ${cpu}
       `,
       },
     );
@@ -97,13 +130,36 @@ export default class implements PerfettoPlugin {
     });
 
     const e = ctx.engine;
+    const numMachines = await getMachineCount(e);
     await e.query(`INCLUDE PERFETTO MODULE linux.cpu.idle_time_in_state;`);
     const states = await e.query(
-      `select distinct state from linux_cpu_idle_time_in_state_counters`,
+      `select distinct
+         c.machine_id as machineId,
+         machine.name as machineName,
+         machine.label_index as machineLabelIndex,
+         c.state
+       from linux_cpu_idle_time_in_state_counters c
+       left join machine on machine.id = c.machine_id
+       order by c.machine_id, c.state`,
     );
-    const it = states.iter({state: STR});
+    const it = states.iter({
+      machineId: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
+      state: STR,
+    });
     for (; it.valid(); it.next()) {
-      await this.addIdleStateTrack(ctx, it.state, group);
+      await this.addIdleStateTrack(
+        ctx,
+        it.state,
+        {
+          id: it.machineId,
+          name: it.machineName,
+          labelIndex: it.machineLabelIndex,
+          count: numMachines,
+        },
+        group,
+      );
     }
 
     if (group.hasChildren) {
@@ -119,12 +175,37 @@ export default class implements PerfettoPlugin {
     });
 
     const perCpuStates = await e.query(
-      `select distinct state, cpu from linux_per_cpu_idle_time_in_state_counters`,
+      `select distinct
+         c.machine_id as machineId,
+         machine.name as machineName,
+         machine.label_index as machineLabelIndex,
+         c.state,
+         c.cpu
+       from linux_per_cpu_idle_time_in_state_counters c
+       left join machine on machine.id = c.machine_id
+       order by c.machine_id, c.cpu, c.state`,
     );
-    const pIt = perCpuStates.iter({state: STR, cpu: NUM});
+    const pIt = perCpuStates.iter({
+      machineId: NUM,
+      machineName: STR_NULL,
+      machineLabelIndex: NUM_NULL,
+      state: STR,
+      cpu: NUM,
+    });
 
     for (; pIt.valid(); pIt.next()) {
-      await this.addPerCpuIdleStateTrack(ctx, pIt.state, pIt.cpu, perCpuGroup);
+      await this.addPerCpuIdleStateTrack(
+        ctx,
+        pIt.state,
+        pIt.cpu,
+        {
+          id: pIt.machineId,
+          name: pIt.machineName,
+          labelIndex: pIt.machineLabelIndex,
+          count: numMachines,
+        },
+        perCpuGroup,
+      );
     }
 
     if (perCpuGroup.hasChildren) {

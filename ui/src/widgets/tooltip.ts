@@ -30,35 +30,35 @@ import type {ExtendedModifiers} from './popper_utils';
 export interface TooltipAttrs {
   // Which side of the trigger to place to tooltip.
   // Defaults to "Auto"
-  position?: PopupPosition;
+  readonly position?: PopupPosition;
   // The element used to open and close the tooltip, and to which the tooltip
   // will be anchored. Beware this element will have its `onmouseenter`,
   // `onmouseleave`, `ref` attributes overwritten.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trigger: m.Vnode<any, any>;
+  readonly trigger: m.Vnode<any, any>;
   // Space delimited class names applied to the tooltip div.
-  className?: string;
+  readonly className?: string;
   // Whether to show a little arrow pointing to our trigger element.
   // Defaults to true.
-  showArrow?: boolean;
+  readonly showArrow?: boolean;
   // Called when the tooltip mounts, passing the tooltip's dom element.
-  onTooltipMount?: (dom: HTMLElement) => void;
+  readonly onTooltipMount?: (dom: HTMLElement) => void;
   // Called when the tooltip unmounts, padding the tooltip's dom element.
-  onTooltipUnMount?: (dom: HTMLElement) => void;
+  readonly onTooltipUnMount?: (dom: HTMLElement) => void;
   // Distance in px between the tooltip and its trigger. Default = 0.
-  offset?: number;
+  readonly offset?: number;
   // Cross-axial tooltip offset in px. Defaults to 0.
   // When position is *-end or *-start, this setting specifies where start and
   // end is as an offset from the edge of the tooltip.
   // Positive values move the positioning away from the edge towards the center
   // of the tooltip.
   // If position is not *-end or *-start, this setting has no effect.
-  edgeOffset?: number;
+  readonly edgeOffset?: number;
   // If true, the tooltip will not have a maximum width and will instead fit its
   // content. This is useful for tooltips that have a lot of buttons or other
   // content that should not be constrained by a maximum width.
   // Defaults to false.
-  fitContent?: boolean;
+  readonly fitContent?: boolean;
 }
 
 // A tooltip is a portal whose position is dynamically updated so that it floats

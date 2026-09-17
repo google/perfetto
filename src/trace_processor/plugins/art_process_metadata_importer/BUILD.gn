@@ -27,6 +27,7 @@ source_set("art_process_metadata_importer") {
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
     "../../../protozero",
+    "../../containers",
     "../../core/dataframe",
     "../../core/plugin",
     "../../importers/common",

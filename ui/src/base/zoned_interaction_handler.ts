@@ -44,6 +44,7 @@
  * different data.
  */
 
+import m from 'mithril';
 import {removeFalsyValues} from './array_utils';
 import {DisposableStack} from './disposable_stack';
 import {bindEventListener, type CSSCursor} from './dom_utils';
@@ -154,11 +155,13 @@ export class ZonedInteractionHandler implements Disposable {
   private zones: ReadonlyArray<Zone> = [];
   private currentGesture?: InProgressGesture;
   private shiftHeld = false;
+  private shouldClick = false;
 
   constructor(readonly target: HTMLElement) {
     this.bindEvent(this.target, 'mousedown', this.onMouseDown.bind(this));
     this.bindEvent(document, 'mousemove', this.onMouseMove.bind(this));
     this.bindEvent(document, 'mouseup', this.onMouseUp.bind(this));
+    this.bindEvent(document, 'click', this.onClick.bind(this));
     this.bindEvent(document, 'keydown', this.onKeyDown.bind(this));
     this.bindEvent(document, 'keyup', this.onKeyUp.bind(this));
     this.bindEvent(this.target, 'wheel', this.handleWheel.bind(this));
@@ -202,6 +205,11 @@ export class ZonedInteractionHandler implements Disposable {
   }
 
   private onMouseDown(e: MouseEvent) {
+    m.redraw();
+
+    // Clear shouldClick flag in case onclick was cancelled
+    this.shouldClick = false;
+
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
     const zone = this.findZone(
@@ -256,6 +264,8 @@ export class ZonedInteractionHandler implements Disposable {
   }
 
   private onMouseUp(e: MouseEvent) {
+    m.redraw();
+
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
 
@@ -273,13 +283,31 @@ export class ZonedInteractionHandler implements Disposable {
         } else {
           // Check we're still the zone the click was started in
           if (this.hitTestZone(zone, mouse)) {
-            this.handleClick(this.target, e);
+            // This is a click (rather than a drag) - set a flag so that the
+            // onClick callback can be called from the onclick dom event rather
+            // than here in the mouseup event.
+            this.shouldClick = true;
           }
         }
       }
 
       this.currentGesture = undefined;
       this.updateCursor();
+    }
+  }
+
+  private onClick(e: MouseEvent) {
+    m.redraw();
+
+    // If the onMouseUp event left the shouldClick flag set then we should emit
+    // a click event here, as long as no other handler further up the bubble
+    // chain has called e.preventDefault() in the meantime.
+    if (this.shouldClick) {
+      this.shouldClick = false;
+
+      if (!e.defaultPrevented) {
+        this.handleClick(this.target, e);
+      }
     }
   }
 

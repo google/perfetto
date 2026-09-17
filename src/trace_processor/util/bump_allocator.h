@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <optional>
 #include <tuple>
 
 #include "perfetto/base/logging.h"
@@ -112,8 +111,30 @@ class BumpAllocator {
   // than or equal to |kChunkSize|.
   //
   // Returns an |AllocId| which can be converted to a pointer using
-  // |GetPointer|.
-  AllocId Alloc(uint32_t size);
+  // |GetPointer|; |*ptr| receives that pointer directly.
+  AllocId Alloc(uint32_t size, void** ptr) {
+    // Size is required to be a multiple of 8 to avoid needing to deal with
+    // alignment. It must also be at most kChunkSize as we do not support cross
+    // chunk spanning allocations.
+    PERFETTO_DCHECK(size % 8 == 0);
+    PERFETTO_DCHECK(size <= kChunkSize);
+    if (PERFETTO_UNLIKELY(chunks_.empty() ||
+                          chunks_.back().bump_offset + size > kChunkSize)) {
+      AddChunk();
+    }
+    Chunk& chunk = chunks_.back();
+    uint32_t offset = chunk.bump_offset;
+    chunk.bump_offset = offset + size;
+    chunk.unfreed_allocations++;
+    // Unpoison the allocation range to allow access to it on ASAN builds.
+    PERFETTO_ASAN_UNPOISON(chunk.allocation.get() + offset, size);
+    *ptr = chunk.allocation.get() + offset;
+    return AllocId{LastChunkIndex(), offset};
+  }
+  AllocId Alloc(uint32_t size) {
+    void* ptr;
+    return Alloc(size, &ptr);
+  }
 
   // Frees an allocation previously allocated by |Alloc|. This function is *not*
   // idempotent.
@@ -128,6 +149,28 @@ class BumpAllocator {
   // The caller is only allowed to access up to |size| bytes, where |size| ==
   // the |size| argument to Alloc.
   void* GetPointer(AllocId);
+
+  // A resolved allocation for reading and then freeing with one chunk lookup.
+  // Free it before allocating again or erasing chunks, which can move metadata.
+  class Allocation {
+   public:
+    void* data() const { return data_; }
+
+   private:
+    friend class BumpAllocator;
+    Allocation(void* data, uint32_t* unfreed_allocations)
+        : data_(data), unfreed_allocations_(unfreed_allocations) {}
+
+    void* data_;
+    uint32_t* unfreed_allocations_;
+  };
+
+  Allocation GetAllocation(AllocId);
+
+  void Free(const Allocation& allocation) {
+    PERFETTO_DCHECK(*allocation.unfreed_allocations_ > 0);
+    --*allocation.unfreed_allocations_;
+  }
 
   // Removes chunks from the start of this allocator where all the allocations
   // in the chunks have been freed. This releases the memory back to the system.
@@ -162,9 +205,8 @@ class BumpAllocator {
     uint32_t unfreed_allocations = 0;
   };
 
-  // Tries to allocate |size| bytes in the final chunk in |chunks_|. Returns
-  // an AllocId if this was successful or std::nullopt otherwise.
-  std::optional<AllocId> TryAllocInLastChunk(uint32_t size);
+  // Appends a chunk for the allocations the last one cannot fit.
+  void AddChunk();
 
   uint64_t ChunkIndexToQueueIndex(uint64_t chunk_index) const {
     return chunk_index - erased_front_chunks_count_;

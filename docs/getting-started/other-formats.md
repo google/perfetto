@@ -141,7 +141,7 @@ format is for:
   tables, enabling flamegraph visualization in the Perfetto UI.
 - **Markers:** Each Firefox marker becomes a Perfetto slice. The track layout
   mirrors the Firefox Profiler's marker chart: one track per
-  `(thread, marker name)` so e.g. every `Awake` marker appears on the
+  `(thread, category, marker name)` so e.g. every `Awake` marker appears on the
   thread's `Awake` track, every `BINARY_OP` opcode marker on the thread's
   `BINARY_OP` track, and so on.
   - `Instant` markers (phase 0) become zero-duration slices.
@@ -696,6 +696,146 @@ source directly.**
 - **Tracefs Documentation:**
   [The Tracefs Pseudo Filesystem (kernel.org)](https://www.kernel.org/doc/html/latest/trace/tracefs.html)
 
+## {#strace-format} Linux `strace` textual format
+
+**Description:** [`strace`](https://strace.io/) is the standard Linux tool for
+observing the system calls a process makes, which it does by attaching to the
+process with `ptrace`. Perfetto ingests the textual log strace writes, in the
+form produced by `strace -ttt -f`: one line per system call, carrying the pid
+of the calling thread, a Unix epoch timestamp, the system call name, its
+arguments, the return value and — when `-T` is used — the time spent inside
+the call.
+
+```
+66    1787745825.395990 execve("/usr/bin/sh", ["sh", "-c", "ls /usr/bin > /dev/null; sleep 0"...], 0xffffe3fb3ce0 /* 4 vars */) = 0 <0.003849>
+66    1787745825.527876 clone(child_stack=0xffffede25a00, flags=CLONE_VM|CLONE_VFORK|SIGCHLD <unfinished ...>
+67    1787745825.534500 execve("/usr/bin/ls", ["ls", "/usr/bin"], 0xaaaaf807e498 /* 4 vars */ <unfinished ...>
+66    1787745825.543303 <... clone resumed>) = 67 <0.014914>
+67    1787745825.550192 <... execve resumed>) = 0 <0.014576>
+66    1787745825.554319 wait4(-1,  <unfinished ...>
+67    1787745826.332621 exit_group(0)   = ?
+66    1787745826.348956 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 67 <0.794037>
+```
+
+When a call blocks, strace splits it across two lines — the `<unfinished ...>`
+above and the matching `<... wait4 resumed>` — so that the calls made by other
+threads in between stay in chronological order.
+
+**Common Scenarios:** This format is useful when:
+
+- You want to see *where* a process's wall-clock time goes inside the kernel:
+  which `read` blocked and for how long, how long a `futex` wait lasted, how
+  many `openat` calls a startup path makes — as a timeline rather than as
+  thousands of lines of text. The same question can be asked in SQL, for
+  example the calls a run spent the longest inside:
+
+  ```sql
+  select name, count(*) as calls, sum(dur) as total_dur
+  from slice
+  where category = 'strace'
+  group by name
+  order by total_dur desc
+  limit 10;
+  ```
+
+- Perfetto's own tracing is not available on the machine you are debugging — a
+  locked-down container, a customer's box, a distro without `tracefs` — but
+  `strace` is.
+- Someone has attached an strace log to a bug report and you would like to
+  analyse it rather than read it.
+- You want to follow system call behaviour across a whole process tree
+  captured with `strace -f`.
+
+**Perfetto Support:** strace logs are recognised by their content, so no
+particular file extension is required.
+
+- **Perfetto UI & Trace Processor:**
+  - Each completed system call becomes a slice on the thread track of the
+    thread that made it, with `slice.name` set to the system call name and
+    `slice.category` set to `strace`.
+  - For a call printed on a single line, `slice.dur` is the duration `-T`
+    measured inside it. Without `-T` such a line records only the moment the
+    call was *entered*, so those slices become zero-duration markers.
+  - A call that blocks is printed on two lines, and opens a slice at its
+    `<unfinished ...>` line which is closed at the matching `<... resumed>`
+    line — so the block itself is visible as a slice spanning the interval
+    between them, whether or not `-T` was used. A call still unfinished when
+    the log ends stays open (a `dur` of -1).
+  - The raw text of the arguments and of the return value are attached to the
+    slice as the `args` and `ret` arguments, so an errno survives in full
+    (`-1 ENOENT (No such file or directory)`) and can be read back with
+    `extract_arg(arg_set_id, 'ret')`.
+  - Lines that are not system calls — signal delivery
+    (`--- SIGCHLD {si_signo=SIGCHLD, ...} ---`), exit banners
+    (`+++ exited with 0 +++`) and strace's own messages
+    (`strace: Process 75 attached`) — are skipped.
+  - Timestamps are Unix epoch and are exposed on the realtime clock domain.
+- **Required strace flags:**
+  - **`-ttt`.** Timestamps must be Unix epoch seconds. `-t` and `-tt` print a
+    wall-clock time of day with no date, which cannot be turned back into an
+    absolute point in time, so those lines are rejected rather than silently
+    placed decades away from every other trace they are merged with. See the
+    `strace_unsupported_timestamp_format` stat.
+  - **`-f`.** strace only prints pids while it is following processes. Without
+    a pid there is no thread to attribute a system call to, so such lines are
+    dropped; see the `strace_missing_pid` stat.
+- **Limitations:**
+  - System call arguments are kept as the single opaque string strace printed.
+    They are not decoded into structured fields, so there are no per-fd or
+    per-path tables to join against.
+  - strace stops the traced process twice per system call. This slows the
+    workload down substantially and perturbs the very timings being measured,
+    so an strace timeline is a qualitative picture of system call behaviour
+    rather than a low-overhead measurement.
+  - Only what strace prints is available: no scheduling, CPU frequency or
+    userspace instrumentation data. Where Perfetto's own tracing is an option,
+    prefer it.
+
+Lines that could not be imported are counted in the `stats` table, each with
+an explanation of what to change:
+
+```sql
+select name, value from stats where name glob 'strace*' and value > 0;
+```
+
+**How to Generate:**
+
+- **Trace a command and everything it forks, writing the log to a file:**
+
+  ```bash
+  strace -ttt -f -T -o my_trace.strace -- ./my_program
+  ```
+
+  Or attach to something already running:
+
+  ```bash
+  sudo strace -ttt -f -T -o my_trace.strace -p 1234
+  ```
+
+- **Use `-o FILE`; do not redirect stderr.** Given `-o`, strace prefixes every
+  line with the pid it belongs to. Writing to stderr instead, it leaves the
+  process it started unprefixed until a second process is attached, and those
+  unprefixed lines have to be dropped on import. On a program that never forks
+  at all no second process is ever attached, so a stderr capture is dropped in
+  its entirety and imports nothing.
+
+- **For nanosecond-resolution durations,** pass `--syscall-times=ns` in place
+  of `-T`:
+
+  ```bash
+  strace -ttt -f --syscall-times=ns -o my_trace.strace -- ./my_program
+  ```
+
+  (`--syscall-times` is the long form of `-T` and takes one of `s`, `ms`, `us`
+  or `ns`; the default is microseconds. The precision argument was added in
+  strace 5.6; on older versions only the default `-T` precision is available.)
+
+**External Resources:**
+
+- **`strace` man page:**
+  [strace(1) (man7.org)](https://man7.org/linux/man-pages/man1/strace.1.html)
+- **`strace` home page:** [strace.io](https://strace.io/)
+
 ## ART method tracing format
 
 **Description:** The Android Runtime (ART) method tracing format (commonly found
@@ -802,7 +942,7 @@ primarily useful for extracting CPU profiling data (stack samples).
   - The primary focus of this import is on **CPU stack samples**.
   - Data such as call stacks, sample timestamps, and thread information is
     extracted and loaded into Perfetto's profiling tables, specifically
-    `cpu_profile_stack_sample` for the samples themselves, and
+    `instruments_sample` for the samples themselves, and
     `stack_profile_callsite`, `stack_profile_frame`, `stack_profile_mapping` for
     the call stack information.
   - This enables the visualization of the CPU profile as a flamegraph within the
@@ -816,10 +956,34 @@ primarily useful for extracting CPU profiling data (stack samples).
 
 **How to Generate:** Traces are originally collected using the Instruments
 application in Xcode or the `xctrace` command-line utility, which produce a
-`.trace` package. The XML file that Perfetto ingests is an export from such a
-trace. (The specific steps for exporting to this XML format from Instruments
-would need to be followed within the Instruments tool itself; Perfetto then
-consumes the resulting XML file).
+`.trace` package. The XML file that Perfetto ingests is an export of that
+package, which `xctrace` can produce directly:
+
+```bash
+# Record a CPU profile of a command (requires the full Xcode, not just the
+# command line tools).
+xcrun xctrace record --template 'CPU Profiler' --output profile.trace \
+    --launch -- /path/to/binary
+
+# Export the samples as XML.
+xcrun xctrace export --input profile.trace \
+    --xpath '//trace-toc/run/data/table[@schema="cpu-profile"]' \
+    --output profile.xml
+
+# Open profile.xml in ui.perfetto.dev.
+```
+
+Timestamps in such an export are relative to the start of the recording. If a
+Perfetto trace was recorded in parallel and the two need to share a clock,
+export the points-of-interest signpost table alongside the samples: Perfetto
+emits `dev.perfetto.clock_sync` signposts while tracing, and the importer uses
+them to convert the Instruments timestamps to the Perfetto boottime clock.
+
+```bash
+xcrun xctrace export --input profile.trace \
+    --xpath '//trace-toc/run/data/table[@schema="os-signpost" and @category="PointsOfInterest"] | //trace-toc/run/data/table[@schema="cpu-profile"]' \
+    --output profile.xml
+```
 
 **External Resources:**
 
@@ -855,11 +1019,10 @@ occasionally adding fields.
   `.ninja_log` files.
   - Each build step recorded in the `.ninja_log` is typically imported as a
     distinct slice into the `slice` table.
-  - To visualize these build steps on a timeline, Perfetto often synthesizes
-    process and thread information. For instance, all build steps might be
-    grouped under a single "Ninja Build" process, with individual tracks
-    potentially created for each unique output file path or based on other
-    heuristics to represent concurrency.
+  - To visualize these build steps on a timeline, Perfetto synthesizes
+    process and thread information: all build steps are grouped under a
+    single "Build" process, with "Worker" tracks inferred from overlapping
+    timestamps to represent concurrency.
   - The timestamps (start and end times) are converted from milliseconds to
     nanoseconds for consistency within Perfetto.
   - This allows the build process to be visualized in the Perfetto UI, showing
@@ -913,10 +1076,9 @@ Error, Fatal/Assert), a tag identifying the source of the log, the Process ID
   - In the Perfetto UI, these logs appear in the "Android Logs" panel, where
     they are displayed chronologically and can be filtered. This allows
     correlation of log messages with other trace events on the main timeline.
-- **Supported Formats:** Perfetto's parser is designed to handle common
-  `adb logcat` output formats, with good support for `logcat -v long` and
-  `logcat -v threadtime`. Other, more esoteric or heavily customized logcat
-  formats might not be fully parsed.
+- **Supported Formats:** Perfetto's parser handles the `logcat -v threadtime`
+  output format, optionally combined with `-v uid` or `-v year`. Other logcat
+  formats, such as `logcat -v long`, are not parsed.
 
 **How to Generate Textual Logcat Files:**
 
@@ -925,15 +1087,11 @@ Error, Fatal/Assert), a tag identifying the source of the log, the Process ID
   - To dump the current contents of the log buffers and then exit (useful for a
     snapshot):
     ```bash
-    # Dumps logs in 'long' format
-    adb logcat -d -v long > logcat_dump_long.txt
     # Dumps logs in 'threadtime' format (timestamp, PID, TID, priority, tag, message)
     adb logcat -d -v threadtime > logcat_dump_threadtime.txt
     ```
   - To stream live logs to a file (press Ctrl-C to stop):
     ```bash
-    adb logcat -v long > logcat_stream_long.txt
-    # Or, for a more parse-friendly streaming format:
     adb logcat -v threadtime > logcat_stream_threadtime.txt
     ```
 - **From Android Bug Reports:** Logcat data is a standard component of bug
@@ -971,29 +1129,24 @@ board-level information and specific service dumps like `batterystats`.
 - **Perfetto UI & Trace Processor:** Perfetto can directly open and process
   Android bugreport `.zip` files.
   - When a bugreport zip is loaded, Perfetto automatically:
-    - Scans the archive for **Perfetto trace files** (`.pftrace`,
-      `.perfetto-trace`) in known locations (e.g.,
-      `FS/data/misc/perfetto-traces/`, `proto/perfetto-trace.gz`). The primary
-      Perfetto trace found is loaded for visualization and SQL querying.
-    - Parses the main **`dumpstate` board-level information** (often found in
-      files like `bugreport-*.txt` or `dumpstate_board.txt`) into the
-      `dumpstate` SQL table. This table includes system properties, kernel
-      version, build fingerprints, and other hardware/software details.
-    - Extracts detailed **battery statistics** from the `batterystats` section
-      of the dumpstate into the `battery_stats` SQL table. This provides
-      information on battery levels, charging status, and power events over
-      time.
-  - This integrated approach allows users to analyze not only the system trace
-    but also key system state (from `dumpstate`) and battery information (from
-    `battery_stats`) from the bugreport within a unified Perfetto environment,
-    without needing to manually extract these components.
-  - **Note:** Perfetto's focus when processing bugreports is on its own native
-    trace format and specific, structured parts of the `dumpstate` like
-    `batterystats`. It generally does **not** attempt to import or parse legacy
-    Systrace files (`systrace.html` or `systrace.txt`) that might be present in
-    older bugreports. For analyzing those, you'd typically extract them manually
-    and open them as per the [Android systrace format](#android-systrace-format)
-    section.
+    - Parses the main **`dumpstate` output** (the `bugreport-*.txt` file) into
+      the `android_dumpstate` SQL table, one row per line, tagged with the
+      dumpstate `section` and dumpsys `service` it came from.
+    - Imports the **logcat** sections of the dumpstate output and the
+      persistent logcat files (`FS/data/misc/logd/logcat*`) into the
+      `android_logs` SQL table.
+    - Extracts **battery statistics** from the `CHECKIN BATTERYSTATS` section
+      of the dumpstate into `battery_stats.*` counter and event tracks.
+  - This integrated approach allows users to analyze key system state (from
+    `dumpstate`), logs and battery information from the bugreport within a
+    unified Perfetto environment, without needing to manually extract these
+    components.
+  - **Note:** Perfetto's focus when processing bugreports is on these specific,
+    structured parts of the `dumpstate`. It does **not** load Perfetto trace
+    files or legacy Systrace files (`systrace.html` or `systrace.txt`) that
+    might be present in the bugreport. For analyzing those, extract them
+    manually and open them directly (for Systrace files, see the
+    [Android systrace format](#android-systrace-format) section).
 
 **How to Generate:**
 
@@ -1074,8 +1227,8 @@ into Zircon Virtual Memory Objects (VMOs) for efficiency.
   visualization. The UI can display various Fuchsia-specific events and system
   activities.
 - **Trace Processor:** Perfetto's Trace Processor supports parsing the Fuchsia
-  binary format. This allows the trace data, including events, scheduling
-  records, and logs, to be imported into standard Perfetto SQL tables, making it
+  binary format. This allows the trace data, including events and scheduling
+  records, to be imported into standard Perfetto SQL tables, making it
   available for query-based analysis.
 
 **How to Generate:**
@@ -1144,16 +1297,24 @@ involves collecting CPU profiles from Go programs or converting `perf.data` file
     `runtime/pprof` package to programmatically collect a profile or use the
     `net/http/pprof` package to expose a profiling endpoint on a running server.
 
-    To collect a profile from a running server, you can use the `go tool pprof`
-    command:
+    To collect a profile from a running server, fetch the profiling endpoint
+    directly:
+
+    ```bash
+    curl -o cpu.pprof 'http://localhost:6060/debug/pprof/profile?seconds=30'
+    ```
+
+    `go tool pprof <url>` collects the same 30-second profile: it saves a copy
+    under `$HOME/pprof/`, prints the path it used and then enters interactive
+    mode. From there, the `proto` command writes the profile out again:
 
     ```bash
     go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+    (pprof) proto >cpu.pprof
     ```
 
-    This will collect a 30-second CPU profile and open it in the pprof tool.
-    You can then save the profile to a file using the `save` command in the
-    pprof tool.
+    The resulting file is gzip-compressed; the Perfetto UI and trace processor
+    read it as-is, without decompressing it first.
 
 2.  **Convert Linux `perf.data` to pprof format:** Use the `perf_to_profile`
     tool from the `perf_data_converter` package.

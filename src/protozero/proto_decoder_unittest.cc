@@ -670,7 +670,8 @@ TEST(ProtoDecoderTest, SpillMaskSplitsDenseAndSpilled) {
   // The mask sizes itself to its highest id (3): field 4 below spills via the
   // range check, field 2 via its unset mask bit.
   static constexpr SelectiveDecodeMask<1, 3> mask{};
-  SelectiveTypedProtoDecoder<10> tpd(data.data(), data.size(), mask);
+  SelectiveTypedProtoDecoder<TypedProtoDecoder<10>> tpd(data.data(),
+                                                        data.size(), mask);
 
   // Allowlisted ids are dense, with the usual O(1) access.
   EXPECT_EQ(tpd.Get(1).as_int32(), 10);
@@ -701,7 +702,8 @@ TEST(ProtoDecoderTest, SpillMaskSpillsExtensionIds) {
   auto data = message.SerializeAsArray();
 
   static constexpr SelectiveDecodeMask<1> mask{};
-  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
+  SelectiveTypedProtoDecoder<TypedProtoDecoder<3>> tpd(data.data(), data.size(),
+                                                       mask);
   EXPECT_EQ(tpd.Get(1).as_int32(), 11);
   auto unknown = tpd.unknown_fields();
   ASSERT_EQ(unknown.end() - unknown.begin(), 1);
@@ -719,7 +721,8 @@ TEST(ProtoDecoderTest, SpillMaskAtBeyondDenseWindow) {
   // whose presence bit lives in a bitmap word beyond the shrunk window --
   // spill, and at<>()/Get() see an invalid field.
   static constexpr SelectiveDecodeMask<1> mask{};
-  SelectiveTypedProtoDecoder<70> tpd(data.data(), data.size(), mask);
+  SelectiveTypedProtoDecoder<TypedProtoDecoder<70>> tpd(data.data(),
+                                                        data.size(), mask);
 
   EXPECT_EQ(tpd.Get(1).as_int32(), 11);
   EXPECT_FALSE(tpd.at<70>().valid());
@@ -740,7 +743,8 @@ TEST(ProtoDecoderTest, SpillMaskHeapExpansion) {
   auto data = message.SerializeAsArray();
 
   static constexpr SelectiveDecodeMask<1> mask{};
-  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
+  SelectiveTypedProtoDecoder<TypedProtoDecoder<3>> tpd(data.data(), data.size(),
+                                                       mask);
   auto unknown = tpd.unknown_fields();
   ASSERT_EQ(unknown.end() - unknown.begin(),
             static_cast<ptrdiff_t>(kNumSpilled));
@@ -760,7 +764,8 @@ TEST(ProtoDecoderTest, SpillMaskDenseRepeatedUnaffected) {
   auto data = message.SerializeAsArray();
 
   static constexpr SelectiveDecodeMask<1> mask{};
-  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
+  SelectiveTypedProtoDecoder<TypedProtoDecoder<3>> tpd(data.data(), data.size(),
+                                                       mask);
 
   // Dense repeated fields keep their FIFO iteration and last-wins Get().
   std::vector<int32_t> res;
@@ -780,8 +785,9 @@ TEST(ProtoDecoderTest, SpillMaskMovePreservesSpill) {
   auto data = message.SerializeAsArray();
 
   static constexpr SelectiveDecodeMask<1> mask{};
-  SelectiveTypedProtoDecoder<3> tpd(data.data(), data.size(), mask);
-  SelectiveTypedProtoDecoder<3> moved(std::move(tpd));
+  SelectiveTypedProtoDecoder<TypedProtoDecoder<3>> tpd(data.data(), data.size(),
+                                                       mask);
+  SelectiveTypedProtoDecoder<TypedProtoDecoder<3>> moved(std::move(tpd));
 
   EXPECT_EQ(moved.Get(1).as_int32(), 11);
   auto unknown = moved.unknown_fields();

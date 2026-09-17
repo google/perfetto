@@ -6001,7 +6001,7 @@ std::array<FtraceMessageDescriptor, 618> descriptors{{
     },
     {
         "sched_wakeup_task_attr",
-        5,
+        9,
         {
             {},
             {"pid", ProtoSchemaType::kInt32},
@@ -6009,6 +6009,10 @@ std::array<FtraceMessageDescriptor, 618> descriptors{{
             {"task_util", ProtoSchemaType::kUint64},
             {"uclamp_min", ProtoSchemaType::kUint64},
             {"vruntime", ProtoSchemaType::kUint64},
+            {"sched_qos_user_defined_flag", ProtoSchemaType::kUint64},
+            {"rampup_multiplier", ProtoSchemaType::kUint32},
+            {"effect_rampup_multiplier", ProtoSchemaType::kUint32},
+            {"tag_nice", ProtoSchemaType::kInt32},
         },
     },
     {

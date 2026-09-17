@@ -33,7 +33,8 @@ using TracePacketField = TypedProtoField;
 
 namespace internal {
 
-// The TracePacket metadata fields the pipeline reads by name (the dense
+// The TracePacket fields the pipeline reads by name: the per-packet
+// metadata and everything ProtoTraceReader consumes itself (the dense
 // allowlist for selective decoding below).
 using TracePacketDenseMask = protozero::SelectiveDecodeMask<
     protos::pbzero::TracePacket::kTimestampFieldNumber,
@@ -46,7 +47,21 @@ using TracePacketDenseMask = protozero::SelectiveDecodeMask<
     protos::pbzero::TracePacket::kIncrementalStateClearedFieldNumber,
     protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber,
     protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber,
-    protos::pbzero::TracePacket::kMachineIdFieldNumber>;
+    protos::pbzero::TracePacket::kMachineIdFieldNumber,
+    protos::pbzero::TracePacket::kCompressedPacketsFieldNumber,
+    protos::pbzero::TracePacket::kZstdCompressedPacketsFieldNumber,
+    protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
+    protos::pbzero::TracePacket::kTraceProvenanceFieldNumber,
+    protos::pbzero::TracePacket::kProtovmsFieldNumber,
+    protos::pbzero::TracePacket::kTraceAttributesFieldNumber,
+    protos::pbzero::TracePacket::kTracePacketDefaultsFieldNumber,
+    protos::pbzero::TracePacket::kClockSnapshotFieldNumber,
+    protos::pbzero::TracePacket::kTraceStatsFieldNumber,
+    protos::pbzero::TracePacket::kRemoteClockSyncFieldNumber,
+    protos::pbzero::TracePacket::kTraceConfigFieldNumber,
+    protos::pbzero::TracePacket::kChromeEventsFieldNumber,
+    protos::pbzero::TracePacket::kChromeMetadataFieldNumber,
+    protos::pbzero::TracePacket::kTrackEventFieldNumber>;
 
 inline constexpr TracePacketDenseMask kTracePacketDenseMask{};
 
@@ -128,9 +143,10 @@ class SelectiveTracePacketDecoder {
         .as_bool();
   }
 
-  bool previous_packet_dropped() const {
+  // The data loss reasons, or 0.
+  uint32_t previous_packet_dropped() const {
     return decoder_.at<TracePacket::kPreviousPacketDroppedFieldNumber>()
-        .as_bool();
+        .as_uint32();
   }
 
   bool first_packet_on_sequence() const {
@@ -143,6 +159,99 @@ class SelectiveTracePacketDecoder {
   }
   uint32_t machine_id() const {
     return decoder_.at<TracePacket::kMachineIdFieldNumber>().as_uint32();
+  }
+
+  // Fields consumed by ProtoTraceReader.
+  bool has_compressed_packets() const {
+    return decoder_.at<TracePacket::kCompressedPacketsFieldNumber>().valid();
+  }
+  protozero::ConstBytes compressed_packets() const {
+    return decoder_.at<TracePacket::kCompressedPacketsFieldNumber>().as_bytes();
+  }
+  bool has_zstd_compressed_packets() const {
+    return decoder_.at<TracePacket::kZstdCompressedPacketsFieldNumber>()
+        .valid();
+  }
+  protozero::ConstBytes zstd_compressed_packets() const {
+    return decoder_.at<TracePacket::kZstdCompressedPacketsFieldNumber>()
+        .as_bytes();
+  }
+  bool has_synchronization_marker() const {
+    return decoder_.at<TracePacket::kSynchronizationMarkerFieldNumber>()
+        .valid();
+  }
+  bool has_trace_provenance() const {
+    return decoder_.at<TracePacket::kTraceProvenanceFieldNumber>().valid();
+  }
+  protozero::ConstBytes trace_provenance() const {
+    return decoder_.at<TracePacket::kTraceProvenanceFieldNumber>().as_bytes();
+  }
+  bool has_protovms() const {
+    return decoder_.at<TracePacket::kProtovmsFieldNumber>().valid();
+  }
+  protozero::ConstBytes protovms() const {
+    return decoder_.at<TracePacket::kProtovmsFieldNumber>().as_bytes();
+  }
+  bool has_trace_attributes() const {
+    return decoder_.at<TracePacket::kTraceAttributesFieldNumber>().valid();
+  }
+  protozero::ConstBytes trace_attributes() const {
+    return decoder_.at<TracePacket::kTraceAttributesFieldNumber>().as_bytes();
+  }
+  bool has_trace_packet_defaults() const {
+    return decoder_.at<TracePacket::kTracePacketDefaultsFieldNumber>().valid();
+  }
+  protozero::ConstBytes trace_packet_defaults() const {
+    return decoder_.at<TracePacket::kTracePacketDefaultsFieldNumber>()
+        .as_bytes();
+  }
+  bool has_clock_snapshot() const {
+    return decoder_.at<TracePacket::kClockSnapshotFieldNumber>().valid();
+  }
+  protozero::ConstBytes clock_snapshot() const {
+    return decoder_.at<TracePacket::kClockSnapshotFieldNumber>().as_bytes();
+  }
+  bool has_trace_stats() const {
+    return decoder_.at<TracePacket::kTraceStatsFieldNumber>().valid();
+  }
+  protozero::ConstBytes trace_stats() const {
+    return decoder_.at<TracePacket::kTraceStatsFieldNumber>().as_bytes();
+  }
+  bool has_remote_clock_sync() const {
+    return decoder_.at<TracePacket::kRemoteClockSyncFieldNumber>().valid();
+  }
+  protozero::ConstBytes remote_clock_sync() const {
+    return decoder_.at<TracePacket::kRemoteClockSyncFieldNumber>().as_bytes();
+  }
+  bool has_trace_config() const {
+    return decoder_.at<TracePacket::kTraceConfigFieldNumber>().valid();
+  }
+  protozero::ConstBytes trace_config() const {
+    return decoder_.at<TracePacket::kTraceConfigFieldNumber>().as_bytes();
+  }
+
+  // Whether the packet was decoded to its end.
+  size_t bytes_left() const { return decoder_.bytes_left(); }
+
+  bool has_chrome_events() const {
+    return decoder_.at<TracePacket::kChromeEventsFieldNumber>().valid();
+  }
+
+  bool has_chrome_metadata() const {
+    return decoder_.at<TracePacket::kChromeMetadataFieldNumber>().valid();
+  }
+  TracePacketField chrome_metadata_field() const {
+    return TracePacketField(
+        decoder_.at<TracePacket::kChromeMetadataFieldNumber>());
+  }
+
+  // Track events are the common payload, so the reader hands them to their
+  // module directly rather than through unknown_fields().
+  bool has_track_event() const {
+    return decoder_.at<TracePacket::kTrackEventFieldNumber>().valid();
+  }
+  TracePacketField track_event_field() const {
+    return TracePacketField(decoder_.at<TracePacket::kTrackEventFieldNumber>());
   }
 
   // All the fields not in the allowlist, in wire order, with repeated
@@ -166,8 +275,8 @@ class SelectiveTracePacketDecoder {
   }
 
  private:
-  protozero::SelectiveTypedProtoDecoder<static_cast<int>(
-      internal::TracePacketDenseMask::kMaxFieldId)>
+  protozero::SelectiveTypedProtoDecoder<protozero::TypedProtoDecoder<
+      static_cast<int>(internal::TracePacketDenseMask::kMaxFieldId)>>
       decoder_;
 };
 

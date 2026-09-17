@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -55,14 +56,16 @@ class ArtHprofParser : public ChunkedTraceReader {
   void PopulateObjects(const HeapGraph& graph, int64_t ts, UniquePid upid);
   void PopulateReferences(const HeapGraph& graph);
   void PopulateFieldValues(const HeapGraph& graph);
-  void InsertPrimitiveFields(const Object& obj,
-                             uint32_t field_set_id,
-                             tables::HeapGraphPrimitiveTable& prim_table);
+  // Writes the primitive field values of `obj` and returns how many rows were
+  // inserted.
+  uint32_t InsertPrimitiveFields(const HeapGraph& graph,
+                                 const Object& obj,
+                                 uint32_t field_set_id,
+                                 tables::HeapGraphPrimitiveTable& prim_table);
   void InsertArrayData(const Object& obj,
                        tables::HeapGraphObjectDataTable::Row& data_row);
 
   tables::HeapGraphClassTable::Id* FindClassId(uint64_t class_id) const;
-  tables::HeapGraphObjectTable::Id* FindObjectId(uint64_t obj_id) const;
   tables::HeapGraphClassTable::Id* FindClassObjectId(uint64_t obj_id) const;
   StringId InternClassName(const std::string& class_name);
 
@@ -75,7 +78,8 @@ class ArtHprofParser : public ChunkedTraceReader {
     bool ReadU4(uint32_t& value) override;
     bool ReadId(uint64_t& value, uint32_t id_size) override;
     bool ReadString(std::string& str, size_t length) override;
-    bool ReadBytes(std::vector<uint8_t>& data, size_t length) override;
+    bool ReadInto(uint8_t* dst, size_t length) override;
+    bool ReadView(TraceBlobView& view, size_t length) override;
     bool SkipBytes(size_t count) override;
     size_t GetPosition() const override;
     // Whether we can read an entire record from the existing chunk.
@@ -87,8 +91,13 @@ class ArtHprofParser : public ChunkedTraceReader {
     void Shrink() override;
 
    private:
+    // Returns a pointer to the next `length` bytes without advancing, using
+    // the scratch buffer only when they straddle two chunks.
+    const uint8_t* Peek(size_t length);
+
     util::TraceBlobViewReader reader_;
     size_t current_offset_ = 0;
+    uint8_t scratch_[8];
   };
 
   TraceProcessorContext* const context_;
@@ -100,7 +109,10 @@ class ArtHprofParser : public ChunkedTraceReader {
   base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id> class_map_;
   base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>
       class_object_map_;
-  base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id> object_map_;
+  // Row id in the object table for each object in the heap graph, indexed by
+  // ObjectIndex. kInvalidRow for objects which were not inserted.
+  static constexpr uint32_t kInvalidRow = std::numeric_limits<uint32_t>::max();
+  std::vector<uint32_t> object_rows_;
   base::FlatHashMap<uint64_t, std::string> class_name_map_;
 };
 }  // namespace perfetto::trace_processor::art_hprof

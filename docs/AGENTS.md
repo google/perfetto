@@ -80,7 +80,7 @@ To build one or more targets:
 tools/ninja -C out/linux_clang_release -k 10000 trace_processor_shell perfetto_unittests
 ```
 
-All the C++ projects share the same "base" target (include/perfetto/base, include/ext/perfetto/base) and can share some other targets (See GN).
+All the C++ projects share the same "base" target (include/perfetto/base, include/perfetto/ext/base) and can share some other targets (See GN).
 
 ### C++ Code style
 
@@ -192,15 +192,6 @@ For example, to run `test_my_cool_test`, use the filter `MyTestSuite.my_cool_tes
   
 - **Remove `test_` prefix for diff tests.** When using the `--name-filter` flag for diff tests, do not include `test_` in the filter. The test runner automatically drops this prefix. For example, to run `test_my_cool_test`, use the filter `MyTestSuite.my_cool_test`.
 
-## Getting Diffs
-
-When asked to "get a diff" or "read the current diff", run the following
-command:
-
-```sh
-git diff $(git config branch.$(git rev-parse --abbrev-ref HEAD).parent)
-```
-
 ## Fixing GN Dependencies
 
 When asked to fix GN dependencies, run the following command and fix any errors
@@ -248,6 +239,7 @@ out/linux_asan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName
 ```sh
 MSAN_SYMBOLIZER_PATH="$(pwd)/buildtools/linux64/clang/bin/llvm-symbolizer" \
 out/linux_msan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName.*>"
+```
 
 ## Creating Pull Requests
 

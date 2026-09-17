@@ -135,7 +135,11 @@ base::StatusOr<flamegraph::Config> ResolveConfig(const core::Tree& source,
   }
   ASSIGN_OR_RETURN(config.name,
                    ResolveColumn(source, "flamegraph: name", "name"));
-  if (!config.name->type.Is<core::String>()) {
+  // Null is the type of a column with no values at all: every frame is
+  // unnamed, which the builder handles the same way it handles a string
+  // column whose rows happen to all be null.
+  if (!config.name->type.Is<core::String>() &&
+      !config.name->type.Is<core::Null>()) {
     return base::ErrStatus("flamegraph: name column must be a string");
   }
   for (const std::string& name : query.grouping_columns) {

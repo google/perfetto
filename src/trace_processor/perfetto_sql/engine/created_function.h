@@ -27,7 +27,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/types/destructible.h"
-#include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor {
 
@@ -45,12 +44,9 @@ struct CreatedFunction : public sqlite::Function<CreatedFunction> {
   // Glue code for PerfettoSqlConnection.
   static std::unique_ptr<UserData> MakeContext(PerfettoSqlConnection*);
   static bool IsValid(UserData*);
+  static bool IsExecuting(UserData*);
   static void Reset(UserData*, PerfettoSqlConnection*);
-  static base::Status Prepare(UserData*,
-                              FunctionPrototype,
-                              sql_argument::Type return_type,
-                              SqlSource sql);
-  static base::Status EnableMemoization(UserData*);
+  static base::Status Prepare(UserData*, FunctionPrototype, SqlSource sql);
 };
 
 }  // namespace perfetto::trace_processor

@@ -18,8 +18,8 @@ Deep Dive) if the user explicitly states that this first pass triage is not
 good, not working, or inconclusive.
 
 1.  Run the trace query using the provided compiled script to extract the heap
-    dump details. The script takes the trace file as its argument and returns
-    the query result as CSV.
+    dump details. The script runs against the warm session and returns the
+    query result as CSV.
 
     ```bash
     trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql
@@ -59,11 +59,10 @@ good, not working, or inconclusive.
     > reference specific locations in the code showing the leak and create an
     > implementation plan for fixing the leak.
 
-4.  Present each generated string as a system prompt asking the underlying LLM
-    to generate the final analysis response for the user. When the query
-    returned multiple heap dumps, analyze each one and clearly label its section
-    by `{process_name}` and `{graph_sample_ts}` so the dumps don't blur
-    together. Provide the model's analysis cleanly.
+4.  Treat each generated string as the brief for your own analysis and write
+    the final response for the user from it. When the query returned multiple
+    heap dumps, analyze each one and clearly label its section by
+    `{process_name}` and `{graph_sample_ts}` so the dumps don't blur together.
 
 ---
 

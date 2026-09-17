@@ -61,3 +61,46 @@ export function billboardBytes(bytes: number) {
   const [value, unit] = formatBytesIec(bytes).split(' ');
   return {value, unit};
 }
+
+export type AndroidBuildVariant = 'user' | 'userdebug' | 'eng' | 'unknown';
+
+/**
+ * Parses the build variant (e.g. 'user', 'userdebug', 'eng') from an Android build fingerprint.
+ *
+ * According to the Android CDD, the fingerprint format is:
+ * $(BRAND)/$(PRODUCT)/$(DEVICE):$(PLATFORM_VERSION)/$(BUILD_ID)/$(BUILD_NUMBER):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
+ *
+ * The build variant is the token after the last ':' up to the following '/'.
+ */
+export function parseAndroidBuildVariant(
+  fingerprint?: string,
+): AndroidBuildVariant {
+  if (!fingerprint) return 'unknown';
+
+  const lastColon = fingerprint.lastIndexOf(':');
+  if (lastColon === -1) {
+    const match = fingerprint.match(/\b(userdebug|eng|user)\b/i);
+    return match ? (match[1].toLowerCase() as AndroidBuildVariant) : 'unknown';
+  }
+
+  const rest = fingerprint.substring(lastColon + 1);
+  const slash = rest.indexOf('/');
+  const variant = (slash === -1 ? rest : rest.substring(0, slash))
+    .toLowerCase()
+    .trim();
+
+  if (variant === 'userdebug' || variant === 'eng' || variant === 'user') {
+    return variant;
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Returns whether an Android build fingerprint corresponds to a debuggable build
+ * ('userdebug' or 'eng').
+ */
+export function isDebuggableAndroidBuild(fingerprint?: string): boolean {
+  const variant = parseAndroidBuildVariant(fingerprint);
+  return variant === 'userdebug' || variant === 'eng';
+}

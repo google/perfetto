@@ -23,37 +23,58 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 CREATE PERFETTO TABLE sched_runnable_thread_count(
   -- Timestamp when the runnable thread count changed to the current value.
   ts TIMESTAMP,
+  -- Machine whose runnable threads are counted.
+  machine_id JOINID(machine.id),
   -- Number of runnable threads, covering the range from this timestamp to the
   -- next row's timestamp.
   runnable_thread_count LONG
 )
 AS
-WITH runnable AS (SELECT ts, dur FROM thread_state WHERE state = 'R')
-SELECT ts, value AS runnable_thread_count
-FROM intervals_overlap_count!(runnable, ts, dur)
+WITH
+  runnable AS (
+    SELECT ts, dur, thread.machine_id
+    FROM thread_state
+    JOIN thread USING (utid)
+    WHERE
+      state = 'R'
+  )
+SELECT ts, group_name AS machine_id, value AS runnable_thread_count
+FROM intervals_overlap_count_by_group!(runnable, ts, dur, machine_id)
 ORDER BY
+  machine_id,
   ts;
 
 -- The count of threads in uninterruptible sleep over time.
 CREATE PERFETTO TABLE sched_uninterruptible_sleep_thread_count(
   -- Timestamp when the thread count changed to the current value.
   ts TIMESTAMP,
+  -- Machine whose threads are counted.
+  machine_id JOINID(machine.id),
   -- Number of threads in uninterrutible sleep, covering the range from this timestamp to the
   -- next row's timestamp.
   uninterruptible_sleep_thread_count LONG
 )
 AS
 WITH
-  uninterruptible_sleep AS (SELECT ts, dur FROM thread_state WHERE state = 'D')
-SELECT ts, value AS uninterruptible_sleep_thread_count
-FROM intervals_overlap_count!(uninterruptible_sleep, ts, dur)
+  uninterruptible_sleep AS (
+    SELECT ts, dur, thread.machine_id
+    FROM thread_state
+    JOIN thread USING (utid)
+    WHERE
+      state = 'D'
+  )
+SELECT ts, group_name AS machine_id, value AS uninterruptible_sleep_thread_count
+FROM intervals_overlap_count_by_group!(uninterruptible_sleep, ts, dur, machine_id)
 ORDER BY
+  machine_id,
   ts;
 
 -- The count of active CPUs over time.
 CREATE PERFETTO TABLE sched_active_cpu_count(
   -- Timestamp when the number of active CPU changed.
   ts TIMESTAMP,
+  -- Machine whose active CPUs are counted.
+  machine_id JOINID(machine.id),
   -- Number of active CPUs, covering the range from this timestamp to the next
   -- row's timestamp.
   active_cpu_count LONG
@@ -63,12 +84,14 @@ WITH
   -- Filter sched events corresponding to running tasks.
   -- thread(s) with is_idle = 1 are the swapper threads / idle tasks.
   tasks AS (
-    SELECT ts, dur
+    SELECT sched.ts, sched.dur, cpu.machine_id
     FROM sched
+    JOIN cpu USING (ucpu)
     WHERE
       NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
   )
-SELECT ts, value AS active_cpu_count
-FROM intervals_overlap_count!(tasks, ts, dur)
+SELECT ts, group_name AS machine_id, value AS active_cpu_count
+FROM intervals_overlap_count_by_group!(tasks, ts, dur, machine_id)
 ORDER BY
+  machine_id,
   ts;

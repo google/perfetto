@@ -85,7 +85,11 @@ SELECT
   + static_1d AS static_mw,
   l3_lut.l3_hit,
   l3_lut.l3_miss,
-  iif(base.suspended, 0, interconnect_lut.curve_value) AS interconnect_mw
+  iif(
+    base.suspended,
+    0,
+    coalesce(dsu_1d_lut.power, interconnect_lut.curve_value)
+  ) AS interconnect_mw
 FROM _w_dependent_cpus_unique AS base
 -- LUT for 2D dependencies
 LEFT JOIN _filtered_curves_2d AS lut0
@@ -132,6 +136,8 @@ LEFT JOIN _filtered_curves_l3 AS l3_lut
   ON l3_lut.freq_khz = base.freq_0
   AND l3_lut.dep_policy = base.dep_policy_0
   AND l3_lut.dep_freq = base.dep_freq_0
+LEFT JOIN _filtered_curves_dsu_1d AS dsu_1d_lut
+  ON dsu_1d_lut.dsu_freq = base.dsu_freq
 LEFT JOIN _filtered_curves_interconnect AS interconnect_lut
   ON interconnect_lut.freq_khz = base.freq_0
   AND interconnect_lut.dep_policy = base.dep_policy_0

@@ -114,7 +114,7 @@ bool ParseBuildId(const perf_event_header& header,
 base::Status ParseEventTypeInfo(std::string value, SimpleperfMetaInfo& out) {
   for (const auto& line : base::SplitString(value, "\n")) {
     auto tokens = base::SplitString(line, ",");
-    if (tokens.size() != 3) {
+    if (tokens.size() < 3) {
       return base::ErrStatus("Invalid event_type_info: '%s'", line.c_str());
     }
 

@@ -22,33 +22,33 @@ import {Intent} from '../widgets/common';
 export interface FormAttrs extends HTMLAttrs {
   // Text to show on the "submit" button.
   // Defaults to "Submit".
-  submitLabel?: string;
+  readonly submitLabel?: string;
 
   // Icon to show on the "submit" button.
-  submitIcon?: string;
+  readonly submitIcon?: string;
 
   // Text to show on the "cancel" button.
   // No button is rendered if this value is omitted.
-  cancelLabel?: string;
+  readonly cancelLabel?: string;
 
   // Text to show on the "reset" button.
   // No button is rendered if this value is omitted.
-  resetLabel?: string;
+  readonly resetLabel?: string;
 
   // Action to take when the form is submitted either by the enter key or
   // the submit button.
-  onSubmit?: (e: Event) => void;
+  readonly onSubmit?: (e: Event) => void;
 
   // Action to take when the form is cancelled.
-  onCancel?: () => void;
+  readonly onCancel?: () => void;
 
   // Prevent default form action on submit. Defaults to true.
-  preventDefault?: boolean;
+  readonly preventDefault?: boolean;
 
   // Custom validation function. If provided, it will be called in addition to
   // the native HTML form validation. The submit button will be disabled if
   // this function returns false.
-  validation?: () => boolean;
+  readonly validation?: () => boolean;
 }
 
 // A simple wrapper around a <form> element providing some opinionated default
@@ -151,7 +151,7 @@ export class FormLabel implements m.ClassComponent<HTMLLabelAttrs> {
 
 export interface FormRowAttrs extends HTMLAttrs {
   // Number of columns in the grid layout (default: 2)
-  columns?: number;
+  readonly columns?: number;
 }
 
 // A container for placing multiple FormLabel elements side by side in a grid.

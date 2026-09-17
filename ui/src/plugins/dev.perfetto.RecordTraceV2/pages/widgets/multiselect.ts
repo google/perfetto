@@ -60,20 +60,22 @@ export class TypedMultiselect<T> implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
-    if (Array.isArray(state) && state.every((x) => typeof x === 'string')) {
-      this._selectedKeys.clear();
-      for (const item of state) {
-        // First, try direct key match
-        if (this.attrs.options.has(item)) {
-          this._selectedKeys.add(item);
-          continue;
-        }
-        // Otherwise, search for a key whose value matches
-        for (const [key, value] of this.attrs.options.entries()) {
-          if (value === item) {
-            this._selectedKeys.add(key);
-            break;
-          }
+    const items =
+      Array.isArray(state) && state.every((x) => typeof x === 'string')
+        ? state
+        : (this.attrs.defaultSelected ?? []);
+    this._selectedKeys.clear();
+    for (const item of items) {
+      // First, try direct key match
+      if (this.attrs.options.has(item)) {
+        this._selectedKeys.add(item);
+        continue;
+      }
+      // Otherwise, search for a key whose value matches
+      for (const [key, value] of this.attrs.options.entries()) {
+        if (value === item) {
+          this._selectedKeys.add(key);
+          break;
         }
       }
     }

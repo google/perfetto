@@ -36,6 +36,15 @@ export interface ToolDef {
  */
 export class ToolRegistry {
   private readonly tools = new Map<string, ToolDef>();
+  private readonly toolRegisteredListeners = new Set<(tool: ToolDef) => void>();
+
+  /** Listen for tools added to this registry. */
+  addToolRegisteredListener(listener: (tool: ToolDef) => void): Disposable {
+    this.toolRegisteredListeners.add(listener);
+    return {
+      [Symbol.dispose]: () => this.toolRegisteredListeners.delete(listener),
+    };
+  }
 
   /** Register a tool. Throws if the name is already registered. */
   registerTool<S extends ZodRawShape>(opts: ToolRegistration<S>): void {
@@ -43,13 +52,17 @@ export class ToolRegistry {
       throw new Error(`Tool "${opts.name}" already registered`);
     }
     const inputSchema = z.object(opts.shape);
-    this.tools.set(opts.name, {
+    const tool: ToolDef = {
       name: opts.name,
       description: opts.description,
       inputSchema: inputSchema as unknown as ZodObject<ZodRawShape>,
       mutating: opts.mutating ?? false,
       callback: opts.callback as (args: unknown) => Promise<string>,
-    });
+    };
+    this.tools.set(opts.name, tool);
+    for (const listener of this.toolRegisteredListeners) {
+      listener(tool);
+    }
   }
 
   /** Look up a tool by name, or undefined if not registered. */

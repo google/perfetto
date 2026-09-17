@@ -23,9 +23,11 @@ import type {AsyncMemoResult} from '../../base/async_memo';
 import type {SettingFilter} from '../settings/settings_types';
 import {
   type BigtraceQueryClient,
+  type ExperimentFilterSpec,
   QueryCancelledError,
 } from './bigtrace_query_client';
 import {encodeFilters} from './filter_encoding';
+import {FetchScheduler} from './fetch_scheduler';
 import m from 'mithril';
 
 // Pivot / tree models don't expose `columns`; only the flat model does. Read
@@ -38,6 +40,12 @@ type ModelWithColumns = DataSourceModel & {
 // on those alone — editing another setting leaves the trace set unchanged. The
 // full settings array is still sent on each fetch; this only narrows change
 // detection.
+function experimentFilterKey(filter: ExperimentFilterSpec | undefined): string {
+  return filter === undefined
+    ? ''
+    : `${filter.experimentId}/${filter.controlId}/${filter.isTreatment}`;
+}
+
 function traceSourceSettingsKey(
   settings: ReadonlyArray<SettingFilter>,
 ): string {
@@ -50,7 +58,8 @@ function traceSourceSettingsKey(
 // the current settings (which carry the trace source) on every fetch.
 export class BigtraceTraceListDataSource implements DataSource {
   private loadedRows: Row[] = [];
-  private isFetching = false;
+  // Owns debouncing and cancellation; see FetchScheduler.
+  private readonly scheduler: FetchScheduler;
   private columns: string[] = [];
   private error: string | null = null;
   private hasInitialFetchCompleted = false;
@@ -67,6 +76,7 @@ export class BigtraceTraceListDataSource implements DataSource {
   // Settings key at the last fetch. A change (e.g. editing the trace source)
   // invalidates the previous result.
   private lastSettingsKey = '';
+  private lastExperimentKey = '';
   // Visible-column projection at the last fetch — both a change trigger and
   // the `columns` field-mask shipped on the next request.
   private currentColumns: readonly string[] = [];
@@ -84,9 +94,15 @@ export class BigtraceTraceListDataSource implements DataSource {
   constructor(
     private readonly queryClient: BigtraceQueryClient,
     private readonly getSettings: () => ReadonlyArray<SettingFilter>,
-    private readonly signal?: AbortSignal,
+    signal?: AbortSignal,
     private readonly onOrderByChange?: (orderBy: string) => void,
-  ) {}
+    // Read on every render and every fetch, so the grid shows exactly the
+    // corpus a run would see.
+    private readonly getExperimentFilter?: () =>
+      ExperimentFilterSpec | undefined,
+  ) {
+    this.scheduler = new FetchScheduler(signal, () => m.redraw());
+  }
 
   useRows(model: DataSourceModel): DataSourceRows {
     const wantedOrderBy = this.formatOrderBy(model);
@@ -101,6 +117,11 @@ export class BigtraceTraceListDataSource implements DataSource {
     const wantedColumns =
       (model as ModelWithColumns).columns?.map((c) => c.field) ?? [];
     const wantedColumnsKey = JSON.stringify(wantedColumns);
+    // Keyed on the wire triple alone, so names arriving from the catalog
+    // never cost a refetch.
+    const wantedExperimentKey = experimentFilterKey(
+      this.getExperimentFilter?.(),
+    );
 
     const sortChanged = wantedOrderBy !== this.currentOrderBy;
     const filterChanged = wantedFilterKey !== this.currentFilterKey;
@@ -114,15 +135,22 @@ export class BigtraceTraceListDataSource implements DataSource {
     const columnsChanged =
       this.hasInitialFetchCompleted &&
       wantedColumnsKey !== this.currentColumnsKey;
+    const experimentChanged =
+      this.hasInitialFetchCompleted &&
+      wantedExperimentKey !== this.lastExperimentKey;
     const needsInitial = !this.hasInitialFetchCompleted && wantedLimit > 0;
+    // No `isFetching` check: a tick arriving mid-fetch is the newest thing the
+    // user has asked for, so it replaces the pending window rather than being
+    // dropped. The scheduler coalesces the burst, refuses an identical repeat,
+    // and supersedes whatever is still in flight.
     if (
-      (sortChanged ||
-        filterChanged ||
-        rangeChanged ||
-        settingsChanged ||
-        columnsChanged ||
-        needsInitial) &&
-      !this.isFetching
+      sortChanged ||
+      filterChanged ||
+      rangeChanged ||
+      settingsChanged ||
+      columnsChanged ||
+      experimentChanged ||
+      needsInitial
     ) {
       this.currentOrderBy = wantedOrderBy;
       // Persist on a real sort change (not the initial fetch, where
@@ -139,14 +167,36 @@ export class BigtraceTraceListDataSource implements DataSource {
       this.currentColumns = wantedColumns;
       this.currentColumnsKey = wantedColumnsKey;
       const fetchLimit = wantedLimit > 0 ? wantedLimit : 100;
-      this.fetchWindow(wantedOffset, fetchLimit, wantedSettings);
+      // The first window is what the user is waiting on with nothing on
+      // screen, so it goes now; later ones can afford to settle.
+      this.scheduler.schedule(
+        [
+          wantedOffset,
+          fetchLimit,
+          wantedOrderBy,
+          wantedFilterKey,
+          wantedColumnsKey,
+          wantedSettingsKey,
+          wantedExperimentKey,
+        ].join('|'),
+        needsInitial,
+        (controller) =>
+          this.fetchWindow(
+            wantedOffset,
+            fetchLimit,
+            wantedSettings,
+            controller,
+          ),
+      );
     }
 
     return {
       rows: this.loadedRows,
       totalRows: this._filteredTotalRows,
       rowOffset: this.loadedOffset,
-      isPending: this.isFetching,
+      // Pending covers the debounce window too, so the grid doesn't flicker
+      // back to "settled" between the last scroll tick and the request.
+      isPending: this.scheduler.isPending,
     };
   }
 
@@ -162,33 +212,39 @@ export class BigtraceTraceListDataSource implements DataSource {
   // Settings page when a setting edit doesn't change the grid model, so
   // useRows change-detection wouldn't catch it.
   async refresh(): Promise<void> {
-    if (this.isFetching) return;
     const offset = this.loadedOffset;
     const limit = this.loadedLimit > 0 ? this.loadedLimit : 100;
-    await this.fetchWindow(offset, limit, this.getSettings());
+    const settings = this.getSettings();
+    await this.scheduler.runNow((controller) =>
+      this.fetchWindow(offset, limit, settings, controller),
+    );
   }
 
   private async fetchWindow(
     offset: number,
     limit: number,
     settings: ReadonlyArray<SettingFilter>,
+    controller: AbortController,
   ): Promise<void> {
-    if (this.signal?.aborted) return;
     this.error = null;
-    this.isFetching = true;
     this.lastSettingsKey = traceSourceSettingsKey(settings);
-    m.redraw();
+    const experimentFilter = this.getExperimentFilter?.();
+    this.lastExperimentKey = experimentFilterKey(experimentFilter);
     try {
       const result = await this.queryClient.listTraceMetadata(
         settings,
         limit,
         offset,
-        this.signal,
+        controller.signal,
         this.currentOrderBy,
         this.currentFilter,
         // Empty projection → omit (backend returns its schema defaults).
         this.currentColumns.length > 0 ? this.currentColumns : undefined,
+        experimentFilter,
       );
+      // A reply that raced its own abort belongs to a window the user has
+      // left; adopting it would put back the page they scrolled away from.
+      if (!this.scheduler.isCurrent(controller)) return;
       this.loadedRows = [...result.rows];
       this.loadedOffset = offset;
       this.loadedLimit = limit;
@@ -210,8 +266,6 @@ export class BigtraceTraceListDataSource implements DataSource {
       // would re-trigger that 400 every render and gate out the
       // settings-changed branch when the user finally sets the source.
       this.hasInitialFetchCompleted = true;
-      this.isFetching = false;
-      m.redraw();
     }
   }
 

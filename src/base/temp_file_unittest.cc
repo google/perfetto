@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/file_utils.h"
 
 #include <sys/stat.h>
 
@@ -69,6 +70,20 @@ TEST(TempFileTest, Create) {
   // Windows UCRT aborts when trying to write into a closed FD.
   ASSERT_EQ(-1, write(fd, "foo", 4));
 #endif
+}
+
+TEST(TempFileTest, ReopenForWriting) {
+  TempFile file = TempFile::Create();
+  ASSERT_EQ(WriteAll(file.fd(), "old", 3), 3);
+
+  ScopedFile reopened = OpenFile(file.path(), O_RDWR | O_TRUNC);
+  ASSERT_TRUE(reopened);
+  ASSERT_EQ(WriteAll(*reopened, "new", 3), 3);
+  reopened.reset();
+
+  std::string contents;
+  ASSERT_TRUE(ReadFile(file.path(), &contents));
+  EXPECT_EQ(contents, "new");
 }
 
 TEST(TempFileTest, CreateUnlinked) {

@@ -39,7 +39,6 @@ import {JavaSection} from './summary/java_section';
 import {MemoryMap} from './summary/memory_map';
 import {NativeSection} from './summary/native_section';
 import {TraceOverview} from './summary/trace_overview';
-import './landing_page.scss';
 
 // Sample count and observed time span of one capture source (smaps / heapprofd)
 // for a process. spanS is undefined when there are fewer than two samples.
@@ -109,9 +108,13 @@ async function loadGrowthData(
   return Array.from(byTs.values());
 }
 
+export type MemoryOverviewTab = 'summary' | 'smaps';
+
 export interface ProcessMemDetailsAttrs {
   readonly trace: Trace;
   readonly upid: number;
+  readonly tab: MemoryOverviewTab;
+  readonly onTabChange: (tab: MemoryOverviewTab) => void;
 }
 
 export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttrs> {
@@ -121,7 +124,6 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   // Whole-trace per-snapshot smaps breakdown for the growth bar (keyed by
   // upid; independent of the page's snapshot selection).
   private readonly growthSlot = new AsyncMemo<GrowthSnapshot[]>();
-  private activeTab: 'summary' | 'smaps' = 'summary';
   // The page-wide snapshot selection, driven by the composition timeline and
   // shared with the other summary sections as they're added.
   private selection?: MemSelection;
@@ -132,7 +134,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   }
 
   view({attrs}: m.Vnode<ProcessMemDetailsAttrs>) {
-    const {trace, upid} = attrs;
+    const {trace, upid, tab, onTabChange} = attrs;
     let capture: CaptureInfo | undefined;
     let error: string | undefined;
     try {
@@ -145,7 +147,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     }
 
     const smapsMissing = capture !== undefined && capture.smaps.samples === 0;
-    const activeTab = smapsMissing ? 'summary' : this.activeTab;
+    const activeTab = smapsMissing ? 'summary' : tab;
 
     // Both tab bodies stay mounted and are toggled with a Gate (display:none
     // when hidden) rather than conditionally rendered, so switching tabs doesn't
@@ -153,7 +155,8 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     return [
       error !== undefined && m('p.pf-error', `Error: ${error}`),
       error === undefined && this.renderCaptureStrip(trace, capture),
-      error === undefined && this.renderTabs(activeTab, smapsMissing),
+      error === undefined &&
+        this.renderTabs(activeTab, smapsMissing, onTabChange),
       error === undefined &&
         m(
           Gate,
@@ -252,11 +255,12 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   }
 
   private renderTabs(
-    activeTab: 'summary' | 'smaps',
+    activeTab: MemoryOverviewTab,
     smapsMissing: boolean,
+    onTabChange: (tab: MemoryOverviewTab) => void,
   ): m.Children {
     const tabs: {
-      key: 'summary' | 'smaps';
+      key: MemoryOverviewTab;
       label: string;
       icon: string;
       disabled?: boolean;
@@ -283,7 +287,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
             title: t.disabled
               ? 'No smaps data available for this process'
               : undefined,
-            onclick: () => (this.activeTab = t.key),
+            onclick: () => onTabChange(t.key),
           },
           [m(Icon, {icon: t.icon}), t.label],
         ),

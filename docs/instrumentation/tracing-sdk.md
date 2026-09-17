@@ -228,8 +228,7 @@ class CustomDataSource : public perfetto::DataSource<CustomDataSource> {
 
   void OnStart(const StartArgs&) override {
     // This notification can be used to initialize the GPU driver, enable
-    // counters, etc. StartArgs will contains the DataSourceDescriptor,
-    // which can be extended.
+    // counters, etc.
   }
 
   void OnStop(const StopArgs&) override {
@@ -291,7 +290,7 @@ data source isn't destroyed (e.g., because of stopping tracing) while the
 
 ```C++
 CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
-  auto safe_handle = trace_args.GetDataSourceLocked();  // Holds a RAII lock.
+  auto safe_handle = ctx.GetDataSourceLocked();  // Holds a RAII lock.
   DoSomethingWith(safe_handle->my_custom_state);
 });
 ```
@@ -365,7 +364,8 @@ distributed system) will later be
 [merged into one trace](/docs/analysis/merging-traces.md), set a unique
 `TracingInitArgs.machine_id` per machine when initializing the SDK: every
 packet is then tagged with its origin and the merged trace keeps each
-machine's data separate, with no further configuration.
+machine's data separate. For a non-zero `machine_id` the `TraceConfig` must
+set `trace_all_machines: true`, otherwise the data sources record no data.
 
 ### System mode
 

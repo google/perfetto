@@ -29,6 +29,7 @@
 #endif
 
 #include <cinttypes>
+#include <string_view>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -90,7 +91,7 @@ size_t Find(const StringView& needle, const StringView& haystack) {
   return std::string::npos;
 }
 
-bool CaseInsensitiveEqual(const std::string& first, const std::string& second) {
+bool CaseInsensitiveEqual(std::string_view first, std::string_view second) {
   return first.size() == second.size() &&
          std::equal(
              first.begin(), first.end(), second.begin(),

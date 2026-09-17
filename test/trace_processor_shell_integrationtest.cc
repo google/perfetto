@@ -1010,11 +1010,8 @@ TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
 // This test requires llvm-symbolize on the PATH
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
-  auto out_dir = base::TempDir::Create();
-  std::string out_path = out_dir.path() + "/bundle.tar";
-  // Clean up on every exit path (an early ASSERT included): TempDir's
-  // destructor aborts the binary if the dir isn't empty.
-  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+  base::TempFile out_file = base::TempFile::Create();
+  const std::string& out_path = out_file.path();
 
   auto symbolize = [&](const std::string& in_file,
                        const std::string& symbol_path) {
@@ -1332,9 +1329,8 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
   auto mapping = WriteTempFile(
       "com.example.Foo -> a.a:\n"
       "    void bar() -> b\n");
-  auto out_dir = base::TempDir::Create();
-  std::string out_path = out_dir.path() + "/bundle.tar";
-  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+  base::TempFile out_file = base::TempFile::Create();
+  const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
                           "com.example=" + mapping.path(), HeapprofdTracePath(),
@@ -1369,9 +1365,8 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
 TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
   auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
   auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
-  auto out_dir = base::TempDir::Create();
-  std::string out_path = out_dir.path() + "/bundle.tar";
-  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+  base::TempFile out_file = base::TempFile::Create();
+  const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
                           "com.example.one=" + m1.path(), "--proguard-map",
@@ -1387,9 +1382,8 @@ TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
-  auto out_dir = base::TempDir::Create();
-  std::string out_path = out_dir.path() + "/bundle.tar";
-  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+  base::TempFile out_file = base::TempFile::Create();
+  const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
                           "com.example=/nonexistent/mapping.txt",
@@ -1409,9 +1403,8 @@ TEST(TraceProcessorShellIntegrationTest, BundleHelpShowsProguardMap) {
 // the packet for the explicit package still appears in the bundle.
 TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
-  auto out_dir = base::TempDir::Create();
-  std::string out_path = out_dir.path() + "/bundle.tar";
-  auto remove_bundle = base::OnScopeExit([&] { unlink(out_path.c_str()); });
+  base::TempFile out_file = base::TempFile::Create();
+  const std::string& out_path = out_file.path();
 
   auto result =
       RunShell({"bundle", "--no-auto-symbol-paths", "--no-auto-proguard-maps",
@@ -1518,6 +1511,53 @@ TEST(TraceProcessorShellIntegrationTest, StdioExport) {
   ASSERT_GT(tar_bytes.size(), 512u);
   ASSERT_EQ(std::string(tar_bytes.data(), 22), "perfetto_manifest.json");
   ASSERT_EQ(std::string(tar_bytes.data() + 257, 5), "ustar");
+}
+
+TEST(TraceProcessorShellIntegrationTest, StdioExportSqlite) {
+  TraceProcessorRpcStream req;
+
+  auto* rpc = req.add_msg();
+  rpc->set_append_trace_data(kSimpleSystrace.data(), kSimpleSystrace.size());
+  rpc->set_request(TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_EXPORT);
+  rpc->mutable_export_args()->set_format(protos::gen::ExportArgs::SQLITE);
+
+  base::Subprocess process(
+      {base::GetCurExecutableDir() + "/trace_processor_shell", "--stdiod"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+
+  ASSERT_GE(stream.msg_size(), 4);
+  ASSERT_EQ(stream.msg()[0].response(),
+            TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+  ASSERT_EQ(stream.msg()[1].response(),
+            TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  std::string sqlite_bytes;
+  for (size_t i = 2; i < static_cast<size_t>(stream.msg_size()); ++i) {
+    const auto& msg = stream.msg()[i];
+    ASSERT_EQ(msg.response(), TraceProcessorRpc::TPM_EXPORT);
+    ASSERT_THAT(msg.export_result().error(), IsEmpty());
+    ASSERT_EQ(msg.export_result().has_more(),
+              i != static_cast<size_t>(stream.msg_size()) - 1);
+    sqlite_bytes += msg.export_result().data();
+  }
+
+  ASSERT_GE(sqlite_bytes.size(), 16u);
+  EXPECT_EQ(sqlite_bytes.substr(0, 16), std::string("SQLite format 3\0", 16));
 }
 
 }  // namespace

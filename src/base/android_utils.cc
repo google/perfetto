@@ -15,6 +15,8 @@
  */
 
 #include "perfetto/ext/base/android_utils.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
 
 #include "perfetto/base/build_config.h"
 
@@ -119,7 +121,24 @@ SystemInfo GetSystemInfo() {
     info.system_ram_bytes = static_cast<uint64_t>(pages) * (*info.page_size);
   }
 #endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX)
+  // Extract the device compatible strings from the device tree (if available)
+  const std::string path = "/sys/firmware/devicetree/base/compatible";
+  std::string device_compatible_data;
+  if (ReadFile(path, &device_compatible_data)) {
+    for (base::StringSplitter ss(std::move(device_compatible_data), '\0');
+         ss.Next();) {
+      info.device_tree_compatibles.emplace_back(ss.cur_token(),
+                                                ss.cur_token_size());
+      PERFETTO_DLOG("Found linux device compatible: %s", ss.cur_token());
+    }
+  } else {
+    PERFETTO_DLOG("No linux device compatible found in path: %s", path.c_str());
+  }
+#endif
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   info.android_build_fingerprint = GetAndroidProp("ro.build.fingerprint");
   if (info.android_build_fingerprint.empty()) {

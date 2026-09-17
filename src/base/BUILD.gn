@@ -35,6 +35,7 @@ perfetto_component("base") {
   ]
   sources = [
     "android_utils.cc",
+    "atomic_file.cc",
     "base64.cc",
     "cpu_info.cc",
     "crash_keys.cc",
@@ -51,6 +52,7 @@ perfetto_component("base") {
     "paged_memory.cc",
     "periodic_task.cc",
     "pipe.cc",
+    "progress_reporter.cc",
     "rt_mutex.cc",
     "scoped_mmap.cc",
     "scoped_sched_boost.cc",
@@ -227,6 +229,7 @@ perfetto_unittest_source_set("unittests") {
   }
 
   sources = [
+    "atomic_file_unittest.cc",
     "base64_unittest.cc",
     "bits_unittest.cc",
     "circular_queue_unittest.cc",
@@ -244,6 +247,7 @@ perfetto_unittest_source_set("unittests") {
     "no_destructor_unittest.cc",
     "paged_memory_unittest.cc",
     "periodic_task_unittest.cc",
+    "progress_reporter_unittest.cc",
     "regex/regex_unittest.cc",
     "rt_mutex_unittest.cc",
     "scoped_file_unittest.cc",
@@ -260,6 +264,7 @@ perfetto_unittest_source_set("unittests") {
     "temp_file_unittest.cc",
     "thread_checker_unittest.cc",
     "time_unittest.cc",
+    "type_set_unittest.cc",
     "utils_unittest.cc",
     "uuid_unittest.cc",
     "weak_ptr_unittest.cc",

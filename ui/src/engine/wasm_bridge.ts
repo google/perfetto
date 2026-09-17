@@ -19,16 +19,16 @@ import {
   memory64Supported,
 } from '../trace_processor/wasm_modules';
 
-// The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
-// will be used to copy the input request data. This is to avoid passing the
-// input data on the stack, which has a limited (~1MB) size.
-// The buffer will be allocated by the C++ side and reachable at
-// HEAPU8[reqBufferAddr, +REQ_BUFFER_SIZE].
-const REQ_BUF_SIZE = 32 * 1024 * 1024;
+// Also the size of the standing reservation held for us in the C++ tokenizer.
+// Must be <= ProtoRingBuffer::kMaxMsgSize (64MB), and is kept just above
+// TRACE_SLICE_SIZE (32MB, trace_stream.ts) so a whole TPM_APPEND_TRACE_DATA
+// lands in one write; if that stops holding, writes are simply split.
+const MAX_WRITE_SIZE = 33 * 1024 * 1024;
 
 // The end-to-end interaction between JS and Wasm is as follows:
 // - [JS] Inbound data received by the worker (onmessage() in engine/index.ts).
-//   - [JS] onRpcDataReceived() (this file)
+//   - [JS] onRpcDataReceived() (this file) writes the bytes straight into the
+//     address that the previous call handed back, then
 //     - [C++] trace_processor_on_rpc_request (wasm_bridge.cc)
 //       - [C++] some TraceProcessor::method()
 //         for (batch in result_rows)
@@ -38,7 +38,10 @@ const REQ_BUF_SIZE = 32 * 1024 * 1024;
 export class WasmBridge {
   private aborted = false;
   private connection?: TraceProcessor64.Module;
-  private reqBufferAddr = 0;
+  // cwrap() resolves the export once; ccall() would redo it on every call.
+  private onRpcRequest?: (size: number) => number;
+  // Where the next request goes; each call hands back the one after it.
+  private wrAddr = 0;
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
   private useMemory64 = false;
@@ -68,13 +71,16 @@ export class WasmBridge {
       },
     });
     const fn = connection.addFunction(this.onReply.bind(this), 'vpi');
-    this.reqBufferAddr = this.wasmPtrCast(
-      connection.ccall(
-        'trace_processor_rpc_init',
-        /* return=*/ 'pointer',
-        /* args=*/ ['pointer', 'number'],
-        [fn, REQ_BUF_SIZE],
-      ),
+    const init = connection.cwrap(
+      'trace_processor_rpc_init',
+      /* return=*/ 'pointer',
+      /* args=*/ ['pointer', 'number'],
+    );
+    this.wrAddr = this.wasmPtrCast(init(fn, MAX_WRITE_SIZE));
+    this.onRpcRequest = connection.cwrap(
+      'trace_processor_on_rpc_request',
+      /* return=*/ 'pointer',
+      /* args=*/ ['number'],
     );
     this.connection = connection;
 
@@ -91,20 +97,17 @@ export class WasmBridge {
     assertTrue(msg.data instanceof Uint8Array);
     const data = msg.data as Uint8Array;
     let wrSize = 0;
-    // If the request data is larger than our JS<>Wasm interop buffer, split it
-    // into multiple writes. The RPC channel is byte-oriented and is designed to
-    // deal with arbitrary fragmentations.
+    // If the request data is larger than MAX_WRITE_SIZE, split it into multiple
+    // writes. The RPC channel is byte-oriented and is designed to deal with
+    // arbitrary fragmentations.
     while (wrSize < data.length) {
-      const sliceLen = Math.min(data.length - wrSize, REQ_BUF_SIZE);
+      const sliceLen = Math.min(data.length - wrSize, MAX_WRITE_SIZE);
       const dataSlice = data.subarray(wrSize, wrSize + sliceLen);
-      connection.HEAPU8.set(dataSlice, this.reqBufferAddr);
+      connection.HEAPU8.set(dataSlice, this.wrAddr);
       wrSize += sliceLen;
       try {
-        connection.ccall(
-          'trace_processor_on_rpc_request', // C function name.
-          'void', // Return type.
-          ['number'], // Arg types.
-          [sliceLen], // Args.
+        this.wrAddr = this.wasmPtrCast(
+          ensureExists(this.onRpcRequest)(sliceLen),
         );
       } catch (err) {
         this.aborted = true;
@@ -119,7 +122,7 @@ export class WasmBridge {
   }
 
   // This function is bound and passed to Initialize and is called by the C++
-  // code while in the ccall(trace_processor_on_rpc_request).
+  // code while in the call to trace_processor_on_rpc_request.
   private onReply(heapPtrArg: bigint | number, size: number) {
     const heapPtr = this.wasmPtrCast(heapPtrArg);
     const data = ensureExists(this.connection).HEAPU8.slice(

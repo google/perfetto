@@ -16,18 +16,6 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("intrinsic_macro_expansion") {
-  sources = [
-    "intrinsic_macro_expansion.cc",
-    "intrinsic_macro_expansion.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-    "../syntaqlite",
-  ]
-}
-
 source_set("parser") {
   sources = [
     "function_util.cc",
@@ -36,14 +24,14 @@ source_set("parser") {
     "perfetto_sql_parser.h",
   ]
   deps = [
-    ":intrinsic_macro_expansion",
     "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
     "../../../base",
+    "../../../perfetto_sql:intrinsic_macro_expansion",
+    "../../../perfetto_sql/syntaqlite",
     "../../sqlite",
     "../../util:sql_argument",
-    "../syntaqlite",
   ]
   cflags = [
     "-Wno-old-style-cast",
@@ -61,9 +49,9 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
+    "../../../perfetto_sql/syntaqlite",
     "../../sqlite",
     "../../util:sql_argument",
-    "../syntaqlite",
   ]
 }
 

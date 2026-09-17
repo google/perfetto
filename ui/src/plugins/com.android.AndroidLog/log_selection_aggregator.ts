@@ -44,6 +44,9 @@ export class AndroidLogSelectionAggregator implements Aggregator {
     const utids = logTracks
       .map((t) => t.tags?.utid as number | undefined)
       .filter((u): u is number => u !== undefined);
+    const machineIds = logTracks
+      .map((t) => t.tags?.machineId as number | undefined)
+      .filter((id): id is number => id !== undefined);
 
     return {
       getGridConfig: () => this.getGridConfig(),
@@ -51,6 +54,8 @@ export class AndroidLogSelectionAggregator implements Aggregator {
         let whereClause = `al.ts >= ${area.start} AND al.ts <= ${area.end}`;
         if (utids.length > 0) {
           whereClause += ` AND al.utid IN (${utids.join(', ')})`;
+        } else if (machineIds.length > 0) {
+          whereClause += ` AND t.machine_id IN (${machineIds.join(', ')})`;
         }
 
         const table = await createPerfettoTable({

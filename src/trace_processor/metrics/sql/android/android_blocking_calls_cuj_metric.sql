@@ -44,7 +44,8 @@ SELECT
     cuj_name,
     process_name,
     upid,
-    utid
+    utid,
+    cuj_type
 FROM android_cuj_blocking_calls;
 
 
@@ -59,10 +60,11 @@ SELECT
     upid,
     cuj_id,
     cuj_name,
+    cuj_type,
     process_name
 FROM
     blocking_call_slices_scoped_to_cujs
-GROUP BY name, upid, cuj_id, cuj_name, process_name
+GROUP BY name, upid, cuj_id, cuj_name, cuj_type, process_name
 ORDER BY cuj_id;
 
 
@@ -90,7 +92,7 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
                     ) ORDER BY b.total_dur_ns DESC, b.name
                 )
                 FROM android_blocking_calls_cuj_calls b
-                WHERE b.cuj_id = cuj.cuj_id and b.upid = cuj.upid
+                WHERE b.cuj_id = cuj.cuj_id AND b.cuj_type = cuj.cuj_type AND b.upid = cuj.upid
             )
         ) ORDER BY cuj.cuj_id ASC
     )

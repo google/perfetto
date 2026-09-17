@@ -35,7 +35,7 @@ export class Textarea implements ProbeSetting {
   }
 
   setText(text: string | undefined) {
-    this._text = text ?? '';
+    this._text = text ?? this.attrs.default ?? '';
     return this._text;
   }
 
@@ -48,9 +48,7 @@ export class Textarea implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
-    if (typeof state === 'string') {
-      this._text = state;
-    }
+    this.setText(typeof state === 'string' ? state : undefined);
   }
 
   render() {
