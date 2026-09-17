@@ -206,7 +206,7 @@ CREATE PERFETTO INDEX _unique_estimates_mw_idx ON _unique_estimates_mw(
   config_hash
 );
 
-CREATE PERFETTO TABLE _cpu_estimates_mw AS
+CREATE PERFETTO VIEW _cpu_estimates_mw AS
 SELECT
   slices.ts,
   slices.dur,
