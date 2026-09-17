@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.estimates;
+
 INCLUDE PERFETTO MODULE wattson.gpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.gpu_tasks;
@@ -91,10 +93,7 @@ UNION ALL
 SELECT ts, dur, 7 AS cpu, cpu7_mw AS estimated_mw
 FROM _system_state_cpu7_mw
 WHERE
-  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu)
-UNION ALL
-SELECT ts, dur, -1 AS cpu, dsu_scu_mw AS estimated_mw
-FROM _system_state_dsu_scu_mw;
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu);
 
 CREATE PERFETTO TABLE _estimates_w_tasks_attribution AS
 SELECT
@@ -149,4 +148,7 @@ LEFT JOIN _unique_packages AS pkg
 
 -- List of all physical CPUs that have Wattson estimates
 CREATE PERFETTO TABLE _wattson_cpus AS
-SELECT DISTINCT cpu FROM _unioned_wattson_estimates_mw WHERE cpu >= 0;
+SELECT DISTINCT cpu
+FROM _dev_cpu_policy_map
+WHERE
+  EXISTS (SELECT 1 FROM _system_state_mw);
