@@ -5805,6 +5805,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
         "src/trace_processor/tables/v8_tables.py",
+        "src/trace_processor/tables/wattson_tables.py",
         "src/trace_processor/tables/winscope_tables.py",
     ],
     outs = [
@@ -5841,6 +5842,8 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/track_tables_py.h",
         "src/trace_processor/tables/v8_tables_fwd.h",
         "src/trace_processor/tables/v8_tables_py.h",
+        "src/trace_processor/tables/wattson_tables_fwd.h",
+        "src/trace_processor/tables/wattson_tables_py.h",
         "src/trace_processor/tables/winscope_tables_fwd.h",
         "src/trace_processor/tables/winscope_tables_py.h",
     ],
