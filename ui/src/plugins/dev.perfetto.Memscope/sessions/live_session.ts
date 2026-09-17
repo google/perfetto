@@ -34,8 +34,6 @@ export interface ProfileView {
   readonly bufferUsagePct?: number;
   /** Wall-clock timestamp (ms) at which profiling started. */
   readonly startMs: number;
-  /** Chart x coordinate (s relative to the session ts0) at profile start. */
-  readonly startX: number;
 }
 
 const SNAPSHOT_INTERVAL_MS = 3_000; // How over to take a snapshot of the runnign trace and extract data.
@@ -142,7 +140,6 @@ export class LiveSession {
       state: p.session.state,
       bufferUsagePct: p.session.bufferUsagePct,
       startMs: p.startMs,
-      startX: p.session.startX,
     };
   }
 
@@ -186,7 +183,6 @@ export class LiveSession {
       this.linuxTarget ?? this.device!,
       pid,
       processName,
-      this.data?.xMax ?? 0,
     );
     this.profileImpl = {session, startMs: Date.now()};
   }

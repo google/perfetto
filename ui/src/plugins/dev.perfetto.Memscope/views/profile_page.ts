@@ -40,8 +40,6 @@ export interface ProfilePageAttrs {
   readonly processName: string;
   readonly pid: number;
   readonly startMs: number;
-  /** Chart x (s relative to session ts0) at which profiling started. */
-  readonly startX: number;
   readonly chartData?: LineChartData;
   readonly baseline?: {anonSwap: number; file: number; dmabuf: number};
   readonly onStop: () => void;
@@ -235,13 +233,6 @@ function renderBreakdownChart(attrs: ProfilePageAttrs): m.Children {
           gridLines: 'both',
           xAxisMin: xWindow.min,
           xAxisMax: xWindow.max,
-          markers: [
-            {
-              x: attrs.startX,
-              color: 'var(--pf-color-danger)',
-              label: 'Profile start',
-            },
-          ],
           formatXValue: formatRelativeXValue(xMax ?? 0),
           formatYValue: (v: number) => formatBytesIec(v * 1024),
           yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),

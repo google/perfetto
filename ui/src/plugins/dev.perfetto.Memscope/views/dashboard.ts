@@ -350,7 +350,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       processName: profile.processName,
       pid: profile.pid,
       startMs: profile.startMs,
-      startX: profile.startX,
       chartData,
       baseline: this.profileBaseline,
       onStop: () => {
