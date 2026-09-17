@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "What about bitmaps?" — reachable android.graphics.Bitmap instances grouped
-// by dimensions and storage backing, from the latest heap dump of one process.
+// "Bitmaps" — reachable android.graphics.Bitmap instances grouped by dimensions
+// and storage backing, from the latest heap dump of one process.
 // Self-contained: owns its query slot and loading logic.
 
 import m from 'mithril';
@@ -53,9 +53,9 @@ import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
-const TITLE = 'What about bitmaps?';
+const TITLE = 'Bitmaps';
 const SUBTITLE =
-  'Usually the largest and most reducible cost on Android — pulled out on ' +
+  'Usually the largest and most reducible cost on Android - pulled out on ' +
   'their own.';
 
 // One reachable-bitmap group at the latest dump: (dimensions, storage backing)

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "How much Java memory did you use, and where did it go?" — from the full
-// heap graph: reachability, totals and the three top-classes tables, for the
-// latest heap dump of one process. Self-contained: owns its query slot and
-// loading logic.
+// "Java Memory" — from the full heap graph: reachability, totals and the three
+// top-classes tables, for the latest heap dump of one process. Self-contained:
+// owns its query slot and loading logic.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
@@ -48,7 +47,7 @@ import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
-const TITLE = 'How much Java memory did you use, and where did it go?';
+const TITLE = 'Java Memory';
 const SUBTITLE =
   'From the full heap graph — complete and exact, with retention but no ' +
   'callstacks.';

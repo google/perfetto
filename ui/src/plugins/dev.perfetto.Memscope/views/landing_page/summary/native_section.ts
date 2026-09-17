@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "How much native memory did you use, and where did it go?" — heapprofd
-// coverage vs the smaps native total, plus the top unreleased call-stacks over
-// the whole trace, for one process. Self-contained: owns its query slot and
-// loading logic.
+// "Native Memory" — heapprofd coverage vs the smaps native total, plus the top
+// unreleased call-stacks over the whole trace, for one process. Self-contained:
+// owns its query slot and loading logic.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
@@ -39,7 +38,7 @@ import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
-const TITLE = 'How much native memory did you use, and where did it go?';
+const TITLE = 'Native Memory';
 const SUBTITLE =
   "Aggregated by allocation callstack — the clearest signal when it's " +
   'available.';
