@@ -32,9 +32,10 @@ class TracePacket;
 }  // namespace perfetto
 
 namespace protozero {
-// TracePackets are always root messages: MessageHandle<TracePacket> finalizes
-// them via RootMessage::Finalize(). Any header that names
-// MessageHandle<TracePacket> must include this header. See IsRootMessage.
+// Trace writers allocate packets as RootMessage<TracePacket>, so their handles
+// need this specialization to select root-specific functions.
+// Include this header wherever a TracePacket handle is used to make the
+// specialization visible.
 template <>
 struct IsRootMessage<perfetto::protos::pbzero::TracePacket> : std::true_type {};
 }  // namespace protozero
@@ -73,9 +74,6 @@ class PERFETTO_EXPORT_COMPONENT TraceWriterBase {
   // details on buffer size choices: https://perfetto.dev/docs/concepts/buffers.
   virtual protozero::MessageHandle<protos::pbzero::TracePacket>
   NewTracePacket() = 0;
-  static_assert(
-      protozero::MessageHandle<protos::pbzero::TracePacket>::kIsRootMessage,
-      "TracePacket handles must be root handles");
 
   // Tells the TraceWriterBase that the previous packet started with
   // NewTracePacket() is finished.

@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
@@ -35,43 +36,36 @@ class PERFETTO_EXPORT_COMPONENT MessageFinalizationListener {
   virtual void OnMessageFinalized(Message* message) = 0;
 };
 
-// Tells whether the message type T is always used as a root message, i.e.
-// whether every MessageHandle<T> points to a RootMessage<T>. If so,
-// MessageHandle<T> finalizes the message via RootMessage::Finalize() rather
-// than Message::Finalize().
+// When true, MessageHandle<T> uses root-specific functions (currently
+// Finalize()), which requires every non-empty handle to refer to a
+// RootMessage<T> object.
 //
-// protozero doesn't know about specific message types: the layer that owns the
-// root-ness of a type specializes this (e.g., perfetto/tracing/
-// trace_writer_base.h does that for TracePacket).
-//
-// The specialization must be visible wherever MessageHandle<T> is named.
-// Because root-ness is part of the MessageHandle type (see below), a mismatch
-// is diagnosed:
-// - Naming MessageHandle<T> before the specialization, in the same translation
-//   unit, is a compile error ("explicit specialization after instantiation").
-// - Different translation units that disagree on the root-ness of T end up
-//   with different types, hence link errors on the functions that take or
-//   return MessageHandle<T>.
-// Inline code in headers that don't include the specialization is NOT
-// diagnosed: such headers must include it.
+// The specialization must be visible wherever MessageHandle<T> is used, so
+// include perfetto/tracing/trace_writer_base.h for TracePacket handles.
 template <typename T>
 struct IsRootMessage : std::false_type {};
 
-// MessageHandle allows to decouple the lifetime of a proto message from the
-// underlying storage: the message is finalized via Message::Finalize() (or
-// RootMessage::Finalize(), see IsRootMessage) when the handle goes out of scope
-// or is assigned a different message. Finalizing the message directly doesn't
-// invalidate the handle: Finalize() is idempotent.
-//
-// |kIsRoot| is not meant to be passed explicitly. It's a template argument
-// (rather than a lookup of IsRootMessage<T> in the destructor) so that the
-// root-ness is part of the type, see IsRootMessage.
-template <typename T, bool kIsRoot = IsRootMessage<T>::value>
+// MessageHandle manages finalization without owning the underlying message:
+// - The message is finalized when the handle goes out of scope or is assigned
+//   a different message.
+// - Calling Message::Finalize() directly leaves the handle intact. The handle
+//   still refers to the message and finalizes it again when it goes out of
+//   scope. Message::Finalize() is idempotent.
+// - Clear or destroy the handle before the message is reset or its storage is
+//   released so that finalization cannot affect a new message at the same
+//   address or access freed memory, as the handle uses its stored pointer to
+//   finalize the message when it goes out of scope.
+template <typename T>
 class MessageHandle {
  public:
-  static constexpr bool kIsRootMessage = kIsRoot;
+  static constexpr bool kIsRootMessage = IsRootMessage<T>::value;
 
   MessageHandle() : MessageHandle(nullptr) {}
+
+  // Creates a handle from |message|:
+  // - nullptr creates an empty handle.
+  // - If IsRootMessage<T> is true, the object must be a RootMessage<T>.
+  // - Otherwise, the object can be any T and is finalized through Message.
   explicit MessageHandle(T* message) : message_(message) {}
 
   ~MessageHandle() {
@@ -105,8 +99,9 @@ class MessageHandle {
     listener_ = listener;
   }
 
-  // See Message::TakeStreamWriter(). The handle won't finalize the message
-  // anymore.
+  // Returns the stream writer and clears the handle so its destructor does not
+  // finalize the message or notify the listener.
+  // See Message::TakeStreamWriter() for details on direct writes.
   ScatteredStreamWriter* TakeStreamWriter() {
     ScatteredStreamWriter* stream_writer = message_->TakeStreamWriter();
     message_ = nullptr;
@@ -115,21 +110,17 @@ class MessageHandle {
   }
 
  private:
-  // For root messages, the RootMessage<T> is finalized as a
-  // RootMessage<Message>. This is fine because Message subclasses never add
-  // state (see Message::BeginNestedMessage()), so they have the same layout.
-  using FinalizeAs =
-      typename std::conditional<kIsRoot, RootMessage<Message>, Message>::type;
-
   void Move(MessageHandle&& other) {
-    message_ = other.message_;
-    other.message_ = nullptr;
-    listener_ = other.listener_;
-    other.listener_ = nullptr;
+    message_ = std::exchange(other.message_, nullptr);
+    listener_ = std::exchange(other.listener_, nullptr);
   }
 
   void FinalizeMessage() {
-    static_cast<FinalizeAs*>(message_)->Finalize();
+    if constexpr (kIsRootMessage) {
+      static_cast<RootMessage<T>*>(message_)->Finalize();
+    } else {
+      message_->Finalize();
+    }
     if (listener_)
       listener_->OnMessageFinalized(message_);
   }

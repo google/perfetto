@@ -169,11 +169,13 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // always a bad idea to poke at the stream_writer() internals.
   const ScatteredStreamWriter* stream_writer() const { return stream_writer_; }
 
-  // Returns a (non-owned, it should not be deleted) pointer to the
-  // ScatteredStreamWriter used to write the message data. The Message becomes
-  // unusable after this point.
+  // Returns a pointer to the ScatteredStreamWriter used to write the message
+  // data, without transferring ownership. The caller can write directly,
+  // without using protozero::Message.
   //
-  // The caller can now write directly, without using protozero::Message.
+  // Direct writes bypass this message's size tracking, so the caller must
+  // account for those bytes when writing length fields instead of relying on
+  // Finalize().
   ScatteredStreamWriter* TakeStreamWriter() { return stream_writer_; }
 
   // Appends some raw bytes to the message. The use-case for this is preserving

@@ -385,8 +385,6 @@ TEST_F(MessageTest, MessageHandle) {
   handle_swp = std::move(another_handle);
   ASSERT_EQ(0x90u, msg3_size[0]);  // |msg3| should be finalized at this point.
 
-  // Finalizing the message directly doesn't invalidate the handle. Destroying
-  // the handle afterwards is harmless, as Finalize() is idempotent.
   {
     FakeRootMessage* msg4 = NewMessage();
     MessageHandle<FakeRootMessage> handle4(msg4);

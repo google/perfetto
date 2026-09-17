@@ -53,11 +53,7 @@
 namespace perfetto {
 namespace {
 
-// TracePacket handles finalize the packet as a RootMessage<Message>, which
-// relies on TracePacket having the same layout as Message.
 static_assert(TraceWriter::TracePacketHandle::kIsRootMessage, "");
-static_assert(sizeof(protos::pbzero::TracePacket) == sizeof(protozero::Message),
-              "");
 
 using ChunkHeader = SharedMemoryABI::ChunkHeader;
 using ShmemMode = SharedMemoryABI::ShmemMode;
@@ -294,6 +290,35 @@ TEST_P(TraceWriterImplTest, NewTracePacket) {
       EXPECT_FALSE(packet.first_packet_on_sequence());
     }
   }
+}
+
+TEST_P(TraceWriterImplTest, DirectFinalizeThenReusePacketStorage) {
+  const BufferID kBufId = 42;
+  auto writer =
+      arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kStall);
+  auto packet = writer->NewTracePacket();
+  auto* message = packet.get();
+  packet->set_for_testing()->set_str("first");
+  uint32_t size = packet->Finalize();
+  EXPECT_EQ(packet->Finalize(), size);
+  EXPECT_EQ(packet.get(), message);
+
+  // Clear the handle to complete the packet before reusing its storage.
+  packet = {};
+  EXPECT_FALSE(packet);
+  packet = writer->NewTracePacket();
+  EXPECT_EQ(packet.get(), message);
+  packet->set_for_testing()->set_str("second");
+  packet = {};
+  writer.reset();
+
+  auto packets = GetPacketsFromShmemAndPatches();
+  ASSERT_THAT(packets, SizeIs(2));
+  protos::gen::TracePacket decoded;
+  ASSERT_TRUE(decoded.ParseFromString(packets[0]));
+  EXPECT_EQ(decoded.for_testing().str(), "first");
+  ASSERT_TRUE(decoded.ParseFromString(packets[1]));
+  EXPECT_EQ(decoded.for_testing().str(), "second");
 }
 
 TEST_P(TraceWriterImplTest, NewTracePacketLargePackets) {
