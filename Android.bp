@@ -3038,6 +3038,7 @@ cc_test {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen",
@@ -3449,6 +3450,7 @@ cc_test {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen_headers",
@@ -14032,6 +14034,7 @@ genrule {
         "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.proto",
         "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.proto",
         "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.proto",
+        "protos/third_party/android/frameworks/base/proto/tracing/wattson_soc_model.proto",
         "protos/third_party/android/frameworks/base/proto/tracing/winscope/app/statusbarmanager.proto",
         "protos/third_party/android/frameworks/base/proto/tracing/winscope/app/window_configuration.proto",
         "protos/third_party/android/frameworks/base/proto/tracing/winscope/content/activityinfo.proto",
@@ -14591,6 +14594,7 @@ genrule {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_zero",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
     ],
     tools: [
         "aprotoc",
@@ -14651,6 +14655,7 @@ genrule {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_zero",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
     ],
     tools: [
         "aprotoc",
@@ -14711,6 +14716,50 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --proto_path=external/protobuf/src --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero)",
     out: [
         "external/perfetto/protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/third_party/android/frameworks/base/proto/tracing:wattson_soc_model_zero
+filegroup {
+    name: "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
+    srcs: [
+        "protos/third_party/android/frameworks/base/proto/tracing/wattson_soc_model.proto",
+    ],
+}
+
+// GN: //protos/third_party/android/frameworks/base/proto/tracing:wattson_soc_model_zero
+genrule {
+    name: "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen",
+    srcs: [
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero)",
+    out: [
+        "external/perfetto/protos/third_party/android/frameworks/base/proto/tracing/wattson_soc_model.pbzero.cc",
+    ],
+}
+
+// GN: //protos/third_party/android/frameworks/base/proto/tracing:wattson_soc_model_zero
+genrule {
+    name: "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
+    srcs: [
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero)",
+    out: [
+        "external/perfetto/protos/third_party/android/frameworks/base/proto/tracing/wattson_soc_model.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -21362,6 +21411,7 @@ cc_library_static {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen",
@@ -21640,6 +21690,7 @@ cc_library_static {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen_headers",
@@ -21748,6 +21799,7 @@ cc_library_static {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen_headers",
@@ -24264,6 +24316,7 @@ cc_test {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen",
@@ -24865,6 +24918,7 @@ cc_test {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen_headers",
@@ -25529,6 +25583,7 @@ cc_library_static {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen",
@@ -25789,6 +25844,7 @@ cc_library_static {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen_headers",
@@ -25895,6 +25951,7 @@ cc_library_static {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen_headers",
@@ -26090,6 +26147,7 @@ cc_binary {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
@@ -26150,6 +26208,7 @@ cc_binary {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_common_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
     ],
     defaults: [
@@ -26243,6 +26302,7 @@ cc_binary_host {
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen",
+        ":perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen",
         ":perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen",
@@ -26513,6 +26573,7 @@ cc_binary_host {
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_base_proto_tracing_frameworks_base_track_event_zero_gen_headers",
+        "perfetto_protos_third_party_android_frameworks_base_proto_tracing_wattson_soc_model_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_interned_data_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_frameworks_native_trace_packet_zero_gen_headers",
         "perfetto_protos_third_party_android_frameworks_native_tracing_winscope_winscope_extensions_zero_gen_headers",
