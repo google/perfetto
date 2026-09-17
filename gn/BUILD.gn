@@ -419,11 +419,19 @@ if (enable_perfetto_grpc) {
   }
 }
 
+config("system_linenoise_config") {
+  libs = [ "linenoise" ]
+}
+
 if (enable_perfetto_trace_processor_linenoise) {
   # Used by the trace_processor_shell for REPL history.
   # Only available in standalone builds.
   group("linenoise") {
-    public_deps = [ "//buildtools:linenoise" ]
+    if (perfetto_use_system_linenoise) {
+      public_configs = [ ":system_linenoise_config" ]
+    } else {
+      public_deps = [ "//buildtools:linenoise" ]
+    }
   }
 }  # if (enable_perfetto_trace_processor_linenoise)
 
