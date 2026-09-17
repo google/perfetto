@@ -419,8 +419,17 @@ if (enable_perfetto_grpc) {
   }
 }
 
+pkg_config("pkgconfig_linenoise") {
+  pkg_deps = [ "linenoise" ]
+}
+
 config("system_linenoise_config") {
-  libs = [ "linenoise" ]
+  if (perfetto_use_pkgconfig) {
+    configs = [ ":pkgconfig_linenoise" ]
+  } else {
+    # Fallback if pkg-config isn't enabled.
+    libs = [ "linenoise" ]
+  }
 }
 
 if (enable_perfetto_trace_processor_linenoise) {
