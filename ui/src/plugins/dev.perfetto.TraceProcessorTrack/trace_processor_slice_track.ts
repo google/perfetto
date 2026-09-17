@@ -18,7 +18,11 @@ import {clamp} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {getColorForSlice} from '../../components/colorizer';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
-import {SliceTrack, renderTooltip} from '../../components/tracks/slice_track';
+import {
+  SliceTrack,
+  renderTooltip,
+  type SliceLayout,
+} from '../../components/tracks/slice_track';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -40,6 +44,7 @@ export interface TraceProcessorSliceTrackAttrs {
   readonly trackIds: ReadonlyArray<number>;
   readonly detailsPanel?: (row: {id: number}) => TrackEventDetailsPanel;
   readonly depthTableName?: string;
+  readonly sliceLayout?: Partial<SliceLayout>;
 }
 
 const schema = {
@@ -63,6 +68,7 @@ export async function createTraceProcessorSliceTrack({
   trackIds,
   detailsPanel,
   depthTableName,
+  sliceLayout,
 }: TraceProcessorSliceTrackAttrs) {
   return SliceTrack.create({
     trace,
@@ -70,6 +76,7 @@ export async function createTraceProcessorSliceTrack({
     dataset: await getDataset(trace.engine, trackIds, depthTableName),
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
+    sliceLayout,
     rootTableName: 'slice',
     fillRatio: (row) => {
       if (row.dur > 0n && row.thread_dur !== null) {
