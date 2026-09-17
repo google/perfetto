@@ -173,14 +173,6 @@ export class LiveSession {
     }
   }
 
-  /** Toggles between paused and running. */
-  togglePause(): void {
-    if (this.isPaused) {
-      this.resume();
-    } else {
-      this.pause();
-    }
-  }
 
   /** Starts a heap profiling session for a single process. */
   async startProfile(pid: number, processName: string): Promise<void> {
