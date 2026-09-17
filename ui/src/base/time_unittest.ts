@@ -42,6 +42,16 @@ test('Duration.format', () => {
   expect(Duration.format(86_400_000_000_001n)).toEqual('1d 1ns');
   expect(Duration.format(31_536_000_000_000_000n)).toEqual('1y');
   expect(Duration.format(31_536_000_000_000_001n)).toEqual('1y 1ns');
+  expect(Duration.format(63_222_111_100n, '')).toEqual('1m3s222ms111µs100ns');
+});
+
+test('Time.formatCompact', () => {
+  expect(Time.formatCompact(t(0n))).toEqual('0s');
+  expect(Time.formatCompact(t(63_222_111_100n))).toEqual('1m3s222ms111µs100ns');
+  expect(Time.formatCompact(t(-63_222_111_100n))).toEqual(
+    '-1m3s222ms111µs100ns',
+  );
+  expect(Time.formatCompact(t(31_622_400_000_000_001n))).toEqual('1y1d1ns');
 });
 
 test('Duration.humanise', () => {

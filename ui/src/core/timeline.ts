@@ -384,6 +384,7 @@ export class TimelineImpl implements Timeline {
       case TimestampFormat.Seconds:
       case TimestampFormat.Milliseconds:
       case TimestampFormat.Microseconds:
+      case TimestampFormat.Compact:
         return this.traceInfo.start;
       case TimestampFormat.TraceNs:
       case TimestampFormat.TraceNsLocale:
