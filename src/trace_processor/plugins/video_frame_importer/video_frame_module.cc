@@ -40,10 +40,13 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
 
+using ::com::android::internal::pbzero::FrameTimelineEvent;
 using ::com::android::internal::pbzero::FrameworksBaseTracePacket;
+using ::com::android::internal::pbzero::FrameworksNativeTracePacket;
 using ::com::android::internal::pbzero::VideoFrame;
 using ::com::android::internal::pbzero::VideoFrameError;
 using ::perfetto::protos::pbzero::TracePacket;
@@ -58,6 +61,11 @@ VideoFrameModule::VideoFrameModule(ProtoImporterModuleContext* mc,
       au_data_(au_data) {
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameFieldNumber);
   RegisterForField(FrameworksBaseTracePacket::kVideoFrameErrorFieldNumber);
+  // Also observe frame-timeline events, to pick out VirtualDisplayComposite and
+  // join the exact composite token onto each video frame by present time. This
+  // field is also handled by GraphicsEventModule; multiple modules per field is
+  // supported.
+  RegisterForField(FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber);
 }
 
 VideoFrameModule::~VideoFrameModule() = default;
@@ -99,6 +107,10 @@ void VideoFrameModule::ParseField(const ParseFieldArgs& args) {
       ParseVideoFrameError(
           args.field.Cast<FrameworksBaseTracePacket::kVideoFrameError>(),
           args.ts);
+      break;
+    case FrameworksNativeTracePacket::kFrameTimelineEventFieldNumber:
+      ParseFrameTimelineEvent(
+          args.field.Cast<FrameworksNativeTracePacket::kFrameTimelineEvent>());
       break;
     default:
       break;
@@ -174,11 +186,17 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   }
   info.emitted_bytes += static_cast<int64_t>(payload.size);
 
-  auto id = table_->Insert(row).id.value;
+  auto id_and_row = table_->Insert(row);
+  auto id = id_and_row.id.value;
   // Signal frame output to trace doctor (see TraceStorage).
   context_->storage->set_has_android_video_frames();
   // au_data is parallel to the table, indexed by row id.
   PERFETTO_DCHECK(id == au_data_->size());
+  // Remember access-unit rows so their vsync id can be backfilled from
+  // VirtualDisplayComposite events once all packets are parsed.
+  if (row.pts_us.has_value()) {
+    row_pts_us_.emplace_back(id_and_row.row, *row.pts_us);
+  }
   const TraceBlobView& packet = data.packet;
   const uint8_t* base = packet.blob()->data();
   PERFETTO_DCHECK(payload.data >= base &&
@@ -226,6 +244,34 @@ void VideoFrameModule::ParseVideoFrameError(protozero::ConstBytes bytes,
         inserter.AddArg(context_->storage->InternString("display_id"),
                         Variadic::UnsignedInteger(display_id));
       });
+}
+
+void VideoFrameModule::ParseFrameTimelineEvent(protozero::ConstBytes bytes) {
+  FrameTimelineEvent::Decoder event(bytes);
+  if (!event.has_virtual_display_composite()) {
+    return;
+  }
+  FrameTimelineEvent::VirtualDisplayComposite::Decoder vdc(
+      event.virtual_display_composite());
+  if (!vdc.has_present_time_us() || !vdc.has_vsync_id()) {
+    return;
+  }
+  // present_time_us is the composite buffer's present time in microseconds,
+  // which a surface-input encoder carries through unchanged as the frame's
+  // pts_us, so it is the exact join key.
+  vsync_id_by_present_us_[vdc.present_time_us()] = vdc.vsync_id();
+}
+
+void VideoFrameModule::OnEventsFullyExtracted() {
+  if (vsync_id_by_present_us_.size() == 0) {
+    return;
+  }
+  for (const auto& [row, pts_us] : row_pts_us_) {
+    const int64_t* vsync_id = vsync_id_by_present_us_.Find(pts_us);
+    if (vsync_id) {
+      (*table_)[row].set_frame_timeline_vsync_id(*vsync_id);
+    }
+  }
 }
 
 }  // namespace perfetto::trace_processor

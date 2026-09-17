@@ -214,6 +214,9 @@ export interface TrackEventDetailsPanelSection {
 }
 
 export interface ThreadSliceDetailsPanelAttrs {
+  // Optional sections rendered at the top of the left column, above the
+  // standard details (e.g. a prominent cross-reference link).
+  topSections?: TrackEventDetailsPanelSection[];
   // Optional additional sections to render in the left column
   leftSections?: TrackEventDetailsPanelSection[];
   // Optional additional sections to render in the right column
@@ -258,6 +261,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
 
     // Load additional sections
     const sectionsToLoad = [
+      ...(this.attrs.topSections ?? []),
       ...(this.attrs.leftSections ?? []),
       ...(this.attrs.rightSections ?? []),
     ];
@@ -274,7 +278,10 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     }
     const slice = this.sliceDetails;
 
-    // Render additional left and right sections
+    // Render additional top, left and right sections
+    const additionalTop = this.attrs.topSections?.map((section) =>
+      section.render(),
+    );
     const additionalLeft = this.attrs.leftSections?.map((section) =>
       section.render(),
     );
@@ -293,6 +300,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         GridLayout,
         m(
           GridLayoutColumn,
+          additionalTop,
           renderDetails(this.trace, slice, this.breakdownByThreadState),
           additionalLeft,
         ),
