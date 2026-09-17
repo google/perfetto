@@ -256,7 +256,7 @@ WHERE
 
 -- Tracks containing counter-like events collected from Linux perf.
 CREATE PERFETTO TABLE perf_counter_track(
-  -- Unique identifier for this thread counter track.
+  -- Unique identifier for this perf counter track.
   id ID(track.id),
   -- Name of the track.
   name STRING,
@@ -285,6 +285,9 @@ CREATE PERFETTO TABLE perf_counter_track(
   -- The CPU the counter is associated with. Can be null if the counter is not
   -- associated with any CPU.
   cpu LONG,
+  -- The thread the counter is associated with. Can be null if the counter is
+  -- not associated with any thread.
+  utid JOINID(thread.id),
   -- Whether this counter is the sampling timebase for the session.
   is_timebase BOOL
 )
@@ -300,10 +303,16 @@ SELECT
   ct.description,
   extract_arg(ct.dimension_arg_set_id, 'perf_session_id') AS perf_session_id,
   extract_arg(ct.dimension_arg_set_id, 'cpu') AS cpu,
+  extract_arg(ct.dimension_arg_set_id, 'utid') AS utid,
   extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
 FROM counter_track AS ct
 WHERE
-  ct.type IN ('perf_cpu_counter', 'perf_global_counter');
+  ct.type IN (
+    'perf_cpu_counter',
+    'perf_global_counter',
+    'perf_thread_counter',
+    'perf_thread_cpu_counter'
+  );
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters(

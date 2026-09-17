@@ -476,6 +476,10 @@ declare_args() {
   # Used by NixOS system builds. Uses the system version of expat
   # from pkg-config instead of the hermetic one.
   perfetto_use_system_expat = false
+  
+  # Used by NixOS system builds. Uses the system version of linenoise
+  # from pkg-config instead of the hermetic one.
+  perfetto_use_system_linenoise = false
 
   # Used by CrOS system builds. Uses the system version of protobuf
   # from /usr/include instead of the hermetic one.
