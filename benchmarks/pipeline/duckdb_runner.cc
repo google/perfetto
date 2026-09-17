@@ -16,8 +16,9 @@
 // optional external benchmark dependency, not a Perfetto build dependency.
 #include <duckdb.h>
 
-#include "protocol.h"
+#include "benchmarks/pipeline/protocol.h"
 
+#include <charconv>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -68,11 +69,12 @@ unsigned ParseUnsigned(const std::string& value) {
   if (value.empty() ||
       value.find_first_not_of("0123456789") != std::string::npos)
     throw std::runtime_error("Expected a nonnegative integer: " + value);
-  size_t consumed = 0;
-  auto number = std::stoull(value, &consumed);
-  if (consumed != value.size() || number > std::numeric_limits<unsigned>::max())
+  unsigned number = 0;
+  const auto parsed =
+      std::from_chars(value.data(), value.data() + value.size(), number);
+  if (parsed.ec != std::errc() || parsed.ptr != value.data() + value.size())
     throw std::runtime_error("Integer out of range: " + value);
-  return static_cast<unsigned>(number);
+  return number;
 }
 
 Options ParseOptions(int argc, char** argv) {

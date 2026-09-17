@@ -49,7 +49,7 @@ def main():
   source = Path(__file__).resolve().with_name('duckdb_runner.cc')
   command = compiler + [
       '-std=c++17', '-O3', '-DNDEBUG', '-Wall', '-Wextra', '-Werror',
-      '-I' + str(library_dir),
+      '-I' + str(library_dir), '-I' + str(source.parents[2]),
       str(source), '-L' + str(library_dir), '-Wl,-rpath,' + str(library_dir),
       '-lduckdb', '-o',
       str(args.output)

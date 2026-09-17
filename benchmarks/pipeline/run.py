@@ -361,7 +361,8 @@ def main():
   parser.add_argument('--dense-ids', action='store_true')
   parser.add_argument('--all-null', action='store_true')
   args = parser.parse_args()
-  if args.repeat <= 0 or args.warmup < 0 or args.timeout <= 0 or args.threads <= 0 or args.max_recursive_rows < 0:
+  if (args.repeat <= 0 or args.warmup < 0 or not math.isfinite(args.timeout) or
+      args.timeout <= 0 or args.threads <= 0 or args.max_recursive_rows < 0):
     parser.error(
         'repeat, timeout and threads must be positive; warmup and recursive budget nonnegative'
     )
@@ -419,7 +420,8 @@ def main():
       },
       'source_sha256': {
           str(p.relative_to(ROOT)): sha256(p)
-          for p in Path(__file__).parent.iterdir()
+          for p in list(Path(__file__).parent.iterdir()) +
+          list((ROOT / 'src/trace_processor/perfetto_sql/benchmarks').iterdir())
           if p.suffix in ('.py', '.cc', '.h', '.gn')
       },
       'backends':

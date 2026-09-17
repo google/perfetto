@@ -1,0 +1,20 @@
+# Copyright (C) 2026 The Android Open Source Project
+# SPDX-License-Identifier: Apache-2.0
+import("../../../../gn/perfetto.gni")
+
+executable("pipeline_benchmark_runner") {
+  testonly = true
+  sources = [
+    "../../../../benchmarks/pipeline/protocol.h",
+    "pipeline_benchmark_runner.cc",
+  ]
+  defines = [ "PIPELINE_BENCHMARK_IS_DEBUG=$is_debug" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
+    "../../../base",
+    "../../containers",
+    "../../sqlite",
+    "../engine",
+  ]
+}
