@@ -46,7 +46,8 @@ JOIN gpu_counter_track AS gct
 -- Device-busy timeline per GPU (union of GPU activity).
 CREATE PERFETTO TABLE _gpu_busy AS
 SELECT ROW_NUMBER() OVER (ORDER BY ugpu, ts) AS id, ugpu, ts, dur
-FROM interval_merge_overlapping_partitioned!((
+FROM interval_merge_overlapping_partitioned!(
+  (
     SELECT
       s.ts,
       s.dur,
@@ -55,7 +56,9 @@ FROM interval_merge_overlapping_partitioned!((
     JOIN gpu_track AS t ON s.track_id = t.id
     WHERE
       s.dur > 0
-  ), (ugpu));
+  ),
+  (ugpu)
+);
 
 -- Busy time attributed to the frequency in effect (busy intersect freq).
 CREATE PERFETTO TABLE _busy_at_freq AS

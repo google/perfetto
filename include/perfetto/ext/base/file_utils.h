@@ -101,6 +101,14 @@ int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);
 
 bool FlushFile(int fd);
 
+// Duplicates an open descriptor. The duplicate is not inherited across exec.
+ScopedFile DupFile(int fd);
+
+// These queries follow symbolic links. False also means a path could not be
+// inspected. IsSameFile compares file identities, so it detects hard links.
+bool IsRegularFile(const std::string& path);
+bool IsSameFile(const std::string& first, const std::string& second);
+
 // Moves the file offset to |offset| bytes from the beginning of the file.
 // Returns false if |offset| cannot be represented by the platform or the seek
 // fails.

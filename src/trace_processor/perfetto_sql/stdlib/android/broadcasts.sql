@@ -70,11 +70,9 @@ WITH
       str_split(slice.name, ' ', 0) AS process_queue_id,
       broadcast_queues.queue_id,
       _extract_broadcast_process_name(slice.name) AS process_name,
-      cast_int!(str_split(
-          str_split(str_split(slice.name, '/', 0), ' ', 1),
-          ':',
-          0
-        )) AS pid,
+      cast_int!(
+        str_split(str_split(str_split(slice.name, '/', 0), ' ', 1), ':', 0)
+      ) AS pid,
       queue_id
     FROM slice
     JOIN broadcast_queues

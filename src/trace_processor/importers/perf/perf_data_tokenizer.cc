@@ -105,6 +105,10 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
   if (record.header.type != PERF_RECORD_SAMPLE) {
     std::optional<size_t> offset = record.attr->time_offset_from_end();
     if (!offset.has_value()) {
+      if (record.header.type == PERF_RECORD_FORK ||
+          record.header.type == PERF_RECORD_EXIT) {
+        return reader.Skip(4 * sizeof(uint32_t)) && reader.ReadOptional(time);
+      }
       time = std::nullopt;
       return true;
     }

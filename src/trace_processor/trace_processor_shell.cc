@@ -42,6 +42,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
@@ -171,6 +172,8 @@ Commands:
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
   -v, --version               Print version.
+      --no-progress           Disable live progress.
+      --quiet                 Suppress progress and routine status output.
       --full-sort             Force full sort ignoring windowing.
       --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
       --add-sql-package PATH  Register SQL files from a directory as a package.
@@ -1005,6 +1008,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                                  usage.c_str());
         }
       }
+      base::ProgressReporter::GetInstance().set_enabled(!global.no_progress &&
+                                                        !global.quiet);
       if (global.help) {
         printf("%s", usage.c_str());
         return base::OkStatus();
@@ -1015,6 +1020,11 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
+      std::string warnings;
+      RETURN_IF_ERROR(profiling::ResolveDebuginfodOptions(
+          global.debuginfod_options, &global.debuginfod, &warnings));
+      if (!warnings.empty())
+        fprintf(stderr, "%s", warnings.c_str());
 
       // Parse metric extensions and populate their descriptor pool. The
       // pool is always created (built-in metrics need it for output

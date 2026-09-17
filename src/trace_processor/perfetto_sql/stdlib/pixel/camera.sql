@@ -169,7 +169,9 @@ SELECT
   cast_int!(IFNULL(hal_rss_val, 0)) AS hal_rss,
   cast_int!(IFNULL(cameraserver_rss_val, 0)) AS cameraserver_rss,
   cast_int!(IFNULL(dma_val, 0)) AS dma,
-  cast_int!(IFNULL(gca_rss_val, 0) + IFNULL(hal_rss_val, 0)
+  cast_int!(
+    IFNULL(gca_rss_val, 0) + IFNULL(hal_rss_val, 0)
     + IFNULL(cameraserver_rss_val, 0)
-    + IFNULL(dma_val, 0)) AS rss_and_dma
+    + IFNULL(dma_val, 0)
+  ) AS rss_and_dma
 FROM _rss_and_dma_all_camera_join;

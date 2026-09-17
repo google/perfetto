@@ -84,8 +84,8 @@ importers:
         specifier: ^7.6.2
         version: 7.6.5
       syntaqlite:
-        specifier: ^0.7.1
-        version: 0.7.1
+        specifier: ^0.10.1
+        version: 0.10.1
       uuid:
         specifier: ^14.0.0
         version: 14.0.1
@@ -1852,8 +1852,8 @@ packages:
     resolution: {integrity: sha512-JJoOEKTfL1urb1mDoEblhD9NhEbWmq9jHEMEnxoC4ujUaZ4itA8vKgwkFAyNClgxplLi9tsUKX+EduK0p/l7sg==}
     engines: {node: ^14.18.0 || >=16.0.0}
 
-  syntaqlite@0.7.1:
-    resolution: {integrity: sha512-R9Uua5+ypLg/cLFlPrReanWawt19CuflT5nbj8+6n5fOTI6+MG7NzSUkxGLYe2KOaAlEINzD9KKba2u3YReBAQ==}
+  syntaqlite@0.10.1:
+    resolution: {integrity: sha512-mybLbqBWbCzL/msQeA9iPVcgU3dV8RJ98VlHSpmhx5y+Limk8hO15RWXx+zNjHtCpouJHdlegI39x1BU6Gl6nA==}
 
   tinybench@6.1.4:
     resolution: {integrity: sha512-9APumHG7r4yOk4X4WlkmE71aZcv1gvin1czO3OQ1U9iJcFA5Ja/ygyb0vPOVHTthFozUYs8CLoLUlM8grb2lTQ==}
@@ -3626,7 +3626,7 @@ snapshots:
       '@pkgr/core': 0.1.2
       tslib: 2.8.1
 
-  syntaqlite@0.7.1: {}
+  syntaqlite@0.10.1: {}
 
   tinybench@6.1.4: {}
 

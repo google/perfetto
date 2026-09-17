@@ -228,7 +228,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
             this.onPointerMove(e),
           onpointerup: (e: PointerEvent) => this.onPointerUp(e),
           onpointercancel: (e: PointerEvent) => this.onPointerCancel(e),
-          onpointercapturelost: (e: PointerEvent) =>
+          onlostpointercapture: (e: PointerEvent) =>
             this.onPointerCaptureLost(e),
         },
         [

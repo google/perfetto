@@ -89,6 +89,7 @@ class Rpc {
       std::function<void(const void* /*data*/, uint32_t /*len*/)>;
 
   class Stream;
+  class Outbox;
 
   // A reservation inside a Stream's tokenizer to read into. Must be consumed
   // exactly once: EndRequest() reports how many bytes were written and
@@ -158,7 +159,7 @@ class Rpc {
     void FinishRequest();
 
     Rpc& rpc_;
-    RpcResponseFunction response_fn_;
+    std::unique_ptr<Outbox> outbox_;
     protozero::ProtoRingBuffer rxbuf_;
     bool request_in_flight_ = false;
   };
@@ -216,7 +217,7 @@ class Rpc {
  private:
   base::Status ExportSqlite(const ExportCallback&);
 
-  void ParseRpcRequest(Stream&, const uint8_t*, size_t);
+  void ParseRpcRequest(Outbox&, protozero::ProtoRingBuffer::Message);
   void DrainStream(Stream&);
   void ResetTraceProcessor(const uint8_t*, size_t);
   base::Status RegisterSqlPackage(protozero::ConstBytes);

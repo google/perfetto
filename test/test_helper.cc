@@ -15,10 +15,14 @@
  */
 
 #include "test/test_helper.h"
+
+#include <cctype>
 #include <string>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/default_socket.h"
 
@@ -56,6 +60,21 @@ const char* ConsumerSocketForMode(TestHelper::Mode mode) {
 #endif
 }
 }  // namespace
+
+std::string WithoutDebugLogs(const std::string& text) {
+  std::string out;
+  for (base::StringSplitter lines(text, '\n'); lines.Next();) {
+    base::StringView line(lines.cur_token(), lines.cur_token_size());
+    bool is_log = line.size() > 10 && line.at(0) == '[' && line.at(4) == '.' &&
+                  line.at(8) == ']' && line.at(9) == ' ' &&
+                  isdigit(line.at(1)) && isdigit(line.at(5));
+    if (is_log)
+      continue;
+    out.append(line.data(), line.size());
+    out.push_back('\n');
+  }
+  return out;
+}
 
 uint64_t TestHelper::next_instance_num_ = 0;
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)

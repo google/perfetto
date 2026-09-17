@@ -87,10 +87,10 @@ dumps as slices on the timeline, click any of them to get a flamegraph.
 #### Using the Recording page of Perfetto UI
 
 You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record/memory)
-to record heapprofd profiles. Tick "Heap profiling" in the trace configuration,
-enter the processes you want to target, click "Add Device" to pair your phone,
-and record profiles straight from your browser. This is also possible on
-Windows.
+to record heapprofd profiles. Tick "Native heap profiling" in the trace
+configuration, enter the processes you want to target, click "Connect new
+device" to pair your phone, and record profiles straight from your browser.
+This is also possible on Windows.
 
 ## Viewing the data
 
@@ -107,9 +107,8 @@ The resulting profile proto contains four views on the data, for each slice.
 * **Total malloc count**: how many allocations (including ones with matching
   frees) were done at this callstack, throughout the duration of the slice.
 
-TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
-
-TIP: Click Left Heavy on the top left for a good visualization.
+TIP: you might want to put `libart.so` as a "Hide Frame" filter when profiling
+apps.
 
 ## Continuous dumps
 
@@ -120,7 +119,7 @@ which summarizes all allocations/frees.
 It is possible to configure the heap profiler to periodically (not just at the
 end of the trace) store snapshots (continuous dumps), for example every 5000ms
 
-* By setting "Continuous dumps interval" in the UI to 5000.
+* By setting "Continuous dump interval" in the UI to 5000.
 * By adding
   ```
   continuous_dump_config {
@@ -560,7 +559,7 @@ SELECT
   -- The amount of memory allocated and *not freed* with this
   -- function appearing anywhere on the callstack.
   cumulative_size
-FROM android_heap_profile_summary_tree;
+FROM android_heap_profile_summary_tree
 order by abs(cumulative_size) desc;
 ```
 

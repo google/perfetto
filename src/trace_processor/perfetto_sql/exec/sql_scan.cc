@@ -42,7 +42,7 @@
 #include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
+#include "src/trace_processor/perfetto_sql/exec/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
 
@@ -93,7 +93,7 @@ std::vector<std::optional<StorageType>> ResolveTypes(
     if (!type) {
       continue;
     }
-    StorageType storage = lineage::ToStorageType(*type);
+    StorageType storage = ToStorageType(*type);
     // An Id has no storage of its own: its value is the row it sits at. A
     // query result has no such rows to point at, so materialise it at the
     // narrowest width which holds one.

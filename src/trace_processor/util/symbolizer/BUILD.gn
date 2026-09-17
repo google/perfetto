@@ -24,6 +24,8 @@ perfetto_component("symbolizer") {
     "breakpad_parser.h",
     "breakpad_symbolizer.cc",
     "breakpad_symbolizer.h",
+    "debuginfod.cc",
+    "debuginfod.h",
     "elf.h",
     "filesystem.h",
     "filesystem_posix.cc",

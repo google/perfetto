@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_CONNECTION_CATALOG_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_CONNECTION_CATALOG_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CONNECTION_CATALOG_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CONNECTION_CATALOG_H_
 
 #include <optional>
 #include <string>
@@ -24,17 +24,15 @@
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
-namespace perfetto::trace_processor::lineage {
-
-namespace analysis = ::perfetto::perfetto_sql::analysis;
+namespace perfetto::trace_processor {
 
 // Adapts one trace processor connection to semantic analysis. Serves each
 // dataframe as a leaf relation whose columns carry their storage type.
-class ConnectionCatalog final : public analysis::Catalog {
+class ConnectionCatalog final : public perfetto_sql::analysis::Catalog {
  public:
   explicit ConnectionCatalog(PerfettoSqlConnection*);
 
-  std::optional<analysis::LeafRelation> FindLeafRelation(
+  std::optional<perfetto_sql::analysis::LeafRelation> FindLeafRelation(
       std::string_view name) const override;
   std::optional<std::string> FindViewSql(std::string_view name) const override;
 
@@ -42,6 +40,6 @@ class ConnectionCatalog final : public analysis::Catalog {
   PerfettoSqlConnection* connection_;
 };
 
-}  // namespace perfetto::trace_processor::lineage
+}  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_LINEAGE_CONNECTION_CATALOG_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CONNECTION_CATALOG_H_

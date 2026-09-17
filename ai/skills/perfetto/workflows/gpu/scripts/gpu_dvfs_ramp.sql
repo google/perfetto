@@ -49,7 +49,8 @@ SELECT
   ts,
   dur,
   ts + dur AS te
-FROM interval_merge_overlapping_partitioned!((
+FROM interval_merge_overlapping_partitioned!(
+  (
     SELECT
       s.ts,
       s.dur,
@@ -58,7 +59,9 @@ FROM interval_merge_overlapping_partitioned!((
     JOIN gpu_track AS t ON s.track_id = t.id
     WHERE
       s.dur > 0
-  ), (ugpu));
+  ),
+  (ugpu)
+);
 
 CREATE PERFETTO TABLE _fmax AS
 SELECT ugpu, MAX(freq_khz) AS fmax_khz FROM _gpu_freq GROUP BY ugpu;

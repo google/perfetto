@@ -39,12 +39,14 @@ SELECT
   cast_int!(value) AS gpu_freq,
   cast_int!(value - delta_value) AS prev_gpu_freq,
   cast_int!(next_value) AS next_gpu_freq
-FROM counter_leading_intervals!((
+FROM counter_leading_intervals!(
+  (
     SELECT c.*
     FROM counter AS c
     JOIN gpu_counter_track AS t ON t.id = c.track_id AND t.name = 'gpufreq'
     WHERE
       gpu_id IS NOT NULL
-  ))
+  )
+)
 JOIN gpu_counter_track AS t
   ON t.id = track_id;
