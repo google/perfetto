@@ -56,6 +56,25 @@ export function maxSeriesKb(
   return max;
 }
 
+/** Fixed-width x-axis window (in seconds) for the live dashboard charts. */
+export const CHART_WINDOW_SECONDS = 60;
+
+/**
+ * Returns a fixed-width x-axis window ending at the latest sample. Pass the
+ * result as xAxisMin/xAxisMax on LineChartSvg: all samples are handed to the
+ * chart and anything outside the window is clipped to the plot area.
+ */
+export function chartXWindow(xMax: number): {min: number; max: number} {
+  return {min: xMax - CHART_WINDOW_SECONDS, max: xMax};
+}
+
+/** Formats x-axis ticks relative to the latest sample: 0s on the right. */
+export function formatRelativeXValue(
+  xMax: number,
+): (v: number) => string {
+  return (v: number) => `${(v - xMax).toFixed(0)}s`;
+}
+
 /** Renders a byte value for a billboard with the unit in a smaller span. */
 export function billboardBytes(bytes: number) {
   const [value, unit] = formatBytesIec(bytes).split(' ');

@@ -79,10 +79,11 @@ export function rangeWithFixedBounds(
   else if (norm < 7) step = 5 * mag;
   else step = 10 * mag;
 
+  // Anchor the inner ticks to the caller-specified bounds (rather than to
+  // an arbitrary data origin) so they stay aligned with the visible range.
   const ticks: number[] = [boundMin];
-  const firstInner = Math.ceil(boundMin / step) * step;
-  for (let t = firstInner; t < boundMax - step / 2; t += step) {
-    if (t > boundMin + step / 4) ticks.push(round(t, step));
+  for (let t = boundMax - step; t > boundMin + step / 2; t -= step) {
+    ticks.push(round(t, step));
   }
   ticks.push(boundMax);
   return {min: boundMin, max: boundMax, ticks};
