@@ -24,18 +24,17 @@ import {EmptyState} from '../../../../widgets/empty_state';
 import {Stack} from '../../../../widgets/stack';
 
 // A section panel shown when the trace has no data for it: keeps the panel's
-// title/subtitle (so the page reads consistently) and states what's missing
-// in the body, rather than rendering nothing.
+// title (so the page reads consistently) and states what's missing in the
+// body, rather than rendering nothing.
 export function emptyPanel(opts: {
   title: string;
-  subtitle?: string;
   message: string;
   detail?: m.Children;
 }): m.Child {
   return m(
     Panel,
     {className: 'pf-memscope-panel--empty'},
-    m(Panel.Header, {title: opts.title, subtitle: opts.subtitle}),
+    m(Panel.Header, {title: opts.title}),
     m(
       Panel.Body,
       m(
@@ -50,16 +49,15 @@ export function emptyPanel(opts: {
   );
 }
 
-// A section panel shown while its data is loading: the panel (title/subtitle)
-// is laid out immediately with a loading placeholder in the body, so the page
-// doesn't jump as sections resolve.
+// A section panel shown while its data is loading: the panel is laid out
+// immediately with a loading placeholder in the body, so the page doesn't
+// jump as sections resolve.
 export function loadingPanel(opts: {
   title: string;
-  subtitle?: string;
 }): m.Child {
   return m(
     Panel,
-    m(Panel.Header, {title: opts.title, subtitle: opts.subtitle}),
+    m(Panel.Header, {title: opts.title}),
     m(
       Panel.Body,
       m(
@@ -87,16 +85,11 @@ export function shortClassName(name: string): string {
 // Compact titled table used by the Java / bitmaps / native sections.
 export function topTable(opts: {
   title: string;
-  subtitle?: string;
   cols: {label: string; num?: boolean}[];
   rows: m.Children[][];
 }): m.Child {
   return m('.pf-memscope-toptable', [
-    m('.pf-memscope-toptable__title', [
-      opts.title,
-      opts.subtitle !== undefined &&
-        m('span.pf-memscope-toptable__subtitle', ` · ${opts.subtitle}`),
-    ]),
+    m('.pf-memscope-toptable__title', opts.title),
     m(
       Table,
       {className: 'pf-memscope-table--flush'},
@@ -170,7 +163,7 @@ export function classNameCell(
             {href: heapDumpClassHref(r.name), onclick},
             shortClassName(r.name),
           ),
-          showBytes ? ` · ${formatBytes(r.bytes)}` : '',
+          showBytes ? ` - ${formatBytes(r.bytes)}` : '',
         ],
       ),
     ),

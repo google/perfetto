@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@use '../tokens' as t;
+@use "../tokens" as t;
 .pf-memscope-panel {
   border-radius: t.$memscope-section-radius;
   background: var(--pf-col-surface);
@@ -49,6 +49,7 @@
 
 .pf-memscope-panel__controls {
   display: flex;
+  align-items: baseline;
   gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;

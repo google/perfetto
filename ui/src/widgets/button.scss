@@ -153,6 +153,7 @@
       transparent,
       var(--pf-color-interactive-base) 10%
     );
+    color: var(--pf-color-text);
 
     &:hover {
       background: color-mix(

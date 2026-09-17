@@ -35,9 +35,6 @@ import {Table} from '../../components/table';
 import {Stack} from '../../../../widgets/stack';
 
 const TITLE = 'Every mapping, grouped';
-const SUBTITLE =
-  'The raw /proc/<pid>/smaps dump, folded into the same taxonomy as the ' +
-  'composition above. Filter by regex, or flatten to see individual mappings.';
 
 // One smaps path (VMA group) at the latest snapshot, with the full residency
 // split.
@@ -262,13 +259,12 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
     if (rows === undefined) {
       return m(
         '.pf-memscope-charts',
-        loadingPanel({title: TITLE, subtitle: SUBTITLE}),
+        loadingPanel({title: TITLE}),
       ); // Still loading.
     }
     if (rows.length === 0) {
       return emptyPanel({
         title: TITLE,
-        subtitle: SUBTITLE,
         message: 'No smaps data in this trace for this process.',
       });
     }
@@ -304,7 +300,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
           {label: 'Swap', get: (r) => r.swap},
         ];
 
-    const fmtCell = (n: number) => (n > 0 ? formatBytes(n) : '—');
+    const fmtCell = (n: number) => (n > 0 ? formatBytes(n) : '-');
     const numCells = (r: SmapsPathRow) =>
       cols.map((c) => m('td.pf-memscope-table__num', fmtCell(c.get(r))));
     const sumCells = (list: SmapsPathRow[]) =>
@@ -395,7 +391,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
                   chevron(subKey),
                   swatch(s.meta.color),
                   ` ${s.meta.label} `,
-                  m('span.pf-memscope-smaps__count', `· ${s.rows.length} maps`),
+                  m('span.pf-memscope-smaps__count', `- ${s.rows.length} maps`),
                 ]),
                 sumCells(s.rows),
               ],
@@ -420,7 +416,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
 
     return m(
       Panel,
-      m(Panel.Header, {title: TITLE, subtitle: SUBTITLE}),
+      m(Panel.Header, {title: TITLE}),
       m(
         Panel.Body,
         m(Stack, {spacing: 'large'}, [
@@ -480,7 +476,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
                   return m(
                     'option',
                     {value: s.ts.toString()},
-                    `#${i + 1} · t=${secs.toFixed(0)}s · ${formatBytes(s.rss)}`,
+                    `#${i + 1} - t=${secs.toFixed(0)}s - ${formatBytes(s.rss)}`,
                   );
                 }),
               ),

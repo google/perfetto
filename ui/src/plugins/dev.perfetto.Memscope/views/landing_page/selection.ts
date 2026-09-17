@@ -14,8 +14,8 @@
 
 // The page-wide snapshot selection, shared between the composition timeline
 // (which drives it) and the sections below (which render relative to it).
-// Identified by absolute timestamp so each section — which loads its own
-// snapshots/dumps — can correlate by nearest ts.
+// Identified by absolute timestamp so each section - which loads its own
+// snapshots/dumps - can correlate by nearest ts.
 
 import type {time} from '../../../../base/time';
 

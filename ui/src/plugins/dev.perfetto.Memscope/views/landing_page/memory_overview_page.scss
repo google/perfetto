@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Header capture strip: process identity + per-source capture facts. Layout
-// only — the raised-card chrome comes from the Panel this class is applied to.
+// only - the raised-card chrome comes from the Panel this class is applied to.
 .pf-memscope-capture {
   display: flex;
   flex-direction: column;
@@ -85,50 +85,6 @@
   }
 }
 
-// Tab strip selecting between the Summary and Smaps Detail bodies.
-.pf-memscope-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--pf-col-border);
-}
-
-.pf-memscope-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: none;
-  font-size: var(--pf-font-size-m);
-  color: var(--pf-color-text-muted);
-  cursor: pointer;
-
-  .pf-icon {
-    font-size: 16px;
-  }
-
-  &:hover {
-    color: var(--pf-color-text);
-  }
-
-  &--active {
-    color: var(--pf-color-accent);
-    border-bottom-color: var(--pf-color-accent);
-    font-weight: 600;
-  }
-
-  &--disabled {
-    color: var(--pf-color-text-muted);
-    cursor: not-allowed;
-    opacity: 0.45;
-
-    &:hover {
-      color: var(--pf-color-text-muted);
-    }
-  }
-}
-
 // Explains the default-page change and groups the available actions without
 // forcing the message and controls onto one line on narrow screens.
 .pf-memscope-default-page-callout__body {
@@ -152,10 +108,6 @@
 }
 
 .pf-memscope-default-page-callout__split-button {
-  .pf-button.pf-button--filled {
-    font-weight: 600;
-  }
-
   // ButtonGroup normally removes this shared border. Keep a subtle divider so
   // the overflow control remains visibly distinct from the navigation action.
   .pf-button.pf-button--filled:not(:last-child) {
@@ -199,8 +151,14 @@
   }
 }
 
-// Memory-composition chart: the line chart plus its snapshot-pill selector and
-// the "compare" badge in the header.
+// Compact snapshot chips in the "Composition over time" panel header, next to
+// the snapshot badge.
+.pf-memscope-panel__controls .pf-chip {
+  padding: 2px 6px;
+}
+
+// Memory-composition chart: the line chart and its "compare" badge in the
+// header.
 .pf-memscope-memmap {
   display: flex;
   flex-direction: column;
@@ -225,10 +183,6 @@
       font-size: 14px;
       color: var(--pf-color-text-muted);
     }
-  }
-
-  .pf-chip {
-    padding: 2px 6px;
   }
 
   // Per-snapshot header for the flamegraph (memory_map), showing the snapshot
@@ -272,11 +226,6 @@
     color: var(--pf-color-text);
   }
 
-  .pf-memscope-toptable__subtitle {
-    font-weight: 400;
-    font-size: var(--pf-font-size-s);
-    color: var(--pf-color-text-muted);
-  }
 }
 
 // Monospace class-name cell + its "↳ via <owner>" retainer annotation lines.
@@ -356,8 +305,8 @@ a.pf-memscope-classname {
   gap: 12px;
 }
 
-// "Where the growth went" bar below the composition chart: label + big signed
-// delta + a per-category ProportionBar. Layout only — the recessed chrome comes
+// "Memory delta" bar below the composition chart: label + big signed
+// delta + a per-category ProportionBar. Layout only - the recessed chrome comes
 // from the Inset this class is applied to.
 .pf-memscope-growth {
   display: flex;
@@ -405,16 +354,6 @@ a.pf-memscope-classname {
   display: flex;
   align-items: center;
   gap: 4px;
-
-  .pf-memscope-tab {
-    padding: 4px 12px;
-    border: 0.5px solid var(--pf-col-border);
-    border-radius: 12px;
-
-    &--active {
-      border-color: var(--pf-color-accent);
-    }
-  }
 }
 
 .pf-memscope-smaps__filter {
