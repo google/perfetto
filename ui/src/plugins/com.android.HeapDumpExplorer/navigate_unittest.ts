@@ -74,7 +74,7 @@ describe('navigate', () => {
 
     for (const {link, expectedHref} of cases) {
       expect(generateNavLink(link)).toBe(expectedHref);
-      expect(parseNavLink(expectedHref)).toEqual(link);
+      expect(parseNavLink(expectedHref)).toEqual({status: 'ok', nav: link});
     }
   });
 
@@ -87,18 +87,38 @@ describe('navigate', () => {
     const href = generateNavLink(link);
     expect(href).toBe('#!/heapdump/42-1000/objects_java.lang.String');
     expect(generateNavSubpage(link)).toBe('42-1000/objects_java.lang.String');
-    expect(parseNavLink(href)).toEqual(link);
-    expect(parseNavLink('42-1000/objects_java.lang.String')).toEqual(link);
+    expect(parseNavLink(href)).toEqual({status: 'ok', nav: link});
+    expect(parseNavLink('42-1000/objects_java.lang.String')).toEqual({
+      status: 'ok',
+      nav: link,
+    });
   });
 
   test('parses bare dump route with default tab', () => {
     expect(parseNavLink('#!/heapdump/42-1000')).toEqual({
-      tab: 'overview',
-      dump,
+      status: 'ok',
+      nav: {tab: 'overview', dump},
     });
     expect(parseNavLink('42-1000', 'flamegraph')).toEqual({
-      tab: 'flamegraph',
+      status: 'ok',
+      nav: {tab: 'flamegraph', dump},
+    });
+  });
+
+  test('reports invalid tabs', () => {
+    expect(parseNavLink('#!/heapdump/bogus')).toEqual({
+      status: 'invalid_tab',
+      raw: 'bogus',
+    });
+    expect(parseNavLink('42-1000/bogus')).toEqual({
+      status: 'invalid_tab',
+      raw: 'bogus',
       dump,
+    });
+    // An empty tab still resolves to the default, not invalid.
+    expect(parseNavLink('#!/heapdump/42-1000/')).toEqual({
+      status: 'ok',
+      nav: {tab: 'overview', dump},
     });
   });
 });

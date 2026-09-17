@@ -62,7 +62,18 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     // session.syncInstanceTabFromNav();
     // session.syncFlamegraphTabFromNav();
 
-    const nav = parseNavLink(subpage);
+    const navResult = parseNavLink(subpage, session.defaultView);
+
+    // The URL pointed at a tab that doesn't exist (typo or stale deep link).
+    // This is the hook for handling invalid tabs — decide what to do here.
+    if (navResult.status === 'invalid_tab') {
+      return m(
+        '.pf-hde-page',
+        m('.pf-hde-loading', `404: Unknown tab "${navResult.raw}"`),
+      );
+    }
+
+    const nav = navResult.nav;
     const activeDumpResult = resolveActiveDump(allDumps, nav);
 
     if (activeDumpResult.status === 'dumpless') {
@@ -85,9 +96,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     // Load the overview data
     const {isPending, data: overview} = this.overviewMemo.use({
       key: {activeDump},
-      compute: async () => {
-        return await queries.getOverview(trace.engine, activeDump);
-      },
+      compute: () => queries.getOverview(trace.engine, activeDump),
     });
 
     if (isPending || overview === undefined) {
@@ -98,27 +107,42 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
       );
     }
 
-    const {tabs, actions} = buildTabs(
-      session,
-      activeDump,
-      session.nav,
-      overview,
-    );
-
     return m(
       '.pf-hde-page',
       renderDumpSelector(trace, allDumps, activeDump),
       m(
         '.pf-hde-page__tabs',
         m(Tabs, {
-          tabs,
-          activeTabKey: activeTabKey(session),
-          onTabChange: (key: string) => actions.get(key)?.select(),
-          onTabClose: (key: string) => actions.get(key)?.close?.(),
+          tabs: [
+            {
+              key: 'overview',
+              title: 'Overview',
+              content: m(OverviewView, {
+                overview,
+                activeDump,
+              }),
+              onClick: () =>
+                navigate(trace, {dump: activeDump, tab: 'overview'}),
+              active: nav.tab === 'overview',
+            },
+            {
+              key: 'flamegraph',
+              title: 'Flamegraph',
+              content: 'flamegraph data....',
+              onClick: () =>
+                navigate(trace, {dump: activeDump, tab: 'flamegraph'}),
+              active: nav.tab === 'flamegraph',
+            },
+          ],
         }),
       ),
     );
   }
+}
+
+function navigate(trace: Trace, nav: NavLink): void {
+  const link = generateNavLink(nav);
+  trace.navigate(link);
 }
 
 type ActiveDumpResult =
@@ -163,25 +187,25 @@ function instanceTabKey(objId: number): string {
   return `${INSTANCE_KEY_PREFIX}${objId}`;
 }
 
-function activeTabKey(session: HeapDumpExplorerSession): string {
-  const tabs = session.flamegraphTabs;
-  if (session.nav.view === 'flamegraph-objects' && tabs.length > 0) {
-    const active = session.activeFlamegraph;
-    const tab =
-      (active &&
-        tabs.find(
-          (t) =>
-            t.pathHashes === active.pathHashes &&
-            t.isDominator === active.isDominator,
-        )) ||
-      tabs[tabs.length - 1];
-    return fgTabKey(tab.pathHashes, tab.isDominator);
+function activeTabKey(session: HeapDumpExplorerSession, nav: NavLink): string {
+  switch (nav.tab) {
+    case 'flamegraph-objects': {
+      const tabs = session.flamegraphTabs;
+      const tab =
+        (nav.pathHashes !== undefined &&
+          tabs.find(
+            (t) =>
+              t.pathHashes === nav.pathHashes &&
+              t.isDominator === (nav.isDominator ?? false),
+          )) ||
+        tabs[tabs.length - 1];
+      return fgTabKey(tab.pathHashes, tab.isDominator);
+    }
+    case 'object':
+      return instanceTabKey(nav.id);
+    default:
+      return nav.tab;
   }
-  const objId = session.activeInstanceObjId;
-  if (objId !== null) {
-    return instanceTabKey(objId);
-  }
-  return session.nav.view;
 }
 
 // Per-tab select/close actions, looked up by key.
@@ -382,7 +406,7 @@ function renderDumpSelector(
 
   return m(
     '.pf-hde-dump-selector',
-    m('span', {class: 'pf-hde-dump-selector__label'}, 'Heap dump:'),
+    m('span.pf-hde-dump-selector__label', 'Heap dump:'),
     m(
       PopupMenu,
       {

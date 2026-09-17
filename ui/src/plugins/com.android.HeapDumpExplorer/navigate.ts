@@ -38,6 +38,13 @@ export type NavLink = NavLinkTab & {
   dump?: DumpRouteRef;
 };
 
+// The result of parsing a nav link. `invalid_tab` is reported when the URL
+// contains a non-empty tab that doesn't match any known tab (a typo or a stale
+// deep link), so the caller can choose how to handle it.
+export type NavLinkParseResult =
+  | {status: 'ok'; nav: NavLink}
+  | {status: 'invalid_tab'; raw: string; dump?: DumpRouteRef};
+
 export type NavTabName = NavLinkTab['tab'];
 export type DefaultNavTab = 'overview' | 'flamegraph';
 
@@ -136,7 +143,7 @@ function stripRoutePrefix(hrefOrSubpage: string): string {
 function parseTabSubpage(
   tabSubpage: string,
   defaultTab: DefaultNavTab,
-): NavLinkTab {
+): NavLinkTab | null {
   if (!tabSubpage) {
     return {tab: defaultTab};
   }
@@ -219,37 +226,47 @@ function parseTabSubpage(
       };
     }
     default:
-      return {tab: 'overview'};
+      // Unrecognized non-empty tab. Signal this so the caller can react (e.g.
+      // show a 404) instead of silently falling back to overview.
+      return null;
   }
 }
 
 /**
  * Parses a full href (e.g. `#!/heapdump/42-1000/objects_java.lang.String`)
- * or a subpage string (e.g. `42-1000/objects_java.lang.String`) into a structured `NavLink`.
+ * or a subpage string (e.g. `42-1000/objects_java.lang.String`) into a
+ * structured `NavLink`. Returns an `invalid_tab` result when the URL contains
+ * a non-empty tab that doesn't match any known tab.
  */
 export function parseNavLink(
   hrefOrSubpage: string | undefined,
   defaultTab: DefaultNavTab = 'overview',
-): NavLink {
+): NavLinkParseResult {
   if (!hrefOrSubpage) {
-    return {tab: defaultTab};
+    return {status: 'ok', nav: {tab: defaultTab}};
   }
 
   const subpage = stripRoutePrefix(hrefOrSubpage);
   if (!subpage) {
-    return {tab: defaultTab};
+    return {status: 'ok', nav: {tab: defaultTab}};
   }
 
   const match = subpage.match(/^(\d+)-(\d+)(?:\/(.*))?$/);
   if (match) {
     const upid = Number(match[1]);
     const ts = Time.fromRaw(BigInt(match[2]));
+    const dump: DumpRouteRef = {upid, ts};
     const tabSubpage = match[3] ?? '';
-    return {
-      ...parseTabSubpage(tabSubpage, defaultTab),
-      dump: {upid, ts},
-    };
+    const tab = parseTabSubpage(tabSubpage, defaultTab);
+    if (tab === null) {
+      return {status: 'invalid_tab', raw: tabSubpage, dump};
+    }
+    return {status: 'ok', nav: {...tab, dump}};
   }
 
-  return parseTabSubpage(subpage, defaultTab);
+  const tab = parseTabSubpage(subpage, defaultTab);
+  if (tab === null) {
+    return {status: 'invalid_tab', raw: subpage};
+  }
+  return {status: 'ok', nav: tab};
 }

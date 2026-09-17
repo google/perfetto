@@ -74,6 +74,18 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       hideDefaultChangedHint,
       defaultFlamegraph,
     );
+
+    // Route session navigations (tab select/close, nav-param clears) through
+    // the router so the URL stays the source of truth.
+    session.setNavigateCallback((subpage, replace) => {
+      const href = subpage ? `#!/heapdump/${subpage}` : '#!/heapdump';
+      if (replace) {
+        location.replace(href);
+      } else {
+        ctx.navigate(href);
+      }
+    });
+
     const restored = await session.loadDumps();
 
     const allDumps = await queries.loadDumpsList(ctx.engine);

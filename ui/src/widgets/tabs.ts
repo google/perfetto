@@ -30,6 +30,13 @@ export interface TabsTab {
   readonly title: m.Children;
   // Content to display when this tab is active.
   readonly content: m.Children;
+  // Whether this tab is active (controlled mode). When set on a tab, it takes
+  // precedence over the component-level `activeTabKey` for that tab. Tabs that
+  // don't set this fall back to the component-level active key.
+  readonly active?: boolean;
+  // Called when this specific tab is clicked. Fired in addition to the
+  // component-level `onTabChange`, allowing per-tab custom behavior.
+  readonly onClick?: () => void;
   // Whether to show a close button on the tab.
   readonly closeButton?: boolean;
   // Icon to display on the left side of the tab title.
@@ -260,6 +267,11 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
     // Get active tab key (controlled or uncontrolled)
     const activeKey = activeTabKey ?? this.internalActiveTab ?? tabs[0]?.key;
 
+    // A tab is active if it explicitly sets `active`; otherwise it falls back
+    // to the component-level active key.
+    const isTabActive = (tab: TabsTab): boolean =>
+      tab.active ?? tab.key === activeKey;
+
     return m(
       '.pf-tabs',
       {className},
@@ -298,7 +310,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
             m(
               TabHandle,
               {
-                active: tab.key === activeKey,
+                active: isTabActive(tab),
                 hasCloseButton: tab.closeButton,
                 leftIcon: tab.leftIcon,
                 menuItems: tab.menuItems,
@@ -307,6 +319,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                 onpointerdown: () => {
                   this.internalActiveTab = tab.key;
                   onTabChange?.(tab.key);
+                  tab.onClick?.();
                 },
                 ondblclick: onTabRename
                   ? () => {
@@ -394,7 +407,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       m(
         '.pf-tabs__content',
         tabs.map((tab) =>
-          m(Gate, {key: tab.key, open: tab.key === activeKey}, tab.content),
+          m(Gate, {key: tab.key, open: isTabActive(tab)}, tab.content),
         ),
       ),
     );
