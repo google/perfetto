@@ -3880,6 +3880,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_type.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_utilization.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_per_uid.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_uptime.sql",
     ],
 )
 
