@@ -398,8 +398,17 @@ config("sqlite_third_party_include_path") {
   }
 }
 
+pkg_config("pkgconfig_expat") {
+  pkg_deps = [ "expat" ]
+}
+
 config("system_expat_config") {
-  libs = [ "expat" ]
+  if (perfetto_use_pkgconfig) {
+    configs = [ ":pkgconfig_expat" ]
+  } else {
+    # Fallback if pkg-config isn't enabled.
+    libs = [ "expat" ]
+  }
 }
 
 if (enable_perfetto_trace_processor_mac_instruments) {
