@@ -47,14 +47,11 @@ namespace perfetto::trace_processor::core::exec {
 // column is added.
 class TreeChildFirst : public Breaker {
  public:
-  TreeChildFirst(const Source& input,
-                 uint32_t node_column,
-                 uint32_t parent_column);
-  TreeChildFirst(Source&&, uint32_t, uint32_t) = delete;
+  TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
 
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
-  bool Finish(Breaker::State& state) const override;
+  bool Finalize(Breaker::State& state) const override;
 
  private:
   struct State : Breaker::State {

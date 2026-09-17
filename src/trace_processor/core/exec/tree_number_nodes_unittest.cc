@@ -337,7 +337,8 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
   }
   df.Finalize();
 
-  DataframeScan scan(df, {0, 1});
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
+                     df.row_count());
   std::unique_ptr<OperatorState> scan_state = scan.MakeState();
   TreeNumberNodes op(0, 1);
   std::unique_ptr<OperatorState> state = op.MakeState();
