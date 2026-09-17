@@ -398,9 +398,15 @@ config("sqlite_third_party_include_path") {
   }
 }
 
+config("system_expat_config") {
+  libs = [ "expat" ]
+}
+
 if (enable_perfetto_trace_processor_mac_instruments) {
   group("expat") {
-    if (perfetto_root_path == "//") {
+    if (perfetto_use_system_expat) {
+      public_configs = [ ":system_expat_config" ]
+    } else if (perfetto_root_path == "//") {
       public_deps = [ "//buildtools:expat" ]
     } else {
       public_deps = [ "//third_party/expat:expat" ]
