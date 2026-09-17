@@ -376,7 +376,32 @@ PERFETTO_SDK_EXPORT void PerfettoDsImplTraceIterateBreak(
 // Creates a new trace packet on `tracer`. Returns a stream writer that can be
 // used to write data to the packet. The caller must use
 // PerfettoDsTracerImplPacketEnd() when done.
+//
+// Only supports length-delimited writers. Aborts for proto group writers
+// selected by DataSourceConfig.use_tracing_v2.
+// Use PerfettoDsTracerImplPacketBeginWithEncoding() for new callers.
 PERFETTO_SDK_EXPORT struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer);
+
+// Encoding required by the packet's stream writer.
+// PerfettoDsTracerImplPacketBeginWithEncoding() returns both values together.
+// PerfettoDsRootTracePacketBegin() initializes the root with this encoding,
+// which each nested message inherits.
+enum PerfettoDsPacketEncoding {
+  PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED = 0,
+  PERFETTO_DS_PACKET_ENCODING_PROTO_GROUP = 1,
+};
+
+struct PerfettoDsPacketBeginResult {
+  struct PerfettoStreamWriter writer;
+  uint32_t encoding;  // PerfettoDsPacketEncoding.
+};
+
+// Starts a packet and returns its writer and required encoding.
+// The caller must use that encoding for all nested messages in the packet.
+// Call PerfettoDsTracerImplPacketEnd() after the packet is complete.
+PERFETTO_SDK_EXPORT struct PerfettoDsPacketBeginResult
+PerfettoDsTracerImplPacketBeginWithEncoding(
     struct PerfettoDsTracerImpl* tracer);
 
 // Signals that the trace packets created previously on `tracer` with

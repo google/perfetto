@@ -48,6 +48,30 @@ enum class ProtoWireType : uint32_t {
   kFixed32 = 5,
 };
 
+// Tracing v2's private proto group format borrows the protobuf start-group
+// wire type (3). It closes each nested message with a single 0x04 byte instead
+// of a standard end-group tag that repeats the opening field number. See
+// kProtoGroupEndByte below for the framing and RFC 0014 for the design:
+// https://github.com/google/perfetto/discussions/4508.
+//
+// ProtoRewriter must convert this format to length-delimited protobuf before
+// ordinary decoding. Protozero decoders do not support groups, so wire types
+// 3 and 4 stay outside ProtoWireType.
+constexpr uint32_t kWireTypeStartGroup = 3;
+constexpr uint32_t kWireTypeEndGroup = 4;
+
+// Append-only nested-message encoding used by tracing v2:
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: 0x04
+//   root:                 no wrapper and no close byte
+//
+// The opening tag carries the field number. The closing byte, 0x04, encodes
+// field number zero with the end-group wire type. Field zero is invalid in
+// ordinary protobuf, so this byte closes the innermost message at a field
+// boundary. The packet boundary marks the end of the root.
+constexpr uint8_t kProtoGroupEndByte = 0x04;
+
 // This is the type defined in the proto for each field. This information
 // is used to decide the translation strategy when writing the trace.
 enum class ProtoSchemaType {
@@ -198,6 +222,11 @@ constexpr uint32_t MakeTagFixed(uint32_t field_id) {
 constexpr uint32_t MakeTagLengthDelimited(uint32_t field_id) {
   return (field_id << 3) |
          static_cast<uint32_t>(ProtoWireType::kLengthDelimited);
+}
+
+// Opens a nested message in the proto group encoding described above.
+constexpr uint32_t MakeTagStartGroup(uint32_t field_id) {
+  return (field_id << kFieldTypeNumBits) | kWireTypeStartGroup;
 }
 
 // Proto types: sint64, sint32.
