@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/breaker.h"
 
 #include <memory>
-#include <utility>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -25,43 +24,42 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-Breaker::Breaker(const Source& input) : input_(input) {}
 Breaker::~Breaker() = default;
 Breaker::State::~State() = default;
 
 std::unique_ptr<OperatorState> Breaker::MakeState() const {
-  std::unique_ptr<State> state = CreateState();
-  state->input = input_.MakeState();
-  return state;
+  return CreateState();
 }
 
-bool Breaker::GetData(RowBatch& out, OperatorState& state) const {
+OpResult Breaker::Execute(const RowBatch& in,
+                          RowBatch& out,
+                          OperatorState& state) const {
+  out.Reset();
+  State& s = state.Cast<State>();
+  return s.status.ok() && Consume(in, s) ? OpResult::kNeedMoreInput
+                                         : OpResult::kError;
+}
+
+OpResult Breaker::Finish(RowBatch& out, OperatorState& state) const {
+  out.Reset();
   State& s = state.Cast<State>();
   if (!s.status.ok()) {
-    return false;
+    return OpResult::kError;
   }
   if (!s.filled) {
-    while (input_.GetData(s.batch, *s.input)) {
-      if (!Consume(s.batch, s)) {
-        return false;
-      }
-    }
-    base::Status input_status = input_.status(*s.input);
-    if (!input_status.ok()) {
-      s.status = std::move(input_status);
-      return false;
-    }
-    if (!Finish(s)) {
-      return false;
+    if (!Finalize(s)) {
+      return OpResult::kError;
     }
     s.filled = true;
   }
-  return Serve(out, s);
+  if (Serve(out, s)) {
+    return OpResult::kHaveMoreOutput;
+  }
+  return s.status.ok() ? OpResult::kNeedMoreInput : OpResult::kError;
 }
 
 void Breaker::Rewind(OperatorState& state) const {
   State& s = state.Cast<State>();
-  input_.Rewind(*s.input);
   Reset(s);
   s.status = base::OkStatus();
   s.filled = false;
@@ -69,7 +67,7 @@ void Breaker::Rewind(OperatorState& state) const {
 
 base::Status Breaker::status(const OperatorState& state) const {
   const State& s = state.Cast<const State>();
-  return s.status.ok() ? input_.status(*s.input) : s.status;
+  return s.status;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

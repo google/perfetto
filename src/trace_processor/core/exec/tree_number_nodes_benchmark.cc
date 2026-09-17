@@ -68,7 +68,8 @@ std::optional<uint32_t> ParentOf(uint32_t row) {
 
 void RunTreeNumberNodes(benchmark::State& state,
                         const dataframe::Dataframe& df) {
-  DataframeScan scan(df, {0, 1});
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
+                     df.row_count());
   std::unique_ptr<OperatorState> scan_state = scan.MakeState();
   TreeNumberNodes op(0, 1);
   std::unique_ptr<OperatorState> op_state = op.MakeState();
@@ -105,7 +106,8 @@ void BM_TreeNumberNodesScanOnly(benchmark::State& state) {
   StringPool pool;
   dataframe::Dataframe df =
       BuildIdColumn(static_cast<uint32_t>(state.range(0)), &pool);
-  DataframeScan scan(df, {0, 1});
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
+                     df.row_count());
   std::unique_ptr<OperatorState> scan_state = scan.MakeState();
   RowBatch in;
   for (auto _ : state) {

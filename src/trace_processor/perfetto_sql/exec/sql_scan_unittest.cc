@@ -364,12 +364,10 @@ TEST_F(SqlScanTest, AQueryReachesTheTreeOperators) {
   ops.push_back(std::make_unique<core::exec::AssertType>(
       2, core::exec::AssertTypeTarget{core::Int64{}}, "self"));
   ops.push_back(std::make_unique<core::exec::TreeNumberNodes>(0, 1));
-  core::exec::Pipeline typed(**scan, std::move(ops));
-  core::exec::TreeChildFirst order(typed, 3, 4);
+  ops.push_back(std::make_unique<core::exec::TreeChildFirst>(3, 4));
   core::exec::TreeAccumulateSpec spec{3, 4, 2};
-  std::vector<std::unique_ptr<core::exec::Operator>> folds;
-  folds.push_back(std::make_unique<core::exec::TreeAccumulateUp>(spec));
-  core::exec::Pipeline folded(order, std::move(folds));
+  ops.push_back(std::make_unique<core::exec::TreeAccumulateUp>(spec));
+  core::exec::Pipeline folded(**scan, std::move(ops));
 
   std::unique_ptr<core::exec::OperatorState> state = folded.MakeState();
   RowBatch batch;
