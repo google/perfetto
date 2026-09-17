@@ -68,6 +68,8 @@ class RowCursor {
   }
 
   const RowBatch& batch() const { return batch_; }
+  // Index of the current row in batch().
+  uint32_t row() const { return index_; }
 
  private:
   bool Pull();
