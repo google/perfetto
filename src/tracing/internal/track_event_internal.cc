@@ -44,6 +44,7 @@ TrackEventSessionObserver::~TrackEventSessionObserver() = default;
 void TrackEventSessionObserver::OnSetup(const DataSourceBase::SetupArgs&) {}
 void TrackEventSessionObserver::OnStart(const DataSourceBase::StartArgs&) {}
 void TrackEventSessionObserver::OnStop(const DataSourceBase::StopArgs&) {}
+void TrackEventSessionObserver::OnFlush(const DataSourceBase::FlushArgs&) {}
 void TrackEventSessionObserver::WillClearIncrementalState(
     const DataSourceBase::ClearIncrementalStateArgs&) {}
 
@@ -144,6 +145,20 @@ bool NameMatchesPatternList(const std::vector<std::string>& patterns,
   }
   return false;
 }
+
+class FlushArgsImpl : public DataSourceBase::FlushArgs {
+ public:
+  FlushArgsImpl(const DataSourceBase::FlushArgs& base) {
+    internal_instance_index = base.internal_instance_index;
+    flush_flags = base.flush_flags;
+  }
+  ~FlushArgsImpl() override = default;
+
+  std::function<void()> HandleFlushAsynchronously() const override {
+    // HandleFlushAsynchronously not supported.
+    PERFETTO_IMMEDIATE_CRASH();
+  }
+};
 
 }  // namespace
 
@@ -298,6 +313,14 @@ void TrackEventInternal::OnStop(const DataSourceBase::StopArgs& args) {
       ->ForEachObserverForRegistries(
           GetInstance().GetRegistries(),
           [&](TrackEventSessionObserver* o) { o->OnStop(args); });
+}
+
+// static
+void TrackEventInternal::OnFlush(const DataSourceBase::FlushArgs& args) {
+  TrackEventSessionObserverRegistry::GetInstance()
+      ->ForEachObserverForRegistries(
+          GetInstance().GetRegistries(),
+          [&](TrackEventSessionObserver* o) { o->OnFlush(args); });
 }
 
 // static
@@ -650,6 +673,11 @@ protos::pbzero::DebugAnnotation* TrackEventInternal::AddDebugAnnotation(
 
 void TrackEventDataSource::OnStart(const DataSourceBase::StartArgs& args) {
   TrackEventInternal::OnStart(args);
+}
+
+void TrackEventDataSource::OnFlush(const DataSourceBase::FlushArgs& args) {
+  FlushArgsImpl inner_flush_args{args};
+  TrackEventInternal::OnFlush(inner_flush_args);
 }
 
 }  // namespace internal
