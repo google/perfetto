@@ -18,11 +18,23 @@ import sys
 
 from code_format_utils import CodeFormatterBase, run_code_formatters
 
+IGNORE_DIRS = [
+    # The source of truth for the chrome stdlib is in chromium. Skip formatting
+    # to avoid diverging from its upstream.
+    'src/trace_processor/perfetto_sql/stdlib/chrome/',
+]
+
 
 class GnFormat(CodeFormatterBase):
 
   def __init__(self):
     super().__init__(name='gn', exts=['.gn', '.gni'])
+
+  def filter_files(self, files):
+    filtered = super().filter_files(files)
+    return [
+        f for f in filtered if not any(f.startswith(i) for i in IGNORE_DIRS)
+    ]
 
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
     tool = 'tools/gn'
