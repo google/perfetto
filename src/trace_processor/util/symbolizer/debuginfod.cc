@@ -42,6 +42,7 @@ std::string EnvironmentValue(const char* name) {
   return value ? value : "";
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 // Positive whole seconds that fit the config field, whatever the width of the
 // platform's unsigned long.
 std::optional<uint32_t> ParseSeconds(const std::string& text) {
@@ -53,7 +54,6 @@ std::optional<uint32_t> ParseSeconds(const std::string& text) {
   return static_cast<uint32_t>(*value);
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 bool MakeCacheDirectory(const std::string& path) {
   if (base::DirectoryExists(path))
     return true;
@@ -244,10 +244,7 @@ base::Status ResolveDebuginfodOptions(const DebuginfodOptions& options,
     }
     return base::OkStatus();
   }
-#if !PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-  return base::ErrStatus(
-      "this build does not support debuginfod symbolization");
-#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
   // Servers are separated by any whitespace, as debuginfod clients expect.
   std::string list = options.urls.value_or(env_urls);
   std::replace_if(
@@ -297,6 +294,11 @@ base::Status ResolveDebuginfodOptions(const DebuginfodOptions& options,
         "cannot determine debuginfod cache directory; "
         "pass --debuginfod-cache-path");
   return base::OkStatus();
+#else
+  base::ignore_result(config);
+  return base::ErrStatus(
+      "this build does not support debuginfod symbolization");
+#endif
 }
 
 std::unique_ptr<Symbolizer> CreateDebuginfodSymbolizer(
