@@ -37,14 +37,14 @@ void Field::SerializeAndAppendToInternal(Container* dst) const {
     case static_cast<int>(pu::ProtoWireType::kFixed32): {
       wptr = pu::WriteVarInt(pu::MakeTagFixed<uint32_t>(id_), wptr);
       uint32_t value32 =
-          pu::FixedToFromLittleEndian(static_cast<uint32_t>(int_value_));
+          pu::HostToLEFixed(static_cast<uint32_t>(int_value_));
       memcpy(wptr, &value32, sizeof(value32));
       wptr += sizeof(uint32_t);
       break;
     }
     case static_cast<int>(pu::ProtoWireType::kFixed64): {
       wptr = pu::WriteVarInt(pu::MakeTagFixed<uint64_t>(id_), wptr);
-      uint64_t value64 = pu::FixedToFromLittleEndian(int_value_);
+      uint64_t value64 = pu::HostToLEFixed(int_value_);
       memcpy(wptr, &value64, sizeof(value64));
       wptr += sizeof(uint64_t);
       break;

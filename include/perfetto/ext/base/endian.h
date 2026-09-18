@@ -23,50 +23,104 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 
-#if !PERFETTO_IS_LITTLE_ENDIAN()
-#error "endian.h supports only little-endian archs"
-#endif
-
 namespace perfetto {
 namespace base {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
-inline uint16_t HostToBE16(uint16_t x) {
+inline uint16_t ByteSwap16(uint16_t x) {
   return _byteswap_ushort(x);
 }
-inline uint32_t HostToBE32(uint32_t x) {
+inline uint32_t ByteSwap32(uint32_t x) {
   return _byteswap_ulong(x);
 }
-inline uint64_t HostToBE64(uint64_t x) {
-  return _byteswap_uint64(x);
-}
-inline uint16_t BE16ToHost(uint16_t x) {
-  return _byteswap_ushort(x);
-}
-inline uint32_t BE32ToHost(uint32_t x) {
-  return _byteswap_ulong(x);
-}
-inline uint64_t BE64ToHost(uint64_t x) {
+inline uint64_t ByteSwap64(uint64_t x) {
   return _byteswap_uint64(x);
 }
 #else
-inline uint16_t HostToBE16(uint16_t x) {
+inline uint16_t ByteSwap16(uint16_t x) {
   return __builtin_bswap16(x);
+}
+inline uint32_t ByteSwap32(uint32_t x) {
+  return __builtin_bswap32(x);
+}
+inline uint64_t ByteSwap64(uint64_t x) {
+  return __builtin_bswap64(x);
+}
+#endif
+
+#if PERFETTO_IS_LITTLE_ENDIAN()
+inline uint16_t HostToLE16(uint16_t x) {
+  return x;
+}
+inline uint32_t HostToLE32(uint32_t x) {
+  return x;
+}
+inline uint64_t HostToLE64(uint64_t x) {
+  return x;
+}
+inline uint16_t LE16ToHost(uint16_t x) {
+  return x;
+}
+inline uint32_t LE32ToHost(uint32_t x) {
+  return x;
+}
+inline uint64_t LE64ToHost(uint64_t x) {
+  return x;
+}
+inline uint16_t HostToBE16(uint16_t x) {
+  return ByteSwap16(x);
 }
 inline uint32_t HostToBE32(uint32_t x) {
-  return __builtin_bswap32(x);
+  return ByteSwap32(x);
 }
 inline uint64_t HostToBE64(uint64_t x) {
-  return __builtin_bswap64(x);
+  return ByteSwap64(x);
 }
 inline uint16_t BE16ToHost(uint16_t x) {
-  return __builtin_bswap16(x);
+  return ByteSwap16(x);
 }
 inline uint32_t BE32ToHost(uint32_t x) {
-  return __builtin_bswap32(x);
+  return ByteSwap32(x);
 }
 inline uint64_t BE64ToHost(uint64_t x) {
-  return __builtin_bswap64(x);
+  return ByteSwap64(x);
+}
+#else
+inline uint16_t HostToLE16(uint16_t x) {
+  return ByteSwap16(x);
+}
+inline uint32_t HostToLE32(uint32_t x) {
+  return ByteSwap32(x);
+}
+inline uint64_t HostToLE64(uint64_t x) {
+  return ByteSwap64(x);
+}
+inline uint16_t LE16ToHost(uint16_t x) {
+  return ByteSwap16(x);
+}
+inline uint32_t LE32ToHost(uint32_t x) {
+  return ByteSwap32(x);
+}
+inline uint64_t LE64ToHost(uint64_t x) {
+  return ByteSwap64(x);
+}
+inline uint16_t HostToBE16(uint16_t x) {
+  return x;
+}
+inline uint32_t HostToBE32(uint32_t x) {
+  return x;
+}
+inline uint64_t HostToBE64(uint64_t x) {
+  return x;
+}
+inline uint16_t BE16ToHost(uint16_t x) {
+  return x;
+}
+inline uint32_t BE32ToHost(uint32_t x) {
+  return x;
+}
+inline uint64_t BE64ToHost(uint64_t x) {
+  return x;
 }
 #endif
 

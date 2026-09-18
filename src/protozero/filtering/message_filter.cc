@@ -42,7 +42,8 @@ template <typename INT_T /* uint32_t | uint64_t*/>
 inline void AppendFixed(uint32_t field_id, INT_T value, uint8_t** out) {
   *out = proto_utils::WriteVarInt(proto_utils::MakeTagFixed<INT_T>(field_id),
                                   *out);
-  memcpy(*out, &value, sizeof(value));
+  INT_T le_value = proto_utils::HostToLEFixed(value);
+  memcpy(*out, &le_value, sizeof(value));
   *out += sizeof(value);
 }
 

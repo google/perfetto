@@ -62,7 +62,7 @@ bool ParseAndVerifyChecksum(const uint8_t* data,
       break;
     }
     words->emplace_back(word);
-    hasher.Update(word);
+    hasher.Update(proto_utils::HostToLEFixed(word));
   }
   if (packed_parse_err || !has_checksum) {
     words->clear();

@@ -111,14 +111,14 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
     if (PERFETTO_UNLIKELY(new_pos > end))
       return res;
     memcpy(&int_value, pos, sizeof(uint64_t));
-    int_value = proto_utils::FixedToFromLittleEndian(int_value);
+    int_value = perfetto::base::LE64ToHost(int_value);
   } else if (field_type == static_cast<uint8_t>(ProtoWireType::kFixed32)) {
     new_pos = pos + sizeof(uint32_t);
     if (PERFETTO_UNLIKELY(new_pos > end))
       return res;
     uint32_t value32;
     memcpy(&value32, pos, sizeof(uint32_t));
-    int_value = proto_utils::FixedToFromLittleEndian(value32);
+    int_value = perfetto::base::LE32ToHost(value32);
   } else {
     PERFETTO_DLOG("Invalid proto field type: %u", field_type);
     return res;

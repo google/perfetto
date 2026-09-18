@@ -25,6 +25,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/endian.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_utils.h"
 
@@ -40,26 +41,46 @@
 namespace protozero {
 namespace proto_utils {
 
-// Reorders the bytes of a fixed32/fixed64/float/double so that the in memory
-// representation matches the little endian proto wire format.
+// Converts a fixed32/fixed64/sfixed/float/double between host byte order and
+// the little-endian proto wire representation.
 template <typename T>
-inline T FixedToFromLittleEndian(T value) {
+inline T HostToLEFixed(T value) {
   static_assert(std::is_trivially_copyable<T>::value,
-                "FixedToFromLittleEndian requires a trivially copyable type");
-#if PERFETTO_IS_LITTLE_ENDIAN()
-  return value;
-#else
-  uint8_t bytes[sizeof(T)];
-  memcpy(bytes, &value, sizeof(T));
-  for (size_t i = 0; i < sizeof(T) / 2; ++i) {
-    uint8_t tmp = bytes[i];
-    bytes[i] = bytes[sizeof(T) - 1 - i];
-    bytes[sizeof(T) - 1 - i] = tmp;
+                "HostToLEFixed requires a trivially copyable type");
+  static_assert(sizeof(T) == 4 || sizeof(T) == 8,
+                "HostToLEFixed supports only 32/64-bit fixed types");
+  if (sizeof(T) == 4) {
+    uint32_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::HostToLE32(u);
+    memcpy(&value, &u, sizeof(u));
+  } else {
+    uint64_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::HostToLE64(u);
+    memcpy(&value, &u, sizeof(u));
   }
-  T result;
-  memcpy(&result, bytes, sizeof(T));
-  return result;
-#endif
+  return value;
+}
+
+template <typename T>
+inline T LEFixedToHost(T value) {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "LEFixedToHost requires a trivially copyable type");
+  static_assert(sizeof(T) == 4 || sizeof(T) == 8,
+                "LEFixedToHost supports only 32/64-bit fixed types");
+  if (sizeof(T) == 4) {
+    uint32_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::LE32ToHost(u);
+    memcpy(&value, &u, sizeof(u));
+  } else {
+    uint64_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::LE64ToHost(u);
+    memcpy(&value, &u, sizeof(u));
+  }
+  return value;
 }
 
 // See https://developers.google.com/protocol-buffers/docs/encoding wire types.

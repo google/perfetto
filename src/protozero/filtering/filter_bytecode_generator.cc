@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/protozero/filtering/filter_bytecode_common.h"
 
 namespace protozero {
@@ -144,7 +145,7 @@ FilterBytecodeGenerator::SerializeResult FilterBytecodeGenerator::Serialize() {
     perfetto::base::FnvHasher hasher;
     for (uint32_t word : bytecode_) {
       words.Append(word);
-      hasher.Update(word);
+      hasher.Update(proto_utils::HostToLEFixed(word));
     }
     words.Append(static_cast<uint32_t>(hasher.digest()));
     result.bytecode =
@@ -157,7 +158,7 @@ FilterBytecodeGenerator::SerializeResult FilterBytecodeGenerator::Serialize() {
     perfetto::base::FnvHasher hasher;
     for (uint32_t word : v54_overlay_) {
       words.Append(word);
-      hasher.Update(word);
+      hasher.Update(proto_utils::HostToLEFixed(word));
     }
     words.Append(static_cast<uint32_t>(hasher.digest()));
     result.v54_overlay =
