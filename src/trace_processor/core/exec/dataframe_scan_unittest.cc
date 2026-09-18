@@ -273,9 +273,8 @@ TEST_F(DataframeScanTest, IsReplayable) {
   EXPECT_TRUE(scan.GetData(batch, *state));
 }
 
-// Retain outputs across producer advancement. Keep the source/state alive even
-// for failing cases, so overwritten storage is observed without dereferencing
-// freed memory. Sparse expansion must keep both values and validity immutable.
+// Sparse expansion must retain both values and validity across advancement
+// and after the producer releases its buffers.
 TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
   std::vector<int64_t> values(kMaxBatchRows * 2);
   std::vector<bool> present(values.size());
@@ -291,6 +290,9 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
   auto expected = test::ReadNullableColumn<int64_t>(output, 0);
   retained.CopyFrom(output);
   ASSERT_TRUE(scan.GetData(output, *state));
+  EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
+  output.Reset();
+  state.reset();
   EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
 }
 

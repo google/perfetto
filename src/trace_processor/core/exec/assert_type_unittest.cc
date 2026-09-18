@@ -277,6 +277,10 @@ TEST(AssertTypeTest, RetainedOutputSurvivesConversionAndRewind) {
   ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
               ElementsAre(Optional(7), Eq(std::nullopt)));
+  run.out.Reset();
+  run.state.reset();
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
+              ElementsAre(Optional(7), Eq(std::nullopt)));
 }
 
 }  // namespace

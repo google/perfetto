@@ -34,6 +34,8 @@ class BufferPool {
   BufferPool& operator=(const BufferPool&) = delete;
   BufferPool(BufferPool&&) noexcept = default;
   BufferPool& operator=(BufferPool&&) noexcept = default;
+  // Returns an exclusively writable buffer, possibly with previous contents.
+  // Initialize it before publishing and stop writing once an owner is shared.
   std::shared_ptr<T> Acquire() {
     for (auto& buffer : buffers_) {
       if (buffer.use_count() == 1)

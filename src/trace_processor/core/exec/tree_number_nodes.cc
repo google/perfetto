@@ -172,7 +172,6 @@ std::unique_ptr<OperatorState> TreeNumberNodes::MakeState() const {
   auto state = std::make_unique<State>();
   state->ids = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
   state->parents = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
-
   return state;
 }
 
@@ -233,15 +232,16 @@ uint32_t TreeNumberNodes::Number(State& s, const Variant& id) const {
 
 bool TreeNumberNodes::NumberInOrder(const RowBatch& in,
                                     uint32_t count,
+                                    Numbers& output,
                                     State& s) const {
   uint32_t start = s.numbered;
   if (count > kNoNode - start ||
       !ParentsInOrder(in.column(id_column_), in.column(parent_column_), count,
-                      start, s.output->parent_nodes.data())) {
+                      start, output.parent_nodes.data())) {
     return false;
   }
   for (uint32_t i = 0; i < count; ++i) {
-    s.output->nodes[i] = start + i;
+    output.nodes[i] = start + i;
   }
   s.numbered = start + count;
   // A parent numbered ahead of its row must not be marked as seen.
@@ -252,6 +252,7 @@ bool TreeNumberNodes::NumberInOrder(const RowBatch& in,
 
 bool TreeNumberNodes::NumberByKey(const RowBatch& in,
                                   uint32_t count,
+                                  Numbers& output,
                                   State& s) const {
   base::Status status = ReadKeys(in.column(id_column_), count, false, &s.ids);
   if (status.ok()) {
@@ -276,12 +277,12 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
       return false;
     }
     s.has_row.set(node);
-    s.output->nodes[i] = node;
+    output.nodes[i] = node;
     if (s.parents[i].type == Variant::Type::kNull) {
-      s.output->parent_nodes[i] = kNoNode;
+      output.parent_nodes[i] = kNoNode;
       continue;
     }
-    s.output->parent_nodes[i] = Number(s, s.parents[i]);
+    output.parent_nodes[i] = Number(s, s.parents[i]);
     if (!s.status.ok()) {
       return false;
     }
@@ -294,19 +295,18 @@ OpResult TreeNumberNodes::Execute(const RowBatch& in,
                                   OperatorState& state) const {
   State& s = state.Cast<State>();
   uint32_t count = in.size();
-  s.output.reset();
-  s.output = s.buffers.Acquire();
-  bool in_order = s.dense && NumberInOrder(in, count, s);
-  if (!in_order && !NumberByKey(in, count, s)) {
+  auto output = s.buffers.Acquire();
+  bool in_order = s.dense && NumberInOrder(in, count, *output, s);
+  if (!in_order && !NumberByKey(in, count, *output, s)) {
     return OpResult::kError;
   }
   out.CopyFrom(in);
   out.AddColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, s.output->nodes.data()),
-      s.output);
-  out.AddColumn(ColumnView::Reference(StorageType{Uint32{}},
-                                      s.output->parent_nodes.data()),
-                s.output);
+      ColumnView::Reference(StorageType{Uint32{}}, output->nodes.data()),
+      output);
+  out.AddColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, output->parent_nodes.data()),
+      output);
   return OpResult::kNeedMoreInput;
 }
 

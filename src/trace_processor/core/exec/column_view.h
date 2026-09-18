@@ -18,7 +18,9 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_
 
 #include <cstdint>
+#include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -79,16 +81,19 @@ class ColumnView {
   // `rows` has to outlive the batch's current contents.
   void SetBorrowedRows(Span<const uint32_t> rows) {
     selection_ = RowSelection::Indices(rows);
-    selection_owner_ = nullptr;
+    selection_owner_.reset();
   }
 
-  void SetOwnedRows(std::shared_ptr<FlexVector<uint32_t>> rows,
+  // Shares immutable physical indices; the caller must stop writing to rows.
+  void SetOwnedRows(std::shared_ptr<const FlexVector<uint32_t>> rows,
                     uint32_t count) {
+    PERFETTO_DCHECK(rows && count <= rows->size());
     selection_ = RowSelection::Indices(
         Span<const uint32_t>(rows->data(), rows->data() + count));
     selection_owner_ = std::move(rows);
   }
 
+  // Copies borrowed indices only; ranges and already-owned indices are shared.
   void RetainSelection(uint32_t count, SelectionPool& pool) {
     if (selection_.is_range() || selection_owner_ || !count)
       return;
@@ -138,7 +143,7 @@ class ColumnView {
   StorageType type_{Id{}};
   RowSelection selection_ = RowSelection::Range();
   // Keeps composed indices immutable and alive independently of the producer.
-  std::shared_ptr<FlexVector<uint32_t>> selection_owner_;
+  std::shared_ptr<const FlexVector<uint32_t>> selection_owner_;
   const void* data_ = nullptr;
   const BitVector* validity_ = nullptr;
 };

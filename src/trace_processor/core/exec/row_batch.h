@@ -33,7 +33,7 @@ namespace perfetto::trace_processor::core::exec {
 // Published owned columns and composed selections are immutable while retained.
 // Unowned values are borrowed; long-lived dataframe storage is published with
 // its column owner. CopyFrom shares values and owns any borrowed selection
-// indices. Published views remain valid across producer advancement, rewind
+// indices. Owned views remain valid across producer advancement, rewind
 // and destruction. Borrowed values expire at the producer's next call; a
 // retaining consumer must materialize them.
 class RowBatch {
@@ -61,7 +61,7 @@ class RowBatch {
   }
 
   // Points this batch at `other`'s columns and cardinality. No values are
-  // copied.
+  // copied. Borrowed values remain borrowed; only borrowed indices are copied.
   void CopyFrom(const RowBatch& other) {
     columns_ = other.columns_;
     owners_ = other.owners_;
@@ -94,12 +94,6 @@ class RowBatch {
     columns_.push_back(std::move(column));
     owners_.push_back(std::move(owner));
   }
-
-  // Points every column at physical `rows`, retaining a copy of the indices.
-  bool AdoptPhysicalRows(Span<const uint32_t> rows);
-
-  // Invalidates the current contents, ready for the batch to be refilled.
-  void PrepareForFill() { selections_.Reset(); }
 
   // Points every column at the `count` rows `selection` picks out.
   void Compose(RowSelection selection, uint32_t count);
