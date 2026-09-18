@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -70,6 +71,10 @@ class ExpanderImpl final : public DataframeScan::Expander {
 
   void Expand(uint32_t from, uint32_t count, ColumnView* view) override {
     PERFETTO_DCHECK(from == next_);
+    buffer_.reset();
+    buffer_ = buffers_.Acquire();
+    buffer_->values.resize(kMaxBatchRows);
+    buffer_->validity.resize(kMaxBatchRows);
     buffer_->validity.ClearAllBits();
     for (uint32_t row = 0; row < count; ++row) {
       if (bits_->is_set(from + row)) {
@@ -108,7 +113,8 @@ class ExpanderImpl final : public DataframeScan::Expander {
   StorageType type_;
   const T* packed_;
   const BitVector* bits_;
-  std::shared_ptr<Buffer> buffer_ = std::make_shared<Buffer>();
+  BufferPool<Buffer> buffers_;
+  std::shared_ptr<Buffer> buffer_ = buffers_.Acquire();
   // How many of the packed values have been read, which is how many rows
   // before `next_` hold one.
   uint32_t consumed_ = 0;
@@ -218,11 +224,13 @@ bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
     if (s.expanders[i]) {
       // Expanded values are laid out from zero, so the column sits in its own
       // index space rather than the dataframe's.
+      s.owners[i].reset();
       s.expanders[i]->Expand(s.emitted, count, &view);
+      s.owners[i] = s.expanders[i]->owner();
     } else {
       view.SetRange(s.emitted);
     }
-    out.AddColumn(view, s.owners[i]);
+    out.AddColumn(view, s.expanders[i] ? s.owners[i] : columns_[i]);
   }
   out.SetCardinality(count);
   s.emitted += count;

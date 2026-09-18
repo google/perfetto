@@ -266,5 +266,18 @@ TEST(AssertTypeTest, NarrowIntegerErrorsNameAnInteger) {
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("a string"));
 }
 
+TEST(AssertTypeTest, RetainedOutputSurvivesConversionAndRewind) {
+  Asserted run({Variant::Int64(7), Variant::Null()}, AssertTypeTarget{Int64{}});
+  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  RowBatch retained;
+  retained.CopyFrom(run.out);
+  run.values[0] = Variant::Int64(99);
+  run.values[1] = Variant::Int64(100);
+  run.op.Rewind(*run.state);
+  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
+              ElementsAre(Optional(7), Eq(std::nullopt)));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

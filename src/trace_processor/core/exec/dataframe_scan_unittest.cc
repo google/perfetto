@@ -273,5 +273,47 @@ TEST_F(DataframeScanTest, IsReplayable) {
   EXPECT_TRUE(scan.GetData(batch, *state));
 }
 
+// Retain outputs across producer advancement. Keep the source/state alive even
+// for failing cases, so overwritten storage is observed without dereferencing
+// freed memory. Sparse expansion must keep both values and validity immutable.
+TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
+  std::vector<int64_t> values(kMaxBatchRows * 2);
+  std::vector<bool> present(values.size());
+  for (uint32_t i = 0; i < values.size(); ++i) {
+    values[i] = kBig + i;
+    present[i] = (i < kMaxBatchRows) ? i % 2 == 0 : i % 2 != 0;
+  }
+  auto df = Build(values, present);
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
+  auto state = scan.MakeState();
+  RowBatch output, retained;
+  ASSERT_TRUE(scan.GetData(output, *state));
+  auto expected = test::ReadNullableColumn<int64_t>(output, 0);
+  retained.CopyFrom(output);
+  ASSERT_TRUE(scan.GetData(output, *state));
+  EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
+}
+
+TEST_F(DataframeScanTest,
+       ContractRetainedDirectStorageSurvivesAdvanceAndRewind) {
+  std::vector<int64_t> values(kMaxBatchRows * 2 + 1);
+  for (uint32_t i = 0; i < values.size(); ++i)
+    values[i] = kBig + i;
+  auto df = Build(values, std::vector<bool>(values.size(), true));
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
+  auto state = scan.MakeState();
+  RowBatch output, retained;
+  ASSERT_TRUE(scan.GetData(output, *state));
+  auto expected = test::ReadColumn<int64_t>(output, 0);
+  retained.CopyFrom(output);
+  while (scan.GetData(output, *state)) {
+  }
+  scan.Rewind(*state);
+  ASSERT_TRUE(scan.GetData(output, *state));
+  EXPECT_EQ(test::ReadColumn<int64_t>(retained, 0), expected);
+  EXPECT_EQ(retained.column(0).data(),
+            df.column(0).storage.unchecked_data<Int64>());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

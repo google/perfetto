@@ -26,6 +26,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/schema.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -73,6 +74,7 @@ class SqlScan : public core::exec::Source {
     std::optional<SqliteConnection::PreparedStatement> statement;
     // Shared so a batch can keep the values alive.
     std::vector<std::shared_ptr<core::exec::ColumnChunk>> columns;
+    std::vector<core::exec::BufferPool<core::exec::ColumnChunk>> buffers;
     // Each column's value buffer, resolved out of its chunk once.
     std::vector<void*> data;
     bool done = false;
@@ -80,6 +82,7 @@ class SqlScan : public core::exec::Source {
   };
 
   void Prepare(State&) const;
+  void AllocateColumns(State&) const;
 
   bool ReadValue(State&, sqlite3_stmt*, uint32_t index, uint32_t row) const;
   template <typename T, sqlite::Type SqliteType>

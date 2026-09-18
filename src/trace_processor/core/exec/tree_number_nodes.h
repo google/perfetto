@@ -24,6 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -85,8 +86,14 @@ class TreeNumberNodes : public Operator {
     FlexVector<Variant> ids;
     FlexVector<Variant> parents;
     // The two columns appended to the batch.
-    FlexVector<uint32_t> nodes;
-    FlexVector<uint32_t> parent_nodes;
+    struct Numbers {
+      FlexVector<uint32_t> nodes =
+          FlexVector<uint32_t>::CreateWithSize(kMaxBatchRows);
+      FlexVector<uint32_t> parent_nodes =
+          FlexVector<uint32_t>::CreateWithSize(kMaxBatchRows);
+    };
+    BufferPool<Numbers> buffers;
+    std::shared_ptr<Numbers> output;
     base::Status status = base::OkStatus();
   };
 
