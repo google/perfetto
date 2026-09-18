@@ -14,6 +14,10 @@
 !/data/chrome/*.sha256
 !/data/chrome/README.md
 
+!/data/android_memory
+/data/android_memory/*
+!/data/android_memory/*.sha256
+
 !/data/heap_graph
 /data/heap_graph/*
 !/data/heap_graph/*.sha256
