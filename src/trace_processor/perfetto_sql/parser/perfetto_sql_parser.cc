@@ -743,6 +743,11 @@ const PerfettoSqlParser::Statement& PerfettoSqlParser::statement() const {
   return *impl_->current_statement;
 }
 
+PerfettoSqlParser::Statement PerfettoSqlParser::TakeStatement() {
+  PERFETTO_DCHECK(impl_->current_statement.has_value());
+  return std::move(*impl_->current_statement);
+}
+
 uint32_t PerfettoSqlParser::statement_end_offset() const {
   PERFETTO_DCHECK(impl_->current_statement.has_value());
   uint32_t doc_offset = 0;
