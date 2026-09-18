@@ -697,6 +697,20 @@ TEST_F(PerfettoSqlParserTest, PipelineAggregatesReadOnlyTheirInput) {
                   .ok());
 }
 
+TEST_F(PerfettoSqlParserTest, TakePipelineStatement) {
+  PerfettoSqlParser parser(macros_, &catalog_);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice; SELECT 1"));
+  ASSERT_TRUE(parser.Next());
+  auto statement = parser.TakeStatement();
+  EXPECT_EQ(parser.statement_sql().sql(), "FROM slice");
+  EXPECT_GT(parser.statement_end_offset(), 0u);
+  ASSERT_TRUE(parser.Next());
+  EXPECT_TRUE(std::holds_alternative<SqliteSql>(parser.statement()));
+  const auto& plan = std::get<Pipeline>(statement).plan;
+  EXPECT_THAT(pipeline::LogicalPlanToString(plan),
+              HasSubstr("Scan(table slice)"));
+}
+
 TEST_F(PerfettoSqlParserTest, PipelineNeedsACatalog) {
   PerfettoSqlParser parser(macros_);
   parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
