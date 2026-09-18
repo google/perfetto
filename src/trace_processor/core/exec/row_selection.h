@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_SELECTION_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_SELECTION_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -78,14 +79,19 @@ class RowSelection {
 class SelectionPool {
  public:
   std::shared_ptr<FlexVector<uint32_t>> TakeBlock() {
-    auto block = blocks_.Acquire();
+    if (next_ == slots_.size())
+      slots_.emplace_back();
+    auto block = slots_[next_++].Acquire();
     block->resize(kMaxBatchRows);
     return block;
   }
-  void Reset() {}
+  // Begin another selection operation. Slot count follows the peak number of
+  // simultaneously produced mappings, not the number of batches processed.
+  void Reset() { next_ = 0; }
 
  private:
-  BufferPool<FlexVector<uint32_t>> blocks_;
+  std::vector<BufferPool<FlexVector<uint32_t>>> slots_;
+  size_t next_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

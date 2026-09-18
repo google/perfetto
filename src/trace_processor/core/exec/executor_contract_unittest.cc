@@ -647,5 +647,64 @@ TEST(ExecutorContractTest, CombiningMixedBackingOnlyPacksComputedValues) {
               ElementsAre(103, 101, 103, 100));
 }
 
+TEST(ExecutorContractTest, DistinctSelectionSlotsReuseReleasedBuffers) {
+  auto values = std::make_shared<std::vector<int64_t>>(
+      std::initializer_list<int64_t>{0, 10, 20, 30, 40, 50, 60, 70});
+  RowBatch input;
+  for (uint32_t c = 0; c < 64; ++c) {
+    auto indices = std::make_shared<FlexVector<uint32_t>>();
+    indices->resize(8);
+    for (uint32_t r = 0; r < 8; ++r)
+      (*indices)[r] = (r * 3 + c) % 8;
+    auto view = ColumnView::Reference(StorageType{Int64{}}, values->data());
+    view.SetOwnedRows(indices, 8);
+    input.AddColumn(view, values);
+  }
+  input.SetCardinality(8);
+  std::vector<uint32_t> selected{0, 2, 3, 7};
+  RowBatch producer, retained;
+  auto publish = [&] {
+    producer.CopyFrom(input);
+    producer.Slice(RowSelection::Indices(Span<const uint32_t>(
+                       selected.data(), selected.data() + selected.size())),
+                   4);
+  };
+  publish();
+  std::vector<const uint32_t*> first;
+  for (uint32_t c = 0; c < 64; ++c)
+    first.push_back(producer.column(c).selection().data());
+  retained.CopyFrom(producer);
+  publish();
+  for (uint32_t c = 0; c < 64; ++c) {
+    EXPECT_NE(producer.column(c).selection().data(), first[c]);
+    for (uint32_t r = 0; r < 4; ++r)
+      EXPECT_EQ(retained.column(c).Value<int64_t>(r),
+                (*values)[(selected[r] * 3 + c) % 8]);
+  }
+  retained.Reset();
+  publish();
+  for (uint32_t c = 0; c < 64; ++c)
+    EXPECT_EQ(producer.column(c).selection().data(), first[c]);
+}
+
+TEST(ExecutorContractTest, NonAdjacentColumnsShareComposedSelection) {
+  std::vector<int64_t> values{0, 10, 20, 30, 40, 50};
+  RowBatch batch;
+  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  auto shifted = batch.column(0);
+  shifted.SetRange(1);
+  batch.AddColumn(shifted);
+  batch.AddColumn(batch.column(0));
+  batch.SetCardinality(4);
+  std::vector<uint32_t> rows{3, 0, 2};
+  batch.Slice(
+      RowSelection::Indices(Span<const uint32_t>(rows.data(), rows.data() + 3)),
+      3);
+  EXPECT_EQ(batch.column(0).selection().data(),
+            batch.column(2).selection().data());
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(30, 0, 20));
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 1), ElementsAre(40, 10, 30));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

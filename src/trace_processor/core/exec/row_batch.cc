@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/row_batch.h"
 
+#include <algorithm>
 #include <cstdint>
 
 #include "perfetto/base/logging.h"
@@ -25,23 +26,22 @@
 namespace perfetto::trace_processor::core::exec {
 
 void RowBatch::Compose(RowSelection selection, uint32_t count) {
-  // Columns filled by one source share a selection, and composing one is a
-  // gather over the whole batch. Do it once per distinct selection and let the
-  // other columns adopt the result.
-  const ColumnView* composed = nullptr;
-  const uint32_t* composed_from_rows = nullptr;
-  uint32_t composed_from_offset = 0;
-  for (ColumnView& column : columns_) {
+  selections_.Reset();
+  compositions_.clear();
+  for (uint32_t c = 0; c < columns_.size(); ++c) {
+    auto& column = columns_[c];
     RowSelection current = column.selection();
-    if (composed && current.data() == composed_from_rows &&
-        current.offset() == composed_from_offset) {
-      column.AdoptSelection(*composed);
-      continue;
+    auto found = std::find_if(compositions_.begin(), compositions_.end(),
+                              [&](const auto& entry) {
+                                return entry.first.data() == current.data() &&
+                                       entry.first.offset() == current.offset();
+                              });
+    if (found != compositions_.end()) {
+      column.AdoptSelection(columns_[found->second]);
+    } else {
+      compositions_.emplace_back(current, c);
+      column.Slice(selection, count, selections_);
     }
-    composed_from_rows = current.data();
-    composed_from_offset = current.offset();
-    column.Slice(selection, count, selections_);
-    composed = &column;
   }
 }
 
