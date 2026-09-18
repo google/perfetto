@@ -284,6 +284,14 @@ class Dataframe {
   // Returns `column`'s values and which rows hold one, for reading them
   // without going through a cursor.
   const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
+
+  // Returns `column` with shared ownership, for readers that must outlive
+  // the dataframe. Only valid on a finalized dataframe as columns are
+  // immutable after that.
+  std::shared_ptr<const Column> shared_column(uint32_t column) const {
+    PERFETTO_DCHECK(finalized_);
+    return columns_[column];
+  }
   // Returns the type of the values in `column`.
   StorageType column_type(uint32_t column) const {
     return column_ptrs_[column]->storage.type();
