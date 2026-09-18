@@ -49,3 +49,12 @@ perfetto_unittest_source_set("unittests") {
     "../schema",
   ]
 }
+
+if (enable_perfetto_unittests && perfetto_root_path == "//") {
+  test("sql_executor_unittests") {
+    deps = [
+      ":unittests",
+      "../../../../gn:gtest_main",
+    ]
+  }
+}

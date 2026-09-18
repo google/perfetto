@@ -81,10 +81,17 @@ SqlScan::State::~State() = default;
 std::unique_ptr<core::exec::OperatorState> SqlScan::MakeState() const {
   auto state = std::make_unique<State>();
   Prepare(*state);
-  state->columns.reserve(columns_.size());
-  state->data.reserve(columns_.size());
+  return state;
+}
+
+void SqlScan::AllocateColumns(State& state) const {
+  state.columns.clear();
+  state.data.clear();
+  state.buffers.resize(columns_.size());
+  state.columns.reserve(columns_.size());
+  state.data.reserve(columns_.size());
   for (uint32_t i = 0; i < columns_.size(); ++i) {
-    auto column = std::make_shared<ColumnChunk>();
+    auto column = state.buffers[i].Acquire();
     void* data = nullptr;
     if (!columns_[i].type) {
       data = column->Values<Variant>().data();
@@ -111,10 +118,9 @@ std::unique_ptr<core::exec::OperatorState> SqlScan::MakeState() const {
       }
       column->validity = core::BitVector::CreateWithSize(kMaxBatchRows);
     }
-    state->columns.push_back(std::move(column));
-    state->data.push_back(data);
+    state.columns.push_back(std::move(column));
+    state.data.push_back(data);
   }
-  return state;
 }
 
 void SqlScan::Prepare(State& state) const {
@@ -240,6 +246,8 @@ bool SqlScan::GetData(RowBatch& out, core::exec::OperatorState& state) const {
   if (s.done || !s.status.ok()) {
     return false;
   }
+  out.Reset();
+  AllocateColumns(s);
   for (const std::shared_ptr<ColumnChunk>& column : s.columns) {
     if (column->validity.size() != 0) {
       column->validity.ClearAllBits();
