@@ -137,8 +137,10 @@ export class OmniboxManagerImpl implements OmniboxManager {
 
     this._mode = OmniboxMode.Prompt;
     this._omniboxSelectionIndex = 0;
+    this._text = '';
     this.rejectPendingPrompt();
     this._focusOmniboxNextRender = true;
+    raf.scheduleFullRedraw();
 
     // Handle PromptChoices<T> case
     if (
@@ -199,7 +201,8 @@ export class OmniboxManagerImpl implements OmniboxManager {
       this._pendingPrompt.resolve(value);
       this._pendingPrompt = undefined;
     }
-    this.setMode(OmniboxMode.Search);
+    this.setMode(OmniboxMode.Search, false);
+    raf.scheduleFullRedraw();
   }
 
   // Reject the prompt outright. Doing this will force the owner of the prompt
@@ -207,7 +210,8 @@ export class OmniboxManagerImpl implements OmniboxManager {
   // Use |resolvePrompt(null)| to indicate cancellation.
   rejectPrompt(): void {
     this.rejectPendingPrompt();
-    this.setMode(OmniboxMode.Search);
+    this.setMode(OmniboxMode.Search, false);
+    raf.scheduleFullRedraw();
   }
 
   reset(focus = true): void {

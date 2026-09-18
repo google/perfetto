@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {raf} from '../../core/raf_scheduler';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -135,6 +136,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
       args.colorColumn,
     );
   }
+  raf.scheduleFullRedraw();
 }
 
 async function createTableForSliceTrack(
@@ -357,6 +359,7 @@ export async function addDebugCounterTrack(args: DebugCounterTrackArgs) {
   } else {
     addSingleCounterTrack(args.trace, tableName, titleBase, uriBase);
   }
+  raf.scheduleFullRedraw();
 }
 
 async function createTableForCounterTrack(

@@ -36,7 +36,11 @@ export async function addJankCUJDebugTrack(
 
   // Check if query produces any results to prevent pinning an empty track
   if (result.numRows() !== 0) {
-    addDebugSliceTrack({trace: ctx, title: trackName, ...jankCujTrackConfig});
+    await addDebugSliceTrack({
+      trace: ctx,
+      title: trackName,
+      ...jankCujTrackConfig,
+    });
     return true;
   }
   return false;
@@ -144,7 +148,7 @@ export async function addLatencyCUJDebugTrack(
 
   // Check if query produces any results to prevent pinning an empty track
   if (result.numRows() !== 0) {
-    addDebugSliceTrack({
+    await addDebugSliceTrack({
       trace: ctx,
       title: trackName,
       ...latencyCujTrackConfig,
@@ -207,6 +211,7 @@ const BLOCKING_CALLS_PROCESSES_QUERY = `
 `;
 
 function blockingCallsDuringCujsQuery(processName: string): string {
+  const escapedProcess = processName.replace(/'/g, "''");
   return `
     SELECT DISTINCT
       bc.slice_id,
@@ -223,7 +228,7 @@ function blockingCallsDuringCujsQuery(processName: string): string {
     FROM android_cuj_blocking_calls bc
     JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
     WHERE bc.utid = cuj.ui_thread
-      AND bc.process_name = '${processName}'
+      AND bc.process_name = '${escapedProcess}'
   `;
 }
 
@@ -325,7 +330,7 @@ export default class implements PerfettoPlugin {
   }
 
   async pinLatencyCujs(ctx: Trace) {
-    addDebugSliceTrack({
+    await addDebugSliceTrack({
       trace: ctx,
       data: {
         sqlSource: LATENCY_CUJ_QUERY,
@@ -356,7 +361,7 @@ export default class implements PerfettoPlugin {
       return;
     }
 
-    addDebugSliceTrack({
+    await addDebugSliceTrack({
       trace: ctx,
       data: {
         sqlSource: blockingCallsDuringCujsQuery(selectedProcess),
