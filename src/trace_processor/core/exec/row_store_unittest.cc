@@ -394,17 +394,28 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
   {
     RowStore store;
     RowBatch input, later;
-    std::vector<int64_t> values = {10, 20, 30};
-    Fill(&input, values, 0, 3);
+    auto values = std::make_shared<std::vector<int64_t>>(
+        std::initializer_list<int64_t>{10, 20, 30});
+    input.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values->data()),
+                    values);
+    input.SetCardinality(3);
     ASSERT_TRUE(store.Append(input).ok());
     ASSERT_EQ(store.View(&range, 0, 3), 3u);
+    EXPECT_EQ(range.column(0).data(), values->data());
     std::vector<uint32_t> rows = {2, 0, 2};
     store.View(&gathered, Span<const uint32_t>(rows.data(), rows.data() + 3));
+    EXPECT_NE(gathered.column(0).data(), values->data());
+    EXPECT_TRUE(gathered.column(0).selection().is_range());
     rows = {1, 1, 0};
     store.View(&later, Span<const uint32_t>(rows.data(), rows.data() + 3));
     store.Clear();
-    values = {40, 50, 60};
-    Fill(&input, values, 0, 3);
+    input.Reset();
+    auto replacement = std::make_shared<std::vector<int64_t>>(
+        std::initializer_list<int64_t>{40, 50, 60});
+    input.AddColumn(
+        ColumnView::Reference(StorageType{Int64{}}, replacement->data()),
+        replacement);
+    input.SetCardinality(3);
     ASSERT_TRUE(store.Append(input).ok());
   }
   EXPECT_THAT(test::ReadColumn<int64_t>(range, 0), ElementsAre(10, 20, 30));
