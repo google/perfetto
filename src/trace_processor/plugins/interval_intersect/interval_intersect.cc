@@ -70,7 +70,7 @@ using ColType = dataframe::AdhocDataframeBuilder::ColumnType;
 struct MultiIndexInterval {
   uint64_t start;
   uint64_t end;
-  std::array<int64_t, kIdCols> idx_in_table;
+  std::array<uint32_t, kIdCols> idx_in_table;
 };
 
 ColType FromSqlValueTypeToBuilderType(SqlValue::Type type) {
@@ -142,7 +142,7 @@ base::StatusOr<uint32_t> PushPartition(
   std::vector<uint32_t> tables_order(tables_count);
   std::iota(tables_order.begin(), tables_order.end(), 0);
   std::sort(tables_order.begin(), tables_order.end(),
-            [intervals_in_table](const uint32_t idx_a, const uint32_t idx_b) {
+            [&intervals_in_table](const uint32_t idx_a, const uint32_t idx_b) {
               return intervals_in_table[idx_a]->intervals.size() <
                      intervals_in_table[idx_b]->intervals.size();
             });
@@ -165,6 +165,7 @@ base::StatusOr<uint32_t> PushPartition(
   // Create an interval tree on all tables except the smallest - the first one.
   std::vector<MultiIndexInterval> overlaps_with_this_table;
   overlaps_with_this_table.reserve(intervals_in_table.back()->intervals.size());
+  Intervals new_overlaps;
   for (uint32_t i = 1; i < tables_count && !last_results.empty(); i++) {
     overlaps_with_this_table.clear();
     uint32_t table_idx = tables_order[i];
@@ -175,12 +176,11 @@ base::StatusOr<uint32_t> PushPartition(
     IntervalIntersector cur_intersector(
         intervals_in_table[table_idx]->intervals, mode);
     for (const auto& prev_result : last_results) {
-      Intervals new_overlaps;
+      new_overlaps.clear();
       cur_intersector.FindOverlaps(prev_result.start, prev_result.end,
                                    new_overlaps);
       for (const auto& overlap : new_overlaps) {
-        MultiIndexInterval m_int;
-        m_int.idx_in_table = prev_result.idx_in_table;
+        MultiIndexInterval m_int = prev_result;
         m_int.idx_in_table[table_idx] = overlap.id;
         m_int.start = overlap.start;
         m_int.end = overlap.end;
@@ -188,7 +188,7 @@ base::StatusOr<uint32_t> PushPartition(
       }
     }
 
-    last_results = std::move(overlaps_with_this_table);
+    std::swap(last_results, overlaps_with_this_table);
   }
 
   auto rows_count = static_cast<uint32_t>(last_results.size());

@@ -93,6 +93,26 @@ const validMetricsTest: {
       aggregation: 'max_dur_per_frame_ns-mean',
     },
   },
+  {
+    inputMetric:
+      'perfetto_android_blocking_call_per_frame-cuj-name-com.android.systemui-name-NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand-blocking_calls-name-draw-VRI[NotificationShade]-max_dur_per_frame_ns',
+    expectedOutput: {
+      process: 'com.android.systemui',
+      cujName: 'NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand',
+      blockingCallName: 'draw-VRI[NotificationShade]',
+      aggregation: 'max_dur_per_frame_ns',
+    },
+  },
+  {
+    inputMetric:
+      'perfetto_android_blocking_call_per_frame-cuj-name-com.android.systemui-name-NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand-blocking_calls-name-draw-VRI[NotificationShade]-max_dur_per_frame_ns-mean',
+    expectedOutput: {
+      process: 'com.android.systemui',
+      cujName: 'NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand',
+      blockingCallName: 'draw-VRI[NotificationShade]',
+      aggregation: 'max_dur_per_frame_ns-mean',
+    },
+  },
 ];
 
 const invalidMetricsTest: string[] = [
