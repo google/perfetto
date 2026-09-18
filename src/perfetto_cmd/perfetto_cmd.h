@@ -161,7 +161,7 @@ class PerfettoCmd : public Consumer {
       int fd,
       const base::ScopedMmap& mmap,
       const std::string& file_name);
-  static void WaitForPreviousRebootTraceUpload(
+  static base::Status WaitForRebootTraceUploadOrCleanup(
       const std::string& session_name,
       const std::string& target_file_path);
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
