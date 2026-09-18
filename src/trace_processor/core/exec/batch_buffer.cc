@@ -87,12 +87,11 @@ ColumnView Packed(const ColumnView& from,
 }
 }  // namespace
 
-void BatchBuffer::Prepare(RowBatch& batch, LayoutPreference layout) {
-  if (layout == LayoutPreference::kAny || !batch.size())
+void BatchBuffer::Prepare(RowBatch& batch, LayoutRequirement layout) {
+  if (layout == LayoutRequirement::kAny || !batch.size())
     return;
   const uint32_t* previous_rows = nullptr;
   bool contiguous = false;
-  bool local = false;
   for (uint32_t c = 0; c < batch.column_count(); ++c) {
     const auto& view = batch.column(c);
     auto selection = view.selection();
@@ -101,16 +100,10 @@ void BatchBuffer::Prepare(RowBatch& batch, LayoutPreference layout) {
     uint32_t first = selection.GetIndex(0);
     if (selection.data() != previous_rows) {
       previous_rows = selection.data();
-      uint32_t low = first, high = first;
       contiguous = true;
-      local = true;
       for (uint32_t row = 1; row < batch.size(); ++row) {
-        uint32_t index = selection.GetIndex(row);
-        contiguous &= index == first + row;
-        low = std::min(low, index);
-        high = std::max(high, index);
-        if (high - low >= kMaxBatchRows) {
-          local = false;
+        if (selection.GetIndex(row) != first + row) {
+          contiguous = false;
           break;
         }
       }
@@ -119,11 +112,6 @@ void BatchBuffer::Prepare(RowBatch& batch, LayoutPreference layout) {
       batch.mutable_column(c).SetRange(first);
       continue;
     }
-    // A selection within one vector's span already has bounded locality.
-    // Preserve it; packing it merely adds a copy to ordinary filtered or
-    // reversed batches. Wider scatter is packed for the requesting consumer.
-    if (local)
-      continue;
     buffers_.resize(batch.column_count());
     auto packed = buffers_[c].Acquire();
     Copy(view, batch.size(), 0, *packed, view.validity() != nullptr);

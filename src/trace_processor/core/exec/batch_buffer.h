@@ -35,9 +35,10 @@ class BatchBuffer {
   uint32_t size() const { return batch_.size(); }
   base::Status Append(const RowBatch&);
   // Prepare already-available rows for a consumer. Range columns keep their
-  // backing; scattered columns can be gathered directly into pooled storage.
+  // backing; other selections are gathered into pooled storage when contiguous
+  // input is required. Every output column then has a range selection.
   // No lookahead is performed and retained outputs remain immutable.
-  void Prepare(RowBatch&, LayoutPreference);
+  void Prepare(RowBatch&, LayoutRequirement);
   void Take(RowBatch& out) {
     out.CopyFrom(batch_);
     Clear();

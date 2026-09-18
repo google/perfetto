@@ -21,17 +21,18 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// Layout adaptation never pulls more input. Any accepts the producer's views;
-// PreferContiguous requests packing of scattered columns for cheaper reads.
-// A selection within one vector-sized span can still be served as a view.
-enum class LayoutPreference : uint8_t { kAny, kPreferContiguous };
+// Any accepts the producer's row selections. Contiguous requires a range for
+// every column, preserving existing contiguous storage and gathering other
+// selections. Neither requirement permits pulling more input or reordering
+// rows.
+enum class LayoutRequirement : uint8_t { kAny, kContiguous };
 
 // Throughput permits combining small batches, subject to execution demand.
 // Neither preference permits changing row order.
 enum class BatchPreference : uint8_t { kLatency, kThroughput };
 
 struct InputPolicy {
-  LayoutPreference layout = LayoutPreference::kAny;
+  LayoutRequirement layout = LayoutRequirement::kAny;
   BatchPreference batching = BatchPreference::kLatency;
 };
 

@@ -47,19 +47,19 @@ Compaction thresholds are explicit policy, not an adaptive cost model.
 ## Consumer input policy
 
 Each operator declares an InputPolicy; ExecutionOptions supplies the policy for
-final output. Layout and batching preferences are independent. The executor
-applies them at input boundaries, including after finalization and coalescing.
-Any layout preserves producer views. PreferContiguous gathers scattered columns
-into execution-local pooled buffers, preserving value bits, nulls and row order.
-Range columns keep their backing; indexed contiguous runs become ranges without
-copying. Selections whose referenced rows fit within one vector-sized span
-remain views, including local filtering and reversal. Wider scatter is packed;
-the policy does not use a column-count threshold. Already packed columns are
-not copied again. Layout preparation never pulls additional input.
+final output. The layout requirement and batching preference are independent.
+The executor applies them at input boundaries, including after finalization and
+coalescing. Any layout preserves producer views. Contiguous requires a range
+selection for every output column:
 
-SQLite currently preserves producer views: measurements show that packing helps
-wide scattered reads but can regress narrow queries. Consumers must opt in;
-there is no universal automatic packing rule.
+1. Existing range selections retain their backing.
+2. Indexed contiguous runs become ranges without copying values.
+3. Other selections are gathered into execution-local pooled buffers.
+
+Preparation preserves value bits, nulls, duplicates and row order. It never
+pulls additional input. The rule is independent of column count, physical span
+and estimated performance. SQLite accepts selections and uses Any. Automatic
+performance-driven packing is not implemented.
 
 Final demand is applied before output packing, so a one-row result becomes a
 range without materialization. Demand is not pushed as an input cardinality cap

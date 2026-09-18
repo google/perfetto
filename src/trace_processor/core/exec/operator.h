@@ -79,7 +79,7 @@ class Operator {
     return std::make_unique<OperatorState>();
   }
 
-  // A preference, never permission to change row order. Downstream finite
+  // Required input layout and preferred batching, preserving row order. Finite
   // demand overrides throughput batching. Blocking remains intrinsic to an op.
   virtual InputPolicy input_policy() const { return {}; }
 

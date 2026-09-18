@@ -698,9 +698,9 @@ TEST(ExecutorContractTest, LayoutPreparationPreservesValuesAndRetainedOutput) {
   };
   BatchBuffer buffer;
   auto batch = make_batch();
-  buffer.Prepare(batch, LayoutPreference::kAny);
+  buffer.Prepare(batch, LayoutRequirement::kAny);
   EXPECT_EQ(batch.column(0).data(), storage->values.data());
-  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  buffer.Prepare(batch, LayoutRequirement::kContiguous);
   EXPECT_NE(batch.column(0).data(), storage->values.data());
   EXPECT_EQ(batch.column(3).data(), storage->values.data());
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(batch, 0),
@@ -717,20 +717,25 @@ TEST(ExecutorContractTest, LayoutPreparationPreservesValuesAndRetainedOutput) {
   retained.CopyFrom(batch);
   rows = {0, kMaxBatchRows + 3, 2, kMaxBatchRows + 5};
   batch = make_batch();
-  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  buffer.Prepare(batch, LayoutRequirement::kContiguous);
   EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(10, 40, 30, 60));
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
               ElementsAre(50, std::nullopt, 50, 10));
-  // Local filtering/reversal retains the original backing as an indexed view.
+  // Contiguous input is a requirement even for selections of nearby rows.
   rows = {4, 1, 4, 0};
   batch = make_batch();
-  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  buffer.Prepare(batch, LayoutRequirement::kAny);
   EXPECT_EQ(batch.column(0).data(), storage->values.data());
   EXPECT_FALSE(batch.column(0).selection().is_range());
+  buffer.Prepare(batch, LayoutRequirement::kContiguous);
+  EXPECT_NE(batch.column(0).data(), storage->values.data());
+  EXPECT_TRUE(batch.column(0).selection().is_range());
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(batch, 0),
+              ElementsAre(50, std::nullopt, 50, 10));
   // An indexed contiguous run can become a range without copying values.
   rows = {1, 2, 3, 4};
   batch = make_batch();
-  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  buffer.Prepare(batch, LayoutRequirement::kContiguous);
   EXPECT_EQ(batch.column(0).data(), storage->values.data());
   EXPECT_TRUE(batch.column(0).selection().is_range());
 }
@@ -802,7 +807,7 @@ TEST(ExecutorContractTest, LayoutPolicyAppliesAtOperatorAndOutputBoundaries) {
     std::vector<std::unique_ptr<Operator>> ops;
     ops.push_back(std::make_unique<ContractFilter>());
     InputPolicy policy;
-    policy.layout = LayoutPreference::kPreferContiguous;
+    policy.layout = LayoutRequirement::kContiguous;
     auto probe =
         std::make_unique<LayoutProbe>(internal ? policy : InputPolicy{});
     auto* observed = probe.get();
@@ -834,7 +839,7 @@ TEST(ExecutorContractTest, FinalDemandIsAppliedBeforePacking) {
   auto* observed = probe.get();
   ops.push_back(std::move(probe));
   ExecutionOptions options;
-  options.output_policy = {LayoutPreference::kPreferContiguous,
+  options.output_policy = {LayoutRequirement::kContiguous,
                            BatchPreference::kThroughput};
   options.limit = 1;
   Pipeline pipeline(source, std::move(ops), options);
