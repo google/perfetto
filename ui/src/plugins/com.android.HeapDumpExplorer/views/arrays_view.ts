@@ -112,9 +112,17 @@ interface ArraysViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-export function ArraysView(): m.Component<ArraysViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+export function ArraysView({
+  attrs: {engine, activeDump},
+}: m.Vnode<ArraysViewAttrs>): m.Component<ArraysViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+  });
   const counter = new RowCounter();
+  counter.init(engine, query);
+
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -129,17 +137,13 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-      });
-      counter.init(engine, query);
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
+    },
+    onremove() {
+      datasource.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -155,8 +159,6 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
         );
       }
 
-      if (!dataSource) return null;
-
       return m(
         DetailsShell,
         {
@@ -165,7 +167,7 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
         },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          data: dataSource,
+          data: datasource,
           fillHeight: true,
           initialColumns: [
             {id: 'id', field: 'id'},
