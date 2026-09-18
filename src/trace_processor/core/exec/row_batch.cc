@@ -24,21 +24,6 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-bool RowBatch::AdoptPhysicalRows(Span<const uint32_t> rows) {
-  auto count = static_cast<uint32_t>(rows.size());
-  if (count == 0) {
-    cardinality_ = 0;
-    return false;
-  }
-  auto block = selections_.TakeBlock();
-  std::copy(rows.begin(), rows.end(), block->data());
-  for (ColumnView& column : columns_) {
-    column.SetOwnedRows(block, count);
-  }
-  cardinality_ = count;
-  return true;
-}
-
 void RowBatch::Compose(RowSelection selection, uint32_t count) {
   // Columns filled by one source share a selection, and composing one is a
   // gather over the whole batch. Do it once per distinct selection and let the

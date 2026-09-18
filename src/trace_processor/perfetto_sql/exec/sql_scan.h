@@ -87,7 +87,7 @@ class SqlScan : public core::exec::Source {
 
   SqlScan(SqliteConnection*, SqlSource, core::Schema, StringPool*);
   void Prepare(State&) const;
-  void AllocateColumns(State&) const;
+  void PrepareColumns(State&) const;
 
   bool ReadValue(State&, sqlite3_stmt*, uint32_t index, uint32_t row) const;
   template <typename T, sqlite::Type SqliteType>

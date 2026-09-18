@@ -59,13 +59,12 @@ class AssertType : public Operator {
     ~State() override;
     // The converted column, holding values of the target type.
     BufferPool<ColumnChunk> buffers;
-    std::shared_ptr<ColumnChunk> chunk;
     base::Status status = base::OkStatus();
   };
 
   // The buffer in `chunk` holding values of the target type.
   const void* Data(const ColumnChunk& chunk) const;
-  bool Widen(const ColumnView&, uint32_t count, State&) const;
+  bool Widen(const ColumnView&, uint32_t count, ColumnChunk&, State&) const;
 
   uint32_t column_;
   AssertTypeTarget target_;

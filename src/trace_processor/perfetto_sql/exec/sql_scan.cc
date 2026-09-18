@@ -84,7 +84,7 @@ std::unique_ptr<core::exec::OperatorState> SqlScan::MakeState() const {
   return state;
 }
 
-void SqlScan::AllocateColumns(State& state) const {
+void SqlScan::PrepareColumns(State& state) const {
   state.columns.clear();
   state.data.clear();
   state.buffers.resize(columns_.size());
@@ -116,7 +116,7 @@ void SqlScan::AllocateColumns(State& state) const {
           // An Id was already materialised as a Uint32 by ResolveTypes.
           PERFETTO_FATAL("Unreachable");
       }
-      column->validity = core::BitVector::CreateWithSize(kMaxBatchRows);
+      column->validity.resize(kMaxBatchRows);
     }
     state.columns.push_back(std::move(column));
     state.data.push_back(data);
@@ -247,7 +247,7 @@ bool SqlScan::GetData(RowBatch& out, core::exec::OperatorState& state) const {
     return false;
   }
   out.Reset();
-  AllocateColumns(s);
+  PrepareColumns(s);
   for (const std::shared_ptr<ColumnChunk>& column : s.columns) {
     if (column->validity.size() != 0) {
       column->validity.ClearAllBits();

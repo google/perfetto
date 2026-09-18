@@ -76,8 +76,7 @@ void ColumnView::Slice(RowSelection selection,
     uint32_t run = ResolveToRun(
         [rows, base](uint32_t r) { return base + rows[r]; }, count);
     if (run != kNoRun) {
-      selection_ = RowSelection::Range(run);
-      selection_owner_ = nullptr;
+      SetRange(run);
       return;
     }
     auto block = pool.TakeBlock();
@@ -85,8 +84,7 @@ void ColumnView::Slice(RowSelection selection,
     for (uint32_t row = 0; row < count; ++row) {
       out[row] = base + rows[row];
     }
-    selection_ = RowSelection::Indices(Span<const uint32_t>(out, out + count));
-    selection_owner_ = std::move(block);
+    SetOwnedRows(std::move(block), count);
     return;
   }
 
@@ -94,8 +92,7 @@ void ColumnView::Slice(RowSelection selection,
   uint32_t run = ResolveToRun(
       [rows, indices](uint32_t r) { return indices[rows[r]]; }, count);
   if (run != kNoRun) {
-    selection_ = RowSelection::Range(run);
-    selection_owner_ = nullptr;
+    SetRange(run);
     return;
   }
   auto block = pool.TakeBlock();
@@ -103,8 +100,7 @@ void ColumnView::Slice(RowSelection selection,
   for (uint32_t row = 0; row < count; ++row) {
     out[row] = indices[rows[row]];
   }
-  selection_ = RowSelection::Indices(Span<const uint32_t>(out, out + count));
-  selection_owner_ = std::move(block);
+  SetOwnedRows(std::move(block), count);
 }
 
 }  // namespace perfetto::trace_processor::core::exec
