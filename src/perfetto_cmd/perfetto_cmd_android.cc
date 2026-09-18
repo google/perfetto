@@ -288,6 +288,14 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
   return fd;
 }
 
+// Handles persistent trace files that may already exist before starting a new
+// session:
+// * File does not exist: Returns OkStatus() immediately.
+// * File exists and is locked by an active session: Returns ErrStatus to
+//   prevent duplicate sessions from deleting or overwriting the active trace.
+// * File exists and is unlocked (stale leftover from previous boot or crash):
+//   Waits for the reboot uploader, unlinks the stale file, and returns
+//   OkStatus().
 base::Status PerfettoCmd::WaitForRebootTraceUploadOrCleanup(
     const std::string& session_name,
     const std::string& target_file_path) {
@@ -311,11 +319,9 @@ base::Status PerfettoCmd::WaitForRebootTraceUploadOrCleanup(
     return base::OkStatus();
   }
 
-  // File exists after waiting for reboot task. Check if an active session is
-  // holding the lock before doing any cleanup.
+  // Return error if the file is locked by another perfetto_cmd instance.
   {
-    base::ScopedFile existing_fd =
-        base::OpenFile(target_file_path, O_RDWR | O_CLOEXEC);
+    base::ScopedFile existing_fd = base::OpenFile(target_file_path, O_RDWR);
     if (existing_fd) {
       if (flock(existing_fd.get(), LOCK_EX | LOCK_NB) != 0) {
         if (errno == EWOULDBLOCK || errno == EAGAIN) {
@@ -326,7 +332,6 @@ base::Status PerfettoCmd::WaitForRebootTraceUploadOrCleanup(
         }
         PERFETTO_PLOG("Failed to check flock on %s", target_file_path.c_str());
       }
-      existing_fd.reset();
     }
   }
 
@@ -340,6 +345,7 @@ base::Status PerfettoCmd::WaitForRebootTraceUploadOrCleanup(
         "'%s'! Unlinked '%s'.",
         session_name.c_str(), target_file_path.c_str());
   } else {
+    // This file might be leftover by a crashed instance of perfetto_cmd.
     // If property is set, but the persistent trace file STILL exists on disk,
     // and not used by other sessions, log error and unlink file.
     android_stats::MaybeLogUploadEvent(
