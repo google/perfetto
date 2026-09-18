@@ -63,9 +63,6 @@ class DataframeScan : public Source {
   struct State : OperatorState {
     ~State() override;
     std::vector<ColumnView> columns;
-    // One per column: what keeps an expanded column alive, null where the
-    // column points at the dataframe's own storage.
-    std::vector<std::shared_ptr<const void>> owners;
     // One per column, null unless the column has to be expanded.
     std::vector<std::unique_ptr<Expander>> expanders;
     uint32_t emitted = 0;

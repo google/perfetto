@@ -76,24 +76,15 @@ void ColumnView::Slice(RowSelection selection,
     uint32_t run = ResolveToRun(
         [rows, base](uint32_t r) { return base + rows[r]; }, count);
     if (run != kNoRun) {
-      selection_ = RowSelection::Range(run);
-      block_ = nullptr;
+      SetRange(run);
       return;
     }
-    // Rows counted from zero are exactly the caller's array, whose lifetime
-    // covers the batch.
-    if (base == 0) {
-      selection_ =
-          RowSelection::Indices(Span<const uint32_t>(rows, rows + count));
-      block_ = nullptr;
-      return;
-    }
-    uint32_t* out = pool.TakeBlock();
+    auto block = pool.TakeBlock();
+    uint32_t* out = block->data();
     for (uint32_t row = 0; row < count; ++row) {
       out[row] = base + rows[row];
     }
-    selection_ = RowSelection::Indices(Span<const uint32_t>(out, out + count));
-    block_ = out;
+    SetOwnedRows(std::move(block), count);
     return;
   }
 
@@ -101,21 +92,15 @@ void ColumnView::Slice(RowSelection selection,
   uint32_t run = ResolveToRun(
       [rows, indices](uint32_t r) { return indices[rows[r]]; }, count);
   if (run != kNoRun) {
-    selection_ = RowSelection::Range(run);
-    block_ = nullptr;
+    SetRange(run);
     return;
   }
-  // A selection the batch already composed is narrowed in place: the ordinals
-  // only ever grow, so an ascending gather never reads a slot it has already
-  // written.
-  bool in_place = block_ != nullptr;
-  uint32_t* out = in_place ? block_ : pool.TakeBlock();
+  auto block = pool.TakeBlock();
+  uint32_t* out = block->data();
   for (uint32_t row = 0; row < count; ++row) {
-    PERFETTO_DCHECK(!in_place || indices + rows[row] >= out + row);
     out[row] = indices[rows[row]];
   }
-  selection_ = RowSelection::Indices(Span<const uint32_t>(out, out + count));
-  block_ = out;
+  SetOwnedRows(std::move(block), count);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

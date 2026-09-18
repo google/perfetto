@@ -24,6 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -72,6 +73,13 @@ class TreeNumberNodes : public Operator {
       return H::Combine(std::move(h), key.value, key.is_string);
     }
   };
+  // The two columns appended to the batch.
+  struct Numbers {
+    FlexVector<uint32_t> nodes =
+        FlexVector<uint32_t>::CreateWithSize(kMaxBatchRows);
+    FlexVector<uint32_t> parent_nodes =
+        FlexVector<uint32_t>::CreateWithSize(kMaxBatchRows);
+  };
   struct State : OperatorState {
     ~State() override;
     // While the ids arriving are 0, 1, 2, ... they are already node numbers,
@@ -84,16 +92,14 @@ class TreeNumberNodes : public Operator {
     // The batch's ids and parent ids, whatever type they arrived as.
     FlexVector<Variant> ids;
     FlexVector<Variant> parents;
-    // The two columns appended to the batch.
-    FlexVector<uint32_t> nodes;
-    FlexVector<uint32_t> parent_nodes;
+    BufferPool<Numbers> buffers;
     base::Status status = base::OkStatus();
   };
 
   // Numbers a batch of a table scanned in row order whose parents all point
   // back, or returns false having changed nothing.
-  bool NumberInOrder(const RowBatch&, uint32_t count, State&) const;
-  bool NumberByKey(const RowBatch&, uint32_t count, State&) const;
+  bool NumberInOrder(const RowBatch&, uint32_t count, Numbers&, State&) const;
+  bool NumberByKey(const RowBatch&, uint32_t count, Numbers&, State&) const;
   uint32_t Number(State&, const Variant& id) const;
 
   uint32_t id_column_;

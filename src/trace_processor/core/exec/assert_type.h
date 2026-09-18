@@ -24,6 +24,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -57,13 +58,13 @@ class AssertType : public Operator {
   struct State : OperatorState {
     ~State() override;
     // The converted column, holding values of the target type.
-    ColumnChunk chunk;
+    BufferPool<ColumnChunk> buffers;
     base::Status status = base::OkStatus();
   };
 
   // The buffer in `chunk` holding values of the target type.
   const void* Data(const ColumnChunk& chunk) const;
-  bool Widen(const ColumnView&, uint32_t count, State&) const;
+  bool Widen(const ColumnView&, uint32_t count, ColumnChunk&, State&) const;
 
   uint32_t column_;
   AssertTypeTarget target_;
