@@ -624,6 +624,50 @@ ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE = Table(
     ),
 )
 
+ANDROID_JOB_SCHEDULER_PENDING_REASONS_TRACK_EVENT_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidJobSchedulerPendingReasonsTrackEventTable',
+    sql_name='__intrinsic_android_job_scheduler_pending_reasons_track_events',
+    columns=[
+        C('slice_id',
+          CppTableId(SLICE_TABLE),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ),
+        C(
+            'reason_index',
+            CppInt32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'pending_reason',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'pending_duration_ms',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Pending reason and wait duration breakdown for JobScheduler track events.
+          This is generated from the JobScheduler track event data source.
+        ''',
+        group='Android',
+        columns={
+            'slice_id':
+                'Slice ID of the track event.',
+            'reason_index':
+                '0-based position in the pending reasons array.',
+            'pending_reason':
+                'Enum string representation of the pending reason.',
+            'pending_duration_ms':
+                ('Duration in milliseconds spent waiting for this reason.'),
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANDROID_AFLAGS_TABLE,
@@ -631,6 +675,7 @@ ALL_TABLES = [
     ANDROID_DUMPSTATE_TABLE,
     ANDROID_GAME_INTERVENTION_LIST_TABLE,
     ANDROID_INPUT_EVENT_DISPATCH_TABLE,
+    ANDROID_JOB_SCHEDULER_PENDING_REASONS_TRACK_EVENT_TABLE,
     ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE,
     ANDROID_KEY_EVENTS_TABLE,
     ANDROID_MOTION_EVENTS_TABLE,
