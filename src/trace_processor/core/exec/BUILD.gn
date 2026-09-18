@@ -111,12 +111,3 @@ if (enable_perfetto_benchmarks) {
     ]
   }
 }
-
-if (enable_perfetto_unittests && perfetto_root_path == "//") {
-  test("executor_unittests") {
-    deps = [
-      ":unittests",
-      "../../../../gn:gtest_main",
-    ]
-  }
-}
