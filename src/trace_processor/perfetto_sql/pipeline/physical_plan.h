@@ -35,6 +35,7 @@ namespace perfetto::trace_processor::pipeline {
 struct LowerEnvironment {
   SqliteConnection* connection = nullptr;
   StringPool* pool = nullptr;
+  core::exec::InputPolicy output_policy;
 };
 
 // A pipeline ready to run: the executor nodes plus which batch columns are

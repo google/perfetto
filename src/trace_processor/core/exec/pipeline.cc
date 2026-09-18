@@ -107,7 +107,7 @@ bool Pipeline::Pull(uint32_t stage, RowBatch& out, State& s) const {
     bool has_input = current.continuation;
     if (!has_input) {
       current.input.Reset();
-      has_input = Input(stage - 1, current.input, s, op.batch_preference());
+      has_input = Input(stage - 1, current.input, s, op.input_policy());
     }
     if (!s.status.ok() || s.stopped)
       return false;
@@ -134,9 +134,20 @@ bool Pipeline::Pull(uint32_t stage, RowBatch& out, State& s) const {
 bool Pipeline::Input(uint32_t boundary,
                      RowBatch& out,
                      State& s,
-                     BatchPreference preference) const {
+                     InputPolicy policy) const {
   auto& stage = s.stages[boundary];
-  bool combine = preference == BatchPreference::kThroughput &&
+  auto publish = [&] {
+    // Demand is an output bound, not an input bound: filters and blockers may
+    // still need arbitrary input to produce the requested rows.
+    if (boundary == operators_.size()) {
+      uint64_t remaining = options_.limit - s.emitted;
+      if (out.size() > remaining)
+        out.Slice(RowSelection::Range(), static_cast<uint32_t>(remaining));
+    }
+    stage.buffered.Prepare(out, policy.layout);
+    return true;
+  };
+  bool combine = policy.batching == BatchPreference::kThroughput &&
                  options_.limit == std::numeric_limits<uint64_t>::max();
   for (;;) {
     if (!Check(s)) {
@@ -156,7 +167,7 @@ bool Pipeline::Input(uint32_t boundary,
       }
       if (stage.buffered.size()) {
         stage.buffered.Take(out);
-        return true;
+        return publish();
       }
       return false;
     }
@@ -164,17 +175,17 @@ bool Pipeline::Input(uint32_t boundary,
       continue;
     if (!combine) {
       out.SwapContents(next);
-      return true;
+      return publish();
     }
     if (next.size() > options_.small_batch_rows ||
         stage.buffered.size() + next.size() > options_.target_batch_rows) {
       if (stage.buffered.size()) {
         stage.deferred.CopyFrom(next);
         stage.buffered.Take(out);
-        return true;
+        return publish();
       }
       out.SwapContents(next);
-      return true;
+      return publish();
     }
     s.status = stage.buffered.Append(next);
     if (!s.status.ok()) {
@@ -184,7 +195,7 @@ bool Pipeline::Input(uint32_t boundary,
     }
     if (stage.buffered.size() >= options_.target_batch_rows) {
       stage.buffered.Take(out);
-      return true;
+      return publish();
     }
   }
 }
@@ -197,13 +208,10 @@ bool Pipeline::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
   if (!Input(static_cast<uint32_t>(operators_.size()), out, s,
-             options_.preference)) {
+             options_.output_policy)) {
     Stop(s);
     return false;
   }
-  uint64_t remaining = options_.limit - s.emitted;
-  if (out.size() > remaining)
-    out.Slice(RowSelection::Range(), static_cast<uint32_t>(remaining));
   s.emitted += out.size();
   if (s.emitted == options_.limit)
     Stop(s);

@@ -70,9 +70,9 @@ TEST(ExecutorContractTest, RetentionSharesValuesAndReleasesLastOwner) {
   EXPECT_TRUE(lifetime.expired());
 }
 
-// Deliberately failing specification: CopyFrom currently retains column owners
-// but borrows selection storage from the producer. No dangling pointer is read:
-// the producer remains alive and reuses its selection block deterministically.
+// Retaining a composed selection must survive producer advancement. The
+// producer stays alive, so an ownership regression is detected without reading
+// a dangling pointer.
 TEST(ExecutorContractTest, RetainedSelectionSurvivesProducerReuse) {
   std::vector<int64_t> values{0, 10, 20, 30, 40, 50};
   std::vector<uint32_t> selected{0, 2};
@@ -435,7 +435,7 @@ TEST(ExecutorContractTest, ThroughputCombinesButFiniteDemandNeverLooksAhead) {
   for (uint32_t limit : {0u, 1u, UINT32_MAX}) {
     ContractSource source({{}, {1}, {2}, {3}, {4}, {5}});
     ExecutionOptions options;
-    options.preference = BatchPreference::kThroughput;
+    options.output_policy.batching = BatchPreference::kThroughput;
     options.target_batch_rows = 4;
     options.small_batch_rows = 1;
     if (limit != UINT32_MAX)
@@ -468,7 +468,7 @@ TEST(ExecutorContractTest,
   for (bool fail : {false, true}) {
     ContractSource source({{9}, {1, 2, 3, 4}, {7}}, fail);
     ExecutionOptions options;
-    options.preference = BatchPreference::kThroughput;
+    options.output_policy.batching = BatchPreference::kThroughput;
     options.target_batch_rows = 4;
     options.small_batch_rows = 1;
     Pipeline pipeline(source, {}, options);
@@ -491,7 +491,7 @@ TEST(ExecutorContractTest, CancellationDropsPendingRowsAndRewindStartsFresh) {
   ContractSource source({{1}, {}, {}, {2}});
   bool cancel = true;
   ExecutionOptions options;
-  options.preference = BatchPreference::kThroughput;
+  options.output_policy.batching = BatchPreference::kThroughput;
   options.target_batch_rows = 4;
   options.small_batch_rows = 1;
   options.cancelled = [&] { return cancel && source.pulls >= 2; };
@@ -658,6 +658,256 @@ TEST(ExecutorContractTest, PoolReusesOnlyReleasedBuffersAndTrimsUnusedStorage) {
   retained.reset();
   pool.Trim();
   EXPECT_TRUE(lifetime.expired());
+}
+
+TEST(ExecutorContractTest, LayoutPreparationPreservesValuesAndRetainedOutput) {
+  struct Storage {
+    std::vector<int64_t> values = std::vector<int64_t>(2 * kMaxBatchRows);
+    std::vector<double> doubles = std::vector<double>(2 * kMaxBatchRows);
+    BitVector validity = BitVector::CreateWithSize(2 * kMaxBatchRows, true);
+  };
+  auto storage = std::make_shared<Storage>();
+  for (uint32_t i = 0; i < 6; ++i) {
+    storage->values[i] = storage->values[kMaxBatchRows + i] = (i + 1) * 10;
+    storage->doubles[i] = storage->doubles[kMaxBatchRows + i] = i;
+  }
+  storage->doubles[1] = -0.0;
+  storage->validity.clear(1);
+  std::vector<uint32_t> rows{kMaxBatchRows + 4, 1, kMaxBatchRows + 4, 0};
+  auto make_batch = [&] {
+    RowBatch batch;
+    auto selected =
+        Span<const uint32_t>(rows.data(), rows.data() + rows.size());
+    auto values = ColumnView::Reference(
+        StorageType{Int64{}}, storage->values.data(), &storage->validity);
+    values.SetBorrowedRows(selected);
+    batch.AddColumn(values, storage);
+    auto ids = ColumnView::Reference(StorageType{Id{}}, nullptr);
+    ids.SetBorrowedRows(selected);
+    batch.AddColumn(ids, storage);
+    auto doubles =
+        ColumnView::Reference(StorageType{Double{}}, storage->doubles.data());
+    doubles.SetBorrowedRows(selected);
+    batch.AddColumn(doubles, storage);
+    auto range =
+        ColumnView::Reference(StorageType{Int64{}}, storage->values.data());
+    range.SetRange(1);
+    batch.AddColumn(range, storage);
+    batch.SetCardinality(4);
+    return batch;
+  };
+  BatchBuffer buffer;
+  auto batch = make_batch();
+  buffer.Prepare(batch, LayoutPreference::kAny);
+  EXPECT_EQ(batch.column(0).data(), storage->values.data());
+  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  EXPECT_NE(batch.column(0).data(), storage->values.data());
+  EXPECT_EQ(batch.column(3).data(), storage->values.data());
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(batch, 0),
+              ElementsAre(50, std::nullopt, 50, 10));
+  EXPECT_THAT(test::ReadColumn<uint32_t>(batch, 1),
+              ElementsAre(kMaxBatchRows + 4, 1, kMaxBatchRows + 4, 0));
+  uint64_t negative_zero;
+  double value = batch.column(2).Value<double>(1);
+  std::memcpy(&negative_zero, &value, sizeof(value));
+  EXPECT_EQ(negative_zero, uint64_t{1} << 63);
+  for (uint32_t c = 0; c < batch.column_count(); ++c)
+    EXPECT_TRUE(batch.column(c).selection().is_range());
+  RowBatch retained;
+  retained.CopyFrom(batch);
+  rows = {0, kMaxBatchRows + 3, 2, kMaxBatchRows + 5};
+  batch = make_batch();
+  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(10, 40, 30, 60));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
+              ElementsAre(50, std::nullopt, 50, 10));
+  // Local filtering/reversal retains the original backing as an indexed view.
+  rows = {4, 1, 4, 0};
+  batch = make_batch();
+  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  EXPECT_EQ(batch.column(0).data(), storage->values.data());
+  EXPECT_FALSE(batch.column(0).selection().is_range());
+  // An indexed contiguous run can become a range without copying values.
+  rows = {1, 2, 3, 4};
+  batch = make_batch();
+  buffer.Prepare(batch, LayoutPreference::kPreferContiguous);
+  EXPECT_EQ(batch.column(0).data(), storage->values.data());
+  EXPECT_TRUE(batch.column(0).selection().is_range());
+}
+
+class ScatteredSource final : public Source {
+ public:
+  ScatteredSource()
+      : values_(std::make_shared<std::vector<int64_t>>(2 * kMaxBatchRows)),
+        rows_(std::make_shared<FlexVector<uint32_t>>()) {
+    rows_->resize(3);
+    (*rows_)[0] = 0;
+    (*rows_)[1] = kMaxBatchRows;
+    (*rows_)[2] = 2 * kMaxBatchRows - 1;
+    for (uint32_t i = 0; i < 3; ++i)
+      (*values_)[(*rows_)[i]] = (i + 1) * 10;
+  }
+  struct State : OperatorState {
+    bool done = false;
+  };
+  std::unique_ptr<OperatorState> MakeState() const override {
+    return std::make_unique<State>();
+  }
+  void Rewind(OperatorState& state) const override {
+    state.Cast<State>().done = false;
+  }
+  bool GetData(RowBatch& out, OperatorState& state) const override {
+    ++pulls;
+    if (state.Cast<State>().done)
+      return false;
+    state.Cast<State>().done = true;
+    out.Reset();
+    auto view = ColumnView::Reference(StorageType{Int64{}}, values_->data());
+    view.SetOwnedRows(rows_, 3);
+    out.AddColumn(view, values_);
+    out.SetCardinality(3);
+    return true;
+  }
+  mutable uint32_t pulls = 0;
+
+ private:
+  std::shared_ptr<std::vector<int64_t>> values_;
+  std::shared_ptr<FlexVector<uint32_t>> rows_;
+};
+
+class LayoutProbe final : public Operator {
+ public:
+  explicit LayoutProbe(InputPolicy policy) : policy_(policy) {}
+  InputPolicy input_policy() const override { return policy_; }
+  OpResult Execute(const RowBatch& in,
+                   RowBatch& out,
+                   OperatorState&) const override {
+    range = in.column(0).selection().is_range();
+    data = in.column(0).data();
+    count = in.size();
+    out.CopyFrom(in);
+    return OpResult::kNeedMoreInput;
+  }
+  mutable bool range = false;
+  mutable const void* data = nullptr;
+  mutable uint32_t count = 0;
+
+ private:
+  InputPolicy policy_;
+};
+
+TEST(ExecutorContractTest, LayoutPolicyAppliesAtOperatorAndOutputBoundaries) {
+  for (bool internal : {false, true}) {
+    ScatteredSource source;
+    std::vector<std::unique_ptr<Operator>> ops;
+    ops.push_back(std::make_unique<ContractFilter>());
+    InputPolicy policy;
+    policy.layout = LayoutPreference::kPreferContiguous;
+    auto probe =
+        std::make_unique<LayoutProbe>(internal ? policy : InputPolicy{});
+    auto* observed = probe.get();
+    ops.push_back(std::move(probe));
+    ExecutionOptions options;
+    if (!internal)
+      options.output_policy = policy;
+    Pipeline pipeline(source, std::move(ops), options);
+    auto state = pipeline.MakeState();
+    RowBatch out, retained;
+    ASSERT_TRUE(pipeline.GetData(out, *state));
+    EXPECT_EQ(observed->range, internal);
+    EXPECT_TRUE(out.column(0).selection().is_range());
+    EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(10, 20, 30));
+    EXPECT_EQ(source.pulls, 1u);
+    retained.CopyFrom(out);
+    pipeline.Rewind(*state);
+    ASSERT_TRUE(pipeline.GetData(out, *state));
+    EXPECT_THAT(test::ReadColumn<int64_t>(retained, 0),
+                ElementsAre(10, 20, 30));
+  }
+}
+
+TEST(ExecutorContractTest, FinalDemandIsAppliedBeforePacking) {
+  ScatteredSource source;
+  std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<ContractFilter>());
+  auto probe = std::make_unique<LayoutProbe>(InputPolicy{});
+  auto* observed = probe.get();
+  ops.push_back(std::move(probe));
+  ExecutionOptions options;
+  options.output_policy = {LayoutPreference::kPreferContiguous,
+                           BatchPreference::kThroughput};
+  options.limit = 1;
+  Pipeline pipeline(source, std::move(ops), options);
+  auto state = pipeline.MakeState();
+  RowBatch out;
+  ASSERT_TRUE(pipeline.GetData(out, *state));
+  EXPECT_EQ(observed->count, 3u);
+  EXPECT_EQ(out.size(), 1u);
+  EXPECT_EQ(out.column(0).data(), observed->data);
+  EXPECT_TRUE(out.column(0).selection().is_range());
+  EXPECT_EQ(out.column(0).Value<int64_t>(0), 10);
+  EXPECT_EQ(source.pulls, 1u);
+  EXPECT_FALSE(pipeline.GetData(out, *state));
+  EXPECT_EQ(source.pulls, 1u);
+}
+
+TEST(ExecutorContractTest, DistinctSelectionSlotsReuseReleasedBuffers) {
+  auto values = std::make_shared<std::vector<int64_t>>(
+      std::initializer_list<int64_t>{0, 10, 20, 30, 40, 50, 60, 70});
+  RowBatch input;
+  for (uint32_t c = 0; c < 64; ++c) {
+    auto indices = std::make_shared<FlexVector<uint32_t>>();
+    indices->resize(8);
+    for (uint32_t r = 0; r < 8; ++r)
+      (*indices)[r] = (r * 3 + c) % 8;
+    auto view = ColumnView::Reference(StorageType{Int64{}}, values->data());
+    view.SetOwnedRows(indices, 8);
+    input.AddColumn(view, values);
+  }
+  input.SetCardinality(8);
+  std::vector<uint32_t> selected{0, 2, 3, 7};
+  RowBatch producer, retained;
+  auto publish = [&] {
+    producer.CopyFrom(input);
+    producer.Slice(RowSelection::Indices(Span<const uint32_t>(
+                       selected.data(), selected.data() + selected.size())),
+                   4);
+  };
+  publish();
+  std::vector<const uint32_t*> first;
+  for (uint32_t c = 0; c < 64; ++c)
+    first.push_back(producer.column(c).selection().data());
+  retained.CopyFrom(producer);
+  publish();
+  for (uint32_t c = 0; c < 64; ++c) {
+    EXPECT_NE(producer.column(c).selection().data(), first[c]);
+    for (uint32_t r = 0; r < 4; ++r)
+      EXPECT_EQ(retained.column(c).Value<int64_t>(r),
+                (*values)[(selected[r] * 3 + c) % 8]);
+  }
+  retained.Reset();
+  publish();
+  for (uint32_t c = 0; c < 64; ++c)
+    EXPECT_EQ(producer.column(c).selection().data(), first[c]);
+}
+
+TEST(ExecutorContractTest, NonAdjacentColumnsShareComposedSelection) {
+  std::vector<int64_t> values{0, 10, 20, 30, 40, 50};
+  RowBatch batch;
+  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  auto shifted = batch.column(0);
+  shifted.SetRange(1);
+  batch.AddColumn(shifted);
+  batch.AddColumn(batch.column(0));
+  batch.SetCardinality(4);
+  std::vector<uint32_t> rows{3, 0, 2};
+  batch.Slice(
+      RowSelection::Indices(Span<const uint32_t>(rows.data(), rows.data() + 3)),
+      3);
+  EXPECT_EQ(batch.column(0).selection().data(),
+            batch.column(2).selection().data());
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(30, 0, 20));
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 1), ElementsAre(40, 10, 30));
 }
 
 }  // namespace

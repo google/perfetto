@@ -19,6 +19,7 @@
 
 #include <vector>
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/batch_policy.h"
 #include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -33,6 +34,10 @@ class BatchBuffer {
  public:
   uint32_t size() const { return batch_.size(); }
   base::Status Append(const RowBatch&);
+  // Prepare already-available rows for a consumer. Range columns keep their
+  // backing; scattered columns can be gathered directly into pooled storage.
+  // No lookahead is performed and retained outputs remain immutable.
+  void Prepare(RowBatch&, LayoutPreference);
   void Take(RowBatch& out) {
     out.CopyFrom(batch_);
     Clear();

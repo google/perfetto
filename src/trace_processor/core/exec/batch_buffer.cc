@@ -39,7 +39,8 @@ void CopyValues(const ColumnView& view,
 void Copy(const ColumnView& view,
           uint32_t count,
           uint32_t offset,
-          ColumnChunk& chunk) {
+          ColumnChunk& chunk,
+          bool copy_validity = true) {
   if (view.kind() == ColumnView::Kind::kVariant) {
     CopyValues<Variant>(view, count, offset, chunk);
   } else if (view.type().Is<Id>() || view.type().Is<Uint32>()) {
@@ -53,6 +54,8 @@ void Copy(const ColumnView& view,
   } else {
     CopyValues<StringPool::Id>(view, count, offset, chunk);
   }
+  if (!copy_validity)
+    return;
   chunk.validity.resize(kMaxBatchRows);
   for (uint32_t i = 0; i < count; ++i) {
     if (!view.validity() ||
@@ -83,6 +86,51 @@ ColumnView Packed(const ColumnView& from,
                                nullable ? &chunk.validity : nullptr);
 }
 }  // namespace
+
+void BatchBuffer::Prepare(RowBatch& batch, LayoutPreference layout) {
+  if (layout == LayoutPreference::kAny || !batch.size())
+    return;
+  const uint32_t* previous_rows = nullptr;
+  bool contiguous = false;
+  bool local = false;
+  for (uint32_t c = 0; c < batch.column_count(); ++c) {
+    const auto& view = batch.column(c);
+    auto selection = view.selection();
+    if (selection.is_range())
+      continue;
+    uint32_t first = selection.GetIndex(0);
+    if (selection.data() != previous_rows) {
+      previous_rows = selection.data();
+      uint32_t low = first, high = first;
+      contiguous = true;
+      local = true;
+      for (uint32_t row = 1; row < batch.size(); ++row) {
+        uint32_t index = selection.GetIndex(row);
+        contiguous &= index == first + row;
+        low = std::min(low, index);
+        high = std::max(high, index);
+        if (high - low >= kMaxBatchRows) {
+          local = false;
+          break;
+        }
+      }
+    }
+    if (contiguous) {
+      batch.mutable_column(c).SetRange(first);
+      continue;
+    }
+    // A selection within one vector's span already has bounded locality.
+    // Preserve it; packing it merely adds a copy to ordinary filtered or
+    // reversed batches. Wider scatter is packed for the requesting consumer.
+    if (local)
+      continue;
+    buffers_.resize(batch.column_count());
+    auto packed = buffers_[c].Acquire();
+    Copy(view, batch.size(), 0, *packed, view.validity() != nullptr);
+    auto packed_view = Packed(view, *packed, view.validity() != nullptr);
+    batch.SetColumn(c, packed_view, std::move(packed));
+  }
+}
 
 base::Status BatchBuffer::Append(const RowBatch& in) {
   if (!in.size())
@@ -160,6 +208,7 @@ base::Status BatchStore::Append(const RowBatch& in) {
         return base::ErrStatus("batch store: column representation changed");
     }
   }
+  selections_.Reset();
   columns_.resize(in.column_count());
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     auto& column = columns_[c];
@@ -218,6 +267,7 @@ uint32_t BatchStore::View(RowBatch* out,
 }
 uint32_t BatchStore::View(RowBatch* out, Span<const uint32_t> rows) {
   out->Reset();
+  selections_.Reset();
   uint32_t count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
   if (!count)

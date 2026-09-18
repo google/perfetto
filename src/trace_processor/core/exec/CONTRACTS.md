@@ -12,8 +12,11 @@ consumer must materialize them. Production sources publish owners.
 Finalized dataframe columns retain their existing storage. Sparse expansion,
 SQL scans and computed columns publish pooled buffers. A buffer is writable
 only when the pool is its sole owner; retained outputs force another allocation.
-Pools cache at most two buffers each. String IDs refer to the process-lifetime
-string pool and do not require copying string payloads.
+Value pools cache at most two buffers each. Selection operations use one
+reusable slot per produced mapping, with at most two cached buffers per slot.
+Slots restart at each operation and retained selections prevent buffer reuse.
+String IDs refer to the process-lifetime string pool and do not require copying
+string payloads.
 
 Selections map logical rows independently for each column. They may repeat or
 reorder rows. Composing selections preserves alignment and owns any index
@@ -40,6 +43,33 @@ validity, floating-point bits and per-column alignment.
 
 Stable dataframe storage is not copied merely to reduce retained memory.
 Compaction thresholds are explicit policy, not an adaptive cost model.
+
+## Consumer input policy
+
+Each operator declares an InputPolicy; ExecutionOptions supplies the policy for
+final output. Layout and batching preferences are independent. The executor
+applies them at input boundaries, including after finalization and coalescing.
+Any layout preserves producer views. PreferContiguous gathers scattered columns
+into execution-local pooled buffers, preserving value bits, nulls and row order.
+Range columns keep their backing; indexed contiguous runs become ranges without
+copying. Selections whose referenced rows fit within one vector-sized span
+remain views, including local filtering and reversal. Wider scatter is packed;
+the policy does not use a column-count threshold. Already packed columns are
+not copied again. Layout preparation never pulls additional input.
+
+SQLite currently preserves producer views: measurements show that packing helps
+wide scattered reads but can regress narrow queries. Consumers must opt in;
+there is no universal automatic packing rule.
+
+Final demand is applied before output packing, so a one-row result becomes a
+range without materialization. Demand is not pushed as an input cardinality cap
+through filtering, expanding or blocking operators. Finite demand still disables
+optional batch coalescing at every boundary.
+
+Selection composition shares the result for columns with the same incoming
+mapping, even when a computed column separates them. Reusable slot capacity
+follows the peak number of mappings, rather than growing with every batch or
+allocating all but two mappings repeatedly.
 
 ## Execution and demand
 

@@ -176,8 +176,10 @@ void Lowering::LowerTreeAccumulate(const op::TreeAccumulate& acc) {
 }
 
 std::unique_ptr<PhysicalPlan> Lowering::Finish() {
-  out_->pipeline_ =
-      std::make_unique<ex::Pipeline>(*out_->input_, std::move(operators_));
+  ex::ExecutionOptions options;
+  options.output_policy = env_.output_policy;
+  out_->pipeline_ = std::make_unique<ex::Pipeline>(
+      *out_->input_, std::move(operators_), options);
   for (const NamedColumn& column : plan_.output) {
     out_->columns_.push_back({column.name, Position(column.id)});
   }

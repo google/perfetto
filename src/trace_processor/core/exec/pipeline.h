@@ -34,7 +34,7 @@ namespace perfetto::trace_processor::core::exec {
 // consume the input needed to produce their first result. Cancellation is
 // checked between source/operator calls, not within individual kernels.
 struct ExecutionOptions {
-  BatchPreference preference = BatchPreference::kLatency;
+  InputPolicy output_policy;
   uint64_t limit = std::numeric_limits<uint64_t>::max();
   uint32_t small_batch_rows = 64;
   uint32_t target_batch_rows = kMaxBatchRows;
@@ -79,7 +79,7 @@ class Pipeline : public Source {
   };
 
   bool Pull(uint32_t stage, RowBatch&, State&) const;
-  bool Input(uint32_t boundary, RowBatch&, State&, BatchPreference) const;
+  bool Input(uint32_t boundary, RowBatch&, State&, InputPolicy) const;
   bool Check(State&) const;
   void Stop(State&) const;
 

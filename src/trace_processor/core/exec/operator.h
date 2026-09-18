@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/batch_policy.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -49,8 +50,6 @@ class OperatorState {
     return static_cast<const T&>(*this);
   }
 };
-
-enum class BatchPreference : uint8_t { kLatency, kThroughput };
 
 enum class OpResult : uint8_t {
   // `out` holds all the output for this input. An empty `out` means the input
@@ -82,9 +81,7 @@ class Operator {
 
   // A preference, never permission to change row order. Downstream finite
   // demand overrides throughput batching. Blocking remains intrinsic to an op.
-  virtual BatchPreference batch_preference() const {
-    return BatchPreference::kLatency;
-  }
+  virtual InputPolicy input_policy() const { return {}; }
 
   virtual OpResult Execute(const RowBatch& in,
                            RowBatch& out,

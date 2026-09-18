@@ -21,6 +21,7 @@ source_set("exec") {
     "assert_type.h",
     "batch_buffer.cc",
     "batch_buffer.h",
+    "batch_policy.h",
     "breaker.cc",
     "breaker.h",
     "buffer_pool.h",
