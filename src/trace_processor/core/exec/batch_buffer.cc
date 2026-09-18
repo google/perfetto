@@ -19,13 +19,6 @@
 #include <cstdint>
 
 namespace perfetto::trace_processor::core::exec {
-namespace {
-bool SameRepresentation(const ColumnView& a, const ColumnView& b) {
-  return a.kind() == b.kind() &&
-         (a.kind() == ColumnView::Kind::kVariant || a.type() == b.type());
-}
-}  // namespace
-
 base::Status BatchBuffer::Append(const RowBatch& in) {
   if (!in.size())
     return base::OkStatus();
@@ -50,17 +43,13 @@ base::Status BatchBuffer::Append(const RowBatch& in) {
   if (total > kMaxBatchRows || in.column_count() != batch_.column_count())
     return base::ErrStatus("batch buffer: incompatible batch size or schema");
   for (uint32_t c = 0; c < in.column_count(); ++c) {
-    const auto& a = batch_.column(c);
-    const auto& b = in.column(c);
-    // Id materialization changes physical representation, not logical type.
-    bool integer_id = a.type().Is<Uint32>() && b.type().Is<Id>();
-    if (!SameRepresentation(a, b) && !integer_id)
+    if (!SameLogicalType(batch_.column(c), in.column(c)))
       return base::ErrStatus("batch buffer: column representation changed");
   }
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     auto a = batch_.column(c);
     const auto& b = in.column(c);
-    if (SameRepresentation(a, b) && a.data() == b.data() &&
+    if (a.kind() == b.kind() && a.data() == b.data() &&
         a.validity() == b.validity()) {
       if (!indices_[c]) {
         indices_[c] = index_pools_[c].Acquire();
