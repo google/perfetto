@@ -95,7 +95,7 @@ source_set("compressor") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
   ]
   if (enable_perfetto_zstd) {
     deps += [ "../../../gn:zstd" ]
@@ -109,7 +109,7 @@ perfetto_component("build_id") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
   ]
 }
 
@@ -117,7 +117,7 @@ source_set("blob") {
   sources = [ "trace_blob.cc" ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor:basic_types",
     "../../../include/perfetto/trace_processor:util",
     "../../../protos/perfetto/common:zero",
@@ -131,7 +131,7 @@ source_set("clock") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/common:zero",
   ]
 }
@@ -143,10 +143,10 @@ source_set("profiler_util") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
+    "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace/profiling:zero",
     "../importers/common:stats_tracker",
-    "../storage:storage",
+    "../storage",
   ]
 }
 
@@ -315,8 +315,8 @@ source_set("args_utils") {
   ]
 }
 
-# Header only part of the json_parser (just json_parser.h).
-# The old json_utils.cc/h files have been removed and replaced by json_args.cc/h.
+# Header only part of the json_parser (just json_parser.h). The old
+# json_utils.cc/h files have been removed and replaced by json_args.cc/h.
 source_set("json_parser") {
   sources = [ "json_parser.h" ]
   deps = [
@@ -417,12 +417,11 @@ source_set("profile_builder") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/trace_processor:demangle",
-    "../../../include/perfetto/protozero:protozero",
+    "../../../include/perfetto/protozero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../../protos/third_party/pprof:zero",
     "../../base",
     "../containers",
-    "../core/dataframe",
     "../core/dataframe",
     "../storage",
     "../tables",

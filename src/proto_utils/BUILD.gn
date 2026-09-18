@@ -53,7 +53,7 @@ source_set("main") {
     ":pb_to_txt",
     ":txt_to_pb",
     "../../gn:default_deps",
-    "../../include/perfetto/ext/base:base",
+    "../../include/perfetto/ext/base",
   ]
   sources = [ "main.cc" ]
 }
@@ -87,7 +87,7 @@ if (enable_perfetto_ui) {
       ":pb_to_txt",
       ":txt_to_pb",
       "../../gn:default_deps",
-      "../../include/perfetto/ext/base:base",
+      "../../include/perfetto/ext/base",
     ]
   }
 }
