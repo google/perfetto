@@ -15,6 +15,7 @@
 source_set("protozero") {
   public_deps = [
     "../base",
+    "../ext/base",
     "../public:protozero",
   ]
   sources = [

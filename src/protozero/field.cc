@@ -19,12 +19,6 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 
-#if !PERFETTO_IS_LITTLE_ENDIAN()
-// The memcpy() for fixed32/64 below needs to be adjusted if we want to
-// support big endian CPUs. There doesn't seem to be a compelling need today.
-#error Unimplemented for big endian archs.
-#endif
-
 namespace protozero {
 
 template <typename Container>
@@ -42,14 +36,16 @@ void Field::SerializeAndAppendToInternal(Container* dst) const {
     }
     case static_cast<int>(pu::ProtoWireType::kFixed32): {
       wptr = pu::WriteVarInt(pu::MakeTagFixed<uint32_t>(id_), wptr);
-      uint32_t value32 = static_cast<uint32_t>(int_value_);
+      uint32_t value32 =
+          pu::HostToLEFixed(static_cast<uint32_t>(int_value_));
       memcpy(wptr, &value32, sizeof(value32));
       wptr += sizeof(uint32_t);
       break;
     }
     case static_cast<int>(pu::ProtoWireType::kFixed64): {
       wptr = pu::WriteVarInt(pu::MakeTagFixed<uint64_t>(id_), wptr);
-      memcpy(wptr, &int_value_, sizeof(int_value_));
+      uint64_t value64 = pu::HostToLEFixed(int_value_);
+      memcpy(wptr, &value64, sizeof(value64));
       wptr += sizeof(uint64_t);
       break;
     }

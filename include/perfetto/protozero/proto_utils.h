@@ -18,11 +18,14 @@
 #define INCLUDE_PERFETTO_PROTOZERO_PROTO_UTILS_H_
 
 #include <stddef.h>
+#include <string.h>
 
 #include <cinttypes>
 #include <type_traits>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/endian.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_utils.h"
 
@@ -37,6 +40,48 @@
 
 namespace protozero {
 namespace proto_utils {
+
+// Converts a fixed32/fixed64/sfixed/float/double between host byte order and
+// the little-endian proto wire representation.
+template <typename T>
+inline T HostToLEFixed(T value) {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "HostToLEFixed requires a trivially copyable type");
+  static_assert(sizeof(T) == 4 || sizeof(T) == 8,
+                "HostToLEFixed supports only 32/64-bit fixed types");
+  if (sizeof(T) == 4) {
+    uint32_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::HostToLE32(u);
+    memcpy(&value, &u, sizeof(u));
+  } else {
+    uint64_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::HostToLE64(u);
+    memcpy(&value, &u, sizeof(u));
+  }
+  return value;
+}
+
+template <typename T>
+inline T LEFixedToHost(T value) {
+  static_assert(std::is_trivially_copyable<T>::value,
+                "LEFixedToHost requires a trivially copyable type");
+  static_assert(sizeof(T) == 4 || sizeof(T) == 8,
+                "LEFixedToHost supports only 32/64-bit fixed types");
+  if (sizeof(T) == 4) {
+    uint32_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::LE32ToHost(u);
+    memcpy(&value, &u, sizeof(u));
+  } else {
+    uint64_t u;
+    memcpy(&u, &value, sizeof(u));
+    u = perfetto::base::LE64ToHost(u);
+    memcpy(&value, &u, sizeof(u));
+  }
+  return value;
+}
 
 // See https://developers.google.com/protocol-buffers/docs/encoding wire types.
 // This is a type encoded into the proto that provides just enough info to
