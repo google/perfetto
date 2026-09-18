@@ -17798,6 +17798,7 @@ filegroup {
     srcs: [
         "src/trace_processor/core/exec/assert_type.cc",
         "src/trace_processor/core/exec/breaker.cc",
+        "src/trace_processor/core/exec/column_chunk.cc",
         "src/trace_processor/core/exec/column_view.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/operator.cc",

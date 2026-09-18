@@ -17,83 +17,57 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_
 
-#include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
-#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-// Owns a copy of rows taken from one or more RowBatches.
-//
-// A RowBatch only borrows its values: they stay valid until the next pull from
-// the source, which is free to overwrite them. An operator which needs rows
-// for longer than that must copy them into a RowStore. Views of the store
-// borrow in the same way: they are good until the store's next mutation, and
-// never longer than the store.
-//
-// Rows are held in fixed-size chunks rather than one growing array, so nothing
-// already appended is ever copied again. kChunkRows is a power of two, so a
-// row's chunk and its offset within it are a shift and a mask.
+// Retains owned input without copying values. Range output shares the retained
+// backing; arbitrary row-order output is gathered into contiguous column
+// buffers so downstream consumers do not inherit scattered reads. Reordering
+// operates only on rows already retained, without pulling additional input.
 class RowStore {
  public:
-  static constexpr uint32_t kChunkRows = kMaxBatchRows;
-
-  RowStore();
-  ~RowStore();
-
-  // Appends every column of `batch`. The first call fixes the column count and
-  // the type of each column; later calls must match it.
-  base::Status Append(const RowBatch& batch);
-
+  base::Status Append(const RowBatch&);
   uint32_t size() const { return size_; }
-  uint32_t column_count() const {
-    return static_cast<uint32_t>(columns_.size());
+  uint32_t View(RowBatch* out, uint32_t offset, uint32_t count) const;
+  // Gathers up to kMaxBatchRows in the requested order, including duplicates.
+  // Output owns its buffers and survives later calls and store destruction.
+  uint32_t View(RowBatch* out, Span<const uint32_t> rows);
+  void Clear() {
+    for (auto& column : columns_) {
+      column.batches.clear();
+      column.nullable = false;
+      column.same_selection_as_previous = true;
+    }
+    ends_.clear();
+    batch_of_row_.clear();
+    size_ = 0;
   }
-  StorageType type(uint32_t column) const { return columns_[column].type; }
-  bool is_variant(uint32_t column) const { return columns_[column].variant; }
-
-  // Points `batch` at up to `count` rows from `offset` and returns how many it
-  // could serve. A run never spans two chunks, so a caller asking for more than
-  // the rest of a chunk gets the rest of the chunk.
-  uint32_t View(RowBatch* batch, uint32_t offset, uint32_t count) const;
-
-  // Points `batch` at the rows `rows` picks out, in that order. They can come
-  // from any chunk, which no single view can span, so the values are gathered
-  // into reused storage. The result stays valid until the next indexed View()
-  // on this store.
-  void View(RowBatch* batch, Span<const uint32_t> rows);
-
-  // Drops all the rows but keeps the allocated chunks.
-  void Clear();
 
  private:
+  uint32_t Find(uint32_t row) const;
   struct Column {
-    StorageType type{Uint32{}};
-    bool variant = false;
+    struct Batch {
+      ColumnView view;
+      std::shared_ptr<const void> owner;
+    };
+    std::vector<Batch> batches;
+    BufferPool<ColumnChunk> buffers;
     bool nullable = false;
-    std::vector<std::unique_ptr<ColumnChunk>> chunks;
-    // Where a gathered view puts the values it picks out.
-    std::unique_ptr<ColumnChunk> gathered;
+    bool same_selection_as_previous = true;
   };
-
-  base::Status ValidateColumn(const Column&, const ColumnView&) const;
-  void AppendColumn(Column&, const ColumnView&, uint32_t count);
-  ColumnView ViewOf(const Column&, const ColumnChunk&) const;
-  ColumnChunk& ChunkAt(Column&, uint32_t index) const;
-
+  SelectionPool selections_;
   std::vector<Column> columns_;
-  bool initialized_ = false;
+  std::vector<uint32_t> ends_;
+  // Dense logical row numbers map directly to variable-sized input batches.
+  std::vector<uint32_t> batch_of_row_;
   uint32_t size_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
-
 #endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_

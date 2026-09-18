@@ -22,6 +22,7 @@ source_set("exec") {
     "breaker.cc",
     "breaker.h",
     "buffer_pool.h",
+    "column_chunk.cc",
     "column_chunk.h",
     "column_view.cc",
     "column_view.h",
