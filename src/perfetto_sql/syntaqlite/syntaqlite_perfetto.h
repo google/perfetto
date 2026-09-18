@@ -2144,6 +2144,11 @@ typedef enum SyntaqlitePerfettoReturnKind {
     SYNTAQLITE_PERFETTO_RETURN_KIND_TABLE = 1
 } SyntaqlitePerfettoReturnKind;
 
+typedef enum SyntaqlitePerfettoTreeDirection {
+    SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP = 0,
+    SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN = 1
+} SyntaqlitePerfettoTreeDirection;
+
 // ============ Flags Types ============
 
 typedef union SyntaqliteAggregateFunctionCallFlags {
@@ -2295,6 +2300,12 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT = 101,
     SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT = 102,
     SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT = 103,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE = 104,
+    SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE = 105,
+    SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE_LIST = 106,
+    SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE = 107,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 108,
+    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 109,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -3040,6 +3051,7 @@ typedef struct SyntaqliteCreatePerfettoTableStmt {
     uint32_t schema;
     uint32_t select;
     SyntaqliteTextSpan select_span;
+    uint32_t pipeline;
 } SyntaqliteCreatePerfettoTableStmt;
 
 typedef struct SyntaqliteCreatePerfettoViewStmt {
@@ -3097,6 +3109,49 @@ typedef struct SyntaqliteDropPerfettoIndexStmt {
     SyntaqliteTextSpan index_name;
     SyntaqliteTextSpan table_name;
 } SyntaqliteDropPerfettoIndexStmt;
+
+typedef struct SyntaqlitePerfettoPipeSource {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan table_name;
+    SyntaqliteTextSpan schema;
+    uint32_t select;
+    uint32_t alias;
+    SyntaqliteBool alias_as;
+} SyntaqlitePerfettoPipeSource;
+
+typedef struct SyntaqlitePerfettoTreeAggregate {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan function;
+    SyntaqliteTextSpan column;
+    SyntaqliteBool is_star;
+    SyntaqliteTextSpan name;
+} SyntaqlitePerfettoTreeAggregate;
+
+// List of PerfettoTreeAggregate
+typedef struct SyntaqlitePerfettoTreeAggregateList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoTreeAggregateList;
+
+typedef struct SyntaqlitePerfettoTreeAccumulate {
+    SyntaqliteNodeTag tag;
+    SyntaqlitePerfettoTreeDirection direction;
+    uint32_t aggregates;
+} SyntaqlitePerfettoTreeAccumulate;
+
+// List of PerfettoPipeStage
+typedef struct SyntaqlitePerfettoPipeStageList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeStageList;
+
+typedef struct SyntaqlitePerfettoPipeline {
+    SyntaqliteNodeTag tag;
+    uint32_t from;
+    uint32_t stages;
+} SyntaqlitePerfettoPipeline;
 
 // ============ Node Union ============
 
@@ -3205,6 +3260,12 @@ typedef union SyntaqliteNode {
     SyntaqliteCreatePerfettoMacroStmt create_perfetto_macro_stmt;
     SyntaqliteIncludePerfettoModuleStmt include_perfetto_module_stmt;
     SyntaqliteDropPerfettoIndexStmt drop_perfetto_index_stmt;
+    SyntaqlitePerfettoPipeSource perfetto_pipe_source;
+    SyntaqlitePerfettoTreeAggregate perfetto_tree_aggregate;
+    SyntaqlitePerfettoTreeAggregateList perfetto_tree_aggregate_list;
+    SyntaqlitePerfettoTreeAccumulate perfetto_tree_accumulate;
+    SyntaqlitePerfettoPipeStageList perfetto_pipe_stage_list;
+    SyntaqlitePerfettoPipeline perfetto_pipeline;
 } SyntaqliteNode;
 
 // ============ Abstract Type: Select ============
@@ -3693,6 +3754,24 @@ static inline const SyntaqliteJoinPrefix* syntaqlite_table_source_as_join_prefix
     return node->tag == SYNTAQLITE_NODE_JOIN_PREFIX ? &node->join_prefix : NULL;
 }
 
+// ============ Abstract Type: PerfettoPipeStage ============
+
+typedef union SyntaqlitePerfettoPipeStage {
+    SyntaqliteNodeTag tag;
+    SyntaqlitePerfettoTreeAccumulate perfetto_tree_accumulate;
+} SyntaqlitePerfettoPipeStage;
+
+static inline int syntaqlite_is_perfetto_pipe_stage(SyntaqliteNodeTag tag) {
+    switch (tag) {
+        case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE: return 1;
+        default: return 0;
+    }
+}
+
+static inline const SyntaqlitePerfettoTreeAccumulate* syntaqlite_perfetto_pipe_stage_as_perfetto_tree_accumulate(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE ? &node->perfetto_tree_accumulate : NULL;
+}
+
 #ifdef __cplusplus
 }
 #endif
@@ -4115,6 +4194,30 @@ template <> struct NodeTag<SyntaqliteDropPerfettoIndexStmt> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT;
 };
+template <> struct NodeTag<SyntaqlitePerfettoPipeSource> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE;
+};
+template <> struct NodeTag<SyntaqlitePerfettoTreeAggregate> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE;
+};
+template <> struct NodeTag<SyntaqlitePerfettoTreeAggregateList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoTreeAccumulate> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeStageList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPELINE;
+};
 
 }  // namespace syntaqlite
 #endif
@@ -4320,6 +4423,10 @@ template <> struct NodeTag<SyntaqliteDropPerfettoIndexStmt> {
 #define SYNTAQLITE_TK_MACRO                          192
 #define SYNTAQLITE_TK_DELEGATES                      193
 #define SYNTAQLITE_TK_INCLUDE                        194
+#define SYNTAQLITE_TK_TREE                           195
+#define SYNTAQLITE_TK_ACCUMULATE                     196
+#define SYNTAQLITE_TK_UP                             197
+#define SYNTAQLITE_TK_DOWN                           198
 
 /* syntaqlite extension: expected terminals for current parser state. */
 uint32_t SynqPerfettoParseExpectedTokens(void* parser, uint32_t* out_tokens, uint32_t out_cap);
