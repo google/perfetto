@@ -2221,6 +2221,7 @@ if (enable_perfetto_grpc) {
       rebase_path("grpc/src/include", root_build_dir),
     ]
   }
+
   config("cpp_httplib_config") {
     visibility = _buildtools_visibility
     cflags = [

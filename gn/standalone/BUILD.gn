@@ -462,7 +462,8 @@ config("default") {
 }
 
 # x64 CPU optimization flags (SSE4.2, AVX2, BMI2, LZCNT). Separate config so the
-# startup CPU check can opt out of it. Keep in sync with CheckCpuOptimizations().
+# startup CPU check can opt out of it. Keep in sync with
+# CheckCpuOptimizations().
 config("x64_cpu_opt") {
   if (current_cpu == "x64" && enable_perfetto_x64_cpu_opt) {
     cflags = [
