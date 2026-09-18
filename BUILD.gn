@@ -175,6 +175,11 @@ if (enable_perfetto_benchmarks) {
     deps = perfetto_benchmarks_targets
   }
   all_targets += [ ":perfetto_benchmarks" ]
+  if (enable_perfetto_trace_processor_sqlite) {
+    all_targets += [
+      "src/trace_processor/perfetto_sql/benchmarks:pipeline_benchmark_runner",
+    ]
+  }
 }
 
 if (enable_perfetto_fuzzers) {
