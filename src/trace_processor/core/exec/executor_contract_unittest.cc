@@ -617,12 +617,14 @@ TEST(ExecutorContractTest, CombiningMixedBackingOnlyPacksComputedValues) {
               ElementsAre(40, 20, 40, 10));
   EXPECT_THAT(test::ReadColumn<int64_t>(output, 1),
               ElementsAre(103, 101, 103, 100));
-  // Reordering crosses computed buffers while retaining the stable column.
+  // Reordered output is contiguous even for the stable source column.
   std::vector<uint32_t> order = {3, 0, 3, 1};
   RowBatch reordered, second_view;
   auto rows = Span<const uint32_t>(order.data(), order.data() + order.size());
   ASSERT_EQ(store.View(&reordered, rows), 4u);
-  EXPECT_EQ(reordered.column(0).data(), source->data());
+  EXPECT_NE(reordered.column(0).data(), source->data());
+  EXPECT_TRUE(reordered.column(0).selection().is_range());
+  EXPECT_TRUE(reordered.column(1).selection().is_range());
   ASSERT_EQ(store.View(&second_view, rows), 4u);
   store.Clear();
   EXPECT_THAT(test::ReadColumn<int64_t>(reordered, 0),
