@@ -21,8 +21,8 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
-#include "src/trace_processor/core/exec/buffer_pool.h"
 
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
