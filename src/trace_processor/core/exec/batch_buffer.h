@@ -61,17 +61,35 @@ class BatchStore {
   uint32_t View(RowBatch* out, uint32_t offset, uint32_t count) const;
   uint32_t View(RowBatch* out, Span<const uint32_t> rows);
   void Clear() {
-    batches_.clear();
+    for (auto& column : columns_) {
+      column.batches.clear();
+      column.shared_backing = true;
+      column.nullable = false;
+      column.same_selection_as_previous = true;
+    }
     ends_.clear();
+    batch_of_row_.clear();
     size_ = 0;
   }
 
  private:
   uint32_t Find(uint32_t row) const;
+  struct Column {
+    struct Batch {
+      ColumnView view;
+      std::shared_ptr<const void> owner;
+    };
+    std::vector<Batch> batches;
+    BufferPool<ColumnChunk> buffers;
+    bool shared_backing = true;
+    bool nullable = false;
+    bool same_selection_as_previous = true;
+  };
   SelectionPool selections_;
-  std::vector<BufferPool<ColumnChunk>> buffers_;
-  std::vector<RowBatch> batches_;
+  std::vector<Column> columns_;
   std::vector<uint32_t> ends_;
+  // Dense logical row numbers map directly to variable-sized input batches.
+  std::vector<uint32_t> batch_of_row_;
   uint32_t size_ = 0;
 };
 

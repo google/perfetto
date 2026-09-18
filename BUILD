@@ -2592,8 +2592,6 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/row_cursor.cc",
         "src/trace_processor/core/exec/row_cursor.h",
         "src/trace_processor/core/exec/row_selection.h",
-        "src/trace_processor/core/exec/row_store.cc",
-        "src/trace_processor/core/exec/row_store.h",
         "src/trace_processor/core/exec/tree_accumulate.cc",
         "src/trace_processor/core/exec/tree_accumulate.h",
         "src/trace_processor/core/exec/tree_number_nodes.cc",

@@ -21,12 +21,16 @@ storage needed after the call. A range can share an existing index owner.
 
 ## Retention and compaction
 
-BatchStore retains batches for intrinsic blocking or reordering. Range views stop at input batch boundaries. Indexed output preserves a run
-covering at least half the requested rows as a view; fragmented output keeps columns
+BatchStore retains column views for intrinsic blocking or reordering. Range
+views stop at input batch boundaries. Indexed output preserves a run covering
+at least half the requested rows as a view; fragmented output keeps columns
 sharing backing storage as selections and gathers only columns crossing
 buffers. This compaction uses rows already retained by the ordering operator,
 so it adds no upstream lookahead and avoids emitting one batch per reordered row.
-RowStore explicitly materializes rows; its views retain the resulting chunks.
+A dense row-to-batch index costs four bytes per retained row and gives constant-
+time lookup even when input batches have different sizes. Retained views are organized by column. Backing and selection properties are
+recorded on append, so gathering needs no per-output metadata tables. Columns
+in the same row space share physical-row resolution.
 
 BatchBuffer implements optional executor compaction. Columns sharing backing
 values and validity concatenate indices. Columns with different backing buffers

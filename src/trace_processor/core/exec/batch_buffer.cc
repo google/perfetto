@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <limits>
+#include <type_traits>
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -149,40 +150,54 @@ base::Status BatchStore::Append(const RowBatch& in) {
     return base::OkStatus();
   if (in.size() > std::numeric_limits<uint32_t>::max() - size_)
     return base::ErrStatus("batch store: too many rows");
-  if (!batches_.empty()) {
-    const auto& first = batches_.front();
-    if (first.column_count() != in.column_count())
+  if (size_) {
+    if (columns_.size() != in.column_count())
       return base::ErrStatus("batch store: column count changed");
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      const auto& a = first.column(c);
+      const auto& a = columns_[c].batches.front().view;
       const auto& b = in.column(c);
       if (!Compatible(a, b) && !(a.type().Is<Uint32>() && b.type().Is<Id>()))
         return base::ErrStatus("batch store: column representation changed");
     }
   }
-  RowBatch retained;
-  retained.CopyFrom(in);
-  // Unowned values are borrowed for this call only. Legacy/custom sources must
-  // explicitly publish ownership to enable retention without materialization.
+  columns_.resize(in.column_count());
   for (uint32_t c = 0; c < in.column_count(); ++c) {
-    if (in.owner(c))
-      continue;
-    auto packed = std::make_shared<ColumnChunk>();
-    Copy(in.column(c), in.size(), 0, *packed);
-    retained.SetColumn(
-        c, Packed(in.column(c), *packed, in.column(c).validity() != nullptr),
-        packed);
+    auto& column = columns_[c];
+    auto view = in.column(c);
+    view.RetainSelection(in.size(), selections_);
+    auto owner = in.owner(c);
+    // Unknown borrowed storage must be materialized before retention.
+    if (!owner) {
+      auto packed = std::make_shared<ColumnChunk>();
+      Copy(view, in.size(), 0, *packed);
+      view = Packed(view, *packed, view.validity() != nullptr);
+      owner = std::move(packed);
+    }
+    if (!column.batches.empty()) {
+      const auto& first = column.batches.front().view;
+      column.shared_backing &= Compatible(first, view) &&
+                               first.data() == view.data() &&
+                               first.validity() == view.validity();
+    }
+    column.nullable |= view.validity() != nullptr;
+    if (c) {
+      auto previous = columns_[c - 1].batches.back().view.selection();
+      auto selection = view.selection();
+      column.same_selection_as_previous &=
+          selection.data() == previous.data() &&
+          selection.offset() == previous.offset();
+    }
+    column.batches.push_back({std::move(view), std::move(owner)});
   }
   size_ += in.size();
+  batch_of_row_.resize(size_, static_cast<uint32_t>(ends_.size()));
   ends_.push_back(size_);
-  batches_.push_back(std::move(retained));
   return base::OkStatus();
 }
 
 uint32_t BatchStore::Find(uint32_t row) const {
   PERFETTO_DCHECK(row < size_);
-  return static_cast<uint32_t>(
-      std::upper_bound(ends_.begin(), ends_.end(), row) - ends_.begin());
+  return batch_of_row_[row];
 }
 uint32_t BatchStore::View(RowBatch* out,
                           uint32_t offset,
@@ -194,7 +209,10 @@ uint32_t BatchStore::View(RowBatch* out,
   uint32_t index = Find(offset);
   uint32_t start = index ? ends_[index - 1] : 0;
   count = std::min(count, ends_[index] - offset);
-  out->CopyFrom(batches_[index]);
+  out->Reset();
+  for (const auto& column : columns_)
+    out->AddColumn(column.batches[index].view, column.batches[index].owner);
+  out->SetCardinality(ends_[index] - start);
   out->Slice(RowSelection::Range(offset - start), count);
   return count;
 }
@@ -220,7 +238,10 @@ uint32_t BatchStore::View(RowBatch* out, Span<const uint32_t> rows) {
     std::array<uint32_t, kMaxBatchRows> selection;
     for (uint32_t r = 0; r < run; ++r)
       selection[r] = rows[r] - start;
-    out->CopyFrom(batches_[index]);
+    out->Reset();
+    for (const auto& column : columns_)
+      out->AddColumn(column.batches[index].view, column.batches[index].owner);
+    out->SetCardinality(ends_[index] - start);
     out->Slice(RowSelection::Indices(Span<const uint32_t>(
                    selection.data(), selection.data() + run)),
                run);
@@ -233,36 +254,56 @@ uint32_t BatchStore::View(RowBatch* out, Span<const uint32_t> rows) {
     }
     locations[r] = {index, rows[r] - start};
   }
-  const auto& first = batches_[locations[0].batch];
-  buffers_.resize(first.column_count());
-  for (uint32_t c = 0; c < first.column_count(); ++c) {
-    auto view = first.column(c);
-    bool shared = true;
-    bool nullable = view.validity() != nullptr;
-    for (uint32_t r = 1; r < count; ++r) {
-      const auto& other = batches_[locations[r].batch].column(c);
-      shared &= view.data() == other.data() &&
-                view.validity() == other.validity() && Compatible(view, other);
-      nullable |= other.validity() != nullptr;
-    }
-    if (shared) {
-      auto selection = selections_.TakeBlock();
+  std::array<uint32_t, kMaxBatchRows> physical;
+  bool previous_shared = false;
+  for (uint32_t c = 0; c < columns_.size(); ++c) {
+    auto& column = columns_[c];
+    if (!c || !column.same_selection_as_previous) {
       for (uint32_t r = 0; r < count; ++r) {
         const auto& loc = locations[r];
-        (*selection)[r] =
-            batches_[loc.batch].column(c).selection().GetIndex(loc.row);
+        physical[r] =
+            column.batches[loc.batch].view.selection().GetIndex(loc.row);
       }
-      view.SetOwnedRows(std::move(selection), count);
-      out->AddColumn(view, first.owner(c));
+    }
+    const auto& first = column.batches[locations[0].batch];
+    auto view = first.view;
+    bool shared = column.shared_backing;
+    if (!shared) {
+      shared = true;
+      for (uint32_t r = 1; r < count; ++r) {
+        const auto& other = column.batches[locations[r].batch].view;
+        if (view.data() != other.data() ||
+            view.validity() != other.validity() || !Compatible(view, other)) {
+          shared = false;
+          break;
+        }
+      }
+    }
+    if (shared) {
+      if (previous_shared && column.same_selection_as_previous) {
+        view.AdoptSelection(out->column(c - 1));
+      } else {
+        auto selection = selections_.TakeBlock();
+        std::copy_n(physical.data(), count, selection->data());
+        view.SetOwnedRows(std::move(selection), count);
+      }
+      out->AddColumn(view, first.owner);
+      previous_shared = true;
       continue;
     }
-    auto packed = buffers_[c].Acquire();
+    previous_shared = false;
+    auto packed = column.buffers.Acquire();
     auto gather = [&](auto value) {
       using T = decltype(value);
       T* dest = packed->Values<T>().data();
       for (uint32_t r = 0; r < count; ++r) {
         const auto& loc = locations[r];
-        dest[r] = batches_[loc.batch].column(c).Value<T>(loc.row);
+        auto* data =
+            static_cast<const T*>(column.batches[loc.batch].view.data());
+        if constexpr (std::is_same_v<T, uint32_t>)
+          dest[r] = data ? data[physical[r]] : physical[r];
+        else
+          dest[r] = data[physical[r]];
       }
     };
     if (view.kind() == ColumnView::Kind::kVariant)
@@ -277,19 +318,23 @@ uint32_t BatchStore::View(RowBatch* out, Span<const uint32_t> rows) {
       gather(double{});
     else
       gather(StringPool::Id{});
-    if (nullable) {
-      packed->validity.resize(kMaxBatchRows);
-      for (uint32_t r = 0; r < count; ++r) {
-        const auto& loc = locations[r];
-        const auto& column = batches_[loc.batch].column(c);
-        if (!column.validity() ||
-            column.validity()->is_set(column.selection().GetIndex(loc.row)))
-          packed->validity.set(r);
-        else
-          packed->validity.clear(r);
+    if (column.nullable) {
+      packed->validity.clear();
+      for (uint32_t begin = 0; begin < count; begin += 64) {
+        uint64_t word = 0;
+        uint32_t end = std::min(begin + 64, count);
+        for (uint32_t r = begin; r < end; ++r) {
+          const auto& loc = locations[r];
+          const auto& source = column.batches[loc.batch].view;
+          bool valid =
+              !source.validity() || source.validity()->is_set(physical[r]);
+          word |= static_cast<uint64_t>(valid) << (r - begin);
+        }
+        packed->validity.AppendWord(word);
       }
+      packed->validity.resize(count);
     }
-    out->AddColumn(Packed(view, *packed, nullable), packed);
+    out->AddColumn(Packed(view, *packed, column.nullable), packed);
   }
   out->SetCardinality(count);
   return count;
