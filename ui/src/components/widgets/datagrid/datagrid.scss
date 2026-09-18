@@ -52,6 +52,13 @@
     gap: 4px;
   }
 
+  &__row-count {
+    flex: none;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+    margin-inline: 3px;
+  }
+
   &__groupby-column {
     background-color: color-mix(
       in srgb,

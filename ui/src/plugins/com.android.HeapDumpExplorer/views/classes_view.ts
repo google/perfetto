@@ -22,7 +22,6 @@ import {
   type NavFn,
   sizeRenderer,
   countRenderer,
-  RowCounter,
   COL_INFO,
   colHeader,
 } from '../components';
@@ -120,8 +119,6 @@ export function ClassesView({
     preamble: PREAMBLE,
   });
   let alive = true;
-  const counter = new RowCounter();
-  counter.init(engine, query, PREAMBLE);
   let filters: Filter[] = [];
 
   async function applyNavFilter(
@@ -135,7 +132,6 @@ export function ClassesView({
     const names = await queries.getSubclassNames(engine, activeDump, root);
     if (!alive || names.length === 0) return;
     filters = [{field: 'cls', op: 'in' as const, value: names}];
-    counter.onFiltersChanged(filters);
     m.redraw();
   }
 
@@ -166,7 +162,7 @@ export function ClassesView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Classes'),
+          title: 'Classes',
           fillHeight: true,
         },
         m(DataGrid, {
@@ -184,9 +180,9 @@ export function ClassesView({
           ],
           filters,
           showExportButton: true,
+          showRowCount: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

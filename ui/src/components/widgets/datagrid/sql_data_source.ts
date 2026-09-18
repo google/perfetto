@@ -23,6 +23,7 @@ import type {Engine} from '../../../trace_processor/engine';
 import {
   type Row,
   type SqlValue,
+  NUM,
   UNKNOWN,
 } from '../../../trace_processor/query_result';
 import type {DataSource, DataSourceModel, DataSourceRows} from './data_source';
@@ -57,6 +58,7 @@ export class SQLDataSource implements DataSource, Disposable {
   private readonly preambleSlot: AsyncMemo<void>;
   private readonly distinctValuesSlot: AsyncMemo<readonly SqlValue[]>;
   private readonly parameterKeysSlot: AsyncMemo<readonly string[]>;
+  private readonly totalRowsSlot: AsyncMemo<number>;
 
   constructor(config: DatagridEngineSQLConfig) {
     this.engine = config.engine;
@@ -66,6 +68,7 @@ export class SQLDataSource implements DataSource, Disposable {
     this.preambleSlot = new AsyncMemo<void>(this.queue);
     this.distinctValuesSlot = new AsyncMemo<readonly SqlValue[]>(this.queue);
     this.parameterKeysSlot = new AsyncMemo<readonly string[]>(this.queue);
+    this.totalRowsSlot = new AsyncMemo<number>(this.queue);
     const uuid = shortUuid();
 
     this.flatEngine = new SQLDataSourceFlat(
@@ -115,6 +118,31 @@ export class SQLDataSource implements DataSource, Disposable {
       const msg = e instanceof Error ? e.message : String(e);
       return {isPending: false, error: msg};
     }
+  }
+
+  /**
+   * Fetch the total number of rows in the dataset, ignoring filters. This is
+   * mode-independent (the size of the base table) and is used to show
+   * "filtered / total" counts in flat mode.
+   */
+  useTotalRows(): AsyncMemoResult<number> {
+    const {isPending: preamblePending} = this.usePreamble();
+    if (preamblePending) {
+      return {isPending: true};
+    }
+
+    return this.totalRowsSlot.use({
+      key: {},
+      compute: async () => {
+        const resolver = new SQLSchemaResolver(this.sqlSchema);
+        const baseTable = resolver.getBaseTableOrSubquery();
+        const baseAlias = resolver.getBaseAlias();
+        const joinClauses = resolver.buildJoinClauses();
+        const query = `SELECT COUNT(*) AS cnt FROM (${baseTable}) AS ${baseAlias} ${joinClauses}`;
+        const result = await this.engine.query(query);
+        return result.firstRow({cnt: NUM}).cnt;
+      },
+    });
   }
 
   /**

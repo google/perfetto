@@ -48,6 +48,10 @@ class ErrorEmulatingDataSource implements DataSource {
     return this.inner.useRows(model);
   }
 
+  useTotalRows(): AsyncMemoResult<number> {
+    return this.inner.useTotalRows();
+  }
+
   useAggregateSummaries(model: DataSourceModel): AsyncMemoResult<Row> {
     if (this.failing) {
       return {data: {}, isPending: false};
@@ -262,6 +266,7 @@ export function renderDataGrid(app: App): m.Children {
       },
       initialOpts: {
         showExportButton: false,
+        showRowCount: false,
         structuredQueryCompatMode: false,
         disablePivotControls: false,
         disableColumnControls: false,

@@ -270,6 +270,10 @@ export class BigtraceAsyncDataSource implements DataSource {
     return this.columns;
   }
 
+  useTotalRows(): AsyncMemoResult<number> {
+    return {data: this.getTotalRows(), isPending: false};
+  }
+
   useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {
     return {data: {}, isPending: false};
   }

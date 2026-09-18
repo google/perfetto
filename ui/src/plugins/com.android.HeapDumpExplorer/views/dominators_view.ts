@@ -25,7 +25,6 @@ import {
   countRenderer,
   shortClassName,
   SQL_PREAMBLE,
-  RowCounter,
   COL_INFO,
   colHeader,
 } from '../components';
@@ -153,9 +152,6 @@ export function DominatorsView({
     tableOrSubquery: query,
     preamble: SQL_PREAMBLE,
   });
-  const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
-
   return {
     onremove() {
       datasource.dispose();
@@ -166,7 +162,7 @@ export function DominatorsView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Dominators'),
+          title: 'Dominators',
           fillHeight: true,
         },
         m(DataGrid, {
@@ -187,7 +183,7 @@ export function DominatorsView({
             {id: 'root_type', field: 'root_type'},
           ],
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          showRowCount: true,
         }),
       );
     },

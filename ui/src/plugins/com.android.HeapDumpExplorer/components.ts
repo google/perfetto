@@ -14,11 +14,7 @@
 
 import m from 'mithril';
 import type {SqlValue} from '../../trace_processor/query_result';
-import {NUM} from '../../trace_processor/query_result';
 import type {CellRenderResult} from '../../components/widgets/datagrid/datagrid_schema';
-import type {Filter} from '../../components/widgets/datagrid/model';
-import {filterToSql} from '../../components/widgets/datagrid/sql_utils';
-import type {Engine} from '../../trace_processor/engine';
 import type {InstanceRow, PathEntry, PrimOrRef} from './types';
 import {fmtSize} from './format';
 import type {NavState} from './nav_state';
@@ -262,80 +258,6 @@ export function colHeader(label: string, info: m.Children): m.Children {
 export const SQL_PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;\n' +
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree';
-
-/**
- * Tracks total and filtered row counts for a SQL-backed DataGrid view.
- *  Call `init()` in oninit, pass `onFiltersChanged` to DataGrid, and read
- *  `heading()` for the formatted title.
- */
-export class RowCounter {
-  total: number | null = null;
-  filtered: number | null = null;
-
-  private engine: Engine | null = null;
-  private baseQuery = '';
-  private preamble = '';
-  private currentFilters: readonly Filter[] = [];
-
-  init(engine: Engine, query: string, preamble = '') {
-    this.engine = engine;
-    this.baseQuery = query;
-    this.preamble = preamble;
-    this.runCount();
-  }
-
-  /** Format a heading like "Objects (1,234)" or "Objects (42 / 1,234)". */
-  heading(label: string): string {
-    if (this.total === null) return label;
-    if (
-      this.filtered !== null &&
-      this.currentFilters.length > 0 &&
-      this.filtered !== this.total
-    ) {
-      return `${label} (${this.filtered.toLocaleString()} / ${this.total.toLocaleString()})`;
-    }
-    return `${label} (${this.total.toLocaleString()})`;
-  }
-
-  /** Pass this as the DataGrid `onFiltersChanged` callback. */
-  readonly onFiltersChanged = (filters: readonly Filter[]) => {
-    this.currentFilters = filters;
-    this.runFilteredCount();
-  };
-
-  private runCount() {
-    if (!this.engine) return;
-    const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(`${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery})`)
-      .then((r) => {
-        this.total = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
-  }
-
-  private runFilteredCount() {
-    if (!this.engine || this.currentFilters.length === 0) {
-      this.filtered = null;
-      m.redraw();
-      return;
-    }
-    const where = this.currentFilters
-      .map((f) => filterToSql(f, f.field))
-      .join(' AND ');
-    const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(
-        `${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery}) WHERE ${where}`,
-      )
-      .then((r) => {
-        this.filtered = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
-  }
-}
 
 interface PrimOrRefCellAttrs {
   readonly v: PrimOrRef;

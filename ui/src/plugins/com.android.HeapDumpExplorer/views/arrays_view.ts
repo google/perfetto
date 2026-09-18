@@ -26,7 +26,6 @@ import {
   sizeRenderer,
   countRenderer,
   shortClassName,
-  RowCounter,
   COL_INFO,
   colHeader,
 } from '../components';
@@ -120,9 +119,6 @@ export function ArraysView({
     engine,
     tableOrSubquery: query,
   });
-  const counter = new RowCounter();
-  counter.init(engine, query);
-
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -131,7 +127,6 @@ export function ArraysView({
   ) {
     if (!ah) return;
     filters = [{field: 'array_hash', op: '=' as const, value: ah}];
-    counter.onFiltersChanged(filters);
     clearNavParam('arrayHash');
   }
 
@@ -162,7 +157,7 @@ export function ArraysView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Arrays'),
+          title: 'Arrays',
           fillHeight: true,
         },
         m(DataGrid, {
@@ -179,9 +174,9 @@ export function ArraysView({
           ],
           filters,
           showExportButton: true,
+          showRowCount: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

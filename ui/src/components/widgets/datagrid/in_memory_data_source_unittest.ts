@@ -120,6 +120,26 @@ describe('InMemoryDataSource', () => {
     expect(result.rows?.map((r) => r.id)).toEqual(sampleData.map((r) => r.id));
   });
 
+  describe('useTotalRows', () => {
+    test('returns the full dataset size', () => {
+      const result = dataSource.useTotalRows();
+      expect(result.isPending).toBe(false);
+      expect(result.data).toBe(sampleData.length);
+    });
+
+    test('ignores filters', () => {
+      // Apply a filter via useRows, then confirm the unfiltered total is
+      // unaffected.
+      const filters: Filter[] = [{field: 'active', op: '=', value: 1}];
+      const rowsResult = dataSource.useRows(makeModel({filters}));
+      expect(rowsResult.totalRows).toBeLessThan(sampleData.length);
+
+      const total = dataSource.useTotalRows();
+      expect(total.isPending).toBe(false);
+      expect(total.data).toBe(sampleData.length);
+    });
+  });
+
   describe('filtering', () => {
     test('equality filter', () => {
       const filters: Filter[] = [{field: 'name', op: '=', value: 'Alice'}];

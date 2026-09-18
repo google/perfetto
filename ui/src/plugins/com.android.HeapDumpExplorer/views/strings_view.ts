@@ -28,7 +28,6 @@ import {
   sizeRenderer,
   countRenderer,
   SQL_PREAMBLE,
-  RowCounter,
   COL_INFO,
   colHeader,
 } from '../components';
@@ -173,8 +172,6 @@ export function StringsView({
     tableOrSubquery: query,
     preamble: SQL_PREAMBLE,
   });
-  const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
   const allRowsMemo = new AsyncMemo<readonly StringListRow[]>();
   let filters: Filter[] = [];
 
@@ -184,7 +181,6 @@ export function StringsView({
   ) {
     if (!q) return;
     filters = [{field: 'value', op: '=' as const, value: q}];
-    counter.onFiltersChanged(filters);
     clearNavParam('q');
   }
 
@@ -246,7 +242,7 @@ export function StringsView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Strings'),
+          title: 'Strings',
           fillHeight: true,
           className: 'pf-hde-tab--padded',
         },
@@ -278,9 +274,9 @@ export function StringsView({
             ],
             filters,
             showExportButton: true,
+            showRowCount: true,
             onFiltersChanged: (f) => {
               filters = [...f];
-              counter.onFiltersChanged(f);
             },
           }),
         ],

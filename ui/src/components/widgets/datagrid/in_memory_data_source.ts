@@ -102,6 +102,13 @@ export class InMemoryDataSource implements DataSource {
   }
 
   /**
+   * Fetch the total number of rows in the dataset, ignoring filters.
+   */
+  useTotalRows(): AsyncMemoResult<number> {
+    return {data: this.data.length, isPending: false};
+  }
+
+  /**
    * Fetch distinct values for a column.
    */
   useDistinctValues(

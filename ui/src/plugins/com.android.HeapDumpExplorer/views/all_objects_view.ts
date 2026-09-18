@@ -26,7 +26,6 @@ import {
   countRenderer,
   shortClassName,
   SQL_PREAMBLE,
-  RowCounter,
   COL_INFO,
   colHeader,
 } from '../components';
@@ -172,9 +171,6 @@ export function AllObjectsView({
     tableOrSubquery: query,
     preamble: SQL_PREAMBLE,
   });
-  const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
-
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -183,7 +179,6 @@ export function AllObjectsView({
   ) {
     if (!cls) return;
     filters = [{field: 'cls', op: '=' as const, value: cls}];
-    counter.onFiltersChanged(filters);
     clearNavParam('cls');
   }
 
@@ -203,7 +198,7 @@ export function AllObjectsView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Objects'),
+          title: 'Objects',
           fillHeight: true,
         },
         m(DataGrid, {
@@ -225,9 +220,9 @@ export function AllObjectsView({
           ],
           filters,
           showExportButton: true,
+          showRowCount: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

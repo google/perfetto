@@ -25,7 +25,6 @@ import {
   countRenderer,
   shortClassName,
   SQL_PREAMBLE,
-  RowCounter,
   COL_INFO,
   colHeader,
 } from '../components';
@@ -175,7 +174,6 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
   // which changes within this component's lifetime. Memo recreates it on
   // change and disposes the previous one (SQLDataSource is a Disposable).
   const datasourceMemo = new Memo<SQLDataSource>();
-  const counter = new RowCounter();
 
   return {
     onremove() {
@@ -190,13 +188,11 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             key: {pathHashes, isDominator},
             compute: () => {
               const query = flamegraphQuery(pathHashes, isDominator);
-              const ds = new SQLDataSource({
+              return new SQLDataSource({
                 engine,
                 tableOrSubquery: query,
                 preamble: SQL_PREAMBLE,
               });
-              counter.init(engine, query, SQL_PREAMBLE);
-              return ds;
             },
           })
         : null;
@@ -224,9 +220,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
       return m(
         DetailsShell,
         {
-          title: counter.heading(
-            nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
-          ),
+          title: nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
           fillHeight: true,
           buttons: onBackToTimeline
             ? m(
@@ -254,7 +248,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             {id: 'heap', field: 'heap'},
           ],
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          showRowCount: true,
         }),
       );
     },

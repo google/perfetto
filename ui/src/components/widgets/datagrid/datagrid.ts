@@ -377,6 +377,14 @@ export interface DataGridAttrs {
   readonly showExportButton?: boolean;
 
   /**
+   * When true, shows a row count on the left of the toolbar (flat mode only).
+   * Displays the post-filter row count, and "filtered / total" when a filter
+   * is active.
+   * Default = false.
+   */
+  readonly showRowCount?: boolean;
+
+  /**
    * When true, disables 'not glob' and 'not contains' filter options. Use this
    * when the backend (e.g., structured query) doesn't support negated glob
    * operations.
@@ -573,6 +581,18 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const aggregateSummariesResult = datasource.useAggregateSummaries(model);
 
+    // Flat-mode row count for the toolbar (opt-in).
+    const isFlatMode = !isPivotMode && !isTreeMode;
+    let rowCountItem: m.Child | null = null;
+    if (attrs.showRowCount && isFlatMode) {
+      const totalResult = datasource.useTotalRows();
+      rowCountItem = this.renderRowCount(
+        rowsResult.totalRows,
+        totalResult.data,
+        this.filters.length > 0,
+      );
+    }
+
     // Expose the API
     attrs.onReady?.({
       exportData: async (format) => {
@@ -650,6 +670,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       },
       m(DataGridToolbar, {
         leftItems: [
+          rowCountItem,
           toolbarItemsLeft,
           this.renderPivotToolbarItems(attrs),
           this.renderTreeToolbarItems(attrs),
@@ -1388,6 +1409,29 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         }),
       ),
     ];
+  }
+
+  /**
+   * Renders the flat-mode row count shown on the left of the toolbar. Shows
+   * the post-filter count, or "filtered / total" when a filter is active.
+   */
+  private renderRowCount(
+    filtered: number | undefined,
+    total: number | undefined,
+    hasFilters: boolean,
+  ): m.Child {
+    if (total === undefined) {
+      return m('span', {class: 'pf-data-grid__row-count'}, '\u2026');
+    }
+    const text =
+      hasFilters && filtered !== undefined && filtered !== total
+        ? `${filtered.toLocaleString()} / ${total.toLocaleString()}`
+        : total.toLocaleString();
+    return m(
+      'span',
+      {class: 'pf-data-grid__row-count', title: 'Row count'},
+      `${text} rows`,
+    );
   }
 
   private renderTreeToolbarItems(attrs: DataGridAttrs): m.Children {

@@ -277,6 +277,15 @@ export class BigtraceTraceListDataSource implements DataSource {
     return this.columns;
   }
 
+  useTotalRows(): AsyncMemoResult<number> {
+    // No cheap unfiltered total is tracked here; report the filtered total
+    // (equal to the total when no filters are applied).
+    return {
+      data: this._filteredTotalRows ?? this.loadedRows.length,
+      isPending: false,
+    };
+  }
+
   useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {
     return {data: {}, isPending: false};
   }

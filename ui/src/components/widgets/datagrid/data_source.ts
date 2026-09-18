@@ -34,6 +34,12 @@ export interface DataSource {
   useRows(model: DataSourceModel): DataSourceRows;
 
   /**
+   * Fetch the total number of rows in the dataset, ignoring filters. Used to
+   * display "filtered / total" row counts in flat mode. Call every render.
+   */
+  useTotalRows(): AsyncMemoResult<number>;
+
+  /**
    * Fetch aggregate summaries (aggregates across all filtered rows).
    * Returns summaries for columns with aggregate functions or pivot aggregates.
    */
