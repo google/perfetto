@@ -144,11 +144,10 @@ void BuildColumn(const dataframe::Column& column,
 
 }  // namespace
 
-DataframeScan::DataframeScan(const dataframe::Dataframe& dataframe,
-                             std::vector<uint32_t> columns)
-    : dataframe_(&dataframe), columns_(std::move(columns)) {
-  PERFETTO_CHECK(dataframe.finalized());
-}
+DataframeScan::DataframeScan(
+    std::vector<std::shared_ptr<const dataframe::Column>> columns,
+    uint32_t row_count)
+    : columns_(std::move(columns)), row_count_(row_count) {}
 
 DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;
@@ -159,10 +158,10 @@ std::unique_ptr<OperatorState> DataframeScan::MakeState() const {
   state->owners.resize(columns_.size());
   state->expanders.resize(columns_.size());
   for (uint32_t i = 0; i < columns_.size(); ++i) {
-    uint32_t index = columns_[i];
-    StorageType type = dataframe_->column_type(index);
+    const dataframe::Column& column = *columns_[i];
+    StorageType type = column.storage.type();
     if (type.Is<Id>()) {
-      const auto& nulls = dataframe_->column(index).null_storage;
+      const auto& nulls = column.null_storage;
       if (nulls.nullability().Is<NonNull>()) {
         state->columns[i] = ColumnView::Reference(type, nullptr, nullptr);
       } else if (nulls.nullability().Is<DenseNull>()) {
@@ -176,7 +175,6 @@ std::unique_ptr<OperatorState> DataframeScan::MakeState() const {
       }
       continue;
     }
-    const dataframe::Column& column = dataframe_->column(index);
     if (type.Is<Uint32>()) {
       BuildColumn<uint32_t>(column, type, &state->columns[i], &state->owners[i],
                             &state->expanders[i]);
@@ -209,7 +207,7 @@ void DataframeScan::Rewind(OperatorState& state) const {
 
 bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
-  uint32_t rows = dataframe_->row_count();
+  uint32_t rows = row_count_;
   if (s.emitted == rows) {
     return false;
   }

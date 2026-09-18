@@ -113,7 +113,10 @@ TEST_F(DataframeScanTest, ReadsEveryStorageType) {
                      kBig + 1, 2.5, second);
   df.Finalize();
 
-  DataframeScan scan(df, {0, 1, 2, 3, 4, 5});
+  DataframeScan scan(
+      {df.shared_column(0), df.shared_column(1), df.shared_column(2),
+       df.shared_column(3), df.shared_column(4), df.shared_column(5)},
+      df.row_count());
   std::unique_ptr<OperatorState> state = scan.MakeState();
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
@@ -142,7 +145,7 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
                          std::optional<std::monostate>{std::monostate{}});
   sparse.Finalize();
 
-  DataframeScan sparse_scan(sparse, {0});
+  DataframeScan sparse_scan({sparse.shared_column(0)}, sparse.row_count());
   std::unique_ptr<OperatorState> sparse_state = sparse_scan.MakeState();
   RowBatch batch;
   ASSERT_TRUE(sparse_scan.GetData(batch, *sparse_state));
@@ -159,7 +162,7 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
                         std::optional<std::monostate>{std::monostate{}});
   dense.Finalize();
 
-  DataframeScan dense_scan(dense, {0});
+  DataframeScan dense_scan({dense.shared_column(0)}, dense.row_count());
   std::unique_ptr<OperatorState> dense_state = dense_scan.MakeState();
   ASSERT_TRUE(dense_scan.GetData(batch, *dense_state));
   EXPECT_TRUE(batch.column(0).type().Is<Id>());
@@ -171,7 +174,7 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
 TEST_F(DataframeScanTest, ReadsTheDataframesOwnStorage) {
   dataframe::Dataframe df =
       Build({kBig + 10, kBig + 20, kBig + 30}, {true, true, true});
-  DataframeScan scan(df, {0});
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
 
   std::unique_ptr<OperatorState> state = scan.MakeState();
   RowBatch batch;
@@ -184,7 +187,7 @@ TEST_F(DataframeScanTest, ReadsTheDataframesOwnStorage) {
 TEST_F(DataframeScanTest, HandsBackEveryRow) {
   dataframe::Dataframe df =
       Build({kBig + 10, kBig + 20, kBig + 30}, {true, true, true});
-  DataframeScan scan(df, {0});
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
   EXPECT_THAT(Drain(scan, 0), ElementsAre(kBig + 10, kBig + 20, kBig + 30));
 }
 
@@ -195,7 +198,7 @@ TEST_F(DataframeScanTest, SplitsIntoBatches) {
     values[i] = kBig + i;
   }
   dataframe::Dataframe df = Build(values, present);
-  DataframeScan scan(df, {0});
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
   EXPECT_EQ(Drain(scan, 0).size(), values.size());
 }
 
@@ -204,7 +207,7 @@ TEST_F(DataframeScanTest, SplitsIntoBatches) {
 TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowIsExpanded) {
   dataframe::Dataframe df =
       Build({kBig + 10, 0, kBig + 30}, {true, false, true});
-  DataframeScan scan(df, {0});
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
 
   std::unique_ptr<OperatorState> state = scan.MakeState();
   RowBatch batch;
@@ -235,7 +238,7 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
     expected.push_back(values[i]);
   }
   dataframe::Dataframe df = Build(values, present);
-  DataframeScan scan(df, {0});
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
   EXPECT_EQ(Drain(scan, 0), expected);
 }
 
@@ -243,7 +246,7 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
 TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowIsReplayable) {
   dataframe::Dataframe df =
       Build({kBig + 10, 0, kBig + 30}, {true, false, true});
-  DataframeScan scan(df, {0});
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
 
   std::unique_ptr<OperatorState> state = scan.MakeState();
   RowBatch batch;
@@ -260,7 +263,7 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowIsReplayable) {
 
 TEST_F(DataframeScanTest, IsReplayable) {
   dataframe::Dataframe df = Build({kBig + 1, kBig + 2}, {true, true});
-  DataframeScan scan(df, {0});
+  DataframeScan scan({df.shared_column(0)}, df.row_count());
 
   std::unique_ptr<OperatorState> state = scan.MakeState();
   RowBatch batch;
