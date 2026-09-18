@@ -989,7 +989,7 @@ export async function getInstance(
   engine: Engine,
   activeDump: HeapDump,
   id: number,
-): Promise<InstanceDetail | null> {
+): Promise<InstanceDetail | undefined> {
   await requireDominatorTree(engine);
   const objRes = await engine.query(`
     SELECT
@@ -1036,7 +1036,7 @@ export async function getInstance(
     dominated_native: NUM_NULL,
     dominated_obj_count: NUM_NULL,
   });
-  if (!oit.valid()) return null;
+  if (!oit.valid()) return undefined;
 
   const fullClassName = className(oit.cls, oit.deob);
   const classKind = oit.class_kind;

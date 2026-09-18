@@ -36,6 +36,7 @@ import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -166,8 +167,6 @@ interface StringsViewAttrs {
 export function StringsView({
   attrs: {engine, activeDump},
 }: m.Vnode<StringsViewAttrs>): m.Component<StringsViewAttrs> {
-  let allRows: StringListRow[] | null = null;
-  let alive = true;
   const query = buildQuery(activeDump);
   const datasource = new SQLDataSource({
     engine,
@@ -176,6 +175,7 @@ export function StringsView({
   });
   const counter = new RowCounter();
   counter.init(engine, query, SQL_PREAMBLE);
+  const allRowsMemo = new AsyncMemo<readonly StringListRow[]>();
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -190,28 +190,24 @@ export function StringsView({
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
-      queries
-        .getStringList(engine, activeDump)
-        .then((r) => {
-          if (!alive) return;
-          allRows = r;
-          m.redraw();
-        })
-        .catch(console.error);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
-      alive = false;
       datasource.dispose();
+      allRowsMemo.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
 
-      if (!allRows) {
+      const {isPending, data: allRows} = allRowsMemo.use({
+        key: {},
+        compute: () => queries.getStringList(engine, activeDump),
+      });
+
+      if (isPending) {
         return m(
           DetailsShell,
           {title: 'Strings', fillHeight: true, className: 'pf-hde-tab--padded'},

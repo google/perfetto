@@ -140,21 +140,20 @@ export function ClassesView({
   }
 
   return {
-    oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
+    oninit({attrs}) {
       applyNavFilter(
-        engine,
-        activeDump,
-        vnode.attrs.initialRootClass,
-        vnode.attrs.clearNavParam,
+        attrs.engine,
+        attrs.activeDump,
+        attrs.initialRootClass,
+        attrs.clearNavParam,
       ).catch(console.error);
     },
-    onupdate(vnode) {
+    onupdate({attrs}) {
       applyNavFilter(
-        vnode.attrs.engine,
-        vnode.attrs.activeDump,
-        vnode.attrs.initialRootClass,
-        vnode.attrs.clearNavParam,
+        attrs.engine,
+        attrs.activeDump,
+        attrs.initialRootClass,
+        attrs.clearNavParam,
       ).catch(console.error);
     },
     onremove() {
