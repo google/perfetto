@@ -295,6 +295,112 @@ class SharedLibProtozeroSerializationTest : public testing::Test {
   struct PerfettoHeapBuffer* hb;
 };
 
+TEST_F(SharedLibProtozeroSerializationTest, FinalizeRootAndReuse) {
+  PerfettoPbMsg msg;
+  PerfettoPbMsgInit(&msg, &writer);
+  EXPECT_FALSE(msg.is_finalized);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), 0u);
+  EXPECT_TRUE(msg.is_finalized);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), 0u);
+  EXPECT_TRUE(GetData().empty());
+
+  PerfettoPbMsgInit(&msg, &writer);
+  EXPECT_FALSE(msg.is_finalized);
+  PerfettoPbMsgAppendType0Field(&msg, 1, 42);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), 2u);
+  EXPECT_TRUE(msg.is_finalized);
+  const auto data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&msg), data.size());
+  EXPECT_EQ(GetData(), data);
+  EXPECT_THAT(FieldView(data), ElementsAre(PbField(1, VarIntField(42))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, FinalizeChildBeforeEndNested) {
+  PerfettoPbMsg parent;
+  PerfettoPbMsg child;
+  PerfettoPbMsgInit(&parent, &writer);
+  PerfettoPbMsgBeginNested(&parent, &child, 1);
+  EXPECT_FALSE(child.is_finalized);
+  PerfettoPbMsgAppendType0Field(&child, 2, 42);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 2u);
+  EXPECT_TRUE(child.is_finalized);
+  EXPECT_FALSE(parent.is_finalized);
+  EXPECT_EQ(parent.nested, &child);
+  EXPECT_EQ(parent.size, 5u);
+  const auto data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 2u);
+  EXPECT_EQ(GetData(), data);
+
+  PerfettoPbMsgEndNested(&parent);
+  EXPECT_EQ(parent.nested, nullptr);
+  EXPECT_EQ(parent.size, data.size());
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 2u);
+  EXPECT_EQ(parent.size, data.size());
+
+  PerfettoPbMsgBeginNested(&parent, &child, 3);
+  EXPECT_FALSE(child.is_finalized);
+  EXPECT_EQ(child.size, 0u);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), 0u);
+  EXPECT_TRUE(child.is_finalized);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&parent), data.size() + 5);
+  EXPECT_EQ(parent.nested, nullptr);
+  const auto final_data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&parent), final_data.size());
+  EXPECT_EQ(GetData(), final_data);
+  EXPECT_THAT(
+      FieldView(final_data),
+      ElementsAre(
+          PbField(1, MsgField(ElementsAre(PbField(2, VarIntField(42))))),
+          PbField(3, MsgField(ElementsAre()))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest,
+       FinalizeOpenDescendantsAcrossChunks) {
+  PerfettoPbMsg root;
+  PerfettoPbMsg child;
+  PerfettoPbMsg grandchild;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  PerfettoPbMsgBeginNested(&child, &grandchild, 2);
+  const std::string payload(
+      PerfettoStreamWriterAvailableBytes(&writer.writer) + 1, 'x');
+  PerfettoPbMsgAppendCStrField(&grandchild, 3, payload.c_str());
+  EXPECT_GT(writer.writer.written_previously, 0u);
+
+  EXPECT_EQ(PerfettoPbMsgFinalize(&root), GetData().size());
+  EXPECT_TRUE(root.is_finalized);
+  EXPECT_TRUE(child.is_finalized);
+  EXPECT_TRUE(grandchild.is_finalized);
+  EXPECT_EQ(root.nested, nullptr);
+  EXPECT_EQ(child.nested, nullptr);
+  const auto data = GetData();
+  EXPECT_EQ(PerfettoPbMsgFinalize(&grandchild), grandchild.size);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&child), child.size);
+  EXPECT_EQ(PerfettoPbMsgFinalize(&root), data.size());
+  EXPECT_EQ(GetData(), data);
+  EXPECT_THAT(
+      FieldView(data),
+      ElementsAre(PbField(
+          1,
+          MsgField(ElementsAre(PbField(
+              2, MsgField(ElementsAre(PbField(3, StringField(payload))))))))));
+}
+
+#ifndef NDEBUG
+TEST_F(SharedLibProtozeroSerializationTest, WritesAfterFinalizeAssert) {
+  PerfettoPbMsg root;
+  PerfettoPbMsg child;
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  PerfettoPbMsgFinalize(&root);
+
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgAppendByte(&root, 0), "is_finalized");
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgAppendByte(&child, 0), "is_finalized");
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgBeginNested(&root, &child, 2),
+                            "is_finalized");
+}
+#endif
+
 TEST_F(SharedLibProtozeroSerializationTest, SimpleFieldsNoNesting) {
   struct protozero_test_protos_EveryField msg;
   PerfettoPbMsgInit(&msg.msg, &writer);

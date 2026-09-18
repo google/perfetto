@@ -40,7 +40,7 @@ source_set("service") {
     "../../../../include/perfetto/tracing",
     "../../../../protos/perfetto/ipc",
     "../../../base",
-    "../../core:core",
+    "../../core",
     "../../service",
   ]
   if (perfetto_component_type == "static_library") {

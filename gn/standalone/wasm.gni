@@ -181,6 +181,7 @@ template("wasm_lib") {
       args = [ "--noop" ]
       script = "//gn/standalone/build_tool_wrapper.py"
     }
+
     copy("${_lib_name}.d.ts") {
       sources = [ "//gn/standalone/wasm_typescript_declaration.d.ts" ]
       outputs = [ "$root_out_dir/$_lib_name.d.ts" ]

@@ -38,7 +38,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../protos/perfetto/trace/power:cpp",
       "../protos/perfetto/trace/profiling:cpp",
       "../protos/perfetto/trace/sys_stats:cpp",
-      "../src/base:base",
+      "../src/base",
       "../src/base:test_support",
       "../src/perfetto_cmd:bugreport_path",
       "../src/protozero/filtering:bytecode_generator",
@@ -176,6 +176,7 @@ if (enable_perfetto_integration_tests) {
     deps = [ "../gn:default_deps" ]
     sources = [ "integrationtest_initializer.h" ]
   }
+
   source_set("integrationtest_main") {
     testonly = true
     deps = [
