@@ -116,6 +116,9 @@ class RowBatch {
   // One per column; null for columns the batch does not own.
   std::vector<std::shared_ptr<const void>> owners_;
   SelectionPool selections_;
+  // Reused scratch for composing each distinct mapping once, including when
+  // columns sharing it are separated by a computed column.
+  std::vector<std::pair<RowSelection, uint32_t>> compositions_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
