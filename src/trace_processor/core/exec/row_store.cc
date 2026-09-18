@@ -59,12 +59,6 @@ base::Status RowStore::Append(const RowBatch& in) {
       view = packed->View(view, view.validity() != nullptr);
       owner = std::move(packed);
     }
-    if (!column.batches.empty()) {
-      const auto& first = column.batches.front().view;
-      column.shared_backing &= SameRepresentation(first, view) &&
-                               first.data() == view.data() &&
-                               first.validity() == view.validity();
-    }
     column.nullable |= view.validity() != nullptr;
     if (c) {
       auto previous = columns_[c - 1].batches.back().view.selection();
@@ -114,24 +108,6 @@ uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
   std::array<Location, kMaxBatchRows> locations;
   uint32_t index = Find(rows[0]);
   uint32_t start = index ? ends_[index - 1] : 0;
-  uint32_t run = 0;
-  while (run < count && rows[run] >= start && rows[run] < ends_[index])
-    ++run;
-  // Keep a substantial existing run without gathering. Only fragmented
-  // reordering benefits from packing across backing buffers.
-  if (run >= (count + 1) / 2) {
-    std::array<uint32_t, kMaxBatchRows> selection;
-    for (uint32_t r = 0; r < run; ++r)
-      selection[r] = rows[r] - start;
-    out->Reset();
-    for (const auto& column : columns_)
-      out->AddColumn(column.batches[index].view, column.batches[index].owner);
-    out->SetCardinality(ends_[index] - start);
-    out->Slice(RowSelection::Indices(Span<const uint32_t>(
-                   selection.data(), selection.data() + run)),
-               run);
-    return run;
-  }
   for (uint32_t r = 0; r < count; ++r) {
     if (rows[r] < start || rows[r] >= ends_[index]) {
       index = Find(rows[r]);
@@ -140,7 +116,6 @@ uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
     locations[r] = {index, rows[r] - start};
   }
   std::array<uint32_t, kMaxBatchRows> physical;
-  bool previous_shared = false;
   for (uint32_t c = 0; c < columns_.size(); ++c) {
     auto& column = columns_[c];
     if (!c || !column.same_selection_as_previous) {
@@ -152,32 +127,6 @@ uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
     }
     const auto& first = column.batches[locations[0].batch];
     auto view = first.view;
-    bool shared = column.shared_backing;
-    if (!shared) {
-      shared = true;
-      for (uint32_t r = 1; r < count; ++r) {
-        const auto& other = column.batches[locations[r].batch].view;
-        if (view.data() != other.data() ||
-            view.validity() != other.validity() ||
-            !SameRepresentation(view, other)) {
-          shared = false;
-          break;
-        }
-      }
-    }
-    if (shared) {
-      if (previous_shared && column.same_selection_as_previous) {
-        view.AdoptSelection(out->column(c - 1));
-      } else {
-        auto selection = selections_.TakeBlock();
-        std::copy_n(physical.data(), count, selection->data());
-        view.SetOwnedRows(std::move(selection), count);
-      }
-      out->AddColumn(view, first.owner);
-      previous_shared = true;
-      continue;
-    }
-    previous_shared = false;
     auto packed = column.buffers.Acquire();
     auto gather = [&](auto value) {
       using T = decltype(value);

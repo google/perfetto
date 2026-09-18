@@ -290,7 +290,8 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
     ASSERT_EQ(store.View(&out, Span<const uint32_t>(order.data(),
                                                     order.data() + count)),
               count);
-    EXPECT_EQ(out.column(0).data(), stable->data());
+    EXPECT_NE(out.column(0).data(), stable->data());
+    EXPECT_TRUE(out.column(0).selection().is_range());
     EXPECT_EQ(out.column(0).selection().data(),
               out.column(1).selection().data());
     EXPECT_EQ(test::ReadColumn<int64_t>(out, 0), expected_stable);

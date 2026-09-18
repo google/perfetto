@@ -26,19 +26,21 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// Retains input batches for an intrinsic blocking/reordering operation. A view
-// keeps shared backing columns as selections and packs only columns which
-// cross backing buffers. Reordering already has all these rows available.
+// Retains owned input without copying values. Range output shares the retained
+// backing; arbitrary row-order output is gathered into contiguous column
+// buffers so downstream consumers do not inherit scattered reads. Reordering
+// operates only on rows already retained, without pulling additional input.
 class RowStore {
  public:
   base::Status Append(const RowBatch&);
   uint32_t size() const { return size_; }
   uint32_t View(RowBatch* out, uint32_t offset, uint32_t count) const;
+  // Gathers up to kMaxBatchRows in the requested order, including duplicates.
+  // Output owns its buffers and survives later calls and store destruction.
   uint32_t View(RowBatch* out, Span<const uint32_t> rows);
   void Clear() {
     for (auto& column : columns_) {
       column.batches.clear();
-      column.shared_backing = true;
       column.nullable = false;
       column.same_selection_as_previous = true;
     }
@@ -56,7 +58,6 @@ class RowStore {
     };
     std::vector<Batch> batches;
     BufferPool<ColumnChunk> buffers;
-    bool shared_backing = true;
     bool nullable = false;
     bool same_selection_as_previous = true;
   };
