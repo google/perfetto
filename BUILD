@@ -2573,6 +2573,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/core/exec/assert_type.cc",
         "src/trace_processor/core/exec/assert_type.h",
+        "src/trace_processor/core/exec/batch_buffer.cc",
+        "src/trace_processor/core/exec/batch_buffer.h",
         "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/breaker.h",
         "src/trace_processor/core/exec/buffer_pool.h",
@@ -2590,8 +2592,6 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/row_cursor.cc",
         "src/trace_processor/core/exec/row_cursor.h",
         "src/trace_processor/core/exec/row_selection.h",
-        "src/trace_processor/core/exec/row_store.cc",
-        "src/trace_processor/core/exec/row_store.h",
         "src/trace_processor/core/exec/tree_accumulate.cc",
         "src/trace_processor/core/exec/tree_accumulate.h",
         "src/trace_processor/core/exec/tree_number_nodes.cc",

@@ -21,10 +21,10 @@
 #include <memory>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -70,7 +70,7 @@ class TreeChildFirst : public Breaker {
     FlexVector<uint32_t> parents;
     FlexVector<uint32_t> row_of_node;
 
-    RowStore rows;
+    BatchStore rows;
     // The order to emit the rows in. Empty means in arrival order.
     FlexVector<uint32_t> order;
     uint32_t emitted = 0;
@@ -91,11 +91,11 @@ class TreeChildFirst : public Breaker {
 //
 // Not a breaker: a row can go out as soon as its parent has. Rows whose
 // parent is already out stream straight through as views of their batch.
-// Only a row arriving before its parent is held: copied aside and let go the
+// Only a row arriving before its parent is held: retained and let go the
 // moment the parent arrives, together with whatever is held under it. So the
 // cost is proportional to how far out of order the input is, nothing for
 // ordered input and everything for reversed input, and the planner never
-// needs to know which. Rows once held stay copied until the next rewind.
+// needs to know which. Rows once held stay retained until the next rewind.
 //
 // The order is parent first and nothing more: not a pre-order, so a fold
 // down keeps a value per node rather than a path. The input columns are node
@@ -135,7 +135,7 @@ class TreeParentFirst : public Operator {
     // a list per parent. A row let go stays here, so this only grows until
     // the next rewind.
     struct Held {
-      RowStore rows;
+      BatchStore rows;
       FlexVector<uint32_t> node;
       FlexVector<uint32_t> next_waiting;
       uint32_t let_go = 0;
