@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
-#define SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_
+#define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_
 
 #include <vector>
+
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
@@ -28,7 +29,7 @@ namespace perfetto::trace_processor::core::exec {
 // Retains input batches for an intrinsic blocking/reordering operation. A view
 // keeps shared backing columns as selections and packs only columns which
 // cross backing buffers. Reordering already has all these rows available.
-class BatchStore {
+class RowStore {
  public:
   base::Status Append(const RowBatch&);
   uint32_t size() const { return size_; }
@@ -68,4 +69,4 @@ class BatchStore {
 };
 
 }  // namespace perfetto::trace_processor::core::exec
-#endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_

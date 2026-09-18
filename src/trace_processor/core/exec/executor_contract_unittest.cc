@@ -20,25 +20,24 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
-
-#include <utility>
-#include "src/trace_processor/core/exec/batch_buffer.h"
-#include "src/trace_processor/core/exec/buffer_pool.h"
-#include "src/trace_processor/core/exec/pipeline.h"
-#include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/tree_accumulate.h"
-#include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -228,7 +227,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   RowBatch input, output;
   input.AddColumn(view);
   input.SetCardinality(4);
-  BatchStore store;
+  RowStore store;
   ASSERT_TRUE(store.Append(input).ok());
   ASSERT_EQ(store.View(&output, 0, 4), 4u);
   for (uint32_t i = 0; i < 4; ++i) {
@@ -240,7 +239,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
 }
 
 TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
-  BatchStore store;
+  RowStore store;
   auto stable = std::make_shared<std::vector<int64_t>>(test::Sequence(256));
   for (uint32_t batch = 0; batch < 2; ++batch) {
     RowBatch in;
