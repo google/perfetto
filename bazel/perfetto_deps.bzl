@@ -20,7 +20,7 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 def _perfetto_deps_impl(module_ctx):
     http_archive(
         name = "perfetto_dep_sqlite",
-        url = "https://sqlite.org/2026/sqlite-amalgamation-3530400.zip",
+        url = "https://storage.googleapis.com/perfetto/sqlite-amalgamation-3530400.zip",
         sha256 = "1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d",
         strip_prefix = "sqlite-amalgamation-3530400",
         build_file = "@perfetto//bazel:sqlite.BUILD",
@@ -28,7 +28,7 @@ def _perfetto_deps_impl(module_ctx):
 
     http_archive(
         name = "perfetto_dep_sqlite_src",
-        url = "https://sqlite.org/2026/sqlite-src-3530400.zip",
+        url = "https://storage.googleapis.com/perfetto/sqlite-src-3530400.zip",
         sha256 = "d18fa15aec74d8c17e1463f861095adc01b5ad190256acb4f91d22f0368d232b",
         strip_prefix = "sqlite-src-3530400",
         build_file = "@perfetto//bazel:sqlite.BUILD",

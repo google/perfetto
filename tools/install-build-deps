@@ -242,7 +242,7 @@ BUILD_DEPS_HOST = [
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/sqlite.zip',
-        'https://sqlite.org/2026/sqlite-amalgamation-3530400.zip',
+        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3530400.zip',
         '1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d',
         'all', 'all'),
     Dependency(
