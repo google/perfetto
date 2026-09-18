@@ -34,7 +34,7 @@ import {BillboardStrip} from '../../components/billboard';
 import {Table} from '../../components/table';
 import {Stack} from '../../../../widgets/stack';
 
-const TITLE = 'Every mapping, grouped';
+const TITLE = 'Memory Map';
 
 // One smaps path (VMA group) at the latest snapshot, with the full residency
 // split.
@@ -257,10 +257,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
       compute: () => loadSmapsPaths(trace, upid, this.selectedTs),
     }).data;
     if (rows === undefined) {
-      return m(
-        '.pf-memscope-charts',
-        loadingPanel({title: TITLE}),
-      ); // Still loading.
+      return m('.pf-memscope-charts', loadingPanel({title: TITLE})); // Still loading.
     }
     if (rows.length === 0) {
       return emptyPanel({
