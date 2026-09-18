@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/exec/batch_buffer.h"
+#include "src/trace_processor/core/exec/row_store.h"
 
 #include <algorithm>
 #include <array>
@@ -23,80 +23,26 @@
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
-bool Compatible(const ColumnView& a, const ColumnView& b) {
+bool SameRepresentation(const ColumnView& a, const ColumnView& b) {
   return a.kind() == b.kind() &&
          (a.kind() == ColumnView::Kind::kVariant || a.type() == b.type());
 }
-template <typename T>
-void CopyValues(const ColumnView& view,
-                uint32_t count,
-                uint32_t offset,
-                ColumnChunk& chunk) {
-  auto* dest = chunk.Values<T>().data() + offset;
-  for (uint32_t i = 0; i < count; ++i)
-    dest[i] = view.Value<T>(i);
-}
-void Copy(const ColumnView& view,
-          uint32_t count,
-          uint32_t offset,
-          ColumnChunk& chunk) {
-  if (view.kind() == ColumnView::Kind::kVariant) {
-    CopyValues<Variant>(view, count, offset, chunk);
-  } else if (view.type().Is<Id>() || view.type().Is<Uint32>()) {
-    CopyValues<uint32_t>(view, count, offset, chunk);
-  } else if (view.type().Is<Int32>()) {
-    CopyValues<int32_t>(view, count, offset, chunk);
-  } else if (view.type().Is<Int64>()) {
-    CopyValues<int64_t>(view, count, offset, chunk);
-  } else if (view.type().Is<Double>()) {
-    CopyValues<double>(view, count, offset, chunk);
-  } else {
-    CopyValues<StringPool::Id>(view, count, offset, chunk);
-  }
-  chunk.validity.resize(kMaxBatchRows);
-  for (uint32_t i = 0; i < count; ++i) {
-    if (!view.validity() ||
-        view.validity()->is_set(view.selection().GetIndex(i)))
-      chunk.validity.set(offset + i);
-    else
-      chunk.validity.clear(offset + i);
-  }
-}
-ColumnView Packed(const ColumnView& from,
-                  const ColumnChunk& chunk,
-                  bool nullable) {
-  if (from.kind() == ColumnView::Kind::kVariant)
-    return ColumnView::Variants(chunk.Values<Variant>().data());
-  auto type = from.type().Is<Id>() ? StorageType{Uint32{}} : from.type();
-  const void* data;
-  if (type.Is<Uint32>())
-    data = chunk.Values<uint32_t>().data();
-  else if (type.Is<Int32>())
-    data = chunk.Values<int32_t>().data();
-  else if (type.Is<Int64>())
-    data = chunk.Values<int64_t>().data();
-  else if (type.Is<Double>())
-    data = chunk.Values<double>().data();
-  else
-    data = chunk.Values<StringPool::Id>().data();
-  return ColumnView::Reference(type, data,
-                               nullable ? &chunk.validity : nullptr);
-}
 }  // namespace
 
-base::Status BatchStore::Append(const RowBatch& in) {
+base::Status RowStore::Append(const RowBatch& in) {
   if (!in.size())
     return base::OkStatus();
   if (in.size() > std::numeric_limits<uint32_t>::max() - size_)
-    return base::ErrStatus("batch store: too many rows");
+    return base::ErrStatus("row store: too many rows");
   if (size_) {
     if (columns_.size() != in.column_count())
-      return base::ErrStatus("batch store: column count changed");
+      return base::ErrStatus("row store: column count changed");
     for (uint32_t c = 0; c < in.column_count(); ++c) {
       const auto& a = columns_[c].batches.front().view;
       const auto& b = in.column(c);
-      if (!Compatible(a, b) && !(a.type().Is<Uint32>() && b.type().Is<Id>()))
-        return base::ErrStatus("batch store: column representation changed");
+      if (!SameRepresentation(a, b) &&
+          !(a.type().Is<Uint32>() && b.type().Is<Id>()))
+        return base::ErrStatus("row store: column representation changed");
     }
   }
   selections_.Reset();
@@ -109,13 +55,13 @@ base::Status BatchStore::Append(const RowBatch& in) {
     // Unknown borrowed storage must be materialized before retention.
     if (!owner) {
       auto packed = std::make_shared<ColumnChunk>();
-      Copy(view, in.size(), 0, *packed);
-      view = Packed(view, *packed, view.validity() != nullptr);
+      packed->CopyFrom(view, in.size(), 0);
+      view = packed->View(view, view.validity() != nullptr);
       owner = std::move(packed);
     }
     if (!column.batches.empty()) {
       const auto& first = column.batches.front().view;
-      column.shared_backing &= Compatible(first, view) &&
+      column.shared_backing &= SameRepresentation(first, view) &&
                                first.data() == view.data() &&
                                first.validity() == view.validity();
     }
@@ -135,13 +81,11 @@ base::Status BatchStore::Append(const RowBatch& in) {
   return base::OkStatus();
 }
 
-uint32_t BatchStore::Find(uint32_t row) const {
+uint32_t RowStore::Find(uint32_t row) const {
   PERFETTO_DCHECK(row < size_);
   return batch_of_row_[row];
 }
-uint32_t BatchStore::View(RowBatch* out,
-                          uint32_t offset,
-                          uint32_t count) const {
+uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
   if (!count) {
     out->Reset();
     return 0;
@@ -156,7 +100,7 @@ uint32_t BatchStore::View(RowBatch* out,
   out->Slice(RowSelection::Range(offset - start), count);
   return count;
 }
-uint32_t BatchStore::View(RowBatch* out, Span<const uint32_t> rows) {
+uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
   out->Reset();
   selections_.Reset();
   uint32_t count =
@@ -214,7 +158,8 @@ uint32_t BatchStore::View(RowBatch* out, Span<const uint32_t> rows) {
       for (uint32_t r = 1; r < count; ++r) {
         const auto& other = column.batches[locations[r].batch].view;
         if (view.data() != other.data() ||
-            view.validity() != other.validity() || !Compatible(view, other)) {
+            view.validity() != other.validity() ||
+            !SameRepresentation(view, other)) {
           shared = false;
           break;
         }
@@ -275,7 +220,7 @@ uint32_t BatchStore::View(RowBatch* out, Span<const uint32_t> rows) {
       }
       packed->validity.resize(count);
     }
-    out->AddColumn(Packed(view, *packed, column.nullable), packed);
+    out->AddColumn(packed->View(view, column.nullable), packed);
   }
   out->SetCardinality(count);
   return count;

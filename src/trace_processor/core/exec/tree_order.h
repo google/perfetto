@@ -21,10 +21,10 @@
 #include <memory>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -70,7 +70,7 @@ class TreeChildFirst : public Breaker {
     FlexVector<uint32_t> parents;
     FlexVector<uint32_t> row_of_node;
 
-    BatchStore rows;
+    RowStore rows;
     // The order to emit the rows in. Empty means in arrival order.
     FlexVector<uint32_t> order;
     uint32_t emitted = 0;
@@ -135,7 +135,7 @@ class TreeParentFirst : public Operator {
     // a list per parent. A row let go stays here, so this only grows until
     // the next rewind.
     struct Held {
-      BatchStore rows;
+      RowStore rows;
       FlexVector<uint32_t> node;
       FlexVector<uint32_t> next_waiting;
       uint32_t let_go = 0;

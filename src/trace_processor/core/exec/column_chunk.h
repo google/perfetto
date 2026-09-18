@@ -29,6 +29,8 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+class ColumnView;
+
 // kMaxBatchRows rows of one column: the buffer matching the column's type,
 // plus which of its rows hold a value.
 struct ColumnChunk {
@@ -40,6 +42,14 @@ struct ColumnChunk {
                FlexVector<Variant>>
       values{FlexVector<uint32_t>()};
   BitVector validity;
+
+  // Copies the first count logical rows into this chunk at offset, resolving
+  // selections and preserving value bits and nulls.
+  void CopyFrom(const ColumnView&, uint32_t count, uint32_t offset);
+
+  // Views the populated chunk with the source's representation. Implicit Id
+  // columns become stored Uint32 values. The chunk must outlive the view.
+  ColumnView View(const ColumnView& source, bool nullable) const;
 
   // The chunk's values, made to hold kMaxBatchRows of T the first time they
   // are used.

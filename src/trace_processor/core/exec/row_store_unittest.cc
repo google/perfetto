@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/exec/batch_buffer.h"
+#include "src/trace_processor/core/exec/row_store.h"
 
 #include <cstdint>
 #include <optional>
@@ -48,9 +48,9 @@ void Fill(RowBatch* batch,
 }
 
 // Reads every row of the store back, a run at a time.
-std::vector<int64_t> ReadAll(const BatchStore& store, uint32_t column);
+std::vector<int64_t> ReadAll(const RowStore& store, uint32_t column);
 
-std::vector<int64_t> ReadAll(const BatchStore& store, uint32_t column) {
+std::vector<int64_t> ReadAll(const RowStore& store, uint32_t column) {
   RowBatch batch;
   std::vector<int64_t> out;
   for (uint32_t at = 0; at < store.size();) {
@@ -61,9 +61,9 @@ std::vector<int64_t> ReadAll(const BatchStore& store, uint32_t column) {
   return out;
 }
 
-TEST(BatchStoreTest, KeepsWhatSeveralBatchesCarried) {
+TEST(RowStoreTest, KeepsWhatSeveralBatchesCarried) {
   std::vector<int64_t> values = {10, 11, 12, 13, 14};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, 2);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -76,9 +76,9 @@ TEST(BatchStoreTest, KeepsWhatSeveralBatchesCarried) {
 
 // The reason a store exists: a source is free to overwrite the buffer a batch
 // was pointing at.
-TEST(BatchStoreTest, SurvivesTheStorageItWasReadFromMovingOn) {
+TEST(RowStoreTest, SurvivesTheStorageItWasReadFromMovingOn) {
   std::vector<int64_t> buffer = {1, 2, 3};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, buffer, 0, 3);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -89,10 +89,10 @@ TEST(BatchStoreTest, SurvivesTheStorageItWasReadFromMovingOn) {
 
 // A batch narrowed to a scattering of rows is stored as those rows laid out
 // one after another, whatever the batch was pointing at.
-TEST(BatchStoreTest, ReadsBackDenseWhateverArrived) {
+TEST(RowStoreTest, ReadsBackDenseWhateverArrived) {
   std::vector<int64_t> values = {10, 11, 12, 13, 14};
   std::vector<uint32_t> rows = {4, 0, 2};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
   batch.mutable_column(0).SetBorrowedRows(
@@ -103,9 +103,9 @@ TEST(BatchStoreTest, ReadsBackDenseWhateverArrived) {
   EXPECT_THAT(ReadAll(store, 0), ElementsAre(14, 10, 12));
 }
 
-TEST(BatchStoreTest, HandsBackARunOfItsRows) {
+TEST(RowStoreTest, HandsBackARunOfItsRows) {
   std::vector<int64_t> values = {10, 11, 12, 13, 14};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, 5);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -116,10 +116,10 @@ TEST(BatchStoreTest, HandsBackARunOfItsRows) {
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(12, 13, 14));
 }
 
-TEST(BatchStoreTest, HandsBackTheRowsAnOrderPicksOut) {
+TEST(RowStoreTest, HandsBackTheRowsAnOrderPicksOut) {
   std::vector<int64_t> values = {10, 11, 12, 13, 14};
   std::vector<uint32_t> order = {4, 3, 0};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, 5);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -130,9 +130,9 @@ TEST(BatchStoreTest, HandsBackTheRowsAnOrderPicksOut) {
 }
 
 // Viewing twice must not accumulate columns in the batch.
-TEST(BatchStoreTest, AViewReplacesTheOneBefore) {
+TEST(RowStoreTest, AViewReplacesTheOneBefore) {
   std::vector<int64_t> values = {10, 11};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, 2);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -143,12 +143,12 @@ TEST(BatchStoreTest, AViewReplacesTheOneBefore) {
   EXPECT_EQ(out.column_count(), 1u);
 }
 
-TEST(BatchStoreTest, KeepsWhichRowsHeldNothing) {
+TEST(RowStoreTest, KeepsWhichRowsHeldNothing) {
   std::vector<int64_t> values = {10, 11, 12};
   BitVector validity = BitVector::CreateWithSize(3);
   validity.set(0);
   validity.set(2);
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   batch.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
@@ -165,9 +165,9 @@ TEST(BatchStoreTest, KeepsWhichRowsHeldNothing) {
   EXPECT_TRUE(kept->is_set(2));
 }
 
-TEST(BatchStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
+TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
   std::vector<int64_t> values(kMaxBatchRows, 1);
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, kMaxBatchRows);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -188,9 +188,9 @@ TEST(BatchStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
   EXPECT_FALSE(out.column(0).validity()->is_set(0));
 }
 
-TEST(BatchStoreTest, GatheringAcrossBatchesKeepsNulls) {
+TEST(RowStoreTest, GatheringAcrossBatchesKeepsNulls) {
   std::vector<int64_t> values = {10, 11, 12};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, 3);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -214,10 +214,10 @@ TEST(BatchStoreTest, GatheringAcrossBatchesKeepsNulls) {
               ElementsAre(10, 20, 11, std::nullopt, 12));
 }
 
-TEST(BatchStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
+TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
   std::vector<int64_t> ints = {1, 2};
   std::vector<double> doubles = {1.0, 2.0};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints.data()));
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints.data()));
@@ -240,8 +240,8 @@ TEST(BatchStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
   EXPECT_EQ(store.size(), 1u);
 }
 
-TEST(BatchStoreTest, AZeroColumnBatchFixesTheSchema) {
-  BatchStore store;
+TEST(RowStoreTest, AZeroColumnBatchFixesTheSchema) {
+  RowStore store;
   RowBatch empty_schema;
   empty_schema.SetCardinality(2);
   ASSERT_TRUE(store.Append(empty_schema).ok());
@@ -256,9 +256,9 @@ TEST(BatchStoreTest, AZeroColumnBatchFixesTheSchema) {
   EXPECT_EQ(out.column_count(), 0u);
 }
 
-TEST(BatchStoreTest, ViewingAnEmptySuffixReturnsAnEmptyBatch) {
+TEST(RowStoreTest, ViewingAnEmptySuffixReturnsAnEmptyBatch) {
   std::vector<int64_t> values(kMaxBatchRows);
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, kMaxBatchRows);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -270,8 +270,8 @@ TEST(BatchStoreTest, ViewingAnEmptySuffixReturnsAnEmptyBatch) {
 
 // An Id column has no storage: its value is the row it sits at, so storing one
 // means materialising those rows.
-TEST(BatchStoreTest, AnIdColumnBecomesTheRowsItStoodFor) {
-  BatchStore store;
+TEST(RowStoreTest, AnIdColumnBecomesTheRowsItStoodFor) {
+  RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
   batch.Compose(RowSelection::Range(7), 3);
@@ -285,9 +285,9 @@ TEST(BatchStoreTest, AnIdColumnBecomesTheRowsItStoodFor) {
   EXPECT_THAT(std::vector<uint32_t>(data, data + 3), ElementsAre(7u, 8u, 9u));
 }
 
-TEST(BatchStoreTest, ABatchOfADifferentShapeIsReported) {
+TEST(RowStoreTest, ABatchOfADifferentShapeIsReported) {
   std::vector<int64_t> values = {1, 2};
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, 2);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -303,10 +303,10 @@ TEST(BatchStoreTest, ABatchOfADifferentShapeIsReported) {
 // Rows already appended are never copied again: each chunk is allocated once
 // and stays where it is, so the run a given row sits in keeps its address
 // however many batches arrive after it.
-TEST(BatchStoreTest, AppendingDoesNotMoveRetainedStorage) {
+TEST(RowStoreTest, AppendingDoesNotMoveRetainedStorage) {
   const uint32_t kRows = 200000, kChunk = 2048;
   std::vector<int64_t> values(kChunk);
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   RowBatch first;
   for (uint32_t done = 0; done < kRows; done += kChunk) {
@@ -323,9 +323,9 @@ TEST(BatchStoreTest, AppendingDoesNotMoveRetainedStorage) {
 
 // A run never spans two chunks, so a caller asking for more than the rest of
 // one gets the rest of it and comes back for the next.
-TEST(BatchStoreTest, ARunStopsAtTheEndOfAnInputBatch) {
+TEST(RowStoreTest, ARunStopsAtTheEndOfAnInputBatch) {
   std::vector<int64_t> values(kMaxBatchRows);
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, kMaxBatchRows);
   ASSERT_TRUE(store.Append(batch).ok());
@@ -338,14 +338,14 @@ TEST(BatchStoreTest, ARunStopsAtTheEndOfAnInputBatch) {
 }
 
 // Input batch boundaries do not change the logical sequence of stored rows.
-TEST(BatchStoreTest, InputBatchSizesDoNotChangeTheRows) {
+TEST(RowStoreTest, InputBatchSizesDoNotChangeTheRows) {
   const uint32_t kRows = kMaxBatchRows * 2 + 37;
   std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < values.size(); ++i) {
     values[i] = 1000 + i;
   }
   for (uint32_t batch_rows : {1u, 7u, 700u, kMaxBatchRows}) {
-    BatchStore store;
+    RowStore store;
     RowBatch batch;
     std::vector<int64_t> expected;
     for (uint32_t done = 0; done < kRows;) {
@@ -363,13 +363,13 @@ TEST(BatchStoreTest, InputBatchSizesDoNotChangeTheRows) {
 }
 
 // A gather can name rows from any input batch.
-TEST(BatchStoreTest, GathersRowsFromSeveralInputBatches) {
+TEST(RowStoreTest, GathersRowsFromSeveralInputBatches) {
   const uint32_t kRows = kMaxBatchRows * 2 + 5;
   std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < values.size(); ++i) {
     values[i] = static_cast<int64_t>(i);
   }
-  BatchStore store;
+  RowStore store;
   RowBatch batch;
   std::vector<int64_t> all;
   for (uint32_t done = 0; done < kRows;) {
@@ -391,10 +391,10 @@ TEST(BatchStoreTest, GathersRowsFromSeveralInputBatches) {
   EXPECT_EQ(test::ReadColumn<int64_t>(out, 0), expected);
 }
 
-TEST(BatchStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
+TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
   RowBatch range, gathered;
   {
-    BatchStore store;
+    RowStore store;
     RowBatch input, later;
     std::vector<int64_t> values = {10, 20, 30};
     Fill(&input, values, 0, 3);
@@ -413,7 +413,7 @@ TEST(BatchStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(30, 10, 30));
 }
 
-TEST(BatchStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
+TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
   StringPool pool;
   std::vector<Variant> values = {Variant::Int64(7), Variant::Null(),
                                  Variant::Double(1.5),
@@ -423,7 +423,7 @@ TEST(BatchStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
   batch.Compose(RowSelection::Range(0), 4);
   batch.SetCardinality(4);
 
-  BatchStore store;
+  RowStore store;
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
