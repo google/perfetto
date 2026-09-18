@@ -1,5 +1,4 @@
---
--- Copyright 2024 The Android Open Source Project
+-- Copyright 2026 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -18,6 +17,10 @@ INCLUDE PERFETTO MODULE android.battery.charging_states;
 INCLUDE PERFETTO MODULE android.screen_state;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
+
+INCLUDE PERFETTO MODULE android.battery_stats;
+
+INCLUDE PERFETTO MODULE android.job_scheduler_states_track_events;
 
 CREATE PERFETTO TABLE _job_states AS
 SELECT
@@ -451,3 +454,115 @@ JOIN _charging_screen_states AS c
   ON c.id = ii.id_0
 JOIN android_job_scheduler_states AS js
   ON js.id = ii.id_1;
+
+-- View for SDK sourced JobScheduler events.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "linux.ftrace"
+--     ftrace_config: {
+--       atrace_apps: "*"
+--       atrace_categories: "jobscheduler"
+--     }
+--   }
+-- }
+CREATE PERFETTO VIEW android_job_scheduler_sdk(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+SELECT ts, dur, job_name, package_name
+FROM android_job_scheduler_states_track_events;
+
+-- View for StatsD sourced JobScheduler events.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "android.statsd"
+--     statsd_config: {
+--       push_atom_id: ATOM_SCHEDULED_JOB_STATE_CHANGED
+--     }
+--   }
+-- }
+CREATE PERFETTO VIEW android_job_scheduler_statsd(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+SELECT ts, dur, job_name, package_name FROM _job_started;
+
+-- View for BatteryStats sourced JobScheduler events.
+-- Suggested minimal config:
+--
+-- data_sources: {
+--   config: {
+--     name: "linux.ftrace"
+--     ftrace_config: {
+--       atrace_apps: "*"
+--       atrace_categories: "power"
+--     }
+--   }
+-- }
+CREATE PERFETTO VIEW android_job_scheduler_batterystats(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+SELECT
+  ts,
+  dur,
+  str_value AS job_name,
+  _android_js_extract_package_name(str_value) AS package_name
+FROM android_battery_stats_event_slices
+WHERE
+  track_name = 'battery_stats.job';
+
+-- Provides unified access to Android JobScheduler events.
+-- Prioritizes SDK > StatsD > BatteryStats. If a higher-priority source
+-- exists in the trace, only its events will be returned.
+CREATE PERFETTO VIEW android_job_scheduler(
+  -- Timestamp of the job start.
+  ts TIMESTAMP,
+  -- Duration of the job.
+  dur DURATION,
+  -- Name of the job.
+  job_name STRING,
+  -- Package name of the app running the job.
+  package_name STRING
+)
+AS
+-- 1. Select from SDK if it exists
+SELECT ts, dur, job_name, package_name FROM android_job_scheduler_sdk
+UNION ALL
+-- 2. Fallback to StatsD if SDK does not exist
+SELECT ts, dur, job_name, package_name
+FROM android_job_scheduler_statsd
+WHERE
+  NOT EXISTS (SELECT 1 FROM android_job_scheduler_sdk)
+UNION ALL
+-- 3. Fallback to BatteryStats if SDK and StatsD do not exist
+SELECT ts, dur, job_name, package_name
+FROM android_job_scheduler_batterystats
+WHERE
+  NOT EXISTS (SELECT 1 FROM android_job_scheduler_sdk)
+  AND NOT EXISTS (SELECT 1 FROM android_job_scheduler_statsd);

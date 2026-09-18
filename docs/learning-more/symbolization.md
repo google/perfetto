@@ -14,6 +14,26 @@ organised around that question. Two definitions used throughout:
   R8/ProGuard (e.g. `fsd.a`) back to the original identifiers, using the
   `mapping.txt` produced at build time.
 
+## Fetch debug files using debuginfod
+
+If you have a trace with native build IDs and access to a debuginfod server,
+you can create a symbolized bundle without supplying local binaries. Install
+`curl` and `llvm-symbolizer`, then run:
+
+```sh
+trace_processor bundle --debuginfod \
+  --debuginfod-urls "https://your-debuginfod-server.example" \
+  input.pftrace output.tar
+```
+
+If `DEBUGINFOD_URLS` is already configured, only `--debuginfod` is needed.
+Open the resulting bundle in the UI. Check the reported unresolved-frame count;
+use `--verbose` to investigate unsuccessful lookups. Downloads are cached for
+later runs. Use `--debuginfod-cache-path PATH` to choose a different cache.
+
+See the [CLI reference](/docs/reference/trace-processor-cli.md#debuginfod) for
+precedence, timeouts, cache layout, and output controls.
+
 ## Which workflow do you need? {#which-workflow}
 
 Match your trace to one of the categories below and follow the link. Picking the
@@ -113,7 +133,7 @@ add `--no-auto-symbol-paths` and `--no-auto-proguard-maps`. Native paths from
 `--symbol-paths`.
 
 See the [bundle command reference](/docs/reference/trace-processor-cli.md#subcommand-bundle)
-for option semantics, symbol search paths, and exit status.
+for option semantics, color controls, output replacement, and exit status.
 
 ### {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `trace_processor util symbolize` / `util deobfuscate`
 
@@ -236,16 +256,32 @@ an explicitly-provided `--proguard-map` that cannot be read).
 
 Common messages and what they mean:
 
-- **`N frames could not be symbolized and will appear as "unknown"`** with a
-  `hint: use --symbol-paths ...` line: the tool searched the auto-discovered
-  paths (plus any `--symbol-paths` you gave) but
-  found no binary with a matching Build ID. Follow the hint, or re-run with
-  `--verbose` to see every path that was tried.
+- **`N frames from M mappings: no usable symbols in the searched paths`**,
+  followed by the mapping names: the tool searched the auto-discovered paths
+  (plus any `--symbol-paths` you gave) but found no binary with a matching
+  Build ID for those mappings, or only a stripped one. The `To fix this`
+  block below it depends on where the binaries come from. If you build them
+  yourself, point `--symbol-paths` at the unstripped build outputs. If they
+  come from your OS, install its debug symbols: `apt install <package>-dbgsym`
+  on Debian/Ubuntu (find the package with `dpkg -S <path>`), `dnf
+  debuginfo-install <package>` on Fedora (`rpm -qf <path>`), both of which
+  install to `/usr/lib/debug` where they are found automatically; on Android,
+  the `symbols` directory of the matching platform build. Re-run with
+  `--verbose` to see the Build IDs and every path that was tried.
 
-- **`N frames ... no build IDs in trace, symbol lookup requires build IDs`**:
-  the trace's mappings have no Build ID, so symbols cannot be matched even
-  with the right binaries. Rebuild the binaries with Build IDs (linker flag
-  `-Wl,--build-id`) and re-record.
+- **`N frames from M mappings: kernel frames, no vmlinux in the searched
+  paths`**: install the kernel debug package (`linux-image-$(uname -r)-dbg`
+  on Debian/Ubuntu, `dnf debuginfo-install kernel` on Fedora) or point
+  `--symbol-paths` at the `vmlinux` from your kernel build.
+
+- **`N frames from M mappings: no build ID recorded, so symbols cannot be
+  looked up`**: the trace's mappings have no Build ID, so symbols cannot be
+  matched even with the right binaries. Rebuild the binaries with Build IDs
+  (linker flag `-Wl,--build-id`) and re-record.
+
+- **`N frames from M mappings: no backing file to read symbols from (JIT,
+  anonymous or [vdso]-style mappings)`**: these frames come from memory with
+  no binary behind it. Nothing offline can name them.
 
 - **`Kernel function names: this trace contains function_graph events ...`**:
   the trace contains kernel addresses from `function_graph` (or similar
@@ -257,17 +293,24 @@ Common messages and what they mean:
   (`--no-auto-symbol-paths`) and no explicit paths were given. Pass
   `--symbol-paths` with the directories to search.
 
-- **`failed to open output file ...`**: the output path could not be created
+- **`cannot create output file ...`**: the output path could not be created
   (e.g. the parent directory does not exist or is not writable). Check the
   path.
 
 #### Could not find library
 
-When symbolizing a profile you may see messages like:
+When symbolizing a profile with `--verbose` you may see messages like:
 
 ```text
-Could not find /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so
-(Build ID: 44b7138abd5957b8d0a56ce86216d478).
+  Could not symbolize 12 frames from 1 mapping:
+    /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so (12 frames)
+      build ID: 44b7138abd5957b8d0a56ce86216d478
+      no binary with a matching build ID in:
+        /path/to/symbols/somelib.so (file not found)
+
+  To fix this:
+    If you build these binaries yourself, pass --symbol-paths DIR1,DIR2,... pointing at the unstripped build outputs.
+    If they come from your OS, install its debug symbols; see https://perfetto.dev/docs/learning-more/symbolization
 ```
 
 Check that `somelib.so` exists somewhere under one of the search paths

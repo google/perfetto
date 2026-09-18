@@ -69,11 +69,13 @@ AS
 WITH
   deltas AS (
     SELECT *
-    FROM counter_leading_intervals!((
+    FROM counter_leading_intervals!(
+      (
         SELECT c.id, c.ts, c.track_id, c.value
         FROM counter AS c
         JOIN android_cpu_per_uid_track AS t ON t.id = c.track_id
-      ))
+      )
+    )
   )
 SELECT
   id,

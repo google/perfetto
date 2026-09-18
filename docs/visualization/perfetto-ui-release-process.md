@@ -41,7 +41,7 @@ To change the channel the UI is using between `stable` and `canary` you can use 
 
 ![perfetto-ui-channel-toggle.png](/docs/images/perfetto-ui-channel-toggle.png)
 
-To change to the `autopush` channel, open the `Flags` screen in the `Support`
+To change to the `autopush` channel, open the `Flags` screen in the `Settings`
 section of the sidebar, and choose `Autopush` in `Release channel`.
 
 ![perfetto-ui-channel-autopush-toggle.png](/docs/images/perfetto-ui-channel-autopush-toggle.png)
@@ -52,7 +52,7 @@ You can see the version of the UI you are currently using in the bottom left han
 
 ![perfetto-ui-version.png](/docs/images/perfetto-ui-version.png)
 
-Clicking on the version number takes you to GitHub where you can see which commits are part of this version. The version number format is `v<maj>.<min>.<Commit SHA1 prefix>` where `<maj>.<min>` are extracted from the top entry in the
+Clicking on the version number takes you to GitHub where you can see which commits are part of this version. The version number format is `v<maj>.<min>-<Commit SHA1 prefix>` where `<maj>.<min>` are extracted from the top entry in the
 [CHANGELOG](/CHANGELOG).
 
 ## Cherry-picking a change

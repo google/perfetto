@@ -12,32 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Inline "share %" bar used in table columns.
-.pf-memscope-sharebar {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-
-  &__track {
-    width: 80px;
-    height: 8px;
-    border-radius: 4px;
-    background: var(--pf-col-border);
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-
-  &__fill {
-    height: 100%;
-    border-radius: 4px;
-    background: var(--pf-color-accent, #4285f4);
-  }
-
-  &__pct {
-    min-width: 30px;
-    text-align: right;
-    font-size: var(--pf-font-size-xs);
-    color: var(--pf-color-text-muted);
-    font-variant-numeric: tabular-nums;
-  }
-}
+export const STACK_SAMPLE_TRACK_KIND = 'StackSampleTrack';
+export const STACK_SAMPLE_FLAMECHART_TRACK_KIND = 'StackSampleFlamechartTrack';

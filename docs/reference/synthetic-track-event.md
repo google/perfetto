@@ -904,7 +904,7 @@ other pieces are optional and can be supplied when you have that information:
 1.  **Build IDs** and **Mapping Paths** → **Mappings** (binaries/libraries). You
     may skip this entirely if you do not have binary metadata.
 2.  **Mappings** → **Frames** (function + location). `mapping_id`, `rel_pc`,
-    `source_file_id`, `line_number`, etc. are all optional—set only what makes
+    `source_path_iid`, `line_number`, etc. are all optional—set only what makes
     sense for your data.
 3.  **Frames** → **Callstacks** (frame sequences)
 4.  **Callstacks** → Events (via `callstack_iid`)

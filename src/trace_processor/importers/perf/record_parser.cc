@@ -117,6 +117,12 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
     case PERF_RECORD_COMM:
       return ParseComm(std::move(record));
 
+    case PERF_RECORD_FORK:
+      return ParseFork(ts, std::move(record));
+
+    case PERF_RECORD_EXIT:
+      return ParseExit(ts, std::move(record));
+
     case PERF_RECORD_SAMPLE:
       return ParseSample(ts, std::move(record));
 
@@ -190,7 +196,8 @@ base::Status RecordParser::InternSample(Sample sample) {
       upid, sample.callchain, sample.perf_invocation->needs_pc_adjustment());
 
   // Update counters and create counter set.
-  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids, UpdateCounters(sample));
+  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids,
+                   UpdateCounters(sample, utid));
 
   tables::ProfilerSampleTable::Row row;
   row.ts = sample.trace_ts;
@@ -293,6 +300,46 @@ base::Status RecordParser::ParseComm(Record record) {
   return base::OkStatus();
 }
 
+base::Status RecordParser::ParseFork(int64_t, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_FORK");
+  }
+
+  // PERF_RECORD_FORK is emitted for both process forks and thread creation
+  // (clone with CLONE_THREAD). When spawning a thread within the same process,
+  // pid == ppid; only update process parentage when a new process is forked.
+  if (pid != ppid) {
+    UniquePid parent_upid = context_->process_tracker->GetOrCreateProcess(ppid);
+    UniquePid child_upid = context_->process_tracker->GetOrCreateProcess(pid);
+    context_->process_tracker->SetProcessParent(child_upid, parent_upid);
+  }
+
+  context_->process_tracker->UpdateThread(tid, pid);
+  return base::OkStatus();
+}
+
+base::Status RecordParser::ParseExit(int64_t ts, Record record) {
+  Reader reader(record.payload.copy());
+  uint32_t pid;
+  uint32_t ppid;
+  uint32_t tid;
+  uint32_t ptid;
+  if (!reader.Read(pid) || !reader.Read(ppid) || !reader.Read(tid) ||
+      !reader.Read(ptid)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_EXIT");
+  }
+
+  context_->process_tracker->UpdateThread(tid, pid);
+  context_->process_tracker->EndThread(ts, tid);
+  return base::OkStatus();
+}
+
 base::Status RecordParser::ParseMmap(int64_t trace_ts, Record record) {
   MmapRecord mmap;
   RETURN_IF_ERROR(mmap.Parse(record));
@@ -349,9 +396,10 @@ UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
-    const Sample& sample) {
+    const Sample& sample,
+    UniqueTid utid) {
   if (!sample.read_groups.empty()) {
-    return UpdateCountersInReadGroups(sample);
+    return UpdateCountersInReadGroups(sample, utid);
   }
 
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
@@ -361,13 +409,14 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
   CounterId counter_id =
-      sample.attr->GetOrCreateCounter(sample.cpu)
+      sample.attr->GetOrCreateCounter(sample.cpu, utid)
           .AddDelta(sample.trace_ts, static_cast<double>(period));
   return std::vector<CounterId>{counter_id};
 }
 
 base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
-    const Sample& sample) {
+    const Sample& sample,
+    UniqueTid utid) {
   std::vector<CounterId> counter_ids;
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
@@ -377,7 +426,7 @@ base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
                              *entry.event_id);
     }
     CounterId counter_id =
-        attr->GetOrCreateCounter(sample.cpu)
+        attr->GetOrCreateCounter(sample.cpu, utid)
             .AddCount(sample.trace_ts, static_cast<double>(entry.value));
     counter_ids.push_back(counter_id);
   }

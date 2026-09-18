@@ -399,8 +399,23 @@ config("sqlite_third_party_include_path") {
 }
 
 if (enable_perfetto_trace_processor_mac_instruments) {
+  pkg_config("pkgconfig_expat") {
+    pkg_deps = [ "expat" ]
+  }
+
+  config("system_expat_config") {
+    if (perfetto_use_pkgconfig) {
+      configs = [ ":pkgconfig_expat" ]
+    } else {
+      # Fallback if pkg-config isn't enabled.
+      libs = [ "expat" ]
+    }
+  }
+
   group("expat") {
-    if (perfetto_root_path == "//") {
+    if (perfetto_use_system_expat) {
+      public_configs = [ ":system_expat_config" ]
+    } else if (perfetto_root_path == "//") {
       public_deps = [ "//buildtools:expat" ]
     } else {
       public_deps = [ "//third_party/expat:expat" ]
@@ -422,8 +437,25 @@ if (enable_perfetto_grpc) {
 if (enable_perfetto_trace_processor_linenoise) {
   # Used by the trace_processor_shell for REPL history.
   # Only available in standalone builds.
+
+  pkg_config("pkgconfig_linenoise") {
+    pkg_deps = [ "linenoise" ]
+  }
+
+  config("system_linenoise_config") {
+    if (perfetto_use_pkgconfig) {
+      configs = [ ":pkgconfig_linenoise" ]
+    } else {
+      # Fallback if pkg-config isn't enabled.
+      libs = [ "linenoise" ]
+    }
+  }
   group("linenoise") {
-    public_deps = [ "//buildtools:linenoise" ]
+    if (perfetto_use_system_linenoise) {
+      public_configs = [ ":system_linenoise_config" ]
+    } else {
+      public_deps = [ "//buildtools:linenoise" ]
+    }
   }
 }  # if (enable_perfetto_trace_processor_linenoise)
 
