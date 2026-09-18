@@ -22,13 +22,6 @@
 #include <type_traits>
 
 namespace perfetto::trace_processor::core::exec {
-namespace {
-bool SameRepresentation(const ColumnView& a, const ColumnView& b) {
-  return a.kind() == b.kind() &&
-         (a.kind() == ColumnView::Kind::kVariant || a.type() == b.type());
-}
-}  // namespace
-
 base::Status RowStore::Append(const RowBatch& in) {
   if (!in.size())
     return base::OkStatus();
@@ -38,10 +31,7 @@ base::Status RowStore::Append(const RowBatch& in) {
     if (columns_.size() != in.column_count())
       return base::ErrStatus("row store: column count changed");
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      const auto& a = columns_[c].batches.front().view;
-      const auto& b = in.column(c);
-      if (!SameRepresentation(a, b) &&
-          !(a.type().Is<Uint32>() && b.type().Is<Id>()))
+      if (!SameLogicalType(columns_[c].batches.front().view, in.column(c)))
         return base::ErrStatus("row store: column representation changed");
     }
   }

@@ -17,9 +17,11 @@
 #include "src/trace_processor/core/exec/row_store.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -443,6 +445,32 @@ TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
   EXPECT_EQ(kept[1].type, Variant::Type::kNull);
   EXPECT_EQ(kept[2].AsDouble(), 1.5);
   EXPECT_EQ(pool.Get(kept[3].AsString()).ToStdString(), "hi");
+}
+
+// A gather turns an implicit id into a stored one, so a stream can carry both.
+TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
+  auto stored =
+      std::make_shared<std::vector<uint32_t>>(std::vector<uint32_t>{40, 41});
+  RowStore store;
+  RowBatch batch;
+  batch.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr), stored);
+  batch.Compose(RowSelection::Range(5), 2);
+  batch.SetCardinality(2);
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  batch.Reset();
+  batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, stored->data()),
+                  stored);
+  batch.SetCardinality(2);
+  base::Status status = store.Append(batch);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  std::vector<uint32_t> rows = {3, 0, 2, 1};
+  RowBatch out;
+  ASSERT_EQ(store.View(&out, Span<const uint32_t>(rows.data(),
+                                                  rows.data() + rows.size())),
+            4u);
+  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 0), ElementsAre(41, 5, 40, 6));
 }
 
 }  // namespace
