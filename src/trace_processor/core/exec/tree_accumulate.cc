@@ -23,6 +23,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -43,8 +44,8 @@ class AccumulateState : public OperatorState {
   std::vector<uint32_t> node_scratch;
   std::vector<uint32_t> parent_scratch;
   std::vector<int64_t> value_scratch;
-  std::shared_ptr<FlexVector<int64_t>> totals =
-      std::make_shared<FlexVector<int64_t>>();
+  BufferPool<FlexVector<int64_t>> buffers;
+  std::shared_ptr<FlexVector<int64_t>> totals;
   base::Status status = base::OkStatus();
 };
 
@@ -178,6 +179,8 @@ OpResult TreeAccumulateUp::Execute(const RowBatch& in,
   const int64_t* values =
       FlattenValues(in.column(spec_.value_column), count, &s.value_scratch);
 
+  s.totals.reset();
+  s.totals = s.buffers.Acquire();
   s.totals->resize(count);
   int64_t* totals = s.totals->data();
   for (uint32_t row = 0; row < count; ++row) {
@@ -218,6 +221,8 @@ OpResult TreeAccumulateDown::Execute(const RowBatch& in,
   const int64_t* values =
       FlattenValues(in.column(spec_.value_column), count, &s.value_scratch);
 
+  s.totals.reset();
+  s.totals = s.buffers.Acquire();
   s.totals->resize(count);
   int64_t* totals = s.totals->data();
   for (uint32_t row = 0; row < count; ++row) {

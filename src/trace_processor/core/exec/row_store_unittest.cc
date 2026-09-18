@@ -391,6 +391,28 @@ TEST(RowStoreTest, GathersRowsFromSeveralChunks) {
   EXPECT_EQ(test::ReadColumn<int64_t>(out, 0), expected);
 }
 
+TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
+  RowBatch range, gathered;
+  {
+    RowStore store;
+    RowBatch input, later;
+    std::vector<int64_t> values = {10, 20, 30};
+    Fill(&input, values, 0, 3);
+    ASSERT_TRUE(store.Append(input).ok());
+    ASSERT_EQ(store.View(&range, 0, 3), 3u);
+    std::vector<uint32_t> rows = {2, 0, 2};
+    store.View(&gathered, Span<const uint32_t>(rows.data(), rows.data() + 3));
+    rows = {1, 1, 0};
+    store.View(&later, Span<const uint32_t>(rows.data(), rows.data() + 3));
+    store.Clear();
+    values = {40, 50, 60};
+    Fill(&input, values, 0, 3);
+    ASSERT_TRUE(store.Append(input).ok());
+  }
+  EXPECT_THAT(test::ReadColumn<int64_t>(range, 0), ElementsAre(10, 20, 30));
+  EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(30, 10, 30));
+}
+
 TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
   StringPool pool;
   std::vector<Variant> values = {Variant::Int64(7), Variant::Null(),

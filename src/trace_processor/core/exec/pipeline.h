@@ -17,8 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_PIPELINE_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_PIPELINE_H_
 
+#include <functional>
+#include <limits>
 #include <memory>
 #include <vector>
+#include "src/trace_processor/core/exec/batch_buffer.h"
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -26,15 +29,26 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// A source followed by a chain of operators, itself exposed as a Source. Its
-// state holds the state of every node in the chain.
-//
-// Each batch of the source is pushed through the operators in turn. Once the
-// source is done, each operator in turn is finished, and what it lets go is
-// pushed through the operators above it before the next one is finished.
+// Optional batching policy and execution demand. Finite demand disables
+// optional lookahead at every boundary; intrinsic blocking operators still
+// consume the input needed to produce their first result. Cancellation is
+// checked between source/operator calls, not within individual kernels.
+struct ExecutionOptions {
+  BatchPreference preference = BatchPreference::kLatency;
+  uint64_t limit = std::numeric_limits<uint64_t>::max();
+  uint32_t small_batch_rows = 64;
+  uint32_t target_batch_rows = kMaxBatchRows;
+  std::function<bool()> cancelled;
+};
+
+// Pulls a source through a chain of operators. Each boundary retains input
+// across continuations and can combine small batches for a throughput consumer.
+// Finish runs only after successful exhaustion.
 class Pipeline : public Source {
  public:
-  Pipeline(const Source&, std::vector<std::unique_ptr<Operator>>);
+  Pipeline(const Source&,
+           std::vector<std::unique_ptr<Operator>>,
+           ExecutionOptions = {});
   Pipeline(Source&&, std::vector<std::unique_ptr<Operator>>) = delete;
   ~Pipeline() override;
 
@@ -48,18 +62,28 @@ class Pipeline : public Source {
     ~State() override;
     std::unique_ptr<OperatorState> source;
     std::vector<std::unique_ptr<OperatorState>> operators;
-    // The input batch of each operator. The last operator writes directly
-    // into the caller's batch.
-    std::vector<RowBatch> batches;
-    // Operators with more output for the input they already hold, deepest
-    // last, since the deepest has to be drained first.
-    std::vector<uint32_t> pending;
+    struct Stage {
+      RowBatch input;
+      RowBatch deferred;
+      RowBatch scratch;
+      BatchBuffer buffered;
+      bool continuation = false;
+      bool done = false;
+    };
+    // One input boundary per operator, plus the output boundary.
+    std::vector<Stage> stages;
+    uint64_t emitted = 0;
+    base::Status status = base::OkStatus();
+    bool stopped = false;
     bool source_done = false;
-    // Once the source is done, the operator being finished. Every operator
-    // below it has been finished and had its output pushed through.
-    uint32_t finishing = 0;
   };
 
+  bool Pull(uint32_t stage, RowBatch&, State&) const;
+  bool Input(uint32_t boundary, RowBatch&, State&, BatchPreference) const;
+  bool Check(State&) const;
+  void Stop(State&) const;
+
+  ExecutionOptions options_;
   const Source& source_;
   std::vector<std::unique_ptr<Operator>> operators_;
 };

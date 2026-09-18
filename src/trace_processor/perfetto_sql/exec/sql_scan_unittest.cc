@@ -510,5 +510,23 @@ TEST_F(SqlScanTest, ANullSlotOfAFlatColumnHoldsZero) {
   EXPECT_FALSE(batch->column(0).validity()->is_set(1));
 }
 
+TEST_F(SqlScanTest, RetainedBatchSurvivesAdvanceAndRewind) {
+  auto scan = Scan(
+      "WITH RECURSIVE n(x) AS (SELECT 0 UNION ALL "
+      "SELECT x+1 FROM n WHERE x<4096) SELECT x FROM n");
+  ASSERT_TRUE(scan.ok()) << scan.status().message();
+  auto state = (*scan)->MakeState();
+  RowBatch output, retained;
+  ASSERT_TRUE((*scan)->GetData(output, *state));
+  retained.CopyFrom(output);
+  ASSERT_TRUE((*scan)->GetData(output, *state));
+  (*scan)->Rewind(*state);
+  ASSERT_TRUE((*scan)->GetData(output, *state));
+  auto values = ReadInts(retained, 0);
+  ASSERT_EQ(values.size(), kMaxBatchRows);
+  for (uint32_t i = 0; i < values.size(); ++i)
+    EXPECT_EQ(values[i], i);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::exec

@@ -172,8 +172,7 @@ std::unique_ptr<OperatorState> TreeNumberNodes::MakeState() const {
   auto state = std::make_unique<State>();
   state->ids = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
   state->parents = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
-  state->nodes = FlexVector<uint32_t>::CreateWithSize(kMaxBatchRows);
-  state->parent_nodes = FlexVector<uint32_t>::CreateWithSize(kMaxBatchRows);
+
   return state;
 }
 
@@ -238,11 +237,11 @@ bool TreeNumberNodes::NumberInOrder(const RowBatch& in,
   uint32_t start = s.numbered;
   if (count > kNoNode - start ||
       !ParentsInOrder(in.column(id_column_), in.column(parent_column_), count,
-                      start, s.parent_nodes.data())) {
+                      start, s.output->parent_nodes.data())) {
     return false;
   }
   for (uint32_t i = 0; i < count; ++i) {
-    s.nodes[i] = start + i;
+    s.output->nodes[i] = start + i;
   }
   s.numbered = start + count;
   // A parent numbered ahead of its row must not be marked as seen.
@@ -277,12 +276,12 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
       return false;
     }
     s.has_row.set(node);
-    s.nodes[i] = node;
+    s.output->nodes[i] = node;
     if (s.parents[i].type == Variant::Type::kNull) {
-      s.parent_nodes[i] = kNoNode;
+      s.output->parent_nodes[i] = kNoNode;
       continue;
     }
-    s.parent_nodes[i] = Number(s, s.parents[i]);
+    s.output->parent_nodes[i] = Number(s, s.parents[i]);
     if (!s.status.ok()) {
       return false;
     }
@@ -295,14 +294,19 @@ OpResult TreeNumberNodes::Execute(const RowBatch& in,
                                   OperatorState& state) const {
   State& s = state.Cast<State>();
   uint32_t count = in.size();
+  s.output.reset();
+  s.output = s.buffers.Acquire();
   bool in_order = s.dense && NumberInOrder(in, count, s);
   if (!in_order && !NumberByKey(in, count, s)) {
     return OpResult::kError;
   }
   out.CopyFrom(in);
-  out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, s.nodes.data()));
   out.AddColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, s.parent_nodes.data()));
+      ColumnView::Reference(StorageType{Uint32{}}, s.output->nodes.data()),
+      s.output);
+  out.AddColumn(ColumnView::Reference(StorageType{Uint32{}},
+                                      s.output->parent_nodes.data()),
+                s.output);
   return OpResult::kNeedMoreInput;
 }
 

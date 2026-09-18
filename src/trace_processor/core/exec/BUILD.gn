@@ -19,8 +19,11 @@ source_set("exec") {
   sources = [
     "assert_type.cc",
     "assert_type.h",
+    "batch_buffer.cc",
+    "batch_buffer.h",
     "breaker.cc",
     "breaker.h",
+    "buffer_pool.h",
     "column_chunk.h",
     "column_view.cc",
     "column_view.h",
@@ -71,6 +74,7 @@ perfetto_unittest_source_set("unittests") {
     "assert_type_unittest.cc",
     "breaker_unittest.cc",
     "dataframe_scan_unittest.cc",
+    "executor_contract_unittest.cc",
     "operator_unittest.cc",
     "row_batch_unittest.cc",
     "row_store_unittest.cc",
@@ -106,6 +110,15 @@ if (enable_perfetto_benchmarks) {
       "../../containers",
       "../common",
       "../dataframe",
+    ]
+  }
+}
+
+if (enable_perfetto_unittests && perfetto_root_path == "//") {
+  test("executor_unittests") {
+    deps = [
+      ":unittests",
+      "../../../../gn:gtest_main",
     ]
   }
 }

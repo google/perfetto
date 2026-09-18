@@ -2573,8 +2573,11 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/core/exec/assert_type.cc",
         "src/trace_processor/core/exec/assert_type.h",
+        "src/trace_processor/core/exec/batch_buffer.cc",
+        "src/trace_processor/core/exec/batch_buffer.h",
         "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/breaker.h",
+        "src/trace_processor/core/exec/buffer_pool.h",
         "src/trace_processor/core/exec/column_chunk.h",
         "src/trace_processor/core/exec/column_view.cc",
         "src/trace_processor/core/exec/column_view.h",

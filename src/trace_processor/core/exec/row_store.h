@@ -23,6 +23,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -33,11 +34,10 @@ namespace perfetto::trace_processor::core::exec {
 
 // Owns a copy of rows taken from one or more RowBatches.
 //
-// A RowBatch only borrows its values: they stay valid until the next pull from
-// the source, which is free to overwrite them. An operator which needs rows
-// for longer than that must copy them into a RowStore. Views of the store
-// borrow in the same way: they are good until the store's next mutation, and
-// never longer than the store.
+// Views retain their backing chunks. Indexed views gather into pooled storage
+// which is reused only after every published view releases it. Use BatchStore
+// when retaining input buffers is sufficient and materialization is
+// unnecessary.
 //
 // Rows are held in fixed-size chunks rather than one growing array, so nothing
 // already appended is ever copied again. kChunkRows is a power of two, so a
@@ -67,11 +67,10 @@ class RowStore {
 
   // Points `batch` at the rows `rows` picks out, in that order. They can come
   // from any chunk, which no single view can span, so the values are gathered
-  // into reused storage. The result stays valid until the next indexed View()
-  // on this store.
+  // into pooled storage retained by the output batch.
   void View(RowBatch* batch, Span<const uint32_t> rows);
 
-  // Drops all the rows but keeps the allocated chunks.
+  // Drops all rows, keeping only chunks which have no published views.
   void Clear();
 
  private:
@@ -79,9 +78,9 @@ class RowStore {
     StorageType type{Uint32{}};
     bool variant = false;
     bool nullable = false;
-    std::vector<std::unique_ptr<ColumnChunk>> chunks;
+    std::vector<std::shared_ptr<ColumnChunk>> chunks;
     // Where a gathered view puts the values it picks out.
-    std::unique_ptr<ColumnChunk> gathered;
+    BufferPool<ColumnChunk> buffers;
   };
 
   base::Status ValidateColumn(const Column&, const ColumnView&) const;

@@ -113,7 +113,7 @@ void CopyValidity(const ColumnView& column,
 // Picks the rows `rows` names out of `chunks`, laying them out from zero. A
 // gather cannot be a view because the rows come from more than one chunk.
 template <typename T>
-void Gather(const std::vector<std::unique_ptr<ColumnChunk>>& chunks,
+void Gather(const std::vector<std::shared_ptr<ColumnChunk>>& chunks,
             Span<const uint32_t> rows,
             ColumnChunk& into) {
   T* dest = into.Values<T>().data();
@@ -123,7 +123,7 @@ void Gather(const std::vector<std::unique_ptr<ColumnChunk>>& chunks,
   }
 }
 
-void GatherValidity(const std::vector<std::unique_ptr<ColumnChunk>>& chunks,
+void GatherValidity(const std::vector<std::shared_ptr<ColumnChunk>>& chunks,
                     Span<const uint32_t> rows,
                     ColumnChunk& into) {
   for (uint32_t i = 0; i < rows.size(); ++i) {
@@ -144,7 +144,7 @@ ColumnChunk& RowStore::ChunkAt(Column& column, uint32_t index) const {
     column.chunks.resize(index + 1);
   }
   if (!column.chunks[index]) {
-    column.chunks[index] = std::make_unique<ColumnChunk>();
+    column.chunks[index] = std::make_shared<ColumnChunk>();
   }
   return *column.chunks[index];
 }
@@ -281,7 +281,7 @@ uint32_t RowStore::View(RowBatch* batch,
   for (const Column& column : columns_) {
     ColumnView view = ViewOf(column, *column.chunks[offset / kChunkRows]);
     view.SetRange(at);
-    batch->AddColumn(view);
+    batch->AddColumn(view, column.chunks[offset / kChunkRows]);
   }
   batch->SetCardinality(served);
   return served;
@@ -292,10 +292,8 @@ void RowStore::View(RowBatch* batch, Span<const uint32_t> rows) {
   PERFETTO_DCHECK(count <= kChunkRows);
   batch->Reset();
   for (Column& column : columns_) {
-    if (!column.gathered) {
-      column.gathered = std::make_unique<ColumnChunk>();
-    }
-    ColumnChunk& into = *column.gathered;
+    auto gathered = column.buffers.Acquire();
+    ColumnChunk& into = *gathered;
     if (column.variant) {
       Gather<Variant>(column.chunks, rows, into);
     } else if (column.type.Is<Uint32>()) {
@@ -319,7 +317,7 @@ void RowStore::View(RowBatch* batch, Span<const uint32_t> rows) {
     }
     ColumnView view = ViewOf(column, into);
     view.SetRange(0);
-    batch->AddColumn(view);
+    batch->AddColumn(view, gathered);
   }
   batch->SetCardinality(count);
 }
@@ -328,7 +326,11 @@ void RowStore::Clear() {
   size_ = 0;
   for (Column& column : columns_) {
     column.nullable = false;
-    for (const std::unique_ptr<ColumnChunk>& chunk : column.chunks) {
+    for (auto& chunk : column.chunks) {
+      if (chunk && chunk.use_count() > 1) {
+        chunk.reset();
+        continue;
+      }
       if (chunk) {
         chunk->validity.clear();
       }
