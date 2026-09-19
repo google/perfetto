@@ -1389,6 +1389,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->interceptor = nullptr;
     internal_state->interceptor_id = 0;
     internal_state->will_notify_on_stop = rds.descriptor.will_notify_on_stop();
+    internal_state->supports_append_only_encoding =
+        rds.params.supports_append_only_encoding;
 
     if (cfg.has_interceptor_config()) {
       for (size_t j = 0; j < interceptors_.size(); j++) {
@@ -2395,6 +2397,14 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
   if (startup_buffer_reservation) {
     return service->MaybeSharedMemoryArbiter()->CreateStartupTraceWriter(
         startup_buffer_reservation);
+  }
+  // A data source that opts into proto-group encoding takes the instance
+  // factory. The endpoint can then route each writer to a v2 ring or leave it
+  // on the shared-memory arbiter, per configuration for the instance.
+  if (data_source->supports_append_only_encoding) {
+    return service->CreateTraceWriter(data_source->buffer_id,
+                                      buffer_exhausted_policy,
+                                      data_source->data_source_instance_id);
   }
   return service->CreateTraceWriter(data_source->buffer_id,
                                     buffer_exhausted_policy);

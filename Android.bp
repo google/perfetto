@@ -17694,6 +17694,7 @@ filegroup {
     name: "perfetto_src_shared_lib_test_integrationtests",
     srcs: [
         "src/shared_lib/test/api_integrationtest.cc",
+        "src/shared_lib/test/legacy_data_source_client.c",
     ],
 }
 

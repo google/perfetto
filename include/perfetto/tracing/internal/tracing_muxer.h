@@ -47,6 +47,7 @@ struct DataSourceParams {
   bool buffer_exhausted_policy_configurable = false;
   bool supports_multiple_instances = true;
   bool requires_callbacks_under_lock = true;
+  bool supports_append_only_encoding = false;
 };
 
 struct DataSourceStaticState;
