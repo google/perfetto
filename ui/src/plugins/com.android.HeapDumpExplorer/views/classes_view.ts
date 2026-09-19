@@ -110,10 +110,18 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-export function ClassesView(): m.Component<ClassesViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+export function ClassesView({
+  attrs: {engine, activeDump},
+}: m.Vnode<ClassesViewAttrs>): m.Component<ClassesViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+    preamble: PREAMBLE,
+  });
   let alive = true;
   const counter = new RowCounter();
+  counter.init(engine, query, PREAMBLE);
   let filters: Filter[] = [];
 
   async function applyNavFilter(
@@ -132,37 +140,28 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
   }
 
   return {
-    oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-        preamble: PREAMBLE,
-      });
-      counter.init(engine, query, PREAMBLE);
+    oninit({attrs}) {
       applyNavFilter(
-        engine,
-        activeDump,
-        vnode.attrs.initialRootClass,
-        vnode.attrs.clearNavParam,
+        attrs.engine,
+        attrs.activeDump,
+        attrs.initialRootClass,
+        attrs.clearNavParam,
       ).catch(console.error);
     },
-    onupdate(vnode) {
+    onupdate({attrs}) {
       applyNavFilter(
-        vnode.attrs.engine,
-        vnode.attrs.activeDump,
-        vnode.attrs.initialRootClass,
-        vnode.attrs.clearNavParam,
+        attrs.engine,
+        attrs.activeDump,
+        attrs.initialRootClass,
+        attrs.clearNavParam,
       ).catch(console.error);
     },
     onremove() {
       alive = false;
+      datasource.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
-
-      if (!dataSource) return null;
 
       return m(
         DetailsShell,
@@ -172,7 +171,7 @@ export function ClassesView(): m.Component<ClassesViewAttrs> {
         },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          data: dataSource,
+          data: datasource,
           fillHeight: true,
           initialColumns: [
             {id: 'cls', field: 'cls'},

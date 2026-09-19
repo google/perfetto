@@ -36,6 +36,7 @@ import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -163,11 +164,18 @@ interface StringsViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-export function StringsView(): m.Component<StringsViewAttrs> {
-  let allRows: StringListRow[] | null = null;
-  let alive = true;
-  let dataSource: SQLDataSource | null = null;
+export function StringsView({
+  attrs: {engine, activeDump},
+}: m.Vnode<StringsViewAttrs>): m.Component<StringsViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+    preamble: SQL_PREAMBLE,
+  });
   const counter = new RowCounter();
+  counter.init(engine, query, SQL_PREAMBLE);
+  const allRowsMemo = new AsyncMemo<readonly StringListRow[]>();
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -182,34 +190,24 @@ export function StringsView(): m.Component<StringsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-        preamble: SQL_PREAMBLE,
-      });
-      counter.init(engine, query, SQL_PREAMBLE);
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
-      queries
-        .getStringList(engine, activeDump)
-        .then((r) => {
-          if (!alive) return;
-          allRows = r;
-          m.redraw();
-        })
-        .catch(console.error);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
-      alive = false;
+      datasource.dispose();
+      allRowsMemo.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
 
-      if (!allRows) {
+      const {isPending, data: allRows} = allRowsMemo.use({
+        key: {},
+        compute: () => queries.getStringList(engine, activeDump),
+      });
+
+      if (isPending) {
         return m(
           DetailsShell,
           {title: 'Strings', fillHeight: true, className: 'pf-hde-tab--padded'},
@@ -264,29 +262,27 @@ export function StringsView(): m.Component<StringsViewAttrs> {
             }),
           ]),
 
-          dataSource
-            ? m(DataGrid, {
-                schema: makeUiSchema(navigate),
-                data: dataSource,
-                fillHeight: true,
-                initialColumns: [
-                  {id: 'id', field: 'id'},
-                  {id: 'value', field: 'value'},
-                  {id: 'retained', field: 'retained'},
-                  {id: 'reachable_size', field: 'reachable_size'},
-                  {id: 'reachable_native', field: 'reachable_native'},
-                  {id: 'reachable_count', field: 'reachable_count'},
-                  {id: 'len', field: 'len'},
-                  {id: 'heap', field: 'heap'},
-                ],
-                filters,
-                showExportButton: true,
-                onFiltersChanged: (f) => {
-                  filters = [...f];
-                  counter.onFiltersChanged(f);
-                },
-              })
-            : null,
+          m(DataGrid, {
+            schema: makeUiSchema(navigate),
+            data: datasource,
+            fillHeight: true,
+            initialColumns: [
+              {id: 'id', field: 'id'},
+              {id: 'value', field: 'value'},
+              {id: 'retained', field: 'retained'},
+              {id: 'reachable_size', field: 'reachable_size'},
+              {id: 'reachable_native', field: 'reachable_native'},
+              {id: 'reachable_count', field: 'reachable_count'},
+              {id: 'len', field: 'len'},
+              {id: 'heap', field: 'heap'},
+            ],
+            filters,
+            showExportButton: true,
+            onFiltersChanged: (f) => {
+              filters = [...f];
+              counter.onFiltersChanged(f);
+            },
+          }),
         ],
       );
     },
