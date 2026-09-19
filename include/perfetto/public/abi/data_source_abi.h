@@ -276,6 +276,18 @@ PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
     struct PerfettoDsImpl*,
     bool configurable);
 
+// Tells if the data source can write packets in proto group encoding.
+// Call it before PerfettoDsImplRegister(). PerfettoDsRegister() sets it.
+//
+// - If true, an instance can get a tracing v2 writer, which needs proto
+//   group encoding. The config of each instance decides.
+// - If false or not called, every writer uses length-delimited encoding.
+//   Clients built with older headers never call it, so they keep working.
+// - If true, start packets with PerfettoDsTracerImplPacketBeginWithEncoding().
+PERFETTO_SDK_EXPORT void PerfettoDsSetSupportsProtoGroupEncoding(
+    struct PerfettoDsImpl*,
+    bool supports);
+
 // Registers the `*ds_impl` data source type.
 //
 // `ds_impl` must be obtained via a call to `PerfettoDsImplCreate()`.
@@ -373,9 +385,32 @@ PERFETTO_SDK_EXPORT void PerfettoDsImplTraceIterateBreak(
     struct PerfettoDsImpl* ds_impl,
     struct PerfettoDsImplTracerIterator* iterator);
 
-// Creates a new trace packet on `tracer`. Returns a stream writer that can be
-// used to write data to the packet. The caller must use
-// PerfettoDsTracerImplPacketEnd() when done.
+// The encoding of the nested messages in a packet.
+// Keep the values in sync with PerfettoPbMsgEncoding in pb_msg.h and with
+// protozero::Message::Encoding. Other values are reserved.
+enum PerfettoDsPacketEncoding {
+  PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED = 0,
+  PERFETTO_DS_PACKET_ENCODING_PROTO_GROUP = 1,
+};
+
+struct PerfettoDsPacketBeginResult {
+  struct PerfettoStreamWriter writer;
+  // A PerfettoDsPacketEncoding value. The field has a fixed size because
+  // the size of a C enum is not part of the ABI.
+  uint32_t encoding;
+};
+
+// Starts a packet and returns its writer and its encoding.
+// - Use that encoding for all nested messages of the packet.
+// - Call PerfettoDsTracerImplPacketEnd() when the packet is complete.
+PERFETTO_SDK_EXPORT struct PerfettoDsPacketBeginResult
+PerfettoDsTracerImplPacketBeginWithEncoding(struct PerfettoDsTracerImpl*);
+
+// Starts a packet in length-delimited encoding. Clients built with older
+// headers use it.
+// - If the writer needs proto group encoding, the bytes of this packet are
+//   discarded, and PerfettoDsTracerImplPacketEnd() writes an empty packet.
+// - New callers use PerfettoDsTracerImplPacketBeginWithEncoding().
 PERFETTO_SDK_EXPORT struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
     struct PerfettoDsTracerImpl* tracer);
 

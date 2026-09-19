@@ -47,6 +47,9 @@ struct DataSourceParams {
   bool buffer_exhausted_policy_configurable = false;
   bool supports_multiple_instances = true;
   bool requires_callbacks_under_lock = true;
+  // True if the data source can write packets in proto group encoding. Its
+  // instances can then get tracing v2 writers.
+  bool supports_proto_group_encoding = false;
 };
 
 struct DataSourceStaticState;
