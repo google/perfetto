@@ -18,6 +18,7 @@
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 #include "protos/perfetto/common/tracing_service_state.gen.h"
@@ -47,6 +48,13 @@ void ProducerEndpoint::OfferRingBuffer(std::unique_ptr<SharedMemory>,
 }
 
 void ProducerEndpoint::DrainRingBuffer() {}
+
+std::unique_ptr<TraceWriter> ProducerEndpoint::CreateTraceWriter(
+    BufferID buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID) {
+  return CreateTraceWriter(buffer, policy);
+}
 
 RelayEndpoint::~RelayEndpoint() = default;
 SharedMemory::~SharedMemory() = default;

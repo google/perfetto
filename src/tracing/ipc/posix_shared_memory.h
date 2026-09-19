@@ -48,6 +48,8 @@ class PosixSharedMemory : public SharedMemory {
 
   // Create a brand new SHM region.
   static std::unique_ptr<PosixSharedMemory> Create(size_t size);
+  // Fallible memfd allocation with immutable size for a v2 ring.
+  static std::unique_ptr<PosixSharedMemory> CreateRing(size_t size);
 
   // Maps an existing SHM region for shared read/write access. Takes ownership
   // of the descriptor, including on failure. Returns nullptr if validation or

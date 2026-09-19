@@ -358,6 +358,23 @@ SharedMemoryABI::ShmemMode GetShmemMode(const ClientIdentity& client_identity,
              : SharedMemoryABI::ShmemMode::kShmemEmulation;
 }
 
+// Tracing v2 config validation. producer_ipc_client_impl.cc holds its own
+// copy for the client-side setup path. Keep the chunk-size rule
+// {256, 512, 1024} in sync between both files.
+
+uint32_t Tracingv2RequestedChunkSize(const DataSourceConfig& config) {
+  const auto& experiment = config.experimental_tracing_v2();
+  return experiment.has_chunk_size_bytes() ? experiment.chunk_size_bytes()
+                                           : 256;
+}
+
+bool IsValidTracingv2Config(const DataSourceConfig& config) {
+  const auto& experiment = config.experimental_tracing_v2();
+  auto size = Tracingv2RequestedChunkSize(config);
+  return experiment.use_v2_probability_percent() <= 100 &&
+         (size == 256 || size == 512 || size == 1024);
+}
+
 }  // namespace
 
 TracingServiceImpl::TracingServiceImpl(
@@ -802,6 +819,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
+    if (!IsValidTracingv2Config(ds_config))
+      return PERFETTO_SVC_ERR(
+          "Invalid experimental_tracing_v2 probability or chunk size");
     if (ds_config.has_tracing_v2_eligible())
       return PERFETTO_SVC_ERR(
           "tracing_v2_eligible is reserved for service setup");

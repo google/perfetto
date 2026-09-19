@@ -144,6 +144,12 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy) = 0;
 
+  // Selects the transport for this instance. Always returns a usable writer.
+  // The default uses the two-argument factory. Callable from any thread.
+  virtual std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                         BufferExhaustedPolicy,
+                                                         DataSourceInstanceID);
+
   // TODO(eseckler): Also expose CreateStartupTraceWriter() ?
 
   // In some cases you can access the producer's SharedMemoryArbiter (for

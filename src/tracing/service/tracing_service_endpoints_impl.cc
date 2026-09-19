@@ -442,14 +442,15 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       weak_runner_(task_runner) {}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   service_->DisconnectProducer(id_);
   producer_->OnDisconnect();
 }
 
 void ProducerEndpointImpl::Disconnect() {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  // Disconnection is only supported via destroying the ProducerEndpoint.
-  PERFETTO_FATAL("Not supported");
+  PERFETTO_FATAL(
+      "Service-side producer endpoints are torn down by the service, "
+      "not disconnected by the producer.");
 }
 
 void ProducerEndpointImpl::RegisterDataSource(
@@ -483,7 +484,6 @@ void ProducerEndpointImpl::UnregisterTraceWriter(uint32_t writer_id) {
 void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
                                       CommitDataCallback callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-
   if (metatrace::IsEnabled(metatrace::TAG_TRACE_SERVICE)) {
     PERFETTO_METATRACE_COUNTER(TAG_TRACE_SERVICE, TRACE_SERVICE_COMMIT_DATA,
                                EncodeCommitDataRequest(id_, req_untrusted));
@@ -611,9 +611,6 @@ void ProducerEndpointImpl::ActivateTriggers(
 }
 
 void ProducerEndpointImpl::StopDataSource(DataSourceInstanceID ds_inst_id) {
-  // TODO(primiano): When we'll support tearing down the SMB, at this point we
-  // should send the Producer a TearDownTracing if all its data sources have
-  // been disabled (see b/77532839 and aosp/655179 PS1).
   PERFETTO_DCHECK_THREAD(thread_checker_);
   weak_runner_.PostTask([this, ds_inst_id] {
     DrainRingBuffer();
@@ -649,7 +646,7 @@ std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
 void ProducerEndpointImpl::NotifyFlushComplete(FlushRequestID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
-  return MaybeSharedMemoryArbiter()->NotifyFlushComplete(id);
+  MaybeSharedMemoryArbiter()->NotifyFlushComplete(id);
 }
 
 void ProducerEndpointImpl::OnTracingSetup() {
@@ -672,17 +669,15 @@ void ProducerEndpointImpl::SetupDataSource(DataSourceInstanceID ds_id,
                                            const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   allowed_target_buffers_.insert(static_cast<BufferID>(config.target_buffer()));
-  weak_runner_.PostTask([this, ds_id, config] {
-    producer_->SetupDataSource(ds_id, std::move(config));
-  });
+  weak_runner_.PostTask(
+      [this, ds_id, config] { producer_->SetupDataSource(ds_id, config); });
 }
 
 void ProducerEndpointImpl::StartDataSource(DataSourceInstanceID ds_id,
                                            const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  weak_runner_.PostTask([this, ds_id, config] {
-    producer_->StartDataSource(ds_id, std::move(config));
-  });
+  weak_runner_.PostTask(
+      [this, ds_id, config] { producer_->StartDataSource(ds_id, config); });
 }
 
 void ProducerEndpointImpl::NotifyDataSourceStarted(
