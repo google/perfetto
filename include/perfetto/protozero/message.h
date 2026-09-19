@@ -192,6 +192,9 @@ class PERFETTO_EXPORT_COMPONENT Message {
     return static_cast<T*>(BeginNestedMessageInternal(field_id));
   }
 
+  // The encoding of this message's nested messages. See Encoding.
+  Encoding encoding() const { return encoding_; }
+
   // Gives read-only access to the underlying stream_writer. This is used only
   // by few internals to query the state of the underlying buffer. It is almost
   // always a bad idea to poke at the stream_writer() internals.

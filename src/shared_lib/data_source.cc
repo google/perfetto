@@ -30,6 +30,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/no_destructor.h"
+#include "perfetto/protozero/scattered_stream_null_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/data_source_abi.h"
@@ -88,6 +90,9 @@ struct PerfettoDsImpl {
       perfetto::BufferExhaustedPolicy::kDrop;
 
   bool buffer_exhausted_policy_configurable = false;
+
+  // Set by PerfettoDsSetSupportsProtoGroupEncoding() before registration.
+  bool supports_proto_group_encoding = false;
 
   DataSourceType cpp_type;
   std::atomic<bool> enabled{false};
@@ -375,6 +380,11 @@ bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
   return true;
 }
 
+void PerfettoDsSetSupportsProtoGroupEncoding(struct PerfettoDsImpl* ds_impl,
+                                             bool supports) {
+  ds_impl->supports_proto_group_encoding = supports;
+}
+
 bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
                             PERFETTO_ATOMIC(bool) * *enabled_ptr,
                             const void* descriptor,
@@ -412,6 +422,7 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   perfetto::internal::DataSourceParams params;
   params.buffer_exhausted_policy_configurable =
       ds_impl->buffer_exhausted_policy_configurable;
+  params.supports_proto_group_encoding = ds_impl->supports_proto_group_encoding;
   params.supports_multiple_instances = true;
   params.requires_callbacks_under_lock = false;
   params.default_buffer_exhausted_policy =
@@ -583,17 +594,44 @@ void PerfettoDsImplTraceIterateBreak(
   ds_impl->cpp_type.TraceEpilogue(tls);
 }
 
-struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+struct PerfettoDsPacketBeginResult PerfettoDsTracerImplPacketBeginWithEncoding(
     struct PerfettoDsTracerImpl* tracer) {
   auto* tls_inst =
       reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
-
   auto message_handle = tls_inst->trace_writer->NewTracePacket();
-  struct PerfettoStreamWriter ret;
+  // The writer chose the encoding when it reset the root message. Read it
+  // before TakeStreamWriter() clears the handle.
+  const bool proto_group =
+      message_handle->encoding() == protozero::Message::Encoding::kProtoGroup;
   protozero::ScatteredStreamWriter* sw = message_handle.TakeStreamWriter();
-  ret.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
-  perfetto::UpdateStreamWriter(*sw, &ret);
-  return ret;
+  struct PerfettoDsPacketBeginResult result{};
+  result.writer.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
+  perfetto::UpdateStreamWriter(*sw, &result.writer);
+  result.encoding = proto_group ? PERFETTO_DS_PACKET_ENCODING_PROTO_GROUP
+                                : PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED;
+  return result;
+}
+
+struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer) {
+  auto result = PerfettoDsTracerImplPacketBeginWithEncoding(tracer);
+  if (result.encoding != PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED) {
+    // This caller writes length-delimited bytes, which the proto group stream
+    // cannot take. Send its bytes to a null stream instead.
+    // - PacketEnd() then completes an empty packet on the real writer.
+    // - NoDestructor avoids exit-time destructors. Each thread that takes this
+    //   path keeps its 4 KiB buffer until exit.
+    thread_local perfetto::base::NoDestructor<
+        protozero::ScatteredStreamWriterNullDelegate>
+    delegate(size_t{4096});
+    thread_local perfetto::base::NoDestructor<protozero::ScatteredStreamWriter>
+        stream(&delegate.ref());
+    auto& discard = stream.ref();
+    discard.Reset(delegate.ref().GetNewBuffer());
+    result.writer.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(&discard);
+    perfetto::UpdateStreamWriter(discard, &result.writer);
+  }
+  return result.writer;
 }
 
 void PerfettoDsTracerImplPacketEnd(struct PerfettoDsTracerImpl* tracer,
