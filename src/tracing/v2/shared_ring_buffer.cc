@@ -16,31 +16,17 @@
 
 #include "src/tracing/v2/shared_ring_buffer.h"
 
-#include <errno.h>
+#include <limits.h>
 #include <stdint.h>
 
 #include <atomic>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/futex.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define PERFETTO_TRACING_V2_HAS_FUTEX() 1
-#else
-#define PERFETTO_TRACING_V2_HAS_FUTEX() 0
-#endif
-
-#if PERFETTO_TRACING_V2_HAS_FUTEX()
-#include <linux/futex.h>
-#include <sys/syscall.h>
-#include <time.h>
-#include <unistd.h>
-#endif
 
 namespace perfetto::tracing_v2 {
 namespace {
@@ -74,38 +60,32 @@ uint32_t NumChunksForRingLayout(const uint8_t* start,
   return static_cast<uint32_t>(num_chunks);
 }
 
-#if PERFETTO_TRACING_V2_HAS_FUTEX()
-// Linux/Android futex compares the aligned low 32-bit read_pos word while
-// user space updates the containing aligned atomic64.
+// The ring stores read_pos in the low 32 bits of rw_positions. Pass its address
+// to the futex API, but keep all C++ accesses on the containing
+// atomic<uint64_t>.
 //
-// The supported CPU/ABI set provides atomic observation of that 32-bit half
-// during the 64-bit CAS.
-uint32_t* ReadPosFutexWord(std::atomic<uint64_t>* rw_positions) {
-  static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
+// This requires the OS to observe that half atomically during a 64-bit update,
+// which the supported CPU/ABI combinations provide.
+uint32_t* ReadPosFutexAddress(std::atomic<uint64_t>* rw_positions) {
+  static_assert(!base::HasFutexSupport() || PERFETTO_IS_LITTLE_ENDIAN(),
                 "The low-word futex requires read_pos to be the first four "
                 "bytes of rw_positions");
   return reinterpret_cast<uint32_t*>(rw_positions);
 }
 
-int FutexSyscall(uint32_t* word,
-                 int op,
-                 uint32_t value,
-                 const struct timespec* timeout) {
-  return static_cast<int>(
-      syscall(SYS_futex, word, op, value, timeout, nullptr, 0));
-}
-
-SharedRingBuffer::WriterWaitResult ClassifyWriterWaitErrno(int wait_errno) {
-  switch (wait_errno) {
-    case ETIMEDOUT:
-    case EAGAIN:
-    case EINTR:
+SharedRingBuffer::WriterWaitResult ToWriterWaitResult(
+    base::FutexWaitResult result) {
+  switch (result) {
+    case base::FutexWaitResult::kWoken:
+    case base::FutexWaitResult::kValueChanged:
+    case base::FutexWaitResult::kTimedOut:
+    case base::FutexWaitResult::kInterrupted:
       return SharedRingBuffer::WriterWaitResult::kRetry;
-    default:
+    case base::FutexWaitResult::kUnavailable:
       return SharedRingBuffer::WriterWaitResult::kUnavailable;
   }
+  return SharedRingBuffer::WriterWaitResult::kUnavailable;
 }
-#endif  // PERFETTO_TRACING_V2_HAS_FUTEX()
 
 }  // namespace
 
@@ -360,18 +340,16 @@ bool SharedRingBuffer::TryReleaseRewriteAcknowledgedChunkAsFree(
 
 // static
 bool SharedRingBuffer::SupportsWriterWait() {
-  return PERFETTO_TRACING_V2_HAS_FUTEX();
+  return base::HasFutexSupport();
 }
 
 SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
     uint32_t read_pos_for_wait,
     uint32_t timeout_ms) {
   PERFETTO_DCHECK(timeout_ms > 0);
-#if !PERFETTO_TRACING_V2_HAS_FUTEX()
-  base::ignore_result(read_pos_for_wait);
-  base::ignore_result(timeout_ms);
-  return WriterWaitResult::kUnavailable;
-#else
+  if (!base::HasFutexSupport())
+    return WriterWaitResult::kUnavailable;
+
   RingBufferHeader* ring_header = header();
 
   // To avoid a missed wake:
@@ -386,7 +364,7 @@ SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
   //   num_writers_waiting += 1       publish read_pos
   //   seq_cst fence                  seq_cst fence
   //   load read_pos                  load num_writers_waiting
-  //   FUTEX_WAIT if unchanged        FUTEX_WAKE if nonzero
+  //   FutexWait if unchanged         FutexWake if nonzero
   //
   // - Writer's fence first: the reader sees the waiter and wakes it.
   // - Reader's fence first: the writer sees the new read_pos.
@@ -400,26 +378,16 @@ SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
   const uint32_t read_pos =
       ReadPosOf(ring_header->rw_positions.load(std::memory_order_relaxed));
   if (read_pos == read_pos_for_wait) {
-    struct timespec timeout{};
-    timeout.tv_sec = static_cast<time_t>(timeout_ms / 1000);
-    timeout.tv_nsec = static_cast<long>((timeout_ms % 1000) * 1000000);
-
-    // FUTEX_WAIT checks the value again before sleeping. If read_pos changed
-    // after the load above, the syscall returns EAGAIN and no wake is lost.
-    if (FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions),
-                     FUTEX_WAIT_PRIVATE, read_pos_for_wait, &timeout) != 0) {
-      const int wait_errno = errno;
-      result = ClassifyWriterWaitErrno(wait_errno);
-      if (result == WriterWaitResult::kUnavailable) {
-        errno = wait_errno;
-        PERFETTO_DPLOG("tracing v2: futex wait on read_pos failed");
-      }
-    }
+    // FutexWait checks the value again before sleeping. If read_pos changed
+    // after the load above, the call returns kValueChanged and no wake is lost.
+    const base::FutexWaitResult wait_result =
+        base::FutexWait(ReadPosFutexAddress(&ring_header->rw_positions),
+                        read_pos_for_wait, timeout_ms);
+    result = ToWriterWaitResult(wait_result);
   }
 
   ring_header->num_writers_waiting.fetch_sub(1, std::memory_order_relaxed);
   return result;
-#endif  // PERFETTO_TRACING_V2_HAS_FUTEX()
 }
 
 void SharedRingBuffer::PublishReadPos(uint32_t read_pos) {
@@ -448,7 +416,9 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
       rw_positions, ReplaceReadPos(rw_positions, read_pos))) {
   }
 
-#if PERFETTO_TRACING_V2_HAS_FUTEX()
+  if (!base::HasFutexSupport())
+    return;
+
   // See the missed-wake schedule in WaitForReadPosChange(). The fence
   // orders read_pos publication before the waiter-count load.
   std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -462,13 +432,7 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   // This runs once per pass rather than once per reclaimed chunk.
   //
   // Waits are bounded, so a failed wake delays writers but cannot strand them.
-  if (PERFETTO_UNLIKELY(
-          FutexSyscall(ReadPosFutexWord(&ring_header->rw_positions),
-                       FUTEX_WAKE_PRIVATE, static_cast<uint32_t>(INT32_MAX),
-                       nullptr) < 0)) {
-    PERFETTO_DPLOG("tracing v2: futex wake on read_pos failed");
-  }
-#endif  // PERFETTO_TRACING_V2_HAS_FUTEX()
+  base::FutexWake(ReadPosFutexAddress(&ring_header->rw_positions), INT_MAX);
 }
 
 }  // namespace perfetto::tracing_v2
