@@ -51,6 +51,23 @@ void PerfettoHeapBufferCopyInto(struct PerfettoHeapBuffer* buf,
   }
 }
 
+void PerfettoHeapBufferCopyIntoStreamWriter(struct PerfettoHeapBuffer* buf,
+                                            struct PerfettoStreamWriter* src,
+                                            struct PerfettoStreamWriter* dst) {
+  auto* shb = reinterpret_cast<protozero::ScatteredHeapBuffer*>(buf);
+  auto* src_writer =
+      reinterpret_cast<protozero::ScatteredStreamWriter*>(src->impl);
+  auto* dst_writer =
+      reinterpret_cast<protozero::ScatteredStreamWriter*>(dst->impl);
+  src_writer->set_write_ptr(src->write_ptr);
+  dst_writer->set_write_ptr(dst->write_ptr);
+  for (const auto& slice : shb->GetSlices()) {
+    auto range = slice.GetUsedRange();
+    dst_writer->WriteBytes(range.begin, range.size());
+  }
+  perfetto::UpdateStreamWriter(*dst_writer, dst);
+}
+
 void PerfettoHeapBufferDestroy(struct PerfettoHeapBuffer* buf,
                                struct PerfettoStreamWriter* w) {
   auto* shb = reinterpret_cast<protozero::ScatteredHeapBuffer*>(buf);
