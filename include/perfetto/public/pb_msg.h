@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "perfetto/public/abi/heap_buffer.h"
 #include "perfetto/public/abi/stream_writer_abi.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_utils.h"
@@ -42,16 +43,44 @@ enum PerfettoPbMsgEncoding {
   PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED = 0,
 
   // Append-only proto group encoding used by tracing v2.
-  // - Supports scalars, complete string/bytes/packed values, and nested
-  // messages.
-  // - Incremental STRING/PACKED builders abort before they write a start tag.
+  //
+  // - Supports scalars, whole string/bytes/packed values and nested messages.
+  // - Incremental STRING/PACKED accessors stage the value until the field
+  //   closes. They then write the length and value to the output.
+  // - Incremental bytes fields can contain serialized protobuf messages.
+  //   Opening a nested message moves the payload to heap storage.
+  //
   // See PERFETTO_PB_PROTO_GROUP_END_BYTE in pb_utils.h for the wire format.
   PERFETTO_PB_MSG_ENCODING_PROTO_GROUP = 1,
+
+  // Internal encoding for a staged STRING/PACKED value on a proto group
+  // stream.
+  //
+  // - Only PerfettoPbMsgBeginStaged() sets this encoding.
+  // - PerfettoPbMsgInitWithEncoding() aborts if given this encoding.
+  PERFETTO_PB_MSG_ENCODING_STAGED_LENGTH_DELIMITED = 2,
 };
 
 // Points to the memory used by a `PerfettoPbMsg` for writing.
 struct PerfettoPbMsgWriter {
   struct PerfettoStreamWriter writer;
+};
+
+// Storage for a STRING or PACKED value on a proto group stream. The value
+// stays here until the field closes. See PerfettoPbMsgBeginStaged().
+//
+// - Keep `writer` first. A pointer to it is cast back to this type.
+// - A packed field keeps this structure in its PerfettoPbPackedMsg type.
+// - An incremental STRING field allocates it on the heap.
+struct PerfettoPbMsgStagingWriter {
+  struct PerfettoPbMsgWriter writer;
+  // Null while the value fits in `buffer`. Set when the value moves to heap
+  // storage.
+  struct PerfettoHeapBuffer* heap_buffer;
+  int32_t field_id;
+  // True if this structure is on the heap. Finalization then frees it.
+  bool owns_self;
+  uint8_t buffer[64];
 };
 
 struct PerfettoPbMsg {
@@ -77,6 +106,8 @@ struct PerfettoPbMsg {
   // does not increase the struct's size.
   uint8_t encoding;
 
+  // In staged mode, points to the writer in PerfettoPbMsgStagingWriter.
+  // Do not copy or move an active message.
   struct PerfettoPbMsgWriter* writer;
 
   struct PerfettoPbMsg* nested;
@@ -136,12 +167,35 @@ static inline void PerfettoPbMsgPatchStack(struct PerfettoPbMsg* msg) {
   }
 }
 
+// Moves a staged value from its inline buffer to heap storage, with the bytes
+// written so far. Does nothing if the value is already on the heap.
+//
+// Call it before a length field is reserved in the value. That field must not
+// move when the value grows.
+static inline void PerfettoPbMsgEnsureStagingHeapBuffer(
+    struct PerfettoPbMsg* msg) {
+  struct PerfettoPbMsgStagingWriter* staged;
+  size_t used;
+  assert(!msg->is_finalized);
+  assert(msg->encoding == PERFETTO_PB_MSG_ENCODING_STAGED_LENGTH_DELIMITED);
+  staged = PERFETTO_REINTERPRET_CAST(struct PerfettoPbMsgStagingWriter*,
+                                     msg->writer);
+  if (staged->heap_buffer)
+    return;
+  used = PerfettoStreamWriterGetWrittenSize(&staged->writer.writer);
+  staged->heap_buffer = PerfettoHeapBufferCreate(&staged->writer.writer);
+  PerfettoStreamWriterAppendBytes(&staged->writer.writer, staged->buffer, used);
+}
+
 static inline void PerfettoPbMsgAppendBytes(struct PerfettoPbMsg* msg,
                                             const uint8_t* begin,
                                             size_t size) {
   assert(!msg->is_finalized);
   if (PERFETTO_UNLIKELY(
           size > PerfettoStreamWriterAvailableBytes(&msg->writer->writer))) {
+    if (msg->encoding == PERFETTO_PB_MSG_ENCODING_STAGED_LENGTH_DELIMITED) {
+      PerfettoPbMsgEnsureStagingHeapBuffer(msg);
+    }
     PerfettoPbMsgPatchStack(msg);
   }
   PerfettoStreamWriterAppendBytes(&msg->writer->writer, begin, size);
@@ -264,13 +318,20 @@ static inline void PerfettoPbMsgAppendCStrField(struct PerfettoPbMsg* msg,
 static inline void PerfettoPbMsgBeginNested(struct PerfettoPbMsg* parent,
                                             struct PerfettoPbMsg* nested,
                                             int32_t field_id) {
-  PerfettoPbMsgInitWithEncoding(
-      nested, parent->writer,
-      PERFETTO_STATIC_CAST(enum PerfettoPbMsgEncoding, parent->encoding));
+  // A child takes the encoding of its parent. The exception is a staged
+  // value: it holds a serialized message, so its children use
+  // length-delimited encoding.
+  const enum PerfettoPbMsgEncoding child_encoding =
+      parent->encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP
+          ? PERFETTO_PB_MSG_ENCODING_PROTO_GROUP
+          : PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED;
+  PerfettoPbMsgInitWithEncoding(nested, parent->writer, child_encoding);
   if (parent->encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP) {
     // The closing byte written by PerfettoPbMsgFinalize() ends the child.
     PerfettoPbMsgAppendVarInt(parent, PerfettoPbMakeTagStartGroup(field_id));
   } else {
+    if (parent->encoding == PERFETTO_PB_MSG_ENCODING_STAGED_LENGTH_DELIMITED)
+      PerfettoPbMsgEnsureStagingHeapBuffer(parent);
     PerfettoPbMsgAppendVarInt(
         parent, PerfettoPbMakeTag(field_id, PERFETTO_PB_WIRE_TYPE_DELIMITED));
     if (PERFETTO_UNLIKELY(
@@ -288,24 +349,55 @@ static inline void PerfettoPbMsgBeginNested(struct PerfettoPbMsg* parent,
   parent->nested = nested;
 }
 
-// Begins an incremental STRING or PACKED field. Both encodings require a length
-// before the payload:
-// - Length-delimited mode reserves the length field for finalization.
-// - Proto group mode aborts before it writes the tag.
+// Begins a STRING or PACKED value on a proto group stream, in `staged`.
+// PerfettoPbMsgFinalize() of `nested` writes the value to the parent. See
+// PerfettoPbMsgPublishStagedPayload().
 //
-// In proto group mode, PerfettoPbMsgAppendBytes() can release a fragment before
-// the total length is known. The reader can copy it immediately. Append-only
-// writes cannot update the length in those published bytes.
+// - Keep `staged` valid until `nested` is finalized.
+// - A bytes value can hold a serialized message. Its nested messages use
+//   heap storage and length-delimited encoding.
+static inline void PerfettoPbMsgBeginStaged(
+    struct PerfettoPbMsg* parent,
+    struct PerfettoPbMsg* nested,
+    int32_t field_id,
+    struct PerfettoPbMsgStagingWriter* staged) {
+  staged->owns_self = false;
+  staged->heap_buffer = PERFETTO_NULL;
+  staged->field_id = field_id;
+  staged->writer.writer.impl = PERFETTO_NULL;
+  staged->writer.writer.begin = staged->buffer;
+  staged->writer.writer.end = staged->buffer + sizeof(staged->buffer);
+  staged->writer.writer.write_ptr = staged->buffer;
+  staged->writer.writer.written_previously = 0;
+  PerfettoPbMsgInit(nested, &staged->writer);
+  nested->encoding = PERFETTO_PB_MSG_ENCODING_STAGED_LENGTH_DELIMITED;
+  nested->parent = parent;
+  parent->nested = nested;
+}
+
+// Begins an incremental STRING field. The length comes before the value:
 //
-// TODO(sashwinbalaji): If tracing v2 needs incremental fields, buffer the value
-// and emit it when the field closes.
+// - Length-delimited stream: reserves space for the length, and fills it when
+//   the field closes.
+// - Proto group stream: stages the value on the heap. The tag, length and
+//   value go to the stream when the field closes. A proto group stream cannot
+//   change bytes that a reader may have read.
+//
+// Packed fields stage in their PerfettoPbPackedMsg type instead. See
+// pb_macros.h.
 static inline void PerfettoPbMsgBeginLengthDelimitedField(
     struct PerfettoPbMsg* parent,
     struct PerfettoPbMsg* nested,
     int32_t field_id) {
-  if (PERFETTO_UNLIKELY(parent->encoding ==
-                        PERFETTO_PB_MSG_ENCODING_PROTO_GROUP)) {
-    abort();
+  if (parent->encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP) {
+    struct PerfettoPbMsgStagingWriter* staged = PERFETTO_STATIC_CAST(
+        struct PerfettoPbMsgStagingWriter*, malloc(sizeof(*staged)));
+    // Like HeapBuffer, abort if allocation fails. The parent is unchanged.
+    if (!staged)
+      abort();
+    PerfettoPbMsgBeginStaged(parent, nested, field_id, staged);
+    staged->owns_self = true;
+    return;
   }
 
   PerfettoPbMsgBeginNested(parent, nested, field_id);
@@ -316,6 +408,50 @@ static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg);
 static inline void PerfettoPbMsgEndNested(struct PerfettoPbMsg* parent) {
   parent->size += PerfettoPbMsgFinalize(parent->nested);
   parent->nested = PERFETTO_NULL;
+}
+
+// Writes a staged value to the parent. PerfettoPbMsgFinalize() calls it once,
+// on the first finalization of the value.
+//
+// 1. Write the tag and the length.
+// 2. Copy the value.
+// 3. Free the heap storage.
+static inline void PerfettoPbMsgPublishStagedPayload(
+    struct PerfettoPbMsg* msg) {
+  struct PerfettoPbMsgStagingWriter* staged = PERFETTO_REINTERPRET_CAST(
+      struct PerfettoPbMsgStagingWriter*, msg->writer);
+  size_t size = PerfettoStreamWriterGetWrittenSize(&staged->writer.writer);
+  uint8_t
+      header[PERFETTO_PB_VARINT_MAX_SIZE_32 + PERFETTO_PB_VARINT_MAX_SIZE_64];
+  size_t header_size;
+  struct PerfettoPbMsg* parent;
+  uint8_t* end = PerfettoPbWriteVarInt(
+      PerfettoPbMakeTag(staged->field_id, PERFETTO_PB_WIRE_TYPE_DELIMITED),
+      header);
+  end = PerfettoPbWriteVarInt(size, end);
+  header_size = PERFETTO_STATIC_CAST(size_t, end - header);
+  parent = msg->parent;
+  // Check for size overflow before writing the header.
+  if (size > UINT32_MAX || header_size > UINT32_MAX - size ||
+      parent->size > UINT32_MAX - size - header_size)
+    abort();
+  msg->size = PERFETTO_STATIC_CAST(uint32_t, size);
+  // PerfettoPbMsgAppendBytes() adds the header size to the parent size.
+  // PerfettoPbMsgEndNested() adds the payload size once.
+  PerfettoPbMsgAppendBytes(parent, header, header_size);
+  if (size > PerfettoStreamWriterAvailableBytes(&parent->writer->writer))
+    PerfettoPbMsgPatchStack(parent);
+  if (staged->heap_buffer) {
+    PerfettoHeapBufferCopyIntoStreamWriter(
+        staged->heap_buffer, &staged->writer.writer, &parent->writer->writer);
+    PerfettoHeapBufferDestroy(staged->heap_buffer, &staged->writer.writer);
+  } else {
+    PerfettoStreamWriterAppendBytes(&parent->writer->writer, staged->buffer,
+                                    size);
+  }
+  if (staged->owns_self)
+    free(staged);
+  msg->writer = PERFETTO_NULL;
 }
 
 // Finalizes this message and its children. Returns the message size.
@@ -338,6 +474,9 @@ static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg) {
     msg->is_finalized = true;
     return msg->size;
   }
+
+  if (msg->encoding == PERFETTO_PB_MSG_ENCODING_STAGED_LENGTH_DELIMITED)
+    PerfettoPbMsgPublishStagedPayload(msg);
 
   // Write the length of the nested message a posteriori, using a leading-zero
   // redundant varint encoding.
