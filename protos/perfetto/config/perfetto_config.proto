@@ -4836,7 +4836,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 147
+// Next id: 148
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5103,6 +5103,18 @@ message DataSourceConfig {
   // An absent field means the target buffer is not eligible.
   // This field does not select the producer transport.
   optional bool tracing_v2_eligible = 146;
+
+  // Experimental per-instance producer transport selection. Unsupported sources
+  // and destinations stay on v1. If allocation or adoption fails, new writers
+  // for the instance use v1. The output preserves the requested settings.
+  message ExperimentalTracingV2Config {
+    // Sample once at setup. Range [0,100], default 0.
+    optional uint32 use_v2_probability_percent = 1;
+    // The first selected instance fixes the connection layout. Supported values
+    // are 256, 512 and 1024.
+    optional uint32 chunk_size_bytes = 2;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 147;
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
