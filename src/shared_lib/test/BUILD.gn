@@ -51,6 +51,7 @@ if (enable_perfetto_integration_tests) {
       "..:shared_lib",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
+      "../../../include/perfetto/protozero",
       "../../../include/perfetto/public",
       "../../base",
       "protos",

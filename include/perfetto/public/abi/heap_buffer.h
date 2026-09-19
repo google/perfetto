@@ -42,6 +42,14 @@ PERFETTO_SDK_EXPORT void PerfettoHeapBufferCopyInto(
     void* dst,
     size_t size);
 
+// Copies all written bytes from this buffer into `dst`. Does not transfer
+// ownership. `src` is the writer from Create. The caller must patch the
+// destination before a chunk transition.
+PERFETTO_SDK_EXPORT void PerfettoHeapBufferCopyIntoStreamWriter(
+    struct PerfettoHeapBuffer*,
+    struct PerfettoStreamWriter* src,
+    struct PerfettoStreamWriter* dst);
+
 // Destroys the heap buffer.
 PERFETTO_SDK_EXPORT void PerfettoHeapBufferDestroy(
     struct PerfettoHeapBuffer*,
