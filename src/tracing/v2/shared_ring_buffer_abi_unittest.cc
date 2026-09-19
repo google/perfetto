@@ -191,6 +191,40 @@ TEST(SharedRingBufferABITest, ReplaceReadPos) {
             PackRwPositions(7u, 0u));
 }
 
+// Layout
+// ------
+
+TEST(SharedRingBufferABITest, ChunkCountRule) {
+  EXPECT_FALSE(IsValidChunkCount(0));
+  EXPECT_FALSE(IsValidChunkCount(1));
+  EXPECT_TRUE(IsValidChunkCount(kMinChunksPerRing));
+  EXPECT_FALSE(IsValidChunkCount(3));
+  EXPECT_TRUE(IsValidChunkCount(64));
+  EXPECT_TRUE(IsValidChunkCount(kMaxChunksPerRing));
+  EXPECT_FALSE(IsValidChunkCount(size_t{kMaxChunksPerRing} * 2));
+}
+
+TEST(SharedRingBufferABITest, SizeForBudgetRoundsDownToValidLayout) {
+  constexpr size_t kHeader = sizeof(RingBufferHeader);
+  // Room for 5 chunks gives 4, the largest power of two.
+  EXPECT_EQ(RingBufferSizeForBudget(kHeader + 5 * 256, 256), kHeader + 4 * 256);
+  EXPECT_EQ(RingBufferSizeForBudget(kHeader + 2 * 256, 256), kHeader + 2 * 256);
+  // Fewer than kMinChunksPerRing chunks, or no room for the header.
+  EXPECT_FALSE(RingBufferSizeForBudget(kHeader + 256, 256));
+  EXPECT_FALSE(RingBufferSizeForBudget(kHeader - 1, 256));
+  EXPECT_FALSE(RingBufferSizeForBudget(kHeader + 4 * 256, 100));
+
+  // Every result passes the layout check that the peers apply.
+  alignas(RingBufferHeader) static uint8_t start[1];
+  for (size_t budget :
+       {kHeader + 2 * 512, kHeader + 7 * 512, size_t{1} << 20}) {
+    auto size = RingBufferSizeForBudget(budget, 512);
+    ASSERT_TRUE(size);
+    EXPECT_LE(*size, budget);
+    EXPECT_TRUE(NumChunksForRingBufferLayout(start, *size, 512));
+  }
+}
+
 // Logical positions
 // -----------------
 
