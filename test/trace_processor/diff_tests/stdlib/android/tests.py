@@ -2499,3 +2499,64 @@ class AndroidStdlib(TestSuite):
         "matching","system_pkg","no_package"
         "com.fake.package","AID_SYSTEM_USER","uid=12345"
         """))
+
+  def test_android_process_state_intervals(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/android_process_state.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          state_name,
+          prev_state_name,
+          prev_state_duration,
+          state_rank,
+          reason
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts, state_rank;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","state_name","prev_state_name","prev_state_duration","state_rank","reason"
+        2000,2000,100,"PROCESS_STATE_TOP","[NULL]","TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,0,200,"PROCESS_STATE_TOP","[NULL]","TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND","PROCESS_STATE_TOP","IMPORTANT_FOREGROUND","TOP",0,6,"OOM_ADJ_REASON_START_RECEIVER"
+        4000,0,200,"PROCESS_STATE_CACHED_ACTIVITY","PROCESS_STATE_IMPORTANT_FOREGROUND","CACHED_ACTIVITY","IMPORTANT_FOREGROUND",2000,16,"OOM_ADJ_REASON_BIND_SERVICE"
+        2000,2000,300,"PROCESS_STATE_PERSISTENT","[NULL]","PERSISTENT","[NULL]","[NULL]",0,"[NULL]"
+        2000,2000,400,"PROCESS_STATE_FOREGROUND_SERVICE","[NULL]","FOREGROUND_SERVICE","[NULL]","[NULL]",4,"[NULL]"
+        2000,0,500,"PROCESS_STATE_TOP","[NULL]","TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,0,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE","PROCESS_STATE_TOP","BOUND_FOREGROUND_SERVICE","TOP",0,5,"OOM_ADJ_REASON_START_RECEIVER"
+        2000,2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND","PROCESS_STATE_BOUND_FOREGROUND_SERVICE","IMPORTANT_FOREGROUND","BOUND_FOREGROUND_SERVICE",0,6,"OOM_ADJ_REASON_BIND_SERVICE"
+        """))
+
+  def test_android_process_state_concurrency(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/android_process_state.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          state,
+          state_name,
+          state_rank,
+          concurrency
+        FROM _android_process_state_concurrency
+        ORDER BY state_rank, ts;
+        """,
+        out=Csv("""
+        "ts","dur","state","state_name","state_rank","concurrency"
+        2000,2000,"PROCESS_STATE_PERSISTENT","PERSISTENT",0,1
+        4000,0,"PROCESS_STATE_PERSISTENT","PERSISTENT",0,0
+        2000,2000,"PROCESS_STATE_TOP","TOP",2,1
+        4000,0,"PROCESS_STATE_TOP","TOP",2,0
+        2000,2000,"PROCESS_STATE_FOREGROUND_SERVICE","FOREGROUND_SERVICE",4,1
+        4000,0,"PROCESS_STATE_FOREGROUND_SERVICE","FOREGROUND_SERVICE",4,0
+        2000,2000,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE","BOUND_FOREGROUND_SERVICE",5,0
+        2000,2000,"PROCESS_STATE_IMPORTANT_FOREGROUND","IMPORTANT_FOREGROUND",6,2
+        4000,0,"PROCESS_STATE_IMPORTANT_FOREGROUND","IMPORTANT_FOREGROUND",6,0
+        4000,0,"PROCESS_STATE_CACHED_ACTIVITY","CACHED_ACTIVITY",16,0
+        """))
