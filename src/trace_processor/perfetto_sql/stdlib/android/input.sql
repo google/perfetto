@@ -70,13 +70,15 @@ WITH
   _extracted_input_read_args AS (
     SELECT
       name,
-      str_split(str_split(str_split(name, 'id=', 1), ',', 0), ')', 0) AS input_event_id,
-      ts AS read_time
+      regexp_extract(name, 'id=([^,\)]+)') AS input_event_id,
+      ts AS read_time,
+      cast_int!(regexp_extract(name, 'eventTime=(\d+)')) AS event_time
     FROM slice
     WHERE
       name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
   )
-SELECT name, input_event_id, read_time FROM _extracted_input_read_args;
+SELECT name, input_event_id, read_time, event_time
+FROM _extracted_input_read_args;
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
 WITH
@@ -249,7 +251,7 @@ SELECT
   _input_event_id_to_android_frame.frame_id,
   event_seq,
   event_action,
-  event_time,
+  _input_event_id_to_android_frame.event_time,
   _input_event_id_to_android_frame.is_speculative_match
 FROM _input_event_id_to_android_frame
 RIGHT JOIN _event_seq_to_input_event_id
@@ -344,7 +346,9 @@ CREATE PERFETTO TABLE android_input_events(
   -- Indicates if the frame association was speculative rather than exact based on id match.
   is_speculative_frame BOOL,
   -- Timestamp when the input event actually occurred.
-  event_time TIMESTAMP
+  event_time TIMESTAMP,
+  -- Timestamp of the input event that the frame receives. This can differ from event_time due to resampling.
+  frame_event_time TIMESTAMP
 )
 AS
 WITH
@@ -414,7 +418,8 @@ SELECT
   receive.track_id AS receive_track_id,
   frame.frame_id,
   frame.is_speculative_match AS is_speculative_frame,
-  frame.event_time
+  read_time.event_time,
+  frame.event_time AS frame_event_time
 FROM dispatch
 JOIN receive
   ON receive.dispatch_event_channel = dispatch.event_channel
