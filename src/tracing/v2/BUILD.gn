@@ -46,7 +46,11 @@ perfetto_unittest_source_set("unittests") {
     ":v2",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/protozero",
+    "../../../protos/perfetto/trace:cpp",
+    "../../../protos/perfetto/trace:zero",
     "../../base",
+    "../../protozero",
   ]
   sources = [
     "shared_ring_buffer_abi_unittest.cc",
