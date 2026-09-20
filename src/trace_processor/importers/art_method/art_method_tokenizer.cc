@@ -213,13 +213,6 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
   }
 
   uint32_t methodid_action = ToInt(record.slice_off(0, 4));
-  // A dual clock reads the thread ts_delta at body offset [8, 12). For v1/v2
-  // the record (hence body) size is fixed by the version (7/8 bytes) and, unlike
-  // v3 (validated via kMinV3RecordSize at header time), is never checked against
-  // the clock mode. A v1/v2 trace that declares clock=dual therefore drives this
-  // read past the record end (slice_off is only DCHECK-guarded). Real dual-clock
-  // traces are v3, so reject the malformed combination here; single-clock v1/v2
-  // parsing is unaffected.
   if (clock_ == kDual && record.size() < 12) {
     return base::ErrStatus(
         "ART method trace: dual-clock record too small (%zu bytes, need 12)",
