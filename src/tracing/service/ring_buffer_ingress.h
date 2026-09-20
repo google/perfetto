@@ -22,12 +22,16 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
+#include <set>
+#include <vector>
 
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/weak_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
 
@@ -69,6 +73,11 @@ class RingBufferIngress : public SharedRingBufferReader::Delegate {
     // This also counts loss before a trace buffer admits the writer's first
     // chunk. Such loss has no destination sequence to update.
     virtual void OnRingBufferChunkDiscarded() = 0;
+
+    // Reports the first admitted chunk into |buffer_id|. The ingress calls
+    // this once per destination for observability. The delegate can mark
+    // sessions that own the buffer for a fresh stats snapshot.
+    virtual void OnRingBufferUsed(BufferID buffer_id) = 0;
   };
 
   // The endpoint transfers a validated mapping on the service sequence.
@@ -104,6 +113,20 @@ class RingBufferIngress : public SharedRingBufferReader::Delegate {
   // The call uses the service sequence and transfers no ownership.
   size_t size_bytes() const { return memory_->size(); }
 
+  // Returns a snapshot of connection-wide layout, reader counters, and the
+  // subset of |session_buffers| this ingress has already used.
+  // Returns nullopt if none of |session_buffers| have been used.
+  std::optional<TraceStats::V2ProducerStats> GetStats(
+      const std::vector<BufferID>& session_buffers) const;
+
+  // Removes |id| from the observed set. The service calls this when the
+  // matching trace buffer goes away so that a later reuse of the id counts
+  // as first use again.
+  void ForgetBuffer(BufferID id) {
+    PERFETTO_DCHECK_THREAD(thread_checker_);
+    observed_buffers_.erase(id);
+  }
+
  private:
   // Reader callbacks run inline during Drain() on the service sequence.
   void OnChunkRead(const SharedRingBufferReader::ChunkContents&) override;
@@ -129,6 +152,10 @@ class RingBufferIngress : public SharedRingBufferReader::Delegate {
   // True while one retry task is pending. Further drains do not post
   // duplicates.
   bool retry_scheduled_ = false;
+
+  // Trace buffers that this ingress has admitted at least one chunk into.
+  // Populated once per destination on the first successful append.
+  std::set<BufferID> observed_buffers_;
 
   // Verifies that operations use the service sequence.
   PERFETTO_THREAD_CHECKER(thread_checker_)

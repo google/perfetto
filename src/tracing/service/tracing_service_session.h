@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 
@@ -43,12 +44,6 @@ class MessageFilter;
 }
 
 namespace perfetto {
-
-namespace protos {
-namespace gen {
-enum TraceStats_FinalFlushOutcome : int;
-}
-}  // namespace protos
 
 namespace base {
 class TaskRunner;
@@ -304,6 +299,10 @@ struct TracingSession {
   std::optional<TriggerInfo> clone_trigger;
 
   std::optional<base::ScopedSchedBoost> priority_boost;
+
+  // Snapshots from disconnected producers or a clone. Live producer records
+  // remain in the ingress and are sampled when the service reads stats.
+  std::vector<TraceStats::V2ProducerStats> observed_v2_producers;
 
   // NOTE: when adding new fields here consider whether that state should be
   // copied over in DoCloneSession() or not. Ask yourself: is this a

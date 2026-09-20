@@ -143,6 +143,10 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint,
       const std::function<void(TraceBufferV2&)>& callback) override;
   // Records an ingress discard in the service statistics.
   void OnRingBufferChunkDiscarded() override;
+  // Marks the sessions that own |buffer_id| for a fresh stats snapshot.
+  // The ingress calls this once per destination, after its first admitted
+  // chunk.
+  void OnRingBufferUsed(BufferID) override;
 
   bool IsShmemEmulated() { return shmem_abi_.use_shmem_emulation(); }
 

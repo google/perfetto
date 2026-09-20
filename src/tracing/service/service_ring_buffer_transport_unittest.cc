@@ -423,6 +423,7 @@ TEST_F(ServiceRingBufferTransportTest, RingBufferIngressDrainIntoTBv2) {
       callback(*tb);
     }
     void OnRingBufferChunkDiscarded() override {}
+    void OnRingBufferUsed(BufferID) override {}
   };
 
   base::TestTaskRunner task_runner;

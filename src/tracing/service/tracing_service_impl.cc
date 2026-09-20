@@ -494,6 +494,21 @@ void TracingServiceImpl::DisconnectProducer(ProducerID id) {
       ScrapeSharedMemoryBuffers(&session_id_and_session.second, producer);
     }
 
+    // Retain the final ingress snapshot for each session that owns any of
+    // this producer's target buffers. The snapshot survives the erase below
+    // so a later consumer query still sees the completed activity.
+    if (producer->ring_buffer_ingress_) {
+      for (auto& kv : tracing_sessions_) {
+        auto& session = kv.second;
+        auto snapshot =
+            producer->ring_buffer_ingress_->GetStats(session.buffers_index);
+        if (snapshot) {
+          session.observed_v2_producers.push_back(std::move(*snapshot));
+          session.should_emit_stats = true;
+        }
+      }
+    }
+
     // Fire a disconnect trigger so pre-configured sessions can capture
     // diagnostics when the host traced_probes crashes. Skip producers
     // relayed from another machine (e.g. a VM): they share the same
@@ -4192,7 +4207,27 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
     }  // for each buffer.
   }  // if (!disable_chunk_usage_histograms)
 
+  *trace_stats.mutable_v2_producer_stats() =
+      SnapshotV2Producers(*tracing_session);
+
   return trace_stats;
+}
+
+std::vector<TraceStats::V2ProducerStats>
+TracingServiceImpl::SnapshotV2Producers(const TracingSession& session) const {
+  auto snapshots = session.observed_v2_producers;
+  // Clone snapshots must not change when their source producers write more.
+  if (session.state == TracingSession::CLONED_READ_ONLY)
+    return snapshots;
+  for (const auto& kv : producers_) {
+    const auto& ingress = kv.second->ring_buffer_ingress_;
+    if (!ingress)
+      continue;
+    auto snapshot = ingress->GetStats(session.buffers_index);
+    if (snapshot)
+      snapshots.push_back(std::move(*snapshot));
+  }
+  return snapshots;
 }
 
 void TracingServiceImpl::EmitUuid(TracingSession* tracing_session,
@@ -5082,6 +5117,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
   }
 
   cloned_session->buffer_cloned_timestamps = std::move(buf_cloned_timestamps);
+
+  cloned_session->observed_v2_producers = SnapshotV2Producers(*src);
 
   SetSingleLifecycleEvent(
       cloned_session,

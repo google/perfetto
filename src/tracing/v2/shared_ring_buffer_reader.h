@@ -143,7 +143,7 @@ class SharedRingBufferReader {
   uint32_t read_pos() const { return read_pos_; }
 
   // For diagnostics only. The protocol never reads these counters.
-  // TODO(sashwinbalaji): Wire these counters into service statistics.
+  // Wired into TraceStats.V2ProducerStats by the service (GetTraceStats).
   struct Stats {
     uint64_t positions_skipped = 0;
     // Successful BeingWritten -> RewriteRequested transitions.
