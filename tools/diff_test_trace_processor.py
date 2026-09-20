@@ -20,6 +20,7 @@ from __future__ import print_function
 import argparse
 import json
 import os
+import subprocess
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -53,7 +54,35 @@ from python.generators.diff_tests.runner import DiffTestsRunner
 from python.generators.diff_tests.models import Config
 
 
+def check_test_data():
+  test_data_script = os.path.join(ROOT_DIR, 'tools', 'test_data')
+  cmd = [
+      sys.executable, test_data_script, 'status', '--quiet', '--ignore-new',
+      '--skip-prefix', 'ui-screenshots'
+  ]
+  try:
+    status = subprocess.call(cmd)
+  except Exception as e:
+    sys.stderr.write(f'Warning: failed to run test_data status script: {e}\n')
+    return
+
+  if status != 0:
+    sys.stderr.write(f'''
+\033[91mError: test data is out of sync.\033[0m
+To resolve this, please run:
+
+  tools/install-build-deps
+
+Or download the missing test data manually:
+
+  python3 tools/test_data download --overwrite
+
+''')
+    sys.exit(1)
+
+
 def main():
+  check_test_data()
   setup_ctrl_c_handler()
   parser = argparse.ArgumentParser()
   parser.add_argument('--test-type', type=str, default='all')
