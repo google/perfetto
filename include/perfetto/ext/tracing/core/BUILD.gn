@@ -35,6 +35,7 @@ source_set("core") {
     "trace_stats.h",
     "trace_writer.h",
     "tracing_service.h",
+    "tracing_v2_shared_ring_buffer_types.h",
   ]
 }
 
