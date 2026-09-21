@@ -35,6 +35,24 @@ source_set("logical") {
   ]
 }
 
+source_set("plan") {
+  sources = [
+    "physical_plan.cc",
+    "physical_plan.h",
+  ]
+  public_deps = [ ":logical" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../containers",
+    "../../core/common",
+    "../../core/dataframe",
+    "../../core/exec",
+    "../../sqlite",
+    "../exec",
+  ]
+}
+
 source_set("test_catalog") {
   testonly = true
   sources = [ "test_catalog.h" ]
@@ -61,5 +79,24 @@ source_set("test_utils") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../core/common",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "physical_plan_unittest.cc" ]
+  deps = [
+    ":logical",
+    ":plan",
+    ":test_catalog",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../base",
+    "../../containers",
+    "../../core/common",
+    "../../core/exec",
+    "../../core/util",
+    "../../sqlite",
+    "../parser",
   ]
 }

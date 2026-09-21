@@ -71,6 +71,9 @@ class TestCatalog : public Catalog, public perfetto_sql::analysis::Catalog {
     dataframes_[name] = std::make_unique<dataframe::Dataframe>(std::move(*df));
   }
 
+  // Drops a table, as if replaced.
+  void RemoveTable(const std::string& name) { dataframes_.Erase(name); }
+
   const dataframe::Dataframe* FindDataframe(
       std::string_view name) const override {
     auto* dataframe = dataframes_.Find(std::string(name));
