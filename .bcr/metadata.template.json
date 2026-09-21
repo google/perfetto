@@ -1,0 +1,15 @@
+{
+  "homepage": "https://perfetto.dev",
+  "maintainers": [
+    {
+      "name": "Lalit Maganti",
+      "github": "LalitMaganti",
+      "github_user_id": 679100
+    }
+  ],
+  "repository": [
+    "github:google/perfetto"
+  ],
+  "versions": [],
+  "yanked_versions": {}
+}
