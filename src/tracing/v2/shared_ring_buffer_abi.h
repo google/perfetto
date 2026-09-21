@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/tracing_v2_shared_ring_buffer_types.h"
 #include "perfetto/protozero/proto_utils.h"
 
 namespace perfetto::tracing_v2 {
@@ -364,26 +365,6 @@ constexpr uint32_t kMaxFragmentsPerChunk = (1u << kNumFragmentsBits) - 1;
 // Free uses the WriterID field for the wrap count. Its other data bits must be
 // zero.
 constexpr uint32_t kWrapCountShift = kWriterIDShift;
-
-enum PayloadFlags : uint32_t {
-  // The writer lost data before or while filling this chunk.
-  // - The flag does not identify where data was lost within the chunk.
-  // - The reader discards all published fragments and reports loss.
-  //   This includes complete, good packets before or after the gap.
-  // - A writer may keep appending. The flag stays set for that reservation.
-  //   Fragments appended to this chunk are also discarded once published.
-  // This allows cached reuse after loss without forcing a new reservation.
-  kFlagDataLoss = 1u << kPayloadFlagsShift,
-
-  // The last fragment is not the end of its packet. The packet continues in
-  // this writer's next chunk. Only Complete may carry this flag, and the
-  // writer must not reuse a chunk carrying it.
-  kFlagContinuesOnNextChunk = 1u << (kPayloadFlagsShift + 1),
-
-  // The first fragment contains the next part of a packet that started in this
-  // writer's previous chunk.
-  kFlagContinuesFromPrevChunk = 1u << (kPayloadFlagsShift + 2),
-};
 
 // Chunk ownership and wrap identity
 // ---------------------------------

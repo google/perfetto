@@ -23,6 +23,7 @@ source_set("service") {
     "../../../include/perfetto/ext/tracing/core",
   ]
   deps = [
+    ":proto_rewriter",
     "../../../gn:default_deps",
     "../../../include/perfetto/tracing",
     "../../../protos/perfetto/common:zero",
