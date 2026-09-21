@@ -85,7 +85,7 @@ class StressDelegate : public SharedRingBufferReader::Delegate {
   void OnChunkRead(
       const SharedRingBufferReader::ChunkContents& contents) override {
     for (uint32_t i = 0; i < contents.num_fragments; ++i) {
-      const SharedRingBufferReader::Fragment& fragment = contents.fragments[i];
+      const ::perfetto::tracing_v2::Fragment& fragment = contents.fragments[i];
       ASSERT_GE(fragment.size, 8u);
       uint32_t writer = 0;
       uint32_t sequence = 0;

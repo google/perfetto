@@ -27,6 +27,7 @@
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
+#include "src/tracing/service/ring_buffer_ingress.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "src/tracing/service/tracing_service_structs.h"
 
@@ -424,19 +425,20 @@ ProducerEndpointImpl::ProducerEndpointImpl(
     base::TaskRunner* task_runner,
     Producer* producer,
     const std::string& producer_name,
-    const std::string& machine_name,
-    const std::string& sdk_version,
-    bool in_process,
+    const TracingService::ConnectProducerArgs& args,
     bool smb_scraping_enabled)
     : id_(id),
       client_identity_(client_identity),
       service_(service),
       producer_(producer),
+      shmem_size_hint_bytes_(args.shared_memory_size_hint_bytes),
+      shmem_page_size_hint_bytes_(args.shared_memory_page_size_hint_bytes),
       name_(producer_name),
-      machine_name_(machine_name),
-      sdk_version_(sdk_version),
-      in_process_(in_process),
+      machine_name_(args.machine_name),
+      sdk_version_(args.sdk_version),
+      in_process_(args.in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
+      supports_tracing_v2_(args.supports_tracing_v2),
       weak_runner_(task_runner) {}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
@@ -613,8 +615,10 @@ void ProducerEndpointImpl::StopDataSource(DataSourceInstanceID ds_inst_id) {
   // should send the Producer a TearDownTracing if all its data sources have
   // been disabled (see b/77532839 and aosp/655179 PS1).
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  weak_runner_.PostTask(
-      [this, ds_inst_id] { producer_->StopDataSource(ds_inst_id); });
+  weak_runner_.PostTask([this, ds_inst_id] {
+    DrainRingBuffer();
+    producer_->StopDataSource(ds_inst_id);
+  });
 }
 
 SharedMemoryArbiter* ProducerEndpointImpl::MaybeSharedMemoryArbiter() {
@@ -658,6 +662,7 @@ void ProducerEndpointImpl::Flush(
     FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   weak_runner_.PostTask([this, flush_request_id, data_sources, flush_flags] {
+    DrainRingBuffer();
     producer_->Flush(flush_request_id, data_sources.data(), data_sources.size(),
                      flush_flags);
   });
@@ -704,7 +709,6 @@ void ProducerEndpointImpl::ClearIncrementalState(
     const std::vector<DataSourceInstanceID>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   weak_runner_.PostTask([this, data_sources] {
-    base::StringView producer_name(name_);
     producer_->ClearIncrementalState(data_sources.data(), data_sources.size());
   });
 }
@@ -751,6 +755,59 @@ bool ProducerEndpointImpl::IsAndroidProcessFrozen() {
 
 #endif
   return false;
+}
+
+bool ProducerEndpointImpl::SupportsTracingV2() const {
+  return supports_tracing_v2_;
+}
+
+void ProducerEndpointImpl::OfferRingBuffer(std::unique_ptr<SharedMemory> memory,
+                                           uint32_t chunk_size_bytes,
+                                           std::function<void(bool)> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!SupportsTracingV2() || ring_buffer_ingress_) {
+    callback(false);
+    return;
+  }
+  if (!memory || !memory->start() ||
+      memory->size() > TracingService::kMaxShmSize ||
+      reinterpret_cast<uintptr_t>(memory->start()) %
+              alignof(tracing_v2::RingBufferHeader) !=
+          0 ||
+      !tracing_v2::NumChunksForRingLayout(memory->size(), chunk_size_bytes)) {
+    callback(false);
+    return;
+  }
+  ring_buffer_ingress_ = std::make_unique<tracing_v2::RingBufferIngress>(
+      std::move(memory), chunk_size_bytes, id_, client_identity_, this,
+      weak_runner_.task_runner());
+  service_->UpdateMemoryGuardrail();
+  DrainRingBuffer();
+  callback(true);
+}
+
+void ProducerEndpointImpl::DrainRingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (ring_buffer_ingress_)
+    ring_buffer_ingress_->Drain();
+}
+
+TraceBufferV2* ProducerEndpointImpl::GetRingBufferDestination(BufferID id) {
+  if (!is_allowed_target_buffer(id))
+    return nullptr;
+  return service_->GetRingBufferDestination(id);
+}
+
+void ProducerEndpointImpl::ForEachRingBufferDestination(
+    const std::function<void(TraceBufferV2&)>& callback) {
+  for (BufferID id : allowed_target_buffers_) {
+    if (auto* buffer = service_->GetRingBufferDestination(id))
+      callback(*buffer);
+  }
+}
+
+void ProducerEndpointImpl::OnRingBufferChunkDiscarded() {
+  service_->OnRingBufferChunkDiscarded();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4836,7 +4836,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 145
+// Next id: 147
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5094,6 +5094,15 @@ message DataSourceConfig {
   // Data source name: android.process_state
   optional AndroidProcessStateConfig android_process_state_config = 145
       [lazy = true];
+
+  // The service sets this field during data source setup, as it sets
+  // target_buffer, tracing_session_id, session_initiator, and
+  // enable_extra_guardrails. Consumers must not set this field.
+  //
+  // True means the target buffer accepts tracing v2 RingBuffer data.
+  // An absent field means the target buffer is not eligible.
+  // This field does not select the producer transport.
+  optional bool tracing_v2_eligible = 146;
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

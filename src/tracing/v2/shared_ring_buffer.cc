@@ -36,28 +36,17 @@ static_assert(kMaxFragmentSizeVarIntBytes ==
               "Ring buffer fragment sizes must use the same varint byte limit "
               "as Protozero message lengths");
 
-uint32_t NumChunksForRingLayout(const uint8_t* start,
-                                size_t size,
-                                uint32_t chunk_size) {
+// The constructor requires a valid mapping and layout from its caller.
+// Callers must validate an untrusted layout before construction.
+uint32_t CheckedNumChunksForRingBufferLayout(const uint8_t* start,
+                                             size_t size,
+                                             uint32_t chunk_size) {
   PERFETTO_CHECK(start);
   PERFETTO_CHECK(
       reinterpret_cast<uintptr_t>(start) % alignof(RingBufferHeader) == 0);
-  PERFETTO_CHECK(chunk_size >= kMinChunkSize);
-  PERFETTO_CHECK(chunk_size % kChunkAlignmentBytes == 0);
-  // Subtract the header after this check to avoid overflow on 32-bit builds.
-  PERFETTO_CHECK(size >= sizeof(RingBufferHeader));
-  const size_t chunks_size = size - sizeof(RingBufferHeader);
-  PERFETTO_CHECK(chunks_size % chunk_size == 0);
-  const size_t num_chunks = chunks_size / chunk_size;
-
-  // We require two chunks as the minimum useful configuration.
-  // One chunk would still work with the ABI:
-  // - write_pos - read_pos is 0 when empty and 1 when full.
-  // - The Free wrap count distinguishes successive uses of the chunk.
-  PERFETTO_CHECK(num_chunks >= kMinChunksPerRing);
-  PERFETTO_CHECK(num_chunks <= kMaxChunksPerRing);
-  PERFETTO_CHECK(base::IsPowerOfTwo(num_chunks));
-  return static_cast<uint32_t>(num_chunks);
+  auto num_chunks = NumChunksForRingLayout(size, chunk_size);
+  PERFETTO_CHECK(num_chunks);
+  return *num_chunks;
 }
 
 // The ring stores read_pos in the low 32 bits of rw_positions. Pass its address
@@ -95,7 +84,7 @@ SharedRingBuffer::SharedRingBuffer(uint8_t* start,
                                    size_t size,
                                    uint32_t chunk_size)
     : start_(start),
-      num_chunks_(NumChunksForRingLayout(start, size, chunk_size)),
+      num_chunks_(CheckedNumChunksForRingBufferLayout(start, size, chunk_size)),
       chunk_size_(chunk_size) {}
 
 // --- Writer-side reservation. ---

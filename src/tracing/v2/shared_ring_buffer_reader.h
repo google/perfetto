@@ -75,13 +75,6 @@ class SharedRingBufferReader {
     kProtocolError,
   };
 
-  // A view into reader-owned scratch. Valid only for the duration of the
-  // Delegate call.
-  struct Fragment {
-    const uint8_t* data = nullptr;
-    uint32_t size = 0;
-  };
-
   struct ChunkContents {
     WriterID writer_id = 0;
     BufferID target_buffer = 0;

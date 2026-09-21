@@ -244,7 +244,7 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
     shm_size = TracingServiceImpl::kDefaultShmSize;
 
   page_size = std::min<size_t>(page_size, kMaxPageSize);
-  shm_size = std::min<size_t>(shm_size, TracingServiceImpl::kMaxShmSize);
+  shm_size = std::min<size_t>(shm_size, TracingService::kMaxShmSize);
 
   // The tracing page size has to be multiple of 4K. On some systems (e.g. Mac
   // on Arm64) the system page size can be larger (e.g., 16K). That doesn't
@@ -383,13 +383,7 @@ std::unique_ptr<TracingService::ProducerEndpoint>
 TracingServiceImpl::ConnectProducer(Producer* producer,
                                     const ClientIdentity& client_identity,
                                     const std::string& producer_name,
-                                    size_t shared_memory_size_hint_bytes,
-                                    bool in_process,
-                                    ProducerSMBScrapingMode smb_scraping_mode,
-                                    size_t shared_memory_page_size_hint_bytes,
-                                    std::unique_ptr<SharedMemory> shm,
-                                    const std::string& sdk_version,
-                                    const std::string& machine_name) {
+                                    ConnectProducerArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   auto uid = client_identity.uid();
@@ -407,7 +401,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   PERFETTO_DLOG("Producer %" PRIu16 " connected, uid=%d", id,
                 static_cast<int>(uid));
   bool smb_scraping_enabled = smb_scraping_enabled_;
-  switch (smb_scraping_mode) {
+  switch (args.smb_scraping_mode) {
     case ProducerSMBScrapingMode::kDefault:
       break;
     case ProducerSMBScrapingMode::kEnabled:
@@ -418,10 +412,9 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
       break;
   }
 
-  std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
+  auto endpoint = std::make_unique<ProducerEndpointImpl>(
       id, client_identity, this, weak_runner_.task_runner(), producer,
-      producer_name, machine_name, sdk_version, in_process,
-      smb_scraping_enabled));
+      producer_name, args, smb_scraping_enabled);
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
 
@@ -432,33 +425,30 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   // must not redirect the host service's own packets, so only an in-process
   // producer is adopted here. A default machine id is fine to store; the stamp
   // decision is made at emit time.
-  if (in_process)
+  if (args.in_process)
     local_machine_id_ = client_identity.machine_id();
-
-  endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
-  endpoint->shmem_page_size_hint_bytes_ = shared_memory_page_size_hint_bytes;
 
   // Producer::OnConnect() should run before Producer::OnTracingSetup(). The
   // latter may be posted by SetupSharedMemory() below, so post OnConnect() now.
   endpoint->weak_runner_.PostTask(
       [endpoint = endpoint.get()] { endpoint->producer_->OnConnect(); });
 
-  if (shm) {
+  if (args.shm) {
     // The producer supplied an SMB. This is used only by Chrome; in the most
     // common cases the SMB is created by the service and passed via
     // OnTracingSetup(). Verify that it is correctly sized before we attempt to
     // use it. The transport layer has to verify the integrity of the SMB (e.g.
     // ensure that the producer can't resize if after the fact).
     size_t shm_size, page_size;
-    std::tie(shm_size, page_size) =
-        EnsureValidShmSizes(shm->size(), endpoint->shmem_page_size_hint_bytes_);
-    if (shm_size == shm->size() &&
+    std::tie(shm_size, page_size) = EnsureValidShmSizes(
+        args.shm->size(), endpoint->shmem_page_size_hint_bytes_);
+    if (shm_size == args.shm->size() &&
         page_size == endpoint->shmem_page_size_hint_bytes_) {
       PERFETTO_DLOG(
           "Adopting producer-provided SMB of %zu kB for producer \"%s\"",
           shm_size / 1024, endpoint->name_.c_str());
-      auto shmem_mode = GetShmemMode(client_identity, in_process);
-      endpoint->SetupSharedMemory(std::move(shm), page_size,
+      auto shmem_mode = GetShmemMode(client_identity, args.in_process);
+      endpoint->SetupSharedMemory(std::move(args.shm), page_size,
                                   /*provided_by_producer=*/true, shmem_mode);
     } else {
       PERFETTO_LOG(
@@ -466,9 +456,9 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
           "\"%s\", falling back to service-provided SMB. Requested sizes: %zu "
           "B total, %zu B page size; suggested corrected sizes: %zu B total, "
           "%zu B page size",
-          endpoint->name_.c_str(), shm->size(),
+          endpoint->name_.c_str(), args.shm->size(),
           endpoint->shmem_page_size_hint_bytes_, shm_size, page_size);
-      shm.reset();
+      args.shm.reset();
     }
   }
 
@@ -481,7 +471,8 @@ void TracingServiceImpl::DisconnectProducer(ProducerID id) {
   PERFETTO_DCHECK(producers_.count(id));
 
   if (auto* producer = GetProducer(id)) {
-    // Scrape remaining chunks for this producer to ensure we don't lose data.
+    // Collect SMB chunks and published RingBuffer data before disconnection.
+    producer->DrainRingBuffer();
     for (auto& session_id_and_session : tracing_sessions_) {
       ScrapeSharedMemoryBuffers(&session_id_and_session.second, producer);
     }
@@ -811,6 +802,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
+    if (ds_config.has_tracing_v2_eligible())
+      return PERFETTO_SVC_ERR(
+          "tracing_v2_eligible is reserved for service setup");
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
     size_t target_buffer = ds_config.target_buffer();
@@ -1229,9 +1223,25 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
             : TraceBuffer::kOverwrite;
     std::unique_ptr<TraceBuffer> new_buffer;
     switch (buffer_cfg.experimental_mode()) {
-      case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
-        new_buffer = TraceBufferV2::Create(buf_size, policy);
+      case TraceConfig::BufferConfig::TRACE_BUFFER_V2: {
+        auto buffer = TraceBufferV2::Create(buf_size, policy);
+        bool has_protovm = false;
+        for (const auto& source : cfg.data_sources()) {
+          const auto& config = source.config();
+          if (config.has_protovm_config() &&
+              ((!config.target_buffer_name().empty() &&
+                config.target_buffer_name() == buffer_cfg.name()) ||
+               (config.target_buffer_name().empty() &&
+                config.target_buffer() == i))) {
+            has_protovm = true;
+            break;
+          }
+        }
+        if (buffer && !has_protovm)
+          ring_buffer_eligible_buffers_.insert(global_id);
+        new_buffer = std::move(buffer);
         break;
+      }
       case TraceConfig::BufferConfig::MODE_UNSPECIFIED:
         new_buffer = TraceBufferV1::Create(buf_size, policy);
         break;
@@ -1253,6 +1263,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (!did_allocate_all_buffers) {
     for (BufferID global_id : tracing_session->buffers_index) {
       buffer_ids_.Free(global_id);
+      ring_buffer_eligible_buffers_.erase(global_id);
       buffers_.erase(global_id);
     }
     MaybeLogUploadEvent(tracing_session->config, uuid,
@@ -2090,9 +2101,11 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
   }
   SetSessionState(tracing_session, TracingSession::DISABLED);
 
-  // Scrape any remaining chunks that weren't flushed by the producers.
-  for (auto& producer_id_and_producer : producers_)
+  // Collect SMB chunks and published RingBuffer data before tracing stops.
+  for (auto& producer_id_and_producer : producers_) {
+    producer_id_and_producer.second->DrainRingBuffer();
     ScrapeSharedMemoryBuffers(tracing_session, producer_id_and_producer.second);
+  }
 
   SnapshotLifecycleEvent(
       tracing_session,
@@ -2305,10 +2318,9 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
     callback(false);
     return;
   }
-  // Producers may not have been able to flush all their data, even if they
-  // indicated flush completion. If possible, also collect uncommitted chunks
-  // to make sure we have everything they wrote so far.
+  // Collect SMB chunks and published RingBuffer data before flush completion.
   for (auto& producer_id_and_producer : producers_) {
+    producer_id_and_producer.second->DrainRingBuffer();
     ScrapeSharedMemoryBuffers(tracing_session, producer_id_and_producer.second);
   }
   SnapshotLifecycleEvent(
@@ -3094,6 +3106,7 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
   for (BufferID buffer_id : tracing_session->buffers_index) {
     buffer_ids_.Free(buffer_id);
     PERFETTO_DCHECK(buffers_.count(buffer_id) == 1);
+    ring_buffer_eligible_buffers_.erase(buffer_id);
     buffers_.erase(buffer_id);
   }
   bool notify_traceur =
@@ -3521,6 +3534,9 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
   PERFETTO_DCHECK(global_id);
   ds_config.set_target_buffer(global_id);
+  if (producer->SupportsTracingV2())
+    ds_config.set_tracing_v2_eligible(
+        ring_buffer_eligible_buffers_.count(global_id) != 0);
 
   MaybeSetUpProtoVm(ds_config, data_source, global_id);
 
@@ -3766,6 +3782,23 @@ ProducerID TracingServiceImpl::GetNextProducerID() {
   return last_producer_id_;
 }
 
+TraceBufferV2* TracingServiceImpl::GetRingBufferDestination(BufferID id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!ring_buffer_eligible_buffers_.count(id))
+    return nullptr;
+  auto it = buffers_.find(id);
+  if (it == buffers_.end() ||
+      it->second->buf_type() != TraceBuffer::BufType::kV2) {
+    return nullptr;
+  }
+  return static_cast<TraceBufferV2*>(it->second.get());
+}
+
+void TracingServiceImpl::OnRingBufferChunkDiscarded() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  ++chunks_discarded_;
+}
+
 TraceBuffer* TracingServiceImpl::GetBufferByID(BufferID buffer_id) {
   auto buf_iter = buffers_.find(buffer_id);
   if (buf_iter == buffers_.end())
@@ -3805,6 +3838,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   for (const auto& id_to_producer : producers_) {
     if (id_to_producer.second->shared_memory())
       total_buffer_bytes += id_to_producer.second->shared_memory()->size();
+    total_buffer_bytes += id_to_producer.second->ring_buffer_size_bytes();
   }
 
   // Sum up all the trace buffers.

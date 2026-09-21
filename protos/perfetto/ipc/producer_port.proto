@@ -103,6 +103,17 @@ service ProducerPort {
   // The data_source_descriptor.name cannot be changed.
   rpc UpdateDataSource(UpdateDataSourceRequest)
       returns (UpdateDataSourceResponse) {}
+
+  // The producer offers a tracing v2 RingBuffer layout and a sealed memfd out
+  // of band. On its sequence, the service maps the memfd and installs a reader.
+  // The reply reports acceptance. Each peer owns its mapping and descriptor.
+  rpc OfferRingBuffer(OfferRingBufferRequest)
+      returns (OfferRingBufferResponse) {}
+  // The producer requests a drain of published tracing v2 RingBuffer data.
+  // On its sequence, the service starts a drain. The service sends no reply.
+  // This request transfers no descriptor or mapping.
+  rpc DrainRingBuffer(DrainRingBufferRequest)
+      returns (DrainRingBufferResponse) {}
 }
 
 // Arguments for rpc InitializeConnection().
@@ -173,6 +184,12 @@ message InitializeConnectionRequest {
   // SHM region and passes the name (an unguessable token) back to the service.
   // Introduced in v13.
   optional string shm_key_windows = 7;
+
+  // Versions the shared-memory layout in shared_ring_buffer_abi.h.
+  // The producer sends this during connection setup on its endpoint sequence.
+  // Zero or absent means tracing v2 is not supported. Both peers must send
+  // the same nonzero value to enable tracing v2. A mismatch keeps v1 transport.
+  optional uint32 ring_buffer_abi_version = 9;
 }
 
 message InitializeConnectionResponse {
@@ -190,7 +207,34 @@ message InitializeConnectionResponse {
   // connection, and request the client to send chunk data over the socket e.g.
   // for remote connection from a VM guest.
   optional bool use_shmem_emulation = 3;
+  // Versions the shared-memory layout in shared_ring_buffer_abi.h.
+  // The service sends this during connection setup on its service sequence.
+  // Zero or absent means tracing v2 is not supported. Both peers must send
+  // the same nonzero value to enable tracing v2. A mismatch keeps v1 transport.
+  optional uint32 ring_buffer_abi_version = 4;
 }
+
+// The producer offers this tracing v2 layout on its endpoint sequence.
+// The sealed memfd travels out of band. The service owns the received
+// descriptor and validates the mapping before it installs a RingBuffer reader.
+//
+// A rejected offer keeps the connection alive and installs no reader.
+message OfferRingBufferRequest {
+  // Bytes per chunk in the mapping. The service rejects an invalid layout.
+  optional uint32 chunk_size_bytes = 2;
+}
+// The service sends this tracing v2 result on its service sequence.
+// The result transfers no ownership and reports whether it installs a reader.
+message OfferRingBufferResponse {
+  // True means the service accepts the mapping and layout for RingBuffer input.
+  optional bool accepted = 1;
+}
+// The producer sends this tracing v2 request on its endpoint sequence.
+// The service drains published RingBuffer data without an ownership transfer.
+message DrainRingBufferRequest {}
+// The IPC schema requires a response type. The tracing v2 service never sends
+// it.
+message DrainRingBufferResponse {}
 
 // Arguments for rpc RegisterDataSource().
 
