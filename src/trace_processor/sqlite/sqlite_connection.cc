@@ -134,6 +134,12 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
   // queries.
   PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, nullptr,
                                    /*sz=*/1200, /*cnt=*/1000) == SQLITE_OK);
+#ifdef SQLITE_DBCONFIG_FP_DIGITS
+  // SQLite 3.52 went from 15 to 17 significant digits when turning a double
+  // into text. Keep the 15 older versions produce.
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_FP_DIGITS, 15,
+                                   nullptr) == SQLITE_OK);
+#endif
   InitializeSqlite(db);
   db_.reset(db);
 }

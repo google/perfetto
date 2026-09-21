@@ -64,7 +64,12 @@ WITH
       state = 'D'
   )
 SELECT ts, group_name AS machine_id, value AS uninterruptible_sleep_thread_count
-FROM intervals_overlap_count_by_group!(uninterruptible_sleep, ts, dur, machine_id)
+FROM intervals_overlap_count_by_group!(
+  uninterruptible_sleep,
+  ts,
+  dur,
+  machine_id
+)
 ORDER BY
   machine_id,
   ts;

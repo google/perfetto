@@ -38,6 +38,7 @@
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
+#include "test/test_helper.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
@@ -105,6 +106,8 @@ std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
 class TraceconvShellBundleTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    base::UnsetEnv("DEBUGINFOD_URLS");
+    base::UnsetEnv("LLVM_SYMBOLIZER_OPTS");
     input_trace_ = base::GetTestDataPath(
         "test/data/heapprofd_standalone_client_example-trace");
     output_path_ = output_file_.path();
@@ -129,6 +132,7 @@ class TraceconvShellBundleTest : public ::testing::Test {
     return names;
   }
 
+  TestEnvCleaner env_{"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"};
   base::TempDir temp_dir_ = base::TempDir::Create();
   base::TempFile output_file_ = base::TempFile::Create();
   std::string input_trace_;
@@ -701,9 +705,64 @@ TEST_F(TraceconvShellBundleTest, RedirectedProgressIsPlainAndWarningsRemain) {
     ASSERT_EQ(invoker.Run(), 0);
     auto output = capture.Get();
     EXPECT_THAT(output, Not(HasSubstr("\r")));
-    EXPECT_THAT(output, HasSubstr("Read trace:"));
+    EXPECT_THAT(output, HasSubstr("Symbolization:"));
     EXPECT_THAT(output, HasSubstr("symbolize_ksyms"));
   }
+}
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST_F(TraceconvShellBundleTest, QuietBundleSuppressesRoutineOutput) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg :
+       {"trace_processor_shell", "bundle", "--quiet", "--verbose",
+        "--no-auto-symbol-paths", "--no-auto-proguard-maps"})
+    invoker.Add(arg);
+  invoker.Add(trace.path());
+  invoker.Add(output_path_);
+  testing::internal::CaptureStdout();
+  ScopedStderrCapture capture;
+  int status = invoker.Run();
+  auto stdout_text = testing::internal::GetCapturedStdout();
+  auto stderr_text = WithoutDebugLogs(capture.Get());
+  EXPECT_EQ(status, 0);
+  EXPECT_TRUE(stdout_text.empty()) << stdout_text;
+  EXPECT_TRUE(stderr_text.empty()) << stderr_text;
+  EXPECT_TRUE(base::FileExists(output_path_));
+}
+
+TEST_F(TraceconvShellBundleTest, QuietBundleKeepsResourceErrors) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg : {"trace_processor_shell", "bundle", "--quiet",
+                          "--no-auto-symbol-paths", "--proguard-map"})
+    invoker.Add(arg);
+  invoker.Add(temp_dir_.path() + "/missing.map");
+  invoker.Add(trace.path());
+  invoker.Add(output_path_);
+  ScopedStderrCapture capture;
+  EXPECT_NE(invoker.Run(), 0);
+  auto output = capture.Get();
+  EXPECT_THAT(output, HasSubstr("missing.map"));
+  EXPECT_THAT(output, Not(HasSubstr("Symbolization:")));
+}
+
+TEST_F(TraceconvShellBundleTest, QuietQueryKeepsResults) {
+  base::TempFile trace = WriteTempFile(BuildFuncgraphTrace(true));
+  ArgvInvoker invoker;
+  for (const char* arg : {"trace_processor_shell", "query", "--quiet"})
+    invoker.Add(arg);
+  invoker.Add(trace.path());
+  invoker.Add("select 42 as answer");
+  testing::internal::CaptureStdout();
+  ScopedStderrCapture capture;
+  int status = invoker.Run();
+  auto stdout_text = testing::internal::GetCapturedStdout();
+  auto stderr_text = WithoutDebugLogs(capture.Get());
+  EXPECT_EQ(status, 0);
+  EXPECT_THAT(stdout_text, HasSubstr("42"));
+  EXPECT_TRUE(stderr_text.empty()) << stderr_text;
 }
 #endif
 

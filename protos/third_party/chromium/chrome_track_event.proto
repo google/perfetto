@@ -344,6 +344,21 @@ message ChromeExtensionId {
   optional uint32 pseudonymized_extension_id = 2;
 }
 
+// Describes the JavaScript world an extension script is injected into.
+message ChromeExtensionScriptInjection {
+  enum ExecutionWorld {
+    EXECUTION_WORLD_UNSPECIFIED = 0;
+    EXECUTION_WORLD_ISOLATED = 1;
+    EXECUTION_WORLD_MAIN = 2;
+    EXECUTION_WORLD_USER_SCRIPT = 3;
+  }
+  optional ExecutionWorld execution_world = 1;
+
+  // The extension-chosen `worldId` of a USER_SCRIPT world (see
+  // chrome.userScripts). Unset for the default user script world.
+  optional string user_script_world_id = 2;
+}
+
 message SiteInstance {
   // The ID of the SiteInstance.
   optional int32 site_instance_id = 1;
@@ -593,7 +608,7 @@ message RenderFrameHost {
   optional GlobalRenderFrameHostId render_frame_host_id = 2;
 
   // NOTE: this proto must be kept consistent with
-  // RenderFrameHostImpl::LifecycleStateImpl.
+  // content::RenderFrameHostLifecycleStateImpl.
   enum LifecycleState {
     UNSPECIFIED = 0;
     SPECULATIVE = 1;
@@ -735,6 +750,8 @@ message BackForwardCacheCanStoreDocumentResult {
     RFH_ENFORCE_INSECURE_NAVIGATIONS_SET = 73;
     RFH_HAD_STICKY_USER_ACTIVATION_BEFORE_NAVIGATION_CHANGED = 74;
     RFH_UPDATE_AD_FRAME_STATUS = 75;
+    RFH_DID_CHANGE_NAME = 76;
+    RFH_DID_CHANGE_OPENER = 77;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -1387,6 +1404,9 @@ message SequenceManagerTask {
     NETWORK_SERVICE_THREAD_LOW_TQ = 65;
     NETWORK_SERVICE_THREAD_MEDIUM_TQ = 66;
     NETWORK_SERVICE_THREAD_HIGHEST_TQ = 67;
+
+    UI_MAIN_FRAME_NAVIGATION_NETWORK_RESPONSE_TQ = 68;
+    IO_MAIN_FRAME_NAVIGATION_NETWORK_RESPONSE_TQ = 69;
   }
 
   optional Priority priority = 1;
@@ -2396,6 +2416,10 @@ message WebViewStartup {
     PROFILE_GET_HTTP_CACHE_MANAGER = 142;
     PROFILE_SET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST = 143;
     PROFILE_GET_CROSS_ORIGIN_ISOLATED_ALLOW_LIST = 144;
+    WEBVIEW_INSTANCE_ADD_DOCUMENT_START_JAVASCRIPT = 145;
+    WEBVIEW_INSTANCE_ADD_JAVASCRIPT_ON_EVENT = 146;
+    WEBVIEW_INSTANCE_GET_JAVASCRIPT_WORLD = 147;
+    WEBVIEW_INSTANCE_GET_PROFILE = 148;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }
@@ -3148,7 +3172,7 @@ message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1086
+  // Next ID: 1087
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -3333,5 +3357,8 @@ message ChromeTrackEvent {
         [deprecated = true];
 
     optional FrameDeadlineDecider frame_deadline_decider = 1085;
+
+    optional ChromeExtensionScriptInjection chrome_extension_script_injection =
+        1086;
   }
 }

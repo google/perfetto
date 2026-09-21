@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/importers/proto/deobfuscation_tracker.h"
 
-#include <cstddef>
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <set>
@@ -24,7 +24,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
@@ -47,9 +46,6 @@ using ::perfetto::protos::pbzero::ObfuscatedClass;
 using ::perfetto::protos::pbzero::ObfuscatedMember;
 using ::protozero::ConstBytes;
 
-using JavaFrameMap = base::
-    FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>;
-
 // Returns true if `line` falls within the optional range [start, end].
 // Missing bounds are treated as unbounded (always match).
 bool LineInRange(uint32_t line,
@@ -64,20 +60,26 @@ bool LineInRange(uint32_t line,
   return true;
 }
 
-std::vector<FrameId> JavaFramesForName(const JavaFrameMap& java_frames_for_name,
-                                       NameInPackage name) {
-  if (const auto* frames = java_frames_for_name.Find(name); frames) {
-    return {frames->begin(), frames->end()};
-  }
-  return {};
-}
-
 }  // namespace
 
 DeobfuscationTracker::DeobfuscationTracker(TraceProcessorContext* context)
     : context_(context) {}
 
 DeobfuscationTracker::~DeobfuscationTracker() = default;
+
+void DeobfuscationTracker::AddJavaFrame(JavaFrameMap& java_frames_for_name,
+                                        StringId name,
+                                        StringId package,
+                                        FrameId frame_id) {
+  std::vector<FramesInPackage>& by_package = java_frames_for_name[name];
+  auto it = std::find_if(
+      by_package.begin(), by_package.end(),
+      [package](const FramesInPackage& p) { return p.package == package; });
+  if (it == by_package.end()) {
+    it = by_package.insert(it, FramesInPackage{package, {}});
+  }
+  it->frames.push_back(frame_id);
+}
 
 void DeobfuscationTracker::BuildJavaFrameMaps(
     JavaFrameMap& java_frames_for_name,
@@ -110,13 +112,11 @@ void DeobfuscationTracker::BuildJavaFrameMaps(
       // Found package from mapping path
       StringId package_id =
           context_->storage->InternString(base::StringView(*package));
-      NameInPackage nip{name_id, package_id};
-      java_frames_for_name[nip].insert(frame_id);
+      AddJavaFrame(java_frames_for_name, name_id, package_id, frame_id);
     } else if (mapping_name.find("/memfd:") == 0) {
       // Special case: memfd mappings
       StringId memfd_id = context_->storage->InternString("memfd");
-      NameInPackage nip{name_id, memfd_id};
-      java_frames_for_name[nip].insert(frame_id);
+      AddJavaFrame(java_frames_for_name, name_id, memfd_id, frame_id);
     } else {
       // Package unknown - will need guessing from process info
       frames_needing_package_guess.insert(frame_id);
@@ -154,13 +154,17 @@ void DeobfuscationTracker::OnEventsFullyExtracted() {
 void DeobfuscationTracker::DeobfuscateProfiles(
     const JavaFrameMap& java_frames_for_name,
     const DeobfuscationMapping::Decoder& deobfuscation_mapping) {
-  if (deobfuscation_mapping.package_name().size == 0)
-    return;
-
-  auto opt_package_name_id = context_->storage->string_pool().GetId(
-      deobfuscation_mapping.package_name());
-  auto opt_memfd_id = context_->storage->string_pool().GetId("memfd");
-  if (!opt_package_name_id && !opt_memfd_id)
+  // A mapping without a package name (e.g. an auto-discovered Gradle
+  // mapping.txt) applies to Java frames in every package.
+  bool any_package = deobfuscation_mapping.package_name().size == 0;
+  std::optional<StringId> package_name_id;
+  if (!any_package) {
+    package_name_id = context_->storage->string_pool().GetId(
+        deobfuscation_mapping.package_name());
+  }
+  std::optional<StringId> memfd_id =
+      context_->storage->string_pool().GetId("memfd");
+  if (!any_package && !package_name_id && !memfd_id)
     return;
 
   // Collect all method mappings with line info for inline support.
@@ -225,23 +229,21 @@ void DeobfuscationTracker::DeobfuscateProfiles(
     StringId merged_obfuscated_id = it.key();
     const auto& mappings = it.value();
 
-    // Look up frames with this obfuscated name.
-    std::vector<tables::StackProfileFrameTable::Id> frames;
-    if (opt_package_name_id) {
-      for (FrameId fid :
-           JavaFramesForName(java_frames_for_name,
-                             {merged_obfuscated_id, *opt_package_name_id})) {
-        frames.push_back(fid);
-      }
+    // Look up frames with this obfuscated name in a package this mapping
+    // applies to.
+    std::vector<FrameId> frames;
+    const auto* by_package = java_frames_for_name.Find(merged_obfuscated_id);
+    if (!by_package) {
+      continue;
     }
-    if (opt_memfd_id) {
-      for (FrameId fid : JavaFramesForName(
-               java_frames_for_name, {merged_obfuscated_id, *opt_memfd_id})) {
-        frames.push_back(fid);
+    for (const FramesInPackage& p : *by_package) {
+      if (any_package || p.package == package_name_id ||
+          p.package == memfd_id) {
+        frames.insert(frames.end(), p.frames.begin(), p.frames.end());
       }
     }
 
-    for (tables::StackProfileFrameTable::Id frame_id : frames) {
+    for (FrameId frame_id : frames) {
       auto frame = (*frames_tbl)[frame_id];
 
       // Try to get line number from existing symbol entry. Note that the
@@ -325,8 +327,11 @@ void DeobfuscationTracker::DeobfuscateHeapGraph(
 
   auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
 
+  // A mapping without a package name (e.g. an auto-discovered Gradle
+  // mapping.txt) applies to classes in every package.
+  bool any_package = deobfuscation_mapping.package_name().size == 0;
   std::optional<StringId> package_name_id;
-  if (deobfuscation_mapping.package_name().size > 0) {
+  if (!any_package) {
     package_name_id = context_->storage->string_pool().GetId(
         deobfuscation_mapping.package_name());
   }
@@ -338,19 +343,22 @@ void DeobfuscationTracker::DeobfuscateHeapGraph(
     ObfuscatedClass::Decoder cls(*class_it);
     auto obfuscated_class_name_id =
         context_->storage->string_pool().GetId(cls.obfuscated_name());
-    if (!obfuscated_class_name_id) {
-      PERFETTO_DLOG("Class string %s not found",
-                    cls.obfuscated_name().ToStdString().c_str());
-    } else {
-      // Deobfuscate heap graph classes
-      // TODO(b/153552977): Remove this work-around for legacy traces.
-      // For traces without location information, deobfuscate all matching
-      // classes.
-      DeobfuscateHeapGraphClass(std::nullopt, *obfuscated_class_name_id, cls);
-      if (package_name_id) {
-        DeobfuscateHeapGraphClass(package_name_id, *obfuscated_class_name_id,
-                                  cls);
+    const std::vector<HeapGraphTracker::ClassRows>* by_package =
+        obfuscated_class_name_id
+            ? heap_graph_tracker->RowsForType(*obfuscated_class_name_id)
+            : nullptr;
+    if (by_package) {
+      for (const HeapGraphTracker::ClassRows& c : *by_package) {
+        // Classes without location information have no package. Deobfuscate
+        // them regardless of the mapping's package as a work-around for
+        // legacy traces. TODO(b/153552977): remove once no longer needed.
+        if (any_package || !c.package || c.package == package_name_id) {
+          DeobfuscateHeapGraphClass(c.rows, cls);
+        }
       }
+    } else {
+      PERFETTO_DLOG("Class %s not found",
+                    cls.obfuscated_name().ToStdString().c_str());
     }
 
     for (auto member_it = cls.obfuscated_members(); member_it; ++member_it) {
@@ -386,32 +394,18 @@ void DeobfuscationTracker::DeobfuscateHeapGraph(
 }
 
 void DeobfuscationTracker::DeobfuscateHeapGraphClass(
-    std::optional<StringId> package_name_id,
-    StringId obfuscated_class_name_id,
+    const std::vector<tables::HeapGraphClassTable::RowNumber>& rows,
     const ObfuscatedClass::Decoder& cls) {
-  using ClassTable = tables::HeapGraphClassTable;
-
-  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
-  const std::vector<ClassTable::RowNumber>* cls_objects =
-      heap_graph_tracker->RowsForType(package_name_id,
-                                      obfuscated_class_name_id);
-  if (cls_objects) {
-    auto* class_table = context_->storage->mutable_heap_graph_class_table();
-    for (ClassTable::RowNumber class_row_num : *cls_objects) {
-      auto class_ref = class_row_num.ToRowReference(class_table);
-      const StringId obfuscated_type_name_id = class_ref.name();
-      const base::StringView obfuscated_type_name =
-          context_->storage->GetString(obfuscated_type_name_id);
-      NormalizedType normalized_type = GetNormalizedType(obfuscated_type_name);
-      std::string deobfuscated_type_name =
-          DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
-      StringId deobfuscated_type_name_id = context_->storage->InternString(
-          base::StringView(deobfuscated_type_name));
-      class_ref.set_deobfuscated_name(deobfuscated_type_name_id);
-    }
-  } else {
-    PERFETTO_DLOG("Class %s not found",
-                  cls.obfuscated_name().ToStdString().c_str());
+  auto* class_table = context_->storage->mutable_heap_graph_class_table();
+  for (tables::HeapGraphClassTable::RowNumber row : rows) {
+    auto class_ref = row.ToRowReference(class_table);
+    const base::StringView obfuscated_type_name =
+        context_->storage->GetString(class_ref.name());
+    NormalizedType normalized_type = GetNormalizedType(obfuscated_type_name);
+    std::string deobfuscated_type_name =
+        DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
+    class_ref.set_deobfuscated_name(context_->storage->InternString(
+        base::StringView(deobfuscated_type_name)));
   }
 }
 
@@ -454,8 +448,7 @@ void DeobfuscationTracker::GuessPackageForCallsite(
     if (frames_needing_package_guess.count(frame_id) != 0) {
       // Add frame to map with guessed package
       auto frame = context_->storage->stack_profile_frame_table()[frame_id];
-      NameInPackage nip{frame.name(), *package};
-      java_frames_for_name[nip].insert(frame_id);
+      AddJavaFrame(java_frames_for_name, frame.name(), *package, frame_id);
 
       // Remove from set (package now known)
       frames_needing_package_guess.erase(frame_id);

@@ -76,25 +76,23 @@ base::Status TraceToBundle(const std::string& input_file_path,
   auto tp = trace_processor::TraceProcessor::CreateInstance({});
   auto& progress = base::ProgressReporter::GetInstance();
 
-  double loaded_mb = 0;
   auto status = trace_processor::ReadTrace(
-      tp.get(), input_file_path.c_str(),
-      [&loaded_mb, &progress](uint64_t parsed_size) {
-        loaded_mb = static_cast<double>(parsed_size) / 1E6;
-        base::StackString<128> msg("Reading trace: %.2f MB", loaded_mb);
+      tp.get(), input_file_path.c_str(), [&progress](uint64_t parsed_size) {
+        base::StackString<128> msg("Reading trace: %.2f MB",
+                                   static_cast<double>(parsed_size) / 1E6);
         progress.Update(msg.ToStdStringView());
       });
   progress.Clear();
   if (!status.ok())
     return base::ErrStatus("failed to read trace: %s", status.c_message());
-  fprintf(stderr, "Read trace: %.2f MB.\n", loaded_mb);
 
   // Build enrichment configuration from context.
   trace_processor::util::EnrichmentConfig enrich_config;
+  enrich_config.debuginfod = context.debuginfod;
   enrich_config.symbol_paths = context.symbol_paths;
   enrich_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
   enrich_config.no_auto_proguard_maps = context.no_auto_proguard_maps;
-  enrich_config.verbose = context.verbose;
+  enrich_config.verbose = context.verbose && !context.quiet;
   enrich_config.android_product_out = context.android_product_out;
   enrich_config.home_dir = context.home_dir;
   enrich_config.working_dir = context.working_dir;
@@ -106,16 +104,18 @@ base::Status TraceToBundle(const std::string& input_file_path,
     enrich_config.proguard_maps.push_back({map_spec.package, map_spec.path});
   }
 
-  // Perform trace enrichment (symbolization + deobfuscation).
-  fprintf(stderr, "Symbolizing and deobfuscating...\n");
+  progress.Update("Symbolizing and deobfuscating");
   auto enrich_result =
       trace_processor::util::EnrichTrace(tp.get(), enrich_config);
-  fprintf(stderr, "Enrichment done.\n");
+  progress.Clear();
 
   // Log any issues to stderr (without PERFETTO_LOG noise).
-  if (!enrich_result.details.empty()) {
+  if (!context.quiet && !enrich_result.details.empty()) {
     fprintf(stderr, "%s", enrich_result.details.c_str());
   }
+
+  if (!enrich_result.warnings.empty())
+    fprintf(stderr, "%s", enrich_result.warnings.c_str());
 
   // Explicitly-provided resources that fail to load are the only hard
   // errors: the user asked for them, so silently producing a bundle without
@@ -131,7 +131,7 @@ base::Status TraceToBundle(const std::string& input_file_path,
         "the requested deobfuscation data.");
   }
 
-  fprintf(stderr, "Adding trace to bundle...\n");
+  progress.Update("Writing bundle");
   {
     auto fd = output.DuplicateFD();
     if (!fd)
@@ -141,6 +141,7 @@ base::Status TraceToBundle(const std::string& input_file_path,
     // Always finalize explicitly: the destructor otherwise crashes on an
     // end-of-archive write failure (e.g. disk full).
     auto finalize_status = tar.Finalize();
+    progress.Clear();
     RETURN_IF_ERROR(write_status);
     RETURN_IF_ERROR(finalize_status);
   }

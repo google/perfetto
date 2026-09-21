@@ -19,9 +19,10 @@ LIMIT 1;
 -- Find all ancestors (the callstack)
 CREATE OR REPLACE PERFETTO TABLE _alloc_ancestor_ids AS
 SELECT id
-FROM _tree_reachable_ancestors_or_self!((
-    SELECT id, parent_id FROM android_heap_profile_summary_tree
-  ), (SELECT id FROM _top_alloc_nodes));
+FROM _tree_reachable_ancestors_or_self!(
+  (SELECT id, parent_id FROM android_heap_profile_summary_tree),
+  (SELECT id FROM _top_alloc_nodes)
+);
 
 -- Create labels for the frames
 CREATE OR REPLACE PERFETTO TABLE _frame_labels AS

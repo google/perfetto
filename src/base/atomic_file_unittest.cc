@@ -30,23 +30,26 @@ std::string Contents(const std::string& path) {
 }
 
 TEST(AtomicFileTest, PreservesDestinationUntilCommit) {
-  auto destination = TempFile::Create();
-  ASSERT_EQ(WriteAll(destination.fd(), "old", 3), 3);
+  auto directory = TempDir::Create();
+  std::string destination = directory.path() + "/output";
+  ASSERT_EQ(
+      WriteAll(*OpenFile(destination, O_CREAT | O_WRONLY, 0600), "old", 3), 3);
   std::string temporary;
   {
-    AtomicFile output(destination.path());
+    AtomicFile output(destination);
     ASSERT_TRUE(output.Open().ok());
     temporary = output.temp_path();
     auto fd = output.DuplicateFD();
     ASSERT_TRUE(fd);
     ASSERT_EQ(WriteAll(*fd, "new", 3), 3);
     fd.reset();
-    EXPECT_EQ(Contents(destination.path()), "old");
+    EXPECT_EQ(Contents(destination), "old");
     ASSERT_TRUE(std::move(output).Commit().ok());
-    EXPECT_EQ(Contents(destination.path()), "new");
+    EXPECT_EQ(Contents(destination), "new");
   }
   EXPECT_FALSE(FileExists(temporary));
-  EXPECT_EQ(Contents(destination.path()), "new");
+  EXPECT_EQ(Contents(destination), "new");
+  EXPECT_TRUE(Unlink(destination.c_str()));
 }
 
 TEST(AtomicFileTest, AbandonPreservesDestinationAndDeletesTemporaryFile) {

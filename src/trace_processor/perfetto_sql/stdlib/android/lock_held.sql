@@ -41,9 +41,10 @@ CREATE PERFETTO TABLE _android_lock_held_raw AS
 WITH
   merged AS (
     SELECT ts, dur, lock_name, utid
-    FROM interval_merge_overlapping_partitioned!((
-        SELECT ts, dur, lock_name, utid FROM _android_lock_held_slices
-      ), (lock_name, utid))
+    FROM interval_merge_overlapping_partitioned!(
+      (SELECT ts, dur, lock_name, utid FROM _android_lock_held_slices),
+      (lock_name, utid)
+    )
   ),
   held AS (
     SELECT

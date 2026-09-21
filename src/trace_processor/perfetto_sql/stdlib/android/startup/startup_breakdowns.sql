@@ -100,7 +100,10 @@ WITH
     -- we have concurrent startups on the same utid. Filtering out the |count| > 1
     -- leaves us with non concurrent startups per utid.
     SELECT id_0 AS id, count() AS count
-    FROM _interval_intersect!((possibly_overlapping, possibly_overlapping), (utid))
+    FROM _interval_intersect!(
+      (possibly_overlapping, possibly_overlapping),
+      (utid)
+    )
     GROUP BY
       utid,
       ts
@@ -147,7 +150,11 @@ ORDER BY
 -- Their timestamps and durations are chopped to fit within the respective app startup duration.
 CREATE PERFETTO TABLE _startup_slices_breakdown AS
 SELECT *
-FROM _intervals_merge_root_and_children_by_intersection!(_startup_root_slices, _startup_normalized_slices, utid);
+FROM _intervals_merge_root_and_children_by_intersection!(
+  _startup_root_slices,
+  _startup_normalized_slices,
+  utid
+);
 
 -- Flattened slice version of _startup_slices_breakdown. This selects the leaf slice at every region
 -- of the slice stack.

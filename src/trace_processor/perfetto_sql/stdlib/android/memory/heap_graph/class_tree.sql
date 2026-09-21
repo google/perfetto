@@ -26,7 +26,8 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- more deterministic.
 CREATE PERFETTO TABLE _heap_graph_object_min_depth_tree AS
 SELECT node_id AS id, parent_node_id AS parent_id
-FROM graph_reachable_bfs!((
+FROM graph_reachable_bfs!(
+  (
     SELECT owner_id AS source_node_id, owned_id AS dest_node_id
     FROM heap_graph_reference AS ref
     WHERE
@@ -34,7 +35,8 @@ FROM graph_reachable_bfs!((
       AND ref.owned_id IS NOT NULL
     ORDER BY
       ref.owned_id
-  ), (
+  ),
+  (
     SELECT o.id AS node_id
     FROM heap_graph_object AS o
     JOIN heap_graph_class AS c ON o.type_id = c.id
@@ -43,7 +45,8 @@ FROM graph_reachable_bfs!((
     ORDER BY
       c.name,
       o.id
-  ))
+  )
+)
 ORDER BY
   id;
 

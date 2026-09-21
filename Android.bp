@@ -17650,6 +17650,7 @@ filegroup {
         "src/protozero/proto_decoder_unittest.cc",
         "src/protozero/proto_ring_buffer_unittest.cc",
         "src/protozero/proto_utils_unittest.cc",
+        "src/protozero/scattered_heap_buffer_unittest.cc",
         "src/protozero/scattered_stream_writer_unittest.cc",
         "src/protozero/test/cppgen_conformance_unittest.cc",
         "src/protozero/test/fake_scattered_buffer.cc",
@@ -22172,6 +22173,7 @@ filegroup {
     srcs: [
         "src/trace_processor/util/symbolizer/breakpad_parser.cc",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer.cc",
+        "src/trace_processor/util/symbolizer/debuginfod.cc",
         "src/trace_processor/util/symbolizer/filesystem_posix.cc",
         "src/trace_processor/util/symbolizer/filesystem_windows.cc",
         "src/trace_processor/util/symbolizer/local_symbolizer.cc",
@@ -23629,6 +23631,7 @@ java_defaults {
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/TracingPolicy.java",
     ],
     libs: [
         "error_prone_annotations",
@@ -23654,6 +23657,7 @@ filegroup {
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/TracingPolicy.java",
     ],
     visibility: [
         "//libcore:__subpackages__",

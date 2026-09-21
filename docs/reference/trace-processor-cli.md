@@ -31,6 +31,8 @@ and behave the same across all subcommands:
 
 - **Help and version:** `-h, --help`, `-v, --version`.
 - **Progress:** `--no-progress` disables live progress output.
+- **Quiet:** `--quiet` also suppresses routine status messages and summaries.
+  Command results, warnings, and errors are still printed.
 - **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
   `--analyze-trace-proto-content`, `--crop-track-events`.
 - **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
@@ -55,6 +57,39 @@ Color can be overridden with the [FORCE_COLOR](https://force-color.org/) and
 [NO_COLOR](https://no-color.org/) environment variables. A nonempty
 `FORCE_COLOR` forces color on and takes precedence over a nonempty `NO_COLOR`,
 which forces it off.
+
+`--quiet` disables progress and drops routine status messages, timings, and
+successful summaries. Command results such as SQL rows and converted traces,
+warnings, and errors are unaffected.
+
+## Debuginfod {#debuginfod}
+
+With `--debuginfod`, native symbolization downloads debug files by build ID
+from [debuginfod](https://sourceware.org/elfutils/Debuginfod.html) servers, so
+local binaries are not required. It applies wherever native symbolization
+runs: trace loading, `bundle`, `util symbolize`, and `convert profile`. It
+needs `curl` and `llvm-symbolizer` on `PATH`. Remote sessions use the server's
+configuration, so pass `--debuginfod` when starting the server.
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--debuginfod` | Enable cache lookup and downloads. | Disabled |
+| `--debuginfod-urls URLS` | Whitespace-separated HTTP(S) server roots. | `DEBUGINFOD_URLS` |
+| `--debuginfod-cache-path PATH` | Directory for downloaded files. | `DEBUGINFOD_CACHE_PATH`, else `$XDG_CACHE_HOME/debuginfod_client`, `~/.cache/debuginfod_client`, or `%LOCALAPPDATA%\debuginfod_client` |
+| `--debuginfod-connect-timeout SECONDS` | Connection timeout per request. | `5` |
+| `--debuginfod-stall-timeout SECONDS` | Abort a transfer that stays below one byte per second for this long. | `10` |
+
+Setting URLs alone does not enable downloads; a configured `DEBUGINFOD_URLS`
+without `--debuginfod` produces a warning. Local symbol paths and Breakpad
+files are searched first and only build IDs that are still unresolved are
+fetched, from the cache and then from each server in order. Downloaded files
+are checked against the requested build ID and published to the cache
+atomically. There is no automatic eviction. `DEBUGINFOD_URLS` and
+`LLVM_SYMBOLIZER_OPTS` are removed from the `llvm-symbolizer` environment so
+it cannot download on its own. The summary counts downloads, cache hits,
+build IDs no server had, and failed lookups, and names servers that could not
+be reached; `--verbose` lists every server tried for each mapping with the
+reason it did not help.
 
 ## {#subcommands} Commands
 
@@ -343,6 +378,18 @@ The order above describes how paths are collected, not a guaranteed preference
 between duplicate copies of the same build ID during recursive indexing. Prefer
 directories containing the matching unstripped or debug binaries rather than
 mixing stripped and unstripped copies. Use `--verbose` to inspect lookup details.
+
+#### Symbolization results
+
+The summary reports how many frame records were resolved and how many remain
+unresolved. Unresolved frames are grouped by cause, with the affected mappings
+named under each group: binaries that were not found, binaries found without a
+symbol for the address, kernel frames without vmlinux, mappings without a build
+ID, and anonymous or JIT memory. Each cause gets one hint. A frame counts as
+resolved only when a symbol source returns a usable function name. The first
+source to resolve an address wins; later sources are only asked about addresses
+that are still unresolved. `--verbose` lists every mapping with its build ID,
+the symbol file used, and each path searched with the reason it was rejected.
 
 #### Output replacement and cleanup
 

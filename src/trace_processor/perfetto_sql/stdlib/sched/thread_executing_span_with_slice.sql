@@ -28,7 +28,10 @@ CREATE PERFETTO TABLE _critical_path_all AS
 WITH
   _per_root AS (
     SELECT *
-    FROM _critical_path_by_roots!((SELECT id AS root_node_id FROM _wakeup_graph), _wakeup_graph)
+    FROM _critical_path_by_roots!(
+      (SELECT id AS root_node_id FROM _wakeup_graph),
+      _wakeup_graph
+    )
   )
 SELECT
   row_number() OVER (ORDER BY cr.ts) AS id,
@@ -98,7 +101,10 @@ ORDER BY
 
 CREATE PERFETTO TABLE _critical_path_thread_state_slice_raw AS
 SELECT id_0 AS cr_id, id_1 AS th_id, ts, dur
-FROM _interval_intersect!((_critical_path_all, _span_thread_state_slice), (utid));
+FROM _interval_intersect!(
+  (_critical_path_all, _span_thread_state_slice),
+  (utid)
+);
 
 -- Critical-path × slice cross product, restricted to id-space columns.
 -- Slice names are not stored here; `_critical_path_stack` joins `slice`

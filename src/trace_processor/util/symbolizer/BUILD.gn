@@ -24,6 +24,8 @@ perfetto_component("symbolizer") {
     "breakpad_parser.h",
     "breakpad_symbolizer.cc",
     "breakpad_symbolizer.h",
+    "debuginfod.cc",
+    "debuginfod.h",
     "elf.h",
     "filesystem.h",
     "filesystem_posix.cc",
@@ -48,7 +50,7 @@ if (enable_perfetto_trace_processor) {
       "../:build_id",
       "../../../../gn:default_deps",
       "../../../../include/perfetto/protozero",
-      "../../../../include/perfetto/trace_processor:trace_processor",
+      "../../../../include/perfetto/trace_processor",
       "../../../../protos/perfetto/trace:zero",
       "../../../../protos/perfetto/trace/profiling:zero",
     ]
@@ -80,6 +82,7 @@ if (enable_perfetto_llvm_symbolizer) {
     cflags += [ "-fvisibility=hidden" ]  # Not currently necessary, but good for
                                          # future-proofing.
   }
+
   source_set("llvm_symbolizer_c_api") {
     sources = [ "llvm_symbolizer_c_api.h" ]
     deps = [ "../../../../gn:default_deps" ]
@@ -121,7 +124,7 @@ perfetto_unittest_source_set("unittests") {
     sources += [ "symbolize_database_unittest.cc" ]
     deps += [
       ":symbolize_database",
-      "../../../../include/perfetto/trace_processor:trace_processor",
+      "../../../../include/perfetto/trace_processor",
       "../../../../protos/perfetto/trace:cpp",
       "../../../../protos/perfetto/trace/interned_data:cpp",
       "../../../../protos/perfetto/trace/profiling:cpp",

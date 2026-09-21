@@ -129,13 +129,17 @@ class HeapGraphTracker : public Destructible {
 
   ~HeapGraphTracker() override;
 
-  const std::vector<tables::HeapGraphClassTable::RowNumber>* RowsForType(
-      std::optional<StringId> package_name,
-      StringId type_name) const {
-    auto it = class_to_rows_.find(std::make_pair(package_name, type_name));
-    if (it == class_to_rows_.end())
-      return nullptr;
-    return &it->second;
+  // Class rows for one type name in one package. A missing package means the
+  // class had no location information.
+  struct ClassRows {
+    std::optional<StringId> package;
+    std::vector<tables::HeapGraphClassTable::RowNumber> rows;
+  };
+
+  // Returns the rows for |type_name| grouped by package, or nullptr if no
+  // class has that name.
+  const std::vector<ClassRows>* RowsForType(StringId type_name) const {
+    return class_to_rows_.Find(type_name);
   }
 
   const std::vector<tables::HeapGraphReferenceTable::RowNumber>* RowsForField(
@@ -265,9 +269,7 @@ class HeapGraphTracker : public Destructible {
   tables::HeapGraphReferenceTable::Cursor referred_cursor_;
   tables::HeapGraphTable::Cursor heap_graph_cursor_;
 
-  std::map<std::pair<std::optional<StringId>, StringId>,
-           std::vector<tables::HeapGraphClassTable::RowNumber>>
-      class_to_rows_;
+  base::FlatHashMap<StringId, std::vector<ClassRows>> class_to_rows_;
   base::FlatHashMap<StringId,
                     std::vector<tables::HeapGraphReferenceTable::RowNumber>>
       field_to_rows_;

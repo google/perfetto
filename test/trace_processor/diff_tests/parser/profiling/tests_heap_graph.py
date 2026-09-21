@@ -386,6 +386,24 @@ class ProfilingHeapGraph(TestSuite):
           5,2,10,256,"[NULL]",0,"java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>","[NULL]"
         '''))
 
+  # A mapping without a package name applies to classes in every location.
+  def test_heap_graph_deobfuscate_no_package(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_deobfuscate_no_package.textproto'),
+        query="""
+        SELECT name, deobfuscated_name
+        FROM heap_graph_class
+        ORDER BY 1, 2;
+        """,
+        out=Csv('''
+          "name","deobfuscated_name"
+          "FactoryProducerDelegateImplActor","[NULL]"
+          "a","DeobfuscatedA"
+          "a","DeobfuscatedA"
+          "a[]","DeobfuscatedA[]"
+          "java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>"
+        '''))
+
   def test_heap_graph_object_4(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_legacy.textproto'),

@@ -116,6 +116,7 @@ if (enable_perfetto_tools) {
 
 if (enable_perfetto_unittests) {
   import("gn/perfetto_unittests.gni")
+
   perfetto_generate_unittests("perfetto_unittests") {
   }
   all_targets += [ ":perfetto_unittests" ]
@@ -123,6 +124,7 @@ if (enable_perfetto_unittests) {
 
 if (enable_perfetto_integration_tests) {
   import("gn/perfetto_integrationtests.gni")
+
   test("perfetto_integrationtests") {
     deps = [
       "gn:default_deps",
@@ -170,6 +172,7 @@ if (enable_perfetto_trace_processor_json) {
 
 if (enable_perfetto_benchmarks) {
   import("gn/perfetto_benchmarks.gni")
+
   executable("perfetto_benchmarks") {
     testonly = true
     deps = perfetto_benchmarks_targets
@@ -179,6 +182,7 @@ if (enable_perfetto_benchmarks) {
 
 if (enable_perfetto_fuzzers) {
   import("gn/perfetto_fuzzers.gni")
+
   group("fuzzers") {
     testonly = true
     deps = perfetto_fuzzers_targets
@@ -277,7 +281,7 @@ if (!build_with_chromium) {
     # Additional /ext/ target exposed exclusively to the perfetto_hprof ART
     # plugin in the android platform.
     if (perfetto_build_with_android) {
-      public_deps += [ "src/profiling/smaps:smaps" ]
+      public_deps += [ "src/profiling/smaps" ]
     }
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "gn:protobuf_lite" ]
@@ -325,7 +329,7 @@ if (build_with_chromium) {
         "src/tracing/ipc/producer",
         "src/tracing/ipc/service",
       ]
-      public_deps += [ "include/perfetto/ext/tracing/ipc:ipc" ]
+      public_deps += [ "include/perfetto/ext/tracing/ipc" ]
     }
     if (perfetto_libperfetto_includes_json) {
       deps += [
@@ -358,6 +362,7 @@ if (build_with_chromium) {
     configs += [ "//build/config/compiler:no_chromium_code" ]  # nogncheck
     public_deps = [ "include/perfetto/trace_processor" ]
   }
+
   component("perfetto_test_support") {
     testonly = true
     public_configs = [ "gn:public_config" ]
