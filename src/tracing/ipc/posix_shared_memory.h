@@ -28,6 +28,7 @@
 
 #include <stddef.h>
 
+#include <limits>
 #include <memory>
 
 #include "perfetto/base/build_config.h"
@@ -48,14 +49,16 @@ class PosixSharedMemory : public SharedMemory {
   // Create a brand new SHM region.
   static std::unique_ptr<PosixSharedMemory> Create(size_t size);
 
-  // Mmaps a file descriptor to an existing SHM region. If
-  // |require_seals_if_supported| is true and the system supports
-  // memfd_create(), the FD is required to be a sealed memfd with F_SEAL_SEAL,
-  // F_SEAL_GROW, and F_SEAL_SHRINK seals set (otherwise, nullptr is returned).
-  // May also return nullptr if mapping fails for another reason (e.g. OOM).
+  // Maps an existing SHM region for shared read/write access. Takes ownership
+  // of the descriptor, including on failure. Returns nullptr if validation or
+  // mapping fails. Rejects empty files and sizes above |max_size| before mmap.
+  // If |require_seals_if_supported| is true and the system supports
+  // memfd_create, requires F_SEAL_SEAL, F_SEAL_GROW, and F_SEAL_SHRINK before
+  // reading the size.
   static std::unique_ptr<PosixSharedMemory> AttachToFd(
       base::ScopedFile,
-      bool require_seals_if_supported = true);
+      bool require_seals_if_supported = true,
+      size_t max_size = std::numeric_limits<size_t>::max());
 
   ~PosixSharedMemory() override;
 

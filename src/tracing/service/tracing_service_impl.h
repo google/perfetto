@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <unordered_set>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -50,6 +51,8 @@ class MessageFilter;
 
 namespace perfetto {
 
+class TraceBufferV2;
+
 namespace protos {
 namespace gen {
 enum TraceStats_FinalFlushOutcome : int;
@@ -70,7 +73,6 @@ namespace tracing_service {
 // The tracing service business logic.
 class TracingServiceImpl : public TracingService {
  public:
-  static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
   static constexpr uint8_t kSyncMarker[] = {0x82, 0x47, 0x7a, 0x76, 0xb2, 0x8d,
                                             0x42, 0xba, 0x81, 0xdc, 0x33, 0x32,
                                             0x6d, 0x57, 0xa0, 0x79};
@@ -167,14 +169,16 @@ class TracingServiceImpl : public TracingService {
       Producer*,
       const ClientIdentity& client_identity,
       const std::string& producer_name,
-      size_t shared_memory_size_hint_bytes = 0,
-      bool in_process = false,
-      ProducerSMBScrapingMode smb_scraping_mode =
-          ProducerSMBScrapingMode::kDefault,
-      size_t shared_memory_page_size_hint_bytes = 0,
-      std::unique_ptr<SharedMemory> shm = nullptr,
-      const std::string& sdk_version = {},
-      const std::string& machine_name = {}) override;
+      ConnectProducerArgs) override;
+
+  // The endpoint calls this on the service sequence after its permission check.
+  // Returns the eligible TBv2 buffer, or nullptr. buffers_ owns the result.
+  // The endpoint borrows the result only for the current synchronous call.
+  TraceBufferV2* GetRingBufferDestination(BufferID);
+
+  // The endpoint reports an ingress discard on the service sequence.
+  // Counts the discarded chunk in the service statistics.
+  void OnRingBufferChunkDiscarded();
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -394,6 +398,11 @@ class TracingServiceImpl : public TracingService {
   MachineID local_machine_id_ = kDefaultMachineID;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
+  // IDs of writable TBv2 buffers with no ProtoVM source in the session config.
+  // The service sequence inserts and erases IDs with buffer creation and
+  // removal. buffers_ owns the current buffer for each ID, including after
+  // replacement.
+  std::unordered_set<BufferID> ring_buffer_eligible_buffers_;
   std::map<std::string, int64_t> session_to_last_trace_s_;
 
   // Contains timestamps of triggers.

@@ -39,6 +39,10 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
+namespace test {
+class ProducerIPCClientOfferForTest;
+}  // namespace test
+
 class Producer;
 class SharedMemoryArbiter;
 
@@ -77,6 +81,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
+  bool SupportsTracingV2() const override;
+  using ProducerEndpoint::OfferRingBuffer;
+  void DrainRingBuffer() override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
@@ -96,9 +103,18 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
+  // Lets integration tests use the production offer sender.
+  friend class test::ProducerIPCClientOfferForTest;
+
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();
+
+  // Borrows |fd| to send an offer on the endpoint sequence.
+  // The caller retains its mapping for all writers that use it.
+  void OfferRingBuffer(int fd,
+                       uint32_t chunk_size_bytes,
+                       std::function<void(bool)> callback);
 
   // Invoked soon after having established the connection with the service.
   void OnConnectionInitialized(bool connection_succeeded,
@@ -132,6 +148,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
+  // Connection capability agreed during InitializeConnection on this sequence.
+  bool supports_tracing_v2_ = false;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
   std::set<DataSourceInstanceID> data_sources_setup_;

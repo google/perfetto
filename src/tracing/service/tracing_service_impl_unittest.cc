@@ -62,6 +62,7 @@
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
@@ -133,7 +134,7 @@ namespace {
 constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
 constexpr size_t kDefaultShmPageSizeKb =
     TracingServiceImpl::kDefaultShmPageSize / 1024;
-constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
+constexpr size_t kMaxShmSizeKb = TracingService::kMaxShmSize / 1024;
 
 constexpr size_t kProtoVmMemoryLimitKb = 16;
 
@@ -383,6 +384,40 @@ class TracingServiceImplTest : public testing::Test {
   base::TestTaskRunner task_runner;
   std::unique_ptr<TracingService> svc;
 };
+
+TEST_F(TracingServiceImplTest, RingBufferCapabilityIsOptIn) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto legacy =
+      svc->ConnectProducer(&producer, ClientIdentity(42, 1025), "legacy", {});
+  EXPECT_FALSE(legacy->SupportsTracingV2());
+  TracingService::ConnectProducerArgs args;
+  args.in_process = true;
+  args.supports_tracing_v2 = true;
+  auto capable = svc->ConnectProducer(&producer, ClientIdentity(42, 1025),
+                                      "ring_buffer", std::move(args));
+  EXPECT_TRUE(capable->SupportsTracingV2());
+}
+
+TEST_F(TracingServiceImplTest, RejectedRingBufferOfferDoesNotPreventRetry) {
+  NiceMock<MockProducer> producer(&task_runner);
+  TracingService::ConnectProducerArgs connection;
+  connection.in_process = true;
+  connection.supports_tracing_v2 = true;
+  auto endpoint = svc->ConnectProducer(&producer, ClientIdentity(42, 1025),
+                                       "ring_buffer", std::move(connection));
+  auto memory = std::make_unique<InProcessSharedMemory>(4096);
+  // 4096 minus the header is not an integral number of 256-byte chunks.
+  bool completed = false;
+  endpoint->OfferRingBuffer(std::move(memory), 256, [&](bool success) {
+    EXPECT_FALSE(success);
+    completed = true;
+  });
+  EXPECT_TRUE(completed);
+  // A rejected offer does not block a second attempt.
+  EXPECT_TRUE(endpoint->SupportsTracingV2());
+  task_runner.RunUntilIdle();
+  endpoint.reset();
+}
 
 TEST_F(TracingServiceImplTest, AtMostOneConfig) {
   std::unique_ptr<MockConsumer> consumer_a = CreateMockConsumer();
@@ -1872,7 +1907,7 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   auto x = svc->ConnectProducer(
       producer_otheruid.get(),
       ClientIdentity(base::GetCurrentUserId() + 1, base::GetProcessId()),
-      "mock_producer_ouid");
+      "mock_producer_ouid", {});
   EXPECT_CALL(*producer_otheruid, OnConnect()).Times(0);
   task_runner.RunUntilIdle();
   Mock::VerifyAndClearExpectations(producer_otheruid.get());

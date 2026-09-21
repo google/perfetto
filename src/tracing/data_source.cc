@@ -50,6 +50,7 @@ bool DataSourceBase::CanAdoptStartupSession(
   DataSourceConfig service_config_stripped = service_config;
 
   startup_config_stripped.set_target_buffer(0);
+  startup_config_stripped.set_tracing_v2_eligible(false);
   startup_config_stripped.set_tracing_session_id(0);
   startup_config_stripped.set_session_initiator(
       DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
@@ -58,6 +59,7 @@ bool DataSourceBase::CanAdoptStartupSession(
   startup_config_stripped.set_enable_extra_guardrails(false);
 
   service_config_stripped.set_target_buffer(0);
+  service_config_stripped.set_tracing_v2_eligible(false);
   service_config_stripped.set_tracing_session_id(0);
   service_config_stripped.set_session_initiator(
       DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);

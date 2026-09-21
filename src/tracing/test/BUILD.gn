@@ -69,14 +69,21 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "..:client_api_without_backends",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
+      "../../../protos/perfetto/config/protovm:cpp",
       "../../base",
       "../../base:test_support",
+      "../ipc:common",
       "../ipc/consumer",
       "../ipc/producer",
       "../ipc/service",
       "../service",
+      "../v2",
+      "../v2:unittests",
     ]
-    sources = [ "tracing_integration_test.cc" ]
+    sources = [
+      "../ipc/producer/producer_ipc_client_impl_for_testing.h",
+      "tracing_integration_test.cc",
+    ]
 
     # TODO(lalitm): this tests appear to be failing on Chromium for unknown
     # reasons. Figure out why and reenable them.
