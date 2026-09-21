@@ -201,6 +201,8 @@ const LATENCY_CUJ_QUERY = `
 
 const LATENCY_COLUMNS = ['name', 'dur_ms', 'ts', 'dur', 'track_id', 'slice_id'];
 
+const ALL_BLOCKING_CALLS_OPTION = 'all blocking calls';
+
 const BLOCKING_CALLS_PROCESSES_QUERY = `
     SELECT DISTINCT bc.process_name
     FROM android_cuj_blocking_calls bc
@@ -210,8 +212,28 @@ const BLOCKING_CALLS_PROCESSES_QUERY = `
     ORDER BY bc.process_name
 `;
 
-function blockingCallsDuringCujsQuery(processName: string): string {
+function blockingCallNamesForProcessQuery(processName: string): string {
   const escapedProcess = processName.replace(/'/g, "''");
+  return `
+    SELECT DISTINCT bc.name
+    FROM android_cuj_blocking_calls bc
+    JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
+    WHERE bc.utid = cuj.ui_thread
+      AND bc.process_name = '${escapedProcess}'
+      AND bc.name IS NOT NULL
+    ORDER BY bc.name
+  `;
+}
+
+function blockingCallsDuringCujsQuery(
+  processName: string,
+  blockingCallName?: string,
+): string {
+  const escapedProcess = processName.replace(/'/g, "''");
+  const blockingCallFilter =
+    blockingCallName !== undefined
+      ? `AND bc.name = '${blockingCallName.replace(/'/g, "''")}'`
+      : '';
   return `
     SELECT DISTINCT
       bc.slice_id,
@@ -229,6 +251,7 @@ function blockingCallsDuringCujsQuery(processName: string): string {
     JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
     WHERE bc.utid = cuj.ui_thread
       AND bc.process_name = '${escapedProcess}'
+      ${blockingCallFilter}
   `;
 }
 
@@ -361,13 +384,42 @@ export default class implements PerfettoPlugin {
       return;
     }
 
+    const namesResult = await ctx.engine.query(
+      blockingCallNamesForProcessQuery(selectedProcess),
+    );
+    const blockingCallOptions: string[] = [ALL_BLOCKING_CALLS_OPTION];
+    const namesIter = namesResult.iter({name: STR});
+    for (; namesIter.valid(); namesIter.next()) {
+      blockingCallOptions.push(namesIter.name);
+    }
+
+    const selectedBlockingCall = await ctx.omnibox.prompt(
+      'Choose a blocking call...',
+      blockingCallOptions,
+    );
+    if (selectedBlockingCall === undefined) {
+      return;
+    }
+
+    const filterBlockingCall =
+      selectedBlockingCall === ALL_BLOCKING_CALLS_OPTION
+        ? undefined
+        : selectedBlockingCall;
+    const title =
+      filterBlockingCall === undefined
+        ? `Blocking calls during CUJs (${selectedProcess})`
+        : `Blocking calls during CUJs (${selectedProcess} - ${filterBlockingCall})`;
+
     await addDebugSliceTrack({
       trace: ctx,
       data: {
-        sqlSource: blockingCallsDuringCujsQuery(selectedProcess),
+        sqlSource: blockingCallsDuringCujsQuery(
+          selectedProcess,
+          filterBlockingCall,
+        ),
         columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
       },
-      title: `Blocking calls during CUJs (${selectedProcess})`,
+      title,
       rawColumns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
     });
   }
