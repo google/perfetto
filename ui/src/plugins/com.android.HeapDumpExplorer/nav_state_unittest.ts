@@ -59,10 +59,27 @@ describe('nav_state', () => {
       view: 'classes',
       params: {rootClass: 'Foo'},
     });
-    expect(subpageToState('objects_java.lang.String', 'flamegraph')).toEqual({
+    expect(subpageToState('objects/java.lang.String', 'flamegraph')).toEqual({
       view: 'objects',
       params: {cls: 'java.lang.String'},
     });
+    expect(
+      subpageToState('flamegraph_objects/1/a1b2c3d4,e5f6a7b8'),
+    ).toEqual({
+      view: 'flamegraph-objects',
+      params: {pathHashes: 'a1b2c3d4,e5f6a7b8', isDominator: true},
+    });
+    expect(stateToSubpage({view: 'objects', params: {cls: 'com.example.Foo'}}))
+      .toBe('objects/com.example.Foo');
+    expect(stateToSubpage({view: 'object', params: {id: 0x1a2b3c}})).toBe(
+      'object/0x1a2b3c',
+    );
+    expect(
+      stateToSubpage({
+        view: 'flamegraph-objects',
+        params: {pathHashes: 'a,b', isDominator: false},
+      }),
+    ).toBe('flamegraph_objects/0/a%2Cb');
   });
 
   it('serializes overview and flamegraph states to path and subpage', () => {

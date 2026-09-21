@@ -14,6 +14,7 @@
 
 import './tab_strip.scss';
 import m from 'mithril';
+import {Anchor} from './anchor';
 import {Icon} from './icon';
 import type {Tabs, TabsAttrs, TabsTab} from './tabs';
 
@@ -21,6 +22,10 @@ import type {Tabs, TabsAttrs, TabsTab} from './tabs';
 export interface TabOption {
   readonly key: string;
   readonly title: string;
+  // When set, the tab handle is rendered as an Anchor to this URL (so it can
+  // be middle-clicked / opened in a new tab) instead of a plain div. Clicks
+  // navigate via the href; onTabChange is not fired.
+  readonly href?: string;
   readonly leftIcon?: string | m.Children;
   readonly rightIcon?: string | m.Children;
 }
@@ -43,7 +48,7 @@ export class TabStrip implements m.ClassComponent<TabStripAttrs> {
       m(
         '.pf-tab-strip__tabs',
         tabs.map((tab) => {
-          const {key, title, leftIcon, rightIcon} = tab;
+          const {key, title, leftIcon, rightIcon, href} = tab;
           const renderIcon = (
             icon: string | m.Children | undefined,
             className: string,
@@ -56,6 +61,23 @@ export class TabStrip implements m.ClassComponent<TabStripAttrs> {
             }
             return m('.pf-tab-strip__tab-icon', {className}, icon);
           };
+          const children = [
+            renderIcon(leftIcon, 'pf-tab-strip__tab-icon--left'),
+            m('span.pf-tab-strip__tab-title', title),
+            renderIcon(rightIcon, 'pf-tab-strip__tab-icon--right'),
+          ];
+          if (href !== undefined) {
+            return m(
+              Anchor,
+              {
+                class: 'pf-tab-strip__tab',
+                active: currentTabKey === key,
+                key,
+                href,
+              },
+              children,
+            );
+          }
           return m(
             '.pf-tab-strip__tab',
             {
@@ -65,11 +87,7 @@ export class TabStrip implements m.ClassComponent<TabStripAttrs> {
                 onTabChange(key);
               },
             },
-            [
-              renderIcon(leftIcon, 'pf-tab-strip__tab-icon--left'),
-              m('span.pf-tab-strip__tab-title', title),
-              renderIcon(rightIcon, 'pf-tab-strip__tab-icon--right'),
-            ],
+            children,
           );
         }),
       ),

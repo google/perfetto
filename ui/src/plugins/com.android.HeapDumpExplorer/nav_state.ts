@@ -43,11 +43,6 @@ function queryParam(key: string, value?: string): string {
   return value ? `${key}=${encodeURIComponent(value)}` : '';
 }
 
-// `base`, optionally suffixed with `_<value>` (URI-encoded; a no-op for hex ids).
-function pathSegment(base: string, value?: string): string {
-  return value ? `${base}_${encodeURIComponent(value)}` : base;
-}
-
 // The path and query (no leading '?') for a nav state. Some views encode a param
 // in the path (object id, bitmap id, flamegraph tab identity); others carry it
 // in the query. stateToSubpage composes the two; stateToPath exposes just the
@@ -65,20 +60,24 @@ function stateToParts(state: NavState): {path: string; query: string} {
       return {path: 'dominators', query: ''};
     case 'objects':
       // Class filter in the path, not the query: the router drops query params.
-      return {path: pathSegment('objects', state.params.cls), query: ''};
+      return {
+        path:
+          state.params.cls !== undefined
+            ? `objects/${encodeURIComponent(state.params.cls)}`
+            : 'objects',
+        query: '',
+      };
     case 'object':
       return {
-        path: pathSegment('object', `0x${state.params.id.toString(16)}`),
+        path: `object/0x${state.params.id.toString(16)}`,
         query: '',
       };
     case 'bitmaps':
       return {
-        path: pathSegment(
-          'bitmaps',
+        path:
           state.params.id !== undefined
-            ? `0x${state.params.id.toString(16)}`
-            : undefined,
-        ),
+            ? `bitmaps/0x${state.params.id.toString(16)}`
+            : 'bitmaps',
         query: queryParam('fk', state.params.filterKey),
       };
     case 'strings':
@@ -94,7 +93,7 @@ function stateToParts(state: NavState): {path: string; query: string} {
       }
       const flag = isDominator ? '1' : '0';
       return {
-        path: `flamegraph_objects_${flag}_${encodeURIComponent(pathHashes)}`,
+        path: `flamegraph_objects/${flag}/${encodeURIComponent(pathHashes)}`,
         query: '',
       };
     }
@@ -123,18 +122,11 @@ export function subpageToState(
   const [path, queryStr] = subpage.split('?', 2);
   const sp = new URLSearchParams(queryStr ?? '');
 
-  // Parse view_param format (e.g. "object_0x123", "flamegraph_objects_1_a,b").
-  // Views with underscores: "flamegraph_objects" is the only multi-word view.
-  let view: string;
-  let param: string;
-  if (path.startsWith('flamegraph_objects')) {
-    view = 'flamegraph-objects';
-    param = path.slice('flamegraph_objects'.length + 1) || '';
-  } else {
-    const idx = path.indexOf('_');
-    view = idx === -1 ? path : path.slice(0, idx);
-    param = idx === -1 ? '' : path.slice(idx + 1);
-  }
+  // Parse the slash-separated path (e.g. "object/0x123",
+  // "flamegraph_objects/1/a,b"). The first segment is the view name; the
+  // remaining segments carry its params.
+  const [view = '', ...paramSegments] = path.split('/');
+  const param = paramSegments[0] ?? '';
 
   switch (view) {
     case '':
@@ -178,16 +170,19 @@ export function subpageToState(
       const ah = sp.get('ah') ?? undefined;
       return {view: 'arrays', params: ah ? {arrayHash: ah} : {}};
     }
-    case 'flamegraph-objects': {
-      // param is "<dom>_<encoded pathHashes>" (see stateToParts), or empty when
-      // no tab is selected.
-      if (param === '') return {view: 'flamegraph-objects', params: {}};
-      const us = param.indexOf('_');
-      const isDominator = us > 0 && param.slice(0, us) === '1';
-      const rest = us === -1 ? param : param.slice(us + 1);
+    case 'flamegraph_objects': {
+      // Path is "flamegraph_objects/<dom>/<encoded pathHashes>" (see
+      // stateToParts); missing segments mean no tab is selected.
+      const [dom, hashes] = paramSegments;
+      if (dom === undefined || hashes === undefined) {
+        return {view: 'flamegraph-objects', params: {}};
+      }
       return {
         view: 'flamegraph-objects',
-        params: {pathHashes: decodeURIComponent(rest), isDominator},
+        params: {
+          pathHashes: decodeURIComponent(hashes),
+          isDominator: dom === '1',
+        },
       };
     }
     case 'flamegraph':

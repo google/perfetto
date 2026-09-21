@@ -37,7 +37,6 @@ interface AllObjectsViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
-  readonly clearNavParam: (key: string) => void;
   readonly initialClass?: string;
 }
 
@@ -171,29 +170,20 @@ export function AllObjectsView({
     tableOrSubquery: query,
     preamble: SQL_PREAMBLE,
   });
-  let filters: Filter[] = [];
-
-  function applyNavFilter(
-    cls: string | undefined,
-    clearNavParam: (key: string) => void,
-  ) {
-    if (!cls) return;
-    filters = [{field: 'cls', op: '=' as const, value: cls}];
-    clearNavParam('cls');
-  }
-
   return {
-    oninit(vnode) {
-      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
-    },
-    onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
-    },
     onremove() {
       datasource.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, initialClass} = vnode.attrs;
+
+      // The class filter is controlled directly from the route param
+      // (objects/<cls>) and is not cached locally; manual edits are written
+      // back to the URL, which flows back in as `initialClass`.
+      const filters: Filter[] =
+        initialClass !== undefined
+          ? [{field: 'cls', op: '=' as const, value: initialClass}]
+          : [];
 
       return m(
         DetailsShell,
@@ -222,7 +212,11 @@ export function AllObjectsView({
           showExportButton: true,
           showRowCount: true,
           onFiltersChanged: (f) => {
-            filters = [...f];
+            const clsFilter = f.find((x) => x.field === 'cls');
+            const cls = clsFilter ? String(clsFilter.value) : undefined;
+            if (cls !== initialClass) {
+              navigate('objects', cls !== undefined ? {cls} : {});
+            }
           },
         }),
       );

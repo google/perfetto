@@ -22,6 +22,13 @@
     flex: 1;
   }
 
+  // Tabs rendered as Anchors (TabOption.href) get the default link styling;
+    // undo it so the tab styles above apply unchanged.
+  .pf-anchor.pf-tab-strip__tab {
+    color: inherit;
+    text-decoration: none;
+  }
+
   &__tab {
     color: var(--pf-color-text-muted);
     padding: 4px;

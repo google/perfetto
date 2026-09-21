@@ -204,7 +204,7 @@ export class HeapDumpExplorerSession {
     // nav — from both the store and the URL. Otherwise it re-applies on the next
     // sync and clobbers the user's later manual filter edits. Query params are
     // already gone (the router strips them), but path-encoded ones (e.g.
-    // objects_<class>) survive in the URL, so we must rewrite it here.
+    // objects/<class>) survive in the URL, so we must rewrite it here.
     const nav = subpageToState(this.store.state.nav, this.defaultView);
     delete (nav.params as Record<string, unknown>)[key];
     const sub = stateToSubpage(nav);

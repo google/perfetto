@@ -407,3 +407,17 @@
   flex-grow: 1;
   overflow: hidden;
 }
+
+// Mirrors the height behaviour of the `Tabs` widget (`.pf-tabs` / `__content`)
+// for LazyTabs with `fillHeight` set: the container fills its parent and the
+// content pane takes the remaining space, scrolling if needed.
+.pf-lazy-tabs--fill-height {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .pf-lazy-tabs__content {
+    flex: 1;
+    overflow: auto;
+  }
+}
