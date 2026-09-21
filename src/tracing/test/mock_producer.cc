@@ -104,7 +104,7 @@ void MockProducer::RegisterDataSource(
   ds_desc.set_handles_incremental_state_clear(handle_incremental_state_clear);
   ds_desc.set_no_flush(no_flush);
   if (protovm_program) {
-    *ds_desc.mutable_protovm_program() = *protovm_program;
+    ds_desc.set_protovm_program_raw(protovm_program->SerializeAsString());
   }
   service_endpoint_->RegisterDataSource(ds_desc);
 }
