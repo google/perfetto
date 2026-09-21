@@ -1,0 +1,227 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// All colours come from the Perfetto theme variables (--pf-color-*), which the
+// theme provider redefines for light and dark mode, so the viewer follows the
+// app theme automatically. The canvas (surfaceflinger_rects.ts) reads the same
+// variables via getComputedStyle since CSS variables don't reach a 2D context.
+
+.pf-sf-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--pf-color-text);
+  background: var(--pf-color-background);
+}
+
+.pf-sf-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background-secondary);
+  flex: 0 0 auto;
+
+  &__pos {
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted);
+  }
+  &__ts {
+    margin-left: auto;
+  }
+}
+
+.pf-sf-scrub {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--pf-color-accent);
+}
+
+.pf-sf-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// The 3-pane viewer; also used when embedded in the details drawer. The 1px gap
+// over a tinted background draws the dividers between panes.
+.pf-sf-viewer {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  min-height: 0;
+  gap: 1px;
+  background: var(--pf-color-border);
+}
+
+.pf-sf-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  // Both axes scroll so long layer names / deep trees / wide values are
+  // reachable instead of being clipped.
+  overflow: auto;
+  background: var(--pf-color-background);
+
+  &--surface {
+    flex: 1.3 1 0;
+  }
+  &--hier {
+    flex: 1 1 0;
+  }
+  &--props {
+    flex: 1.1 1 0;
+  }
+}
+
+.pf-sf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+}
+
+.pf-sf-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pf-color-text-muted);
+
+  input[type="range"] {
+    accent-color: var(--pf-color-accent);
+  }
+}
+
+.pf-sf-rects {
+  padding: 6px 8px;
+  &__canvas {
+    width: 100%;
+    height: 380px;
+    display: block;
+    background: var(--pf-color-background-secondary);
+    border: 1px solid var(--pf-color-border);
+    border-radius: 3px;
+    cursor: crosshair;
+  }
+}
+
+.pf-sf-ts {
+  padding: 4px 8px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-sf-htree {
+  padding: 0 4px 8px;
+  // Grow to content so the enclosing pane scrolls horizontally rather than
+  // squashing or clipping nodes.
+  min-width: max-content;
+}
+
+.pf-sf-hnode {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--pf-color-text);
+
+  &--added {
+    background: color-mix(in srgb, var(--pf-color-success) 22%, transparent);
+  }
+  &--modified {
+    background: color-mix(in srgb, var(--pf-color-warning) 24%, transparent);
+  }
+  &--deleted {
+    background: color-mix(in srgb, var(--pf-color-danger) 20%, transparent);
+    text-decoration: line-through;
+    opacity: 0.7;
+  }
+  &--sel {
+    background: color-mix(in srgb, var(--pf-color-accent) 24%, transparent);
+  }
+  &__id {
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+  &__name {
+    white-space: nowrap;
+  }
+  // Hide/pin buttons: subtle until hover.
+  &__btn {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  &:hover &__btn {
+    opacity: 0.9;
+  }
+}
+
+.pf-sf-ref {
+  color: var(--pf-color-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+// Header card at the top of the Properties pane: selected layer name + chips.
+.pf-sf-prophead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background-secondary);
+
+  &__name {
+    font-weight: 600;
+    word-break: break-all;
+  }
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+}
+
+.pf-sf-proto {
+  height: 340px;
+  display: flex;
+  flex-direction: column;
+  margin: 0 8px 8px;
+}
+
+// Curated-properties DataGrid (height is set inline from the row count).
+.pf-sf-curated {
+  display: flex;
+  flex-direction: column;
+  margin: 0 8px 8px;
+}
+
+// Section-title row inside the curated DataGrid.
+.pf-sf-cur-h {
+  font-weight: 600;
+  color: var(--pf-color-text);
+}
+
+.pf-sf-empty {
+  padding: 12px;
+  color: var(--pf-color-text-muted);
+}
