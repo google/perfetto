@@ -45,6 +45,7 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/perfetto_sql/engine/connection_catalog.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
@@ -347,7 +348,8 @@ PerfettoSqlConnection::PerfettoSqlConnection(
     : database_(std::move(database)),
       pool_(database_->pool()),
       enable_extra_checks_(enable_extra_checks),
-      connection_(new SqliteConnection(database_->sqlite_database())) {
+      connection_(new SqliteConnection(database_->sqlite_database())),
+      catalog_(std::make_unique<ConnectionCatalog>(this)) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
   // the registered tables.
   char* errmsg_raw = nullptr;
@@ -394,7 +396,7 @@ PerfettoSqlConnection::PerfettoSqlConnection(
 
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PrepareSqliteStatement(SqlSource sql_source) {
-  PerfettoSqlParser parser(database_->macros());
+  PerfettoSqlParser parser(database_->macros(), catalog_.get());
   parser.Reset(std::move(sql_source));
   if (!parser.Next()) {
     return base::ErrStatus("No statement found to prepare");
@@ -506,7 +508,8 @@ std::unique_ptr<PerfettoSqlParser> PerfettoSqlConnection::AcquireParser() {
   if (cached_parser_) {
     return std::move(cached_parser_);
   }
-  return std::make_unique<PerfettoSqlParser>(database_->macros());
+  return std::make_unique<PerfettoSqlParser>(database_->macros(),
+                                             catalog_.get());
 }
 
 base::StatusOr<PerfettoSqlConnection::ExecutionStats>
@@ -794,6 +797,9 @@ base::StatusOr<SqlSource> PerfettoSqlConnection::ResolveExtensionStatement(
   } else if (const auto* drop_index =
                  std::get_if<PerfettoSqlParser::DropIndex>(&stmt)) {
     RETURN_IF_ERROR(ExecuteDropIndex(*drop_index));
+  } else if (std::holds_alternative<PerfettoSqlParser::Pipeline>(stmt)) {
+    return AddTracebackIfNeeded(
+        base::ErrStatus("Pipelines cannot be executed yet"), stmt_sql);
   } else {
     // SqliteSql is inlined in ProcessFrame's hot path.
     PERFETTO_FATAL("Unexpected statement variant");
@@ -942,7 +948,11 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-  auto stmt_or = connection_->PrepareStatement(create_table.sql);
+  const auto* sql = std::get_if<SqlSource>(&create_table.body);
+  if (!sql) {
+    return base::ErrStatus("Pipelines cannot be executed yet");
+  }
+  auto stmt_or = connection_->PrepareStatement(*sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteConnection::PreparedStatement stmt = std::move(stmt_or);
   ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
