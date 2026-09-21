@@ -28,6 +28,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/protovm/vm.h"
+#include "src/tracing/service/proto_rewriter.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -67,6 +68,11 @@ constexpr uint8_t kChunkIncomplete = 0x80;
 // Mask out the flags that don't come from the ABI like kChunkIncomplete.
 constexpr uint8_t kFlagsMask = SharedMemoryABI::ChunkHeader::kFlagsMask;
 
+// Proto-group sequences have no ChunkID. A gap is recorded on the first chunk
+// appended after the loss, so earlier packets do not inherit the loss marker.
+constexpr uint8_t kChunkLossBefore = 0x40;
+static_assert((kChunkLossBefore & (kFlagsMask | kChunkIncomplete)) == 0);
+
 // Compares two ChunkID(s) in a wrapping 32-bit ID space.
 // Returns:
 //   -1 if a comes before b in modular (wrapping) order.
@@ -88,6 +94,7 @@ constexpr size_t kKeepLastEmptySeq = 1024;
 
 // The threshold when we start scanning and deleting the oldest sequences.
 constexpr size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
+
 }  // namespace.
 
 namespace internal {
@@ -236,7 +243,8 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   size_t next_chunk_off = chunk_list.at(next_list_idx);      // O(1)
   TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
 
-  if (last_chunk_id.has_value() && next_chunk->chunk_id != *last_chunk_id + 1)
+  if (!seq_->is_proto_group && last_chunk_id.has_value() &&
+      next_chunk->chunk_id != *last_chunk_id + 1)
     sequence_gap_detected_ = true;
 
   chunk_ = next_chunk;
@@ -301,6 +309,9 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
                            : 0,
                        iter_->chunk_id, end_->chunk_id);
 
+  if (seq_->is_proto_group)
+    return;
+
   if (seq_->last_chunk_consumed.has_value()) {
     const auto& last = *seq_->last_chunk_consumed;
     // Re-admit: an incomplete chunk that was evicted has been re-committed
@@ -333,6 +344,12 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
   // This is because this class is used both while doing readbacks and,
   // importantly, in DeleteNextChunksFor() when overwriting.
   for (;;) {
+    // Report a proto-group gap when we reach the chunk after it. Clear the
+    // flag so later packets in this chunk do not report the same gap again.
+    if (PERFETTO_UNLIKELY(iter_->flags & kChunkLossBefore)) {
+      AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
+      iter_->flags &= static_cast<uint8_t>(~kChunkLossBefore);
+    }
     std::optional<Frag> maybe_frag = frag_iter_.NextFragmentInChunk();
     if (!maybe_frag.has_value()) {
       // Once we exhaust all fragments, move to the next chunk in the sequence.
@@ -513,8 +530,10 @@ ChunkSeqReader::ReassembleFragmentedPacket(TracePacket* out_packet,
       outcome.result = FragReassemblyResult::kNotEnoughData;
       break;
     }
-    if (chunk_iter.sequence_gap_detected()) {
-      // There is a gap in the sequence ID.
+    if (PERFETTO_UNLIKELY(chunk_iter.sequence_gap_detected() ||
+                          (next_chunk->flags & kChunkLossBefore))) {
+      // SMB sequences detect gaps via chunk_id discontinuity.
+      // Proto-group sequences use the kChunkLossBefore flag instead.
       outcome.result = FragReassemblyResult::kDataLoss;
       outcome.reason = DataLossReason::DATA_LOSS_REASSEMBLY_GAP;
       break;
@@ -671,6 +690,18 @@ bool TraceBufferV2::ReadNextTracePacket(
       // If it returns false, we should continue in buffer order.
       if (chunk_seq_reader_->ReadNextPacketInSeqOrder(out_packet)) {
         SequenceState& s = *chunk_seq_reader_->seq();
+        if (s.is_proto_group) {
+          // As with whole empty fragments, skip an empty fragmented packet.
+          if (out_packet->size() == 0)
+            continue;
+
+          if (PERFETTO_UNLIKELY(!RewriteProtoGroupPacket(out_packet))) {
+            out_packet->Clear();
+            internal::AddSeqDataLoss(&s,
+                                     DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
+            continue;
+          }
+        }
         *sequence_properties = {s.producer_id, s.client_identity, s.writer_id};
         *previous_packet_on_sequence_dropped = s.data_loss_reasons;
         s.data_loss_reasons = 0;
@@ -695,6 +726,58 @@ bool TraceBufferV2::ReadNextTracePacket(
   }  // for(;;)
 }
 
+bool TraceBufferV2::RewriteProtoGroupPacket(TracePacket* packet) {
+  const size_t packet_size = packet->size();
+  PERFETTO_DCHECK(packet_size > 0);
+
+  // The packet's slices point into TBChunks. The rewriter needs one contiguous
+  // input, and the returned packet needs storage that outlives the scratch.
+  // A packet with one slice skips the join:
+  //
+  //        join                     rewrite                      copy
+  // slices ----> proto_group_input_ -------> proto_group_output_ ----> Slice
+  //
+  // TODO(sashwinbalaji): Like SMB packets, proto-group packets have no size
+  // limit below the buffer size. Unlike SMB packets, a rewrite holds up to
+  // three copies of a packet: the joined input, the output and the returned
+  // Slice. Consider a limit if readback memory for huge packets matters.
+  const uint8_t* input;
+  if (packet->slices().size() == 1) {
+    input = static_cast<const uint8_t*>(packet->slices()[0].start);
+  } else {
+    proto_group_input_.clear();
+    proto_group_input_.reserve(packet_size);
+    for (const Slice& slice : packet->slices()) {
+      const auto* begin = static_cast<const uint8_t*>(slice.start);
+      proto_group_input_.insert(proto_group_input_.end(), begin,
+                                begin + slice.size);
+    }
+    input = proto_group_input_.data();
+  }
+
+  auto result = tracing_v2::RewriteProtoGroupToLengthDelimited(
+      input, input + packet_size, &proto_group_output_);
+  switch (result) {
+    case tracing_v2::RewriteResult::kSuccess:
+      break;
+    case tracing_v2::RewriteResult::kMalformedInput:
+      stats_.set_abi_violations(stats_.abi_violations() + 1);
+      return false;
+    case tracing_v2::RewriteResult::kOutputTooLarge:
+      stats_.set_oversized_packets_dropped(stats_.oversized_packets_dropped() +
+                                           1);
+      return false;
+  }
+
+  // Give the packet its own storage so it survives reuse of the scratch buffer.
+  Slice rewritten = Slice::Allocate(proto_group_output_.size());
+  memcpy(rewritten.own_data(), proto_group_output_.data(),
+         proto_group_output_.size());
+  packet->Clear();
+  packet->AddSlice(std::move(rewritten));
+  return true;
+}
+
 void TraceBufferV2::CopyChunkUntrusted(
     ProducerID producer_id_trusted,
     const ClientIdentity& client_identity_trusted,
@@ -714,6 +797,10 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   if (PERFETTO_UNLIKELY(discard_writes_))
     return DiscardWrite();
+
+  // Only ABI flags may come from the producer. In particular, loss markers
+  // and the incomplete-chunk flag are set by the service.
+  chunk_flags &= kFlagsMask;
 
   // chunk_complete is true in the majority of cases, and is false only when
   // the service performs SMB scraping (upon flush).
@@ -786,6 +873,13 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
 
   SequenceState& seq = seq_it->second;
+  // A sequence uses one input format. SMB and proto-group writers share one
+  // WriterID space per producer, so a proto-group sequence with this key
+  // belongs to another writer. Leave that writer's sequence unchanged.
+  if (seq.is_proto_group) {
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
+    return;
+  }
   if (trace_writer_data_drop) {
     stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() + 1);
     internal::AddSeqDataLoss(&seq, DataLossReason::DATA_LOSS_WRITER_ABORT);
@@ -927,30 +1021,11 @@ void TraceBufferV2::CopyChunkUntrusted(
     internal::ChunkSeqIterator(this, &seq).EraseCurrentChunk();
   }  // if (recommit_chunk)
 
-  // If there isn't enough room from the given write position: write a padding
-  // record to clear the end of the buffer, wrap and start at offset 0.
-  const size_t cached_size_to_end = size_to_end();
-  if (PERFETTO_UNLIKELY(tbchunk_outer_size > cached_size_to_end)) {
-    // If we reached the end of the buffer and we are using discard policy,
-    // this is where we stop. This buffer will no longer accept data.
-    if (overwrite_policy_ == kDiscard)
-      return DiscardWrite();
-
-    // Skip the tail cleanup if the previous write landed exactly at the end
-    // of the buffer (|wr_| == |size_|): there is no leftover tail to clear.
-    if (cached_size_to_end > 0)
-      DeleteNextChunksFor(cached_size_to_end);
-
-    wr_ = 0;
-    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
-    PERFETTO_DCHECK(size_to_end() >= tbchunk_outer_size);
-  }
-
-  // Deletes all chunks from |wptr_| to |wptr_| + |record_size|.
-  DeleteNextChunksFor(tbchunk_outer_size);
+  if (!MakeSpaceToWrite(tbchunk_outer_size))
+    return DiscardWrite();
 
   // |insert_pos| is invalid if any chunk was removed from this sequence since
-  // it was computed: either by the DeleteNextChunksFor above, or by the
+  // it was computed: either by MakeSpaceToWrite() above, or by the
   // relocation erase.
   // Why don't we compute the insert_pos here? Because we also need to check
   // for re-commits (which are rare, but possible) and don't want to iterate
@@ -1002,6 +1077,160 @@ void TraceBufferV2::CopyChunkUntrusted(
     DeleteStaleEmptySequences();
 }
 
+bool TraceBufferV2::AppendProtoGroupFragments(
+    const PacketSequenceProperties& sequence,
+    const protozero::ConstBytes* fragments,
+    size_t num_fragments,
+    bool first_continues_from_prev,
+    bool last_continues_on_next) {
+  PERFETTO_CHECK(!read_only_);
+
+  if (PERFETTO_UNLIKELY(num_fragments == 0))
+    return false;
+
+  // Each rejection site updates its own stats. This only records the gap.
+  auto reject = [&] {
+    RecordProtoGroupLoss(sequence.producer_id_trusted, sequence.writer_id);
+    return false;
+  };
+  auto reject_abi_violation = [&] {
+    stats_.set_abi_violations(stats_.abi_violations() + 1);
+    return reject();
+  };
+
+  if (PERFETTO_UNLIKELY(discard_writes_)) {
+    DiscardWrite();
+    return reject();
+  }
+
+  if (!fragments)
+    return reject_abi_violation();
+
+  // ProtoVM expects length-delimited protobuf on the overwrite path.
+  const bool producer_has_protovm =
+      std::any_of(protovms_.begin(), protovms_.end(), [&](const Vm& vm) {
+        return vm.producers.count(sequence.producer_id_trusted) != 0;
+      });
+  if (producer_has_protovm) {
+    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
+    return reject();
+  }
+
+  // The batch becomes one TBChunk with the same payload layout as an SMB chunk,
+  // so readback uses FragIterator for both:
+  //
+  //   +---------+-----------+--------+-----------+--------+-----+---------+
+  //   | TBChunk | varint s0 | frag 0 | varint s1 | frag 1 | ... | padding |
+  //   +---------+-----------+--------+-----------+--------+-----+---------+
+  //             |<----------- total_payload <= kMaxSize ------->|
+  //
+  // Validate the entire batch before making space: a rejected batch must not
+  // evict any buffered packets. A batch larger than one TBChunk breaks the
+  // writer's chunk contract. Each addend is at most kMaxSize + 3, so
+  // |total_payload| cannot overflow.
+  size_t total_payload = 0;
+  for (size_t i = 0; i < num_fragments; i++) {
+    const size_t frag_size = fragments[i].size;
+    if ((frag_size && !fragments[i].data) || frag_size > TBChunk::kMaxSize)
+      return reject_abi_violation();
+    uint8_t varint[3];  // A varint up to TBChunk::kMaxSize takes 3 bytes.
+    const size_t varint_size = static_cast<size_t>(
+        proto_utils::WriteVarInt(frag_size, varint) - varint);
+    total_payload += varint_size + frag_size;
+    if (total_payload > TBChunk::kMaxSize)
+      return reject_abi_violation();
+  }
+
+  // As in CopyChunkUntrusted(): a chunk larger than the whole buffer. Rare,
+  // e.g. a 16 KB buffer and a 32 KB ring chunk.
+  const size_t tbchunk_outer_size = TBChunk::OuterSize(total_payload);
+  if (PERFETTO_UNLIKELY(tbchunk_outer_size > size_))
+    return reject_abi_violation();
+
+  auto seq_key =
+      MkProducerAndWriterID(sequence.producer_id_trusted, sequence.writer_id);
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(total_payload));
+
+  auto [seq_it, seq_is_new] = sequences_.try_emplace(
+      seq_key, SequenceState(sequence.producer_id_trusted, sequence.writer_id,
+                             sequence.client_identity_trusted));
+  SequenceState& seq = seq_it->second;
+  if (seq_is_new) {
+    seq.is_proto_group = true;
+    seq.age_for_gc = ++seq_age_;
+    ++empty_sequences_;
+  } else if (!seq.is_proto_group) {
+    // As in CopyChunkUntrusted(), a sequence uses one input format. The SMB
+    // sequence belongs to another writer, so no loss is recorded on it.
+    return reject_abi_violation();
+  }
+
+  if (!MakeSpaceToWrite(tbchunk_outer_size)) {
+    DiscardWrite();
+    return reject();
+  }
+
+  TBChunk* chunk = CreateTBChunk(wr_, total_payload);
+  chunk->pri_wri_id = seq_key;
+  chunk->payload_size = static_cast<uint16_t>(total_payload);
+  chunk->payload_avail = static_cast<uint16_t>(total_payload);
+
+  uint8_t flags = 0;
+  if (PERFETTO_UNLIKELY(seq.pending_proto_group_loss)) {
+    flags |= kChunkLossBefore;
+    seq.pending_proto_group_loss = false;
+  }
+  if (first_continues_from_prev)
+    flags |= kFirstPacketContFromPrevChunk;
+  if (last_continues_on_next)
+    flags |= kLastPacketContOnNextChunk;
+  chunk->flags = flags;
+
+  // Copy fragment data into the chunk payload with varint length prefixes.
+  uint8_t* dst = chunk->fragments_begin();
+  for (size_t i = 0; i < num_fragments; i++) {
+    const size_t frag_size = fragments[i].size;
+    dst = protozero::proto_utils::WriteVarInt(frag_size, dst);
+    if (frag_size > 0) {
+      memcpy(dst, fragments[i].data, frag_size);
+      dst += frag_size;
+    }
+  }
+  PERFETTO_DCHECK(static_cast<size_t>(dst - chunk->fragments_begin()) ==
+                  total_payload);
+
+  // Append after eviction, which can remove earlier chunks from this sequence.
+  auto& chunk_list = seq.chunks;
+  bool was_empty = chunk_list.empty();
+  chunk_list.emplace_back(wr_);
+  if (was_empty) {
+    PERFETTO_DCHECK(empty_sequences_ > 0);
+    --empty_sequences_;
+  }
+
+  wr_ += tbchunk_outer_size;
+  PERFETTO_DCHECK(wr_ <= size_ && wr_ <= used_size_);
+
+  stats_.set_chunks_written(stats_.chunks_written() + 1);
+  stats_.set_bytes_written(stats_.bytes_written() + tbchunk_outer_size);
+
+  if (empty_sequences_ > kEmptySequencesGcTreshold)
+    DeleteStaleEmptySequences();
+
+  return true;
+}
+
+void TraceBufferV2::RecordProtoGroupLoss(ProducerID producer_id,
+                                         WriterID writer_id) {
+  PERFETTO_CHECK(!read_only_);
+
+  // SMB and proto-group writers share one WriterID space per producer. An SMB
+  // sequence with this key therefore belongs to another writer.
+  auto seq_it = sequences_.find(MkProducerAndWriterID(producer_id, writer_id));
+  if (seq_it != sequences_.end() && seq_it->second.is_proto_group)
+    seq_it->second.pending_proto_group_loss = true;
+}
+
 TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   DcheckIsAlignedAndWithinBounds(off);
   size_t end = off + TBChunk::OuterSize(size);
@@ -1011,6 +1240,26 @@ TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   }
   TBChunk* chunk = GetTBChunkAtUnchecked(off);
   return new (chunk) TBChunk(off, size);
+}
+
+bool TraceBufferV2::MakeSpaceToWrite(size_t size) {
+  PERFETTO_DCHECK(size <= size_);
+
+  // If the chunk does not fit at the end, clear the remaining tail and wrap.
+  // In discard mode, reaching the end stops all further writes.
+  const size_t tail_size = size_to_end();
+  if (PERFETTO_UNLIKELY(size > tail_size)) {
+    if (overwrite_policy_ == kDiscard)
+      return false;
+    // A previous write can land exactly at the end, leaving no tail to clear.
+    if (tail_size > 0)
+      DeleteNextChunksFor(tail_size);
+    wr_ = 0;
+    stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
+    PERFETTO_DCHECK(size_to_end() >= size);
+  }
+  DeleteNextChunksFor(size);
+  return true;
 }
 
 // Deletes (by marking the record invalid and removing form the index) all
@@ -1064,7 +1313,7 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
       // protovm. If not, we still need to do reads, but without having to
       // accumulated data in a packet.
       TracePacket* maybe_packet = nullptr;
-      if (!protovms_.empty()) {
+      if (!protovms_.empty() && !csr.seq()->is_proto_group) {
         overwritten_packet_.Clear();
         maybe_packet = &overwritten_packet_;
       }
@@ -1117,7 +1366,7 @@ bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
 
   ProducerAndWriterID seq_key = MkProducerAndWriterID(producer_id, writer_id);
   auto seq_it = sequences_.find(seq_key);
-  if (seq_it == sequences_.end()) {
+  if (seq_it == sequences_.end() || seq_it->second.is_proto_group) {
     stats_.set_patches_failed(stats_.patches_failed() + 1);
     return false;
   }
@@ -1193,7 +1442,8 @@ void TraceBufferV2::DiscardWrite() {
 // This is to avoid thrashing with a sort every time one sequence becomes empty.
 // Also we have to defer the deletion of SequenceState outside of
 // ReadNextTracePacket() calls, as that caches SequenceState* pointers in
-// seq_iter_. This is called only at the end of each CopyChunkUntrusted().
+// chunk_seq_reader_. This is called only at the end of CopyChunkUntrusted()
+// and AppendProtoGroupFragments().
 void TraceBufferV2::DeleteStaleEmptySequences() {
   // Build a vector of iterators; sort it; delete the first size() - kThreshold.
   using SeqIterator = decltype(sequences_)::iterator;
@@ -1212,6 +1462,11 @@ void TraceBufferV2::DeleteStaleEmptySequences() {
               return a->second.age_for_gc < b->second.age_for_gc;
             });
 
+  // TODO(sashwinbalaji): Pruning a proto-group sequence discards its
+  // pending_proto_group_loss. If that writer appends again, the loss is not
+  // reported. SMB sequences have the same limit: pruning discards
+  // last_chunk_consumed. Revisit if field traces show missed loss for writers
+  // that write rarely while many others churn.
   size_t n_oldest = empty_seqs.size() - kKeepLastEmptySeq;
   for (size_t i = 0; i < n_oldest; ++i) {
     sequences_.erase(empty_seqs[i]);
@@ -1220,9 +1475,9 @@ void TraceBufferV2::DeleteStaleEmptySequences() {
 
   // This is not really required in the current implementation and is here just
   // to spot bugs while refactoring the code in future. This function is
-  // only called by CopyChunkUntrusted(), but the chunk_seq_reader_ (which can
+  // called only by writes, but the chunk_seq_reader_ (which can
   // hold onto a SequenceState* pointer) is reset by every BeginRead() call.
-  // By design BeginRead()/ReadNextTracePacket() cannot overlap with CCU().
+  // By design BeginRead()/ReadNextTracePacket() cannot overlap with writes.
   chunk_seq_reader_.reset();
 }
 
@@ -1234,7 +1489,8 @@ std::unique_ptr<TraceBuffer> TraceBufferV2::CloneReadOnly() const {
 }
 
 size_t TraceBufferV2::GetMemoryUsageBytes() const {
-  size_t total_bytes = size();
+  size_t total_bytes =
+      size() + proto_group_input_.capacity() + proto_group_output_.capacity();
   for (const Vm& vm : protovms_) {
     total_bytes += vm.instance->GetMemoryUsageBytes();
   }
