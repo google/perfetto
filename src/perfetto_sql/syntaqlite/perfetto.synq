@@ -310,9 +310,11 @@ node PerfettoTreeAccumulate {
   aggregates: index PerfettoTreeAggregateList
 
   fmt {
-    "TREE" "ACCUMULATE" space
-    enum_display(direction, { UP="UP" DOWN="DOWN" })
-    space child(aggregates)
+    group {
+      "TREE" "ACCUMULATE" space
+      enum_display(direction, { UP="UP" DOWN="DOWN" })
+      nest { line child(aggregates) }
+    }
   }
 }
 
