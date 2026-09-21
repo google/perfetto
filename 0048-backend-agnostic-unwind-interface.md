@@ -1,8 +1,8 @@
 # RFC-0048: Linux Unwinding Abstraction Layer for traced_perf and heapprofd
 
-**Authors:** @safayat-google  
-**Status:** In Review / Updated Draft  
-**Discussion:** https://github.com/google/perfetto/discussions/7283  
+**Authors:** @safayat-google
+**Status:** In Review / Updated Draft
+**Discussion:** https://github.com/google/perfetto/discussions/7283
 
 ---
 
@@ -176,7 +176,7 @@ Located in `src/profiling/unwind/libunwindstack/`:
 
 This backend extends the abstraction interface to preserve full Android platform support (including ART Dex and JIT frames) while eliminating per-sample heap allocations:
 
-#### 1. In-Place Register Ingestion (`GetOrCreateRegs`)
+#### 1. In-Place Register Recycling (`GetOrCreateRegs`)
 The backend reuses a thread-local `cached_regs_` instance and updates its internal buffer directly via `RawData()`, eliminating per-sample `new unwindstack::RegsArm64` or `regs->Clone()` allocations:
 
 ```cpp
@@ -401,70 +401,7 @@ UnwindResult Unwinder::Unwind(const UnwindInputSample& sample,
 
 ---
 
-### 4.3 High-Throughput Rust FFI Prototype: `framehop`
-
-Located in `src/profiling/unwind/framehop/` and `src/profiling/unwind/framehop/framehop_ffi/`:
-- `class framehop::Unwinder : public unwind::Unwinder`
-- `class framehop::Context : public unwind::ProcessUnwindContext`
-- `framehop_ffi/src/lib.rs` (Rust FFI library)
-
-`framehop` is Mozilla's stack unwinder developed for the Firefox Profiler. It achieves exceptional throughput (~8.5 µs/sample in CPU profiling) by pre-indexing module `.eh_frame` unwind tables and operating exclusively on stack snapshots.
-
-#### 1. FFI Architecture
-The Rust FFI crate (`framehop_ffi`) exposes a C-compatible interface:
-- `framehop_context_create()` / `framehop_context_destroy()`
-- `framehop_context_clear_cache()`
-- `framehop_add_module_raw()`: Registers `.eh_frame` / `.eh_frame_hdr` section data.
-- `framehop_unwind()`: Performs stack unwinding using `UnwinderX86_64` and `CacheX86_64`.
-
-#### 2. Module Indexing & Remote Handling (`Context::LoadModules`)
-Because `framehop` was designed for in-process unwinding, remote unwinding requires custom translation:
-- Parses `/proc/<pid>/maps` to extract loaded libraries and segment boundaries.
-- Computes `base_avma` from `PT_LOAD` virtual addresses to align runtime load bias with SVMA.
-- Reads module ELF headers from disk or `/proc/<pid>/mem`.
-- Reads remote VDSO directly from process memory (`mem_fd_`) via `pread64`.
-- Detects Linux signal trampolines (`__restore_rt`) by pattern-matching opcode bytes (`0x0f0000000fc0c748 0x05`) and reading `ucontext` at `sp + 0xa8` (IP), `sp + 0xa0` (SP), `sp + 0x78` (BP).
-
-#### 3. Caching & Eviction
-- **`CacheX86_64`**: An internal, bounded direct-mapped cache (512–1024 slots) caching evaluated FDE unwinding rules.
-- **Module Retention**: Parsed module indexes remain in memory until the context is destroyed.
-
-#### 4. Architectural Tradeoffs
-- **Pros**: Fastest unwinder evaluated in CPU profiling (**~8.5 µs/sample**, ~2x faster than `libunwindstack`).
-- **Cons**: 
-  - Requires a **Rust compiler (`rustc`, `cargo`)** and FFI bridge, conflicting with Perfetto’s pure GN/Ninja C++ toolchain.
-  - Supports only **x86_64 and ARM64** (no ARM32, no RISC-V).
-  - Higher memory footprint (+1.2 MB growth in CPU sampling, +2.7 MB in memory profiling).
-
----
-
-### 4.4 Linux System Integration: `libdw` (elfutils)
-
-Located in `src/profiling/unwind/libdw/`:
-- `class libdw::Unwinder : public unwind::Unwinder`
-- `class libdw::Context : public unwind::ProcessUnwindContext`
-- `libdw_accessor.h` / `libdw_accessor.cc`
-
-Uses `elfutils`'s `libdwfl` (Dwarf Front-end Library), the standard unwinding infrastructure used by Linux `perf`:
-
-#### 1. Session Lifecycle (`Dwfl`)
-- Initializes `Dwfl` session per process: `dwfl_begin(&kLibdwCallbacks)`, `dwfl_linux_proc_report(dwfl_, pid_)`, `dwfl_report_end()`.
-- Unwinds via `dwfl_thread_getframes()` with a frame callback extracting PC and SP (`dwfl_frame_pc`, `dwfl_frame_reg`).
-- Memory reads use `PidMemoryRead`, checking the sampled stack buffer before falling back to `pread64` on `/proc/<pid>/mem`.
-
-#### 2. Caching & Eviction
-- `libdw` caches decoded CFI intervals and mapped ELF segments internally within `Dwfl`.
-- Flushed by tearing down and recreating the `Dwfl` handle (`TeardownDwfl() / SetupDwfl()`).
-
-#### 3. Architectural Tradeoffs
-- **Pros**: Solid performance in CPU sampling (**16.2 µs/sample**), robust Linux kernel/system integration.
-- **Cons**: 
-  - **Licensing barrier**: `elfutils` is LGPLv3+ / GPLv2, which is incompatible with Perfetto's Apache 2.0 core upstream license.
-  - High latency in memory profiling (**916 µs/sample**) due to heavy per-unwind session teardown/recreation overhead.
-
----
-
-### 4.5 Built-in Frame Pointer Unwinder: Zero External Library Dependencies (`frame_pointer`)
+### 4.3 Built-in Frame Pointer Unwinder: Zero External Library Dependencies (`frame_pointer`)
 
 Located in `src/profiling/unwind/frame_pointer/`:
 - `class FramePointerUnwinder : public Unwinder`
@@ -551,7 +488,7 @@ class FramePointerUnwinder : public Unwinder {
 
 ---
 
-### 4.6 End-to-End Unified Architecture & Data Flow Diagram
+### 4.4 End-to-End Unified Architecture & Data Flow Diagram
 
 The unwinding abstraction unifies data ingestion and callstack unwinding across both `traced_perf` (CPU sampling) and `heapprofd` (native memory profiling) into a shared unwinding pipeline:
 
@@ -607,7 +544,7 @@ The unwinding abstraction unifies data ingestion and callstack unwinding across 
 
 ---
 
-### 4.7 Comprehensive Tool Comparison Matrix
+### 4.5 Comprehensive Tool Comparison Matrix
 
 | Dimension | `libunwindstack` (Baseline) | `libunwind` (Optimized) | `framehop` | `libdw` (`elfutils`) | `frame_pointer` |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -632,7 +569,7 @@ The unwinding abstraction unifies data ingestion and callstack unwinding across 
 Evaluated on a real multi-threaded memory allocation workload (804 samples, 7,636 frames unwound, deep callstacks):
 
 | Unwinder Backend | Samples | Frames Unwound | Error Count | Latency / Sample | Latency / Frame | Total Unwind Time | Peak RSS | Symbols Resolved |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **`libunwind` (Optimized)** | 804 | 7,636 | **0** | **5.64 µs** | **0.59 µs** | **36.9 ms** | 13.6 MB | 7,636 (100%) |
 | **`libunwindstack` (Base)** | 804 | 7,636 | **0** | 10.46 µs | 1.10 µs | 68.3 ms | **12.1 MB** | 7,636 (100%) |
 | **`framehop`** | 804 | 7,636 | **0** | 34.26 µs | 3.61 µs | 224.4 ms | 14.8 MB | 7,636 (100%) |
@@ -663,7 +600,7 @@ Continuous profiling of 3 concurrent target processes running diverse workloads 
 10-second live CPU sampling (200 Hz, `UNWIND_DWARF`) on dedicated physical cores profiling concurrent C recursion and Python interpreter workloads:
 
 | Unwinder Backend | Samples | Frames | Avg Frames / Sample | Total CPU Time | Latency / Sample | Peak RSS | RSS Growth |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **`framehop`** | 1,999 | 41,193 | 20.61 | **17.05 ms** | **8.53 µs** | 6.33 MB | 1,276 KB |
 | **`libdw`** | 1,995 | 41,153 | 20.63 | 32.25 ms | 16.16 µs | 6.19 MB | 896 KB |
 | **`libunwindstack`** | 1,999 | 41,170 | 20.60 | 33.64 ms | 16.83 µs | 5.98 MB | 600 KB |
@@ -697,19 +634,84 @@ Evaluated with Google Benchmark on Linux `x86_64` (Release build, `benchmark::Do
 
 ## 6. Implementation & PR Breakdown
 
-1. **PR #1: Core Abstraction Layer (`src/profiling/unwind/`)**
+1. **PR 1: Core Abstraction Layer (`src/profiling/unwind/`)**
    - Pure interfaces: `CpuRegisters`, `Unwinder`, `ProcessUnwindContext`, `UnwindFrame`, `UnwindResult`.
    - Factory pattern: `CreateUnwinder(UnwinderType)`.
-2. **PR #2: `libunwindstack` Backend Refactoring & Native `FramePointerUnwinder`**
+2. **PR 2: `libunwindstack` Backend Refactoring & Native `FramePointerUnwinder`**
    - Wrap existing `libunwindstack` implementation into `libunwindstack::Unwinder` and `libunwindstack::Context`.
    - Integrate in-place register recycling (`GetOrCreateRegs`).
    - Implement native `FramePointerUnwinder` with **zero external library support** (pure C++ / STL, no `libunwindstack`/`libunwind` dependencies).
-3. **PR #3: Migrate `traced_perf` to Abstraction Layer**
+3. **PR 3: Migrate `traced_perf` to Abstraction Layer**
    - Populate `unwind::CpuRegisters` directly from kernel ring buffers.
    - Remove `<unwindstack/*.h>` dependencies from `src/profiling/perf/`.
-4. **PR #4: `libunwind` Remote Backend for Standalone Linux**
+4. **PR 4: `libunwind` Remote Backend for Standalone Linux**
    - Implement `src/profiling/unwind/libunwind/` with Mmap ELF caching, zero-syscall memory reads, Evaluated Rule Cache, and bounded memory limits.
    - Set as default unwinder for standalone Linux builds.
-5. **PR #5: Migrate `heapprofd` (Memory Profiling)**
+5. **PR 5: Migrate `heapprofd` (Memory Profiling)**
    - Backend-agnostic client (`heapprofd_client`): write directly to `AllocMetadata::cpu_regs` without `libunwindstack` headers.
    - Backend-agnostic daemon: replace direct `unwindstack::Unwinder` with `unwind::Unwinder::Unwind()`.
+
+---
+
+## 7. Appendix: Evaluated Alternative Backends
+
+### 7.1 High-Throughput Rust FFI Prototype: `framehop` (Mozilla / Firefox Profiler)
+
+Located in `src/profiling/unwind/framehop/` and `src/profiling/unwind/framehop/framehop_ffi/`:
+- `class framehop::Unwinder : public unwind::Unwinder`
+- `class framehop::Context : public unwind::ProcessUnwindContext`
+- `framehop_ffi/src/lib.rs` (Rust FFI library)
+
+`framehop` is Mozilla's stack unwinder developed for the Firefox Profiler. It achieves exceptional throughput (~8.5 µs/sample in CPU profiling) by pre-indexing module `.eh_frame` unwind tables and operating exclusively on stack snapshots.
+
+#### 1. FFI Architecture
+The Rust FFI crate (`framehop_ffi`) exposes a C-compatible interface:
+- `framehop_context_create()` / `framehop_context_destroy()`
+- `framehop_context_clear_cache()`
+- `framehop_add_module_raw()`: Registers `.eh_frame` / `.eh_frame_hdr` section data.
+- `framehop_unwind()`: Performs stack unwinding using `UnwinderX86_64` and `CacheX86_64`.
+
+#### 2. Module Indexing & Remote Handling (`Context::LoadModules`)
+Because `framehop` was designed for in-process unwinding, remote unwinding requires custom translation:
+- Parses `/proc/<pid>/maps` to extract loaded libraries and segment boundaries.
+- Computes `base_avma` from `PT_LOAD` virtual addresses to align runtime load bias with SVMA.
+- Reads module ELF headers from disk or `/proc/<pid>/mem`.
+- Reads remote VDSO directly from process memory (`mem_fd_`) via `pread64`.
+- Detects Linux signal trampolines (`__restore_rt`) by pattern-matching opcode bytes (`0x0f0000000fc0c748 0x05`) and reading `ucontext` at `sp + 0xa8` (IP), `sp + 0xa0` (SP), `sp + 0x78` (BP).
+
+#### 3. Caching & Eviction
+- **`CacheX86_64`**: An internal, bounded direct-mapped cache (512–1024 slots) caching evaluated FDE unwinding rules.
+- **Module Retention**: Parsed module indexes remain in memory until the context is destroyed.
+
+#### 4. Architectural Tradeoffs
+- **Pros**: Fastest unwinder evaluated in CPU profiling (**~8.5 µs/sample**, ~2x faster than `libunwindstack`).
+- **Cons**:
+  - Requires a **Rust compiler (`rustc`, `cargo`)** and FFI bridge, conflicting with Perfetto’s pure GN/Ninja C++ toolchain.
+  - Supports only **x86_64 and ARM64** (no ARM32, no RISC-V).
+  - Higher memory footprint (+1.2 MB growth in CPU sampling, +2.7 MB in memory profiling).
+
+---
+
+### 7.2 Linux System Integration: `libdw` (elfutils)
+
+Located in `src/profiling/unwind/libdw/`:
+- `class libdw::Unwinder : public unwind::Unwinder`
+- `class libdw::Context : public unwind::ProcessUnwindContext`
+- `libdw_accessor.h` / `libdw_accessor.cc`
+
+Uses `elfutils`'s `libdwfl` (Dwarf Front-end Library), the standard unwinding infrastructure used by Linux `perf`:
+
+#### 1. Session Lifecycle (`Dwfl`)
+- Initializes `Dwfl` session per process: `dwfl_begin(&kLibdwCallbacks)`, `dwfl_linux_proc_report(dwfl_, pid_)`, `dwfl_report_end()`.
+- Unwinds via `dwfl_thread_getframes()` with a frame callback extracting PC and SP (`dwfl_frame_pc`, `dwfl_frame_reg`).
+- Memory reads use `PidMemoryRead`, checking the sampled stack buffer before falling back to `pread64` on `/proc/<pid>/mem`.
+
+#### 2. Caching & Eviction
+- `libdw` caches decoded CFI intervals and mapped ELF segments internally within `Dwfl`.
+- Flushed by tearing down and recreating the `Dwfl` handle (`TeardownDwfl() / SetupDwfl()`).
+
+#### 3. Architectural Tradeoffs
+- **Pros**: Solid performance in CPU sampling (**16.2 µs/sample**), robust Linux kernel/system integration.
+- **Cons**:
+  - **Licensing barrier**: `elfutils` is LGPLv3+ / GPLv2, which is incompatible with Perfetto's Apache 2.0 core upstream license.
+  - High latency in memory profiling (**916 µs/sample**) due to heavy per-unwind session teardown/recreation overhead.
