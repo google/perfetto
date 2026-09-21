@@ -418,6 +418,7 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -469,10 +470,12 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
@@ -739,6 +742,7 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -791,10 +795,12 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
@@ -2561,6 +2567,40 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/core/exec:exec
+perfetto_filegroup(
+    name = "src_trace_processor_core_exec_exec",
+    srcs = [
+        "src/trace_processor/core/exec/assert_type.cc",
+        "src/trace_processor/core/exec/assert_type.h",
+        "src/trace_processor/core/exec/breaker.cc",
+        "src/trace_processor/core/exec/breaker.h",
+        "src/trace_processor/core/exec/column_chunk.h",
+        "src/trace_processor/core/exec/column_view.cc",
+        "src/trace_processor/core/exec/column_view.h",
+        "src/trace_processor/core/exec/dataframe_scan.cc",
+        "src/trace_processor/core/exec/dataframe_scan.h",
+        "src/trace_processor/core/exec/operator.cc",
+        "src/trace_processor/core/exec/operator.h",
+        "src/trace_processor/core/exec/pipeline.cc",
+        "src/trace_processor/core/exec/pipeline.h",
+        "src/trace_processor/core/exec/row_batch.cc",
+        "src/trace_processor/core/exec/row_batch.h",
+        "src/trace_processor/core/exec/row_cursor.cc",
+        "src/trace_processor/core/exec/row_cursor.h",
+        "src/trace_processor/core/exec/row_selection.h",
+        "src/trace_processor/core/exec/row_store.cc",
+        "src/trace_processor/core/exec/row_store.h",
+        "src/trace_processor/core/exec/tree_accumulate.cc",
+        "src/trace_processor/core/exec/tree_accumulate.h",
+        "src/trace_processor/core/exec/tree_number_nodes.cc",
+        "src/trace_processor/core/exec/tree_number_nodes.h",
+        "src/trace_processor/core/exec/tree_order.cc",
+        "src/trace_processor/core/exec/tree_order.h",
+        "src/trace_processor/core/exec/variant.h",
+    ],
+)
+
 # GN target: //src/trace_processor/core/interpreter:interpreter
 perfetto_filegroup(
     name = "src_trace_processor_core_interpreter_interpreter",
@@ -3768,12 +3808,23 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h",
+        "src/trace_processor/perfetto_sql/engine/pipeline_module.cc",
+        "src/trace_processor/perfetto_sql/engine/pipeline_module.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
         "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.cc",
         "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/exec:exec
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_exec_exec",
+    srcs = [
+        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
+        "src/trace_processor/perfetto_sql/exec/sql_scan.h",
     ],
 )
 
@@ -3822,6 +3873,15 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/pipeline:plan
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_pipeline_plan",
+    srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
+        "src/trace_processor/perfetto_sql/pipeline/physical_plan.h",
     ],
 )
 
@@ -11732,6 +11792,7 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -11783,10 +11844,12 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
@@ -12085,6 +12148,7 @@ perfetto_cc_binary(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -12136,10 +12200,12 @@ perfetto_cc_binary(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
