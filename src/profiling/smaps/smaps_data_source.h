@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -33,6 +34,8 @@
 namespace perfetto {
 namespace profiling {
 
+// Data source name: "linux.smaps".
+// Config: ProcessSmapsConfig in smaps_config.proto.
 class SmapsDataSource {
  public:
   static constexpr char kDataSourceName[] = "linux.smaps";
@@ -55,8 +58,10 @@ class SmapsDataSource {
 
   void Start();
   void Flush();
-  // Drains outstanding work synchronously and flushes the trace writer.
-  void Stop();
+  // Marks the data source as stopping, which lets the currently-enqueued work
+  // to complete before stopping. |on_stopped| is called from a separate task,
+  // and is allowed to destroy this instance.
+  void Stop(std::function<void()> on_stopped);
 
   ~SmapsDataSource() = default;
 
@@ -66,7 +71,7 @@ class SmapsDataSource {
   SmapsDataSource& operator=(SmapsDataSource&&) = delete;
 
  private:
-  // Enqueues the work necessary for one pass, and reposts itself if the scrape
+  // Enqueues the work necessary for one pass, and reposts itself if the config
   // is periodic.
   void Tick();
   // Finds the processes matching the target patterns, and queues a read for
@@ -75,8 +80,8 @@ class SmapsDataSource {
   // Serializes the smaps of one queued process, and reposts itself if there are
   // more targets.
   void ReadOnePending();
-  // Synchronously processes the rest of the enqueued work.
-  void DrainPendingReads();
+  // Commits the recorded data and notifies the caller of |Stop|.
+  void FinishStop();
   // Writes a packet with the smaps of the given process.
   void SerializeSmapsForPid(pid_t pid);
 
@@ -86,6 +91,8 @@ class SmapsDataSource {
   // Processes that the current tick hasn't serialized yet, drained in separate
   // per-process tasks.
   std::vector<pid_t> pending_reads_;
+  bool stopping_ = false;
+  std::function<void()> on_stopped_;
 
   base::WeakPtrFactory<SmapsDataSource> weak_factory_;  // keep last
 };

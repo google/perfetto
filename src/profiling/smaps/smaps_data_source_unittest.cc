@@ -50,8 +50,8 @@ TEST(SmapsDataSourceConfigTest, RejectsConfigWithoutTargets) {
 
 TEST(SmapsDataSourceConfigTest, KeepsTargetCmdlines) {
   protos::gen::ProcessSmapsConfig smaps_cfg_pb;
-  smaps_cfg_pb.add_target_cmdline("top");
-  smaps_cfg_pb.add_target_cmdline("/bin/e*");
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("/bin/e*");
 
   std::optional<SmapsDataSource::Config> config = CreateConfig(smaps_cfg_pb);
 
@@ -61,7 +61,7 @@ TEST(SmapsDataSourceConfigTest, KeepsTargetCmdlines) {
 
 TEST(SmapsDataSourceConfigTest, KeepsRecordingConfig) {
   protos::gen::ProcessSmapsConfig smaps_cfg_pb;
-  smaps_cfg_pb.add_target_cmdline("top");
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
   smaps_cfg_pb.mutable_smaps_config()->set_unaggregated(true);
   smaps_cfg_pb.mutable_smaps_config()->add_vma_fields(
       protos::gen::SmapsConfig::VMA_FIELD_PSS);
@@ -76,7 +76,7 @@ TEST(SmapsDataSourceConfigTest, KeepsRecordingConfig) {
 
 TEST(SmapsDataSourceConfigTest, UnsetReadPeriodMeansOneShot) {
   protos::gen::ProcessSmapsConfig smaps_cfg_pb;
-  smaps_cfg_pb.add_target_cmdline("top");
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
 
   std::optional<SmapsDataSource::Config> config = CreateConfig(smaps_cfg_pb);
 
@@ -86,7 +86,7 @@ TEST(SmapsDataSourceConfigTest, UnsetReadPeriodMeansOneShot) {
 
 TEST(SmapsDataSourceConfigTest, KeepsInRangeReadPeriod) {
   protos::gen::ProcessSmapsConfig smaps_cfg_pb;
-  smaps_cfg_pb.add_target_cmdline("top");
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
   smaps_cfg_pb.set_read_period_ms(2000);
 
   std::optional<SmapsDataSource::Config> config = CreateConfig(smaps_cfg_pb);
@@ -97,7 +97,7 @@ TEST(SmapsDataSourceConfigTest, KeepsInRangeReadPeriod) {
 
 TEST(SmapsDataSourceConfigTest, ClampsTooSmallReadPeriod) {
   protos::gen::ProcessSmapsConfig smaps_cfg_pb;
-  smaps_cfg_pb.add_target_cmdline("top");
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
   smaps_cfg_pb.set_read_period_ms(1);
 
   std::optional<SmapsDataSource::Config> config = CreateConfig(smaps_cfg_pb);
@@ -108,7 +108,7 @@ TEST(SmapsDataSourceConfigTest, ClampsTooSmallReadPeriod) {
 
 TEST(SmapsDataSourceConfigTest, ClampsTooLargeReadPeriod) {
   protos::gen::ProcessSmapsConfig smaps_cfg_pb;
-  smaps_cfg_pb.add_target_cmdline("top");
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
   smaps_cfg_pb.set_read_period_ms(kMaxReadPeriodMs * 2);
 
   std::optional<SmapsDataSource::Config> config = CreateConfig(smaps_cfg_pb);

@@ -674,12 +674,17 @@ void PerfProducer::StopDataSource(DataSourceInstanceID ds_id) {
     return;
   }
 
-  // Smaps: finish the outstanding reads and commit the data, then we're done.
+  // Smaps: wait for enqueued work (if any), then ack the stop in a separate
+  // task.
   auto smaps_it = smaps_data_sources_.find(ds_id);
   if (smaps_it != smaps_data_sources_.end()) {
-    smaps_it->second.Stop();
-    smaps_data_sources_.erase(smaps_it);
-    endpoint_->NotifyDataSourceStopped(ds_id);
+    auto weak_this = weak_factory_.GetWeakPtr();
+    smaps_it->second.Stop([weak_this, ds_id] {
+      if (!weak_this)
+        return;
+      weak_this->smaps_data_sources_.erase(ds_id);
+      weak_this->endpoint_->NotifyDataSourceStopped(ds_id);
+    });
     return;
   }
 

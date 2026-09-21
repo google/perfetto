@@ -53,10 +53,11 @@ std::optional<SmapsDataSource::Config> SmapsDataSource::Config::Create(
   }
 
   Config config;
-  config.target_cmdlines = smaps_cfg_pb.target_cmdline();
+  config.target_cmdlines = smaps_cfg_pb.scope().target_cmdline();
   if (config.target_cmdlines.empty()) {
     PERFETTO_ELOG(
-        "linux.smaps does not specify target_cmdline, rejecting data source.");
+        "linux.smaps does not specify scope.target_cmdline, rejecting data "
+        "source.");
     return std::nullopt;
   }
 
@@ -90,7 +91,7 @@ void SmapsDataSource::SerializeSmapsForPid(pid_t pid) {
   base::StackString<128> path("/proc/%d/smaps", static_cast<int>(pid));
   base::ScopedFstream smaps(fopen(path.c_str(), base::kFopenReadFlag));
   if (!smaps) {
-    PERFETTO_PLOG("linux.smaps: failed to open %s", path.c_str());
+    PERFETTO_DPLOG("linux.smaps: failed to open %s", path.c_str());
     return;
   }
 
@@ -115,22 +116,18 @@ void SmapsDataSource::Start() {
 // task runner task. The work is split because the task runner is shared, but
 // smaps parsing can be >10ms per pid in the worst case.
 void SmapsDataSource::Tick() {
-  base::TimeMillis started = base::GetWallTimeMs();
+  if (stopping_)
+    return;
 
   if (pending_reads_.empty()) {
     QueueSmapsReads();
   } else {
-    PERFETTO_DLOG("Skipping linux.smaps read tick, overrunning.");
+    PERFETTO_DLOG("Skipping linux.smaps tick, overrunning.");
   }
 
   uint32_t period_ms = config_.read_period_ms;
   if (period_ms == 0)
     return;  // one-shot recording, nothing left to do
-
-  // Periodic: schedule next tick, accounting for time taken to read.
-  auto elapsed_ms =
-      static_cast<uint64_t>((base::GetWallTimeMs() - started).count());
-  auto delay_ms = static_cast<uint32_t>(period_ms - (elapsed_ms % period_ms));
 
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
@@ -138,14 +135,14 @@ void SmapsDataSource::Tick() {
         if (weak_this)
           weak_this->Tick();
       },
-      delay_ms);
+      period_ms);
 }
 
 void SmapsDataSource::QueueSmapsReads() {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, LINUX_SMAPS_ENQUEUE);
 
-  // Note: the set of matching processes is re-evaluated on every read to catch
-  // new/renamed processes.
+  // Note: the set of matching processes is re-evaluated on every tick to catch
+  // new or renamed processes.
   std::set<pid_t> target_pids;
   glob_aware::FindPidsForCmdlinePatterns(config_.target_cmdlines, &target_pids);
   if (target_pids.empty())
@@ -162,26 +159,24 @@ void SmapsDataSource::QueueSmapsReads() {
 
 void SmapsDataSource::ReadOnePending() {
   if (pending_reads_.empty())
-    return;  // already drained, e.g. as part of stopping
-
+    return;
   pid_t pid = pending_reads_.back();
   pending_reads_.pop_back();
   SerializeSmapsForPid(pid);
 
-  if (pending_reads_.empty())
+  // If we're stopping, do so if queue is empty.
+  if (pending_reads_.empty() && stopping_) {
+    FinishStop();
     return;
-  auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this] {
-    if (weak_this)
-      weak_this->ReadOnePending();
-  });
-}
+  }
 
-void SmapsDataSource::DrainPendingReads() {
-  while (!pending_reads_.empty()) {
-    pid_t pid = pending_reads_.back();
-    pending_reads_.pop_back();
-    SerializeSmapsForPid(pid);
+  // Repost continuation if not done.
+  if (!pending_reads_.empty()) {
+    auto weak_this = weak_factory_.GetWeakPtr();
+    task_runner_->PostTask([weak_this] {
+      if (weak_this)
+        weak_this->ReadOnePending();
+    });
   }
 }
 
@@ -189,9 +184,26 @@ void SmapsDataSource::Flush() {
   trace_writer_->Flush();
 }
 
-void SmapsDataSource::Stop() {
-  DrainPendingReads();
+void SmapsDataSource::Stop(std::function<void()> on_stopped) {
+  PERFETTO_CHECK(!stopping_);
+  stopping_ = true;
+  on_stopped_ = std::move(on_stopped);
+
+  // Stop immediately if nothing enqueued, otherwise let |ReadOnePending| finish
+  // once the queue is empty.
+  if (pending_reads_.empty()) {
+    FinishStop();
+  }
+}
+
+void SmapsDataSource::FinishStop() {
+  PERFETTO_CHECK(stopping_ && pending_reads_.empty());
   Flush();
+
+  // Run the cleanup function as a separate task so that it can destroy this
+  // instance.
+  task_runner_->PostTask(
+      [on_stopped = std::move(on_stopped_)] { on_stopped(); });
 }
 
 }  // namespace profiling
