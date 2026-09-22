@@ -38,6 +38,8 @@ export const MODE_DEFAULTS = {
   persistent: {rowLimit: 10_000, traceLimit: 100_000},
 } as const;
 
+export const DEFAULT_TABLE_TTL_DAYS = 30;
+
 // The backend setting carrying an explicit list of trace UUIDs — the second
 // way to select a corpus: instead of a source plus the grid filter, exactly
 // these traces. A backend that supports it declares the setting (disabled by
@@ -318,6 +320,7 @@ export interface TabConfigSnapshot {
   readonly experimentFilter: ExperimentFilterState | undefined;
   readonly limit: number;
   readonly traceLimit: number;
+  readonly tableTtlDays: number;
   readonly materialize: boolean;
 }
 
@@ -346,6 +349,7 @@ export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
     experimentFilter: copyExperimentFilter(tab.experimentFilter),
     limit: tab.limit,
     traceLimit: tab.traceLimit,
+    tableTtlDays: tab.tableTtlDays,
     materialize: tab.materialize,
   };
 }
@@ -363,6 +367,7 @@ export function restoreTabConfig(
   tab.experimentFilter = copyExperimentFilter(snap.experimentFilter);
   tab.limit = snap.limit;
   tab.traceLimit = snap.traceLimit;
+  tab.tableTtlDays = snap.tableTtlDays;
   tab.materialize = snap.materialize;
 }
 
@@ -396,6 +401,8 @@ export interface BigTraceEditorTab {
   // Cap on how many traces the run fans out to; a top-level request field
   // like `limit`, defaulted per mode and moved with it while untouched.
   traceLimit: number;
+  // Lifetime of the table a persistent run writes, in days.
+  tableTtlDays: number;
   queryResult?: QueryResponse;
   isLoading: boolean;
   dataSource?: DataSource;
@@ -454,6 +461,7 @@ interface StoredTab {
   readonly editorText: string;
   readonly limit: number;
   readonly traceLimit?: number;
+  readonly tableTtlDays?: number;
   readonly materialize: boolean;
   readonly queryUuid?: string;
   readonly error?: string;
@@ -586,6 +594,12 @@ export class QueryTabsState {
         stored.traceLimit > 0
           ? stored.traceLimit
           : modeDefaults(isPersistent).traceLimit),
+      tableTtlDays:
+        isFromStorage &&
+        typeof stored?.tableTtlDays === 'number' &&
+        stored.tableTtlDays > 0
+          ? stored.tableTtlDays
+          : DEFAULT_TABLE_TTL_DAYS,
       queryResult: undefined,
       isLoading: false,
       dataSource: undefined,
@@ -647,6 +661,7 @@ export class QueryTabsState {
         configured: true,
         lastPresetId: src.lastPresetId,
         traceLimit: src.traceLimit,
+        tableTtlDays: src.tableTtlDays,
       },
     );
     this.markDirty();
@@ -707,6 +722,7 @@ export class QueryTabsState {
         editorText: t.editorText,
         limit: t.limit,
         traceLimit: t.traceLimit,
+        tableTtlDays: t.tableTtlDays,
         materialize: t.materialize,
         queryUuid: t.queryUuid,
         error: t.queryResult?.error,

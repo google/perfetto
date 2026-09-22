@@ -127,6 +127,7 @@ export class QueryRunner {
       traceOrderBy,
       traceLimit: tab.traceLimit,
       experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
+      tableTtlDays: tab.materialize ? tab.tableTtlDays : undefined,
     };
 
     const wallStartMs = performance.now();

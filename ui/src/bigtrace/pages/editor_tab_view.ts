@@ -178,6 +178,13 @@ function buildTabBindings(
         tabsState.markDirty();
       }
     },
+    getTableTtlDays: () => tab.tableTtlDays,
+    setTableTtlDays: (days) => {
+      if (days > 0) {
+        tab.tableTtlDays = days;
+        tabsState.markDirty();
+      }
+    },
   };
 }
 
