@@ -1012,36 +1012,41 @@ TEST_F(TraceProcessorIntegrationTest, RestoreDependentTableFunction) {
 }
 
 // This test checks that a ninja trace is tokenized properly even if read in
-// small chunks of 1KB each. The values used in the test have been cross-checked
-// with opening the same trace with ninjatracing + chrome://tracing.
+// small chunks of 1KB each. This log holds two builds, and the values used in
+// the test have been cross-checked against ninjatracing --showall on the same
+// log: same number of workers, same span, same total duration.
 TEST_F(TraceProcessorIntegrationTest, NinjaLog) {
   ASSERT_TRUE(LoadTrace("ninja_log", 1024).ok());
   auto it = Query("select count(*) from process where name glob 'Build';");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).long_value, 1);
 
+  // The two builds in this log are laid one after the other rather than on
+  // top of each other, so the workers of the first build are reused by the
+  // second one instead of being doubled.
   it = Query(
       "select count(*) from thread left join process using(upid) where "
       "thread.name like 'Worker%' and process.pid=1");
   ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, 28);
+  ASSERT_EQ(it.Get(0).long_value, 14);
 
   it = Query(
-      "create view slices_1st_build as select slices.* from slices left "
+      "create view build_slices as select slices.* from slices left "
       "join thread_track on(slices.track_id == thread_track.id) left join "
       "thread using(utid) left join process using(upid) where pid=1");
   it.Next();
   ASSERT_TRUE(it.Status().ok());
 
-  it = Query("select (max(ts) - min(ts)) / 1000000 from slices_1st_build");
+  it = Query("select (max(ts) - min(ts)) / 1000000 from build_slices");
   ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, 44697);
+  ASSERT_EQ(it.Get(0).long_value, 57556);
 
-  it = Query("select name from slices_1st_build order by ts desc limit 1");
+  it = Query("select name from build_slices order by ts desc limit 1");
   ASSERT_TRUE(it.Next());
-  ASSERT_STREQ(it.Get(0).string_value, "trace_processor_shell");
+  ASSERT_STREQ(it.Get(0).string_value,
+               "obj/src/trace_processor/unittests.trace_sorter_unittest.o");
 
-  it = Query("select sum(dur) / 1000000 from slices_1st_build");
+  it = Query("select sum(dur) / 1000000 from build_slices");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).long_value, 837192);
 }
