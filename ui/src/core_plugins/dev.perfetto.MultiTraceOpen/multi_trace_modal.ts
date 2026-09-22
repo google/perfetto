@@ -27,7 +27,7 @@ import {Callout} from '../../widgets/callout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Spinner} from '../../widgets/spinner';
 import {Stack} from '../../widgets/stack';
-import {TabStrip, type TabOption} from '../../widgets/tab_strip';
+import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tooltip} from '../../widgets/tooltip';
 import {TextParagraph} from '../../widgets/text_paragraph';
@@ -75,9 +75,6 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       Stack,
       {className: 'pf-multi-trace-modal', orientation: 'vertical'},
       this.renderDescription(),
-      this.currentTab === 'merge' &&
-        m(MergeConfigurator, {controller: this.controller}),
-      this.currentTab === 'merge' && this.renderStatus(),
       m(
         Stack,
         {className: 'pf-multi-trace-modal__footer', orientation: 'horizontal'},
@@ -168,51 +165,53 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   }
 
   private renderDescription() {
-    const tabs: TabOption[] = [
-      {key: 'merge', title: 'At the same time'},
-      {key: 'comparison', title: 'Trace Comparison'},
-    ];
-
     return m(
       Stack,
       {
         className: 'pf-multi-trace-modal__description-panel',
         orientation: 'vertical',
       },
-      m(TabStrip, {
+      m(Tabs, {
         className: 'pf-multi-trace-modal__tabs',
-        tabs,
-        currentTabKey: this.currentTab,
+        variant: 'underline',
+        activeTabKey: this.currentTab,
         onTabChange: (key: string) => {
           this.currentTab = key;
           redrawModal();
         },
+        tabs: [
+          {
+            key: 'merge',
+            title: 'At the same time',
+            content: [
+              m(
+                '.pf-multi-trace-modal__description-content',
+                m(TextParagraph, {
+                  text:
+                    'Combine traces that were captured at the same time ' +
+                    '(on one device or across several) onto a single shared ' +
+                    'timeline. Each file is placed automatically where its ' +
+                    'clocks line up; where they cannot, you can tell ' +
+                    'Perfetto how, per file.',
+                }),
+              ),
+              m(MergeConfigurator, {controller: this.controller}),
+              this.renderStatus(),
+            ],
+          },
+          {
+            key: 'comparison',
+            title: 'Trace Comparison',
+            content: m(
+              '.pf-multi-trace-modal__description-content',
+              m(TextParagraph, {
+                text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
+              }),
+            ),
+          },
+        ],
       }),
-      m('.pf-multi-trace-modal__description-content', this.renderTabContent()),
     );
-  }
-
-  private renderTabContent() {
-    switch (this.currentTab) {
-      case 'merge':
-        return [
-          m(TextParagraph, {
-            text:
-              'Combine traces that were captured at the same time (on one ' +
-              'device or across several) onto a single shared timeline. ' +
-              'Each file is placed automatically where its clocks line up; ' +
-              'where they cannot, you can tell Perfetto how, per file.',
-          }),
-        ];
-      case 'comparison':
-        return [
-          m(TextParagraph, {
-            text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
-          }),
-        ];
-      default:
-        return '';
-    }
   }
 
   private renderActions() {
