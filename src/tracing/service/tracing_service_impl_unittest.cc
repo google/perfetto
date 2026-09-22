@@ -5069,7 +5069,9 @@ TEST_F(TracingServiceImplScrapingWithSmbTest, ScrapeAfterInflatedCount) {
 
   perfetto::protos::pbzero::TracePacket trace_packet;
   protozero::MessageArena arena;
-  trace_packet.Reset(&stream_writer, &arena);
+  trace_packet.ResetWithEncoding(
+      &stream_writer, &arena,
+      protozero::Message::NestedEncoding::kLengthDelimited);
   trace_packet.set_size_field(stream_writer.ReserveBytes(4));
 
   trace_packet.set_for_testing()->set_str("payload1");
@@ -5140,7 +5142,9 @@ TEST_F(TracingServiceImplScrapingWithSmbTest, ScrapeAfterCompleteChunk) {
 
   perfetto::protos::pbzero::TracePacket trace_packet;
   protozero::MessageArena arena;
-  trace_packet.Reset(&stream_writer, &arena);
+  trace_packet.ResetWithEncoding(
+      &stream_writer, &arena,
+      protozero::Message::NestedEncoding::kLengthDelimited);
   trace_packet.set_size_field(stream_writer.ReserveBytes(4));
 
   trace_packet.set_for_testing()->set_str("payload1");

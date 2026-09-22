@@ -55,7 +55,7 @@ class StaticBuffered {
  public:
   StaticBuffered(void* buf, size_t len)
       : delegate_(reinterpret_cast<uint8_t*>(buf), len), writer_(&delegate_) {
-    msg_.Reset(&writer_);
+    msg_.ResetToLengthDelimited(&writer_);
   }
 
   // This can't be neither copied nor moved because Message hands out pointers

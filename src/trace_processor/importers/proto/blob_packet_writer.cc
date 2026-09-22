@@ -45,7 +45,7 @@ protos::pbzero::TracePacket* BlobPacketWriter::BeginPacket() {
 
   protozero::ContiguousMemoryRange range{packet_start_ptr_,
                                          slab_->mutable_data() + slab_->size()};
-  msg_.Reset(&writer_);
+  msg_.ResetToLengthDelimited(&writer_);
   writer_.Reset(range);
   slices_.push_back(range);
   return &msg_;
