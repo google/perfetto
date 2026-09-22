@@ -254,6 +254,9 @@ export class QueryRunner {
     if (details.schema !== undefined) {
       exec.schema = details.schema;
     }
+    if (details.tableName !== undefined) {
+      exec.tableName = details.tableName;
+    }
     exec.status = details.status ?? 'N/A';
     exec.processedRows = details.processedRows ?? 0;
     exec.processedTraces = details.processedTraces ?? 0;
@@ -386,6 +389,9 @@ export class QueryRunner {
       queryStore.update(tab.queryUuid, {
         ...(serverStartMs !== undefined ? {startTime: serverStartMs} : {}),
         ...(details?.schema !== undefined ? {schema: details.schema} : {}),
+        ...(details?.tableName !== undefined
+          ? {tableName: details.tableName}
+          : {}),
       });
     } catch (e) {
       console.error('Failed to fetch query details after executeAsync:', e);
