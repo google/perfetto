@@ -55,9 +55,10 @@ std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   return out;
 }
 
-std::string OpString(const LogicalPlan& plan, const Op& op) {
+std::string NodeString(const LogicalPlan& plan, const PlanNode& node) {
   struct Visitor {
     const LogicalPlan& plan;
+    const std::vector<PlanNodeId>& children;
     std::string operator()(const op::Scan& scan) const {
       std::string out = "Scan(";
       if (const auto* dataframe =
@@ -87,18 +88,36 @@ std::string OpString(const LogicalPlan& plan, const Op& op) {
       }
       return out + ")";
     }
+    std::string operator()(const op::IntervalIntersect& ii) const {
+      std::string out = "IntervalIntersect(ts=#" + std::to_string(ii.ts) +
+                        ", dur=#" + std::to_string(ii.dur) + ")";
+      for (uint32_t i = 0; i < ii.operands.size(); i++) {
+        const op::IntervalIntersect::Operand& operand = ii.operands[i];
+        out += "\n  operand(ts=#" + std::to_string(operand.ts) + ", dur=#" +
+               std::to_string(operand.dur);
+        for (ColumnId key : operand.keys) {
+          out += ", key=#" + std::to_string(key);
+        }
+        out +=
+            ")\n    " + (*this)(std::get<op::Scan>(plan.nodes[children[i]].op));
+      }
+      return out;
+    }
   };
-  return std::visit(Visitor{plan}, op);
+  return std::visit(Visitor{plan, node.children}, node.op);
 }
 
-// Nodes deepest first, so a chain reads in execution order.
+// Nodes deepest first, so a chain reads in execution order. An intersection
+// prints its operands inline, so they are not also listed on their own.
 std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
   const PlanNode& node = plan.nodes[id];
   std::string out;
-  for (PlanNodeId child : node.children) {
-    out += SubtreeString(plan, child);
+  if (!std::holds_alternative<op::IntervalIntersect>(node.op)) {
+    for (PlanNodeId child : node.children) {
+      out += SubtreeString(plan, child);
+    }
   }
-  return out + OpString(plan, node.op) + "\n";
+  return out + NodeString(plan, node) + "\n";
 }
 
 }  // namespace

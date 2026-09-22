@@ -81,15 +81,32 @@ struct TreeAccumulate {
   std::vector<Aggregate> aggregates;
 };
 
+// `INTERVAL INTERSECTION OF (rel AS a, ...) [PER cols]`. A source: the rows
+// are the regions every operand covers, not the rows of any one of them.
+struct IntervalIntersect {
+  // The columns read from one operand, which is a child of the node. Operands
+  // are in child order, so `operands[i]` describes `children[i]`.
+  struct Operand {
+    ColumnId ts = 0;
+    ColumnId dur = 0;
+    // One per PER column, in the order they were written.
+    std::vector<ColumnId> keys;
+  };
+  std::vector<Operand> operands;
+  // The region's own bounds, which no operand owns.
+  ColumnId ts = 0;
+  ColumnId dur = 0;
+};
+
 }  // namespace op
 
-using Op = std::variant<op::Scan, op::TreeAccumulate>;
+using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
 
 // Stable within a plan.
 using PlanNodeId = uint32_t;
 
-// An operator together with the relations it reads. A Scan reads none, a
-// single-input stage reads one, and an operator can read several.
+// An operator together with the relations it reads. A Scan reads none; a
+// single-input stage reads one; an intersection reads one per operand.
 struct PlanNode {
   Op op;
   std::vector<PlanNodeId> children;
