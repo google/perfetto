@@ -504,12 +504,17 @@ void PerfettoSqlConnection::RegisterStaticTableFunction(
   PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
 }
 
-std::unique_ptr<PerfettoSqlParser> PerfettoSqlConnection::AcquireParser() {
-  if (cached_parser_) {
+std::unique_ptr<PerfettoSqlParser> PerfettoSqlConnection::AcquireParser(
+    bool allow_pipelines) {
+  // A parser without a catalog refuses a pipeline, which is how SQL that may
+  // not use one is parsed.
+  if (cached_parser_ && cached_parser_allows_pipelines_ == allow_pipelines) {
     return std::move(cached_parser_);
   }
-  return std::make_unique<PerfettoSqlParser>(database_->macros(),
-                                             catalog_.get());
+  cached_parser_.reset();
+  cached_parser_allows_pipelines_ = allow_pipelines;
+  return std::make_unique<PerfettoSqlParser>(
+      database_->macros(), allow_pipelines ? catalog_.get() : nullptr);
 }
 
 base::StatusOr<PerfettoSqlConnection::ExecutionStats>
@@ -649,7 +654,8 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
 
       // Copy traceback before PushIncludeFrame, which may invalidate frame ref.
       SqlSource traceback = *wc_aux.wildcard_traceback_sql;
-      PushIncludeFrame(key, sql, std::move(traceback), std::move(res.claim));
+      PushIncludeFrame(key, sql, std::move(traceback), std::move(res.claim),
+                       wc_aux.wildcard_builtin);
       return FrameResult::kContinue;
     }
     // No more modules to process
@@ -809,6 +815,9 @@ base::StatusOr<SqlSource> PerfettoSqlConnection::ResolveExtensionStatement(
   } else if (const auto* drop_index =
                  std::get_if<PerfettoSqlParser::DropIndex>(&stmt)) {
     RETURN_IF_ERROR(ExecuteDropIndex(*drop_index));
+  } else if (const auto* pragma =
+                 std::get_if<PerfettoSqlParser::Pragma>(&stmt)) {
+    RETURN_IF_ERROR(ExecutePragma(*pragma));
   } else {
     // SqliteSql and Pipeline are handled in ProcessFrame.
     PERFETTO_FATAL("Unexpected statement variant");
@@ -846,7 +855,7 @@ PerfettoSqlConnection::ExecuteStatementsImpl(SqlSource sql_source,
   // current SQL. This uses an explicit stack to avoid deep recursion.
 
   auto source_size = static_cast<uint32_t>(sql_source.sql().size());
-  auto root_parser = AcquireParser();
+  auto root_parser = AcquireParser(pipelines_enabled_);
   root_parser->Reset(std::move(sql_source));
   execution_stack_.emplace_back(ExecutionFrame{FrameType::kRoot,
                                                std::move(root_parser),
@@ -1130,6 +1139,16 @@ base::Status PerfettoSqlConnection::ExecuteInclude(
   return IncludePackageImpl(*package, key, parser);
 }
 
+base::Status PerfettoSqlConnection::ExecutePragma(
+    const PerfettoSqlParser::Pragma& pragma) {
+  if (pragma.name == "pipelines") {
+    pipelines_enabled_ = pragma.value != 0;
+    return base::OkStatus();
+  }
+  return base::ErrStatus("PERFETTO PRAGMA: there is no setting '%s'",
+                         pragma.name.c_str());
+}
+
 base::Status PerfettoSqlConnection::ExecuteCreateIndex(
     const PerfettoSqlParser::CreateIndex& create_index) {
   PERFETTO_TP_TRACE(
@@ -1248,6 +1267,7 @@ base::Status PerfettoSqlConnection::IncludePackageImpl(
     auto aux = std::make_unique<ExecutionFrameAux>();
     aux->wildcard_modules = std::move(matching_modules);
     aux->wildcard_traceback_sql = parser.statement_sql();
+    aux->wildcard_builtin = package.builtin;
     execution_stack_.emplace_back(ExecutionFrame{FrameType::kWildcard,
                                                  /*parser=*/nullptr,
                                                  /*accumulated_stats=*/{},
@@ -1259,7 +1279,7 @@ base::Status PerfettoSqlConnection::IncludePackageImpl(
   if (!module_sql) {
     return base::ErrStatus("INCLUDE: unknown module '%s'", include_key.c_str());
   }
-  return IncludeModuleImpl(include_key, *module_sql, parser);
+  return IncludeModuleImpl(package.builtin, include_key, *module_sql, parser);
 }
 
 bool PerfettoSqlConnection::IsKeyOnIncludeStack(const std::string& key) const {
@@ -1272,6 +1292,7 @@ bool PerfettoSqlConnection::IsKeyOnIncludeStack(const std::string& key) const {
 }
 
 base::Status PerfettoSqlConnection::IncludeModuleImpl(
+    bool builtin,
     const std::string& key,
     std::string_view sql,
     const PerfettoSqlParser& parser) {
@@ -1292,7 +1313,8 @@ base::Status PerfettoSqlConnection::IncludeModuleImpl(
         "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
         traceback.c_str(), key.c_str(), res.poison_reason.c_str());
   }
-  PushIncludeFrame(key, sql, parser.statement_sql(), std::move(res.claim));
+  PushIncludeFrame(key, sql, parser.statement_sql(), std::move(res.claim),
+                   builtin);
   return base::OkStatus();
 }
 
@@ -1300,12 +1322,13 @@ void PerfettoSqlConnection::PushIncludeFrame(
     const std::string& key,
     std::string_view sql,
     SqlSource traceback_sql,
-    PerfettoSqlDatabase::IncludeClaim claim) {
+    PerfettoSqlDatabase::IncludeClaim claim,
+    bool builtin) {
   auto aux = std::make_unique<ExecutionFrameAux>();
   aux->include_key = key;
   aux->traceback_sql = std::move(traceback_sql);
   aux->include_claim = std::move(claim);
-  auto inc_parser = AcquireParser();
+  auto inc_parser = AcquireParser(builtin || pipelines_enabled_);
   inc_parser->Reset(SqlSource::FromModuleInclude(std::string(sql), key));
   execution_stack_.emplace_back(
       ExecutionFrame{FrameType::kInclude, std::move(inc_parser),

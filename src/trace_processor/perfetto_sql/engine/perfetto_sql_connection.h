@@ -397,6 +397,8 @@ class PerfettoSqlConnection {
     std::vector<std::pair<std::string, std::string>> wildcard_modules;
     size_t wildcard_index = 0;
     std::optional<SqlSource> wildcard_traceback_sql;
+    // Whether the package being expanded is the standard library.
+    bool wildcard_builtin = false;
   };
 
   // Execution state for a single SQL source. The SqlSource lives inside
@@ -421,6 +423,7 @@ class PerfettoSqlConnection {
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
 
+  base::Status ExecutePragma(const PerfettoSqlParser::Pragma&);
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
 
   base::Status RegisterDelegatingFunction(
@@ -495,7 +498,8 @@ class PerfettoSqlConnection {
   // Include a given module body. Goes through |TryClaimInclude| on the
   // database; returns OkStatus on already-included, an error on poisoned,
   // or pushes an include frame on the execution stack on a fresh claim.
-  base::Status IncludeModuleImpl(const std::string& key,
+  base::Status IncludeModuleImpl(bool builtin,
+                                 const std::string& key,
                                  std::string_view sql,
                                  const PerfettoSqlParser&);
 
@@ -504,7 +508,8 @@ class PerfettoSqlConnection {
   void PushIncludeFrame(const std::string& key,
                         std::string_view sql,
                         SqlSource traceback_sql,
-                        PerfettoSqlDatabase::IncludeClaim claim);
+                        PerfettoSqlDatabase::IncludeClaim claim,
+                        bool builtin);
 
   // Returns true iff |key| is the |include_key| of an active |kInclude|
   // frame on this connection's execution stack — i.e. a re-entry of |key|
@@ -537,7 +542,10 @@ class PerfettoSqlConnection {
   // Returns a parser ready for use: |cached_parser_| if available (and
   // Reset()ed by the caller), otherwise a freshly-allocated one. The cache
   // is replenished only by Execute()'s top-level frame.
-  std::unique_ptr<PerfettoSqlParser> AcquireParser();
+  // `allow_pipelines` says whether the SQL this parser will read may use a
+  // pipeline: the standard library always may, anything else only once
+  // `PERFETTO PRAGMA pipelines = 1` has run on this connection.
+  std::unique_ptr<PerfettoSqlParser> AcquireParser(bool allow_pipelines);
 
   // Called when a transaction is committed by SQLite; that is, the result of
   // running some SQL is considered "perm".
@@ -564,6 +572,9 @@ class PerfettoSqlConnection {
   // If true, this connection will perform additional consistency checks when
   // e.g. creating tables and views.
   const bool enable_extra_checks_;
+  // Set by `PERFETTO PRAGMA pipelines = 1`; the standard library does not
+  // need it.
+  bool pipelines_enabled_ = false;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
   // When an INCLUDE statement is encountered, the included module's SQL is
@@ -629,6 +640,9 @@ class PerfettoSqlConnection {
   // create/destroy round-trip. Re-entrant Execute() and include frames
   // allocate fresh parsers.
   std::unique_ptr<PerfettoSqlParser> cached_parser_;
+  // What `cached_parser_` was built to allow; a parser is only reused for SQL
+  // with the same permission, since the catalog is fixed at construction.
+  bool cached_parser_allows_pipelines_ = false;
 };
 
 // The rest of this file is just implementation details which we need

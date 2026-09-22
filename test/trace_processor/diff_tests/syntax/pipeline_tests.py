@@ -25,6 +25,7 @@ class PerfettoPipeline(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
+        PERFETTO PRAGMA pipelines = 1;
         CREATE PERFETTO TABLE tree AS
         SELECT 0 AS id, NULL AS parent_id, 'root' AS name, 10 AS self
         UNION ALL SELECT 1, 0, 'a', 20
@@ -51,6 +52,7 @@ class PerfettoPipeline(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
+        PERFETTO PRAGMA pipelines = 1;
         CREATE PERFETTO TABLE piped AS
         FROM (SELECT id, parent_id, dur FROM slice)
         |> TREE ACCUMULATE UP SUM(dur) AS subtree_dur
@@ -98,7 +100,57 @@ class PerfettoPipeline(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
+        PERFETTO PRAGMA pipelines = 1;
         FROM (SELECT 1 AS id, NULL AS parent_id)
         |> TREE ACCUMULATE UP MAX(id) AS biggest;
         """,
         out=ExpectedError('aggregate MAX is not supported yet'))
+
+  def test_a_pipeline_needs_the_pragma(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        FROM (SELECT 1 AS id, NULL AS parent_id)
+        |> TREE ACCUMULATE UP SUM(id) AS total;
+        """,
+        out=ExpectedError('Pipelines cannot be used here'))
+
+  def test_the_pragma_admits_a_pipeline(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS id, NULL AS parent_id, 7 AS self)
+        |> TREE ACCUMULATE UP SUM(self) AS total;
+        """,
+        out=Csv("""
+        "id","parent_id","self","total"
+        1,"[NULL]",7,7
+        """))
+
+  def test_the_pragma_can_be_turned_back_off(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        PERFETTO PRAGMA pipelines = 0;
+        FROM (SELECT 1 AS id, NULL AS parent_id)
+        |> TREE ACCUMULATE UP SUM(id) AS total;
+        """,
+        out=ExpectedError('Pipelines cannot be used here'))
+
+  def test_an_unknown_pragma_says_so(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA nonsense = 1;
+        """,
+        out=ExpectedError("there is no setting 'nonsense'"))
+
+  def test_a_pragma_takes_a_whole_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 'yes';
+        """,
+        out=ExpectedError('expected a whole number'))

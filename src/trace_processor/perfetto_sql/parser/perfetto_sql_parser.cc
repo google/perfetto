@@ -467,6 +467,26 @@ base::StatusOr<Statement> ParseCreateDelegatingFunction(
   });
 }
 
+base::StatusOr<Statement> ParsePragma(SyntaqliteParser* p,
+                                      const SyntaqlitePerfettoPragmaStmt& n) {
+  std::string name = SpanText(p, n.name);
+  const auto* value =
+      static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, n.value));
+  if (value->tag != SYNTAQLITE_NODE_LITERAL ||
+      value->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_INTEGER) {
+    return base::ErrStatus("PERFETTO PRAGMA %s: expected a whole number",
+                           name.c_str());
+  }
+  std::optional<int64_t> parsed =
+      base::StringToInt64(SpanText(p, value->literal.source));
+  if (!parsed) {
+    return base::ErrStatus("PERFETTO PRAGMA %s: '%s' does not fit a number",
+                           name.c_str(),
+                           SpanText(p, value->literal.source).c_str());
+  }
+  return Statement(PerfettoSqlParser::Pragma{std::move(name), *parsed});
+}
+
 Statement ParseCreateIndex(SyntaqliteParser* p,
                            const SyntaqliteCreatePerfettoIndexStmt& n) {
   std::vector<std::string> col_names;
@@ -554,6 +574,8 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
       return Statement(PerfettoSqlParser::Include{
           SpanText(p, node->include_perfetto_module_stmt.module_name),
       });
+    case SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT:
+      return ParsePragma(p, node->perfetto_pragma_stmt);
     case SYNTAQLITE_NODE_PERFETTO_PIPELINE: {
       ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
                        CompilePipeline(p, rb, catalog, root));
