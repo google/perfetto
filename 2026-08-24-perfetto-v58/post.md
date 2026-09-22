@@ -2,6 +2,7 @@
 title: Perfetto v58
 author: @perfetto-team
 summary: We’re excited to share Perfetto v58.2! This release makes it possible to merge traces from different machines onto one timeline, introduces Memscope and Memory Overview for end-to-end memory investigations, lets you keep a parsed trace running and analyze it through lightweight remote clients, adds Zstd trace compression, and substantially improves Perfetto’s AI-assisted analysis workflows. It also introduces a common stack-sampling format, new export options, and a collection of UI and SDK improvements.
+cover: cover.svg
 ---
 
 We’re excited to share Perfetto v58.2! This release makes it possible to **merge traces from different machines onto one timeline**, introduces **Memscope and Memory Overview** for end-to-end memory investigations, lets you **keep a parsed trace running and analyze it through lightweight remote clients**, adds **Zstd trace compression**, and substantially improves Perfetto’s **AI-assisted analysis workflows**. It also introduces a common stack-sampling format, new export options, and a collection of UI and SDK improvements.

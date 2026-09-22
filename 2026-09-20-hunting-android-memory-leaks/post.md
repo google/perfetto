@@ -2,6 +2,7 @@
 title: Hunting Android memory leaks with Perfetto, SQL, and AI agents
 author: @shaybarak
 summary: From interactive dominator flamegraphs and warehouse-scale BigTrace queries to AI coding agents that trace a retained heap object straight to the buggy line of Kotlin and write the regression test.
+cover: cover.svg
 ---
 
 A single unregistered callback in an Android app can quietly pin an entire destroyed `Fragment`, its view hierarchy, and tens of megabytes of decoded `Bitmap` buffers in memory. Do that a few times across navigation transitions and a smooth experience turns into aggressive garbage collection pauses, background process kills (`lmkd`), or an outright `OutOfMemoryError`.

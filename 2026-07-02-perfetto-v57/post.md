@@ -2,6 +2,7 @@
 title: Perfetto v57
 author: @perfetto-team
 summary: We're excited to share Perfetto v57.1! This release introduces an installable AI skill that teaches coding agents how to use Perfetto, a long-awaited fix for overlapping events in JSON traces (commonly affecting the PyTorch profiler), state tracks, a brand-new track type alongside slices and counters, end-to-end support for systemd journald logs, a rework of the query results grid, and new SDK capabilities like nested tracks and correlation ids.
+cover: cover.svg
 ---
 
 We're excited to share Perfetto v57.1! This release introduces an installable **AI skill** that teaches coding agents how to use Perfetto, a long-awaited fix for **overlapping events in JSON traces** (commonly affecting the PyTorch profiler), **state tracks**, a brand-new track type alongside slices and counters, end-to-end support for **systemd journald logs**, a rework of the query results grid, and new SDK capabilities like nested tracks and correlation ids.
