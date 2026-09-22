@@ -6,9 +6,9 @@ summary: From interactive dominator flamegraphs and warehouse-scale BigTrace que
 
 A single unregistered callback in an Android app can quietly pin an entire destroyed `Fragment`, its view hierarchy, and tens of megabytes of decoded `Bitmap` buffers in memory. Do that a few times across navigation transitions and a smooth experience turns into aggressive garbage collection pauses, background process kills (`lmkd`), or an outright `OutOfMemoryError`.
 
-Every complex, asynchronous application encounters memory leaks sooner or later. Modern Android apps juggle overlapping lifecycles—Activities, Fragments, Compose UI trees, ViewModels, coroutine scopes, hardware callbacks, and window-level observers. When any two of those lifecycles fall out of sync, memory stays reachable long after its work is done.
+Every complex, asynchronous application encounters memory leaks sooner or later. Modern Android apps juggle overlapping lifecycles: Activities, Fragments, Compose UI trees, ViewModels, coroutine scopes, hardware callbacks, and window-level observers. When any two of those lifecycles fall out of sync, memory stays reachable long after its work is done.
 
-At Google, I work on Android platform system health. To keep our own applications and the broader Android ecosystem fast and reliable, my colleagues and I built a comprehensive suite of memory profiling and analysis tools directly into [Perfetto](https://perfetto.dev)—and we open-sourced the entire stack so every developer can use the exact same workflows.
+At Google, I work on Android platform system health. To keep our own applications and the broader Android ecosystem fast and reliable, my colleagues and I built a comprehensive suite of memory profiling and analysis tools directly into [Perfetto](https://perfetto.dev), and we open-sourced the entire stack so every developer can use the exact same workflows.
 
 In this post, I will walk through how to hunt down Android memory leaks across four complementary layers of the Perfetto ecosystem:
 
@@ -23,7 +23,7 @@ If you have debugged Java memory leaks before, you have likely used standard JVM
 
 Perfetto approaches memory analysis differently:
 
-* **Lightweight reference graphs ([`android.java_hprof`](https://perfetto.dev/docs/data-sources/java-heap-profiler)):** Rather than dumping raw primitive contents, Perfetto's ART heap profiler records the complete **object retention graph**—every live Java/Kotlin object, its class, its shallow size, its native allocation size (via `libcore.util.NativeAllocationRegistry`), and the exact named member fields connecting owners to referents. Because no string payloads or pixel buffers leave the process, it is fast, privacy-safe, and works on non-debuggable builds. (When you do need full primitive/bitmap pixel contents on a debuggable build, Perfetto also imports standard ART `.hprof` files.)
+* **Lightweight reference graphs ([`android.java_hprof`](https://perfetto.dev/docs/data-sources/java-heap-profiler)):** Rather than dumping raw primitive contents, Perfetto's ART heap profiler records the complete **object retention graph**: every live Java/Kotlin object, its class, its shallow size, its native allocation size (via `libcore.util.NativeAllocationRegistry`), and the exact named member fields connecting owners to referents. Because no string payloads or pixel buffers leave the process, it is fast, privacy-safe, and works on non-debuggable builds. (When you do need full primitive/bitmap pixel contents on a debuggable build, Perfetto also imports standard ART `.hprof` files.)
 * **Unified timeline context ([Memory Counters](https://perfetto.dev/docs/data-sources/memory-counters)):** Because a heap snapshot is just one data source in a Perfetto trace, you can correlate object retention directly against kernel memory counters (`anon_rss`, `swap`, `oom_score_adj`), CPU scheduling slices, GC pauses, and app lifecycle events on the exact same timeline.
 * **Java and Native ([`heapprofd`](https://perfetto.dev/docs/data-sources/native-heap-profiler)) under one roof:** Android memory pressure frequently crosses the JNI boundary. A tiny 64-byte Kotlin wrapper object might retain a 24 MB native hardware buffer. Perfetto lets you inspect both ART object retention graphs and [native C/C++ callstack allocations or ART allocation profiles](https://perfetto.dev/docs/getting-started/memory-profiling) in a single tool.
 
@@ -65,7 +65,7 @@ class PhotoAttachmentLauncher(private val fragment: Fragment) {
 
 ### Window-root vs. local view scope mismatches
 
-A subtle variation occurs when helper functions attach listeners to window-level roots—such as `activity.window.decorView` or a window-shared `ViewTreeObserver`—to update a short-lived child view or `Fragment`.
+A subtle variation occurs when helper functions attach listeners to window-level roots, such as `activity.window.decorView` or a window-shared `ViewTreeObserver`, to update a short-lived child view or `Fragment`.
 
 ```kotlin
 // LEAK: decorView lives as long as the Activity, retaining the listener lambda
@@ -131,7 +131,7 @@ fun onClose() {
 }
 ```
 
-Because `uiScope` is cancelled as part of teardown, the cleanup coroutine throws `CancellationException` before `unbind()` runs—leaving hardware buffers and preview surfaces pinned in memory. Wrapping critical teardown work in `NonCancellable` guarantees completion:
+Because `uiScope` is cancelled as part of teardown, the cleanup coroutine throws `CancellationException` before `unbind()` runs, leaving hardware buffers and preview surfaces pinned in memory. Wrapping critical teardown work in `NonCancellable` guarantees completion:
 
 ```kotlin
 // FIX: Run asynchronous teardown under NonCancellable so cleanup finishes
@@ -382,9 +382,9 @@ Downloading 10,000 multi-megabyte trace files to a single machine is slow and im
 
 ![BigTrace distributed architecture diagram showing client, orchestrator, and stateless trace processor workers](bigtrace-diagram.png)
 
-At Google, we use this approach to turn individual heap profiles into clusters of leaks. Grouping fleet-wide snapshots by their retaining dominator chains helps us identify common root causes and decide which issues to address first—ranked by incident count and estimated memory impact.
+At Google, we use this approach to turn individual heap profiles into clusters of leaks. Grouping fleet-wide snapshots by their retaining dominator chains helps us identify common root causes and decide which issues to address first, ranked by incident count and estimated memory impact.
 
-BigTrace distributes trace processing across a stateless cluster of `trace_processor` workers orchestrated over gRPC—deployable [locally on a single machine with Docker](https://perfetto.dev/docs/deployment/deploying-bigtrace-on-a-single-machine) or [at cluster scale on Kubernetes](https://perfetto.dev/docs/deployment/deploying-bigtrace-on-kubernetes) with traces stored in cloud object storage, and integrable with analytical engines like ClickHouse. Using the open-source Python client (`perfetto.bigtrace.api`), you can execute a single PerfettoSQL query across thousands of remote traces in seconds and aggregate the results directly into a Pandas DataFrame:
+BigTrace distributes trace processing across a stateless cluster of `trace_processor` workers orchestrated over gRPC, deployable [locally on a single machine with Docker](https://perfetto.dev/docs/deployment/deploying-bigtrace-on-a-single-machine) or [at cluster scale on Kubernetes](https://perfetto.dev/docs/deployment/deploying-bigtrace-on-kubernetes) with traces stored in cloud object storage, and integrable with analytical engines like ClickHouse. Using the open-source Python client (`perfetto.bigtrace.api`), you can execute a single PerfettoSQL query across thousands of remote traces in seconds and aggregate the results directly into a Pandas DataFrame:
 
 ```python
 import perfetto.bigtrace.api
@@ -423,7 +423,7 @@ Even with great visualizers and SQL tables, root-causing a memory leak tradition
 1. **The trace world** (Perfetto UI / SQL), which tells you *what* object graph is alive (`ActivityResultRegistry$3` -> `PhotoAttachmentLauncher$$ExternalSyntheticLambda0` -> `PhotoAttachmentLauncher` -> `ComposeMessageFragment`).
 2. **The source code world** (your IDE and git repository), which tells you *why* that reference was created, what lifecycle callbacks exist, and how to fix it safely without breaking feature behavior.
 
-To bridge those two worlds, Perfetto ships an official open-source **[agentskills.io](https://agentskills.io) skill for AI coding agents** (supporting Claude Code, Codex, OpenCode, Cursor, Antigravity, and any agent that reads `SKILL.md` workflows—see the [Cookbook: Using AI with Perfetto](https://perfetto.dev/docs/getting-started/using-ai) and [AI memory debugging workflows](https://perfetto.dev/docs/getting-started/android-trace-analysis#using-ai)).
+To bridge those two worlds, Perfetto ships an official open-source **[agentskills.io](https://agentskills.io) skill for AI coding agents** (supporting Claude Code, Codex, OpenCode, Cursor, Antigravity, and any agent that reads `SKILL.md` workflows; see the [Cookbook: Using AI with Perfetto](https://perfetto.dev/docs/getting-started/using-ai) and [AI memory debugging workflows](https://perfetto.dev/docs/getting-started/android-trace-analysis#using-ai)).
 
 You can install it in one command:
 
@@ -491,7 +491,7 @@ In this conversation, a developer points their coding agent at a captured `.perf
 
 ### Example 2: Catching a cancelled coroutine teardown and writing the regression test
 
-Even more powerfully, an agent can connect a heap graph retention signature to a subtle concurrency bug—and then **write and execute a unit test** to prove the bug is fixed.
+Even more powerfully, an agent can connect a heap graph retention signature to a subtle concurrency bug, and then **write and execute a unit test** to prove the bug is fixed.
 
 > **Developer:**
 > We have an intermittent leak in `./traces/camera_preview_leak.perfetto-trace` where `CameraPreviewController` and its surface buffers stay alive after swiping back from the scanner screen. Why didn't our `onClose()` cleanup release it? Can you fix it and write a unit test that reproduces the race?
@@ -502,7 +502,7 @@ Even more powerfully, an agent can connect a heap graph retention signature to a
 > *[Tool Call: Queries `android_heap_graph_class_summary_tree` and `heap_graph_reference` via `trace_processor`]*
 > *[Tool Call: Views `app/src/main/java/com/example/scanner/CameraPreviewController.kt`]*
 >
-> **Diagnosis — Aborted Asynchronous Teardown:**
+> **Diagnosis: Aborted Asynchronous Teardown**
 > 1. **In the Perfetto trace:** `CameraPreviewController` retains **64.8 MB** (including `[native]` hardware buffer references). It is still registered as an active frame listener inside `CameraSessionManager.activeListeners`.
 > 2. **In `CameraPreviewController.kt:84`:**
 >    ```kotlin
@@ -543,9 +543,9 @@ Even more powerfully, an agent can connect a heap graph retention signature to a
 >      assertThat(fakeSessionManager.unboundControllers).containsExactly(controller)
 >    }
 >    ```
-> 3. Executed `:app:testDebugUnitTest` — **PASS** (verified the test fails without `NonCancellable` and passes with the fix).
+> 3. Executed `:app:testDebugUnitTest`: **PASS** (verified the test fails without `NonCancellable` and passes with the fix).
 
-At Google, we use this workflow as a grounding approach. An agent may identify a memory leak from analyzing a heap profile, write a test to reproduce the leak, run the test and examine the resulting heap profile to confirm that the test reproduced the issue, and then use the exact same test as a regression test for its proposed fix. After passing all of these grounding steps autonomously, the agent notifies a human reviewer of the issue—presenting a high-confidence analysis and a patch with test coverage. Agents can follow Test-Driven Development too!
+At Google, we use this workflow as a grounding approach. An agent may identify a memory leak from analyzing a heap profile, write a test to reproduce the leak, run the test and examine the resulting heap profile to confirm that the test reproduced the issue, and then use the exact same test as a regression test for its proposed fix. After passing all of these grounding steps autonomously, the agent notifies a human reviewer of the issue, presenting a high-confidence analysis and a patch with test coverage. Agents can follow Test-Driven Development too!
 
 ### Example 3: Clustering 50 heap dumps to find the top leak signatures across a release
 
