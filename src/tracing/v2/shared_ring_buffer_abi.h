@@ -155,6 +155,50 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
 
+// True if |chunk_size| is at least kMinChunkSize and a multiple of
+// kChunkAlignmentBytes.
+constexpr bool IsValidChunkSize(uint32_t chunk_size) {
+  return chunk_size >= kMinChunkSize && chunk_size % kChunkAlignmentBytes == 0;
+}
+
+// Validates the layout of an untrusted ring buffer and returns its chunk
+// count. Returns nullopt, and does not crash, if |start| is null or
+// misaligned, or if |size| and |chunk_size| do not form a valid layout.
+//
+// - Any thread can call it. It reads no shared bytes.
+// - The transport limits the mapping size separately.
+// - The SharedRingBuffer constructor CHECKs the same rules.
+inline std::optional<uint32_t> NumChunksForRingBufferLayout(
+    const void* start,
+    size_t size,
+    uint32_t chunk_size) {
+  if (!start ||
+      reinterpret_cast<uintptr_t>(start) % alignof(RingBufferHeader) != 0) {
+    return std::nullopt;
+  }
+  if (!IsValidChunkSize(chunk_size))
+    return std::nullopt;
+  // Subtract the header after this check to avoid overflow on 32-bit builds.
+  if (size < sizeof(RingBufferHeader))
+    return std::nullopt;
+  const size_t chunks_size = size - sizeof(RingBufferHeader);
+  if (chunks_size % chunk_size != 0)
+    return std::nullopt;
+  const size_t count = chunks_size / chunk_size;
+  // Two chunks form the minimum useful configuration. One chunk satisfies
+  // the ABI: write_pos - read_pos is 0 when empty and 1 when full.
+  // The Free wrap count distinguishes successive uses of that chunk.
+  //
+  // The power-of-two rule permits chunk indexing with a mask. The maximum
+  // keeps outstanding positions below 2^31 for unambiguous unsigned
+  // subtraction.
+  if (count < kMinChunksPerRing || count > kMaxChunksPerRing ||
+      !base::IsPowerOfTwo(count)) {
+    return std::nullopt;
+  }
+  return static_cast<uint32_t>(count);
+}
+
 constexpr uint64_t PackRwPositions(uint32_t write_pos, uint32_t read_pos) {
   return (static_cast<uint64_t>(write_pos) << 32) | read_pos;
 }
@@ -373,6 +417,9 @@ enum PayloadFlags : uint32_t {
   // - A writer may keep appending. The flag stays set for that reservation.
   //   Fragments appended to this chunk are also discarded once published.
   // This allows cached reuse after loss without forcing a new reservation.
+  //
+  // TODO(sashwinbalaji): Carry the cause of the loss. TBv2 reports this flag
+  // as DATA_LOSS_READ_GAP. v1 reports a full buffer as DATA_LOSS_SMB_FULL.
   kFlagDataLoss = 1u << kPayloadFlagsShift,
 
   // The last fragment is not the end of its packet. The packet continues in

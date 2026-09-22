@@ -42,4 +42,7 @@ SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 // TODO(primiano): make pure virtual after various 3way patches.
 void Consumer::OnSessionCloned(const OnSessionClonedArgs&) {}
 
+// Endpoints without tracing v2 support ignore drain requests.
+void ProducerEndpoint::DrainRingBuffer() {}
+
 }  // namespace perfetto

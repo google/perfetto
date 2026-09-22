@@ -44,12 +44,18 @@ constexpr BufferID kBuffer = 0x1234;
 class CountingSharedRingBufferWriterDelegate
     : public SharedRingBufferWriter::Delegate {
  public:
-  void NotifyReader() override { ++num_notifications; }
+  bool IsReaderAttached() const override { return true; }
+  // Counts drain hints. Calls before a wait for space are not counted.
+  void NotifyReader(NotifyReason reason) override {
+    if (reason != NotifyReason::kWriterStalled)
+      ++num_notifications;
+  }
 
   uint32_t num_notifications = 0;
 };
 
-// Waits for the chosen number of notifications, then frees one chunk per call.
+// Waits for the chosen number of NotifyReader(kWriterStalled) calls, then
+// frees one chunk per call.
 // The chunk at read_pos must be Complete or RewriteAcknowledged. It becomes
 // Free and read_pos moves past it.
 class ReleasingSharedRingBufferWriterDelegate
@@ -57,13 +63,15 @@ class ReleasingSharedRingBufferWriterDelegate
  public:
   explicit ReleasingSharedRingBufferWriterDelegate(
       SharedRingBuffer* ring,
-      uint32_t release_after_notifications = 1)
-      : ring_(ring),
-        release_after_notifications_(release_after_notifications) {}
+      uint32_t release_after_full_calls = 1)
+      : ring_(ring), release_after_full_calls_(release_after_full_calls) {}
 
-  void NotifyReader() override {
-    ++num_notifications;
-    if (num_notifications < release_after_notifications_)
+  bool IsReaderAttached() const override { return true; }
+  void NotifyReader(NotifyReason reason) override {
+    if (reason != NotifyReason::kWriterStalled)
+      return;
+    ++num_full_calls;
+    if (num_full_calls < release_after_full_calls_)
       return;
     const uint32_t read_pos = Internals::GetReadPos(ring_);
     const ChunkIndex chunk_idx =
@@ -79,11 +87,11 @@ class ReleasingSharedRingBufferWriterDelegate
     ring_->PublishReadPos(read_pos + 1);
   }
 
-  uint32_t num_notifications = 0;
+  uint32_t num_full_calls = 0;
 
  private:
   SharedRingBuffer* const ring_;
-  const uint32_t release_after_notifications_;
+  const uint32_t release_after_full_calls_;
 };
 
 // A minimal, independent decoder for what a chunk holds. It deliberately does
@@ -488,7 +496,7 @@ TEST(SharedRingBufferWriterTest, NotifiesReaderBeforeWaiting) {
                                 BufferExhaustedPolicy::kStall, &delegate);
   EXPECT_EQ(second.BeginFragment(1, false).result,
             BeginFragmentResult::kSuccess);
-  EXPECT_EQ(delegate.num_notifications, 1u);
+  EXPECT_EQ(delegate.num_full_calls, 1u);
 }
 
 TEST(SharedRingBufferWriterTest, SleepFallbackRetriesUntilSpaceIsAvailable) {
@@ -509,7 +517,7 @@ TEST(SharedRingBufferWriterTest, SleepFallbackRetriesUntilSpaceIsAvailable) {
                                   &delegate);
     Internals::DisableWriterFutex(&second);
     ASSERT_TRUE(WriteFragment(&second, "recovered"));
-    EXPECT_EQ(delegate.num_notifications, 3u);
+    EXPECT_EQ(delegate.num_full_calls, 3u);
     EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
     EXPECT_EQ(ring->LoadWritePosRelaxed(), 3u);
     EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
@@ -539,7 +547,7 @@ TEST(SharedRingBufferWriterTest, StallThenDropEpisode) {
   // the loss is reported, avoiding a timeout for every dropped packet.
   second.RecordDataLoss();
   EXPECT_EQ(second.BeginFragment(1, false).result, BeginFragmentResult::kFull);
-  EXPECT_EQ(delegate.num_notifications, 0u);
+  EXPECT_EQ(delegate.num_full_calls, 0u);
 
   uint32_t observed = ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0));
   ASSERT_TRUE(ring->TryReleaseCompleteChunkAsFree(0, &observed));
@@ -554,7 +562,7 @@ TEST(SharedRingBufferWriterTest, StallThenDropEpisode) {
   // stalls again, which gives the delegate a chance to release the chunk.
   EXPECT_EQ(second.BeginFragment(1, false).result,
             BeginFragmentResult::kSuccess);
-  EXPECT_EQ(delegate.num_notifications, 1u);
+  EXPECT_EQ(delegate.num_full_calls, 1u);
 }
 
 // A chunk pinned by a writer that stopped mid-rewrite is not the same thing as
@@ -588,6 +596,53 @@ TEST(SharedRingBufferWriterTest, PinnedChunks) {
   EXPECT_EQ(writer.GetStats().failed_claims, ring->num_chunks());
   EXPECT_EQ(ring->LoadWritePosRelaxed(), ring->num_chunks());
   EXPECT_EQ(delegate.num_notifications, 1u);
+}
+
+// Each wait for space starts a new round of num_chunks claim attempts. A round
+// that keeps the old count would stop after one failed claim.
+TEST(SharedRingBufferWriterTest, PinnedChunksGetFullRoundAfterEachWait) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  for (uint32_t chunk_pos = 0; chunk_pos < ring->num_chunks(); ++chunk_pos) {
+    const uint32_t being_written = MakeDataStateWord(
+        ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 0, kWriterB);
+    ASSERT_TRUE(ring->TryAcquireChunkForWriting(chunk_pos, being_written));
+    const ChunkIndex chunk_idx =
+        ChunkIndex::FromPosition(chunk_pos, ring->num_chunks());
+    uint32_t observed = being_written;
+    ASSERT_TRUE(ring->TryRequestRewrite(chunk_idx, &observed));
+  }
+
+  // Plays a reader that skips the unclaimed positions but cannot free the
+  // pinned chunks. On the third call it detaches, so the writer gives up.
+  class SkippingDelegate : public SharedRingBufferWriter::Delegate {
+   public:
+    explicit SkippingDelegate(SharedRingBuffer* ring) : ring_(ring) {}
+    bool IsReaderAttached() const override { return attached_; }
+    void NotifyReader(NotifyReason reason) override {
+      if (reason != NotifyReason::kWriterStalled)
+        return;
+      if (++num_full_calls == 3) {
+        attached_ = false;
+        return;
+      }
+      ring_->PublishReadPos(ring_->LoadWritePosRelaxed());
+    }
+    uint32_t num_full_calls = 0;
+
+   private:
+    SharedRingBuffer* const ring_;
+    bool attached_ = true;
+  };
+
+  SkippingDelegate delegate(ring.get());
+  SharedRingBufferWriter writer(ring.get(), kWriterA, kBuffer,
+                                BufferExhaustedPolicy::kStall, &delegate);
+  Internals::DisableWriterFutex(&writer);
+  EXPECT_EQ(writer.BeginFragment(1, false).result,
+            BeginFragmentResult::kNoChunkAvailable);
+  EXPECT_EQ(delegate.num_full_calls, 3u);
+  // Three rounds, each with one attempt per chunk.
+  EXPECT_EQ(writer.GetStats().failed_claims, 3 * ring->num_chunks());
 }
 
 // ---------------------------------------------------------------------------
@@ -737,7 +792,7 @@ TEST(SharedRingBufferWriterTest, StallThenDropWithRelocatedLossFlag) {
   // fragment up.
   EXPECT_EQ(writer.EndFragment(4, false),
             EndFragmentResult::kRelocationDropped);
-  EXPECT_EQ(delegate.num_notifications, 0u);
+  EXPECT_EQ(delegate.num_full_calls, 0u);
   EXPECT_EQ(writer.GetStats().fragments_dropped, 1u);
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             kRewriteAcknowledgedStateWord);
@@ -749,7 +804,7 @@ TEST(SharedRingBufferWriterTest, StallThenDropWithRelocatedLossFlag) {
   ASSERT_TRUE(WriteFragment(&writer, "after loss"));
   EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(0)).payload_flags,
             kFlagDataLoss);
-  EXPECT_EQ(delegate.num_notifications, 0u);
+  EXPECT_EQ(delegate.num_full_calls, 0u);
 }
 
 TEST(SharedRingBufferWriterTest, RewriteWithoutUnpublishedFragment) {
