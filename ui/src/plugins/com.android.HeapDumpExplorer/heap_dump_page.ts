@@ -81,13 +81,6 @@ function buildTabs(session: HeapDumpExplorerSession): {
     {key: 'callstack', title: 'Callstack', href: '#!/heapdump/callstack'},
   ];
 
-  // Static tab keys are view names.
-  for (const handle of handles) {
-    actions.set(handle.key, {
-      select: () => session.navigate(handle.key as NavView),
-    });
-  }
-
   for (const fg of session.flamegraphTabs) {
     const key = fgTabKey(fg.pathHashes, fg.isDominator);
     const title =
