@@ -544,7 +544,8 @@ class PerfettoSqlConnection {
   // is replenished only by Execute()'s top-level frame.
   // `allow_pipelines` says whether the SQL this parser will read may use a
   // pipeline: the standard library always may, anything else only once
-  // `PERFETTO PRAGMA pipelines = 1` has run on this connection.
+  // `PERFETTO PRAGMA pipelines = 1` has run on this connection. It is set on
+  // the parser per use, so the two kinds of source share one instance.
   std::unique_ptr<PerfettoSqlParser> AcquireParser(bool allow_pipelines);
 
   // Called when a transaction is committed by SQLite; that is, the result of
@@ -572,9 +573,11 @@ class PerfettoSqlConnection {
   // If true, this connection will perform additional consistency checks when
   // e.g. creating tables and views.
   const bool enable_extra_checks_;
+  // Whether SQL read on this connection may use a pipeline, as set by
+  // `PERFETTO PRAGMA pipelines = 1`. Per connection, as a pragma is.
+  bool pipelines_enabled_ = false;
   // Set by `PERFETTO PRAGMA pipelines = 1`; the standard library does not
   // need it.
-  bool pipelines_enabled_ = false;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
   // When an INCLUDE statement is encountered, the included module's SQL is
@@ -640,9 +643,6 @@ class PerfettoSqlConnection {
   // create/destroy round-trip. Re-entrant Execute() and include frames
   // allocate fresh parsers.
   std::unique_ptr<PerfettoSqlParser> cached_parser_;
-  // What `cached_parser_` was built to allow; a parser is only reused for SQL
-  // with the same permission, since the catalog is fixed at construction.
-  bool cached_parser_allows_pipelines_ = false;
 };
 
 // The rest of this file is just implementation details which we need

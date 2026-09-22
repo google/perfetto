@@ -113,7 +113,7 @@ class PerfettoPipeline(TestSuite):
         FROM (SELECT 1 AS id, NULL AS parent_id)
         |> TREE ACCUMULATE UP SUM(id) AS total;
         """,
-        out=ExpectedError('Pipelines cannot be used here'))
+        out=ExpectedError('Pipelines are not enabled'))
 
   def test_the_pragma_admits_a_pipeline(self):
     return DiffTestBlueprint(
@@ -137,7 +137,7 @@ class PerfettoPipeline(TestSuite):
         FROM (SELECT 1 AS id, NULL AS parent_id)
         |> TREE ACCUMULATE UP SUM(id) AS total;
         """,
-        out=ExpectedError('Pipelines cannot be used here'))
+        out=ExpectedError('Pipelines are not enabled'))
 
   def test_an_unknown_pragma_says_so(self):
     return DiffTestBlueprint(
@@ -359,7 +359,7 @@ class PerfettoPipeline(TestSuite):
 
         INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT ts, dur;
         """,
-        out=ExpectedError('Pipelines cannot be used here'))
+        out=ExpectedError('Pipelines are not enabled'))
 
   # Must match the macro, which this is meant to replace.
   def test_interval_intersection_matches_the_macro(self):
