@@ -110,6 +110,11 @@ constexpr bool operator==(const PerfettoSqlParser::DropIndex& a,
   return std::tie(a.name, a.table_name) == std::tie(b.name, b.table_name);
 }
 
+constexpr bool operator==(const PerfettoSqlParser::Pragma& a,
+                          const PerfettoSqlParser::Pragma& b) {
+  return std::tie(a.name, a.value) == std::tie(b.name, b.value);
+}
+
 inline std::ostream& operator<<(std::ostream& stream, const SqlSource& sql) {
   return stream << "SqlSource(sql=" << testing::PrintToString(sql.sql()) << ")";
 }
@@ -154,6 +159,10 @@ inline std::ostream& operator<<(std::ostream& stream,
   if (const auto* pipe = std::get_if<PerfettoSqlParser::Pipeline>(&line)) {
     return stream << "Pipeline(" << pipeline::LogicalPlanToString(pipe->plan)
                   << ")";
+  }
+  if (const auto* pragma = std::get_if<PerfettoSqlParser::Pragma>(&line)) {
+    return stream << "Pragma(name=" << testing::PrintToString(pragma->name)
+                  << ", value=" << pragma->value << ")";
   }
   if (const auto* tab = std::get_if<PerfettoSqlParser::CreateView>(&line)) {
     return stream << "CreateView(name=" << testing::PrintToString(tab->name)

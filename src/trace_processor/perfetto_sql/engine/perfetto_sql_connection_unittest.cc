@@ -767,6 +767,7 @@ class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
  protected:
   void SetUp() override {
     auto res = connection_->Execute(SqlSource::FromExecuteQuery(R"(
+      PERFETTO PRAGMA pipelines = 1;
       CREATE TABLE tree(id INTEGER, parent_id INTEGER, self INTEGER,
                         name TEXT);
       INSERT INTO tree VALUES

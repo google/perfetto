@@ -362,7 +362,8 @@ base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
     const pipeline::Catalog* catalog,
     uint32_t pipeline_id) {
   if (!catalog) {
-    return base::ErrStatus("%sPipelines cannot be used here",
+    return base::ErrStatus(
+        "%sPipelines are not enabled; set `PERFETTO PRAGMA pipelines = 1`",
                            NodeSource(rb, pipeline_id).AsTraceback(0).c_str());
   }
   return pipeline::Compile(
@@ -467,6 +468,26 @@ base::StatusOr<Statement> ParseCreateDelegatingFunction(
   });
 }
 
+base::StatusOr<Statement> ParsePragma(SyntaqliteParser* p,
+                                      const SyntaqlitePerfettoPragmaStmt& n) {
+  std::string name = SpanText(p, n.name);
+  const auto* value =
+      static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, n.value));
+  if (value->tag != SYNTAQLITE_NODE_LITERAL ||
+      value->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_INTEGER) {
+    return base::ErrStatus("PERFETTO PRAGMA %s: expected a whole number",
+                           name.c_str());
+  }
+  std::optional<int64_t> parsed =
+      base::StringToInt64(SpanText(p, value->literal.source));
+  if (!parsed) {
+    return base::ErrStatus("PERFETTO PRAGMA %s: '%s' does not fit a number",
+                           name.c_str(),
+                           SpanText(p, value->literal.source).c_str());
+  }
+  return Statement(PerfettoSqlParser::Pragma{std::move(name), *parsed});
+}
+
 Statement ParseCreateIndex(SyntaqliteParser* p,
                            const SyntaqliteCreatePerfettoIndexStmt& n) {
   std::vector<std::string> col_names;
@@ -554,6 +575,8 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
       return Statement(PerfettoSqlParser::Include{
           SpanText(p, node->include_perfetto_module_stmt.module_name),
       });
+    case SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT:
+      return ParsePragma(p, node->perfetto_pragma_stmt);
     case SYNTAQLITE_NODE_PERFETTO_PIPELINE: {
       ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
                        CompilePipeline(p, rb, catalog, root));
@@ -564,11 +587,6 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
           SpanText(p, node->drop_perfetto_index_stmt.index_name),
           SpanText(p, node->drop_perfetto_index_stmt.table_name),
       });
-    case SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT:
-      // The statement parses but nothing acts on it, so refuse it here rather
-      // than handing SQLite text it cannot read.
-      return base::ErrStatus("%sPERFETTO PRAGMA: not implemented",
-                             NodeSource(rb, root).AsTraceback(0).c_str());
     default:
       return Statement(PerfettoSqlParser::SqliteSql{});
   }
@@ -670,7 +688,7 @@ struct PerfettoSqlParser::Impl {
   const base::FlatHashMap<std::string, Macro>& macros;
   const pipeline::Catalog* catalog;
   // Whether the SQL being read may use a pipeline. Set per source, so one
-  // parser serves sources which differ in whether they are allowed one.
+  // parser serves both the standard library and user SQL.
   bool pipelines_allowed;
   base::Status status;
   std::optional<Statement> current_statement;
