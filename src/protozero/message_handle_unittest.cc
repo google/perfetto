@@ -201,6 +201,53 @@ static_assert(
     std::is_same<MessageHandle<Message>, MessageHandle<Message, false>>::value,
     "");
 
+// A root handle's accessors return RootMessage<T>, so Finalize() through
+// them omits the closing byte. A stray 0x04 would make written() 5.
+TEST(MessageHandleTest, ProtoGroupRootAndNestedFinalization) {
+  FakeScatteredBuffer buffer(32);
+  ScatteredStreamWriter writer(&buffer);
+  RootMessage<RootOnlyMessage> root;
+  root.ResetToProtoGroup(&writer);
+  testing::StrictMock<MockFinalizationListener> listener;
+  {
+    MessageHandle<RootOnlyMessage> handle(&root);
+    handle.set_finalization_listener(&listener);
+    auto* child = handle->BeginNestedMessage<Message>(1);
+    child->AppendVarInt(1, 1);
+    EXPECT_EQ(child->Finalize(), 3u);
+    EXPECT_EQ(child->Finalize(), 3u);
+    EXPECT_EQ(buffer.GetBytesAsString(0, 4), "0B080104");
+
+    EXPECT_EQ(handle->Finalize(), 4u);
+    EXPECT_EQ(handle.get()->Finalize(), 4u);
+    EXPECT_EQ((*handle).Finalize(), 4u);
+    EXPECT_EQ(writer.written(), 4u);
+    EXPECT_CALL(listener, OnMessageFinalized(&root))
+        .WillOnce(
+            [](Message* message) { EXPECT_TRUE(message->is_finalized()); });
+  }
+  EXPECT_EQ(writer.written(), 4u);
+}
+
+// The handle destructor is the only finalizer here. The root gets no closing
+// marker. A plain handle on the nested message closes it with 0x04.
+TEST(MessageHandleTest, ProtoGroupHandleDestructorsSelectRootOrNested) {
+  FakeScatteredBuffer buffer(32);
+  ScatteredStreamWriter writer(&buffer);
+  RootMessage<RootOnlyMessage> root;
+  root.ResetToProtoGroup(&writer);
+  {
+    MessageHandle<RootOnlyMessage> root_handle(&root);
+    {
+      MessageHandle<Message> child(root_handle->BeginNestedMessage<Message>(1));
+      child->AppendVarInt(1, 1);
+    }
+    EXPECT_EQ(buffer.GetBytesAsString(0, 4), "0B080104");
+  }
+  EXPECT_TRUE(root.is_finalized());
+  EXPECT_EQ(writer.written(), 4u);
+}
+
 TEST(MessageHandleTest, NestedHandleEndsBeforeArenaStorageIsReused) {
   FakeScatteredBuffer buffer(32);
   ScatteredStreamWriter writer(&buffer);

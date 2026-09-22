@@ -38,6 +38,35 @@ static inline uint32_t PerfettoPbMakeTag(int32_t field_id,
          PERFETTO_STATIC_CAST(uint32_t, wire_type);
 }
 
+// Constants for tracing v2's append-only proto group format:
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: 0x04
+//   root:                 no wrapper and no close byte
+//
+// Unlike standard protobuf groups, the closing byte does not repeat the field
+// number. It encodes field zero (invalid in standard protobuf) with wire
+// type 4. At a field boundary, it closes the innermost message. The packet
+// boundary ends the root.
+//
+// The packet must be rewritten to length-delimited protobuf before standard
+// decoders can read it. See RFC 0014 for the design:
+// https://github.com/google/perfetto/discussions/4508.
+//
+// The wire types stay outside PerfettoPbWireType because the decoders do not
+// support groups. Keep in sync with kWireTypeStartGroup and kProtoGroupEndByte
+// in perfetto/protozero/proto_utils.h.
+enum {
+  PERFETTO_PB_WIRE_TYPE_START_GROUP = 3,
+  PERFETTO_PB_PROTO_GROUP_END_BYTE = 0x04,
+};
+
+// Creates the tag that opens a nested message in proto group mode.
+static inline uint32_t PerfettoPbMakeTagStartGroup(int32_t field_id) {
+  return ((PERFETTO_STATIC_CAST(uint32_t, field_id)) << 3) |
+         PERFETTO_STATIC_CAST(uint32_t, PERFETTO_PB_WIRE_TYPE_START_GROUP);
+}
+
 enum {
   // Maximum bytes size of a 64-bit integer encoded as a VarInt.
   PERFETTO_PB_VARINT_MAX_SIZE_64 = 10,
