@@ -30,8 +30,19 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec::test {
+
+// Physical indices a column can own, as a composed selection would.
+inline std::shared_ptr<const FlexVector<uint32_t>> OwnedRows(
+    const std::vector<uint32_t>& rows) {
+  auto owned = std::make_shared<FlexVector<uint32_t>>();
+  for (uint32_t row : rows) {
+    owned->push_back(row);
+  }
+  return owned;
+}
 
 template <typename T>
 std::vector<T> ReadColumn(const RowBatch& batch, uint32_t column) {
