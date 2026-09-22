@@ -13,9 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Anchor} from '../../../widgets/anchor';
-import {Callout} from '../../../widgets/callout';
-import {Intent} from '../../../widgets/common';
 import {TabStrip} from '../../../widgets/tab_strip';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
@@ -30,27 +27,27 @@ export function renderTabStrip(): m.Children {
         'p',
         'A horizontal tab navigation component for switching between different views or sections.',
       ),
-      m(
-        Callout,
-        {intent: Intent.Warning, icon: 'warning'},
-        'Deprecated: use the ',
-        m(Anchor, {href: '#!/widgets/tabs'}, 'Tabs'),
-        ' widget instead, which supports close buttons, renaming, reordering, and a new tab button.',
-      ),
     ),
     renderWidgetShowcase({
       renderWidget: () => {
-        return m(TabStrip, {
-          tabs: [
-            {key: 'foo', title: 'Foo'},
-            {key: 'bar', title: 'Bar'},
-            {key: 'baz', title: 'Baz'},
-          ],
-          currentTabKey: currentTab,
-          onTabChange: (key) => {
-            currentTab = key;
-          },
-        });
+        return m(
+          TabStrip,
+          m(
+            TabStrip.Tab,
+            {active: currentTab === 'foo', onclick: () => (currentTab = 'foo')},
+            'Foo',
+          ),
+          m(
+            TabStrip.Tab,
+            {active: currentTab === 'bar', onclick: () => (currentTab = 'bar')},
+            'Bar',
+          ),
+          m(
+            TabStrip.Tab,
+            {active: currentTab === 'baz', onclick: () => (currentTab = 'baz')},
+            'Baz',
+          ),
+        );
       },
       initialOpts: {},
     }),
