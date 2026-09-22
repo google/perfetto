@@ -88,6 +88,7 @@ export function renderTabs(): m.Children {
           title: entry.title,
           leftIcon: opts.showIcons ? entry.icon : undefined,
           content: m('', {style: {padding: '16px'}}, entry.content),
+          lazy: opts.lazy,
           closeButton: opts.closeButton && tabEntries.length > 1,
           menuItems: makeMenuItems(entry.key),
         }));
@@ -174,6 +175,7 @@ export function renderTabs(): m.Children {
         reorderable: true,
         menuItems: true,
         rightButton: false,
+        lazy: false,
       },
     }),
   ];
