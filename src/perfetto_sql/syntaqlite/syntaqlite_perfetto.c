@@ -5540,12 +5540,16 @@ static const uint8_t perfetto_fmt_ops[] = {
     15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
+    6,0,0,0,0,0,
     0,0,186,0,0,0,
     0,0,187,0,0,0,
     0,0,2,0,0,0,
     21,0,37,0,0,0,
-    0,0,2,0,0,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
     2,1,0,0,0,0,
+    9,0,0,0,0,0,
+    7,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
     15,0,40,0,0,0,
@@ -5564,7 +5568,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
 };
 
-static const uint32_t perfetto_fmt_ops_count = 15990;
+static const uint32_t perfetto_fmt_ops_count = 16014;
 
 static const uint32_t perfetto_fmt_dispatch[] = {
     0xffff0000,0x00000031,0x0031003a,0x006b0008,0x00730009,0x007c0025,0x00a10009,0x00aa000b,
@@ -5580,7 +5584,7 @@ static const uint32_t perfetto_fmt_dispatch[] = {
     0x08890007,0x0890001a,0x08aa0030,0x08da0039,0x09130005,0x09180005,0x091d0005,0x0922001b,
     0x093d0006,0x09430005,0x09480003,0x094b0005,0x09500001,0x09510005,0x0956000f,0x09650001,
     0x0966002c,0x0992001a,0x09ac001e,0x09ca001f,0x09e90018,0x0a01001e,0x0a1f0005,0x0a240009,
-    0x0a2d001c,0x0a490005,0x0a4e0005,0x0a530006,0x0a590007,0x0a600009,
+    0x0a2d001c,0x0a490005,0x0a4e0005,0x0a53000a,0x0a5d0007,0x0a640009,
 };
 
 static const uint32_t perfetto_fmt_dispatch_count = 110;
