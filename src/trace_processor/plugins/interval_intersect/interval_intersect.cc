@@ -34,11 +34,10 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/interval_intersector.h"
-#include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/exec/interval_index.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
@@ -64,12 +63,11 @@ constexpr uint32_t kArgCols = 2;
 constexpr uint32_t kIdCols = 15;
 constexpr uint32_t kPartitionColsOffset = kArgCols + kIdCols;
 
-using Intervals = std::vector<Interval>;
 using ColType = dataframe::AdhocDataframeBuilder::ColumnType;
 
 struct MultiIndexInterval {
-  uint64_t start;
-  uint64_t end;
+  int64_t start;
+  int64_t end;
   std::array<uint32_t, kIdCols> idx_in_table;
 };
 
@@ -162,29 +160,47 @@ base::StatusOr<uint32_t> PushPartition(
     last_results.push_back(std::move(m_int));
   }
 
-  // Create an interval tree on all tables except the smallest - the first one.
+  // Narrow the results down by one table at a time, keeping only the instants
+  // every table seen so far shares.
   std::vector<MultiIndexInterval> overlaps_with_this_table;
   overlaps_with_this_table.reserve(intervals_in_table.back()->intervals.size());
-  Intervals new_overlaps;
+  core::exec::IntervalIndex index;
   for (uint32_t i = 1; i < tables_count && !last_results.empty(); i++) {
     overlaps_with_this_table.clear();
     uint32_t table_idx = tables_order[i];
 
-    IntervalIntersector::Mode mode = IntervalIntersector::DecideMode(
-        intervals_in_table[table_idx]->is_nonoverlapping,
-        static_cast<uint32_t>(last_results.size()));
-    IntervalIntersector cur_intersector(
-        intervals_in_table[table_idx]->intervals, mode);
+    index.Clear();
+    for (const auto& interval : intervals_in_table[table_idx]->intervals) {
+      index.Add(nullptr, 0, interval.start, interval.end, interval.id);
+    }
+    index.Build();
+
+    // A result keeps the start of the interval it was narrowed from, so the
+    // starts of one round climb only while the round before them ran over one
+    // interval. Where they fall back the sweep starts the lane again, which
+    // costs the same search the fall was skipping.
+    core::exec::IntervalIndex::Sweep sweep(index);
+    sweep.Start(0);
     for (const auto& prev_result : last_results) {
-      new_overlaps.clear();
-      cur_intersector.FindOverlaps(prev_result.start, prev_result.end,
-                                   new_overlaps);
-      for (const auto& overlap : new_overlaps) {
+      if (!sweep.Advance(prev_result.start)) {
+        sweep.Start(0);
+        sweep.Advance(prev_result.start);
+      }
+      auto overlap = [&](uint32_t j) {
         MultiIndexInterval m_int = prev_result;
-        m_int.idx_in_table[table_idx] = overlap.id;
-        m_int.start = overlap.start;
-        m_int.end = overlap.end;
+        m_int.idx_in_table[table_idx] = index.row(j);
+        m_int.start = std::max(prev_result.start, index.start(j));
+        m_int.end = std::min(prev_result.end, index.end(j));
         overlaps_with_this_table.push_back(std::move(m_int));
+      };
+      // Every interval holding the start of the result, then those starting
+      // before it ends.
+      for (uint32_t j : sweep.active()) {
+        overlap(j);
+      }
+      for (uint32_t j = sweep.next();
+           j < sweep.limit() && index.start(j) < prev_result.end; ++j) {
+        overlap(j);
       }
     }
 
@@ -194,9 +210,8 @@ base::StatusOr<uint32_t> PushPartition(
   auto rows_count = static_cast<uint32_t>(last_results.size());
   for (uint32_t i = 0; i < rows_count; i++) {
     const MultiIndexInterval& interval = last_results[i];
-    builder.PushNonNullUnchecked(0, static_cast<int64_t>(interval.start));
-    builder.PushNonNullUnchecked(1, static_cast<int64_t>(interval.end) -
-                                        static_cast<int64_t>(interval.start));
+    builder.PushNonNullUnchecked(0, interval.start);
+    builder.PushNonNullUnchecked(1, interval.end - interval.start);
     for (uint32_t j = 0; j < tables_count; j++) {
       builder.PushNonNullUnchecked(j + kArgCols, interval.idx_in_table[j]);
     }

@@ -28,6 +28,7 @@ source_set("interval_intersect") {
     "../../../base",
     "../../containers",
     "../../core/dataframe",
+    "../../core/exec",
     "../../core/plugin",
     "../../perfetto_sql/engine",
     "../../perfetto_sql/intrinsics/types",

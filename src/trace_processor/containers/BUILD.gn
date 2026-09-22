@@ -22,8 +22,6 @@ import("../../../gn/test.gni")
 perfetto_component("containers") {
   public = [
     "implicit_segment_forest.h",
-    "interval_intersector.h",
-    "interval_tree.h",
     "null_term_string_view.h",
     "string_pool.h",
   ]
@@ -40,8 +38,6 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "implicit_segment_forest_unittest.cc",
-    "interval_intersector_unittest.cc",
-    "interval_tree_unittest.cc",
     "null_term_string_view_unittest.cc",
     "string_pool_unittest.cc",
   ]

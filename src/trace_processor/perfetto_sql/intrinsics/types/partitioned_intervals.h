@@ -24,7 +24,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/interval_intersector.h"
 
 namespace perfetto::trace_processor {
 class StringPool;
@@ -32,12 +31,17 @@ class StringPool;
 
 namespace perfetto::trace_processor::perfetto_sql {
 
+// One interval of a table, `[start, end)` or the point `start` when the two
+// are equal, and the row it came from.
+struct Interval {
+  int64_t start;
+  int64_t end;
+  uint32_t id;
+};
+
 struct Partition {
   std::vector<Interval> intervals;
   std::vector<SqlValue> sql_values;
-  bool is_nonoverlapping = true;
-
-  uint64_t last_interval = 0;
 };
 
 using Partitions =
