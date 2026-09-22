@@ -180,6 +180,12 @@ class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
   // true.
   virtual bool TryShutdown() = 0;
 
+  // Reserves an ID for a writer on another transport. Returns zero after
+  // shutdown or exhaustion. The live ID prevents TryShutdown from succeeding.
+  virtual WriterID AllocateExternalWriterID() = 0;
+  // Releases the ID after the writer publishes its final data.
+  virtual void ReleaseExternalWriterID(WriterID) = 0;
+
   // Create a bound arbiter instance. Args:
   // |SharedMemory|: the shared memory buffer to use.
   // |page_size|: a multiple of 4KB that defines the granularity of tracing

@@ -27,16 +27,22 @@ source_set("v2") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/trace:zero",
     "../../base",
+    "../core",
   ]
   sources = [
     "shared_ring_buffer.cc",
     "shared_ring_buffer.h",
     "shared_ring_buffer_abi.h",
+    "shared_ring_buffer_arbiter_impl.cc",
+    "shared_ring_buffer_arbiter_impl.h",
     "shared_ring_buffer_reader.cc",
     "shared_ring_buffer_reader.h",
     "shared_ring_buffer_writer.cc",
     "shared_ring_buffer_writer.h",
+    "trace_writer_v2_impl.cc",
+    "trace_writer_v2_impl.h",
   ]
 }
 
@@ -50,7 +56,11 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../base",
+    "../../base:test_support",
     "../../protozero",
+    "../core",
+    "../service",
+    "../test:test_support",
   ]
   sources = [
     "shared_ring_buffer_abi_unittest.cc",

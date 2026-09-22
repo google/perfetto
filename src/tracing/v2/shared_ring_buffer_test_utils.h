@@ -143,7 +143,10 @@ class SharedRingBufferInternalsForTest {
 
 class NoopWriterDelegate : public SharedRingBufferWriter::Delegate {
  public:
+  bool CanAcquireChunks() const override { return true; }
+  bool ShouldWaitForReader() const override { return true; }
   void NotifyReader() override {}
+  void TryMakeReaderProgress() override {}
 };
 
 inline SharedRingBufferWriter::Delegate* GetNoopWriterDelegate() {
