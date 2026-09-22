@@ -44,7 +44,10 @@ constexpr BufferID kBuffer = 0x1234;
 class CountingSharedRingBufferWriterDelegate
     : public SharedRingBufferWriter::Delegate {
  public:
+  bool CanAcquireChunks() const override { return true; }
+  bool ShouldWaitForReader() const override { return true; }
   void NotifyReader() override { ++num_notifications; }
+  void TryMakeReaderProgress() override {}
 
   uint32_t num_notifications = 0;
 };
@@ -61,7 +64,10 @@ class ReleasingSharedRingBufferWriterDelegate
       : ring_(ring),
         release_after_notifications_(release_after_notifications) {}
 
-  void NotifyReader() override {
+  bool CanAcquireChunks() const override { return true; }
+  bool ShouldWaitForReader() const override { return true; }
+  void NotifyReader() override {}
+  void TryMakeReaderProgress() override {
     ++num_notifications;
     if (num_notifications < release_after_notifications_)
       return;

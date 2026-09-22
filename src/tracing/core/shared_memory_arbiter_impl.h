@@ -246,6 +246,8 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   void ScrapeEmulatedSharedMemoryBuffer(
       const std::map<WriterID, BufferID>& buffer_for_writers) override;
   bool TryShutdown() override;
+  WriterID AllocateExternalWriterID() override;
+  void ReleaseExternalWriterID(WriterID) override;
 
   base::TaskRunner* task_runner() const { return task_runner_; }
   size_t page_size() const { return shmem_abi_.page_size(); }

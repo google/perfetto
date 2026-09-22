@@ -173,6 +173,8 @@ uint32_t SharedRingBufferWriter::MaxFragmentSizeInCurrentChunk() const {
 SharedRingBufferWriter::BeginFragmentResult
 SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
   PERFETTO_DCHECK(!cur_chunk_);
+  if (!delegate_->CanAcquireChunks())
+    return BeginFragmentResult::kFull;
 
   // A new chunk must preserve loss from either source:
   // - data_loss_pending_: this writer has a loss to report.
@@ -269,10 +271,9 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
     //   Earlier failures took continue above to try another reservation.
     //   The last failure reached the attempt limit.
     //
-    // Notify the reader before a wait so it can make space. Failed claims also
-    // require notification under kDrop: the reader must consume those unclaimed
-    // positions, even if the ring buffer became full before the attempt limit.
-    if (num_failed_claims != 0 || policy != BufferExhaustedPolicy::kDrop) {
+    // Under kDrop, failed claims leave reservations unclaimed. Notify the
+    // reader so it can consume those positions before the attempt limit.
+    if (num_failed_claims != 0 && policy == BufferExhaustedPolicy::kDrop) {
       delegate_->NotifyReader();
       num_failed_claims = 0;
     }
@@ -285,7 +286,8 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
         saw_unclaimable_chunk ? BeginFragmentResult::kNoChunkAvailable
                               : BeginFragmentResult::kFull;
 
-    if (policy == BufferExhaustedPolicy::kDrop) {
+    if (policy == BufferExhaustedPolicy::kDrop ||
+        !delegate_->ShouldWaitForReader()) {
       PERFETTO_DLOG("tracing v2: writer %u: %s: returning without a chunk",
                     writer_id_,
                     saw_unclaimable_chunk ? "no chunk could be claimed"
@@ -311,14 +313,21 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
       return exhausted_result;
     }
 
-    const uint32_t timeout_ms =
-        static_cast<uint32_t>((*stall_deadline - now).count());
+    delegate_->TryMakeReaderProgress();
+    if (!delegate_->ShouldWaitForReader())
+      return exhausted_result;
+
+    const uint32_t deadline_remaining_us =
+        static_cast<uint32_t>((*stall_deadline - now).count() * 1000);
+    const uint32_t timeout_us =
+        std::min(kMaxFallbackSleepUs, deadline_remaining_us);
 
     if (!use_futex_) {
-      // Use v1's backoff: 0, 8, 72, ... microseconds, up to 100 ms per sleep.
-      // Limit each sleep to the time left before the deadline. Both stall
-      // policies retain their timeout behavior without futex support.
-      base::SleepMicroseconds(std::min(fallback_sleep_us, timeout_ms * 1000));
+      // Use v1's backoff: 0, 8, 72, ... microseconds, up to kMaxFallbackSleepUs
+      // per sleep. Limit each sleep to the time left before the deadline.
+      // Both stall policies retain their timeout behavior without futex
+      // support.
+      base::SleepMicroseconds(std::min(fallback_sleep_us, timeout_us));
       fallback_sleep_us =
           std::min(kMaxFallbackSleepUs, (fallback_sleep_us + 1) * 8);
       continue;
@@ -327,8 +336,8 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
     // Wait while read_pos equals the value from the last reservation attempt.
     // A wake does not reserve space. The loop must recheck capacity after any
     // return, including a timeout or a spurious wake.
-    const auto wait =
-        ring_->WaitForReadPosChange(reservation.read_pos_for_wait, timeout_ms);
+    const auto wait = ring_->WaitForReadPosChange(reservation.read_pos_for_wait,
+                                                  timeout_us / 1000);
 
     // If the futex is unavailable, use fallback sleeps for this writer's later
     // waits. This avoids repeated calls to an unsupported syscall.
@@ -385,6 +394,10 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
           chunk_size_ - payload_end_ - size_directory_bytes_ <= 1) {
         ResetCurrentChunk();
       }
+      // TODO(sashwinbalaji): Notify on ring occupancy instead of on each
+      // publication (for example when half of the chunks are outstanding, plus
+      // flush and stall). Each drain can reclaim the chunk this writer caches.
+      delegate_->NotifyReader();
       return EndFragmentResult::kSuccess;
     }
 

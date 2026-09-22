@@ -89,9 +89,24 @@ class SharedRingBufferWriter {
    public:
     virtual ~Delegate();
 
-    // Schedules reader work after failed claims leave reservations unclaimed
-    // and before this writer waits for read_pos to advance.
+    // Schedules reader work after publication. Also requests work after a
+    // BufferExhaustedPolicy::kDrop writer abandons an unclaimed reservation.
+    // The delegate can coalesce these requests.
     virtual void NotifyReader() = 0;
+
+    // Returns true if this writer can attempt to acquire a new chunk.
+    // This does not guarantee that the ring buffer has space.
+    virtual bool CanAcquireChunks() const = 0;
+
+    // Returns true if the reader can make progress while this writer waits.
+    // If false, the writer must not wait for space.
+    virtual bool ShouldWaitForReader() const = 0;
+
+    // Requests reader progress on every wait iteration. The delegate must not
+    // coalesce these requests, unlike NotifyReader(). It can process them
+    // synchronously if the caller runs on the delegate's task runner.
+    // The writer holds no chunk and saves any relocation bytes before the call.
+    virtual void TryMakeReaderProgress() = 0;
   };
 
   SharedRingBufferWriter(SharedRingBuffer* ring,
@@ -165,6 +180,7 @@ class SharedRingBufferWriter {
   void RecordDataLoss() { data_loss_pending_ = true; }
 
   WriterID writer_id() const { return writer_id_; }
+  uint32_t chunk_size() const { return chunk_size_; }
 
   // For diagnostics only. The protocol never reads these counters.
   // TODO(sashwinbalaji): Wire these counters into service statistics.
