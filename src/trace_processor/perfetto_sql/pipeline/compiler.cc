@@ -379,6 +379,12 @@ base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
                                     const Catalog& catalog) {
   const auto& n = Node<SyntaqliteNode>(p, pipeline)->perfetto_pipeline;
   Compiler compiler(p, source, catalog);
+  // An intersection parses but has no compiler, and writing one leaves the
+  // pipeline with no `FROM` to read, so reject it before resolving a source.
+  if (syntaqlite_node_is_present(n.intersection)) {
+    return base::ErrStatus("%sINTERVAL INTERSECTION: not implemented",
+                           source(n.intersection).AsTraceback(0).c_str());
+  }
   RETURN_IF_ERROR(compiler.CompileSource(n.from));
   if (syntaqlite_node_is_present(n.stages)) {
     const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p, n.stages);
