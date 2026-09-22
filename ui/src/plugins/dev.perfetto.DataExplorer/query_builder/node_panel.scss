@@ -57,6 +57,12 @@
     overflow-x: hidden;
     line-height: 1.5;
 
+    // The result view's tab bar (underline variant) has no bottom border of
+    // its own; draw the separator that used to be an <hr> below the strip.
+    .pf-tabs__tabs {
+      border-bottom: 1px solid var(--separator-color);
+    }
+
     p {
       margin: 0 0 0.75rem 0;
       line-height: 1.6;
