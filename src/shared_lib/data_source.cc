@@ -30,6 +30,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/base/time.h"
+#include "perfetto/protozero/scattered_stream_null_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/data_source_abi.h"
@@ -64,6 +65,7 @@ thread_local DataSourceThreadLocalState*
 // Returned to the C side when invoking PerfettoDsCreateImpl(). The C side only
 // has an opaque pointer to this.
 struct PerfettoDsImpl {
+  bool supports_append_only_encoding = false;
   // Instance lifecycle callbacks.
   PerfettoDsOnSetupCb on_setup_cb = nullptr;
   PerfettoDsOnStartCb on_start_cb = nullptr;
@@ -375,6 +377,11 @@ bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
   return true;
 }
 
+void PerfettoDsSetSupportsAppendOnlyEncoding(PerfettoDsImpl* ds_impl,
+                                             bool value) {
+  ds_impl->supports_append_only_encoding = value;
+}
+
 bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
                             PERFETTO_ATOMIC(bool) * *enabled_ptr,
                             const void* descriptor,
@@ -410,6 +417,7 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   }
 
   perfetto::internal::DataSourceParams params;
+  params.supports_append_only_encoding = ds_impl->supports_append_only_encoding;
   params.buffer_exhausted_policy_configurable =
       ds_impl->buffer_exhausted_policy_configurable;
   params.supports_multiple_instances = true;
@@ -583,17 +591,42 @@ void PerfettoDsImplTraceIterateBreak(
   ds_impl->cpp_type.TraceEpilogue(tls);
 }
 
-struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+struct PerfettoDsPacketBeginResult PerfettoDsTracerImplPacketBeginWithEncoding(
     struct PerfettoDsTracerImpl* tracer) {
   auto* tls_inst =
       reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
-
   auto message_handle = tls_inst->trace_writer->NewTracePacket();
-  struct PerfettoStreamWriter ret;
+
+  // TakeStreamWriter() consumes the handle, so read the encoding first.
+  const auto encoding = message_handle->encoding();
   protozero::ScatteredStreamWriter* sw = message_handle.TakeStreamWriter();
-  ret.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
-  perfetto::UpdateStreamWriter(*sw, &ret);
-  return ret;
+  struct PerfettoDsPacketBeginResult result{};
+  result.writer.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
+  perfetto::UpdateStreamWriter(*sw, &result.writer);
+  switch (encoding) {
+    case protozero::Message::NestedEncoding::kLengthDelimited:
+      result.encoding = PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED;
+      return result;
+    case protozero::Message::NestedEncoding::kProtoGroup:
+      result.encoding = PERFETTO_DS_PACKET_ENCODING_PROTO_GROUP;
+      return result;
+  }
+  PERFETTO_FATAL("Unknown nested-message encoding");
+}
+
+struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer) {
+  auto result = PerfettoDsTracerImplPacketBeginWithEncoding(tracer);
+  if (result.encoding != PERFETTO_DS_PACKET_ENCODING_LENGTH_DELIMITED) {
+    // Legacy callers cannot encode proto groups. Discard their bytes.
+    // PacketEnd completes the empty packet on the original writer.
+    thread_local protozero::ScatteredStreamWriterNullDelegate delegate(4096);
+    thread_local protozero::ScatteredStreamWriter stream(&delegate);
+    stream.Reset(delegate.GetNewBuffer());
+    result.writer.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(&stream);
+    perfetto::UpdateStreamWriter(stream, &result.writer);
+  }
+  return result.writer;
 }
 
 void PerfettoDsTracerImplPacketEnd(struct PerfettoDsTracerImpl* tracer,

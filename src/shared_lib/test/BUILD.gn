@@ -56,6 +56,13 @@ if (enable_perfetto_integration_tests) {
       "../../base",
       "protos",
     ]
-    sources = [ "api_integrationtest.cc" ]
+    if (enable_perfetto_ipc) {
+      deps += [ "../../tracing/ipc/service" ]
+    }
+    cflags_c = [ "-Wno-declaration-after-statement" ]
+    sources = [
+      "api_integrationtest.cc",
+      "legacy_data_source_client.c",
+    ]
   }
 }

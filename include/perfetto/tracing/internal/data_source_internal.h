@@ -123,6 +123,10 @@ struct DataSourceState {
   // this data source.
   std::atomic<uint32_t> incremental_state_generation{0};
 
+  // The data source opts into append-only encoding. The endpoint selects
+  // the transport for each instance.
+  bool supports_append_only_encoding = false;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder
