@@ -24,13 +24,16 @@
 #include "perfetto/public/pb_msg.h"
 #include "perfetto/public/pb_utils.h"
 
-// This file provides a way of serializing packed repeated fields. All the
-// strongly typed `struct PerfettoPbPackedMsg*` variants behave as protozero
-// nested messages and allow zero-copy serialization. A protobuf message that
-// has a packed repeated field provides begin and end operations that accept a
-// PerfettoPbPackedMsg. The downside of this approach is that (like all
-// protozero nested messages), it reserves 4 bytes to encode the length, so it
-// might add overhead for lots of small messages.
+// Use this API to write packed repeated fields as nested messages.
+// The generated begin and end functions accept the PerfettoPbPackedMsg type
+// that matches the field type.
+//
+// Storage depends on the stream format:
+// - Length-delimited streams write values directly to the output. They reserve
+//   four bytes for the field length. This can add overhead for small fields.
+// - Proto-group streams store up to 64 bytes in an inline buffer. They use heap
+//   storage for larger payloads. The end function writes the length and payload
+//   to the output.
 
 // ***
 // Sample usage of PerfettoPbPackedMsg*
@@ -48,6 +51,7 @@
 // ***
 struct PerfettoPbPackedMsgUint64 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgUint64Append(
     struct PerfettoPbPackedMsgUint64* buf,
@@ -57,6 +61,7 @@ static inline void PerfettoPbPackedMsgUint64Append(
 
 struct PerfettoPbPackedMsgUint32 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgUint32Append(
     struct PerfettoPbPackedMsgUint32* buf,
@@ -66,6 +71,7 @@ static inline void PerfettoPbPackedMsgUint32Append(
 
 struct PerfettoPbPackedMsgInt64 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgInt64Append(
     struct PerfettoPbPackedMsgInt64* buf,
@@ -75,6 +81,7 @@ static inline void PerfettoPbPackedMsgInt64Append(
 
 struct PerfettoPbPackedMsgInt32 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgInt32Append(
     struct PerfettoPbPackedMsgInt32* buf,
@@ -84,6 +91,7 @@ static inline void PerfettoPbPackedMsgInt32Append(
 
 struct PerfettoPbPackedMsgSint64 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgSint64Append(
     struct PerfettoPbPackedMsgSint64* buf,
@@ -94,6 +102,7 @@ static inline void PerfettoPbPackedMsgSint64Append(
 
 struct PerfettoPbPackedMsgSint32 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgSint32Append(
     struct PerfettoPbPackedMsgSint32* buf,
@@ -105,6 +114,7 @@ static inline void PerfettoPbPackedMsgSint32Append(
 
 struct PerfettoPbPackedMsgFixed64 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgFixed64Append(
     struct PerfettoPbPackedMsgFixed64* buf,
@@ -114,6 +124,7 @@ static inline void PerfettoPbPackedMsgFixed64Append(
 
 struct PerfettoPbPackedMsgFixed32 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgFixed32Append(
     struct PerfettoPbPackedMsgFixed32* buf,
@@ -123,6 +134,7 @@ static inline void PerfettoPbPackedMsgFixed32Append(
 
 struct PerfettoPbPackedMsgSfixed64 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgSfixed64Append(
     struct PerfettoPbPackedMsgSfixed64* buf,
@@ -134,6 +146,7 @@ static inline void PerfettoPbPackedMsgSfixed64Append(
 
 struct PerfettoPbPackedMsgSfixed32 {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgSfixed32Append(
     struct PerfettoPbPackedMsgSfixed32* buf,
@@ -145,6 +158,7 @@ static inline void PerfettoPbPackedMsgSfixed32Append(
 
 struct PerfettoPbPackedMsgDouble {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgDoubleAppend(
     struct PerfettoPbPackedMsgDouble* buf,
@@ -156,6 +170,7 @@ static inline void PerfettoPbPackedMsgDoubleAppend(
 
 struct PerfettoPbPackedMsgFloat {
   struct PerfettoPbMsg msg;
+  struct PerfettoPbMsgStagingWriter staged;
 };
 static inline void PerfettoPbPackedMsgFloatAppend(
     struct PerfettoPbPackedMsgFloat* buf,

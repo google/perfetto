@@ -59,11 +59,21 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/shared_lib/reset_for_testing.h"
+#include "src/shared_lib/stream_writer.h"
 #include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
 
 // Tests for the perfetto shared library.
+
+// These declarations exercise the same macros as generated C headers.
+PERFETTO_PB_MSG(StagedFieldsTestMessage);
+PERFETTO_PB_FIELD(StagedFieldsTestMessage,
+                  MSG,
+                  protozero_test_protos_PackedRepeatedFields,
+                  packed,
+                  1);
+PERFETTO_PB_FIELD(StagedFieldsTestMessage, PACKED, Sint32, zigzag, 2);
 
 namespace {
 
@@ -804,10 +814,13 @@ TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupScalarPayloads) {
                                 PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
   protozero_test_protos_EveryField_set_cstr_field_string(&root, "a");
   PerfettoPbMsg payload;
-  EXPECT_DEATH_IF_SUPPORTED(
-      protozero_test_protos_EveryField_begin_field_string(&root, &payload), "");
-  PerfettoPbMsgFinalize(&root.msg);
+  protozero_test_protos_EveryField_begin_field_string(&root, &payload);
+  PerfettoPbMsgAppendByte(&payload, 'b');
   EXPECT_EQ(GetData(), (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a'}));
+  protozero_test_protos_EveryField_end_field_string(&root, &payload);
+  PerfettoPbMsgFinalize(&root.msg);
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a', 0xa2, 0x1f, 1, 'b'}));
 }
 
 TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupPackedPayload) {
@@ -815,10 +828,246 @@ TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupPackedPayload) {
   PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
                                 PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
   PerfettoPbPackedMsgInt32 payload;
-  EXPECT_DEATH_IF_SUPPORTED(
-      protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
-                                                                   &payload),
-      "");
+  protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root, &payload);
+  PerfettoPbPackedMsgInt32Append(&payload, 150);
+  EXPECT_TRUE(GetData().empty());
+  protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &payload);
+  PerfettoPbMsgFinalize(&root.msg);
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0x0a, 2, 0x96, 0x01}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, StagedPackedNestedAndRepeated) {
+  StagedFieldsTestMessage root;
+  protozero_test_protos_PackedRepeatedFields child;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  StagedFieldsTestMessage_begin_packed(&root, &child);
+  PerfettoPbPackedMsgInt32 varints;
+  protozero_test_protos_PackedRepeatedFields_begin_field_int32(&child,
+                                                               &varints);
+  PerfettoPbPackedMsgInt32Append(&varints, 150);
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&varints.msg));
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&varints.msg));
+  protozero_test_protos_PackedRepeatedFields_end_field_int32(&child, &varints);
+  PerfettoPbMsgAppendType0Field(&child.msg, 3, 7);
+  protozero_test_protos_PackedRepeatedFields_begin_field_int32(&child,
+                                                               &varints);
+  protozero_test_protos_PackedRepeatedFields_end_field_int32(&child, &varints);
+  PerfettoPbMsgAppendType0Field(&child.msg, 3, 7);
+  PerfettoPbPackedMsgFixed32 fixed32;
+  protozero_test_protos_PackedRepeatedFields_begin_field_fixed32(&child,
+                                                                 &fixed32);
+  PerfettoPbPackedMsgFixed32Append(&fixed32, 0x12345678);
+  protozero_test_protos_PackedRepeatedFields_end_field_fixed32(&child,
+                                                               &fixed32);
+  PerfettoPbMsgAppendType0Field(&child.msg, 3, 7);
+  PerfettoPbPackedMsgFixed64 fixed64;
+  protozero_test_protos_PackedRepeatedFields_begin_field_fixed64(&child,
+                                                                 &fixed64);
+  PerfettoPbPackedMsgFixed64Append(&fixed64, UINT64_C(0x0102030405060708));
+  // The generated ancestor end also finalizes and frees the open packed child.
+  StagedFieldsTestMessage_end_packed(&root, &child);
+  PerfettoPbMsgAppendType0Field(&root.msg, 3, 7);
+  PerfettoPbPackedMsgSint32 zigzag;
+  StagedFieldsTestMessage_begin_zigzag(&root, &zigzag);
+  PerfettoPbPackedMsgSint32Append(&zigzag, -1);
+  PerfettoPbPackedMsgSint32Append(&zigzag, 1);
+  StagedFieldsTestMessage_end_zigzag(&root, &zigzag);
+  const uint8_t complete[] = {1, 2};
+  StagedFieldsTestMessage_set_zigzag(&root, complete, sizeof(complete));
+  PerfettoPbMsgAppendType0Field(&root.msg, 3, 7);
+  const std::vector<uint8_t> expected = {
+      0x0b, 0x0a, 2,    0x96, 1,    0x18, 7,    0x0a, 0,    0x18, 7,
+      0x12, 4,    0x78, 0x56, 0x34, 0x12, 0x18, 7,    0x4a, 8,    8,
+      7,    6,    5,    4,    3,    2,    1,    0x04, 0x18, 7,    0x12,
+      2,    1,    2,    0x12, 2,    1,    2,    0x18, 7};
+  EXPECT_EQ(expected.size(), PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(expected.size(), PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(expected, GetData());
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, StagedStringAndBytesLifecycle) {
+  protozero_test_protos_EveryField root, child;
+  PerfettoPbMsg payload;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  protozero_test_protos_EveryField_begin_field_nested(&root, &child);
+  protozero_test_protos_EveryField_begin_field_string(&child, &payload);
+  protozero_test_protos_EveryField_end_field_string(&child, &payload);
+  protozero_test_protos_EveryField_set_field_int32(&child, 42);
+  protozero_test_protos_EveryField_begin_field_string(&child, &payload);
+  PerfettoPbMsgAppendByte(&payload, 'a');
+  PerfettoPbMsgAppendByte(&payload, 0);
+  PerfettoPbMsgAppendByte(&payload, 'b');
+  EXPECT_EQ(3u, PerfettoPbMsgFinalize(&payload));
+  EXPECT_EQ(3u, PerfettoPbMsgFinalize(&payload));
+  protozero_test_protos_EveryField_end_field_string(&child, &payload);
+  protozero_test_protos_EveryField_set_field_int32(&child, 42);
+  protozero_test_protos_EveryField_begin_field_bytes(&child, &payload);
+  PerfettoPbMsgAppendByte(&payload, 0xff);
+  // Recursive root finalization must release both descendants exactly once.
+  EXPECT_EQ(19u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(19u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(1u, PerfettoPbMsgFinalize(&payload));
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0x73, 0xa2, 0x1f, 0, 8, 42, 0xa2,
+                                             0x1f, 3, 'a', 0, 'b', 8, 42, 0xca,
+                                             0x1f, 1, 0xff, 0x04}));
+  // Reuse the same raw child after its staging owner was released.
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  protozero_test_protos_EveryField_begin_field_bytes(&root, &payload);
+  EXPECT_EQ(3u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(0u, PerfettoPbMsgFinalize(&payload));
+}
+
+class ImmutableChunks : public protozero::ScatteredStreamWriter::Delegate {
+ public:
+  protozero::ContiguousMemoryRange GetNewBuffer() override {
+    if (!chunks.empty())
+      published.emplace_back(chunks.back().get(), chunks.back().get() + 32);
+    chunks.emplace_back(new uint8_t[32]());
+    return {chunks.back().get(), chunks.back().get() + 32};
+  }
+
+  uint8_t* AnnotatePatch(uint8_t*) override {
+    ADD_FAILURE() << "Proto-group destination requested a patch";
+    return nullptr;
+  }
+
+  std::vector<uint8_t> GetData(const PerfettoStreamWriter& writer) {
+    std::vector<uint8_t> result;
+    for (size_t i = 0; i < published.size(); ++i) {
+      EXPECT_EQ(published[i],
+                std::vector<uint8_t>(chunks[i].get(), chunks[i].get() + 32));
+      result.insert(result.end(), published[i].begin(), published[i].end());
+    }
+    result.insert(result.end(), writer.begin, writer.write_ptr);
+    return result;
+  }
+
+  std::vector<std::unique_ptr<uint8_t[]>> chunks;
+  std::vector<std::vector<uint8_t>> published;
+};
+
+TEST_F(SharedLibProtozeroSerializationTest, StagedFieldsCrossImmutableChunks) {
+  for (size_t prefix : {0u, 28u, 29u, 30u, 31u}) {
+    for (bool packed : {false, true}) {
+      SCOPED_TRACE(prefix);
+      SCOPED_TRACE(packed);
+      ImmutableChunks chunks;
+      protozero::ScatteredStreamWriter stream(&chunks);
+      stream.Extend();
+      PerfettoPbMsgWriter destination;
+      destination.writer.impl =
+          reinterpret_cast<PerfettoStreamWriterImpl*>(&stream);
+      perfetto::UpdateStreamWriter(stream, &destination.writer);
+      const std::vector<uint8_t> initial(prefix, 0);
+      PerfettoStreamWriterAppendBytes(&destination.writer, initial.data(),
+                                      initial.size());
+      std::vector<uint8_t> expected = initial;
+      // More than two staging slices and many destination chunks.
+      const std::vector<uint8_t> bytes(8200, 0x55);
+      if (packed) {
+        protozero_test_protos_PackedRepeatedFields root;
+        PerfettoPbMsgInitWithEncoding(&root.msg, &destination,
+                                      PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+        PerfettoPbPackedMsgUint64 payload;
+        protozero_test_protos_PackedRepeatedFields_begin_field_uint64(&root,
+                                                                      &payload);
+        for (auto value : bytes)
+          PerfettoPbPackedMsgUint64Append(&payload, value);
+        EXPECT_EQ(initial, chunks.GetData(destination.writer));
+        protozero_test_protos_PackedRepeatedFields_end_field_uint64(&root,
+                                                                    &payload);
+        PerfettoPbMsgAppendType0Field(&root.msg, 3, 7);
+        EXPECT_EQ(8205u, PerfettoPbMsgFinalize(&root.msg));
+        expected.insert(expected.end(), {0x32, 0x88, 0x40});
+      } else {
+        protozero_test_protos_EveryField root, child;
+        PerfettoPbMsgInitWithEncoding(&root.msg, &destination,
+                                      PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+        protozero_test_protos_EveryField_begin_field_nested(&root, &child);
+        PerfettoPbMsg payload;
+        protozero_test_protos_EveryField_begin_field_bytes(&child, &payload);
+        PerfettoPbMsgAppendBytes(&payload, bytes.data(), 4000);
+        PerfettoPbMsgAppendBytes(&payload, bytes.data() + 4000,
+                                 bytes.size() - 4000);
+        expected.push_back(0x73);
+        EXPECT_EQ(expected, chunks.GetData(destination.writer));
+        protozero_test_protos_EveryField_end_field_bytes(&child, &payload);
+        protozero_test_protos_EveryField_set_field_int32(&child, 7);
+        EXPECT_EQ(8208u, PerfettoPbMsgFinalize(&root.msg));
+        expected.insert(expected.end(), {0xca, 0x1f, 0x88, 0x40});
+      }
+      expected.insert(expected.end(), bytes.begin(), bytes.end());
+      expected.insert(expected.end(), {packed ? uint8_t(0x18) : uint8_t(8), 7});
+      if (!packed)
+        expected.push_back(0x04);
+      ASSERT_GT(chunks.published.size(), 200u);
+      EXPECT_EQ(expected, chunks.GetData(destination.writer));
+    }
+  }
+}
+
+TEST_F(SharedLibProtozeroSerializationTest,
+       StagedPayloadContainsLengthDelimitedChild) {
+  protozero_test_protos_EveryField root;
+  PerfettoPbMsg staged, nested;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  protozero_test_protos_EveryField_begin_field_bytes(&root, &staged);
+  PerfettoPbMsgBeginNested(&staged, &nested, 1);
+  const std::vector<uint8_t> bytes(8200, 0x55);
+  PerfettoPbMsgAppendBytes(&nested, bytes.data(), bytes.size());
+  EXPECT_TRUE(GetData().empty());
+  EXPECT_EQ(8209u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(8209u, PerfettoPbMsgFinalize(&root.msg));
+  auto expected =
+      std::vector<uint8_t>{0xca, 0x1f, 0x8d, 0x40, 0x0a, 0x88, 0xc0, 0x80, 0};
+  expected.insert(expected.end(), bytes.begin(), bytes.end());
+  EXPECT_EQ(expected, GetData());
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, StagedPayloadNestingAfterPrefix) {
+  // The prefix includes a two-byte field header. Exercise a nested header
+  // fitting in, crossing, or starting beyond the 64-byte inline buffer.
+  for (size_t prefix_size : {0u, 57u, 58u, 61u, 62u, 63u}) {
+    for (size_t payload_size : {0u, 8200u}) {
+      SCOPED_TRACE(prefix_size);
+      SCOPED_TRACE(payload_size);
+      const size_t start = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+      const std::string prefix(prefix_size, 'p');
+      const std::string payload(payload_size, 'x');
+      protozero_test_protos_EveryField root;
+      PerfettoPbMsg staged, nested, grandchild;
+      PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                    PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+      protozero_test_protos_EveryField_begin_field_bytes(&root, &staged);
+      PerfettoPbMsgAppendCStrField(&staged, 1, prefix.c_str());
+      PerfettoPbMsgBeginNested(&staged, &nested, 2);
+      PerfettoPbMsgBeginNested(&nested, &grandchild, 3);
+      PerfettoPbMsgAppendCStrField(&grandchild, 4, payload.c_str());
+      const size_t nested_size = PerfettoPbMsgFinalize(&nested);
+      EXPECT_EQ(nested_size, PerfettoPbMsgFinalize(&nested));
+      PerfettoPbMsgEndNested(&staged);
+      PerfettoPbMsgAppendType0Field(&staged, 5, 42);
+      EXPECT_EQ(start, PerfettoStreamWriterGetWrittenSize(&writer.writer));
+
+      const size_t size = PerfettoPbMsgFinalize(&root.msg);
+      EXPECT_EQ(size, PerfettoPbMsgFinalize(&root.msg));
+      const auto data = GetData();
+      EXPECT_EQ(size, data.size() - start);
+      const auto nested_fields = ElementsAre(
+          PbField(3, MsgField(ElementsAre(PbField(4, StringField(payload))))));
+      const auto staged_fields = ElementsAre(
+          PbField(1, StringField(prefix)), PbField(2, MsgField(nested_fields)),
+          PbField(5, VarIntField(42)));
+      EXPECT_THAT(FieldView(data.data() + start, data.data() + data.size()),
+                  ElementsAre(PbField(
+                      protozero_test_protos_EveryField_field_bytes_field_number,
+                      MsgField(staged_fields))));
+    }
+  }
 }
 
 class SharedLibDataSourceTest : public testing::Test {
