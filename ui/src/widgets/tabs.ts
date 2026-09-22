@@ -17,11 +17,9 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {Gate, isEmptyVnodes} from '../base/mithril_utils';
 import {Button} from './button';
-import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
-import {PopupMenu} from './menu';
-import {PopupPosition} from './popup';
 import {maybeUndefined} from '../base/utils';
+import {TabStrip} from './tab_strip';
 
 export interface TabsTab {
   // Unique identifier for the tab.
@@ -77,167 +75,11 @@ export interface TabsAttrs {
   readonly rightContent?: m.Children;
   // Visual style of the tab bar. 'card' (the default) renders classic
   // boxed tab handles on a secondary-background bar; 'underline' renders
-  // flat text tabs with a primary underline on the active tab, matching the
-  // look of the (deprecated) TabStrip component.
+  // flat text tabs with a primary underline on the active tab.
+  // The bar is rendered by the TabStrip component.
   readonly variant?: 'card' | 'underline';
   // Additional class name for the container.
   readonly className?: string;
-}
-
-interface TabHandleAttrs {
-  readonly active?: boolean;
-  readonly hasCloseButton?: boolean;
-  readonly onClose?: () => void;
-  readonly onpointerdown?: () => void;
-  readonly ondblclick?: () => void;
-  readonly leftIcon?: string | m.Children;
-  readonly tabKey?: string;
-  readonly reorderable?: boolean;
-  readonly renaming?: boolean;
-  readonly renameValue?: string;
-  readonly onRenameInput?: (value: string) => void;
-  readonly onRenameCommit?: () => void;
-  readonly onRenameCancel?: () => void;
-  readonly onDragStart?: (key: string) => void;
-  readonly onDragEnd?: () => void;
-  readonly onDragOver?: (key: string, position: 'before' | 'after') => void;
-  readonly onDragLeave?: () => void;
-  readonly onDrop?: (key: string) => void;
-  readonly menuItems?: m.Children;
-}
-
-class TabHandle implements m.ClassComponent<TabHandleAttrs> {
-  view({attrs, children}: m.CVnode<TabHandleAttrs>): m.Children {
-    const {
-      active,
-      hasCloseButton,
-      onClose,
-      onpointerdown,
-      ondblclick,
-      leftIcon,
-      tabKey,
-      reorderable,
-      renaming,
-      renameValue,
-      onRenameInput,
-      onRenameCommit,
-      onRenameCancel,
-      onDragStart,
-      onDragEnd,
-      onDragOver,
-      onDragLeave,
-      onDrop,
-      menuItems,
-    } = attrs;
-
-    const renderLeftIcon = () => {
-      if (leftIcon === undefined) {
-        return undefined;
-      }
-      if (typeof leftIcon === 'string') {
-        return m(Icon, {icon: leftIcon, className: 'pf-tabs__tab-icon'});
-      }
-      return m('.pf-tabs__tab-icon', leftIcon);
-    };
-
-    return m(
-      '.pf-tabs__tab',
-      {
-        className: classNames(active && 'pf-tabs__tab--active'),
-        onpointerdown,
-        ondblclick,
-        onauxclick: () => onClose?.(),
-        draggable: reorderable,
-        ondragstart: reorderable
-          ? (e: DragEvent) => {
-              if (tabKey) {
-                e.dataTransfer?.setData('text/plain', tabKey);
-                onDragStart?.(tabKey);
-              }
-            }
-          : undefined,
-        ondragend: reorderable ? () => onDragEnd?.() : undefined,
-        ondragover: reorderable
-          ? (e: DragEvent) => {
-              e.preventDefault();
-              if (tabKey) {
-                const target = e.currentTarget as HTMLElement;
-                const rect = target.getBoundingClientRect();
-                const midpoint = rect.left + rect.width / 2;
-                const position = e.clientX < midpoint ? 'before' : 'after';
-                onDragOver?.(tabKey, position);
-              }
-            }
-          : undefined,
-        ondragleave: reorderable
-          ? (e: DragEvent) => {
-              const target = e.currentTarget as HTMLElement;
-              const related = e.relatedTarget as HTMLElement | null;
-              if (related && !target.contains(related)) {
-                onDragLeave?.();
-              }
-            }
-          : undefined,
-        ondrop: reorderable
-          ? (e: DragEvent) => {
-              e.preventDefault();
-              if (tabKey) {
-                onDrop?.(tabKey);
-              }
-            }
-          : undefined,
-      },
-      renderLeftIcon(),
-      renaming
-        ? m('input.pf-tabs__tab-rename-input', {
-            value: renameValue,
-            oncreate: (vnode: m.VnodeDOM) => {
-              const el = vnode.dom as HTMLInputElement;
-              el.focus();
-              el.select();
-            },
-            oninput: (e: InputEvent) => {
-              const target = e.target as HTMLInputElement;
-              onRenameInput?.(target.value);
-            },
-            onkeydown: (e: KeyboardEvent) => {
-              if (e.key === 'Enter') {
-                onRenameCommit?.();
-                e.preventDefault();
-              } else if (e.key === 'Escape') {
-                onRenameCancel?.();
-                e.preventDefault();
-              }
-              e.stopPropagation();
-            },
-            onblur: () => onRenameCommit?.(),
-            onclick: (e: Event) => e.stopPropagation(),
-          })
-        : m('.pf-tabs__tab-title', children),
-      menuItems !== undefined &&
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              compact: true,
-              icon: Icons.ContextMenuAlt,
-              className: 'pf-tabs__tab-menu-btn',
-            }),
-            position: PopupPosition.Bottom,
-          },
-          menuItems,
-        ),
-      hasCloseButton &&
-        m(Button, {
-          compact: true,
-          icon: Icons.Close,
-          onclick: (e: Event) => {
-            e.stopPropagation();
-            onClose?.();
-          },
-        }),
-    );
-  }
 }
 
 export class Tabs implements m.ClassComponent<TabsAttrs> {
@@ -281,14 +123,10 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
 
     return m(
       '.pf-tabs',
-      {
-        className: classNames(
-          className,
-          variant === 'underline' && 'pf-tabs--underline',
-        ),
-      },
+      {className},
       m(
-        '.pf-tabs__tabs',
+        TabStrip,
+        {variant},
         tabs.map((tab, index) => {
           const isDragTarget = this.dropTargetKey === tab.key;
           const showDropBefore =
@@ -320,14 +158,13 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
               ),
             },
             m(
-              TabHandle,
+              TabStrip.Tab,
               {
                 active: tab.key === activeKey,
-                hasCloseButton: tab.closeButton,
+                closeButton: tab.closeButton,
                 leftIcon: tab.leftIcon,
                 menuItems: tab.menuItems,
-                tabKey: tab.key,
-                reorderable,
+                draggable: reorderable,
                 onpointerdown: () => {
                   this.internalActiveTab = tab.key;
                   onTabChange?.(tab.key);
@@ -361,45 +198,66 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                   },
                 }),
                 onClose: () => onTabClose?.(tab.key),
-                onDragStart: (key) => {
-                  this.draggedKey = key;
-                },
-                onDragEnd: () => {
-                  this.draggedKey = undefined;
-                  this.dropTargetKey = undefined;
-                  this.dropPosition = undefined;
-                },
-                onDragOver: (key, position) => {
-                  this.dropTargetKey = key;
-                  this.dropPosition = position;
-                },
-                onDragLeave: () => {
-                  this.dropTargetKey = undefined;
-                  this.dropPosition = undefined;
-                },
-                onDrop: (targetKey) => {
-                  if (
-                    this.draggedKey &&
-                    this.draggedKey !== targetKey &&
-                    onTabReorder
-                  ) {
-                    // Find the key of the tab to insert before
-                    const targetIndex = tabs.findIndex(
-                      (t) => t.key === targetKey,
-                    );
-                    let beforeKey: string | undefined;
-                    if (this.dropPosition === 'before') {
-                      beforeKey = targetKey;
-                    } else {
-                      // 'after' - insert before the next tab
-                      beforeKey = tabs[targetIndex + 1]?.key;
+                ondragstart: reorderable
+                  ? (e: DragEvent) => {
+                      e.dataTransfer?.setData('text/plain', tab.key);
+                      this.draggedKey = tab.key;
                     }
-                    onTabReorder(this.draggedKey, beforeKey);
-                  }
-                  this.draggedKey = undefined;
-                  this.dropTargetKey = undefined;
-                  this.dropPosition = undefined;
-                },
+                  : undefined,
+                ondragend: reorderable
+                  ? () => {
+                      this.draggedKey = undefined;
+                      this.dropTargetKey = undefined;
+                      this.dropPosition = undefined;
+                    }
+                  : undefined,
+                ondragover: reorderable
+                  ? (e: DragEvent) => {
+                      e.preventDefault();
+                      const target = e.currentTarget as HTMLElement;
+                      const rect = target.getBoundingClientRect();
+                      const midpoint = rect.left + rect.width / 2;
+                      this.dropTargetKey = tab.key;
+                      this.dropPosition =
+                        e.clientX < midpoint ? 'before' : 'after';
+                    }
+                  : undefined,
+                ondragleave: reorderable
+                  ? (e: DragEvent) => {
+                      const target = e.currentTarget as HTMLElement;
+                      const related = e.relatedTarget as HTMLElement | null;
+                      if (related && !target.contains(related)) {
+                        this.dropTargetKey = undefined;
+                        this.dropPosition = undefined;
+                      }
+                    }
+                  : undefined,
+                ondrop: reorderable
+                  ? (e: DragEvent) => {
+                      e.preventDefault();
+                      if (
+                        this.draggedKey &&
+                        this.draggedKey !== tab.key &&
+                        onTabReorder
+                      ) {
+                        // Find the key of the tab to insert before
+                        const targetIndex = tabs.findIndex(
+                          (t) => t.key === tab.key,
+                        );
+                        let beforeKey: string | undefined;
+                        if (this.dropPosition === 'before') {
+                          beforeKey = tab.key;
+                        } else {
+                          // 'after' - insert before the next tab
+                          beforeKey = tabs[targetIndex + 1]?.key;
+                        }
+                        onTabReorder(this.draggedKey, beforeKey);
+                      }
+                      this.draggedKey = undefined;
+                      this.dropTargetKey = undefined;
+                      this.dropPosition = undefined;
+                    }
+                  : undefined,
               },
               tab.title,
             ),
