@@ -541,7 +541,17 @@ async function renderAllPages(pages, nav, site) {
 // and the index page is rendered from those.
 async function addBlogThumbnails(posts, site) {
   for (const post of posts) {
-    if (post.thumbSitePath === null) continue;
+    if (post.cover.generated) {
+      // Drawn at card size directly: sharper and cheaper than downscaling.
+      site.set(
+        post.thumbSitePath,
+        await memo(`blog:thumb:${post.slug}`, [post.title], () =>
+          blog.generateCover(post.title, blog.THUMB_WIDTH),
+        ),
+      );
+      post.cardUrl = "/" + post.thumbSitePath;
+      continue;
+    }
     const srcAbs = pjoin(post.dir, path.basename(post.cover.sitePath));
     const thumb = await memo(`blog:thumb:${post.slug}`, [{ file: srcAbs }], () =>
       blog.makeThumbnail(srcAbs),
@@ -572,7 +582,7 @@ async function addBlogAssets(posts, site) {
       site.set(
         post.cover.sitePath,
         await memo(`blog:cover:${post.slug}`, [post.title], () =>
-          blog.generateCover(post.title).svg,
+          blog.generateCover(post.title),
         ),
       );
     } else {

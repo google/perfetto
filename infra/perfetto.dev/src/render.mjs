@@ -352,15 +352,13 @@ export function resetTemplateCache() {
   templateCache.clear();
 }
 
-// The link preview image of a blog page: an explicit `cover:` PNG. Generated
-// covers are SVG, which crawlers do not render, so those posts get no image
-// and a text-only card. The index has no cover of its own and borrows the
+// The link preview image of a blog page: its cover, which is always a PNG
+// (explicit or generated). The index has no cover of its own and borrows the
 // newest post's.
 function ogImageUrl(post, siteUrl) {
   if (post === undefined) return undefined;
   const p = post.isIndex ? post.posts[0] : post;
-  if (p === undefined || p.cover.generated) return undefined;
-  return `${siteUrl}/${p.cover.sitePath}`;
+  return p === undefined ? undefined : `${siteUrl}/${p.cover.sitePath}`;
 }
 
 const FALLBACK_TITLE =

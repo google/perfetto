@@ -9,7 +9,7 @@
   const isPost = typeof post !== 'undefined' && post && !post.isIndex;
   const ogTitle = isPost ? post.title : title;
   const desc = typeof description !== 'undefined' ? description : undefined;
-  // Blog pages with a PNG cover only (see ogImageUrl in render.mjs).
+  // Blog pages only (see ogImageUrl in render.mjs).
   const img = typeof ogImage !== 'undefined' ? ogImage : undefined;
 -%>
 <!DOCTYPE html>
