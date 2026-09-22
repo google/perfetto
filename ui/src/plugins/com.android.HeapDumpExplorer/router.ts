@@ -16,61 +16,61 @@ import m from 'mithril';
 
 // Context handed to every route handler: the `:param` values captured from the
 // path plus the `?key=value` query params, both URI-decoded.
-export interface SubRouterContext {
+export interface RouterContext {
   readonly params: Record<string, string>;
   readonly queries: Record<string, string>;
 }
 
-export type SubRouteHandler = (ctx: SubRouterContext) => m.Children;
+export type RouteHandler = (ctx: RouterContext) => m.Children;
 
-interface CompiledRoute {
-  readonly segments: string[];
-  readonly handler: SubRouteHandler;
+// A routing table: '/'-separated patterns (with `:name` capture segments)
+// mapped to the handler that renders the matched page. Entries are matched
+// in declaration order (first match wins), so avoid integer-like patterns
+// (e.g. '123') — object keys hoist those ahead of everything else.
+export type Routes = Readonly<Record<string, RouteHandler>>;
+
+export interface RouterAttrs {
+  // The subpage to resolve (optionally carrying a `?query`).
+  readonly path: string | undefined;
+  // Routing table matched in declaration order (first match wins).
+  readonly routes: Routes;
+  // Renders when no route matches; omit to render nothing.
+  readonly fallback?: RouteHandler;
 }
 
-// A tiny router for a single page's subpage. Routes are matched in registration
-// order (first match wins) against '/'-separated segments; a `:name` segment
-// captures its value into `params`. A trailing `?key=value&...` on the subpage
-// is parsed into `queries`. If no route matches, the default handler (if set)
-// runs; otherwise `view()` returns null.
+// A tiny router for a single page's subpage. Routes are matched in order
+// (first match wins) against '/'-separated segments; a `:name` segment
+// captures its value into `params`. A trailing `?key=value&...` on the path
+// is parsed into `queries`. If no route matches, `fallback` (if set) runs;
+// otherwise nothing is rendered.
 //
-//   const router = new SubRouter();
-//   router.addRoute('overview', () => m(OverviewView, {...}));
-//   router.addRoute('object/:id', ({params: {id}}) => m(ObjectView, {id}));
-//   router.addDefault(() => m('div', 'Not found'));
-//   return router.view(subpage);
-export class SubRouter {
-  private readonly routes: CompiledRoute[] = [];
-  private defaultHandler: SubRouteHandler | null = null;
+//   m(Router, {
+//     path: subpage,
+//     routes: {
+//       'overview': () => m(OverviewView, {...}),
+//       'object/:id': ({params: {id}}) => m(ObjectView, {id}),
+//     },
+//     fallback: () => m('div', 'Not found'),
+//   });
+//
+// Stateless: only the matched handler is called, so a route only pays for
+// its page when actually matched.
+export function Router(): m.Component<RouterAttrs> {
+  return {
+    view({attrs}) {
+      const {path, query} = splitQuery(attrs.path ?? '');
+      const input = splitSegments(path);
+      const queries = parseQuery(query);
 
-  // Registers a route. `pattern` is '/'-separated; `:name` segments are params.
-  // Returns `this` for chaining.
-  addRoute(pattern: string, handler: SubRouteHandler): this {
-    this.routes.push({segments: splitSegments(pattern), handler});
-    return this;
-  }
-
-  // Registers the fallback used when no route matches. Returns `this`.
-  addDefault(handler: SubRouteHandler): this {
-    this.defaultHandler = handler;
-    return this;
-  }
-
-  // Resolves `subpage` (optionally carrying a `?query`) to a handler and returns
-  // the vnode it renders.
-  view(subpage: string | undefined): m.Children {
-    const {path, query} = splitQuery(subpage ?? '');
-    const input = splitSegments(path);
-    const queries = parseQuery(query);
-
-    for (const route of this.routes) {
-      const params = matchSegments(route.segments, input);
-      if (params !== null) {
-        return route.handler({params, queries});
+      for (const [pattern, handler] of Object.entries(attrs.routes)) {
+        const params = matchSegments(splitSegments(pattern), input);
+        if (params !== null) {
+          return handler({params, queries});
+        }
       }
-    }
-    return this.defaultHandler?.({params: {}, queries}) ?? null;
-  }
+      return attrs.fallback?.({params: {}, queries}) ?? null;
+    },
+  };
 }
 
 // Splits a path into non-empty segments, ignoring a leading and trailing '/'.

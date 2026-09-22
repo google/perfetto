@@ -37,7 +37,7 @@ import {ObjectView} from './views/object_view';
 import type {LazyTab} from './views/lazy_tabs';
 import {LazyTabs} from './views/lazy_tabs';
 import type {HeapDumpExplorerSession} from './session';
-import {SubRouter} from './sub_router';
+import {type Routes, Router} from './router';
 
 interface HeapDumpPageAttrs {
   readonly session: HeapDumpExplorerSession;
@@ -53,27 +53,6 @@ function fgTabKey(pathHashes: string, isDominator: boolean): string {
 
 function instanceTabKey(objId: number): string {
   return `${INSTANCE_KEY_PREFIX}${objId}`;
-}
-
-function activeTabKey(session: HeapDumpExplorerSession): string {
-  const tabs = session.flamegraphTabs;
-  if (session.nav.view === 'flamegraph-objects' && tabs.length > 0) {
-    const active = session.activeFlamegraph;
-    const tab =
-      (active &&
-        tabs.find(
-          (t) =>
-            t.pathHashes === active.pathHashes &&
-            t.isDominator === active.isDominator,
-        )) ||
-      tabs[tabs.length - 1];
-    return fgTabKey(tab.pathHashes, tab.isDominator);
-  }
-  const objId = session.activeInstanceObjId;
-  if (objId !== null) {
-    return instanceTabKey(objId);
-  }
-  return session.nav.view;
 }
 
 // Per-tab select/close actions, looked up by key.
@@ -270,49 +249,6 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
         'overview',
       );
 
-    const router = new SubRouter();
-    router.addRoute('', renderOverview);
-    router.addRoute('overview', renderOverview);
-    router.addRoute('flamegraph', () =>
-      renderPage(
-        m(FlamegraphView, {
-          trace,
-          upid: active.upid,
-          ts: active.ts,
-          state: session.flamegraphPanelState,
-          onStateChange: session.setFlamegraphPanelState,
-          onShowObjects: (pathHashes, isDominator) =>
-            session.openFlamegraph({
-              pathHashes,
-              isDominator,
-              upid: active.upid,
-              ts: active.ts,
-            }),
-        }),
-        'flamegraph',
-      ),
-    );
-    router.addRoute('dominators', () =>
-      renderPage(
-        m(DominatorsView, {
-          engine,
-          activeDump: active,
-          navigate: navigateWithTabs,
-        }),
-        'dominators',
-      ),
-    );
-    router.addRoute('classes', () =>
-      renderPage(
-        m(ClassesView, {
-          engine,
-          activeDump: active,
-          navigate: navigateWithTabs,
-          clearNavParam,
-        }),
-        'classes',
-      ),
-    );
     // `cls` comes from the path (objects/<class>); the query-less route
     // renders the unfiltered grid.
     const renderObjects = (cls?: string) =>
@@ -325,22 +261,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
         }),
         'objects',
       );
-    router.addRoute('objects', () => renderObjects());
-    router.addRoute('objects/:cls', ({params: {cls}}) => renderObjects(cls));
-    router.addRoute('object/:id', ({params: {id}}) =>
-      renderPage(
-        m(ObjectView, {
-          engine,
-          activeDump: active,
-          heaps: overview.heaps,
-          navigate: navigateWithTabs,
-          openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
-          // The router stores ids hex-encoded (object/0x1a2b).
-          params: {id: Number.parseInt(id, 16)},
-        }),
-        instanceTabKey(Number.parseInt(id, 16)),
-      ),
-    );
+
     // TODO: plumb the bitmap id through once BitmapGalleryView supports
     // opening at a specific bitmap.
     const renderBitmaps = () =>
@@ -354,46 +275,97 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
         }),
         'bitmaps',
       );
-    router.addRoute('bitmaps', renderBitmaps);
-    router.addRoute('bitmaps/:id', renderBitmaps);
-    router.addRoute('strings', () =>
-      renderPage(
-        m(StringsView, {
-          engine,
-          activeDump: active,
-          navigate: navigateWithTabs,
-          clearNavParam,
-          hasFieldValues: overview.hasFieldValues,
-        }),
-        'strings',
-      ),
-    );
-    router.addRoute('arrays', () =>
-      renderPage(
-        m(ArraysView, {
-          engine,
-          activeDump: active,
-          navigate: navigateWithTabs,
-          clearNavParam,
-          hasFieldValues: overview.hasFieldValues,
-        }),
-        'arrays',
-      ),
-    );
-    router.addRoute('callstack', () =>
-      renderPage(
-        m(CallstackView, {
-          trace,
-          dump: active,
-          state: session.callstackPanelState,
-          onStateChange: session.setCallstackPanelState,
-        }),
-        'callstack',
-      ),
-    );
-    router.addRoute(
-      'flamegraph_objects/:dom/:pathHashes',
-      ({params: {dom, pathHashes}}) =>
+
+    const routes: Routes = {
+      '': renderOverview,
+      'overview': renderOverview,
+      'flamegraph': () =>
+        renderPage(
+          m(FlamegraphView, {
+            trace,
+            upid: active.upid,
+            ts: active.ts,
+            state: session.flamegraphPanelState,
+            onStateChange: session.setFlamegraphPanelState,
+            onShowObjects: (pathHashes, isDominator) =>
+              session.openFlamegraph({
+                pathHashes,
+                isDominator,
+                upid: active.upid,
+                ts: active.ts,
+              }),
+          }),
+          'flamegraph',
+        ),
+      'dominators': () =>
+        renderPage(
+          m(DominatorsView, {
+            engine,
+            activeDump: active,
+            navigate: navigateWithTabs,
+          }),
+          'dominators',
+        ),
+      'classes': () =>
+        renderPage(
+          m(ClassesView, {
+            engine,
+            activeDump: active,
+            navigate: navigateWithTabs,
+            clearNavParam,
+          }),
+          'classes',
+        ),
+      'objects': () => renderObjects(),
+      'objects/:cls': ({params: {cls}}) => renderObjects(cls),
+      'object/:id': ({params: {id}}) =>
+        renderPage(
+          m(ObjectView, {
+            engine,
+            activeDump: active,
+            heaps: overview.heaps,
+            navigate: navigateWithTabs,
+            openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
+            // The router stores ids hex-encoded (object/0x1a2b).
+            params: {id: Number.parseInt(id, 16)},
+          }),
+          instanceTabKey(Number.parseInt(id, 16)),
+        ),
+      'bitmaps': renderBitmaps,
+      'bitmaps/:id': renderBitmaps,
+      'strings': () =>
+        renderPage(
+          m(StringsView, {
+            engine,
+            activeDump: active,
+            navigate: navigateWithTabs,
+            clearNavParam,
+            hasFieldValues: overview.hasFieldValues,
+          }),
+          'strings',
+        ),
+      'arrays': () =>
+        renderPage(
+          m(ArraysView, {
+            engine,
+            activeDump: active,
+            navigate: navigateWithTabs,
+            clearNavParam,
+            hasFieldValues: overview.hasFieldValues,
+          }),
+          'arrays',
+        ),
+      'callstack': () =>
+        renderPage(
+          m(CallstackView, {
+            trace,
+            dump: active,
+            state: session.callstackPanelState,
+            onStateChange: session.setCallstackPanelState,
+          }),
+          'callstack',
+        ),
+      'flamegraph_objects/:dom/:pathHashes': ({params: {dom, pathHashes}}) =>
         renderPage(
           m(FlamegraphObjectsView, {
             engine,
@@ -404,20 +376,23 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
           }),
           fgTabKey(pathHashes, dom === '1'),
         ),
-    );
-    router.addDefault(() =>
-      renderPage(
-        m(
-          EmptyState,
-          {
-            title: 'Page not found',
-            fillHeight: true,
-          },
-          m(Anchor, {href: '#!/heapdump'}, 'Back to heap dump overview'),
+    };
+
+    return m(Router, {
+      path: subpage,
+      routes,
+      fallback: () =>
+        renderPage(
+          m(
+            EmptyState,
+            {
+              title: 'Page not found',
+              fillHeight: true,
+            },
+            m(Anchor, {href: '#!/heapdump'}, 'Back to overview'),
+          ),
+          '',
         ),
-        '',
-      ),
-    );
-    return router.view(subpage);
+    });
   }
 }
