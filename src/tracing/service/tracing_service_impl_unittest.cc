@@ -133,7 +133,7 @@ namespace {
 constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
 constexpr size_t kDefaultShmPageSizeKb =
     TracingServiceImpl::kDefaultShmPageSize / 1024;
-constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
+constexpr size_t kMaxShmSizeKb = TracingService::kMaxShmSize / 1024;
 
 constexpr size_t kProtoVmMemoryLimitKb = 16;
 
