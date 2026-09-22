@@ -25,6 +25,7 @@
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/root_message.h"
+#include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/protozero/test/fake_scattered_buffer.h"
 #include "test/gtest_and_gmock.h"
 
@@ -89,7 +90,7 @@ class MessageTest : public ::testing::Test {
            sizeof(kEndWatermark));
     messages_.push_back(std::move(mem));
     FakeRootMessage* msg = new (msg_start) FakeRootMessage();
-    msg->Reset(stream_writer_.get());
+    msg->ResetToLengthDelimited(stream_writer_.get());
     return msg;
   }
 
@@ -139,7 +140,7 @@ class MessageTest : public ::testing::Test {
       msg->Finalize();
   }
 
- private:
+ protected:
   std::unique_ptr<FakeScatteredBuffer> buffer_;
   std::unique_ptr<ScatteredStreamWriter> stream_writer_;
   std::vector<std::unique_ptr<uint8_t[]>> messages_;
@@ -456,6 +457,79 @@ TEST_F(MessageTest, FinalizeWithoutCompaction) {
   uint32_t size = msg->Finalize();
   EXPECT_EQ(24u, size);
   EXPECT_EQ(28u, GetNumSerializedBytes());
+}
+
+TEST_F(MessageTest, ProtoGroupGeneratedMessages) {
+  RootMessage<protozero::test::protos::pbzero::EveryField> root;
+  root.ResetToProtoGroup(stream_writer_.get());
+  auto* outer = root.add_field_nested();
+  auto* inner = outer->add_field_nested();
+  auto* leaf = inner->add_field_nested();
+  leaf->set_field_int32(150);
+  root.set_field_int32(42);
+  EXPECT_EQ(11u, root.Finalize());
+  EXPECT_EQ(11u, root.Finalize());
+  EXPECT_EQ("737373089601040404082A", GetNextSerializedBytes(11));
+}
+
+TEST_F(MessageTest, ProtoGroupEmptyAndReset) {
+  auto* root = NewMessage();
+  root->ResetToProtoGroup(stream_writer_.get());
+  EXPECT_EQ(0u, root->Finalize());
+  EXPECT_EQ(0u, root->Finalize());
+  EXPECT_EQ(0u, GetNumSerializedBytes());
+  root->ResetToProtoGroup(stream_writer_.get());
+  root->BeginNestedMessage<Message>(1);
+  EXPECT_EQ(2u, root->Finalize());
+  root->ResetToLengthDelimited(stream_writer_.get());
+  root->BeginNestedMessage<Message>(1);
+  EXPECT_EQ(2u, root->Finalize());
+  EXPECT_EQ("0B040A00", GetNextSerializedBytes(4));
+}
+
+TEST_F(MessageTest, LengthDelimitedRootWithErasedType) {
+  Message* root = NewMessage();
+  root->BeginNestedMessage<Message>(1)->AppendVarInt(1, 1);
+  EXPECT_EQ(root->Finalize(), 4u);
+  EXPECT_EQ(root->Finalize(), 4u);
+  EXPECT_EQ("0A020801", GetNextSerializedBytes(4));
+}
+
+TEST_F(MessageTest, ProtoGroupHighFieldIdAndSiblings) {
+  auto* root = NewMessage();
+  root->ResetToProtoGroup(stream_writer_.get());
+  auto* child = root->BeginNestedMessage<Message>(100);
+  child->AppendVarInt(1, 0);
+  EXPECT_EQ(3u, child->Finalize());
+  EXPECT_EQ(3u, child->Finalize());
+  root->BeginNestedMessage<Message>(1)->AppendVarInt(2, 150);
+  root->AppendVarInt(2, 42);
+  EXPECT_EQ(12u, root->Finalize());
+  EXPECT_EQ("A3060800040B10960104102A", GetNextSerializedBytes(12));
+}
+
+TEST_F(MessageTest, ProtoGroupCloseAtChunkBoundary) {
+  SetChunkSize(4);
+  auto* root = NewMessage();
+  root->ResetToProtoGroup(stream_writer_.get());
+  auto* child = root->BeginNestedMessage<Message>(1);
+  child->AppendVarInt(2, 150);
+  ASSERT_EQ(4u, GetNumSerializedBytes());
+  EXPECT_EQ(nullptr, child->size_field());
+  const auto published = buffer_->GetChunkAsString(0);
+  EXPECT_EQ(5u, root->Finalize());
+  EXPECT_EQ(published, buffer_->GetChunkAsString(0));
+  EXPECT_EQ("0B10960104", GetNextSerializedBytes(5));
+}
+
+TEST_F(MessageTest, ProtoGroupBytesAcrossChunks) {
+  SetChunkSize(4);
+  auto* root = NewMessage();
+  root->ResetToProtoGroup(stream_writer_.get());
+  auto* child = root->BeginNestedMessage<Message>(1);
+  child->AppendBytes(2, kTestBytes, sizeof(kTestBytes));
+  EXPECT_EQ(14u, root->Finalize());
+  EXPECT_EQ("0B120A00000000420142FF420004", GetNextSerializedBytes(14));
 }
 
 }  // namespace

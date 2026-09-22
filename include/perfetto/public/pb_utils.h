@@ -31,11 +31,42 @@ enum PerfettoPbWireType {
   PERFETTO_PB_WIRE_TYPE_FIXED32 = 5,
 };
 
+// The low bits of a protobuf tag hold its wire type.
+enum { PERFETTO_PB_FIELD_TYPE_NUM_BITS = 3 };
+
 // Creates a field tag, which encodes the field type and the field id.
 static inline uint32_t PerfettoPbMakeTag(int32_t field_id,
                                          enum PerfettoPbWireType wire_type) {
-  return ((PERFETTO_STATIC_CAST(uint32_t, field_id)) << 3) |
+  return ((PERFETTO_STATIC_CAST(uint32_t, field_id))
+          << PERFETTO_PB_FIELD_TYPE_NUM_BITS) |
          PERFETTO_STATIC_CAST(uint32_t, wire_type);
+}
+
+// Constants for tracing v2's append-only proto group format:
+//
+//   open nested field f:  varint((f << 3) | 3)
+//   close current nested: 0x04
+//   root:                 no wrapper and no close byte
+//
+// Unlike standard protobuf groups, the closing byte does not repeat the field
+// number. It encodes field zero (invalid in standard protobuf) with wire
+// type 4. At a field boundary, it closes the innermost message. The packet
+// boundary ends the root.
+//
+// ProtoRewriter must convert this format to length-delimited protobuf before
+// standard decoders can read it. See RFC 0014 for the design:
+// https://github.com/google/perfetto/discussions/4508.
+enum {
+  PERFETTO_PB_PROTO_GROUP_START_WIRE_TYPE = 3,
+  PERFETTO_PB_PROTO_GROUP_END_BYTE = 0x04,
+};
+
+// Creates the tag that opens a nested message in proto group mode.
+static inline uint32_t PerfettoPbMakeStartGroupTag(int32_t field_id) {
+  return ((PERFETTO_STATIC_CAST(uint32_t, field_id))
+          << PERFETTO_PB_FIELD_TYPE_NUM_BITS) |
+         PERFETTO_STATIC_CAST(uint32_t,
+                              PERFETTO_PB_PROTO_GROUP_START_WIRE_TYPE);
 }
 
 enum {

@@ -29,10 +29,38 @@ namespace protozero {
 namespace {
 // Like TracePacket, a message type that is declared to be always a root.
 class RootOnlyMessage : public Message {};
+class GroupRootMessage : public Message {};
 }  // namespace
 
 template <>
 struct IsRootMessage<RootOnlyMessage> : std::true_type {};
+
+template <>
+struct IsRootMessage<GroupRootMessage> : std::true_type {};
+
+// Counts the calls that reach RootMessage::Finalize(). The typed accessors of
+// a root handle return this type.
+template <>
+class RootMessage<RootOnlyMessage> : public RootOnlyMessage {
+ public:
+  RootMessage() { ResetToLengthDelimited(nullptr); }
+
+  void ResetToLengthDelimited(ScatteredStreamWriter* writer) {
+    arena_.Reset();
+    Message::ResetWithEncoding(writer, &arena_,
+                               Message::NestedEncoding::kLengthDelimited);
+  }
+
+  uint32_t Finalize() {
+    ++finalize_count;
+    return Message::Finalize();
+  }
+
+  uint32_t finalize_count = 0;
+
+ private:
+  MessageArena arena_;
+};
 
 namespace {
 
@@ -158,7 +186,7 @@ TYPED_TEST(MessageHandleTypedTest, ResetHandleBeforeReusingMessage) {
   EXPECT_FALSE(handle);
   EXPECT_TRUE(this->message_.is_finalized());
 
-  this->message_.Reset(nullptr);
+  this->message_.ResetToLengthDelimited(nullptr);
   handle = Handle(&this->message_);
   EXPECT_FALSE(this->message_.is_finalized());
   handle = Handle();
@@ -169,7 +197,7 @@ TYPED_TEST(MessageHandleTypedTest, TakeStreamWriterClearsHandleAndListener) {
   using Handle = typename TestFixture::Handle;
   FakeScatteredBuffer buffer(32);
   ScatteredStreamWriter writer(&buffer);
-  this->message_.Reset(&writer);
+  this->message_.ResetToLengthDelimited(&writer);
   {
     Handle handle(&this->message_);
     handle.set_finalization_listener(&this->listener_);
@@ -186,7 +214,7 @@ TYPED_TEST(MessageHandleTypedTest, AppendAfterFinalizeFailsInDebug) {
   using Handle = typename TestFixture::Handle;
   FakeScatteredBuffer buffer(32);
   ScatteredStreamWriter writer(&buffer);
-  this->message_.Reset(&writer);
+  this->message_.ResetToLengthDelimited(&writer);
   Handle handle(&this->message_);
   handle->Finalize();
   EXPECT_DCHECK_DEATH({ handle->AppendVarInt(1, 1); });
@@ -201,11 +229,71 @@ static_assert(
     std::is_same<MessageHandle<Message>, MessageHandle<Message, false>>::value,
     "");
 
+TEST(MessageHandleTest, RootHandleAccessorsUseRootFinalize) {
+  RootMessage<RootOnlyMessage> message;
+  {
+    MessageHandle<RootOnlyMessage> handle(&message);
+    handle->Finalize();
+    handle.get()->Finalize();
+    (*handle).Finalize();
+    EXPECT_EQ(message.finalize_count, 3u);
+  }
+  // The destructor finalizes through Message::FinalizeRoot(). It does not
+  // need the RootMessage<T> type, so the counter does not change.
+  EXPECT_EQ(message.finalize_count, 3u);
+  EXPECT_TRUE(message.is_finalized());
+}
+
+TEST(MessageHandleTest, ProtoGroupRootAndNestedFinalization) {
+  FakeScatteredBuffer buffer(32);
+  ScatteredStreamWriter writer(&buffer);
+  RootMessage<GroupRootMessage> root;
+  root.ResetToProtoGroup(&writer);
+  testing::StrictMock<MockFinalizationListener> listener;
+  {
+    MessageHandle<GroupRootMessage> handle(&root);
+    handle.set_finalization_listener(&listener);
+    auto* child = handle->BeginNestedMessage<Message>(1);
+    child->AppendVarInt(1, 1);
+    EXPECT_EQ(child->Finalize(), 3u);
+    EXPECT_EQ(child->Finalize(), 3u);
+    EXPECT_EQ(buffer.GetBytesAsString(0, 4), "0B080104");
+
+    EXPECT_EQ(handle->Finalize(), 4u);
+    EXPECT_EQ(handle.get()->Finalize(), 4u);
+    EXPECT_EQ((*handle).Finalize(), 4u);
+    EXPECT_EQ(writer.written(), 4u);
+    EXPECT_CALL(listener, OnMessageFinalized(&root))
+        .WillOnce(
+            [](Message* message) { EXPECT_TRUE(message->is_finalized()); });
+  }
+  EXPECT_EQ(writer.written(), 4u);
+}
+
+// The handle destructor is the only finalizer here. The root gets no closing
+// marker. A plain handle on the nested message closes it with 0x04.
+TEST(MessageHandleTest, ProtoGroupHandleDestructorsSelectRootOrNested) {
+  FakeScatteredBuffer buffer(32);
+  ScatteredStreamWriter writer(&buffer);
+  RootMessage<GroupRootMessage> root;
+  root.ResetToProtoGroup(&writer);
+  {
+    MessageHandle<GroupRootMessage> root_handle(&root);
+    {
+      MessageHandle<Message> child(root_handle->BeginNestedMessage<Message>(1));
+      child->AppendVarInt(1, 1);
+    }
+    EXPECT_EQ(buffer.GetBytesAsString(0, 4), "0B080104");
+  }
+  EXPECT_TRUE(root.is_finalized());
+  EXPECT_EQ(writer.written(), 4u);
+}
+
 TEST(MessageHandleTest, NestedHandleEndsBeforeArenaStorageIsReused) {
   FakeScatteredBuffer buffer(32);
   ScatteredStreamWriter writer(&buffer);
   RootMessage<> root;
-  root.Reset(&writer);
+  root.ResetToLengthDelimited(&writer);
   Message* first;
   {
     first = root.BeginNestedMessage<Message>(1);
