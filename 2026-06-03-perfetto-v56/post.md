@@ -2,6 +2,7 @@
 title: Perfetto v56
 author: @perfetto-team
 summary: Perfetto v56.0 is out! This release adds more to the Heap Dump Explorer, a round of UI improvements, easier-to-read multi-machine traces, kernel-assisted stack sampling in traced_perf, and a few new SDK knobs.
+cover: cover.svg
 ---
 
 Perfetto v56.0 is out! This release adds more to the Heap Dump Explorer, a round of UI improvements, easier-to-read multi-machine traces, kernel-assisted stack sampling in `traced_perf`, and a few new SDK knobs.
