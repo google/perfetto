@@ -59,6 +59,8 @@ class Compiler {
       : p_(p), source_(source), catalog_(c) {}
 
   base::Status CompileSource(uint32_t from);
+  base::Status CompileIntersection(uint32_t node);
+  base::Status CompileProjection(uint32_t stage);
   base::Status CompileStage(uint32_t stage);
   LogicalPlan Finish();
 
@@ -100,9 +102,13 @@ class Compiler {
     ColumnId id;
     const char* op;
     uint32_t node;
+    // Only found by a qualified name. An operand's columns are bound this
+    // way, so a bare `ts` or `dur` always means the row being carried.
+    bool qualified_only;
   };
-  void Bind(NamedColumn column, uint32_t node) {
-    names_[base::ToLower(column.name)].push_back({column.id, op_, node});
+  void Bind(NamedColumn column, uint32_t node, bool qualified_only = false) {
+    names_[base::ToLower(column.name)].push_back(
+        {column.id, op_, node, qualified_only});
     plan_.output.push_back(std::move(column));
   }
   std::string Origin(const Binding&, const std::string& name) const;
@@ -120,7 +126,99 @@ class Compiler {
   // The name columns bound by a node can be qualified with, as in
   // `name.column`.
   base::FlatHashMap<uint32_t, std::string> qualifiers_;
+  // Scratch while an intersection's operands are compiled.
+  std::vector<bool> qualified_only_;
 };
+
+// The column of `scan` named `name`, or nothing when it has none.
+std::optional<ColumnId> FindScanColumn(const op::Scan& scan,
+                                       const std::string& name) {
+  for (const NamedColumn& column : scan.columns) {
+    if (base::CaseInsensitiveEqual(column.name, name)) {
+      return column.id;
+    }
+  }
+  return std::nullopt;
+}
+
+base::Status Compiler::CompileIntersection(uint32_t node) {
+  op_ = "INTERVAL INTERSECTION";
+  const auto* n = Node<SyntaqlitePerfettoIntervalIntersection>(p_, node);
+  const auto* list = Node<SyntaqlitePerfettoPipeSourceList>(p_, n->operands);
+  uint32_t count = syntaqlite_list_count(list);
+  if (count < 2) {
+    return Expected(node, "at least two relations to intersect");
+  }
+  const SyntaqlitePerfettoPerColumnList* per =
+      syntaqlite_node_is_present(n->per)
+          ? Node<SyntaqlitePerfettoPerColumnList>(p_, n->per)
+          : nullptr;
+  uint32_t key_count = per ? syntaqlite_list_count(per) : 0;
+
+  op::IntervalIntersect isect;
+  // The region's bounds are the operator's own, so they are named before an
+  // operand can bind anything.
+  isect.ts = plan_.AddColumn("ts", core::Int64{});
+  isect.dur = plan_.AddColumn("dur", core::Int64{});
+
+  std::vector<std::pair<NamedColumn, uint32_t>> bindings;
+  std::vector<PlanNodeId> children;
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t source_id = syntaqlite_list_child_id(list, i);
+    const auto* source = Node<SyntaqlitePerfettoPipeSource>(p_, source_id);
+    std::optional<std::string> alias = SourceQualifier(*source);
+    if (!alias) {
+      return Expected(source_id,
+                      "an alias for the relation, as in `(...) AS x`");
+    }
+    op::Scan scan;
+    if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*source)) {
+      scan =
+          CompileDataframeSource(*dataframe, SpanText(p_, source->table_name));
+    } else {
+      ASSIGN_OR_RETURN(scan, CompileSqlSource(source_id));
+    }
+    std::optional<ColumnId> ts = FindScanColumn(scan, "ts");
+    std::optional<ColumnId> dur = FindScanColumn(scan, "dur");
+    if (!ts || !dur) {
+      return Expected(source_id, std::string(*alias) + " to have a " +
+                                     (ts ? "dur" : "ts") + " column");
+    }
+    op::IntervalIntersect::Operand operand;
+    operand.ts = *ts;
+    operand.dur = *dur;
+    for (uint32_t k = 0; k < key_count; k++) {
+      uint32_t col_id = syntaqlite_list_child_id(per, k);
+      const auto* col = Node<SyntaqlitePerfettoPerColumn>(p_, col_id);
+      std::string name = SpanText(p_, col->name);
+      std::optional<ColumnId> key = FindScanColumn(scan, name);
+      if (!key) {
+        return Expected(col_id,
+                        std::string(*alias) + " to have a " + name + " column");
+      }
+      operand.keys.push_back(*key);
+    }
+    qualifiers_[source_id] = *alias;
+    // A PER column holds the same value in every operand, so the first
+    // operand's is the one a bare name finds; the rest answer to their alias.
+    for (const NamedColumn& column : scan.columns) {
+      bool is_key = std::find(operand.keys.begin(), operand.keys.end(),
+                              column.id) != operand.keys.end();
+      bindings.push_back({column, source_id});
+      qualified_only_.push_back(!(is_key && i == 0));
+    }
+    children.push_back(plan_.AddNode(std::move(scan)));
+    isect.operands.push_back(std::move(operand));
+  }
+  Bind({"ts", isect.ts}, node);
+  Bind({"dur", isect.dur}, node);
+  for (uint32_t i = 0; i < bindings.size(); i++) {
+    Bind(bindings[i].first, bindings[i].second, qualified_only_[i]);
+  }
+  qualified_only_.clear();
+  plan_.AddNode(std::move(isect), std::move(children));
+  return base::OkStatus();
+}
 
 base::Status Compiler::CompileSource(uint32_t from) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, from);
@@ -217,6 +315,8 @@ base::Status Compiler::CompileStage(uint32_t stage) {
   switch (static_cast<int>(node->tag)) {
     case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE:
       return CompileTreeAccumulate(stage);
+    case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT:
+      return CompileProjection(stage);
     default:
       PERFETTO_FATAL("Unknown pipeline stage");
   }
@@ -264,8 +364,9 @@ base::StatusOr<ColumnId> Compiler::Resolve(const std::string& qualifier,
   if (const auto* bindings = names_.Find(base::ToLower(name))) {
     for (const Binding& binding : *bindings) {
       const std::string* bound = qualifiers_.Find(binding.node);
-      if (qualifier.empty() ||
-          (bound && base::CaseInsensitiveEqual(*bound, qualifier))) {
+      if (qualifier.empty()
+              ? !binding.qualified_only
+              : bound && base::CaseInsensitiveEqual(*bound, qualifier)) {
         matches.push_back(binding);
       }
     }
@@ -367,6 +468,37 @@ base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {
   return base::OkStatus();
 }
 
+// Nothing runs: the rows are untouched and only which of their columns are
+// visible, and under what name, changes.
+base::Status Compiler::CompileProjection(uint32_t stage) {
+  op_ = "SELECT";
+  const auto* n = Node<SyntaqlitePerfettoPipeSelect>(p_, stage);
+  const auto* list = Node<SyntaqlitePerfettoPipeColumnList>(p_, n->columns);
+  uint32_t count = syntaqlite_list_count(list);
+
+  std::vector<std::pair<NamedColumn, uint32_t>> output;
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t item_id = syntaqlite_list_child_id(list, i);
+    const auto* item = Node<SyntaqlitePerfettoPipeColumn>(p_, item_id);
+    std::string qualifier =
+        item->qualifier.length ? SpanText(p_, item->qualifier) : "";
+    std::string name = SpanText(p_, item->name);
+    ASSIGN_OR_RETURN(ColumnId id, Resolve(qualifier, name, item_id));
+    if (item->alias.length) {
+      name = SpanText(p_, item->alias);
+    }
+    output.push_back({NamedColumn{std::move(name), id}, item_id});
+  }
+  // As in SQL, what a projection leaves carries no qualifier: the nodes
+  // binding these columns have none.
+  names_.Clear();
+  plan_.output.clear();
+  for (auto& [column, node] : output) {
+    Bind(std::move(column), node);
+  }
+  return base::OkStatus();
+}
+
 LogicalPlan Compiler::Finish() {
   return std::move(plan_);
 }
@@ -379,13 +511,11 @@ base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
                                     const Catalog& catalog) {
   const auto& n = Node<SyntaqliteNode>(p, pipeline)->perfetto_pipeline;
   Compiler compiler(p, source, catalog);
-  // An intersection parses but has no compiler, and writing one leaves the
-  // pipeline with no `FROM` to read, so reject it before resolving a source.
   if (syntaqlite_node_is_present(n.intersection)) {
-    return base::ErrStatus("%sINTERVAL INTERSECTION: not implemented",
-                           source(n.intersection).AsTraceback(0).c_str());
+    RETURN_IF_ERROR(compiler.CompileIntersection(n.intersection));
+  } else {
+    RETURN_IF_ERROR(compiler.CompileSource(n.from));
   }
-  RETURN_IF_ERROR(compiler.CompileSource(n.from));
   if (syntaqlite_node_is_present(n.stages)) {
     const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p, n.stages);
     uint32_t count = syntaqlite_list_count(stages);
