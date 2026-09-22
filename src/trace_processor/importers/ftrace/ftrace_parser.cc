@@ -1026,7 +1026,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kTaskRenameFieldNumber: {
-        ParseTaskRename(fld_bytes);
+        ParseTaskRename(pid, fld_bytes);
         break;
       }
       case FtraceEvent::kBinderTransactionFieldNumber: {
@@ -2776,9 +2776,9 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
       timestamp, new_utid, source_utid);
 }
 
-void FtraceParser::ParseTaskRename(ConstBytes blob) {
+void FtraceParser::ParseTaskRename(uint32_t pid, ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob);
-  uint32_t tid = static_cast<uint32_t>(evt.pid());
+  uint32_t tid = evt.has_pid() ? static_cast<uint32_t>(evt.pid()) : pid;
   StringId comm = context_->storage->InternString(evt.newcomm());
   auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(

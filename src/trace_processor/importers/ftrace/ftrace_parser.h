@@ -157,7 +157,7 @@ class FtraceParser {
   void ParseTaskNewTask(int64_t timestamp,
                         uint32_t source_tid,
                         protozero::ConstBytes);
-  void ParseTaskRename(protozero::ConstBytes);
+  void ParseTaskRename(uint32_t pid, protozero::ConstBytes);
   void ParseBinderTransaction(int64_t timestamp,
                               uint32_t pid,
                               protozero::ConstBytes);
