@@ -316,8 +316,85 @@ node PerfettoTreeAccumulate {
   }
 }
 
+// A column named in a stage, as `column` or `qualifier.column`. `alias` is
+// only set in a SELECT stage.
+node PerfettoPipeColumn {
+  qualifier: inline SyntaqliteTextSpan
+  name: inline SyntaqliteTextSpan
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    if_span(qualifier) { span(qualifier) "." }
+    span(name)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
+list PerfettoPipeColumnList {
+  PerfettoPipeColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `SELECT column [AS name], ...`: picks, orders and renames columns. Computed
+// columns are not supported.
+// One output of a SELECT stage: `expr [AS name]`. Any expression parses; the
+// compiler rejects the ones it cannot run.
+node PerfettoPipeSelectItem {
+  expr: index Expr
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    child(expr)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
+list PerfettoPipeSelectItemList {
+  PerfettoPipeSelectItem
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `SELECT expr [AS name], ...`: picks, renames and computes the columns
+// carried on.
+node PerfettoPipeSelect {
+  items: index PerfettoPipeSelectItemList
+
+  fmt { group { "SELECT" nest { line child(items) } } }
+}
+
+enum PerfettoIntervalRelationship {
+  OVERLAPPING_BOUNDS
+  COVERING_BEGIN
+  COVERING_END
+  COVERING_BOUNDS
+  WITHIN_BOUNDS
+}
+
+// `[LEFT] INTERVAL JOIN rel AS alias relationship [PER cols]`
+node PerfettoIntervalJoin {
+  left: inline Bool
+  operand: index PerfettoPipeSource
+  relationship: inline PerfettoIntervalRelationship
+  per: index PerfettoPipeColumnList
+
+  fmt {
+    if_flag(left) { "LEFT" space }
+    "INTERVAL" "JOIN" space child(operand) space
+    switch(relationship) {
+      OVERLAPPING_BOUNDS { "OVERLAPPING" "BOUNDS" }
+      COVERING_BEGIN { "COVERING" "BEGIN" }
+      COVERING_END { "COVERING" "END" }
+      COVERING_BOUNDS { "COVERING" "BOUNDS" }
+      WITHIN_BOUNDS { "WITHIN" "BOUNDS" }
+    }
+    if_set(per) { space "PER" space child(per) }
+  }
+}
+
 abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
+  PerfettoPipeSelect
+  PerfettoIntervalJoin
 }
 
 list PerfettoPipeStageList {

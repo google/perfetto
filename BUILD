@@ -2213,6 +2213,7 @@ perfetto_filegroup(
     name = "src_perfetto_sql_syntaqlite_syntaqlite",
     srcs = [
         "src/perfetto_sql/syntaqlite/inline_dispatch.h",
+        "src/perfetto_sql/syntaqlite/pipe_token.h",
         "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
         "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
         "src/perfetto_sql/syntaqlite/utils.h",

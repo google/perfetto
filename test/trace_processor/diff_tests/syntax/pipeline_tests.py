@@ -102,3 +102,90 @@ class PerfettoPipeline(TestSuite):
         |> TREE ACCUMULATE UP MAX(id) AS biggest;
         """,
         out=ExpectedError('aggregate MAX is not supported yet'))
+
+  # `|>` is one token, so `|` keeps its own meaning either side of a pipe.
+  def test_pipe_is_its_own_token(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        CREATE PERFETTO TABLE no_spaces AS
+        FROM (SELECT 4 AS v) |>SELECT v;
+
+        SELECT
+          (SELECT 1 | 2 > 0) AS plain_sql,
+          (SELECT v FROM no_spaces) AS no_spaces,
+          (SELECT '|>') AS in_a_string;
+        """,
+        out=Csv("""
+        "plain_sql","no_spaces","in_a_string"
+        1,4,"|>"
+        """))
+
+  # A stage ending in `|` reaches the compiler rather than failing to parse,
+  # which is what having a PIPE token buys.
+  def test_a_stage_may_end_in_a_bitwise_or(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        FROM (SELECT 1 AS a, 6 AS b)
+        |> SELECT a | b AS v;
+        """,
+        out=ExpectedError('a computed column is not supported yet'))
+
+  def test_pipe_outside_a_pipeline_is_a_syntax_error(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT 1 |> 2;
+        """,
+        out=ExpectedError('syntax error'))
+
+  def test_select_picks_renames_and_reorders(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        FROM (SELECT 1 AS a, 2 AS b, 3 AS c) AS t
+        |> SELECT c, t.a AS first, b;
+        """,
+        out=Csv("""
+        "c","first","b"
+        3,1,2
+        """))
+
+  # An aggregate has its own stage, so this is not a gap to be filled later.
+  def test_select_refuses_an_aggregate(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        FROM (SELECT 1 AS dur)
+        |> SELECT SUM(dur) AS total;
+        """,
+        out=ExpectedError('an aggregate belongs in AGGREGATE, not SELECT'))
+
+  def test_select_refuses_a_starred_aggregate(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        FROM (SELECT 1 AS dur)
+        |> SELECT count(*) AS n;
+        """,
+        out=ExpectedError('an aggregate belongs in AGGREGATE, not SELECT'))
+
+  def test_select_does_not_compute_columns_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        FROM (SELECT 1 AS dur)
+        |> SELECT dur + 1 AS longer;
+        """,
+        out=ExpectedError('a computed column is not supported yet'))
+
+  def test_interval_join_parses_but_does_not_run_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        FROM (SELECT 1 AS ts, 2 AS dur)
+        |> LEFT INTERVAL JOIN (SELECT 1 AS ts, 2 AS dur) AS x
+           COVERING BEGIN PER ts;
+        """,
+        out=ExpectedError('INTERVAL JOIN is not supported yet'))

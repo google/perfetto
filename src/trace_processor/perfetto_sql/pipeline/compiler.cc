@@ -74,6 +74,9 @@ class Compiler {
   base::StatusOr<op::Scan> CompileSqlSource(uint32_t from);
   void AddScanColumn(op::Scan&, ColumnSchema);
   base::Status CompileTreeAccumulate(uint32_t stage);
+  base::Status CompileSelect(uint32_t stage);
+  // The column an expression names, or an error saying why it names none.
+  base::StatusOr<ColumnId> ResolveColumnRef(uint32_t expr);
   base::StatusOr<ColumnId> CompileSum(uint32_t agg_id, uint32_t expr);
   base::StatusOr<ColumnId> Resolve(const std::string& name, uint32_t at) const {
     return Resolve("", name, at);
@@ -217,6 +220,12 @@ base::Status Compiler::CompileStage(uint32_t stage) {
   switch (static_cast<int>(node->tag)) {
     case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE:
       return CompileTreeAccumulate(stage);
+    case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT:
+      return CompileSelect(stage);
+    // Parsed so the syntax is settled, but nothing runs it yet.
+    case SYNTAQLITE_NODE_PERFETTO_INTERVAL_JOIN:
+      op_ = "pipeline";
+      return Unsupported(stage, "INTERVAL JOIN");
     default:
       PERFETTO_FATAL("Unknown pipeline stage");
   }
@@ -332,6 +341,75 @@ base::StatusOr<ColumnId> Compiler::CompileSum(uint32_t agg_id, uint32_t expr) {
     return Expected(arg_id, "an integer column");
   }
   return value;
+}
+
+// Whether `name` is one of SQLite's aggregates. `min` and `max` are aggregates
+// only when called with one argument; with more they are scalar functions.
+bool IsAggregateName(const std::string& name, uint32_t args) {
+  static constexpr const char* kAlways[] = {
+      "sum", "total", "count", "avg", "group_concat", "string_agg"};
+  for (const char* candidate : kAlways) {
+    if (base::CaseInsensitiveEqual(name, candidate)) {
+      return true;
+    }
+  }
+  return args == 1 && (base::CaseInsensitiveEqual(name, "min") ||
+                       base::CaseInsensitiveEqual(name, "max"));
+}
+
+base::StatusOr<ColumnId> Compiler::ResolveColumnRef(uint32_t expr) {
+  const auto* node = Node<SyntaqliteNode>(p_, expr);
+  if (node->tag == SYNTAQLITE_NODE_COLUMN_REF) {
+    const SyntaqliteColumnRef& ref = node->column_ref;
+    if (ref.schema.length != 0) {
+      return Unsupported(expr, "a schema-qualified column");
+    }
+    std::string table = ref.table.length ? SpanText(p_, ref.table) : "";
+    return Resolve(table, SpanText(p_, ref.column), expr);
+  }
+  // An aggregate belongs to its own stage, as it does in the pipe syntax this
+  // follows, so saying it is unsupported would promise something never coming.
+  if (node->tag == SYNTAQLITE_NODE_FUNCTION_CALL) {
+    const SyntaqliteFunctionCall& call = node->function_call;
+    uint32_t args = 0;
+    if (syntaqlite_node_is_present(call.args)) {
+      args = syntaqlite_list_count(Node<SyntaqliteExprList>(p_, call.args));
+    }
+    if (call.flags.bits.star ||
+        IsAggregateName(base::ToLower(SpanText(p_, call.func_name)), args)) {
+      return base::ErrStatus(
+          "%s%s: an aggregate belongs in AGGREGATE, not SELECT",
+          Traceback(expr).c_str(), op_);
+    }
+  }
+  return Unsupported(expr, "a computed column");
+}
+
+// Picks, renames and reorders the columns carried on. Nothing runs: the rows
+// are untouched and only which of their columns are visible changes.
+base::Status Compiler::CompileSelect(uint32_t stage) {
+  op_ = "SELECT";
+  const auto* n = Node<SyntaqlitePerfettoPipeSelect>(p_, stage);
+  const auto* list = Node<SyntaqlitePerfettoPipeSelectItemList>(p_, n->items);
+
+  std::vector<std::pair<NamedColumn, uint32_t>> output;
+  uint32_t count = syntaqlite_list_count(list);
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t item_id = syntaqlite_list_child_id(list, i);
+    const auto* item = Node<SyntaqlitePerfettoPipeSelectItem>(p_, item_id);
+    ASSIGN_OR_RETURN(ColumnId id, ResolveColumnRef(item->expr));
+    std::string name =
+        item->alias.length ? SpanText(p_, item->alias) : plan_.columns[id].name;
+    output.push_back({NamedColumn{std::move(name), id}, item_id});
+  }
+  // As in SQL, what a SELECT leaves has no qualifier: the nodes binding these
+  // columns have none.
+  names_.Clear();
+  plan_.output.clear();
+  for (auto& [column, node] : output) {
+    Bind(std::move(column), node);
+  }
+  return base::OkStatus();
 }
 
 base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {

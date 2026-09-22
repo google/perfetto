@@ -2149,6 +2149,14 @@ typedef enum SyntaqlitePerfettoTreeDirection {
     SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN = 1
 } SyntaqlitePerfettoTreeDirection;
 
+typedef enum SyntaqlitePerfettoIntervalRelationship {
+    SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_OVERLAPPING_BOUNDS = 0,
+    SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_BEGIN = 1,
+    SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_END = 2,
+    SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_BOUNDS = 3,
+    SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_WITHIN_BOUNDS = 4
+} SyntaqlitePerfettoIntervalRelationship;
+
 // ============ Flags Types ============
 
 typedef union SyntaqliteAggregateFunctionCallFlags {
@@ -2304,8 +2312,14 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE = 105,
     SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE_LIST = 106,
     SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE = 107,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 108,
-    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 109,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN = 108,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN_LIST = 109,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM = 110,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM_LIST = 111,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT = 112,
+    SYNTAQLITE_NODE_PERFETTO_INTERVAL_JOIN = 113,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 114,
+    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 115,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -3138,6 +3152,46 @@ typedef struct SyntaqlitePerfettoTreeAccumulate {
     uint32_t aggregates;
 } SyntaqlitePerfettoTreeAccumulate;
 
+typedef struct SyntaqlitePerfettoPipeColumn {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan qualifier;
+    SyntaqliteTextSpan name;
+    SyntaqliteTextSpan alias;
+} SyntaqlitePerfettoPipeColumn;
+
+// List of PerfettoPipeColumn
+typedef struct SyntaqlitePerfettoPipeColumnList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeColumnList;
+
+typedef struct SyntaqlitePerfettoPipeSelectItem {
+    SyntaqliteNodeTag tag;
+    uint32_t expr;
+    SyntaqliteTextSpan alias;
+} SyntaqlitePerfettoPipeSelectItem;
+
+// List of PerfettoPipeSelectItem
+typedef struct SyntaqlitePerfettoPipeSelectItemList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeSelectItemList;
+
+typedef struct SyntaqlitePerfettoPipeSelect {
+    SyntaqliteNodeTag tag;
+    uint32_t items;
+} SyntaqlitePerfettoPipeSelect;
+
+typedef struct SyntaqlitePerfettoIntervalJoin {
+    SyntaqliteNodeTag tag;
+    SyntaqliteBool left;
+    uint32_t operand;
+    SyntaqlitePerfettoIntervalRelationship relationship;
+    uint32_t per;
+} SyntaqlitePerfettoIntervalJoin;
+
 // List of PerfettoPipeStage
 typedef struct SyntaqlitePerfettoPipeStageList {
     uint32_t tag;
@@ -3262,6 +3316,12 @@ typedef union SyntaqliteNode {
     SyntaqlitePerfettoTreeAggregate perfetto_tree_aggregate;
     SyntaqlitePerfettoTreeAggregateList perfetto_tree_aggregate_list;
     SyntaqlitePerfettoTreeAccumulate perfetto_tree_accumulate;
+    SyntaqlitePerfettoPipeColumn perfetto_pipe_column;
+    SyntaqlitePerfettoPipeColumnList perfetto_pipe_column_list;
+    SyntaqlitePerfettoPipeSelectItem perfetto_pipe_select_item;
+    SyntaqlitePerfettoPipeSelectItemList perfetto_pipe_select_item_list;
+    SyntaqlitePerfettoPipeSelect perfetto_pipe_select;
+    SyntaqlitePerfettoIntervalJoin perfetto_interval_join;
     SyntaqlitePerfettoPipeStageList perfetto_pipe_stage_list;
     SyntaqlitePerfettoPipeline perfetto_pipeline;
 } SyntaqliteNode;
@@ -3757,17 +3817,29 @@ static inline const SyntaqliteJoinPrefix* syntaqlite_table_source_as_join_prefix
 typedef union SyntaqlitePerfettoPipeStage {
     SyntaqliteNodeTag tag;
     SyntaqlitePerfettoTreeAccumulate perfetto_tree_accumulate;
+    SyntaqlitePerfettoPipeSelect perfetto_pipe_select;
+    SyntaqlitePerfettoIntervalJoin perfetto_interval_join;
 } SyntaqlitePerfettoPipeStage;
 
 static inline int syntaqlite_is_perfetto_pipe_stage(SyntaqliteNodeTag tag) {
     switch (tag) {
         case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_INTERVAL_JOIN: return 1;
         default: return 0;
     }
 }
 
 static inline const SyntaqlitePerfettoTreeAccumulate* syntaqlite_perfetto_pipe_stage_as_perfetto_tree_accumulate(const SyntaqlitePerfettoPipeStage* node) {
     return node->tag == SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE ? &node->perfetto_tree_accumulate : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeSelect* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_select(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT ? &node->perfetto_pipe_select : NULL;
+}
+
+static inline const SyntaqlitePerfettoIntervalJoin* syntaqlite_perfetto_pipe_stage_as_perfetto_interval_join(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_INTERVAL_JOIN ? &node->perfetto_interval_join : NULL;
 }
 
 #ifdef __cplusplus
@@ -4208,6 +4280,30 @@ template <> struct NodeTag<SyntaqlitePerfettoTreeAccumulate> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE;
 };
+template <> struct NodeTag<SyntaqlitePerfettoPipeColumn> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeColumnList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSelectItem> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSelectItemList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSelect> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT;
+};
+template <> struct NodeTag<SyntaqlitePerfettoIntervalJoin> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_INTERVAL_JOIN;
+};
 template <> struct NodeTag<SyntaqlitePerfettoPipeStageList> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST;
@@ -4425,6 +4521,12 @@ template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
 #define SYNTAQLITE_TK_ACCUMULATE                     196
 #define SYNTAQLITE_TK_UP                             197
 #define SYNTAQLITE_TK_DOWN                           198
+#define SYNTAQLITE_TK_INTERVAL                       199
+#define SYNTAQLITE_TK_OVERLAPPING                    200
+#define SYNTAQLITE_TK_COVERING                       201
+#define SYNTAQLITE_TK_BOUNDS                         202
+#define SYNTAQLITE_TK_PER                            203
+#define SYNTAQLITE_TK_PIPE                           204
 
 /* syntaqlite extension: expected terminals for current parser state. */
 uint32_t SynqPerfettoParseExpectedTokens(void* parser, uint32_t* out_tokens, uint32_t out_cap);

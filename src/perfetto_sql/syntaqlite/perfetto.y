@@ -22,7 +22,7 @@
 
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
-          TREE ACCUMULATE UP DOWN.
+          TREE ACCUMULATE UP DOWN INTERVAL OVERLAPPING COVERING BOUNDS PER.
 
 // ---------- Helper nonterminals ----------
 
@@ -166,17 +166,12 @@ select_body_end(A) ::= . { A = pCtx->last_shifted_end; }
 
 // ---------- Pipelines ----------
 
-// `|>` is not a token the SQLite tokenizer knows, so a pipe is `|` directly
-// followed by `>`. No valid SQL expression contains those two in a row, but
-// an expression can end in `|`, so nothing that ends in a bare expression may
-// precede a pipe: see perfetto_pipe_source.
+// `|>` is one token, PIPE, which the tokenizer wrapper in pipe_token.h
+// produces; the SQLite tokenizer alone would see `|` then `>`. Being its own
+// token is what lets a stage end in an expression: after `SELECT a | b`, the
+// parser sees PIPE, not the `|` of a bitwise-or.
 %type perfetto_pipe {int}
-perfetto_pipe(A) ::= BITOR(B) GT(G). {
-    if (B.layer_id != G.layer_id || B.offset + B.n != G.offset) {
-        pCtx->error = 1;
-    }
-    A = 0;
-}
+perfetto_pipe(A) ::= PIPE. { A = 0; }
 
 // What a pipeline may start from: a table or a parenthesised subquery. A join
 // is not allowed here since its ON clause is an expression, whose trailing `|`
@@ -225,6 +220,88 @@ perfetto_pipe_stage(A) ::= TREE ACCUMULATE perfetto_tree_direction(D)
                            perfetto_tree_aggregate_list(L). {
     A = synq_parse_perfetto_tree_accumulate(pCtx,
         (SyntaqlitePerfettoTreeDirection)D, L);
+}
+
+// A column named in a stage: `column` or `qualifier.column`. Not an expr, so a
+// pipe may directly follow it.
+%type perfetto_pipe_column {uint32_t}
+perfetto_pipe_column(A) ::= nm(N). {
+    A = synq_parse_perfetto_pipe_column(pCtx, SYNQ_NO_SPAN,
+        synq_span_dequote(pCtx, N), SYNQ_NO_SPAN);
+}
+perfetto_pipe_column(A) ::= nm(Q) DOT nm(N). {
+    A = synq_parse_perfetto_pipe_column(pCtx, synq_span_dequote(pCtx, Q),
+        synq_span_dequote(pCtx, N), SYNQ_NO_SPAN);
+}
+
+%type perfetto_pipe_column_list {uint32_t}
+perfetto_pipe_column_list(A) ::= perfetto_pipe_column(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_column_list(A) ::= perfetto_pipe_column_list(L) COMMA
+                                 perfetto_pipe_column(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, L, X);
+}
+
+// One output of a SELECT stage: an expression, optionally renamed. Any
+// expression parses; the compiler rejects the ones it cannot run.
+%type perfetto_pipe_select_item {uint32_t}
+perfetto_pipe_select_item(A) ::= expr(E). {
+    A = synq_parse_perfetto_pipe_select_item(pCtx, E, SYNQ_NO_SPAN);
+}
+perfetto_pipe_select_item(A) ::= expr(E) AS nm(R). {
+    A = synq_parse_perfetto_pipe_select_item(pCtx, E,
+        synq_span_dequote(pCtx, R));
+}
+
+%type perfetto_pipe_select_list {uint32_t}
+perfetto_pipe_select_list(A) ::= perfetto_pipe_select_item(X). {
+    A = synq_parse_perfetto_pipe_select_item_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_select_list(A) ::= perfetto_pipe_select_list(L) COMMA
+                                 perfetto_pipe_select_item(X). {
+    A = synq_parse_perfetto_pipe_select_item_list(pCtx, L, X);
+}
+
+perfetto_pipe_stage(A) ::= SELECT perfetto_pipe_select_list(L). {
+    A = synq_parse_perfetto_pipe_select(pCtx, L);
+}
+
+%type perfetto_interval_relationship {int}
+perfetto_interval_relationship(A) ::= OVERLAPPING BOUNDS. {
+    A = SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_OVERLAPPING_BOUNDS;
+}
+perfetto_interval_relationship(A) ::= COVERING BEGIN. {
+    A = SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_BEGIN;
+}
+perfetto_interval_relationship(A) ::= COVERING END. {
+    A = SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_END;
+}
+perfetto_interval_relationship(A) ::= COVERING BOUNDS. {
+    A = SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_BOUNDS;
+}
+perfetto_interval_relationship(A) ::= WITHIN BOUNDS. {
+    A = SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_WITHIN_BOUNDS;
+}
+
+%type perfetto_per {uint32_t}
+perfetto_per(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_per(A) ::= PER perfetto_pipe_column_list(L). { A = L; }
+
+perfetto_pipe_stage(A) ::= INTERVAL JOIN perfetto_pipe_source(R)
+                           perfetto_interval_relationship(X) perfetto_per(P). {
+    A = synq_parse_perfetto_interval_join(pCtx, SYNTAQLITE_BOOL_FALSE, R,
+        (SyntaqlitePerfettoIntervalRelationship)X, P);
+}
+// SQLite tokenizes LEFT, along with every other join modifier, as JOIN_KW.
+perfetto_pipe_stage(A) ::= JOIN_KW(K) INTERVAL JOIN perfetto_pipe_source(R)
+                           perfetto_interval_relationship(X) perfetto_per(P). {
+    if (K.n != 4 || (K.z[0] | 32) != 'l' || (K.z[1] | 32) != 'e' ||
+        (K.z[2] | 32) != 'f' || (K.z[3] | 32) != 't') {
+        pCtx->error = 1;
+    }
+    A = synq_parse_perfetto_interval_join(pCtx, SYNTAQLITE_BOOL_TRUE, R,
+        (SyntaqlitePerfettoIntervalRelationship)X, P);
 }
 
 %type perfetto_pipe_stage_list {uint32_t}

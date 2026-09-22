@@ -29,6 +29,7 @@
 #else
 #define SYNQ_PARSER_TRACE(d, f, s) ((void)(d), (void)(f), (void)(s))
 #endif
-#define SYNQ_GET_TOKEN(env, z, t) SynqPerfettoGetToken(env, z, t)
+#include "src/perfetto_sql/syntaqlite/pipe_token.h"
+#define SYNQ_GET_TOKEN(env, z, t) SynqPerfettoGetTokenWithPipe(env, z, t)
 
 #endif  // SRC_PERFETTO_SQL_SYNTAQLITE_INLINE_DISPATCH_H_

@@ -26,6 +26,7 @@ _syntaqlite_sources = [
 source_set("syntaqlite") {
   sources = _syntaqlite_sources + [
               "inline_dispatch.h",
+              "pipe_token.h",
               "utils.h",
             ]
 
@@ -53,9 +54,18 @@ source_set("syntaqlite") {
 # used at runtime by any Perfetto binary.
 if (perfetto_build_standalone) {
   shared_library("perfetto_fmt_dialect") {
-    sources = _syntaqlite_sources
+    sources = _syntaqlite_sources + [
+                "pipe_dialect.c",
+                "pipe_token.h",
+              ]
     deps = [ "../../../gn:default_deps" ]
-    defines = [ "SYNTAQLITE_SHARED" ]
+
+    # The generated template keeps its tokenizer; pipe_dialect.c exports the
+    # dialect's name with the tokenizer which knows `|>` in its place.
+    defines = [
+      "SYNTAQLITE_SHARED",
+      "syntaqlite_perfetto_dialect_template=syntaqlite_perfetto_generated_dialect_template",
+    ]
     if (is_mac) {
       ldflags = [ "-Wl,-undefined,dynamic_lookup" ]
     }
