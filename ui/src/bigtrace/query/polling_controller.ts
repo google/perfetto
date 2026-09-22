@@ -163,12 +163,15 @@ export class PollingController {
           queryStore.update(tab.queryUuid, {
             ...(endMs !== undefined ? {endTime: endMs} : {}),
             ...(details.schema !== undefined ? {schema: details.schema} : {}),
+            ...(details.tableName !== undefined
+              ? {tableName: details.tableName}
+              : {}),
           });
         }
         if (isFailed && tab.queryResult !== undefined) {
           tab.queryResult.error = details.errorMessage || 'Query failed';
-          this.cb.redraw();
         }
+        this.cb.redraw();
       })
       .catch((e: unknown) => {
         console.error('Failed to fetch query execution details:', e);
