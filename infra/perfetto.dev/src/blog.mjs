@@ -45,10 +45,10 @@ const REQUIRED = ["title", "author", "summary"];
 const OPTIONAL = ["cover"];
 const KNOWN = new Set([...REQUIRED, ...OPTIONAL]);
 
-// A still image sitting next to post.md. Videos are excluded: a card is an
-// <img>, so one would render nothing and push a multi-megabyte file onto the
-// index.
-const COVER_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*\.(png|jpe?g|gif|webp|svg)$/i;
+// A PNG sitting next to post.md. The cover doubles as the og:image link
+// preview, and X, LinkedIn, Slack etc. do not render SVG. PNG only, rather than
+// every format crawlers accept, keeps one obvious answer for authors.
+const COVER_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*\.png$/;
 
 export function parseFrontMatter(raw, srcForErrors) {
   const where = srcForErrors ? ` in ${srcForErrors}` : "";
@@ -104,8 +104,8 @@ export function parseFrontMatter(raw, srcForErrors) {
   if ("cover" in fields && !COVER_RE.test(fields.cover)) {
     throw new Error(
       `Bad cover${where}: ${JSON.stringify(fields.cover)}. Expected the ` +
-        `filename of a still image (png, jpg, gif, webp or svg) next to ` +
-        `post.md, e.g. 'cover: flamegraph.png'.`,
+        `filename of a PNG next to post.md, e.g. 'cover: cover.png'. It is ` +
+        `also the link preview image, and crawlers do not render SVG.`,
     );
   }
   return { fields, body: lines.slice(i + 1).join("\n") };
@@ -196,8 +196,8 @@ export function collectPosts(blogDir) {
     if (!fields.cover && fs.existsSync(pjoin(dir, "cover.svg"))) {
       throw new Error(
         `${dir} has a cover.svg but no 'cover' key, so the generated cover ` +
-          `would overwrite it. Add 'cover: cover.svg' to use it as the ` +
-          `cover, or rename it.`,
+          `would overwrite it. Rename it, or set 'cover:' to a PNG so no ` +
+          `cover is generated.`,
       );
     }
     const cover = coverFor(slug, fields.cover);
@@ -302,7 +302,10 @@ export function makeThumbnail(srcAbsPath) {
 // Atom feed.
 // ---------------------------------------------------------------------------
 
-const SITE = "https://perfetto.dev";
+// Atom <id>s are permanent identifiers, not locations: they stay on
+// perfetto.dev whatever --site-url a build uses, so a staging feed does not
+// look like a different set of entries. Only the links follow siteUrl.
+const ID_BASE = "https://perfetto.dev";
 
 const xml = (s) =>
   String(s)
@@ -311,7 +314,7 @@ const xml = (s) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-export function atomFeed(posts) {
+export function atomFeed(posts, siteUrl = ID_BASE) {
   // <updated> is the newest post's date, never a build timestamp: otherwise
   // every build would emit a different file and churn the deploy.
   const updated = posts.length
@@ -321,8 +324,8 @@ export function atomFeed(posts) {
     .map(
       (p) => `  <entry>
     <title>${xml(p.title)}</title>
-    <link href="${SITE}/blog/${p.slug}"/>
-    <id>${SITE}/blog/${p.slug}</id>
+    <link href="${siteUrl}/blog/${p.slug}"/>
+    <id>${ID_BASE}/blog/${p.slug}</id>
     <updated>${p.isoDate}T00:00:00Z</updated>
     <published>${p.isoDate}T00:00:00Z</published>
 ${p.authors
@@ -339,12 +342,12 @@ ${p.authors
     .join("\n");
 
   return `<?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom" xml:base="${SITE}/">
+<feed xmlns="http://www.w3.org/2005/Atom" xml:base="${siteUrl}/">
   <title>Perfetto Blog</title>
   <subtitle>Release notes, performance investigations and deep dives from the people who build Perfetto.</subtitle>
-  <link rel="self" href="${SITE}/blog/atom.xml"/>
-  <link rel="alternate" type="text/html" href="${SITE}/blog/"/>
-  <id>${SITE}/blog/</id>
+  <link rel="self" href="${siteUrl}/blog/atom.xml"/>
+  <link rel="alternate" type="text/html" href="${siteUrl}/blog/"/>
+  <id>${ID_BASE}/blog/</id>
   <updated>${updated}</updated>
 ${entries}
 </feed>

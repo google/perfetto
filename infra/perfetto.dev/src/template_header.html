@@ -3,16 +3,14 @@
   // feed link, whether the search box appears, and which index it queries.
   const inDocs = fileName.startsWith('/docs/');
   const inBlog = fileName.startsWith('/blog/');
-  const canonicalUrl = 'https://perfetto.dev' + fileName.replace('/index.html', '/');
+  const canonicalUrl = siteUrl + fileName.replace('/index.html', '/');
   // Link previews (Twitter/X, LinkedIn, Slack, ...) take the post title bare,
   // without the " - Perfetto Blog" suffix, which og:site_name already says.
   const isPost = typeof post !== 'undefined' && post && !post.isIndex;
   const ogTitle = isPost ? post.title : title;
   const desc = typeof description !== 'undefined' ? description : undefined;
-  // Crawlers do not render SVG, so a generated cover is no use as a preview
-  // image. Such posts get a text-only summary card instead of a broken one.
-  const img = typeof ogImage !== 'undefined' && ogImage && !/\.svg$/i.test(ogImage)
-      ? ogImage : undefined;
+  // Blog pages with a PNG cover only (see ogImageUrl in render.mjs).
+  const img = typeof ogImage !== 'undefined' ? ogImage : undefined;
 -%>
 <!DOCTYPE html>
 <html lang="en">
