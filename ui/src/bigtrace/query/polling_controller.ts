@@ -159,8 +159,11 @@ export class PollingController {
       ?.getQueryExecution(tab.queryUuid!, tab.lifecycle.signal)
       .then((details: RawQueryExecution) => {
         const endMs = isoToEpochMs(details.endTime);
-        if (endMs !== undefined && tab.queryUuid) {
-          queryStore.update(tab.queryUuid, {endTime: endMs});
+        if (tab.queryUuid) {
+          queryStore.update(tab.queryUuid, {
+            ...(endMs !== undefined ? {endTime: endMs} : {}),
+            ...(details.schema !== undefined ? {schema: details.schema} : {}),
+          });
         }
         if (isFailed && tab.queryResult !== undefined) {
           tab.queryResult.error = details.errorMessage || 'Query failed';

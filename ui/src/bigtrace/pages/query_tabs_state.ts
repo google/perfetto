@@ -23,6 +23,7 @@ import type {
   TracePreset,
 } from '../query/bigtrace_query_client';
 import {queryStore, type QueryExecution} from '../query/query_store';
+import type {BigtraceColumnSchema} from '../query/column_types';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 
@@ -180,6 +181,7 @@ export interface QueryResponse {
   durationMs: number;
   columns: string[];
   rows: DataGridRow[];
+  schema?: ReadonlyArray<BigtraceColumnSchema>;
   statementCount: number;
   statementWithOutputCount: number;
   lastStatementSql: string;
@@ -199,6 +201,7 @@ export function makeQueryResponse(
     durationMs: 0,
     columns: [],
     rows: [],
+    schema: undefined,
     error: undefined,
     ...partial,
   };
