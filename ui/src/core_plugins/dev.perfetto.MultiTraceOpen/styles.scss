@@ -21,19 +21,12 @@
   }
 
   &__tabs {
-    // The className lands on the whole Tabs component (bar + content), so
-    // target the tab bar itself for the gap below it (the old margin was on
-    // the standalone TabStrip).
     > .pf-tabs__tabs {
       margin-bottom: 16px;
     }
   }
 
   &__description-content {
-    // Separates the tab description from the content below it (the merge
-    // config list, or the footer on the comparison tab); previously this
-    // border lived on the description panel, which only wrapped the strip
-    // and the description.
     border-bottom: 1px solid var(--pf-color-border);
     padding: 0 8px;
     width: 550px;
