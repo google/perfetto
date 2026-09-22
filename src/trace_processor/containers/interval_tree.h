@@ -76,7 +76,8 @@ class IntervalTree {
   // interval (s, e). Has a complexity of O(log(size of tree) + (number of
   // overlaps)).
   void FindOverlaps(uint64_t s, uint64_t e, std::vector<Id>& res) const {
-    std::vector<const Node*> stack{nodes_.data() + root_};
+    base::SmallVector<const Node*, 32> stack;
+    stack.emplace_back(nodes_.data() + root_);
     bool query_is_instant = (s == e);
     while (!stack.empty()) {
       const Node* n = stack.back();
@@ -97,11 +98,11 @@ class IntervalTree {
 
       if (e > n->center_ &&
           n->right_node_ != std::numeric_limits<size_t>::max()) {
-        stack.push_back(&nodes_[n->right_node_]);
+        stack.emplace_back(&nodes_[n->right_node_]);
       }
       if (s < n->center_ &&
           n->left_node_ != std::numeric_limits<size_t>::max()) {
-        stack.push_back(&nodes_[n->left_node_]);
+        stack.emplace_back(&nodes_[n->left_node_]);
       }
     }
   }
@@ -110,7 +111,8 @@ class IntervalTree {
   // interval (s, e). Has a complexity of O(log(size of tree) + (number of
   // overlaps)).
   void FindOverlaps(Ts s, Ts e, std::vector<Interval>& res) const {
-    std::vector<const Node*> stack{nodes_.data() + root_};
+    base::SmallVector<const Node*, 32> stack;
+    stack.emplace_back(nodes_.data() + root_);
     bool query_is_instant = (s == e);
 
     while (!stack.empty()) {
@@ -144,11 +146,11 @@ class IntervalTree {
 
       if (e > n->center_ &&
           n->right_node_ != std::numeric_limits<size_t>::max()) {
-        stack.push_back(&nodes_[n->right_node_]);
+        stack.emplace_back(&nodes_[n->right_node_]);
       }
       if (s < n->center_ &&
           n->left_node_ != std::numeric_limits<size_t>::max()) {
-        stack.push_back(&nodes_[n->left_node_]);
+        stack.emplace_back(&nodes_[n->left_node_]);
       }
     }
   }
