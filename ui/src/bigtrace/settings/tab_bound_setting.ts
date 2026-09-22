@@ -62,6 +62,8 @@ export interface SettingsBindings {
   // edited in the query-settings modal.
   readonly getTraceLimit: () => number;
   readonly setTraceLimit: (limit: number) => void;
+  readonly getTableTtlDays: () => number;
+  readonly setTableTtlDays: (days: number) => void;
   // The experiment/control pair and arm the query runs over; undefined = no
   // experiment filtering. Set from the trace grid's experiment picker.
   readonly getExperimentFilter: () => ExperimentFilterState | undefined;
