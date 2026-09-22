@@ -2,7 +2,7 @@
 title: Perfetto v55
 author: @perfetto-team
 summary: We are excited to share Perfetto v55.1! Highlights include GPU-accelerated trace rendering, a new Heap Dump Explorer, native Linux heap profiling, a redesigned trace_processor shell, multi-GPU analysis, and a major docs refresh.
-cover: cover.svg
+cover: cover.png
 ---
 
 We're excited to share Perfetto v55.1! Highlights include GPU-accelerated trace rendering, a new Heap Dump Explorer, native Linux heap profiling, a redesigned `trace_processor` shell, multi-GPU analysis, and a major docs refresh.
