@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE wattson.cpu.idle;
-
 INCLUDE PERFETTO MODULE wattson.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.attribution;
@@ -387,12 +385,8 @@ CREATE PERFETTO VIEW wattson_metric_metadata(
   metric_version LONG,
   -- Wattson power curve version
   power_model_version LONG,
-  -- Wattson estimation will be crude
-  -- if missing cpu/idle counter
+  -- Deprecated: always 0
   is_crude_estimate BOOL
 )
 AS
-SELECT
-  4 AS metric_version,
-  1 AS power_model_version,
-  CAST(NOT EXISTS (SELECT 1 FROM _wattson_cpuidle_counters_exist) AS INTEGER) AS is_crude_estimate;
+SELECT 4 AS metric_version, 1 AS power_model_version, 0 AS is_crude_estimate;
