@@ -94,18 +94,8 @@ SELECT trace_start(), trace_dur(), 0 WHERE NOT EXISTS (SELECT 1 FROM base);
 
 -- Combine L3 hit and miss rates into a single table.
 CREATE PERFETTO TABLE _arm_l3_rates AS
-SELECT ii.ts, ii.dur, miss.l3_miss_rate, hit.l3_hit_rate
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_arm_l3_miss_rate),
-    _ii_subquery!(_arm_l3_hit_rate)
-  ),
-  ()
-) AS ii
-JOIN _arm_l3_miss_rate AS miss
-  ON miss._auto_id = id_0
-JOIN _arm_l3_hit_rate AS hit
-  ON hit._auto_id = id_1;
+INTERVAL INTERSECTION OF (_arm_l3_miss_rate AS miss, _arm_l3_hit_rate AS hit)
+|> SELECT ts, dur, miss.l3_miss_rate, hit.l3_hit_rate;
 
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
 -- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The

@@ -100,11 +100,11 @@ ORDER BY
   ts;
 
 CREATE PERFETTO TABLE _critical_path_thread_state_slice_raw AS
-SELECT id_0 AS cr_id, id_1 AS th_id, ts, dur
-FROM _interval_intersect!(
-  (_critical_path_all, _span_thread_state_slice),
-  (utid)
-);
+INTERVAL INTERSECTION OF (
+  _critical_path_all AS cr,
+  _span_thread_state_slice AS th
+) PER utid
+|> SELECT cr.id AS cr_id, th.id AS th_id, ts, dur;
 
 -- Critical-path × slice cross product, restricted to id-space columns.
 -- Slice names are not stored here; `_critical_path_stack` joins `slice`

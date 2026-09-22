@@ -276,20 +276,20 @@ WHERE
 -- Intersection of startup events and gcs, for understanding what GCs are
 -- happining during app startup.
 CREATE PERFETTO TABLE _gc_during_android_startup AS
-WITH
-  startups_for_intersect AS (
+INTERVAL INTERSECTION OF (
+  (
     SELECT ts, dur, startup_id AS id
     FROM android_startups
     -- b/384732321
     WHERE
       dur > 0
-  ),
-  gcs_for_intersect AS (
+  ) AS startup,
+  (
     SELECT gc_ts AS ts, gc_dur AS dur, gc_id AS id
     FROM android_garbage_collection_events
-  )
-SELECT ts, dur, id_0 AS startup_id, id_1 AS gc_id
-FROM _interval_intersect!((startups_for_intersect, gcs_for_intersect), ());
+  ) AS gc
+)
+|> SELECT ts, dur, startup.id AS startup_id, gc.id AS gc_id;
 
 -- Estimate heap utilization across the trace.
 -- We weight the utilization by gc_period, which is meant to represent the time
