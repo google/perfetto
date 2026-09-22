@@ -581,10 +581,12 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 
 struct PerfettoSqlParser::Impl {
   Impl(const base::FlatHashMap<std::string, Macro>& m,
-       const pipeline::Catalog* c)
+       const pipeline::Catalog& c,
+       bool allowed)
       : source(SqlSource::FromTraceProcessorImplementation("")),
         macros(m),
-        catalog(c) {
+        catalog(&c),
+        pipelines_allowed(allowed) {
     synq = syntaqlite_parser_create_perfetto(nullptr);
     PERFETTO_CHECK(synq != nullptr);
     PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
@@ -662,6 +664,9 @@ struct PerfettoSqlParser::Impl {
   SqlSource source;
   const base::FlatHashMap<std::string, Macro>& macros;
   const pipeline::Catalog* catalog;
+  // Whether the SQL being read may use a pipeline. Set per source, so one
+  // parser serves sources which differ in whether they are allowed one.
+  bool pipelines_allowed;
   base::Status status;
   std::optional<Statement> current_statement;
   ::perfetto::perfetto_sql::IntrinsicMacroExpander intrinsic_expander;
@@ -712,8 +717,9 @@ bool PerfettoSqlParser::Impl::Next(
 
   const auto* node =
       static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(synq, root));
-  auto result =
-      ParseStatement(synq, rb, stmt, stmt_doc_offset, catalog, root, node);
+  auto result = ParseStatement(synq, rb, stmt, stmt_doc_offset,
+                               pipelines_allowed ? catalog : nullptr, root,
+                               node);
   if (!result.ok()) {
     status = result.status();
     return false;
@@ -724,12 +730,17 @@ bool PerfettoSqlParser::Impl::Next(
 
 PerfettoSqlParser::PerfettoSqlParser(
     const base::FlatHashMap<std::string, Macro>& macros,
-    const pipeline::Catalog* catalog)
-    : impl_(std::make_unique<Impl>(macros, catalog)) {}
+    const pipeline::Catalog& catalog,
+    bool pipelines_allowed)
+    : impl_(std::make_unique<Impl>(macros, catalog, pipelines_allowed)) {}
 
 void PerfettoSqlParser::Reset(SqlSource source) {
   statement_sql_.reset();
   impl_->Bind(std::move(source));
+}
+
+void PerfettoSqlParser::SetPipelinesAllowed(bool allowed) {
+  impl_->pipelines_allowed = allowed;
 }
 
 PerfettoSqlParser::~PerfettoSqlParser() = default;
