@@ -88,6 +88,7 @@ export function renderTabStrip(): m.Children {
             {
               key: tab.id,
               active: state.currentTab === tab.id,
+              disabled: opts.disabledTab && tab.id === 'bar',
               onclick: () => (state.currentTab = tab.id),
               ondblclick: opts.renamable ? () => startRename(tab) : undefined,
               leftIcon: opts.icons ? Icons.Search : undefined,
@@ -101,7 +102,10 @@ export function renderTabStrip(): m.Children {
                       onclick: () => startRename(tab),
                     }),
                     m(MenuDivider),
-                    m(MenuItem, {label: 'Close', onclick: () => closeTab(tab.id)}),
+                    m(MenuItem, {
+                      label: 'Close',
+                      onclick: () => closeTab(tab.id),
+                    }),
                   ]
                 : undefined,
               renaming: state.renamingTab === tab.id,
@@ -147,6 +151,7 @@ export function renderTabStrip(): m.Children {
         closeButtons: true,
         menus: true,
         renamable: true,
+        disabledTab: false,
         draggable: true,
       },
     }),

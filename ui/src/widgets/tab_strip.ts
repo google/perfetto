@@ -20,6 +20,8 @@ import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
 import {PopupMenu} from './menu';
 import {PopupPosition} from './popup';
+import {assertUnreachable} from '../base/assert';
+import type {HTMLAttrs} from './common';
 
 export interface TabStripAttrs {
   // Additional class name for the container.
@@ -30,15 +32,16 @@ export interface TabStripAttrs {
   readonly variant?: 'card' | 'underline';
 }
 
-export interface TabStripTabAttrs {
-  // Whether this tab is currently active.
+export interface TabStripTabAttrs extends HTMLAttrs {
+  // Style this tab as the active tab.
   readonly active?: boolean;
-  // Called when the tab is clicked.
-  readonly onclick?: () => void;
-  // Called when a pointer is pressed down on the tab.
-  readonly onpointerdown?: () => void;
-  // Called when the tab is double-clicked.
-  readonly ondblclick?: () => void;
+
+  // Style this tab as a disabled tab and prevent interaction.
+  readonly disabled?: boolean;
+
+  // If provided, the tab will be rendered as a link with this href.
+  readonly href?: string;
+
   // Additional class name for the tab.
   readonly className?: string;
   // Icon to display on the left side of the tab title.
@@ -75,7 +78,6 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
   view({attrs, children}: m.CVnode<TabStripTabAttrs>): m.Children {
     const {
       active,
-      onclick,
       onpointerdown,
       ondblclick,
       className,
@@ -95,6 +97,9 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
       ondragover,
       ondragleave,
       ondrop,
+      disabled,
+      href,
+      ...htmlAttrs
     } = attrs;
 
     const renderIcon = (
@@ -110,12 +115,13 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
       return m('.pf-tab-strip__tab-icon', {className: iconClassName}, icon);
     };
 
+    const tag = href ? 'a' : 'button';
+
     return m(
-      '.pf-tab-strip__tab',
+      tag + '.pf-tab-strip__tab',
       {
+        tabIndex: disabled ? undefined : 0,
         className: classNames(className, active && 'pf-tab-strip__tab--active'),
-        onclick,
-        onpointerdown,
         ondblclick,
         onauxclick: () => onClose?.(),
         draggable,
@@ -124,6 +130,7 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
         ondragover,
         ondragleave,
         ondrop,
+        ...htmlAttrs,
       },
       [
         renderIcon(leftIcon, 'pf-tab-strip__tab-icon--left'),
@@ -189,7 +196,7 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
  * m(
  *   TabStrip,
  *   m(TabStrip.Tab, {active: true, onclick: () => {}}, 'Content'),
- *   m(TabStrip.Tab, {active: false, onclick: () => {}}, 'Other'),
+ *   m(TabStrip.Tab, {onclick: () => {}}, 'Other'),
  * );
  * ```
  */
@@ -201,12 +208,20 @@ export class TabStrip implements m.ClassComponent<TabStripAttrs> {
     return m(
       '.pf-tab-strip',
       {
-        className: classNames(
-          className,
-          variant === 'underline' && 'pf-tab-strip--underline',
-        ),
+        className: classNames(className, variantToClassName(variant)),
       },
       m('.pf-tab-strip__tabs', children),
     );
+  }
+}
+
+function variantToClassName(variant: 'card' | 'underline'): string {
+  switch (variant) {
+    case 'card':
+      return 'pf-tab-strip--card';
+    case 'underline':
+      return 'pf-tab-strip--underline';
+    default:
+      assertUnreachable(variant);
   }
 }
