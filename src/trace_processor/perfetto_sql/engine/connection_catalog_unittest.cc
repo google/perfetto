@@ -30,7 +30,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/exec/type_mapping.h"
+#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
@@ -38,7 +38,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 namespace analysis = ::perfetto::perfetto_sql::analysis;
-using exec::ToStorageType;
+using sql_schema::ToStorageType;
 
 struct ParserDeleter {
   void operator()(SyntaqliteParser* parser) const {

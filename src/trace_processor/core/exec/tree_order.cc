@@ -62,12 +62,8 @@ base::Status NodeColumns(const RowBatch& batch,
 
 }  // namespace
 
-TreeChildFirst::TreeChildFirst(const Source& input,
-                               uint32_t node_column,
-                               uint32_t parent_column)
-    : Breaker(input),
-      node_column_(node_column),
-      parent_column_(parent_column) {}
+TreeChildFirst::TreeChildFirst(uint32_t node_column, uint32_t parent_column)
+    : node_column_(node_column), parent_column_(parent_column) {}
 
 TreeChildFirst::~TreeChildFirst() = default;
 TreeChildFirst::State::~State() = default;
@@ -187,7 +183,7 @@ bool TreeChildFirst::Sort(State& s) const {
   return true;
 }
 
-bool TreeChildFirst::Finish(Breaker::State& state) const {
+bool TreeChildFirst::Finalize(Breaker::State& state) const {
   State& s = state.Cast<State>();
   if (s.has_row.CountSetBits() != s.nodes_seen) {
     s.status = base::ErrStatus(

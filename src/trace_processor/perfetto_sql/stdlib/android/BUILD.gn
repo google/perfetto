@@ -63,6 +63,7 @@ perfetto_sql_source_set("android") {
     "package_lookup.sql",
     "power_rails.sql",
     "process_metadata.sql",
+    "process_state.sql",
     "process_uid_state.sql",
     "render_thread.sql",
     "screen_state.sql",

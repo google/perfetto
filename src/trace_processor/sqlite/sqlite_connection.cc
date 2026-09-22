@@ -81,7 +81,8 @@ void EnsureSqliteInitialized() {
 
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
+  sqlite3_exec(db, "PRAGMA temp_store=2; PRAGMA locking_mode=NORMAL", nullptr,
+               nullptr, &error);
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
@@ -273,7 +274,15 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
 
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                        SqlSource source)
-    : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
+    : stmt_(stmt.release()), sql_source_(std::move(source)) {}
+
+void SqliteConnection::PreparedStatement::Finalizer::operator()(
+    sqlite3_stmt* stmt) const {
+  sqlite3_finalize(stmt);
+  if (on_finalized) {
+    on_finalized();
+  }
+}
 
 bool SqliteConnection::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",
