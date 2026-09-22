@@ -2581,6 +2581,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/column_view.h",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/dataframe_scan.h",
+        "src/trace_processor/core/exec/interval_join.cc",
+        "src/trace_processor/core/exec/interval_join.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
         "src/trace_processor/core/exec/pipeline.cc",

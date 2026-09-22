@@ -164,7 +164,10 @@ class IntervalTree {
                   size_t intervals_size,
                   std::vector<Node>& nodes) {
       const Interval& mid_interval = intervals[intervals_size / 2];
-      center_ = (mid_interval.start + mid_interval.end) / 2;
+      // Halfway between the two, computed so it cannot overflow: the sum of
+      // two timestamps does not fit when they sit near the top of the range.
+      center_ =
+          mid_interval.start + (mid_interval.end - mid_interval.start) / 2;
 
       // Find intervals that overlap the center_ and intervals that belong to
       // the left node (finish before the center_). If an interval starts

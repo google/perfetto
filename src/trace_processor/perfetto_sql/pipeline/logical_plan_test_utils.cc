@@ -87,6 +87,41 @@ std::string OpString(const LogicalPlan& plan, const Op& op) {
       }
       return out + ")";
     }
+    std::string operator()(const op::IntervalJoin& join) const {
+      using R = op::IntervalJoin::Relationship;
+      auto side = [](const op::IntervalJoin::Side& s) {
+        std::string out = "ts=#" + std::to_string(s.ts);
+        if (s.dur) {
+          out += ", dur=#" + std::to_string(*s.dur);
+        }
+        for (ColumnId key : s.keys) {
+          out += ", key=#" + std::to_string(key);
+        }
+        return out;
+      };
+      std::string out =
+          join.keep_unmatched ? "LeftIntervalJoin(" : "IntervalJoin(";
+      switch (join.relationship) {
+        case R::kOverlappingBounds:
+          out += "overlapping bounds";
+          break;
+        case R::kCoveringBegin:
+          out += "covering begin";
+          break;
+        case R::kCoveringEnd:
+          out += "covering end";
+          break;
+        case R::kCoveringBounds:
+          out += "covering bounds";
+          break;
+        case R::kWithinBounds:
+          out += "within bounds";
+          break;
+      }
+      out += ", input(" + side(join.input_side) + ")";
+      out += ", operand(" + side(join.operand_side) + ")";
+      return out + ")\n  " + (*this)(join.operand);
+    }
   };
   return std::visit(Visitor{plan}, op);
 }

@@ -62,8 +62,11 @@ class PhysicalPlan {
  private:
   friend class Lowering;
 
-  // Declared first so the input outlives the pipeline that reads it.
+  // Declared first so the input outlives the pipeline that reads it, as the
+  // operands of its operators do.
   std::unique_ptr<core::exec::Source> input_;
+  std::vector<std::unique_ptr<core::exec::Source>> operand_inputs_;
+  std::vector<std::unique_ptr<core::exec::Pipeline>> operand_pipelines_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
 };

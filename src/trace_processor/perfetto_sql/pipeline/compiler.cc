@@ -75,6 +75,17 @@ class Compiler {
   void AddScanColumn(op::Scan&, ColumnSchema);
   base::Status CompileTreeAccumulate(uint32_t stage);
   base::Status CompileSelect(uint32_t stage);
+  base::StatusOr<op::Scan> CompileScan(uint32_t from);
+  base::Status CompileIntervalJoin(uint32_t stage);
+  // The ts, dur and PER columns of one side of an interval join. `find` looks
+  // a column up on that side, returning nothing for a column it lacks.
+  template <typename Find>
+  base::StatusOr<op::IntervalJoin::Side> CompileIntervalSide(
+      uint32_t stage,
+      const SyntaqlitePerfettoPipeColumnList* per,
+      const std::string& side,
+      Find find);
+  base::Status ExpectInteger(ColumnId, uint32_t at, const std::string& what);
   // The column an expression names, or an error saying why it names none.
   base::StatusOr<ColumnId> ResolveColumnRef(uint32_t expr);
   base::StatusOr<ColumnId> CompileSum(uint32_t agg_id, uint32_t expr);
@@ -103,11 +114,19 @@ class Compiler {
     ColumnId id;
     const char* op;
     uint32_t node;
+    // Only found by a qualified name. The columns an operand brings in are
+    // bound this way, so a bare name always means the stream being piped:
+    // joining cannot make `ts` ambiguous or change which interval a row is.
+    bool qualified_only;
   };
-  void Bind(NamedColumn column, uint32_t node) {
-    names_[base::ToLower(column.name)].push_back({column.id, op_, node});
+  void Bind(NamedColumn column, uint32_t node, bool qualified_only = false) {
+    names_[base::ToLower(column.name)].push_back(
+        {column.id, op_, node, qualified_only});
     plan_.output.push_back(std::move(column));
   }
+  // The bindings `qualifier.name`, or the bare `name`, could mean.
+  std::vector<Binding> Lookup(const std::string& qualifier,
+                              const std::string& name) const;
   std::string Origin(const Binding&, const std::string& name) const;
   std::string Traceback(uint32_t node) const {
     return source_(node).AsTraceback(0);
@@ -125,14 +144,17 @@ class Compiler {
   base::FlatHashMap<uint32_t, std::string> qualifiers_;
 };
 
+base::StatusOr<op::Scan> Compiler::CompileScan(uint32_t from) {
+  const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, from);
+  if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
+    return CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
+  }
+  return CompileSqlSource(from);
+}
+
 base::Status Compiler::CompileSource(uint32_t from) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, from);
-  op::Scan scan;
-  if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
-    scan = CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
-  } else {
-    ASSIGN_OR_RETURN(scan, CompileSqlSource(from));
-  }
+  ASSIGN_OR_RETURN(op::Scan scan, CompileScan(from));
   if (std::optional<std::string> qualifier = SourceQualifier(*n)) {
     qualifiers_[from] = std::move(*qualifier);
   }
@@ -222,10 +244,8 @@ base::Status Compiler::CompileStage(uint32_t stage) {
       return CompileTreeAccumulate(stage);
     case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT:
       return CompileSelect(stage);
-    // Parsed so the syntax is settled, but nothing runs it yet.
     case SYNTAQLITE_NODE_PERFETTO_INTERVAL_JOIN:
-      op_ = "pipeline";
-      return Unsupported(stage, "INTERVAL JOIN");
+      return CompileIntervalJoin(stage);
     default:
       PERFETTO_FATAL("Unknown pipeline stage");
   }
@@ -266,19 +286,26 @@ std::string Compiler::Origin(const Binding& binding,
   return "`" + std::string(binding.op) + " " + text + "`";
 }
 
-base::StatusOr<ColumnId> Compiler::Resolve(const std::string& qualifier,
-                                           const std::string& name,
-                                           uint32_t at) const {
+std::vector<Compiler::Binding> Compiler::Lookup(const std::string& qualifier,
+                                                const std::string& name) const {
   std::vector<Binding> matches;
   if (const auto* bindings = names_.Find(base::ToLower(name))) {
     for (const Binding& binding : *bindings) {
       const std::string* bound = qualifiers_.Find(binding.node);
-      if (qualifier.empty() ||
-          (bound && base::CaseInsensitiveEqual(*bound, qualifier))) {
+      if (qualifier.empty()
+              ? !binding.qualified_only
+              : bound && base::CaseInsensitiveEqual(*bound, qualifier)) {
         matches.push_back(binding);
       }
     }
   }
+  return matches;
+}
+
+base::StatusOr<ColumnId> Compiler::Resolve(const std::string& qualifier,
+                                           const std::string& name,
+                                           uint32_t at) const {
+  std::vector<Binding> matches = Lookup(qualifier, name);
   if (matches.size() == 1) {
     return matches.front().id;
   }
@@ -341,6 +368,126 @@ base::StatusOr<ColumnId> Compiler::CompileSum(uint32_t agg_id, uint32_t expr) {
     return Expected(arg_id, "an integer column");
   }
   return value;
+}
+
+base::Status Compiler::ExpectInteger(ColumnId column,
+                                     uint32_t at,
+                                     const std::string& what) {
+  const auto& type = plan_.columns[column].type;
+  if (type && !(type->Is<core::Id>() || type->Is<core::Uint32>() ||
+                type->Is<core::Int32>() || type->Is<core::Int64>())) {
+    return Expected(at, what + " to be an integer column");
+  }
+  return base::OkStatus();
+}
+
+template <typename Find>
+base::StatusOr<op::IntervalJoin::Side> Compiler::CompileIntervalSide(
+    uint32_t stage,
+    const SyntaqlitePerfettoPipeColumnList* per,
+    const std::string& side,
+    Find find) {
+  op::IntervalJoin::Side out;
+  ASSIGN_OR_RETURN(std::optional<ColumnId> ts, find("", "ts", stage));
+  if (!ts) {
+    return Expected(stage, side + " to have a ts column");
+  }
+  out.ts = *ts;
+  RETURN_IF_ERROR(ExpectInteger(out.ts, stage, side + " ts"));
+  ASSIGN_OR_RETURN(out.dur, find("", "dur", stage));
+  if (out.dur) {
+    RETURN_IF_ERROR(ExpectInteger(*out.dur, stage, side + " dur"));
+  }
+  uint32_t count = per ? syntaqlite_list_count(per) : 0;
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t column_id = syntaqlite_list_child_id(per, i);
+    const auto* column = Node<SyntaqlitePerfettoPipeColumn>(p_, column_id);
+    std::string qualifier =
+        column->qualifier.length ? SpanText(p_, column->qualifier) : "";
+    std::string name = SpanText(p_, column->name);
+    ASSIGN_OR_RETURN(std::optional<ColumnId> key,
+                     find(qualifier, name, column_id));
+    if (!key) {
+      return Expected(column_id, side + " to have a " + name + " column");
+    }
+    // TODO(lalitm): support string keys, which needs both sides interned in
+    // one pool and a key type wider than Int64.
+    RETURN_IF_ERROR(ExpectInteger(*key, column_id, "PER " + name));
+    out.keys.push_back(*key);
+  }
+  return out;
+}
+
+base::Status Compiler::CompileIntervalJoin(uint32_t stage) {
+  op_ = "INTERVAL JOIN";
+  const auto* n = Node<SyntaqlitePerfettoIntervalJoin>(p_, stage);
+  const auto* operand = Node<SyntaqlitePerfettoPipeSource>(p_, n->operand);
+  const SyntaqlitePerfettoPipeColumnList* per =
+      syntaqlite_node_is_present(n->per)
+          ? Node<SyntaqlitePerfettoPipeColumnList>(p_, n->per)
+          : nullptr;
+
+  op::IntervalJoin join;
+  join.keep_unmatched = n->left == SYNTAQLITE_BOOL_TRUE;
+  using R = op::IntervalJoin::Relationship;
+  switch (n->relationship) {
+    case SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_OVERLAPPING_BOUNDS:
+      join.relationship = R::kOverlappingBounds;
+      break;
+    case SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_BEGIN:
+      join.relationship = R::kCoveringBegin;
+      break;
+    case SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_END:
+      join.relationship = R::kCoveringEnd;
+      break;
+    case SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_COVERING_BOUNDS:
+      join.relationship = R::kCoveringBounds;
+      break;
+    case SYNTAQLITE_PERFETTO_INTERVAL_RELATIONSHIP_WITHIN_BOUNDS:
+      join.relationship = R::kWithinBounds;
+      break;
+  }
+
+  // The input's interval is whatever the bare names `ts` and `dur` mean, which
+  // an earlier join cannot have changed. PER columns may be qualified, to key
+  // on a column an earlier operand brought in.
+  auto find_input =
+      [&](const std::string& qualifier, const std::string& name,
+          uint32_t at) -> base::StatusOr<std::optional<ColumnId>> {
+    if (Lookup(qualifier, name).empty()) {
+      return std::optional<ColumnId>();
+    }
+    ASSIGN_OR_RETURN(ColumnId id, Resolve(qualifier, name, at));
+    return std::optional<ColumnId>(id);
+  };
+  ASSIGN_OR_RETURN(join.input_side,
+                   CompileIntervalSide(stage, per, "the input", find_input));
+
+  std::optional<std::string> alias = SourceQualifier(*operand);
+  if (!alias) {
+    return Expected(n->operand, "an alias for the operand, as in `(...) AS x`");
+  }
+  ASSIGN_OR_RETURN(join.operand, CompileScan(n->operand));
+  // The operand side of a PER column is the operand's column of that name.
+  auto find_operand = [&](const std::string&, const std::string& name,
+                          uint32_t) -> base::StatusOr<std::optional<ColumnId>> {
+    for (const NamedColumn& column : join.operand.columns) {
+      if (base::CaseInsensitiveEqual(column.name, name)) {
+        return std::optional<ColumnId>(column.id);
+      }
+    }
+    return std::optional<ColumnId>();
+  };
+  ASSIGN_OR_RETURN(
+      join.operand_side,
+      CompileIntervalSide(stage, per, "operand " + *alias, find_operand));
+
+  qualifiers_[n->operand] = std::move(*alias);
+  for (const NamedColumn& column : join.operand.columns) {
+    Bind(column, n->operand, /*qualified_only=*/true);
+  }
+  plan_.ops.emplace_back(std::move(join));
+  return base::OkStatus();
 }
 
 // Whether `name` is one of SQLite's aggregates. `min` and `max` are aggregates

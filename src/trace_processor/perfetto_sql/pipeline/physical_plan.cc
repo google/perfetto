@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/interval_join.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
@@ -57,6 +58,9 @@ class Lowering {
  private:
   void LowerScan(const op::Scan&);
   void LowerTreeAccumulate(const op::TreeAccumulate&);
+  void LowerIntervalJoin(const op::IntervalJoin&);
+
+  std::unique_ptr<ex::Source> MakeSource(const op::Scan&) const;
 
   // Establishes the physical layout and ordering needed by a tree fold.
   void PrepareTree(const op::TreeAccumulate&);
@@ -96,9 +100,25 @@ class Lowering {
 void Lowering::Lower(const Op& op) {
   if (const auto* scan = std::get_if<op::Scan>(&op)) {
     LowerScan(*scan);
+  } else if (const auto* join = std::get_if<op::IntervalJoin>(&op)) {
+    LowerIntervalJoin(*join);
   } else {
     LowerTreeAccumulate(std::get<op::TreeAccumulate>(op));
   }
+}
+
+std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
+  if (const auto* sql = std::get_if<SqlSource>(&scan.source)) {
+    Schema columns;
+    columns.reserve(scan.columns.size());
+    for (const NamedColumn& column : scan.columns) {
+      columns.push_back({column.name, plan_.columns[column.id].type});
+    }
+    return std::make_unique<exec::SqlScan>(env_.connection, *sql,
+                                           std::move(columns), env_.pool);
+  }
+  const auto& source = std::get<op::Scan::Dataframe>(scan.source);
+  return std::make_unique<ex::DataframeScan>(source.columns, source.row_count);
 }
 
 void Lowering::LowerScan(const op::Scan& scan) {
@@ -106,19 +126,7 @@ void Lowering::LowerScan(const op::Scan& scan) {
   for (const NamedColumn& column : scan.columns) {
     Define(column.id);
   }
-  if (const auto* sql = std::get_if<SqlSource>(&scan.source)) {
-    Schema columns;
-    columns.reserve(scan.columns.size());
-    for (const NamedColumn& column : scan.columns) {
-      columns.push_back({column.name, plan_.columns[column.id].type});
-    }
-    out_->input_ = std::make_unique<exec::SqlScan>(
-        env_.connection, *sql, std::move(columns), env_.pool);
-    return;
-  }
-  const auto& source = std::get<op::Scan::Dataframe>(scan.source);
-  out_->input_ =
-      std::make_unique<ex::DataframeScan>(source.columns, source.row_count);
+  out_->input_ = MakeSource(scan);
 }
 
 void Lowering::RequireInt64(ColumnId column) {
@@ -173,6 +181,79 @@ void Lowering::LowerTreeAccumulate(const op::TreeAccumulate& acc) {
     }
     Define(agg.output);
   }
+}
+
+void Lowering::LowerIntervalJoin(const op::IntervalJoin& join) {
+  ex::IntervalJoinSpec spec;
+  spec.keep_unmatched = join.keep_unmatched;
+  spec.operand_column_count =
+      static_cast<uint32_t>(join.operand.columns.size());
+  using R = op::IntervalJoin::Relationship;
+  switch (join.relationship) {
+    case R::kOverlappingBounds:
+      spec.relationship = ex::IntervalRelationship::kOverlappingBounds;
+      break;
+    case R::kCoveringBegin:
+      spec.relationship = ex::IntervalRelationship::kCoveringBegin;
+      break;
+    case R::kCoveringEnd:
+      spec.relationship = ex::IntervalRelationship::kCoveringEnd;
+      break;
+    case R::kCoveringBounds:
+      spec.relationship = ex::IntervalRelationship::kCoveringBounds;
+      break;
+    case R::kWithinBounds:
+      spec.relationship = ex::IntervalRelationship::kWithinBounds;
+      break;
+  }
+
+  // The input's interval and key columns, in the pipeline being built.
+  auto lower_side = [](const op::IntervalJoin::Side& side, auto position) {
+    ex::IntervalJoinSpec::Side out;
+    out.ts_column = position(side.ts);
+    if (side.dur) {
+      out.dur_column = position(*side.dur);
+    }
+    for (ColumnId key : side.keys) {
+      out.key_columns.push_back(position(key));
+    }
+    return out;
+  };
+  spec.input = lower_side(join.input_side, [&](ColumnId id) {
+    RequireInt64(id);
+    return Position(id);
+  });
+
+  // The operand is a pipeline of its own: a scan, then whatever makes its
+  // interval and key columns Int64. Its columns sit where the scan put them.
+  std::vector<std::unique_ptr<ex::Operator>> operand_operators;
+  spec.operand = lower_side(join.operand_side, [&](ColumnId id) {
+    uint32_t position = 0;
+    while (join.operand.columns[position].id != id) {
+      ++position;
+    }
+    const auto& type = plan_.columns[id].type;
+    if (!(type && type->Is<core::Int64>()) && !int64_columns_[id]) {
+      operand_operators.push_back(std::make_unique<ex::AssertType>(
+          position, ex::AssertTypeTarget{core::Int64{}},
+          plan_.columns[id].name));
+      int64_columns_[id] = true;
+    }
+    return position;
+  });
+  out_->operand_inputs_.push_back(MakeSource(join.operand));
+  out_->operand_pipelines_.push_back(std::make_unique<ex::Pipeline>(
+      *out_->operand_inputs_.back(), std::move(operand_operators)));
+
+  operators_.push_back(std::make_unique<ex::IntervalJoin>(
+      *out_->operand_pipelines_.back(), std::move(spec)));
+  for (const NamedColumn& column : join.operand.columns) {
+    Define(column.id);
+  }
+  // A row can now appear more than once, so the rows are no longer a tree in
+  // the order a fold left them.
+  tree_columns_.reset();
+  tree_order_.reset();
 }
 
 std::unique_ptr<PhysicalPlan> Lowering::Finish() {
