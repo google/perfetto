@@ -21,8 +21,6 @@
 #include <stdlib.h>  // For MSVC
 #include <string.h>
 
-#include <type_traits>
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 
@@ -127,52 +125,99 @@ inline uint64_t BE64ToHost(uint64_t x) {
 }
 #endif
 
-template <typename T>
-inline T HostToLE(T x) {
-  static_assert(sizeof(T) == 4 || sizeof(T) == 8);
-  if constexpr (std::is_integral<T>::value) {
-    if constexpr (sizeof(T) == 4)
-      return static_cast<T>(HostToLE32(static_cast<uint32_t>(x)));
-    else
-      return static_cast<T>(HostToLE64(static_cast<uint64_t>(x)));
-  } else {
-    if constexpr (sizeof(T) == 4) {
-      uint32_t u;
-      memcpy(&u, &x, sizeof(u));
-      u = HostToLE32(u);
-      memcpy(&x, &u, sizeof(u));
-    } else {
-      uint64_t u;
-      memcpy(&u, &x, sizeof(u));
-      u = HostToLE64(u);
-      memcpy(&x, &u, sizeof(u));
-    }
-    return x;
-  }
+inline float HostToLEFloat(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToLE32(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double HostToLEDouble(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToLE64(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline float HostToBEFloat(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToBE32(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double HostToBEDouble(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = HostToBE64(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline float LEFloatToHost(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = LE32ToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double LEDoubleToHost(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = LE64ToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline float BEFloatToHost(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = BE32ToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double BEDoubleToHost(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = BE64ToHost(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
 }
 
-template <typename T>
-inline T LEToHost(T x) {
-  static_assert(sizeof(T) == 4 || sizeof(T) == 8);
-  if constexpr (std::is_integral<T>::value) {
-    if constexpr (sizeof(T) == 4)
-      return static_cast<T>(LE32ToHost(static_cast<uint32_t>(x)));
-    else
-      return static_cast<T>(LE64ToHost(static_cast<uint64_t>(x)));
-  } else {
-    if constexpr (sizeof(T) == 4) {
-      uint32_t u;
-      memcpy(&u, &x, sizeof(u));
-      u = LE32ToHost(u);
-      memcpy(&x, &u, sizeof(u));
-    } else {
-      uint64_t u;
-      memcpy(&u, &x, sizeof(u));
-      u = LE64ToHost(u);
-      memcpy(&x, &u, sizeof(u));
-    }
-    return x;
-  }
+inline uint32_t HostToLE(uint32_t x) {
+  return HostToLE32(x);
+}
+inline int32_t HostToLE(int32_t x) {
+  return static_cast<int32_t>(HostToLE32(static_cast<uint32_t>(x)));
+}
+inline uint64_t HostToLE(uint64_t x) {
+  return HostToLE64(x);
+}
+inline int64_t HostToLE(int64_t x) {
+  return static_cast<int64_t>(HostToLE64(static_cast<uint64_t>(x)));
+}
+inline float HostToLE(float x) {
+  return HostToLEFloat(x);
+}
+inline double HostToLE(double x) {
+  return HostToLEDouble(x);
+}
+
+inline uint32_t LEToHost(uint32_t x) {
+  return LE32ToHost(x);
+}
+inline int32_t LEToHost(int32_t x) {
+  return static_cast<int32_t>(LE32ToHost(static_cast<uint32_t>(x)));
+}
+inline uint64_t LEToHost(uint64_t x) {
+  return LE64ToHost(x);
+}
+inline int64_t LEToHost(int64_t x) {
+  return static_cast<int64_t>(LE64ToHost(static_cast<uint64_t>(x)));
+}
+inline float LEToHost(float x) {
+  return LEFloatToHost(x);
+}
+inline double LEToHost(double x) {
+  return LEDoubleToHost(x);
 }
 
 }  // namespace base

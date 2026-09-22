@@ -224,7 +224,7 @@ class PackedRepeatedFieldIterator {
       return *this;
     }
 
-    if (wire_type == ProtoWireType::kVarInt) {
+    if constexpr (wire_type == ProtoWireType::kVarInt) {
       uint64_t new_value = 0;
       const uint8_t* new_pos =
           proto_utils::ParseVarInt(read_ptr_, data_end_, &new_value);
