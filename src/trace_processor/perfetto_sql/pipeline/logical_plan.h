@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/common/schema.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -54,13 +55,16 @@ struct ScanDataframe {
   uint32_t row_count = 0;
 };
 
-// Reads all rows of a source. Always the first op.
+// Reads all rows of a source: the first op of a plan, or the operand of a
+// later one.
 struct Scan {
   using Dataframe = ScanDataframe;
   // A direct dataframe scan or `SELECT * FROM <clause>` executed by SQLite.
   std::variant<Dataframe, SqlSource> source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;
+  // The SQL source's statement, prepared to describe it and good for one run.
+  std::shared_ptr<SqliteConnection::PreparedStatement> statement;
 };
 
 enum class TreeDirection : uint8_t { kUp, kDown };
@@ -81,9 +85,36 @@ struct TreeAccumulate {
   std::vector<Aggregate> aggregates;
 };
 
+// `|> [LEFT] INTERVAL JOIN operand AS alias relationship [PER cols]`. Appends
+// the operand's columns, once per operand row the input row relates to.
+struct IntervalJoin {
+  // How an operand interval has to relate to an input interval to be joined.
+  enum class Relationship : uint8_t {
+    kOverlappingBounds,
+    kCoveringBegin,
+    kCoveringEnd,
+    kCoveringBounds,
+    kWithinBounds,
+  };
+  // The columns of one side holding its intervals and the PER key.
+  struct Side {
+    ColumnId ts = 0;
+    // A side without a dur column is a side of points.
+    std::optional<ColumnId> dur;
+    // Pairwise equal across the two sides of every joined row.
+    std::vector<ColumnId> keys;
+  };
+  Scan operand;
+  Side input_side;
+  Side operand_side;
+  Relationship relationship = Relationship::kOverlappingBounds;
+  // LEFT: an input row which joins with nothing is kept, with a null operand.
+  bool keep_unmatched = false;
+};
+
 }  // namespace op
 
-using Op = std::variant<op::Scan, op::TreeAccumulate>;
+using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalJoin>;
 
 // A flat chain of operators. Column types are stored once, indexed by ID;
 // operators name the values they consume and produce, independently of layout.

@@ -17,6 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_QUERY_SCHEMA_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_QUERY_SCHEMA_H_
 
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/common/schema.h"
@@ -25,13 +29,44 @@
 
 namespace perfetto::trace_processor::sql_schema {
 
-// SQLite supplies result names; semantic analysis supplies types where known.
-// Fails if SQLite cannot prepare the query. Unknown types remain per-row
-// variants.
-base::StatusOr<core::Schema> DescribeQuery(
+// Where a query's rows come from, when they are exactly the rows of one leaf
+// relation: a query which only picks and renames columns, however many views
+// and subqueries that goes through.
+struct RowOrigin {
+  std::string relation;
+  // The name of each result column and the leaf column it is, in result
+  // order.
+  struct Column {
+    std::string name;
+    std::string leaf_column;
+  };
+  std::vector<Column> columns;
+};
+
+struct DescribeOptions {
+  // The query already parsed, analysed in place of the SQL text. It must
+  // describe the same columns as the text does.
+  std::optional<perfetto_sql::analysis::SqlNode> parsed;
+  // Whether to trace the columns to where they come from at all, which walks
+  // the definition of every view the query reads.
+  bool lineage = true;
+};
+
+struct QueryDescription {
+  // SQLite supplies the names; lineage supplies a type where a column traces
+  // back to a dataframe column, else the column carries a type per row.
+  core::Schema columns;
+  std::optional<RowOrigin> row_origin;
+  // The statement prepared to read the names, which can run the query once.
+  SqliteConnection::PreparedStatement statement;
+};
+
+// Fails if SQLite cannot prepare the query.
+base::StatusOr<QueryDescription> DescribeQuery(
     SqliteConnection*,
     const SqlSource&,
-    const perfetto_sql::analysis::Catalog&);
+    const perfetto_sql::analysis::Catalog&,
+    const DescribeOptions& = {});
 
 }  // namespace perfetto::trace_processor::sql_schema
 

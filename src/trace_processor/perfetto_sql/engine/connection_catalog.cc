@@ -16,12 +16,16 @@
 
 #include "src/trace_processor/perfetto_sql/engine/connection_catalog.h"
 
+#include <sqlite3.h>
+
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/analysis/relation.h"
@@ -46,27 +50,14 @@ namespace analysis = ::perfetto::perfetto_sql::analysis;
 constexpr char kFindViewSql[] = R"(
   SELECT sql FROM (
     SELECT sql, 0 AS priority FROM sqlite_temp_master
-    WHERE type = 'view' AND lower(name) = lower($name)
+    WHERE type = 'view' AND lower(name) = lower(?1)
     UNION ALL
     SELECT sql, 1 AS priority FROM sqlite_master
-    WHERE type = 'view' AND lower(name) = lower($name)
+    WHERE type = 'view' AND lower(name) = lower(?1)
   )
   ORDER BY priority
   LIMIT 1
 )";
-
-// Escapes |name| as a single-quoted SQL string literal.
-std::string Quoted(std::string_view name) {
-  std::string out = "'";
-  for (char c : name) {
-    if (c == '\'') {
-      out.push_back('\'');
-    }
-    out.push_back(c);
-  }
-  out.push_back('\'');
-  return out;
-}
 
 }  // namespace
 
@@ -92,15 +83,26 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
 
 std::optional<std::string> ConnectionCatalog::FindViewSql(
     std::string_view name) const {
-  SqliteConnection::PreparedStatement stmt =
-      connection_->sqlite_connection()->PrepareStatement(
-          SqlSource::FromTraceProcessorImplementation(
-              base::ReplaceAll(kFindViewSql, "$name", Quoted(name))));
-  if (!stmt.Step()) {
+  if (!find_view_) {
+    find_view_.emplace(connection_->sqlite_connection()->PrepareStatement(
+        SqlSource::FromTraceProcessorImplementation(kFindViewSql)));
+  }
+  sqlite3_stmt* stmt = find_view_->sqlite_stmt();
+  if (!stmt ||
+      sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()),
+                        SQLITE_STATIC) != SQLITE_OK) {
     return std::nullopt;
   }
-  const char* sql = sqlite::column::Text(stmt.sqlite_stmt(), 0);
-  return sql ? std::make_optional(std::string(sql)) : std::nullopt;
+  std::optional<std::string> sql;
+  if (find_view_->Step()) {
+    if (const char* text = sqlite::column::Text(stmt, 0)) {
+      sql = text;
+    }
+  }
+  // Also lets go of `name`, which the statement only borrowed.
+  find_view_->Reset();
+  sqlite3_clear_bindings(stmt);
+  return sql;
 }
 
 const dataframe::Dataframe* ConnectionCatalog::FindDataframe(
@@ -108,10 +110,40 @@ const dataframe::Dataframe* ConnectionCatalog::FindDataframe(
   return connection_->GetDataframeOrNull(name);
 }
 
-base::StatusOr<pipeline::Schema> ConnectionCatalog::DescribeQuery(
-    const SqlSource& sql) const {
-  return sql_schema::DescribeQuery(connection_->sqlite_connection(), sql,
-                                   *this);
+base::StatusOr<pipeline::Catalog::QueryDescription>
+ConnectionCatalog::DescribeQuery(
+    const SqlSource& sql,
+    const sql_schema::DescribeOptions& options) const {
+  ASSIGN_OR_RETURN(sql_schema::QueryDescription described,
+                   sql_schema::DescribeQuery(connection_->sqlite_connection(),
+                                             sql, *this, options));
+  QueryDescription out;
+  out.columns = std::move(described.columns);
+  out.statement = std::make_shared<SqliteConnection::PreparedStatement>(
+      std::move(described.statement));
+  std::optional<sql_schema::RowOrigin>& origin = described.row_origin;
+  if (!origin) {
+    return out;
+  }
+  DataframeColumns found;
+  found.name = origin->relation;
+  found.dataframe = connection_->GetDataframeOrNull(origin->relation);
+  if (!found.dataframe) {
+    return out;
+  }
+  const std::vector<std::string>& names = found.dataframe->column_names();
+  for (const sql_schema::RowOrigin::Column& column : origin->columns) {
+    auto it = std::find_if(names.begin(), names.end(), [&](const auto& name) {
+      return base::CaseInsensitiveEqual(name, column.leaf_column);
+    });
+    if (it == names.end()) {
+      return out;
+    }
+    found.columns.push_back(
+        {column.name, static_cast<uint32_t>(it - names.begin())});
+  }
+  out.dataframe = std::move(found);
+  return out;
 }
 
 }  // namespace perfetto::trace_processor

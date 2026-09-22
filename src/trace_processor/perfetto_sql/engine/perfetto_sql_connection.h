@@ -465,6 +465,13 @@ class PerfettoSqlConnection {
       pipeline::LogicalPlan,
       const SqlSource&);
 
+  // Runs a pipeline into the dataframe of the table `create_table` defines,
+  // checking its columns against the table's schema.
+  base::StatusOr<dataframe::Dataframe> BuildPipelineDataframe(
+      const pipeline::LogicalPlan&,
+      const PerfettoSqlParser::CreateTable&,
+      const std::string& error_context);
+
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
 
   base::Status DropIndexBeforeCreate(const PerfettoSqlParser::CreateIndex&);

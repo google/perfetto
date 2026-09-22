@@ -39,6 +39,8 @@ namespace {
 
 namespace analysis = ::perfetto::perfetto_sql::analysis;
 using sql_schema::ToStorageType;
+using ::testing::ElementsAre;
+using ::testing::Optional;
 
 struct ParserDeleter {
   void operator()(SyntaqliteParser* parser) const {
@@ -124,6 +126,29 @@ TEST_F(ConnectionCatalogTest, UsesTemporaryViewDefinition) {
   EXPECT_TRUE((*types)[0]->Is<core::String>());
 }
 
+TEST_F(ConnectionCatalogTest, FindsViewsCreatedAfterAnEarlierLookup) {
+  Exec("CREATE PERFETTO TABLE ints AS SELECT 1 AS value");
+  Exec("CREATE PERFETTO TABLE strings AS SELECT 'x' AS value");
+  EXPECT_EQ(catalog_.FindViewSql("v"), std::nullopt);
+
+  Exec("CREATE VIEW v AS SELECT value FROM ints");
+  auto types = Types("SELECT value FROM v");
+  ASSERT_TRUE(types.ok()) << types.status().c_message();
+  ASSERT_TRUE((*types)[0].has_value());
+  EXPECT_TRUE((*types)[0]->Is<core::Uint32>());
+
+  Exec("DROP VIEW v");
+  Exec("CREATE VIEW v AS SELECT value FROM strings");
+  types = Types("SELECT value FROM v");
+  ASSERT_TRUE(types.ok()) << types.status().c_message();
+  ASSERT_TRUE((*types)[0].has_value());
+  EXPECT_TRUE((*types)[0]->Is<core::String>());
+
+  Exec("DROP VIEW v");
+  EXPECT_EQ(catalog_.FindViewSql("v"), std::nullopt);
+  EXPECT_EQ(catalog_.FindViewSql("it's"), std::nullopt);
+}
+
 TEST_F(ConnectionCatalogTest, RequiresEveryOriginToHaveTheSameType) {
   Exec("CREATE PERFETTO TABLE ints AS SELECT 1 AS value");
   Exec("CREATE PERFETTO TABLE more_ints AS SELECT 2 AS value");
@@ -160,6 +185,62 @@ TEST_F(ConnectionCatalogTest, ResolvesViewNamesCaseInsensitively) {
   ASSERT_EQ(types->size(), 1u);
   ASSERT_TRUE((*types)[0].has_value());
   EXPECT_TRUE((*types)[0]->Is<core::Uint32>());
+}
+
+// The dataframe column behind each result column of `sql`, as `name=column`,
+// or nothing if the query cannot be read straight out of one dataframe.
+std::optional<std::vector<std::string>> Resolved(
+    const ConnectionCatalog& catalog,
+    const std::string& sql) {
+  auto described = catalog.DescribeQuery(
+      SqlSource::FromTraceProcessorImplementation(sql), {});
+  if (!described.ok() || !described->dataframe) {
+    return std::nullopt;
+  }
+  const auto& found = described->dataframe;
+  std::vector<std::string> out{found->name};
+  for (const auto& column : found->columns) {
+    out.push_back(column.name + "=" +
+                  found->dataframe->column_names()[column.index]);
+  }
+  return out;
+}
+
+TEST_F(ConnectionCatalogTest, FollowsViewsDownToTheDataframe) {
+  Exec("CREATE PERFETTO TABLE t AS SELECT 1 AS id, 2 AS ts, 'x' AS name");
+  Exec("CREATE PERFETTO VIEW one AS SELECT id, ts, name AS label FROM t");
+  Exec("CREATE PERFETTO VIEW two AS SELECT label, id AS slice_id, ts FROM one");
+  Exec("CREATE PERFETTO VIEW three AS SELECT *, slice_id AS again FROM two");
+
+  EXPECT_THAT(Resolved(catalog_, "SELECT * FROM three"),
+              Optional(ElementsAre("t", "label=name", "slice_id=id", "ts=ts",
+                                   "again=id")));
+  EXPECT_THAT(
+      Resolved(catalog_, "SELECT ts AS t0 FROM (SELECT * FROM two) AS q"),
+      Optional(ElementsAre("t", "t0=ts")));
+}
+
+TEST_F(ConnectionCatalogTest, OnlyFollowsViewsWhichKeepEveryRowAndValue) {
+  Exec("CREATE PERFETTO TABLE t AS SELECT 1 AS id, 2 AS ts");
+  Exec("CREATE PERFETTO TABLE u AS SELECT 1 AS id, 3 AS dur");
+  Exec("CREATE PERFETTO VIEW filtered AS SELECT * FROM t WHERE ts > 0");
+  Exec("CREATE PERFETTO VIEW ordered AS SELECT * FROM t ORDER BY ts");
+  Exec("CREATE PERFETTO VIEW computed AS SELECT id, ts + 1 AS ts FROM t");
+  Exec(
+      "CREATE PERFETTO VIEW joined AS SELECT t.id, u.dur FROM t JOIN u USING "
+      "(id)");
+  // A view which is fine, over one which is not.
+  Exec("CREATE PERFETTO VIEW over_filtered AS SELECT id FROM filtered");
+
+  for (const char* view :
+       {"filtered", "ordered", "computed", "joined", "over_filtered"}) {
+    EXPECT_EQ(Resolved(catalog_, std::string("SELECT * FROM ") + view),
+              std::nullopt)
+        << view;
+  }
+  EXPECT_EQ(Resolved(catalog_, "SELECT * FROM t LIMIT 1"), std::nullopt);
+  EXPECT_EQ(Resolved(catalog_, "SELECT DISTINCT id FROM t"), std::nullopt);
+  EXPECT_EQ(Resolved(catalog_, "SELECT * FROM no_such_table"), std::nullopt);
 }
 
 }  // namespace

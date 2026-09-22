@@ -222,7 +222,7 @@ RETURNS PROTO  AS
         slice_name GLOB "*mark sweep GC" OR
         slice_name GLOB "*concurrent copying GC"
       )
-    ORDER BY slice_dur DESC
+    ORDER BY slice_dur DESC, slice_id DESC
     LIMIT $num_slices);
 
 CREATE OR REPLACE PERFETTO FUNCTION get_dur_on_main_thread_for_startup_and_slice(

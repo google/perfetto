@@ -28,6 +28,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto::trace_processor {
 
@@ -44,11 +45,15 @@ class ConnectionCatalog final : public perfetto_sql::analysis::Catalog,
 
   const dataframe::Dataframe* FindDataframe(
       std::string_view name) const override;
-  base::StatusOr<pipeline::Schema> DescribeQuery(
-      const SqlSource& sql) const override;
+  base::StatusOr<QueryDescription> DescribeQuery(
+      const SqlSource& sql,
+      const sql_schema::DescribeOptions& options) const override;
 
  private:
   PerfettoSqlConnection* connection_;
+  // Looks a view up by name. Prepared the first time it is needed and reset
+  // after every lookup; SQLite prepares it again if the schema has changed.
+  mutable std::optional<SqliteConnection::PreparedStatement> find_view_;
 };
 
 }  // namespace perfetto::trace_processor

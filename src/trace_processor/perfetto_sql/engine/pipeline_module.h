@@ -34,9 +34,12 @@
 
 namespace perfetto::trace_processor {
 
-// One module per connection, with a TEMP virtual table for each pipeline's
-// schema. The execution plan is a typed pointer bound to that table's hidden
-// argument; SQLite owns it for the lifetime of the prepared statement.
+// One module per connection, with one TEMP virtual table for each number of
+// columns a pipeline has returned. A table's columns are positional and carry
+// no plan, so every pipeline of that width shares it, statements running at
+// the same time included, and it lasts as long as the connection. The
+// execution plan is a typed pointer bound to the table's hidden argument;
+// SQLite owns it for the lifetime of the prepared statement.
 struct PipelineModule : sqlite::Module<PipelineModule> {
   static constexpr auto kType = kCreateOnly;
   static constexpr bool kSupportsWrites = false;
@@ -46,20 +49,10 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
 
   struct Context {
     StringPool* pool;
-    uint64_t next_table = 0;
-    // Binding destructors cannot safely perform schema changes. Retire tables
-    // there and drop them once the pipeline's statement has been finalized.
-    // Tables which are locked or inside a transaction at that point are
-    // retried when the next pipeline is finalized or prepared.
-    std::vector<std::string> retired_tables;
-
-    base::Status Cleanup(sqlite3*);
   };
   struct Invocation {
     Context* context;
-    std::string table;
     std::unique_ptr<pipeline::PhysicalPlan> plan;
-    ~Invocation();
   };
   struct Vtab : sqlite::Module<PipelineModule>::Vtab {
     Context* context;

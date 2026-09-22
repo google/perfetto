@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -80,11 +81,20 @@ class TestCatalog : public Catalog, public perfetto_sql::analysis::Catalog {
     return dataframe ? dataframe->get() : nullptr;
   }
 
-  base::StatusOr<Schema> DescribeQuery(const SqlSource& sql) const override {
+  base::StatusOr<QueryDescription> DescribeQuery(
+      const SqlSource& sql,
+      const sql_schema::DescribeOptions& options) const override {
     if (!connection_) {
       return base::ErrStatus("no such table");
     }
-    return sql_schema::DescribeQuery(connection_, sql, *this);
+    ASSIGN_OR_RETURN(
+        sql_schema::QueryDescription described,
+        sql_schema::DescribeQuery(connection_, sql, *this, options));
+    QueryDescription out;
+    out.columns = std::move(described.columns);
+    out.statement = std::make_shared<SqliteConnection::PreparedStatement>(
+        std::move(described.statement));
+    return out;
   }
 
   std::optional<perfetto_sql::analysis::LeafRelation> FindLeafRelation(

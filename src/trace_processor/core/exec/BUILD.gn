@@ -19,6 +19,8 @@ source_set("exec") {
   sources = [
     "assert_type.cc",
     "assert_type.h",
+    "batch_order.cc",
+    "batch_order.h",
     "breaker.cc",
     "breaker.h",
     "column_chunk.h",
@@ -26,6 +28,10 @@ source_set("exec") {
     "column_view.h",
     "dataframe_scan.cc",
     "dataframe_scan.h",
+    "interval_index.cc",
+    "interval_index.h",
+    "interval_join.cc",
+    "interval_join.h",
     "operator.cc",
     "operator.h",
     "pipeline.cc",
@@ -69,8 +75,11 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "assert_type_unittest.cc",
+    "batch_order_unittest.cc",
     "breaker_unittest.cc",
     "dataframe_scan_unittest.cc",
+    "interval_index_unittest.cc",
+    "interval_join_unittest.cc",
     "operator_unittest.cc",
     "row_batch_unittest.cc",
     "row_store_unittest.cc",
@@ -96,6 +105,8 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     sources = [
+      "batch_order_benchmark.cc",
+      "interval_join_benchmark.cc",
       "tree_number_nodes_benchmark.cc",
       "tree_order_benchmark.cc",
     ]

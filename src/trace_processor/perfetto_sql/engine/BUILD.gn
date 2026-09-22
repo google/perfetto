@@ -28,6 +28,8 @@ source_set("engine") {
     "perfetto_sql_connection.h",
     "perfetto_sql_database.cc",
     "perfetto_sql_database.h",
+    "pipeline_dataframe_builder.cc",
+    "pipeline_dataframe_builder.h",
     "pipeline_module.cc",
     "pipeline_module.h",
     "runtime_table_function.cc",

@@ -939,19 +939,123 @@ TEST_F(PerfettoSqlConnectionPipelineTest, AReadTableCanBeReplaced) {
   EXPECT_EQ(rows, 4u);
 }
 
-// Finalization retires the TEMP table; the next execution drops it safely.
-TEST_F(PerfettoSqlConnectionPipelineTest, CompletedPipelineTablesAreDropped) {
+// A table made from a pipeline is the table the same rows make through SQLite:
+// the same storage, nullability, sort and duplicate state for every column,
+// the hidden _auto_id included.
+TEST_F(PerfettoSqlConnectionPipelineTest, CreatedTableMatchesOneMadeBySqlite) {
+  const char kRows[] = R"((
+    SELECT 0 AS id, 5 AS small, 3000000000000 AS big, -7 AS negative,
+           1.5 AS real_col, 'a' AS text_col, NULL AS empty_col, 1 AS mixed, 10 AS sorted,
+           NULL AS late
+    UNION ALL SELECT 1, 5, 1, 2, 2.0, NULL, NULL, 2.5, 20, 'x'
+    UNION ALL SELECT 2, 9, 2, NULL, NULL, '', NULL, 3, 20, NULL
+  ))";
+  for (const char* source :
+       {kRows, "(SELECT * FROM tree)", "tree_df", "(SELECT 1 AS id WHERE 0)"}) {
+    ASSERT_TRUE(Rows("CREATE OR REPLACE PERFETTO TABLE tree_df AS "
+                     "SELECT * FROM tree")
+                    .ok());
+    auto made = Rows(std::string("CREATE OR REPLACE PERFETTO TABLE by_sql AS "
+                                 "SELECT * FROM ") +
+                     source +
+                     "; CREATE OR REPLACE PERFETTO TABLE by_pipe AS "
+                     "FROM " +
+                     source);
+    ASSERT_TRUE(made.ok()) << source << ": " << made.status().message();
+    const auto* by_sql = connection_->GetDataframeOrNull("by_sql");
+    const auto* by_pipe = connection_->GetDataframeOrNull("by_pipe");
+    ASSERT_NE(by_sql, nullptr);
+    ASSERT_NE(by_pipe, nullptr);
+    EXPECT_EQ(by_pipe->row_count(), by_sql->row_count()) << source;
+    auto want = by_sql->CreateSpec();
+    auto got = by_pipe->CreateSpec();
+    ASSERT_EQ(got.column_names, want.column_names) << source;
+    for (size_t i = 0; i < want.column_specs.size(); ++i) {
+      const auto& w = want.column_specs[i];
+      const auto& g = got.column_specs[i];
+      SCOPED_TRACE(std::string(source) + " column " + want.column_names[i]);
+      EXPECT_EQ(g.type.index(), w.type.index());
+      EXPECT_EQ(g.nullability.index(), w.nullability.index());
+      EXPECT_EQ(g.sort_state.index(), w.sort_state.index());
+      EXPECT_EQ(g.duplicate_state.index(), w.duplicate_state.index());
+    }
+    auto difference = Rows("SELECT * FROM by_sql EXCEPT SELECT * FROM by_pipe");
+    ASSERT_TRUE(difference.ok()) << difference.status().message();
+    EXPECT_TRUE(difference->empty()) << source;
+  }
+}
+
+// The schema of a table is checked against a pipeline as it is against SQL.
+TEST_F(PerfettoSqlConnectionPipelineTest, CreatedTableSchemaIsChecked) {
+  const char* kBodies[] = {
+      "(id LONG) AS %s (SELECT 0 AS id, 1 AS extra)",
+      "(id LONG, nope LONG) AS %s (SELECT 0 AS id)",
+      "(id LONG, nope LONG) AS %s (SELECT 0 AS id, 1 AS extra)",
+      "(id STRING) AS %s (SELECT 0 AS id)",
+      "AS %s (SELECT 0 AS id, 1 AS id)",
+      "AS %s (SELECT 0 AS \"a b\")",
+      "AS %s (SELECT 1 AS v UNION ALL SELECT 'x')",
+      "AS %s (SELECT 1 AS a, 1 AS b UNION ALL SELECT 2, 'x' "
+      "UNION ALL SELECT 'y', 3)",
+      "AS %s (SELECT 1.5 AS v UNION ALL SELECT 9007199254740993)",
+  };
+  for (const char* body : kBodies) {
+    base::StackString<512> sql_body(body, "SELECT * FROM");
+    base::StackString<512> pipe_body(body, "FROM");
+    auto by_sql = Rows("CREATE OR REPLACE PERFETTO TABLE checked " +
+                       sql_body.ToStdString());
+    auto by_pipe = Rows("CREATE OR REPLACE PERFETTO TABLE checked " +
+                        pipe_body.ToStdString());
+    ASSERT_FALSE(by_sql.ok()) << body;
+    ASSERT_FALSE(by_pipe.ok()) << body;
+    // The message is the last line; what precedes it quotes the statement.
+    auto message = [](const base::Status& status) {
+      std::string text = status.message();
+      return text.substr(text.rfind('\n') + 1);
+    };
+    EXPECT_EQ(message(by_pipe.status()), message(by_sql.status())) << body;
+  }
+}
+
+// There is one TEMP table for each width, however many pipelines have it.
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesOfOneWidthShareATable) {
   ASSERT_TRUE(Rows("FROM tree").ok());
+  ASSERT_TRUE(Rows("FROM (SELECT 1 AS a, 2 AS b, 3 AS c, 4 AS d)").ok());
+  ASSERT_TRUE(Rows("FROM (SELECT 123 AS value)").ok());
   auto tables = Rows(
       "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
       "'__intrinsic_pipeline_*'");
   ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
+  EXPECT_THAT(*tables, testing::ElementsAre("__intrinsic_pipeline_1",
+                                            "__intrinsic_pipeline_4"));
   auto modules = Rows(
       "SELECT name FROM pragma_module_list WHERE name GLOB "
       "'__intrinsic_pipeline*'");
   ASSERT_TRUE(modules.ok()) << modules.status().message();
   EXPECT_THAT(*modules, testing::ElementsAre("__intrinsic_pipeline"));
+}
+
+// Two running statements of one width read one table, each with its own plan.
+TEST_F(PerfettoSqlConnectionPipelineTest, StatementsOfOneWidthRunTogether) {
+  auto first = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("FROM (SELECT 1 AS v UNION ALL SELECT 2)"));
+  ASSERT_TRUE(first.ok()) << first.status().message();
+  auto second = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("FROM (SELECT 10 AS w UNION ALL SELECT 20)"));
+  ASSERT_TRUE(second.ok()) << second.status().message();
+
+  EXPECT_EQ(sqlite3_column_int(first->stmt.sqlite_stmt(), 0), 1);
+  EXPECT_EQ(sqlite3_column_int(second->stmt.sqlite_stmt(), 0), 10);
+  EXPECT_STREQ(sqlite3_column_name(first->stmt.sqlite_stmt(), 0), "v");
+  EXPECT_STREQ(sqlite3_column_name(second->stmt.sqlite_stmt(), 0), "w");
+  ASSERT_TRUE(first->stmt.Step());
+  ASSERT_TRUE(second->stmt.Step());
+  EXPECT_EQ(sqlite3_column_int(first->stmt.sqlite_stmt(), 0), 2);
+  EXPECT_EQ(sqlite3_column_int(second->stmt.sqlite_stmt(), 0), 20);
+  EXPECT_FALSE(first->stmt.Step());
+  EXPECT_FALSE(second->stmt.Step());
+  EXPECT_TRUE(first->stmt.status().ok());
+  EXPECT_TRUE(second->stmt.status().ok());
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest,
@@ -985,51 +1089,67 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
   EXPECT_TRUE(first->stmt.status().ok());
 }
 
+// A width seen for the first time gets its table while another statement is
+// still running.
 TEST_F(PerfettoSqlConnectionPipelineTest,
-       CleanupRetriesWhileAnotherStatementIsActive) {
-  {
-    auto active = connection_->ExecuteUntilLastStatement(
-        SqlSource::FromExecuteQuery("FROM tree"));
-    ASSERT_TRUE(active.ok()) << active.status().message();
-    ASSERT_TRUE(Rows("FROM (SELECT 123 AS value)").ok());
-    // The finished pipeline can be retired even though the active statement
-    // prevents schema changes. Retrying cleanup must not interrupt either.
-    ASSERT_TRUE(Rows("SELECT 1").ok());
-    while (active->stmt.Step()) {
-    }
-    EXPECT_TRUE(active->stmt.status().ok());
+       ANewWidthIsCreatedWhileAnotherStatementIsActive) {
+  auto active = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("FROM tree"));
+  ASSERT_TRUE(active.ok()) << active.status().message();
+  auto other = Rows("FROM (SELECT 123 AS value)");
+  ASSERT_TRUE(other.ok()) << other.status().message();
+  EXPECT_THAT(*other, testing::ElementsAre("123"));
+  uint32_t rows = 1;
+  while (active->stmt.Step()) {
+    ++rows;
   }
-  auto tables = Rows(
-      "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
-      "'__intrinsic_pipeline_*'");
-  ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
+  EXPECT_TRUE(active->stmt.status().ok());
+  EXPECT_EQ(rows, 4u);
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       CleanupAcrossRollbackAndExecutionFailure) {
-  ASSERT_TRUE(Rows("FROM tree").ok());
+// A table created inside a transaction goes away with it, and the next
+// pipeline of that width has to notice.
+TEST_F(PerfettoSqlConnectionPipelineTest, ATableLostToARollbackIsCreatedAgain) {
   ASSERT_TRUE(Rows("BEGIN; FROM tree").ok());
   ASSERT_TRUE(Rows("ROLLBACK").ok());
-  EXPECT_FALSE(Rows("FROM (SELECT 0 AS id, NULL AS parent_id, 'bad' AS value) "
-                    "|> TREE ACCUMULATE UP SUM(value) AS total")
-                   .ok());
   auto tables = Rows(
       "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
       "'__intrinsic_pipeline_*'");
   ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
+  ASSERT_TRUE(tables->empty());
+
+  auto rows = Rows("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_EQ(rows->size(), 4u);
+  auto again = Rows("FROM tree");
+  ASSERT_TRUE(again.ok()) << again.status().message();
+  EXPECT_EQ(again->size(), 4u);
 }
 
+// A pipeline which fails part way through leaves its width usable.
 TEST_F(PerfettoSqlConnectionPipelineTest,
-       FailedCreateDoesNotRetireAnExistingTable) {
-  ASSERT_TRUE(Rows("CREATE TEMP TABLE __intrinsic_pipeline_0(value); "
-                   "INSERT INTO __intrinsic_pipeline_0 VALUES(123)")
+       AFailedExecutionLeavesTheTableUsable) {
+  const char kBad[] =
+      "FROM (SELECT 0 AS id, NULL AS parent_id, 'bad' AS value) "
+      "|> TREE ACCUMULATE UP SUM(value) AS total";
+  EXPECT_FALSE(Rows(kBad).ok());
+  auto rows = Rows("FROM (SELECT 1 AS a, 2 AS b, 3 AS c, 4 AS d)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,2,3,4"));
+  EXPECT_FALSE(Rows(kBad).ok());
+}
+
+// A pipeline never touches a table it did not create.
+TEST_F(PerfettoSqlConnectionPipelineTest, ANameAlreadyTakenIsLeftAlone) {
+  ASSERT_TRUE(Rows("CREATE TEMP TABLE __intrinsic_pipeline_4(value); "
+                   "INSERT INTO __intrinsic_pipeline_4 VALUES(123)")
                   .ok());
   EXPECT_FALSE(Rows("FROM tree").ok());
-  auto existing = Rows("SELECT value FROM temp.__intrinsic_pipeline_0");
+  auto existing = Rows("SELECT value FROM temp.__intrinsic_pipeline_4");
   ASSERT_TRUE(existing.ok()) << existing.status().message();
   EXPECT_THAT(*existing, testing::ElementsAre("123"));
+  // Other widths are unaffected.
+  EXPECT_TRUE(Rows("FROM (SELECT 123 AS value)").ok());
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, TemporaryTablesAreConnectionLocal) {
@@ -1083,8 +1203,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
             "SELECT c3 FROM temp.test_output(?) WHERE rowid = " +
             std::string(rhs) + " AND c3 > 50"));
     ASSERT_TRUE(stmt.status().ok()) << stmt.status().message();
-    PipelineModule::Invocation invocation{ctx, "unused",
-                                          pipeline::Lower(logical, env)};
+    PipelineModule::Invocation invocation{ctx, pipeline::Lower(logical, env)};
     ASSERT_EQ(sqlite3_bind_pointer(stmt.sqlite_stmt(), 1, &invocation,
                                    PipelineModule::kPlanPointerType, nullptr),
               SQLITE_OK);

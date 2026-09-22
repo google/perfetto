@@ -40,26 +40,54 @@ struct ParserDeleter {
 };
 using ScopedParser = std::unique_ptr<SyntaqliteParser, ParserDeleter>;
 
+std::optional<RowOrigin> FindRowOrigin(
+    const analysis::RelationLineage& lineage) {
+  if (!lineage.row_origin()) {
+    return std::nullopt;
+  }
+  RowOrigin origin;
+  origin.relation = std::string(*lineage.row_origin());
+  for (const analysis::ColumnLineage& column : lineage.columns()) {
+    // A column with a second origin is equal to the first one for every row,
+    // which says nothing about it being the same column.
+    if (column.origins.size() != 1) {
+      return std::nullopt;
+    }
+    origin.columns.push_back({std::string(column.output_name),
+                              std::string(column.origins.front().column_name)});
+  }
+  return origin;
+}
+
 // The types lineage established, lined up with the query's columns. If the two
 // disagree on the number of columns they are not describing the same query, so
 // no type is claimed for any of them.
 std::vector<std::optional<StorageType>> ResolveTypes(
     const SqlSource& sql,
     uint32_t count,
-    const analysis::Catalog& catalog) {
+    const analysis::Catalog& catalog,
+    const DescribeOptions& options,
+    std::optional<RowOrigin>* row_origin) {
   std::vector<std::optional<StorageType>> types(count);
-  ScopedParser parser(syntaqlite_parser_create_perfetto(nullptr));
-  syntaqlite_parser_reset(parser.get(), sql.sql().data(),
-                          static_cast<uint32_t>(sql.sql().size()));
-  if (syntaqlite_parser_next(parser.get()) != SYNTAQLITE_PARSE_OK) {
-    return types;
+  ScopedParser parser;
+  analysis::SqlNode query;
+  if (options.parsed) {
+    query = *options.parsed;
+  } else {
+    parser.reset(syntaqlite_parser_create_perfetto(nullptr));
+    syntaqlite_parser_reset(parser.get(), sql.sql().data(),
+                            static_cast<uint32_t>(sql.sql().size()));
+    if (syntaqlite_parser_next(parser.get()) != SYNTAQLITE_PARSE_OK) {
+      return types;
+    }
+    query = {parser.get(), syntaqlite_result_root(parser.get())};
   }
   analysis::RelationAnalyzer analyzer(catalog);
-  auto resolved = analyzer.AnalyzeQuery(
-      {parser.get(), syntaqlite_result_root(parser.get())});
+  auto resolved = analyzer.AnalyzeQuery(query);
   if (!resolved.ok() || resolved->columns().size() != count) {
     return types;
   }
+  *row_origin = FindRowOrigin(*resolved);
   for (uint32_t i = 0; i < count; ++i) {
     std::optional<analysis::ColumnType> type = resolved->columns()[i].type();
     if (!type) {
@@ -79,26 +107,29 @@ std::vector<std::optional<StorageType>> ResolveTypes(
 
 }  // namespace
 
-base::StatusOr<core::Schema> DescribeQuery(SqliteConnection* connection,
-                                           const SqlSource& sql,
-                                           const analysis::Catalog& catalog) {
-  // Prepared here only to read the column names, then discarded: a statement
-  // belongs to one execution, but the columns belong to the query.
+base::StatusOr<QueryDescription> DescribeQuery(SqliteConnection* connection,
+                                               const SqlSource& sql,
+                                               const analysis::Catalog& catalog,
+                                               const DescribeOptions& options) {
   SqliteConnection::PreparedStatement statement =
       connection->PrepareStatement(sql);
   RETURN_IF_ERROR(statement.status());
 
   sqlite3_stmt* stmt = statement.sqlite_stmt();
   uint32_t count = sqlite::column::Count(stmt);
-  std::vector<std::optional<StorageType>> types =
-      ResolveTypes(sql, count, catalog);
+  std::optional<RowOrigin> row_origin;
+  std::vector<std::optional<StorageType>> types(count);
+  if (options.lineage) {
+    types = ResolveTypes(sql, count, catalog, options, &row_origin);
+  }
   core::Schema columns;
   columns.reserve(count);
   for (uint32_t i = 0; i < count; ++i) {
     const char* name = sqlite::column::Name(stmt, i);
     columns.push_back({name ? name : "", types[i]});
   }
-  return columns;
+  return QueryDescription{std::move(columns), std::move(row_origin),
+                          std::move(statement)};
 }
 
 }  // namespace perfetto::trace_processor::sql_schema

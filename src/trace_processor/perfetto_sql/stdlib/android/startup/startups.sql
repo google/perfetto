@@ -239,6 +239,29 @@ JOIN thread USING (upid);
 --- Functions
 ---
 
+-- Every slice which begins during a startup, on a thread of a process being
+-- started.
+CREATE PERFETTO TABLE _android_startup_thread_slices AS
+FROM slice
+|> INTERVAL JOIN (
+  SELECT st.*, thread_track.id AS track_id
+  FROM android_startup_threads AS st
+  JOIN thread_track USING (utid)
+) AS st COVERING BEGIN PER track_id
+|> SELECT
+  st.ts AS startup_ts,
+  st.dur AS startup_dur,
+  st.startup_id,
+  st.utid,
+  st.tid,
+  st.thread_name,
+  st.is_main_thread,
+  arg_set_id,
+  id AS slice_id,
+  name AS slice_name,
+  ts AS slice_ts,
+  dur AS slice_dur;
+
 -- All the slices for all startups in trace.
 --
 -- Generally, this view should not be used. Instead, use one of the view functions related
@@ -271,24 +294,19 @@ CREATE PERFETTO VIEW android_thread_slices_for_all_startups(
 )
 AS
 SELECT
-  st.ts AS startup_ts,
-  st.ts + st.dur AS startup_ts_end,
-  st.startup_id,
-  st.utid,
-  st.tid,
-  st.thread_name,
-  st.is_main_thread,
-  slice.arg_set_id,
-  slice.id AS slice_id,
-  slice.name AS slice_name,
-  slice.ts AS slice_ts,
-  slice.dur AS slice_dur
-FROM android_startup_threads AS st
-JOIN thread_track USING (utid)
-JOIN slice
-  ON (slice.track_id = thread_track.id)
-WHERE
-  slice.ts BETWEEN st.ts AND st.ts + st.dur;
+  startup_ts,
+  startup_ts + startup_dur AS startup_ts_end,
+  startup_id,
+  utid,
+  tid,
+  thread_name,
+  is_main_thread,
+  arg_set_id,
+  slice_id,
+  slice_name,
+  slice_ts,
+  slice_dur
+FROM _android_startup_thread_slices;
 
 -- Given a startup id and GLOB for a slice name, returns matching slices with data.
 CREATE PERFETTO FUNCTION android_slices_for_startup_and_slice_name(

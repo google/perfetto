@@ -49,6 +49,7 @@
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
+#include "src/trace_processor/perfetto_sql/engine/pipeline_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/engine/pipeline_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
@@ -221,6 +222,26 @@ ValidateAndGetEffectiveSchema(
   return effective_schema;
 }
 
+base::Status ValidateColumnName(const std::string& name,
+                                uint32_t index,
+                                const char* tag) {
+  if (name.empty()) {
+    return base::ErrStatus("%s: column %u: name must not be empty", tag, index);
+  }
+  if (!std::isalpha(name.front()) && name.front() != '_') {
+    return base::ErrStatus(
+        "%s: Column %u: name '%s' has to start with a letter or underscore.",
+        tag, index, name.c_str());
+  }
+  if (!sql_argument::IsValidName(base::StringView(name))) {
+    return base::ErrStatus(
+        "%s: Column %u: name '%s' has to contain only alphanumeric "
+        "characters and underscores.",
+        tag, index, name.c_str());
+  }
+  return base::OkStatus();
+}
+
 base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
     const SqliteConnection::PreparedStatement& stmt,
     const char* tag) {
@@ -230,20 +251,7 @@ base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
   for (uint32_t i = 0; i < columns; ++i) {
     std::string col_name =
         sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));
-    if (col_name.empty()) {
-      return base::ErrStatus("%s: column %u: name must not be empty", tag, i);
-    }
-    if (!std::isalpha(col_name.front()) && col_name.front() != '_') {
-      return base::ErrStatus(
-          "%s: Column %u: name '%s' has to start with a letter or underscore.",
-          tag, i, col_name.c_str());
-    }
-    if (!sql_argument::IsValidName(base::StringView(col_name))) {
-      return base::ErrStatus(
-          "%s: Column %u: name '%s' has to contain only alphanumeric "
-          "characters and underscores.",
-          tag, i, col_name.c_str());
-    }
+    RETURN_IF_ERROR(ValidateColumnName(col_name, i, tag));
     column_names.push_back(col_name);
   }
   return column_names;
@@ -958,31 +966,36 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-  auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
-  base::StatusOr<SqliteConnection::PreparedStatement> stmt_or =
-      logical ? PreparePipeline(std::move(*logical), statement_sql)
-              : connection_->PrepareStatement(
-                    std::move(std::get<SqlSource>(create_table.body)));
-  ASSIGN_OR_RETURN(auto stmt, std::move(stmt_or));
-  RETURN_IF_ERROR(stmt.status());
-  ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
-                                          stmt, "CREATE PERFETTO TABLE"));
-  ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
-                                    column_names, create_table.schema,
-                                    "CREATE PERFETTO TABLE"));
-  ASSIGN_OR_RETURN(auto types, GetTypesFromSelectStatement(
-                                   false, schema, column_names,
-                                   create_table.name, "CREATE PERFETTO TABLE"));
-  stmt.Step();
-  RETURN_IF_ERROR(stmt.status());
-  SqliteDataframeBuilderOptions options;
-  options.column_types = std::move(types);
   const std::string error_context =
       "CREATE PERFETTO TABLE(" + create_table.name + ")";
-  ASSIGN_OR_RETURN(auto builder, BuildRuntimeDataframeFromSqliteStatement(
-                                     pool_, std::move(column_names), &stmt,
-                                     error_context, std::move(options)));
-  ASSIGN_OR_RETURN(auto dataframe, std::move(builder).Build());
+  base::StatusOr<dataframe::Dataframe> dataframe_or =
+      base::ErrStatus("unreachable");
+  if (auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body)) {
+    dataframe_or =
+        BuildPipelineDataframe(*logical, create_table, error_context);
+  } else {
+    auto stmt = connection_->PrepareStatement(
+        std::move(std::get<SqlSource>(create_table.body)));
+    RETURN_IF_ERROR(stmt.status());
+    ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
+                                            stmt, "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
+                                      column_names, create_table.schema,
+                                      "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(auto types,
+                     GetTypesFromSelectStatement(false, schema, column_names,
+                                                 create_table.name,
+                                                 "CREATE PERFETTO TABLE"));
+    stmt.Step();
+    RETURN_IF_ERROR(stmt.status());
+    SqliteDataframeBuilderOptions options;
+    options.column_types = std::move(types);
+    ASSIGN_OR_RETURN(auto builder, BuildRuntimeDataframeFromSqliteStatement(
+                                       pool_, std::move(column_names), &stmt,
+                                       error_context, std::move(options)));
+    dataframe_or = std::move(builder).Build();
+  }
+  ASSIGN_OR_RETURN(auto dataframe, std::move(dataframe_or));
 
   base::StackString<1024> drop("DROP TABLE IF EXISTS %s;",
                                create_table.name.c_str());
@@ -1025,6 +1038,35 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
     }
   }
   return exec_res.status();
+}
+
+base::StatusOr<dataframe::Dataframe>
+PerfettoSqlConnection::BuildPipelineDataframe(
+    const pipeline::LogicalPlan& logical,
+    const PerfettoSqlParser::CreateTable& create_table,
+    const std::string& error_context) {
+  std::vector<std::string> column_names;
+  for (const pipeline::NamedColumn& column : logical.output) {
+    RETURN_IF_ERROR(ValidateColumnName(
+        column.name, static_cast<uint32_t>(column_names.size()),
+        "CREATE PERFETTO TABLE"));
+    column_names.push_back(column.name);
+  }
+  ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
+                                    column_names, create_table.schema,
+                                    "CREATE PERFETTO TABLE"));
+  dataframe::AdhocDataframeBuilder::Options options;
+  ASSIGN_OR_RETURN(
+      options.types,
+      GetTypesFromSelectStatement(false, schema, column_names,
+                                  create_table.name, "CREATE PERFETTO TABLE"));
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_PLAN");
+  pipeline::LowerEnvironment env;
+  env.connection = connection_.get();
+  env.pool = pool_;
+  std::unique_ptr<pipeline::PhysicalPlan> plan = pipeline::Lower(logical, env);
+  return BuildDataframeFromPipeline(pool_, std::move(column_names), *plan,
+                                    error_context, options);
 }
 
 base::StatusOr<SqliteConnection::PreparedStatement>

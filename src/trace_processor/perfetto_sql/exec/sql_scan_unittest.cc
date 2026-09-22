@@ -146,10 +146,10 @@ class SqlScanTest : public ::testing::Test {
       const std::string& sql,
       const analysis::Catalog& catalog) {
     auto source = SqlSource::FromExecuteQuery(sql);
-    ASSIGN_OR_RETURN(auto columns, sql_schema::DescribeQuery(connection_.get(),
-                                                             source, catalog));
+    ASSIGN_OR_RETURN(auto described, sql_schema::DescribeQuery(
+                                         connection_.get(), source, catalog));
     return std::make_unique<SqlScan>(connection_.get(), std::move(source),
-                                     std::move(columns), &pool_);
+                                     std::move(described.columns), &pool_);
   }
 
   // An empty catalog traces nothing, so every column is a variant.
@@ -308,6 +308,39 @@ TEST_F(SqlScanTest, EachExecutionValidatesItsResultShape) {
   Execution run(**scan);
   EXPECT_EQ(run.Next(), nullptr);
   EXPECT_FALSE(run.status().ok());
+  EXPECT_THAT(run.status().message(), testing::HasSubstr("shape changed"));
+}
+
+// A rewound statement is reset, not prepared again, so SQLite prepares it
+// again by itself when it next steps.
+TEST_F(SqlScanTest, ARewoundExecutionValidatesItsResultShape) {
+  Exec("CREATE TABLE t(a INTEGER)");
+  Exec("INSERT INTO t VALUES(1)");
+  auto scan = Scan("SELECT * FROM t");
+  ASSERT_TRUE(scan.ok()) << scan.status().c_message();
+
+  Execution run(**scan);
+  ASSERT_NE(run.Next(), nullptr);
+  ASSERT_EQ(run.Next(), nullptr);
+  ASSERT_TRUE(run.status().ok()) << run.status().c_message();
+
+  Exec("ALTER TABLE t ADD COLUMN b TEXT");
+  run.Rewind();
+  EXPECT_EQ(run.Next(), nullptr);
+  EXPECT_THAT(run.status().message(), testing::HasSubstr("shape changed"));
+}
+
+// As is a statement whose schema changes before it is ever stepped.
+TEST_F(SqlScanTest, AnExecutionValidatesItsShapeWhenItFirstSteps) {
+  Exec("CREATE TABLE t(a INTEGER)");
+  Exec("INSERT INTO t VALUES(1)");
+  auto scan = Scan("SELECT * FROM t");
+  ASSERT_TRUE(scan.ok()) << scan.status().c_message();
+
+  Execution run(**scan);
+  Exec("ALTER TABLE t ADD COLUMN b TEXT");
+  run.Rewind();
+  EXPECT_EQ(run.Next(), nullptr);
   EXPECT_THAT(run.status().message(), testing::HasSubstr("shape changed"));
 }
 

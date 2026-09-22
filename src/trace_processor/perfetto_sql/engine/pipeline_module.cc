@@ -161,65 +161,40 @@ int CheckStatus(PipelineModule::Cursor* cursor) {
 
 }  // namespace
 
-PipelineModule::Invocation::~Invocation() {
-  context->retired_tables.push_back(std::move(table));
-}
-
-base::Status PipelineModule::Context::Cleanup(sqlite3* db) {
-  // Otherwise a rollback could resurrect a table after we removed its entry.
-  if (!sqlite3_get_autocommit(db))
-    return base::OkStatus();
-  while (!retired_tables.empty()) {
-    std::string sql = "DROP TABLE IF EXISTS temp." + retired_tables.back();
-    int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (rc == SQLITE_LOCKED || rc == SQLITE_BUSY)
-      return base::OkStatus();
-    if (rc != SQLITE_OK)
-      return base::ErrStatus("%s", sqlite3_errmsg(db));
-    retired_tables.pop_back();
-  }
-  return base::OkStatus();
-}
-
 base::StatusOr<SqliteConnection::PreparedStatement> PipelineModule::Prepare(
     SqliteConnection* connection,
     Context* context,
     std::unique_ptr<pipeline::PhysicalPlan> plan,
     const SqlSource& source) {
-  RETURN_IF_ERROR(context->Cleanup(connection->db()));
-  std::string table_name =
-      "__intrinsic_pipeline_" + std::to_string(context->next_table++);
-  std::string table = "temp." + table_name;
-  {
+  std::string width = std::to_string(plan->columns().size());
+  std::string table = "temp." + std::string(kName) + "_" + width;
+  std::vector<std::string> columns;
+  for (size_t i = 0; i < plan->columns().size(); ++i) {
+    std::string name = base::ReplaceAll(plan->columns()[i].name, "\"", "\"\"");
+    columns.push_back("c" + std::to_string(i) + " AS \"" + name + "\"");
+  }
+  SqlSource select = source.RewriteAllIgnoreExisting(
+      SqlSource::FromTraceProcessorImplementation(
+          "SELECT " + base::Join(columns, ", ") + " FROM " + table + "(?)"));
+  auto stmt = connection->PrepareStatement(select);
+  if (!stmt.status().ok()) {
+    // SQLite is the only record of which widths have a table, so a table
+    // which a rollback took away again is simply created again.
     auto create = connection->PrepareStatement(
         SqlSource::FromTraceProcessorImplementation(
-            "CREATE VIRTUAL TABLE " + table + " USING " + kName + "(" +
-            std::to_string(plan->columns().size()) + ")"));
+            "CREATE VIRTUAL TABLE IF NOT EXISTS " + table + " USING " + kName +
+            "(" + width + ")"));
     RETURN_IF_ERROR(create.status());
     create.Step();
     RETURN_IF_ERROR(create.status());
+    stmt = connection->PrepareStatement(std::move(select));
   }
-  auto invocation = std::make_unique<Invocation>();
-  invocation->context = context;
-  invocation->table = std::move(table_name);
-  invocation->plan = std::move(plan);
-  std::vector<std::string> columns;
-  for (size_t i = 0; i < invocation->plan->columns().size(); ++i) {
-    std::string name =
-        base::ReplaceAll(invocation->plan->columns()[i].name, "\"", "\"\"");
-    columns.push_back("c" + std::to_string(i) + " AS \"" + name + "\"");
-  }
-  auto stmt = connection->PrepareStatement(source.RewriteAllIgnoreExisting(
-      SqlSource::FromTraceProcessorImplementation(
-          "SELECT " + base::Join(columns, ", ") + " FROM " + table + "(?)")));
   RETURN_IF_ERROR(stmt.status());
-  // Finalization retires the table, so it can be dropped straight after. A
-  // failure here leaves the table retired and is reported by the next Prepare.
-  stmt.SetOnFinalized([context, db = connection->db()] {
-    base::ignore_result(context->Cleanup(db));
-  });
   // The hidden plan argument is consumed by xFilter. SQLite releases the plan
   // on finalization (also if binding fails), without a generic KeepAlive hook.
+  auto invocation = std::make_unique<Invocation>();
+  invocation->context = context;
+  invocation->plan = std::move(plan);
   int rc = sqlite3_bind_pointer(
       stmt.sqlite_stmt(), 1, invocation.release(), kPlanPointerType,
       [](void* p) { delete static_cast<Invocation*>(p); });

@@ -48,8 +48,15 @@ namespace perfetto::trace_processor::exec {
 // puts text in it.
 class SqlScan : public core::exec::Source {
  public:
-  // A scan over `sql` with its previously resolved result columns.
-  SqlScan(SqliteConnection*, SqlSource, core::Schema, StringPool*);
+  // A scan over `sql` with its previously resolved result columns. `prepared`,
+  // if given, is `sql` already prepared and never stepped, which the first
+  // state made runs instead of preparing its own.
+  SqlScan(
+      SqliteConnection*,
+      SqlSource,
+      core::Schema,
+      StringPool*,
+      std::shared_ptr<SqliteConnection::PreparedStatement> prepared = nullptr);
   ~SqlScan() override;
 
   // The query's columns, in the order a batch carries them.
@@ -68,6 +75,21 @@ class SqlScan : public core::exec::Source {
   base::Status status(const core::exec::OperatorState&) const override;
 
  private:
+  // How a column's cells are read, decided once from its type.
+  enum class Reader : uint8_t {
+    kVariant,
+    kUint32,
+    kInt32,
+    kInt64,
+    kDouble,
+    kString,
+  };
+  // The id of the string whose text SQLite last returned at `text`.
+  struct InternedText {
+    const char* text = nullptr;
+    StringPool::Id id = StringPool::Id::Null();
+  };
+
   struct State : core::exec::OperatorState {
     ~State() override;
     std::optional<SqliteConnection::PreparedStatement> statement;
@@ -75,23 +97,40 @@ class SqlScan : public core::exec::Source {
     std::vector<std::shared_ptr<core::exec::ColumnChunk>> columns;
     // Each column's value buffer, resolved out of its chunk once.
     std::vector<void*> data;
+    // Strings already interned, by where SQLite said their text was.
+    std::vector<InternedText> interned;
     bool done = false;
+    // Whether this execution has stepped the statement, and whether the row
+    // that gave it was checked against `columns_`.
+    bool stepped = false;
+    bool shape_checked = false;
     base::Status status = base::OkStatus();
   };
 
   void Prepare(State&) const;
+  // Whether the statement returns the columns the scan was built with. SQLite
+  // prepares a statement again when the schema has changed under it, which can
+  // change what a `*` stands for.
+  bool CheckShape(State&) const;
 
-  bool ReadValue(State&, sqlite3_stmt*, uint32_t index, uint32_t row) const;
+  bool ReadValue(State&, sqlite3_value*, uint32_t index, uint32_t row) const;
   template <typename T, sqlite::Type SqliteType>
   bool ReadTypedValue(State&,
-                      sqlite3_stmt*,
+                      sqlite3_value*,
                       uint32_t index,
                       uint32_t row) const;
+  StringPool::Id InternText(State&, sqlite3_value*) const;
 
   SqliteConnection* connection_;
   SqlSource sql_;
   core::Schema columns_;
+  // One per column.
+  std::vector<Reader> readers_;
   StringPool* pool_;
+  // Taken by the first state, so a plan run once prepares its query once.
+  // Mutable on a const plan: states of one plan are made one at a time, as
+  // the connection only ever serves one thread.
+  mutable std::shared_ptr<SqliteConnection::PreparedStatement> prepared_;
 };
 
 }  // namespace perfetto::trace_processor::exec
