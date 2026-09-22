@@ -326,8 +326,35 @@ node PerfettoTreeAccumulate {
   }
 }
 
+// A column a stage names, as `column` or `alias.column`, optionally renamed.
+node PerfettoPipeColumn {
+  qualifier: inline SyntaqliteTextSpan
+  name: inline SyntaqliteTextSpan
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    if_span(qualifier) { span(qualifier) "." }
+    span(name)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
+list PerfettoPipeColumnList {
+  PerfettoPipeColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `SELECT column [AS name], ...`: picks, orders and renames columns. A
+// computed column has no spelling here yet.
+node PerfettoPipeSelect {
+  columns: index PerfettoPipeColumnList
+
+  fmt { group { "SELECT" nest { line child(columns) } } }
+}
+
 abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
+  PerfettoPipeSelect
 }
 
 list PerfettoPipeStageList {
@@ -336,12 +363,51 @@ list PerfettoPipeStageList {
 }
 
 // A pipeline: FROM followed by `|>` stages.
+list PerfettoPipeSourceList {
+  PerfettoPipeSource
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// A column named after PER, which confines an operator to each group of
+// rows agreeing on it.
+node PerfettoPerColumn {
+  name: inline SyntaqliteTextSpan
+
+  fmt { span(name) }
+}
+
+list PerfettoPerColumnList {
+  PerfettoPerColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `INTERVAL INTERSECTION OF (rel AS a, rel AS b, ...) [PER cols]`: the
+// regions every operand covers, one row per region carrying all of their
+// columns.
+node PerfettoIntervalIntersection {
+  operands: index PerfettoPipeSourceList
+  per: index PerfettoPerColumnList
+
+  fmt {
+    group {
+      "INTERVAL" "INTERSECTION" "OF" space "("
+      nest { softline child(operands) }
+      softline ")"
+    }
+    if_set(per) { space "PER" space child(per) }
+  }
+}
+
+// A pipeline: a source followed by `|>` stages. Exactly one of `from` and
+// `intersection` names the source.
 node PerfettoPipeline {
   from: index PerfettoPipeSource
+  intersection: index PerfettoIntervalIntersection
   stages: index PerfettoPipeStageList
 
   fmt {
-    "FROM" space child(from)
+    if_set(from) { "FROM" space child(from) }
+    if_set(intersection) { child(intersection) }
     if_set(stages) { hardline "|>" space child(stages) }
   }
 }
