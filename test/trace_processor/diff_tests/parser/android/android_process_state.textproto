@@ -3,6 +3,18 @@
 # (process_state_changed_event and freezer_event).
 
 packet {
+  timestamp: 500
+  process_tree {
+    processes { pid: 100 ppid: 1 cmdline: "proc100" }
+    processes { pid: 200 ppid: 1 cmdline: "proc200" }
+    processes { pid: 300 ppid: 1 cmdline: "proc300" }
+    processes { pid: 400 ppid: 1 cmdline: "proc400" }
+    processes { pid: 500 ppid: 1 cmdline: "proc500" }
+    processes { pid: 600 ppid: 1 cmdline: "proc600" }
+    processes { pid: 700 ppid: 1 cmdline: "proc700" }
+  }
+}
+packet {
   timestamp: 1000
   track_descriptor {
     uuid: 2
@@ -121,7 +133,41 @@ packet {
     }
   }
 }
-# Trace-stop dump for process state (contains pid 100, pid 200, pid 300, and pid 400).
+# Track events for unknown PID 999 (not in process_tree): should be ignored.
+packet {
+  timestamp: 2500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 999
+      uid: 10999
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_CACHED_ACTIVITY
+      prev_oom_score: 0
+      cur_oom_score: 900
+    }
+  }
+}
+packet {
+  timestamp: 2500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freezer_event"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 999
+      uid: 10999
+      unfrozen_dur_ms: 10
+      frozen_dur_ms: 20
+      unfreeze_reason: UFR_BIND_SERVICE
+    }
+  }
+}
+# Trace-stop dump for process state (contains pid 100, pid 200, pid 300, pid 400, and unknown pid 999).
 packet {
   timestamp: 10000
   [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
@@ -153,9 +199,17 @@ packet {
       uid: 10004
       proc_state: 1003
     }
+    # PID 999: Unknown process (not in process_tree), should be skipped.
+    record {
+      pid: 999
+      uid: 10999
+      proc_state: 1002
+      oom_score: 0
+      capability_flags: 1
+    }
   }
 }
-# Trace-stop dump for freezer state (contains pid 100 and pid 600).
+# Trace-stop dump for freezer state (contains pid 100, pid 600, pid 700, and unknown pid 999).
 # PID 600 tests dump-only freezer records.
 packet {
   timestamp: 10000
@@ -178,6 +232,12 @@ packet {
     record {
       pid: 700
       uid: 10007
+    }
+    # PID 999: Unknown process (not in process_tree), should be skipped.
+    record {
+      pid: 999
+      uid: 10999
+      unfreeze_reason: UFR_PING
     }
   }
 }
