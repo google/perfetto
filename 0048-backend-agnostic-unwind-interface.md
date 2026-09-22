@@ -3,6 +3,9 @@
 **Authors:** @safayat-google
 **Status:** In Review / Updated Draft
 **Discussion:** https://github.com/google/perfetto/discussions/7283
+**Proof of Concept (PoC) Patches:**
+- [0001-add-benchmarks-for-traced-perf-and-heapprofd.patch](https://paste.googleplex.com/6226625105100800) (Benchmark suite)
+- [0002-draft-unwind-all.patch](https://paste.googleplex.com/4707995955625984) (Full unwinding abstraction & backends)
 
 ---
 
@@ -176,7 +179,7 @@ Located in `src/profiling/unwind/libunwindstack/`:
 
 This backend extends the abstraction interface to preserve full Android platform support (including ART Dex and JIT frames) while eliminating per-sample heap allocations:
 
-#### 1. In-Place Register Recycling (`GetOrCreateRegs`)
+#### 1. In-Place Register Ingestion (`GetOrCreateRegs`)
 The backend reuses a thread-local `cached_regs_` instance and updates its internal buffer directly via `RawData()`, eliminating per-sample `new unwindstack::RegsArm64` or `regs->Clone()` allocations:
 
 ```cpp
@@ -423,12 +426,12 @@ Frame pointer walking does not evaluate DWARF CFI, parse ELF sections, or requir
 │ (Backend-Agnostic, Pure)  │                 │  (Remote DWARF/CFI Base)  │
 │                           │                 └─────────────┬─────────────┘
 │ - ZERO external deps      │                               │
-│ - Reads only stack buffer │     ┌─────────────────────────┼─────────────────────────┐
-│ - Needs only (fp, sp, pc) │     ▼                         ▼                         ▼
-│ - No mem_fd required      │ ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐
-└───────────────────────────┘ │ LibunwindstackUnwinder│ │   LibunwindUnwinder   │ │    FramehopUnwinder   │
-                              │ (Android + ART/Dex)   │ │ (Linux Standalone)    │ │ (High-Throughput FFI) │
-                              └───────────────────────┘ └───────────────────────┘ └───────────────────────┘
+│ - Reads only stack buffer │     ┌─────────────────────────┴─────────────────────────┐
+│ - Needs only (fp, sp, pc) │     ▼                                                   ▼
+│ - No mem_fd required      │ ┌───────────────────────┐                   ┌───────────────────────┐
+└───────────────────────────┘ │ LibunwindstackUnwinder│                   │   LibunwindUnwinder   │
+                              │ (Android + ART/Dex)   │                   │ (Linux Standalone)    │
+                              └───────────────────────┘                   └───────────────────────┘
 ```
 
 #### 1. What `FramePointerUnwinder` Needs vs. Drops
@@ -549,14 +552,12 @@ The unwinding abstraction unifies data ingestion and callstack unwinding across 
 | Dimension | `libunwindstack` (Baseline) | `libunwind` (Optimized) | `framehop` | `libdw` (`elfutils`) | `frame_pointer` |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Origin / Motivation** | Android OS platform unwinder | Linux system standard (`perf`, GNU) | Firefox Profiler (Mozilla) | Linux system toolchain (`perf`) | Architecture standard (ABI) |
-| **Language & Integration** | C++ (Checked in `buildtools/`) | C / C++ (Modular C callbacks) | **Rust** (Requires FFI bridge & `cargo`) | C (Dynamic library) | Pure C++ (Zero external deps) |
 | **Maintenance Overhead** | High on Linux (frequent sync breakages) | **Low** (Stable standard Linux API) | Medium (Dual C++/Rust build system) | High (Distribution packaging) | **Lowest** (Self-contained in Perfetto) |
 | **License** | Apache 2.0 | MIT / LLVM | MIT / Apache 2.0 | **LGPLv3+ / GPLv2 (Incompatible)** | Apache 2.0 |
-| **Arch Support** | ARM, ARM64, x86, x86_64, RISC-V | ARM, ARM64, x86, x86_64, RISC-V | x86_64, ARM64 only | ARM, ARM64, x86, x86_64 | Universal (x86_64, ARM64, RISC-V) |
-| **Android ART / Dex / JIT** | **Yes (Full native support)** | No | No | No | No |
-| **Speed: Latency / Sample** | 10.46 µs (Memory) / 16.83 µs (CPU) | **5.64 µs** (Memory) / 20.00 µs (CPU) | 34.26 µs (Memory) / **8.53 µs** (CPU) | 916.43 µs (Memory) / 16.16 µs (CPU) | **~1.5–3.4 µs** (Overall) |
-| **Memory: Peak RSS** | 12.1 MB (Memory) / 5.98 MB (CPU) | 13.6 MB (Memory) / **5.87 MB** (CPU) | 14.8 MB (Memory) / 6.32 MB (CPU) | 33.7 MB (Memory) / 6.19 MB (CPU) | **7.42 MB** (Micro) / 8.5 MB (Live) |
-| **RSS Growth (Live Load)** | 600 KB (CPU) / **0 KB** (Memory) | **296 KB** (CPU) / **0 KB** (Memory) | 1,276 KB (CPU) / +2.7 MB (Memory) | 896 KB (CPU) / +21.6 MB (Memory) | **0 KB** |
+| **Speed: Time / Frame Unwound** | 670 ns (CPU) / 0.84 µs (Memory) | **425 ns** (CPU) / **0.51 µs** (Memory) | 473 ns (CPU) / 3.07 µs (Memory) | 811 ns (CPU) / 124.82 µs (Memory) | **~15 ns** (Direct FP) |
+| **Speed: Latency / Sample** | 13.75 µs (CPU) / 9.56 µs (Memory) | **8.74 µs** (CPU) / **5.99 µs** (Memory) | 9.73 µs (CPU) / 34.26 µs (Memory) | 16.65 µs (CPU) / 1,580.64 µs (Memory) | **~0.3–0.6 µs** (Overall) |
+| **Memory: Peak RSS** | **5.78 MB** (CPU) / **10.3 MB** (Memory) | 6.42 MB (CPU) / 12.1 MB (Memory) | 6.99 MB (CPU) / 13.0 MB (Memory) | 6.08 MB (CPU) / 28.9 MB (Memory) | **7.42 MB** (Micro) / 8.5 MB (Live) |
+| **RSS Growth (Live Load)** | 444 KB (CPU) / **0 KB** (Memory) | **0 KB** (CPU) / **0 KB** (Memory) | 1,704 KB (CPU) / +2,700 KB (Memory) | 852 KB (CPU) / +21,600 KB (Memory) | **0 KB** |
 | **ELF Caching Mechanism** | Global in-memory `Elf` object cache | Mmap whole-file cache (`base::ReadMmapWholeFile`) | Module `.eh_frame` pre-parsed index | Internal `Dwfl` module cache | **None required** |
 | **`pread` / Syscall Overhead** | Stack overlay; `pread64` on miss | **Zero syscalls** (Mmap + Stack overlay) | `pread64` on remote /proc/mem | Frequent `pread64` per frame | **Zero syscalls** (Stack snapshot only) |
 | **Default Gaps vs. Baseline** | *Baseline reference* | Lacks ELF cache & rule cache by default; resolved via Phase 1–3 optimizations | Lacks remote unwinder, ARM32, and C++ toolchain compatibility | Lacks Apache 2.0 license; heavy session teardown overhead | Cannot unwind frames compiled with `-fomit-frame-pointer` |
@@ -568,15 +569,15 @@ The unwinding abstraction unifies data ingestion and callstack unwinding across 
 ### 5.1 Native Memory Profiling Benchmark (`heapprofd`)
 Evaluated on a real multi-threaded memory allocation workload (804 samples, 7,636 frames unwound, deep callstacks):
 
-| Unwinder Backend | Samples | Frames Unwound | Error Count | Latency / Sample | Latency / Frame | Total Unwind Time | Peak RSS | Symbols Resolved |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`libunwind` (Optimized)** | 804 | 7,636 | **0** | **5.64 µs** | **0.59 µs** | **36.9 ms** | 13.6 MB | 7,636 (100%) |
-| **`libunwindstack` (Base)** | 804 | 7,636 | **0** | 10.46 µs | 1.10 µs | 68.3 ms | **12.1 MB** | 7,636 (100%) |
-| **`framehop`** | 804 | 7,636 | **0** | 34.26 µs | 3.61 µs | 224.4 ms | 14.8 MB | 7,636 (100%) |
-| **`libdw`** | 804 | 7,636 | **0** | 916.43 µs | 96.53 µs | 6003.5 ms | 33.7 MB | 7,636 (100%) |
+| Unwinder Backend | Samples | Frames Unwound | Error Count | Latency / Sample | Time / Frame Unwound | Total Unwind Time | Peak RSS | Symbols Resolved |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`libunwindstack` (Base)** | 804 | 7,636 | **0** | 9.56 µs | 0.84 µs | 63.9 ms | **10.3 MB** | 7,636 (100%) |
+| **`libunwind` (Optimized)** | 804 | 7,636 | **0** | **5.99 µs** | **0.51 µs** | **39.3 ms** | 12.1 MB | 7,636 (100%) |
+| **`framehop`** | 804 | 7,636 | **0** | 34.26 µs | 3.07 µs | 234.2 ms | 13.0 MB | 7,636 (100%) |
+| **`libdw`** | 804 | 7,636 | **0** | 1,580.64 µs | 124.82 µs | 9,531.2 ms | 28.9 MB | 7,636 (100%) |
 
 *Key Takeaways:*
-- `libunwind` with Evaluated Rule Cache and Mmap ELF caching is **1.85x faster (85% speedup)** than `libunwindstack` baseline.
+- `libunwind` with Evaluated Rule Cache and Mmap ELF caching is **1.63x faster (38.5% lower latency)** than `libunwindstack` baseline, and **5.7x faster** than `framehop`.
 - Exact symbol and frame parity across all backends (7,636 frames, 0 errors).
 
 ---
@@ -584,94 +585,122 @@ Evaluated on a real multi-threaded memory allocation workload (804 samples, 7,63
 ### 5.2 Continuous Multi-Process Stress Test (`heapprofd`)
 Continuous profiling of 3 concurrent target processes running diverse workloads (deep recursion, libc `strdup` allocation churn, and rapid thread/object creation):
 
-| Metric | `libunwind` (Optimized) | `libunwindstack` (Baseline) | Difference |
-| :--- | :---: | :---: | :---: |
-| **Total Unwind Samples** | 8,974 | 9,339 | — |
-| **Total Unwind Time** | **60.96 ms** | 117.32 ms | **-48.0% CPU Time** |
-| **Latency per Sample** | **6.79 µs** | 12.56 µs | **1.85x Faster** |
-| **Unwind Error Count** | **0** | **0** | Parity |
-| **Initial RSS** | 3,612 KB (3.53 MB) | 3,756 KB (3.67 MB) | -144 KB |
-| **Peak RSS** | **3,612 KB (3.53 MB)** | 3,756 KB (3.67 MB) | **-144 KB** |
-| **RSS Growth Under Load** | **0 KB** | **0 KB** | Zero Leak / Bounded |
+| Metric | `libunwindstack` (Baseline) | `libunwind` (Optimized) |
+| :--- | :---: | :---: |
+| **Total Unwind Samples** | 9,591 | 9,276 |
+| **Total Unwind Time** | 110.98 ms | **64.80 ms** |
+| **Latency per Sample** | 11.57 µs | **6.99 µs** (-39.6%) |
+| **Unwind Error Count** | **0** | **0** |
+| **Initial RSS** | 3.64 MB | 3.55 MB |
+| **Peak RSS** | 3.64 MB | **3.55 MB** |
+| **RSS Growth Under Load** | **0 KB** | **0 KB** |
 
 ---
 
 ### 5.3 Live CPU Profiling Benchmark (`traced_perf`)
-10-second live CPU sampling (200 Hz, `UNWIND_DWARF`) on dedicated physical cores profiling concurrent C recursion and Python interpreter workloads:
+10-second live CPU sampling (200 Hz, `UNWIND_DWARF`) on dedicated physical core (CPU 4) profiling concurrent C recursion (`perf_workload`) and Python interpreter workloads:
 
-| Unwinder Backend | Samples | Frames | Avg Frames / Sample | Total CPU Time | Latency / Sample | Peak RSS | RSS Growth |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`framehop`** | 1,999 | 41,193 | 20.61 | **17.05 ms** | **8.53 µs** | 6.33 MB | 1,276 KB |
-| **`libdw`** | 1,995 | 41,153 | 20.63 | 32.25 ms | 16.16 µs | 6.19 MB | 896 KB |
-| **`libunwindstack`** | 1,999 | 41,170 | 20.60 | 33.64 ms | 16.83 µs | 5.98 MB | 600 KB |
-| **`libunwind`** | 1,999 | 41,086 | 20.55 | 39.97 ms | 20.00 µs | **5.88 MB** | **296 KB** |
+| Unwinder Backend | Samples Unwound | Total Frames Unwound | Unwind Errors | Avg Frames / Sample | Total CPU Time | Latency / Sample | Time / Frame Unwound | Peak RSS | RSS Growth |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`libunwindstack` (Base)** | 1,999 | 41,014 | 3 | 20.52 | 27.49 ms | 13.75 µs | 670 ns | **5.78 MB** | 444 KB |
+| **`libunwind` (Optimized)** | 1,999 | 41,165 | **0** | 20.59 | **17.48 ms** | **8.74 µs** | **425 ns** | 6.42 MB | **0 KB** |
+| **`framehop`** | 1,997 | 41,046 | **0** | 20.55 | 19.43 ms | 9.73 µs | 473 ns | 6.99 MB | 1,704 KB |
+| **`libdw`** | 1,999 | 41,046 | **0** | 20.53 | 33.29 ms | 16.65 µs | 811 ns | 6.08 MB | 852 KB |
+
+*Key Takeaways:*
+- **Highest Unwinding Throughput**: `libunwind` achieves **425 ns per frame unwound** (8.74 µs per sample), making it **1.58x faster** than `libunwindstack` (670 ns/frame) and **11.3% faster than `framehop`** (473 ns/frame).
+- **Unwind Reliability**: `libunwind`, `framehop`, and `libdw` achieved 0 unwind errors across ~41,000 frames, whereas `libunwindstack` encountered **3 unwind errors** during the 10-second sampling session.
+- **`framehop` Re-evaluation**: While `framehop` performs significantly better than `libunwindstack` (473 ns vs 670 ns per frame), it is slower than optimized `libunwind` and suffers from **1,704 KB RSS growth** (+1.7 MB under live sampling) due to copying and parsing full ELF `.eh_frame` tables into Rust memory structures.
+- **Zero Leak / Bounded Memory**: `libunwind` demonstrates **0 KB RSS growth** under continuous live CPU sampling due to bounded Evaluated Rule Cache and Mmap ELF file sharing.
 
 ---
 
 ### 5.4 Micro-benchmarks (`perfetto_benchmarks`)
 Evaluated with Google Benchmark on Linux `x86_64` (Release build, `benchmark::DoNotOptimize`):
 
-| Benchmark Case | `libunwindstack` (Base)<br>CPU / Peak RSS | `libunwind`<br>CPU / Peak RSS | `framehop`<br>CPU / Peak RSS | `frame_pointer`<br>CPU / Peak RSS |
-| :--- | :---: | :---: | :---: | :---: |
-| **DWARF Depth 10 (Local)** | 4,744 ns / 8.5 MB | **3,517 ns (-25.9%)** / 8.3 MB | 4,818 ns (+1.6%) / 9.4 MB | **207 ns (-95.6%)** / 7.4 MB |
-| **DWARF Depth 30 (Local)** | 9,285 ns / 8.5 MB | 5,408 ns (-41.8%) / 8.3 MB | **5,067 ns (-45.4%)** / 9.4 MB | **400 ns (-95.7%)** / 7.4 MB |
-| **DWARF Depth 20 (SharedLib DSO)** | 8,618 ns / 8.5 MB | **5,043 ns (-41.5%)** / 8.4 MB | 6,469 ns (-24.9%) / 9.4 MB | 60 ns (Partial) / 7.4 MB |
-| **DWARF Depth 20 (Signal Handler)**| 8,322 ns / 8.7 MB | 4,855 ns (-41.7%) / 8.4 MB | **4,129 ns (-50.4%)** / 9.4 MB | N/A |
-| **DWARF Depth 20 (Cold Start)** | 259,266 ns / 9.6 MB | 49,873 ns (-80.8%) / 8.5 MB | **23,177 ns (-91.1%)** / 10.4 MB | **45 ns** / 7.4 MB |
+#### Cross-Backend Micro-benchmark Comparison
+Full callstack unwinding across all four backends in controlled benchmark harnesses:
 
-#### FramePointer Dedicated Micro-benchmarks
+| Profiling Subsystem & Workload | `libunwindstack` (Base)<br>Time / Frame (Sample) | `libunwind` (Optimized)<br>Time / Frame (Sample) | `framehop`<br>Time / Frame (Sample) | `libdw`<br>Time / Frame (Sample) |
+| :--- | :---: | :---: | :---: | :---: |
+| **`traced_perf` (Depth 37)** | 251.7 ns (9.31 µs, baseline) | **58.7 ns** (2.17 µs, -76.7%) | 149.6 ns (5.54 µs, -40.6%) | 579.7 ns (21.4 µs, +130.3%) |
+| **`heapprofd` (Depth 38)** | 304.1 ns (11.6 µs, baseline) | **114.3 ns** (4.35 µs, -62.4%) | 208.6 ns (7.93 µs, -31.4%) | 680.2 ns (25.8 µs, +123.7%) |
+
+#### Detailed DWARF Micro-benchmarks Across Workloads (`traced_perf`)
+| Benchmark Case | Baseline | `libunwindstack` | `libunwind` | `libdw` | `framehop` |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Depth10_Local** | 5.24 µs (baseline) | 5.30 µs (+1.0%) | 1.64 µs (-68.7%) | 12.2 µs (+132.1%) | 4.32 µs (-17.7%) |
+| **Depth20_SharedLibDso** | 9.34 µs (baseline) | 9.21 µs (-1.4%) | 2.10 µs (-77.5%) | 21.6 µs (+130.9%) | 5.54 µs (-40.7%) |
+| **Depth30_Local** | 9.93 µs (baseline) | 10.1 µs (+2.1%) | 2.12 µs (-78.7%) | 22.9 µs (+131.0%) | 5.62 µs (-43.4%) |
+| **ColdStart (Depth 20)** | 2.11 ms (baseline) | 271.7 µs (-87.1%) | 4.39 µs (-99.8%) | 101.5 µs (-95.2%) | 73.4 µs (-96.5%) |
+| **MemoryCache_Churn** | 7.07 µs (baseline) | 7.41 µs (+4.9%) | 1.77 µs (-75.0%) | 17.6 µs (+149.4%) | 4.59 µs (-35.0%) |
+
+#### Detailed Native Memory Profiling Micro-benchmarks (`heapprofd`)
+| Benchmark Case | Baseline | `libunwindstack` | `libunwind` | `libdw` | `framehop` |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Depth10_Local** | 5.18 µs (baseline) | 5.98 µs (+15.4%) | 2.82 µs (-45.6%) | 14.6 µs (+182.4%) | 5.65 µs (+9.1%) |
+| **Depth20_SharedLibDso** | 8.93 µs (baseline) | 10.24 µs (+14.8%) | 4.57 µs (-48.8%) | 25.5 µs (+185.5%) | 7.71 µs (-13.7%) |
+| **Depth30_Local** | 10.1 µs (baseline) | 11.34 µs (+12.3%) | 4.63 µs (-54.2%) | 27.9 µs (+175.9%) | 9.19 µs (-9.1%) |
+| **ColdStart (Depth 20)** | 2.22 ms (baseline) | 2.17 ms (-2.5%) | 370.8 µs (-83.3%) | 26.63 ms (+1099.2%) | 57.9 µs (-97.4%) |
+| **MemoryCache_Churn** | 9.06 µs (baseline) | 11.6 µs (+27.5%) | 4.94 µs (-45.5%) | 30.7 µs (+238.6%) | 7.76 µs (-14.4%) |
+
+#### Dedicated FramePointer Micro-benchmarks
 *Pure frame pointer chain traversal without DWARF CFI parsing.*
 
-| Benchmark Case | Frames Unwound | CPU Time (ns) | Real Time (ns) | Latency per Frame | Peak RSS | Net RSS Growth |
+| Benchmark Case | Frames | Baseline (Before) | Abstraction (After) | Latency per Frame | Peak RSS | Net RSS Growth |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`Depth10_Local`** | 19 frames | **206.8 ns** | 206.8 ns | **10.8 ns / frame** | **7,424 KB** | **0 KB** |
-| **`Depth20_O2_WithFP`** | 29 frames | **301.9 ns** | 301.9 ns | **10.4 ns / frame** | **7,424 KB** | **0 KB** |
-| **`Depth30_Local`** | 39 frames | **400.4 ns** | 400.4 ns | **10.2 ns / frame** | **7,424 KB** | **0 KB** |
-| **`Depth20_O2_OmitFP`** | 1 frame | **44.7 ns** | 44.7 ns | — | **7,424 KB** | **0 KB** |
-| **`Depth20_SharedLibDso`** | 3 frames | **60.1 ns** | 60.1 ns | — | **7,424 KB** | **0 KB** |
+| **`Depth10_Local`** | 19 frames | 1,318.1 ns (baseline) | **326.9 ns** (-75.2%) | **15.4 ns / frame** | **27.5 MB** | **0 KB** |
+| **`Depth20_O2_WithFP`** | 29 frames | 2,115.7 ns (baseline) | **484.5 ns** (-77.1%) | **15.2 ns / frame** | **27.5 MB** | **0 KB** |
+| **`Depth30_Local`** | 39 frames | 3,052.1 ns (baseline) | **645.1 ns** (-78.9%) | **15.0 ns / frame** | **27.5 MB** | **0 KB** |
+| **`Depth20_O2_OmitFP`** | 1 frame | 158.3 ns (baseline) | **39.6 ns** (-75.0%) | — | **27.5 MB** | **0 KB** |
+| **`Depth20_SharedLibDso`** | 3 frames | 273.1 ns (baseline) | **71.7 ns** (-73.7%) | — | **27.5 MB** | **0 KB** |
 
 ---
 
 ## 6. Implementation & PR Breakdown
 
-1. **PR 1: Core Abstraction Layer (`src/profiling/unwind/`)**
+### Proof of Concept (PoC) Reference Patches
+Complete, working implementations and benchmark suites are provided via the following patches:
+- **Patch 1 (Benchmarks)**: [`0001-add-benchmarks-for-traced-perf-and-heapprofd.patch`](https://paste.googleplex.com/6226625105100800) – Standalone microbenchmark harnesses and multi-backend benchmarks for `traced_perf` and `heapprofd`.
+- **Patch 2 (Unwind Abstraction & Backends)**: [`0002-draft-unwind-all.patch`](https://paste.googleplex.com/4707995955625984) – Full unwinding abstraction layer (`src/profiling/unwind/`), `libunwindstack` migration, zero-dependency `frame_pointer`, high-performance `libunwind`, `framehop` Rust FFI prototype, and `libdw` backends.
+
+### Upstream PR Breakdown
+1. **PR #1: Core Abstraction Layer (`src/profiling/unwind/`)**
    - Pure interfaces: `CpuRegisters`, `Unwinder`, `ProcessUnwindContext`, `UnwindFrame`, `UnwindResult`.
    - Factory pattern: `CreateUnwinder(UnwinderType)`.
-2. **PR 2: `libunwindstack` Backend Refactoring & Native `FramePointerUnwinder`**
+2. **PR #2: `libunwindstack` Backend Refactoring & Native `FramePointerUnwinder`**
    - Wrap existing `libunwindstack` implementation into `libunwindstack::Unwinder` and `libunwindstack::Context`.
    - Integrate in-place register recycling (`GetOrCreateRegs`).
    - Implement native `FramePointerUnwinder` with **zero external library support** (pure C++ / STL, no `libunwindstack`/`libunwind` dependencies).
-3. **PR 3: Migrate `traced_perf` to Abstraction Layer**
+3. **PR #3: Migrate `traced_perf` to Abstraction Layer**
    - Populate `unwind::CpuRegisters` directly from kernel ring buffers.
    - Remove `<unwindstack/*.h>` dependencies from `src/profiling/perf/`.
-4. **PR 4: `libunwind` Remote Backend for Standalone Linux**
+4. **PR #4: `libunwind` Remote Backend for Standalone Linux**
    - Implement `src/profiling/unwind/libunwind/` with Mmap ELF caching, zero-syscall memory reads, Evaluated Rule Cache, and bounded memory limits.
    - Set as default unwinder for standalone Linux builds.
-5. **PR 5: Migrate `heapprofd` (Memory Profiling)**
+5. **PR #5: Migrate `heapprofd` (Memory Profiling)**
    - Backend-agnostic client (`heapprofd_client`): write directly to `AllocMetadata::cpu_regs` without `libunwindstack` headers.
    - Backend-agnostic daemon: replace direct `unwindstack::Unwinder` with `unwind::Unwinder::Unwind()`.
 
 ---
 
-## 7. Appendix: Evaluated Alternative Backends
-
-### 7.1 High-Throughput Rust FFI Prototype: `framehop` (Mozilla / Firefox Profiler)
+## Appendix A: High-Throughput Rust FFI Prototype (`framehop`)
 
 Located in `src/profiling/unwind/framehop/` and `src/profiling/unwind/framehop/framehop_ffi/`:
 - `class framehop::Unwinder : public unwind::Unwinder`
 - `class framehop::Context : public unwind::ProcessUnwindContext`
 - `framehop_ffi/src/lib.rs` (Rust FFI library)
 
-`framehop` is Mozilla's stack unwinder developed for the Firefox Profiler. It achieves exceptional throughput (~8.5 µs/sample in CPU profiling) by pre-indexing module `.eh_frame` unwind tables and operating exclusively on stack snapshots.
+`framehop` is Mozilla's stack unwinder developed for the Firefox Profiler. It achieves high throughput (9.73 µs/sample, 473 ns/frame in live CPU profiling on dedicated CPU cores) by pre-indexing module `.eh_frame` unwind tables and operating exclusively on stack snapshots.
 
-#### 1. FFI Architecture
+### 1. FFI Architecture
 The Rust FFI crate (`framehop_ffi`) exposes a C-compatible interface:
 - `framehop_context_create()` / `framehop_context_destroy()`
 - `framehop_context_clear_cache()`
 - `framehop_add_module_raw()`: Registers `.eh_frame` / `.eh_frame_hdr` section data.
 - `framehop_unwind()`: Performs stack unwinding using `UnwinderX86_64` and `CacheX86_64`.
 
-#### 2. Module Indexing & Remote Handling (`Context::LoadModules`)
+### 2. Module Indexing & Remote Handling (`Context::LoadModules`)
 Because `framehop` was designed for in-process unwinding, remote unwinding requires custom translation:
 - Parses `/proc/<pid>/maps` to extract loaded libraries and segment boundaries.
 - Computes `base_avma` from `PT_LOAD` virtual addresses to align runtime load bias with SVMA.
@@ -679,20 +708,21 @@ Because `framehop` was designed for in-process unwinding, remote unwinding requi
 - Reads remote VDSO directly from process memory (`mem_fd_`) via `pread64`.
 - Detects Linux signal trampolines (`__restore_rt`) by pattern-matching opcode bytes (`0x0f0000000fc0c748 0x05`) and reading `ucontext` at `sp + 0xa8` (IP), `sp + 0xa0` (SP), `sp + 0x78` (BP).
 
-#### 3. Caching & Eviction
+### 3. Caching & Eviction
 - **`CacheX86_64`**: An internal, bounded direct-mapped cache (512–1024 slots) caching evaluated FDE unwinding rules.
 - **Module Retention**: Parsed module indexes remain in memory until the context is destroyed.
 
-#### 4. Architectural Tradeoffs
-- **Pros**: Fastest unwinder evaluated in CPU profiling (**~8.5 µs/sample**, ~2x faster than `libunwindstack`).
+### 4. Architectural Tradeoffs
+- **Pros**: High unwinding throughput in CPU profiling (**9.73 µs/sample, 473 ns/frame**, ~1.4x faster than `libunwindstack`).
 - **Cons**:
+  - 11.3% slower than optimized `libunwind` (8.74 µs/sample, 425 ns/frame) in real-world dedicated-CPU `traced_perf` profiling.
   - Requires a **Rust compiler (`rustc`, `cargo`)** and FFI bridge, conflicting with Perfetto’s pure GN/Ninja C++ toolchain.
   - Supports only **x86_64 and ARM64** (no ARM32, no RISC-V).
-  - Higher memory footprint (+1.2 MB growth in CPU sampling, +2.7 MB in memory profiling).
+  - Significantly higher memory footprint and RSS growth (+1.7 MB in CPU sampling vs 0 KB for `libunwind`; +2.7 MB in memory profiling).
 
 ---
 
-### 7.2 Linux System Integration: `libdw` (elfutils)
+## Appendix B: Linux System Integration (`libdw` / `elfutils`)
 
 Located in `src/profiling/unwind/libdw/`:
 - `class libdw::Unwinder : public unwind::Unwinder`
@@ -701,16 +731,16 @@ Located in `src/profiling/unwind/libdw/`:
 
 Uses `elfutils`'s `libdwfl` (Dwarf Front-end Library), the standard unwinding infrastructure used by Linux `perf`:
 
-#### 1. Session Lifecycle (`Dwfl`)
+### 1. Session Lifecycle (`Dwfl`)
 - Initializes `Dwfl` session per process: `dwfl_begin(&kLibdwCallbacks)`, `dwfl_linux_proc_report(dwfl_, pid_)`, `dwfl_report_end()`.
 - Unwinds via `dwfl_thread_getframes()` with a frame callback extracting PC and SP (`dwfl_frame_pc`, `dwfl_frame_reg`).
 - Memory reads use `PidMemoryRead`, checking the sampled stack buffer before falling back to `pread64` on `/proc/<pid>/mem`.
 
-#### 2. Caching & Eviction
+### 2. Caching & Eviction
 - `libdw` caches decoded CFI intervals and mapped ELF segments internally within `Dwfl`.
 - Flushed by tearing down and recreating the `Dwfl` handle (`TeardownDwfl() / SetupDwfl()`).
 
-#### 3. Architectural Tradeoffs
+### 3. Architectural Tradeoffs
 - **Pros**: Solid performance in CPU sampling (**16.2 µs/sample**), robust Linux kernel/system integration.
 - **Cons**:
   - **Licensing barrier**: `elfutils` is LGPLv3+ / GPLv2, which is incompatible with Perfetto's Apache 2.0 core upstream license.
