@@ -648,7 +648,8 @@ TEST_P(TraceWriterImplTest, FinishTracePacketScrapable) {
             protos::pbzero::TracePacket::kForTestingFieldNumber),
         data);
     sw->WriteBytes(data, static_cast<size_t>(data_end - data));
-    test_event.Reset(sw, &arena);
+    test_event.ResetWithEncoding(
+        sw, &arena, protozero::Message::NestedEncoding::kLengthDelimited);
     test_event.set_size_field(
         sw->ReserveBytes(protozero::proto_utils::kMessageLengthFieldSize));
     test_event.set_str("payload1");
@@ -796,7 +797,8 @@ TEST_P(TraceWriterImplTest, FinishTracePacketFullChunk) {
             protos::pbzero::TracePacket::kForTestingFieldNumber),
         data);
     sw->WriteBytes(data, static_cast<size_t>(data_end - data));
-    test_event.Reset(sw, &arena);
+    test_event.ResetWithEncoding(
+        sw, &arena, protozero::Message::NestedEncoding::kLengthDelimited);
     test_event.set_size_field(
         sw->ReserveBytes(protozero::proto_utils::kMessageLengthFieldSize));
     std::string chunk_filler(sw->bytes_available(), '\0');

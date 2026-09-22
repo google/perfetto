@@ -43,7 +43,7 @@ NullTraceWriter::TracePacketHandle NullTraceWriter::NewTracePacket() {
   // If we hit this, the caller is calling NewTracePacket() without having
   // finalized the previous packet.
   PERFETTO_DCHECK(cur_packet_->is_finalized());
-  cur_packet_->Reset(&stream_);
+  cur_packet_->ResetToLengthDelimited(&stream_);
   return TraceWriter::TracePacketHandle(cur_packet_.get());
 }
 

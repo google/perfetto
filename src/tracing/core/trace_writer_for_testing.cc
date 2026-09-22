@@ -78,7 +78,7 @@ TraceWriterForTesting::NewTracePacket() {
   // If we hit this, the caller is calling NewTracePacket() without having
   // finalized the previous packet.
   PERFETTO_DCHECK(cur_packet_->is_finalized());
-  cur_packet_->Reset(&stream_);
+  cur_packet_->ResetToLengthDelimited(&stream_);
 
   // Instead of storing the contents of the TracePacket directly in the backing
   // buffer like the real trace writers, we prepend the proto preamble to make
@@ -109,7 +109,7 @@ void TraceWriterForTesting::FinishTracePacket() {
     protozero::proto_utils::WriteRedundantVarInt(static_cast<uint32_t>(size),
                                                  patch);
   }
-  cur_packet_->Reset(&stream_);
+  cur_packet_->ResetToLengthDelimited(&stream_);
   cur_packet_->Finalize();  // To avoid the DCHECK in NewTracePacket().
 }
 

@@ -139,7 +139,7 @@ class HeapBuffered {
       : shb_(initial_slice_size_bytes, maximum_slice_size_bytes),
         writer_(&shb_) {
     shb_.set_writer(&writer_);
-    msg_.Reset(&writer_);
+    msg_.ResetToLengthDelimited(&writer_);
   }
 
   // This can't be neither copied nor moved because Message hands out pointers
@@ -184,7 +184,7 @@ class HeapBuffered {
   std::vector<ScatteredHeapBuffer::Slice> TakeSlices() {
     msg_.Finalize();
     std::vector<ScatteredHeapBuffer::Slice> slices = shb_.TakeSlices();
-    msg_.Reset(&writer_);
+    msg_.ResetToLengthDelimited(&writer_);
     PERFETTO_DCHECK(empty());
     return slices;
   }
@@ -192,7 +192,7 @@ class HeapBuffered {
   void Reset() {
     shb_.Reset();
     writer_.Reset(protozero::ContiguousMemoryRange{});
-    msg_.Reset(&writer_);
+    msg_.ResetToLengthDelimited(&writer_);
     PERFETTO_DCHECK(empty());
   }
 

@@ -160,7 +160,7 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
     shmem_arbiter_->SendPatches(id_, target_buffer_, &patch_list_);
   }
 
-  cur_packet_->Reset(&protobuf_stream_writer_);
+  cur_packet_->ResetToLengthDelimited(&protobuf_stream_writer_);
   uint8_t* header = protobuf_stream_writer_.ReserveBytes(kPacketHeaderSize);
   memset(header, 0, kPacketHeaderSize);
   cur_fragment_size_field_ = header;
@@ -415,7 +415,7 @@ void TraceWriterImpl::FinishTracePacket() {
 
   FinalizeFragmentIfRequired();
 
-  cur_packet_->Reset(&protobuf_stream_writer_);
+  cur_packet_->ResetToLengthDelimited(&protobuf_stream_writer_);
   cur_packet_->Finalize();  // To avoid the CHECK in NewTracePacket().
 
   // cur_chunk_packet_count_inflated_ can be true if FinishTracePacket() is

@@ -25,13 +25,19 @@ namespace protozero {
 // Helper class to hand out messages using the default MessageArena.
 // Usage:
 // RootMessage<perfetto::protos::zero::MyMessage> msg;
-// msg.Reset(stream_writer);
+// msg.ResetToLengthDelimited(stream_writer);
 // msg.set_foo(...);
 // auto* nested = msg.set_nested();
 template <typename T = Message>
 class RootMessage : public T {
  public:
-  RootMessage() { T::Reset(nullptr, &root_arena_); }
+  // Initializes an empty root without a writer. The default encoding is
+  // temporary: ResetToLengthDelimited() or ResetToProtoGroup() selects the
+  // encoding and attaches a writer before the first write.
+  RootMessage() {
+    T::ResetWithEncoding(nullptr, &root_arena_,
+                         Message::NestedEncoding::kLengthDelimited);
+  }
 
   // Disallow copy and move.
   RootMessage(const RootMessage&) = delete;
@@ -39,10 +45,29 @@ class RootMessage : public T {
   RootMessage(RootMessage&&) = delete;
   RootMessage& operator=(RootMessage&&) = delete;
 
-  void Reset(ScatteredStreamWriter* writer) {
+  // Resets the root and its arena for standard protobuf output to |writer|.
+  // Each child reserves a length field that Finalize() fills.
+  void ResetToLengthDelimited(ScatteredStreamWriter* writer) {
     root_arena_.Reset();
-    Message::Reset(writer, &root_arena_);
+    Message::ResetWithEncoding(writer, &root_arena_,
+                               Message::NestedEncoding::kLengthDelimited);
   }
+
+  // Resets the root and its arena for append-only proto group output to
+  // |writer|. Each child uses a start tag and a closing byte instead of a
+  // length field. See proto_utils::kProtoGroupEndByte for the format.
+  void ResetToProtoGroup(ScatteredStreamWriter* writer) {
+    root_arena_.Reset();
+    Message::ResetWithEncoding(writer, &root_arena_,
+                               Message::NestedEncoding::kProtoGroup);
+  }
+
+  // Finalizes all open children, seals the root, and returns its encoded size.
+  // In proto group mode, only children receive a closing byte.
+  // Repeated calls return the same size without further writes.
+  //
+  // Hides the non-virtual Message::Finalize() to select root behavior.
+  uint32_t Finalize() { return Message::FinalizeRoot(); }
 
  private:
   MessageArena root_arena_;
