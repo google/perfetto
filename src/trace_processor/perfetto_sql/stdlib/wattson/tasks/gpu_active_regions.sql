@@ -54,18 +54,11 @@ GROUP BY
 
 -- Step 2: Find tasks within active regions
 CREATE PERFETTO TABLE _gpu_active_region_tasks AS
-SELECT ii.ts, ii.dur, ta.uid, id_0 AS region_id
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_gpu_active_regions),
-    _ii_subquery!(_gpu_tasks)
-  ),
-  ()
-) AS ii
-JOIN _gpu_active_regions AS p
-  ON p._auto_id = id_0
-JOIN _gpu_tasks AS ta
-  ON ta._auto_id = id_1;
+INTERVAL INTERSECTION OF (
+  _ii_subquery!(_gpu_active_regions) AS region,
+  _ii_subquery!(_gpu_tasks) AS task
+)
+|> SELECT ts, dur, task.uid, region.id AS region_id;
 
 -- Step 3: Find active region task boundaries
 CREATE PERFETTO VIEW _gpu_active_region_boundaries AS
@@ -95,18 +88,11 @@ CREATE PERFETTO TABLE _all_gaps AS
 SELECT ts, dur FROM _gpu_active_task_count WHERE active_tasks = 0;
 
 CREATE PERFETTO TABLE _gaps_in_active_regions AS
-SELECT ii.ts, ii.dur, id_0 AS region_id
-FROM _interval_intersect!(
-  (
-    (SELECT _auto_id AS id, ts, dur FROM _gpu_active_regions),
-    (SELECT _auto_id AS id, ts, dur FROM _all_gaps)
-  ),
-  ()
-) AS ii
-JOIN _gpu_active_regions AS p
-  ON p._auto_id = id_0
-JOIN _all_gaps AS g
-  ON g._auto_id = id_1;
+INTERVAL INTERSECTION OF (
+  _ii_subquery!(_gpu_active_regions) AS region,
+  _ii_subquery!(_all_gaps) AS gap
+)
+|> SELECT ts, dur, region.id AS region_id;
 
 CREATE PERFETTO TABLE _gpu_active_region_gaps AS
 SELECT

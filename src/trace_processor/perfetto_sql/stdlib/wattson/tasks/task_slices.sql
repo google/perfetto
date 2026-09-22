@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE intervals.overlap;
 
 INCLUDE PERFETTO MODULE linux.irqs;
@@ -155,16 +153,11 @@ FROM _irq_w_tasks_info;
 
 -- Associate idle states, and specifically the active state, with tasks
 CREATE PERFETTO TABLE _active_state_w_tasks AS
-SELECT ii.ts, ii.dur, ii.cpu, tasks.utid, tasks.is_irq, id_1 AS idle_group
-FROM _interval_intersect!(
-(
-  _ii_subquery!(_all_tasks_flattened_slices),
-  _ii_subquery!(_idle_exits)
-),
-(cpu)
-) AS ii
-JOIN _all_tasks_flattened_slices AS tasks
-  ON tasks._auto_id = id_0;
+INTERVAL INTERSECTION OF (
+  _all_tasks_flattened_slices AS task,
+  _ii_subquery!(_idle_exits) AS idle
+) PER cpu
+|> SELECT ts, dur, cpu, task.utid, task.is_irq, idle.id AS idle_group;
 
 CREATE PERFETTO INDEX _active_state_w_tasks_group ON _active_state_w_tasks(
   idle_group,
