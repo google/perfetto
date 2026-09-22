@@ -36,10 +36,19 @@ const pjoin = path.join;
 const POST_DIR_RE = /^(\d{4})-(\d{2})-(\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
 // Front matter is a `---` delimited block of flat `key: value` pairs. It is
-// deliberately not YAML: three keys do not justify a YAML parser in a
+// deliberately not YAML: four keys do not justify a YAML parser in a
 // package.json that hasn't got one. Values run to end of line, so a colon or a
 // '#' inside a summary is safe.
 const REQUIRED = ["title", "author", "summary"];
+// Unknown keys are rejected rather than ignored: a misspelt `cover` would
+// otherwise silently fall back to the generated artwork.
+const OPTIONAL = ["cover"];
+const KNOWN = new Set([...REQUIRED, ...OPTIONAL]);
+
+// A still image sitting next to post.md. Videos are excluded: a card is an
+// <img>, so one would render nothing and push a multi-megabyte file onto the
+// index.
+const COVER_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*\.(png|jpe?g|gif|webp|svg)$/i;
 
 export function parseFrontMatter(raw, srcForErrors) {
   const where = srcForErrors ? ` in ${srcForErrors}` : "";
@@ -59,6 +68,12 @@ export function parseFrontMatter(raw, srcForErrors) {
       throw new Error(
         `Bad front matter line${where}: ${JSON.stringify(lines[i])}. ` +
           `Expected \`key: value\`.`,
+      );
+    }
+    if (!KNOWN.has(m[1])) {
+      throw new Error(
+        `Unknown front matter key '${m[1]}'${where}. ` +
+          `Expected one of: ${[...KNOWN].join(", ")}.`,
       );
     }
     if (m[1] in fields) {
@@ -86,24 +101,22 @@ export function parseFrontMatter(raw, srcForErrors) {
     }
   }
   fields.authors = authors.map((a) => a.slice(1));
+  if ("cover" in fields && !COVER_RE.test(fields.cover)) {
+    throw new Error(
+      `Bad cover${where}: ${JSON.stringify(fields.cover)}. Expected the ` +
+        `filename of a still image (png, jpg, gif, webp or svg) next to ` +
+        `post.md, e.g. 'cover: flamegraph.png'.`,
+    );
+  }
   return { fields, body: lines.slice(i + 1).join("\n") };
 }
 
-// The card image: the first image the body references, else a cover generated
-// from the title. Pure -- it touches no disk and cannot fail.
-export function coverFor(slug, body) {
-  // Videos are written with image syntax (see renderImage), but a card is an
-  // <img> -- picking one would render nothing and push a multi-megabyte file
-  // onto the index. Take the first still image instead.
-  const re = /!\[[^\]]*\]\(\s*([^)\s]+)/g;
-  let m;
-  while ((m = re.exec(body)) !== null) {
-    const file = m[1];
-    if (/^(https?:)|^\//.test(file)) continue;
-    if (/\.(mp4|webm)$/i.test(file)) continue;
-    // renderImage() already records anything the body references.
-    return { sitePath: `blog/media/${slug}/${file}`, generated: false };
-  }
+// The card image: the file named by the optional `cover` front matter key,
+// else artwork generated from the title. Images in the body are deliberately
+// not considered: the first screenshot in a post is rarely a good card, so a
+// real image has to be opted into. Pure -- it touches no disk and cannot fail.
+export function coverFor(slug, file) {
+  if (file) return { sitePath: `blog/media/${slug}/${file}`, generated: false };
   return { sitePath: `blog/media/${slug}/cover.svg`, generated: true };
 }
 
@@ -172,7 +185,22 @@ export function collectPosts(blogDir) {
 
     const raw = fs.readFileSync(mdPath, "utf8");
     const { fields, body } = parseFrontMatter(raw, mdPath);
-    const cover = coverFor(slug, body);
+    if (fields.cover && !fs.existsSync(pjoin(dir, fields.cover))) {
+      throw new Error(
+        `${mdPath} sets 'cover: ${fields.cover}', but there is no such file ` +
+          `next to it.`,
+      );
+    }
+    // The generated artwork is published as cover.svg in the post's media
+    // directory, where it would silently replace a body image of that name.
+    if (!fields.cover && fs.existsSync(pjoin(dir, "cover.svg"))) {
+      throw new Error(
+        `${dir} has a cover.svg but no 'cover' key, so the generated cover ` +
+          `would overwrite it. Add 'cover: cover.svg' to use it as the ` +
+          `cover, or rename it.`,
+      );
+    }
+    const cover = coverFor(slug, fields.cover);
     const thumb = thumbnailFor(cover);
     posts.push({
       dir,

@@ -524,10 +524,10 @@ async function renderAllPages(pages, nav, site) {
   }
 }
 
-// The blog's non-page outputs: the Atom feed, the generated cover art and the
-// author avatars. Images a post references are handled by renderImage() like
-// any doc image; these are referenced only by the feed, the index card and the
-// byline, so nothing else would pull them in.
+// The blog's non-page outputs: the Atom feed, the covers and the author
+// avatars. Images a post references are handled by renderImage() like any doc
+// image; these are referenced only by the feed, the index card and the byline,
+// so nothing else would pull them in.
 // Downscaled cover images for the index. A card is 320px wide but the covers
 // are full-resolution screenshots, so this is most of the index's weight.
 //
@@ -567,6 +567,11 @@ async function addBlogAssets(posts, site) {
           blog.generateCover(post.title).svg,
         ),
       );
+    } else {
+      // A `cover:` image need not appear in the body, in which case
+      // renderImage() never saw it. If it does, this is the same entry again.
+      const src = pjoin(post.dir, path.basename(post.cover.sitePath));
+      site.set(post.cover.sitePath, { copyFrom: src });
     }
   }
   const handles = new Set();
