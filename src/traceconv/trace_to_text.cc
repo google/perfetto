@@ -298,15 +298,20 @@ base::Status TraceToText(std::istream* input,
     progress.Clear();
     return base::OkStatus();
   } else if (type == trace_processor::CompressedTraceType::kProto) {
-    do {
+    for (;;) {
       online_trace_to_text.EndWrite(buffer_len);
       if (!online_trace_to_text.ok()) {
         progress.Clear();
         return base::ErrStatus("failed to convert trace to text: %s",
                                online_trace_to_text.error().c_str());
       }
-    } while (input_reader.Read(online_trace_to_text.BeginWrite(kReadSize),
-                               &buffer_len, kReadSize));
+      uint8_t* next = online_trace_to_text.BeginWrite(kReadSize);
+      if (!input_reader.Read(next, &buffer_len, kReadSize)) {
+        // Nothing was read (EOF or a read error): release the reservation.
+        online_trace_to_text.AbortWrite();
+        break;
+      }
+    }
     if (!input_reader.ok()) {
       progress.Clear();
       return base::ErrStatus("failed to read trace: %s",

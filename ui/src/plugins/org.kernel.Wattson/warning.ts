@@ -22,7 +22,10 @@ export async function missingWattsonCpuConfigs(
   engine: Engine,
 ): Promise<string[]> {
   // 1. Determine required events first
-  const requiredEvents = new Set<FtraceEvent>([FtraceEvent.CPU_FREQUENCY]);
+  const requiredEvents = new Set<FtraceEvent>([
+    FtraceEvent.CPU_FREQUENCY,
+    FtraceEvent.CPU_IDLE,
+  ]);
 
   const dsuDependencyQuery = await engine.query(
     `
@@ -77,10 +80,7 @@ export async function missingWattsonCpuConfigs(
   return missingEvents;
 }
 
-export function createCpuWarnings(
-  missingEvents: string[],
-  realCpuIdleCounters: boolean,
-): Vnode | undefined {
+export function createCpuWarnings(missingEvents: string[]): Vnode | undefined {
   const warningMsg: Vnode[] = [];
 
   if (missingEvents.length > 0) {
@@ -94,18 +94,6 @@ export function createCpuWarnings(
           '.pf-wattson-warning__list',
           missingEvents.map((event) => m('li', event)),
         ),
-      ),
-    );
-  }
-
-  if (!realCpuIdleCounters) {
-    if (warningMsg.length > 0) {
-      warningMsg.push(m('hr'));
-    }
-    warningMsg.push(
-      m(
-        'p',
-        '`cpu_idle` counters are not available in this trace; deriving cpu_idle counters from the swapper thread.',
       ),
     );
   }

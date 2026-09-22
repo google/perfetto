@@ -33,6 +33,10 @@ const SETTINGS: SettingFilter[] = [
 const PAGE: QueryResultPage = {
   rows: [{file_name: 'a.pftrace', size_bytes: '10'}],
   columns: ['file_name', 'size_bytes'],
+  schema: [
+    {name: 'file_name', type: 'STRING'},
+    {name: 'size_bytes', type: 'INT64'},
+  ],
   totalFilteredRows: 1,
 };
 

@@ -62,19 +62,13 @@ export default class Wattson implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const [
-      markersSupported,
-      cpuSupported,
-      gpuSupported,
-      tpuSupported,
-      realCpuIdleCounters,
-    ] = await Promise.all([
-      hasWattsonMarkersSupport(ctx.engine),
-      hasWattsonCpuSupport(ctx.engine),
-      hasWattsonGpuSupport(ctx.engine),
-      hasWattsonTpuSupport(ctx.engine),
-      hasCpuIdleCounters(ctx.engine),
-    ]);
+    const [markersSupported, cpuSupported, gpuSupported, tpuSupported] =
+      await Promise.all([
+        hasWattsonMarkersSupport(ctx.engine),
+        hasWattsonCpuSupport(ctx.engine),
+        hasWattsonGpuSupport(ctx.engine),
+        hasWattsonTpuSupport(ctx.engine),
+      ]);
 
     const missingEvents = markersSupported
       ? await missingWattsonCpuConfigs(ctx.engine)
@@ -97,12 +91,7 @@ export default class Wattson implements PerfettoPlugin {
       await addWattsonMarkersElements(ctx, group);
     }
     if (cpuSupported || markersSupported) {
-      await addWattsonCpuElements(
-        ctx,
-        group,
-        missingEvents,
-        realCpuIdleCounters,
-      );
+      await addWattsonCpuElements(ctx, group, missingEvents);
     }
     if (gpuSupported) {
       await addWattsonGpuElements(ctx, group);
@@ -187,17 +176,6 @@ function makeWattsonEstimateTrack(
   });
 }
 
-async function hasCpuIdleCounters(engine: Engine): Promise<boolean> {
-  const result = await engine.query(`
-    SELECT EXISTS (
-      SELECT 1
-      FROM cpu_counter_track
-      WHERE type = 'cpu_idle'
-    ) AS supported
-  `);
-  return !!result.firstRow({supported: NUM}).supported;
-}
-
 async function hasWattsonMarkersSupport(engine: Engine): Promise<boolean> {
   const result = await engine.query(`
     INCLUDE PERFETTO MODULE wattson.windows;
@@ -273,12 +251,10 @@ async function addWattsonCpuElements(
   ctx: Trace,
   group: TrackNode,
   missingEvents: string[],
-  hasCpuIdleCounters: boolean,
 ) {
-  const warningDesc = createCpuWarnings(missingEvents, hasCpuIdleCounters);
+  const warningDesc = createCpuWarnings(missingEvents);
 
   // CPUs estimate as part of CPU subsystem
-  const estimateSuffix = `${hasCpuIdleCounters ? '' : ' crude'} estimate`;
   const cpuResult = await ctx.engine.query(
     `SELECT cpu FROM cpu WHERE machine_id = 0`,
   );
@@ -298,7 +274,7 @@ async function addWattsonCpuElements(
     group.addChildInOrder(
       new TrackNode({
         uri,
-        name: `Cpu${it.cpu}${estimateSuffix}`,
+        name: `Cpu${it.cpu} estimate`,
       }),
     );
   }
@@ -312,7 +288,7 @@ async function addWattsonCpuElements(
       wattson: 'Dsu_Scu',
     },
   });
-  group.addChildInOrder(new TrackNode({uri, name: `DSU/SCU${estimateSuffix}`}));
+  group.addChildInOrder(new TrackNode({uri, name: `DSU/SCU estimate`}));
 
   // Register selection aggregators.
   // NOTE: The registration order matters because subsequent aggregators

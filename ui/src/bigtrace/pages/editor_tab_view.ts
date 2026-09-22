@@ -339,6 +339,7 @@ function attachAsyncDataSource(
     queryClient,
     () => tab.execution?.processedRows ?? 0,
     tab.lifecycle.signal,
+    () => tab.execution?.schema,
   );
   tab.isLoading = true;
   runner.startPolling(tab);

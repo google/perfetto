@@ -329,6 +329,9 @@ additional_args = {
     ],
     'perfetto_unittests': [
         ('data', set(enumerate_data_deps())),
+        # The trace processor tests need full protobuf reflection.
+        # The system partition has only -lite, so install the full lib here.
+        ('data_libs', {'libprotobuf-cpp-full'}),
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
     'perfetto_integrationtests': [
@@ -788,6 +791,7 @@ class Module(object):
     self.dist = dict()
     self.strip = dict()
     self.data = set()
+    self.data_libs = set()
     self.apex_available = set()
     self.sdk_version = None
     self.min_sdk_version = None
@@ -845,6 +849,7 @@ class Module(object):
     self._output_field(output, 'strip')
     self._output_field(output, 'tool_files')
     self._output_field(output, 'data')
+    self._output_field(output, 'data_libs')
     self._output_field(output, 'stl')
     self._output_field(output, 'apex_available')
     self._output_field(output, 'sdk_version')

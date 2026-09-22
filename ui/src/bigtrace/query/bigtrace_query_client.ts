@@ -15,13 +15,15 @@
 import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {SettingFilter} from '../settings/settings_types';
+import {type BigtraceColumnSchema, parseCellValue} from './column_types';
 import {coerceFiltersForWire} from './filter_encoding';
 import type {RawQueryExecution} from './query_history_storage';
 
-// Tabular wire shape. Values are always strings; JSON null denotes SQL NULL.
+// Tabular wire shape for QueryResponse (`/execute_*` and `:fetch_results`).
+// Values are always strings; JSON null or "NULL" denotes SQL NULL.
 interface QueryResponsePayload {
   queryUuid?: string;
-  columnNames?: string[];
+  schema?: BigtraceColumnSchema[];
   rows?: Array<{values: Array<string | null>}>;
   // Filtered count for scrollbar sizing.
   totalFilteredRows?: number;
@@ -30,9 +32,18 @@ interface QueryResponsePayload {
   availableColumnNames?: string[];
 }
 
+// Wire shape for TraceMetadataResponse (`/trace_metadata`), whose schema comes
+// from the separate `/trace_metadata_schema` endpoint.
+interface TraceMetadataResponsePayload {
+  columnNames?: Array<string | null>;
+  rows?: Array<{values: Array<string | null>}>;
+  totalFilteredRows?: number;
+}
+
 export interface QueryResultPage {
   readonly rows: ReadonlyArray<DataGridRow>;
   readonly columns: ReadonlyArray<string>;
+  readonly schema: ReadonlyArray<BigtraceColumnSchema>;
   readonly queryUuid?: string;
   // Post-filter count from `:fetch_results`; undefined elsewhere.
   readonly totalFilteredRows?: number;
@@ -427,7 +438,7 @@ export class BigtraceQueryClient {
     if (columns && columns.length > 0) {
       body.columns = [...columns];
     }
-    const result = await this.requestJson<QueryResponsePayload>(
+    const result = await this.requestJson<TraceMetadataResponsePayload>(
       '/trace_metadata',
       {
         method: 'POST',
@@ -436,7 +447,14 @@ export class BigtraceQueryClient {
         signal,
       },
     );
-    return parseQueryResponse(result);
+    const schema = (result.columnNames ?? [])
+      .filter((h): h is string => h !== null)
+      .map((name) => ({name, type: 'STRING'}));
+    return parseQueryResponse({
+      schema,
+      rows: result.rows,
+      totalFilteredRows: result.totalFilteredRows,
+    });
   }
 
   // Column catalog for `/trace_metadata`, fetched once on Settings-page load
@@ -588,23 +606,24 @@ function experimentFilterToWire(filter: ExperimentFilterSpec) {
 export function parseQueryResponse(
   result: QueryResponsePayload,
 ): QueryResultPage {
-  const colNames = result.columnNames;
-  if (
-    colNames === undefined ||
-    colNames === null ||
-    result.rows === undefined ||
-    result.rows === null
-  ) {
-    return {rows: [], columns: [], queryUuid: result.queryUuid};
+  const schema = result.schema ?? [];
+  const columns = schema.map((s) => s.name);
+
+  if (columns.length === 0) {
+    return {
+      rows: [],
+      columns: [],
+      queryUuid: result.queryUuid,
+      totalFilteredRows: result.totalFilteredRows,
+      schema: [],
+    };
   }
 
-  const columns = colNames.filter((h): h is string => h !== null);
-  const rows = result.rows.map((row) => {
+  const rows = (result.rows ?? []).map((row) => {
     const out: DataGridRow = {};
-    for (let i = 0; i < colNames.length; i++) {
-      const header = colNames[i];
-      if (header === null) continue;
-      out[header] = row.values[i];
+    for (let i = 0; i < schema.length; i++) {
+      const {name, type} = schema[i];
+      out[name] = parseCellValue(row.values[i], type);
     }
     return out;
   });
@@ -613,5 +632,6 @@ export function parseQueryResponse(
     columns,
     queryUuid: result.queryUuid,
     totalFilteredRows: result.totalFilteredRows,
+    schema,
   };
 }
