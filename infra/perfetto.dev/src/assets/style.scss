@@ -1497,7 +1497,7 @@ h3 {
   grid-template-columns:
     1fr
     minmax(auto, var(--max-doc-width))
-    minmax(var(--toc-min-width), var(--toc-max-width))
+    minmax(var(--toc-min-width), var(--toc-max-width-blog))
     1fr;
   grid-template-rows: 1fr max-content;
   grid-template-areas:
