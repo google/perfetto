@@ -110,14 +110,25 @@ code all work.
 
 ## Cover images
 
-Every post gets a card image on the index, and there is nothing to do about it.
+Every post gets a cover: the card image on the index, and the image shown when
+the post is shared on X, LinkedIn, Slack etc. (`og:image`).
 
-If the post body references an image, the first one is used. Otherwise the build
-generates one from the title: a flat, abstract, text-free SVG. Nothing is
-committed and there is no step to remember.
+Set one with the `cover` front matter key, naming a PNG next to `post.md`:
+
+```
+cover: cover.png
+```
+
+It must be a PNG: link previews do not render SVG, so the build rejects
+anything else. Around 1200x675 (16:9) works well for both the card and the
+preview.
+
+Without a `cover` key the build generates one from the title: a flat,
+abstract, text-free SVG. That is fine for the index card, but as an SVG it
+cannot be a link preview, so shared links get a text-only card.
 
 NOTE: because the generated image is derived from the title, retitling a post
-changes its cover.
+without a `cover` changes its cover.
 
 ## Previewing
 
