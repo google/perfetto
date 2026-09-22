@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_PUBLIC_PB_MSG_H_
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -37,14 +38,16 @@ struct PerfettoPbMsgWriter {
 };
 
 struct PerfettoPbMsg {
-  // Pointer to a non-aligned pre-reserved var-int slot of
+  // Pointer to a reserved, possibly unaligned varint slot of
   // PROTOZERO_MESSAGE_LENGTH_FIELD_SIZE bytes. If not NULL,
-  // protozero_length_buf_finalize() will write the size of proto-encoded
-  // message in the pointed memory region.
+  // PerfettoPbMsgFinalize() writes the message size into this slot.
   uint8_t* size_field;
 
   // Current size of the buffer.
   uint32_t size;
+
+  // True after finalization. Further appends are invalid.
+  bool is_finalized;
 
   struct PerfettoPbMsgWriter* writer;
 
@@ -56,6 +59,7 @@ static inline void PerfettoPbMsgInit(struct PerfettoPbMsg* msg,
                                      struct PerfettoPbMsgWriter* writer) {
   msg->size_field = PERFETTO_NULL;
   msg->size = 0;
+  msg->is_finalized = false;
   msg->writer = writer;
   msg->nested = PERFETTO_NULL;
   msg->parent = PERFETTO_NULL;
@@ -82,6 +86,7 @@ static inline void PerfettoPbMsgPatchStack(struct PerfettoPbMsg* msg) {
 static inline void PerfettoPbMsgAppendBytes(struct PerfettoPbMsg* msg,
                                             const uint8_t* begin,
                                             size_t size) {
+  assert(!msg->is_finalized);
   if (PERFETTO_UNLIKELY(
           size > PerfettoStreamWriterAvailableBytes(&msg->writer->writer))) {
     PerfettoPbMsgPatchStack(msg);
@@ -228,7 +233,12 @@ static inline void PerfettoPbMsgEndNested(struct PerfettoPbMsg* parent) {
   parent->nested = PERFETTO_NULL;
 }
 
+// Finalizes this message and its children. Returns the message size.
+// Repeated calls return the same size without changes.
 static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg) {
+  if (msg->is_finalized)
+    return msg->size;
+
   if (msg->nested)
     PerfettoPbMsgEndNested(msg);
 
@@ -245,6 +255,7 @@ static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg) {
     msg->size_field = PERFETTO_NULL;
   }
 
+  msg->is_finalized = true;
   return msg->size;
 }
 

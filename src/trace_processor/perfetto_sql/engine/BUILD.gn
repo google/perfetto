@@ -28,6 +28,8 @@ source_set("engine") {
     "perfetto_sql_connection.h",
     "perfetto_sql_database.cc",
     "perfetto_sql_database.h",
+    "pipeline_module.cc",
+    "pipeline_module.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
     "sqlite_dataframe_builder.cc",
@@ -46,13 +48,17 @@ source_set("engine") {
     "../../containers",
     "../../core/common",
     "../../core/dataframe",
+    "../../core/exec",
     "../../core/plugin",
+    "../../core/util",
     "../../types",
     "../../util:owned_sql_value",
     "../../util:sql_argument",
     "../../util:stdlib",
-    "../exec",
     "../parser",
+    "../pipeline:logical",
+    "../pipeline:plan",
+    "../schema",
     "../tokenizer",
   ]
 
@@ -81,7 +87,7 @@ perfetto_unittest_source_set("unittests") {
     "../../core/plugin",
     "../../sqlite",
     "../../util:stdlib",
-    "../exec",
+    "../schema",
   ]
 }
 

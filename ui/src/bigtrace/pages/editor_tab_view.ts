@@ -178,6 +178,13 @@ function buildTabBindings(
         tabsState.markDirty();
       }
     },
+    getTableTtlDays: () => tab.tableTtlDays,
+    setTableTtlDays: (days) => {
+      if (days > 0) {
+        tab.tableTtlDays = days;
+        tabsState.markDirty();
+      }
+    },
   };
 }
 
@@ -339,6 +346,7 @@ function attachAsyncDataSource(
     queryClient,
     () => tab.execution?.processedRows ?? 0,
     tab.lifecycle.signal,
+    () => tab.execution?.schema,
   );
   tab.isLoading = true;
   runner.startPolling(tab);

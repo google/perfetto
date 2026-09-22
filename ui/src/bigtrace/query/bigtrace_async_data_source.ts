@@ -25,6 +25,7 @@ import {
   BigtraceHttpError,
   QueryCancelledError,
 } from './bigtrace_query_client';
+import type {BigtraceColumnSchema} from './column_types';
 import {encodeFilters} from './filter_encoding';
 import {FetchScheduler} from './fetch_scheduler';
 import m from 'mithril';
@@ -36,7 +37,6 @@ type ModelWithColumns = DataSourceModel & {
 // DataSource adapter paging `:fetch_results` into the DataGrid widget.
 export class BigtraceAsyncDataSource implements DataSource {
   private loadedRows: Row[] = [];
-  private columns: string[] = [];
   private error: string | null = null;
   // HTTP status of the last error, when it was an HTTP error (undefined
   // otherwise). Lets the results view tell a not-ready-yet 400 from a real
@@ -62,6 +62,7 @@ export class BigtraceAsyncDataSource implements DataSource {
   // availableColumnNames from the last fetch — the results-page column picker
   // reads this to know what's selectable.
   private _availableColumnNames: ReadonlyArray<string> | undefined;
+  private schema?: ReadonlyArray<BigtraceColumnSchema>;
   // Owns debouncing and cancellation; see FetchScheduler.
   private readonly scheduler: FetchScheduler;
 
@@ -70,7 +71,14 @@ export class BigtraceAsyncDataSource implements DataSource {
   }
 
   get availableColumnNames(): ReadonlyArray<string> | undefined {
-    return this._availableColumnNames;
+    if (this._availableColumnNames !== undefined) {
+      return this._availableColumnNames;
+    }
+    const initial = this.getInitialSchema?.();
+    if (initial !== undefined && initial.length > 0) {
+      return initial.map((s) => s.name);
+    }
+    return undefined;
   }
 
   // `signal`: owner aborts on close. `getTotalRows`: scrollbar sizing.
@@ -79,6 +87,8 @@ export class BigtraceAsyncDataSource implements DataSource {
     private readonly queryClient: BigtraceQueryClient,
     private readonly getTotalRows: () => number,
     signal?: AbortSignal,
+    private readonly getInitialSchema?: () =>
+      ReadonlyArray<BigtraceColumnSchema> | undefined,
   ) {
     this.scheduler = new FetchScheduler(signal, () => m.redraw());
   }
@@ -231,8 +241,8 @@ export class BigtraceAsyncDataSource implements DataSource {
       this._filteredTotalRows = result.totalFilteredRows;
       this._availableColumnNames = result.availableColumnNames;
 
-      if (this.columns.length === 0 && result.columns.length > 0) {
-        this.columns = [...result.columns];
+      if (this.schema === undefined && result.schema.length > 0) {
+        this.schema = result.schema;
       }
     } catch (e) {
       // Aborts are routine here — the tab closing, or a newer window
@@ -267,7 +277,11 @@ export class BigtraceAsyncDataSource implements DataSource {
   }
 
   getColumns(): string[] {
-    return this.columns;
+    return this.getSchema()?.map((s) => s.name) ?? [];
+  }
+
+  getSchema(): ReadonlyArray<BigtraceColumnSchema> | undefined {
+    return this.getInitialSchema?.() ?? this.schema;
   }
 
   useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {

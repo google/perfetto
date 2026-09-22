@@ -91,7 +91,7 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
           CREATE VIRTUAL TABLE _wattson_ui_windowed_tasks
           USING SPAN_JOIN(
             wattson_plugin_ui_selection_window,
-            _wattson_ui_selected_tasks
+            _wattson_ui_selected_tasks PARTITIONED cpu
           );
 
           -- Materialize the thread-level summary once.

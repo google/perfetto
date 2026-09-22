@@ -25,6 +25,7 @@ import type {
 } from '../../components/widgets/datagrid/model';
 import {LINK_COLUMN, resolveResultColumns} from '../settings/column_order';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
+import {toDataGridColumnType} from '../query/column_types';
 import {TERMINAL_STATUSES} from '../query/query_store';
 import type {
   BigTraceEditorTab,
@@ -138,17 +139,30 @@ function renderDataGrid(
     }
   }
 
+  const schemaList =
+    queryResult.schema ??
+    (dataSource instanceof BigtraceAsyncDataSource
+      ? dataSource.getSchema()
+      : undefined);
+  const schemaByName = new Map(schemaList?.map((s) => [s.name, s]));
+
   const columnSchema: ColumnSchema = {};
   for (const column of allColumns) {
+    const entry = schemaByName.get(column);
+    const columnType = entry ? toDataGridColumnType(entry.type) : undefined;
     if (column === LINK_COLUMN) {
       columnSchema[column] = {
+        columnType,
         cellRenderer: (value) => {
           if (value === null || value === undefined) return '';
           return linkify(String(value));
         },
       };
     } else {
-      columnSchema[column] = {cellRenderer: undefined};
+      columnSchema[column] = {
+        columnType,
+        cellRenderer: undefined,
+      };
     }
   }
 

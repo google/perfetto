@@ -3146,12 +3146,12 @@ void TracingServiceImpl::MaybeSetUpProtoVm(
     const RegisteredDataSource& ds_instance,
     BufferID buffer_id) {
   if (!ds_config.has_protovm_config() &&
-      !ds_instance.descriptor.has_protovm_program()) {
+      ds_instance.descriptor.protovm_program_raw().empty()) {
     return;  // Data source has no ProtoVM
   }
   // TODO(keanmariotti): report the errors below in a trace packet as well, so
   // that we can surface them on the UI.
-  if (!ds_instance.descriptor.has_protovm_program()) {
+  if (ds_instance.descriptor.protovm_program_raw().empty()) {
     PERFETTO_ELOG(
         "ProtoVM config for data source %s specifies a ProtoVM, but the data "
         "source instance (ProducerID: %d) doesn't specify a ProtoVM program",
@@ -3183,8 +3183,7 @@ void TracingServiceImpl::MaybeSetUpProtoVm(
   }
   auto* buffer = static_cast<TraceBufferV2*>(it->second.get());
   buffer->MaybeSetUpProtoVm(
-      ds_config.name(),
-      ds_instance.descriptor.protovm_program().SerializeAsString(),
+      ds_config.name(), ds_instance.descriptor.protovm_program_raw(),
       ds_config.protovm_config().memory_limit_kb(), ds_instance.producer_id);
 }
 

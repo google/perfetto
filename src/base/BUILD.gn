@@ -161,7 +161,6 @@ if (enable_perfetto_stderr_crash_dump) {
     deps = [
       "../../gn:default_deps",
       "../../include/perfetto/ext/base",
-      "../../include/perfetto/ext/base",
     ]
     if (is_linux || is_android) {
       deps += [ "../../gn:libbacktrace" ]

@@ -875,6 +875,19 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
               },
             }),
           }),
+          this.bindings.getMaterialize() &&
+            m(BigTraceSettingsCard, {
+              title: 'Table lifetime',
+              description: 'How long to keep the result table, in days.',
+              controls: m(TextInput, {
+                type: 'number',
+                value: String(this.bindings.getTableTtlDays()),
+                onInput: (value: string) => {
+                  const n = parseInt(value, 10);
+                  if (!isNaN(n) && n > 0) this.bindings.setTableTtlDays(n);
+                },
+              }),
+            }),
         ]),
       ),
       Array.from(categories.entries()).map(([category, catSettings]) =>

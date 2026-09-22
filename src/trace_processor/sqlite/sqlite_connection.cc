@@ -81,7 +81,8 @@ void EnsureSqliteInitialized() {
 
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
+  sqlite3_exec(db, "PRAGMA temp_store=2; PRAGMA locking_mode=NORMAL", nullptr,
+               nullptr, &error);
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
@@ -134,6 +135,12 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
   // queries.
   PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, nullptr,
                                    /*sz=*/1200, /*cnt=*/1000) == SQLITE_OK);
+#ifdef SQLITE_DBCONFIG_FP_DIGITS
+  // SQLite 3.52 went from 15 to 17 significant digits when turning a double
+  // into text. Keep the 15 older versions produce.
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_FP_DIGITS, 15,
+                                   nullptr) == SQLITE_OK);
+#endif
   InitializeSqlite(db);
   db_.reset(db);
 }
@@ -267,7 +274,15 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
 
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                        SqlSource source)
-    : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
+    : stmt_(stmt.release()), sql_source_(std::move(source)) {}
+
+void SqliteConnection::PreparedStatement::Finalizer::operator()(
+    sqlite3_stmt* stmt) const {
+  sqlite3_finalize(stmt);
+  if (on_finalized) {
+    on_finalized();
+  }
+}
 
 bool SqliteConnection::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",

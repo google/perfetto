@@ -27,7 +27,11 @@ import {
 } from './query_store';
 import {formatDate} from '../../base/time';
 import {showModal} from '../../widgets/modal';
-import {historyStore, formatCompactDate} from './history_store';
+import {
+  historyStore,
+  formatCompactDate,
+  formatCompactTime,
+} from './history_store';
 
 // Reopens an existing history entry.
 export type OpenQueryFn = (
@@ -125,7 +129,9 @@ export function renderHistoryItem(
   const rows = entry.processedRows;
   const link = entry.tableLink;
   const dateObj = startTime !== undefined ? new Date(startTime) : null;
-  // Compact for the narrow sidebar; hover reveals the full UTC timestamp.
+  // Compact time for the narrow sidebar (the day is on the group header);
+  // hover and the standalone delete modal reveal the full local + UTC date.
+  const timeString = dateObj ? formatCompactTime(dateObj) : 'N/A';
   const localString = dateObj ? formatCompactDate(dateObj) : 'N/A';
   const utcString =
     startTime !== undefined
@@ -229,8 +235,8 @@ export function renderHistoryItem(
           ),
           m(
             'span.pf-bt-history-item-date',
-            {title: `UTC: ${utcString}`},
-            localString,
+            {title: `${localString} (UTC: ${utcString})`},
+            timeString,
           ),
         ]),
       ],
