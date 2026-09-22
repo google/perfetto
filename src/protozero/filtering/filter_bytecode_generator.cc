@@ -145,7 +145,7 @@ FilterBytecodeGenerator::SerializeResult FilterBytecodeGenerator::Serialize() {
     perfetto::base::FnvHasher hasher;
     for (uint32_t word : bytecode_) {
       words.Append(word);
-      hasher.Update(proto_utils::HostToLEFixed(word));
+      hasher.Update(perfetto::base::HostToLE(word));
     }
     words.Append(static_cast<uint32_t>(hasher.digest()));
     result.bytecode =
@@ -158,7 +158,7 @@ FilterBytecodeGenerator::SerializeResult FilterBytecodeGenerator::Serialize() {
     perfetto::base::FnvHasher hasher;
     for (uint32_t word : v54_overlay_) {
       words.Append(word);
-      hasher.Update(proto_utils::HostToLEFixed(word));
+      hasher.Update(perfetto::base::HostToLE(word));
     }
     words.Append(static_cast<uint32_t>(hasher.digest()));
     result.v54_overlay =

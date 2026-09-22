@@ -36,7 +36,7 @@ bool LoadBytecode(FilterBytecodeParser* parser,
   protozero::PackedVarInt words;
   for (uint32_t w : bytecode) {
     words.Append(w);
-    hasher.Update(proto_utils::HostToLEFixed(w));
+    hasher.Update(perfetto::base::HostToLE(w));
   }
   words.Append(static_cast<uint32_t>(hasher.digest()));
   return parser->Load(words.data(), words.size());
@@ -47,7 +47,7 @@ std::vector<uint8_t> MakeOverlay(std::initializer_list<uint32_t> words) {
   protozero::PackedVarInt packed;
   for (uint32_t w : words) {
     packed.Append(w);
-    hasher.Update(proto_utils::HostToLEFixed(w));
+    hasher.Update(perfetto::base::HostToLE(w));
   }
   packed.Append(static_cast<uint32_t>(hasher.digest()));
   return {packed.data(), packed.data() + packed.size()};
@@ -60,7 +60,7 @@ bool LoadBytecodeWithOverlay(FilterBytecodeParser* parser,
   protozero::PackedVarInt words;
   for (uint32_t w : bytecode) {
     words.Append(w);
-    hasher.Update(proto_utils::HostToLEFixed(w));
+    hasher.Update(perfetto::base::HostToLE(w));
   }
   words.Append(static_cast<uint32_t>(hasher.digest()));
 

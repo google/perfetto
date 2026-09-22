@@ -105,7 +105,7 @@ class PackedFixedSizeInt : public PackedBufferBase {
                   "kMaxElementSize needs to be updated");
     GrowIfNeeded();
     PERFETTO_DCHECK(reinterpret_cast<size_t>(write_ptr_) % alignof(T) == 0);
-    T le_value = proto_utils::HostToLEFixed(value);
+    T le_value = perfetto::base::HostToLE(value);
     memcpy(reinterpret_cast<T*>(write_ptr_), &le_value, sizeof(T));
     write_ptr_ += sizeof(T);
   }

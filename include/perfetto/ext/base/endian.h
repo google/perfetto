@@ -19,6 +19,9 @@
 
 #include <stdint.h>
 #include <stdlib.h>  // For MSVC
+#include <string.h>
+
+#include <type_traits>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
@@ -123,6 +126,54 @@ inline uint64_t BE64ToHost(uint64_t x) {
   return x;
 }
 #endif
+
+template <typename T>
+inline T HostToLE(T x) {
+  static_assert(sizeof(T) == 4 || sizeof(T) == 8);
+  if constexpr (std::is_integral<T>::value) {
+    if constexpr (sizeof(T) == 4)
+      return static_cast<T>(HostToLE32(static_cast<uint32_t>(x)));
+    else
+      return static_cast<T>(HostToLE64(static_cast<uint64_t>(x)));
+  } else {
+    if constexpr (sizeof(T) == 4) {
+      uint32_t u;
+      memcpy(&u, &x, sizeof(u));
+      u = HostToLE32(u);
+      memcpy(&x, &u, sizeof(u));
+    } else {
+      uint64_t u;
+      memcpy(&u, &x, sizeof(u));
+      u = HostToLE64(u);
+      memcpy(&x, &u, sizeof(u));
+    }
+    return x;
+  }
+}
+
+template <typename T>
+inline T LEToHost(T x) {
+  static_assert(sizeof(T) == 4 || sizeof(T) == 8);
+  if constexpr (std::is_integral<T>::value) {
+    if constexpr (sizeof(T) == 4)
+      return static_cast<T>(LE32ToHost(static_cast<uint32_t>(x)));
+    else
+      return static_cast<T>(LE64ToHost(static_cast<uint64_t>(x)));
+  } else {
+    if constexpr (sizeof(T) == 4) {
+      uint32_t u;
+      memcpy(&u, &x, sizeof(u));
+      u = LE32ToHost(u);
+      memcpy(&x, &u, sizeof(u));
+    } else {
+      uint64_t u;
+      memcpy(&u, &x, sizeof(u));
+      u = LE64ToHost(u);
+      memcpy(&x, &u, sizeof(u));
+    }
+    return x;
+  }
+}
 
 }  // namespace base
 }  // namespace perfetto

@@ -243,7 +243,7 @@ class PackedRepeatedFieldIterator {
       // NB: the raw buffer is not guaranteed to be aligned, so neither are
       // these copies.
       memcpy(&curr_value_, read_ptr_, sizeof(CppType));
-      curr_value_ = proto_utils::LEFixedToHost(curr_value_);
+      curr_value_ = perfetto::base::LEToHost(curr_value_);
       read_ptr_ += kStep;
     }
 
