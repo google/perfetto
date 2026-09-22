@@ -25025,6 +25025,9 @@ cc_test {
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
     ],
+    data_libs: [
+        "libprotobuf-cpp-full",
+    ],
     target: {
         android: {
             static_libs: [
