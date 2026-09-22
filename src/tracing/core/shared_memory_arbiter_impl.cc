@@ -491,6 +491,8 @@ bool SharedMemoryArbiterImpl::TryDirectPatchLocked(
   for (auto ctm_it = chunks_to_move.rbegin(); ctm_it != chunks_to_move.rend();
        ++ctm_it) {
     uint32_t header_bitmap = shmem_abi_.GetPageHeaderBitmap(ctm_it->page());
+    // The page layout may have changed concurrently in shared memory.
+    // See b/513159433.
     if (ctm_it->chunk() >=
         SharedMemoryABI::GetNumChunksFromHeaderBitmap(header_bitmap)) {
       continue;
@@ -626,6 +628,8 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
       // them to kChunkComplete - otherwise the service won't look at them.
       for (auto& ctm : *commit_data_req_->mutable_chunks_to_move()) {
         uint32_t header_bitmap = shmem_abi_.GetPageHeaderBitmap(ctm.page());
+        // The page layout may have changed concurrently in shared memory.
+        // See b/513159433.
         if (ctm.chunk() >=
             SharedMemoryABI::GetNumChunksFromHeaderBitmap(header_bitmap)) {
           continue;
