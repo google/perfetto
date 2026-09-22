@@ -6211,7 +6211,7 @@ message SystemInfo {
 
 // Statistics for the internals of the tracing service.
 //
-// Next id: 19.
+// Next id: 20.
 message TraceStats {
   // From TraceBuffer::Stats.
   //
@@ -6427,6 +6427,32 @@ message TraceStats {
     FINAL_FLUSH_FAILED = 2;
   }
   optional FinalFlushOutcome final_flush_outcome = 15;
+
+  // Accepted layouts for producer connections that sent authorized v2 data
+  // into this session. The data need not survive admission or validation.
+  // Adoption alone does not create an entry. Producer IDs can be reused.
+  // Entries survive disconnect. Clones retain a fixed snapshot.
+  // Each stats output samples live connections and includes all entries.
+  message V2ProducerStats {
+    optional uint32 producer_id = 1;
+    optional uint32 accepted_chunk_size = 2;
+    optional uint32 accepted_num_chunks = 3;
+    optional uint64 accepted_ring_size_bytes = 4;
+    reserved 5;
+    // Temporary rollout diagnostics: cumulative connection-wide counters,
+    // including other sessions and activity before this session. They can be
+    // removed after the experiment without removing layout/use metadata.
+    optional uint64 chunks_read = 6;
+    optional uint64 positions_skipped = 7;
+    optional uint64 malformed_chunks = 8;
+    optional uint64 rewrite_requests = 9;
+    optional uint64 unsupported_format_chunks = 10;
+    optional uint32 accepted_abi_version = 11;
+    // Validated global destinations in this session, deduplicated. Clones keep
+    // historical source IDs rather than substituting their new buffer IDs.
+    repeated uint32 observed_target_buffers = 12;
+  }
+  repeated V2ProducerStats v2_producer_stats = 19;
 }
 
 // End of protos/perfetto/common/trace_stats.proto

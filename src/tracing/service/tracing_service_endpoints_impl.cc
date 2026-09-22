@@ -696,8 +696,11 @@ void ProducerEndpointImpl::OnFreeBuffers(
     const std::vector<BufferID>& target_buffers) {
   if (allowed_target_buffers_.empty())
     return;
-  for (BufferID buffer : target_buffers)
+  for (BufferID buffer : target_buffers) {
     allowed_target_buffers_.erase(buffer);
+    if (ring_buffer_ingress_)
+      ring_buffer_ingress_->ForgetBuffer(buffer);
+  }
 }
 
 void ProducerEndpointImpl::ClearIncrementalState(
@@ -803,6 +806,17 @@ void ProducerEndpointImpl::ForEachRingBufferDestination(
 
 void ProducerEndpointImpl::OnRingBufferChunkDiscarded() {
   service_->OnRingBufferChunkDiscarded();
+}
+
+void ProducerEndpointImpl::OnRingBufferUsed(BufferID buffer_id) {
+  for (auto& kv : service_->tracing_sessions_) {
+    auto& session = kv.second;
+    if (std::find(session.buffers_index.begin(), session.buffers_index.end(),
+                  buffer_id) != session.buffers_index.end()) {
+      session.should_emit_stats = true;
+      return;
+    }
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

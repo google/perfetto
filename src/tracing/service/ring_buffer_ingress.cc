@@ -20,6 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/tracing/service/trace_buffer_v2.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 namespace perfetto::tracing_v2 {
 
@@ -81,7 +82,39 @@ void RingBufferIngress::OnChunkRead(
                                         chunk.payload_flags) !=
       TraceBufferV2::ProtoGroupAppendResult::kStored) {
     delegate_->OnRingBufferChunkDiscarded();
+    return;
   }
+  // Report the first admitted chunk per destination. A chunk that carries no
+  // fragment cannot establish first use.
+  if (chunk.num_fragments &&
+      observed_buffers_.insert(chunk.target_buffer).second) {
+    delegate_->OnRingBufferUsed(chunk.target_buffer);
+  }
+}
+
+std::optional<TraceStats::V2ProducerStats> RingBufferIngress::GetStats(
+    const std::vector<BufferID>& session_buffers) const {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TraceStats::V2ProducerStats snapshot;
+  for (BufferID buffer : session_buffers) {
+    if (observed_buffers_.count(buffer))
+      snapshot.add_observed_target_buffers(buffer);
+  }
+  if (snapshot.observed_target_buffers().empty())
+    return std::nullopt;
+  snapshot.set_producer_id(producer_id_);
+  snapshot.set_accepted_abi_version(kRingBufferAbiVersion);
+  snapshot.set_accepted_chunk_size(ring_buffer_.chunk_size());
+  snapshot.set_accepted_num_chunks(ring_buffer_.num_chunks());
+  snapshot.set_accepted_ring_size_bytes(memory_->size());
+  const auto reader_stats = reader_.GetStats();
+  snapshot.set_chunks_read(reader_stats.chunks_read);
+  snapshot.set_positions_skipped(reader_stats.positions_skipped);
+  snapshot.set_malformed_chunks(reader_stats.malformed_chunks);
+  snapshot.set_rewrite_requests(reader_stats.rewrite_requests);
+  snapshot.set_unsupported_format_chunks(
+      reader_stats.unsupported_format_chunks);
+  return snapshot;
 }
 
 void RingBufferIngress::OnDataLoss(WriterID writer_id) {

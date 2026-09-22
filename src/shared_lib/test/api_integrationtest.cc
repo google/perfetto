@@ -66,6 +66,7 @@
 
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/trace_stats.gen.h"
 #include "src/shared_lib/reset_for_testing.h"
 #include "src/shared_lib/stream_writer.h"
 #include "src/shared_lib/test/protos/extensions.pzc.h"
@@ -1312,8 +1313,24 @@ TEST_P(SharedLibV2Test, ActualCGeneratedNestedPacketAndFlush) {
   ASSERT_TRUE(session.FlushBlocking(5000));
   session.StopBlocking();
   bool found = false;
+  size_t observations = 0;
   auto trace = session.ReadBlocking();
   for (auto trace_field : FieldView(trace)) {
+    for (auto stats_field :
+         IdFieldView(trace_field,
+                     perfetto_protos_TracePacket_trace_stats_field_number)) {
+      perfetto::protos::gen::TraceStats stats;
+      ASSERT_TRUE(stats.ParseFromArray(stats_field.value.delimited.start,
+                                       stats_field.value.delimited.len));
+      for (const auto& observation : stats.v2_producer_stats()) {
+        ++observations;
+        EXPECT_EQ(observation.accepted_abi_version(), 1u);
+        EXPECT_EQ(observation.accepted_chunk_size(), 256u);
+        EXPECT_EQ(observation.accepted_ring_size_bytes(),
+                  64u + uint64_t{observation.accepted_num_chunks()} * 256u);
+        EXPECT_EQ(observation.observed_target_buffers().size(), 1u);
+      }
+    }
     IdFieldView events(trace_field,
                        perfetto_protos_TracePacket_for_testing_field_number);
     if (events.size() == 0)
@@ -1327,6 +1344,7 @@ TEST_P(SharedLibV2Test, ActualCGeneratedNestedPacketAndFlush) {
                         StringField(payload)))))));
   }
   EXPECT_TRUE(found);
+  EXPECT_EQ(observations, 1u);
 }
 
 TEST_P(SharedLibV2Test, ZeroProbabilityUsesLegacyWriter) {

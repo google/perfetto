@@ -53,6 +53,7 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/protozero",
       "../../../include/perfetto/public",
+      "../../../protos/perfetto/common:cpp",
       "../../base",
       "protos",
     ]
