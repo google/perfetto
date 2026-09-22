@@ -564,6 +564,11 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
           SpanText(p, node->drop_perfetto_index_stmt.index_name),
           SpanText(p, node->drop_perfetto_index_stmt.table_name),
       });
+    case SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT:
+      // The statement parses but nothing acts on it, so refuse it here rather
+      // than handing SQLite text it cannot read.
+      return base::ErrStatus("%sPERFETTO PRAGMA: not implemented",
+                             NodeSource(rb, root).AsTraceback(0).c_str());
     default:
       return Statement(PerfettoSqlParser::SqliteSql{});
   }

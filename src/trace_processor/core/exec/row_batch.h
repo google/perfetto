@@ -30,12 +30,19 @@ namespace perfetto::trace_processor::core::exec {
 
 // A batch of columns, all with the same number of rows.
 //
-// The values belong to whoever handed the batch over and stay valid until the
-// next pull from them. A batch also keeps alive any column it was given
-// ownership of, so such a column does not dangle if its producer goes away.
+// Published owned columns and composed selections are immutable while retained.
+// Unowned values are borrowed; long-lived dataframe storage is published with
+// its column owner. CopyFrom shares values and owns any borrowed selection
+// indices. Owned views remain valid across producer advancement, rewind
+// and destruction. Borrowed values expire at the producer's next call; a
+// retaining consumer must materialize them.
 class RowBatch {
  public:
   RowBatch() = default;
+  RowBatch(const RowBatch&) = delete;
+  RowBatch& operator=(const RowBatch&) = delete;
+  RowBatch(RowBatch&&) noexcept = default;
+  RowBatch& operator=(RowBatch&&) noexcept = default;
 
   uint32_t size() const { return cardinality_; }
   void SetCardinality(uint32_t count) {
@@ -49,50 +56,46 @@ class RowBatch {
   const ColumnView& column(uint32_t column) const { return columns_[column]; }
   ColumnView& mutable_column(uint32_t column) { return columns_[column]; }
 
-  // Points this batch at `other`'s columns and cardinality. No values are
-  // copied.
+  const std::shared_ptr<const void>& owner(uint32_t column) const {
+    return owners_[column];
+  }
+
+  // Points this batch at `other`'s columns and cardinality. Nothing is copied:
+  // values and indices are shared, and borrowed values remain borrowed.
   void CopyFrom(const RowBatch& other) {
     columns_ = other.columns_;
     owners_ = other.owners_;
     cardinality_ = other.cardinality_;
-    selections_.Reset();
-    for (ColumnView& column : columns_) {
-      column.DisownBlock();
-    }
+  }
+
+  // Transfers views without copying their shared owners. Pools stay with the
+  // batches which allocate from them so repeated execution reuses storage.
+  void SwapContents(RowBatch& other) {
+    std::swap(cardinality_, other.cardinality_);
+    columns_.swap(other.columns_);
+    owners_.swap(other.owners_);
   }
 
   // Replaces `column` and the owner keeping its values alive.
   void SetColumn(uint32_t column,
                  ColumnView view,
                  std::shared_ptr<const void> owner = nullptr) {
-    // The view may carry the block of the batch it was composed in; narrowing
-    // it here must not write there.
-    view.DisownBlock();
     columns_[column] = std::move(view);
     owners_[column] = std::move(owner);
   }
   // Adds a column. `owner` keeps the values alive for as long as the batch
-  // does; pass null when the storage already outlives the batch.
+  // does. A null owner declares borrowed storage; retaining consumers may copy.
   void AddColumn(ColumnView column,
                  std::shared_ptr<const void> owner = nullptr) {
-    // The view may carry the block of the batch it was composed in; narrowing
-    // it here must not write there.
-    column.DisownBlock();
     columns_.push_back(std::move(column));
     owners_.push_back(std::move(owner));
   }
 
-  // Points every column at `rows`, which the caller continues to own.
-  bool AdoptPhysicalRows(Span<const uint32_t> rows);
-
-  // Invalidates the current contents, ready for the batch to be refilled.
-  void PrepareForFill() { selections_.Reset(); }
-
   // Points every column at the `count` rows `selection` picks out.
   void Compose(RowSelection selection, uint32_t count);
 
-  // Narrows to the `count` rows `selection` picks out, whose ordinals must be
-  // strictly increasing. Returns false when no rows remain.
+  // Selects logical rows, permitting repetition and reordering. Returns false
+  // when no rows remain. The values themselves are never copied.
   bool Slice(RowSelection selection, uint32_t count);
 
   // Removes every column.

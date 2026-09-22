@@ -242,6 +242,14 @@ perfetto_pipeline(A) ::= FROM perfetto_pipe_source(F)
 
 cmd(A) ::= perfetto_pipeline(P). { A = P; }
 
+// ---------- PERFETTO PRAGMA ----------
+
+// A setting of the engine, rather than of SQLite. Any expression parses;
+// the engine takes the ones it can read.
+cmd(A) ::= PERFETTO PRAGMA nm(N) EQ expr(V). {
+    A = synq_parse_perfetto_pragma_stmt(pCtx, synq_span_dequote(pCtx, N), V);
+}
+
 // ---------- CREATE PERFETTO TABLE ----------
 
 cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)

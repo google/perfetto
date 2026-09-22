@@ -18,7 +18,9 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_
 
 #include <cstdint>
+#include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -72,26 +74,22 @@ class ColumnView {
   RowSelection selection() const { return selection_; }
 
   // Composes `selection` with the selection already applied, materializing the
-  // result into a block of `pool` if one is needed. The ordinals in
-  // `selection` must be strictly increasing.
+  // result into a pooled block if needed. Indices may repeat or reorder rows.
   void Slice(RowSelection selection, uint32_t count, SelectionPool& pool);
 
-  // Points this column at physical rows the caller owns. Nothing is copied, so
-  // `rows` has to outlive the batch's current contents.
-  void SetBorrowedRows(Span<const uint32_t> rows) {
-    selection_ = RowSelection::Indices(rows);
-    block_ = nullptr;
+  // Shares immutable physical indices; the caller must stop writing to rows.
+  void SetOwnedRows(std::shared_ptr<const FlexVector<uint32_t>> rows,
+                    uint32_t count) {
+    PERFETTO_DCHECK(rows && count <= rows->size());
+    selection_ = RowSelection::Indices(
+        Span<const uint32_t>(rows->data(), rows->data() + count));
+    selection_owner_ = std::move(rows);
   }
-
-  // Forgets which batch's block this selection was composed into. A batch
-  // adopting a column from another batch must call this, or narrowing the
-  // column would write into the other batch's storage.
-  void DisownBlock() { block_ = nullptr; }
 
   // Points this column at the run of physical rows starting at `offset`.
   void SetRange(uint32_t offset) {
     selection_ = RowSelection::Range(offset);
-    block_ = nullptr;
+    selection_owner_.reset();
   }
 
   // Takes over the selection `other` just composed. Columns sharing a
@@ -99,7 +97,7 @@ class ColumnView {
   // them has to do the work.
   void AdoptSelection(const ColumnView& other) {
     selection_ = other.selection_;
-    block_ = other.block_;
+    selection_owner_ = other.selection_owner_;
   }
 
   // The value at logical row `row`, resolved through this column's own row
@@ -127,10 +125,8 @@ class ColumnView {
   Kind kind_ = Kind::kFlat;
   StorageType type_{Id{}};
   RowSelection selection_ = RowSelection::Range();
-  // The batch block this column's selection was composed into, or null when
-  // the selection points at storage the batch does not own. Columns sharing a
-  // selection share the block behind it.
-  uint32_t* block_ = nullptr;
+  // Keeps composed indices immutable and alive independently of the producer.
+  std::shared_ptr<const FlexVector<uint32_t>> selection_owner_;
   const void* data_ = nullptr;
   const BitVector* validity_ = nullptr;
 };
