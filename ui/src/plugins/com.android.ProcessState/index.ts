@@ -73,7 +73,7 @@ export default class ProcessState implements PerfettoPlugin {
     await ctx.engine.query(`INCLUDE PERFETTO MODULE android.process_state;`);
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ProcessStateResidencyAggregator()),
+      createAggregationTab(ctx, new ProcessStateResidencyAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ProcessStateTransitionsAggregator(ctx)),
