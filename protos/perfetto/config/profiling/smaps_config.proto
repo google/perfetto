@@ -59,7 +59,8 @@ message ProcessSmapsConfig {
   optional Scope scope = 2;
 
   // How often to recapture the smaps, including re-evaluating which processes
-  // match the |scope|.
+  // match the |scope|. May be overridden by the implementation (at the time of
+  // writing, [1s, 24hr] range).
   // If zero or unset, each process is captured only once at start.
   optional uint32 read_period_ms = 3;
 }
