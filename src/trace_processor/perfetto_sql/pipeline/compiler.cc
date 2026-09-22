@@ -136,7 +136,7 @@ base::Status Compiler::CompileSource(uint32_t from) {
   for (const NamedColumn& column : scan.columns) {
     Bind(column, from);
   }
-  plan_.ops.emplace_back(std::move(scan));
+  plan_.AddNode(std::move(scan));
   return base::OkStatus();
 }
 
@@ -363,7 +363,7 @@ base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {
   for (auto& [column, node] : output) {
     Bind(std::move(column), node);
   }
-  plan_.ops.emplace_back(std::move(acc));
+  plan_.AddNode(std::move(acc), {plan_.root});
   return base::OkStatus();
 }
 
