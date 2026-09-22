@@ -191,6 +191,35 @@ inline std::optional<uint32_t> NumChunksForRingLayout(size_t size,
   return static_cast<uint32_t>(count);
 }
 
+// Largest valid ring size within |budget| bytes, including the header.
+// It returns nullopt when the budget cannot host a valid layout.
+//
+// Callers can use any sequence. This function reads no shared bytes and
+// transfers no ownership. The caller passes a byte budget already reduced
+// for peer bookkeeping.
+inline std::optional<size_t> RingSizeForBudget(size_t budget,
+                                               uint32_t chunk_size) {
+  if (chunk_size < kMinChunkSize || chunk_size % kChunkAlignmentBytes != 0) {
+    return std::nullopt;
+  }
+  // Subtract the header after this check to avoid overflow on 32-bit builds.
+  if (budget < sizeof(RingBufferHeader))
+    return std::nullopt;
+  const size_t max_count = (budget - sizeof(RingBufferHeader)) / chunk_size;
+  if (max_count < kMinChunksPerRing)
+    return std::nullopt;
+  // NumChunksForRingLayout accepts only a power-of-two count in the supported
+  // range. Round the fit down to that shape.
+  //
+  // The power-of-two rule permits chunk indexing with a mask. The maximum
+  // keeps outstanding positions below 2^31 for unambiguous unsigned
+  // subtraction.
+  size_t count = kMinChunksPerRing;
+  while (count < kMaxChunksPerRing && count <= max_count / 2)
+    count *= 2;
+  return sizeof(RingBufferHeader) + count * chunk_size;
+}
+
 constexpr uint64_t PackRwPositions(uint32_t write_pos, uint32_t read_pos) {
   return (static_cast<uint64_t>(write_pos) << 32) | read_pos;
 }

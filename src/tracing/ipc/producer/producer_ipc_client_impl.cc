@@ -16,7 +16,10 @@
 
 #include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <optional>
+#include <random>
 
 #include <string.h>
 
@@ -30,12 +33,15 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/ipc/memfd.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
+#include "src/tracing/v2/shared_ring_buffer_arbiter_impl.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -48,6 +54,50 @@
 // the callbacks.
 
 namespace perfetto {
+namespace {
+
+// Tracing v2 setup helpers. The service in tracing_service_impl.cc holds its
+// own copies of IsValidConfig and RequestedChunkSize. Keep the chunk-size rule
+// {256, 512, 1024} in sync between both files.
+
+uint32_t RequestedChunkSize(const DataSourceConfig& config) {
+  const auto& experiment = config.experimental_tracing_v2();
+  return experiment.has_chunk_size_bytes() ? experiment.chunk_size_bytes()
+                                           : 256;
+}
+
+bool IsValidConfig(const DataSourceConfig& config) {
+  const auto& experiment = config.experimental_tracing_v2();
+  auto size = RequestedChunkSize(config);
+  return experiment.use_v2_probability_percent() <= 100 &&
+         (size == 256 || size == 512 || size == 1024);
+}
+
+// Nullopt means the config is invalid. The endpoint samples once per instance
+// during setup and reuses the result.
+std::optional<bool> SelectV2(const DataSourceConfig& config) {
+  if (!IsValidConfig(config))
+    return std::nullopt;
+  auto probability =
+      config.experimental_tracing_v2().use_v2_probability_percent();
+  if (!config.tracing_v2_eligible() || probability == 0)
+    return false;
+  if (probability == 100)
+    return true;
+  std::random_device random;
+  return std::uniform_int_distribution<uint32_t>(0, 99)(random) < probability;
+}
+
+// A zero budget selects a 128 KiB default. The return caps at kMaxShmSize and
+// rounds to a supported ring layout. Returns 0 if no layout fits.
+size_t RingAllocationSize(size_t budget, uint32_t chunk_size) {
+  if (!budget)
+    budget = 128 * 1024;
+  budget = std::min(budget, size_t{TracingService::kMaxShmSize});
+  return tracing_v2::RingSizeForBudget(budget, chunk_size).value_or(0);
+}
+
+}  // namespace
 
 // static. (Declared in include/tracing/ipc/producer_ipc_client.h).
 std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
@@ -250,10 +300,16 @@ void ProducerIPCClientImpl::OnDisconnect() {
   connected_ = false;
   supports_tracing_v2_ = false;
   data_sources_setup_.clear();
+  if (ring_arbiter_)
+    ring_arbiter_->Disconnect();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
 
 void ProducerIPCClientImpl::ScheduleDisconnect() {
+  connected_ = false;
+  if (ring_arbiter_)
+    ring_arbiter_->Disconnect();
+  data_sources_setup_.clear();
   // |ipc_channel| doesn't allow disconnection in the middle of handling
   // an IPC call, so the connection drop must take place over two phases.
 
@@ -266,7 +322,8 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this]() {
     if (weak_this) {
-      weak_this->Disconnect();
+      weak_this->ipc_channel_.reset();
+      weak_this->OnDisconnect();
     }
   });
 }
@@ -299,9 +356,79 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
   }
 }
 
+void ProducerIPCClientImpl::SetupRingBuffer(DataSourceInstanceID id,
+                                            const DataSourceConfig& config) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!SupportsTracingV2() || !shared_memory_arbiter_)
+    return;
+  {
+    std::lock_guard<std::mutex> lock(ring_mutex_);
+    if (instance_uses_ring_.count(id))
+      return;
+  }
+  auto selected = SelectV2(config);
+  if (!selected)
+    PERFETTO_DLOG("Invalid experimental_tracing_v2 for %s",
+                  config.name().c_str());
+  {
+    std::lock_guard<std::mutex> lock(ring_mutex_);
+    instance_uses_ring_.emplace(id, selected.value_or(false));
+  }
+  if (!selected.value_or(false) || ring_allocation_attempted_)
+    return;
+  ring_allocation_attempted_ = true;
+
+  const uint32_t chunk_size = RequestedChunkSize(config);
+  const size_t size =
+      RingAllocationSize(shared_memory_size_hint_bytes_, chunk_size);
+  std::unique_ptr<SharedMemory> memory;
+  int fd = -1;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (size) {
+    auto allocation = PosixSharedMemory::CreateRing(size);
+    if (allocation) {
+      fd = allocation->fd();
+      memory = std::move(allocation);
+    }
+  }
+#else
+  base::ignore_result(size);
+#endif
+  if (!memory) {
+    PERFETTO_ELOG("Failed to allocate tracing v2 shared memory");
+    return;
+  }
+  auto arbiter = std::make_unique<tracing_v2::SharedRingBufferArbiterImpl>(
+      task_runner_, this, shared_memory_arbiter_.get());
+  // The arbiter takes ownership of the mapping. A rejection here means the
+  // allocation does not match the ring layout, which is an internal error.
+  if (!arbiter->OfferRingBuffer(std::move(memory), chunk_size)) {
+    PERFETTO_ELOG("Tracing v2 arbiter rejected the local ring buffer");
+    return;
+  }
+  {
+    std::lock_guard<std::mutex> lock(ring_mutex_);
+    ring_arbiter_ = std::move(arbiter);
+  }
+  auto weak = weak_factory_.GetWeakPtr();
+  OfferRingBuffer(fd, chunk_size, [weak](bool accepted) {
+    if (!weak)
+      return;
+    if (accepted) {
+      weak->ring_arbiter_->SetAccepted();
+    } else {
+      PERFETTO_ELOG("Service rejected tracing v2 shared memory");
+      weak->ring_arbiter_->Disconnect();
+    }
+  });
+}
+
 void ProducerIPCClientImpl::OnServiceRequest(
     const protos::gen::GetAsyncCommandResponse& cmd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!connected_)
+    return;
 
   // This message is sent only when connecting to a service running Android Q+.
   // See comment below in kStartDataSource.
@@ -309,6 +436,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const auto& req = cmd.setup_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
     data_sources_setup_.insert(dsid);
+    SetupRingBuffer(dsid, req.config());
     producer_->SetupDataSource(dsid, req.config());
     return;
   }
@@ -320,6 +448,8 @@ void ProducerIPCClientImpl::OnServiceRequest(
     if (!data_sources_setup_.count(dsid)) {
       // When connecting with an older (Android P) service, the service will not
       // send a SetupDataSource message. We synthesize it here in that case.
+      data_sources_setup_.insert(dsid);
+      SetupRingBuffer(dsid, cfg);
       producer_->SetupDataSource(dsid, cfg);
     }
     producer_->StartDataSource(dsid, cfg);
@@ -328,8 +458,12 @@ void ProducerIPCClientImpl::OnServiceRequest(
 
   if (cmd.has_stop_data_source()) {
     const DataSourceInstanceID dsid = cmd.stop_data_source().instance_id();
-    producer_->StopDataSource(dsid);
     data_sources_setup_.erase(dsid);
+    {
+      std::lock_guard<std::mutex> lock(ring_mutex_);
+      instance_uses_ring_.erase(dsid);
+    }
+    producer_->StopDataSource(dsid);
     return;
   }
 
@@ -597,15 +731,21 @@ void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
 
 void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!connected_) {
-    PERFETTO_DLOG(
-        "Cannot NotifyDataSourceStopped(), not connected to tracing service");
+  if (!connected_)
     return;
-  }
-  protos::gen::NotifyDataSourceStoppedRequest req;
-  req.set_data_source_id(id);
-  producer_port_->NotifyDataSourceStopped(
-      req, ipc::Deferred<protos::gen::NotifyDataSourceStoppedResponse>());
+  auto weak = weak_factory_.GetWeakPtr();
+  auto finish = [weak, id] {
+    if (!weak || !weak->connected_)
+      return;
+    protos::gen::NotifyDataSourceStoppedRequest req;
+    req.set_data_source_id(id);
+    weak->producer_port_->NotifyDataSourceStopped(
+        req, ipc::Deferred<protos::gen::NotifyDataSourceStoppedResponse>());
+  };
+  if (ring_arbiter_)
+    ring_arbiter_->Flush(std::move(finish));
+  else
+    finish();
 }
 
 void ProducerIPCClientImpl::ActivateTriggers(
@@ -641,13 +781,30 @@ void ProducerIPCClientImpl::Sync(std::function<void()> callback) {
   producer_port_->Sync(protos::gen::SyncRequest(), std::move(resp));
 }
 
+// Called from any thread. The SMB arbiter exists before data source setup.
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferID target_buffer,
-    BufferExhaustedPolicy buffer_exhausted_policy) {
-  // This method can be called by different threads. |shared_memory_arbiter_| is
-  // thread-safe but be aware of accessing any other state in this function.
-  return shared_memory_arbiter_->CreateTraceWriter(target_buffer,
-                                                   buffer_exhausted_policy);
+    BufferExhaustedPolicy policy) {
+  return shared_memory_arbiter_->CreateTraceWriter(target_buffer, policy);
+}
+
+std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
+    BufferID target_buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID id) {
+  tracing_v2::SharedRingBufferArbiterImpl* arbiter = nullptr;
+  bool use_ring = false;
+  {
+    std::lock_guard<std::mutex> lock(ring_mutex_);
+    auto it = instance_uses_ring_.find(id);
+    use_ring = it != instance_uses_ring_.end() && it->second;
+    arbiter = ring_arbiter_.get();
+  }
+  if (!use_ring)
+    return CreateTraceWriter(target_buffer, policy);
+  if (!arbiter)
+    return std::make_unique<NullTraceWriter>();
+  return arbiter->CreateTraceWriter(target_buffer, policy);
 }
 
 SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {
@@ -659,7 +816,15 @@ bool ProducerIPCClientImpl::IsShmemProvidedByProducer() const {
 }
 
 void ProducerIPCClientImpl::NotifyFlushComplete(FlushRequestID req_id) {
-  shared_memory_arbiter_->NotifyFlushComplete(req_id);
+  if (ring_arbiter_) {
+    auto weak = weak_factory_.GetWeakPtr();
+    ring_arbiter_->Flush([weak, req_id] {
+      if (weak && weak->connected_)
+        weak->shared_memory_arbiter_->NotifyFlushComplete(req_id);
+    });
+  } else {
+    shared_memory_arbiter_->NotifyFlushComplete(req_id);
+  }
 
   // NB: For producers using SMB emulation, the actual value of
   // ProducerSMBScrapingMode::kDefault in the service-side is unknown on the

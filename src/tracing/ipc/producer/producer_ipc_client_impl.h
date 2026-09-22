@@ -18,7 +18,8 @@
 #define SRC_TRACING_IPC_PRODUCER_PRODUCER_IPC_CLIENT_IMPL_H_
 
 #include <stdint.h>
-
+#include <map>
+#include <mutex>
 #include <set>
 #include <vector>
 
@@ -45,6 +46,9 @@ class ProducerIPCClientOfferForTest;
 
 class Producer;
 class SharedMemoryArbiter;
+namespace tracing_v2 {
+class SharedRingBufferArbiterImpl;
+}  // namespace tracing_v2
 
 // Exposes a Service endpoint to Producer(s), proxying all requests through a
 // IPC channel to the remote Service. This class is the glue layer between the
@@ -52,6 +56,10 @@ class SharedMemoryArbiter;
 // actual IPC transport.
 // If create_socket_async is set, it will be called to create and connect to a
 // socket to the service. If unset, the producer will create and connect itself.
+//
+// This endpoint owns the SMB and ring mappings and their arbiters. Writers
+// borrow them. Ring writer IDs in the SMB arbiter retain the endpoint until
+// those writers retire. A rejected ring remains allocated for those borrowers.
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
@@ -88,6 +96,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -109,6 +120,10 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();
+
+  // Samples the instance once and allocates the ring for the first v2 instance.
+  // Only the endpoint sequence calls this, before producer setup callbacks.
+  void SetupRingBuffer(DataSourceInstanceID, const DataSourceConfig&);
 
   // Borrows |fd| to send an offer on the endpoint sequence.
   // The caller retains its mapping for all writers that use it.
@@ -152,7 +167,6 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool supports_tracing_v2_ = false;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
-  std::set<DataSourceInstanceID> data_sources_setup_;
   bool connected_ = false;
   std::string const name_;
   size_t shared_memory_page_size_hint_bytes_ = 0;
@@ -162,6 +176,20 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool direct_smb_patching_supported_ = false;
   bool use_shmem_emulation_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
+  std::set<DataSourceInstanceID> data_sources_setup_;
+  // The endpoint owns the ring mapping and arbiter. Writers borrow both.
+  // Their IDs keep this endpoint alive through the SMB arbiter's TryShutdown.
+  // Declaration order destroys the ring arbiter before either memory owner.
+  std::unique_ptr<SharedMemory> ring_memory_;
+  std::unique_ptr<tracing_v2::SharedRingBufferArbiterImpl> ring_arbiter_;
+
+  // Protects instance decisions and publication of the lazy arbiter to writers.
+  // The endpoint never replaces the arbiter, including after rejection.
+  std::mutex ring_mutex_;
+  std::map<DataSourceInstanceID, bool> instance_uses_ring_;
+
+  // Endpoint sequence only. Allocation failure also consumes the one attempt.
+  bool ring_allocation_attempted_ = false;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
