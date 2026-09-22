@@ -141,10 +141,9 @@ TEST(ExecutorContractTest, ComposedSelectionsMatchScalarRows) {
       auto ids = ColumnView::Reference(StorageType{Id{}}, nullptr);
       auto data =
           ColumnView::Reference(StorageType{Int64{}}, values.data(), &valid);
-      auto selection =
-          Span<const uint32_t>(physical.data(), physical.data() + size);
-      ids.SetBorrowedRows(selection);
-      data.SetBorrowedRows(selection);
+      auto selection = test::OwnedRows(physical);
+      ids.SetOwnedRows(selection, size);
+      data.SetOwnedRows(selection, size);
       batch.AddColumn(ids);
       batch.AddColumn(data);
       batch.AddColumn(

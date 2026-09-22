@@ -77,13 +77,6 @@ class ColumnView {
   // result into a pooled block if needed. Indices may repeat or reorder rows.
   void Slice(RowSelection selection, uint32_t count, SelectionPool& pool);
 
-  // Points this column at physical rows the caller owns. Nothing is copied, so
-  // `rows` has to outlive the batch's current contents.
-  void SetBorrowedRows(Span<const uint32_t> rows) {
-    selection_ = RowSelection::Indices(rows);
-    selection_owner_.reset();
-  }
-
   // Shares immutable physical indices; the caller must stop writing to rows.
   void SetOwnedRows(std::shared_ptr<const FlexVector<uint32_t>> rows,
                     uint32_t count) {
@@ -91,16 +84,6 @@ class ColumnView {
     selection_ = RowSelection::Indices(
         Span<const uint32_t>(rows->data(), rows->data() + count));
     selection_owner_ = std::move(rows);
-  }
-
-  // Copies borrowed indices only; ranges and already-owned indices are shared.
-  void RetainSelection(uint32_t count, SelectionPool& pool) {
-    if (selection_.is_range() || selection_owner_ || !count)
-      return;
-    auto block = pool.TakeBlock();
-    for (uint32_t i = 0; i < count; ++i)
-      (*block)[i] = selection_.GetIndex(i);
-    SetOwnedRows(std::move(block), count);
   }
 
   // Points this column at the run of physical rows starting at `offset`.

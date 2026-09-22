@@ -17,13 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_BUFFER_POOL_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BUFFER_POOL_H_
 
+#include <array>
+#include <cstddef>
 #include <memory>
-#include <vector>
 
 namespace perfetto::trace_processor::core::exec {
 
 // Execution-local writable buffers. Published shared owners make a buffer
-// unavailable for reuse. The pool retains at most two allocations; additional
+// unavailable for reuse. The pool retains at most kCapacity allocations; extra
 // outstanding buffers live solely with their consumers. No value copy occurs.
 // A pool is not shared between threads. Retained buffers may outlive the pool.
 template <typename T>
@@ -38,17 +39,18 @@ class BufferPool {
   // Initialize it before publishing and stop writing once an owner is shared.
   std::shared_ptr<T> Acquire() {
     for (auto& buffer : buffers_) {
+      if (!buffer)
+        buffer = std::make_shared<T>();
       if (buffer.use_count() == 1)
         return buffer;
     }
-    auto buffer = std::make_shared<T>();
-    if (buffers_.size() < 2)
-      buffers_.push_back(buffer);
-    return buffer;
+    return std::make_shared<T>();
   }
 
  private:
-  std::vector<std::shared_ptr<T>> buffers_;
+  static constexpr size_t kCapacity = 2;
+
+  std::array<std::shared_ptr<T>, kCapacity> buffers_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

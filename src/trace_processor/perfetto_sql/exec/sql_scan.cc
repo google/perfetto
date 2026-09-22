@@ -264,7 +264,6 @@ bool SqlScan::GetData(RowBatch& out, core::exec::OperatorState& state) const {
     return false;
   }
 
-  out.Reset();
   for (uint32_t i = 0; i < s.columns.size(); ++i) {
     const std::shared_ptr<ColumnChunk>& column = s.columns[i];
     if (!columns_[i].type) {

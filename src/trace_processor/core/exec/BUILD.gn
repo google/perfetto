@@ -63,6 +63,7 @@ source_set("test_utils") {
     ":exec",
     "../../../base",
     "../common",
+    "../util",
   ]
 }
 

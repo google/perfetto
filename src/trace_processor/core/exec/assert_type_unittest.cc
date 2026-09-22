@@ -132,9 +132,7 @@ TEST(AssertTypeTest, KeepsStrings) {
 TEST(AssertTypeTest, FollowsTheRowsTheBatchPicksOut) {
   Asserted run({Variant::Int64(10), Variant::Int64(11), Variant::Int64(12)},
                AssertTypeTarget{Int64{}});
-  std::vector<uint32_t> rows = {2, 0};
-  run.batch.mutable_column(0).SetBorrowedRows(
-      Span<const uint32_t>(rows.data(), rows.data() + 2));
+  run.batch.mutable_column(0).SetOwnedRows(test::OwnedRows({2, 0}), 2);
   run.batch.SetCardinality(2);
 
   ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);

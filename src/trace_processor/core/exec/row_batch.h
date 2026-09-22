@@ -60,16 +60,12 @@ class RowBatch {
     return owners_[column];
   }
 
-  // Points this batch at `other`'s columns and cardinality. No values are
-  // copied. Borrowed values remain borrowed; only borrowed indices are copied.
+  // Points this batch at `other`'s columns and cardinality. Nothing is copied:
+  // values and indices are shared, and borrowed values remain borrowed.
   void CopyFrom(const RowBatch& other) {
     columns_ = other.columns_;
     owners_ = other.owners_;
     cardinality_ = other.cardinality_;
-    selections_.Reset();
-    for (ColumnView& column : columns_) {
-      column.RetainSelection(cardinality_, selections_);
-    }
   }
 
   // Transfers views without copying their shared owners. Pools stay with the
