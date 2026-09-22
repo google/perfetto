@@ -81,7 +81,8 @@ void EnsureSqliteInitialized() {
 
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
+  sqlite3_exec(db, "PRAGMA temp_store=2; PRAGMA locking_mode=NORMAL", nullptr,
+               nullptr, &error);
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
