@@ -1,6 +1,6 @@
 ---
 title: Hunting Android memory leaks with Perfetto, SQL, and AI agents
-author: @shaybarak
+author: @shaibarack
 summary: From interactive dominator flamegraphs and warehouse-scale BigTrace queries to AI coding agents that trace a retained heap object straight to the buggy line of Kotlin and write the regression test.
 cover: cover.png
 ---
