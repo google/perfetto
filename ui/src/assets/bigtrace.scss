@@ -374,11 +374,37 @@
   }
 }
 
+.pf-bt-history-actions {
+  display: flex;
+  align-items: center;
+}
+
 .pf-bt-history-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 4px 0;
+
+  .pf-accordion__item > summary.pf-accordion__header {
+    z-index: 2;
+    background: color-mix(
+      in srgb,
+      var(--pf-color-background-secondary),
+      var(--pf-color-primary) 12%
+    );
+    border-bottom: 1px solid var(--pf-color-border);
+    box-shadow: 0 2px 4px var(--pf-color-box-shadow);
+
+    &:hover {
+      background-image: linear-gradient(
+        color_hover(transparent),
+        color_hover(transparent)
+      );
+    }
+  }
+
+  .pf-accordion__content {
+    padding: 8px 4px 0;
+  }
 }
 
 // Anchors the abs-positioned buttons; the shared float made a BFC that
