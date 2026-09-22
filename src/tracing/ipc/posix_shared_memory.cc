@@ -72,13 +72,18 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
     PERFETTO_DCHECK(res == 0);
   }
 
-  return MapFD(std::move(fd), size);
+  auto memory = MapFD(std::move(fd), size);
+  PERFETTO_CHECK(memory);
+  return memory;
 }
 
 // static
 std::unique_ptr<PosixSharedMemory> PosixSharedMemory::AttachToFd(
     base::ScopedFile fd,
-    bool require_seals_if_supported) {
+    bool require_seals_if_supported,
+    size_t max_size) {
+  if (!fd)
+    return nullptr;
   bool requires_seals = require_seals_if_supported;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -100,8 +105,14 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::AttachToFd(
   }
 
   struct stat stat_buf = {};
-  int res = fstat(fd.get(), &stat_buf);
-  PERFETTO_CHECK(res == 0 && stat_buf.st_size > 0);
+  if (fstat(fd.get(), &stat_buf) != 0) {
+    PERFETTO_PLOG("Couldn't stat shmem FD");
+    return nullptr;
+  }
+  if (stat_buf.st_size <= 0 ||
+      static_cast<uint64_t>(stat_buf.st_size) > max_size) {
+    return nullptr;
+  }
   return MapFD(std::move(fd), static_cast<size_t>(stat_buf.st_size));
 }
 
@@ -112,7 +123,10 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::MapFD(base::ScopedFile fd,
   PERFETTO_DCHECK(size > 0);
   void* start =
       mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd.get(), 0);
-  PERFETTO_CHECK(start != MAP_FAILED);
+  if (start == MAP_FAILED) {
+    PERFETTO_PLOG("Couldn't map shmem FD");
+    return nullptr;
+  }
   return std::unique_ptr<PosixSharedMemory>(
       new PosixSharedMemory(start, size, std::move(fd)));
 }

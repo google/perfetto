@@ -98,11 +98,14 @@ void BuiltinProducer::ConnectInProcess(TracingService* svc) {
 #else
   const pid_t cur_proc_id = base::GetProcessId();
 #endif
+  TracingService::ConnectProducerArgs args{};
+  args.shared_memory_size_hint_bytes = 16 * 1024;
+  args.in_process = true;
+  args.smb_scraping_mode = TracingService::ProducerSMBScrapingMode::kDisabled;
+  args.shared_memory_page_size_hint_bytes = 4096;
   endpoint_ = svc->ConnectProducer(
       this, ClientIdentity(base::GetCurrentUserId(), cur_proc_id), "traced",
-      /*shared_memory_size_hint_bytes=*/16 * 1024, /*in_process=*/true,
-      TracingService::ProducerSMBScrapingMode::kDisabled,
-      /*shared_memory_page_size_hint_bytes=*/4096);
+      std::move(args));
 }
 
 void BuiltinProducer::OnConnect() {

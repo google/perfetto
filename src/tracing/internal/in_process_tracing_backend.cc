@@ -16,6 +16,8 @@
 
 #include "perfetto/tracing/internal/in_process_tracing_backend.h"
 
+#include <utility>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/paged_memory.h"
@@ -49,13 +51,17 @@ InProcessTracingBackend::~InProcessTracingBackend() = default;
 std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
     const ConnectProducerArgs& args) {
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
+  TracingService::ConnectProducerArgs connection_args{};
+  connection_args.shared_memory_size_hint_bytes = args.shmem_size_hint_bytes;
+  connection_args.in_process = true;
+  connection_args.smb_scraping_mode =
+      TracingService::ProducerSMBScrapingMode::kEnabled;
+  connection_args.shared_memory_page_size_hint_bytes =
+      args.shmem_page_size_hint_bytes;
   return GetOrCreateService(args.task_runner)
       ->ConnectProducer(args.producer,
                         ClientIdentity(/*uid=*/0, /*pid=*/0, args.machine_id),
-                        args.producer_name, args.shmem_size_hint_bytes,
-                        /*in_process=*/true,
-                        TracingService::ProducerSMBScrapingMode::kEnabled,
-                        args.shmem_page_size_hint_bytes);
+                        args.producer_name, std::move(connection_args));
 }
 
 std::unique_ptr<ConsumerEndpoint> InProcessTracingBackend::ConnectConsumer(

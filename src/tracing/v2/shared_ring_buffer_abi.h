@@ -156,6 +156,41 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
 
+// The IPC peers exchange this layout version during connection setup.
+constexpr uint32_t kRingBufferAbiVersion = 1;
+
+// Validates an untrusted producer's RingBuffer layout.
+// It returns nullopt for an invalid layout instead of terminating the service.
+// The SharedRingBuffer constructor still CHECKs its caller's validated layout.
+//
+// Callers can use any sequence. This function reads no shared bytes and
+// transfers no ownership. The transport separately limits the mapping size.
+inline std::optional<uint32_t> NumChunksForRingLayout(size_t size,
+                                                      uint32_t chunk_size) {
+  if (chunk_size < kMinChunkSize || chunk_size % kChunkAlignmentBytes != 0) {
+    return std::nullopt;
+  }
+  // Subtract the header after this check to avoid overflow on 32-bit builds.
+  if (size < sizeof(RingBufferHeader))
+    return std::nullopt;
+  const size_t chunks_size = size - sizeof(RingBufferHeader);
+  if (chunks_size % chunk_size != 0)
+    return std::nullopt;
+  const size_t count = chunks_size / chunk_size;
+  // Two chunks form the minimum useful configuration. One chunk satisfies
+  // the ABI: write_pos - read_pos is 0 when empty and 1 when full.
+  // The Free wrap count distinguishes successive uses of that chunk.
+  //
+  // The power-of-two rule permits chunk indexing with a mask. The maximum
+  // keeps outstanding positions below 2^31 for unambiguous unsigned
+  // subtraction.
+  if (count < kMinChunksPerRing || count > kMaxChunksPerRing ||
+      !base::IsPowerOfTwo(count)) {
+    return std::nullopt;
+  }
+  return static_cast<uint32_t>(count);
+}
+
 constexpr uint64_t PackRwPositions(uint32_t write_pos, uint32_t read_pos) {
   return (static_cast<uint64_t>(write_pos) << 32) | read_pos;
 }

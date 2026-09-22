@@ -34,6 +34,8 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/ipc/memfd.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -177,6 +179,8 @@ void ProducerIPCClientImpl::OnConnect() {
   ipc::Deferred<protos::gen::InitializeConnectionResponse> on_init;
   on_init.Bind(
       [this](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
+        supports_tracing_v2_ = resp && resp->ring_buffer_abi_version() ==
+                                           tracing_v2::kRingBufferAbiVersion;
         OnConnectionInitialized(
             resp.success(),
             resp.success() ? resp->using_shmem_provided_by_producer() : false,
@@ -184,6 +188,11 @@ void ProducerIPCClientImpl::OnConnect() {
             resp.success() ? resp->use_shmem_emulation() : false);
       });
   protos::gen::InitializeConnectionRequest req;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (HasMemfdSupport())
+    req.set_ring_buffer_abi_version(tracing_v2::kRingBufferAbiVersion);
+#endif
   req.set_producer_name(name_);
   req.set_shared_memory_size_hint_bytes(
       static_cast<uint32_t>(shared_memory_size_hint_bytes_));
@@ -239,6 +248,7 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
+  supports_tracing_v2_ = false;
   data_sources_setup_.clear();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
@@ -346,13 +356,20 @@ void ProducerIPCClientImpl::OnServiceRequest(
     ipc_shared_memory =
         PosixSharedMemory::AttachToFd(std::move(shmem_fd),
                                       /*require_seals_if_supported=*/false);
+    if (!ipc_shared_memory) {
+      ScheduleDisconnect();
+      return;
+    }
 #else
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     if (shmem_fd) {
-      // TODO(primiano): handle mmap failure in case of OOM.
       ipc_shared_memory =
           PosixSharedMemory::AttachToFd(std::move(shmem_fd),
                                         /*require_seals_if_supported=*/false);
+      if (!ipc_shared_memory) {
+        ScheduleDisconnect();
+        return;
+      }
     }
 #endif
     if (use_shmem_emulation_) {
@@ -524,6 +541,45 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
         });
   }
   producer_port_->CommitData(req, std::move(async_response));
+}
+
+bool ProducerIPCClientImpl::SupportsTracingV2() const {
+  return supports_tracing_v2_ && connected_ && producer_port_ && ipc_channel_;
+}
+
+void ProducerIPCClientImpl::OfferRingBuffer(
+    int fd,
+    uint32_t chunk_size_bytes,
+    std::function<void(bool)> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!SupportsTracingV2() || fd < 0) {
+    callback(false);
+    return;
+  }
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  protos::gen::OfferRingBufferRequest req;
+  req.set_chunk_size_bytes(chunk_size_bytes);
+  ipc::Deferred<protos::gen::OfferRingBufferResponse> reply;
+  reply.Bind(
+      [callback = std::move(callback)](
+          ipc::AsyncResult<protos::gen::OfferRingBufferResponse> result) {
+        callback(result && result->accepted());
+      });
+  producer_port_->OfferRingBuffer(req, std::move(reply), fd);
+#else
+  base::ignore_result(chunk_size_bytes);
+  callback(false);
+#endif
+}
+
+void ProducerIPCClientImpl::DrainRingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!SupportsTracingV2())
+    return;
+  producer_port_->DrainRingBuffer(
+      protos::gen::DrainRingBufferRequest(),
+      ipc::Deferred<protos::gen::DrainRingBufferResponse>());
 }
 
 void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {

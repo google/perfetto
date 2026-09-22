@@ -34,6 +34,20 @@ Producer::~Producer() = default;
 TracingService::~TracingService() = default;
 ConsumerEndpoint::~ConsumerEndpoint() = default;
 ProducerEndpoint::~ProducerEndpoint() = default;
+
+// These are the "tracing v2 not supported" defaults for existing endpoints.
+bool ProducerEndpoint::SupportsTracingV2() const {
+  return false;
+}
+
+void ProducerEndpoint::OfferRingBuffer(std::unique_ptr<SharedMemory>,
+                                       uint32_t,
+                                       std::function<void(bool)> callback) {
+  callback(false);
+}
+
+void ProducerEndpoint::DrainRingBuffer() {}
+
 RelayEndpoint::~RelayEndpoint() = default;
 SharedMemory::~SharedMemory() = default;
 SharedMemory::Factory::~Factory() = default;

@@ -97,6 +97,34 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
 
   virtual SharedMemory* shared_memory() const = 0;
 
+  // The producer calls this on the endpoint sequence to check tracing v2
+  // support. The transport agrees on the RingBuffer ABI during connection
+  // setup.
+  virtual bool SupportsTracingV2() const;
+
+  // The service endpoint takes ownership of an offered tracing v2 mapping.
+  // The IPC service calls this after it maps the received descriptor.
+  // Each process owns its mapping of the shared memory.
+  //
+  // Acceptance means the service validates the layout and installs its reader.
+  // The service preserves bytes that the producer already published.
+  // The callback runs on the endpoint sequence and can run inline.
+  //
+  // The endpoint retains an accepted mapping until destruction.
+  // A rejected mapping has no retention guarantee and must have no borrowers.
+  // Writers that borrow an accepted mapping must not outlive it.
+  virtual void OfferRingBuffer(std::unique_ptr<SharedMemory> memory,
+                               uint32_t chunk_size_bytes,
+                               std::function<void(bool)> callback);
+
+  // The producer calls this on the endpoint sequence to drain published
+  // RingBuffer data. The call has no reply and transfers no ownership.
+  // Without an accepted RingBuffer, the service does nothing.
+  //
+  // IPC frames are ordered. For a flush, the producer sends DrainRingBuffer
+  // followed by CommitData with the flush id. The service processes that order.
+  virtual void DrainRingBuffer();
+
   // Size of shared memory buffer pages. It's always a multiple of 4K.
   // See shared_memory_abi.h
   virtual size_t shared_buffer_page_size_kb() const = 0;
@@ -364,6 +392,8 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   // Default sizes used by the service implementation and client library.
   static constexpr size_t kDefaultShmPageSize = 4096ul;
   static constexpr size_t kDefaultShmSize = 256 * 1024ul;
+  // The service and IPC attachment code use this limit for producer mappings.
+  static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
 
   enum class ProducerSMBScrapingMode {
     // Use service's default setting for SMB scraping. Currently, the default
@@ -387,6 +417,28 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
 
   virtual ~TracingService();
 
+  // The transport supplies these values to ConnectProducer on the service
+  // sequence. ConnectProducer takes ownership of |shm| and copies other values.
+  struct ConnectProducerArgs {
+    // Preferred SMB size in bytes. Zero lets the service select the size.
+    size_t shared_memory_size_hint_bytes = 0;
+    // True when the producer and service share a process.
+    bool in_process = false;
+    // Selects whether the service can scrape this producer's SMB.
+    ProducerSMBScrapingMode smb_scraping_mode =
+        ProducerSMBScrapingMode::kDefault;
+    // Preferred SMB page size in bytes. Zero lets the service select the size.
+    size_t shared_memory_page_size_hint_bytes = 0;
+    // Optional producer SMB. The service validates it before adoption.
+    std::unique_ptr<SharedMemory> shm;
+    // Producer SDK version for service diagnostics.
+    std::string sdk_version;
+    // Producer machine name for service diagnostics.
+    std::string machine_name;
+    // True when the transport supports the service's tracing v2 RingBuffer ABI.
+    bool supports_tracing_v2 = false;
+  };
+
   // Connects a Producer instance and obtains a ProducerEndpoint, which is
   // essentially a 1:1 channel between one Producer and the Service.
   //
@@ -401,13 +453,14 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   //    returned ProducerEndpoint object. It is safe to destroy the Producer
   //    once the Producer::OnDisconnect() has been invoked.
   //
-  // |uid| is the trusted user id of the producer process, used by the consumers
-  // for validating the origin of trace data. |shared_memory_size_hint_bytes|
-  // and |shared_memory_page_size_hint_bytes| are optional hints on the size of
-  // the shared memory buffer and its pages. The service can ignore the hints
-  // (e.g., if the hints are unreasonably large or other sizes were configured
-  // in a tracing session's config). |in_process| enables the ProducerEndpoint
-  // to manage its own shared memory and enables use of
+  // |client_identity| identifies the producer process. Consumers use its
+  // trusted user id to validate the origin of trace data. The fields in |args|
+  // configure the connection. |shared_memory_size_hint_bytes| and
+  // |shared_memory_page_size_hint_bytes| are optional hints on the size of the
+  // shared memory buffer and its pages. The service can ignore the hints (e.g.,
+  // if the hints are unreasonably large or other sizes were configured in a
+  // tracing session's config). |in_process| enables the ProducerEndpoint to
+  // manage its own shared memory and enables use of
   // |ProducerEndpoint::CreateTraceWriter|.
   //
   // The producer can optionally provide a non-null |shm|, which the service
@@ -431,14 +484,7 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
       Producer*,
       const ClientIdentity& client_identity,
       const std::string& name,
-      size_t shared_memory_size_hint_bytes = 0,
-      bool in_process = false,
-      ProducerSMBScrapingMode smb_scraping_mode =
-          ProducerSMBScrapingMode::kDefault,
-      size_t shared_memory_page_size_hint_bytes = 0,
-      std::unique_ptr<SharedMemory> shm = nullptr,
-      const std::string& sdk_version = {},
-      const std::string& machine_name = {}) = 0;
+      ConnectProducerArgs args) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.
