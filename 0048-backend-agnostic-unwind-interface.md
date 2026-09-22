@@ -665,20 +665,20 @@ Complete, working implementations and benchmark suites are provided via the foll
 - **Patch 2 (Unwind Abstraction & Backends)**: [`0002-draft-unwind-all.patch`](https://paste.googleplex.com/4707995955625984) – Full unwinding abstraction layer (`src/profiling/unwind/`), `libunwindstack` migration, zero-dependency `frame_pointer`, high-performance `libunwind`, `framehop` Rust FFI prototype, and `libdw` backends.
 
 ### Upstream PR Breakdown
-1. **PR #1: Core Abstraction Layer (`src/profiling/unwind/`)**
+1. **PR_1: Core Abstraction Layer (`src/profiling/unwind/`)**
    - Pure interfaces: `CpuRegisters`, `Unwinder`, `ProcessUnwindContext`, `UnwindFrame`, `UnwindResult`.
    - Factory pattern: `CreateUnwinder(UnwinderType)`.
-2. **PR #2: `libunwindstack` Backend Refactoring & Native `FramePointerUnwinder`**
+2. **PR_2: `libunwindstack` Backend Refactoring & Native `FramePointerUnwinder`**
    - Wrap existing `libunwindstack` implementation into `libunwindstack::Unwinder` and `libunwindstack::Context`.
    - Integrate in-place register recycling (`GetOrCreateRegs`).
    - Implement native `FramePointerUnwinder` with **zero external library support** (pure C++ / STL, no `libunwindstack`/`libunwind` dependencies).
-3. **PR #3: Migrate `traced_perf` to Abstraction Layer**
+3. **PR_3: Migrate `traced_perf` to Abstraction Layer**
    - Populate `unwind::CpuRegisters` directly from kernel ring buffers.
    - Remove `<unwindstack/*.h>` dependencies from `src/profiling/perf/`.
-4. **PR #4: `libunwind` Remote Backend for Standalone Linux**
+4. **PR_4: `libunwind` Remote Backend for Standalone Linux**
    - Implement `src/profiling/unwind/libunwind/` with Mmap ELF caching, zero-syscall memory reads, Evaluated Rule Cache, and bounded memory limits.
    - Set as default unwinder for standalone Linux builds.
-5. **PR #5: Migrate `heapprofd` (Memory Profiling)**
+5. **PR_5: Migrate `heapprofd` (Memory Profiling)**
    - Backend-agnostic client (`heapprofd_client`): write directly to `AllocMetadata::cpu_regs` without `libunwindstack` headers.
    - Backend-agnostic daemon: replace direct `unwindstack::Unwinder` with `unwind::Unwinder::Unwind()`.
 
