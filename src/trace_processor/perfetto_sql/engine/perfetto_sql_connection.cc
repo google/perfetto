@@ -324,8 +324,11 @@ PerfettoSqlConnection::CreateConnectionToNewDatabase(StringPool* pool,
 }
 
 std::unique_ptr<PerfettoSqlConnection> PerfettoSqlConnection::Fork() {
-  return std::unique_ptr<PerfettoSqlConnection>(
+  auto fork = std::unique_ptr<PerfettoSqlConnection>(
       new PerfettoSqlConnection(database_, enable_extra_checks_));
+  // A fork carries on with the settings of the connection it came from.
+  fork->pipelines_enabled_ = pipelines_enabled_;
+  return fork;
 }
 
 PerfettoSqlConnection::~PerfettoSqlConnection() {
