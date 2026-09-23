@@ -112,7 +112,7 @@ class PhysicalPlanTest : public ::testing::Test {
 
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
     PerfettoSqlParser parser(macros_, catalog_,
-                           /*pipelines_allowed=*/true);
+                             /*pipelines_allowed=*/true);
     parser.Reset(SqlSource::FromExecuteQuery(sql));
     if (!parser.Next()) {
       return parser.status();
