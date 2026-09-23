@@ -222,8 +222,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   std::memcpy(values.data(), bits, sizeof(bits));
   std::vector<uint32_t> rows{1, 0, 1, 3};
   auto view = ColumnView::Reference(StorageType{Double{}}, values.data());
-  view.SetBorrowedRows(
-      Span<const uint32_t>(rows.data(), rows.data() + rows.size()));
+  view.SetOwnedRows(test::OwnedRows(rows), 4);
   RowBatch input, output;
   input.AddColumn(view);
   input.SetCardinality(4);

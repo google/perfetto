@@ -61,7 +61,6 @@ class RowStore {
     bool nullable = false;
     bool same_selection_as_previous = true;
   };
-  SelectionPool selections_;
   std::vector<Column> columns_;
   std::vector<uint32_t> ends_;
   // Dense logical row numbers map directly to variable-sized input batches.

@@ -35,12 +35,10 @@ base::Status RowStore::Append(const RowBatch& in) {
         return base::ErrStatus("row store: column representation changed");
     }
   }
-  selections_.Reset();
   columns_.resize(in.column_count());
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     auto& column = columns_[c];
     auto view = in.column(c);
-    view.RetainSelection(in.size(), selections_);
     auto owner = in.owner(c);
     // Unknown borrowed storage must be materialized before retention.
     if (!owner) {
@@ -86,7 +84,6 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
 }
 uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
   out->Reset();
-  selections_.Reset();
   uint32_t count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
   if (!count)
