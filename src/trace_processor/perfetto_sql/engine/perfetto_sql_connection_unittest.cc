@@ -785,7 +785,8 @@ TEST_F(PerfettoSqlConnectionTest, PipelinePragmaIncludeChangesCaller) {
   ASSERT_OK(connection_->RegisterPackage(
       "foo", CreateTestPackage(
                  {{"foo.enable",
-                   "PERFETTO PRAGMA pipelines = 1; FROM (SELECT 1 AS x)"},
+                   "PERFETTO PRAGMA pipelines = 1; "
+                   "CREATE PERFETTO TABLE enabled AS FROM (SELECT 1 AS x)"},
                   {"foo.disable", "PERFETTO PRAGMA pipelines = 0"}})));
   auto res = connection_->Execute(SqlSource::FromExecuteQuery(
       "INCLUDE PERFETTO MODULE foo.enable; FROM (SELECT 1 AS x)"));
@@ -800,7 +801,8 @@ TEST_F(PerfettoSqlConnectionTest, PipelinePragmaIncludeChangesCaller) {
 TEST_F(PerfettoSqlConnectionTest, PipelinePragmaBuiltinExemption) {
   auto package = CreateTestPackage(
       {{"foo.pipeline",
-        "PERFETTO PRAGMA pipelines = 0; FROM (SELECT 1 AS x)"}});
+        "PERFETTO PRAGMA pipelines = 0; "
+        "CREATE PERFETTO TABLE builtin AS FROM (SELECT 1 AS x)"}});
   package.builtin = true;
   ASSERT_OK(connection_->RegisterPackage("foo", std::move(package)));
   auto res = connection_->Execute(SqlSource::FromExecuteQuery(
