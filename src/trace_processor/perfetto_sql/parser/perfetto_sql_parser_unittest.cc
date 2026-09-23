@@ -70,7 +70,7 @@ class PerfettoSqlParserTest : public ::testing::Test {
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
       SqlSource sql) {
     PerfettoSqlParser parser(macros_, catalog_,
-                           /*pipelines_allowed=*/true);
+                             /*pipelines_allowed=*/true);
     parser.Reset(std::move(sql));
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
@@ -101,7 +101,7 @@ class PerfettoSqlParserTest : public ::testing::Test {
   // and produces exactly one statement; failures abort the test.
   SqlSource ParseOne(SqlSource sql) {
     PerfettoSqlParser parser(macros_, catalog_,
-                           /*pipelines_allowed=*/false);
+                             /*pipelines_allowed=*/false);
     parser.Reset(std::move(sql));
     PERFETTO_CHECK(parser.Next());
     PERFETTO_CHECK(parser.status().ok());

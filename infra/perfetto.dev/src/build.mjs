@@ -69,6 +69,10 @@ const cfg = {
   port: 8082,
   host: "0.0.0.0",
   outDir: pjoin(ROOT_DIR, "out/perfetto.dev"),
+  // Origin baked into absolute URLs: og:image, og:url, the canonical link and
+  // the feed's links. Overridable so a staging deploy produces link previews
+  // that resolve against itself rather than against production.
+  siteUrl: "https://perfetto.dev",
 };
 
 // Pages that were removed/renamed/moved. They still build to (empty) HTML so
@@ -464,6 +468,7 @@ async function renderAllPages(pages, nav, site) {
         // Front matter is stripped out of p.markdown, so it has to be hashed
         // separately or a title-only edit would be a cache hit.
         p.post === undefined ? "" : JSON.stringify(p.post),
+        cfg.siteUrl,
       ];
       const asDeps = (files) => files.map((f) => ({ file: f }));
       const prev = memoCache.get(key);
@@ -484,6 +489,7 @@ async function renderAllPages(pages, nav, site) {
           // post re-render whenever docs/toc.md is touched.
           nav: p.post === undefined ? nav : undefined,
           post: p.post,
+          siteUrl: cfg.siteUrl,
         });
         const imgFiles = [...value.assets.values()].sort();
         memoCache.set(key, {
@@ -535,7 +541,17 @@ async function renderAllPages(pages, nav, site) {
 // and the index page is rendered from those.
 async function addBlogThumbnails(posts, site) {
   for (const post of posts) {
-    if (post.thumbSitePath === null) continue;
+    if (post.cover.generated) {
+      // Drawn at card size directly: sharper and cheaper than downscaling.
+      site.set(
+        post.thumbSitePath,
+        await memo(`blog:thumb:${post.slug}`, [post.title], () =>
+          blog.generateCover(post.title, blog.THUMB_WIDTH),
+        ),
+      );
+      post.cardUrl = "/" + post.thumbSitePath;
+      continue;
+    }
     const srcAbs = pjoin(post.dir, path.basename(post.cover.sitePath));
     const thumb = await memo(`blog:thumb:${post.slug}`, [{ file: srcAbs }], () =>
       blog.makeThumbnail(srcAbs),
@@ -555,8 +571,10 @@ async function addBlogThumbnails(posts, site) {
 async function addBlogAssets(posts, site) {
   site.set(
     "blog/atom.xml",
-    await memo("blog:feed", posts.map((p) => JSON.stringify(p)), () =>
-      blog.atomFeed(posts),
+    await memo(
+      "blog:feed",
+      [...posts.map((p) => JSON.stringify(p)), cfg.siteUrl],
+      () => blog.atomFeed(posts, cfg.siteUrl),
     ),
   );
   for (const post of posts) {
@@ -564,7 +582,7 @@ async function addBlogAssets(posts, site) {
       site.set(
         post.cover.sitePath,
         await memo(`blog:cover:${post.slug}`, [post.title], () =>
-          blog.generateCover(post.title).svg,
+          blog.generateCover(post.title),
         ),
       );
     } else {
@@ -1133,6 +1151,10 @@ async function main() {
   parser.add_argument("--verbose", "-v", { action: "store_true" });
   parser.add_argument("--port", { type: "int", default: 8082 });
   parser.add_argument("--host", { default: "0.0.0.0" });
+  parser.add_argument("--site-url", {
+    default: cfg.siteUrl,
+    help: "Origin for absolute URLs (og:image, canonical, feed links)",
+  });
   const args = parser.parse_args();
 
   if (args.out) {
@@ -1146,6 +1168,13 @@ async function main() {
   cfg.startHttpServer = !!args.serve;
   cfg.port = args.port;
   cfg.host = args.host;
+  cfg.siteUrl = args.site_url.replace(/\/+$/, "");
+  if (!/^https?:\/\/[^/]+$/.test(cfg.siteUrl)) {
+    throw new Error(
+      `--site-url must be an origin like https://example.com, got ` +
+        `${JSON.stringify(args.site_url)}`,
+    );
+  }
 
   // Before watching or building: the watcher needs //blog to exist to attach
   // to it, and the build needs it to find any posts.
