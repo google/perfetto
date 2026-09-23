@@ -20,8 +20,6 @@
 #include <string>
 
 #include "perfetto/ext/base/string_view.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/plugins/android_process_state/android_process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -122,78 +120,16 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   process_state_table_->Insert(row);
 }
 
-void AndroidProcessStateTracker::OnConfigDetected(
-    bool ftrace_configured,
-    std::optional<bool> dump_process_metadata) {
-  if (ftrace_configured) {
-    ftrace_configured_ = true;
-  } else if (!ftrace_configured_.has_value()) {
-    ftrace_configured_ = false;
+void AndroidProcessStateTracker::TokenizeProcessStateDump(
+    protozero::ConstBytes blob) {
+  fb::AndroidProcessStateSnapshot::Decoder dump(blob);
+  for (auto it = dump.record(); it; ++it) {
+    fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
+    if (rec.has_process_name()) {
+      android_process_tracker_->SetFrameworkIsProcessAuthority(true);
+      return;
+    }
   }
-
-  if (dump_process_metadata.value_or(false)) {
-    dump_process_metadata_ = true;
-  } else if (!dump_process_metadata_.has_value() &&
-             dump_process_metadata.has_value()) {
-    dump_process_metadata_ = false;
-  }
-
-  // The framework is only authoritative when it is the sole source of process
-  // lifecycles: dump_process_metadata is on and there is no ftrace supplying
-  // kernel-level process events. Anything else leaves the kernel in charge.
-  bool framework_is_authority = !ftrace_configured_.value_or(false) &&
-                                dump_process_metadata_.value_or(false);
-  android_process_tracker_->SetFrameworkIsProcessAuthority(
-      framework_is_authority);
-}
-
-std::optional<int64_t> AndroidProcessStateTracker::ToTraceTs(
-    int64_t start_time_ms) {
-  // TODO: count the rejections below once this plugin has somewhere to report
-  // diagnostics.
-  constexpr int64_t kMaxMs = std::numeric_limits<int64_t>::max() / 1000000;
-  if (start_time_ms < 0 || start_time_ms > kMaxMs) {
-    return std::nullopt;
-  }
-  if (!context_->clock_tracker) {
-    return std::nullopt;
-  }
-  return context_->clock_tracker->ToTraceTime(
-      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
-      start_time_ms * 1000000);
-}
-
-UniquePid AndroidProcessStateTracker::ResolveUserspaceAuthority(
-    const RecordDecoder& rec) {
-  std::optional<int64_t> opt_start_ts;
-  if (rec.has_start_time_ms()) {
-    opt_start_ts = ToTraceTs(rec.start_time_ms());
-  }
-  StringId name_id = rec.has_process_name()
-                         ? context_->storage->InternString(
-                               base::StringView(rec.process_name()))
-                         : kNullStringId;
-  std::optional<int64_t> start_seq_id;
-  if (rec.has_start_seq_id()) {
-    start_seq_id = rec.start_seq_id();
-  }
-
-  // TODO: count the case where this record splits a recycled pid but has no
-  // resolvable start time, so the new incarnation gets no start_ts either.
-  UniquePid upid = android_process_tracker_->GetOrStartProcess(
-      opt_start_ts, static_cast<uint32_t>(rec.pid()), start_seq_id, name_id,
-      ThreadNamePriority::kTrackDescriptor);
-
-  if (rec.has_uid()) {
-    context_->process_tracker->SetProcessUid(upid,
-                                             static_cast<uint32_t>(rec.uid()));
-  }
-  // start_seq_id is already recorded by GetOrStartProcess() above.
-  if (opt_start_ts.has_value()) {
-    context_->process_tracker->SetStartTsIfUnset(upid, *opt_start_ts);
-  }
-
-  return upid;
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
@@ -204,20 +140,36 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
     if (!rec.has_pid()) {
       continue;
     }
-    std::optional<UniquePid> opt_upid =
-        android_process_tracker_->FrameworkIsProcessAuthority()
-            ? std::make_optional(ResolveUserspaceAuthority(rec))
-            : context_->process_tracker->GetProcessOrNull(
-                  static_cast<uint32_t>(rec.pid()));
+    std::optional<UniquePid> opt_upid;
+    if (android_process_tracker_->FrameworkIsProcessAuthority()) {
+      StringId name_id = rec.has_process_name()
+                             ? context_->storage->InternString(
+                                   base::StringView(rec.process_name()))
+                             : kNullStringId;
+      std::optional<int64_t> start_seq_id =
+          rec.has_start_seq_id() ? std::make_optional(rec.start_seq_id())
+                                 : std::nullopt;
+      UniquePid upid = android_process_tracker_->GetOrStartProcess(
+          /*start_ts=*/std::nullopt, static_cast<uint32_t>(rec.pid()),
+          start_seq_id, name_id);
+      if (rec.has_uid()) {
+        context_->process_tracker->SetProcessUid(
+            upid, static_cast<uint32_t>(rec.uid()));
+      }
+      opt_upid = upid;
+    } else {
+      opt_upid = context_->process_tracker->GetProcessOrNull(
+          static_cast<uint32_t>(rec.pid()));
+    }
     if (!opt_upid) {
       continue;
     }
+    ProcessStateValues v;
+    v.upid = *opt_upid;
 
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields in the dump snapshot
     // represent 0.
-    ProcessStateValues v;
-    v.upid = *opt_upid;
     v.proc_state = rec.has_proc_state()
                        ? static_cast<int32_t>(rec.proc_state())
                        : static_cast<int32_t>(
@@ -261,6 +213,10 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   freezer_state_table_->Insert(row);
 }
 
+void AndroidProcessStateTracker::SaveFreezerDump(TraceBlobView blob) {
+  pending_freezer_dumps_.push_back(std::move(blob));
+}
+
 void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
   fb::AndroidFreezerStateSnapshot::Decoder dump(blob);
   for (auto it = dump.record(); it; ++it) {
@@ -268,16 +224,21 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
     if (!rec.has_pid()) {
       continue;
     }
-    uint32_t pid = static_cast<uint32_t>(rec.pid());
+    std::optional<UniquePid> opt_upid =
+        context_->process_tracker->GetProcessOrNull(
+            static_cast<uint32_t>(rec.pid()));
+    if (!opt_upid) {
+      continue;
+    }
     FreezerStateValues v;
-    v.upid = context_->process_tracker->GetProcessOrNull(pid);
+    v.upid = *opt_upid;
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields represent UFR_NONE (0).
     v.unfreeze_reason =
         rec.has_unfreeze_reason()
             ? static_cast<int32_t>(rec.unfreeze_reason())
             : static_cast<int32_t>(fb::UnfreezeReason::UFR_NONE);
-    freezer_dump_[pid] = v;
+    freezer_dump_[v.upid] = v;
   }
 }
 
@@ -309,20 +270,16 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
 }
 
 void AndroidProcessStateTracker::Finalize() {
+  for (const TraceBlobView& dump : pending_freezer_dumps_) {
+    ParseFreezerDump(protozero::ConstBytes{dump.data(), dump.length()});
+  }
+  pending_freezer_dumps_.clear();
   for (const auto& [upid, v] : ComputeInitialProcessStates()) {
     EmitInitialProcessStateRow(v);
   }
-  for (auto& [pid, v] : freezer_dump_) {
-    if (!v.upid) {
-      v.upid = context_->process_tracker->GetProcessOrNull(pid);
-    }
-    if (v.upid) {
-      EmitInitialFreezerRow(v);
-    }
+  for (const auto& [upid, v] : freezer_dump_) {
+    EmitInitialFreezerRow(v);
   }
-  earliest_prev_.clear();
-  process_dump_.clear();
-  freezer_dump_.clear();
 }
 
 void AndroidProcessStateTracker::EmitInitialProcessStateRow(
@@ -351,7 +308,7 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
 void AndroidProcessStateTracker::EmitInitialFreezerRow(
     const FreezerStateValues& v) {
   tables::AndroidFreezerStateTable::Row row;
-  row.upid = *v.upid;
+  row.upid = v.upid;
   row.ts = std::nullopt;
   row.unfrozen_dur_ms = std::nullopt;
   row.frozen_dur_ms = std::nullopt;

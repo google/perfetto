@@ -124,10 +124,11 @@ class Parser : public TrackEventExtensionParser {
       std::optional<int64_t> seq_id =
           evt.has_start_seq_id() ? std::make_optional(evt.start_seq_id())
                                  : std::nullopt;
-      upid = android_process_tracker_->GetOrStartProcess(
-          ts, evt.pid(), seq_id, name_id, ThreadNamePriority::kTrackDescriptor);
+      upid = android_process_tracker_->GetOrStartProcess(ts, evt.pid(), seq_id,
+                                                         name_id);
     } else {
-      upid = process_tracker->GetOrCreateProcess(evt.pid());
+      upid =
+          process_tracker->GetOrCreateProcess(static_cast<uint32_t>(evt.pid()));
     }
     SetProcessMetadata(upid, data);
 

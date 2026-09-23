@@ -19,10 +19,8 @@
 
 #include <cstdint>
 #include <optional>
-#include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -33,8 +31,8 @@ class TraceProcessorContext;
 // Tracks Android process identity across pid reuse.
 //
 // Android recycles pids aggressively, so a pid on its own does not identify a
-// process. The framework stamps every process incarnation with a "start
-// sequence id" and repeats it on the death event and in the trace-stop
+// process. The framework stamps every process incarnation with a monotonic
+// "start sequence id" and repeats it on the death event and in the trace-stop
 // android.process_state snapshot. This class uses that id to decide when a pid
 // has been recycled, and to find the right process when a death event arrives
 // after the pid has already been handed to a new one.
@@ -46,11 +44,10 @@ class AndroidProcessTracker {
   explicit AndroidProcessTracker(TraceProcessorContext* context)
       : context_(context) {}
 
-  // Set when the Android framework is the authoritative source of process
-  // lifecycle information: android.process_state is configured with
-  // dump_process_metadata, and there is no ftrace supplying kernel-level
-  // process events. Importers read this to decide whether to route process
-  // lookups through this class.
+  // Set during the pre-sort TokenizePacket pass when an AndroidProcessState
+  // dump packet contains process_name metadata (dump_process_metadata = true).
+  // Importers read this during the sorted parse pass to decide whether to
+  // route process lookups through this class.
   void SetFrameworkIsProcessAuthority(bool value) {
     framework_is_process_authority_ = value;
   }
@@ -74,8 +71,7 @@ class AndroidProcessTracker {
   UniquePid GetOrStartProcess(std::optional<int64_t> start_ts,
                               int64_t pid,
                               std::optional<int64_t> start_seq_id,
-                              StringId name,
-                              ThreadNamePriority priority);
+                              StringId name);
 
   // Records that |upid| ended at |ts|, even if its pid has since been handed
   // to a newer incarnation. Unlike ProcessTracker::EndThread(), which works
@@ -92,35 +88,14 @@ class AndroidProcessTracker {
   std::optional<int64_t> GetStartSeqId(UniquePid upid) const;
 
  private:
-  struct PidAndSeqId {
-    int64_t pid;
-    int64_t start_seq_id;
-
-    bool operator==(const PidAndSeqId& other) const {
-      return pid == other.pid && start_seq_id == other.start_seq_id;
-    }
-
-    template <typename H>
-    friend H PerfettoHashValue(H h, const PidAndSeqId& value) {
-      return H::Combine(std::move(h), value.pid, value.start_seq_id);
-    }
-  };
-
-  void RecordStartSeqId(UniquePid upid, int64_t pid, int64_t start_seq_id);
-  void RecordMainThread(UniquePid upid, int64_t pid);
-
   TraceProcessorContext* const context_;
 
-  // (pid, start_seq_id) -> upid. Entries are kept after a pid is recycled so
-  // that a late death event can still find the process it refers to.
-  base::FlatHashMap<PidAndSeqId, UniquePid> upid_by_pid_and_seq_id_;
+  // start_seq_id -> upid. Entries are kept after a pid is recycled so that a
+  // late death event can still find the process it refers to.
+  base::FlatHashMap<int64_t, UniquePid> upid_by_seq_id_;
 
   // upid -> start_seq_id.
   base::FlatHashMap<UniquePid, int64_t> start_seq_id_by_upid_;
-
-  // upid -> the main thread ProcessTracker created for it. Needed to close
-  // that thread once the pid no longer resolves to this process.
-  base::FlatHashMap<UniquePid, UniqueTid> main_utid_by_upid_;
 
   bool framework_is_process_authority_ = false;
 };

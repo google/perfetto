@@ -441,27 +441,6 @@ class AndroidParser(TestSuite):
           100,"com.example.appb",2,5000000000,7000000000
         """))
 
-  def test_android_process_state_late_config(self):
-    return DiffTestBlueprint(
-        trace=Path('android_process_state_late_config.textproto'),
-        query="""
-        SELECT
-          p.pid,
-          p.name,
-          s.start_seq_id,
-          p.start_ts
-        FROM process p
-        LEFT JOIN __intrinsic_android_track_event_process s
-          ON s.upid = p.upid
-        WHERE p.pid > 0
-        ORDER BY p.start_ts;
-        """,
-        out=Csv("""
-          "pid","name","start_seq_id","start_ts"
-          100,"com.example.appa",1,1000000000
-          100,"com.example.appb",2,5000000000
-        """))
-
   def test_android_process_state_metadata(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_metadata.textproto'),
@@ -489,6 +468,6 @@ class AndroidParser(TestSuite):
           "pid","name","uid","android_user_id","start_seq_id","start_ts","end_ts"
           100,"com.example.appa",10001,0,1,1000000000,"[NULL]"
           100,"com.example.appb",10002,0,2,5000000000,"[NULL]"
-          200,"com.example.dump_only",20001,0,10,3000000000,"[NULL]"
+          200,"com.example.dump_only",20001,0,10,"[NULL]","[NULL]"
           300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]"
         """))

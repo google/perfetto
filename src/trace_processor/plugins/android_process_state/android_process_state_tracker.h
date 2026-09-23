@@ -21,15 +21,13 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
-
-namespace com::android::internal::pbzero {
-class AndroidProcessStateSnapshot_Record_Decoder;
-}  // namespace com::android::internal::pbzero
 
 namespace perfetto::trace_processor {
 class AndroidProcessTracker;
@@ -56,30 +54,24 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
+  // Pre-sort pass on an AndroidProcessState dump TracePacket to detect
+  // dump_process_metadata (process_name) before sorted events are parsed.
+  void TokenizeProcessStateDump(protozero::ConstBytes bytes);
   // An AndroidProcessState dump TracePacket.
   void ParseProcessStateDump(protozero::ConstBytes bytes);
 
   // An AndroidFreezerEvent TrackEvent extension at |ts|.
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
+  // Buffers an AndroidFreezerState dump slice to be parsed in Finalize() after
+  // all AndroidProcessState dumps have been processed.
+  void SaveFreezerDump(TraceBlobView blob);
   // An AndroidFreezerState dump TracePacket.
   void ParseFreezerDump(protozero::ConstBytes bytes);
-
-  // Receives parsed config notification from TraceConfig.
-  void OnConfigDetected(bool ftrace_configured,
-                        std::optional<bool> dump_process_metadata);
 
   // Synthesizes the per-process initial-state rows.
   void Finalize();
 
  private:
-  using RecordDecoder = ::com::android::internal::pbzero::
-      AndroidProcessStateSnapshot_Record_Decoder;
-
-  std::optional<int64_t> ToTraceTs(int64_t start_time_ms);
-
-  // Resolves the UPID for a dump record when the framework is authoritative.
-  UniquePid ResolveUserspaceAuthority(const RecordDecoder& rec);
-
   // Information captured for a process from dumps or delta events.
   struct ProcessStateValues {
     UniquePid upid = 0;
@@ -90,7 +82,7 @@ class AndroidProcessStateTracker {
 
   // Information captured for freezer state from trace-stop dumps.
   struct FreezerStateValues {
-    std::optional<UniquePid> upid;
+    UniquePid upid = 0;
     std::optional<int32_t> unfreeze_reason;
   };
 
@@ -132,13 +124,9 @@ class AndroidProcessStateTracker {
   std::map<UniquePid, EarliestDelta> earliest_prev_;
   // Map of upid -> final process state from the trace-stop dump snapshot.
   std::map<UniquePid, ProcessStateValues> process_dump_;
-  // Map of pid -> final freezer state from the trace-stop dump snapshot.
-  // Keyed by pid so that if the freezer dump arrives before the process state
-  // dump at trace stop, the upid can still be resolved in Finalize().
-  std::map<uint32_t, FreezerStateValues> freezer_dump_;
-
-  std::optional<bool> ftrace_configured_;
-  std::optional<bool> dump_process_metadata_;
+  // Map of upid -> final freezer state from the trace-stop dump snapshot.
+  std::map<UniquePid, FreezerStateValues> freezer_dump_;
+  std::vector<TraceBlobView> pending_freezer_dumps_;
 };
 
 }  // namespace perfetto::trace_processor::android_process_state

@@ -1,5 +1,5 @@
 # Exercises android_process_state dump_process_metadata mode:
-# - Userspace authority mode enabled via TraceConfig dump_process_metadata: true
+# - Userspace authority mode detected via process_name in dump records
 # - Mid-trace PID recycling with start_seq_id via TrackEvent
 # - Trace-stop snapshot metadata enrichment and zero-suppression handling
 packet {
@@ -10,18 +10,6 @@ packet {
   }
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
-}
-packet {
-  trace_config {
-    data_sources {
-      config {
-        name: "android.process_state"
-        android_process_state_config {
-          dump_process_metadata: true
-        }
-      }
-    }
-  }
 }
 # Process 100: Initial process start (seq_id: 1).
 packet {

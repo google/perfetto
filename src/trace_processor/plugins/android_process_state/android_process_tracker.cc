@@ -30,8 +30,7 @@ UniquePid AndroidProcessTracker::GetOrStartProcess(
     std::optional<int64_t> start_ts,
     int64_t pid,
     std::optional<int64_t> start_seq_id,
-    StringId name,
-    ThreadNamePriority priority) {
+    StringId name) {
   ProcessTracker* process_tracker = context_->process_tracker.get();
 
   // An incarnation we have already seen. Looking this up first matters: the
@@ -47,12 +46,12 @@ UniquePid AndroidProcessTracker::GetOrStartProcess(
 
   if (auto live_upid = process_tracker->GetProcessOrNull(pid); live_upid) {
     std::optional<int64_t> live_seq_id = GetStartSeqId(*live_upid);
-    bool recycled = live_seq_id.has_value() && start_seq_id.has_value() &&
-                    *live_seq_id != *start_seq_id;
+    bool recycled = live_seq_id.has_value() && start_seq_id.has_value();
     if (!recycled) {
       // Either this is the same incarnation, or we cannot prove otherwise.
-      if (start_seq_id.has_value() && !live_seq_id.has_value()) {
-        RecordStartSeqId(*live_upid, pid, *start_seq_id);
+      if (start_seq_id.has_value()) {
+        start_seq_id_by_upid_[*live_upid] = *start_seq_id;
+        upid_by_seq_id_[*start_seq_id] = *live_upid;
       }
       process_tracker->UpdateProcessName(*live_upid, name,
                                          ProcessNamePriority::kSystem);
@@ -61,15 +60,13 @@ UniquePid AndroidProcessTracker::GetOrStartProcess(
     // The pid has been recycled. StartNewProcess() below detaches it from the
     // previous incarnation and invalidates that process's threads, but leaves
     // it without an end_ts: we know it is gone, not when it went.
-    // TODO: add a stat counting processes detached this way which never
-    // receive a death event, so the size of this gap is measurable.
   }
 
-  UniquePid upid = process_tracker->StartNewProcess(start_ts, std::nullopt, pid,
-                                                    name, priority);
-  RecordMainThread(upid, pid);
+  UniquePid upid = process_tracker->StartNewProcess(
+      start_ts, std::nullopt, pid, name, ThreadNamePriority::kTrackDescriptor);
   if (start_seq_id.has_value()) {
-    RecordStartSeqId(upid, pid, *start_seq_id);
+    start_seq_id_by_upid_[upid] = *start_seq_id;
+    upid_by_seq_id_[*start_seq_id] = upid;
   }
   return upid;
 }
@@ -77,30 +74,9 @@ UniquePid AndroidProcessTracker::GetOrStartProcess(
 void AndroidProcessTracker::EndProcess(int64_t ts, UniquePid upid) {
   ProcessTracker* process_tracker = context_->process_tracker.get();
   auto process = (*context_->storage->mutable_process_table())[upid];
-  auto& thread_table = *context_->storage->mutable_thread_table();
-
-  // If the process still owns its pid, ProcessTracker can do the whole job:
-  // EndThread() ends the main thread, the process itself, and frees the pid.
-  // Check the live thread really belongs to |upid|, because once the pid has
-  // been recycled it belongs to the successor and must not be touched.
-  if (auto utid = process_tracker->GetThreadOrNull(process.pid()); utid) {
-    if (thread_table[*utid].upid() == upid) {
-      process_tracker->EndThread(ts, process.pid());
-      return;
-    }
-  }
-
-  // The pid has been handed on, so there is no way to reach this process
-  // through ProcessTracker any more: StartNewProcess() erased its pid and tid
-  // mappings and invalidated its threads when the successor started. Nothing
-  // in the tracker still refers to |upid|, so closing the rows here cannot
-  // desynchronise it. Without this the process would stay open-ended, and
-  // queries which clip by process.end_ts (e.g. android.memory.breakdown)
-  // would keep attributing its data for the rest of the trace.
-  if (auto* utid = main_utid_by_upid_.Find(upid); utid) {
-    if (auto thread = thread_table[*utid]; !thread.end_ts().has_value()) {
-      thread.set_end_ts(ts);
-    }
+  if (process_tracker->GetProcessOrNull(process.pid()) == upid) {
+    process_tracker->EndThread(ts, process.pid());
+    return;
   }
   if (!process.end_ts().has_value()) {
     process.set_end_ts(ts);
@@ -110,29 +86,17 @@ void AndroidProcessTracker::EndProcess(int64_t ts, UniquePid upid) {
 std::optional<UniquePid> AndroidProcessTracker::FindProcess(
     int64_t pid,
     int64_t start_seq_id) const {
-  const UniquePid* upid = upid_by_pid_and_seq_id_.Find({pid, start_seq_id});
-  return upid ? std::make_optional(*upid) : std::nullopt;
+  const UniquePid* upid = upid_by_seq_id_.Find(start_seq_id);
+  if (!upid || context_->storage->process_table()[*upid].pid() != pid) {
+    return std::nullopt;
+  }
+  return *upid;
 }
 
 std::optional<int64_t> AndroidProcessTracker::GetStartSeqId(
     UniquePid upid) const {
   const int64_t* start_seq_id = start_seq_id_by_upid_.Find(upid);
   return start_seq_id ? std::make_optional(*start_seq_id) : std::nullopt;
-}
-
-void AndroidProcessTracker::RecordStartSeqId(UniquePid upid,
-                                             int64_t pid,
-                                             int64_t start_seq_id) {
-  start_seq_id_by_upid_[upid] = start_seq_id;
-  upid_by_pid_and_seq_id_[{pid, start_seq_id}] = upid;
-}
-
-void AndroidProcessTracker::RecordMainThread(UniquePid upid, int64_t pid) {
-  // StartNewProcess() has just created this thread, so the pid still resolves
-  // to it. Remember it now: after the pid is recycled there is no way back.
-  if (auto utid = context_->process_tracker->GetThreadOrNull(pid); utid) {
-    main_utid_by_upid_[upid] = *utid;
-  }
 }
 
 }  // namespace perfetto::trace_processor
