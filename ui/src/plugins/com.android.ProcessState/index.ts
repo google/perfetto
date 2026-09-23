@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {HSLColor} from '../../base/color';
 import {createAggregationTab} from '../../components/aggregation_adapter';
+import {
+  getColorForSlice,
+  GRAY,
+  makeColorScheme,
+} from '../../components/colorizer';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {PerfettoPlugin} from '../../public/plugin';
@@ -50,6 +56,8 @@ const PROCESS_STATE_SCHEMA = {
   state: STR,
   reason: STR_NULL,
 } as const;
+
+const SLATE = makeColorScheme(new HSLColor([210, 18, 48]));
 
 /**
  * Visualizes Android framework process states over the lifetime of a trace.
@@ -102,7 +110,7 @@ export default class ProcessState implements PerfettoPlugin {
   // at any point in time. Ordered by declaration order in the proto.
   private async createConcurrencyTracks(ctx: Trace): Promise<TrackNode> {
     const summary = new TrackNode({
-      name: 'Concurrency by state',
+      name: 'By state',
       isSummary: true,
     });
 
@@ -155,7 +163,10 @@ export default class ProcessState implements PerfettoPlugin {
         process_name AS name
       FROM _android_process_state_intervals
       GROUP BY upid
-      ORDER BY uid NULLS LAST, min(ts), pid
+      ORDER BY
+        uid NULLS LAST,
+        min(ts),
+        pid
     `);
 
     for (
@@ -179,6 +190,11 @@ export default class ProcessState implements PerfettoPlugin {
           // These tracks come in their hundreds, so keep them compact.
           sliceLayout: {sliceHeight: 12, titleSizePx: 10},
           sliceName: (row) => row.state,
+          colorizer: (row) => {
+            if (row.state === 'NONEXISTENT') return SLATE;
+            if (row.state === 'EXITED') return GRAY;
+            return getColorForSlice(row.state);
+          },
           rootTableName: '_android_process_state_intervals',
         }),
         tags: {type: TAG_PROCESS_TRACK, upid},
