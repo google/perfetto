@@ -25,24 +25,29 @@ INCLUDE PERFETTO MODULE wattson.utils;
 CREATE PERFETTO FUNCTION _get_rate(event STRING)
 RETURNS TABLE(ts TIMESTAMP, dur DURATION, access_rate LONG)
 AS
-SELECT
-  ts,
-  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
-  -- Rate of event accesses in a section (i.e. count / dur).
-  -- If the event name ends in '_cpu0', then the counter is "counts per period".
-  -- If the event name does not end in '_cpu0', then the counter is monotonic.
-  iif(
-    $event GLOB "*_cpu0",
-    value,
-    lead(value) OVER (PARTITION BY track_id ORDER BY ts) - value
-  )
-  * 1.0
-  / (lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts) AS access_rate
-FROM counter AS c
-JOIN counter_track AS t
-  ON c.track_id = t.id
+SELECT *
+FROM (
+  SELECT
+    ts,
+    lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
+    -- Rate of event accesses in a section (i.e. count / dur).
+    -- If the event name ends in '_cpu0', then the counter is "counts per period".
+    -- If the event name does not end in '_cpu0', then the counter is monotonic.
+    iif(
+      $event GLOB "*_cpu0",
+      value,
+      lead(value) OVER (PARTITION BY track_id ORDER BY ts) - value
+    )
+    * 1.0
+    / (lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts) AS access_rate
+  FROM counter AS c
+  JOIN counter_track AS t
+    ON c.track_id = t.id
+  WHERE
+    t.name = $event
+)
 WHERE
-  t.name = $event;
+  dur > 0;
 
 -- The rate of L3 misses for each time slice based on the ARM DSU PMU counter's
 -- bus_access event. Units will be in number of L3 misses per ns. The number of
@@ -63,6 +68,8 @@ WITH
   )
 SELECT trace_start() AS ts, min(ts) - trace_start() AS dur, 0 AS l3_miss_rate
 FROM base
+HAVING
+  min(ts) > trace_start()
 UNION ALL
 SELECT ts, dur, l3_miss_rate FROM base
 UNION ALL
@@ -87,6 +94,8 @@ WITH
   )
 SELECT trace_start() AS ts, min(ts) - trace_start() AS dur, 0 AS l3_hit_rate
 FROM base
+HAVING
+  min(ts) > trace_start()
 UNION ALL
 SELECT ts, dur, l3_hit_rate FROM base
 UNION ALL
