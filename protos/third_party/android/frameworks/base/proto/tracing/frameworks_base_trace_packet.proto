@@ -128,6 +128,8 @@ message AndroidProcessStateSnapshot {
     optional int64 start_seq_id = 7;
     // Process start elapsed realtime in milliseconds.
     optional int64 start_time_ms = 8;
+    // Kernel process group (android.os.Process.THREAD_GROUP_*).
+    optional ProcessGroup process_group = 9;
   }
   repeated Record record = 1;
 }
