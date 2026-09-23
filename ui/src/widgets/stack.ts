@@ -17,7 +17,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {classForSpacing, type HTMLAttrs, type Spacing} from './common';
 
-interface StackAttrs extends HTMLAttrs {
+export interface StackAttrs extends HTMLAttrs {
   readonly orientation?: 'horizontal' | 'vertical';
   readonly fillHeight?: boolean;
   readonly spacing?: Spacing;
@@ -25,8 +25,8 @@ interface StackAttrs extends HTMLAttrs {
   readonly inline?: boolean;
 }
 
-export class Stack implements m.ClassComponent<StackAttrs> {
-  view({attrs, children}: m.CVnode<StackAttrs>) {
+export const Stack: m.Component<StackAttrs> = {
+  view({attrs, children}) {
     const {
       orientation = 'vertical',
       fillHeight = false,
@@ -51,8 +51,33 @@ export class Stack implements m.ClassComponent<StackAttrs> {
       },
       children,
     );
-  }
+  },
+};
+
+export interface InlineAttrs extends HTMLAttrs {
+  readonly spacing?: Spacing;
+  readonly wrap?: boolean;
+  readonly inline?: boolean;
 }
+export const Inline: m.Component<InlineAttrs> = {
+  view({attrs, children}) {
+    const {spacing = 'medium', className, wrap, inline, ...htmlAttrs} = attrs;
+    return m(
+      '.pf-inline',
+      {
+        className: classNames(
+          'pf-stack--horiz',
+          classForSpacing(spacing),
+          wrap && 'pf-inline--wrap',
+          inline && 'pf-inline--inline',
+          className,
+        ),
+        ...htmlAttrs,
+      },
+      children,
+    );
+  },
+};
 
 /**
  * StackAuto is a container element designed to live inside a Stack. It will
@@ -60,25 +85,19 @@ export class Stack implements m.ClassComponent<StackAttrs> {
  * This is useful for elements that should take up as much space as possible
  * without exceeding the bounds of the Stack.
  */
-export class StackAuto implements m.ClassComponent<HTMLAttrs> {
+export const StackAuto: m.Component<HTMLAttrs> = {
   view({attrs, children}: m.CVnode<HTMLAttrs>) {
     return m('.pf-stack-auto', attrs, children);
-  }
-}
+  },
+};
 
 /**
  * StackFixed is a container element designed to live inside a Stack.
  * It will not grow or shrink, and will maintain its size based on its content.
  * This is useful for fixed-size elements that should not be resized.
  */
-export class StackFixed implements m.ClassComponent<HTMLAttrs> {
+export const StackFixed: m.Component<HTMLAttrs> = {
   view({attrs, children}: m.CVnode<HTMLAttrs>) {
     return m('.pf-stack-fixed', attrs, children);
-  }
-}
-
-export const HStack: m.Component<Omit<StackAttrs, 'orientation'>> = {
-  view({attrs, children}: m.CVnode<Omit<StackAttrs, 'orientation'>>) {
-    return m(Stack, {...attrs, orientation: 'horizontal'}, children);
   },
 };

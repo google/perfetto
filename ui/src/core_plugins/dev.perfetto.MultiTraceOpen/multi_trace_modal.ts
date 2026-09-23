@@ -26,7 +26,7 @@ import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Spinner} from '../../widgets/spinner';
-import {HStack, Stack, StackAuto} from '../../widgets/stack';
+import {Inline, Stack, StackAuto} from '../../widgets/stack';
 import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tooltip} from '../../widgets/tooltip';
@@ -57,14 +57,14 @@ const Help: m.Component = {
 
 const Footer: m.Component = {
   view({children}) {
-    return m(HStack, {className: 'pf-multi-trace-modal__footer'}, children);
+    return m(Inline, {className: 'pf-multi-trace-modal__footer'}, children);
   },
 };
 
 const ProcessingCallout: m.Component = {
   view({children}) {
     return m(Callout, {intent: Intent.None}, [
-      m(HStack, {spacing: 'small'}, m(Spinner), children),
+      m(Inline, {spacing: 'small'}, m(Spinner), children),
     ]);
   },
 };
@@ -114,7 +114,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   private renderMergeMode() {
     return m(Stack, [
       m(
-        '.pf-multi-trace-modal__description-content',
+        '.pf-multi-trace-modal__description',
         m(TextParagraph, {
           text:
             'Combine traces that were captured at the same time ' +
@@ -132,18 +132,15 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
 
   private renderComparisonMode() {
     return [
-      m('.pf-multi-trace-modal__description-content', [
+      m('.pf-multi-trace-modal__description', [
         m(TextParagraph, {
           text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
         }),
-      ]),
-      m(Footer, [
         m(
           Callout,
           {
-            className: 'pf-multi-trace-modal__footer-error',
             intent: Intent.Danger,
-            icon: 'error_outline',
+            icon: 'error',
           },
           [
             'This feature is not yet supported. Please +1 ',
@@ -159,6 +156,8 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
               'continue.',
           ],
         ),
+      ]),
+      m(Footer, [
         m(StackAuto),
         m(Button, {
           label: 'Open Traces',
@@ -389,7 +388,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
   }
 
   private renderReferenceRow(control: m.Children, help: string) {
-    return m(HStack, {spacing: 'small'}, [
+    return m(Inline, {spacing: 'small'}, [
       m('strong', 'Align to:'),
       control,
       m(Help, help),
@@ -398,7 +397,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
 
   private renderTraceCard(trace: TraceFile, controller: MultiTraceController) {
     return m(Card, {key: trace.uuid}, [
-      m(HStack, [
+      m(Inline, [
         this.renderTraceInfo(trace),
         m(StackAuto),
         this.renderCardActions(trace, controller),
@@ -415,14 +414,14 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         spacing: 'large',
       },
       m('.pf-multi-trace-modal__name', trace.file.name),
-      m(HStack, {spacing: 'large'}, [
-        m(HStack, {className: 'pf-multi-trace-modal__size'}, [
+      m(Inline, {spacing: 'large'}, [
+        m(Inline, {className: 'pf-multi-trace-modal__size'}, [
           m('strong', 'Size:'),
           m('span', `${(trace.file.size / (1024 * 1024)).toFixed(1)} MB`),
         ]),
         trace.status === 'analyzed'
           ? m(
-              HStack,
+              Inline,
               {
                 className: 'pf-multi-trace-modal__format',
               },
@@ -543,7 +542,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     // permanent box morphing next to the picker.
     if (selectedId !== undefined && this.editingMachine === trace.uuid) {
       return m(
-        HStack,
+        Inline,
         {
           className: 'pf-multi-trace-modal__control-row',
           spacing: 'small',
@@ -577,7 +576,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     }
 
     return m(
-      HStack,
+      Inline,
       {
         className: 'pf-multi-trace-modal__control-row',
         spacing: 'small',
@@ -608,7 +607,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
   ) {
     const machines = controller.getConfig(trace.uuid).machines ?? [];
     return m(Stack, {spacing: 'small'}, [
-      m(HStack, {spacing: 'small'}, [
+      m(Inline, {spacing: 'small'}, [
         m('strong', `Machines (${machines.length}):`),
         m(
           Help,
@@ -620,7 +619,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         ),
       ]),
       machines.map((mm) =>
-        m(HStack, {spacing: 'small', key: mm.id}, [
+        m(Inline, {spacing: 'small', key: mm.id}, [
           m('span', `id ${mm.id} →`),
           m(TextInput, {
             placeholder: 'machine name',
@@ -644,7 +643,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     controller: MultiTraceController,
   ) {
     const config = controller.getConfig(trace.uuid);
-    return m(HStack, {spacing: 'small', wrap: true}, [
+    return m(Inline, {spacing: 'small', wrap: true}, [
       m('strong', 'Align:'),
       this.renderDropdown(
         config.alignMode,
@@ -717,7 +716,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         ? ` (${(trace.progress * 100).toFixed(0)}%)`
         : '';
     return m(
-      HStack,
+      Inline,
       {
         className: 'pf-multi-trace-modal__status-wrapper',
         spacing: 'small',

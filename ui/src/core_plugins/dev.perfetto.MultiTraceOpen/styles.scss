@@ -14,42 +14,30 @@
 
 @use "../../assets/theme.scss" as *;
 
-.pf-multi-trace-modal {
-  &__description-content {
-    border-bottom: 1px solid var(--pf-color-border);
-    margin-top: 12px;
-    padding: 0 8px;
-    width: 550px;
+$padding-inline: 4px;
 
-    .pf-text-paragraph {
-      padding-top: 0;
-      padding-bottom: 16px;
-      font-size: 0.9em;
-      color: var(--pf-color-text-secondary);
-      line-height: 1.4;
-    }
+.pf-multi-trace-modal {
+  &__description {
+    border-bottom: 1px solid var(--pf-color-border);
+    padding: 0 $padding-inline;
+    font-size: var(--pf-font-size-s);
   }
 
   &__list-panel {
     overflow-y: auto;
-    width: 550px;
     max-height: 700px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    padding-inline: 8px;
+    padding-block: 8px;
+    padding-inline: $padding-inline;
   }
 
   &__name {
-    color: var(--pf-color-text);
-    font-size: 0.95em;
     font-weight: 600;
   }
 
   &__size,
   &__status,
   &__format {
-    color: var(--pf-color-text-secondary);
-    font-size: 0.9em;
+    font-size: var(--pf-font-size-s);
   }
 
   &__size strong,
@@ -124,17 +112,14 @@
 
   // Stacked vertically: each control (Machine, Align, ...) on its own line.
   &__config {
-    align-items: flex-start;
     padding-top: 8px;
     margin-top: 8px;
     border-top: 1px solid var(--pf-color-border);
-    font-size: 0.9em;
-    color: var(--pf-color-text-secondary);
+    font-size: var(--pf-font-size-s);
   }
 
   &__note {
     font-style: italic;
-    color: var(--pf-color-text-secondary);
   }
 
   // Reserved status line: min-height keeps the layout stable as the state
@@ -142,8 +127,8 @@
   // panel so a long verdict wraps instead of stretching the modal.
   &__status-panel {
     padding: 12px 0 4px;
+    padding-inline: $padding-inline;
     min-height: 60px;
-    width: 550px;
   }
 
   &__footer {
@@ -151,15 +136,12 @@
     padding-top: 8px;
     margin-top: 0px;
   }
-
-  &__footer-error {
-    max-width: 450px;
-  }
 }
 
 .pf-multi-trace-modal-override {
   main {
     margin-top: 16px;
+    max-width: 550px;
   }
   padding: 16px;
   // Both axes: overflow-y:hidden alone computes overflow-x to auto, adding a
