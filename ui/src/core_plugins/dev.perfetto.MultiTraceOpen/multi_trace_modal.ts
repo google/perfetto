@@ -36,6 +36,7 @@ import type {ClockName, TraceFile} from './multi_trace_types';
 import {parseOffsetNs} from './multi_trace_types';
 import type {AlignmentVerdict} from './trace_analyzer';
 import {WasmTraceAnalyzer} from './trace_analyzer';
+import {Icons} from '../../base/semantic_icons';
 
 const MODAL_KEY = 'multi-trace-modal';
 
@@ -46,7 +47,7 @@ const Help: m.Component = {
       {
         trigger: m(Icon, {
           className: 'pf-multi-trace-modal__help-icon',
-          icon: 'help_outline',
+          icon: Icons.Help,
         }),
       },
       children,
@@ -310,7 +311,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       [
         this.renderReference(controller),
         controller.traces.map((trace) =>
-          this.renderTraceItem(trace, controller),
+          this.renderTraceCard(trace, controller),
         ),
         m(
           Card,
@@ -318,7 +319,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
             className: 'pf-multi-trace-modal__add-card',
             onclick: () => addTraces(controller),
           },
-          m(Icon, {icon: 'add'}),
+          m(Icon, {icon: Icons.Add}),
           'Add more traces',
         ),
       ],
@@ -388,34 +389,22 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
   }
 
   private renderReferenceRow(control: m.Children, help: string) {
-    return m(
-      HStack,
-      {
-        className: 'pf-multi-trace-modal__reference-row',
-        spacing: 'small',
-      },
+    return m(HStack, {spacing: 'small'}, [
       m('strong', 'Align to:'),
       control,
       m(Help, help),
-    );
+    ]);
   }
 
-  private renderTraceItem(trace: TraceFile, controller: MultiTraceController) {
-    return m(
-      CardStack,
-      {
-        className: 'pf-multi-trace-modal__card',
-        direction: 'vertical',
-        key: trace.uuid,
-      },
-      m(
-        HStack,
-        {className: 'pf-multi-trace-modal__row-top'},
+  private renderTraceCard(trace: TraceFile, controller: MultiTraceController) {
+    return m(Card, {key: trace.uuid}, [
+      m(HStack, [
         this.renderTraceInfo(trace),
+        m(StackAuto),
         this.renderCardActions(trace, controller),
-      ),
+      ]),
       this.renderConfigControls(trace, controller),
-    );
+    ]);
   }
 
   private renderTraceInfo(trace: TraceFile) {
@@ -655,35 +644,28 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     controller: MultiTraceController,
   ) {
     const config = controller.getConfig(trace.uuid);
-    return m(
-      HStack,
-      {
-        className: 'pf-multi-trace-modal__align-row',
-        spacing: 'small',
-      },
-      [
-        m('strong', 'Align:'),
-        this.renderDropdown(
-          config.alignMode,
-          [
-            {value: 'auto', label: 'automatically'},
-            {value: 'manual', label: 'by a fixed offset'},
-          ],
-          (value) =>
-            controller.updateConfig(trace.uuid, {
-              alignMode: value === 'manual' ? 'manual' : 'auto',
-            }),
-        ),
-        config.alignMode === 'manual' &&
-          this.manualFieldChildren(trace, controller),
-        m(Help, [
-          'Where this trace sits on the shared timeline. Automatically lines ' +
-            'it up using its own clocks. By a fixed offset moves it by a set ' +
-            'number of nanoseconds relative to the baseline trace; a positive ' +
-            'value moves it later.',
-        ]),
-      ],
-    );
+    return m(HStack, {spacing: 'small', wrap: true}, [
+      m('strong', 'Align:'),
+      this.renderDropdown(
+        config.alignMode,
+        [
+          {value: 'auto', label: 'automatically'},
+          {value: 'manual', label: 'by a fixed offset'},
+        ],
+        (value) =>
+          controller.updateConfig(trace.uuid, {
+            alignMode: value === 'manual' ? 'manual' : 'auto',
+          }),
+      ),
+      config.alignMode === 'manual' &&
+        this.manualFieldChildren(trace, controller),
+      m(Help, [
+        'Where this trace sits on the shared timeline. Automatically lines ' +
+          'it up using its own clocks. By a fixed offset moves it by a set ' +
+          'number of nanoseconds relative to the baseline trace; a positive ' +
+          'value moves it later.',
+      ]),
+    ]);
   }
 
   // The manual-offset inputs, as inline tokens of the Align sentence: a free-

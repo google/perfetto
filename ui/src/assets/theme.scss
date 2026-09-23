@@ -15,10 +15,11 @@
 @use "./typefaces" as *;
 
 $border-radius: 2px;
+$border-radius-medium: 3px;
 $border-radius-large: 4px;
 $anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
-$box-shadow-1: 0px 2px 6px var(--pf-color-box-shadow);
+$box-shadow-1: 0px 2px 4px var(--pf-color-box-shadow);
 $box-shadow-2: 0px 4px 12px var(--pf-color-box-shadow);
 $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
 

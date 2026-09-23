@@ -20,7 +20,6 @@
     margin-top: 12px;
     padding: 0 8px;
     width: 550px;
-    box-sizing: border-box;
 
     .pf-text-paragraph {
       padding-top: 0;
@@ -40,13 +39,6 @@
     padding-inline: 8px;
   }
 
-  &__card {
-    padding: 16px;
-    align-items: stretch;
-    // Keep full size so the list scrolls instead of squishing cards.
-    flex-shrink: 0;
-  }
-
   &__name {
     color: var(--pf-color-text);
     font-size: 0.95em;
@@ -63,10 +55,6 @@
   &__size strong,
   &__format strong {
     font-weight: 600;
-  }
-
-  &__actions {
-    min-width: 50px;
   }
 
   &__status {
@@ -111,12 +99,10 @@
     &:hover {
       background: color_hover(transparent);
     }
-  }
 
-  &__reference-row {
-    align-items: center;
-    padding: 8px 0;
-    font-size: 0.9em;
+    .pf-icon {
+      font-size: var(--pf-font-size-l);
+    }
   }
 
   // Invalid free-text offset: flag it instead of silently dropping the value.
@@ -133,23 +119,7 @@
   &__help-icon {
     color: var(--pf-color-text-muted);
     cursor: help;
-  }
-
-  // pf-stack defaults to baseline, which drops the help icon low.
-  &__control-row {
-    align-items: center;
-  }
-
-  // The whole align sentence on one line; wrap at word boundaries if long.
-  &__align-row {
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  &__row-top {
-    align-items: flex-start;
-    justify-content: space-between;
-    width: 100%;
+    align-self: center;
   }
 
   // Stacked vertically: each control (Machine, Align, ...) on its own line.
@@ -174,7 +144,6 @@
     padding: 12px 0 4px;
     min-height: 60px;
     width: 550px;
-    box-sizing: border-box;
   }
 
   &__footer {
