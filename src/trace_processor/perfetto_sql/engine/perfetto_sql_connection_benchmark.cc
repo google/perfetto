@@ -81,6 +81,7 @@ void BM_Connection_Pipeline_Scan(benchmark::State& state) {
   auto conn = PerfettoSqlConnection::CreateConnectionToNewDatabase(
       &pool, /*enable_extra_checks=*/false);
   auto setup = conn->Execute(SqlSource::FromExecuteQuery(R"(
+    PERFETTO PRAGMA pipelines = 1;
     CREATE PERFETTO TABLE scan_values AS
     WITH RECURSIVE numbers(n) AS (
       SELECT 0 UNION ALL SELECT n + 1 FROM numbers WHERE n < 32767

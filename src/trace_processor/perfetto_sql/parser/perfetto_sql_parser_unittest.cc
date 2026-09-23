@@ -792,13 +792,30 @@ TEST_F(PerfettoSqlParserTest, TakePipelineStatement) {
               HasSubstr("Scan(table slice)"));
 }
 
-TEST_F(PerfettoSqlParserTest, PipelineNeedsACatalog) {
+TEST_F(PerfettoSqlParserTest, PipelineNeedsToBeAllowed) {
   PerfettoSqlParser parser(macros_, catalog_,
                            /*pipelines_allowed=*/false);
   parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
   ASSERT_FALSE(parser.Next());
   EXPECT_THAT(parser.status().message(),
-              HasSubstr("Pipelines cannot be used here"));
+              HasSubstr("Pipelines are not enabled"));
+}
+
+// One parser serves sources which differ in whether they may use a pipeline,
+// so the permission has to follow the source rather than the parser.
+TEST_F(PerfettoSqlParserTest, PipelinePermissionChangesWithTheSource) {
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_FALSE(parser.Next());
+
+  parser.SetPipelinesAllowed(true);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_TRUE(parser.Next()) << parser.status().message();
+
+  parser.SetPipelinesAllowed(false);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_FALSE(parser.Next());
 }
 
 // The new keywords are not reserved and `|` `>` in an expression is still

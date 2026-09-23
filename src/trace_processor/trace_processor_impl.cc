@@ -1127,6 +1127,7 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
           flush(current_pkg, *std::move(rp));
         }
         rp = sql_modules::RegisteredPackage();
+        rp->builtin = true;
         current_pkg = std::move(pkg);
       }
       rp->modules.Insert(std::move(include_key), f.sql_view());
