@@ -484,9 +484,9 @@ TEST_F(RedactRenamePidsTest, PidsNotInEventAndNotInTask) {
   ASSERT_FALSE(redact_.Transform(context_, &packet_string).ok());
 }
 
-// If a PID was added at the event and the task level, only the task level PID
+// If a PID was added at the event and the task level, the task level PID
 // should persist.
-TEST_F(RedactRenamePidsTest, DropPidFromTask) {
+TEST_F(RedactRenamePidsTest, KeepPidFromTask) {
   event_->set_pid(kPidA);
   rename_task_->set_pid(kPidA);
 
@@ -496,11 +496,12 @@ TEST_F(RedactRenamePidsTest, DropPidFromTask) {
   protos::gen::TracePacket packet;
   ASSERT_TRUE(packet.ParseFromString(packet_string));
 
-  // The task should still exist, but the pid should not remain.
+  // The task should still exist, and the pid should remain.
   ASSERT_TRUE(packet.has_ftrace_events());
   ASSERT_EQ(packet.ftrace_events().event_size(), 1);
   ASSERT_TRUE(packet.ftrace_events().event().front().has_task_rename());
-  ASSERT_FALSE(packet.ftrace_events().event().front().task_rename().has_pid());
+  ASSERT_TRUE(packet.ftrace_events().event().front().task_rename().has_pid());
+  ASSERT_EQ(packet.ftrace_events().event().front().task_rename().pid(), kPidA);
 }
 
 TEST_F(RedactRenamePidsTest, PidInTaskOverridesPidInEvent) {
@@ -522,6 +523,7 @@ TEST_F(RedactRenamePidsTest, PidInTaskOverridesPidInEvent) {
   ASSERT_TRUE(packet.has_ftrace_events());
   ASSERT_EQ(packet.ftrace_events().event_size(), 1);
   ASSERT_TRUE(packet.ftrace_events().event().front().has_task_rename());
+  ASSERT_EQ(packet.ftrace_events().event().front().task_rename().pid(), kPidA);
 }
 
 // Redact comm values
@@ -551,6 +553,7 @@ class RedactCommValuesTest : public testing::Test {
     rename_->set_newcomm(std::string(kCommB));
     rename_->set_oldcomm(std::string(kCommA));
     rename_->set_oom_score_adj(0);
+    rename_->set_pid(kPidA);
   }
 
   protos::gen::TracePacket packet_;
@@ -584,7 +587,8 @@ TEST_F(RedactCommValuesTest, KeepCommInsideOfPackage) {
 
   const auto& task_rename = event.task_rename();
 
-  ASSERT_FALSE(task_rename.has_pid());
+  ASSERT_TRUE(task_rename.has_pid());
+  ASSERT_EQ(task_rename.pid(), kPidA);
   ASSERT_TRUE(task_rename.has_oldcomm());
   ASSERT_TRUE(task_rename.has_newcomm());
 
@@ -643,6 +647,7 @@ class RedactRenameTest : public testing::Test {
     rename->set_newcomm(std::string(kCommB));
     rename->set_oldcomm(std::string(kCommA));
     rename->set_oom_score_adj(0);
+    rename->set_pid(kPidA);
   }
 
   protos::gen::TracePacket packet_;

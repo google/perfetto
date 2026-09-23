@@ -269,7 +269,7 @@ base::Status RedactProcessEvents::OnProcessRename(
     const Context& context,
     uint64_t ts,
     int32_t cpu,
-    int32_t pid,
+    int32_t /*pid*/,
     protozero::ConstBytes bytes,
     std::string* shared_comm,
     protos::pbzero::FtraceEvent* parent_message) const {
@@ -302,13 +302,14 @@ base::Status RedactProcessEvents::OnProcessRename(
   auto old_comm = decoder.oldcomm();
   auto oom_score_adj = decoder.oom_score_adj();
 
-  // The rename task's pid *should* always match the ftrace event's pid. To
-  // support backwards compatibility but assume the ftrace event's pid can be
-  // used, the rename task's pid will be used if it is present, otherwise it'll
-  // use the ftrace event's pid.
-  //
-  // https://b.corp.google.com/issues/407810213
-  auto nearest_pid = decoder.has_pid() ? decoder.pid() : pid;
+  // We expect the rename task's pid to always be available and it will be used
+  // at all times given that is the accurate value to use as pthread_setname_np
+  // may be called from another thread than the renamed thread. As a safe-guard,
+  // if the pid is not found, fallback to 0 which would cause the rename event
+  // to be dropped instead of showing the wrong thread as that would likely
+  // cause wrong assumptions when analysing a trace and it is also better for
+  // compression.
+  auto nearest_pid = decoder.has_pid() ? decoder.pid() : 0;
 
   PERFETTO_DCHECK(filter_);
   if (!filter_->Includes(context, ts, nearest_pid)) {
@@ -334,6 +335,7 @@ base::Status RedactProcessEvents::OnProcessRename(
   PERFETTO_DCHECK(old_comm_pid == nearest_pid);
   PERFETTO_DCHECK(new_comm_pid == nearest_pid);
 
+  message->set_pid(nearest_pid);
   message->set_oldcomm(old_comm_string);
   message->set_newcomm(new_comm_string);
   message->set_oom_score_adj(oom_score_adj);
