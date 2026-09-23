@@ -17,9 +17,11 @@
 #include "src/trace_processor/plugins/interval_intersect/interval_intersect.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -129,11 +131,10 @@ base::StatusOr<std::vector<ColType>> GetPartitionsSqlType(
   return result;
 }
 
-// Pushes partition into the result table. Returns the number of rows pushed.
-// All operations in this function are done on sets of intervals from each
-// table that correspond to the same partition.
-base::StatusOr<uint32_t> PushPartition(
-    StringPool* string_pool,
+// Fallback for when one or more tables contain overlapping intervals
+// (e.g. nested slice stacks). Merges tables one by one with
+// IntervalIntersector.
+uint32_t PushPartitionOverlapping(
     dataframe::AdhocDataframeBuilder& builder,
     const std::vector<Partition*>& intervals_in_table) {
   size_t tables_count = intervals_in_table.size();
@@ -201,6 +202,94 @@ base::StatusOr<uint32_t> PushPartition(
       builder.PushNonNullUnchecked(j + kArgCols, interval.idx_in_table[j]);
     }
   }
+  return rows_count;
+}
+
+// k-pointer sweep merge for when no table has overlapping intervals, as
+// defined by IsOverlapping(). Streams intersections directly into the
+// dataframe builder without intermediate materializations.
+uint32_t PushPartitionNonOverlapping(
+    dataframe::AdhocDataframeBuilder& builder,
+    const std::vector<Partition*>& intervals_in_table) {
+  size_t tables_count = intervals_in_table.size();
+
+  std::array<const Interval*, kIdCols> cur{};
+  std::array<const Interval*, kIdCols> end_ptr{};
+  for (size_t i = 0; i < tables_count; ++i) {
+    const auto& vec = intervals_in_table[i]->intervals;
+    PERFETTO_DCHECK(!vec.empty());
+    cur[i] = vec.data();
+    end_ptr[i] = vec.data() + vec.size();
+  }
+
+  uint32_t rows_count = 0;
+  bool reached_end = false;
+  do {
+    uint64_t max_start = 0;
+    uint64_t min_end = std::numeric_limits<uint64_t>::max();
+    for (size_t i = 0; i < tables_count; ++i) {
+      max_start = std::max(max_start, cur[i]->start);
+      min_end = std::min(min_end, cur[i]->end);
+    }
+
+    // An interval [s, t) excludes t but an instant (dur == 0) at t includes
+    // it. So if an interval ends at min_end, min_end itself isn't shared.
+    bool interval_ends_at_min = false;
+    for (size_t i = 0; i < tables_count; ++i) {
+      bool ends_at_min = cur[i]->end == min_end;
+      bool is_instant = cur[i]->start == cur[i]->end;
+      interval_ends_at_min |= (ends_at_min && !is_instant);
+    }
+
+    // All current intervals overlap: emit their overlap (an instant if
+    // max_start == min_end) and all IDs.
+    if (max_start < min_end ||
+        (max_start == min_end && !interval_ends_at_min)) {
+      int64_t ts = static_cast<int64_t>(max_start);
+      int64_t dur = static_cast<int64_t>(min_end) - ts;
+      builder.PushNonNullUnchecked(0, ts);
+      builder.PushNonNullUnchecked(1, dur);
+      for (size_t i = 0; i < tables_count; ++i) {
+        builder.PushNonNullUnchecked(static_cast<uint32_t>(i) + kArgCols,
+                                     cur[i]->id);
+      }
+      ++rows_count;
+    }
+
+    // Advance tables whose current interval ends at min_end. An instant at
+    // min_end stays while an interval ends there, as it can still meet an
+    // interval starting at min_end.
+    for (size_t i = 0; i < tables_count; ++i) {
+      bool ends_at_min = cur[i]->end == min_end;
+      bool is_instant = cur[i]->start == cur[i]->end;
+      if (ends_at_min && !(is_instant && interval_ends_at_min)) {
+        ++cur[i];
+        reached_end |= (cur[i] == end_ptr[i]);
+      }
+    }
+    // Stop once any table is exhausted: no later interval can meet all tables.
+  } while (!reached_end);
+  return rows_count;
+}
+
+// Pushes partition into the result table. Returns the number of rows pushed.
+// All operations in this function are done on sets of intervals from each
+// table that correspond to the same partition.
+base::StatusOr<uint32_t> PushPartition(
+    StringPool* string_pool,
+    dataframe::AdhocDataframeBuilder& builder,
+    const std::vector<Partition*>& intervals_in_table) {
+  size_t tables_count = intervals_in_table.size();
+
+  bool all_nonoverlapping = true;
+  for (size_t i = 0; i < tables_count; ++i) {
+    all_nonoverlapping &= (intervals_in_table[i]->is_nonoverlapping);
+  }
+
+  uint32_t rows_count =
+      all_nonoverlapping
+          ? PushPartitionNonOverlapping(builder, intervals_in_table)
+          : PushPartitionOverlapping(builder, intervals_in_table);
   for (uint32_t i = 0; i < intervals_in_table[0]->sql_values.size(); i++) {
     const SqlValue& part_val = intervals_in_table[0]->sql_values[i];
     switch (part_val.type) {
@@ -230,7 +319,7 @@ base::StatusOr<uint32_t> PushPartition(
         PERFETTO_FATAL("Invalid partition type");
     }
   }
-  return static_cast<uint32_t>(last_results.size());
+  return rows_count;
 }
 
 struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {

@@ -327,6 +327,39 @@ class IntervalsIntersectDurations(TestSuite):
         7,0,0,0,0
         """))
 
+  # Rows of one table which share an instant, such as two points or a point at
+  # an interval's start, overlap: the table is not non-overlapping, and each
+  # row still meets every row of the other table there.
+  def test_coincident_instants_cross_product(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE t0 AS
+          WITH data(id, ts, dur) AS (
+            VALUES (0, 0, 0), (1, 0, 0)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE t1 AS
+          WITH data(id, ts, dur) AS (
+            VALUES (0, 0, 0), (1, 0, 2)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((t0, t1), ())
+        ORDER BY id_0, id_1;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        0,0,0,0
+        0,0,0,1
+        0,0,1,0
+        0,0,1,1
+        """))
+
   # Points are kept apart by their partition like any other interval.
   def test_points_in_partitions(self):
     return DiffTestBlueprint(
