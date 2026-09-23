@@ -85,7 +85,6 @@ packet {
       uid: 10002
       process_name: "com.example.appb"
       start_seq_id: 2
-      start_time_ms: 5000
       proc_state: 1002
       oom_score: 100
     }

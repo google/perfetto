@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
 
-#include <limits>
 #include <string>
 
 #include "perfetto/ext/base/string_view.h"

@@ -22,22 +22,6 @@ perfetto_tp_tables("tables") {
   deps = [ "../../tables:tables_python" ]
 }
 
-# The shared view of Android process identity. Split out so other Android
-# plugins can depend on it without pulling in this plugin's parsing code.
-source_set("tracker") {
-  sources = [
-    "android_process_tracker.cc",
-    "android_process_tracker.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base",
-    "../../importers/common",
-    "../../storage",
-    "../../types",
-  ]
-}
-
 source_set("android_process_state") {
   sources = [
     "android_process_state.cc",
@@ -46,11 +30,10 @@ source_set("android_process_state") {
     "android_process_state_module.h",
     "android_process_state_tracker.cc",
     "android_process_state_tracker.h",
+    "android_process_tracker.cc",
+    "android_process_tracker.h",
   ]
-  public_deps = [
-    ":tables",
-    ":tracker",
-  ]
+  public_deps = [ ":tables" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
