@@ -72,8 +72,12 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
     return;
   }
   int32_t pid = p.pid();
-  UniquePid upid =
-      context_->process_tracker->GetOrCreateProcess(static_cast<uint32_t>(pid));
+  std::optional<UniquePid> opt_upid =
+      context_->process_tracker->GetProcessOrNull(static_cast<uint32_t>(pid));
+  if (!opt_upid) {
+    return;
+  }
+  UniquePid upid = *opt_upid;
 
   ProcessStateValues prev;
   prev.upid = upid;
@@ -120,9 +124,14 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
     if (!rec.has_pid()) {
       continue;
     }
+    std::optional<UniquePid> opt_upid =
+        context_->process_tracker->GetProcessOrNull(
+            static_cast<uint32_t>(rec.pid()));
+    if (!opt_upid) {
+      continue;
+    }
     ProcessStateValues v;
-    v.upid = context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(rec.pid()));
+    v.upid = *opt_upid;
 
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields in the dump snapshot
@@ -148,10 +157,15 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   if (!evt.has_pid()) {
     return;
   }
+  std::optional<UniquePid> opt_upid =
+      context_->process_tracker->GetProcessOrNull(
+          static_cast<uint32_t>(evt.pid()));
+  if (!opt_upid) {
+    return;
+  }
   tables::AndroidFreezerStateTable::Row row;
   row.ts = ts;
-  row.upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(evt.pid()));
+  row.upid = *opt_upid;
   if (evt.has_unfrozen_dur_ms()) {
     row.unfrozen_dur_ms = evt.unfrozen_dur_ms();
   }
@@ -175,9 +189,14 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
     if (!rec.has_pid()) {
       continue;
     }
+    std::optional<UniquePid> opt_upid =
+        context_->process_tracker->GetProcessOrNull(
+            static_cast<uint32_t>(rec.pid()));
+    if (!opt_upid) {
+      continue;
+    }
     FreezerStateValues v;
-    v.upid = context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(rec.pid()));
+    v.upid = *opt_upid;
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields represent UFR_NONE (0).
     v.unfreeze_reason =
