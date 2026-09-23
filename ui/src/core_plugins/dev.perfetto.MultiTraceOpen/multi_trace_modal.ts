@@ -19,7 +19,7 @@ import {download} from '../../base/download_utils';
 import {tarFileListToBlob} from '../../core/trace_stream';
 import {Anchor} from '../../widgets/anchor';
 import {Button, ButtonVariant} from '../../widgets/button';
-import {Card, CardStack} from '../../widgets/card';
+import {Card} from '../../widgets/card';
 import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
 import {closeModal, redrawModal, showModal} from '../../widgets/modal';
@@ -81,7 +81,6 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   private controller = new MultiTraceController(new WasmTraceAnalyzer(), () =>
     redrawModal(),
   );
-  private currentTab = 'merge';
 
   oncreate({attrs}: m.Vnode<MultiTraceModalAttrs>) {
     this.controller.addFiles(attrs.initialFiles);
@@ -91,10 +90,6 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     return m(Stack, {className: 'pf-multi-trace-modal'}, [
       m(Tabs, {
         variant: 'underline',
-        activeTabKey: this.currentTab,
-        onTabChange: (key: string) => {
-          this.currentTab = key;
-        },
         tabs: [
           {
             key: 'merge',
@@ -178,17 +173,13 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       case 'NO_TRACES':
         return m(Callout, {icon: 'info'}, 'Add at least one trace to open.');
       case 'DUPLICATE_NAMES':
-        return m(
-          Callout,
-          {intent: Intent.Danger, icon: 'error_outline'},
+        return m(Callout, {intent: Intent.Danger, icon: 'error_outline'}, [
           'Two traces share the same file name. Remove or rename one.',
-        );
+        ]);
       case 'TRACE_ERROR':
-        return m(
-          Callout,
-          {intent: Intent.Danger, icon: 'error_outline'},
+        return m(Callout, {intent: Intent.Danger, icon: 'error_outline'}, [
           'Remove the traces that failed to load before opening.',
-        );
+        ]);
       default:
         break;
     }
