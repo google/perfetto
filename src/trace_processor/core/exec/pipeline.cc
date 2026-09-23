@@ -146,8 +146,7 @@ bool Pipeline::Input(uint32_t boundary,
     auto& next = stage.scratch;
     next.Reset();
     if (stage.deferred.size()) {
-      next.CopyFrom(stage.deferred);
-      stage.deferred.Reset();
+      next.SwapContents(stage.deferred);
     } else if (!Pull(boundary, next, s)) {
       if (!s.status.ok() || s.stopped) {
         stage.buffered.Clear();
@@ -169,7 +168,7 @@ bool Pipeline::Input(uint32_t boundary,
     if (next.size() > options_.small_batch_rows ||
         stage.buffered.size() + next.size() > options_.target_batch_rows) {
       if (stage.buffered.size()) {
-        stage.deferred.CopyFrom(next);
+        stage.deferred.SwapContents(next);
         stage.buffered.Take(out);
         return true;
       }

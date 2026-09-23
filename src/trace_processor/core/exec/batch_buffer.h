@@ -36,7 +36,7 @@ class BatchBuffer {
   uint32_t size() const { return batch_.size(); }
   base::Status Append(const RowBatch&);
   void Take(RowBatch& out) {
-    out.CopyFrom(batch_);
+    out.SwapContents(batch_);
     Clear();
   }
   void Clear() {
