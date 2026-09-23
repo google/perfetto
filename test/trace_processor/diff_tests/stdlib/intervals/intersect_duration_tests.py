@@ -20,7 +20,8 @@ from python.generators.diff_tests.testing import TestSuite
 
 # What an interval intersect does with the durations which are not a plain
 # span: a duration of zero, which is a point, and a negative duration, which
-# a caller has not filtered out.
+# a caller has not filtered out. Points are also called "instants" in
+# interval_tree.h.
 #
 # An interval is [ts, ts + dur), so its end is outside it: an interval and a
 # point meet when the point lies in that range, and two intervals meet when
@@ -122,17 +123,17 @@ class IntervalsIntersectDurations(TestSuite):
   def test_interval_against_interval_positions(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
-        #            10        20
-        # O:         [---------)
-        # P0: [---)             before
-        # P1: [------)          up to the start
-        # P2:    [------)       over the start
-        # P3:         [---)     inside
-        # P4: [--------------)  over the whole
-        # P5:        [-----)    the same
-        # P6:           [-----) over the end
-        # P7:           [----)  from the end
-        # P8:              [--) after
+        #     0         10        20        30
+        # O:            [---------)
+        # P0: [----)                          before
+        # P1: [---------)                     up to the start
+        # P2:      [---------)                over the start
+        # P3:             [-----)             inside
+        # P4: [-----------------------------) over the whole
+        # P5:           [---------)           the same
+        # P6:                [---------)      over the end
+        # P7:                     [---------) from the end
+        # P8:                          [----) after
         query="""
         INCLUDE PERFETTO MODULE intervals.intersect;
 
