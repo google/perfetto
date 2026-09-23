@@ -17,6 +17,8 @@
 #include <unistd.h>
 
 #include <limits>
+#include <map>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -228,6 +230,61 @@ const char kMockAMDGpuFreq[] = R"(
 1: 400Mhz *
 2: 2000Mhz 
 )";
+
+const char kMockCgroupCpuStat[] = R"(usage_usec 123456789
+user_usec 87654321
+system_usec 35802468
+nr_periods 1000
+nr_throttled 50
+throttled_usec 123456)";
+
+const char kMockCgroupMemoryStat[] = R"(anon 1048576
+file 2097152
+kernel_stack 32768
+pagetables 65536
+percpu 16384
+sock 8192
+shmem 524288
+file_mapped 1572864
+file_dirty 131072
+file_writeback 65536
+swapcached 0
+anon_thp 0
+file_thp 0
+shmem_thp 0
+inactive_anon 524288
+active_anon 524288
+inactive_file 1048576
+active_file 1048576
+unevictable 0
+slab_reclaimable 262144
+slab_unreclaimable 131072
+slab 393216
+workingset_refault_anon 0
+workingset_refault_file 100
+workingset_activate_anon 0
+workingset_activate_file 50
+workingset_restore_anon 0
+workingset_restore_file 25
+workingset_nodereclaim 0
+pgfault 10000
+pgmajfault 100
+pgrefill 500
+pgscan 1000
+pgsteal 750
+pgactivate 250
+pgdeactivate 200
+pglazyfree 10
+pglazyfreed 5
+thp_fault_alloc 0
+thp_collapse_alloc 0)";
+
+const char kMockCgroupMemoryCurrent[] = "104857600";
+const char kMockCgroupMemoryMax[] = "268435456";
+
+const char kMockCgroupIoStat[] = R"(8:0 rbytes=1048576 wbytes=524288 rios=100 wios=50 dbytes=0 dios=0
+8:16 rbytes=2097152 wbytes=1048576 rios=200 wios=100 dbytes=0 dios=0)";
+
 // clang-format on
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
@@ -281,6 +338,32 @@ base::ScopedFile MockOpenReadOnly(const char* path) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockPsi, strlen(kMockPsi), 0), 0);
   } else if (!strcmp(path, "/proc/slabinfo")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockSlabinfo, strlen(kMockSlabinfo), 0), 0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/top-app/cpu.stat")) {
+    EXPECT_GT(
+        pwrite(tmp_.fd(), kMockCgroupCpuStat, strlen(kMockCgroupCpuStat), 0),
+        0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/top-app/memory.stat")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockCgroupMemoryStat,
+                     strlen(kMockCgroupMemoryStat), 0),
+              0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/top-app/memory.current")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockCgroupMemoryCurrent,
+                     strlen(kMockCgroupMemoryCurrent), 0),
+              0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/top-app/memory.max")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockCgroupMemoryMax,
+                     strlen(kMockCgroupMemoryMax), 0),
+              0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/top-app/memory.swap.current")) {
+    EXPECT_GT(pwrite(tmp_.fd(), "0", 1, 0), 0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/top-app/memory.swap.max")) {
+    EXPECT_GT(pwrite(tmp_.fd(), "max", 3, 0), 0);
+  } else if (!strcmp(path, "/sys/fs/cgroup/top-app/io.stat")) {
+    EXPECT_GT(
+        pwrite(tmp_.fd(), kMockCgroupIoStat, strlen(kMockCgroupIoStat), 0), 0);
+  } else if (base::StartsWith(path, "/sys/fs/cgroup/")) {
+    // Any other cgroup file (e.g. memory.high) is treated as absent.
+    return base::ScopedFile();
   } else {
     PERFETTO_FATAL("Unexpected file opened %s", path);
   }
@@ -958,6 +1041,104 @@ TEST_F(SysStatsDataSourceTest, Slabinfo) {
   EXPECT_EQ(sys_stats.slab_info()[1].name(), "kmalloc-64");
   EXPECT_EQ(sys_stats.slab_info()[1].pages_per_slab(), 1u);
   EXPECT_EQ(sys_stats.slab_info()[1].num_slabs(), 2u);
+}
+
+// Collects all cgroup counters from the single Cgroup entry into a map keyed
+// by (counter key, device).
+std::map<std::pair<int, std::string>, uint64_t> CollectCgroupCounters(
+    const protos::gen::SysStats::Cgroup& cgroup) {
+  std::map<std::pair<int, std::string>, uint64_t> values;
+  for (const auto& c : cgroup.counter())
+    values[{static_cast<int>(c.key()), c.device()}] = c.value();
+  return values;
+}
+
+TEST_F(SysStatsDataSourceTest, CgroupStatsWork) {
+  using C = protos::gen::CgroupCounters;
+  DataSourceConfig cfg;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_cgroup_period_ms(10);
+  // A cgroup v2 unified path: cpu.stat, memory.stat and io.stat all live in the
+  // same directory.
+  sys_cfg.add_cgroup_paths("/sys/fs/cgroup/top-app");
+  cfg.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+
+  auto data_source = GetSysStatsDataSource(cfg);
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+  ASSERT_EQ(sys_stats.cgroup_size(), 1);
+  const auto& cgroup = sys_stats.cgroup()[0];
+  EXPECT_EQ(cgroup.path(), "/sys/fs/cgroup/top-app");
+
+  auto values = CollectCgroupCounters(cgroup);
+  auto get = [&](C key, const char* dev) -> uint64_t {
+    auto it = values.find({static_cast<int>(key), dev});
+    return it == values.end() ? 0u : it->second;
+  };
+  auto has = [&](C key, const char* dev) {
+    return values.count({static_cast<int>(key), dev}) > 0;
+  };
+
+  // cpu.stat
+  EXPECT_EQ(get(C::CGROUP_CPU_USAGE_USEC, ""), 123456789u);
+  EXPECT_EQ(get(C::CGROUP_CPU_USER_USEC, ""), 87654321u);
+  EXPECT_EQ(get(C::CGROUP_CPU_THROTTLED_USEC, ""), 123456u);
+  // memory.stat, including a transparent-huge-page counter (THP name fix).
+  EXPECT_EQ(get(C::CGROUP_MEMORY_ANON, ""), 1048576u);
+  EXPECT_EQ(get(C::CGROUP_MEMORY_FILE, ""), 2097152u);
+  EXPECT_TRUE(has(C::CGROUP_MEMORY_ANON_THP, ""));
+  // Single-value memory files (previously never emitted).
+  EXPECT_EQ(get(C::CGROUP_MEMORY_CURRENT, ""), 104857600u);
+  EXPECT_EQ(get(C::CGROUP_MEMORY_MAX, ""), 268435456u);
+  EXPECT_TRUE(has(C::CGROUP_MEMORY_SWAP_CURRENT, ""));
+  // A literal "max" limit maps to uint64 max.
+  EXPECT_EQ(get(C::CGROUP_MEMORY_SWAP_MAX, ""),
+            std::numeric_limits<uint64_t>::max());
+  // memory.high is absent in the mock, so it is not emitted.
+  EXPECT_FALSE(has(C::CGROUP_MEMORY_HIGH, ""));
+  // io.stat, per block device (previously never emitted).
+  EXPECT_EQ(get(C::CGROUP_IO_RBYTES, "8:0"), 1048576u);
+  EXPECT_EQ(get(C::CGROUP_IO_WBYTES, "8:0"), 524288u);
+  EXPECT_EQ(get(C::CGROUP_IO_RBYTES, "8:16"), 2097152u);
+  EXPECT_TRUE(has(C::CGROUP_IO_DIOS, "8:16"));
+}
+
+TEST_F(SysStatsDataSourceTest, CgroupStatsRespectCounterFilter) {
+  using C = protos::gen::CgroupCounters;
+  DataSourceConfig cfg;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_cgroup_period_ms(10);
+  sys_cfg.add_cgroup_paths("/sys/fs/cgroup/top-app");
+  // Only two counters requested: one key-value stat and one io.stat field.
+  sys_cfg.add_cgroup_counters(C::CGROUP_CPU_USAGE_USEC);
+  sys_cfg.add_cgroup_counters(C::CGROUP_IO_RBYTES);
+  cfg.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+
+  auto data_source = GetSysStatsDataSource(cfg);
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  ASSERT_EQ(packet.sys_stats().cgroup_size(), 1);
+  auto values = CollectCgroupCounters(packet.sys_stats().cgroup()[0]);
+  auto get = [&](C key, const char* dev) -> uint64_t {
+    auto it = values.find({static_cast<int>(key), dev});
+    return it == values.end() ? 0u : it->second;
+  };
+  auto has = [&](C key, const char* dev) {
+    return values.count({static_cast<int>(key), dev}) > 0;
+  };
+
+  // Only the two requested counters are present (io.rbytes for both devices).
+  EXPECT_EQ(get(C::CGROUP_CPU_USAGE_USEC, ""), 123456789u);
+  EXPECT_EQ(get(C::CGROUP_IO_RBYTES, "8:0"), 1048576u);
+  EXPECT_EQ(get(C::CGROUP_IO_RBYTES, "8:16"), 2097152u);
+  EXPECT_FALSE(has(C::CGROUP_CPU_USER_USEC, ""));
+  EXPECT_FALSE(has(C::CGROUP_MEMORY_ANON, ""));
+  EXPECT_FALSE(has(C::CGROUP_IO_WBYTES, "8:0"));
 }
 
 }  // namespace
