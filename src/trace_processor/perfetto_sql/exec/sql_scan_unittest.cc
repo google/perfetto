@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
@@ -40,13 +41,16 @@
 #include "src/trace_processor/core/exec/tree_order.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/perfetto_sql/lineage/type_mapping.h"
+#include "src/trace_processor/perfetto_sql/schema/query_schema.h"
+#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::exec {
 namespace {
+
+namespace analysis = ::perfetto::perfetto_sql::analysis;
 
 using core::BitVector;
 using core::Double;
@@ -95,23 +99,23 @@ TestColumn Typed(std::string name, core::StorageType type) {
   return {std::move(name), type};
 }
 
-class TestCatalog : public lineage::analysis::Catalog {
+class TestCatalog : public analysis::Catalog {
  public:
   void Add(std::string name, std::vector<TestColumn> columns) {
     dataframes_[std::move(name)] = std::move(columns);
   }
 
-  std::optional<lineage::analysis::LeafRelation> FindLeafRelation(
+  std::optional<analysis::LeafRelation> FindLeafRelation(
       std::string_view name) const override {
     auto dataframe = dataframes_.find(std::string(name));
     if (dataframe == dataframes_.end()) {
       return std::nullopt;
     }
-    lineage::analysis::LeafRelation relation;
+    analysis::LeafRelation relation;
     relation.name = name;
     for (const TestColumn& column : dataframe->second) {
       relation.columns.push_back(
-          {column.name, lineage::ToAnalysisType(column.type)});
+          {column.name, sql_schema::ToAnalysisType(column.type)});
     }
     return relation;
   }
@@ -140,9 +144,12 @@ class SqlScanTest : public ::testing::Test {
 
   base::StatusOr<std::unique_ptr<SqlScan>> Scan(
       const std::string& sql,
-      const lineage::analysis::Catalog& catalog) {
-    return SqlScan::Create(connection_.get(), SqlSource::FromExecuteQuery(sql),
-                           &pool_, catalog);
+      const analysis::Catalog& catalog) {
+    auto source = SqlSource::FromExecuteQuery(sql);
+    ASSIGN_OR_RETURN(auto columns, sql_schema::DescribeQuery(connection_.get(),
+                                                             source, catalog));
+    return std::make_unique<SqlScan>(connection_.get(), std::move(source),
+                                     std::move(columns), &pool_);
   }
 
   // An empty catalog traces nothing, so every column is a variant.
@@ -158,7 +165,9 @@ class SqlScanTest : public ::testing::Test {
 TEST_F(SqlScanTest, AQuerysColumnsAreKnownBeforeItsRows) {
   auto scan = Scan("SELECT 1 AS a, 'x' AS b");
   ASSERT_TRUE(scan.ok()) << scan.status().c_message();
-  EXPECT_THAT((*scan)->column_names(), testing::ElementsAre("a", "b"));
+  ASSERT_EQ((*scan)->columns().size(), 2u);
+  EXPECT_EQ((*scan)->columns()[0].name, "a");
+  EXPECT_EQ((*scan)->columns()[1].name, "b");
 }
 
 TEST_F(SqlScanTest, AQuerysRowsArriveAsABatch) {
@@ -355,12 +364,10 @@ TEST_F(SqlScanTest, AQueryReachesTheTreeOperators) {
   ops.push_back(std::make_unique<core::exec::AssertType>(
       2, core::exec::AssertTypeTarget{core::Int64{}}, "self"));
   ops.push_back(std::make_unique<core::exec::TreeNumberNodes>(0, 1));
-  core::exec::Pipeline typed(**scan, std::move(ops));
-  core::exec::TreeChildFirst order(typed, 3, 4);
+  ops.push_back(std::make_unique<core::exec::TreeChildFirst>(3, 4));
   core::exec::TreeAccumulateSpec spec{3, 4, 2};
-  std::vector<std::unique_ptr<core::exec::Operator>> folds;
-  folds.push_back(std::make_unique<core::exec::TreeAccumulateUp>(spec));
-  core::exec::Pipeline folded(order, std::move(folds));
+  ops.push_back(std::make_unique<core::exec::TreeAccumulateUp>(spec));
+  core::exec::Pipeline folded(**scan, std::move(ops));
 
   std::unique_ptr<core::exec::OperatorState> state = folded.MakeState();
   RowBatch batch;
@@ -501,6 +508,24 @@ TEST_F(SqlScanTest, ANullSlotOfAFlatColumnHoldsZero) {
   EXPECT_EQ(ids[0], 7);
   EXPECT_EQ(ids[1], 0);
   EXPECT_FALSE(batch->column(0).validity()->is_set(1));
+}
+
+TEST_F(SqlScanTest, RetainedBatchSurvivesAdvanceAndRewind) {
+  auto scan = Scan(
+      "WITH RECURSIVE n(x) AS (SELECT 0 UNION ALL "
+      "SELECT x+1 FROM n WHERE x<4096) SELECT x FROM n");
+  ASSERT_TRUE(scan.ok()) << scan.status().message();
+  auto state = (*scan)->MakeState();
+  RowBatch output, retained;
+  ASSERT_TRUE((*scan)->GetData(output, *state));
+  retained.CopyFrom(output);
+  ASSERT_TRUE((*scan)->GetData(output, *state));
+  (*scan)->Rewind(*state);
+  ASSERT_TRUE((*scan)->GetData(output, *state));
+  auto values = ReadInts(retained, 0);
+  ASSERT_EQ(values.size(), kMaxBatchRows);
+  for (uint32_t i = 0; i < values.size(); ++i)
+    EXPECT_EQ(values[i], i);
 }
 
 }  // namespace

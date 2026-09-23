@@ -91,12 +91,10 @@ TEST(RowStoreTest, SurvivesTheStorageItWasReadFromMovingOn) {
 // one after another, whatever the batch was pointing at.
 TEST(RowStoreTest, ReadsBackDenseWhateverArrived) {
   std::vector<int64_t> values = {10, 11, 12, 13, 14};
-  std::vector<uint32_t> rows = {4, 0, 2};
   RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch.mutable_column(0).SetBorrowedRows(
-      Span<const uint32_t>(rows.data(), rows.data() + 3));
+  batch.mutable_column(0).SetOwnedRows(test::OwnedRows({4, 0, 2}), 3);
   batch.SetCardinality(3);
   ASSERT_TRUE(store.Append(batch).ok());
 

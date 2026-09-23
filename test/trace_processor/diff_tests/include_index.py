@@ -145,6 +145,15 @@ from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
 from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
 from diff_tests.stdlib.android.tests import AndroidStdlib
+from diff_tests.stdlib.android.keyvalue_lookup_tests import KeyValueLookup
+from diff_tests.stdlib.android.job_scheduler_states_tests import JobSchedulerStates
+from diff_tests.stdlib.android.app_wakelocks_tests import AppWakelocks
+from diff_tests.stdlib.android.process_uid_state_tests import ProcessUidState
+from diff_tests.stdlib.android.standby_bucket_tests import StandbyBucket
+from diff_tests.stdlib.android.freezer_tests import Freezer
+from diff_tests.stdlib.android.audio_tests import Audio
+from diff_tests.stdlib.android.codec_tests import Codec
+
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
@@ -155,6 +164,7 @@ from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.intervals.create_intervals_tests import CreateIntervals
 from diff_tests.stdlib.intervals.fill_gaps_tests import IntervalsFillGaps
+from diff_tests.stdlib.intervals.intersect_duration_tests import IntervalsIntersectDurations
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
@@ -184,6 +194,7 @@ from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
+from diff_tests.stdlib.stack_sample.flamechart_tests import FlamechartRuns
 from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
@@ -195,6 +206,7 @@ from diff_tests.syntax.macro_tests import PerfettoMacro
 from diff_tests.syntax.multi_statement_tests import PerfettoMultiStatement
 from diff_tests.syntax.stdlib_docs_tests import StdlibDocs
 from diff_tests.syntax.structured_query_tests import StructuredQueryTests
+from diff_tests.syntax.pipeline_tests import PerfettoPipeline
 from diff_tests.syntax.table_function_tests import PerfettoTableFunction
 from diff_tests.syntax.table_tests import PerfettoTable
 from diff_tests.syntax.view_tests import PerfettoView
@@ -329,6 +341,14 @@ def fetch_all_diff_tests(
       AndroidGpu,
       AndroidStdlib,
       AndroidBitmaps,
+      KeyValueLookup,
+      JobSchedulerStates,
+      AppWakelocks,
+      ProcessUidState,
+      StandbyBucket,
+      Freezer,
+      Audio,
+      Codec,
       ArgsFunctions,
       CpuClusters,
       Battery,
@@ -339,6 +359,7 @@ def fetch_all_diff_tests(
       GraphScanTests,
       TreeRoundtrip,
       ExportTests,
+      FlamechartRuns,
       Frames,
       GraphSearchTests,
       GraphPartitionTests,
@@ -367,6 +388,7 @@ def fetch_all_diff_tests(
       CreateIntervals,
       IntervalsFillGaps,
       IntervalsIntersect,
+      IntervalsIntersectDurations,
       StdlibIntervals,
       StdlibMetasql,
       SystemUICujs,
@@ -386,6 +408,7 @@ def fetch_all_diff_tests(
       PerfettoInclude,
       PerfettoMacro,
       PerfettoMultiStatement,
+      PerfettoPipeline,
       PerfettoTable,
       PerfettoTableFunction,
       PerfettoView,

@@ -30,47 +30,29 @@ import {
   renderOomeDetails,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 import type {OomeData} from '../types';
-import {getOome} from '../queries';
-import type {HeapDump} from '../queries';
-
-import {AsyncLimiter} from '../../../base/async_limiter';
-import {Monitor} from '../../../base/monitor';
+import * as queries from '../queries';
+import {AsyncMemo} from '../../../base/async_memo';
 
 interface CallstackViewAttrs {
   readonly trace: Trace;
-  readonly dump: HeapDump;
+  readonly dump: queries.HeapDump;
   readonly state: TreeExplorerState | undefined;
   readonly onStateChange: (state: TreeExplorerState) => void;
 }
 
 export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
-  private oomeData?: OomeData;
-  private oomeDataLoaded = false;
   // The fetcher is created for the dump it serves and disposed by the memo when
   // the dump changes or when this view is removed.
+  private readonly oomeDataMemo = new AsyncMemo<OomeData | undefined>();
   private readonly fetcherMemo = new Memo<TreeExplorerFetcher>();
-  private readonly limiter = new AsyncLimiter();
-  private monitor?: Monitor;
 
   view({attrs}: m.Vnode<CallstackViewAttrs>) {
-    this.monitor ??= new Monitor([() => attrs.dump]);
-    if (this.monitor.ifStateChanged()) {
-      this.oomeData = undefined;
-      this.oomeDataLoaded = false;
-      const dump = attrs.dump;
-      this.limiter.schedule(async () => {
-        try {
-          this.oomeData = await getOome(attrs.trace.engine, dump);
-        } catch {
-          this.oomeData = undefined;
-        } finally {
-          this.oomeDataLoaded = true;
-          m.redraw();
-        }
-      });
-    }
+    const {isPending, data: oomeData} = this.oomeDataMemo.use({
+      key: {dump: attrs.dump},
+      compute: () => queries.getOome(attrs.trace.engine, attrs.dump),
+    });
 
-    if (!this.oomeDataLoaded) {
+    if (isPending) {
       return m(DetailsShell, {
         title: 'Callstack',
         fillHeight: true,
@@ -78,7 +60,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       });
     }
 
-    if (this.oomeData === undefined) {
+    if (!oomeData) {
       return m(
         DetailsShell,
         {title: 'Callstack', fillHeight: true, className: 'pf-hde-tab--padded'},
@@ -97,8 +79,8 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       );
     }
 
-    const upid = this.oomeData.upid;
-    const ts = this.oomeData.ts;
+    const upid = oomeData.upid;
+    const ts = oomeData.ts;
     const fetcher = this.fetcherMemo.use({
       key: {upid, ts},
       compute: () =>
@@ -118,7 +100,7 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
       m(
         Stack,
         {orientation: 'vertical'},
-        renderOomeDetails(this.oomeData?.details),
+        renderOomeDetails(oomeData.details),
         m(TreeExplorerPanel, {
           fetcher,
           state,
@@ -130,5 +112,6 @@ export class CallstackView implements m.ClassComponent<CallstackViewAttrs> {
 
   onremove(): void {
     this.fetcherMemo.dispose();
+    this.oomeDataMemo.dispose();
   }
 }

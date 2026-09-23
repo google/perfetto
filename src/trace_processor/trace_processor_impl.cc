@@ -113,6 +113,7 @@
 #include "src/trace_processor/plugins/experimental_flamegraph/experimental_flamegraph.h"
 #include "src/trace_processor/plugins/experimental_flat_slice/experimental_flat_slice.h"
 #include "src/trace_processor/plugins/experimental_slice_layout/experimental_slice_layout.h"
+#include "src/trace_processor/plugins/flamechart/flamechart_function.h"
 #include "src/trace_processor/plugins/flamegraph/flamegraph_function.h"
 #include "src/trace_processor/plugins/graph_scan/graph_scan.h"
 #include "src/trace_processor/plugins/graph_traversal/graph_traversal.h"
@@ -365,6 +366,7 @@ TraceProcessorImpl::TraceProcessorImpl(
   experimental_flamegraph::RegisterPlugin();
   experimental_flat_slice::RegisterPlugin();
   experimental_slice_layout::RegisterPlugin();
+  flamechart::RegisterPlugin();
   flamegraph::RegisterPlugin();
   graph_scan::RegisterPlugin();
   graph_traversal::RegisterPlugin();
@@ -730,7 +732,8 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
 
   // Same-name gate. The engine holds both stdlib and previously-registered
   // user packages, so a single lookup covers both.
-  if (engine_->FindPackage(name) != nullptr && !sql_package.allow_override) {
+  const sql_modules::RegisteredPackage* existing = engine_->FindPackage(name);
+  if (existing != nullptr && !sql_package.allow_override) {
     return base::ErrStatus(
         "Package '%s' is already registered. Choose a different name.\n"
         "If you want to replace the existing package using trace processor "
@@ -738,11 +741,16 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
         "--override-sql-package to pass the module path.",
         name.c_str());
   }
+  // A package which stands in for one of the standard library's is still the
+  // standard library, so it may write what the standard library may write;
+  // this is how a module of it is edited without rebuilding the binary.
+  bool builtin = existing != nullptr && existing->builtin;
 
   // Validate module names. The returned string_views point into |sql_package|
   // and stay valid through the std::move below: std::vector's move ctor
   // preserves element addresses.
   ASSIGN_OR_RETURN(auto new_package, ToRegisteredPackage(sql_package));
+  new_package.builtin = builtin;
 
   auto it = std::find_if(registered_sql_packages_.begin(),
                          registered_sql_packages_.end(),
@@ -1125,6 +1133,7 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
           flush(current_pkg, *std::move(rp));
         }
         rp = sql_modules::RegisteredPackage();
+        rp->builtin = true;
         current_pkg = std::move(pkg);
       }
       rp->modules.Insert(std::move(include_key), f.sql_view());

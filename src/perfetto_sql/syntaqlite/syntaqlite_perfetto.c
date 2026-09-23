@@ -241,6 +241,63 @@ static inline void synq_arena_append(SynqArena* a,
 #endif  /* SYNTAQLITE_EXT_ARENA_H */
 /* ======== end: syntaqlite_dialect/arena.h ======== */
 
+/* ======== begin: syntaqlite_dialect/dialect_abi.h ======== */
+#ifndef SYNTAQLITE_INTERNAL_DIALECT_ABI_H
+#define SYNTAQLITE_INTERNAL_DIALECT_ABI_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Runtime ↔ dialect ABI contract.
+//
+// Dialects can be linked into the runtime statically (amalgamation builds,
+// cargo-built native binaries) or loaded as separately-compiled side modules
+// (emscripten MAIN_MODULE=2 / SIDE_MODULE=1, future `dlopen` support). In the
+// latter case, neither half of the link sees the other's symbols at compile
+// time, and dead-code elimination will drop any symbol that isn't explicitly
+// marked as part of the cross-module surface.
+//
+// Two kinds of calls cross this boundary:
+//
+//   dialect → runtime
+//     The generated grammar action code and Lemon-emitted parser call back
+//     into runtime-owned helpers during reduce/shift. Everything exported
+//     here lives in `syntaqlite-syntax/csrc/parser_extents.c` or similar
+//     runtime-side C files. Current members:
+//       - synq_extent_on_shift   (see syntaqlite_dialect/extent_hooks.h)
+//       - synq_extent_on_reduce  (see syntaqlite_dialect/extent_hooks.h)
+//
+//   runtime → dialect
+//     The runtime drives each dialect through a `SyntaqliteDialectTemplate`
+//     whose function pointers reference symbols emitted by the dialect's
+//     generated parser/tokenizer. Current members (per dialect, Pascal-cased):
+//       - Synq<Dialect>ParseAlloc / ParseInit / ParseFinalize / ParseFree
+//       - Synq<Dialect>Parse
+//       - Synq<Dialect>ParseTrace
+//       - Synq<Dialect>ParseExpectedTokens
+//       - Synq<Dialect>ParseCompletionContext
+//       - Synq<Dialect>ParseFallback
+//       - Synq<Dialect>GetToken
+//
+// Every declaration in that set must be tagged with `SYNTAQLITE_DIALECT_API`
+// so it survives dead-code elimination and is visible across module
+// boundaries. Renaming or changing the signature of any symbol above is an
+// ABI break: update both sides in lockstep.
+
+
+// `used` keeps wasm-ld / LTO from discarding the symbol when the main module
+// has no direct reference to it (the referencing side module is linked
+// separately). `visibility("default")` ensures it ends up in the module's
+// export table rather than being internal.
+#if defined(__GNUC__) || defined(__clang__)
+#define SYNTAQLITE_DIALECT_API __attribute__((used, visibility("default")))
+#else
+#define SYNTAQLITE_DIALECT_API
+#endif
+
+
+#endif  /* SYNTAQLITE_INTERNAL_DIALECT_ABI_H */
+/* ======== end: syntaqlite_dialect/dialect_abi.h ======== */
+
 /* ======== begin: syntaqlite_dialect/ast_builder.h ======== */
 #ifndef SYNTAQLITE_EXT_AST_BUILDER_H
 #define SYNTAQLITE_EXT_AST_BUILDER_H
@@ -262,6 +319,8 @@ static inline void synq_arena_append(SynqArena* a,
 #include <stdint.h>
 #include <string.h>
 
+
+#define SYNQ_NO_SPAN ((SyntaqliteTextSpan){0})
 
 #ifdef __cplusplus
 extern "C" {
@@ -403,6 +462,9 @@ typedef struct SynqParseCtx {
   uint32_t has_macro_straddle;  // Sticky flag set during reduce.
   uint32_t lemon_depth;  // Lemon stack depth (always tracked, for lazy init).
   SYNQ_VEC(uint32_t) straddle_stack;  // Lazily initialized on first macro use.
+  // Set when `GENERATED ALWAYS` was trimmed off a column's type name, so the
+  // `AS` production can still emit the keywords.
+  uint32_t generated_always;
 } SynqParseCtx;
 
 // Common header for all list nodes in the arena.
@@ -462,6 +524,7 @@ static inline void synq_parse_ctx_init(SynqParseCtx* ctx,
   ctx->has_macro_straddle = 0;
   ctx->lemon_depth = 0;
   syntaqlite_vec_init(&ctx->straddle_stack);
+  ctx->generated_always = 0;
 }
 
 static inline void synq_parse_ctx_free(SynqParseCtx* ctx) {
@@ -539,10 +602,18 @@ static inline uint32_t synq_parse_build(SynqParseCtx* ctx,
   return node_id;
 }
 
-static inline uint32_t synq_parse_list_append(SynqParseCtx* ctx,
-                                              uint32_t tag,
-                                              uint32_t list_id,
-                                              uint32_t child) {
+// Record a list's extent as the union of its members, instead of the current
+// grammar reduction. This is useful for semantic sublists assembled inside a
+// larger left-recursive reduction. Expanded-layer merging includes every child.
+SYNTAQLITE_DIALECT_API void synq_extent_record_list_append(SynqParseCtx* ctx,
+                                                           uint32_t list_id,
+                                                           uint32_t child);
+
+static inline uint32_t synq_parse_list_append_impl(SynqParseCtx* ctx,
+                                                   uint32_t tag,
+                                                   uint32_t list_id,
+                                                   uint32_t child,
+                                                   int child_extents) {
   if (list_id == SYNTAQLITE_NULL_NODE) {
     SynqListDesc desc;
     desc.node_id = synq_arena_reserve_id(&ctx->ast, ctx->mem);
@@ -550,7 +621,11 @@ static inline uint32_t synq_parse_list_append(SynqParseCtx* ctx,
     desc.tag = tag;
     syntaqlite_vec_push(&ctx->list_stack, desc, ctx->mem);
     syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
-    synq_extent_record(ctx, desc.node_id);
+    if (child_extents) {
+      if (ctx->collect_node_extents)
+        synq_extent_record_list_append(ctx, desc.node_id, child);
+    } else
+      synq_extent_record(ctx, desc.node_id);
     return desc.node_id;
   }
 
@@ -561,8 +636,26 @@ static inline uint32_t synq_parse_list_append(SynqParseCtx* ctx,
     synq_parse_list_flush_top(ctx);
   }
   syntaqlite_vec_push(&ctx->child_buf, child, ctx->mem);
-  synq_extent_record(ctx, list_id);
+  if (child_extents) {
+    if (ctx->collect_node_extents)
+      synq_extent_record_list_append(ctx, list_id, child);
+  } else
+    synq_extent_record(ctx, list_id);
   return list_id;
+}
+
+static inline uint32_t synq_parse_list_append(SynqParseCtx* ctx,
+                                              uint32_t tag,
+                                              uint32_t list_id,
+                                              uint32_t child) {
+  return synq_parse_list_append_impl(ctx, tag, list_id, child, 0);
+}
+
+static inline uint32_t synq_parse_list_append_from_children(SynqParseCtx* ctx,
+                                                            uint32_t tag,
+                                                            uint32_t list_id,
+                                                            uint32_t child) {
+  return synq_parse_list_append_impl(ctx, tag, list_id, child, 1);
 }
 
 // Like list_append, but inserts the child at the front of the list.
@@ -682,8 +775,6 @@ static inline SyntaqliteTextSpan synq_span_dequote(SynqParseCtx* ctx,
   };
 }
 
-#define SYNQ_NO_SPAN ((SyntaqliteTextSpan){0})
-
 // Mark a token as "used as identifier" (fallback from keyword).
 // O(1) — uses the token_idx stored in SynqParseToken at collection time.
 static inline void synq_mark_as_id(SynqParseCtx* ctx, SynqParseToken tok) {
@@ -746,63 +837,6 @@ static inline void synq_mark_as_type(SynqParseCtx* ctx, SynqParseToken tok) {
 
 #endif  /* SYNTAQLITE_EXT_AST_BUILDER_H */
 /* ======== end: syntaqlite_dialect/ast_builder.h ======== */
-
-/* ======== begin: syntaqlite_dialect/dialect_abi.h ======== */
-#ifndef SYNTAQLITE_INTERNAL_DIALECT_ABI_H
-#define SYNTAQLITE_INTERNAL_DIALECT_ABI_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// Runtime ↔ dialect ABI contract.
-//
-// Dialects can be linked into the runtime statically (amalgamation builds,
-// cargo-built native binaries) or loaded as separately-compiled side modules
-// (emscripten MAIN_MODULE=2 / SIDE_MODULE=1, future `dlopen` support). In the
-// latter case, neither half of the link sees the other's symbols at compile
-// time, and dead-code elimination will drop any symbol that isn't explicitly
-// marked as part of the cross-module surface.
-//
-// Two kinds of calls cross this boundary:
-//
-//   dialect → runtime
-//     The generated grammar action code and Lemon-emitted parser call back
-//     into runtime-owned helpers during reduce/shift. Everything exported
-//     here lives in `syntaqlite-syntax/csrc/parser_extents.c` or similar
-//     runtime-side C files. Current members:
-//       - synq_extent_on_shift   (see syntaqlite_dialect/extent_hooks.h)
-//       - synq_extent_on_reduce  (see syntaqlite_dialect/extent_hooks.h)
-//
-//   runtime → dialect
-//     The runtime drives each dialect through a `SyntaqliteDialectTemplate`
-//     whose function pointers reference symbols emitted by the dialect's
-//     generated parser/tokenizer. Current members (per dialect, Pascal-cased):
-//       - Synq<Dialect>ParseAlloc / ParseInit / ParseFinalize / ParseFree
-//       - Synq<Dialect>Parse
-//       - Synq<Dialect>ParseTrace
-//       - Synq<Dialect>ParseExpectedTokens
-//       - Synq<Dialect>ParseCompletionContext
-//       - Synq<Dialect>ParseFallback
-//       - Synq<Dialect>GetToken
-//
-// Every declaration in that set must be tagged with `SYNTAQLITE_DIALECT_API`
-// so it survives dead-code elimination and is visible across module
-// boundaries. Renaming or changing the signature of any symbol above is an
-// ABI break: update both sides in lockstep.
-
-
-// `used` keeps wasm-ld / LTO from discarding the symbol when the main module
-// has no direct reference to it (the referencing side module is linked
-// separately). `visibility("default")` ensures it ends up in the module's
-// export table rather than being internal.
-#if defined(__GNUC__) || defined(__clang__)
-#define SYNTAQLITE_DIALECT_API __attribute__((used, visibility("default")))
-#else
-#define SYNTAQLITE_DIALECT_API
-#endif
-
-
-#endif  /* SYNTAQLITE_INTERNAL_DIALECT_ABI_H */
-/* ======== end: syntaqlite_dialect/dialect_abi.h ======== */
 
 /* ======== begin: csrc/sqlite_parse.h ======== */
 #ifndef SYNTAQLITE_PERFETTO_PARSE_H
@@ -869,14 +903,35 @@ typedef uint32_t u32;
 #define SQLITE_DIGIT_SEPARATOR '_'
 #endif
 
-// Case-insensitive string comparison (POSIX strncasecmp / MSVC _strnicmp)
-#ifdef _MSC_VER
-#include <string.h>
-#define SYNQ_STRNCASECMP _strnicmp
-#else
-#include <strings.h>
-#define SYNQ_STRNCASECMP strncasecmp
-#endif
+// Case-insensitive comparison over ASCII, which is all SQL keywords need.
+// Deliberately not libc's strncasecmp: the generated parser is compiled into
+// embeddings that do not necessarily provide it, such as an Emscripten side
+// module, where the unresolved import aborts the engine mid-parse.
+#include <stddef.h>
+
+static inline int synq_strncasecmp_ascii(const char* a,
+                                         const char* b,
+                                         size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    unsigned char ca = (unsigned char)a[i];
+    unsigned char cb = (unsigned char)b[i];
+    if (ca >= 'A' && ca <= 'Z') {
+      ca = (unsigned char)(ca - 'A' + 'a');
+    }
+    if (cb >= 'A' && cb <= 'Z') {
+      cb = (unsigned char)(cb - 'A' + 'a');
+    }
+    if (ca != cb) {
+      return (int)ca - (int)cb;
+    }
+    if (ca == 0) {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+#define SYNQ_STRNCASECMP synq_strncasecmp_ascii
 
 // C++17 fallthrough, C no-op
 #ifdef __cplusplus
@@ -1032,6 +1087,8 @@ static const char* const display_binary_op[] = {
     "CONCAT",
     "PTR",
     "PTR2",
+    "NE_ANGLE",
+    "EQ_DOUBLE",
 };
 
 static const char* const display_unary_op[] = {
@@ -1055,6 +1112,7 @@ static const char* const display_is_op[] = {
     "NOT_NULL",
     "IS_NOT_DISTINCT",
     "IS_DISTINCT",
+    "NOT_NULL_SPACED",
 };
 
 static const char* const display_like_keyword[] = {
@@ -1064,7 +1122,14 @@ static const char* const display_like_keyword[] = {
     "REGEXP",
 };
 
+static const char* const display_temporary_qualifier[] = {
+    "NONE",
+    "TEMP",
+    "TEMPORARY",
+};
+
 static const char* const display_foreign_key_action[] = {
+    "UNSET",
     "NO_ACTION",
     "SET_NULL",
     "SET_DEFAULT",
@@ -1072,7 +1137,20 @@ static const char* const display_foreign_key_action[] = {
     "RESTRICT",
 };
 
+static const char* const display_deferrable[] = {
+    "UNSET",
+    "NOT_DEFERRABLE",
+    "DEFERRABLE",
+};
+
+static const char* const display_initial_defer_mode[] = {
+    "UNSET",
+    "DEFERRED",
+    "IMMEDIATE",
+};
+
 static const char* const display_generated_column_storage[] = {
+    "NONE",
     "VIRTUAL",
     "STORED",
 };
@@ -1087,6 +1165,7 @@ static const char* const display_column_constraint_type[] = {
     "COLLATE",
     "GENERATED",
     "NULL",
+    "DEFERRABLE",
 };
 
 static const char* const display_table_constraint_type[] = {
@@ -1094,6 +1173,13 @@ static const char* const display_table_constraint_type[] = {
     "UNIQUE",
     "CHECK",
     "FOREIGN_KEY",
+};
+
+static const char* const display_foreign_key_option_kind[] = {
+    "MATCH",
+    "ON_DELETE",
+    "ON_UPDATE",
+    "ON_INSERT",
 };
 
 static const char* const display_materialized[] = {
@@ -1122,6 +1208,11 @@ static const char* const display_index_hint[] = {
     "INDEXED",
 };
 
+static const char* const display_insert_keyword[] = {
+    "INSERT",
+    "REPLACE",
+};
+
 static const char* const display_raise_type[] = {
     "IGNORE",
     "ROLLBACK",
@@ -1144,6 +1235,7 @@ static const char* const display_alter_op[] = {
 };
 
 static const char* const display_transaction_type[] = {
+    "NONE",
     "DEFERRED",
     "IMMEDIATE",
     "EXCLUSIVE",
@@ -1153,6 +1245,7 @@ static const char* const display_transaction_op[] = {
     "BEGIN",
     "COMMIT",
     "ROLLBACK",
+    "END",
 };
 
 static const char* const display_savepoint_op[] = {
@@ -1162,6 +1255,7 @@ static const char* const display_savepoint_op[] = {
 };
 
 static const char* const display_sort_order[] = {
+    "NONE",
     "ASC",
     "DESC",
 };
@@ -1183,9 +1277,21 @@ static const char* const display_join_type[] = {
     "NATURAL_LEFT",
     "NATURAL_RIGHT",
     "NATURAL_FULL",
+    "NATURAL_CROSS",
+};
+
+static const char* const display_join_modifier_kind[] = {
+    "NATURAL",
+    "LEFT",
+    "OUTER",
+    "RIGHT",
+    "FULL",
+    "INNER",
+    "CROSS",
 };
 
 static const char* const display_trigger_timing[] = {
+    "NONE",
     "BEFORE",
     "AFTER",
     "INSTEAD_OF",
@@ -1241,8 +1347,15 @@ static const char* const display_perfetto_return_kind[] = {
     "TABLE",
 };
 
+static const char* const display_perfetto_tree_direction[] = {
+    "UP",
+    "DOWN",
+};
+
 static const char* const display_aggregate_function_call_flags[] = {
     "DISTINCT",
+    "",
+    "ALL",
 };
 
 static const char* const display_create_table_stmt_flags[] = {
@@ -1253,6 +1366,7 @@ static const char* const display_create_table_stmt_flags[] = {
 static const char* const display_function_call_flags[] = {
     "DISTINCT",
     "STAR",
+    "ALL",
 };
 
 static const char* const display_result_column_flags[] = {
@@ -1261,6 +1375,8 @@ static const char* const display_result_column_flags[] = {
 
 static const char* const display_select_stmt_flags[] = {
     "DISTINCT",
+    "",
+    "ALL",
 };
 
 static const SyntaqliteFieldMeta field_meta_aggregate_function_call[] = {
@@ -1347,26 +1463,39 @@ static const SyntaqliteFieldMeta field_meta_case_when[] = {
     {offsetof(SyntaqliteCaseWhen, then_expr), SYNTAQLITE_FIELD_NODE_ID, "then_expr", NULL, 0},
 };
 
+static const SyntaqliteFieldMeta field_meta_foreign_key_option[] = {
+    {offsetof(SyntaqliteForeignKeyOption, kind), SYNTAQLITE_FIELD_ENUM, "kind", display_foreign_key_option_kind, sizeof(display_foreign_key_option_kind) / sizeof(display_foreign_key_option_kind[0])},
+    {offsetof(SyntaqliteForeignKeyOption, action), SYNTAQLITE_FIELD_ENUM, "action", display_foreign_key_action, sizeof(display_foreign_key_action) / sizeof(display_foreign_key_action[0])},
+    {offsetof(SyntaqliteForeignKeyOption, match_name), SYNTAQLITE_FIELD_SPAN, "match_name", NULL, 0},
+};
+
 static const SyntaqliteFieldMeta field_meta_foreign_key_clause[] = {
     {offsetof(SyntaqliteForeignKeyClause, ref_table), SYNTAQLITE_FIELD_SPAN, "ref_table", NULL, 0},
     {offsetof(SyntaqliteForeignKeyClause, ref_columns), SYNTAQLITE_FIELD_NODE_ID, "ref_columns", NULL, 0},
-    {offsetof(SyntaqliteForeignKeyClause, on_delete), SYNTAQLITE_FIELD_ENUM, "on_delete", display_foreign_key_action, sizeof(display_foreign_key_action) / sizeof(display_foreign_key_action[0])},
-    {offsetof(SyntaqliteForeignKeyClause, on_update), SYNTAQLITE_FIELD_ENUM, "on_update", display_foreign_key_action, sizeof(display_foreign_key_action) / sizeof(display_foreign_key_action[0])},
-    {offsetof(SyntaqliteForeignKeyClause, is_deferred), SYNTAQLITE_FIELD_BOOL, "is_deferred", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteForeignKeyClause, options), SYNTAQLITE_FIELD_NODE_ID, "options", NULL, 0},
+    {offsetof(SyntaqliteForeignKeyClause, deferrable), SYNTAQLITE_FIELD_ENUM, "deferrable", display_deferrable, sizeof(display_deferrable) / sizeof(display_deferrable[0])},
+    {offsetof(SyntaqliteForeignKeyClause, initial_defer), SYNTAQLITE_FIELD_ENUM, "initial_defer", display_initial_defer_mode, sizeof(display_initial_defer_mode) / sizeof(display_initial_defer_mode[0])},
 };
 
 static const SyntaqliteFieldMeta field_meta_column_constraint[] = {
     {offsetof(SyntaqliteColumnConstraint, kind), SYNTAQLITE_FIELD_ENUM, "kind", display_column_constraint_type, sizeof(display_column_constraint_type) / sizeof(display_column_constraint_type[0])},
-    {offsetof(SyntaqliteColumnConstraint, constraint_name), SYNTAQLITE_FIELD_SPAN, "constraint_name", NULL, 0},
     {offsetof(SyntaqliteColumnConstraint, onconf), SYNTAQLITE_FIELD_ENUM, "onconf", display_conflict_action, sizeof(display_conflict_action) / sizeof(display_conflict_action[0])},
     {offsetof(SyntaqliteColumnConstraint, sort_order), SYNTAQLITE_FIELD_ENUM, "sort_order", display_sort_order, sizeof(display_sort_order) / sizeof(display_sort_order[0])},
     {offsetof(SyntaqliteColumnConstraint, is_autoincrement), SYNTAQLITE_FIELD_BOOL, "is_autoincrement", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteColumnConstraint, collation_name), SYNTAQLITE_FIELD_SPAN, "collation_name", NULL, 0},
     {offsetof(SyntaqliteColumnConstraint, generated_storage), SYNTAQLITE_FIELD_ENUM, "generated_storage", display_generated_column_storage, sizeof(display_generated_column_storage) / sizeof(display_generated_column_storage[0])},
+    {offsetof(SyntaqliteColumnConstraint, deferrable), SYNTAQLITE_FIELD_ENUM, "deferrable", display_deferrable, sizeof(display_deferrable) / sizeof(display_deferrable[0])},
+    {offsetof(SyntaqliteColumnConstraint, initial_defer), SYNTAQLITE_FIELD_ENUM, "initial_defer", display_initial_defer_mode, sizeof(display_initial_defer_mode) / sizeof(display_initial_defer_mode[0])},
+    {offsetof(SyntaqliteColumnConstraint, default_has_parens), SYNTAQLITE_FIELD_BOOL, "default_has_parens", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteColumnConstraint, generated_always), SYNTAQLITE_FIELD_BOOL, "generated_always", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteColumnConstraint, default_expr), SYNTAQLITE_FIELD_NODE_ID, "default_expr", NULL, 0},
     {offsetof(SyntaqliteColumnConstraint, check_expr), SYNTAQLITE_FIELD_NODE_ID, "check_expr", NULL, 0},
     {offsetof(SyntaqliteColumnConstraint, generated_expr), SYNTAQLITE_FIELD_NODE_ID, "generated_expr", NULL, 0},
     {offsetof(SyntaqliteColumnConstraint, fk_clause), SYNTAQLITE_FIELD_NODE_ID, "fk_clause", NULL, 0},
+};
+
+static const SyntaqliteFieldMeta field_meta_constraint_name_declaration[] = {
+    {offsetof(SyntaqliteConstraintNameDeclaration, name), SYNTAQLITE_FIELD_SPAN, "name", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_column_def[] = {
@@ -1377,7 +1506,6 @@ static const SyntaqliteFieldMeta field_meta_column_def[] = {
 
 static const SyntaqliteFieldMeta field_meta_table_constraint[] = {
     {offsetof(SyntaqliteTableConstraint, kind), SYNTAQLITE_FIELD_ENUM, "kind", display_table_constraint_type, sizeof(display_table_constraint_type) / sizeof(display_table_constraint_type[0])},
-    {offsetof(SyntaqliteTableConstraint, constraint_name), SYNTAQLITE_FIELD_SPAN, "constraint_name", NULL, 0},
     {offsetof(SyntaqliteTableConstraint, onconf), SYNTAQLITE_FIELD_ENUM, "onconf", display_conflict_action, sizeof(display_conflict_action) / sizeof(display_conflict_action[0])},
     {offsetof(SyntaqliteTableConstraint, is_autoincrement), SYNTAQLITE_FIELD_BOOL, "is_autoincrement", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteTableConstraint, pk_columns), SYNTAQLITE_FIELD_NODE_ID, "pk_columns", NULL, 0},
@@ -1389,7 +1517,7 @@ static const SyntaqliteFieldMeta field_meta_table_constraint[] = {
 static const SyntaqliteFieldMeta field_meta_create_table_stmt[] = {
     {offsetof(SyntaqliteCreateTableStmt, table_name), SYNTAQLITE_FIELD_SPAN, "table_name", NULL, 0},
     {offsetof(SyntaqliteCreateTableStmt, schema), SYNTAQLITE_FIELD_SPAN, "schema", NULL, 0},
-    {offsetof(SyntaqliteCreateTableStmt, is_temp), SYNTAQLITE_FIELD_BOOL, "is_temp", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteCreateTableStmt, temporary), SYNTAQLITE_FIELD_ENUM, "temporary", display_temporary_qualifier, sizeof(display_temporary_qualifier) / sizeof(display_temporary_qualifier[0])},
     {offsetof(SyntaqliteCreateTableStmt, if_not_exists), SYNTAQLITE_FIELD_BOOL, "if_not_exists", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteCreateTableStmt, flags), SYNTAQLITE_FIELD_FLAGS, "flags", display_create_table_stmt_flags, sizeof(display_create_table_stmt_flags) / sizeof(display_create_table_stmt_flags[0])},
     {offsetof(SyntaqliteCreateTableStmt, columns), SYNTAQLITE_FIELD_NODE_ID, "columns", NULL, 0},
@@ -1454,6 +1582,7 @@ static const SyntaqliteFieldMeta field_meta_update_stmt[] = {
 static const SyntaqliteFieldMeta field_meta_insert_stmt[] = {
     {offsetof(SyntaqliteInsertStmt, with_ctes), SYNTAQLITE_FIELD_NODE_ID, "with_ctes", NULL, 0},
     {offsetof(SyntaqliteInsertStmt, with_recursive), SYNTAQLITE_FIELD_BOOL, "with_recursive", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteInsertStmt, keyword), SYNTAQLITE_FIELD_ENUM, "keyword", display_insert_keyword, sizeof(display_insert_keyword) / sizeof(display_insert_keyword[0])},
     {offsetof(SyntaqliteInsertStmt, conflict_action), SYNTAQLITE_FIELD_ENUM, "conflict_action", display_conflict_action, sizeof(display_conflict_action) / sizeof(display_conflict_action[0])},
     {offsetof(SyntaqliteInsertStmt, table), SYNTAQLITE_FIELD_NODE_ID, "table", NULL, 0},
     {offsetof(SyntaqliteInsertStmt, columns), SYNTAQLITE_FIELD_NODE_ID, "columns", NULL, 0},
@@ -1488,6 +1617,10 @@ static const SyntaqliteFieldMeta field_meta_ident_name[] = {
 
 static const SyntaqliteFieldMeta field_meta_error[] = {
     {offsetof(SyntaqliteError, source), SYNTAQLITE_FIELD_SPAN, "source", NULL, 0},
+};
+
+static const SyntaqliteFieldMeta field_meta_row_value[] = {
+    {offsetof(SyntaqliteRowValue, items), SYNTAQLITE_FIELD_NODE_ID, "items", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_function_call[] = {
@@ -1525,24 +1658,32 @@ static const SyntaqliteFieldMeta field_meta_drop_stmt[] = {
 
 static const SyntaqliteFieldMeta field_meta_alter_table_stmt[] = {
     {offsetof(SyntaqliteAlterTableStmt, op), SYNTAQLITE_FIELD_ENUM, "op", display_alter_op, sizeof(display_alter_op) / sizeof(display_alter_op[0])},
+    {offsetof(SyntaqliteAlterTableStmt, has_column_kw), SYNTAQLITE_FIELD_BOOL, "has_column_kw", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteAlterTableStmt, target), SYNTAQLITE_FIELD_NODE_ID, "target", NULL, 0},
     {offsetof(SyntaqliteAlterTableStmt, new_name), SYNTAQLITE_FIELD_NODE_ID, "new_name", NULL, 0},
     {offsetof(SyntaqliteAlterTableStmt, old_name), SYNTAQLITE_FIELD_NODE_ID, "old_name", NULL, 0},
+    {offsetof(SyntaqliteAlterTableStmt, column), SYNTAQLITE_FIELD_NODE_ID, "column", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_transaction_stmt[] = {
     {offsetof(SyntaqliteTransactionStmt, op), SYNTAQLITE_FIELD_ENUM, "op", display_transaction_op, sizeof(display_transaction_op) / sizeof(display_transaction_op[0])},
     {offsetof(SyntaqliteTransactionStmt, trans_type), SYNTAQLITE_FIELD_ENUM, "trans_type", display_transaction_type, sizeof(display_transaction_type) / sizeof(display_transaction_type[0])},
+    {offsetof(SyntaqliteTransactionStmt, has_transaction), SYNTAQLITE_FIELD_BOOL, "has_transaction", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteTransactionStmt, name), SYNTAQLITE_FIELD_SPAN, "name", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_savepoint_stmt[] = {
     {offsetof(SyntaqliteSavepointStmt, op), SYNTAQLITE_FIELD_ENUM, "op", display_savepoint_op, sizeof(display_savepoint_op) / sizeof(display_savepoint_op[0])},
     {offsetof(SyntaqliteSavepointStmt, savepoint_name), SYNTAQLITE_FIELD_NODE_ID, "savepoint_name", NULL, 0},
+    {offsetof(SyntaqliteSavepointStmt, has_savepoint), SYNTAQLITE_FIELD_BOOL, "has_savepoint", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteSavepointStmt, has_transaction), SYNTAQLITE_FIELD_BOOL, "has_transaction", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteSavepointStmt, transaction_name), SYNTAQLITE_FIELD_SPAN, "transaction_name", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_result_column[] = {
     {offsetof(SyntaqliteResultColumn, flags), SYNTAQLITE_FIELD_FLAGS, "flags", display_result_column_flags, sizeof(display_result_column_flags) / sizeof(display_result_column_flags[0])},
     {offsetof(SyntaqliteResultColumn, alias), SYNTAQLITE_FIELD_NODE_ID, "alias", NULL, 0},
+    {offsetof(SyntaqliteResultColumn, alias_as), SYNTAQLITE_FIELD_BOOL, "alias_as", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteResultColumn, expr), SYNTAQLITE_FIELD_NODE_ID, "expr", NULL, 0},
 };
 
@@ -1567,6 +1708,11 @@ static const SyntaqliteFieldMeta field_meta_ordering_term[] = {
 static const SyntaqliteFieldMeta field_meta_limit_clause[] = {
     {offsetof(SyntaqliteLimitClause, limit), SYNTAQLITE_FIELD_NODE_ID, "limit", NULL, 0},
     {offsetof(SyntaqliteLimitClause, offset), SYNTAQLITE_FIELD_NODE_ID, "offset", NULL, 0},
+    {offsetof(SyntaqliteLimitClause, comma_form), SYNTAQLITE_FIELD_BOOL, "comma_form", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+};
+
+static const SyntaqliteFieldMeta field_meta_join_modifier[] = {
+    {offsetof(SyntaqliteJoinModifier, kind), SYNTAQLITE_FIELD_ENUM, "kind", display_join_modifier_kind, sizeof(display_join_modifier_kind) / sizeof(display_join_modifier_kind[0])},
 };
 
 static const SyntaqliteFieldMeta field_meta_table_ref[] = {
@@ -1574,16 +1720,27 @@ static const SyntaqliteFieldMeta field_meta_table_ref[] = {
     {offsetof(SyntaqliteTableRef, schema), SYNTAQLITE_FIELD_SPAN, "schema", NULL, 0},
     {offsetof(SyntaqliteTableRef, has_parens), SYNTAQLITE_FIELD_BOOL, "has_parens", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteTableRef, alias), SYNTAQLITE_FIELD_NODE_ID, "alias", NULL, 0},
+    {offsetof(SyntaqliteTableRef, alias_as), SYNTAQLITE_FIELD_BOOL, "alias_as", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteTableRef, args), SYNTAQLITE_FIELD_NODE_ID, "args", NULL, 0},
+    {offsetof(SyntaqliteTableRef, index_hint), SYNTAQLITE_FIELD_ENUM, "index_hint", display_index_hint, sizeof(display_index_hint) / sizeof(display_index_hint[0])},
+    {offsetof(SyntaqliteTableRef, index_name), SYNTAQLITE_FIELD_SPAN, "index_name", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_subquery_table_source[] = {
     {offsetof(SyntaqliteSubqueryTableSource, select), SYNTAQLITE_FIELD_NODE_ID, "select", NULL, 0},
     {offsetof(SyntaqliteSubqueryTableSource, alias), SYNTAQLITE_FIELD_NODE_ID, "alias", NULL, 0},
+    {offsetof(SyntaqliteSubqueryTableSource, alias_as), SYNTAQLITE_FIELD_BOOL, "alias_as", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+};
+
+static const SyntaqliteFieldMeta field_meta_paren_table_source[] = {
+    {offsetof(SyntaqliteParenTableSource, source), SYNTAQLITE_FIELD_NODE_ID, "source", NULL, 0},
+    {offsetof(SyntaqliteParenTableSource, alias), SYNTAQLITE_FIELD_NODE_ID, "alias", NULL, 0},
+    {offsetof(SyntaqliteParenTableSource, alias_as), SYNTAQLITE_FIELD_BOOL, "alias_as", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
 };
 
 static const SyntaqliteFieldMeta field_meta_join_clause[] = {
     {offsetof(SyntaqliteJoinClause, join_type), SYNTAQLITE_FIELD_ENUM, "join_type", display_join_type, sizeof(display_join_type) / sizeof(display_join_type[0])},
+    {offsetof(SyntaqliteJoinClause, modifiers), SYNTAQLITE_FIELD_NODE_ID, "modifiers", NULL, 0},
     {offsetof(SyntaqliteJoinClause, left), SYNTAQLITE_FIELD_NODE_ID, "left", NULL, 0},
     {offsetof(SyntaqliteJoinClause, right), SYNTAQLITE_FIELD_NODE_ID, "right", NULL, 0},
     {offsetof(SyntaqliteJoinClause, on_expr), SYNTAQLITE_FIELD_NODE_ID, "on_expr", NULL, 0},
@@ -1593,6 +1750,7 @@ static const SyntaqliteFieldMeta field_meta_join_clause[] = {
 static const SyntaqliteFieldMeta field_meta_join_prefix[] = {
     {offsetof(SyntaqliteJoinPrefix, source), SYNTAQLITE_FIELD_NODE_ID, "source", NULL, 0},
     {offsetof(SyntaqliteJoinPrefix, join_type), SYNTAQLITE_FIELD_ENUM, "join_type", display_join_type, sizeof(display_join_type) / sizeof(display_join_type[0])},
+    {offsetof(SyntaqliteJoinPrefix, modifiers), SYNTAQLITE_FIELD_NODE_ID, "modifiers", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_trigger_event[] = {
@@ -1603,9 +1761,10 @@ static const SyntaqliteFieldMeta field_meta_trigger_event[] = {
 static const SyntaqliteFieldMeta field_meta_create_trigger_stmt[] = {
     {offsetof(SyntaqliteCreateTriggerStmt, trigger_name), SYNTAQLITE_FIELD_SPAN, "trigger_name", NULL, 0},
     {offsetof(SyntaqliteCreateTriggerStmt, schema), SYNTAQLITE_FIELD_SPAN, "schema", NULL, 0},
-    {offsetof(SyntaqliteCreateTriggerStmt, is_temp), SYNTAQLITE_FIELD_BOOL, "is_temp", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteCreateTriggerStmt, temporary), SYNTAQLITE_FIELD_ENUM, "temporary", display_temporary_qualifier, sizeof(display_temporary_qualifier) / sizeof(display_temporary_qualifier[0])},
     {offsetof(SyntaqliteCreateTriggerStmt, if_not_exists), SYNTAQLITE_FIELD_BOOL, "if_not_exists", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteCreateTriggerStmt, timing), SYNTAQLITE_FIELD_ENUM, "timing", display_trigger_timing, sizeof(display_trigger_timing) / sizeof(display_trigger_timing[0])},
+    {offsetof(SyntaqliteCreateTriggerStmt, for_each_row), SYNTAQLITE_FIELD_BOOL, "for_each_row", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteCreateTriggerStmt, event), SYNTAQLITE_FIELD_NODE_ID, "event", NULL, 0},
     {offsetof(SyntaqliteCreateTriggerStmt, table), SYNTAQLITE_FIELD_NODE_ID, "table", NULL, 0},
     {offsetof(SyntaqliteCreateTriggerStmt, when_expr), SYNTAQLITE_FIELD_NODE_ID, "when_expr", NULL, 0},
@@ -1617,6 +1776,7 @@ static const SyntaqliteFieldMeta field_meta_create_virtual_table_stmt[] = {
     {offsetof(SyntaqliteCreateVirtualTableStmt, schema), SYNTAQLITE_FIELD_SPAN, "schema", NULL, 0},
     {offsetof(SyntaqliteCreateVirtualTableStmt, module_name), SYNTAQLITE_FIELD_SPAN, "module_name", NULL, 0},
     {offsetof(SyntaqliteCreateVirtualTableStmt, if_not_exists), SYNTAQLITE_FIELD_BOOL, "if_not_exists", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteCreateVirtualTableStmt, has_module_args), SYNTAQLITE_FIELD_BOOL, "has_module_args", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteCreateVirtualTableStmt, module_args), SYNTAQLITE_FIELD_SPAN, "module_args", NULL, 0},
 };
 
@@ -1634,12 +1794,14 @@ static const SyntaqliteFieldMeta field_meta_analyze_or_reindex_stmt[] = {
 };
 
 static const SyntaqliteFieldMeta field_meta_attach_stmt[] = {
+    {offsetof(SyntaqliteAttachStmt, has_database), SYNTAQLITE_FIELD_BOOL, "has_database", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteAttachStmt, filename), SYNTAQLITE_FIELD_NODE_ID, "filename", NULL, 0},
     {offsetof(SyntaqliteAttachStmt, db_name), SYNTAQLITE_FIELD_NODE_ID, "db_name", NULL, 0},
     {offsetof(SyntaqliteAttachStmt, key), SYNTAQLITE_FIELD_NODE_ID, "key", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_detach_stmt[] = {
+    {offsetof(SyntaqliteDetachStmt, has_database), SYNTAQLITE_FIELD_BOOL, "has_database", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteDetachStmt, db_name), SYNTAQLITE_FIELD_NODE_ID, "db_name", NULL, 0},
 };
 
@@ -1666,7 +1828,7 @@ static const SyntaqliteFieldMeta field_meta_create_index_stmt[] = {
 static const SyntaqliteFieldMeta field_meta_create_view_stmt[] = {
     {offsetof(SyntaqliteCreateViewStmt, view_name), SYNTAQLITE_FIELD_SPAN, "view_name", NULL, 0},
     {offsetof(SyntaqliteCreateViewStmt, schema), SYNTAQLITE_FIELD_SPAN, "schema", NULL, 0},
-    {offsetof(SyntaqliteCreateViewStmt, is_temp), SYNTAQLITE_FIELD_BOOL, "is_temp", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteCreateViewStmt, temporary), SYNTAQLITE_FIELD_ENUM, "temporary", display_temporary_qualifier, sizeof(display_temporary_qualifier) / sizeof(display_temporary_qualifier[0])},
     {offsetof(SyntaqliteCreateViewStmt, if_not_exists), SYNTAQLITE_FIELD_BOOL, "if_not_exists", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteCreateViewStmt, column_names), SYNTAQLITE_FIELD_NODE_ID, "column_names", NULL, 0},
     {offsetof(SyntaqliteCreateViewStmt, select), SYNTAQLITE_FIELD_NODE_ID, "select", NULL, 0},
@@ -1689,6 +1851,7 @@ static const SyntaqliteFieldMeta field_meta_frame_spec[] = {
 };
 
 static const SyntaqliteFieldMeta field_meta_window_def[] = {
+    {offsetof(SyntaqliteWindowDef, ref_window_name), SYNTAQLITE_FIELD_SPAN, "ref_window_name", NULL, 0},
     {offsetof(SyntaqliteWindowDef, base_window_name), SYNTAQLITE_FIELD_SPAN, "base_window_name", NULL, 0},
     {offsetof(SyntaqliteWindowDef, partition_by), SYNTAQLITE_FIELD_NODE_ID, "partition_by", NULL, 0},
     {offsetof(SyntaqliteWindowDef, orderby), SYNTAQLITE_FIELD_NODE_ID, "orderby", NULL, 0},
@@ -1738,6 +1901,7 @@ static const SyntaqliteFieldMeta field_meta_create_perfetto_table_stmt[] = {
     {offsetof(SyntaqliteCreatePerfettoTableStmt, schema), SYNTAQLITE_FIELD_NODE_ID, "schema", NULL, 0},
     {offsetof(SyntaqliteCreatePerfettoTableStmt, select), SYNTAQLITE_FIELD_NODE_ID, "select", NULL, 0},
     {offsetof(SyntaqliteCreatePerfettoTableStmt, select_span), SYNTAQLITE_FIELD_SPAN, "select_span", NULL, 0},
+    {offsetof(SyntaqliteCreatePerfettoTableStmt, pipeline), SYNTAQLITE_FIELD_NODE_ID, "pipeline", NULL, 0},
 };
 
 static const SyntaqliteFieldMeta field_meta_create_perfetto_view_stmt[] = {
@@ -1789,6 +1953,34 @@ static const SyntaqliteFieldMeta field_meta_drop_perfetto_index_stmt[] = {
     {offsetof(SyntaqliteDropPerfettoIndexStmt, table_name), SYNTAQLITE_FIELD_SPAN, "table_name", NULL, 0},
 };
 
+static const SyntaqliteFieldMeta field_meta_perfetto_pragma_stmt[] = {
+    {offsetof(SyntaqlitePerfettoPragmaStmt, name), SYNTAQLITE_FIELD_SPAN, "name", NULL, 0},
+    {offsetof(SyntaqlitePerfettoPragmaStmt, value), SYNTAQLITE_FIELD_NODE_ID, "value", NULL, 0},
+};
+
+static const SyntaqliteFieldMeta field_meta_perfetto_pipe_source[] = {
+    {offsetof(SyntaqlitePerfettoPipeSource, table_name), SYNTAQLITE_FIELD_SPAN, "table_name", NULL, 0},
+    {offsetof(SyntaqlitePerfettoPipeSource, schema), SYNTAQLITE_FIELD_SPAN, "schema", NULL, 0},
+    {offsetof(SyntaqlitePerfettoPipeSource, select), SYNTAQLITE_FIELD_NODE_ID, "select", NULL, 0},
+    {offsetof(SyntaqlitePerfettoPipeSource, alias), SYNTAQLITE_FIELD_NODE_ID, "alias", NULL, 0},
+    {offsetof(SyntaqlitePerfettoPipeSource, alias_as), SYNTAQLITE_FIELD_BOOL, "alias_as", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+};
+
+static const SyntaqliteFieldMeta field_meta_perfetto_tree_aggregate[] = {
+    {offsetof(SyntaqlitePerfettoTreeAggregate, expr), SYNTAQLITE_FIELD_NODE_ID, "expr", NULL, 0},
+    {offsetof(SyntaqlitePerfettoTreeAggregate, name), SYNTAQLITE_FIELD_SPAN, "name", NULL, 0},
+};
+
+static const SyntaqliteFieldMeta field_meta_perfetto_tree_accumulate[] = {
+    {offsetof(SyntaqlitePerfettoTreeAccumulate, direction), SYNTAQLITE_FIELD_ENUM, "direction", display_perfetto_tree_direction, sizeof(display_perfetto_tree_direction) / sizeof(display_perfetto_tree_direction[0])},
+    {offsetof(SyntaqlitePerfettoTreeAccumulate, aggregates), SYNTAQLITE_FIELD_NODE_ID, "aggregates", NULL, 0},
+};
+
+static const SyntaqliteFieldMeta field_meta_perfetto_pipeline[] = {
+    {offsetof(SyntaqlitePerfettoPipeline, from), SYNTAQLITE_FIELD_NODE_ID, "from", NULL, 0},
+    {offsetof(SyntaqlitePerfettoPipeline, stages), SYNTAQLITE_FIELD_NODE_ID, "stages", NULL, 0},
+};
+
 static const SyntaqliteFieldRangeMeta range_meta_aggregate_function_call[] = {
     {offsetof(SyntaqliteAggregateFunctionCall, func_name), 1},
 };
@@ -1807,21 +1999,24 @@ static const SyntaqliteFieldRangeMeta range_meta_column_ref[] = {
     {offsetof(SyntaqliteColumnRef, schema), 1},
 };
 
+static const SyntaqliteFieldRangeMeta range_meta_foreign_key_option[] = {
+    {offsetof(SyntaqliteForeignKeyOption, match_name), 1},
+};
+
 static const SyntaqliteFieldRangeMeta range_meta_foreign_key_clause[] = {
     {offsetof(SyntaqliteForeignKeyClause, ref_table), 1},
 };
 
 static const SyntaqliteFieldRangeMeta range_meta_column_constraint[] = {
-    {offsetof(SyntaqliteColumnConstraint, constraint_name), 1},
     {offsetof(SyntaqliteColumnConstraint, collation_name), 1},
+};
+
+static const SyntaqliteFieldRangeMeta range_meta_constraint_name_declaration[] = {
+    {offsetof(SyntaqliteConstraintNameDeclaration, name), 1},
 };
 
 static const SyntaqliteFieldRangeMeta range_meta_column_def[] = {
     {offsetof(SyntaqliteColumnDef, type_name), 1},
-};
-
-static const SyntaqliteFieldRangeMeta range_meta_table_constraint[] = {
-    {offsetof(SyntaqliteTableConstraint, constraint_name), 1},
 };
 
 static const SyntaqliteFieldRangeMeta range_meta_create_table_stmt[] = {
@@ -1869,9 +2064,18 @@ static const SyntaqliteFieldRangeMeta range_meta_collate_expr[] = {
     {offsetof(SyntaqliteCollateExpr, collation), 1},
 };
 
+static const SyntaqliteFieldRangeMeta range_meta_transaction_stmt[] = {
+    {offsetof(SyntaqliteTransactionStmt, name), 1},
+};
+
+static const SyntaqliteFieldRangeMeta range_meta_savepoint_stmt[] = {
+    {offsetof(SyntaqliteSavepointStmt, transaction_name), 1},
+};
+
 static const SyntaqliteFieldRangeMeta range_meta_table_ref[] = {
     {offsetof(SyntaqliteTableRef, table_name), 1},
     {offsetof(SyntaqliteTableRef, schema), 1},
+    {offsetof(SyntaqliteTableRef, index_name), 1},
 };
 
 static const SyntaqliteFieldRangeMeta range_meta_create_trigger_stmt[] = {
@@ -1913,6 +2117,7 @@ static const SyntaqliteFieldRangeMeta range_meta_create_view_stmt[] = {
 };
 
 static const SyntaqliteFieldRangeMeta range_meta_window_def[] = {
+    {offsetof(SyntaqliteWindowDef, ref_window_name), 1},
     {offsetof(SyntaqliteWindowDef, base_window_name), 1},
 };
 
@@ -1985,6 +2190,19 @@ static const SyntaqliteFieldRangeMeta range_meta_drop_perfetto_index_stmt[] = {
     {offsetof(SyntaqliteDropPerfettoIndexStmt, table_name), 1},
 };
 
+static const SyntaqliteFieldRangeMeta range_meta_perfetto_pragma_stmt[] = {
+    {offsetof(SyntaqlitePerfettoPragmaStmt, name), 1},
+};
+
+static const SyntaqliteFieldRangeMeta range_meta_perfetto_pipe_source[] = {
+    {offsetof(SyntaqlitePerfettoPipeSource, table_name), 1},
+    {offsetof(SyntaqlitePerfettoPipeSource, schema), 1},
+};
+
+static const SyntaqliteFieldRangeMeta range_meta_perfetto_tree_aggregate[] = {
+    {offsetof(SyntaqlitePerfettoTreeAggregate, name), 1},
+};
+
 // ============ Node Names ============
 
 static const char* const ast_meta_node_names[] = {
@@ -2003,12 +2221,16 @@ static const char* const ast_meta_node_names[] = {
     "CaseExpr",
     "CaseWhen",
     "CaseWhenList",
+    "ForeignKeyOption",
+    "ForeignKeyOptionList",
     "ForeignKeyClause",
     "ColumnConstraint",
+    "ConstraintNameDeclaration",
     "ColumnConstraintList",
     "ColumnDef",
     "ColumnDefList",
     "TableConstraint",
+    "TableConstraintGroup",
     "TableConstraintList",
     "CreateTableStmt",
     "CteDefinition",
@@ -2027,6 +2249,7 @@ static const char* const ast_meta_node_names[] = {
     "ParenExpr",
     "IdentName",
     "Error",
+    "RowValue",
     "ExprList",
     "FunctionCall",
     "Variable",
@@ -2043,8 +2266,11 @@ static const char* const ast_meta_node_names[] = {
     "OrderingTerm",
     "OrderByList",
     "LimitClause",
+    "JoinModifier",
+    "JoinModifierList",
     "TableRef",
     "SubqueryTableSource",
+    "ParenTableSource",
     "JoinClause",
     "JoinPrefix",
     "TriggerEvent",
@@ -2084,6 +2310,13 @@ static const char* const ast_meta_node_names[] = {
     "CreatePerfettoMacroStmt",
     "IncludePerfettoModuleStmt",
     "DropPerfettoIndexStmt",
+    "PerfettoPragmaStmt",
+    "PerfettoPipeSource",
+    "PerfettoTreeAggregate",
+    "PerfettoTreeAggregateList",
+    "PerfettoTreeAccumulate",
+    "PerfettoPipeStageList",
+    "PerfettoPipeline",
 };
 
 // ============ Field Meta Dispatch ============
@@ -2104,12 +2337,16 @@ static const SyntaqliteFieldMeta* const ast_meta_field_meta[] = {
     field_meta_case_expr, /* CaseExpr */
     field_meta_case_when, /* CaseWhen */
     NULL, /* CaseWhenList */
+    field_meta_foreign_key_option, /* ForeignKeyOption */
+    NULL, /* ForeignKeyOptionList */
     field_meta_foreign_key_clause, /* ForeignKeyClause */
     field_meta_column_constraint, /* ColumnConstraint */
+    field_meta_constraint_name_declaration, /* ConstraintNameDeclaration */
     NULL, /* ColumnConstraintList */
     field_meta_column_def, /* ColumnDef */
     NULL, /* ColumnDefList */
     field_meta_table_constraint, /* TableConstraint */
+    NULL, /* TableConstraintGroup */
     NULL, /* TableConstraintList */
     field_meta_create_table_stmt, /* CreateTableStmt */
     field_meta_cte_definition, /* CteDefinition */
@@ -2128,6 +2365,7 @@ static const SyntaqliteFieldMeta* const ast_meta_field_meta[] = {
     field_meta_paren_expr, /* ParenExpr */
     field_meta_ident_name, /* IdentName */
     field_meta_error, /* Error */
+    field_meta_row_value, /* RowValue */
     NULL, /* ExprList */
     field_meta_function_call, /* FunctionCall */
     field_meta_variable, /* Variable */
@@ -2144,8 +2382,11 @@ static const SyntaqliteFieldMeta* const ast_meta_field_meta[] = {
     field_meta_ordering_term, /* OrderingTerm */
     NULL, /* OrderByList */
     field_meta_limit_clause, /* LimitClause */
+    field_meta_join_modifier, /* JoinModifier */
+    NULL, /* JoinModifierList */
     field_meta_table_ref, /* TableRef */
     field_meta_subquery_table_source, /* SubqueryTableSource */
+    field_meta_paren_table_source, /* ParenTableSource */
     field_meta_join_clause, /* JoinClause */
     field_meta_join_prefix, /* JoinPrefix */
     field_meta_trigger_event, /* TriggerEvent */
@@ -2185,6 +2426,13 @@ static const SyntaqliteFieldMeta* const ast_meta_field_meta[] = {
     field_meta_create_perfetto_macro_stmt, /* CreatePerfettoMacroStmt */
     field_meta_include_perfetto_module_stmt, /* IncludePerfettoModuleStmt */
     field_meta_drop_perfetto_index_stmt, /* DropPerfettoIndexStmt */
+    field_meta_perfetto_pragma_stmt, /* PerfettoPragmaStmt */
+    field_meta_perfetto_pipe_source, /* PerfettoPipeSource */
+    field_meta_perfetto_tree_aggregate, /* PerfettoTreeAggregate */
+    NULL, /* PerfettoTreeAggregateList */
+    field_meta_perfetto_tree_accumulate, /* PerfettoTreeAccumulate */
+    NULL, /* PerfettoPipeStageList */
+    field_meta_perfetto_pipeline, /* PerfettoPipeline */
 };
 
 static const uint8_t ast_meta_field_meta_counts[] = {
@@ -2203,12 +2451,16 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     3, /* CaseExpr */
     2, /* CaseWhen */
     0, /* CaseWhenList */
+    3, /* ForeignKeyOption */
+    0, /* ForeignKeyOptionList */
     5, /* ForeignKeyClause */
-    11, /* ColumnConstraint */
+    14, /* ColumnConstraint */
+    1, /* ConstraintNameDeclaration */
     0, /* ColumnConstraintList */
     3, /* ColumnDef */
     0, /* ColumnDefList */
-    8, /* TableConstraint */
+    7, /* TableConstraint */
+    0, /* TableConstraintGroup */
     0, /* TableConstraintList */
     8, /* CreateTableStmt */
     4, /* CteDefinition */
@@ -2220,13 +2472,14 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     3, /* SetClause */
     0, /* SetClauseList */
     12, /* UpdateStmt */
-    8, /* InsertStmt */
+    9, /* InsertStmt */
     3, /* BinaryExpr */
     2, /* UnaryExpr */
     2, /* Literal */
     1, /* ParenExpr */
     1, /* IdentName */
     1, /* Error */
+    1, /* RowValue */
     0, /* ExprList */
     5, /* FunctionCall */
     1, /* Variable */
@@ -2234,27 +2487,30 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     2, /* RaiseExpr */
     2, /* QualifiedName */
     3, /* DropStmt */
-    4, /* AlterTableStmt */
-    2, /* TransactionStmt */
-    2, /* SavepointStmt */
-    3, /* ResultColumn */
+    6, /* AlterTableStmt */
+    4, /* TransactionStmt */
+    5, /* SavepointStmt */
+    4, /* ResultColumn */
     0, /* ResultColumnList */
     9, /* SelectStmt */
     3, /* OrderingTerm */
     0, /* OrderByList */
-    2, /* LimitClause */
-    5, /* TableRef */
-    2, /* SubqueryTableSource */
-    5, /* JoinClause */
-    2, /* JoinPrefix */
+    3, /* LimitClause */
+    1, /* JoinModifier */
+    0, /* JoinModifierList */
+    8, /* TableRef */
+    3, /* SubqueryTableSource */
+    3, /* ParenTableSource */
+    6, /* JoinClause */
+    3, /* JoinPrefix */
     2, /* TriggerEvent */
     0, /* TriggerCmdList */
-    9, /* CreateTriggerStmt */
-    5, /* CreateVirtualTableStmt */
+    10, /* CreateTriggerStmt */
+    6, /* CreateVirtualTableStmt */
     4, /* PragmaStmt */
     3, /* AnalyzeOrReindexStmt */
-    3, /* AttachStmt */
-    1, /* DetachStmt */
+    4, /* AttachStmt */
+    2, /* DetachStmt */
     2, /* VacuumStmt */
     2, /* ExplainStmt */
     7, /* CreateIndexStmt */
@@ -2263,7 +2519,7 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     1, /* ValuesClause */
     2, /* FrameBound */
     4, /* FrameSpec */
-    4, /* WindowDef */
+    5, /* WindowDef */
     0, /* WindowDefList */
     2, /* NamedWindowDef */
     0, /* NamedWindowDefList */
@@ -2276,7 +2532,7 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     0, /* PerfettoIndexedColumnList */
     3, /* PerfettoReturnType */
     1, /* PerfettoTableImpl */
-    6, /* CreatePerfettoTableStmt */
+    7, /* CreatePerfettoTableStmt */
     5, /* CreatePerfettoViewStmt */
     6, /* CreatePerfettoFunctionStmt */
     5, /* CreatePerfettoDelegatingFunctionStmt */
@@ -2284,6 +2540,13 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     5, /* CreatePerfettoMacroStmt */
     1, /* IncludePerfettoModuleStmt */
     2, /* DropPerfettoIndexStmt */
+    2, /* PerfettoPragmaStmt */
+    5, /* PerfettoPipeSource */
+    2, /* PerfettoTreeAggregate */
+    0, /* PerfettoTreeAggregateList */
+    2, /* PerfettoTreeAccumulate */
+    0, /* PerfettoPipeStageList */
+    2, /* PerfettoPipeline */
 };
 
 // ============ List Tags ============
@@ -2304,12 +2567,16 @@ static const uint8_t ast_meta_list_tags[] = {
     0, /* CaseExpr */
     0, /* CaseWhen */
     1, /* CaseWhenList */
+    0, /* ForeignKeyOption */
+    1, /* ForeignKeyOptionList */
     0, /* ForeignKeyClause */
     0, /* ColumnConstraint */
+    0, /* ConstraintNameDeclaration */
     1, /* ColumnConstraintList */
     0, /* ColumnDef */
     1, /* ColumnDefList */
     0, /* TableConstraint */
+    1, /* TableConstraintGroup */
     1, /* TableConstraintList */
     0, /* CreateTableStmt */
     0, /* CteDefinition */
@@ -2328,6 +2595,7 @@ static const uint8_t ast_meta_list_tags[] = {
     0, /* ParenExpr */
     0, /* IdentName */
     0, /* Error */
+    0, /* RowValue */
     1, /* ExprList */
     0, /* FunctionCall */
     0, /* Variable */
@@ -2344,8 +2612,11 @@ static const uint8_t ast_meta_list_tags[] = {
     0, /* OrderingTerm */
     1, /* OrderByList */
     0, /* LimitClause */
+    0, /* JoinModifier */
+    1, /* JoinModifierList */
     0, /* TableRef */
     0, /* SubqueryTableSource */
+    0, /* ParenTableSource */
     0, /* JoinClause */
     0, /* JoinPrefix */
     0, /* TriggerEvent */
@@ -2385,6 +2656,13 @@ static const uint8_t ast_meta_list_tags[] = {
     0, /* CreatePerfettoMacroStmt */
     0, /* IncludePerfettoModuleStmt */
     0, /* DropPerfettoIndexStmt */
+    0, /* PerfettoPragmaStmt */
+    0, /* PerfettoPipeSource */
+    0, /* PerfettoTreeAggregate */
+    1, /* PerfettoTreeAggregateList */
+    0, /* PerfettoTreeAccumulate */
+    1, /* PerfettoPipeStageList */
+    0, /* PerfettoPipeline */
 };
 
 // ============ Range Meta Dispatch ============
@@ -2405,12 +2683,16 @@ static const SyntaqliteRangeMetaEntry ast_meta_range_meta[] = {
     {NULL, 0}, /* CaseExpr */
     {NULL, 0}, /* CaseWhen */
     {NULL, 0}, /* CaseWhenList */
+    {range_meta_foreign_key_option, 1}, /* ForeignKeyOption */
+    {NULL, 0}, /* ForeignKeyOptionList */
     {range_meta_foreign_key_clause, 1}, /* ForeignKeyClause */
-    {range_meta_column_constraint, 2}, /* ColumnConstraint */
+    {range_meta_column_constraint, 1}, /* ColumnConstraint */
+    {range_meta_constraint_name_declaration, 1}, /* ConstraintNameDeclaration */
     {NULL, 0}, /* ColumnConstraintList */
     {range_meta_column_def, 1}, /* ColumnDef */
     {NULL, 0}, /* ColumnDefList */
-    {range_meta_table_constraint, 1}, /* TableConstraint */
+    {NULL, 0}, /* TableConstraint */
+    {NULL, 0}, /* TableConstraintGroup */
     {NULL, 0}, /* TableConstraintList */
     {range_meta_create_table_stmt, 2}, /* CreateTableStmt */
     {range_meta_cte_definition, 1}, /* CteDefinition */
@@ -2429,6 +2711,7 @@ static const SyntaqliteRangeMetaEntry ast_meta_range_meta[] = {
     {NULL, 0}, /* ParenExpr */
     {range_meta_ident_name, 1}, /* IdentName */
     {range_meta_error, 1}, /* Error */
+    {NULL, 0}, /* RowValue */
     {NULL, 0}, /* ExprList */
     {range_meta_function_call, 1}, /* FunctionCall */
     {range_meta_variable, 1}, /* Variable */
@@ -2437,16 +2720,19 @@ static const SyntaqliteRangeMetaEntry ast_meta_range_meta[] = {
     {NULL, 0}, /* QualifiedName */
     {NULL, 0}, /* DropStmt */
     {NULL, 0}, /* AlterTableStmt */
-    {NULL, 0}, /* TransactionStmt */
-    {NULL, 0}, /* SavepointStmt */
+    {range_meta_transaction_stmt, 1}, /* TransactionStmt */
+    {range_meta_savepoint_stmt, 1}, /* SavepointStmt */
     {NULL, 0}, /* ResultColumn */
     {NULL, 0}, /* ResultColumnList */
     {NULL, 0}, /* SelectStmt */
     {NULL, 0}, /* OrderingTerm */
     {NULL, 0}, /* OrderByList */
     {NULL, 0}, /* LimitClause */
-    {range_meta_table_ref, 2}, /* TableRef */
+    {NULL, 0}, /* JoinModifier */
+    {NULL, 0}, /* JoinModifierList */
+    {range_meta_table_ref, 3}, /* TableRef */
     {NULL, 0}, /* SubqueryTableSource */
+    {NULL, 0}, /* ParenTableSource */
     {NULL, 0}, /* JoinClause */
     {NULL, 0}, /* JoinPrefix */
     {NULL, 0}, /* TriggerEvent */
@@ -2465,7 +2751,7 @@ static const SyntaqliteRangeMetaEntry ast_meta_range_meta[] = {
     {NULL, 0}, /* ValuesClause */
     {NULL, 0}, /* FrameBound */
     {NULL, 0}, /* FrameSpec */
-    {range_meta_window_def, 1}, /* WindowDef */
+    {range_meta_window_def, 2}, /* WindowDef */
     {NULL, 0}, /* WindowDefList */
     {range_meta_named_window_def, 1}, /* NamedWindowDef */
     {NULL, 0}, /* NamedWindowDefList */
@@ -2486,6 +2772,13 @@ static const SyntaqliteRangeMetaEntry ast_meta_range_meta[] = {
     {range_meta_create_perfetto_macro_stmt, 3}, /* CreatePerfettoMacroStmt */
     {range_meta_include_perfetto_module_stmt, 1}, /* IncludePerfettoModuleStmt */
     {range_meta_drop_perfetto_index_stmt, 2}, /* DropPerfettoIndexStmt */
+    {range_meta_perfetto_pragma_stmt, 1}, /* PerfettoPragmaStmt */
+    {range_meta_perfetto_pipe_source, 2}, /* PerfettoPipeSource */
+    {range_meta_perfetto_tree_aggregate, 1}, /* PerfettoTreeAggregate */
+    {NULL, 0}, /* PerfettoTreeAggregateList */
+    {NULL, 0}, /* PerfettoTreeAccumulate */
+    {NULL, 0}, /* PerfettoPipeStageList */
+    {NULL, 0}, /* PerfettoPipeline */
 };
 
 
@@ -2498,9 +2791,9 @@ static const SyntaqliteRangeMetaEntry ast_meta_range_meta[] = {
 //
 // @generated by syntaqlite-buildtools — DO NOT EDIT
 
-#define TOKEN_TYPE_COUNT 195
+#define TOKEN_TYPE_COUNT 199
 
-static const uint8_t token_categories[195] = {
+static const uint8_t token_categories[199] = {
     0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,0,
     0,5,5,5,5,5,5,1,2,0,1,1,1,1,1,1,
@@ -2513,7 +2806,7 @@ static const uint8_t token_categories[195] = {
     1,1,1,1,1,1,1,3,4,8,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,1,1,0,9,0,0,1,0,
     0,0,0,0,0,0,6,0,0,0,7,0,0,1,1,1,
-    1,1,1,
+    1,1,1,1,1,1,1,
 };
 /* ======== end: csrc/dialect_tokens.h ======== */
 
@@ -2529,88 +2822,93 @@ static const uint8_t token_categories[195] = {
 #include <stdint.h>
 
 static const uint8_t perfetto_fmt_string_data[] = {
-    0x28,0x44,0x49,0x53,0x54,0x49,0x4e,0x43,0x54,0x20,0x4f,0x52,0x44,0x45,0x52,0x42,
-    0x59,0x29,0x46,0x49,0x4c,0x54,0x45,0x52,0x57,0x48,0x45,0x52,0x45,0x4f,0x56,0x45,
-    0x52,0x57,0x49,0x54,0x48,0x49,0x4e,0x47,0x52,0x4f,0x55,0x50,0x28,0x4f,0x52,0x44,
-    0x45,0x52,0x43,0x41,0x53,0x54,0x28,0x41,0x53,0x2e,0x55,0x4e,0x49,0x4f,0x4e,0x41,
-    0x4c,0x4c,0x49,0x4e,0x54,0x45,0x52,0x53,0x45,0x43,0x54,0x45,0x58,0x43,0x45,0x50,
-    0x54,0x4c,0x49,0x4d,0x49,0x54,0x45,0x58,0x49,0x53,0x54,0x53,0x4e,0x4f,0x54,0x49,
-    0x4e,0x49,0x53,0x4e,0x55,0x4c,0x4c,0x4e,0x4f,0x54,0x4e,0x55,0x4c,0x4c,0x49,0x53,
-    0x46,0x52,0x4f,0x4d,0x42,0x45,0x54,0x57,0x45,0x45,0x4e,0x41,0x4e,0x44,0x4c,0x49,
-    0x4b,0x45,0x47,0x4c,0x4f,0x42,0x4d,0x41,0x54,0x43,0x48,0x52,0x45,0x47,0x45,0x58,
-    0x50,0x45,0x53,0x43,0x41,0x50,0x45,0x43,0x41,0x53,0x45,0x45,0x4c,0x53,0x45,0x45,
-    0x4e,0x44,0x57,0x48,0x45,0x4e,0x54,0x48,0x45,0x4e,0x52,0x45,0x46,0x45,0x52,0x45,
-    0x4e,0x43,0x45,0x53,0x4f,0x4e,0x44,0x45,0x4c,0x45,0x54,0x45,0x53,0x45,0x54,0x4e,
-    0x55,0x4c,0x4c,0x44,0x45,0x46,0x41,0x55,0x4c,0x54,0x43,0x41,0x53,0x43,0x41,0x44,
-    0x45,0x52,0x45,0x53,0x54,0x52,0x49,0x43,0x54,0x55,0x50,0x44,0x41,0x54,0x45,0x44,
-    0x45,0x46,0x45,0x52,0x52,0x41,0x42,0x4c,0x45,0x49,0x4e,0x49,0x54,0x49,0x41,0x4c,
-    0x4c,0x59,0x44,0x45,0x46,0x45,0x52,0x52,0x45,0x44,0x43,0x4f,0x4e,0x53,0x54,0x52,
-    0x41,0x49,0x4e,0x54,0x50,0x52,0x49,0x4d,0x41,0x52,0x59,0x4b,0x45,0x59,0x44,0x45,
-    0x53,0x43,0x41,0x55,0x54,0x4f,0x49,0x4e,0x43,0x52,0x45,0x4d,0x45,0x4e,0x54,0x43,
-    0x4f,0x4e,0x46,0x4c,0x49,0x43,0x54,0x52,0x4f,0x4c,0x4c,0x42,0x41,0x43,0x4b,0x41,
-    0x42,0x4f,0x52,0x54,0x46,0x41,0x49,0x4c,0x49,0x47,0x4e,0x4f,0x52,0x45,0x52,0x45,
-    0x50,0x4c,0x41,0x43,0x45,0x55,0x4e,0x49,0x51,0x55,0x45,0x43,0x48,0x45,0x43,0x4b,
-    0x28,0x43,0x4f,0x4c,0x4c,0x41,0x54,0x45,0x53,0x54,0x4f,0x52,0x45,0x44,0x2c,0x4b,
-    0x45,0x59,0x28,0x55,0x4e,0x49,0x51,0x55,0x45,0x28,0x46,0x4f,0x52,0x45,0x49,0x47,
-    0x4e,0x43,0x52,0x45,0x41,0x54,0x45,0x54,0x45,0x4d,0x50,0x54,0x41,0x42,0x4c,0x45,
-    0x49,0x46,0x57,0x49,0x54,0x48,0x4f,0x55,0x54,0x52,0x4f,0x57,0x49,0x44,0x53,0x54,
-    0x52,0x49,0x43,0x54,0x4d,0x41,0x54,0x45,0x52,0x49,0x41,0x4c,0x49,0x5a,0x45,0x44,
-    0x57,0x49,0x54,0x48,0x52,0x45,0x43,0x55,0x52,0x53,0x49,0x56,0x45,0x44,0x4f,0x4e,
-    0x4f,0x54,0x48,0x49,0x4e,0x47,0x49,0x4e,0x44,0x45,0x58,0x45,0x44,0x52,0x45,0x54,
-    0x55,0x52,0x4e,0x49,0x4e,0x47,0x3d,0x4f,0x52,0x49,0x4e,0x53,0x45,0x52,0x54,0x49,
+    0x28,0x44,0x49,0x53,0x54,0x49,0x4e,0x43,0x54,0x20,0x41,0x4c,0x4c,0x4f,0x52,0x44,
+    0x45,0x52,0x42,0x59,0x29,0x46,0x49,0x4c,0x54,0x45,0x52,0x57,0x48,0x45,0x52,0x45,
+    0x4f,0x56,0x45,0x52,0x57,0x49,0x54,0x48,0x49,0x4e,0x47,0x52,0x4f,0x55,0x50,0x43,
+    0x41,0x53,0x54,0x41,0x53,0x2e,0x55,0x4e,0x49,0x4f,0x4e,0x49,0x4e,0x54,0x45,0x52,
+    0x53,0x45,0x43,0x54,0x45,0x58,0x43,0x45,0x50,0x54,0x4c,0x49,0x4d,0x49,0x54,0x45,
+    0x58,0x49,0x53,0x54,0x53,0x4e,0x4f,0x54,0x49,0x4e,0x49,0x53,0x4e,0x55,0x4c,0x4c,
+    0x4e,0x4f,0x54,0x4e,0x55,0x4c,0x4c,0x4e,0x55,0x4c,0x4c,0x49,0x53,0x46,0x52,0x4f,
+    0x4d,0x42,0x45,0x54,0x57,0x45,0x45,0x4e,0x41,0x4e,0x44,0x4c,0x49,0x4b,0x45,0x47,
+    0x4c,0x4f,0x42,0x4d,0x41,0x54,0x43,0x48,0x52,0x45,0x47,0x45,0x58,0x50,0x45,0x53,
+    0x43,0x41,0x50,0x45,0x43,0x41,0x53,0x45,0x45,0x4c,0x53,0x45,0x45,0x4e,0x44,0x57,
+    0x48,0x45,0x4e,0x54,0x48,0x45,0x4e,0x4f,0x4e,0x44,0x45,0x4c,0x45,0x54,0x45,0x55,
+    0x50,0x44,0x41,0x54,0x45,0x49,0x4e,0x53,0x45,0x52,0x54,0x4e,0x4f,0x41,0x43,0x54,
+    0x49,0x4f,0x4e,0x53,0x45,0x54,0x44,0x45,0x46,0x41,0x55,0x4c,0x54,0x43,0x41,0x53,
+    0x43,0x41,0x44,0x45,0x52,0x45,0x53,0x54,0x52,0x49,0x43,0x54,0x52,0x45,0x46,0x45,
+    0x52,0x45,0x4e,0x43,0x45,0x53,0x44,0x45,0x46,0x45,0x52,0x52,0x41,0x42,0x4c,0x45,
+    0x49,0x4e,0x49,0x54,0x49,0x41,0x4c,0x4c,0x59,0x44,0x45,0x46,0x45,0x52,0x52,0x45,
+    0x44,0x49,0x4d,0x4d,0x45,0x44,0x49,0x41,0x54,0x45,0x50,0x52,0x49,0x4d,0x41,0x52,
+    0x59,0x4b,0x45,0x59,0x41,0x53,0x43,0x44,0x45,0x53,0x43,0x43,0x4f,0x4e,0x46,0x4c,
+    0x49,0x43,0x54,0x52,0x4f,0x4c,0x4c,0x42,0x41,0x43,0x4b,0x41,0x42,0x4f,0x52,0x54,
+    0x46,0x41,0x49,0x4c,0x49,0x47,0x4e,0x4f,0x52,0x45,0x52,0x45,0x50,0x4c,0x41,0x43,
+    0x45,0x41,0x55,0x54,0x4f,0x49,0x4e,0x43,0x52,0x45,0x4d,0x45,0x4e,0x54,0x55,0x4e,
+    0x49,0x51,0x55,0x45,0x43,0x48,0x45,0x43,0x4b,0x43,0x4f,0x4c,0x4c,0x41,0x54,0x45,
+    0x47,0x45,0x4e,0x45,0x52,0x41,0x54,0x45,0x44,0x41,0x4c,0x57,0x41,0x59,0x53,0x56,
+    0x49,0x52,0x54,0x55,0x41,0x4c,0x53,0x54,0x4f,0x52,0x45,0x44,0x43,0x4f,0x4e,0x53,
+    0x54,0x52,0x41,0x49,0x4e,0x54,0x2c,0x46,0x4f,0x52,0x45,0x49,0x47,0x4e,0x43,0x52,
+    0x45,0x41,0x54,0x45,0x54,0x45,0x4d,0x50,0x54,0x45,0x4d,0x50,0x4f,0x52,0x41,0x52,
+    0x59,0x54,0x41,0x42,0x4c,0x45,0x49,0x46,0x57,0x49,0x54,0x48,0x4f,0x55,0x54,0x52,
+    0x4f,0x57,0x49,0x44,0x53,0x54,0x52,0x49,0x43,0x54,0x4d,0x41,0x54,0x45,0x52,0x49,
+    0x41,0x4c,0x49,0x5a,0x45,0x44,0x57,0x49,0x54,0x48,0x52,0x45,0x43,0x55,0x52,0x53,
+    0x49,0x56,0x45,0x44,0x4f,0x4e,0x4f,0x54,0x48,0x49,0x4e,0x47,0x49,0x4e,0x44,0x45,
+    0x58,0x45,0x44,0x52,0x45,0x54,0x55,0x52,0x4e,0x49,0x4e,0x47,0x3d,0x4f,0x52,0x49,
     0x4e,0x54,0x4f,0x56,0x41,0x4c,0x55,0x45,0x53,0x2b,0x2d,0x2a,0x2f,0x25,0x3c,0x3e,
     0x3c,0x3d,0x3e,0x3d,0x21,0x3d,0x26,0x7c,0x3c,0x3c,0x3e,0x3e,0x7c,0x7c,0x2d,0x3e,
-    0x2d,0x3e,0x3e,0x7e,0x3c,0x65,0x72,0x72,0x6f,0x72,0x3e,0x52,0x41,0x49,0x53,0x45,
-    0x28,0x44,0x52,0x4f,0x50,0x49,0x4e,0x44,0x45,0x58,0x56,0x49,0x45,0x57,0x54,0x52,
-    0x49,0x47,0x47,0x45,0x52,0x41,0x4c,0x54,0x45,0x52,0x52,0x45,0x4e,0x41,0x4d,0x45,
-    0x54,0x4f,0x43,0x4f,0x4c,0x55,0x4d,0x4e,0x41,0x44,0x44,0x42,0x45,0x47,0x49,0x4e,
-    0x49,0x4d,0x4d,0x45,0x44,0x49,0x41,0x54,0x45,0x45,0x58,0x43,0x4c,0x55,0x53,0x49,
-    0x56,0x45,0x43,0x4f,0x4d,0x4d,0x49,0x54,0x53,0x41,0x56,0x45,0x50,0x4f,0x49,0x4e,
-    0x54,0x52,0x45,0x4c,0x45,0x41,0x53,0x45,0x2e,0x2a,0x53,0x45,0x4c,0x45,0x43,0x54,
-    0x48,0x41,0x56,0x49,0x4e,0x47,0x57,0x49,0x4e,0x44,0x4f,0x57,0x4e,0x55,0x4c,0x4c,
-    0x53,0x46,0x49,0x52,0x53,0x54,0x4c,0x41,0x53,0x54,0x4f,0x46,0x46,0x53,0x45,0x54,
-    0x28,0x29,0x55,0x53,0x49,0x4e,0x47,0x4a,0x4f,0x49,0x4e,0x4c,0x45,0x46,0x54,0x52,
-    0x49,0x47,0x48,0x54,0x46,0x55,0x4c,0x4c,0x43,0x52,0x4f,0x53,0x53,0x4e,0x41,0x54,
-    0x55,0x52,0x41,0x4c,0x4f,0x46,0x3b,0x42,0x45,0x46,0x4f,0x52,0x45,0x41,0x46,0x54,
-    0x45,0x52,0x49,0x4e,0x53,0x54,0x45,0x41,0x44,0x56,0x49,0x52,0x54,0x55,0x41,0x4c,
-    0x50,0x52,0x41,0x47,0x4d,0x41,0x52,0x45,0x49,0x4e,0x44,0x45,0x58,0x41,0x4e,0x41,
-    0x4c,0x59,0x5a,0x45,0x41,0x54,0x54,0x41,0x43,0x48,0x44,0x45,0x54,0x41,0x43,0x48,
-    0x56,0x41,0x43,0x55,0x55,0x4d,0x45,0x58,0x50,0x4c,0x41,0x49,0x4e,0x51,0x55,0x45,
-    0x52,0x59,0x50,0x4c,0x41,0x4e,0x55,0x4e,0x42,0x4f,0x55,0x4e,0x44,0x45,0x44,0x50,
-    0x52,0x45,0x43,0x45,0x44,0x49,0x4e,0x47,0x43,0x55,0x52,0x52,0x45,0x4e,0x54,0x52,
-    0x4f,0x57,0x46,0x4f,0x4c,0x4c,0x4f,0x57,0x49,0x4e,0x47,0x52,0x41,0x4e,0x47,0x45,
-    0x52,0x4f,0x57,0x53,0x47,0x52,0x4f,0x55,0x50,0x53,0x45,0x58,0x43,0x4c,0x55,0x44,
-    0x45,0x4e,0x4f,0x4f,0x54,0x48,0x45,0x52,0x53,0x54,0x49,0x45,0x53,0x50,0x41,0x52,
-    0x54,0x49,0x54,0x49,0x4f,0x4e,0x2e,0x2e,0x2e,0x54,0x41,0x42,0x4c,0x45,0x28,0x50,
-    0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x46,0x55,0x4e,0x43,0x54,0x49,0x4f,0x4e,0x52,
-    0x45,0x54,0x55,0x52,0x4e,0x53,0x44,0x45,0x4c,0x45,0x47,0x41,0x54,0x45,0x53,0x4d,
-    0x41,0x43,0x52,0x4f,0x49,0x4e,0x43,0x4c,0x55,0x44,0x45,0x4d,0x4f,0x44,0x55,0x4c,
-    0x45,
+    0x2d,0x3e,0x3e,0x3c,0x3e,0x3d,0x3d,0x7e,0x3c,0x65,0x72,0x72,0x6f,0x72,0x3e,0x52,
+    0x41,0x49,0x53,0x45,0x44,0x52,0x4f,0x50,0x49,0x4e,0x44,0x45,0x58,0x56,0x49,0x45,
+    0x57,0x54,0x52,0x49,0x47,0x47,0x45,0x52,0x41,0x4c,0x54,0x45,0x52,0x52,0x45,0x4e,
+    0x41,0x4d,0x45,0x54,0x4f,0x43,0x4f,0x4c,0x55,0x4d,0x4e,0x41,0x44,0x44,0x42,0x45,
+    0x47,0x49,0x4e,0x45,0x58,0x43,0x4c,0x55,0x53,0x49,0x56,0x45,0x43,0x4f,0x4d,0x4d,
+    0x49,0x54,0x54,0x52,0x41,0x4e,0x53,0x41,0x43,0x54,0x49,0x4f,0x4e,0x53,0x41,0x56,
+    0x45,0x50,0x4f,0x49,0x4e,0x54,0x52,0x45,0x4c,0x45,0x41,0x53,0x45,0x53,0x45,0x4c,
+    0x45,0x43,0x54,0x48,0x41,0x56,0x49,0x4e,0x47,0x57,0x49,0x4e,0x44,0x4f,0x57,0x4e,
+    0x55,0x4c,0x4c,0x53,0x46,0x49,0x52,0x53,0x54,0x4c,0x41,0x53,0x54,0x4f,0x46,0x46,
+    0x53,0x45,0x54,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x4c,0x45,0x46,0x54,0x4f,0x55,
+    0x54,0x45,0x52,0x52,0x49,0x47,0x48,0x54,0x46,0x55,0x4c,0x4c,0x49,0x4e,0x4e,0x45,
+    0x52,0x43,0x52,0x4f,0x53,0x53,0x55,0x53,0x49,0x4e,0x47,0x4a,0x4f,0x49,0x4e,0x4f,
+    0x46,0x3b,0x42,0x45,0x46,0x4f,0x52,0x45,0x41,0x46,0x54,0x45,0x52,0x49,0x4e,0x53,
+    0x54,0x45,0x41,0x44,0x46,0x4f,0x52,0x45,0x41,0x43,0x48,0x52,0x4f,0x57,0x50,0x52,
+    0x41,0x47,0x4d,0x41,0x52,0x45,0x49,0x4e,0x44,0x45,0x58,0x41,0x4e,0x41,0x4c,0x59,
+    0x5a,0x45,0x41,0x54,0x54,0x41,0x43,0x48,0x44,0x41,0x54,0x41,0x42,0x41,0x53,0x45,
+    0x44,0x45,0x54,0x41,0x43,0x48,0x56,0x41,0x43,0x55,0x55,0x4d,0x45,0x58,0x50,0x4c,
+    0x41,0x49,0x4e,0x51,0x55,0x45,0x52,0x59,0x50,0x4c,0x41,0x4e,0x55,0x4e,0x42,0x4f,
+    0x55,0x4e,0x44,0x45,0x44,0x50,0x52,0x45,0x43,0x45,0x44,0x49,0x4e,0x47,0x43,0x55,
+    0x52,0x52,0x45,0x4e,0x54,0x46,0x4f,0x4c,0x4c,0x4f,0x57,0x49,0x4e,0x47,0x52,0x41,
+    0x4e,0x47,0x45,0x52,0x4f,0x57,0x53,0x47,0x52,0x4f,0x55,0x50,0x53,0x45,0x58,0x43,
+    0x4c,0x55,0x44,0x45,0x4f,0x54,0x48,0x45,0x52,0x53,0x54,0x49,0x45,0x53,0x50,0x41,
+    0x52,0x54,0x49,0x54,0x49,0x4f,0x4e,0x2e,0x2e,0x2e,0x54,0x41,0x42,0x4c,0x45,0x28,
+    0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x46,0x55,0x4e,0x43,0x54,0x49,0x4f,0x4e,
+    0x52,0x45,0x54,0x55,0x52,0x4e,0x53,0x44,0x45,0x4c,0x45,0x47,0x41,0x54,0x45,0x53,
+    0x4d,0x41,0x43,0x52,0x4f,0x49,0x4e,0x43,0x4c,0x55,0x44,0x45,0x4d,0x4f,0x44,0x55,
+    0x4c,0x45,0x54,0x52,0x45,0x45,0x41,0x43,0x43,0x55,0x4d,0x55,0x4c,0x41,0x54,0x45,
+    0x55,0x50,0x44,0x4f,0x57,0x4e,0x7c,0x3e,
 };
 
 static const uint32_t perfetto_fmt_string_offsets[] = {
-    0,1,9,10,15,17,18,24,29,33,39,44,50,55,57,58,
-    63,66,75,81,86,92,95,97,103,110,112,116,123,126,130,134,
-    139,145,151,155,159,162,166,170,180,182,188,191,195,202,209,217,
-    223,233,242,250,260,267,270,274,287,295,303,308,312,318,325,331,
-    337,344,350,350,351,355,362,369,375,379,384,386,393,398,404,416,
-    420,429,431,438,445,454,455,457,463,467,473,474,475,476,477,478,
-    479,480,482,484,486,487,488,490,492,494,496,499,500,507,513,517,
-    522,526,533,538,544,546,552,555,560,569,578,584,593,600,602,608,
-    614,620,625,630,634,640,642,647,651,655,660,664,669,676,678,679,
-    685,690,697,704,710,717,724,730,736,742,749,754,758,767,776,783,
-    786,795,800,804,810,817,819,825,829,838,841,847,855,863,870,879,
-    884,891,897,
+    0,1,9,10,13,18,20,21,27,32,36,42,47,51,53,54,
+    59,68,74,79,85,88,90,96,103,107,109,113,120,123,127,131,
+    136,142,148,152,156,159,163,167,169,169,175,181,187,189,195,198,
+    205,212,220,230,240,249,257,266,273,276,279,283,291,299,304,308,
+    314,321,334,340,345,352,361,367,374,380,390,391,398,404,408,417,
+    422,424,431,436,442,454,458,467,469,476,483,492,493,495,499,505,
+    506,507,508,509,510,511,512,514,516,518,519,520,522,524,526,528,
+    531,533,535,536,543,548,552,557,561,568,573,579,581,587,590,595,
+    604,610,621,630,637,643,649,655,660,665,669,675,682,686,691,696,
+    700,705,710,715,719,721,722,728,733,740,743,747,750,756,763,770,
+    776,784,790,796,803,808,812,821,830,837,846,851,855,861,868,874,
+    878,887,890,896,904,912,919,928,933,940,946,950,960,962,966,968,
 };
 
-static const uint32_t perfetto_fmt_string_count = 178;
+static const uint32_t perfetto_fmt_string_count = 191;
 
 static const uint16_t perfetto_fmt_enum_display[] = {
-    90,91,92,93,94,95,96,97,98,85,99,28,86,100,101,102,
-    103,104,105,106,73,111,112,113,
+    40,41,42,43,95,96,97,98,99,100,101,102,103,91,104,28,
+    92,105,106,107,108,109,110,111,112,113,79,118,119,120,139,140,
+    141,142,143,144,145,188,189,
 };
 
-static const uint32_t perfetto_fmt_enum_display_count = 24;
+static const uint32_t perfetto_fmt_enum_display_count = 39;
 
 static const uint8_t perfetto_fmt_ops[] = {
     1,0,0,0,0,0,
@@ -2618,6 +2916,10 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,0,0,0,0,
     18,1,1,0,3,0,
     0,0,1,0,0,0,
+    0,0,2,0,0,0,
+    12,0,0,0,0,0,
+    18,1,4,0,3,0,
+    0,0,3,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     10,2,0,0,5,0,
@@ -2628,33 +2930,33 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,3,0,0,6,0,
     0,0,2,0,0,0,
-    0,0,3,0,0,0,
     0,0,4,0,0,0,
+    0,0,5,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     12,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     10,4,0,0,15,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,6,0,0,0,
+    0,0,7,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     0,0,2,0,0,0,
     2,4,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     10,5,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,8,0,0,0,
+    0,0,9,0,0,0,
     0,0,2,0,0,0,
     2,5,0,0,0,0,
     12,0,0,0,0,0,
@@ -2665,6 +2967,10 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,1,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
+    18,1,4,0,3,0,
+    0,0,3,0,0,0,
+    0,0,2,0,0,0,
+    12,0,0,0,0,0,
     10,2,0,0,5,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
@@ -2672,52 +2978,54 @@ static const uint8_t perfetto_fmt_ops[] = {
     9,0,0,0,0,0,
     12,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,9,0,0,0,
     0,0,10,0,0,0,
+    0,0,11,0,0,0,
     0,0,2,0,0,0,
     6,0,0,0,0,0,
-    0,0,11,0,0,0,
+    0,0,0,0,0,0,
     0,0,4,0,0,0,
+    0,0,5,0,0,0,
     0,0,2,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     10,4,0,0,15,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,6,0,0,0,
+    0,0,7,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     0,0,2,0,0,0,
     2,4,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     10,5,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,8,0,0,0,
+    0,0,9,0,0,0,
     0,0,2,0,0,0,
     2,5,0,0,0,0,
     12,0,0,0,0,0,
     0,0,12,0,0,0,
+    0,0,0,0,0,0,
     24,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     1,1,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     20,2,0,0,3,0,
     1,2,0,0,0,0,
     0,0,14,0,0,0,
@@ -2734,24 +3042,24 @@ static const uint8_t perfetto_fmt_ops[] = {
     11,0,0,0,13,0,
     19,0,1,0,3,0,
     0,0,15,0,0,0,
-    0,0,16,0,0,0,
+    0,0,3,0,0,0,
     11,0,0,0,8,0,
     19,0,2,0,2,0,
-    0,0,17,0,0,0,
+    0,0,16,0,0,0,
     11,0,0,0,4,0,
     19,0,3,0,2,0,
-    0,0,18,0,0,0,
+    0,0,17,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     5,0,0,0,0,0,
-    2,2,0,0,0,0,
     6,0,0,0,0,0,
+    2,2,0,0,0,0,
     10,3,0,0,8,0,
     3,0,0,0,0,0,
-    0,0,3,0,0,0,
     0,0,4,0,0,0,
+    0,0,5,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,3,0,0,0,0,
@@ -2759,7 +3067,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,4,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,19,0,0,0,
+    0,0,18,0,0,0,
     0,0,2,0,0,0,
     2,4,0,0,0,0,
     12,0,0,0,0,0,
@@ -2771,9 +3079,9 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    0,0,20,0,0,0,
+    0,0,19,0,0,0,
     0,0,2,0,0,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
@@ -2782,17 +3090,17 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     25,2,0,3,0,0,
     17,0,0,0,5,0,
     0,0,2,0,0,0,
+    0,0,20,0,0,0,
     0,0,21,0,0,0,
-    0,0,22,0,0,0,
     0,0,2,0,0,0,
     11,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,22,0,0,0,
+    0,0,21,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     17,1,0,0,2,0,
@@ -2805,17 +3113,23 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     19,0,2,0,4,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
-    0,0,23,0,0,0,
-    11,0,0,0,44,0,
+    0,0,22,0,0,0,
+    11,0,0,0,51,0,
     19,0,3,0,4,0,
     25,1,0,3,0,0,
     0,0,2,0,0,0,
+    0,0,23,0,0,0,
+    11,0,0,0,45,0,
+    19,0,6,0,5,0,
+    25,1,0,3,0,0,
+    0,0,2,0,0,0,
+    0,0,20,0,0,0,
     0,0,24,0,0,0,
     11,0,0,0,38,0,
     19,0,0,0,6,0,
@@ -2829,7 +3143,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     25,1,0,3,0,0,
     0,0,2,0,0,0,
     0,0,25,0,0,0,
-    0,0,21,0,0,0,
+    0,0,20,0,0,0,
     0,0,2,0,0,0,
     25,2,0,3,1,0,
     11,0,0,0,21,0,
@@ -2837,7 +3151,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     25,1,0,3,0,0,
     0,0,2,0,0,0,
     0,0,25,0,0,0,
-    0,0,21,0,0,0,
+    0,0,20,0,0,0,
     0,0,1,0,0,0,
     0,0,26,0,0,0,
     0,0,2,0,0,0,
@@ -2857,10 +3171,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
+    12,0,0,0,0,0,
     25,1,0,3,0,0,
     17,0,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,21,0,0,0,
+    0,0,20,0,0,0,
     0,0,27,0,0,0,
     0,0,2,0,0,0,
     11,0,0,0,4,0,
@@ -2876,7 +3191,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     25,2,0,3,0,0,
     17,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,21,0,0,0,
+    0,0,20,0,0,0,
     0,0,2,0,0,0,
     11,0,0,0,2,0,
     0,0,2,0,0,0,
@@ -2935,8 +3250,46 @@ static const uint8_t perfetto_fmt_ops[] = {
     22,0,0,0,0,0,
     14,0,0,0,0,0,
     16,0,0,0,0,0,
-    20,0,0,0,4,0,
+    19,0,0,0,4,0,
+    0,0,31,0,0,0,
+    0,0,2,0,0,0,
+    1,2,0,0,0,0,
+    11,0,0,0,27,0,
     0,0,39,0,0,0,
+    0,0,2,0,0,0,
+    21,0,0,0,0,0,
+    0,0,2,0,0,0,
+    19,1,1,0,3,0,
+    0,0,44,0,0,0,
+    0,0,45,0,0,0,
+    11,0,0,0,18,0,
+    19,1,2,0,3,0,
+    0,0,46,0,0,0,
+    0,0,24,0,0,0,
+    11,0,0,0,13,0,
+    19,1,3,0,3,0,
+    0,0,46,0,0,0,
+    0,0,47,0,0,0,
+    11,0,0,0,8,0,
+    19,1,4,0,2,0,
+    0,0,48,0,0,0,
+    11,0,0,0,4,0,
+    19,1,5,0,2,0,
+    0,0,49,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    22,0,0,0,0,0,
+    14,0,0,0,0,0,
+    15,0,40,0,0,0,
+    3,0,0,0,0,0,
+    16,0,0,0,0,0,
+    6,0,0,0,0,0,
+    20,0,0,0,4,0,
+    0,0,50,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -2948,253 +3301,280 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,1,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
-    19,2,1,0,6,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,41,0,0,0,
-    0,0,42,0,0,0,
-    0,0,43,0,0,0,
-    11,0,0,0,22,0,
-    19,2,2,0,6,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,41,0,0,0,
-    0,0,42,0,0,0,
-    0,0,44,0,0,0,
-    11,0,0,0,14,0,
-    19,2,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,41,0,0,0,
-    0,0,45,0,0,0,
-    11,0,0,0,7,0,
-    19,2,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,41,0,0,0,
-    0,0,46,0,0,0,
+    8,0,0,0,0,0,
+    10,2,0,0,3,0,
+    3,0,0,0,0,0,
+    2,2,0,0,0,0,
     12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    19,3,1,0,6,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,47,0,0,0,
-    0,0,42,0,0,0,
-    0,0,43,0,0,0,
-    11,0,0,0,22,0,
-    19,3,2,0,6,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,47,0,0,0,
-    0,0,42,0,0,0,
-    0,0,44,0,0,0,
-    11,0,0,0,14,0,
-    19,3,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,47,0,0,0,
-    0,0,45,0,0,0,
-    11,0,0,0,7,0,
-    19,3,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,47,0,0,0,
-    0,0,46,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    17,4,0,0,7,0,
-    20,0,0,0,2,0,
-    0,0,2,0,0,0,
-    12,0,0,0,0,0,
-    0,0,48,0,0,0,
-    0,0,49,0,0,0,
-    0,0,50,0,0,0,
-    12,0,0,0,0,0,
-    20,1,0,0,5,0,
+    19,3,1,0,4,0,
+    3,0,0,0,0,0,
+    0,0,20,0,0,0,
     0,0,51,0,0,0,
-    0,0,2,0,0,0,
-    1,1,0,0,0,0,
-    0,0,2,0,0,0,
+    11,0,0,0,5,0,
+    19,3,2,0,3,0,
+    3,0,0,0,0,0,
+    0,0,51,0,0,0,
     12,0,0,0,0,0,
-    19,0,2,0,45,0,
+    12,0,0,0,0,0,
+    19,4,1,0,4,0,
+    0,0,2,0,0,0,
     0,0,52,0,0,0,
     0,0,53,0,0,0,
-    19,3,1,0,3,0,
+    11,0,0,0,6,0,
+    19,4,2,0,4,0,
     0,0,2,0,0,0,
+    0,0,52,0,0,0,
     0,0,54,0,0,0,
     12,0,0,0,0,0,
-    17,4,0,0,3,0,
-    0,0,2,0,0,0,
-    0,0,55,0,0,0,
     12,0,0,0,0,0,
-    19,2,1,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,57,0,0,0,
-    11,0,0,0,28,0,
-    19,2,2,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,58,0,0,0,
-    11,0,0,0,21,0,
-    19,2,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,59,0,0,0,
-    11,0,0,0,14,0,
-    19,2,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,60,0,0,0,
-    11,0,0,0,7,0,
-    19,2,5,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,61,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    11,0,0,0,135,0,
-    19,0,1,0,37,0,
-    0,0,21,0,0,0,
-    0,0,43,0,0,0,
-    19,2,1,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,57,0,0,0,
-    11,0,0,0,28,0,
-    19,2,2,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,58,0,0,0,
-    11,0,0,0,21,0,
-    19,2,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,59,0,0,0,
-    11,0,0,0,14,0,
-    19,2,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,60,0,0,0,
-    11,0,0,0,7,0,
-    19,2,5,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,61,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    11,0,0,0,96,0,
-    19,0,3,0,36,0,
-    0,0,62,0,0,0,
-    19,2,1,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,57,0,0,0,
-    11,0,0,0,28,0,
-    19,2,2,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,58,0,0,0,
-    11,0,0,0,21,0,
-    19,2,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,59,0,0,0,
-    11,0,0,0,14,0,
-    19,2,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,60,0,0,0,
-    11,0,0,0,7,0,
-    19,2,5,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,61,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    11,0,0,0,58,0,
-    19,0,4,0,10,0,
-    6,0,0,0,0,0,
-    0,0,63,0,0,0,
-    8,0,0,0,0,0,
-    4,0,0,0,0,0,
-    2,8,0,0,0,0,
     9,0,0,0,0,0,
-    4,0,0,0,0,0,
-    0,0,5,0,0,0,
     7,0,0,0,0,0,
-    11,0,0,0,46,0,
-    19,0,0,0,12,0,
-    6,0,0,0,0,0,
-    0,0,44,0,0,0,
+    19,0,2,0,49,0,
+    0,0,55,0,0,0,
+    0,0,56,0,0,0,
+    19,2,1,0,3,0,
     0,0,2,0,0,0,
+    0,0,57,0,0,0,
+    12,0,0,0,0,0,
+    19,2,2,0,3,0,
+    0,0,2,0,0,0,
+    0,0,58,0,0,0,
+    12,0,0,0,0,0,
+    19,1,1,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,60,0,0,0,
+    11,0,0,0,28,0,
+    19,1,2,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,61,0,0,0,
+    11,0,0,0,21,0,
+    19,1,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,14,0,
+    19,1,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,63,0,0,0,
+    11,0,0,0,7,0,
+    19,1,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    17,3,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,65,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,205,0,
+    19,0,1,0,37,0,
+    0,0,20,0,0,0,
+    0,0,24,0,0,0,
+    19,1,1,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,60,0,0,0,
+    11,0,0,0,28,0,
+    19,1,2,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,61,0,0,0,
+    11,0,0,0,21,0,
+    19,1,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,14,0,
+    19,1,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,63,0,0,0,
+    11,0,0,0,7,0,
+    19,1,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,166,0,
+    19,0,3,0,36,0,
+    0,0,66,0,0,0,
+    19,1,1,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,60,0,0,0,
+    11,0,0,0,28,0,
+    19,1,2,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,61,0,0,0,
+    11,0,0,0,21,0,
+    19,1,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,14,0,
+    19,1,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,63,0,0,0,
+    11,0,0,0,7,0,
+    19,1,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,128,0,
+    19,0,4,0,11,0,
+    6,0,0,0,0,0,
+    0,0,67,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,7,0,0,0,0,
+    2,11,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    11,0,0,0,32,0,
-    19,0,6,0,4,0,
-    0,0,64,0,0,0,
+    11,0,0,0,115,0,
+    19,0,0,0,16,0,
+    0,0,47,0,0,0,
     0,0,2,0,0,0,
-    1,5,0,0,0,0,
-    11,0,0,0,26,0,
-    19,0,5,0,2,0,
+    17,8,0,0,10,0,
+    6,0,0,0,0,0,
+    0,0,0,0,0,0,
+    8,0,0,0,0,0,
+    4,0,0,0,0,0,
     2,10,0,0,0,0,
-    11,0,0,0,22,0,
-    19,0,7,0,16,0,
+    9,0,0,0,0,0,
+    4,0,0,0,0,0,
+    0,0,6,0,0,0,
+    7,0,0,0,0,0,
+    11,0,0,0,2,0,
+    2,10,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,97,0,
+    19,0,6,0,4,0,
+    0,0,68,0,0,0,
+    0,0,2,0,0,0,
+    1,4,0,0,0,0,
+    11,0,0,0,91,0,
+    19,0,5,0,2,0,
+    2,13,0,0,0,0,
+    11,0,0,0,87,0,
+    19,0,7,0,25,0,
+    17,9,0,0,4,0,
+    0,0,69,0,0,0,
+    0,0,70,0,0,0,
+    0,0,2,0,0,0,
+    12,0,0,0,0,0,
     6,0,0,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,9,0,0,0,0,
+    2,12,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    19,6,1,0,3,0,
+    19,5,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,65,0,0,0,
+    0,0,71,0,0,0,
     12,0,0,0,0,0,
+    19,5,2,0,3,0,
+    0,0,2,0,0,0,
+    0,0,72,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,60,0,
+    19,0,8,0,36,0,
+    0,0,24,0,0,0,
+    19,1,1,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,60,0,0,0,
+    11,0,0,0,28,0,
+    19,1,2,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,61,0,0,0,
+    11,0,0,0,21,0,
+    19,1,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,14,0,
+    19,1,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,63,0,0,0,
+    11,0,0,0,7,0,
+    19,1,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,22,0,
+    19,0,9,0,20,0,
+    19,6,1,0,3,0,
+    0,0,20,0,0,0,
+    0,0,51,0,0,0,
     11,0,0,0,4,0,
-    19,0,8,0,2,0,
-    0,0,43,0,0,0,
+    19,6,2,0,2,0,
+    0,0,51,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    19,7,1,0,4,0,
+    0,0,2,0,0,0,
+    0,0,52,0,0,0,
+    0,0,53,0,0,0,
+    11,0,0,0,6,0,
+    19,7,2,0,4,0,
+    0,0,2,0,0,0,
+    0,0,52,0,0,0,
+    0,0,54,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3204,9 +3584,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    0,0,73,0,0,0,
+    0,0,2,0,0,0,
+    1,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,40,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
@@ -3224,152 +3610,196 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
-    20,1,0,0,5,0,
-    0,0,51,0,0,0,
-    0,0,2,0,0,0,
-    1,1,0,0,0,0,
-    0,0,2,0,0,0,
-    12,0,0,0,0,0,
-    19,0,0,0,45,0,
+    19,0,0,0,46,0,
     6,0,0,0,0,0,
-    0,0,52,0,0,0,
-    0,0,68,0,0,0,
+    0,0,55,0,0,0,
+    0,0,56,0,0,0,
+    0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,4,0,0,0,0,
+    2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    19,2,1,0,5,0,
+    19,1,1,0,5,0,
     0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,57,0,0,0,
-    11,0,0,0,28,0,
-    19,2,2,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,58,0,0,0,
-    11,0,0,0,21,0,
-    19,2,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
+    0,0,39,0,0,0,
     0,0,59,0,0,0,
-    11,0,0,0,14,0,
-    19,2,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
     0,0,60,0,0,0,
-    11,0,0,0,7,0,
-    19,2,5,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,61,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    11,0,0,0,73,0,
-    19,0,1,0,44,0,
-    6,0,0,0,0,0,
-    0,0,69,0,0,0,
-    8,0,0,0,0,0,
-    4,0,0,0,0,0,
-    2,4,0,0,0,0,
-    9,0,0,0,0,0,
-    4,0,0,0,0,0,
-    0,0,5,0,0,0,
-    7,0,0,0,0,0,
-    19,2,1,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,57,0,0,0,
     11,0,0,0,28,0,
-    19,2,2,0,5,0,
+    19,1,2,0,5,0,
     0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,58,0,0,0,
-    11,0,0,0,21,0,
-    19,2,3,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
+    0,0,39,0,0,0,
     0,0,59,0,0,0,
-    11,0,0,0,14,0,
-    19,2,4,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
-    0,0,60,0,0,0,
-    11,0,0,0,7,0,
-    19,2,5,0,5,0,
-    0,0,2,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
     0,0,61,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    11,0,0,0,27,0,
-    19,0,2,0,10,0,
-    6,0,0,0,0,0,
+    11,0,0,0,21,0,
+    19,1,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,14,0,
+    19,1,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
     0,0,63,0,0,0,
+    11,0,0,0,7,0,
+    19,1,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,110,0,
+    19,0,1,0,45,0,
+    6,0,0,0,0,0,
+    0,0,66,0,0,0,
+    0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,6,0,0,0,0,
+    2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    11,0,0,0,15,0,
-    19,0,3,0,13,0,
+    19,1,1,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,60,0,0,0,
+    11,0,0,0,28,0,
+    19,1,2,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,61,0,0,0,
+    11,0,0,0,21,0,
+    19,1,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,14,0,
+    19,1,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,63,0,0,0,
+    11,0,0,0,7,0,
+    19,1,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,63,0,
+    19,0,2,0,45,0,
     6,0,0,0,0,0,
-    0,0,70,0,0,0,
-    0,0,68,0,0,0,
+    0,0,67,0,0,0,
+    0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,5,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
+    7,0,0,0,0,0,
+    19,1,1,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,60,0,0,0,
+    11,0,0,0,28,0,
+    19,1,2,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,61,0,0,0,
+    11,0,0,0,21,0,
+    19,1,3,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,14,0,
+    19,1,4,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,63,0,0,0,
+    11,0,0,0,7,0,
+    19,1,5,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,16,0,
+    19,0,3,0,14,0,
+    6,0,0,0,0,0,
+    0,0,75,0,0,0,
+    0,0,56,0,0,0,
+    0,0,0,0,0,0,
+    8,0,0,0,0,0,
+    4,0,0,0,0,0,
+    2,4,0,0,0,0,
+    9,0,0,0,0,0,
+    4,0,0,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     0,0,2,0,0,0,
-    2,7,0,0,0,0,
+    2,6,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
+    6,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,40,0,0,0,
+    3,0,0,0,0,0,
+    16,0,0,0,0,0,
+    7,0,0,0,0,0,
+    22,0,0,0,0,0,
+    14,0,0,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
-    17,2,0,0,3,0,
+    0,0,76,0,0,0,
+    19,2,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,72,0,0,0,
+    0,0,77,0,0,0,
+    11,0,0,0,5,0,
+    19,2,2,0,3,0,
+    0,0,2,0,0,0,
+    0,0,78,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,73,0,0,0,
+    0,0,79,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,74,0,0,0,
-    0,0,21,0,0,0,
+    0,0,80,0,0,0,
     0,0,20,0,0,0,
+    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -3383,13 +3813,13 @@ static const uint8_t perfetto_fmt_ops[] = {
     4,0,0,0,0,0,
     2,5,0,0,0,0,
     10,6,0,0,4,0,
-    0,0,67,0,0,0,
+    0,0,74,0,0,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
     12,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     12,0,0,0,0,0,
     10,7,0,0,3,0,
     3,0,0,0,0,0,
@@ -3397,15 +3827,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     18,4,1,0,7,0,
     0,0,2,0,0,0,
-    0,0,75,0,0,0,
-    0,0,76,0,0,0,
+    0,0,81,0,0,0,
+    0,0,82,0,0,0,
     18,4,2,0,2,0,
-    0,0,67,0,0,0,
+    0,0,74,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     18,4,2,0,3,0,
     0,0,2,0,0,0,
-    0,0,77,0,0,0,
+    0,0,83,0,0,0,
     12,0,0,0,0,0,
     7,0,0,0,0,0,
     10,7,0,0,3,0,
@@ -3421,19 +3851,19 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,2,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     19,1,1,0,3,0,
-    0,0,78,0,0,0,
+    0,0,84,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     19,1,2,0,4,0,
-    0,0,21,0,0,0,
-    0,0,78,0,0,0,
+    0,0,20,0,0,0,
+    0,0,84,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
@@ -3443,18 +3873,18 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     17,0,0,0,3,0,
-    0,0,79,0,0,0,
-    0,0,80,0,0,0,
+    0,0,85,0,0,0,
+    0,0,86,0,0,0,
     11,0,0,0,2,0,
-    0,0,79,0,0,0,
+    0,0,85,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,7,0,
     6,0,0,0,0,0,
@@ -3466,8 +3896,8 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     5,0,0,0,0,0,
     2,2,0,0,0,0,
-    0,0,40,0,0,0,
-    0,0,56,0,0,0,
+    0,0,39,0,0,0,
+    0,0,59,0,0,0,
     10,0,0,0,11,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
@@ -3477,22 +3907,22 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
     19,2,1,0,20,0,
     0,0,2,0,0,0,
-    0,0,81,0,0,0,
-    0,0,47,0,0,0,
+    0,0,87,0,0,0,
+    0,0,42,0,0,0,
     10,3,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,42,0,0,0,
+    0,0,46,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,3,0,0,0,0,
@@ -3500,7 +3930,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,4,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,4,0,0,0,0,
@@ -3508,21 +3938,21 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     11,0,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,81,0,0,0,
-    0,0,82,0,0,0,
+    0,0,87,0,0,0,
+    0,0,88,0,0,0,
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,66,0,0,0,
+    15,0,40,0,0,0,
     5,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
     10,0,0,0,14,0,
     17,1,0,0,3,0,
-    0,0,79,0,0,0,
-    0,0,80,0,0,0,
+    0,0,85,0,0,0,
+    0,0,86,0,0,0,
     11,0,0,0,2,0,
-    0,0,79,0,0,0,
+    0,0,85,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -3538,29 +3968,39 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,2,0,0,0,0,
     19,3,2,0,6,0,
     0,0,2,0,0,0,
-    0,0,83,0,0,0,
-    0,0,4,0,0,0,
+    0,0,89,0,0,0,
+    0,0,5,0,0,0,
     0,0,2,0,0,0,
     1,4,0,0,0,0,
     11,0,0,0,6,0,
     19,3,1,0,4,0,
     0,0,2,0,0,0,
-    0,0,21,0,0,0,
-    0,0,83,0,0,0,
+    0,0,20,0,0,0,
+    0,0,89,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     10,5,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,5,0,0,0,0,
     9,0,0,0,0,0,
     12,0,0,0,0,0,
+    10,8,0,0,9,0,
+    3,0,0,0,0,0,
+    0,0,90,0,0,0,
+    6,0,0,0,0,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
+    2,8,0,0,0,0,
+    9,0,0,0,0,0,
+    7,0,0,0,0,0,
+    12,0,0,0,0,0,
     10,6,0,0,8,0,
     3,0,0,0,0,0,
-    0,0,3,0,0,0,
     0,0,4,0,0,0,
+    0,0,5,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
@@ -3568,19 +4008,9 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,7,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,19,0,0,0,
+    0,0,18,0,0,0,
     0,0,2,0,0,0,
     2,7,0,0,0,0,
-    12,0,0,0,0,0,
-    10,8,0,0,9,0,
-    3,0,0,0,0,0,
-    0,0,84,0,0,0,
-    6,0,0,0,0,0,
-    8,0,0,0,0,0,
-    3,0,0,0,0,0,
-    2,8,0,0,0,0,
-    9,0,0,0,0,0,
-    7,0,0,0,0,0,
     12,0,0,0,0,0,
     7,0,0,0,0,0,
     20,0,0,0,2,0,
@@ -3594,26 +4024,26 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,1,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,85,0,0,0,
+    0,0,91,0,0,0,
     0,0,2,0,0,0,
     24,2,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
     10,0,0,0,14,0,
     17,1,0,0,3,0,
-    0,0,79,0,0,0,
-    0,0,80,0,0,0,
+    0,0,85,0,0,0,
+    0,0,86,0,0,0,
     11,0,0,0,2,0,
-    0,0,79,0,0,0,
+    0,0,85,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -3623,31 +4053,31 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     5,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,47,0,0,0,
+    0,0,42,0,0,0,
     19,2,1,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,57,0,0,0,
+    0,0,92,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,24,0,
     19,2,2,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,58,0,0,0,
+    0,0,92,0,0,0,
+    0,0,61,0,0,0,
     11,0,0,0,18,0,
     19,2,3,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,59,0,0,0,
+    0,0,92,0,0,0,
+    0,0,62,0,0,0,
     11,0,0,0,12,0,
     19,2,4,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,60,0,0,0,
+    0,0,92,0,0,0,
+    0,0,63,0,0,0,
     11,0,0,0,6,0,
     19,2,5,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,61,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3657,20 +4087,20 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,3,0,0,0,0,
     19,4,2,0,6,0,
     0,0,2,0,0,0,
-    0,0,83,0,0,0,
-    0,0,4,0,0,0,
+    0,0,89,0,0,0,
+    0,0,5,0,0,0,
     0,0,2,0,0,0,
     1,5,0,0,0,0,
     11,0,0,0,6,0,
     19,4,1,0,4,0,
     0,0,2,0,0,0,
-    0,0,21,0,0,0,
-    0,0,83,0,0,0,
+    0,0,20,0,0,0,
+    0,0,89,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     10,6,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,42,0,0,0,
+    0,0,46,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
@@ -3684,30 +4114,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,8,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,8,0,0,0,0,
     9,0,0,0,0,0,
     12,0,0,0,0,0,
-    10,9,0,0,8,0,
-    3,0,0,0,0,0,
-    0,0,3,0,0,0,
-    0,0,4,0,0,0,
-    8,0,0,0,0,0,
-    3,0,0,0,0,0,
-    2,9,0,0,0,0,
-    9,0,0,0,0,0,
-    12,0,0,0,0,0,
-    10,10,0,0,5,0,
-    3,0,0,0,0,0,
-    0,0,19,0,0,0,
-    0,0,2,0,0,0,
-    2,10,0,0,0,0,
-    12,0,0,0,0,0,
     10,11,0,0,9,0,
     3,0,0,0,0,0,
-    0,0,84,0,0,0,
+    0,0,90,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
@@ -3715,14 +4130,29 @@ static const uint8_t perfetto_fmt_ops[] = {
     9,0,0,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
+    10,9,0,0,8,0,
+    3,0,0,0,0,0,
+    0,0,4,0,0,0,
+    0,0,5,0,0,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
+    2,9,0,0,0,0,
+    9,0,0,0,0,0,
+    12,0,0,0,0,0,
+    10,10,0,0,5,0,
+    3,0,0,0,0,0,
+    0,0,18,0,0,0,
+    0,0,2,0,0,0,
+    2,10,0,0,0,0,
+    12,0,0,0,0,0,
     7,0,0,0,0,0,
     6,0,0,0,0,0,
     10,0,0,0,14,0,
     17,1,0,0,3,0,
-    0,0,79,0,0,0,
-    0,0,80,0,0,0,
+    0,0,85,0,0,0,
+    0,0,86,0,0,0,
     11,0,0,0,2,0,
-    0,0,79,0,0,0,
+    0,0,85,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -3732,68 +4162,74 @@ static const uint8_t perfetto_fmt_ops[] = {
     7,0,0,0,0,0,
     5,0,0,0,0,0,
     12,0,0,0,0,0,
-    19,2,5,0,2,0,
-    0,0,61,0,0,0,
-    11,0,0,0,25,0,
-    0,0,87,0,0,0,
-    19,2,1,0,4,0,
+    19,2,1,0,2,0,
+    0,0,64,0,0,0,
+    11,0,0,0,31,0,
+    0,0,43,0,0,0,
+    19,3,1,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,57,0,0,0,
-    11,0,0,0,18,0,
-    19,2,2,0,4,0,
-    0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,58,0,0,0,
-    11,0,0,0,12,0,
-    19,2,3,0,4,0,
-    0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,59,0,0,0,
-    11,0,0,0,6,0,
-    19,2,4,0,4,0,
-    0,0,2,0,0,0,
-    0,0,86,0,0,0,
+    0,0,92,0,0,0,
     0,0,60,0,0,0,
+    11,0,0,0,24,0,
+    19,3,2,0,4,0,
+    0,0,2,0,0,0,
+    0,0,92,0,0,0,
+    0,0,61,0,0,0,
+    11,0,0,0,18,0,
+    19,3,3,0,4,0,
+    0,0,2,0,0,0,
+    0,0,92,0,0,0,
+    0,0,62,0,0,0,
+    11,0,0,0,12,0,
+    19,3,4,0,4,0,
+    0,0,2,0,0,0,
+    0,0,92,0,0,0,
+    0,0,63,0,0,0,
+    11,0,0,0,6,0,
+    19,3,5,0,4,0,
+    0,0,2,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,88,0,0,0,
+    0,0,93,0,0,0,
     0,0,2,0,0,0,
-    2,3,0,0,0,0,
-    10,4,0,0,10,0,
+    2,4,0,0,0,0,
+    10,5,0,0,10,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,4,0,0,0,0,
+    2,5,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    12,0,0,0,0,0,
-    10,5,0,0,3,0,
-    3,0,0,0,0,0,
-    2,5,0,0,0,0,
-    11,0,0,0,4,0,
-    0,0,2,0,0,0,
-    0,0,44,0,0,0,
-    0,0,89,0,0,0,
     12,0,0,0,0,0,
     10,6,0,0,3,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
+    11,0,0,0,4,0,
+    0,0,2,0,0,0,
+    0,0,47,0,0,0,
+    0,0,94,0,0,0,
     12,0,0,0,0,0,
-    10,7,0,0,9,0,
+    10,7,0,0,3,0,
     3,0,0,0,0,0,
-    0,0,84,0,0,0,
+    2,7,0,0,0,0,
+    12,0,0,0,0,0,
+    10,8,0,0,9,0,
+    3,0,0,0,0,0,
+    0,0,90,0,0,0,
     6,0,0,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
-    2,7,0,0,0,0,
+    2,8,0,0,0,0,
     9,0,0,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3808,35 +4244,35 @@ static const uint8_t perfetto_fmt_ops[] = {
     19,0,12,0,6,0,
     23,1,0,0,0,0,
     3,0,0,0,0,0,
-    0,0,86,0,0,0,
+    0,0,92,0,0,0,
     0,0,2,0,0,0,
     23,2,0,0,1,0,
     11,0,0,0,8,0,
     6,0,0,0,0,0,
     23,1,0,0,0,0,
     3,0,0,0,0,0,
-    21,0,0,0,0,0,
+    21,0,4,0,0,0,
     0,0,2,0,0,0,
     23,2,0,0,1,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,0,3,0,4,0,
-    0,0,21,0,0,0,
+    0,0,20,0,0,0,
     0,0,2,0,0,0,
-    23,1,20,0,0,0,
+    23,1,22,0,0,0,
     11,0,0,0,15,0,
     19,0,0,0,3,0,
-    0,0,91,0,0,0,
-    23,1,20,0,0,0,
+    0,0,96,0,0,0,
+    23,1,22,0,0,0,
     11,0,0,0,10,0,
     19,0,1,0,3,0,
-    0,0,90,0,0,0,
-    23,1,20,0,0,0,
+    0,0,95,0,0,0,
+    23,1,22,0,0,0,
     11,0,0,0,5,0,
     19,0,2,0,3,0,
-    0,0,107,0,0,0,
-    23,1,20,0,0,0,
+    0,0,114,0,0,0,
+    23,1,22,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3845,17 +4281,26 @@ static const uint8_t perfetto_fmt_ops[] = {
     6,0,0,0,0,0,
     0,0,0,0,0,0,
     2,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     1,0,0,0,0,0,
     20,0,0,0,2,0,
     1,0,0,0,0,0,
     11,0,0,0,2,0,
-    0,0,108,0,0,0,
+    0,0,115,0,0,0,
     12,0,0,0,0,0,
+    6,0,0,0,0,0,
+    0,0,0,0,0,0,
+    8,0,0,0,0,0,
+    4,0,0,0,0,0,
+    2,0,0,0,0,0,
+    9,0,0,0,0,0,
+    4,0,0,0,0,0,
+    0,0,6,0,0,0,
+    7,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
@@ -3865,8 +4310,12 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,1,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
+    18,1,4,0,3,0,
+    0,0,3,0,0,0,
+    0,0,2,0,0,0,
+    12,0,0,0,0,0,
     18,1,2,0,2,0,
-    0,0,92,0,0,0,
+    0,0,97,0,0,0,
     11,0,0,0,7,0,
     10,2,0,0,5,0,
     8,0,0,0,0,0,
@@ -3876,177 +4325,229 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     10,3,0,0,15,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,6,0,0,0,
+    0,0,7,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     10,4,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,8,0,0,0,
+    0,0,9,0,0,0,
     0,0,2,0,0,0,
     2,4,0,0,0,0,
     12,0,0,0,0,0,
     1,0,0,0,0,0,
     25,0,0,9,0,0,
     0,0,2,0,0,0,
-    0,0,64,0,0,0,
+    0,0,68,0,0,0,
     0,0,2,0,0,0,
     1,1,0,0,0,0,
-    0,0,109,0,0,0,
+    0,0,116,0,0,0,
+    0,0,0,0,0,0,
     19,0,0,0,2,0,
-    0,0,60,0,0,0,
+    0,0,63,0,0,0,
     11,0,0,0,12,0,
     19,0,1,0,2,0,
-    0,0,57,0,0,0,
+    0,0,60,0,0,0,
     11,0,0,0,8,0,
     19,0,2,0,2,0,
-    0,0,58,0,0,0,
+    0,0,61,0,0,0,
     11,0,0,0,4,0,
     19,0,3,0,2,0,
-    0,0,59,0,0,0,
+    0,0,62,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,4,0,
-    0,0,67,0,0,0,
+    0,0,74,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     10,1,0,0,3,0,
     2,1,0,0,0,0,
     0,0,14,0,0,0,
     12,0,0,0,0,0,
     2,0,0,0,0,0,
-    0,0,110,0,0,0,
+    0,0,117,0,0,0,
     0,0,2,0,0,0,
-    21,0,20,0,0,0,
+    21,0,26,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,74,0,0,0,
-    0,0,20,0,0,0,
+    0,0,80,0,0,0,
+    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
-    0,0,114,0,0,0,
-    0,0,73,0,0,0,
+    0,0,121,0,0,0,
+    0,0,79,0,0,0,
     0,0,2,0,0,0,
-    10,1,0,0,3,0,
-    2,1,0,0,0,0,
+    10,2,0,0,3,0,
+    2,2,0,0,0,0,
     0,0,2,0,0,0,
     12,0,0,0,0,0,
     19,0,0,0,5,0,
-    0,0,115,0,0,0,
-    0,0,116,0,0,0,
-    0,0,2,0,0,0,
-    2,2,0,0,0,0,
-    11,0,0,0,25,0,
-    19,0,1,0,9,0,
-    0,0,115,0,0,0,
-    0,0,117,0,0,0,
+    0,0,122,0,0,0,
+    0,0,123,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
+    11,0,0,0,34,0,
+    19,0,1,0,12,0,
+    0,0,122,0,0,0,
+    17,1,0,0,3,0,
     0,0,2,0,0,0,
-    0,0,116,0,0,0,
+    0,0,124,0,0,0,
+    12,0,0,0,0,0,
     0,0,2,0,0,0,
-    2,2,0,0,0,0,
-    11,0,0,0,14,0,
-    19,0,2,0,5,0,
-    0,0,110,0,0,0,
-    0,0,117,0,0,0,
+    2,4,0,0,0,0,
     0,0,2,0,0,0,
-    2,3,0,0,0,0,
-    11,0,0,0,7,0,
-    19,0,3,0,5,0,
-    0,0,118,0,0,0,
-    0,0,117,0,0,0,
+    0,0,123,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
+    11,0,0,0,20,0,
+    19,0,2,0,8,0,
+    0,0,117,0,0,0,
+    17,1,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,124,0,0,0,
+    12,0,0,0,0,0,
+    0,0,2,0,0,0,
+    2,4,0,0,0,0,
+    11,0,0,0,10,0,
+    19,0,3,0,8,0,
+    0,0,125,0,0,0,
+    17,1,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,124,0,0,0,
+    12,0,0,0,0,0,
+    0,0,2,0,0,0,
+    2,5,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
-    19,0,0,0,10,0,
-    0,0,119,0,0,0,
+    19,0,0,0,14,0,
+    0,0,126,0,0,0,
     19,1,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,120,0,0,0,
+    0,0,53,0,0,0,
     12,0,0,0,0,0,
     19,1,2,0,3,0,
     0,0,2,0,0,0,
-    0,0,121,0,0,0,
+    0,0,54,0,0,0,
     12,0,0,0,0,0,
-    11,0,0,0,8,0,
+    19,1,3,0,3,0,
+    0,0,2,0,0,0,
+    0,0,127,0,0,0,
+    12,0,0,0,0,0,
+    11,0,0,0,12,0,
     19,0,1,0,2,0,
-    0,0,122,0,0,0,
-    11,0,0,0,4,0,
+    0,0,128,0,0,0,
+    11,0,0,0,8,0,
     19,0,2,0,2,0,
-    0,0,57,0,0,0,
+    0,0,60,0,0,0,
+    11,0,0,0,4,0,
+    19,0,3,0,2,0,
+    0,0,36,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    17,2,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,129,0,0,0,
+    12,0,0,0,0,0,
+    20,3,0,0,3,0,
+    0,0,2,0,0,0,
+    1,3,0,0,0,0,
     12,0,0,0,0,0,
     19,0,0,0,4,0,
-    0,0,123,0,0,0,
+    0,0,130,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
-    11,0,0,0,15,0,
-    19,0,1,0,5,0,
-    0,0,124,0,0,0,
-    0,0,123,0,0,0,
+    11,0,0,0,30,0,
+    19,0,1,0,8,0,
+    0,0,131,0,0,0,
+    17,2,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,130,0,0,0,
+    12,0,0,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
-    11,0,0,0,8,0,
-    19,0,2,0,6,0,
-    0,0,57,0,0,0,
-    0,0,116,0,0,0,
+    11,0,0,0,20,0,
+    19,0,2,0,18,0,
+    0,0,60,0,0,0,
+    17,3,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,129,0,0,0,
+    12,0,0,0,0,0,
+    20,4,0,0,3,0,
+    0,0,2,0,0,0,
+    1,4,0,0,0,0,
+    12,0,0,0,0,0,
+    0,0,2,0,0,0,
     0,0,123,0,0,0,
+    17,2,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,130,0,0,0,
+    12,0,0,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
-    18,0,1,0,7,0,
-    10,2,0,0,3,0,
-    24,2,0,0,0,0,
-    0,0,125,0,0,0,
+    18,0,1,0,8,0,
+    10,3,0,0,4,0,
+    24,3,0,0,0,0,
+    0,0,14,0,0,0,
+    0,0,97,0,0,0,
     11,0,0,0,2,0,
-    0,0,92,0,0,0,
+    0,0,97,0,0,0,
     12,0,0,0,0,0,
     11,0,0,0,2,0,
-    24,2,0,0,0,0,
+    24,3,0,0,0,0,
     12,0,0,0,0,0,
-    10,1,0,0,5,0,
+    10,1,0,0,10,0,
+    17,2,0,0,5,0,
     0,0,2,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
+    11,0,0,0,3,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
     18,0,1,0,3,0,
-    0,0,126,0,0,0,
+    0,0,132,0,0,0,
     0,0,1,0,0,0,
+    11,0,0,0,7,0,
+    18,0,4,0,3,0,
+    0,0,132,0,0,0,
+    0,0,3,0,0,0,
     11,0,0,0,2,0,
-    0,0,126,0,0,0,
+    0,0,132,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,7,0,
     6,0,0,0,0,0,
@@ -4064,7 +4565,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,3,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,3,0,0,0,0,
@@ -4072,8 +4573,8 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,4,0,0,8,0,
     3,0,0,0,0,0,
-    0,0,10,0,0,0,
-    0,0,4,0,0,0,
+    0,0,11,0,0,0,
+    0,0,5,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,4,0,0,0,0,
@@ -4081,16 +4582,24 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,5,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,127,0,0,0,
+    0,0,133,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,5,0,0,0,0,
     9,0,0,0,0,0,
     12,0,0,0,0,0,
+    10,8,0,0,7,0,
+    3,0,0,0,0,0,
+    0,0,134,0,0,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
+    2,8,0,0,0,0,
+    9,0,0,0,0,0,
+    12,0,0,0,0,0,
     10,6,0,0,8,0,
     3,0,0,0,0,0,
-    0,0,3,0,0,0,
     0,0,4,0,0,0,
+    0,0,5,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
@@ -4098,71 +4607,99 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     10,7,0,0,5,0,
     3,0,0,0,0,0,
-    0,0,19,0,0,0,
+    0,0,18,0,0,0,
     0,0,2,0,0,0,
     2,7,0,0,0,0,
-    12,0,0,0,0,0,
-    10,8,0,0,7,0,
-    3,0,0,0,0,0,
-    0,0,128,0,0,0,
-    8,0,0,0,0,0,
-    3,0,0,0,0,0,
-    2,8,0,0,0,0,
-    9,0,0,0,0,0,
     12,0,0,0,0,0,
     7,0,0,0,0,0,
     24,0,0,0,0,0,
     19,1,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,54,0,0,0,
+    0,0,57,0,0,0,
+    12,0,0,0,0,0,
+    19,1,2,0,3,0,
+    0,0,2,0,0,0,
+    0,0,58,0,0,0,
     12,0,0,0,0,0,
     19,2,1,0,4,0,
     0,0,2,0,0,0,
-    0,0,129,0,0,0,
-    0,0,130,0,0,0,
+    0,0,135,0,0,0,
+    0,0,136,0,0,0,
     12,0,0,0,0,0,
     19,2,2,0,4,0,
     0,0,2,0,0,0,
-    0,0,129,0,0,0,
-    0,0,131,0,0,0,
+    0,0,135,0,0,0,
+    0,0,137,0,0,0,
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
+    17,2,0,0,5,0,
+    2,1,0,0,0,0,
+    0,0,74,0,0,0,
+    0,0,2,0,0,0,
+    2,0,0,0,0,0,
+    11,0,0,0,8,0,
     2,0,0,0,0,0,
     10,1,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,132,0,0,0,
+    0,0,138,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    21,0,30,0,0,0,
+    22,0,0,0,0,0,
+    14,0,0,0,0,0,
+    15,0,40,0,0,0,
+    0,0,2,0,0,0,
+    16,0,0,0,0,0,
     20,1,0,0,3,0,
     1,1,0,0,0,0,
     0,0,14,0,0,0,
     12,0,0,0,0,0,
     1,0,0,0,0,0,
-    10,4,0,0,10,0,
+    10,5,0,0,10,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,4,0,0,0,0,
+    2,5,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    11,0,0,0,4,0,
-    17,2,0,0,2,0,
-    0,0,133,0,0,0,
+    11,0,0,0,5,0,
+    17,2,0,0,3,0,
+    0,0,0,0,0,0,
+    0,0,6,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
-    10,3,0,0,5,0,
+    10,3,0,0,10,0,
+    17,4,0,0,5,0,
     0,0,2,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
+    11,0,0,0,3,0,
+    0,0,2,0,0,0,
+    2,3,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    19,6,2,0,6,0,
+    0,0,2,0,0,0,
+    0,0,89,0,0,0,
+    0,0,5,0,0,0,
+    0,0,2,0,0,0,
+    1,7,0,0,0,0,
+    11,0,0,0,6,0,
+    19,6,1,0,4,0,
+    0,0,2,0,0,0,
+    0,0,20,0,0,0,
+    0,0,89,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
@@ -4171,115 +4708,95 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    10,1,0,0,5,0,
+    10,1,0,0,10,0,
+    17,2,0,0,5,0,
     0,0,2,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
+    11,0,0,0,3,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    6,0,0,0,0,0,
+    0,0,0,0,0,0,
+    8,0,0,0,0,0,
+    4,0,0,0,0,0,
+    2,0,0,0,0,0,
+    9,0,0,0,0,0,
+    4,0,0,0,0,0,
+    0,0,6,0,0,0,
+    7,0,0,0,0,0,
+    10,1,0,0,10,0,
+    17,2,0,0,5,0,
+    0,0,2,0,0,0,
+    0,0,13,0,0,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
+    11,0,0,0,3,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,0,0,0,25,0,
-    2,1,0,0,0,0,
-    0,0,67,0,0,0,
-    0,0,2,0,0,0,
     2,2,0,0,0,0,
-    10,3,0,0,5,0,
-    5,0,0,0,0,0,
-    0,0,40,0,0,0,
+    0,0,74,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
+    10,4,0,0,5,0,
+    5,0,0,0,0,0,
+    0,0,39,0,0,0,
+    0,0,2,0,0,0,
+    2,4,0,0,0,0,
     12,0,0,0,0,0,
-    10,4,0,0,13,0,
+    10,5,0,0,13,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,134,0,0,0,
+    0,0,146,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,4,0,0,0,0,
+    2,5,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
-    11,0,0,0,79,0,
-    2,1,0,0,0,0,
+    11,0,0,0,34,0,
+    2,2,0,0,0,0,
     5,0,0,0,0,0,
     6,0,0,0,0,0,
-    19,0,1,0,2,0,
-    0,0,135,0,0,0,
-    11,0,0,0,47,0,
-    19,0,2,0,3,0,
-    0,0,136,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,42,0,
-    19,0,3,0,3,0,
-    0,0,137,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,37,0,
-    19,0,4,0,3,0,
-    0,0,138,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,32,0,
-    19,0,5,0,3,0,
-    0,0,139,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,27,0,
-    19,0,6,0,3,0,
-    0,0,140,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,22,0,
-    19,0,7,0,4,0,
-    0,0,140,0,0,0,
-    0,0,136,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,16,0,
-    19,0,8,0,4,0,
-    0,0,140,0,0,0,
-    0,0,137,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,10,0,
-    19,0,9,0,4,0,
-    0,0,140,0,0,0,
-    0,0,138,0,0,0,
-    0,0,135,0,0,0,
-    11,0,0,0,4,0,
-    19,0,0,0,2,0,
-    0,0,67,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
+    10,1,0,0,3,0,
+    2,1,0,0,0,0,
     0,0,2,0,0,0,
-    2,2,0,0,0,0,
-    10,3,0,0,7,0,
-    8,0,0,0,0,0,
-    3,0,0,0,0,0,
-    0,0,40,0,0,0,
+    12,0,0,0,0,0,
+    0,0,147,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
+    10,4,0,0,7,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
+    0,0,39,0,0,0,
+    0,0,2,0,0,0,
+    2,4,0,0,0,0,
     9,0,0,0,0,0,
     12,0,0,0,0,0,
-    10,4,0,0,13,0,
+    10,5,0,0,13,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,134,0,0,0,
+    0,0,146,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,4,0,0,0,0,
+    2,5,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     7,0,0,0,0,0,
@@ -4289,14 +4806,14 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,41,0,0,0,
     11,0,0,0,16,0,
     19,0,1,0,2,0,
-    0,0,87,0,0,0,
+    0,0,43,0,0,0,
     11,0,0,0,12,0,
     19,0,2,0,10,0,
-    0,0,47,0,0,0,
+    0,0,42,0,0,0,
     10,1,0,0,7,0,
     6,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,141,0,0,0,
+    0,0,148,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     7,0,0,0,0,0,
@@ -4306,22 +4823,27 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    0,0,142,0,0,0,
-    15,0,66,0,0,0,
+    0,0,149,0,0,0,
+    15,0,40,0,0,0,
     5,0,0,0,0,0,
     16,0,0,0,0,0,
-    0,0,71,0,0,0,
-    17,2,0,0,3,0,
+    0,0,76,0,0,0,
+    19,2,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,72,0,0,0,
+    0,0,77,0,0,0,
+    11,0,0,0,5,0,
+    19,2,2,0,3,0,
+    0,0,2,0,0,0,
+    0,0,78,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,113,0,0,0,
+    0,0,120,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,74,0,0,0,
-    0,0,21,0,0,0,
+    0,0,80,0,0,0,
     0,0,20,0,0,0,
+    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4330,48 +4852,60 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    19,4,0,0,2,0,
-    0,0,143,0,0,0,
-    11,0,0,0,9,0,
-    19,4,1,0,2,0,
-    0,0,144,0,0,0,
-    11,0,0,0,5,0,
+    19,4,0,0,1,0,
+    11,0,0,0,16,0,
+    19,4,1,0,3,0,
+    0,0,2,0,0,0,
+    0,0,150,0,0,0,
+    11,0,0,0,11,0,
     19,4,2,0,3,0,
-    0,0,145,0,0,0,
-    0,0,141,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
-    12,0,0,0,0,0,
     0,0,2,0,0,0,
-    2,5,0,0,0,0,
+    0,0,151,0,0,0,
+    11,0,0,0,6,0,
+    19,4,3,0,4,0,
     0,0,2,0,0,0,
-    0,0,40,0,0,0,
+    0,0,152,0,0,0,
+    0,0,148,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
     0,0,2,0,0,0,
     2,6,0,0,0,0,
-    10,7,0,0,5,0,
+    0,0,2,0,0,0,
+    0,0,39,0,0,0,
+    0,0,2,0,0,0,
+    2,7,0,0,0,0,
+    17,5,0,0,5,0,
+    0,0,2,0,0,0,
+    0,0,153,0,0,0,
+    0,0,154,0,0,0,
+    0,0,155,0,0,0,
+    12,0,0,0,0,0,
+    10,8,0,0,5,0,
     5,0,0,0,0,0,
     0,0,37,0,0,0,
     0,0,2,0,0,0,
-    2,7,0,0,0,0,
+    2,8,0,0,0,0,
     12,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,119,0,0,0,
-    10,8,0,0,5,0,
+    0,0,126,0,0,0,
+    10,9,0,0,5,0,
     8,0,0,0,0,0,
     5,0,0,0,0,0,
-    2,8,0,0,0,0,
+    2,9,0,0,0,0,
     9,0,0,0,0,0,
     12,0,0,0,0,0,
     5,0,0,0,0,0,
     0,0,36,0,0,0,
+    0,0,76,0,0,0,
     0,0,71,0,0,0,
-    0,0,146,0,0,0,
-    0,0,73,0,0,0,
+    0,0,79,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,74,0,0,0,
-    0,0,21,0,0,0,
+    0,0,80,0,0,0,
     0,0,20,0,0,0,
+    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4380,15 +4914,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,134,0,0,0,
+    0,0,146,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
-    20,4,0,0,4,0,
+    17,4,0,0,4,0,
     0,0,0,0,0,0,
-    1,4,0,0,0,0,
-    0,0,5,0,0,0,
+    1,5,0,0,0,0,
+    0,0,6,0,0,0,
     12,0,0,0,0,0,
-    0,0,147,0,0,0,
+    0,0,156,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
     1,1,0,0,0,0,
@@ -4397,20 +4931,20 @@ static const uint8_t perfetto_fmt_ops[] = {
     1,0,0,0,0,0,
     19,3,1,0,5,0,
     0,0,2,0,0,0,
-    0,0,85,0,0,0,
+    0,0,91,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
     11,0,0,0,6,0,
     19,3,2,0,4,0,
     0,0,0,0,0,0,
     1,2,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,2,1,0,2,0,
-    0,0,148,0,0,0,
+    0,0,157,0,0,0,
     11,0,0,0,2,0,
-    0,0,149,0,0,0,
+    0,0,158,0,0,0,
     12,0,0,0,0,0,
     20,1,0,0,5,0,
     0,0,2,0,0,0,
@@ -4423,55 +4957,63 @@ static const uint8_t perfetto_fmt_ops[] = {
     1,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,150,0,0,0,
+    0,0,159,0,0,0,
+    17,0,0,0,3,0,
     0,0,2,0,0,0,
-    2,0,0,0,0,0,
+    0,0,160,0,0,0,
+    12,0,0,0,0,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
     0,0,2,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
-    2,1,0,0,0,0,
-    10,2,0,0,5,0,
-    0,0,2,0,0,0,
-    0,0,53,0,0,0,
-    0,0,2,0,0,0,
     2,2,0,0,0,0,
-    12,0,0,0,0,0,
-    0,0,151,0,0,0,
+    10,3,0,0,5,0,
     0,0,2,0,0,0,
-    2,0,0,0,0,0,
-    0,0,152,0,0,0,
+    0,0,56,0,0,0,
+    0,0,2,0,0,0,
+    2,3,0,0,0,0,
+    12,0,0,0,0,0,
+    0,0,161,0,0,0,
+    17,0,0,0,3,0,
+    0,0,2,0,0,0,
+    0,0,160,0,0,0,
+    12,0,0,0,0,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
+    0,0,162,0,0,0,
     20,0,0,0,3,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,88,0,0,0,
+    0,0,93,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
     19,0,1,0,4,0,
-    0,0,153,0,0,0,
-    0,0,154,0,0,0,
-    0,0,155,0,0,0,
+    0,0,163,0,0,0,
+    0,0,164,0,0,0,
+    0,0,165,0,0,0,
     11,0,0,0,2,0,
-    0,0,153,0,0,0,
+    0,0,163,0,0,0,
     12,0,0,0,0,0,
     5,0,0,0,0,0,
     2,1,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
+    0,0,76,0,0,0,
     17,3,0,0,3,0,
     0,0,2,0,0,0,
-    0,0,62,0,0,0,
+    0,0,66,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,111,0,0,0,
+    0,0,118,0,0,0,
     17,4,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,74,0,0,0,
-    0,0,21,0,0,0,
+    0,0,80,0,0,0,
     0,0,20,0,0,0,
+    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4480,7 +5022,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,40,0,0,0,
+    0,0,39,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
     6,0,0,0,0,0,
@@ -4491,11 +5033,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,5,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     10,6,0,0,7,0,
     3,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,6,0,0,0,0,
@@ -4503,18 +5045,23 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     7,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
-    17,2,0,0,3,0,
+    0,0,76,0,0,0,
+    19,2,1,0,3,0,
     0,0,2,0,0,0,
-    0,0,72,0,0,0,
+    0,0,77,0,0,0,
+    11,0,0,0,5,0,
+    19,2,2,0,3,0,
+    0,0,2,0,0,0,
+    0,0,78,0,0,0,
+    12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,112,0,0,0,
+    0,0,119,0,0,0,
     17,3,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,74,0,0,0,
-    0,0,21,0,0,0,
+    0,0,80,0,0,0,
     0,0,20,0,0,0,
+    0,0,19,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
     20,1,0,0,3,0,
@@ -4529,7 +5076,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,4,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     12,0,0,0,0,0,
     3,0,0,0,0,0,
     0,0,13,0,0,0,
@@ -4544,56 +5091,57 @@ static const uint8_t perfetto_fmt_ops[] = {
     14,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,89,0,0,0,
+    0,0,94,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,0,0,0,0,0,
     9,0,0,0,0,0,
     7,0,0,0,0,0,
     19,0,0,0,3,0,
-    0,0,156,0,0,0,
-    0,0,157,0,0,0,
+    0,0,166,0,0,0,
+    0,0,167,0,0,0,
     11,0,0,0,22,0,
     19,0,1,0,4,0,
     24,1,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,157,0,0,0,
+    0,0,167,0,0,0,
     11,0,0,0,16,0,
     19,0,2,0,3,0,
-    0,0,158,0,0,0,
-    0,0,159,0,0,0,
+    0,0,168,0,0,0,
+    0,0,155,0,0,0,
     11,0,0,0,11,0,
     19,0,3,0,4,0,
     24,1,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,160,0,0,0,
+    0,0,169,0,0,0,
     11,0,0,0,5,0,
     19,0,4,0,3,0,
-    0,0,156,0,0,0,
-    0,0,160,0,0,0,
+    0,0,166,0,0,0,
+    0,0,169,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,0,1,0,2,0,
-    0,0,161,0,0,0,
+    0,0,170,0,0,0,
     11,0,0,0,8,0,
     19,0,2,0,2,0,
-    0,0,162,0,0,0,
+    0,0,171,0,0,0,
     11,0,0,0,4,0,
     19,0,3,0,2,0,
-    0,0,163,0,0,0,
+    0,0,172,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
+    10,3,0,0,8,0,
     0,0,27,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
@@ -4601,77 +5149,94 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,28,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
+    11,0,0,0,2,0,
+    2,2,0,0,0,0,
+    12,0,0,0,0,0,
     19,1,1,0,5,0,
     0,0,2,0,0,0,
-    0,0,164,0,0,0,
-    0,0,165,0,0,0,
-    0,0,166,0,0,0,
+    0,0,173,0,0,0,
+    0,0,44,0,0,0,
+    0,0,174,0,0,0,
     11,0,0,0,19,0,
     19,1,2,0,5,0,
     0,0,2,0,0,0,
-    0,0,164,0,0,0,
-    0,0,158,0,0,0,
-    0,0,159,0,0,0,
+    0,0,173,0,0,0,
+    0,0,168,0,0,0,
+    0,0,155,0,0,0,
     11,0,0,0,12,0,
     19,1,3,0,4,0,
     0,0,2,0,0,0,
-    0,0,164,0,0,0,
-    0,0,10,0,0,0,
+    0,0,173,0,0,0,
+    0,0,11,0,0,0,
     11,0,0,0,6,0,
     19,1,4,0,4,0,
     0,0,2,0,0,0,
-    0,0,164,0,0,0,
-    0,0,167,0,0,0,
+    0,0,173,0,0,0,
+    0,0,175,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     20,0,0,0,2,0,
     1,0,0,0,0,0,
-    11,0,0,0,40,0,
+    11,0,0,0,54,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    10,1,0,0,7,0,
-    0,0,168,0,0,0,
-    0,0,4,0,0,0,
-    8,0,0,0,0,0,
-    3,0,0,0,0,0,
-    2,1,0,0,0,0,
-    9,0,0,0,0,0,
+    20,1,0,0,2,0,
+    1,1,0,0,0,0,
     12,0,0,0,0,0,
-    10,2,0,0,12,0,
-    10,1,0,0,2,0,
+    10,2,0,0,10,0,
+    20,1,0,0,2,0,
     3,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,3,0,0,0,
-    0,0,4,0,0,0,
-    6,0,0,0,0,0,
+    0,0,176,0,0,0,
+    0,0,5,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,2,0,0,0,0,
     9,0,0,0,0,0,
-    7,0,0,0,0,0,
     12,0,0,0,0,0,
-    10,3,0,0,9,0,
-    10,1,0,0,2,0,
-    3,0,0,0,0,0,
-    11,0,0,0,4,0,
+    10,3,0,0,16,0,
     10,2,0,0,2,0,
     3,0,0,0,0,0,
+    11,0,0,0,4,0,
+    20,1,0,0,2,0,
+    3,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
+    0,0,4,0,0,0,
+    0,0,5,0,0,0,
+    6,0,0,0,0,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
     2,3,0,0,0,0,
+    9,0,0,0,0,0,
+    7,0,0,0,0,0,
+    12,0,0,0,0,0,
+    10,4,0,0,13,0,
+    10,2,0,0,2,0,
+    3,0,0,0,0,0,
+    11,0,0,0,8,0,
+    10,3,0,0,2,0,
+    3,0,0,0,0,0,
+    11,0,0,0,4,0,
+    20,1,0,0,2,0,
+    3,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    2,4,0,0,0,0,
     12,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
@@ -4681,33 +5246,33 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,1,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     10,0,0,0,14,0,
     6,0,0,0,0,0,
-    0,0,6,0,0,0,
+    0,0,7,0,0,0,
     0,0,2,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,7,0,0,0,
+    0,0,8,0,0,0,
     0,0,2,0,0,0,
     2,0,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     10,1,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,8,0,0,0,
+    0,0,9,0,0,0,
     0,0,2,0,0,0,
     2,1,0,0,0,0,
     12,0,0,0,0,0,
     20,2,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,8,0,0,0,
+    0,0,9,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
     12,0,0,0,0,0,
@@ -4715,11 +5280,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,2,0,0,0,
     1,1,0,0,0,0,
     17,2,0,0,2,0,
-    0,0,169,0,0,0,
+    0,0,177,0,0,0,
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
@@ -4727,13 +5292,13 @@ static const uint8_t perfetto_fmt_ops[] = {
     1,1,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     1,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    15,0,67,0,0,0,
+    15,0,74,0,0,0,
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     19,0,0,0,2,0,
@@ -4741,32 +5306,32 @@ static const uint8_t perfetto_fmt_ops[] = {
     11,0,0,0,12,0,
     19,0,1,0,10,0,
     6,0,0,0,0,0,
-    0,0,170,0,0,0,
+    0,0,178,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,2,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     1,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
+    0,0,76,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,61,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,171,0,0,0,
-    0,0,73,0,0,0,
+    0,0,179,0,0,0,
+    0,0,79,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     10,2,0,0,5,0,
     0,0,2,0,0,0,
-    0,0,134,0,0,0,
+    0,0,146,0,0,0,
     0,0,2,0,0,0,
     2,2,0,0,0,0,
     12,0,0,0,0,0,
@@ -4777,9 +5342,13 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     12,0,0,0,0,0,
     10,4,0,0,3,0,
+    3,0,0,0,0,0,
+    0,0,13,0,0,0,
+    12,0,0,0,0,0,
+    10,6,0,0,3,0,
     3,0,0,0,0,0,
     0,0,13,0,0,0,
     12,0,0,0,0,0,
@@ -4788,16 +5357,20 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     2,4,0,0,0,0,
     12,0,0,0,0,0,
+    10,6,0,0,3,0,
+    5,0,0,0,0,0,
+    2,6,0,0,0,0,
+    12,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
+    0,0,76,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,61,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,171,0,0,0,
-    0,0,112,0,0,0,
+    0,0,179,0,0,0,
+    0,0,119,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     10,2,0,0,8,0,
@@ -4807,7 +5380,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,2,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     12,0,0,0,0,0,
     3,0,0,0,0,0,
     0,0,13,0,0,0,
@@ -4815,15 +5388,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     2,3,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
+    0,0,76,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,61,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,171,0,0,0,
-    0,0,172,0,0,0,
+    0,0,179,0,0,0,
+    0,0,180,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     0,0,0,0,0,0,
@@ -4834,10 +5407,10 @@ static const uint8_t perfetto_fmt_ops[] = {
     9,0,0,0,0,0,
     4,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,173,0,0,0,
+    0,0,181,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     5,0,0,0,0,0,
@@ -4845,15 +5418,15 @@ static const uint8_t perfetto_fmt_ops[] = {
     5,0,0,0,0,0,
     2,4,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
+    0,0,76,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,61,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,171,0,0,0,
-    0,0,172,0,0,0,
+    0,0,179,0,0,0,
+    0,0,180,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     0,0,0,0,0,0,
@@ -4864,31 +5437,31 @@ static const uint8_t perfetto_fmt_ops[] = {
     9,0,0,0,0,0,
     4,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,173,0,0,0,
+    0,0,181,0,0,0,
     0,0,2,0,0,0,
     2,3,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,174,0,0,0,
-    0,0,116,0,0,0,
+    0,0,182,0,0,0,
+    0,0,123,0,0,0,
     0,0,2,0,0,0,
     1,4,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
+    0,0,76,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,61,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,171,0,0,0,
-    0,0,111,0,0,0,
+    0,0,179,0,0,0,
+    0,0,118,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,40,0,0,0,
+    0,0,39,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
     0,0,0,0,0,0,
@@ -4897,18 +5470,18 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,71,0,0,0,
+    0,0,76,0,0,0,
     17,1,0,0,4,0,
     0,0,2,0,0,0,
-    0,0,86,0,0,0,
-    0,0,61,0,0,0,
+    0,0,92,0,0,0,
+    0,0,64,0,0,0,
     12,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,171,0,0,0,
-    0,0,175,0,0,0,
+    0,0,179,0,0,0,
+    0,0,183,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     0,0,0,0,0,0,
@@ -4919,76 +5492,152 @@ static const uint8_t perfetto_fmt_ops[] = {
     9,0,0,0,0,0,
     4,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,5,0,0,0,
+    0,0,6,0,0,0,
     7,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,173,0,0,0,
+    0,0,181,0,0,0,
     0,0,2,0,0,0,
     1,2,0,0,0,0,
     5,0,0,0,0,0,
     0,0,13,0,0,0,
     0,0,2,0,0,0,
     1,3,0,0,0,0,
-    0,0,176,0,0,0,
-    0,0,171,0,0,0,
-    0,0,177,0,0,0,
+    0,0,184,0,0,0,
+    0,0,179,0,0,0,
+    0,0,185,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
-    0,0,110,0,0,0,
-    0,0,171,0,0,0,
-    0,0,111,0,0,0,
+    0,0,117,0,0,0,
+    0,0,179,0,0,0,
+    0,0,118,0,0,0,
     0,0,2,0,0,0,
     1,0,0,0,0,0,
     0,0,2,0,0,0,
-    0,0,40,0,0,0,
+    0,0,39,0,0,0,
     0,0,2,0,0,0,
     1,1,0,0,0,0,
+    0,0,179,0,0,0,
+    0,0,156,0,0,0,
+    0,0,2,0,0,0,
+    1,0,0,0,0,0,
+    0,0,2,0,0,0,
+    0,0,91,0,0,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
+    10,2,0,0,10,0,
+    6,0,0,0,0,0,
+    0,0,0,0,0,0,
+    8,0,0,0,0,0,
+    4,0,0,0,0,0,
+    2,2,0,0,0,0,
+    9,0,0,0,0,0,
+    4,0,0,0,0,0,
+    0,0,6,0,0,0,
+    7,0,0,0,0,0,
+    11,0,0,0,6,0,
+    20,1,0,0,3,0,
+    1,1,0,0,0,0,
+    0,0,14,0,0,0,
+    12,0,0,0,0,0,
+    1,0,0,0,0,0,
+    12,0,0,0,0,0,
+    10,3,0,0,10,0,
+    17,4,0,0,5,0,
+    0,0,2,0,0,0,
+    0,0,13,0,0,0,
+    0,0,2,0,0,0,
+    2,3,0,0,0,0,
+    11,0,0,0,3,0,
+    0,0,2,0,0,0,
+    2,3,0,0,0,0,
+    12,0,0,0,0,0,
+    12,0,0,0,0,0,
+    2,0,0,0,0,0,
+    0,0,2,0,0,0,
+    0,0,13,0,0,0,
+    0,0,2,0,0,0,
+    1,1,0,0,0,0,
+    22,0,0,0,0,0,
+    14,0,0,0,0,0,
+    15,0,74,0,0,0,
+    3,0,0,0,0,0,
+    16,0,0,0,0,0,
+    6,0,0,0,0,0,
+    0,0,186,0,0,0,
+    0,0,187,0,0,0,
+    0,0,2,0,0,0,
+    21,0,37,0,0,0,
+    8,0,0,0,0,0,
+    3,0,0,0,0,0,
+    2,1,0,0,0,0,
+    9,0,0,0,0,0,
+    7,0,0,0,0,0,
+    22,0,0,0,0,0,
+    14,0,0,0,0,0,
+    15,0,40,0,0,0,
+    5,0,0,0,0,0,
+    0,0,190,0,0,0,
+    0,0,2,0,0,0,
+    16,0,0,0,0,0,
+    0,0,26,0,0,0,
+    0,0,2,0,0,0,
+    2,0,0,0,0,0,
+    10,1,0,0,5,0,
+    5,0,0,0,0,0,
+    0,0,190,0,0,0,
+    0,0,2,0,0,0,
+    2,1,0,0,0,0,
+    12,0,0,0,0,0,
 };
 
-static const uint32_t perfetto_fmt_ops_count = 13980;
+static const uint32_t perfetto_fmt_ops_count = 16062;
 
 static const uint32_t perfetto_fmt_dispatch[] = {
-    0xffff0000,0x0000002d,0x002d0035,0x00620007,0x00690009,0x00720025,0x00970009,0x00a0000b,
-    0x00ab0018,0x00c30031,0x00f40010,0x0104001f,0x01230014,0x01370008,0x013f0003,0x01420052,
-    0x019400bb,0x024f0005,0x0254000d,0x02610005,0x0266007d,0x02e30005,0x02e80037,0x031f0021,
-    0x03400005,0x03450010,0x0355002d,0x03820005,0x03870043,0x03ca0013,0x03dd0005,0x03e2006d,
-    0x044f0052,0x04a10017,0x04b80014,0x04cc0001,0x04cd0005,0x04d20001,0x04d30005,0x04d80005,
-    0x04dd002a,0x05070001,0x05080005,0x050d0016,0x05230005,0x0528000a,0x05320026,0x05580013,
-    0x056b0014,0x057f0010,0x058f0005,0x05940046,0x05da000f,0x05e90005,0x05ee0007,0x05f5001a,
-    0x060f000f,0x061e0069,0x06870001,0x06880013,0x069b0006,0x06a10036,0x06d70018,0x06ef0013,
-    0x07020010,0x0712000d,0x071f0003,0x0722000b,0x072d0009,0x0736002b,0x07610022,0x0783000d,
-    0x07900007,0x0797001a,0x07b1002c,0x07dd002b,0x08080005,0x080d0005,0x08120005,0x0817001b,
-    0x08320006,0x08380005,0x083d0003,0x08400005,0x08450001,0x08460005,0x084b000f,0x085a0001,
-    0x085b0024,0x087f001a,0x0899001e,0x08b7001f,0x08d60018,0x08ee001e,0x090c0005,0x09110009,
+    0xffff0000,0x00000031,0x0031003a,0x006b0008,0x00730009,0x007c0025,0x00a10009,0x00aa000b,
+    0x00b50018,0x00cd0038,0x01050010,0x0115001f,0x01340014,0x01480008,0x01500003,0x01530020,
+    0x01730005,0x0178002d,0x01a500ff,0x02a40003,0x02a70005,0x02ac000d,0x02b90005,0x02be009d,
+    0x035b0007,0x03620005,0x0367003c,0x03a30021,0x03c40005,0x03c90010,0x03d9002d,0x04060005,
+    0x040b0043,0x044e0013,0x04610005,0x0466006d,0x04d30058,0x052b0017,0x05420014,0x05560001,
+    0x05570005,0x055c0001,0x055d0005,0x05620009,0x056b0005,0x0570002e,0x059e0001,0x059f0005,
+    0x05a40017,0x05bb0005,0x05c0000a,0x05ca002f,0x05f90023,0x061c0023,0x063f0016,0x06550005,
+    0x065a004b,0x06a50013,0x06b80005,0x06bd000e,0x06cb0001,0x06cc0005,0x06d1002d,0x06fe0014,
+    0x07120014,0x0726003c,0x07620001,0x07630013,0x07760006,0x077c0047,0x07c30018,0x07db0013,
+    0x07ee0010,0x07fe0011,0x080f0007,0x0816000b,0x08210009,0x082a002b,0x08550027,0x087c000d,
+    0x08890007,0x0890001a,0x08aa0030,0x08da0039,0x09130005,0x09180005,0x091d0005,0x0922001b,
+    0x093d0006,0x09430005,0x09480003,0x094b0005,0x09500001,0x09510005,0x0956000f,0x09650001,
+    0x0966002c,0x0992001a,0x09ac001e,0x09ca001f,0x09e90018,0x0a01001e,0x0a1f0005,0x0a240009,
+    0x0a2d0008,0x0a35001c,0x0a510005,0x0a560005,0x0a5b000a,0x0a650007,0x0a6c0009,
 };
 
-static const uint32_t perfetto_fmt_dispatch_count = 96;
+static const uint32_t perfetto_fmt_dispatch_count = 111;
 
 static const uint8_t perfetto_fmt_prec_table[] = {
     6,0,6,0,7,0,7,0,7,0,4,0,4,0,4,0,
     4,0,3,0,3,0,2,128,1,0,5,1,5,1,5,1,
-    5,1,8,0,8,0,8,0,0,127,0,127,0,127,255,127,
-    3,0,3,0,3,0,3,0,255,127,9,0,
+    5,1,8,0,8,0,8,0,3,0,3,0,0,127,0,127,
+    0,127,255,127,3,0,3,0,3,0,3,0,255,127,9,0,
 };
 
-static const uint32_t perfetto_fmt_prec_table_count = 60;
+static const uint32_t perfetto_fmt_prec_table_count = 64;
 
 static const uint32_t perfetto_fmt_expr_meta[] = {
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0x000018ff,0x000019ff,0x00001aff,0x00001bff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0x00001aff,0x00001bff,0x00001cff,0x00001dff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0xffffffff,0x00000000,0x00001400,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0xffffffff,0xffffffff,0x00001dff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0x00000000,0x00001600,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0x00001fff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
 };
 
-static const uint32_t perfetto_fmt_expr_meta_count = 96;
+static const uint32_t perfetto_fmt_expr_meta_count = 111;
 
 
 #endif  /* SYNTAQLITE_PERFETTO_DIALECT_FMT_H */
@@ -5027,7 +5676,11 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x05,0x00,0x01,0x02,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -5049,18 +5702,21 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x07,0x00,0x02,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x13,0x00,0x01,0x02,0x03,0x00,0x00,0x00,
+    0x13,0x00,0x02,0x03,0x04,0x05,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x06,0x00,0x01,0x02,0x00,0x00,0x00,0x00,
+    0x06,0x00,0x01,0x03,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x0b,0x02,0x01,0x03,0x04,0x05,0x06,0x07,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -5070,7 +5726,8 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x0e,0x06,0x07,0x08,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x0e,0x07,0x08,0x09,0x00,0x00,0x00,0x00,
     0x00,0x00,0xff,0xff,0xff,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -5105,15 +5762,22 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 };
 
-static const uint32_t perfetto_roles_count = 96;
+static const uint32_t perfetto_roles_count = 111;
 
 /* Macro definition metadata for the perfetto dialect. */
 /* Each entry is 8 bytes: node_tag(u16) + 4 field indices + 2 pad. */
 
 static const uint8_t perfetto_macro_defs_data[] = {
-    0x5d,0x00,0x00,0x03,0x04,0x00,0x00,0x00,
+    0x65,0x00,0x00,0x03,0x04,0x00,0x00,0x00,
 };
 
 static const uint32_t perfetto_macro_defs_count = 1;
@@ -5813,15 +6477,11 @@ static void reset_stmt(SyntaqliteParser* p) {
 
 // Handle a statement boundary after shift_token returns 1.
 // Reinitializes Lemon and classifies the completed statement:
-//   SYNTAQLITE_PARSE_OK    — successful statement (root is set)
+//   SYNTAQLITE_PARSE_OK    — successful statement; a bare semicolon is one,
+//                            with a null root
 //   SYNTAQLITE_PARSE_ERROR — statement with syntax error(s)
-//   SYNTAQLITE_PARSE_DONE  — bare semicolon (no statement produced)
 static int32_t stmt_boundary(SyntaqliteParser* p) {
   lemon_reinit(p);
-
-  // Bare semicolon — no statement produced.
-  if (p->ctx.root == SYNTAQLITE_NULL_NODE && !p->had_error)
-    return SYNTAQLITE_PARSE_DONE;
 
 #ifndef SYNTAQLITE_OMIT_MACROS
   if (synq_parser_check_macro_straddle(p) < 0)
@@ -6045,12 +6705,8 @@ static int finish_input(SyntaqliteParser* p) {
   if (p->last_token_type != SYNTAQLITE_TK_SEMI) {
     int rc = shift_token(p, SYNTAQLITE_TK_SEMI, NULL, 0, 0);
     if (rc == 1) {
-      int32_t status = stmt_boundary(p);
-      if (status != SYNTAQLITE_PARSE_DONE) {
-        p->finished = 1;
-        return set_result_status(p, status);
-      }
-      // bare semicolon — fall through to EOF
+      p->finished = 1;
+      return set_result_status(p, stmt_boundary(p));
     }
   }
 
@@ -6393,16 +7049,20 @@ SYNTAQLITE_API int32_t syntaqlite_parser_next(SyntaqliteParser* p) {
 #endif
 
     // Normal token (or macro fallthrough): shift into Lemon.
-    // After parse_failure Lemon stops reducing — force a boundary on
-    // SEMI so errors don't bleed into the next statement.  And filter
-    // bare-semicolon rc==1 (no root, no error) so the main loop keeps
-    // tokenizing instead of closing an empty statement.
+    //
+    // `ecmd ::= SEMI` (an empty statement) and `ecmd ::= error SEMI`
+    // (recovery) both reduce only once the *next* token arrives as the
+    // LALR(1) lookahead, by which point Lemon has swallowed the first
+    // token of the following statement.  Close the statement on the
+    // semicolon instead; lemon_reinit discards the pending reduction.
+    int at_stmt_start = p->last_token_type == 0;
     uint32_t main_layer_offset = cur_offset - p->stmt_start_offset;
     int main_rc = shift_token(p, cur_type, p->source + cur_offset,
                               (uint32_t)cur_len, main_layer_offset);
-    if (p->had_error && main_rc == 0 && cur_type == SYNTAQLITE_TK_SEMI)
+    if (main_rc == 0 && cur_type == SYNTAQLITE_TK_SEMI &&
+        (at_stmt_start || p->had_error))
       main_rc = 1;
-    if (main_rc == 1 && (p->ctx.root != SYNTAQLITE_NULL_NODE || p->had_error)) {
+    if (main_rc == 1) {
       // Eagerly consume same-line trailing comments after the statement
       // terminator so they attach to this statement's last token instead
       // of the next statement's first.  Stop at the first newline or
@@ -7570,6 +8230,24 @@ static void synq_expanded_merge(SynqNodeExpandedExtent* acc,
   uint32_t end = end_a > end_b ? end_a : end_b;
   acc->offset = start;
   acc->length = end - start;
+}
+
+void synq_extent_record_list_append(SynqParseCtx* ctx,
+                                    uint32_t list_id,
+                                    uint32_t child) {
+  if (!ctx->collect_node_extents)
+    return;
+  SynqExtentRange range = syntaqlite_vec_at(&ctx->node_extents, child);
+  SynqNodeExpandedExtent expanded =
+      syntaqlite_vec_at(&ctx->node_expanded_extents, child);
+  if (list_id < syntaqlite_vec_len(&ctx->node_extents)) {
+    synq_extent_merge(&syntaqlite_vec_at(&ctx->node_extents, list_id), range);
+    synq_expanded_merge(
+        &syntaqlite_vec_at(&ctx->node_expanded_extents, list_id), expanded);
+  } else {
+    syntaqlite_vec_push(&ctx->node_extents, range, ctx->mem);
+    syntaqlite_vec_push(&ctx->node_expanded_extents, expanded, ctx->mem);
+  }
 }
 
 void synq_extent_on_shift(SynqParseCtx* pCtx,
@@ -9068,21 +9746,22 @@ const unsigned char ebcdicToAscii[] = {
 ** is substantially reduced.  This is important for embedded applications
 ** on platforms with limited memory.
 */
-/* Hash score: 244 */
-/* synq_perfetto_zKWText[] encodes 1071 bytes of keyword text in 712 bytes */
+/* Hash score: 256 */
+/* synq_perfetto_zKWText[] encodes 1101 bytes of keyword text in 731 bytes */
 /*   REINDEXEDESCAPERFETTOFFSETABLEFTHENDATABASELECTIESAVEPOINT         */
 /*   ERSECTRANSACTIONOTNULLSBEFOREIGNOREGEXPLAINCLUDEFERRABLEACHECK     */
-/*   EYISNULLIKELSEXCLUDELEGATESCONSTRAINTORDERAISEXCEPTRIGGERANGE      */
-/*   NERATEDELETEMPORARYMACROSSUNIQUERYWITHOUTEREFERENCESATTACH         */
-/*   AVINGLOBEGINSTEADDETACHBETWEENATURALTERELEASEXCLUSIVEXISTS         */
-/*   CASCADEFAULTCASECOLLATECREATECURRENT_DATEIMMEDIATEJOINNER          */
-/*   ECURSIVEMATCHMODULEPLANALYZEPRAGMATERIALIZEDEFERREDISTINCT         */
-/*   UPDATEVALUESVIRTUALWAYSWHENOTHINGROUPSWHERENAMEWITHINSERTABORT     */
-/*   AFTEREPLACEANDROPARTITIONAUTOINCREMENTCASTCOLUMNCOMMITCONFLICT     */
-/*   CURRENT_TIMESTAMPRECEDINGFAILASTFILTERESTRICTFIRSTFOLLOWING        */
-/*   FROMFULLIMITFUNCTIONIFOTHERSOVERETURNINGRETURNSRIGHTROLLBACK       */
-/*   ROWSUNBOUNDEDUNIONUSINGVACUUMVIEWINDOWBYINITIALLYPRIMARY           */
-const char synq_perfetto_zKWText[711] = {
+/*   EYISNULLIKELSEXCLUDELEGATESCONSTRAINTORDERAISEXCEPTREEXCLUSIVE     */
+/*   XISTSMACROSSUNIQUERYWINDOWNATURALTERANGENERATEDELETEMPORARY        */
+/*   WITHOUTEREFERENCESACCUMULATEATTACHAVINGLOBEGINSTEADDETACH          */
+/*   BETWEENOTHINGROUPSBITORELEASECASCADEFAULTRIGGERECURSIVECASE        */
+/*   COLLATECREATECURRENT_DATEIMMEDIATEJOINNERENAMEMATCHMODULEPLAN      */
+/*   ALYZEPRAGMATERIALIZEDEFERREDISTINCTUPDATEVALUESVIRTUALWAYSWHEN     */
+/*   WHEREPLACEWITHINSERTABORTAFTERESTRICTANDROPARTITION                */
+/*   AUTOINCREMENTCASTCOLUMNCOMMITCONFLICTCURRENT_TIMESTAMPRECEDING     */
+/*   FAILASTFILTERETURNINGFIRSTFOLLOWINGFROMFULLIMITFUNCTIONIF          */
+/*   OTHERSOVERETURNSRIGHTROLLBACKROWSUNBOUNDEDUNIONUSINGVACUUMVIEW     */
+/*   BYINITIALLYPRIMARY                                                 */
+const char synq_perfetto_zKWText[730] = {
   'R','E','I','N','D','E','X','E','D','E','S','C','A','P','E','R','F','E',
   'T','T','O','F','F','S','E','T','A','B','L','E','F','T','H','E','N','D',
   'A','T','A','B','A','S','E','L','E','C','T','I','E','S','A','V','E','P',
@@ -9092,101 +9771,105 @@ const char synq_perfetto_zKWText[711] = {
   'R','R','A','B','L','E','A','C','H','E','C','K','E','Y','I','S','N','U',
   'L','L','I','K','E','L','S','E','X','C','L','U','D','E','L','E','G','A',
   'T','E','S','C','O','N','S','T','R','A','I','N','T','O','R','D','E','R',
-  'A','I','S','E','X','C','E','P','T','R','I','G','G','E','R','A','N','G',
-  'E','N','E','R','A','T','E','D','E','L','E','T','E','M','P','O','R','A',
-  'R','Y','M','A','C','R','O','S','S','U','N','I','Q','U','E','R','Y','W',
-  'I','T','H','O','U','T','E','R','E','F','E','R','E','N','C','E','S','A',
+  'A','I','S','E','X','C','E','P','T','R','E','E','X','C','L','U','S','I',
+  'V','E','X','I','S','T','S','M','A','C','R','O','S','S','U','N','I','Q',
+  'U','E','R','Y','W','I','N','D','O','W','N','A','T','U','R','A','L','T',
+  'E','R','A','N','G','E','N','E','R','A','T','E','D','E','L','E','T','E',
+  'M','P','O','R','A','R','Y','W','I','T','H','O','U','T','E','R','E','F',
+  'E','R','E','N','C','E','S','A','C','C','U','M','U','L','A','T','E','A',
   'T','T','A','C','H','A','V','I','N','G','L','O','B','E','G','I','N','S',
-  'T','E','A','D','D','E','T','A','C','H','B','E','T','W','E','E','N','A',
-  'T','U','R','A','L','T','E','R','E','L','E','A','S','E','X','C','L','U',
-  'S','I','V','E','X','I','S','T','S','C','A','S','C','A','D','E','F','A',
-  'U','L','T','C','A','S','E','C','O','L','L','A','T','E','C','R','E','A',
-  'T','E','C','U','R','R','E','N','T','_','D','A','T','E','I','M','M','E',
-  'D','I','A','T','E','J','O','I','N','N','E','R','E','C','U','R','S','I',
-  'V','E','M','A','T','C','H','M','O','D','U','L','E','P','L','A','N','A',
-  'L','Y','Z','E','P','R','A','G','M','A','T','E','R','I','A','L','I','Z',
-  'E','D','E','F','E','R','R','E','D','I','S','T','I','N','C','T','U','P',
-  'D','A','T','E','V','A','L','U','E','S','V','I','R','T','U','A','L','W',
-  'A','Y','S','W','H','E','N','O','T','H','I','N','G','R','O','U','P','S',
-  'W','H','E','R','E','N','A','M','E','W','I','T','H','I','N','S','E','R',
-  'T','A','B','O','R','T','A','F','T','E','R','E','P','L','A','C','E','A',
-  'N','D','R','O','P','A','R','T','I','T','I','O','N','A','U','T','O','I',
-  'N','C','R','E','M','E','N','T','C','A','S','T','C','O','L','U','M','N',
-  'C','O','M','M','I','T','C','O','N','F','L','I','C','T','C','U','R','R',
-  'E','N','T','_','T','I','M','E','S','T','A','M','P','R','E','C','E','D',
-  'I','N','G','F','A','I','L','A','S','T','F','I','L','T','E','R','E','S',
-  'T','R','I','C','T','F','I','R','S','T','F','O','L','L','O','W','I','N',
-  'G','F','R','O','M','F','U','L','L','I','M','I','T','F','U','N','C','T',
-  'I','O','N','I','F','O','T','H','E','R','S','O','V','E','R','E','T','U',
-  'R','N','I','N','G','R','E','T','U','R','N','S','R','I','G','H','T','R',
-  'O','L','L','B','A','C','K','R','O','W','S','U','N','B','O','U','N','D',
-  'E','D','U','N','I','O','N','U','S','I','N','G','V','A','C','U','U','M',
-  'V','I','E','W','I','N','D','O','W','B','Y','I','N','I','T','I','A','L',
-  'L','Y','P','R','I','M','A','R','Y',
+  'T','E','A','D','D','E','T','A','C','H','B','E','T','W','E','E','N','O',
+  'T','H','I','N','G','R','O','U','P','S','B','I','T','O','R','E','L','E',
+  'A','S','E','C','A','S','C','A','D','E','F','A','U','L','T','R','I','G',
+  'G','E','R','E','C','U','R','S','I','V','E','C','A','S','E','C','O','L',
+  'L','A','T','E','C','R','E','A','T','E','C','U','R','R','E','N','T','_',
+  'D','A','T','E','I','M','M','E','D','I','A','T','E','J','O','I','N','N',
+  'E','R','E','N','A','M','E','M','A','T','C','H','M','O','D','U','L','E',
+  'P','L','A','N','A','L','Y','Z','E','P','R','A','G','M','A','T','E','R',
+  'I','A','L','I','Z','E','D','E','F','E','R','R','E','D','I','S','T','I',
+  'N','C','T','U','P','D','A','T','E','V','A','L','U','E','S','V','I','R',
+  'T','U','A','L','W','A','Y','S','W','H','E','N','W','H','E','R','E','P',
+  'L','A','C','E','W','I','T','H','I','N','S','E','R','T','A','B','O','R',
+  'T','A','F','T','E','R','E','S','T','R','I','C','T','A','N','D','R','O',
+  'P','A','R','T','I','T','I','O','N','A','U','T','O','I','N','C','R','E',
+  'M','E','N','T','C','A','S','T','C','O','L','U','M','N','C','O','M','M',
+  'I','T','C','O','N','F','L','I','C','T','C','U','R','R','E','N','T','_',
+  'T','I','M','E','S','T','A','M','P','R','E','C','E','D','I','N','G','F',
+  'A','I','L','A','S','T','F','I','L','T','E','R','E','T','U','R','N','I',
+  'N','G','F','I','R','S','T','F','O','L','L','O','W','I','N','G','F','R',
+  'O','M','F','U','L','L','I','M','I','T','F','U','N','C','T','I','O','N',
+  'I','F','O','T','H','E','R','S','O','V','E','R','E','T','U','R','N','S',
+  'R','I','G','H','T','R','O','L','L','B','A','C','K','R','O','W','S','U',
+  'N','B','O','U','N','D','E','D','U','N','I','O','N','U','S','I','N','G',
+  'V','A','C','U','U','M','V','I','E','W','B','Y','I','N','I','T','I','A',
+  'L','L','Y','P','R','I','M','A','R','Y',
 };
 /* aKWHash[i] is the hash value for the i-th keyword */
 static const unsigned char aKWHash[127] = {
-   108,  96, 142,  84, 114,  54,   6,   0,  98,   0,  88, 102,   0,
-     8,  17,  90,  68, 107,  20, 101,   9,  93, 143,  16,   0,   0,
-   148,   0,  40, 129,  89,  32, 116,   0,  28,   0,   0, 131,  82,
-     0,  80,  36,   0,  59, 112, 155,   0, 144, 123,   0,   0,  75,
-     0,  94,  35,   0,  14,   0,  52,  64,  13,  42,   5,  66, 150,
-   119, 130,   0, 103,  95,  71, 153,  67, 128, 104,   0,  76,   0,
-    30,  48,   0,  57,   0,   0,   0, 118,  29, 120, 124, 133,  33,
-    44, 132,   0, 109,   0,  15, 111, 152,  50, 137, 147,  92,  85,
-    24,  55, 134,   0,   0, 117,  45, 138,  46,   0,  19,   0,   0,
-   139,   0, 105,  25,  27,   0,  10,  72, 125,  97,
+   116, 106, 149,  94, 122,  65,   6, 107, 109,   0,  98,  80,   0,
+     8,  17, 100,  76, 115,  20, 112,   9, 103, 150,  16,   0,   0,
+   155,   0,  40, 119,  99,  32, 124,   0,  71,   0,   0, 139,  92,
+     0,  90,  36,   0,  55, 120, 160,   0, 151, 131,   0,   0,  64,
+     0, 104,  35,   0,  14,   0,  63,  72,  13,  42,   5,  74,  56,
+   127, 138,   0,  81, 105,  79, 158,  75, 136,  82,   0,  51,   0,
+    30,  48,   0,  53,   0,   0,   0, 126,  29, 128, 132, 141,  33,
+    44, 140,   0, 117,  57,  15, 114, 157,  61, 145, 154, 102,  95,
+    24,  66, 142,   0,   0, 125,  45, 146,  46,   0,  19,   0,   0,
+   137,   0, 113,  25,  27,   0,  10,  59, 133, 108,
 };
 /* aKWNext[] forms the hash collision chain.  If aKWHash[i]==0
 ** then the i-th keyword has no more hash collisions.  Otherwise,
 ** the next keyword with the same hash is aKWHash[i]-1. */
-static const unsigned char aKWNext[156] = {0,
-     0,   0,   0,   0,   4,   0,   0,  34,  65,   0,   0,   0,   0,
-     0, 151, 140,  31,   0, 145, 141,   0,   0,   0,   0,  86,   0,
-     0,   0, 115, 122,   0,  12,   0,   0,   0,   0,  21,   0,   7,
-   146,   0,   0,   0, 135,   0,  62,   0,   0,   0,  47,   0, 149,
-     0,   0, 127,   0,   0,   0,   0,   0,  74,   0,   0,   0,   0,
-     0,   0,   2,   0,   0,   0,  23,   0,   0,  53,  79,   0,  70,
-     0,   1,  77,   0,   0,   0,  39,   0,   0,   0,   0,   0,   0,
-     0, 136,   0, 113,   0,  58,  60,  63,   0,   0,   0, 154,   3,
-     0,   0,   0,   0,   0,  73,  61,  69,  38,   0,   0,   0,   0,
-     0,  43,   0,   0,   0,  83, 110,  56, 121,  11,  37,   0,   0,
-    81, 100, 126,   0,   0,   0,   0,  87,  22,   0,   0,  49,   0,
-    78,   0,  99,  26,  18,  51,  41,   0, 106,   0,   0,  91,
+static const unsigned char aKWNext[161] = {0,
+     0,   0,   0,   0,   4,   0,   0,  34,  73,   0,   0,   0,   0,
+     0,  58, 147,  31,   0, 152, 148,   0,   0,  49,   0,  96,   0,
+     0,   0, 123, 130,   0,  12,   0,   0,   0,   0,  21,   0,   7,
+   153,   0,   0,   0, 143,   0,  69,   0,   0,   0,   0,  87,   0,
+     0,   0,   0,  41,   0,   0,  23,   0,  47,   0, 156,  50,   0,
+   135,   0,  84,   0,   0,  28,   0,   0,   0,   0,   2,   0,   0,
+     0,   0, 159,   3,   0,   0,   0,  78,   0,   0,   0,   1,  85,
+     0,   0,   0,  39,   0,   0,   0,   0,   0,   0,   0, 144,   0,
+   121,   0,   0,  54,  67,  70,  83,   0,   0,  68,   0,   0,   0,
+    60,   0,  77,  38,   0,   0,   0,   0,   0,  43,   0,   0,   0,
+    93, 118,  52, 129,  11,  37,  22,   0,  91, 111, 134,   0,   0,
+     0,   0,  89,   0,   0,  88,   0,  86,   0, 110,  26,  18,  62,
+    97,   0,   0, 101,
 };
 /* synq_perfetto_aKWLen[i] is the length (in bytes) of the i-th keyword */
-const unsigned char synq_perfetto_aKWLen[156] = {0,
+const unsigned char synq_perfetto_aKWLen[161] = {0,
      7,   7,   5,   4,   6,   8,   6,   2,   3,   5,   4,   4,   3,
      8,   2,   6,   4,   9,   9,  11,   6,   2,   7,   3,   2,   5,
      4,   6,   7,   3,   6,   6,   7,   7,  10,   4,   5,   3,   6,
-     4,   4,   7,   9,  10,   4,   5,   5,   6,   7,   5,   9,   6,
-     9,   4,   2,   5,   5,   6,   5,   7,   4,   5,  10,   6,   6,
-     4,   5,   7,   3,   6,   7,   7,   5,   7,   9,   6,   7,   3,
-     7,   4,   7,   6,  12,   9,   4,   5,   9,   5,   6,   4,   7,
-     6,  12,   8,   8,   2,   6,   6,   7,   6,   4,   7,   6,   5,
-     5,   6,   6,   6,   5,   5,   7,   3,   4,   9,  13,   2,   2,
-     4,   6,   6,   8,  17,  12,   7,   9,   4,   4,   6,   8,   5,
-     9,   4,   4,   5,   8,   2,   6,   4,   9,   7,   5,   8,   4,
-     3,   9,   5,   5,   6,   4,   6,   2,   2,   9,   3,   7,
+     4,   4,   7,   9,  10,   4,   5,   5,   6,   4,   9,   6,   5,
+     5,   6,   5,   6,   4,   2,   7,   5,   5,   9,   6,   9,   4,
+     2,   7,   4,   5,  10,  10,   6,   6,   4,   5,   7,   3,   6,
+     7,   7,   6,   5,   5,   7,   7,   3,   7,   7,   9,   4,   7,
+     6,  12,   9,   4,   5,   6,   5,   6,   4,   7,   6,  12,   8,
+     8,   2,   2,   6,   6,   7,   6,   4,   5,   7,   6,   6,   5,
+     5,   8,   3,   4,   9,  13,   2,   2,   4,   6,   6,   8,  17,
+    12,   7,   9,   4,   4,   6,   9,   5,   9,   4,   4,   5,   8,
+     2,   6,   4,   7,   5,   8,   4,   3,   9,   5,   5,   6,   4,
+     2,   9,   3,   7,
 };
 /* synq_perfetto_aKWOffset[i] is the index into synq_perfetto_zKWText[] of the start of
 ** the text for the i-th keyword. */
-const unsigned short int synq_perfetto_aKWOffset[156] = {0,
+const unsigned short int synq_perfetto_aKWOffset[161] = {0,
      0,   2,   2,   8,   9,  13,  20,  20,  23,  25,  28,  31,  33,
     35,  40,  41,  46,  49,  55,  63,  68,  72,  73,  73,  73,  76,
     76,  81,  83,  83,  87,  91,  94,  99, 104, 113, 115, 119, 122,
-   127, 130, 133, 138, 147, 154, 157, 161, 165, 170, 176, 179, 187,
-   191, 191, 195, 200, 202, 207, 210, 215, 215, 219, 223, 233, 238,
-   243, 246, 249, 254, 256, 262, 268, 273, 277, 283, 291, 297, 298,
-   302, 309, 313, 320, 326, 338, 347, 349, 353, 362, 367, 373, 375,
-   382, 386, 397, 404, 405, 412, 418, 424, 429, 435, 438, 444, 444,
-   450, 453, 459, 463, 469, 474, 478, 485, 487, 490, 499, 501, 503,
-   512, 516, 522, 528, 536, 536, 536, 552, 561, 564, 568, 573, 581,
-   586, 595, 599, 602, 607, 615, 617, 623, 626, 635, 642, 647, 655,
-   655, 659, 668, 673, 678, 684, 687, 690, 693, 695, 700, 704,
+   127, 130, 133, 138, 147, 154, 157, 161, 165, 170, 173, 181, 187,
+   189, 194, 197, 202, 205, 205, 208, 213, 217, 220, 228, 232, 232,
+   236, 241, 241, 245, 249, 259, 269, 274, 279, 282, 285, 290, 292,
+   298, 304, 310, 310, 316, 320, 327, 328, 332, 338, 344, 353, 357,
+   364, 370, 382, 391, 393, 397, 403, 408, 414, 416, 423, 427, 438,
+   445, 446, 453, 453, 459, 465, 470, 476, 480, 483, 490, 494, 500,
+   505, 509, 517, 519, 522, 531, 533, 535, 544, 548, 554, 560, 568,
+   568, 568, 584, 593, 596, 600, 605, 614, 619, 628, 632, 635, 640,
+   648, 650, 656, 659, 666, 671, 679, 679, 683, 692, 697, 702, 708,
+   712, 714, 719, 723,
 };
 /* synq_perfetto_aKWCode[i] is the parser symbol code for the i-th keyword */
-const unsigned char synq_perfetto_aKWCode[156] = {0,
+const unsigned char synq_perfetto_aKWCode[161] = {0,
   SYNTAQLITE_TK_REINDEX,    SYNTAQLITE_TK_INDEXED,    SYNTAQLITE_TK_INDEX,      SYNTAQLITE_TK_DESC,       SYNTAQLITE_TK_ESCAPE,     
   SYNTAQLITE_TK_PERFETTO,   SYNTAQLITE_TK_OFFSET,     SYNTAQLITE_TK_OF,         SYNTAQLITE_TK_SET,        SYNTAQLITE_TK_TABLE,      
   SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_THEN,       SYNTAQLITE_TK_END,        SYNTAQLITE_TK_DATABASE,   SYNTAQLITE_TK_AS,         
@@ -9196,28 +9879,29 @@ const unsigned char synq_perfetto_aKWCode[156] = {0,
   SYNTAQLITE_TK_IGNORE,     SYNTAQLITE_TK_LIKE_KW,    SYNTAQLITE_TK_EXPLAIN,    SYNTAQLITE_TK_INCLUDE,    SYNTAQLITE_TK_DEFERRABLE, 
   SYNTAQLITE_TK_EACH,       SYNTAQLITE_TK_CHECK,      SYNTAQLITE_TK_KEY,        SYNTAQLITE_TK_ISNULL,     SYNTAQLITE_TK_LIKE_KW,    
   SYNTAQLITE_TK_ELSE,       SYNTAQLITE_TK_EXCLUDE,    SYNTAQLITE_TK_DELEGATES,  SYNTAQLITE_TK_CONSTRAINT, SYNTAQLITE_TK_INTO,       
-  SYNTAQLITE_TK_ORDER,      SYNTAQLITE_TK_RAISE,      SYNTAQLITE_TK_EXCEPT,     SYNTAQLITE_TK_TRIGGER,    SYNTAQLITE_TK_RANGE,      
-  SYNTAQLITE_TK_GENERATED,  SYNTAQLITE_TK_DELETE,     SYNTAQLITE_TK_TEMP,       SYNTAQLITE_TK_TEMP,       SYNTAQLITE_TK_OR,         
-  SYNTAQLITE_TK_MACRO,      SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_UNIQUE,     SYNTAQLITE_TK_QUERY,      SYNTAQLITE_TK_WITHOUT,    
-  SYNTAQLITE_TK_WITH,       SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_REFERENCES, SYNTAQLITE_TK_ATTACH,     SYNTAQLITE_TK_HAVING,     
-  SYNTAQLITE_TK_LIKE_KW,    SYNTAQLITE_TK_BEGIN,      SYNTAQLITE_TK_INSTEAD,    SYNTAQLITE_TK_ADD,        SYNTAQLITE_TK_DETACH,     
-  SYNTAQLITE_TK_BETWEEN,    SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_ALTER,      SYNTAQLITE_TK_RELEASE,    SYNTAQLITE_TK_EXCLUSIVE,  
-  SYNTAQLITE_TK_EXISTS,     SYNTAQLITE_TK_CASCADE,    SYNTAQLITE_TK_ASC,        SYNTAQLITE_TK_DEFAULT,    SYNTAQLITE_TK_CASE,       
+  SYNTAQLITE_TK_ORDER,      SYNTAQLITE_TK_RAISE,      SYNTAQLITE_TK_EXCEPT,     SYNTAQLITE_TK_TREE,       SYNTAQLITE_TK_EXCLUSIVE,  
+  SYNTAQLITE_TK_EXISTS,     SYNTAQLITE_TK_MACRO,      SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_UNIQUE,     SYNTAQLITE_TK_QUERY,      
+  SYNTAQLITE_TK_WINDOW,     SYNTAQLITE_TK_DOWN,       SYNTAQLITE_TK_DO,         SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_ALTER,      
+  SYNTAQLITE_TK_RANGE,      SYNTAQLITE_TK_GENERATED,  SYNTAQLITE_TK_DELETE,     SYNTAQLITE_TK_TEMP,       SYNTAQLITE_TK_TEMP,       
+  SYNTAQLITE_TK_OR,         SYNTAQLITE_TK_WITHOUT,    SYNTAQLITE_TK_WITH,       SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_REFERENCES, 
+  SYNTAQLITE_TK_ACCUMULATE, SYNTAQLITE_TK_ATTACH,     SYNTAQLITE_TK_HAVING,     SYNTAQLITE_TK_LIKE_KW,    SYNTAQLITE_TK_BEGIN,      
+  SYNTAQLITE_TK_INSTEAD,    SYNTAQLITE_TK_ADD,        SYNTAQLITE_TK_DETACH,     SYNTAQLITE_TK_BETWEEN,    SYNTAQLITE_TK_NOTHING,    
+  SYNTAQLITE_TK_GROUPS,     SYNTAQLITE_TK_GROUP,      SYNTAQLITE_TK_BITOR,      SYNTAQLITE_TK_RELEASE,    SYNTAQLITE_TK_CASCADE,    
+  SYNTAQLITE_TK_ASC,        SYNTAQLITE_TK_DEFAULT,    SYNTAQLITE_TK_TRIGGER,    SYNTAQLITE_TK_RECURSIVE,  SYNTAQLITE_TK_CASE,       
   SYNTAQLITE_TK_COLLATE,    SYNTAQLITE_TK_CREATE,     SYNTAQLITE_TK_CTIME_KW,   SYNTAQLITE_TK_IMMEDIATE,  SYNTAQLITE_TK_JOIN,       
-  SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_RECURSIVE,  SYNTAQLITE_TK_MATCH,      SYNTAQLITE_TK_MODULE,     SYNTAQLITE_TK_PLAN,       
+  SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_RENAME,     SYNTAQLITE_TK_MATCH,      SYNTAQLITE_TK_MODULE,     SYNTAQLITE_TK_PLAN,       
   SYNTAQLITE_TK_ANALYZE,    SYNTAQLITE_TK_PRAGMA,     SYNTAQLITE_TK_MATERIALIZED, SYNTAQLITE_TK_DEFERRED,   SYNTAQLITE_TK_DISTINCT,   
-  SYNTAQLITE_TK_IS,         SYNTAQLITE_TK_UPDATE,     SYNTAQLITE_TK_VALUES,     SYNTAQLITE_TK_VIRTUAL,    SYNTAQLITE_TK_ALWAYS,     
-  SYNTAQLITE_TK_WHEN,       SYNTAQLITE_TK_NOTHING,    SYNTAQLITE_TK_GROUPS,     SYNTAQLITE_TK_GROUP,      SYNTAQLITE_TK_WHERE,      
-  SYNTAQLITE_TK_RENAME,     SYNTAQLITE_TK_WITHIN,     SYNTAQLITE_TK_INSERT,     SYNTAQLITE_TK_ABORT,      SYNTAQLITE_TK_AFTER,      
-  SYNTAQLITE_TK_REPLACE,    SYNTAQLITE_TK_AND,        SYNTAQLITE_TK_DROP,       SYNTAQLITE_TK_PARTITION,  SYNTAQLITE_TK_AUTOINCR,   
-  SYNTAQLITE_TK_TO,         SYNTAQLITE_TK_IN,         SYNTAQLITE_TK_CAST,       SYNTAQLITE_TK_COLUMNKW,   SYNTAQLITE_TK_COMMIT,     
-  SYNTAQLITE_TK_CONFLICT,   SYNTAQLITE_TK_CTIME_KW,   SYNTAQLITE_TK_CTIME_KW,   SYNTAQLITE_TK_CURRENT,    SYNTAQLITE_TK_PRECEDING,  
-  SYNTAQLITE_TK_FAIL,       SYNTAQLITE_TK_LAST,       SYNTAQLITE_TK_FILTER,     SYNTAQLITE_TK_RESTRICT,   SYNTAQLITE_TK_FIRST,      
-  SYNTAQLITE_TK_FOLLOWING,  SYNTAQLITE_TK_FROM,       SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_LIMIT,      SYNTAQLITE_TK_FUNCTION,   
-  SYNTAQLITE_TK_IF,         SYNTAQLITE_TK_OTHERS,     SYNTAQLITE_TK_OVER,       SYNTAQLITE_TK_RETURNING,  SYNTAQLITE_TK_RETURNS,    
-  SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_ROLLBACK,   SYNTAQLITE_TK_ROWS,       SYNTAQLITE_TK_ROW,        SYNTAQLITE_TK_UNBOUNDED,  
-  SYNTAQLITE_TK_UNION,      SYNTAQLITE_TK_USING,      SYNTAQLITE_TK_VACUUM,     SYNTAQLITE_TK_VIEW,       SYNTAQLITE_TK_WINDOW,     
-  SYNTAQLITE_TK_DO,         SYNTAQLITE_TK_BY,         SYNTAQLITE_TK_INITIALLY,  SYNTAQLITE_TK_ALL,        SYNTAQLITE_TK_PRIMARY,    
+  SYNTAQLITE_TK_IS,         SYNTAQLITE_TK_UP,         SYNTAQLITE_TK_UPDATE,     SYNTAQLITE_TK_VALUES,     SYNTAQLITE_TK_VIRTUAL,    
+  SYNTAQLITE_TK_ALWAYS,     SYNTAQLITE_TK_WHEN,       SYNTAQLITE_TK_WHERE,      SYNTAQLITE_TK_REPLACE,    SYNTAQLITE_TK_WITHIN,     
+  SYNTAQLITE_TK_INSERT,     SYNTAQLITE_TK_ABORT,      SYNTAQLITE_TK_AFTER,      SYNTAQLITE_TK_RESTRICT,   SYNTAQLITE_TK_AND,        
+  SYNTAQLITE_TK_DROP,       SYNTAQLITE_TK_PARTITION,  SYNTAQLITE_TK_AUTOINCR,   SYNTAQLITE_TK_TO,         SYNTAQLITE_TK_IN,         
+  SYNTAQLITE_TK_CAST,       SYNTAQLITE_TK_COLUMNKW,   SYNTAQLITE_TK_COMMIT,     SYNTAQLITE_TK_CONFLICT,   SYNTAQLITE_TK_CTIME_KW,   
+  SYNTAQLITE_TK_CTIME_KW,   SYNTAQLITE_TK_CURRENT,    SYNTAQLITE_TK_PRECEDING,  SYNTAQLITE_TK_FAIL,       SYNTAQLITE_TK_LAST,       
+  SYNTAQLITE_TK_FILTER,     SYNTAQLITE_TK_RETURNING,  SYNTAQLITE_TK_FIRST,      SYNTAQLITE_TK_FOLLOWING,  SYNTAQLITE_TK_FROM,       
+  SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_LIMIT,      SYNTAQLITE_TK_FUNCTION,   SYNTAQLITE_TK_IF,         SYNTAQLITE_TK_OTHERS,     
+  SYNTAQLITE_TK_OVER,       SYNTAQLITE_TK_RETURNS,    SYNTAQLITE_TK_JOIN_KW,    SYNTAQLITE_TK_ROLLBACK,   SYNTAQLITE_TK_ROWS,       
+  SYNTAQLITE_TK_ROW,        SYNTAQLITE_TK_UNBOUNDED,  SYNTAQLITE_TK_UNION,      SYNTAQLITE_TK_USING,      SYNTAQLITE_TK_VACUUM,     
+  SYNTAQLITE_TK_VIEW,       SYNTAQLITE_TK_BY,         SYNTAQLITE_TK_INITIALLY,  SYNTAQLITE_TK_ALL,        SYNTAQLITE_TK_PRIMARY,    
 };
 /* Hash table decoded:
 **   0: INSERT
@@ -9227,7 +9911,7 @@ const unsigned char synq_perfetto_aKWCode[156] = {0,
 **   4: PARTITION
 **   5: TEMP
 **   6: PERFETTO
-**   7:
+**   7: UP
 **   8: VALUES WITHOUT
 **   9:
 **  10: MATCH
@@ -9254,7 +9938,7 @@ const unsigned char synq_perfetto_aKWCode[156] = {0,
 **  31: REGEXP THEN
 **  32: TO
 **  33:
-**  34: BEFORE
+**  34: ACCUMULATE BEFORE
 **  35:
 **  36:
 **  37: FOLLOWING COLLATE CASCADE
@@ -9271,7 +9955,7 @@ const unsigned char synq_perfetto_aKWCode[156] = {0,
 **  48: CURRENT_TIME CURRENT_DATE
 **  49:
 **  50:
-**  51: EXCLUSIVE TEMPORARY
+**  51: TEMPORARY EXCLUSIVE
 **  52:
 **  53: DEFERRED
 **  54: DEFERRABLE
@@ -9312,10 +9996,10 @@ const unsigned char synq_perfetto_aKWCode[156] = {0,
 **  89: FULL FAIL CONFLICT
 **  90: EXPLAIN
 **  91: CONSTRAINT FUNCTION
-**  92: FROM ALWAYS
+**  92: FROM ALWAYS BITOR
 **  93:
 **  94: ABORT
-**  95:
+**  95: DOWN
 **  96: AS DO
 **  97: REPLACE WITH RELEASE
 **  98: BY RENAME
@@ -9344,42 +10028,44 @@ const unsigned char synq_perfetto_aKWCode[156] = {0,
 ** 121: NULL
 ** 122:
 ** 123: TABLE
-** 124: NATURAL NOTNULL
+** 124: NATURAL NOTNULL TREE
 ** 125: PRECEDING MACRO
 ** 126: UPDATE UNIQUE
 */
 /* Check to see if z[0..n-1] is a keyword. If it is, write the
 ** parser symbol code for that keyword into *pType.  Always
 ** return the integer n (the length of the token). */
-static const int32_t synq_perfetto_aKWSince[156] = {
+static const int32_t synq_perfetto_aKWSince[161] = {
   0,0,0,0,0,0,0,0,0,0,0,0,0,
   0,0,0,0,3028000,0,0,0,0,0,0,0,0,
   3030000,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,3028000,0,0,0,0,0,0,0,3025000,3031000,
+  0,0,0,3028000,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,3025000,0,3024000,0,0,3025000,3031000,0,0,
   0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,3035000,0,0,0,0,0,0,3031000,0,3024000,3028000,
-  0,0,0,3047000,0,0,0,0,0,0,3025000,0,0,
-  0,0,0,0,0,0,0,3025000,3025000,0,3030000,3025000,0,
-  3030000,3025000,0,0,0,0,0,3028000,3025000,3035000,0,0,0,
-  3025000,0,3025000,0,0,0,0,3025000,3024000,0,0,0,0
+  0,0,3024000,3028000,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,3035000,
+  0,0,0,0,0,0,0,3031000,0,0,0,3047000,0,
+  0,0,0,0,0,3025000,0,0,0,0,0,0,0,
+  0,0,3025000,3025000,0,3030000,3025000,3035000,3030000,3025000,0,0,0,
+  0,0,3028000,3025000,0,0,0,3025000,0,3025000,0,0,0,
+  0,0,0,0,0
 };
-static const int8_t synq_perfetto_aKWCFlag[156] = {
+static const int8_t synq_perfetto_aKWCFlag[161] = {
   -1,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
   -1,2,-1,-1,19,-1,5,-1,8,-1,-1,-1,-1,
   -1,-1,15,8,15,-1,-1,7,-1,8,15,-1,-1,
-  -1,-1,-1,19,-1,-1,-1,-1,15,5,15,19,-1,
-  -1,-1,-1,-1,-1,-1,-1,7,-1,6,-1,8,2,
-  -1,-1,-1,15,-1,2,-1,-1,-1,-1,-1,-1,8,
-  -1,-1,-1,-1,-1,-1,-1,-1,-1,6,-1,-1,7,
-  1,10,6,-1,-1,-1,-1,-1,18,9,-1,-1,19,
-  -1,-1,-1,20,-1,-1,15,-1,-1,-1,19,3,-1,
-  -1,4,-1,-1,-1,-1,-1,19,19,-1,-1,19,8,
-  -1,19,-1,-1,-1,-1,-1,19,19,12,-1,-1,-1,
-  -1,15,19,5,-1,-1,17,19,-1,-1,8,-1,-1
+  -1,-1,-1,19,-1,-1,-1,-1,15,5,-1,-1,-1,
+  -1,-1,-1,7,19,-1,-1,-1,-1,19,-1,-1,-1,
+  -1,-1,-1,6,-1,8,-1,2,-1,-1,-1,15,-1,
+  2,-1,-1,19,-1,-1,-1,8,-1,-1,15,6,-1,
+  -1,-1,-1,-1,-1,-1,-1,-1,-1,7,1,10,6,
+  -1,-1,-1,-1,-1,-1,18,9,-1,-1,-1,20,-1,
+  -1,15,8,-1,-1,19,3,-1,-1,4,-1,-1,-1,
+  -1,-1,19,19,-1,-1,19,12,-1,19,-1,-1,-1,
+  -1,-1,19,19,-1,-1,-1,-1,15,19,5,-1,-1,
+  17,-1,8,-1,-1
 };
-static const uint8_t synq_perfetto_aKWCFlagPolarity[156] = {
+static const uint8_t synq_perfetto_aKWCFlagPolarity[161] = {
   0,0,0,0,0,0,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -9388,10 +10074,11 @@ static const uint8_t synq_perfetto_aKWCFlagPolarity[156] = {
   0,0,0,0,0,0,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,1,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,1,0,
   0,0,0,0,0,0,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,0,0,0,0,0,0
+  0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0
 };
 
 int synq_sqlite3_keywordCode(const SyntaqliteDialect *env, const char *z, int n, int *pType){
@@ -9463,113 +10150,118 @@ int synq_sqlite3_keywordCode(const SyntaqliteDialect *env, const char *z, int n,
     testcase( i==46 ); /* ORDER */
     testcase( i==47 ); /* RAISE */
     testcase( i==48 ); /* EXCEPT */
-    testcase( i==49 ); /* TRIGGER */
-    testcase( i==50 ); /* RANGE */
-    testcase( i==51 ); /* GENERATED */
-    testcase( i==52 ); /* DELETE */
-    testcase( i==53 ); /* TEMPORARY */
-    testcase( i==54 ); /* TEMP */
-    testcase( i==55 ); /* OR */
-    testcase( i==56 ); /* MACRO */
-    testcase( i==57 ); /* CROSS */
-    testcase( i==58 ); /* UNIQUE */
-    testcase( i==59 ); /* QUERY */
-    testcase( i==60 ); /* WITHOUT */
-    testcase( i==61 ); /* WITH */
-    testcase( i==62 ); /* OUTER */
-    testcase( i==63 ); /* REFERENCES */
-    testcase( i==64 ); /* ATTACH */
-    testcase( i==65 ); /* HAVING */
-    testcase( i==66 ); /* GLOB */
-    testcase( i==67 ); /* BEGIN */
-    testcase( i==68 ); /* INSTEAD */
-    testcase( i==69 ); /* ADD */
-    testcase( i==70 ); /* DETACH */
-    testcase( i==71 ); /* BETWEEN */
-    testcase( i==72 ); /* NATURAL */
-    testcase( i==73 ); /* ALTER */
-    testcase( i==74 ); /* RELEASE */
-    testcase( i==75 ); /* EXCLUSIVE */
-    testcase( i==76 ); /* EXISTS */
-    testcase( i==77 ); /* CASCADE */
-    testcase( i==78 ); /* ASC */
-    testcase( i==79 ); /* DEFAULT */
-    testcase( i==80 ); /* CASE */
-    testcase( i==81 ); /* COLLATE */
-    testcase( i==82 ); /* CREATE */
-    testcase( i==83 ); /* CURRENT_DATE */
-    testcase( i==84 ); /* IMMEDIATE */
-    testcase( i==85 ); /* JOIN */
-    testcase( i==86 ); /* INNER */
-    testcase( i==87 ); /* RECURSIVE */
-    testcase( i==88 ); /* MATCH */
-    testcase( i==89 ); /* MODULE */
-    testcase( i==90 ); /* PLAN */
-    testcase( i==91 ); /* ANALYZE */
-    testcase( i==92 ); /* PRAGMA */
-    testcase( i==93 ); /* MATERIALIZED */
-    testcase( i==94 ); /* DEFERRED */
-    testcase( i==95 ); /* DISTINCT */
-    testcase( i==96 ); /* IS */
-    testcase( i==97 ); /* UPDATE */
-    testcase( i==98 ); /* VALUES */
-    testcase( i==99 ); /* VIRTUAL */
-    testcase( i==100 ); /* ALWAYS */
-    testcase( i==101 ); /* WHEN */
-    testcase( i==102 ); /* NOTHING */
-    testcase( i==103 ); /* GROUPS */
-    testcase( i==104 ); /* GROUP */
-    testcase( i==105 ); /* WHERE */
-    testcase( i==106 ); /* RENAME */
-    testcase( i==107 ); /* WITHIN */
-    testcase( i==108 ); /* INSERT */
-    testcase( i==109 ); /* ABORT */
-    testcase( i==110 ); /* AFTER */
-    testcase( i==111 ); /* REPLACE */
-    testcase( i==112 ); /* AND */
-    testcase( i==113 ); /* DROP */
-    testcase( i==114 ); /* PARTITION */
-    testcase( i==115 ); /* AUTOINCREMENT */
-    testcase( i==116 ); /* TO */
-    testcase( i==117 ); /* IN */
-    testcase( i==118 ); /* CAST */
-    testcase( i==119 ); /* COLUMN */
-    testcase( i==120 ); /* COMMIT */
-    testcase( i==121 ); /* CONFLICT */
-    testcase( i==122 ); /* CURRENT_TIMESTAMP */
-    testcase( i==123 ); /* CURRENT_TIME */
-    testcase( i==124 ); /* CURRENT */
-    testcase( i==125 ); /* PRECEDING */
-    testcase( i==126 ); /* FAIL */
-    testcase( i==127 ); /* LAST */
-    testcase( i==128 ); /* FILTER */
-    testcase( i==129 ); /* RESTRICT */
-    testcase( i==130 ); /* FIRST */
-    testcase( i==131 ); /* FOLLOWING */
-    testcase( i==132 ); /* FROM */
-    testcase( i==133 ); /* FULL */
-    testcase( i==134 ); /* LIMIT */
-    testcase( i==135 ); /* FUNCTION */
-    testcase( i==136 ); /* IF */
-    testcase( i==137 ); /* OTHERS */
-    testcase( i==138 ); /* OVER */
-    testcase( i==139 ); /* RETURNING */
-    testcase( i==140 ); /* RETURNS */
-    testcase( i==141 ); /* RIGHT */
-    testcase( i==142 ); /* ROLLBACK */
-    testcase( i==143 ); /* ROWS */
-    testcase( i==144 ); /* ROW */
-    testcase( i==145 ); /* UNBOUNDED */
-    testcase( i==146 ); /* UNION */
-    testcase( i==147 ); /* USING */
-    testcase( i==148 ); /* VACUUM */
-    testcase( i==149 ); /* VIEW */
-    testcase( i==150 ); /* WINDOW */
-    testcase( i==151 ); /* DO */
-    testcase( i==152 ); /* BY */
-    testcase( i==153 ); /* INITIALLY */
-    testcase( i==154 ); /* ALL */
-    testcase( i==155 ); /* PRIMARY */
+    testcase( i==49 ); /* TREE */
+    testcase( i==50 ); /* EXCLUSIVE */
+    testcase( i==51 ); /* EXISTS */
+    testcase( i==52 ); /* MACRO */
+    testcase( i==53 ); /* CROSS */
+    testcase( i==54 ); /* UNIQUE */
+    testcase( i==55 ); /* QUERY */
+    testcase( i==56 ); /* WINDOW */
+    testcase( i==57 ); /* DOWN */
+    testcase( i==58 ); /* DO */
+    testcase( i==59 ); /* NATURAL */
+    testcase( i==60 ); /* ALTER */
+    testcase( i==61 ); /* RANGE */
+    testcase( i==62 ); /* GENERATED */
+    testcase( i==63 ); /* DELETE */
+    testcase( i==64 ); /* TEMPORARY */
+    testcase( i==65 ); /* TEMP */
+    testcase( i==66 ); /* OR */
+    testcase( i==67 ); /* WITHOUT */
+    testcase( i==68 ); /* WITH */
+    testcase( i==69 ); /* OUTER */
+    testcase( i==70 ); /* REFERENCES */
+    testcase( i==71 ); /* ACCUMULATE */
+    testcase( i==72 ); /* ATTACH */
+    testcase( i==73 ); /* HAVING */
+    testcase( i==74 ); /* GLOB */
+    testcase( i==75 ); /* BEGIN */
+    testcase( i==76 ); /* INSTEAD */
+    testcase( i==77 ); /* ADD */
+    testcase( i==78 ); /* DETACH */
+    testcase( i==79 ); /* BETWEEN */
+    testcase( i==80 ); /* NOTHING */
+    testcase( i==81 ); /* GROUPS */
+    testcase( i==82 ); /* GROUP */
+    testcase( i==83 ); /* BITOR */
+    testcase( i==84 ); /* RELEASE */
+    testcase( i==85 ); /* CASCADE */
+    testcase( i==86 ); /* ASC */
+    testcase( i==87 ); /* DEFAULT */
+    testcase( i==88 ); /* TRIGGER */
+    testcase( i==89 ); /* RECURSIVE */
+    testcase( i==90 ); /* CASE */
+    testcase( i==91 ); /* COLLATE */
+    testcase( i==92 ); /* CREATE */
+    testcase( i==93 ); /* CURRENT_DATE */
+    testcase( i==94 ); /* IMMEDIATE */
+    testcase( i==95 ); /* JOIN */
+    testcase( i==96 ); /* INNER */
+    testcase( i==97 ); /* RENAME */
+    testcase( i==98 ); /* MATCH */
+    testcase( i==99 ); /* MODULE */
+    testcase( i==100 ); /* PLAN */
+    testcase( i==101 ); /* ANALYZE */
+    testcase( i==102 ); /* PRAGMA */
+    testcase( i==103 ); /* MATERIALIZED */
+    testcase( i==104 ); /* DEFERRED */
+    testcase( i==105 ); /* DISTINCT */
+    testcase( i==106 ); /* IS */
+    testcase( i==107 ); /* UP */
+    testcase( i==108 ); /* UPDATE */
+    testcase( i==109 ); /* VALUES */
+    testcase( i==110 ); /* VIRTUAL */
+    testcase( i==111 ); /* ALWAYS */
+    testcase( i==112 ); /* WHEN */
+    testcase( i==113 ); /* WHERE */
+    testcase( i==114 ); /* REPLACE */
+    testcase( i==115 ); /* WITHIN */
+    testcase( i==116 ); /* INSERT */
+    testcase( i==117 ); /* ABORT */
+    testcase( i==118 ); /* AFTER */
+    testcase( i==119 ); /* RESTRICT */
+    testcase( i==120 ); /* AND */
+    testcase( i==121 ); /* DROP */
+    testcase( i==122 ); /* PARTITION */
+    testcase( i==123 ); /* AUTOINCREMENT */
+    testcase( i==124 ); /* TO */
+    testcase( i==125 ); /* IN */
+    testcase( i==126 ); /* CAST */
+    testcase( i==127 ); /* COLUMN */
+    testcase( i==128 ); /* COMMIT */
+    testcase( i==129 ); /* CONFLICT */
+    testcase( i==130 ); /* CURRENT_TIMESTAMP */
+    testcase( i==131 ); /* CURRENT_TIME */
+    testcase( i==132 ); /* CURRENT */
+    testcase( i==133 ); /* PRECEDING */
+    testcase( i==134 ); /* FAIL */
+    testcase( i==135 ); /* LAST */
+    testcase( i==136 ); /* FILTER */
+    testcase( i==137 ); /* RETURNING */
+    testcase( i==138 ); /* FIRST */
+    testcase( i==139 ); /* FOLLOWING */
+    testcase( i==140 ); /* FROM */
+    testcase( i==141 ); /* FULL */
+    testcase( i==142 ); /* LIMIT */
+    testcase( i==143 ); /* FUNCTION */
+    testcase( i==144 ); /* IF */
+    testcase( i==145 ); /* OTHERS */
+    testcase( i==146 ); /* OVER */
+    testcase( i==147 ); /* RETURNS */
+    testcase( i==148 ); /* RIGHT */
+    testcase( i==149 ); /* ROLLBACK */
+    testcase( i==150 ); /* ROWS */
+    testcase( i==151 ); /* ROW */
+    testcase( i==152 ); /* UNBOUNDED */
+    testcase( i==153 ); /* UNION */
+    testcase( i==154 ); /* USING */
+    testcase( i==155 ); /* VACUUM */
+    testcase( i==156 ); /* VIEW */
+    testcase( i==157 ); /* BY */
+    testcase( i==158 ); /* INITIALLY */
+    testcase( i==159 ); /* ALL */
+    testcase( i==160 ); /* PRIMARY */
     /* Version check: skip keywords newer than target version. */
     if( synq_perfetto_aKWSince[i] != 0 && SYNQ_VER_LT(env, synq_perfetto_aKWSince[i]) ){
       break;
@@ -9820,34 +10512,52 @@ static inline uint32_t synq_parse_case_when(
         }, (uint32_t)sizeof(SyntaqliteCaseWhen));
 }
 
+static inline uint32_t synq_parse_foreign_key_option(
+    SynqParseCtx *ctx,
+    SyntaqliteForeignKeyOptionKind kind,
+    SyntaqliteForeignKeyAction action,
+    SyntaqliteTextSpan match_name
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqliteForeignKeyOption){
+            .tag = SYNTAQLITE_NODE_FOREIGN_KEY_OPTION,
+            .kind = kind,
+            .action = action,
+            .match_name = match_name
+        }, (uint32_t)sizeof(SyntaqliteForeignKeyOption));
+}
+
 static inline uint32_t synq_parse_foreign_key_clause(
     SynqParseCtx *ctx,
     SyntaqliteTextSpan ref_table,
     uint32_t ref_columns,
-    SyntaqliteForeignKeyAction on_delete,
-    SyntaqliteForeignKeyAction on_update,
-    SyntaqliteBool is_deferred
+    uint32_t options,
+    SyntaqliteDeferrable deferrable,
+    SyntaqliteInitialDeferMode initial_defer
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteForeignKeyClause){
             .tag = SYNTAQLITE_NODE_FOREIGN_KEY_CLAUSE,
             .ref_table = ref_table,
             .ref_columns = ref_columns,
-            .on_delete = on_delete,
-            .on_update = on_update,
-            .is_deferred = is_deferred
+            .options = options,
+            .deferrable = deferrable,
+            .initial_defer = initial_defer
         }, (uint32_t)sizeof(SyntaqliteForeignKeyClause));
 }
 
 static inline uint32_t synq_parse_column_constraint(
     SynqParseCtx *ctx,
     SyntaqliteColumnConstraintType kind,
-    SyntaqliteTextSpan constraint_name,
     SyntaqliteConflictAction onconf,
     SyntaqliteSortOrder sort_order,
     SyntaqliteBool is_autoincrement,
     SyntaqliteTextSpan collation_name,
     SyntaqliteGeneratedColumnStorage generated_storage,
+    SyntaqliteDeferrable deferrable,
+    SyntaqliteInitialDeferMode initial_defer,
+    SyntaqliteBool default_has_parens,
+    SyntaqliteBool generated_always,
     uint32_t default_expr,
     uint32_t check_expr,
     uint32_t generated_expr,
@@ -9857,17 +10567,31 @@ static inline uint32_t synq_parse_column_constraint(
         &(SyntaqliteColumnConstraint){
             .tag = SYNTAQLITE_NODE_COLUMN_CONSTRAINT,
             .kind = kind,
-            .constraint_name = constraint_name,
             .onconf = onconf,
             .sort_order = sort_order,
             .is_autoincrement = is_autoincrement,
             .collation_name = collation_name,
             .generated_storage = generated_storage,
+            .deferrable = deferrable,
+            .initial_defer = initial_defer,
+            .default_has_parens = default_has_parens,
+            .generated_always = generated_always,
             .default_expr = default_expr,
             .check_expr = check_expr,
             .generated_expr = generated_expr,
             .fk_clause = fk_clause
         }, (uint32_t)sizeof(SyntaqliteColumnConstraint));
+}
+
+static inline uint32_t synq_parse_constraint_name_declaration(
+    SynqParseCtx *ctx,
+    SyntaqliteTextSpan name
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqliteConstraintNameDeclaration){
+            .tag = SYNTAQLITE_NODE_CONSTRAINT_NAME_DECLARATION,
+            .name = name
+        }, (uint32_t)sizeof(SyntaqliteConstraintNameDeclaration));
 }
 
 static inline uint32_t synq_parse_column_def(
@@ -9888,7 +10612,6 @@ static inline uint32_t synq_parse_column_def(
 static inline uint32_t synq_parse_table_constraint(
     SynqParseCtx *ctx,
     SyntaqliteTableConstraintType kind,
-    SyntaqliteTextSpan constraint_name,
     SyntaqliteConflictAction onconf,
     SyntaqliteBool is_autoincrement,
     uint32_t pk_columns,
@@ -9900,7 +10623,6 @@ static inline uint32_t synq_parse_table_constraint(
         &(SyntaqliteTableConstraint){
             .tag = SYNTAQLITE_NODE_TABLE_CONSTRAINT,
             .kind = kind,
-            .constraint_name = constraint_name,
             .onconf = onconf,
             .is_autoincrement = is_autoincrement,
             .pk_columns = pk_columns,
@@ -9914,7 +10636,7 @@ static inline uint32_t synq_parse_create_table_stmt(
     SynqParseCtx *ctx,
     SyntaqliteTextSpan table_name,
     SyntaqliteTextSpan schema,
-    SyntaqliteBool is_temp,
+    SyntaqliteTemporaryQualifier temporary,
     SyntaqliteBool if_not_exists,
     SyntaqliteCreateTableStmtFlags flags,
     uint32_t columns,
@@ -9926,7 +10648,7 @@ static inline uint32_t synq_parse_create_table_stmt(
             .tag = SYNTAQLITE_NODE_CREATE_TABLE_STMT,
             .table_name = table_name,
             .schema = schema,
-            .is_temp = is_temp,
+            .temporary = temporary,
             .if_not_exists = if_not_exists,
             .flags = flags,
             .columns = columns,
@@ -10065,6 +10787,7 @@ static inline uint32_t synq_parse_insert_stmt(
     SynqParseCtx *ctx,
     uint32_t with_ctes,
     SyntaqliteBool with_recursive,
+    SyntaqliteInsertKeyword keyword,
     SyntaqliteConflictAction conflict_action,
     uint32_t table,
     uint32_t columns,
@@ -10077,6 +10800,7 @@ static inline uint32_t synq_parse_insert_stmt(
             .tag = SYNTAQLITE_NODE_INSERT_STMT,
             .with_ctes = with_ctes,
             .with_recursive = with_recursive,
+            .keyword = keyword,
             .conflict_action = conflict_action,
             .table = table,
             .columns = columns,
@@ -10155,6 +10879,14 @@ static inline uint32_t synq_parse_error(
             .tag = SYNTAQLITE_NODE_ERROR,
             .source = source
         }, (uint32_t)sizeof(SyntaqliteError));
+}
+
+static inline uint32_t synq_parse_row_value(SynqParseCtx *ctx, uint32_t items) {
+    return synq_parse_build(ctx,
+        &(SyntaqliteRowValue){
+            .tag = SYNTAQLITE_NODE_ROW_VALUE,
+            .items = items
+        }, (uint32_t)sizeof(SyntaqliteRowValue));
 }
 
 static inline uint32_t synq_parse_function_call(
@@ -10244,43 +10976,57 @@ static inline uint32_t synq_parse_drop_stmt(
 static inline uint32_t synq_parse_alter_table_stmt(
     SynqParseCtx *ctx,
     SyntaqliteAlterOp op,
+    SyntaqliteBool has_column_kw,
     uint32_t target,
     uint32_t new_name,
-    uint32_t old_name
+    uint32_t old_name,
+    uint32_t column
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteAlterTableStmt){
             .tag = SYNTAQLITE_NODE_ALTER_TABLE_STMT,
             .op = op,
+            .has_column_kw = has_column_kw,
             .target = target,
             .new_name = new_name,
-            .old_name = old_name
+            .old_name = old_name,
+            .column = column
         }, (uint32_t)sizeof(SyntaqliteAlterTableStmt));
 }
 
 static inline uint32_t synq_parse_transaction_stmt(
     SynqParseCtx *ctx,
     SyntaqliteTransactionOp op,
-    SyntaqliteTransactionType trans_type
+    SyntaqliteTransactionType trans_type,
+    SyntaqliteBool has_transaction,
+    SyntaqliteTextSpan name
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteTransactionStmt){
             .tag = SYNTAQLITE_NODE_TRANSACTION_STMT,
             .op = op,
-            .trans_type = trans_type
+            .trans_type = trans_type,
+            .has_transaction = has_transaction,
+            .name = name
         }, (uint32_t)sizeof(SyntaqliteTransactionStmt));
 }
 
 static inline uint32_t synq_parse_savepoint_stmt(
     SynqParseCtx *ctx,
     SyntaqliteSavepointOp op,
-    uint32_t savepoint_name
+    uint32_t savepoint_name,
+    SyntaqliteBool has_savepoint,
+    SyntaqliteBool has_transaction,
+    SyntaqliteTextSpan transaction_name
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteSavepointStmt){
             .tag = SYNTAQLITE_NODE_SAVEPOINT_STMT,
             .op = op,
-            .savepoint_name = savepoint_name
+            .savepoint_name = savepoint_name,
+            .has_savepoint = has_savepoint,
+            .has_transaction = has_transaction,
+            .transaction_name = transaction_name
         }, (uint32_t)sizeof(SyntaqliteSavepointStmt));
 }
 
@@ -10288,6 +11034,7 @@ static inline uint32_t synq_parse_result_column(
     SynqParseCtx *ctx,
     SyntaqliteResultColumnFlags flags,
     uint32_t alias,
+    SyntaqliteBool alias_as,
     uint32_t expr
 ) {
     return synq_parse_build(ctx,
@@ -10295,6 +11042,7 @@ static inline uint32_t synq_parse_result_column(
             .tag = SYNTAQLITE_NODE_RESULT_COLUMN,
             .flags = flags,
             .alias = alias,
+            .alias_as = alias_as,
             .expr = expr
         }, (uint32_t)sizeof(SyntaqliteResultColumn));
 }
@@ -10344,14 +11092,27 @@ static inline uint32_t synq_parse_ordering_term(
 static inline uint32_t synq_parse_limit_clause(
     SynqParseCtx *ctx,
     uint32_t limit,
-    uint32_t offset
+    uint32_t offset,
+    SyntaqliteBool comma_form
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteLimitClause){
             .tag = SYNTAQLITE_NODE_LIMIT_CLAUSE,
             .limit = limit,
-            .offset = offset
+            .offset = offset,
+            .comma_form = comma_form
         }, (uint32_t)sizeof(SyntaqliteLimitClause));
+}
+
+static inline uint32_t synq_parse_join_modifier(
+    SynqParseCtx *ctx,
+    SyntaqliteJoinModifierKind kind
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqliteJoinModifier){
+            .tag = SYNTAQLITE_NODE_JOIN_MODIFIER,
+            .kind = kind
+        }, (uint32_t)sizeof(SyntaqliteJoinModifier));
 }
 
 static inline uint32_t synq_parse_table_ref(
@@ -10360,7 +11121,10 @@ static inline uint32_t synq_parse_table_ref(
     SyntaqliteTextSpan schema,
     SyntaqliteBool has_parens,
     uint32_t alias,
-    uint32_t args
+    SyntaqliteBool alias_as,
+    uint32_t args,
+    SyntaqliteIndexHint index_hint,
+    SyntaqliteTextSpan index_name
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteTableRef){
@@ -10369,26 +11133,47 @@ static inline uint32_t synq_parse_table_ref(
             .schema = schema,
             .has_parens = has_parens,
             .alias = alias,
-            .args = args
+            .alias_as = alias_as,
+            .args = args,
+            .index_hint = index_hint,
+            .index_name = index_name
         }, (uint32_t)sizeof(SyntaqliteTableRef));
 }
 
 static inline uint32_t synq_parse_subquery_table_source(
     SynqParseCtx *ctx,
     uint32_t select,
-    uint32_t alias
+    uint32_t alias,
+    SyntaqliteBool alias_as
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteSubqueryTableSource){
             .tag = SYNTAQLITE_NODE_SUBQUERY_TABLE_SOURCE,
             .select = select,
-            .alias = alias
+            .alias = alias,
+            .alias_as = alias_as
         }, (uint32_t)sizeof(SyntaqliteSubqueryTableSource));
+}
+
+static inline uint32_t synq_parse_paren_table_source(
+    SynqParseCtx *ctx,
+    uint32_t source,
+    uint32_t alias,
+    SyntaqliteBool alias_as
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqliteParenTableSource){
+            .tag = SYNTAQLITE_NODE_PAREN_TABLE_SOURCE,
+            .source = source,
+            .alias = alias,
+            .alias_as = alias_as
+        }, (uint32_t)sizeof(SyntaqliteParenTableSource));
 }
 
 static inline uint32_t synq_parse_join_clause(
     SynqParseCtx *ctx,
     SyntaqliteJoinType join_type,
+    uint32_t modifiers,
     uint32_t left,
     uint32_t right,
     uint32_t on_expr,
@@ -10398,6 +11183,7 @@ static inline uint32_t synq_parse_join_clause(
         &(SyntaqliteJoinClause){
             .tag = SYNTAQLITE_NODE_JOIN_CLAUSE,
             .join_type = join_type,
+            .modifiers = modifiers,
             .left = left,
             .right = right,
             .on_expr = on_expr,
@@ -10408,13 +11194,15 @@ static inline uint32_t synq_parse_join_clause(
 static inline uint32_t synq_parse_join_prefix(
     SynqParseCtx *ctx,
     uint32_t source,
-    SyntaqliteJoinType join_type
+    SyntaqliteJoinType join_type,
+    uint32_t modifiers
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteJoinPrefix){
             .tag = SYNTAQLITE_NODE_JOIN_PREFIX,
             .source = source,
-            .join_type = join_type
+            .join_type = join_type,
+            .modifiers = modifiers
         }, (uint32_t)sizeof(SyntaqliteJoinPrefix));
 }
 
@@ -10435,9 +11223,10 @@ static inline uint32_t synq_parse_create_trigger_stmt(
     SynqParseCtx *ctx,
     SyntaqliteTextSpan trigger_name,
     SyntaqliteTextSpan schema,
-    SyntaqliteBool is_temp,
+    SyntaqliteTemporaryQualifier temporary,
     SyntaqliteBool if_not_exists,
     SyntaqliteTriggerTiming timing,
+    SyntaqliteBool for_each_row,
     uint32_t event,
     uint32_t table,
     uint32_t when_expr,
@@ -10448,9 +11237,10 @@ static inline uint32_t synq_parse_create_trigger_stmt(
             .tag = SYNTAQLITE_NODE_CREATE_TRIGGER_STMT,
             .trigger_name = trigger_name,
             .schema = schema,
-            .is_temp = is_temp,
+            .temporary = temporary,
             .if_not_exists = if_not_exists,
             .timing = timing,
+            .for_each_row = for_each_row,
             .event = event,
             .table = table,
             .when_expr = when_expr,
@@ -10464,6 +11254,7 @@ static inline uint32_t synq_parse_create_virtual_table_stmt(
     SyntaqliteTextSpan schema,
     SyntaqliteTextSpan module_name,
     SyntaqliteBool if_not_exists,
+    SyntaqliteBool has_module_args,
     SyntaqliteTextSpan module_args
 ) {
     return synq_parse_build(ctx,
@@ -10473,6 +11264,7 @@ static inline uint32_t synq_parse_create_virtual_table_stmt(
             .schema = schema,
             .module_name = module_name,
             .if_not_exists = if_not_exists,
+            .has_module_args = has_module_args,
             .module_args = module_args
         }, (uint32_t)sizeof(SyntaqliteCreateVirtualTableStmt));
 }
@@ -10511,6 +11303,7 @@ static inline uint32_t synq_parse_analyze_or_reindex_stmt(
 
 static inline uint32_t synq_parse_attach_stmt(
     SynqParseCtx *ctx,
+    SyntaqliteBool has_database,
     uint32_t filename,
     uint32_t db_name,
     uint32_t key
@@ -10518,6 +11311,7 @@ static inline uint32_t synq_parse_attach_stmt(
     return synq_parse_build(ctx,
         &(SyntaqliteAttachStmt){
             .tag = SYNTAQLITE_NODE_ATTACH_STMT,
+            .has_database = has_database,
             .filename = filename,
             .db_name = db_name,
             .key = key
@@ -10526,11 +11320,13 @@ static inline uint32_t synq_parse_attach_stmt(
 
 static inline uint32_t synq_parse_detach_stmt(
     SynqParseCtx *ctx,
+    SyntaqliteBool has_database,
     uint32_t db_name
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteDetachStmt){
             .tag = SYNTAQLITE_NODE_DETACH_STMT,
+            .has_database = has_database,
             .db_name = db_name
         }, (uint32_t)sizeof(SyntaqliteDetachStmt));
 }
@@ -10588,7 +11384,7 @@ static inline uint32_t synq_parse_create_view_stmt(
     SynqParseCtx *ctx,
     SyntaqliteTextSpan view_name,
     SyntaqliteTextSpan schema,
-    SyntaqliteBool is_temp,
+    SyntaqliteTemporaryQualifier temporary,
     SyntaqliteBool if_not_exists,
     uint32_t column_names,
     uint32_t select
@@ -10598,7 +11394,7 @@ static inline uint32_t synq_parse_create_view_stmt(
             .tag = SYNTAQLITE_NODE_CREATE_VIEW_STMT,
             .view_name = view_name,
             .schema = schema,
-            .is_temp = is_temp,
+            .temporary = temporary,
             .if_not_exists = if_not_exists,
             .column_names = column_names,
             .select = select
@@ -10648,6 +11444,7 @@ static inline uint32_t synq_parse_frame_spec(
 
 static inline uint32_t synq_parse_window_def(
     SynqParseCtx *ctx,
+    SyntaqliteTextSpan ref_window_name,
     SyntaqliteTextSpan base_window_name,
     uint32_t partition_by,
     uint32_t orderby,
@@ -10656,6 +11453,7 @@ static inline uint32_t synq_parse_window_def(
     return synq_parse_build(ctx,
         &(SyntaqliteWindowDef){
             .tag = SYNTAQLITE_NODE_WINDOW_DEF,
+            .ref_window_name = ref_window_name,
             .base_window_name = base_window_name,
             .partition_by = partition_by,
             .orderby = orderby,
@@ -10763,7 +11561,8 @@ static inline uint32_t synq_parse_create_perfetto_table_stmt(
     uint32_t table_impl,
     uint32_t schema,
     uint32_t select,
-    SyntaqliteTextSpan select_span
+    SyntaqliteTextSpan select_span,
+    uint32_t pipeline
 ) {
     return synq_parse_build(ctx,
         &(SyntaqliteCreatePerfettoTableStmt){
@@ -10773,7 +11572,8 @@ static inline uint32_t synq_parse_create_perfetto_table_stmt(
             .table_impl = table_impl,
             .schema = schema,
             .select = select,
-            .select_span = select_span
+            .select_span = select_span,
+            .pipeline = pipeline
         }, (uint32_t)sizeof(SyntaqliteCreatePerfettoTableStmt));
 }
 
@@ -10896,12 +11696,91 @@ static inline uint32_t synq_parse_drop_perfetto_index_stmt(
         }, (uint32_t)sizeof(SyntaqliteDropPerfettoIndexStmt));
 }
 
+static inline uint32_t synq_parse_perfetto_pragma_stmt(
+    SynqParseCtx *ctx,
+    SyntaqliteTextSpan name,
+    uint32_t value
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqlitePerfettoPragmaStmt){
+            .tag = SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT,
+            .name = name,
+            .value = value
+        }, (uint32_t)sizeof(SyntaqlitePerfettoPragmaStmt));
+}
+
+static inline uint32_t synq_parse_perfetto_pipe_source(
+    SynqParseCtx *ctx,
+    SyntaqliteTextSpan table_name,
+    SyntaqliteTextSpan schema,
+    uint32_t select,
+    uint32_t alias,
+    SyntaqliteBool alias_as
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqlitePerfettoPipeSource){
+            .tag = SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE,
+            .table_name = table_name,
+            .schema = schema,
+            .select = select,
+            .alias = alias,
+            .alias_as = alias_as
+        }, (uint32_t)sizeof(SyntaqlitePerfettoPipeSource));
+}
+
+static inline uint32_t synq_parse_perfetto_tree_aggregate(
+    SynqParseCtx *ctx,
+    uint32_t expr,
+    SyntaqliteTextSpan name
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqlitePerfettoTreeAggregate){
+            .tag = SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE,
+            .expr = expr,
+            .name = name
+        }, (uint32_t)sizeof(SyntaqlitePerfettoTreeAggregate));
+}
+
+static inline uint32_t synq_parse_perfetto_tree_accumulate(
+    SynqParseCtx *ctx,
+    SyntaqlitePerfettoTreeDirection direction,
+    uint32_t aggregates
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqlitePerfettoTreeAccumulate){
+            .tag = SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE,
+            .direction = direction,
+            .aggregates = aggregates
+        }, (uint32_t)sizeof(SyntaqlitePerfettoTreeAccumulate));
+}
+
+static inline uint32_t synq_parse_perfetto_pipeline(
+    SynqParseCtx *ctx,
+    uint32_t from,
+    uint32_t stages
+) {
+    return synq_parse_build(ctx,
+        &(SyntaqlitePerfettoPipeline){
+            .tag = SYNTAQLITE_NODE_PERFETTO_PIPELINE,
+            .from = from,
+            .stages = stages
+        }, (uint32_t)sizeof(SyntaqlitePerfettoPipeline));
+}
+
 static inline uint32_t synq_parse_case_when_list(
     SynqParseCtx *ctx,
     uint32_t list_id,
     uint32_t child
 ) {
     return synq_parse_list_append(ctx, SYNTAQLITE_NODE_CASE_WHEN_LIST, list_id, child);
+}
+
+static inline uint32_t synq_parse_foreign_key_option_list(
+    SynqParseCtx *ctx,
+    uint32_t list_id,
+    uint32_t child
+) {
+    return synq_parse_list_append(ctx, SYNTAQLITE_NODE_FOREIGN_KEY_OPTION_LIST, list_id, child);
 }
 
 static inline uint32_t synq_parse_column_constraint_list(
@@ -10918,6 +11797,14 @@ static inline uint32_t synq_parse_column_def_list(
     uint32_t child
 ) {
     return synq_parse_list_append(ctx, SYNTAQLITE_NODE_COLUMN_DEF_LIST, list_id, child);
+}
+
+static inline uint32_t synq_parse_table_constraint_group(
+    SynqParseCtx *ctx,
+    uint32_t list_id,
+    uint32_t child
+) {
+    return synq_parse_list_append(ctx, SYNTAQLITE_NODE_TABLE_CONSTRAINT_GROUP, list_id, child);
 }
 
 static inline uint32_t synq_parse_table_constraint_list(
@@ -10976,6 +11863,14 @@ static inline uint32_t synq_parse_order_by_list(
     return synq_parse_list_append(ctx, SYNTAQLITE_NODE_ORDER_BY_LIST, list_id, child);
 }
 
+static inline uint32_t synq_parse_join_modifier_list(
+    SynqParseCtx *ctx,
+    uint32_t list_id,
+    uint32_t child
+) {
+    return synq_parse_list_append(ctx, SYNTAQLITE_NODE_JOIN_MODIFIER_LIST, list_id, child);
+}
+
 static inline uint32_t synq_parse_trigger_cmd_list(
     SynqParseCtx *ctx,
     uint32_t list_id,
@@ -11030,6 +11925,22 @@ static inline uint32_t synq_parse_perfetto_indexed_column_list(
     uint32_t child
 ) {
     return synq_parse_list_append(ctx, SYNTAQLITE_NODE_PERFETTO_INDEXED_COLUMN_LIST, list_id, child);
+}
+
+static inline uint32_t synq_parse_perfetto_tree_aggregate_list(
+    SynqParseCtx *ctx,
+    uint32_t list_id,
+    uint32_t child
+) {
+    return synq_parse_list_append(ctx, SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE_LIST, list_id, child);
+}
+
+static inline uint32_t synq_parse_perfetto_pipe_stage_list(
+    SynqParseCtx *ctx,
+    uint32_t list_id,
+    uint32_t child
+) {
+    return synq_parse_list_append(ctx, SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST, list_id, child);
 }
 
 #ifdef __cplusplus
@@ -11088,17 +11999,31 @@ typedef struct SynqColumnNameValue {
   SyntaqliteTextSpan typetoken;
 } SynqColumnNameValue;
 
-// ccons / tcons / generated: a constraint node + pending constraint name.
-typedef struct SynqConstraintValue {
-  uint32_t node;
-  SyntaqliteTextSpan pending_name;
-} SynqConstraintValue;
-
-// carglist / conslist: accumulated constraint list + pending name for next.
-typedef struct SynqConstraintListValue {
+// conslist: completed comma-separated groups and the group still being built.
+typedef struct SynqConstraintGroups {
   uint32_t list;
-  SyntaqliteTextSpan pending_name;
-} SynqConstraintListValue;
+  uint32_t group;
+} SynqConstraintGroups;
+
+// trans_opt: whether the optional TRANSACTION keyword was written, plus the
+// optional name that may follow it.
+typedef struct SynqTransOptValue {
+  int has_transaction;
+  SynqParseToken name;
+} SynqTransOptValue;
+
+// as: an optional alias plus whether the AS keyword was authored.  Without
+// the second field `SELECT a x` and `SELECT a AS x` are indistinguishable.
+typedef struct SynqAliasValue {
+  uint32_t name;
+  int has_as;
+} SynqAliasValue;
+
+// defer_subclause: DEFERRABLE / NOT DEFERRABLE plus the INITIALLY mode.
+typedef struct SynqDeferValue {
+  SyntaqliteDeferrable deferrable;
+  SyntaqliteInitialDeferMode initial;
+} SynqDeferValue;
 
 // on_using: ON expr / USING column-list discriminator.
 typedef struct SynqOnUsingValue {
@@ -11124,6 +12049,18 @@ typedef struct SynqUpsertValue {
   uint32_t returning;
 } SynqUpsertValue;
 
+// Keep the authored INSERT/REPLACE form separate from conflict semantics.
+typedef struct SynqInsertCmdValue {
+  SyntaqliteInsertKeyword keyword;
+  SyntaqliteConflictAction conflict_action;
+} SynqInsertCmdValue;
+
+// Keep the authored modifier sequence alongside its semantic join type.
+typedef struct SynqJoinOpValue {
+  SyntaqliteJoinType join_type;
+  uint32_t modifiers;
+} SynqJoinOpValue;
+
 // paren_exprlist: optional `LP exprlist RP` tail. Tracks whether the
 // parens were present so callers can distinguish `foo` (has_parens=0)
 // from `foo()` (has_parens=1, args=NULL_NODE) — relevant for table /
@@ -11136,6 +12073,145 @@ typedef struct SynqParenExprlistValue {
 /* END GRAMMAR_TYPES */
 
 #define YYPARSEFREENEVERNULL 1
+
+// The ID fallback lets `GENERATED ALWAYS` be absorbed into a preceding type
+// name. Trim it back off as sqlite3AddColumn does, reporting whether it was
+// there so the keywords can still be emitted.
+static inline int synq_trim_generated_always(SynqParseToken* t) {
+  if (t->z == NULL || t->n < 16) {
+    return 0;
+  }
+  if (SYNQ_STRNCASECMP(t->z + (t->n - 6), "always", 6) != 0) {
+    return 0;
+  }
+  int n = t->n - 6;
+  while (n > 0 && (t->z[n - 1] == ' ' || t->z[n - 1] == '\t' ||
+                   t->z[n - 1] == '\n' || t->z[n - 1] == '\r')) {
+    n--;
+  }
+  if (n < 9 || SYNQ_STRNCASECMP(t->z + (n - 9), "generated", 9) != 0) {
+    return 0;
+  }
+  n -= 9;
+  while (n > 0 && (t->z[n - 1] == ' ' || t->z[n - 1] == '\t' ||
+                   t->z[n - 1] == '\n' || t->z[n - 1] == '\r')) {
+    n--;
+  }
+  t->n = n;
+  return 1;
+}
+
+// Semantic join type depends on the set of keywords; see sqlite3JoinType().
+#define SYNQ_JT_INNER   0x01
+#define SYNQ_JT_CROSS   0x02
+#define SYNQ_JT_NATURAL 0x04
+#define SYNQ_JT_LEFT    0x08
+#define SYNQ_JT_RIGHT   0x10
+#define SYNQ_JT_OUTER   0x20
+#define SYNQ_JT_ERROR   0x40
+
+static inline int synq_append_join_modifier(SynqParseCtx* ctx,
+                                             uint32_t* modifiers,
+                                             const SynqParseToken* token) {
+  static const struct {
+    const char* text;
+    unsigned char len;
+    unsigned char mask;
+    SyntaqliteJoinModifierKind kind;
+  } keywords[] = {
+    {"natural", 7, SYNQ_JT_NATURAL, SYNTAQLITE_JOIN_MODIFIER_KIND_NATURAL},
+    {"left", 4, SYNQ_JT_LEFT | SYNQ_JT_OUTER, SYNTAQLITE_JOIN_MODIFIER_KIND_LEFT},
+    {"outer", 5, SYNQ_JT_OUTER, SYNTAQLITE_JOIN_MODIFIER_KIND_OUTER},
+    {"right", 5, SYNQ_JT_RIGHT | SYNQ_JT_OUTER, SYNTAQLITE_JOIN_MODIFIER_KIND_RIGHT},
+    {"full", 4, SYNQ_JT_LEFT | SYNQ_JT_RIGHT | SYNQ_JT_OUTER, SYNTAQLITE_JOIN_MODIFIER_KIND_FULL},
+    {"inner", 5, SYNQ_JT_INNER, SYNTAQLITE_JOIN_MODIFIER_KIND_INNER},
+    {"cross", 5, SYNQ_JT_INNER | SYNQ_JT_CROSS, SYNTAQLITE_JOIN_MODIFIER_KIND_CROSS},
+  };
+  if (token == NULL) return 0;
+  for (unsigned i = 0; i < sizeof(keywords) / sizeof(keywords[0]); ++i) {
+    if (token->n == keywords[i].len &&
+        SYNQ_STRNCASECMP(token->z, keywords[i].text, token->n) == 0) {
+      uint32_t modifier = synq_parse_join_modifier(ctx, keywords[i].kind);
+      *modifiers = synq_parse_join_modifier_list(ctx, *modifiers, modifier);
+      return keywords[i].mask;
+    }
+  }
+  return SYNQ_JT_ERROR;
+}
+
+// SQLite reports invalid modifier sets before falling back internally.
+static inline SyntaqliteJoinType synq_join_type(SynqParseCtx* ctx, int m) {
+  if ((m & (SYNQ_JT_INNER | SYNQ_JT_OUTER)) == (SYNQ_JT_INNER | SYNQ_JT_OUTER) ||
+      (m & SYNQ_JT_ERROR) != 0 ||
+      (m & (SYNQ_JT_OUTER | SYNQ_JT_LEFT | SYNQ_JT_RIGHT)) == SYNQ_JT_OUTER) {
+    ctx->error = 1;
+    return SYNTAQLITE_JOIN_TYPE_INNER;
+  }
+  if (m & SYNQ_JT_NATURAL) {
+    if (m & SYNQ_JT_CROSS) return SYNTAQLITE_JOIN_TYPE_NATURAL_CROSS;
+    if ((m & SYNQ_JT_LEFT) && (m & SYNQ_JT_RIGHT))
+      return SYNTAQLITE_JOIN_TYPE_NATURAL_FULL;
+    if (m & SYNQ_JT_LEFT) return SYNTAQLITE_JOIN_TYPE_NATURAL_LEFT;
+    if (m & SYNQ_JT_RIGHT) return SYNTAQLITE_JOIN_TYPE_NATURAL_RIGHT;
+    return SYNTAQLITE_JOIN_TYPE_NATURAL_INNER;
+  }
+  if (m & SYNQ_JT_CROSS) return SYNTAQLITE_JOIN_TYPE_CROSS;
+  if ((m & SYNQ_JT_LEFT) && (m & SYNQ_JT_RIGHT))
+    return SYNTAQLITE_JOIN_TYPE_FULL;
+  if (m & SYNQ_JT_LEFT) return SYNTAQLITE_JOIN_TYPE_LEFT;
+  if (m & SYNQ_JT_RIGHT) return SYNTAQLITE_JOIN_TYPE_RIGHT;
+  return SYNTAQLITE_JOIN_TYPE_INNER;
+}
+
+static inline SynqJoinOpValue synq_join_operator(SynqParseCtx* ctx,
+                                                const SynqParseToken* a,
+                                                const SynqParseToken* b,
+                                                const SynqParseToken* c) {
+  const SynqParseToken* tokens[] = {a, b, c};
+  uint32_t modifiers = SYNTAQLITE_NULL_NODE;
+  int mask = 0;
+  for (unsigned i = 0; i < sizeof(tokens) / sizeof(tokens[0]); ++i) {
+    mask |= synq_append_join_modifier(ctx, &modifiers, tokens[i]);
+  }
+  return (SynqJoinOpValue){synq_join_type(ctx, mask), modifiers};
+}
+
+// ON / USING need a left-hand term to join to (build.c
+// sqlite3SrcListAppendFromTerm).
+static inline void synq_reject_dangling_on_using(SynqParseCtx* pCtx,
+                                                 SynqOnUsingValue n) {
+  if (n.on_expr != SYNTAQLITE_NULL_NODE || n.using_cols != SYNTAQLITE_NULL_NODE) {
+    pCtx->error = 1;
+  }
+}
+
+// An authored ASC is not the same as no sort order: SQLite treats them
+// identically but they are different text, so the AST keeps them apart. NONE
+// is zero so a node with no sort order at all gets it by default.
+#define SYNQ_SORTORDER_NONE 0
+
+static inline int synq_is_digit(char c) { return c >= '0' && c <= '9'; }
+
+static inline int synq_is_xdigit(char c) {
+  return synq_is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+// Port of sqlite3DequoteNumber's separator validation (util.c): every '_' must
+// sit between two digits, or two hex digits for an 0x literal.
+static inline int synq_qnumber_is_valid(const char* z, uint32_t n) {
+  int is_hex = n > 1 && z[0] == '0' && (z[1] == 'x' || z[1] == 'X');
+  for (uint32_t i = 0; i < n; i++) {
+    if (z[i] != '_') continue;
+    if (i == 0 || i + 1 >= n) return 0;
+    char prev = z[i - 1], next = z[i + 1];
+    if (is_hex) {
+      if (!synq_is_xdigit(prev) || !synq_is_xdigit(next)) return 0;
+    } else {
+      if (!synq_is_digit(prev) || !synq_is_digit(next)) return 0;
+    }
+  }
+  return 1;
+}
 
 // Map parser error bookkeeping to a best-effort source span.
 static inline SyntaqliteTextSpan synq_error_span(SynqParseCtx* pCtx) {
@@ -11346,6 +12422,10 @@ static inline SyntaqliteTextSpan synq_error_span(SynqParseCtx* pCtx) {
 #define SYNTAQLITE_TK_MACRO                          192
 #define SYNTAQLITE_TK_DELEGATES                      193
 #define SYNTAQLITE_TK_INCLUDE                        194
+#define SYNTAQLITE_TK_TREE                           195
+#define SYNTAQLITE_TK_ACCUMULATE                     196
+#define SYNTAQLITE_TK_UP                             197
+#define SYNTAQLITE_TK_DOWN                           198
 #endif
 /**************** End token definitions ***************************************/
 
@@ -11410,24 +12490,29 @@ static inline SyntaqliteTextSpan synq_error_span(SynqParseCtx* pCtx) {
 #endif
 /************* Begin control #defines *****************************************/
 #define YYCODETYPE unsigned short int
-#define YYNOCODE 347
+#define YYNOCODE 359
 #define YYACTIONTYPE unsigned short int
 #define YYWILDCARD 92
 #define SynqPerfettoParseTOKENTYPE SynqParseToken
 typedef union {
   int yyinit;
   SynqPerfettoParseTOKENTYPE yy0;
-  SynqParenExprlistValue yy126;
-  SynqConstraintValue yy344;
-  SynqColumnNameValue yy358;
-  int yy390;
-  SynqWithValue yy425;
-  SynqOnUsingValue yy638;
-  uint32_t yy639;
-  SynqUpsertValue yy668;
-  SynqWhereRetValue yy673;
-  SynqConstraintListValue yy688;
-  int yy695;
+  SynqConstraintGroups yy21;
+  int yy50;
+  SynqJoinOpValue yy108;
+  SynqParenExprlistValue yy312;
+  SynqTransOptValue yy320;
+  SynqUpsertValue yy372;
+  SynqAliasValue yy455;
+  SynqInsertCmdValue yy484;
+  SynqDeferValue yy531;
+  SyntaqliteTemporaryQualifier yy560;
+  SynqWhereRetValue yy561;
+  uint32_t yy573;
+  SynqColumnNameValue yy626;
+  SynqWithValue yy671;
+  SynqOnUsingValue yy708;
+  int yy719;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
 #define YYSTACKDEPTH 100
@@ -11445,21 +12530,21 @@ typedef union {
 #define SynqPerfettoParseCTX_PARAM ,pCtx
 #define SynqPerfettoParseCTX_FETCH SynqParseCtx* pCtx=yypParser->pCtx;
 #define SynqPerfettoParseCTX_STORE yypParser->pCtx=pCtx;
-#define YYERRORSYMBOL 199
-#define YYERRSYMDT yy695
+#define YYERRORSYMBOL 203
+#define YYERRSYMDT yy719
 #define YYFALLBACK 1
-#define YYNSTATE             675
-#define YYNRULE              452
-#define YYNRULE_WITH_ACTION  452
-#define YYNTOKEN             195
-#define YY_MAX_SHIFT         674
-#define YY_MIN_SHIFTREDUCE   963
-#define YY_MAX_SHIFTREDUCE   1414
-#define YY_ERROR_ACTION      1415
-#define YY_ACCEPT_ACTION     1416
-#define YY_NO_ACTION         1417
-#define YY_MIN_REDUCE        1418
-#define YY_MAX_REDUCE        1869
+#define YYNSTATE             697
+#define YYNRULE              467
+#define YYNRULE_WITH_ACTION  467
+#define YYNTOKEN             199
+#define YY_MAX_SHIFT         696
+#define YY_MIN_SHIFTREDUCE   996
+#define YY_MAX_SHIFTREDUCE   1462
+#define YY_ERROR_ACTION      1463
+#define YY_ACCEPT_ACTION     1464
+#define YY_NO_ACTION         1465
+#define YY_MIN_REDUCE        1466
+#define YY_MAX_REDUCE        1932
 #define YY_MIN_DSTRCTR       0
 #define YY_MAX_DSTRCTR       0
 /************* End control #defines *******************************************/
@@ -11544,716 +12629,739 @@ typedef union {
 **  yy_default[]       Default action for each state.
 **
 *********** Begin parsing tables **********************************************/
-#define YY_ACTTAB_COUNT (2459)
+#define YY_ACTTAB_COUNT (2544)
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */   250, 1500, 1719, 1165, 1165, 1175,   94,   96, 1486,  309,
- /*    10 */  1674,  610,  309, 1674,  313, 1176, 1619, 1619,  309, 1674,
- /*    20 */   442, 1483,   87,   88,  454,   45,  458, 1009, 1009, 1006,
- /*    30 */   991, 1000, 1000,   89,   89,   90,   90,   90,   90, 1795,
- /*    40 */   431,  350,  608, 1480,  509,   87,   88,  454,   45,  573,
- /*    50 */  1009, 1009, 1006,  991, 1000, 1000,   89,   89,   90,   90,
- /*    60 */    90,   90, 1138,  571,  117,  475,  309, 1674,  434,  553,
- /*    70 */    90,   90,   90,   90,   93,  667,   66,  620,  581, 1108,
- /*    80 */  1574,  346,  588, 1670,  286,  250, 1615,  246,  562, 1648,
- /*    90 */   103,   94,   96,   86,   86,   86,   86,   92,   92,   91,
- /*   100 */    91,   91,   85,   84,  492,  651,  649,  315,  651,  649,
- /*   110 */    85,   84,  492, 1594,  651,  649,   86,   86,   86,   86,
- /*   120 */    92,   92,   91,   91,   91,   85,   84,  492,   86,   86,
- /*   130 */    86,   86,   92,   92,   91,   91,   91,   85,   84,  492,
- /*   140 */  1768,   65,   87,   88,  454,   45,  424, 1009, 1009, 1006,
- /*   150 */   991, 1000, 1000,   89,   89,   90,   90,   90,   90,  564,
- /*   160 */   386,  384,  651,  649,   87,   88,  454,   45,  659, 1009,
- /*   170 */  1009, 1006,  991, 1000, 1000,   89,   89,   90,   90,   90,
- /*   180 */    90, 1762,  340, 1138, 1509,  117, 1536,  478, 1534, 1803,
- /*   190 */   419, 1616, 1815,   49,  492, 1364,  667, 1364,   86,   86,
- /*   200 */    86,   86,   92,   92,   91,   91,   91,   85,   84,  492,
- /*   210 */  1108,  429, 1828,   86,   86,   86,   86,   92,   92,   91,
- /*   220 */    91,   91,   85,   84,  492,   92,   92,   91,   91,   91,
- /*   230 */    85,   84,  492, 1489, 1594,   86,   86,   86,   86,   92,
- /*   240 */    92,   91,   91,   91,   85,   84,  492,   87,   88,  454,
- /*   250 */    45, 1565, 1009, 1009, 1006,  991, 1000, 1000,   89,   89,
- /*   260 */    90,   90,   90,   90,   91,   91,   91,   85,   84,  492,
- /*   270 */  1566, 1184,   87,   88,  454,   45, 1400, 1009, 1009, 1006,
- /*   280 */   991, 1000, 1000,   89,   89,   90,   90,   90,   90, 1162,
- /*   290 */   244, 1185,  384,  557,  371,   87,   88,  454,   45,  239,
- /*   300 */  1009, 1009, 1006,  991, 1000, 1000,   89,   89,   90,   90,
- /*   310 */    90,   90,  418, 1817,  655, 1719,  429, 1828,   86,   86,
- /*   320 */    86,   86,   92,   92,   91,   91,   91,   85,   84,  492,
- /*   330 */   251,  629, 1183, 1483,  627, 1400, 1270, 1270,  585,  309,
- /*   340 */  1674,  436,   50,   86,   86,   86,   86,   92,   92,   91,
- /*   350 */    91,   91,   85,   84,  492, 1481, 1162, 1163, 1162, 1400,
- /*   360 */  1656,  460,  309, 1674,  438, 1492,   86,   86,   86,   86,
- /*   370 */    92,   92,   91,   91,   91,   85,   84,  492,  476,  494,
- /*   380 */   493,  424,  278, 1440,  600,  597,  596,  573,  397,  309,
- /*   390 */  1674,  322, 1299, 1299,  595,   87,   88,  454,   45,  236,
- /*   400 */  1009, 1009, 1006,  991, 1000, 1000,   89,   89,   90,   90,
- /*   410 */    90,   90,  575,  309, 1674, 1780,  251,  629,   87,   88,
- /*   420 */   454,   45,  487, 1009, 1009, 1006,  991, 1000, 1000,   89,
- /*   430 */    89,   90,   90,   90,   90,  651,  649,  669,  460, 1749,
- /*   440 */  1545,   87,   88,  454,   45,  318, 1009, 1009, 1006,  991,
- /*   450 */  1000, 1000,   89,   89,   90,   90,   90,   90,  651,  649,
- /*   460 */   306, 1674,  541, 1491, 1424, 1538,   86,   86,   86,   86,
- /*   470 */    92,   92,   91,   91,   91,   85,   84,  492,  651,  649,
- /*   480 */   309, 1674, 1672,  428, 1566,  651,  649, 1544,  601,   86,
- /*   490 */    86,   86,   86,   92,   92,   91,   91,   91,   85,   84,
- /*   500 */   492,    6, 1526,  309, 1674, 1478,  329, 1810,  175,  651,
- /*   510 */   649, 1043,   86,   86,   86,   86,   92,   92,   91,   91,
- /*   520 */    91,   85,   84,  492,  267,  309, 1674,  660,  309, 1674,
- /*   530 */   663, 1748,  542,  543, 1035,   87,   88,  454,   45, 1719,
- /*   540 */  1009, 1009, 1006,  991, 1000, 1000,   89,   89,   90,   90,
- /*   550 */    90,   90, 1010, 1010, 1007,  992,  651,  649,   87,   88,
- /*   560 */   454,   45,  573, 1009, 1009, 1006,  991, 1000, 1000,   89,
- /*   570 */    89,   90,   90,   90,   90,  179,  651,  649,  504, 1162,
- /*   580 */   411,   87,   88,  454,   45, 1165, 1009, 1009, 1006,  991,
- /*   590 */  1000, 1000,   89,   89,   90,   90,   90,   90, 1619,  651,
- /*   600 */   649, 1267,  477,  615,  659, 1267,   86,   86,   86,   86,
- /*   610 */    92,   92,   91,   91,   91,   85,   84,  492,  340,  244,
- /*   620 */   321,  651,  649,  668,  651,  649, 1162,  659,  186,   86,
- /*   630 */    86,   86,   86,   92,   92,   91,   91,   91,   85,   84,
- /*   640 */   492,  340,  109,  307, 1674,  583, 1162, 1163, 1162,   63,
- /*   650 */  1001, 1377,   86,   86,   86,   86,   92,   92,   91,   91,
- /*   660 */    91,   85,   84,  492,  588,   31, 1138,  495,  151,   37,
- /*   670 */   611,  468,  545,  247, 1157,   87,   88,  454,   45,  667,
- /*   680 */  1009, 1009, 1006,  991, 1000, 1000,   89,   89,   90,   90,
- /*   690 */    90,   90, 1162, 1162, 1163, 1162,    6, 1392,   87,   88,
- /*   700 */   454,   45, 1807, 1009, 1009, 1006,  991, 1000, 1000,   89,
- /*   710 */    89,   90,   90,   90,   90, 1162,  623, 1594, 1162, 1756,
- /*   720 */  1757,   87,   88,  454,   45,  612, 1009, 1009, 1006,  991,
- /*   730 */  1000, 1000,   89,   89,   90,   90,   90,   90, 1231,  651,
- /*   740 */   649, 1749, 1162, 1230,  643,  285,   86,   86,   86,   86,
- /*   750 */    92,   92,   91,   91,   91,   85,   84,  492,  111, 1162,
- /*   760 */  1163, 1162,  540, 1756, 1757,  213,  666,   13, 1140,   86,
- /*   770 */    86,   86,   86,   92,   92,   91,   91,   91,   85,   84,
- /*   780 */   492, 1428, 1162, 1163, 1162, 1162, 1163, 1162, 1162,  519,
- /*   790 */   204,  214,   86,   86,   86,   86,   92,   92,   91,   91,
- /*   800 */    91,   85,   84,  492, 1265,  469,   75,   62,  613, 1162,
- /*   810 */  1163, 1162, 1162,    6, 1182,   87,   88,  454,   45, 1808,
- /*   820 */  1009, 1009, 1006,  991, 1000, 1000,   89,   89,   90,   90,
- /*   830 */    90,   90, 1162, 1748, 1746, 1744,  579,   87,   88,  454,
- /*   840 */    45,  579, 1009, 1009, 1006,  991, 1000, 1000,   89,   89,
- /*   850 */    90,   90,   90,   90,  224, 1162, 1163, 1162,  563,   13,
- /*   860 */   368,    5,   87,   88,  454,   45,  614, 1009, 1009, 1006,
- /*   870 */   991, 1000, 1000,   89,   89,   90,   90,   90,   90, 1162,
- /*   880 */  1163, 1162,  281,  280,  279,    2,   86,   86,   86,   86,
- /*   890 */    92,   92,   91,   91,   91,   85,   84,  492,    6, 1162,
- /*   900 */  1163, 1162,  423,  618, 1809,  101,  429, 1828,   86,   86,
- /*   910 */    86,   86,   92,   92,   91,   91,   91,   85,   84,  492,
- /*   920 */   317,  305, 1327,   82,  250,  383,  559,  564,  386, 1833,
- /*   930 */    94,   96,  231,   86,   86,   86,   86,   92,   92,   91,
- /*   940 */    91,   91,   85,   84,  492,  573,   87,   95,  454,   45,
- /*   950 */   580, 1009, 1009, 1006,  991, 1000, 1000,   89,   89,   90,
- /*   960 */    90,   90,   90,   88,  454,   45, 1831, 1009, 1009, 1006,
- /*   970 */   991, 1000, 1000,   89,   89,   90,   90,   90,   90,  454,
- /*   980 */    45,  333, 1009, 1009, 1006,  991, 1000, 1000,   89,   89,
- /*   990 */    90,   90,   90,   90, 1321,  552, 1138, 1165,   41, 1704,
- /*  1000 */   103,  470,  670,  323,   90,   90,   90,   90,    6,  667,
- /*  1010 */  1619,  513, 1719, 1777, 1806,   79, 1162,   86,   86,   86,
- /*  1020 */    86,   92,   92,   91,   91,   91,   85,   84,  492,  103,
- /*  1030 */  1719,  498, 1165,   86,   86,   86,   86,   92,   92,   91,
- /*  1040 */    91,   91,   85,   84,  492, 1619,  656, 1594,   86,   86,
- /*  1050 */    86,   86,   92,   92,   91,   91,   91,   85,   84,  492,
- /*  1060 */   103,  670,   86,   86,   86,   86,   92,   92,   91,   91,
- /*  1070 */    91,   85,   84,  492,   79,  584, 1669,  620,  659,    8,
- /*  1080 */   250, 1170,  440, 1162, 1163, 1162,   94,   96,   81,   81,
- /*  1090 */   498,  515,  340,  484,  551, 1138,   80,  127,  498,  657,
- /*  1100 */   498, 1166, 1168,    6,    4,  656,  282,  659,  667, 1805,
- /*  1110 */  1184,  229,  309, 1674,  665,  664, 1168,  420, 1138,   25,
- /*  1120 */    41,  340,   47,  473,  635,  516, 1165,  204, 1061,  634,
- /*  1130 */  1185,  667, 1138,  641,  151,  469,  645,   72,  659, 1619,
- /*  1140 */  1170,   70, 1168, 1169, 1171,  667, 1594,   81,   81,  309,
- /*  1150 */  1674,  644,  340, 1112,  579,   80, 1162,  498,  657,  498,
- /*  1160 */  1166, 1168, 1052,    4, 1418,  612,  604, 1113,  259, 1594,
- /*  1170 */   352, 1183,  297,  646,  664, 1168,  979, 1062,   25, 1165,
- /*  1180 */   351,   99,  359, 1594,  500,  459, 1038,  670,  621, 1802,
- /*  1190 */   227, 1138, 1619,  117, 1359,  278, 1162,  600,  597,  596,
- /*  1200 */    79, 1168, 1169, 1171,  667, 1671,  523,  595,  651,  649,
- /*  1210 */   643, 1359,  508,  512, 1359, 1165,  498, 1359,  260, 1527,
- /*  1220 */   326,  356,  469, 1162, 1163, 1162,  358,  168, 1619,  450,
- /*  1230 */   196,  656,  671,  102, 1359,    6, 1170, 1359,  324,  565,
- /*  1240 */   630, 1809, 1594,  577,  979,  651,  649,  381,  613,  363,
- /*  1250 */   635,  365,  258, 1038, 1167,  636, 1166, 1168,  229, 1545,
- /*  1260 */    98,  481,  250, 1162, 1163, 1162, 1170, 1046,   94,   96,
- /*  1270 */   631, 1168, 1411,   81,   81, 1170,  966,  228,  670,  248,
- /*  1280 */  1256,   80, 1426,  498,  657,  498, 1166, 1168, 1254,    4,
- /*  1290 */  1165,   79, 1867, 1167, 1651, 1166, 1168, 1168, 1169,  421,
- /*  1300 */   664, 1168,  428, 1619,   25,  113, 1543,  498, 1545,  414,
- /*  1310 */  1168,  659,  662, 1545,  988,  988,  366, 1200,  453,  637,
- /*  1320 */   547, 1815,  656,  359, 1545,  340,  578, 1168, 1169, 1171,
- /*  1330 */   311,  413, 1359, 1359, 1254, 1046, 1168, 1169,  410,  364,
- /*  1340 */   445,  635, 1419,  674,  673, 1424,  634,  633, 1162, 1359,
- /*  1350 */  1359,  428, 1359, 1359,  115, 1543,  428, 1170,  503,  112,
- /*  1360 */  1543,  309, 1674, 1672,   81,   81, 1401,  428,  641,  229,
- /*  1370 */   114, 1543,   80,  549,  498,  657,  498, 1166, 1168,  393,
- /*  1380 */     4,  389,  259,  483,  352,  632,  297,  329,  316,  175,
- /*  1390 */    70,  664, 1168,  567,  351,   25,  359, 1513,  500, 1574,
- /*  1400 */  1138,  319,  151, 1525,  642,  267, 1073,  429, 1828, 1138,
- /*  1410 */  1138,  151,  151,  667,  497, 1162, 1163, 1162, 1168, 1169,
- /*  1420 */  1171,  177,  667,  667,  259, 1401,  352, 1175,  297, 1138,
- /*  1430 */  1228,   41,  260,  173,  479,  356,  351, 1176,  359,  219,
- /*  1440 */   358,  168,  667,  603,  196,  592,  395,  102,  282, 1401,
- /*  1450 */  1162, 1594, 1165,    3, 1165,   62,  670,  651,  649,  504,
- /*  1460 */  1594, 1594, 1165,  480, 1224, 1619,  258, 1619, 1165,   79,
- /*  1470 */   461,  205, 1255,  239,  260, 1619,  401,  356,  643,  569,
- /*  1480 */  1594, 1619,  358,  168,  409,  498,  196,  616,  643,  102,
- /*  1490 */   966,  344,  284,  300,  606,  404,  605,  283, 1228, 1206,
- /*  1500 */   656,  521,  522,  400, 1208,  449,  448,  178,  258,  981,
- /*  1510 */  1138, 1138,   41,   41,  614,  325,  221, 1162, 1163, 1162,
- /*  1520 */  1512,   61,  238,  667,  667,  659,  304,  459, 1346,  246,
- /*  1530 */  1207,  588,  453,  588,  547, 1170, 1162,  359, 1647,  340,
- /*  1540 */  1646,  588,   81,   81,  311,  349,  670, 1650, 1645,  430,
- /*  1550 */    80, 1345,  498,  657,  498, 1166, 1168, 1067,    4,   44,
- /*  1560 */   353, 1594, 1594, 1231, 1138,  400,  158,  659, 1230,  664,
- /*  1570 */  1168,  653,  503,   25,  453,  498,  547,  667, 1138,  359,
- /*  1580 */    41,  340,  639,  222,  555,  451,  311, 1138, 1068,  151,
- /*  1590 */   656,  667, 1335,  494,  493,  432, 1168, 1169, 1171,  264,
- /*  1600 */   667,  266, 1295, 1162, 1163, 1162, 1299, 1299,  638, 1408,
- /*  1610 */   670, 1138,  514,   41,  503, 1594,  640, 1370,  556,  451,
- /*  1620 */   566,  451,  248,   79,  667, 1170,  570,  451,  302, 1594,
- /*  1630 */  1297, 1254,   81,   81, 1138,  435,  149, 1296, 1594,  498,
- /*  1640 */    80,  354,  498,  657,  498, 1166, 1168,  667,    4, 1341,
- /*  1650 */  1370, 1138, 1511,   41,  656, 1346,  496,  426,  980,  664,
- /*  1660 */  1168,  652, 1594,   25,  667,  335,  334,  451,  471, 1138,
- /*  1670 */  1343,  151, 1792,   52,  235, 1792,  430, 1254, 1342,  355,
- /*  1680 */  1393,  256,  667,  529, 1666, 1594, 1168, 1169, 1171, 1170,
- /*  1690 */  1138, 1389,  151, 1341,  529, 1869,   81,   81, 1223,   83,
- /*  1700 */   670,   77, 1594,  667,   80,  312,  498,  657,  498, 1166,
- /*  1710 */  1168,  518,    4,   79, 1343, 1138, 1793,  151,  376, 1793,
- /*  1720 */  1594,   70,  548,  664, 1168, 1165,  980,   25,  667,  498,
- /*  1730 */   382,  181, 1138,   70,  151, 1572, 1165, 1129, 1619,   15,
- /*  1740 */   288, 1594, 1178, 1179,  656,  667,  257,  489,  408, 1619,
- /*  1750 */  1168, 1169, 1171,  647, 1416,    1, 1420,  674,  673, 1424,
- /*  1760 */  1571, 1138,  572,  162,  554,  288, 1594,  407,  490,  254,
- /*  1770 */   362, 1138, 1791,   43,  667,  309, 1674, 1672, 1138, 1170,
- /*  1780 */   132, 1059,  574, 1594,  622,  288,   81,   81,  255,  593,
- /*  1790 */  1060,  667,  292,  491,   80,  374,  498,  657,  498, 1166,
- /*  1800 */  1168,  329,    4,  175,  588, 1138,  252,  133,  560, 1228,
- /*  1810 */   336,  391, 1594,  664, 1168,  546, 1092,   25,  667,  267,
- /*  1820 */  1099, 1172, 1594, 1138, 1138,  134,   42, 1822,  398, 1594,
- /*  1830 */  1138,   70,  118, 1138, 1702,  119,  667,  667,  589, 1165,
- /*  1840 */  1168, 1169, 1171,  667,  377, 1138,  667,  135, 1138, 1165,
- /*  1850 */   136, 1138, 1619,  137, 1300, 1300, 1594, 1138,  667,  138,
- /*  1860 */   308,  667, 1619, 1138,  667,  139, 1617,    3, 1298, 1298,
- /*  1870 */   667,  651,  649,  504, 1594, 1594,  667, 1228,  672,  182,
- /*  1880 */  1737, 1594,    9, 1735, 1594, 1138,  178,  120, 1099, 1172,
- /*  1890 */  1138, 1259,  121,  388,  288,  392, 1594, 1095,  667, 1594,
- /*  1900 */   292,  654, 1594,  667, 1138,  394,  122, 1138, 1594,  123,
- /*  1910 */  1138,  396,  140, 1138, 1594,  141, 1530,  667, 1649, 1331,
- /*  1920 */   667, 1510,   72,  667, 1165,  360,  667, 1138, 1642,  142,
- /*  1930 */   403, 1488, 1138, 1482,  143, 1330, 1594, 1619,   72, 1329,
- /*  1940 */   667, 1594,   72, 1716, 1138,  667,  144, 1138,  977,  116,
- /*  1950 */  1138,  180,  124, 1718, 1138, 1594,  125,  667, 1594,  187,
- /*  1960 */   667, 1594,   70,  667, 1594, 1452, 1138,  667,   40, 1138,
- /*  1970 */   298,  126,  425, 1138, 1138,  145,  156, 1439, 1594,  667,
- /*  1980 */   501,  241,  667, 1594,  330,  331,  667,  667,  332, 1677,
- /*  1990 */   188, 1138,   11,  157, 1138, 1594,  146, 1138, 1594,  128,
- /*  2000 */  1138, 1594,  147, 1682,  667, 1594, 1138,  667,  129,  539,
- /*  2010 */   667,  464,  380,  667, 1138, 1560,  153, 1594,  172,  667,
- /*  2020 */  1594,  370,  320,  314, 1594, 1594, 1138,  667,  191,  379,
- /*  2030 */  1138, 1588,  192, 1138,  385,  148, 1138,  373,  130,  667,
- /*  2040 */   576,  245, 1594,  667, 1587, 1594,  667,  598, 1594,  667,
- /*  2050 */  1138, 1594,  189, 1138,  443,  190, 1138, 1594,  164, 1138,
- /*  2060 */  1509,  152,  406,  667, 1707, 1594,  667,  417, 1475,  667,
- /*  2070 */  1708,  225,  667, 1138, 1551,  154, 1138, 1594,  159, 1706,
- /*  2080 */  1705, 1594,  226,  658, 1594,  240,  667, 1594, 1410,  667,
- /*  2090 */  1138, 1552,  163, 1394,  465,  462, 1138,  347,  183,  537,
- /*  2100 */   463, 1594,  538,  667, 1594,  348, 1138, 1594,  165,  667,
- /*  2110 */  1594,   47, 1138, 1138,  160,  155,  528,  532, 1309,  667,
- /*  2120 */  1138,  524,  161, 1769, 1594,  667,  667, 1594,  466, 1138,
- /*  2130 */   525,  150, 1138,  667,  131,   48,  291,   51, 1761, 1759,
- /*  2140 */   467, 1594,  667, 1212,  167,  667,  169, 1594,  261,  544,
- /*  2150 */  1658, 1657, 1200,  550,  104,  170,  105, 1594,  106,  107,
- /*  2160 */   108,  237, 1561, 1594, 1594,  211,   30,   67, 1559,  641,
- /*  2170 */   369, 1594,  201,  208, 1558,  558,  372,  591,  269,   63,
- /*  2180 */  1594,  561, 1775, 1594,  271,  441, 1590,  223, 1589,   35,
- /*  2190 */  1562,  568,  444,  215,  582,  387,  274,   57,  587, 1721,
- /*  2200 */   390,  299,  275,  276, 1476,  446,  607, 1533, 1532, 1531,
- /*  2210 */   482,   59, 1520,  447, 1497, 1503, 1502, 1052, 1496,  405,
- /*  2220 */    12, 1519,  289, 1495,  609,   64,  412, 1494, 1676,  230,
- /*  2230 */   617, 1675,  415,  290,  485,   10,  422, 1450,  486,  416,
- /*  2240 */  1813,   76,  337, 1628,  488,  339, 1629, 1812,  456,  427,
- /*  2250 */   338,  661,  251,  457, 1861,  206, 1741,  505, 1827, 1742,
- /*  2260 */  1740,   32,  193,  194,  176, 1739,  327,  242,  243,   46,
- /*  2270 */   195, 1319,  296,  499,  502,  455,  341,  433,  234, 1860,
- /*  2280 */  1859,  506,  507, 1398,   33, 1399,   34,  510,  511,  232,
- /*  2290 */  1395,  342,  253, 1407,  517,  343,  520,  310,  529,  345,
- /*  2300 */   233,  437,  439,  533,  535, 1391,  452, 1387,  526,  527,
- /*  2310 */  1386,  530,  531, 1381,  534,  536, 1379, 1317, 1292, 1290,
- /*  2320 */   361,  262,  367,  357,  263,  171,   29,  265,  209,  207,
- /*  2330 */  1188, 1224,  375,   14,  270,  210,  268, 1278,  472,  197,
- /*  2340 */   474,   53,  198,   54,   55,   56, 1283,  272,  273,  184,
- /*  2350 */   199,   36,  378, 1277,  200,  212, 1268,  216,  288, 1274,
- /*  2360 */   586,  174,  110,  590,  277,  407,  594,  217, 1324,  599,
- /*  2370 */    58, 1050,  402,   16,  602,   17,  399, 1063,  328,   60,
- /*  2380 */   202, 1262,  287,  166,  301,  203,  303,   18,  218,  100,
- /*  2390 */    72, 1257, 1349,   68,   69,  619,  185,  220,  624,  249,
- /*  2400 */   625,  626,   19,  628,   20,   21, 1375, 1361, 1365, 1363,
- /*  2410 */     7, 1369,   70,   22, 1368,  999,  994,  993, 1013,   23,
- /*  2420 */  1093,   71,   73,   27,   74,   24,  648,   28, 1417,  293,
- /*  2430 */  1417,  650,   78,   26, 1181,  968, 1618, 1087,   38,  990,
- /*  2440 */  1417,  989,  987, 1417,  978, 1417, 1417, 1417,   39, 1417,
- /*  2450 */  1417, 1417, 1417,   97, 1417,  294,  295,  974,  967,
+ /*     0 */   258, 1537, 1548, 1198, 1531, 1208,   98,  100, 1534,  321,
+ /*    10 */  1722,  632,  321, 1722,  326, 1209, 1667, 1797,  321, 1722,
+ /*    20 */   458, 1531,   91,   92,  470,   48, 1529, 1042, 1042, 1039,
+ /*    30 */  1024, 1033, 1033,   93,   93,   94,   94,   94,   94, 1843,
+ /*    40 */   447,  366,  630, 1528,  527,   91,   92,  470,   48,  595,
+ /*    50 */  1042, 1042, 1039, 1024, 1033, 1033,   93,   93,   94,   94,
+ /*    60 */    94,   94, 1171,  593,  121,  362,  321, 1722,  450,  575,
+ /*    70 */    94,   94,   94,   94,   97,  689,   70,    6,  316, 1141,
+ /*    80 */  1622,  254,  610, 1858,  296,  258, 1663,  254,  595, 1696,
+ /*    90 */   107,   98,  100,   90,   90,   90,   90,   96,   96,   95,
+ /*   100 */    95,   95,   89,   88,  508,  673,  671,  328,  673,  671,
+ /*   110 */  1796,  564,  565, 1642,  673,  671,   90,   90,   90,   90,
+ /*   120 */    96,   96,   95,   95,   95,   89,   88,  508,   90,   90,
+ /*   130 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*   140 */  1816,   69,   91,   92,  470,   48,  331, 1042, 1042, 1039,
+ /*   150 */  1024, 1033, 1033,   93,   93,   94,   94,   94,   94,  586,
+ /*   160 */   402,  400,  673,  671,   91,   92,  470,   48,  681, 1042,
+ /*   170 */  1042, 1039, 1024, 1033, 1033,   93,   93,   94,   94,   94,
+ /*   180 */    94, 1810,  353, 1171, 1557,  122, 1584,   87, 1582,   81,
+ /*   190 */   435, 1613, 1863,   53,  508, 1397,  689, 1397,   90,   90,
+ /*   200 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*   210 */  1614,  445, 1876,   90,   90,   90,   90,   96,   96,   95,
+ /*   220 */    95,   95,   89,   88,  508,   96,   96,   95,   95,   95,
+ /*   230 */    89,   88,  508,  202, 1642,   90,   90,   90,   90,   96,
+ /*   240 */    96,   95,   95,   95,   89,   88,  508,   91,   92,  470,
+ /*   250 */    48, 1198, 1042, 1042, 1039, 1024, 1033, 1033,   93,   93,
+ /*   260 */    94,   94,   94,   94, 1667,   95,   95,   95,   89,   88,
+ /*   270 */   508, 1195,   91,   92,  470,   48,  485, 1042, 1042, 1039,
+ /*   280 */  1024, 1033, 1033,   93,   93,   94,   94,   94,   94, 1195,
+ /*   290 */  1575,  339,  321, 1722,  452, 1195,  642,   91,   92,  470,
+ /*   300 */    48,  466, 1042, 1042, 1039, 1024, 1033, 1033,   93,   93,
+ /*   310 */    94,   94,   94,   94,  321, 1722,  454, 1298,   90,   90,
+ /*   320 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*   330 */   236,  384, 1913,  543, 1141,   89,   88,  508, 1195, 1196,
+ /*   340 */  1195,  681,  266,   90,   90,   90,   90,   96,   96,   95,
+ /*   350 */    95,   95,   89,   88,  508,  353, 1195, 1196, 1195, 1303,
+ /*   360 */  1303,  607, 1195, 1196, 1195,  465,  464,   54,   90,   90,
+ /*   370 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*   380 */  1797,   65,  288, 1540,  622,  619,  618,  430,  673,  671,
+ /*   390 */    91,   92,  470,   48,  617, 1042, 1042, 1039, 1024, 1033,
+ /*   400 */  1033,   93,   93,   94,   94,   94,   94,  643, 1850,  429,
+ /*   410 */   673,  671, 1195,  321, 1722,  546,  400,  579,  387, 1289,
+ /*   420 */    91,   92,  470,   48,  244, 1042, 1042, 1039, 1024, 1033,
+ /*   430 */  1033,   93,   93,   94,   94,   94,   94,  321, 1722,  335,
+ /*   440 */   586,  402,  295,   91,   92,  470,   48,  325, 1042, 1042,
+ /*   450 */  1039, 1024, 1033, 1033,   93,   93,   94,   94,   94,   94,
+ /*   460 */   645,   90,   90,   90,   90,   96,   96,   95,   95,   95,
+ /*   470 */    89,   88,  508, 1796, 1794, 1792, 1171,  329,  121, 1195,
+ /*   480 */  1196, 1195, 1264,  413,  321, 1722, 1828, 1263, 1622,  689,
+ /*   490 */  1195,   90,   90,   90,   90,   96,   96,   95,   95,   95,
+ /*   500 */    89,   88,  508, 1664,  321, 1722, 1526,  318, 1722,  673,
+ /*   510 */   671, 1392,  378,  623,   90,   90,   90,   90,   96,   96,
+ /*   520 */    95,   95,   95,   89,   88,  508,  693, 1642, 1392,  319,
+ /*   530 */  1722, 1392,  256,  673,  671,  360, 1076,   91,   92,  470,
+ /*   540 */    48, 1287, 1042, 1042, 1039, 1024, 1033, 1033,   93,   93,
+ /*   550 */    94,   94,   94,   94,  321, 1722,  682, 1195, 1196, 1195,
+ /*   560 */    91,   92,  470,   48,  653, 1042, 1042, 1039, 1024, 1033,
+ /*   570 */  1033,   93,   93,   94,   94,   94,   94,  321, 1722,  685,
+ /*   580 */   673,  671, 1539,   91,   92,  470,   48, 1287, 1042, 1042,
+ /*   590 */  1039, 1024, 1033, 1033,   93,   93,   94,   94,   94,   94,
+ /*   600 */   673,  671, 1593,  673,  671,  434, 1865,  597,   90,   90,
+ /*   610 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*   620 */  1043, 1043, 1040, 1025,  690,  673,  671, 1195,  445, 1876,
+ /*   630 */  1068,   90,   90,   90,   90,   96,   96,   95,   95,   95,
+ /*   640 */    89,   88,  508,  113,  684,  444, 1021, 1021,  117, 1591,
+ /*   650 */   673,  671, 1233,  192,   90,   90,   90,   90,   96,   96,
+ /*   660 */    95,   95,   95,   89,   88,  508,  259,  651, 1171,  455,
+ /*   670 */   157, 1360,  633,  673,  671,  581, 1410,   91,   92,  470,
+ /*   680 */    48,  689, 1042, 1042, 1039, 1024, 1033, 1033,   93,   93,
+ /*   690 */    94,   94,   94,   94, 1195, 1196, 1195, 1195,  185, 1012,
+ /*   700 */    91,   92,  470,   48, 1198, 1042, 1042, 1039, 1024, 1033,
+ /*   710 */  1033,   93,   93,   94,   94,   94,   94, 1667, 1034, 1642,
+ /*   720 */  1195, 1804, 1805,   91,   92,  470,   48,  681, 1042, 1042,
+ /*   730 */  1039, 1024, 1033, 1033,   93,   93,   94,   94,   94,   94,
+ /*   740 */   409,  353,  405, 1354, 1195, 1574,  665, 1195,   90,   90,
+ /*   750 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*   760 */   115,  595, 1825,  649, 1195, 1196, 1195, 1012,  179, 1476,
+ /*   770 */  1190,   90,   90,   90,   90,   96,   96,   95,   95,   95,
+ /*   780 */    89,   88,  508,  610,  291,  290,  289, 1195, 1196, 1195,
+ /*   790 */   484,  567,  485, 1173,   90,   90,   90,   90,   96,   96,
+ /*   800 */    95,   95,   95,   89,   88,  508,  288,  411,  622,  619,
+ /*   810 */   618, 1195, 1196, 1195, 1195, 1196, 1195, 1239,  617,  334,
+ /*   820 */    37, 1288, 1241, 1195,  252, 1593,   51,   91,   92,  470,
+ /*   830 */    48,   79, 1042, 1042, 1039, 1024, 1033, 1033,   93,   93,
+ /*   840 */    94,   94,   94,   94, 1195,  259,  651,  234, 1240,  427,
+ /*   850 */    91,   92,  470,   48,   67, 1042, 1042, 1039, 1024, 1033,
+ /*   860 */  1033,   93,   93,   94,   94,   94,   94, 1195,  444,  637,
+ /*   870 */  1195,  119, 1591,   91,   92,  470,   48,  440, 1042, 1042,
+ /*   880 */  1039, 1024, 1033, 1033,   93,   93,   94,   94,   94,   94,
+ /*   890 */  1195, 1196, 1195, 1374,  445, 1876,  220,  346,   90,   90,
+ /*   900 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*   910 */   601, 1195, 1196, 1195, 1376, 1752, 1840,  221,  494, 1840,
+ /*   920 */  1215,   90,   90,   90,   90,   96,   96,   95,   95,   95,
+ /*   930 */    89,   88,  508,  485, 1195, 1196, 1195, 1195, 1196, 1195,
+ /*   940 */     5,  601, 1586,    3,   90,   90,   90,   90,   96,   96,
+ /*   950 */    95,   95,   95,   89,   88,  508,  526,  530,   86,  255,
+ /*   960 */  1171, 1614,   44,  511,   14,  486, 1379,   14,  238,   91,
+ /*   970 */    92,  470,   48,  689, 1042, 1042, 1039, 1024, 1033, 1033,
+ /*   980 */    93,   93,   94,   94,   94,   94,  487,  446,  235, 1378,
+ /*   990 */  1474,   91,   99,  470,   48,  330, 1042, 1042, 1039, 1024,
+ /*  1000 */  1033, 1033,   93,   93,   94,   94,   94,   94,   92,  470,
+ /*  1010 */    48, 1642, 1042, 1042, 1039, 1024, 1033, 1033,   93,   93,
+ /*  1020 */    94,   94,   94,   94,  470,   48,  399, 1042, 1042, 1039,
+ /*  1030 */  1024, 1033, 1033,   93,   93,   94,   94,   94,   94, 1392,
+ /*  1040 */    90,   90,   90,   90,   96,   96,   95,   95,   95,   89,
+ /*  1050 */    88,  508,  231,  265,  655,  585, 1392,   17,  602, 1392,
+ /*  1060 */  1804, 1805,   90,   90,   90,   90,   96,   96,   95,   95,
+ /*  1070 */    95,   89,   88,  508,  107, 1704,  476, 1195,   90,   90,
+ /*  1080 */    90,   90,   96,   96,   95,   95,   95,   89,   88,  508,
+ /*  1090 */  1433, 1374,  654,   90,   90,   90,   90,   96,   96,   95,
+ /*  1100 */    95,   95,   89,   88,  508, 1466, 1171,  595,  155,  269,
+ /*  1110 */   499,  368, 1376,  309, 1841,  445, 1876, 1841,  267,  689,
+ /*  1120 */  1488,  367,  663,  375,  317,  516,  269,  258,  368,  442,
+ /*  1130 */   309,  691,  476,   98,  100, 1171, 1014,  121,  367,  573,
+ /*  1140 */   375,  263,  516, 1300, 1195, 1196, 1195, 1300,  689, 1433,
+ /*  1150 */   688, 1171,  681,  122,  211,  474, 1171, 1642,   44,  270,
+ /*  1160 */   264,  489,  372,  574,  689,  336,  353,  374,  174,  689,
+ /*  1170 */   625,  203, 1392, 1433,  106,  183,  270,  439,  261,  372,
+ /*  1180 */  1467,  696,  695, 1472,  374,  174, 1642,  605,  203, 1392,
+ /*  1190 */   496,  106, 1392,  268,  563,  292, 1472, 1767,  258,  321,
+ /*  1200 */  1722, 1720, 1642,  417,   98,  100,  107, 1642,  603,  440,
+ /*  1210 */   268,  425,  321, 1722, 1720,  673,  671,  999,  584,  294,
+ /*  1220 */   312,  628,  420,  627,  293,  342, 1425,  181, 1767, 1171,
+ /*  1230 */   416,  157,  202,  667,  999,  436,  634,  379,  342,  381,
+ /*  1240 */   181, 1879,  689,  277,  510,  509,  321, 1722,  666,  202,
+ /*  1250 */   503,  642,  681,  539,  540, 1195,  277, 1332, 1332,  469,
+ /*  1260 */   491,  569,    6,  659,  375, 1863,  353,  640, 1857,  681,
+ /*  1270 */   601,  324,  614,  692,  475,  292,  469, 1171,  569,   44,
+ /*  1280 */  1642,  375,  495,  353,  681, 1203,   83, 1593,  324, 1593,
+ /*  1290 */   689,  492,    2,  599,  521,  673,  671,  522,  353,  519,
+ /*  1300 */  1914, 1198,  514, 1200,  382, 1199, 1201,  665,  673,  671,
+ /*  1310 */   522,  521,  510,  509, 1667,  591,  519,  678,  537,  635,
+ /*  1320 */  1201, 1328, 1195, 1196, 1195, 1332, 1332,  380, 1642, 1434,
+ /*  1330 */   444,  107,  444,  116, 1591, 1919, 1592,  520,   94,   94,
+ /*  1340 */    94,   94,  673,  671,  258,  531, 1201, 1202, 1919, 1330,
+ /*  1350 */    98,  100, 1203, 1261,  475,  337, 1329,  211,  246,   85,
+ /*  1360 */    85,  571, 1767, 1851,  692,   36, 1171,   84,  132,  514,
+ /*  1370 */   679,  514, 1199, 1201, 1922,    4,  600,   83, 1198,  689,
+ /*  1380 */  1718,  437,    8,  321, 1722,  687,  686, 1201, 1434, 1264,
+ /*  1390 */    27, 1667,  416,  514, 1263, 1593,   90,   90,   90,   90,
+ /*  1400 */    96,   96,   95,   95,   95,   89,   88,  508,  678,  681,
+ /*  1410 */   252, 1217, 1434, 1201, 1202, 1204, 1171, 1642,  157,  247,
+ /*  1420 */   664, 1261,  533,  353, 1195,  493,  426,  657,  461,  689,
+ /*  1430 */   184, 1218,  656, 1171, 1171,  157,  157,  513,  444,  692,
+ /*  1440 */   562,  118, 1591, 1203,  668, 1573,  689,  689, 1106, 1071,
+ /*  1450 */    85,   85,   83, 1379,  677, 1261,   66,  236,   84,  534,
+ /*  1460 */   514,  679,  514, 1199, 1201,    6,    4, 1642,  514, 1198,
+ /*  1470 */   652, 1857, 1216, 1171,  446,  157, 1375,  686, 1201,  673,
+ /*  1480 */   671,   27, 1667,  678, 1642, 1642,  689, 1198,  541,    6,
+ /*  1490 */  1198, 1195, 1196, 1195,  665, 1855, 1171,  105,   44, 1203,
+ /*  1500 */  1667,  338,  657, 1667, 1201, 1202, 1204,  658, 1171,  689,
+ /*  1510 */   164,  665,  638,  357,  692,  636, 1071, 1200, 1203, 1199,
+ /*  1520 */  1201,  689,  634, 1261, 1642,   85,   85,   83,   10,  477,
+ /*  1530 */   212, 1079,  184,   84, 1201,  514,  679,  514, 1199, 1201,
+ /*  1540 */   456,    4, 1368,  514, 1171,  448,   44, 1642,  610,  228,
+ /*  1550 */  1198,  348,  686, 1201, 1208, 1695,   27,  689,  678, 1642,
+ /*  1560 */  1201, 1202, 1257, 1667, 1209, 1198,  610, 1767, 1094,  236,
+ /*  1570 */  1171,  247,   44, 1694, 1171,  229,  157,  657, 1667, 1201,
+ /*  1580 */  1202, 1204,  656,  689,  269, 1912,  368,  689,  309, 1171,
+ /*  1590 */  1171,   44,  168, 1203,  662, 1642,  367, 1767,  375, 1079,
+ /*  1600 */    85,   85,  689,  689,   66,  635,  626, 1881,   84,  365,
+ /*  1610 */   514,  679,  514, 1199, 1201, 1013,    4, 1095,  577,  467,
+ /*  1620 */     6, 1642, 1171,  369,  157, 1642, 1856,  686, 1201,  610,
+ /*  1630 */   606,   27, 1198, 1217,  270,  689, 1693,  372,  578,  467,
+ /*  1640 */  1642, 1642,  374,  174,  610, 1667,  203,  370, 1171,  106,
+ /*  1650 */   157,  407,  505, 1218, 1201, 1202, 1204, 1459,  692,   74,
+ /*  1660 */   500,  689, 1171,  636,  157, 1171, 1456,   44,  268,  532,
+ /*  1670 */   512,   83, 1171, 1642,   46,  689, 1145, 1930,  689, 1171,
+ /*  1680 */  1085,  137, 1171, 1013,  138,  644, 1392,  514,  187,   33,
+ /*  1690 */  1146, 1198,  689,   40, 1216,  689, 1171,  371,  139, 1642,
+ /*  1700 */   506,  497,  678, 1392, 1667, 1198, 1392,  202, 1171,  689,
+ /*  1710 */   140, 1717, 1171, 1642,   45, 1171, 1642,  123, 1667,  588,
+ /*  1720 */   467,  689, 1561, 1642,  103,  689,  507,  681,  689, 1171,
+ /*  1730 */  1642,  124,    6, 1642,  469, 1714,  569, 1203, 1854,  375,
+ /*  1740 */   349,  353,  689,   74,   85,   85,  324, 1642,  692,  592,
+ /*  1750 */   467, 1171,   84,  141,  514,  679,  514, 1199, 1201, 1642,
+ /*  1760 */     4,   47,    6, 1642,  689, 1171, 1642,  142, 1853,  521,
+ /*  1770 */  1719,  686, 1201,  675,  519,   27,  451,  514,  689, 1932,
+ /*  1780 */  1642,  692,  347,  467, 1699, 1440, 1441,  663, 1171,  424,
+ /*  1790 */   143,   76,  678, 1426,   83,  570,  551, 1620, 1201, 1202,
+ /*  1800 */  1204,  689, 1642,  102, 1171, 1171,  144,  145,  423, 1619,
+ /*  1810 */   514,   56,  243,  274,  661,  276, 1642,  689,  689,  576,
+ /*  1820 */  1171, 1422,  125, 1839,  551,  678,  390, 1203,  392,  587,
+ /*  1830 */   320,   74,  582,  689,   85,   85, 1665,  397, 1198, 1642,
+ /*  1840 */   660, 1171,   84,  126,  514,  679,  514, 1199, 1201, 1403,
+ /*  1850 */     4, 1667,  536, 1100,  689, 1642, 1642,  692,  589, 1198,
+ /*  1860 */  1203,  686, 1201,  674, 1092,   27,  332,   85,   85, 1256,
+ /*  1870 */    83, 1642, 1667, 1093, 1171,   84,  127,  514,  679,  514,
+ /*  1880 */  1199, 1201, 1403,    4, 1101,  393,  514,  689, 1201, 1202,
+ /*  1890 */  1204, 1171, 1642,  128,  686, 1201,  398, 1162,   27,   74,
+ /*  1900 */   298,  678,  594, 1560,  689,  298, 1198,  596, 1785,  615,
+ /*  1910 */   298, 1171,  302,  146, 1171, 1132,  147, 1698, 1171, 1667,
+ /*  1920 */   148, 1201, 1202, 1204,  689, 1642,  256,  689, 1211, 1212,
+ /*  1930 */   414,  689,  314,   74, 1292, 1287, 1203,  298,  568, 1205,
+ /*  1940 */  1333, 1333, 1642,   85,   85, 1464,    1, 1468,  696,  695,
+ /*  1950 */  1472,   84, 1783,  514,  679,  514, 1199, 1201, 1128,    4,
+ /*  1960 */  1364,  302, 1642,   76,  404, 1642,  321, 1722, 1720, 1642,
+ /*  1970 */   686, 1201,  694,  188,   27, 1171, 1171,  149,  150, 1331,
+ /*  1980 */  1331, 1287, 1171, 1132,  120, 1697,  669, 1363,  689,  689,
+ /*  1990 */    76,  408,  342, 1362,  181,  689,   76, 1201, 1202, 1204,
+ /*  2000 */   410,  412, 1171, 1171,  129,  130, 1171, 1205,   43, 1171,
+ /*  2010 */   277,  131, 1578, 1559, 1558,  689,  689,  419, 1536,  689,
+ /*  2020 */  1530, 1171,  689,  151, 1750, 1010, 1642, 1642,  186, 1171,
+ /*  2030 */  1764,  162,  193, 1642,  689,   74, 1766, 1171, 1171,  163,
+ /*  2040 */   152,  226,  689, 1171, 1870,  133,  676, 1500,  441, 1125,
+ /*  2050 */   689,  689, 1487, 1642, 1642,  517,  689, 1642, 1909,    2,
+ /*  2060 */  1642,  376,  673,  671,  522, 1171, 1171,  153,  134, 1171,
+ /*  2070 */   310,  159, 1642, 1171, 1171,  197,  198, 1908,  689,  689,
+ /*  2080 */  1642,  611,  689, 1171,  249,  154,  689,  689, 1642, 1642,
+ /*  2090 */  1171, 1171,  135,  195, 1642, 1171,  689,  196, 1171, 1171,
+ /*  2100 */   170,  158, 1919,  689,  689, 1171,  194,  160,  689,   12,
+ /*  2110 */  1198,  689,  689,  343,  344,  345, 1642, 1642,  689, 1725,
+ /*  2120 */  1642,  178, 1608, 1667, 1642, 1642, 1171, 1171,  165,  169,
+ /*  2130 */   480, 1171,  386,  189, 1642, 1171,  327,  171,  620,  689,
+ /*  2140 */   689, 1642, 1642,  561,  689,  389, 1642,  396,  689, 1642,
+ /*  2150 */  1642, 1171, 1171,  166,  161, 1171, 1642,  167, 1171, 1171,
+ /*  2160 */   156,  136,    9, 1198,  689,  689,  395, 1636,  689, 1635,
+ /*  2170 */   333,  689,  689,  459,  253,  598, 1667, 1642, 1642, 1557,
+ /*  2180 */   401,  422, 1642, 1523,  433,  232, 1642, 1755,  233, 1690,
+ /*  2190 */  1756,  680, 1599, 1754, 1600,  248, 1458, 1753, 1427,  478,
+ /*  2200 */   479,  363, 1642, 1642,  481,  544, 1642,  545, 1917, 1642,
+ /*  2210 */  1642,  301,  308,  542,  559,  482,  550,  560,  554,   51,
+ /*  2220 */  1342, 1817,  547,  358,  364, 1809,   52,   55, 1807, 1245,
+ /*  2230 */   483,  173,  175, 1233,  271,  572,  566, 1706,  109, 1705,
+ /*  2240 */   245, 1609, 1730,  110,  218,  108,  176,   71,  111,  112,
+ /*  2250 */    32, 1607,  663,  385,  208, 1606,  215,  388,  580,  613,
+ /*  2260 */    67,  583,  279, 1823,  281, 1638,  457, 1637,  590, 1610,
+ /*  2270 */    38,  460,  230,  222,  604,  403,  284,   61, 1769,  609,
+ /*  2280 */   406,  311,  285, 1524,  286,  462,  629, 1581, 1580, 1579,
+ /*  2290 */   498,   63, 1568,  463, 1545, 1085, 1551, 1544, 1550,  421,
+ /*  2300 */  1567,   13, 1543, 1724,  299, 1542,  631,  428,   68, 1723,
+ /*  2310 */   237,  639,  431,  432,  300,   11,  501, 1861, 1498,  438,
+ /*  2320 */   502, 1860,  350, 1676, 1677,   80,  352,  504,  443,  351,
+ /*  2330 */   683,  259,  523, 1875,  359, 1924,  472,  199,  473,  213,
+ /*  2340 */  1789, 1790, 1788, 1787,  200,  182,   34,  340, 1923,   35,
+ /*  2350 */   250,  251, 1921, 1352,   49,  515,  201,  471,   50,  306,
+ /*  2360 */   518,  260,  242,  354,  524,  449,  525, 1431, 1432,  528,
+ /*  2370 */   529,  239, 1428,  355,  262, 1455,  535,  356,  322,  551,
+ /*  2380 */   538,   15,  240,  453,  323, 1437,  307,  241,  361,  555,
+ /*  2390 */   468, 1420,  548,  549, 1419,  552,  553, 1414,  556,  557,
+ /*  2400 */   558, 1424, 1412, 1350, 1325, 1323,  377,  373,  272,  273,
+ /*  2410 */   177,  275,   31, 1257,  383,  216, 1221,  391,  280,   16,
+ /*  2420 */   278, 1311,  488,  217,  214,  490,  204,  205,   57,  206,
+ /*  2430 */    58,   59,   60, 1316,  282,  283,  394,  190,   39,  219,
+ /*  2440 */   207, 1301, 1310,  223, 1307,  608,  114, 1357,  612,  298,
+ /*  2450 */   224,  287,  180,  616,  423,   62,   18,  621, 1083,   19,
+ /*  2460 */   415,  624, 1096,  341,  418,   64,  209, 1295,  172,  210,
+ /*  2470 */   313,  315,  297,   20,  641,  225,   76,   72, 1290, 1382,
+ /*  2480 */   104,  227,  647,  191,  257,  646,  648,   73,  650, 1408,
+ /*  2490 */    21,   22,   23, 1394, 1398, 1396,    7, 1402,   24, 1401,
+ /*  2500 */    74, 1032, 1027, 1026,   77,   25, 1126,   29,   75, 1046,
+ /*  2510 */    78,  670,   26,  672,   30, 1465, 1214,  303,   82, 1465,
+ /*  2520 */    28, 1465, 1666, 1120,   41, 1023, 1020,   42,  304, 1465,
+ /*  2530 */  1022, 1465, 1465, 1465, 1465, 1465, 1465, 1011, 1007,  101,
+ /*  2540 */   305, 1465, 1001, 1000,
 };
 static const YYCODETYPE yy_lookahead[] = {
- /*     0 */   214,  230,  212,  199,  199,    5,  220,  221,  237,  216,
- /*    10 */   217,  218,  216,  217,  218,   15,  212,  212,  216,  217,
- /*    20 */   218,  212,   22,   23,   24,   25,  245,   27,   28,   29,
- /*    30 */    30,   31,   32,   33,   34,   35,   36,   37,   38,  317,
- /*    40 */   318,  212,  233,  234,   40,   22,   23,   24,   25,  212,
+ /*     0 */   218,  254,  234,  203,  216,    5,  224,  225,  240,  220,
+ /*    10 */   221,  222,  220,  221,  222,   15,  216,  216,  220,  221,
+ /*    20 */   222,  216,   22,   23,   24,   25,  238,   27,   28,   29,
+ /*    30 */    30,   31,   32,   33,   34,   35,   36,   37,   38,  321,
+ /*    40 */   322,  216,  237,  238,   40,   22,   23,   24,   25,  216,
  /*    50 */    27,   28,   29,   30,   31,   32,   33,   34,   35,   36,
- /*    60 */    37,   38,  199,  261,  201,  275,  216,  217,  218,  263,
- /*    70 */    35,   36,   37,   38,   39,  212,   53,  212,  297,   58,
- /*    80 */   274,   40,  278,  278,  291,  214,  205,  294,  307,  285,
- /*    90 */    69,  220,  221,   93,   94,   95,   96,   97,   98,   99,
- /*   100 */   100,  101,  102,  103,  104,  312,  313,  270,  312,  313,
- /*   110 */   102,  103,  104,  250,  312,  313,   93,   94,   95,   96,
+ /*    60 */    37,   38,  203,  265,  205,   40,  220,  221,  222,  267,
+ /*    70 */    35,   36,   37,   38,   39,  216,   53,  324,  295,   58,
+ /*    80 */   278,  298,  282,  330,  295,  218,  209,  298,  216,  289,
+ /*    90 */    69,  224,  225,   93,   94,   95,   96,   97,   98,   99,
+ /*   100 */   100,  101,  102,  103,  104,  316,  317,  274,  316,  317,
+ /*   110 */   309,  310,  311,  254,  316,  317,   93,   94,   95,   96,
  /*   120 */    97,   98,   99,  100,  101,  102,  103,  104,   93,   94,
  /*   130 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
- /*   140 */   311,  118,   22,   23,   24,   25,  212,   27,   28,   29,
+ /*   140 */   315,  118,   22,   23,   24,   25,  274,   27,   28,   29,
  /*   150 */    30,   31,   32,   33,   34,   35,   36,   37,   38,  141,
- /*   160 */   142,  140,  312,  313,   22,   23,   24,   25,  147,   27,
+ /*   160 */   142,  140,  316,  317,   22,   23,   24,   25,  147,   27,
  /*   170 */    28,   29,   30,   31,   32,   33,   34,   35,   36,   37,
- /*   180 */    38,  310,  161,  199,  228,  201,  230,  253,  232,  324,
- /*   190 */   327,  205,  329,   51,  104,   75,  212,   77,   93,   94,
+ /*   180 */    38,  314,  161,  203,  232,  205,  234,  129,  236,  131,
+ /*   190 */   331,  258,  333,   51,  104,   75,  216,   77,   93,   94,
  /*   200 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
- /*   210 */    58,  330,  331,   93,   94,   95,   96,   97,   98,   99,
+ /*   210 */   277,  334,  335,   93,   94,   95,   96,   97,   98,   99,
  /*   220 */   100,  101,  102,  103,  104,   97,   98,   99,  100,  101,
- /*   230 */   102,  103,  104,  250,  250,   93,   94,   95,   96,   97,
+ /*   230 */   102,  103,  104,  127,  254,   93,   94,   95,   96,   97,
  /*   240 */    98,   99,  100,  101,  102,  103,  104,   22,   23,   24,
- /*   250 */    25,  254,   27,   28,   29,   30,   31,   32,   33,   34,
- /*   260 */    35,   36,   37,   38,   99,  100,  101,  102,  103,  104,
- /*   270 */   273,    1,   22,   23,   24,   25,   40,   27,   28,   29,
+ /*   250 */    25,  203,   27,   28,   29,   30,   31,   32,   33,   34,
+ /*   260 */    35,   36,   37,   38,  216,   99,  100,  101,  102,  103,
+ /*   270 */   104,   40,   22,   23,   24,   25,  216,   27,   28,   29,
  /*   280 */    30,   31,   32,   33,   34,   35,   36,   37,   38,   40,
- /*   290 */   118,   21,  140,  141,  142,   22,   23,   24,   25,  127,
- /*   300 */    27,   28,   29,   30,   31,   32,   33,   34,   35,   36,
- /*   310 */    37,   38,  328,  329,   44,  212,  330,  331,   93,   94,
+ /*   290 */   242,  243,  220,  221,  222,   40,  216,   22,   23,   24,
+ /*   300 */    25,  253,   27,   28,   29,   30,   31,   32,   33,   34,
+ /*   310 */    35,   36,   37,   38,  220,  221,  222,   18,   93,   94,
  /*   320 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
- /*   330 */   168,  169,   62,  212,   86,   99,  140,  141,  142,  216,
- /*   340 */   217,  218,  117,   93,   94,   95,   96,   97,   98,   99,
- /*   350 */   100,  101,  102,  103,  104,  234,  107,  108,  109,  123,
- /*   360 */   206,  207,  216,  217,  218,  250,   93,   94,   95,   96,
- /*   370 */    97,   98,   99,  100,  101,  102,  103,  104,  275,   97,
- /*   380 */    98,  212,  133,  217,  135,  136,  137,  212,  115,  216,
- /*   390 */   217,  218,  110,  111,  145,   22,   23,   24,   25,  149,
- /*   400 */    27,   28,   29,   30,   31,   32,   33,   34,   35,   36,
- /*   410 */    37,   38,  212,  216,  217,  218,  168,  169,   22,   23,
- /*   420 */    24,   25,  253,   27,   28,   29,   30,   31,   32,   33,
- /*   430 */    34,   35,   36,   37,   38,  312,  313,  206,  207,  212,
- /*   440 */   212,   22,   23,   24,   25,  270,   27,   28,   29,   30,
- /*   450 */    31,   32,   33,   34,   35,   36,   37,   38,  312,  313,
- /*   460 */   216,  217,  198,  250,  200,  254,   93,   94,   95,   96,
- /*   470 */    97,   98,   99,  100,  101,  102,  103,  104,  312,  313,
- /*   480 */   216,  217,  218,  255,  273,  312,  313,  259,  115,   93,
- /*   490 */    94,   95,   96,   97,   98,   99,  100,  101,  102,  103,
- /*   500 */   104,  320,  239,  216,  217,  218,  242,  326,  244,  312,
- /*   510 */   313,  115,   93,   94,   95,   96,   97,   98,   99,  100,
- /*   520 */   101,  102,  103,  104,  260,  216,  217,  218,  216,  217,
- /*   530 */   218,  304,  305,  306,  115,   22,   23,   24,   25,  212,
- /*   540 */    27,   28,   29,   30,   31,   32,   33,   34,   35,   36,
- /*   550 */    37,   38,   27,   28,   29,   30,  312,  313,   22,   23,
- /*   560 */    24,   25,  212,   27,   28,   29,   30,   31,   32,   33,
- /*   570 */    34,   35,   36,   37,   38,  118,  312,  313,  314,   40,
- /*   580 */   212,   22,   23,   24,   25,  199,   27,   28,   29,   30,
- /*   590 */    31,   32,   33,   34,   35,   36,   37,   38,  212,  312,
- /*   600 */   313,    3,  275,  212,  147,    7,   93,   94,   95,   96,
- /*   610 */    97,   98,   99,  100,  101,  102,  103,  104,  161,  118,
- /*   620 */   270,  312,  313,  208,  312,  313,   40,  147,  115,   93,
- /*   630 */    94,   95,   96,   97,   98,   99,  100,  101,  102,  103,
- /*   640 */   104,  161,   56,  216,  217,   47,  107,  108,  109,  148,
- /*   650 */   125,  115,   93,   94,   95,   96,   97,   98,   99,  100,
- /*   660 */   101,  102,  103,  104,  278,  113,  199,  208,  201,  117,
- /*   670 */   203,  285,  286,  212,  115,   22,   23,   24,   25,  212,
- /*   680 */    27,   28,   29,   30,   31,   32,   33,   34,   35,   36,
- /*   690 */    37,   38,   40,  107,  108,  109,  320,   40,   22,   23,
- /*   700 */    24,   25,  326,   27,   28,   29,   30,   31,   32,   33,
- /*   710 */    34,   35,   36,   37,   38,   40,   99,  250,   40,  304,
- /*   720 */   305,   22,   23,   24,   25,   24,   27,   28,   29,   30,
- /*   730 */    31,   32,   33,   34,   35,   36,   37,   38,  121,  312,
- /*   740 */   313,  212,   40,  126,  277,   70,   93,   94,   95,   96,
- /*   750 */    97,   98,   99,  100,  101,  102,  103,  104,   56,  107,
- /*   760 */   108,  109,   22,  304,  305,  113,  212,  211,  115,   93,
- /*   770 */    94,   95,   96,   97,   98,   99,  100,  101,  102,  103,
- /*   780 */   104,  205,  107,  108,  109,  107,  108,  109,   40,  132,
- /*   790 */   212,  113,   93,   94,   95,   96,   97,   98,   99,  100,
- /*   800 */   101,  102,  103,  104,   18,  212,  130,  106,  107,  107,
- /*   810 */   108,  109,   40,  320,  115,   22,   23,   24,   25,  326,
- /*   820 */    27,   28,   29,   30,   31,   32,   33,   34,   35,   36,
- /*   830 */    37,   38,   40,  304,  305,  306,  212,   22,   23,   24,
- /*   840 */    25,  212,   27,   28,   29,   30,   31,   32,   33,   34,
- /*   850 */    35,   36,   37,   38,  298,  107,  108,  109,  302,  211,
- /*   860 */   267,  113,   22,   23,   24,   25,  165,   27,   28,   29,
- /*   870 */    30,   31,   32,   33,   34,   35,   36,   37,   38,  107,
- /*   880 */   108,  109,  140,  141,  142,  113,   93,   94,   95,   96,
- /*   890 */    97,   98,   99,  100,  101,  102,  103,  104,  320,  107,
- /*   900 */   108,  109,  212,  325,  326,  113,  330,  331,   93,   94,
- /*   910 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
- /*   920 */   296,  211,   64,  130,  214,  296,   68,  141,  142,  189,
- /*   930 */   220,  221,  117,   93,   94,   95,   96,   97,   98,   99,
- /*   940 */   100,  101,  102,  103,  104,  212,   22,   23,   24,   25,
- /*   950 */   302,   27,   28,   29,   30,   31,   32,   33,   34,   35,
- /*   960 */    36,   37,   38,   23,   24,   25,  212,   27,   28,   29,
- /*   970 */    30,   31,   32,   33,   34,   35,   36,   37,   38,   24,
- /*   980 */    25,  274,   27,   28,   29,   30,   31,   32,   33,   34,
- /*   990 */    35,   36,   37,   38,  136,  261,  199,  199,  201,  292,
- /*  1000 */    69,  204,   11,  270,   35,   36,   37,   38,  320,  212,
- /*  1010 */   212,  212,  212,  155,  326,   24,   40,   93,   94,   95,
- /*  1020 */    96,   97,   98,   99,  100,  101,  102,  103,  104,   69,
- /*  1030 */   212,   40,  199,   93,   94,   95,   96,   97,   98,   99,
- /*  1040 */   100,  101,  102,  103,  104,  212,   55,  250,   93,   94,
- /*  1050 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
- /*  1060 */    69,   11,   93,   94,   95,   96,   97,   98,   99,  100,
- /*  1070 */   101,  102,  103,  104,   24,  275,  278,  212,  147,   29,
- /*  1080 */   214,   90,  249,  107,  108,  109,  220,  221,   97,   98,
- /*  1090 */    40,  212,  161,  275,  134,  199,  105,  201,  107,  108,
- /*  1100 */   109,  110,  111,  320,  113,   55,   27,  147,  212,  326,
- /*  1110 */     1,  278,  216,  217,  218,  124,  125,  251,  199,  128,
- /*  1120 */   201,  161,  146,  204,   74,  212,  199,  212,   10,   79,
- /*  1130 */    21,  212,  199,  114,  201,  212,  203,  118,  147,  212,
- /*  1140 */    90,  118,  151,  152,  153,  212,  250,   97,   98,  216,
- /*  1150 */   217,  218,  161,   44,  212,  105,   40,  107,  108,  109,
- /*  1160 */   110,  111,  139,  113,    0,   24,   48,   58,    4,  250,
- /*  1170 */     6,   62,    8,  277,  124,  125,   40,   59,  128,  199,
- /*  1180 */    16,   34,   18,  250,   20,  106,   40,   11,  323,  324,
- /*  1190 */   267,  199,  212,  201,   61,  133,   40,  135,  136,  137,
- /*  1200 */    24,  151,  152,  153,  212,  278,  212,  145,  312,  313,
- /*  1210 */   277,   78,  340,  341,   81,  199,   40,   61,   54,  239,
- /*  1220 */   240,   57,  212,  107,  108,  109,   62,   63,  212,  249,
- /*  1230 */    66,   55,   76,   69,   78,  320,   90,   81,  296,  142,
- /*  1240 */   325,  326,  250,   24,  108,  312,  313,  150,  107,   65,
- /*  1250 */    74,   67,   88,  107,  108,   79,  110,  111,  278,  212,
- /*  1260 */   113,  143,  214,  107,  108,  109,   90,   40,  220,  221,
- /*  1270 */   114,  125,   92,   97,   98,   90,  112,  267,   11,  109,
- /*  1280 */   164,  105,  205,  107,  108,  109,  110,  111,  118,  113,
- /*  1290 */   199,   24,  112,  108,  278,  110,  111,  151,  152,  251,
- /*  1300 */   124,  125,  255,  212,  128,  258,  259,   40,  212,  268,
- /*  1310 */   125,  147,  120,  212,  122,  123,  132,   41,  154,  327,
- /*  1320 */   156,  329,   55,  159,  212,  161,  107,  151,  152,  153,
- /*  1330 */   166,  290,   61,   61,  164,  108,  151,  152,  247,  155,
- /*  1340 */   249,   74,  197,  198,  199,  200,   79,   76,   40,   78,
- /*  1350 */    78,  255,   81,   81,  258,  259,  255,   90,  194,  258,
- /*  1360 */   259,  216,  217,  218,   97,   98,   40,  255,  114,  278,
- /*  1370 */   258,  259,  105,  189,  107,  108,  109,  110,  111,   65,
- /*  1380 */   113,   67,    4,   24,    6,  114,    8,  242,  263,  244,
- /*  1390 */   118,  124,  125,  142,   16,  128,   18,  229,   20,  274,
- /*  1400 */   199,  150,  201,  115,  203,  260,  118,  330,  331,  199,
- /*  1410 */   199,  201,  201,  212,  203,  107,  108,  109,  151,  152,
- /*  1420 */   153,  167,  212,  212,    4,   99,    6,    5,    8,  199,
- /*  1430 */    40,  201,   54,  157,  204,   57,   16,   15,   18,  287,
- /*  1440 */    62,   63,  212,   84,   66,   24,  132,   69,   27,  123,
- /*  1450 */    40,  250,  199,  308,  199,  106,   11,  312,  313,  314,
- /*  1460 */   250,  250,  199,  104,  118,  212,   88,  212,  199,   24,
- /*  1470 */   315,  316,  164,  127,   54,  212,  117,   57,  277,  106,
- /*  1480 */   250,  212,   62,   63,  125,   40,   66,  277,  277,   69,
- /*  1490 */   112,  212,  133,  134,  135,  136,  137,  138,  108,   14,
- /*  1500 */    55,  334,  335,  144,   19,   97,   98,  117,   88,   99,
- /*  1510 */   199,  199,  201,  201,  165,  204,  204,  107,  108,  109,
- /*  1520 */   229,  113,  149,  212,  212,  147,  291,  106,   92,  294,
- /*  1530 */    45,  278,  154,  278,  156,   90,   40,  159,  285,  161,
- /*  1540 */   285,  278,   97,   98,  166,  212,   11,  278,  285,  113,
- /*  1550 */   105,  115,  107,  108,  109,  110,  111,   14,  113,   24,
- /*  1560 */   212,  250,  250,  121,  199,  144,  201,  147,  126,  124,
- /*  1570 */   125,  126,  194,  128,  154,   40,  156,  212,  199,  159,
- /*  1580 */   201,  161,   48,  204,  209,  210,  166,  199,   45,  201,
- /*  1590 */    55,  212,  115,   97,   98,  118,  151,  152,  153,  117,
- /*  1600 */   212,  119,  106,  107,  108,  109,  110,  111,   74,  115,
- /*  1610 */    11,  199,  118,  201,  194,  250,  204,   83,  209,  210,
- /*  1620 */   209,  210,  109,   24,  212,   90,  209,  210,  115,  250,
- /*  1630 */   134,  118,   97,   98,  199,  117,  201,  141,  250,   40,
- /*  1640 */   105,  212,  107,  108,  109,  110,  111,  212,  113,   92,
- /*  1650 */   116,  199,  229,  201,   55,   92,  204,  222,   40,  124,
- /*  1660 */   125,  126,  250,  128,  212,  277,  209,  210,   42,  199,
- /*  1670 */   113,  201,  115,  148,  149,  118,  113,  164,  115,  212,
- /*  1680 */   115,   67,  212,  118,  212,  250,  151,  152,  153,   90,
- /*  1690 */   199,  115,  201,   92,  118,  212,   97,   98,   99,  129,
- /*  1700 */    11,  131,  250,  212,  105,   89,  107,  108,  109,  110,
- /*  1710 */   111,  193,  113,   24,  113,  199,  115,  201,  115,  118,
- /*  1720 */   250,  118,  212,  124,  125,  199,  108,  128,  212,   40,
- /*  1730 */   115,  113,  199,  118,  201,  212,  199,  115,  212,  113,
- /*  1740 */   118,  250,   72,   73,   55,  212,  132,  277,  125,  212,
- /*  1750 */   151,  152,  153,   24,  195,  196,  197,  198,  199,  200,
- /*  1760 */   212,  199,  115,  201,  212,  118,  250,  144,  277,  155,
- /*  1770 */   154,  199,  212,  201,  212,  216,  217,  218,  199,   90,
- /*  1780 */   201,  125,  115,  250,  212,  118,   97,   98,  174,  115,
- /*  1790 */   134,  212,  118,  277,  105,  212,  107,  108,  109,  110,
- /*  1800 */   111,  242,  113,  244,  278,  199,  192,  201,  212,   40,
- /*  1810 */   277,  285,  250,  124,  125,  278,   87,  128,  212,  260,
- /*  1820 */    40,   40,  250,  199,  199,  201,  201,  322,  115,  250,
- /*  1830 */   199,  118,  201,  199,  293,  201,  212,  212,  299,  199,
- /*  1840 */   151,  152,  153,  212,  212,  199,  212,  201,  199,  199,
- /*  1850 */   201,  199,  212,  201,  110,  111,  250,  199,  212,  201,
- /*  1860 */   113,  212,  212,  199,  212,  201,  119,  308,  110,  111,
- /*  1870 */   212,  312,  313,  314,  250,  250,  212,  108,  114,  115,
- /*  1880 */   212,  250,  113,  212,  250,  199,  117,  201,  108,  108,
- /*  1890 */   199,  115,  201,  212,  118,  212,  250,  115,  212,  250,
- /*  1900 */   118,  273,  250,  212,  199,  212,  201,  199,  250,  201,
- /*  1910 */   199,  212,  201,  199,  250,  201,  212,  212,  278,  115,
- /*  1920 */   212,  212,  118,  212,  199,  281,  212,  199,  278,  201,
- /*  1930 */   212,  212,  199,  212,  201,  115,  250,  212,  118,  115,
- /*  1940 */   212,  250,  118,  212,  199,  212,  201,  199,  115,  201,
- /*  1950 */   199,  118,  201,  212,  199,  250,  201,  212,  250,  115,
- /*  1960 */   212,  250,  118,  212,  250,  212,  199,  212,  201,  199,
- /*  1970 */   295,  201,  212,  199,  199,  201,  201,  212,  250,  212,
- /*  1980 */   342,  225,  212,  250,  287,  287,  212,  212,  287,  287,
- /*  1990 */   213,  199,  202,  201,  199,  250,  201,  199,  250,  201,
- /*  2000 */   199,  250,  201,  278,  212,  250,  199,  212,  201,  332,
- /*  2010 */   212,  338,  276,  212,  199,  265,  201,  250,  284,  212,
- /*  2020 */   250,  264,  276,  271,  250,  250,  199,  212,  201,  303,
- /*  2030 */   199,  265,  201,  199,  271,  201,  199,  264,  201,  212,
- /*  2040 */   303,  235,  250,  212,  265,  250,  212,  226,  250,  212,
- /*  2050 */   199,  250,  201,  199,  265,  201,  199,  250,  201,  199,
- /*  2060 */   228,  201,  251,  212,  292,  250,  212,  271,  243,  212,
- /*  2070 */   292,  268,  212,  199,  251,  201,  199,  250,  201,  292,
- /*  2080 */   292,  250,  268,  224,  250,  202,  212,  250,   92,  212,
- /*  2090 */   199,  251,  201,   40,  335,  346,  199,  113,  201,   40,
- /*  2100 */   339,  250,  165,  212,  250,  337,  199,  250,  201,  212,
- /*  2110 */   250,  146,  199,  199,  201,  201,  333,  333,   13,  212,
- /*  2120 */   199,  336,  201,  311,  250,  212,  212,  250,  335,  199,
- /*  2130 */   336,  201,  199,  212,  201,  309,  119,  309,  215,  215,
- /*  2140 */   215,  250,  212,   63,  283,  212,  283,  250,  160,  282,
- /*  2150 */   282,  282,   41,   91,  284,  284,  280,  250,  280,  280,
- /*  2160 */   280,  149,  266,  250,  250,  113,  272,  163,  269,  114,
- /*  2170 */   268,  250,   22,  262,  269,  215,  268,   91,  246,  148,
- /*  2180 */   250,  215,  276,  250,  246,  276,  266,  113,  266,  272,
- /*  2190 */   262,  276,  276,  262,  252,  215,  246,  129,   43,  301,
- /*  2200 */   300,  215,  246,  246,  215,  252,  106,  236,  236,  236,
- /*  2210 */    46,  113,  231,  252,  236,  241,  241,  139,  226,  236,
- /*  2220 */   118,  231,  215,  236,  248,  162,  268,  236,  269,  289,
- /*  2230 */   116,  269,  288,   80,   71,  113,  215,  219,  104,  276,
- /*  2240 */   321,  129,  257,  279,  117,  223,  279,  321,  319,  252,
- /*  2250 */   257,  256,  168,  319,  344,  316,  211,  345,  331,  211,
- /*  2260 */   211,  343,  238,  238,  227,  211,  227,  225,  225,  211,
- /*  2270 */   238,   49,  190,   50,  189,  119,  117,   40,  113,  344,
- /*  2280 */   344,  191,  115,   40,  343,   40,  343,   40,  118,  113,
- /*  2290 */    40,  113,  106,   40,  157,  113,  115,  191,  118,   40,
- /*  2300 */   113,  117,  117,   40,   40,   40,  189,  119,  119,  119,
- /*  2310 */   119,  119,  119,  115,  119,  113,   58,  112,  115,  115,
- /*  2320 */   158,  106,  147,  157,  155,  157,  132,  117,  127,  146,
- /*  2330 */   124,  118,  132,  113,  106,  127,  165,  112,   42,  143,
- /*  2340 */    12,   34,  143,   34,   34,   34,  107,    9,  119,    8,
- /*  2350 */   143,  117,  155,  112,  143,  146,   52,   52,  118,   60,
- /*  2360 */    17,  119,  106,   24,  138,  144,   51,  113,  124,   51,
- /*  2370 */   113,   40,  117,  113,   85,  113,  115,    2,   51,  113,
- /*  2380 */    12,  107,    9,  115,  115,  118,  115,    9,  113,  113,
- /*  2390 */   118,  164,  115,    9,  148,  117,  115,  118,  114,  119,
- /*  2400 */   113,  116,    9,  113,    9,    9,  115,   77,   60,   75,
- /*  2410 */    23,   60,  118,    9,   82,  115,  115,  115,   18,  113,
- /*  2420 */    87,  118,  127,    9,  127,  113,  118,    9,  347,  113,
- /*  2430 */   347,  118,  118,  113,  115,  112,  119,  115,  113,  115,
- /*  2440 */   347,  115,  121,  347,  115,  347,  347,  347,  113,  347,
- /*  2450 */   347,  347,  347,  113,  347,  119,  119,  115,  112,  347,
- /*  2460 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2470 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2480 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2490 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2500 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2510 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2520 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2530 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2540 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2550 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2560 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2570 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2580 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2590 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2600 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2610 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2620 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2630 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2640 */   347,  347,  347,  347,  347,  347,  347,  347,  347,  347,
- /*  2650 */   347,  347,  347,  347,
+ /*   330 */   282,  271,  352,  353,   58,  102,  103,  104,  107,  108,
+ /*   340 */   109,  147,  117,   93,   94,   95,   96,   97,   98,   99,
+ /*   350 */   100,  101,  102,  103,  104,  161,  107,  108,  109,  140,
+ /*   360 */   141,  142,  107,  108,  109,   97,   98,  117,   93,   94,
+ /*   370 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
+ /*   380 */   216,  113,  133,  254,  135,  136,  137,  272,  316,  317,
+ /*   390 */    22,   23,   24,   25,  145,   27,   28,   29,   30,   31,
+ /*   400 */    32,   33,   34,   35,   36,   37,   38,  327,  328,  294,
+ /*   410 */   316,  317,   40,  220,  221,  222,  140,  141,  142,  164,
+ /*   420 */    22,   23,   24,   25,  149,   27,   28,   29,   30,   31,
+ /*   430 */    32,   33,   34,   35,   36,   37,   38,  220,  221,  222,
+ /*   440 */   141,  142,   70,   22,   23,   24,   25,   89,   27,   28,
+ /*   450 */    29,   30,   31,   32,   33,   34,   35,   36,   37,   38,
+ /*   460 */    99,   93,   94,   95,   96,   97,   98,   99,  100,  101,
+ /*   470 */   102,  103,  104,  309,  310,  311,  203,  267,  205,  107,
+ /*   480 */   108,  109,  121,  115,  220,  221,  222,  126,  278,  216,
+ /*   490 */    40,   93,   94,   95,   96,   97,   98,   99,  100,  101,
+ /*   500 */   102,  103,  104,  209,  220,  221,  222,  220,  221,  316,
+ /*   510 */   317,   61,  154,  115,   93,   94,   95,   96,   97,   98,
+ /*   520 */    99,  100,  101,  102,  103,  104,   76,  254,   78,  220,
+ /*   530 */   221,   81,  109,  316,  317,  216,  115,   22,   23,   24,
+ /*   540 */    25,  118,   27,   28,   29,   30,   31,   32,   33,   34,
+ /*   550 */    35,   36,   37,   38,  220,  221,  222,  107,  108,  109,
+ /*   560 */    22,   23,   24,   25,  114,   27,   28,   29,   30,   31,
+ /*   570 */    32,   33,   34,   35,   36,   37,   38,  220,  221,  222,
+ /*   580 */   316,  317,  254,   22,   23,   24,   25,  164,   27,   28,
+ /*   590 */    29,   30,   31,   32,   33,   34,   35,   36,   37,   38,
+ /*   600 */   316,  317,  216,  316,  317,  332,  333,  216,   93,   94,
+ /*   610 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
+ /*   620 */    27,   28,   29,   30,  212,  316,  317,   40,  334,  335,
+ /*   630 */   115,   93,   94,   95,   96,   97,   98,   99,  100,  101,
+ /*   640 */   102,  103,  104,   56,  120,  259,  122,  123,  262,  263,
+ /*   650 */   316,  317,   41,  115,   93,   94,   95,   96,   97,   98,
+ /*   660 */    99,  100,  101,  102,  103,  104,  168,  169,  203,  350,
+ /*   670 */   205,   64,  207,  316,  317,   68,  115,   22,   23,   24,
+ /*   680 */    25,  216,   27,   28,   29,   30,   31,   32,   33,   34,
+ /*   690 */    35,   36,   37,   38,  107,  108,  109,   40,  118,   40,
+ /*   700 */    22,   23,   24,   25,  203,   27,   28,   29,   30,   31,
+ /*   710 */    32,   33,   34,   35,   36,   37,   38,  216,  125,  254,
+ /*   720 */    40,  309,  310,   22,   23,   24,   25,  147,   27,   28,
+ /*   730 */    29,   30,   31,   32,   33,   34,   35,   36,   37,   38,
+ /*   740 */    65,  161,   67,  136,   40,  242,  281,   40,   93,   94,
+ /*   750 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
+ /*   760 */    56,  216,  155,   86,  107,  108,  109,  108,  157,  209,
+ /*   770 */   115,   93,   94,   95,   96,   97,   98,   99,  100,  101,
+ /*   780 */   102,  103,  104,  282,  140,  141,  142,  107,  108,  109,
+ /*   790 */   289,  290,  216,  115,   93,   94,   95,   96,   97,   98,
+ /*   800 */    99,  100,  101,  102,  103,  104,  133,  132,  135,  136,
+ /*   810 */   137,  107,  108,  109,  107,  108,  109,   14,  145,  274,
+ /*   820 */   113,  164,   19,   40,  118,  216,  146,   22,   23,   24,
+ /*   830 */    25,  130,   27,   28,   29,   30,   31,   32,   33,   34,
+ /*   840 */    35,   36,   37,   38,   40,  168,  169,  271,   45,  216,
+ /*   850 */    22,   23,   24,   25,  148,   27,   28,   29,   30,   31,
+ /*   860 */    32,   33,   34,   35,   36,   37,   38,   40,  259,  216,
+ /*   870 */    40,  262,  263,   22,   23,   24,   25,  216,   27,   28,
+ /*   880 */    29,   30,   31,   32,   33,   34,   35,   36,   37,   38,
+ /*   890 */   107,  108,  109,   92,  334,  335,  113,  278,   93,   94,
+ /*   900 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
+ /*   910 */   216,  107,  108,  109,  113,  296,  115,  113,  257,  118,
+ /*   920 */   115,   93,   94,   95,   96,   97,   98,   99,  100,  101,
+ /*   930 */   102,  103,  104,  216,  107,  108,  109,  107,  108,  109,
+ /*   940 */   113,  216,  258,  113,   93,   94,   95,   96,   97,   98,
+ /*   950 */    99,  100,  101,  102,  103,  104,  344,  345,  130,  216,
+ /*   960 */   203,  277,  205,  212,  215,  208,   92,  215,  117,   22,
+ /*   970 */    23,   24,   25,  216,   27,   28,   29,   30,   31,   32,
+ /*   980 */    33,   34,   35,   36,   37,   38,   42,  113,  271,  115,
+ /*   990 */   209,   22,   23,   24,   25,  301,   27,   28,   29,   30,
+ /*  1000 */    31,   32,   33,   34,   35,   36,   37,   38,   23,   24,
+ /*  1010 */    25,  254,   27,   28,   29,   30,   31,   32,   33,   34,
+ /*  1020 */    35,   36,   37,   38,   24,   25,  301,   27,   28,   29,
+ /*  1030 */    30,   31,   32,   33,   34,   35,   36,   37,   38,   61,
+ /*  1040 */    93,   94,   95,   96,   97,   98,   99,  100,  101,  102,
+ /*  1050 */   103,  104,  303,   67,   76,  306,   78,  113,  306,   81,
+ /*  1060 */   309,  310,   93,   94,   95,   96,   97,   98,   99,  100,
+ /*  1070 */   101,  102,  103,  104,   69,  210,  211,   40,   93,   94,
+ /*  1080 */    95,   96,   97,   98,   99,  100,  101,  102,  103,  104,
+ /*  1090 */    40,   92,  114,   93,   94,   95,   96,   97,   98,   99,
+ /*  1100 */   100,  101,  102,  103,  104,    0,  203,  216,  205,    4,
+ /*  1110 */    24,    6,  113,    8,  115,  334,  335,  118,  132,  216,
+ /*  1120 */   221,   16,  114,   18,  215,   20,    4,  218,    6,  226,
+ /*  1130 */     8,  210,  211,  224,  225,  203,   99,  205,   16,  134,
+ /*  1140 */    18,  155,   20,    3,  107,  108,  109,    7,  216,   99,
+ /*  1150 */   216,  203,  147,  205,  216,  249,  203,  254,  205,   54,
+ /*  1160 */   174,  208,   57,  265,  216,  274,  161,   62,   63,  216,
+ /*  1170 */    84,   66,   61,  123,   69,  167,   54,  216,  192,   57,
+ /*  1180 */   201,  202,  203,  204,   62,   63,  254,   47,   66,   78,
+ /*  1190 */   104,   69,   81,   88,  202,   27,  204,  216,  218,  220,
+ /*  1200 */   221,  222,  254,  117,  224,  225,   69,  254,  302,  216,
+ /*  1210 */    88,  125,  220,  221,  222,  316,  317,  112,  312,  133,
+ /*  1220 */   134,  135,  136,  137,  138,  246,   40,  248,  216,  203,
+ /*  1230 */   144,  205,  127,  207,  112,  255,   24,   65,  246,   67,
+ /*  1240 */   248,  216,  216,  264,   97,   98,  220,  221,  222,  127,
+ /*  1250 */   257,  216,  147,  338,  339,   40,  264,  110,  111,  154,
+ /*  1260 */   279,  156,  324,  331,  159,  333,  161,  329,  330,  147,
+ /*  1270 */   216,  166,   24,   11,  106,   27,  154,  203,  156,  205,
+ /*  1280 */   254,  159,  208,  161,  147,   90,   24,  216,  166,  216,
+ /*  1290 */   216,  279,  313,   24,  189,  316,  317,  318,  161,  194,
+ /*  1300 */   352,  203,   40,  108,  132,  110,  111,  281,  316,  317,
+ /*  1310 */   318,  189,   97,   98,  216,  106,  194,   55,  132,  107,
+ /*  1320 */   125,  106,  107,  108,  109,  110,  111,  155,  254,   40,
+ /*  1330 */   259,   69,  259,  262,  263,  356,  263,  216,   35,   36,
+ /*  1340 */    37,   38,  316,  317,  218,  216,  151,  152,  356,  134,
+ /*  1350 */   224,  225,   90,   40,  106,  301,  141,  216,  149,   97,
+ /*  1360 */    98,  189,  216,  328,   11,  347,  203,  105,  205,  107,
+ /*  1370 */   108,  109,  110,  111,  356,  113,  107,   24,  203,  216,
+ /*  1380 */   282,  255,   29,  220,  221,  222,  124,  125,   99,  121,
+ /*  1390 */   128,  216,  144,   40,  126,  216,   93,   94,   95,   96,
+ /*  1400 */    97,   98,   99,  100,  101,  102,  103,  104,   55,  147,
+ /*  1410 */   118,    1,  123,  151,  152,  153,  203,  254,  205,  127,
+ /*  1420 */   207,  108,  216,  161,   40,  279,  251,   74,  253,  216,
+ /*  1430 */   117,   21,   79,  203,  203,  205,  205,  207,  259,   11,
+ /*  1440 */    22,  262,  263,   90,  281,  115,  216,  216,  118,   40,
+ /*  1450 */    97,   98,   24,   92,   44,   40,  106,  282,  105,  216,
+ /*  1460 */   107,  108,  109,  110,  111,  324,  113,  254,   40,  203,
+ /*  1470 */   329,  330,   62,  203,  113,  205,  115,  124,  125,  316,
+ /*  1480 */   317,  128,  216,   55,  254,  254,  216,  203,  216,  324,
+ /*  1490 */   203,  107,  108,  109,  281,  330,  203,  113,  205,   90,
+ /*  1500 */   216,  208,   74,  216,  151,  152,  153,   79,  203,  216,
+ /*  1510 */   205,  281,  281,  216,   11,  165,  107,  108,   90,  110,
+ /*  1520 */   111,  216,   24,  108,  254,   97,   98,   24,  113,  319,
+ /*  1530 */   320,   40,  117,  105,  125,  107,  108,  109,  110,  111,
+ /*  1540 */   253,  113,  115,   40,  203,  118,  205,  254,  282,  208,
+ /*  1550 */   203,  281,  124,  125,    5,  289,  128,  216,   55,  254,
+ /*  1560 */   151,  152,  118,  216,   15,  203,  282,  216,   10,  282,
+ /*  1570 */   203,  127,  205,  289,  203,  208,  205,   74,  216,  151,
+ /*  1580 */   152,  153,   79,  216,    4,  216,    6,  216,    8,  203,
+ /*  1590 */   203,  205,  205,   90,  208,  254,   16,  216,   18,  108,
+ /*  1600 */    97,   98,  216,  216,  106,  107,   48,  189,  105,  216,
+ /*  1610 */   107,  108,  109,  110,  111,   40,  113,   59,  213,  214,
+ /*  1620 */   324,  254,  203,  216,  205,  254,  330,  124,  125,  282,
+ /*  1630 */   279,  128,  203,    1,   54,  216,  289,   57,  213,  214,
+ /*  1640 */   254,  254,   62,   63,  282,  216,   66,  216,  203,   69,
+ /*  1650 */   205,  289,  281,   21,  151,  152,  153,   92,   11,  118,
+ /*  1660 */   279,  216,  203,  165,  205,  203,  115,  205,   88,  118,
+ /*  1670 */   208,   24,  203,  254,  205,  216,   44,  112,  216,  203,
+ /*  1680 */   139,  205,  203,  108,  205,  216,   61,   40,  113,  113,
+ /*  1690 */    58,  203,  216,  117,   62,  216,  203,  216,  205,  254,
+ /*  1700 */   281,  143,   55,   78,  216,  203,   81,  127,  203,  216,
+ /*  1710 */   205,  282,  203,  254,  205,  203,  254,  205,  216,  213,
+ /*  1720 */   214,  216,  233,  254,   34,  216,  281,  147,  216,  203,
+ /*  1730 */   254,  205,  324,  254,  154,  216,  156,   90,  330,  159,
+ /*  1740 */   281,  161,  216,  118,   97,   98,  166,  254,   11,  213,
+ /*  1750 */   214,  203,  105,  205,  107,  108,  109,  110,  111,  254,
+ /*  1760 */   113,   24,  324,  254,  216,  203,  254,  205,  330,  189,
+ /*  1770 */   282,  124,  125,  126,  194,  128,  117,   40,  216,  216,
+ /*  1780 */   254,   11,  213,  214,  282,  197,  198,  114,  203,  125,
+ /*  1790 */   205,  118,   55,  115,   24,  216,  118,  216,  151,  152,
+ /*  1800 */   153,  216,  254,  113,  203,  203,  205,  205,  144,  216,
+ /*  1810 */    40,  148,  149,  117,   48,  119,  254,  216,  216,  216,
+ /*  1820 */   203,  115,  205,  216,  118,   55,  216,   90,  115,  142,
+ /*  1830 */   113,  118,  216,  216,   97,   98,  119,  150,  203,  254,
+ /*  1840 */    74,  203,  105,  205,  107,  108,  109,  110,  111,   83,
+ /*  1850 */   113,  216,  193,   14,  216,  254,  254,   11,  142,  203,
+ /*  1860 */    90,  124,  125,  126,  125,  128,  150,   97,   98,   99,
+ /*  1870 */    24,  254,  216,  134,  203,  105,  205,  107,  108,  109,
+ /*  1880 */   110,  111,  116,  113,   45,  216,   40,  216,  151,  152,
+ /*  1890 */   153,  203,  254,  205,  124,  125,  115,  115,  128,  118,
+ /*  1900 */   118,   55,  115,  233,  216,  118,  203,  115,  216,  115,
+ /*  1910 */   118,  203,  118,  205,  203,   40,  205,  282,  203,  216,
+ /*  1920 */   205,  151,  152,  153,  216,  254,  109,  216,   72,   73,
+ /*  1930 */   115,  216,  115,  118,  115,  118,   90,  118,  282,   40,
+ /*  1940 */   110,  111,  254,   97,   98,  199,  200,  201,  202,  203,
+ /*  1950 */   204,  105,  216,  107,  108,  109,  110,  111,  115,  113,
+ /*  1960 */   115,  118,  254,  118,  216,  254,  220,  221,  222,  254,
+ /*  1970 */   124,  125,  114,  115,  128,  203,  203,  205,  205,  110,
+ /*  1980 */   111,  164,  203,  108,  205,  282,   24,  115,  216,  216,
+ /*  1990 */   118,  216,  246,  115,  248,  216,  118,  151,  152,  153,
+ /*  2000 */   216,  216,  203,  203,  205,  205,  203,  108,  205,  203,
+ /*  2010 */   264,  205,  216,  233,  216,  216,  216,  216,  216,  216,
+ /*  2020 */   216,  203,  216,  205,  297,  115,  254,  254,  118,  203,
+ /*  2030 */   216,  205,  115,  254,  216,  118,  216,  203,  203,  205,
+ /*  2040 */   205,  291,  216,  203,  326,  205,  277,  216,  216,   87,
+ /*  2050 */   216,  216,  216,  254,  254,  346,  216,  254,  291,  313,
+ /*  2060 */   254,  285,  316,  317,  318,  203,  203,  205,  205,  203,
+ /*  2070 */   299,  205,  254,  203,  203,  205,  205,  291,  216,  216,
+ /*  2080 */   254,  304,  216,  203,  229,  205,  216,  216,  254,  254,
+ /*  2090 */   203,  203,  205,  205,  254,  203,  216,  205,  203,  203,
+ /*  2100 */   205,  205,  356,  216,  216,  203,  217,  205,  216,  206,
+ /*  2110 */   203,  216,  216,  291,  291,  291,  254,  254,  216,  291,
+ /*  2120 */   254,  288,  269,  216,  254,  254,  203,  203,  205,  205,
+ /*  2130 */   342,  203,  268,  205,  254,  203,  275,  205,  230,  216,
+ /*  2140 */   216,  254,  254,  336,  216,  268,  254,  280,  216,  254,
+ /*  2150 */   254,  203,  203,  205,  205,  203,  254,  205,  203,  203,
+ /*  2160 */   205,  205,  351,  203,  216,  216,  307,  269,  216,  269,
+ /*  2170 */   280,  216,  216,  269,  244,  307,  216,  254,  254,  232,
+ /*  2180 */   275,  255,  254,  247,  275,  272,  254,  296,  272,  282,
+ /*  2190 */   296,  228,  255,  296,  255,  206,   92,  296,   40,  358,
+ /*  2200 */   343,  113,  254,  254,  339,  195,  254,   94,  354,  254,
+ /*  2210 */   254,  119,  219,  340,   40,  339,  337,  165,  337,  146,
+ /*  2220 */    13,  315,  340,  349,  341,  219,  308,  308,  219,   63,
+ /*  2230 */   219,  287,  287,   41,  160,   91,  286,  286,  284,  286,
+ /*  2240 */   149,  270,  282,  284,  113,  288,  288,  163,  284,  284,
+ /*  2250 */   276,  273,  114,  272,   22,  273,  266,  272,  219,   91,
+ /*  2260 */   148,  219,  250,  280,  250,  270,  280,  270,  280,  266,
+ /*  2270 */   276,  280,  113,  266,  256,  219,  250,  129,  305,   43,
+ /*  2280 */   300,  219,  250,  219,  250,  256,  106,  239,  239,  239,
+ /*  2290 */    46,  113,  235,  256,  239,  139,  245,  230,  245,  239,
+ /*  2300 */   235,  118,  239,  273,  219,  239,  252,  272,  162,  273,
+ /*  2310 */   293,  116,  292,  280,   80,  113,   71,  325,  223,  219,
+ /*  2320 */   104,  325,  261,  283,  283,  129,  227,  117,  256,  261,
+ /*  2330 */   260,  168,  357,  335,  355,  348,  323,  241,  323,  320,
+ /*  2340 */   215,  215,  215,  215,  241,  231,  347,  231,  348,  347,
+ /*  2350 */   229,  229,  348,   49,  215,   50,  241,  119,   34,  190,
+ /*  2360 */   189,   54,  113,  117,  191,   40,  115,   40,   40,   40,
+ /*  2370 */   118,  113,   40,  113,  106,   40,  157,  113,  191,  118,
+ /*  2380 */   115,  118,  113,  117,  196,   35,  115,  117,   40,   40,
+ /*  2390 */   189,  119,  119,  119,  119,  119,  119,  115,  119,   40,
+ /*  2400 */   113,   40,   58,  112,  115,  115,  158,  157,  106,  155,
+ /*  2410 */   157,  117,  132,  118,  147,  127,  124,  132,  106,  113,
+ /*  2420 */   165,  112,   42,  127,  146,   12,  143,  143,   34,  143,
+ /*  2430 */    34,   34,   34,  107,    9,  119,  155,    8,  117,  146,
+ /*  2440 */   143,   52,  112,   52,   60,   17,  106,  124,   24,  118,
+ /*  2450 */   113,  138,  119,   51,  144,  113,  113,   51,   40,  113,
+ /*  2460 */   115,   85,    2,   51,  117,  113,   12,  107,  115,  118,
+ /*  2470 */   115,  115,    9,    9,  117,  113,  118,    9,  164,  115,
+ /*  2480 */   113,  118,  113,  115,  119,  114,  116,  148,  113,  115,
+ /*  2490 */     9,    9,    9,   77,   60,   75,   23,   60,    9,   82,
+ /*  2500 */   118,  115,  115,  115,  127,  113,   87,    9,  118,   18,
+ /*  2510 */   127,  118,  113,  118,    9,  359,  115,  113,  118,  359,
+ /*  2520 */   113,  359,  119,  115,  113,  115,  121,  113,  119,  359,
+ /*  2530 */   115,  359,  359,  359,  359,  359,  359,  115,  115,  113,
+ /*  2540 */   119,  359,  112,  112,  359,  359,  359,  359,  359,  359,
+ /*  2550 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2560 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2570 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2580 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2590 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2600 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2610 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2620 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2630 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2640 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2650 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2660 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2670 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2680 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2690 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2700 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2710 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2720 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2730 */   359,  359,  359,  359,  359,  359,  359,  359,  359,  359,
+ /*  2740 */   359,  359,  359,
 };
-#define YY_SHIFT_COUNT    (674)
+#define YY_SHIFT_COUNT    (696)
 #define YY_SHIFT_MIN      (0)
-#define YY_SHIFT_MAX      (2418)
+#define YY_SHIFT_MAX      (2505)
 static const unsigned short int yy_shift_ofst[] = {
- /*     0 */  1378, 1164,  991, 1420,  991,  931, 1050, 1176, 1267, 1689,
- /*    10 */  1689, 1689,  249,   21, 1689, 1689, 1689, 1689, 1689, 1689,
- /*    20 */  1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689,  539,
- /*    30 */   960,  539,  931,  931,  931,  931,  931,  931,  931,  931,
- /*    40 */     0,    0,  142,  840, 1445, 1535, 1599, 1689, 1689, 1689,
- /*    50 */  1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689,
- /*    60 */  1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689,
- /*    70 */  1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689,
- /*    80 */  1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689,
- /*    90 */  1689, 1689, 1689, 1689, 1689, 1689, 1689, 1689, 1496, 1496,
- /*   100 */  1156, 1156,  586,  702,  539,  539,  539,  539,  539,  539,
- /*   110 */   539,  539,  457,  457,  457,  457,   23,  120,  225,  250,
- /*   120 */   273,  373,  396,  419,  513,  536,  559,  653,  676,  699,
- /*   130 */   793,  815,  840,  840,  840,  840,  840,  840,  840,  840,
- /*   140 */   840,  840,  840,  840,  840,  840,  840,  840,  840,  840,
- /*   150 */   924,  840,  940,  955,  955,   35,  969,  969,  969,  969,
- /*   160 */   969,  969,  969,  105,  128,  165,  675,  539,  539,  539,
- /*   170 */   539,  539,  539,  539,  539,  858, 1421,  539,  539,  539,
- /*   180 */   282,  282,  248,    8,   18,  162,  162,  162,  480,   90,
- /*   190 */    90, 2459, 2459, 1359, 1359, 1359,  976,  652,  652,  652,
- /*   200 */   652, 1109, 1109,  675, 1271, 1557, 1601,  539,  539,  539,
- /*   210 */   539,  539,  539,  539,  539,  539,  539,  539,  539,  701,
- /*   220 */   539, 1272, 1272,  539,  786, 1133, 1133, 1141, 1141, 1136,
- /*   230 */  1254, 1136,    4,   41, 2459, 2459, 2459, 2459, 2459, 2459,
- /*   240 */  2459, 1146, 1185, 1185,  678, 1062,  748, 1116, 1308, 1410,
- /*   250 */   772,  792,  539,  539,  539,  539,  539,  539,  539,  539,
- /*   260 */   539,  539,  539,  539,  539,  539,  539,  152,  539,  539,
- /*   270 */   539,  539,  539,  539,  539,  539,  539,  539,  539, 1118,
- /*   280 */  1118, 1118,  539,  539,  539,  539, 1513,  539,  539, 1769,
- /*   290 */  1534,  539,  539,  270,  539,  539,  236, 1485,  196,  598,
- /*   300 */  1408, 1390, 1390, 1390, 1170, 1390, 1192, 1192,  617, 1192,
- /*   310 */   657,  740, 1276, 1373, 1525,  172, 1525, 1219,  501, 1373,
- /*   320 */  1373,  501, 1373,  172, 1219, 1023, 1288, 1079, 1422,  552,
- /*   330 */  1349, 1349, 1349, 1349, 1346, 1019, 1019, 1422, 1422, 1570,
- /*   340 */  1442, 1996, 2053,   41, 1984, 2059, 2059,   41, 1984, 1937,
- /*   350 */  1965, 2105, 2105, 2017, 2017, 2017, 2080, 2080, 1988, 1988,
- /*   360 */  1988, 2111, 2111, 2062, 2062, 2062, 2062, 2012, 2052, 2004,
- /*   370 */  2055, 2150, 2004, 2055, 2017, 2086, 2031, 2017, 2086, 2031,
- /*   380 */  2012, 2012, 2031, 2052, 2150, 2031, 2150, 2074, 2017, 2086,
- /*   390 */  2068, 2155, 2017, 2086, 2017, 2086, 2074, 2100, 2100, 2100,
- /*   400 */  2164, 2098, 2098, 2074, 2100, 2078, 2100, 2164, 2100, 2100,
- /*   410 */  2102, 2017, 2004, 2055, 2004, 2063, 2114, 2031, 2153, 2153,
- /*   420 */  2163, 2163, 2122, 2017, 2134, 2134, 2112, 2127, 2074, 2084,
- /*   430 */  2459, 2459, 2459, 2459, 2459, 2459, 2459, 2459, 2459, 2459,
- /*   440 */  2459, 2459, 2459, 2459, 2459, 2459, 2459, 2459, 2459, 2459,
- /*   450 */  2459, 2459, 1614, 1184,  525, 1326, 1436, 1563, 1314,  742,
- /*   460 */  1618, 1477, 1180, 1494, 1518, 1565, 1576, 1147, 1616, 1482,
- /*   470 */  1603, 1097, 1251, 1615, 1626, 1622, 1647, 1667, 1674, 1713,
- /*   480 */  1227, 1656, 1543, 1623, 1776, 1670, 1780, 1782, 1729, 1804,
- /*   490 */  1820, 1824, 1781, 1744, 1758, 1833, 1844, 1764, 1747, 2222,
- /*   500 */  2223, 2156, 2082, 2085, 2165, 2159, 2237, 2090, 2167, 2243,
- /*   510 */  2245, 2247, 2170, 2176, 2250, 2178, 2186, 2253, 2137, 2182,
- /*   520 */  2106, 2181, 2180, 2187, 2184, 2185, 2188, 2189, 2190, 2259,
- /*   530 */  2191, 2192, 2193, 2198, 2263, 2195, 2264, 2202, 2265, 2117,
- /*   540 */  2258, 2205, 2203, 2204, 2166, 2162, 2168, 2194, 2215, 2169,
- /*   550 */  2206, 2175, 2183, 2196, 2210, 2213, 2213, 2201, 2171, 2200,
- /*   560 */  2220, 2228, 2197, 2225, 2208, 2199, 2213, 2207, 2296, 2328,
- /*   570 */  2213, 2209, 2307, 2309, 2310, 2311, 2211, 2239, 2338, 2229,
- /*   580 */  2241, 2341, 2234, 2304, 2240, 2305, 2299, 2343, 2242, 2256,
- /*   590 */  2244, 2339, 2221, 2226, 2254, 2315, 2257, 2260, 2261, 2262,
- /*   600 */  2318, 2331, 2255, 2289, 2375, 2266, 2327, 2368, 2267, 2268,
- /*   610 */  2269, 2271, 2274, 2373, 2275, 2227, 2272, 2378, 2277, 2276,
- /*   620 */  2278, 2279, 2280, 2281, 2384, 2284, 2287, 2285, 2246, 2290,
- /*   630 */  2291, 2393, 2395, 2396, 2330, 2348, 2334, 2387, 2351, 2332,
- /*   640 */  2294, 2404, 2300, 2272, 2301, 2302, 2303, 2333, 2306, 2308,
- /*   650 */  2312, 2313, 2295, 2297, 2314, 2319, 2316, 2317, 2400, 2320,
- /*   660 */  2322, 2325, 2321, 2324, 2335, 2326, 2336, 2337, 2329, 2342,
- /*   670 */  2340, 2414, 2418, 2323, 2346,
+ /*     0 */  1122, 1105, 1580, 1262, 1262, 1137, 1353, 1428, 1503, 1846,
+ /*    10 */  1846, 1846, 1846,  249,   21, 1846, 1846, 1846, 1846, 1846,
+ /*    20 */  1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846,
+ /*    30 */  1846,  231, 1005,  231, 1137, 1137, 1137, 1137, 1137, 1137,
+ /*    40 */  1137, 1137, 1137,    0,    0,  142,  947, 1647, 1737, 1770,
+ /*    50 */  1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846,
+ /*    60 */  1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846,
+ /*    70 */  1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846,
+ /*    80 */  1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846,
+ /*    90 */  1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846, 1846,
+ /*   100 */  1846, 1846, 1215, 1215,  450,  450,  587,  704,  231,  231,
+ /*   110 */   231,  231,  231,  231,  231,  231,  580,  580,  580,  580,
+ /*   120 */    23,  120,  225,  250,  275,  368,  398,  421,  515,  538,
+ /*   130 */   561,  655,  678,  701,  805,  828,  851,  947,  947,  947,
+ /*   140 */   947,  947,  947,  947,  947,  947,  947,  947,  947,  947,
+ /*   150 */   947,  947,  947,  947,  947,  947,  969,  947,  985, 1000,
+ /*   160 */  1000,   35, 1303, 1303, 1303, 1303, 1303, 1303, 1303,  105,
+ /*   170 */   128,  166,  372,  231,  231,  231,  231,  231,  231,  231,
+ /*   180 */   231,  607, 1248,  231,  231,  231, 1147, 1147,  677,  233,
+ /*   190 */    18,  498,  498,  498,  194,   90,   90, 2544, 2544, 1086,
+ /*   200 */  1086, 1086,  707,  680,  783,  783,  783,  783, 1632, 1632,
+ /*   210 */   372,  978,  801,  999,  231,  231,  231,  231,  231,  231,
+ /*   220 */   231,  231,  231,  231,  231,  231, 1498,  231, 1625, 1625,
+ /*   230 */   231,  299, 1111, 1111, 1212, 1212,  659, 1008,  659,    4,
+ /*   240 */    25,  106, 2544, 2544, 2544, 2544, 2544, 2544, 2544, 1409,
+ /*   250 */  1195, 1195,  804,  673,  827,  255,  657, 1037,  830, 1384,
+ /*   260 */   231,  231,  231,  231,  231,  231,  231,  231,  231,  231,
+ /*   270 */   231,  231,  231,  231,  231,  231,  231,  276,  231,  231,
+ /*   280 */   231,  231,  231,  231,  231,  231,  231,  231,  231, 1558,
+ /*   290 */  1558, 1558,  231,  231,  231,  231, 1817,  231,  231, 1415,
+ /*   300 */  1766,  231,  231, 1410,  231,  231, 1050, 1313, 1313,  803,
+ /*   310 */   219, 1140,  268, 1313, 1313, 1313,  423, 1313,  524,  524,
+ /*   320 */   361,  524, 1186, 1588, 1418,  611, 1209, 1663, 1292, 1663,
+ /*   330 */  1269,  706, 1209, 1209,  706, 1209, 1292, 1269, 1541, 1330,
+ /*   340 */  1168, 1549, 1576, 1350, 1350, 1350, 1350, 1444, 1673, 1673,
+ /*   350 */  1549, 1549,   58, 1268, 2104, 2158,   25, 2088, 2010, 2113,
+ /*   360 */  2092, 2174, 2174,   25, 2088, 2052, 2073, 2207, 2207, 2092,
+ /*   370 */  2092, 2092, 2166, 2166, 2074, 2074, 2074, 2192, 2192, 2144,
+ /*   380 */  2144, 2144, 2144, 2091, 2131, 2084, 2138, 2232, 2084, 2138,
+ /*   390 */  2092, 2168, 2112, 2092, 2168, 2112, 2091, 2091, 2112, 2131,
+ /*   400 */  2232, 2112, 2232, 2159, 2092, 2168, 2148, 2236, 2092, 2168,
+ /*   410 */  2092, 2168, 2159, 2180, 2180, 2180, 2244, 2178, 2178, 2159,
+ /*   420 */  2180, 2156, 2180, 2244, 2180, 2180, 2183, 2092, 2084, 2138,
+ /*   430 */  2084, 2146, 2195, 2112, 2234, 2234, 2245, 2245, 2202, 2092,
+ /*   440 */  2216, 2216, 2196, 2210, 2159, 2163, 2544, 2544, 2544, 2544,
+ /*   450 */  2544, 2544, 2544, 2544, 2544, 2544, 2544, 2544, 2544, 2544,
+ /*   460 */  2544, 2544, 2544, 2544, 2544, 2544, 2544, 2544,  986, 1172,
+ /*   470 */   593, 1289,  874, 1361,  675,  644, 1575, 1427, 1565, 1551,
+ /*   480 */  1659, 1678, 1706, 1690,  358, 1696, 1713, 1687, 1716, 1781,
+ /*   490 */   944, 1782, 1787, 1792, 1794, 1815, 1491, 1739, 1839, 1664,
+ /*   500 */  1819, 1856, 1875, 1843, 1962, 1845, 1872, 1878, 1899, 1830,
+ /*   510 */  1869, 1910, 1917, 1858, 1717, 2304, 2305, 2238, 2169, 2171,
+ /*   520 */  2324, 2307, 2249, 2246, 2325, 2173, 2251, 2327, 2328, 2329,
+ /*   530 */  2252, 2258, 2332, 2260, 2268, 2335, 2219, 2264, 2187, 2265,
+ /*   540 */  2261, 2269, 2266, 2263, 2188, 2350, 2271, 2270, 2272, 2273,
+ /*   550 */  2274, 2348, 2275, 2276, 2277, 2282, 2349, 2279, 2359, 2287,
+ /*   560 */  2361, 2201, 2344, 2291, 2289, 2290, 2250, 2248, 2253, 2280,
+ /*   570 */  2302, 2254, 2292, 2267, 2278, 2283, 2294, 2295, 2295, 2288,
+ /*   580 */  2255, 2285, 2306, 2312, 2281, 2309, 2296, 2284, 2295, 2286,
+ /*   590 */  2380, 2413, 2295, 2293, 2394, 2396, 2397, 2398, 2297, 2326,
+ /*   600 */  2425, 2316, 2330, 2429, 2321, 2389, 2331, 2391, 2384, 2428,
+ /*   610 */  2333, 2340, 2323, 2424, 2310, 2313, 2337, 2402, 2342, 2343,
+ /*   620 */  2345, 2346, 2406, 2418, 2347, 2376, 2460, 2352, 2412, 2454,
+ /*   630 */  2351, 2353, 2355, 2356, 2360, 2463, 2362, 2314, 2358, 2464,
+ /*   640 */  2364, 2367, 2357, 2363, 2365, 2368, 2468, 2371, 2369, 2370,
+ /*   650 */  2339, 2375, 2374, 2481, 2482, 2483, 2416, 2434, 2420, 2473,
+ /*   660 */  2437, 2417, 2382, 2489, 2386, 2358, 2387, 2388, 2390, 2419,
+ /*   670 */  2392, 2393, 2399, 2395, 2377, 2383, 2400, 2401, 2404, 2403,
+ /*   680 */  2491, 2407, 2408, 2411, 2405, 2410, 2414, 2415, 2409, 2421,
+ /*   690 */  2422, 2423, 2426, 2498, 2505, 2430, 2431,
 };
-#define YY_REDUCE_COUNT (451)
-#define YY_REDUCE_MIN   (-278)
-#define YY_REDUCE_MAX   (2058)
+#define YY_REDUCE_COUNT (467)
+#define YY_REDUCE_MIN   (-282)
+#define YY_REDUCE_MAX   (2139)
 static const short yy_reduce_ofst[] = {
- /*     0 */  1559, 1145,  933,  264,  896, -207, -137,  -16,  992,  467,
- /*    10 */  1201, 1211,  980, -198,  797,  919, 1230, 1311, 1210, 1312,
- /*    20 */  1379, 1388, 1412, 1470, 1491, 1435, 1516, 1533, 1452,  386,
- /*    30 */  -204, 1091, -150,  123,  146,  173,  197,  287,  309,  312,
- /*    40 */   866, 1048, -129,  710, 1365, 1562, 1572, 1579, 1606, 1624,
- /*    50 */  1625, 1631, 1634, 1646, 1649, 1652, 1658, 1664, 1686, 1691,
- /*    60 */  1705, 1708, 1711, 1714, 1728, 1733, 1745, 1748, 1751, 1755,
- /*    70 */  1767, 1770, 1774, 1775, 1792, 1795, 1798, 1801, 1807, 1815,
- /*    80 */  1827, 1831, 1834, 1837, 1851, 1854, 1857, 1860, 1874, 1877,
- /*    90 */  1891, 1897, 1907, 1913, 1914, 1921, 1930, 1933,  227,  529,
- /*   100 */   578,  915, 1047, 1096,  833, -196, 1253, 1255, 1263, 1101,
- /*   110 */  1526, 1112,  244,  427,  244,  427, -214, -214, -214, -214,
- /*   120 */  -214, -214, -214, -214, -214, -214, -214, -214, -214, -214,
- /*   130 */  -214, -214, -214, -214, -214, -214, -214, -214, -214, -214,
- /*   140 */  -214, -214, -214, -214, -214, -214, -214, -214, -214, -214,
- /*   150 */  -214, -214, -214, -214, -214, -214, -214, -214, -214, -214,
- /*   160 */  -214, -214, -214, -214, -214, -214, -191, -195,  798,  927,
- /*   170 */  1016, 1269, 1537, 1640, 1650, -219,  -44,  865, 1725,  228,
- /*   180 */   415,  459, -119, -214,  556,  -14,  576, 1077,  166, -214,
- /*   190 */  -214, -214, -214, -229, -229, -229, -171, -163,  175,  350,
- /*   200 */   733,   -3,  211,  121,  181, -278, -278,  593,  923, 1010,
- /*   210 */   624, -210,  629,  103,  327,  942,  800,  -66,  818,  707,
- /*   220 */  -135,  376,  493,  169,  648,  688,  783, -194, 1125,  154,
- /*   230 */  1041,  231,  872, 1167, 1155, 1375, 1409, 1411, 1417, 1235,
- /*   240 */  1457,  -17,  115,  213,  200,  263,  368,  391,  461,  554,
- /*   250 */   690,  754,  799,  879,  913,  994, 1279, 1333, 1348, 1429,
- /*   260 */  1467, 1472, 1483, 1510, 1523, 1548, 1552,  734, 1560, 1583,
- /*   270 */  1596, 1632, 1668, 1671, 1681, 1683, 1693, 1699, 1704, 1168,
- /*   280 */  1291, 1423, 1709, 1718, 1719, 1721, 1541, 1731, 1741, 1152,
- /*   290 */  1505, 1753, 1760, 1628, 1765,  554, 1638, 1644, 1539, 1675,
- /*   300 */  1756, 1697, 1698, 1701, 1541, 1702, 1777, 1777, 1790, 1777,
- /*   310 */  1673, 1677, 1734, 1750, 1757, 1752, 1773, 1726, 1736, 1766,
- /*   320 */  1779, 1746, 1789, 1763, 1737, 1821, 1806, 1832, 1811, 1825,
- /*   330 */  1772, 1778, 1787, 1788, 1796, 1803, 1814, 1823, 1840, 1859,
- /*   340 */  1883, 1749, 1761, 1759, 1785, 1783, 1784, 1793, 1794, 1768,
- /*   350 */  1812, 1826, 1828, 1923, 1924, 1925, 1861, 1863, 1867, 1868,
- /*   360 */  1869, 1870, 1871, 1876, 1878, 1879, 1880, 1896, 1894, 1899,
- /*   370 */  1902, 1911, 1905, 1908, 1960, 1932, 1906, 1966, 1938, 1909,
- /*   380 */  1920, 1922, 1915, 1917, 1928, 1916, 1931, 1942, 1980, 1950,
- /*   390 */  1898, 1900, 1986, 1956, 1989, 1957, 1953, 1971, 1972, 1973,
- /*   400 */  1981, 1974, 1975, 1961, 1978, 1992, 1983, 1990, 1987, 1991,
- /*   410 */  1976, 2007, 1959, 1958, 1962, 1940, 1944, 1963, 1919, 1926,
- /*   420 */  1964, 1967, 2018, 2021, 1985, 1993, 2022, 1995, 1997, 1927,
- /*   430 */  1929, 1934, 1939, 1912, 1910, 1918, 1935, 1941, 1936, 1943,
- /*   440 */  2024, 2045, 2048, 2049, 2054, 2025, 2037, 2039, 2042, 2043,
- /*   450 */  2032, 2058,
+ /*     0 */  1746,  979,  992, 1026, 1163, -211, -141,  273,  932,  -20,
+ /*    10 */   465, 1213, 1230,   48, -202,  948,  757,  953, 1074, 1293,
+ /*    20 */  1231, 1341, 1367, 1270, 1386, 1371, 1419,  903, 1445, 1459,
+ /*    30 */  1462,  501, -208, 1175, -154,   72,   94,  193,  217,  264,
+ /*    40 */   284,  334,  357,  980, 1126, -133,  909, 1305, 1387, 1469,
+ /*    50 */  1476, 1479, 1493, 1505, 1509, 1512, 1526, 1548, 1562, 1585,
+ /*    60 */  1601, 1602, 1617, 1638, 1671, 1688, 1708, 1711, 1715, 1772,
+ /*    70 */  1773, 1779, 1799, 1800, 1803, 1806, 1818, 1826, 1834, 1835,
+ /*    80 */  1840, 1862, 1863, 1866, 1870, 1871, 1880, 1887, 1888, 1892,
+ /*    90 */  1895, 1896, 1902, 1923, 1924, 1928, 1932, 1948, 1949, 1952,
+ /*   100 */  1955, 1956, -199,  164,  938, 1141,  386,  609, 1287, -200,
+ /*   110 */  1266, 1284, 1347, 1071, 1362, 1179,  287,  309,  287,  309,
+ /*   120 */  -218, -218, -218, -218, -218, -218, -218, -218, -218, -218,
+ /*   130 */  -218, -218, -218, -218, -218, -218, -218, -218, -218, -218,
+ /*   140 */  -218, -218, -218, -218, -218, -218, -218, -218, -218, -218,
+ /*   150 */  -218, -218, -218, -218, -218, -218, -218, -218, -218, -218,
+ /*   160 */  -218, -218, -218, -218, -218, -218, -218, -218, -218, -218,
+ /*   170 */  -218, -218, -195, 1098, 1429, 1488, 1502, 1635, 1656, 1703,
+ /*   180 */  1907,  906,  -48,   80, 1960, 1073,  412,  751, -123, -218,
+ /*   190 */   749,  294,  560,  781,  899, -218, -218, -218, -218, -232,
+ /*   200 */  -232, -232,  319, -175, -167, -128,  545,  891,  -67,  684,
+ /*   210 */  -212, -247, -282, -282,   60,  576,  717,  694,  981,  725,
+ /*   220 */  1012, 1146, 1054, 1351,  661, 1381,  619, 1035, 1165, 1296,
+ /*   230 */   993,  752, 1408, 1438, -198,  210,  865,  115,  921,  612,
+ /*   240 */   915, 1018, 1210, 1405, 1425, 1506, 1536, -217, 1569, -253,
+ /*   250 */   129,  328,  391,  503,  633,  653,  743,  934,  961, 1025,
+ /*   260 */  1121, 1129, 1206, 1243, 1272, 1297, 1369, 1393, 1407, 1431,
+ /*   270 */  1481, 1519, 1563, 1579, 1581, 1593, 1603,  898, 1607, 1610,
+ /*   280 */  1616, 1669, 1692, 1736, 1748, 1775, 1784, 1785, 1796, 1489,
+ /*   290 */  1670, 1780, 1798, 1801, 1802, 1804, 1727, 1814, 1820, 1750,
+ /*   300 */  1718, 1831, 1832, 1769, 1836,  934, 1709, 1767, 1786, 1776,
+ /*   310 */  1777, 1771, 1855, 1822, 1823, 1824, 1727, 1828, 1889, 1889,
+ /*   320 */  1903, 1889, 1788, 1811, 1807, 1833, 1853, 1864, 1861, 1877,
+ /*   330 */  1859, 1867, 1898, 1900, 1890, 1904, 1905, 1868, 1908, 1930,
+ /*   340 */  1947, 1926, 1936, 1891, 1894, 1897, 1901, 1909, 1913, 1916,
+ /*   350 */  1937, 1939, 1963, 1989, 1841, 1857, 1865, 1873, 1854, 1874,
+ /*   360 */  1993, 1879, 1881, 1876, 1882, 1883, 1906, 1918, 1919, 2006,
+ /*   370 */  2009, 2011, 1944, 1945, 1950, 1951, 1953, 1957, 1958, 1954,
+ /*   380 */  1959, 1964, 1965, 1971, 1974, 1978, 1981, 1990, 1982, 1985,
+ /*   390 */  2039, 2012, 1983, 2042, 2014, 1986, 1995, 1997, 1988, 1994,
+ /*   400 */  2003, 1991, 2007, 2018, 2056, 2026, 1973, 1980, 2062, 2032,
+ /*   410 */  2064, 2034, 2029, 2048, 2049, 2050, 2057, 2051, 2053, 2037,
+ /*   420 */  2055, 2067, 2060, 2065, 2063, 2066, 2054, 2085, 2030, 2035,
+ /*   430 */  2036, 2017, 2020, 2033, 1992, 1996, 2040, 2041, 2095, 2100,
+ /*   440 */  2061, 2068, 2099, 2070, 2072, 1998, 2013, 2015, 2019, 1975,
+ /*   450 */  1987, 1999, 2000, 2002, 2004, 1979, 2096, 2125, 2126, 2127,
+ /*   460 */  2128, 2103, 2114, 2116, 2121, 2122, 2115, 2139,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */  1555, 1555, 1609, 1555, 1415, 1703, 1415, 1415, 1415, 1609,
- /*    10 */  1609, 1609, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*    20 */  1415, 1415, 1415, 1415, 1415, 1474, 1415, 1415, 1415, 1415,
- /*    30 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*    40 */  1632, 1632, 1766, 1681, 1415, 1415, 1415, 1415, 1415, 1415,
- /*    50 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*    60 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*    70 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*    80 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*    90 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   100 */  1811, 1811, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   110 */  1415, 1415, 1557, 1556, 1415, 1415, 1699, 1415, 1415, 1576,
- /*   120 */  1415, 1415, 1415, 1415, 1415, 1415, 1610, 1611, 1415, 1415,
- /*   130 */  1415, 1415, 1770, 1763, 1767, 1582, 1581, 1580, 1579, 1731,
- /*   140 */  1713, 1691, 1695, 1701, 1700, 1610, 1470, 1471, 1469, 1473,
- /*   150 */  1415, 1611, 1601, 1607, 1600, 1466, 1460, 1459, 1458, 1599,
- /*   160 */  1467, 1463, 1457, 1598, 1602, 1596, 1479, 1415, 1415, 1415,
- /*   170 */  1415, 1415, 1415, 1415, 1415, 1783, 1535, 1415, 1415, 1415,
- /*   180 */  1415, 1415, 1613, 1597, 1681, 1614, 1427, 1425, 1415, 1604,
- /*   190 */  1603, 1606, 1605, 1652, 1485, 1484, 1771, 1415, 1415, 1415,
- /*   200 */  1415, 1415, 1415, 1415, 1811, 1415, 1415, 1415, 1415, 1415,
- /*   210 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1715,
- /*   220 */  1415, 1811, 1811, 1415, 1681, 1811, 1811, 1573, 1573, 1430,
- /*   230 */  1696, 1430, 1851, 1837, 1794, 1680, 1680, 1680, 1680, 1703,
- /*   240 */  1680, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   250 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1760, 1758,
- /*   260 */  1415, 1665, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   270 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   280 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1684,
- /*   290 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1660, 1415, 1724,
- /*   300 */  1539, 1684, 1684, 1684, 1689, 1684, 1541, 1540, 1687, 1673,
- /*   310 */  1415, 1781, 1654, 1585, 1575, 1688, 1575, 1736, 1690, 1585,
- /*   320 */  1585, 1690, 1585, 1688, 1736, 1506, 1529, 1499, 1632, 1415,
- /*   330 */  1715, 1715, 1715, 1715, 1688, 1696, 1696, 1632, 1632, 1472,
- /*   340 */  1687, 1415, 1415, 1415, 1843, 1415, 1415, 1415, 1843, 1845,
- /*   350 */  1771, 1765, 1765, 1451, 1451, 1451, 1668, 1668, 1664, 1664,
- /*   360 */  1664, 1654, 1654, 1644, 1644, 1644, 1644, 1592, 1583, 1698,
- /*   370 */  1696, 1564, 1698, 1696, 1451, 1778, 1690, 1451, 1778, 1690,
- /*   380 */  1592, 1592, 1690, 1583, 1564, 1690, 1564, 1549, 1451, 1778,
- /*   390 */  1730, 1728, 1451, 1778, 1451, 1778, 1549, 1537, 1537, 1537,
- /*   400 */  1521, 1415, 1415, 1549, 1537, 1506, 1537, 1521, 1537, 1537,
- /*   410 */  1524, 1451, 1698, 1696, 1698, 1694, 1692, 1690, 1821, 1821,
- /*   420 */  1635, 1635, 1453, 1451, 1553, 1553, 1415, 1415, 1549, 1829,
- /*   430 */  1799, 1799, 1794, 1864, 1858, 1857, 1858, 1857, 1858, 1857,
- /*   440 */  1487, 1681, 1681, 1681, 1681, 1487, 1508, 1508, 1539, 1539,
- /*   450 */  1487, 1681, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   460 */  1431, 1415, 1415, 1415, 1415, 1415, 1415, 1743, 1653, 1569,
- /*   470 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   480 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1546, 1415,
- /*   490 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1437, 1415,
- /*   500 */  1773, 1868, 1415, 1415, 1789, 1415, 1415, 1415, 1415, 1415,
- /*   510 */  1415, 1415, 1852, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   520 */  1415, 1415, 1838, 1415, 1415, 1415, 1415, 1415, 1840, 1415,
- /*   530 */  1415, 1415, 1839, 1415, 1415, 1415, 1415, 1835, 1415, 1415,
- /*   540 */  1415, 1415, 1415, 1415, 1659, 1415, 1415, 1415, 1415, 1415,
- /*   550 */  1415, 1415, 1415, 1415, 1570, 1577, 1578, 1415, 1415, 1415,
- /*   560 */  1415, 1415, 1415, 1415, 1415, 1415, 1591, 1415, 1415, 1415,
- /*   570 */  1586, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1734,
- /*   580 */  1415, 1415, 1415, 1415, 1727, 1726, 1415, 1415, 1641, 1415,
- /*   590 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   600 */  1415, 1504, 1415, 1415, 1415, 1415, 1415, 1415, 1477, 1415,
- /*   610 */  1415, 1415, 1415, 1415, 1415, 1415, 1693, 1415, 1415, 1415,
- /*   620 */  1415, 1826, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   630 */  1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415, 1415,
- /*   640 */  1697, 1415, 1415, 1608, 1415, 1415, 1415, 1415, 1415, 1788,
- /*   650 */  1415, 1787, 1415, 1415, 1415, 1415, 1415, 1622, 1415, 1415,
- /*   660 */  1415, 1415, 1441, 1415, 1415, 1415, 1438, 1415, 1415, 1415,
- /*   670 */  1415, 1415, 1415, 1415, 1415,
+ /*     0 */  1603, 1603, 1603, 1657, 1463, 1751, 1463, 1463, 1463, 1463,
+ /*    10 */  1657, 1657, 1657, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*    20 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1522, 1463, 1463,
+ /*    30 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*    40 */  1463, 1463, 1463, 1680, 1680, 1814, 1729, 1463, 1463, 1463,
+ /*    50 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*    60 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*    70 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*    80 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*    90 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   100 */  1463, 1463, 1463, 1463, 1859, 1859, 1463, 1463, 1463, 1463,
+ /*   110 */  1463, 1463, 1463, 1463, 1463, 1463, 1605, 1604, 1463, 1463,
+ /*   120 */  1747, 1463, 1463, 1463, 1624, 1463, 1463, 1463, 1463, 1463,
+ /*   130 */  1463, 1658, 1659, 1463, 1463, 1463, 1463, 1920, 1818, 1811,
+ /*   140 */  1815, 1630, 1629, 1628, 1627, 1779, 1761, 1739, 1743, 1749,
+ /*   150 */  1748, 1658, 1518, 1519, 1517, 1521, 1463, 1659, 1649, 1655,
+ /*   160 */  1648, 1514, 1508, 1507, 1506, 1647, 1515, 1511, 1505, 1646,
+ /*   170 */  1650, 1644, 1527, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   180 */  1463, 1831, 1583, 1463, 1463, 1463, 1463, 1463, 1661, 1645,
+ /*   190 */  1729, 1662, 1475, 1473, 1463, 1652, 1651, 1654, 1653, 1700,
+ /*   200 */  1533, 1532, 1463, 1819, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   210 */  1463, 1859, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   220 */  1463, 1463, 1463, 1463, 1463, 1463, 1763, 1463, 1859, 1859,
+ /*   230 */  1463, 1729, 1859, 1859, 1621, 1621, 1478, 1744, 1478, 1899,
+ /*   240 */  1885, 1905, 1842, 1728, 1728, 1728, 1728, 1751, 1728, 1463,
+ /*   250 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   260 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1808, 1806,
+ /*   270 */  1463, 1713, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   280 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   290 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1732,
+ /*   300 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1732, 1732, 1708,
+ /*   310 */  1463, 1772, 1587, 1732, 1732, 1732, 1737, 1732, 1589, 1588,
+ /*   320 */  1735, 1721, 1463, 1463, 1829, 1702, 1633, 1623, 1736, 1623,
+ /*   330 */  1784, 1738, 1633, 1633, 1738, 1633, 1736, 1784, 1554, 1577,
+ /*   340 */  1547, 1680, 1463, 1763, 1763, 1763, 1763, 1736, 1744, 1744,
+ /*   350 */  1680, 1680, 1520, 1735, 1463, 1463, 1463, 1891, 1463, 1918,
+ /*   360 */  1499, 1463, 1463, 1463, 1891, 1893, 1819, 1813, 1813, 1499,
+ /*   370 */  1499, 1499, 1716, 1716, 1712, 1712, 1712, 1702, 1702, 1692,
+ /*   380 */  1692, 1692, 1692, 1640, 1631, 1746, 1744, 1612, 1746, 1744,
+ /*   390 */  1499, 1826, 1738, 1499, 1826, 1738, 1640, 1640, 1738, 1631,
+ /*   400 */  1612, 1738, 1612, 1597, 1499, 1826, 1778, 1776, 1499, 1826,
+ /*   410 */  1499, 1826, 1597, 1585, 1585, 1585, 1569, 1463, 1463, 1597,
+ /*   420 */  1585, 1554, 1585, 1569, 1585, 1585, 1572, 1499, 1746, 1744,
+ /*   430 */  1746, 1742, 1740, 1738, 1869, 1869, 1683, 1683, 1501, 1499,
+ /*   440 */  1601, 1601, 1463, 1463, 1597, 1877, 1847, 1847, 1842, 1927,
+ /*   450 */  1906, 1905, 1906, 1905, 1906, 1916, 1535, 1729, 1729, 1729,
+ /*   460 */  1729, 1535, 1556, 1556, 1587, 1587, 1535, 1729, 1463, 1463,
+ /*   470 */  1463, 1463, 1463, 1463, 1463, 1463, 1479, 1463, 1463, 1463,
+ /*   480 */  1463, 1463, 1463, 1791, 1701, 1617, 1463, 1463, 1463, 1463,
+ /*   490 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   500 */  1463, 1463, 1463, 1463, 1594, 1463, 1463, 1463, 1463, 1463,
+ /*   510 */  1463, 1463, 1463, 1463, 1485, 1463, 1821, 1931, 1463, 1463,
+ /*   520 */  1463, 1463, 1837, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   530 */  1900, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   540 */  1886, 1463, 1463, 1915, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   550 */  1888, 1463, 1463, 1463, 1887, 1463, 1463, 1463, 1463, 1883,
+ /*   560 */  1463, 1463, 1463, 1463, 1463, 1463, 1707, 1463, 1463, 1463,
+ /*   570 */  1463, 1463, 1463, 1463, 1463, 1463, 1618, 1625, 1626, 1463,
+ /*   580 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1639, 1463,
+ /*   590 */  1463, 1463, 1634, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   600 */  1463, 1782, 1463, 1463, 1463, 1463, 1775, 1774, 1463, 1463,
+ /*   610 */  1689, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   620 */  1463, 1463, 1463, 1552, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   630 */  1525, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1741, 1463,
+ /*   640 */  1463, 1463, 1463, 1874, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   650 */  1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463, 1463,
+ /*   660 */  1463, 1463, 1745, 1463, 1463, 1656, 1463, 1463, 1463, 1463,
+ /*   670 */  1463, 1836, 1463, 1835, 1463, 1463, 1463, 1463, 1463, 1670,
+ /*   680 */  1463, 1463, 1463, 1463, 1489, 1463, 1463, 1463, 1486, 1463,
+ /*   690 */  1463, 1463, 1463, 1463, 1463, 1463, 1463,
 };
 /********** End of lemon-generated parsing tables *****************************/
 
@@ -12468,6 +13576,10 @@ static const YYCODETYPE yyFallback[] = {
    40,  /*      MACRO => ID */
    40,  /*  DELEGATES => ID */
    40,  /*    INCLUDE => ID */
+   40,  /*       TREE => ID */
+   40,  /* ACCUMULATE => ID */
+   40,  /*         UP => ID */
+   40,  /*       DOWN => ID */
 };
 #endif /* YYFALLBACK */
 
@@ -12749,158 +13861,170 @@ static const char *const yyTokenName[] = {
   /*  192 */ "MACRO",
   /*  193 */ "DELEGATES",
   /*  194 */ "INCLUDE",
-  /*  195 */ "input",
-  /*  196 */ "cmdlist",
-  /*  197 */ "ecmd",
-  /*  198 */ "cmdx",
-  /*  199 */ "error",
-  /*  200 */ "cmd",
-  /*  201 */ "expr",
-  /*  202 */ "distinct",
-  /*  203 */ "exprlist",
-  /*  204 */ "sortlist",
-  /*  205 */ "filter_over",
-  /*  206 */ "typetoken",
-  /*  207 */ "typename",
-  /*  208 */ "signed",
-  /*  209 */ "selcollist",
-  /*  210 */ "sclp",
-  /*  211 */ "scanpt",
-  /*  212 */ "nm",
-  /*  213 */ "multiselect_op",
-  /*  214 */ "in_op",
-  /*  215 */ "dbnm",
-  /*  216 */ "selectnowith",
-  /*  217 */ "oneselect",
-  /*  218 */ "select",
-  /*  219 */ "paren_exprlist",
-  /*  220 */ "likeop",
-  /*  221 */ "between_op",
-  /*  222 */ "case_operand",
-  /*  223 */ "case_exprlist",
-  /*  224 */ "case_else",
-  /*  225 */ "scantok",
-  /*  226 */ "autoinc",
-  /*  227 */ "refargs",
-  /*  228 */ "refarg",
-  /*  229 */ "refact",
-  /*  230 */ "defer_subclause",
-  /*  231 */ "init_deferred_pred_opt",
-  /*  232 */ "defer_subclause_opt",
-  /*  233 */ "table_option_set",
-  /*  234 */ "table_option",
-  /*  235 */ "tconscomma",
-  /*  236 */ "onconf",
-  /*  237 */ "ccons",
-  /*  238 */ "carglist",
-  /*  239 */ "tcons",
-  /*  240 */ "conslist",
-  /*  241 */ "generated",
-  /*  242 */ "create_table",
-  /*  243 */ "create_table_args",
-  /*  244 */ "createkw",
-  /*  245 */ "temp",
-  /*  246 */ "ifnotexists",
-  /*  247 */ "columnlist",
-  /*  248 */ "conslist_opt",
-  /*  249 */ "columnname",
-  /*  250 */ "term",
-  /*  251 */ "sortorder",
-  /*  252 */ "eidlist_opt",
-  /*  253 */ "eidlist",
-  /*  254 */ "resolvetype",
-  /*  255 */ "withnm",
-  /*  256 */ "wqas",
-  /*  257 */ "collate",
-  /*  258 */ "wqlist",
-  /*  259 */ "wqitem",
-  /*  260 */ "with",
-  /*  261 */ "insert_cmd",
-  /*  262 */ "orconf",
-  /*  263 */ "indexed_opt",
-  /*  264 */ "where_opt_ret",
-  /*  265 */ "upsert",
-  /*  266 */ "returning",
-  /*  267 */ "xfullname",
-  /*  268 */ "orderby_opt",
-  /*  269 */ "limit_opt",
-  /*  270 */ "setlist",
-  /*  271 */ "from",
-  /*  272 */ "idlist_opt",
-  /*  273 */ "raisetype",
-  /*  274 */ "indexed_by",
-  /*  275 */ "idlist",
-  /*  276 */ "where_opt",
-  /*  277 */ "nexprlist",
-  /*  278 */ "nmorerr",
-  /*  279 */ "nulls",
-  /*  280 */ "ifexists",
-  /*  281 */ "transtype",
-  /*  282 */ "trans_opt",
-  /*  283 */ "savepoint_opt",
-  /*  284 */ "kwcolumn_opt",
-  /*  285 */ "fullname",
-  /*  286 */ "add_column_fullname",
-  /*  287 */ "as",
-  /*  288 */ "groupby_opt",
-  /*  289 */ "having_opt",
-  /*  290 */ "window_clause",
-  /*  291 */ "seltablist",
-  /*  292 */ "on_using",
-  /*  293 */ "joinop",
-  /*  294 */ "stl_prefix",
-  /*  295 */ "trigger_time",
-  /*  296 */ "trnm",
-  /*  297 */ "trigger_decl",
-  /*  298 */ "trigger_cmd_list",
-  /*  299 */ "trigger_event",
+  /*  195 */ "TREE",
+  /*  196 */ "ACCUMULATE",
+  /*  197 */ "UP",
+  /*  198 */ "DOWN",
+  /*  199 */ "input",
+  /*  200 */ "cmdlist",
+  /*  201 */ "ecmd",
+  /*  202 */ "cmdx",
+  /*  203 */ "error",
+  /*  204 */ "cmd",
+  /*  205 */ "expr",
+  /*  206 */ "distinct",
+  /*  207 */ "exprlist",
+  /*  208 */ "sortlist",
+  /*  209 */ "filter_over",
+  /*  210 */ "typetoken",
+  /*  211 */ "typename",
+  /*  212 */ "signed",
+  /*  213 */ "selcollist",
+  /*  214 */ "sclp",
+  /*  215 */ "scanpt",
+  /*  216 */ "nm",
+  /*  217 */ "multiselect_op",
+  /*  218 */ "in_op",
+  /*  219 */ "dbnm",
+  /*  220 */ "selectnowith",
+  /*  221 */ "oneselect",
+  /*  222 */ "select",
+  /*  223 */ "paren_exprlist",
+  /*  224 */ "likeop",
+  /*  225 */ "between_op",
+  /*  226 */ "case_operand",
+  /*  227 */ "case_exprlist",
+  /*  228 */ "case_else",
+  /*  229 */ "scantok",
+  /*  230 */ "autoinc",
+  /*  231 */ "refargs",
+  /*  232 */ "refarg",
+  /*  233 */ "refact",
+  /*  234 */ "defer_subclause",
+  /*  235 */ "init_deferred_pred_opt",
+  /*  236 */ "defer_subclause_opt",
+  /*  237 */ "table_option_set",
+  /*  238 */ "table_option",
+  /*  239 */ "onconf",
+  /*  240 */ "ccons",
+  /*  241 */ "carglist",
+  /*  242 */ "tcons",
+  /*  243 */ "conslist",
+  /*  244 */ "tconscomma",
+  /*  245 */ "generated",
+  /*  246 */ "create_table",
+  /*  247 */ "create_table_args",
+  /*  248 */ "createkw",
+  /*  249 */ "temp",
+  /*  250 */ "ifnotexists",
+  /*  251 */ "columnlist",
+  /*  252 */ "conslist_opt",
+  /*  253 */ "columnname",
+  /*  254 */ "term",
+  /*  255 */ "sortorder",
+  /*  256 */ "eidlist_opt",
+  /*  257 */ "eidlist",
+  /*  258 */ "resolvetype",
+  /*  259 */ "withnm",
+  /*  260 */ "wqas",
+  /*  261 */ "collate",
+  /*  262 */ "wqlist",
+  /*  263 */ "wqitem",
+  /*  264 */ "with",
+  /*  265 */ "insert_cmd",
+  /*  266 */ "orconf",
+  /*  267 */ "indexed_opt",
+  /*  268 */ "where_opt_ret",
+  /*  269 */ "upsert",
+  /*  270 */ "returning",
+  /*  271 */ "xfullname",
+  /*  272 */ "orderby_opt",
+  /*  273 */ "limit_opt",
+  /*  274 */ "setlist",
+  /*  275 */ "from",
+  /*  276 */ "idlist_opt",
+  /*  277 */ "raisetype",
+  /*  278 */ "indexed_by",
+  /*  279 */ "idlist",
+  /*  280 */ "where_opt",
+  /*  281 */ "nexprlist",
+  /*  282 */ "nmorerr",
+  /*  283 */ "nulls",
+  /*  284 */ "ifexists",
+  /*  285 */ "transtype",
+  /*  286 */ "trans_opt",
+  /*  287 */ "savepoint_opt",
+  /*  288 */ "kwcolumn_opt",
+  /*  289 */ "fullname",
+  /*  290 */ "add_column_fullname",
+  /*  291 */ "as",
+  /*  292 */ "groupby_opt",
+  /*  293 */ "having_opt",
+  /*  294 */ "window_clause",
+  /*  295 */ "seltablist",
+  /*  296 */ "on_using",
+  /*  297 */ "joinop",
+  /*  298 */ "stl_prefix",
+  /*  299 */ "trigger_time",
   /*  300 */ "foreach_clause",
-  /*  301 */ "when_clause",
-  /*  302 */ "trigger_cmd",
-  /*  303 */ "tridxby",
-  /*  304 */ "plus_num",
-  /*  305 */ "minus_num",
-  /*  306 */ "nmnum",
-  /*  307 */ "uniqueflag",
-  /*  308 */ "explain",
-  /*  309 */ "database_kw_opt",
-  /*  310 */ "key_opt",
-  /*  311 */ "vinto",
-  /*  312 */ "values",
-  /*  313 */ "mvalues",
-  /*  314 */ "create_vtab",
-  /*  315 */ "vtabarglist",
-  /*  316 */ "vtabarg",
-  /*  317 */ "vtabargtoken",
-  /*  318 */ "lp",
-  /*  319 */ "anylist",
-  /*  320 */ "range_or_rows",
-  /*  321 */ "frame_exclude_opt",
-  /*  322 */ "frame_exclude",
-  /*  323 */ "windowdefn_list",
-  /*  324 */ "windowdefn",
-  /*  325 */ "window",
-  /*  326 */ "frame_opt",
-  /*  327 */ "frame_bound_s",
-  /*  328 */ "frame_bound_e",
-  /*  329 */ "frame_bound",
-  /*  330 */ "filter_clause",
-  /*  331 */ "over_clause",
-  /*  332 */ "perfetto_or_replace",
-  /*  333 */ "perfetto_arg_type",
-  /*  334 */ "perfetto_arg_def_list",
-  /*  335 */ "perfetto_arg_def_list_ne",
-  /*  336 */ "perfetto_table_schema",
-  /*  337 */ "perfetto_table_impl",
-  /*  338 */ "perfetto_return_type",
-  /*  339 */ "perfetto_indexed_col_list",
-  /*  340 */ "perfetto_macro_arg_list",
-  /*  341 */ "perfetto_macro_arg_list_ne",
-  /*  342 */ "perfetto_module_name",
-  /*  343 */ "select_body_start",
-  /*  344 */ "select_body_end",
-  /*  345 */ "before_macro_body",
-  /*  346 */ "perfetto_macro_body",
+  /*  301 */ "trnm",
+  /*  302 */ "trigger_decl",
+  /*  303 */ "trigger_cmd_list",
+  /*  304 */ "trigger_event",
+  /*  305 */ "when_clause",
+  /*  306 */ "trigger_cmd",
+  /*  307 */ "tridxby",
+  /*  308 */ "database_kw_opt",
+  /*  309 */ "plus_num",
+  /*  310 */ "minus_num",
+  /*  311 */ "nmnum",
+  /*  312 */ "uniqueflag",
+  /*  313 */ "explain",
+  /*  314 */ "key_opt",
+  /*  315 */ "vinto",
+  /*  316 */ "values",
+  /*  317 */ "mvalues",
+  /*  318 */ "create_vtab",
+  /*  319 */ "vtabarglist",
+  /*  320 */ "vtabarg",
+  /*  321 */ "vtabargtoken",
+  /*  322 */ "lp",
+  /*  323 */ "anylist",
+  /*  324 */ "range_or_rows",
+  /*  325 */ "frame_exclude_opt",
+  /*  326 */ "frame_exclude",
+  /*  327 */ "windowdefn_list",
+  /*  328 */ "windowdefn",
+  /*  329 */ "window",
+  /*  330 */ "frame_opt",
+  /*  331 */ "frame_bound_s",
+  /*  332 */ "frame_bound_e",
+  /*  333 */ "frame_bound",
+  /*  334 */ "filter_clause",
+  /*  335 */ "over_clause",
+  /*  336 */ "perfetto_or_replace",
+  /*  337 */ "perfetto_arg_type",
+  /*  338 */ "perfetto_arg_def_list",
+  /*  339 */ "perfetto_arg_def_list_ne",
+  /*  340 */ "perfetto_table_schema",
+  /*  341 */ "perfetto_table_impl",
+  /*  342 */ "perfetto_return_type",
+  /*  343 */ "perfetto_indexed_col_list",
+  /*  344 */ "perfetto_macro_arg_list",
+  /*  345 */ "perfetto_macro_arg_list_ne",
+  /*  346 */ "perfetto_module_name",
+  /*  347 */ "select_body_start",
+  /*  348 */ "select_body_end",
+  /*  349 */ "perfetto_pipe",
+  /*  350 */ "perfetto_pipe_source",
+  /*  351 */ "perfetto_tree_direction",
+  /*  352 */ "perfetto_tree_aggregate",
+  /*  353 */ "perfetto_tree_aggregate_list",
+  /*  354 */ "perfetto_pipe_stage",
+  /*  355 */ "perfetto_pipe_stage_list",
+  /*  356 */ "perfetto_pipeline",
+  /*  357 */ "before_macro_body",
+  /*  358 */ "perfetto_macro_body",
 };
 #endif /* defined(YYCOVERAGE) || !defined(NDEBUG) */
 
@@ -13349,17 +14473,32 @@ static const char *const yyRuleName[] = {
  /* 438 */ "perfetto_module_name ::= perfetto_module_name DOT ID|STAR|INTERSECT",
  /* 439 */ "select_body_start ::=",
  /* 440 */ "select_body_end ::=",
- /* 441 */ "cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end",
- /* 442 */ "cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end",
- /* 443 */ "cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end",
- /* 444 */ "cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID",
- /* 445 */ "cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP",
- /* 446 */ "before_macro_body ::=",
- /* 447 */ "perfetto_macro_body ::= ANY",
- /* 448 */ "perfetto_macro_body ::= perfetto_macro_body ANY",
- /* 449 */ "cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body",
- /* 450 */ "cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name",
- /* 451 */ "cmd ::= DROP PERFETTO INDEX nm ON nm",
+ /* 441 */ "perfetto_pipe ::= BITOR GT",
+ /* 442 */ "perfetto_pipe_source ::= nm dbnm as",
+ /* 443 */ "perfetto_pipe_source ::= LP select RP as",
+ /* 444 */ "perfetto_tree_direction ::= UP",
+ /* 445 */ "perfetto_tree_direction ::= DOWN",
+ /* 446 */ "perfetto_tree_aggregate ::= expr AS nm",
+ /* 447 */ "perfetto_tree_aggregate_list ::= perfetto_tree_aggregate",
+ /* 448 */ "perfetto_tree_aggregate_list ::= perfetto_tree_aggregate_list COMMA perfetto_tree_aggregate",
+ /* 449 */ "perfetto_pipe_stage ::= TREE ACCUMULATE perfetto_tree_direction perfetto_tree_aggregate_list",
+ /* 450 */ "perfetto_pipe_stage_list ::=",
+ /* 451 */ "perfetto_pipe_stage_list ::= perfetto_pipe_stage_list perfetto_pipe perfetto_pipe_stage",
+ /* 452 */ "perfetto_pipeline ::= FROM perfetto_pipe_source perfetto_pipe_stage_list",
+ /* 453 */ "cmd ::= perfetto_pipeline",
+ /* 454 */ "cmd ::= PERFETTO PRAGMA nm EQ expr",
+ /* 455 */ "cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end",
+ /* 456 */ "cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS perfetto_pipeline",
+ /* 457 */ "cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end",
+ /* 458 */ "cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end",
+ /* 459 */ "cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID",
+ /* 460 */ "cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP",
+ /* 461 */ "before_macro_body ::=",
+ /* 462 */ "perfetto_macro_body ::= ANY",
+ /* 463 */ "perfetto_macro_body ::= perfetto_macro_body ANY",
+ /* 464 */ "cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body",
+ /* 465 */ "cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name",
+ /* 466 */ "cmd ::= DROP PERFETTO INDEX nm ON nm",
 };
 #endif /* NDEBUG */
 
@@ -13785,458 +14924,473 @@ static void yy_shift(
 /* For rule J, yyRuleInfoLhs[J] contains the symbol on the left-hand side
 ** of that rule */
 static const YYCODETYPE yyRuleInfoLhs[] = {
-   195,  /* (0) input ::= cmdlist */
-   196,  /* (1) cmdlist ::= cmdlist ecmd */
-   196,  /* (2) cmdlist ::= ecmd */
-   197,  /* (3) ecmd ::= SEMI */
-   197,  /* (4) ecmd ::= cmdx SEMI */
-   197,  /* (5) ecmd ::= error SEMI */
-   198,  /* (6) cmdx ::= cmd */
-   201,  /* (7) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist ORDER BY sortlist RP */
-   201,  /* (8) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist ORDER BY sortlist RP filter_over */
-   201,  /* (9) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP WITHIN GROUP LP ORDER BY expr RP */
-   201,  /* (10) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP WITHIN GROUP LP ORDER BY expr RP filter_over */
-   201,  /* (11) expr ::= CAST LP expr AS typetoken RP */
-   206,  /* (12) typetoken ::= */
-   206,  /* (13) typetoken ::= typename */
-   206,  /* (14) typetoken ::= typename LP signed RP */
-   206,  /* (15) typetoken ::= typename LP signed COMMA signed RP */
-   207,  /* (16) typename ::= ID|STRING */
-   207,  /* (17) typename ::= typename ID|STRING */
-   209,  /* (18) selcollist ::= sclp scanpt nm DOT STAR */
-   201,  /* (19) expr ::= ID|INDEXED|JOIN_KW */
-   201,  /* (20) expr ::= nm DOT nm */
-   201,  /* (21) expr ::= nm DOT nm DOT nm */
-   216,  /* (22) selectnowith ::= selectnowith multiselect_op oneselect */
-   213,  /* (23) multiselect_op ::= UNION */
-   213,  /* (24) multiselect_op ::= UNION ALL */
-   213,  /* (25) multiselect_op ::= EXCEPT|INTERSECT */
-   201,  /* (26) expr ::= LP select RP */
-   201,  /* (27) expr ::= EXISTS LP select RP */
-   214,  /* (28) in_op ::= IN */
-   214,  /* (29) in_op ::= NOT IN */
-   201,  /* (30) expr ::= expr in_op LP exprlist RP */
-   201,  /* (31) expr ::= expr in_op LP select RP */
-   201,  /* (32) expr ::= expr in_op nm dbnm paren_exprlist */
-   215,  /* (33) dbnm ::= */
-   215,  /* (34) dbnm ::= DOT nm */
-   219,  /* (35) paren_exprlist ::= */
-   219,  /* (36) paren_exprlist ::= LP exprlist RP */
-   201,  /* (37) expr ::= expr ISNULL|NOTNULL */
-   201,  /* (38) expr ::= expr NOT NULL */
-   201,  /* (39) expr ::= expr IS expr */
-   201,  /* (40) expr ::= expr IS NOT expr */
-   201,  /* (41) expr ::= expr IS NOT DISTINCT FROM expr */
-   201,  /* (42) expr ::= expr IS DISTINCT FROM expr */
-   221,  /* (43) between_op ::= BETWEEN */
-   221,  /* (44) between_op ::= NOT BETWEEN */
-   201,  /* (45) expr ::= expr between_op expr AND expr */
-   220,  /* (46) likeop ::= LIKE_KW|MATCH */
-   220,  /* (47) likeop ::= NOT LIKE_KW|MATCH */
-   201,  /* (48) expr ::= expr likeop expr */
-   201,  /* (49) expr ::= expr likeop expr ESCAPE expr */
-   201,  /* (50) expr ::= CASE case_operand case_exprlist case_else END */
-   223,  /* (51) case_exprlist ::= case_exprlist WHEN expr THEN expr */
-   223,  /* (52) case_exprlist ::= WHEN expr THEN expr */
-   224,  /* (53) case_else ::= ELSE expr */
-   224,  /* (54) case_else ::= */
-   222,  /* (55) case_operand ::= expr */
-   222,  /* (56) case_operand ::= */
-   200,  /* (57) cmd ::= create_table create_table_args */
-   242,  /* (58) create_table ::= createkw temp TABLE ifnotexists nm dbnm */
-   243,  /* (59) create_table_args ::= LP columnlist conslist_opt RP table_option_set */
-   243,  /* (60) create_table_args ::= AS select */
-   233,  /* (61) table_option_set ::= */
-   233,  /* (62) table_option_set ::= table_option */
-   233,  /* (63) table_option_set ::= table_option_set COMMA table_option */
-   234,  /* (64) table_option ::= WITHOUT nm */
-   234,  /* (65) table_option ::= nm */
-   247,  /* (66) columnlist ::= columnlist COMMA columnname carglist */
-   247,  /* (67) columnlist ::= columnname carglist */
-   238,  /* (68) carglist ::= carglist ccons */
-   238,  /* (69) carglist ::= */
-   237,  /* (70) ccons ::= CONSTRAINT nm */
-   237,  /* (71) ccons ::= DEFAULT scantok term */
-   237,  /* (72) ccons ::= DEFAULT LP expr RP */
-   237,  /* (73) ccons ::= DEFAULT PLUS scantok term */
-   237,  /* (74) ccons ::= DEFAULT MINUS scantok term */
-   237,  /* (75) ccons ::= DEFAULT scantok ID|INDEXED */
-   237,  /* (76) ccons ::= NULL onconf */
-   237,  /* (77) ccons ::= NOT NULL onconf */
-   237,  /* (78) ccons ::= PRIMARY KEY sortorder onconf autoinc */
-   237,  /* (79) ccons ::= UNIQUE onconf */
-   237,  /* (80) ccons ::= CHECK LP expr RP */
-   237,  /* (81) ccons ::= REFERENCES nm eidlist_opt refargs */
-   237,  /* (82) ccons ::= defer_subclause */
-   237,  /* (83) ccons ::= COLLATE ID|STRING */
-   237,  /* (84) ccons ::= GENERATED ALWAYS AS generated */
-   237,  /* (85) ccons ::= AS generated */
-   241,  /* (86) generated ::= LP expr RP */
-   241,  /* (87) generated ::= LP expr RP ID */
-   226,  /* (88) autoinc ::= */
-   226,  /* (89) autoinc ::= AUTOINCR */
-   227,  /* (90) refargs ::= */
-   227,  /* (91) refargs ::= refargs refarg */
-   228,  /* (92) refarg ::= MATCH nm */
-   228,  /* (93) refarg ::= ON INSERT refact */
-   228,  /* (94) refarg ::= ON DELETE refact */
-   228,  /* (95) refarg ::= ON UPDATE refact */
-   229,  /* (96) refact ::= SET NULL */
-   229,  /* (97) refact ::= SET DEFAULT */
-   229,  /* (98) refact ::= CASCADE */
-   229,  /* (99) refact ::= RESTRICT */
-   229,  /* (100) refact ::= NO ACTION */
-   230,  /* (101) defer_subclause ::= NOT DEFERRABLE init_deferred_pred_opt */
-   230,  /* (102) defer_subclause ::= DEFERRABLE init_deferred_pred_opt */
-   231,  /* (103) init_deferred_pred_opt ::= */
-   231,  /* (104) init_deferred_pred_opt ::= INITIALLY DEFERRED */
-   231,  /* (105) init_deferred_pred_opt ::= INITIALLY IMMEDIATE */
-   248,  /* (106) conslist_opt ::= */
-   248,  /* (107) conslist_opt ::= COMMA conslist */
-   240,  /* (108) conslist ::= conslist tconscomma tcons */
-   240,  /* (109) conslist ::= tcons */
-   235,  /* (110) tconscomma ::= COMMA */
-   235,  /* (111) tconscomma ::= */
-   239,  /* (112) tcons ::= CONSTRAINT nm */
-   239,  /* (113) tcons ::= PRIMARY KEY LP sortlist autoinc RP onconf */
-   239,  /* (114) tcons ::= UNIQUE LP sortlist RP onconf */
-   239,  /* (115) tcons ::= CHECK LP expr RP onconf */
-   239,  /* (116) tcons ::= FOREIGN KEY LP eidlist RP REFERENCES nm eidlist_opt refargs defer_subclause_opt */
-   232,  /* (117) defer_subclause_opt ::= */
-   232,  /* (118) defer_subclause_opt ::= defer_subclause */
-   236,  /* (119) onconf ::= */
-   236,  /* (120) onconf ::= ON CONFLICT resolvetype */
-   225,  /* (121) scantok ::= */
-   218,  /* (122) select ::= WITH wqlist selectnowith */
-   218,  /* (123) select ::= WITH RECURSIVE wqlist selectnowith */
-   259,  /* (124) wqitem ::= withnm eidlist_opt wqas LP select RP */
-   258,  /* (125) wqlist ::= wqitem */
-   258,  /* (126) wqlist ::= wqlist COMMA wqitem */
-   255,  /* (127) withnm ::= nm */
-   256,  /* (128) wqas ::= AS */
-   256,  /* (129) wqas ::= AS MATERIALIZED */
-   256,  /* (130) wqas ::= AS NOT MATERIALIZED */
-   252,  /* (131) eidlist_opt ::= */
-   252,  /* (132) eidlist_opt ::= LP eidlist RP */
-   253,  /* (133) eidlist ::= nm collate sortorder */
-   253,  /* (134) eidlist ::= eidlist COMMA nm collate sortorder */
-   257,  /* (135) collate ::= */
-   257,  /* (136) collate ::= COLLATE ID|STRING */
-   260,  /* (137) with ::= */
-   260,  /* (138) with ::= WITH wqlist */
-   260,  /* (139) with ::= WITH RECURSIVE wqlist */
-   200,  /* (140) cmd ::= with DELETE FROM xfullname indexed_opt where_opt_ret orderby_opt limit_opt */
-   200,  /* (141) cmd ::= with UPDATE orconf xfullname indexed_opt SET setlist from where_opt_ret orderby_opt limit_opt */
-   200,  /* (142) cmd ::= with insert_cmd INTO xfullname idlist_opt select upsert */
-   200,  /* (143) cmd ::= with insert_cmd INTO xfullname idlist_opt DEFAULT VALUES returning */
-   261,  /* (144) insert_cmd ::= INSERT orconf */
-   261,  /* (145) insert_cmd ::= REPLACE */
-   262,  /* (146) orconf ::= */
-   262,  /* (147) orconf ::= OR resolvetype */
-   254,  /* (148) resolvetype ::= raisetype */
-   254,  /* (149) resolvetype ::= IGNORE */
-   254,  /* (150) resolvetype ::= REPLACE */
-   267,  /* (151) xfullname ::= nm */
-   267,  /* (152) xfullname ::= nm DOT nm */
-   267,  /* (153) xfullname ::= nm DOT nm AS nm */
-   267,  /* (154) xfullname ::= nm AS nm */
-   263,  /* (155) indexed_opt ::= */
-   263,  /* (156) indexed_opt ::= indexed_by */
-   264,  /* (157) where_opt_ret ::= */
-   264,  /* (158) where_opt_ret ::= WHERE expr */
-   264,  /* (159) where_opt_ret ::= RETURNING selcollist */
-   264,  /* (160) where_opt_ret ::= WHERE expr RETURNING selcollist */
-   270,  /* (161) setlist ::= setlist COMMA nm EQ expr */
-   270,  /* (162) setlist ::= setlist COMMA LP idlist RP EQ expr */
-   270,  /* (163) setlist ::= nm EQ expr */
-   270,  /* (164) setlist ::= LP idlist RP EQ expr */
-   272,  /* (165) idlist_opt ::= */
-   272,  /* (166) idlist_opt ::= LP idlist RP */
-   265,  /* (167) upsert ::= */
-   265,  /* (168) upsert ::= RETURNING selcollist */
-   265,  /* (169) upsert ::= ON CONFLICT LP sortlist RP where_opt DO UPDATE SET setlist where_opt upsert */
-   265,  /* (170) upsert ::= ON CONFLICT LP sortlist RP where_opt DO NOTHING upsert */
-   265,  /* (171) upsert ::= ON CONFLICT DO NOTHING returning */
-   265,  /* (172) upsert ::= ON CONFLICT DO UPDATE SET setlist where_opt returning */
-   266,  /* (173) returning ::= RETURNING selcollist */
-   266,  /* (174) returning ::= */
-   201,  /* (175) expr ::= error */
-   201,  /* (176) expr ::= term */
-   201,  /* (177) expr ::= LP expr RP */
-   201,  /* (178) expr ::= expr PLUS|MINUS expr */
-   201,  /* (179) expr ::= expr STAR|SLASH|REM expr */
-   201,  /* (180) expr ::= expr LT|GT|GE|LE expr */
-   201,  /* (181) expr ::= expr EQ|NE expr */
-   201,  /* (182) expr ::= expr AND expr */
-   201,  /* (183) expr ::= expr OR expr */
-   201,  /* (184) expr ::= expr BITAND|BITOR|LSHIFT|RSHIFT expr */
-   201,  /* (185) expr ::= expr CONCAT expr */
-   201,  /* (186) expr ::= expr PTR expr */
-   201,  /* (187) expr ::= PLUS|MINUS expr */
-   201,  /* (188) expr ::= BITNOT expr */
-   201,  /* (189) expr ::= NOT expr */
-   203,  /* (190) exprlist ::= nexprlist */
-   203,  /* (191) exprlist ::= */
-   277,  /* (192) nexprlist ::= nexprlist COMMA expr */
-   277,  /* (193) nexprlist ::= expr */
-   201,  /* (194) expr ::= LP nexprlist COMMA expr RP */
-   201,  /* (195) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP */
-   201,  /* (196) expr ::= ID|INDEXED|JOIN_KW LP STAR RP */
-   201,  /* (197) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP filter_over */
-   201,  /* (198) expr ::= ID|INDEXED|JOIN_KW LP STAR RP filter_over */
-   212,  /* (199) nm ::= ID|INDEXED|JOIN_KW */
-   212,  /* (200) nm ::= STRING */
-   278,  /* (201) nmorerr ::= nm */
-   278,  /* (202) nmorerr ::= error */
-   250,  /* (203) term ::= INTEGER */
-   250,  /* (204) term ::= STRING */
-   250,  /* (205) term ::= NULL|FLOAT|BLOB */
-   250,  /* (206) term ::= QNUMBER */
-   250,  /* (207) term ::= CTIME_KW */
-   201,  /* (208) expr ::= VARIABLE */
-   201,  /* (209) expr ::= expr COLLATE ID|STRING */
-   204,  /* (210) sortlist ::= sortlist COMMA expr sortorder nulls */
-   204,  /* (211) sortlist ::= expr sortorder nulls */
-   251,  /* (212) sortorder ::= ASC */
-   251,  /* (213) sortorder ::= DESC */
-   251,  /* (214) sortorder ::= */
-   279,  /* (215) nulls ::= NULLS FIRST */
-   279,  /* (216) nulls ::= NULLS LAST */
-   279,  /* (217) nulls ::= */
-   201,  /* (218) expr ::= RAISE LP IGNORE RP */
-   201,  /* (219) expr ::= RAISE LP raisetype COMMA expr RP */
-   273,  /* (220) raisetype ::= ROLLBACK */
-   273,  /* (221) raisetype ::= ABORT */
-   273,  /* (222) raisetype ::= FAIL */
-   285,  /* (223) fullname ::= nmorerr */
-   285,  /* (224) fullname ::= nmorerr DOT nmorerr */
-   280,  /* (225) ifexists ::= IF EXISTS */
-   280,  /* (226) ifexists ::= */
-   200,  /* (227) cmd ::= DROP TABLE ifexists fullname */
-   200,  /* (228) cmd ::= DROP VIEW ifexists fullname */
-   200,  /* (229) cmd ::= DROP INDEX ifexists fullname */
-   200,  /* (230) cmd ::= DROP TRIGGER ifexists fullname */
-   200,  /* (231) cmd ::= ALTER TABLE fullname RENAME TO nmorerr */
-   200,  /* (232) cmd ::= ALTER TABLE fullname RENAME kwcolumn_opt nmorerr TO nmorerr */
-   200,  /* (233) cmd ::= ALTER TABLE fullname DROP kwcolumn_opt nmorerr */
-   200,  /* (234) cmd ::= ALTER TABLE add_column_fullname ADD kwcolumn_opt columnname carglist */
-   286,  /* (235) add_column_fullname ::= fullname */
-   284,  /* (236) kwcolumn_opt ::= */
-   284,  /* (237) kwcolumn_opt ::= COLUMNKW */
-   249,  /* (238) columnname ::= nmorerr typetoken */
-   200,  /* (239) cmd ::= BEGIN transtype trans_opt */
-   200,  /* (240) cmd ::= COMMIT|END trans_opt */
-   200,  /* (241) cmd ::= ROLLBACK trans_opt */
-   281,  /* (242) transtype ::= */
-   281,  /* (243) transtype ::= DEFERRED */
-   281,  /* (244) transtype ::= IMMEDIATE */
-   281,  /* (245) transtype ::= EXCLUSIVE */
-   282,  /* (246) trans_opt ::= */
-   282,  /* (247) trans_opt ::= TRANSACTION */
-   282,  /* (248) trans_opt ::= TRANSACTION nm */
-   283,  /* (249) savepoint_opt ::= SAVEPOINT */
-   283,  /* (250) savepoint_opt ::= */
-   200,  /* (251) cmd ::= SAVEPOINT nmorerr */
-   200,  /* (252) cmd ::= RELEASE savepoint_opt nmorerr */
-   200,  /* (253) cmd ::= ROLLBACK trans_opt TO savepoint_opt nmorerr */
-   200,  /* (254) cmd ::= select */
-   218,  /* (255) select ::= selectnowith */
-   216,  /* (256) selectnowith ::= oneselect */
-   217,  /* (257) oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt orderby_opt limit_opt */
-   217,  /* (258) oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt window_clause orderby_opt limit_opt */
-   209,  /* (259) selcollist ::= sclp scanpt expr scanpt as */
-   209,  /* (260) selcollist ::= sclp scanpt STAR */
-   210,  /* (261) sclp ::= selcollist COMMA */
-   210,  /* (262) sclp ::= */
-   211,  /* (263) scanpt ::= */
-   287,  /* (264) as ::= AS nmorerr */
-   287,  /* (265) as ::= ID|STRING */
-   287,  /* (266) as ::= */
-   202,  /* (267) distinct ::= DISTINCT */
-   202,  /* (268) distinct ::= ALL */
-   202,  /* (269) distinct ::= */
-   271,  /* (270) from ::= */
-   271,  /* (271) from ::= FROM seltablist */
-   276,  /* (272) where_opt ::= */
-   276,  /* (273) where_opt ::= WHERE expr */
-   288,  /* (274) groupby_opt ::= */
-   288,  /* (275) groupby_opt ::= GROUP BY nexprlist */
-   289,  /* (276) having_opt ::= */
-   289,  /* (277) having_opt ::= HAVING expr */
-   268,  /* (278) orderby_opt ::= */
-   268,  /* (279) orderby_opt ::= ORDER BY sortlist */
-   269,  /* (280) limit_opt ::= */
-   269,  /* (281) limit_opt ::= LIMIT expr */
-   269,  /* (282) limit_opt ::= LIMIT expr OFFSET expr */
-   269,  /* (283) limit_opt ::= LIMIT expr COMMA expr */
-   294,  /* (284) stl_prefix ::= seltablist joinop */
-   294,  /* (285) stl_prefix ::= */
-   291,  /* (286) seltablist ::= stl_prefix nm dbnm as on_using */
-   291,  /* (287) seltablist ::= stl_prefix nm dbnm as indexed_by on_using */
-   291,  /* (288) seltablist ::= stl_prefix nm dbnm LP exprlist RP as on_using */
-   291,  /* (289) seltablist ::= stl_prefix LP select RP as on_using */
-   291,  /* (290) seltablist ::= stl_prefix LP seltablist RP as on_using */
-   293,  /* (291) joinop ::= COMMA|JOIN */
-   293,  /* (292) joinop ::= JOIN_KW JOIN */
-   293,  /* (293) joinop ::= JOIN_KW nm JOIN */
-   293,  /* (294) joinop ::= JOIN_KW nm nm JOIN */
-   292,  /* (295) on_using ::= ON expr */
-   292,  /* (296) on_using ::= USING LP idlist RP */
-   292,  /* (297) on_using ::= */
-   274,  /* (298) indexed_by ::= INDEXED BY nm */
-   274,  /* (299) indexed_by ::= NOT INDEXED */
-   275,  /* (300) idlist ::= idlist COMMA nm */
-   275,  /* (301) idlist ::= nm */
-   200,  /* (302) cmd ::= createkw trigger_decl BEGIN trigger_cmd_list END */
-   297,  /* (303) trigger_decl ::= temp TRIGGER ifnotexists nm dbnm trigger_time trigger_event ON fullname foreach_clause when_clause */
-   295,  /* (304) trigger_time ::= BEFORE|AFTER */
-   295,  /* (305) trigger_time ::= INSTEAD OF */
-   295,  /* (306) trigger_time ::= */
-   299,  /* (307) trigger_event ::= DELETE|INSERT */
-   299,  /* (308) trigger_event ::= UPDATE */
-   299,  /* (309) trigger_event ::= UPDATE OF idlist */
+   199,  /* (0) input ::= cmdlist */
+   200,  /* (1) cmdlist ::= cmdlist ecmd */
+   200,  /* (2) cmdlist ::= ecmd */
+   201,  /* (3) ecmd ::= SEMI */
+   201,  /* (4) ecmd ::= cmdx SEMI */
+   201,  /* (5) ecmd ::= error SEMI */
+   202,  /* (6) cmdx ::= cmd */
+   205,  /* (7) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist ORDER BY sortlist RP */
+   205,  /* (8) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist ORDER BY sortlist RP filter_over */
+   205,  /* (9) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP WITHIN GROUP LP ORDER BY expr RP */
+   205,  /* (10) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP WITHIN GROUP LP ORDER BY expr RP filter_over */
+   205,  /* (11) expr ::= CAST LP expr AS typetoken RP */
+   210,  /* (12) typetoken ::= */
+   210,  /* (13) typetoken ::= typename */
+   210,  /* (14) typetoken ::= typename LP signed RP */
+   210,  /* (15) typetoken ::= typename LP signed COMMA signed RP */
+   211,  /* (16) typename ::= ID|STRING */
+   211,  /* (17) typename ::= typename ID|STRING */
+   213,  /* (18) selcollist ::= sclp scanpt nm DOT STAR */
+   205,  /* (19) expr ::= ID|INDEXED|JOIN_KW */
+   205,  /* (20) expr ::= nm DOT nm */
+   205,  /* (21) expr ::= nm DOT nm DOT nm */
+   220,  /* (22) selectnowith ::= selectnowith multiselect_op oneselect */
+   217,  /* (23) multiselect_op ::= UNION */
+   217,  /* (24) multiselect_op ::= UNION ALL */
+   217,  /* (25) multiselect_op ::= EXCEPT|INTERSECT */
+   205,  /* (26) expr ::= LP select RP */
+   205,  /* (27) expr ::= EXISTS LP select RP */
+   218,  /* (28) in_op ::= IN */
+   218,  /* (29) in_op ::= NOT IN */
+   205,  /* (30) expr ::= expr in_op LP exprlist RP */
+   205,  /* (31) expr ::= expr in_op LP select RP */
+   205,  /* (32) expr ::= expr in_op nm dbnm paren_exprlist */
+   219,  /* (33) dbnm ::= */
+   219,  /* (34) dbnm ::= DOT nm */
+   223,  /* (35) paren_exprlist ::= */
+   223,  /* (36) paren_exprlist ::= LP exprlist RP */
+   205,  /* (37) expr ::= expr ISNULL|NOTNULL */
+   205,  /* (38) expr ::= expr NOT NULL */
+   205,  /* (39) expr ::= expr IS expr */
+   205,  /* (40) expr ::= expr IS NOT expr */
+   205,  /* (41) expr ::= expr IS NOT DISTINCT FROM expr */
+   205,  /* (42) expr ::= expr IS DISTINCT FROM expr */
+   225,  /* (43) between_op ::= BETWEEN */
+   225,  /* (44) between_op ::= NOT BETWEEN */
+   205,  /* (45) expr ::= expr between_op expr AND expr */
+   224,  /* (46) likeop ::= LIKE_KW|MATCH */
+   224,  /* (47) likeop ::= NOT LIKE_KW|MATCH */
+   205,  /* (48) expr ::= expr likeop expr */
+   205,  /* (49) expr ::= expr likeop expr ESCAPE expr */
+   205,  /* (50) expr ::= CASE case_operand case_exprlist case_else END */
+   227,  /* (51) case_exprlist ::= case_exprlist WHEN expr THEN expr */
+   227,  /* (52) case_exprlist ::= WHEN expr THEN expr */
+   228,  /* (53) case_else ::= ELSE expr */
+   228,  /* (54) case_else ::= */
+   226,  /* (55) case_operand ::= expr */
+   226,  /* (56) case_operand ::= */
+   204,  /* (57) cmd ::= create_table create_table_args */
+   246,  /* (58) create_table ::= createkw temp TABLE ifnotexists nm dbnm */
+   247,  /* (59) create_table_args ::= LP columnlist conslist_opt RP table_option_set */
+   247,  /* (60) create_table_args ::= AS select */
+   237,  /* (61) table_option_set ::= */
+   237,  /* (62) table_option_set ::= table_option */
+   237,  /* (63) table_option_set ::= table_option_set COMMA table_option */
+   238,  /* (64) table_option ::= WITHOUT nm */
+   238,  /* (65) table_option ::= nm */
+   251,  /* (66) columnlist ::= columnlist COMMA columnname carglist */
+   251,  /* (67) columnlist ::= columnname carglist */
+   241,  /* (68) carglist ::= carglist ccons */
+   241,  /* (69) carglist ::= */
+   240,  /* (70) ccons ::= CONSTRAINT nm */
+   240,  /* (71) ccons ::= DEFAULT scantok term */
+   240,  /* (72) ccons ::= DEFAULT LP expr RP */
+   240,  /* (73) ccons ::= DEFAULT PLUS scantok term */
+   240,  /* (74) ccons ::= DEFAULT MINUS scantok term */
+   240,  /* (75) ccons ::= DEFAULT scantok ID|INDEXED */
+   240,  /* (76) ccons ::= NULL onconf */
+   240,  /* (77) ccons ::= NOT NULL onconf */
+   240,  /* (78) ccons ::= PRIMARY KEY sortorder onconf autoinc */
+   240,  /* (79) ccons ::= UNIQUE onconf */
+   240,  /* (80) ccons ::= CHECK LP expr RP */
+   240,  /* (81) ccons ::= REFERENCES nm eidlist_opt refargs */
+   240,  /* (82) ccons ::= defer_subclause */
+   240,  /* (83) ccons ::= COLLATE ID|STRING */
+   240,  /* (84) ccons ::= GENERATED ALWAYS AS generated */
+   240,  /* (85) ccons ::= AS generated */
+   245,  /* (86) generated ::= LP expr RP */
+   245,  /* (87) generated ::= LP expr RP ID */
+   230,  /* (88) autoinc ::= */
+   230,  /* (89) autoinc ::= AUTOINCR */
+   231,  /* (90) refargs ::= */
+   231,  /* (91) refargs ::= refargs refarg */
+   232,  /* (92) refarg ::= MATCH nm */
+   232,  /* (93) refarg ::= ON INSERT refact */
+   232,  /* (94) refarg ::= ON DELETE refact */
+   232,  /* (95) refarg ::= ON UPDATE refact */
+   233,  /* (96) refact ::= SET NULL */
+   233,  /* (97) refact ::= SET DEFAULT */
+   233,  /* (98) refact ::= CASCADE */
+   233,  /* (99) refact ::= RESTRICT */
+   233,  /* (100) refact ::= NO ACTION */
+   234,  /* (101) defer_subclause ::= NOT DEFERRABLE init_deferred_pred_opt */
+   234,  /* (102) defer_subclause ::= DEFERRABLE init_deferred_pred_opt */
+   235,  /* (103) init_deferred_pred_opt ::= */
+   235,  /* (104) init_deferred_pred_opt ::= INITIALLY DEFERRED */
+   235,  /* (105) init_deferred_pred_opt ::= INITIALLY IMMEDIATE */
+   252,  /* (106) conslist_opt ::= */
+   252,  /* (107) conslist_opt ::= COMMA conslist */
+   243,  /* (108) conslist ::= conslist tconscomma tcons */
+   243,  /* (109) conslist ::= tcons */
+   244,  /* (110) tconscomma ::= COMMA */
+   244,  /* (111) tconscomma ::= */
+   242,  /* (112) tcons ::= CONSTRAINT nm */
+   242,  /* (113) tcons ::= PRIMARY KEY LP sortlist autoinc RP onconf */
+   242,  /* (114) tcons ::= UNIQUE LP sortlist RP onconf */
+   242,  /* (115) tcons ::= CHECK LP expr RP onconf */
+   242,  /* (116) tcons ::= FOREIGN KEY LP eidlist RP REFERENCES nm eidlist_opt refargs defer_subclause_opt */
+   236,  /* (117) defer_subclause_opt ::= */
+   236,  /* (118) defer_subclause_opt ::= defer_subclause */
+   239,  /* (119) onconf ::= */
+   239,  /* (120) onconf ::= ON CONFLICT resolvetype */
+   229,  /* (121) scantok ::= */
+   222,  /* (122) select ::= WITH wqlist selectnowith */
+   222,  /* (123) select ::= WITH RECURSIVE wqlist selectnowith */
+   263,  /* (124) wqitem ::= withnm eidlist_opt wqas LP select RP */
+   262,  /* (125) wqlist ::= wqitem */
+   262,  /* (126) wqlist ::= wqlist COMMA wqitem */
+   259,  /* (127) withnm ::= nm */
+   260,  /* (128) wqas ::= AS */
+   260,  /* (129) wqas ::= AS MATERIALIZED */
+   260,  /* (130) wqas ::= AS NOT MATERIALIZED */
+   256,  /* (131) eidlist_opt ::= */
+   256,  /* (132) eidlist_opt ::= LP eidlist RP */
+   257,  /* (133) eidlist ::= nm collate sortorder */
+   257,  /* (134) eidlist ::= eidlist COMMA nm collate sortorder */
+   261,  /* (135) collate ::= */
+   261,  /* (136) collate ::= COLLATE ID|STRING */
+   264,  /* (137) with ::= */
+   264,  /* (138) with ::= WITH wqlist */
+   264,  /* (139) with ::= WITH RECURSIVE wqlist */
+   204,  /* (140) cmd ::= with DELETE FROM xfullname indexed_opt where_opt_ret orderby_opt limit_opt */
+   204,  /* (141) cmd ::= with UPDATE orconf xfullname indexed_opt SET setlist from where_opt_ret orderby_opt limit_opt */
+   204,  /* (142) cmd ::= with insert_cmd INTO xfullname idlist_opt select upsert */
+   204,  /* (143) cmd ::= with insert_cmd INTO xfullname idlist_opt DEFAULT VALUES returning */
+   265,  /* (144) insert_cmd ::= INSERT orconf */
+   265,  /* (145) insert_cmd ::= REPLACE */
+   266,  /* (146) orconf ::= */
+   266,  /* (147) orconf ::= OR resolvetype */
+   258,  /* (148) resolvetype ::= raisetype */
+   258,  /* (149) resolvetype ::= IGNORE */
+   258,  /* (150) resolvetype ::= REPLACE */
+   271,  /* (151) xfullname ::= nm */
+   271,  /* (152) xfullname ::= nm DOT nm */
+   271,  /* (153) xfullname ::= nm DOT nm AS nm */
+   271,  /* (154) xfullname ::= nm AS nm */
+   267,  /* (155) indexed_opt ::= */
+   267,  /* (156) indexed_opt ::= indexed_by */
+   268,  /* (157) where_opt_ret ::= */
+   268,  /* (158) where_opt_ret ::= WHERE expr */
+   268,  /* (159) where_opt_ret ::= RETURNING selcollist */
+   268,  /* (160) where_opt_ret ::= WHERE expr RETURNING selcollist */
+   274,  /* (161) setlist ::= setlist COMMA nm EQ expr */
+   274,  /* (162) setlist ::= setlist COMMA LP idlist RP EQ expr */
+   274,  /* (163) setlist ::= nm EQ expr */
+   274,  /* (164) setlist ::= LP idlist RP EQ expr */
+   276,  /* (165) idlist_opt ::= */
+   276,  /* (166) idlist_opt ::= LP idlist RP */
+   269,  /* (167) upsert ::= */
+   269,  /* (168) upsert ::= RETURNING selcollist */
+   269,  /* (169) upsert ::= ON CONFLICT LP sortlist RP where_opt DO UPDATE SET setlist where_opt upsert */
+   269,  /* (170) upsert ::= ON CONFLICT LP sortlist RP where_opt DO NOTHING upsert */
+   269,  /* (171) upsert ::= ON CONFLICT DO NOTHING returning */
+   269,  /* (172) upsert ::= ON CONFLICT DO UPDATE SET setlist where_opt returning */
+   270,  /* (173) returning ::= RETURNING selcollist */
+   270,  /* (174) returning ::= */
+   205,  /* (175) expr ::= error */
+   205,  /* (176) expr ::= term */
+   205,  /* (177) expr ::= LP expr RP */
+   205,  /* (178) expr ::= expr PLUS|MINUS expr */
+   205,  /* (179) expr ::= expr STAR|SLASH|REM expr */
+   205,  /* (180) expr ::= expr LT|GT|GE|LE expr */
+   205,  /* (181) expr ::= expr EQ|NE expr */
+   205,  /* (182) expr ::= expr AND expr */
+   205,  /* (183) expr ::= expr OR expr */
+   205,  /* (184) expr ::= expr BITAND|BITOR|LSHIFT|RSHIFT expr */
+   205,  /* (185) expr ::= expr CONCAT expr */
+   205,  /* (186) expr ::= expr PTR expr */
+   205,  /* (187) expr ::= PLUS|MINUS expr */
+   205,  /* (188) expr ::= BITNOT expr */
+   205,  /* (189) expr ::= NOT expr */
+   207,  /* (190) exprlist ::= nexprlist */
+   207,  /* (191) exprlist ::= */
+   281,  /* (192) nexprlist ::= nexprlist COMMA expr */
+   281,  /* (193) nexprlist ::= expr */
+   205,  /* (194) expr ::= LP nexprlist COMMA expr RP */
+   205,  /* (195) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP */
+   205,  /* (196) expr ::= ID|INDEXED|JOIN_KW LP STAR RP */
+   205,  /* (197) expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP filter_over */
+   205,  /* (198) expr ::= ID|INDEXED|JOIN_KW LP STAR RP filter_over */
+   216,  /* (199) nm ::= ID|INDEXED|JOIN_KW */
+   216,  /* (200) nm ::= STRING */
+   282,  /* (201) nmorerr ::= nm */
+   282,  /* (202) nmorerr ::= error */
+   254,  /* (203) term ::= INTEGER */
+   254,  /* (204) term ::= STRING */
+   254,  /* (205) term ::= NULL|FLOAT|BLOB */
+   254,  /* (206) term ::= QNUMBER */
+   254,  /* (207) term ::= CTIME_KW */
+   205,  /* (208) expr ::= VARIABLE */
+   205,  /* (209) expr ::= expr COLLATE ID|STRING */
+   208,  /* (210) sortlist ::= sortlist COMMA expr sortorder nulls */
+   208,  /* (211) sortlist ::= expr sortorder nulls */
+   255,  /* (212) sortorder ::= ASC */
+   255,  /* (213) sortorder ::= DESC */
+   255,  /* (214) sortorder ::= */
+   283,  /* (215) nulls ::= NULLS FIRST */
+   283,  /* (216) nulls ::= NULLS LAST */
+   283,  /* (217) nulls ::= */
+   205,  /* (218) expr ::= RAISE LP IGNORE RP */
+   205,  /* (219) expr ::= RAISE LP raisetype COMMA expr RP */
+   277,  /* (220) raisetype ::= ROLLBACK */
+   277,  /* (221) raisetype ::= ABORT */
+   277,  /* (222) raisetype ::= FAIL */
+   289,  /* (223) fullname ::= nmorerr */
+   289,  /* (224) fullname ::= nmorerr DOT nmorerr */
+   284,  /* (225) ifexists ::= IF EXISTS */
+   284,  /* (226) ifexists ::= */
+   204,  /* (227) cmd ::= DROP TABLE ifexists fullname */
+   204,  /* (228) cmd ::= DROP VIEW ifexists fullname */
+   204,  /* (229) cmd ::= DROP INDEX ifexists fullname */
+   204,  /* (230) cmd ::= DROP TRIGGER ifexists fullname */
+   204,  /* (231) cmd ::= ALTER TABLE fullname RENAME TO nmorerr */
+   204,  /* (232) cmd ::= ALTER TABLE fullname RENAME kwcolumn_opt nmorerr TO nmorerr */
+   204,  /* (233) cmd ::= ALTER TABLE fullname DROP kwcolumn_opt nmorerr */
+   204,  /* (234) cmd ::= ALTER TABLE add_column_fullname ADD kwcolumn_opt columnname carglist */
+   290,  /* (235) add_column_fullname ::= fullname */
+   288,  /* (236) kwcolumn_opt ::= */
+   288,  /* (237) kwcolumn_opt ::= COLUMNKW */
+   253,  /* (238) columnname ::= nmorerr typetoken */
+   204,  /* (239) cmd ::= BEGIN transtype trans_opt */
+   204,  /* (240) cmd ::= COMMIT|END trans_opt */
+   204,  /* (241) cmd ::= ROLLBACK trans_opt */
+   285,  /* (242) transtype ::= */
+   285,  /* (243) transtype ::= DEFERRED */
+   285,  /* (244) transtype ::= IMMEDIATE */
+   285,  /* (245) transtype ::= EXCLUSIVE */
+   286,  /* (246) trans_opt ::= */
+   286,  /* (247) trans_opt ::= TRANSACTION */
+   286,  /* (248) trans_opt ::= TRANSACTION nm */
+   287,  /* (249) savepoint_opt ::= SAVEPOINT */
+   287,  /* (250) savepoint_opt ::= */
+   204,  /* (251) cmd ::= SAVEPOINT nmorerr */
+   204,  /* (252) cmd ::= RELEASE savepoint_opt nmorerr */
+   204,  /* (253) cmd ::= ROLLBACK trans_opt TO savepoint_opt nmorerr */
+   204,  /* (254) cmd ::= select */
+   222,  /* (255) select ::= selectnowith */
+   220,  /* (256) selectnowith ::= oneselect */
+   221,  /* (257) oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt orderby_opt limit_opt */
+   221,  /* (258) oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt window_clause orderby_opt limit_opt */
+   213,  /* (259) selcollist ::= sclp scanpt expr scanpt as */
+   213,  /* (260) selcollist ::= sclp scanpt STAR */
+   214,  /* (261) sclp ::= selcollist COMMA */
+   214,  /* (262) sclp ::= */
+   215,  /* (263) scanpt ::= */
+   291,  /* (264) as ::= AS nmorerr */
+   291,  /* (265) as ::= ID|STRING */
+   291,  /* (266) as ::= */
+   206,  /* (267) distinct ::= DISTINCT */
+   206,  /* (268) distinct ::= ALL */
+   206,  /* (269) distinct ::= */
+   275,  /* (270) from ::= */
+   275,  /* (271) from ::= FROM seltablist */
+   280,  /* (272) where_opt ::= */
+   280,  /* (273) where_opt ::= WHERE expr */
+   292,  /* (274) groupby_opt ::= */
+   292,  /* (275) groupby_opt ::= GROUP BY nexprlist */
+   293,  /* (276) having_opt ::= */
+   293,  /* (277) having_opt ::= HAVING expr */
+   272,  /* (278) orderby_opt ::= */
+   272,  /* (279) orderby_opt ::= ORDER BY sortlist */
+   273,  /* (280) limit_opt ::= */
+   273,  /* (281) limit_opt ::= LIMIT expr */
+   273,  /* (282) limit_opt ::= LIMIT expr OFFSET expr */
+   273,  /* (283) limit_opt ::= LIMIT expr COMMA expr */
+   298,  /* (284) stl_prefix ::= seltablist joinop */
+   298,  /* (285) stl_prefix ::= */
+   295,  /* (286) seltablist ::= stl_prefix nm dbnm as on_using */
+   295,  /* (287) seltablist ::= stl_prefix nm dbnm as indexed_by on_using */
+   295,  /* (288) seltablist ::= stl_prefix nm dbnm LP exprlist RP as on_using */
+   295,  /* (289) seltablist ::= stl_prefix LP select RP as on_using */
+   295,  /* (290) seltablist ::= stl_prefix LP seltablist RP as on_using */
+   297,  /* (291) joinop ::= COMMA|JOIN */
+   297,  /* (292) joinop ::= JOIN_KW JOIN */
+   297,  /* (293) joinop ::= JOIN_KW nm JOIN */
+   297,  /* (294) joinop ::= JOIN_KW nm nm JOIN */
+   296,  /* (295) on_using ::= ON expr */
+   296,  /* (296) on_using ::= USING LP idlist RP */
+   296,  /* (297) on_using ::= */
+   278,  /* (298) indexed_by ::= INDEXED BY nm */
+   278,  /* (299) indexed_by ::= NOT INDEXED */
+   279,  /* (300) idlist ::= idlist COMMA nm */
+   279,  /* (301) idlist ::= nm */
+   204,  /* (302) cmd ::= createkw trigger_decl BEGIN trigger_cmd_list END */
+   302,  /* (303) trigger_decl ::= temp TRIGGER ifnotexists nm dbnm trigger_time trigger_event ON fullname foreach_clause when_clause */
+   299,  /* (304) trigger_time ::= BEFORE|AFTER */
+   299,  /* (305) trigger_time ::= INSTEAD OF */
+   299,  /* (306) trigger_time ::= */
+   304,  /* (307) trigger_event ::= DELETE|INSERT */
+   304,  /* (308) trigger_event ::= UPDATE */
+   304,  /* (309) trigger_event ::= UPDATE OF idlist */
    300,  /* (310) foreach_clause ::= */
    300,  /* (311) foreach_clause ::= FOR EACH ROW */
-   301,  /* (312) when_clause ::= */
-   301,  /* (313) when_clause ::= WHEN expr */
-   298,  /* (314) trigger_cmd_list ::= trigger_cmd_list trigger_cmd SEMI */
-   298,  /* (315) trigger_cmd_list ::= trigger_cmd SEMI */
-   296,  /* (316) trnm ::= nm */
-   296,  /* (317) trnm ::= nm DOT nm */
-   303,  /* (318) tridxby ::= */
-   303,  /* (319) tridxby ::= INDEXED BY nm */
-   303,  /* (320) tridxby ::= NOT INDEXED */
-   302,  /* (321) trigger_cmd ::= UPDATE orconf trnm tridxby SET setlist from where_opt scanpt */
-   302,  /* (322) trigger_cmd ::= scanpt insert_cmd INTO trnm idlist_opt select upsert scanpt */
-   302,  /* (323) trigger_cmd ::= DELETE FROM trnm tridxby where_opt scanpt */
-   302,  /* (324) trigger_cmd ::= scanpt select scanpt */
-   200,  /* (325) cmd ::= PRAGMA nm dbnm */
-   200,  /* (326) cmd ::= PRAGMA nm dbnm EQ nmnum */
-   200,  /* (327) cmd ::= PRAGMA nm dbnm LP nmnum RP */
-   200,  /* (328) cmd ::= PRAGMA nm dbnm EQ minus_num */
-   200,  /* (329) cmd ::= PRAGMA nm dbnm LP minus_num RP */
-   306,  /* (330) nmnum ::= plus_num */
-   306,  /* (331) nmnum ::= nm */
-   306,  /* (332) nmnum ::= ON */
-   306,  /* (333) nmnum ::= DELETE */
-   306,  /* (334) nmnum ::= DEFAULT */
-   304,  /* (335) plus_num ::= PLUS INTEGER|FLOAT */
-   304,  /* (336) plus_num ::= INTEGER|FLOAT */
-   305,  /* (337) minus_num ::= MINUS INTEGER|FLOAT */
-   208,  /* (338) signed ::= plus_num */
-   208,  /* (339) signed ::= minus_num */
-   200,  /* (340) cmd ::= ANALYZE */
-   200,  /* (341) cmd ::= ANALYZE nm dbnm */
-   200,  /* (342) cmd ::= REINDEX */
-   200,  /* (343) cmd ::= REINDEX nm dbnm */
-   200,  /* (344) cmd ::= ATTACH database_kw_opt expr AS expr key_opt */
-   200,  /* (345) cmd ::= DETACH database_kw_opt expr */
-   309,  /* (346) database_kw_opt ::= DATABASE */
-   309,  /* (347) database_kw_opt ::= */
-   310,  /* (348) key_opt ::= */
-   310,  /* (349) key_opt ::= KEY expr */
-   200,  /* (350) cmd ::= VACUUM vinto */
-   200,  /* (351) cmd ::= VACUUM nm vinto */
-   311,  /* (352) vinto ::= INTO expr */
-   311,  /* (353) vinto ::= */
-   197,  /* (354) ecmd ::= explain cmdx SEMI */
-   308,  /* (355) explain ::= EXPLAIN */
-   308,  /* (356) explain ::= EXPLAIN QUERY PLAN */
-   200,  /* (357) cmd ::= createkw uniqueflag INDEX ifnotexists nm dbnm ON nm LP sortlist RP where_opt */
-   307,  /* (358) uniqueflag ::= UNIQUE */
-   307,  /* (359) uniqueflag ::= */
-   246,  /* (360) ifnotexists ::= */
-   246,  /* (361) ifnotexists ::= IF NOT EXISTS */
-   200,  /* (362) cmd ::= createkw temp VIEW ifnotexists nm dbnm eidlist_opt AS select */
-   244,  /* (363) createkw ::= CREATE */
-   245,  /* (364) temp ::= TEMP */
-   245,  /* (365) temp ::= */
-   312,  /* (366) values ::= VALUES LP nexprlist RP */
-   313,  /* (367) mvalues ::= values COMMA LP nexprlist RP */
-   313,  /* (368) mvalues ::= mvalues COMMA LP nexprlist RP */
-   217,  /* (369) oneselect ::= values */
-   217,  /* (370) oneselect ::= mvalues */
-   200,  /* (371) cmd ::= create_vtab */
-   200,  /* (372) cmd ::= create_vtab LP vtabarglist RP */
-   314,  /* (373) create_vtab ::= createkw VIRTUAL TABLE ifnotexists nm dbnm USING nm */
-   315,  /* (374) vtabarglist ::= vtabarg */
-   315,  /* (375) vtabarglist ::= vtabarglist COMMA vtabarg */
-   316,  /* (376) vtabarg ::= */
-   316,  /* (377) vtabarg ::= vtabarg vtabargtoken */
-   317,  /* (378) vtabargtoken ::= ANY */
-   317,  /* (379) vtabargtoken ::= lp anylist RP */
-   318,  /* (380) lp ::= LP */
-   319,  /* (381) anylist ::= */
-   319,  /* (382) anylist ::= anylist LP anylist RP */
-   319,  /* (383) anylist ::= anylist ANY */
-   323,  /* (384) windowdefn_list ::= windowdefn */
-   323,  /* (385) windowdefn_list ::= windowdefn_list COMMA windowdefn */
-   324,  /* (386) windowdefn ::= nm AS LP window RP */
-   325,  /* (387) window ::= PARTITION BY nexprlist orderby_opt frame_opt */
-   325,  /* (388) window ::= nm PARTITION BY nexprlist orderby_opt frame_opt */
-   325,  /* (389) window ::= ORDER BY sortlist frame_opt */
-   325,  /* (390) window ::= nm ORDER BY sortlist frame_opt */
-   325,  /* (391) window ::= frame_opt */
-   325,  /* (392) window ::= nm frame_opt */
-   326,  /* (393) frame_opt ::= */
-   326,  /* (394) frame_opt ::= range_or_rows frame_bound_s frame_exclude_opt */
-   326,  /* (395) frame_opt ::= range_or_rows BETWEEN frame_bound_s AND frame_bound_e frame_exclude_opt */
-   320,  /* (396) range_or_rows ::= RANGE|ROWS|GROUPS */
-   327,  /* (397) frame_bound_s ::= frame_bound */
-   327,  /* (398) frame_bound_s ::= UNBOUNDED PRECEDING */
-   328,  /* (399) frame_bound_e ::= frame_bound */
-   328,  /* (400) frame_bound_e ::= UNBOUNDED FOLLOWING */
-   329,  /* (401) frame_bound ::= expr PRECEDING|FOLLOWING */
-   329,  /* (402) frame_bound ::= CURRENT ROW */
-   321,  /* (403) frame_exclude_opt ::= */
-   321,  /* (404) frame_exclude_opt ::= EXCLUDE frame_exclude */
-   322,  /* (405) frame_exclude ::= NO OTHERS */
-   322,  /* (406) frame_exclude ::= CURRENT ROW */
-   322,  /* (407) frame_exclude ::= GROUP|TIES */
-   290,  /* (408) window_clause ::= WINDOW windowdefn_list */
-   205,  /* (409) filter_over ::= filter_clause over_clause */
-   205,  /* (410) filter_over ::= over_clause */
-   205,  /* (411) filter_over ::= filter_clause */
-   331,  /* (412) over_clause ::= OVER LP window RP */
-   331,  /* (413) over_clause ::= OVER nm */
-   330,  /* (414) filter_clause ::= FILTER LP WHERE expr RP */
-   332,  /* (415) perfetto_or_replace ::= */
-   332,  /* (416) perfetto_or_replace ::= OR REPLACE */
-   333,  /* (417) perfetto_arg_type ::= ID */
-   333,  /* (418) perfetto_arg_type ::= ID LP ID DOT ID RP */
-   334,  /* (419) perfetto_arg_def_list ::= */
-   334,  /* (420) perfetto_arg_def_list ::= perfetto_arg_def_list_ne */
-   335,  /* (421) perfetto_arg_def_list_ne ::= ID perfetto_arg_type */
-   335,  /* (422) perfetto_arg_def_list_ne ::= perfetto_arg_def_list_ne COMMA ID perfetto_arg_type */
-   335,  /* (423) perfetto_arg_def_list_ne ::= ID perfetto_arg_type DOT DOT DOT */
-   335,  /* (424) perfetto_arg_def_list_ne ::= perfetto_arg_def_list_ne COMMA ID perfetto_arg_type DOT DOT DOT */
-   336,  /* (425) perfetto_table_schema ::= */
-   336,  /* (426) perfetto_table_schema ::= LP perfetto_arg_def_list_ne RP */
-   337,  /* (427) perfetto_table_impl ::= */
-   337,  /* (428) perfetto_table_impl ::= USING ID */
-   338,  /* (429) perfetto_return_type ::= ID */
-   338,  /* (430) perfetto_return_type ::= TABLE LP perfetto_arg_def_list_ne RP */
-   339,  /* (431) perfetto_indexed_col_list ::= ID */
-   339,  /* (432) perfetto_indexed_col_list ::= perfetto_indexed_col_list COMMA ID */
-   340,  /* (433) perfetto_macro_arg_list ::= */
-   340,  /* (434) perfetto_macro_arg_list ::= perfetto_macro_arg_list_ne */
-   341,  /* (435) perfetto_macro_arg_list_ne ::= ID ID */
-   341,  /* (436) perfetto_macro_arg_list_ne ::= perfetto_macro_arg_list_ne COMMA ID ID */
-   342,  /* (437) perfetto_module_name ::= ID|STAR|INTERSECT */
-   342,  /* (438) perfetto_module_name ::= perfetto_module_name DOT ID|STAR|INTERSECT */
-   343,  /* (439) select_body_start ::= */
-   344,  /* (440) select_body_end ::= */
-   200,  /* (441) cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end */
-   200,  /* (442) cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end */
-   200,  /* (443) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end */
-   200,  /* (444) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID */
-   200,  /* (445) cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP */
-   345,  /* (446) before_macro_body ::= */
-   346,  /* (447) perfetto_macro_body ::= ANY */
-   346,  /* (448) perfetto_macro_body ::= perfetto_macro_body ANY */
-   200,  /* (449) cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body */
-   200,  /* (450) cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name */
-   200,  /* (451) cmd ::= DROP PERFETTO INDEX nm ON nm */
+   305,  /* (312) when_clause ::= */
+   305,  /* (313) when_clause ::= WHEN expr */
+   303,  /* (314) trigger_cmd_list ::= trigger_cmd_list trigger_cmd SEMI */
+   303,  /* (315) trigger_cmd_list ::= trigger_cmd SEMI */
+   301,  /* (316) trnm ::= nm */
+   301,  /* (317) trnm ::= nm DOT nm */
+   307,  /* (318) tridxby ::= */
+   307,  /* (319) tridxby ::= INDEXED BY nm */
+   307,  /* (320) tridxby ::= NOT INDEXED */
+   306,  /* (321) trigger_cmd ::= UPDATE orconf trnm tridxby SET setlist from where_opt scanpt */
+   306,  /* (322) trigger_cmd ::= scanpt insert_cmd INTO trnm idlist_opt select upsert scanpt */
+   306,  /* (323) trigger_cmd ::= DELETE FROM trnm tridxby where_opt scanpt */
+   306,  /* (324) trigger_cmd ::= scanpt select scanpt */
+   204,  /* (325) cmd ::= PRAGMA nm dbnm */
+   204,  /* (326) cmd ::= PRAGMA nm dbnm EQ nmnum */
+   204,  /* (327) cmd ::= PRAGMA nm dbnm LP nmnum RP */
+   204,  /* (328) cmd ::= PRAGMA nm dbnm EQ minus_num */
+   204,  /* (329) cmd ::= PRAGMA nm dbnm LP minus_num RP */
+   311,  /* (330) nmnum ::= plus_num */
+   311,  /* (331) nmnum ::= nm */
+   311,  /* (332) nmnum ::= ON */
+   311,  /* (333) nmnum ::= DELETE */
+   311,  /* (334) nmnum ::= DEFAULT */
+   309,  /* (335) plus_num ::= PLUS INTEGER|FLOAT */
+   309,  /* (336) plus_num ::= INTEGER|FLOAT */
+   310,  /* (337) minus_num ::= MINUS INTEGER|FLOAT */
+   212,  /* (338) signed ::= plus_num */
+   212,  /* (339) signed ::= minus_num */
+   204,  /* (340) cmd ::= ANALYZE */
+   204,  /* (341) cmd ::= ANALYZE nm dbnm */
+   204,  /* (342) cmd ::= REINDEX */
+   204,  /* (343) cmd ::= REINDEX nm dbnm */
+   204,  /* (344) cmd ::= ATTACH database_kw_opt expr AS expr key_opt */
+   204,  /* (345) cmd ::= DETACH database_kw_opt expr */
+   308,  /* (346) database_kw_opt ::= DATABASE */
+   308,  /* (347) database_kw_opt ::= */
+   314,  /* (348) key_opt ::= */
+   314,  /* (349) key_opt ::= KEY expr */
+   204,  /* (350) cmd ::= VACUUM vinto */
+   204,  /* (351) cmd ::= VACUUM nm vinto */
+   315,  /* (352) vinto ::= INTO expr */
+   315,  /* (353) vinto ::= */
+   201,  /* (354) ecmd ::= explain cmdx SEMI */
+   313,  /* (355) explain ::= EXPLAIN */
+   313,  /* (356) explain ::= EXPLAIN QUERY PLAN */
+   204,  /* (357) cmd ::= createkw uniqueflag INDEX ifnotexists nm dbnm ON nm LP sortlist RP where_opt */
+   312,  /* (358) uniqueflag ::= UNIQUE */
+   312,  /* (359) uniqueflag ::= */
+   250,  /* (360) ifnotexists ::= */
+   250,  /* (361) ifnotexists ::= IF NOT EXISTS */
+   204,  /* (362) cmd ::= createkw temp VIEW ifnotexists nm dbnm eidlist_opt AS select */
+   248,  /* (363) createkw ::= CREATE */
+   249,  /* (364) temp ::= TEMP */
+   249,  /* (365) temp ::= */
+   316,  /* (366) values ::= VALUES LP nexprlist RP */
+   317,  /* (367) mvalues ::= values COMMA LP nexprlist RP */
+   317,  /* (368) mvalues ::= mvalues COMMA LP nexprlist RP */
+   221,  /* (369) oneselect ::= values */
+   221,  /* (370) oneselect ::= mvalues */
+   204,  /* (371) cmd ::= create_vtab */
+   204,  /* (372) cmd ::= create_vtab LP vtabarglist RP */
+   318,  /* (373) create_vtab ::= createkw VIRTUAL TABLE ifnotexists nm dbnm USING nm */
+   319,  /* (374) vtabarglist ::= vtabarg */
+   319,  /* (375) vtabarglist ::= vtabarglist COMMA vtabarg */
+   320,  /* (376) vtabarg ::= */
+   320,  /* (377) vtabarg ::= vtabarg vtabargtoken */
+   321,  /* (378) vtabargtoken ::= ANY */
+   321,  /* (379) vtabargtoken ::= lp anylist RP */
+   322,  /* (380) lp ::= LP */
+   323,  /* (381) anylist ::= */
+   323,  /* (382) anylist ::= anylist LP anylist RP */
+   323,  /* (383) anylist ::= anylist ANY */
+   327,  /* (384) windowdefn_list ::= windowdefn */
+   327,  /* (385) windowdefn_list ::= windowdefn_list COMMA windowdefn */
+   328,  /* (386) windowdefn ::= nm AS LP window RP */
+   329,  /* (387) window ::= PARTITION BY nexprlist orderby_opt frame_opt */
+   329,  /* (388) window ::= nm PARTITION BY nexprlist orderby_opt frame_opt */
+   329,  /* (389) window ::= ORDER BY sortlist frame_opt */
+   329,  /* (390) window ::= nm ORDER BY sortlist frame_opt */
+   329,  /* (391) window ::= frame_opt */
+   329,  /* (392) window ::= nm frame_opt */
+   330,  /* (393) frame_opt ::= */
+   330,  /* (394) frame_opt ::= range_or_rows frame_bound_s frame_exclude_opt */
+   330,  /* (395) frame_opt ::= range_or_rows BETWEEN frame_bound_s AND frame_bound_e frame_exclude_opt */
+   324,  /* (396) range_or_rows ::= RANGE|ROWS|GROUPS */
+   331,  /* (397) frame_bound_s ::= frame_bound */
+   331,  /* (398) frame_bound_s ::= UNBOUNDED PRECEDING */
+   332,  /* (399) frame_bound_e ::= frame_bound */
+   332,  /* (400) frame_bound_e ::= UNBOUNDED FOLLOWING */
+   333,  /* (401) frame_bound ::= expr PRECEDING|FOLLOWING */
+   333,  /* (402) frame_bound ::= CURRENT ROW */
+   325,  /* (403) frame_exclude_opt ::= */
+   325,  /* (404) frame_exclude_opt ::= EXCLUDE frame_exclude */
+   326,  /* (405) frame_exclude ::= NO OTHERS */
+   326,  /* (406) frame_exclude ::= CURRENT ROW */
+   326,  /* (407) frame_exclude ::= GROUP|TIES */
+   294,  /* (408) window_clause ::= WINDOW windowdefn_list */
+   209,  /* (409) filter_over ::= filter_clause over_clause */
+   209,  /* (410) filter_over ::= over_clause */
+   209,  /* (411) filter_over ::= filter_clause */
+   335,  /* (412) over_clause ::= OVER LP window RP */
+   335,  /* (413) over_clause ::= OVER nm */
+   334,  /* (414) filter_clause ::= FILTER LP WHERE expr RP */
+   336,  /* (415) perfetto_or_replace ::= */
+   336,  /* (416) perfetto_or_replace ::= OR REPLACE */
+   337,  /* (417) perfetto_arg_type ::= ID */
+   337,  /* (418) perfetto_arg_type ::= ID LP ID DOT ID RP */
+   338,  /* (419) perfetto_arg_def_list ::= */
+   338,  /* (420) perfetto_arg_def_list ::= perfetto_arg_def_list_ne */
+   339,  /* (421) perfetto_arg_def_list_ne ::= ID perfetto_arg_type */
+   339,  /* (422) perfetto_arg_def_list_ne ::= perfetto_arg_def_list_ne COMMA ID perfetto_arg_type */
+   339,  /* (423) perfetto_arg_def_list_ne ::= ID perfetto_arg_type DOT DOT DOT */
+   339,  /* (424) perfetto_arg_def_list_ne ::= perfetto_arg_def_list_ne COMMA ID perfetto_arg_type DOT DOT DOT */
+   340,  /* (425) perfetto_table_schema ::= */
+   340,  /* (426) perfetto_table_schema ::= LP perfetto_arg_def_list_ne RP */
+   341,  /* (427) perfetto_table_impl ::= */
+   341,  /* (428) perfetto_table_impl ::= USING ID */
+   342,  /* (429) perfetto_return_type ::= ID */
+   342,  /* (430) perfetto_return_type ::= TABLE LP perfetto_arg_def_list_ne RP */
+   343,  /* (431) perfetto_indexed_col_list ::= ID */
+   343,  /* (432) perfetto_indexed_col_list ::= perfetto_indexed_col_list COMMA ID */
+   344,  /* (433) perfetto_macro_arg_list ::= */
+   344,  /* (434) perfetto_macro_arg_list ::= perfetto_macro_arg_list_ne */
+   345,  /* (435) perfetto_macro_arg_list_ne ::= ID ID */
+   345,  /* (436) perfetto_macro_arg_list_ne ::= perfetto_macro_arg_list_ne COMMA ID ID */
+   346,  /* (437) perfetto_module_name ::= ID|STAR|INTERSECT */
+   346,  /* (438) perfetto_module_name ::= perfetto_module_name DOT ID|STAR|INTERSECT */
+   347,  /* (439) select_body_start ::= */
+   348,  /* (440) select_body_end ::= */
+   349,  /* (441) perfetto_pipe ::= BITOR GT */
+   350,  /* (442) perfetto_pipe_source ::= nm dbnm as */
+   350,  /* (443) perfetto_pipe_source ::= LP select RP as */
+   351,  /* (444) perfetto_tree_direction ::= UP */
+   351,  /* (445) perfetto_tree_direction ::= DOWN */
+   352,  /* (446) perfetto_tree_aggregate ::= expr AS nm */
+   353,  /* (447) perfetto_tree_aggregate_list ::= perfetto_tree_aggregate */
+   353,  /* (448) perfetto_tree_aggregate_list ::= perfetto_tree_aggregate_list COMMA perfetto_tree_aggregate */
+   354,  /* (449) perfetto_pipe_stage ::= TREE ACCUMULATE perfetto_tree_direction perfetto_tree_aggregate_list */
+   355,  /* (450) perfetto_pipe_stage_list ::= */
+   355,  /* (451) perfetto_pipe_stage_list ::= perfetto_pipe_stage_list perfetto_pipe perfetto_pipe_stage */
+   356,  /* (452) perfetto_pipeline ::= FROM perfetto_pipe_source perfetto_pipe_stage_list */
+   204,  /* (453) cmd ::= perfetto_pipeline */
+   204,  /* (454) cmd ::= PERFETTO PRAGMA nm EQ expr */
+   204,  /* (455) cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end */
+   204,  /* (456) cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS perfetto_pipeline */
+   204,  /* (457) cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end */
+   204,  /* (458) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end */
+   204,  /* (459) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID */
+   204,  /* (460) cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP */
+   357,  /* (461) before_macro_body ::= */
+   358,  /* (462) perfetto_macro_body ::= ANY */
+   358,  /* (463) perfetto_macro_body ::= perfetto_macro_body ANY */
+   204,  /* (464) cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body */
+   204,  /* (465) cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name */
+   204,  /* (466) cmd ::= DROP PERFETTO INDEX nm ON nm */
 };
 
 /* For rule J, yyRuleInfoNRhs[J] contains the negative of the number
@@ -14683,17 +15837,32 @@ static const signed char yyRuleInfoNRhs[] = {
    -3,  /* (438) perfetto_module_name ::= perfetto_module_name DOT ID|STAR|INTERSECT */
     0,  /* (439) select_body_start ::= */
     0,  /* (440) select_body_end ::= */
-  -11,  /* (441) cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end */
-  -10,  /* (442) cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end */
-  -14,  /* (443) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end */
-  -13,  /* (444) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID */
-  -10,  /* (445) cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP */
-    0,  /* (446) before_macro_body ::= */
-   -1,  /* (447) perfetto_macro_body ::= ANY */
-   -2,  /* (448) perfetto_macro_body ::= perfetto_macro_body ANY */
-  -13,  /* (449) cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body */
-   -4,  /* (450) cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name */
-   -6,  /* (451) cmd ::= DROP PERFETTO INDEX nm ON nm */
+   -2,  /* (441) perfetto_pipe ::= BITOR GT */
+   -3,  /* (442) perfetto_pipe_source ::= nm dbnm as */
+   -4,  /* (443) perfetto_pipe_source ::= LP select RP as */
+   -1,  /* (444) perfetto_tree_direction ::= UP */
+   -1,  /* (445) perfetto_tree_direction ::= DOWN */
+   -3,  /* (446) perfetto_tree_aggregate ::= expr AS nm */
+   -1,  /* (447) perfetto_tree_aggregate_list ::= perfetto_tree_aggregate */
+   -3,  /* (448) perfetto_tree_aggregate_list ::= perfetto_tree_aggregate_list COMMA perfetto_tree_aggregate */
+   -4,  /* (449) perfetto_pipe_stage ::= TREE ACCUMULATE perfetto_tree_direction perfetto_tree_aggregate_list */
+    0,  /* (450) perfetto_pipe_stage_list ::= */
+   -3,  /* (451) perfetto_pipe_stage_list ::= perfetto_pipe_stage_list perfetto_pipe perfetto_pipe_stage */
+   -3,  /* (452) perfetto_pipeline ::= FROM perfetto_pipe_source perfetto_pipe_stage_list */
+   -1,  /* (453) cmd ::= perfetto_pipeline */
+   -5,  /* (454) cmd ::= PERFETTO PRAGMA nm EQ expr */
+  -11,  /* (455) cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end */
+   -9,  /* (456) cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS perfetto_pipeline */
+  -10,  /* (457) cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end */
+  -14,  /* (458) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end */
+  -13,  /* (459) cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID */
+  -10,  /* (460) cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP */
+    0,  /* (461) before_macro_body ::= */
+   -1,  /* (462) perfetto_macro_body ::= ANY */
+   -2,  /* (463) perfetto_macro_body ::= perfetto_macro_body ANY */
+  -13,  /* (464) cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body */
+   -4,  /* (465) cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name */
+   -6,  /* (466) cmd ::= DROP PERFETTO INDEX nm ON nm */
 };
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
@@ -14738,12 +15907,12 @@ static YYACTIONTYPE yy_reduce(
         YYMINORTYPE yylhsminor;
       case 0: /* input ::= cmdlist */
 {
-    pCtx->root = yymsp[0].minor.yy639;
+    pCtx->root = yymsp[0].minor.yy573;
 }
         break;
       case 1: /* cmdlist ::= cmdlist ecmd */
 {
-    yymsp[-1].minor.yy639 = synq_pass(pCtx, yymsp[0].minor.yy639);  // Just use the last command for now
+    yymsp[-1].minor.yy573 = synq_pass(pCtx, yymsp[0].minor.yy573);  // Just use the last command for now
 }
         break;
       case 2: /* cmdlist ::= ecmd */
@@ -14759,26 +15928,26 @@ static YYACTIONTYPE yy_reduce(
       case 399: /* frame_bound_e ::= frame_bound */ yytestcase(yyruleno==399);
       case 410: /* filter_over ::= over_clause */ yytestcase(yyruleno==410);
 {
-    yylhsminor.yy639 = yymsp[0].minor.yy639;
+    yylhsminor.yy573 = yymsp[0].minor.yy573;
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 3: /* ecmd ::= SEMI */
 {
-    yymsp[0].minor.yy639 = SYNTAQLITE_NULL_NODE;
+    yymsp[0].minor.yy573 = SYNTAQLITE_NULL_NODE;
     pCtx->stmt_completed = 1;
 }
         break;
       case 4: /* ecmd ::= cmdx SEMI */
       case 261: /* sclp ::= selcollist COMMA */ yytestcase(yyruleno==261);
 {
-    yylhsminor.yy639 = synq_pass(pCtx, yymsp[-1].minor.yy639);
+    yylhsminor.yy573 = synq_pass(pCtx, yymsp[-1].minor.yy573);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 5: /* ecmd ::= error SEMI */
 {
-    yymsp[-1].minor.yy639 = SYNTAQLITE_NULL_NODE;
+    yymsp[-1].minor.yy573 = SYNTAQLITE_NULL_NODE;
     pCtx->root = SYNTAQLITE_NULL_NODE;
     pCtx->stmt_completed = 1;
 }
@@ -14786,8 +15955,8 @@ static YYACTIONTYPE yy_reduce(
       case 6: /* cmdx ::= cmd */
 {
     if (pCtx->pending_explain_mode) {
-        yylhsminor.yy639 = synq_parse_explain_stmt(
-            pCtx, (SyntaqliteExplainMode)(pCtx->pending_explain_mode - 1), yymsp[0].minor.yy639);
+        yylhsminor.yy573 = synq_parse_explain_stmt(
+            pCtx, (SyntaqliteExplainMode)(pCtx->pending_explain_mode - 1), yymsp[0].minor.yy573);
         pCtx->pending_explain_mode = 0;
         // Widen the wrapper node's extents to cover the EXPLAIN /
         // EXPLAIN QUERY PLAN keyword, otherwise node_text(),
@@ -14803,73 +15972,73 @@ static YYACTIONTYPE yy_reduce(
         // stack top; the `explain` entry sits directly below it — fold it in
         // and re-record the widened extents on the wrapper node.
         synq_extent_fold_below_into_top(pCtx);
-        synq_extent_record(pCtx, yylhsminor.yy639);
+        synq_extent_record(pCtx, yylhsminor.yy573);
     } else {
-        yylhsminor.yy639 = yymsp[0].minor.yy639;
+        yylhsminor.yy573 = yymsp[0].minor.yy573;
     }
-    pCtx->root = yylhsminor.yy639;
+    pCtx->root = yylhsminor.yy573;
     synq_parse_list_flush(pCtx);
     pCtx->stmt_completed = 1;
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 7: /* expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist ORDER BY sortlist RP */
 {
     synq_mark_as_function(pCtx, yymsp[-7].minor.yy0);
-    yylhsminor.yy639 = synq_parse_aggregate_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_aggregate_function_call(pCtx,
         synq_span(pCtx, yymsp[-7].minor.yy0),
-        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-5].minor.yy639 & 0xFF)},
-        yymsp[-4].minor.yy639,
-        yymsp[-1].minor.yy639,
+        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-5].minor.yy573 & 0xFF)},
+        yymsp[-4].minor.yy573,
+        yymsp[-1].minor.yy573,
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE);
 }
-  yymsp[-7].minor.yy639 = yylhsminor.yy639;
+  yymsp[-7].minor.yy573 = yylhsminor.yy573;
         break;
       case 8: /* expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist ORDER BY sortlist RP filter_over */
 {
-    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy639);
+    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy573);
     synq_mark_as_function(pCtx, yymsp[-8].minor.yy0);
-    yylhsminor.yy639 = synq_parse_aggregate_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_aggregate_function_call(pCtx,
         synq_span(pCtx, yymsp[-8].minor.yy0),
-        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-6].minor.yy639 & 0xFF)},
-        yymsp[-5].minor.yy639,
-        yymsp[-2].minor.yy639,
+        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-6].minor.yy573 & 0xFF)},
+        yymsp[-5].minor.yy573,
+        yymsp[-2].minor.yy573,
         fo->filter_expr,
         fo->over_def);
 }
-  yymsp[-8].minor.yy639 = yylhsminor.yy639;
+  yymsp[-8].minor.yy573 = yylhsminor.yy573;
         break;
       case 9: /* expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP WITHIN GROUP LP ORDER BY expr RP */
 {
     synq_mark_as_function(pCtx, yymsp[-11].minor.yy0);
-    yylhsminor.yy639 = synq_parse_ordered_set_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_ordered_set_function_call(pCtx,
         synq_span(pCtx, yymsp[-11].minor.yy0),
-        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-9].minor.yy639 & 0xFF)},
-        yymsp[-8].minor.yy639,
-        yymsp[-1].minor.yy639,
+        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-9].minor.yy573 & 0xFF)},
+        yymsp[-8].minor.yy573,
+        yymsp[-1].minor.yy573,
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE);
 }
-  yymsp[-11].minor.yy639 = yylhsminor.yy639;
+  yymsp[-11].minor.yy573 = yylhsminor.yy573;
         break;
       case 10: /* expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP WITHIN GROUP LP ORDER BY expr RP filter_over */
 {
-    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy639);
+    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy573);
     synq_mark_as_function(pCtx, yymsp[-12].minor.yy0);
-    yylhsminor.yy639 = synq_parse_ordered_set_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_ordered_set_function_call(pCtx,
         synq_span(pCtx, yymsp[-12].minor.yy0),
-        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-10].minor.yy639 & 0xFF)},
-        yymsp[-9].minor.yy639,
-        yymsp[-2].minor.yy639,
+        (SyntaqliteAggregateFunctionCallFlags){.raw = (uint8_t)(yymsp[-10].minor.yy573 & 0xFF)},
+        yymsp[-9].minor.yy573,
+        yymsp[-2].minor.yy573,
         fo->filter_expr,
         fo->over_def);
 }
-  yymsp[-12].minor.yy639 = yylhsminor.yy639;
+  yymsp[-12].minor.yy573 = yylhsminor.yy573;
         break;
       case 11: /* expr ::= CAST LP expr AS typetoken RP */
 {
-    yymsp[-5].minor.yy639 = synq_parse_cast_expr(pCtx, yymsp[-3].minor.yy639, synq_span(pCtx, yymsp[-1].minor.yy0));
+    yymsp[-5].minor.yy573 = synq_parse_cast_expr(pCtx, yymsp[-3].minor.yy573, synq_span(pCtx, yymsp[-1].minor.yy0));
 }
         break;
       case 12: /* typetoken ::= */
@@ -14909,38 +16078,39 @@ static YYACTIONTYPE yy_reduce(
       case 18: /* selcollist ::= sclp scanpt nm DOT STAR */
 {
     uint32_t expr = synq_parse_ident_name(pCtx, synq_span(pCtx, yymsp[-2].minor.yy0));
-    uint32_t col = synq_parse_result_column(pCtx, (SyntaqliteResultColumnFlags){.raw = 0x01}, SYNTAQLITE_NULL_NODE, expr);
-    yylhsminor.yy639 = synq_parse_result_column_list(pCtx, yymsp[-4].minor.yy639, col);
+    uint32_t col = synq_parse_result_column(pCtx, (SyntaqliteResultColumnFlags){.raw = 0x01},
+                                           SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE, expr);
+    yylhsminor.yy573 = synq_parse_result_column_list(pCtx, yymsp[-4].minor.yy573, col);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 19: /* expr ::= ID|INDEXED|JOIN_KW */
 {
     synq_mark_as_id(pCtx, yymsp[0].minor.yy0);
-    yylhsminor.yy639 = synq_parse_column_ref(pCtx,
+    yylhsminor.yy573 = synq_parse_column_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[0].minor.yy0),
         SYNQ_NO_SPAN,
         SYNQ_NO_SPAN);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 20: /* expr ::= nm DOT nm */
 {
-    yylhsminor.yy639 = synq_parse_column_ref(pCtx,
+    yylhsminor.yy573 = synq_parse_column_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[0].minor.yy0),
         synq_span_dequote(pCtx, yymsp[-2].minor.yy0),
         SYNQ_NO_SPAN);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 21: /* expr ::= nm DOT nm DOT nm */
 {
-    yylhsminor.yy639 = synq_parse_column_ref(pCtx,
+    yylhsminor.yy573 = synq_parse_column_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[0].minor.yy0),
         synq_span_dequote(pCtx, yymsp[-2].minor.yy0),
         synq_span_dequote(pCtx, yymsp[-4].minor.yy0));
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 22: /* selectnowith ::= selectnowith multiselect_op oneselect */
 {
@@ -14949,50 +16119,50 @@ static YYACTIONTYPE yy_reduce(
     // An ORDER BY on a non-last arm stays put (SQLite rejects it later).
     uint32_t orderby = SYNTAQLITE_NULL_NODE;
     uint32_t limit = SYNTAQLITE_NULL_NODE;
-    SyntaqliteNode *arm = AST_NODE(&pCtx->ast, yymsp[0].minor.yy639);
+    SyntaqliteNode *arm = AST_NODE(&pCtx->ast, yymsp[0].minor.yy573);
     if (arm->tag == SYNTAQLITE_NODE_SELECT_STMT) {
         orderby = arm->select_stmt.orderby;
         limit = arm->select_stmt.limit_clause;
         arm->select_stmt.orderby = SYNTAQLITE_NULL_NODE;
         arm->select_stmt.limit_clause = SYNTAQLITE_NULL_NODE;
     }
-    yymsp[-2].minor.yy639 = synq_parse_compound_select(pCtx, (SyntaqliteCompoundOp)yymsp[-1].minor.yy390, yymsp[-2].minor.yy639, yymsp[0].minor.yy639, orderby, limit);
+    yymsp[-2].minor.yy573 = synq_parse_compound_select(pCtx, (SyntaqliteCompoundOp)yymsp[-1].minor.yy50, yymsp[-2].minor.yy573, yymsp[0].minor.yy573, orderby, limit);
 }
         break;
       case 23: /* multiselect_op ::= UNION */
-{ yylhsminor.yy390 = 0; (void)yymsp[0].minor.yy0; }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+{ yylhsminor.yy50 = 0; (void)yymsp[0].minor.yy0; }
+  yymsp[0].minor.yy50 = yylhsminor.yy50;
         break;
       case 24: /* multiselect_op ::= UNION ALL */
       case 29: /* in_op ::= NOT IN */ yytestcase(yyruleno==29);
       case 416: /* perfetto_or_replace ::= OR REPLACE */ yytestcase(yyruleno==416);
-{ yymsp[-1].minor.yy390 = 1; }
+{ yymsp[-1].minor.yy50 = 1; }
         break;
       case 25: /* multiselect_op ::= EXCEPT|INTERSECT */
 {
-    yylhsminor.yy390 = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_INTERSECT) ? 2 : 3;
+    yylhsminor.yy50 = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_INTERSECT) ? 2 : 3;
 }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+  yymsp[0].minor.yy50 = yylhsminor.yy50;
         break;
       case 26: /* expr ::= LP select RP */
 {
     pCtx->saw_subquery = 1;
-    yymsp[-2].minor.yy639 = synq_parse_subquery_expr(pCtx, yymsp[-1].minor.yy639);
+    yymsp[-2].minor.yy573 = synq_parse_subquery_expr(pCtx, yymsp[-1].minor.yy573);
 }
         break;
       case 27: /* expr ::= EXISTS LP select RP */
 {
     pCtx->saw_subquery = 1;
-    yymsp[-3].minor.yy639 = synq_parse_exists_expr(pCtx, yymsp[-1].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_exists_expr(pCtx, yymsp[-1].minor.yy573);
 }
         break;
       case 28: /* in_op ::= IN */
-{ yymsp[0].minor.yy390 = 0; }
+{ yymsp[0].minor.yy50 = 0; }
         break;
       case 30: /* expr ::= expr in_op LP exprlist RP */
 {
-    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390,
-                           SYNTAQLITE_BOOL_FALSE, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
+    yymsp[-4].minor.yy573 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy50,
+                           SYNTAQLITE_BOOL_FALSE, yymsp[-4].minor.yy573, yymsp[-1].minor.yy573);
 }
         break;
       case 31: /* expr ::= expr in_op LP select RP */
@@ -15000,8 +16170,8 @@ static YYACTIONTYPE yy_reduce(
     pCtx->saw_subquery = 1;
     // Pass the raw select node directly — InExpr's fmt block already adds
     // the surrounding parens, so wrapping in SubqueryExpr would double them.
-    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390,
-                           SYNTAQLITE_BOOL_FALSE, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
+    yymsp[-4].minor.yy573 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy50,
+                           SYNTAQLITE_BOOL_FALSE, yymsp[-4].minor.yy573, yymsp[-1].minor.yy573);
 }
         break;
       case 32: /* expr ::= expr in_op nm dbnm paren_exprlist */
@@ -15016,10 +16186,12 @@ static YYACTIONTYPE yy_reduce(
         schema = SYNQ_NO_SPAN;
     }
     uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
-                                         yymsp[0].minor.yy126.has_parens,
-                                         SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy126.args);
-    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390,
-                           SYNTAQLITE_BOOL_TRUE, yymsp[-4].minor.yy639, tref);
+                                         yymsp[0].minor.yy312.has_parens,
+                                         SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
+                                         yymsp[0].minor.yy312.args,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
+    yymsp[-4].minor.yy573 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy50,
+                           SYNTAQLITE_BOOL_TRUE, yymsp[-4].minor.yy573, tref);
 }
         break;
       case 33: /* dbnm ::= */
@@ -15030,71 +16202,71 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 35: /* paren_exprlist ::= */
 {
-    yymsp[1].minor.yy126.args = SYNTAQLITE_NULL_NODE;
-    yymsp[1].minor.yy126.has_parens = SYNTAQLITE_BOOL_FALSE;
+    yymsp[1].minor.yy312.args = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy312.has_parens = SYNTAQLITE_BOOL_FALSE;
 }
         break;
       case 36: /* paren_exprlist ::= LP exprlist RP */
 {
-    yymsp[-2].minor.yy126.args = synq_pass(pCtx, yymsp[-1].minor.yy639);
-    yymsp[-2].minor.yy126.has_parens = SYNTAQLITE_BOOL_TRUE;
+    yymsp[-2].minor.yy312.args = synq_pass(pCtx, yymsp[-1].minor.yy573);
+    yymsp[-2].minor.yy312.has_parens = SYNTAQLITE_BOOL_TRUE;
 }
         break;
       case 37: /* expr ::= expr ISNULL|NOTNULL */
 {
     SyntaqliteIsOp op = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_ISNULL) ? SYNTAQLITE_IS_OP_IS_NULL : SYNTAQLITE_IS_OP_NOT_NULL;
-    yylhsminor.yy639 = synq_parse_is_expr(pCtx, op, yymsp[-1].minor.yy639, SYNTAQLITE_NULL_NODE);
+    yylhsminor.yy573 = synq_parse_is_expr(pCtx, op, yymsp[-1].minor.yy573, SYNTAQLITE_NULL_NODE);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 38: /* expr ::= expr NOT NULL */
 {
-    yylhsminor.yy639 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_NOT_NULL, yymsp[-2].minor.yy639, SYNTAQLITE_NULL_NODE);
+    // `NOT NULL` and `NOTNULL` mean the same thing but are different text.
+    yylhsminor.yy573 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_NOT_NULL_SPACED, yymsp[-2].minor.yy573,
+                           SYNTAQLITE_NULL_NODE);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 39: /* expr ::= expr IS expr */
 {
-    yylhsminor.yy639 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 40: /* expr ::= expr IS NOT expr */
 {
-    yylhsminor.yy639 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS_NOT, yymsp[-3].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS_NOT, yymsp[-3].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-3].minor.yy639 = yylhsminor.yy639;
+  yymsp[-3].minor.yy573 = yylhsminor.yy573;
         break;
       case 41: /* expr ::= expr IS NOT DISTINCT FROM expr */
 {
-    yylhsminor.yy639 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS_NOT_DISTINCT, yymsp[-5].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS_NOT_DISTINCT, yymsp[-5].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-5].minor.yy639 = yylhsminor.yy639;
+  yymsp[-5].minor.yy573 = yylhsminor.yy573;
         break;
       case 42: /* expr ::= expr IS DISTINCT FROM expr */
 {
-    yylhsminor.yy639 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS_DISTINCT, yymsp[-4].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_is_expr(pCtx, SYNTAQLITE_IS_OP_IS_DISTINCT, yymsp[-4].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 43: /* between_op ::= BETWEEN */
-      case 212: /* sortorder ::= ASC */ yytestcase(yyruleno==212);
-      case 268: /* distinct ::= ALL */ yytestcase(yyruleno==268);
 {
-    yymsp[0].minor.yy639 = 0;
+    yymsp[0].minor.yy573 = 0;
 }
         break;
       case 44: /* between_op ::= NOT BETWEEN */
       case 215: /* nulls ::= NULLS FIRST */ yytestcase(yyruleno==215);
 {
-    yymsp[-1].minor.yy639 = 1;
+    yymsp[-1].minor.yy573 = 1;
 }
         break;
       case 45: /* expr ::= expr between_op expr AND expr */
 {
-    yylhsminor.yy639 = synq_parse_between_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy639, yymsp[-4].minor.yy639, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_between_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy573, yymsp[-4].minor.yy573, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 46: /* likeop ::= LIKE_KW|MATCH */
 {
@@ -15116,9 +16288,9 @@ static YYACTIONTYPE yy_reduce(
         : (len == 5) ? SYNTAQLITE_LIKE_KEYWORD_MATCH
         : (yymsp[-1].minor.yy0.z[0] == 'g' || yymsp[-1].minor.yy0.z[0] == 'G') ? SYNTAQLITE_LIKE_KEYWORD_GLOB
         : SYNTAQLITE_LIKE_KEYWORD_LIKE;
-    yylhsminor.yy639 = synq_parse_like_expr(pCtx, negated, kw, yymsp[-2].minor.yy639, yymsp[0].minor.yy639, SYNTAQLITE_NULL_NODE);
+    yylhsminor.yy573 = synq_parse_like_expr(pCtx, negated, kw, yymsp[-2].minor.yy573, yymsp[0].minor.yy573, SYNTAQLITE_NULL_NODE);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 49: /* expr ::= expr likeop expr ESCAPE expr */
 {
@@ -15128,31 +16300,30 @@ static YYACTIONTYPE yy_reduce(
         : (len == 5) ? SYNTAQLITE_LIKE_KEYWORD_MATCH
         : (yymsp[-3].minor.yy0.z[0] == 'g' || yymsp[-3].minor.yy0.z[0] == 'G') ? SYNTAQLITE_LIKE_KEYWORD_GLOB
         : SYNTAQLITE_LIKE_KEYWORD_LIKE;
-    yylhsminor.yy639 = synq_parse_like_expr(pCtx, negated, kw, yymsp[-4].minor.yy639, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_like_expr(pCtx, negated, kw, yymsp[-4].minor.yy573, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 50: /* expr ::= CASE case_operand case_exprlist case_else END */
 {
-    yymsp[-4].minor.yy639 = synq_parse_case_expr(pCtx, yymsp[-3].minor.yy639, yymsp[-1].minor.yy639, yymsp[-2].minor.yy639);
+    yymsp[-4].minor.yy573 = synq_parse_case_expr(pCtx, yymsp[-3].minor.yy573, yymsp[-1].minor.yy573, yymsp[-2].minor.yy573);
 }
         break;
       case 51: /* case_exprlist ::= case_exprlist WHEN expr THEN expr */
 {
-    uint32_t w = synq_parse_case_when(pCtx, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
-    yylhsminor.yy639 = synq_parse_case_when_list(pCtx, yymsp[-4].minor.yy639, w);
+    uint32_t w = synq_parse_case_when(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_case_when_list(pCtx, yymsp[-4].minor.yy573, w);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 52: /* case_exprlist ::= WHEN expr THEN expr */
 {
-    uint32_t w = synq_parse_case_when(pCtx, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
-    yymsp[-3].minor.yy639 = synq_parse_case_when_list(pCtx, SYNTAQLITE_NULL_NODE, w);
+    uint32_t w = synq_parse_case_when(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
+    yymsp[-3].minor.yy573 = synq_parse_case_when_list(pCtx, SYNTAQLITE_NULL_NODE, w);
 }
         break;
       case 53: /* case_else ::= ELSE expr */
       case 173: /* returning ::= RETURNING selcollist */ yytestcase(yyruleno==173);
-      case 264: /* as ::= AS nmorerr */ yytestcase(yyruleno==264);
       case 271: /* from ::= FROM seltablist */ yytestcase(yyruleno==271);
       case 273: /* where_opt ::= WHERE expr */ yytestcase(yyruleno==273);
       case 277: /* having_opt ::= HAVING expr */ yytestcase(yyruleno==277);
@@ -15161,18 +16332,19 @@ static YYACTIONTYPE yy_reduce(
       case 352: /* vinto ::= INTO expr */ yytestcase(yyruleno==352);
       case 408: /* window_clause ::= WINDOW windowdefn_list */ yytestcase(yyruleno==408);
 {
-    yymsp[-1].minor.yy639 = synq_pass(pCtx, yymsp[0].minor.yy639);
+    yymsp[-1].minor.yy573 = synq_pass(pCtx, yymsp[0].minor.yy573);
 }
         break;
       case 54: /* case_else ::= */
       case 56: /* case_operand ::= */ yytestcase(yyruleno==56);
+      case 69: /* carglist ::= */ yytestcase(yyruleno==69);
+      case 90: /* refargs ::= */ yytestcase(yyruleno==90);
       case 106: /* conslist_opt ::= */ yytestcase(yyruleno==106);
       case 131: /* eidlist_opt ::= */ yytestcase(yyruleno==131);
       case 165: /* idlist_opt ::= */ yytestcase(yyruleno==165);
       case 174: /* returning ::= */ yytestcase(yyruleno==174);
       case 191: /* exprlist ::= */ yytestcase(yyruleno==191);
       case 262: /* sclp ::= */ yytestcase(yyruleno==262);
-      case 266: /* as ::= */ yytestcase(yyruleno==266);
       case 270: /* from ::= */ yytestcase(yyruleno==270);
       case 272: /* where_opt ::= */ yytestcase(yyruleno==272);
       case 274: /* groupby_opt ::= */ yytestcase(yyruleno==274);
@@ -15185,62 +16357,60 @@ static YYACTIONTYPE yy_reduce(
       case 353: /* vinto ::= */ yytestcase(yyruleno==353);
       case 393: /* frame_opt ::= */ yytestcase(yyruleno==393);
 {
-    yymsp[1].minor.yy639 = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy573 = SYNTAQLITE_NULL_NODE;
 }
         break;
       case 57: /* cmd ::= create_table create_table_args */
 {
-    // yymsp[0].minor.yy639 is either: (1) a CreateTableStmt node with columns/constraints filled in
+    // yymsp[0].minor.yy573 is either: (1) a CreateTableStmt node with columns/constraints filled in
     // or: (2) a CreateTableStmt node with as_select filled in
-    // yymsp[-1].minor.yy639 has the table name/schema/temp/ifnotexists info packed as a node.
-    // We need to merge yymsp[-1].minor.yy639 info into yymsp[0].minor.yy639.
-    SyntaqliteNode *ct_node = AST_NODE(&pCtx->ast, yymsp[-1].minor.yy639);
-    SyntaqliteNode *args_node = AST_NODE(&pCtx->ast, yymsp[0].minor.yy639);
+    // yymsp[-1].minor.yy573 has the table name/schema/temp/ifnotexists info packed as a node.
+    // We need to merge yymsp[-1].minor.yy573 info into yymsp[0].minor.yy573.
+    SyntaqliteNode *ct_node = AST_NODE(&pCtx->ast, yymsp[-1].minor.yy573);
+    SyntaqliteNode *args_node = AST_NODE(&pCtx->ast, yymsp[0].minor.yy573);
     args_node->create_table_stmt.table_name = ct_node->create_table_stmt.table_name;
     args_node->create_table_stmt.schema = ct_node->create_table_stmt.schema;
-    args_node->create_table_stmt.is_temp = ct_node->create_table_stmt.is_temp;
+    args_node->create_table_stmt.temporary = ct_node->create_table_stmt.temporary;
     args_node->create_table_stmt.if_not_exists = ct_node->create_table_stmt.if_not_exists;
-    yylhsminor.yy639 = synq_pass(pCtx, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_pass(pCtx, yymsp[0].minor.yy573);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 58: /* create_table ::= createkw temp TABLE ifnotexists nm dbnm */
 {
     SyntaqliteTextSpan tbl_name = yymsp[0].minor.yy0.z ? synq_span_dequote(pCtx, yymsp[0].minor.yy0) : synq_span_dequote(pCtx, yymsp[-1].minor.yy0);
     SyntaqliteTextSpan tbl_schema = yymsp[0].minor.yy0.z ? synq_span_dequote(pCtx, yymsp[-1].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-5].minor.yy639 = synq_parse_create_table_stmt(pCtx,
-        tbl_name, tbl_schema, (SyntaqliteBool)yymsp[-4].minor.yy390, (SyntaqliteBool)yymsp[-2].minor.yy390,
+    yymsp[-5].minor.yy573 = synq_parse_create_table_stmt(pCtx,
+        tbl_name, tbl_schema, yymsp[-4].minor.yy560, (SyntaqliteBool)yymsp[-2].minor.yy50,
         (SyntaqliteCreateTableStmtFlags){.raw = 0}, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 59: /* create_table_args ::= LP columnlist conslist_opt RP table_option_set */
 {
-    yymsp[-4].minor.yy639 = synq_parse_create_table_stmt(pCtx,
-        SYNQ_NO_SPAN, SYNQ_NO_SPAN, SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
-        (SyntaqliteCreateTableStmtFlags){.raw = (uint8_t)(yymsp[0].minor.yy390 & 0xFF)}, yymsp[-3].minor.yy639, yymsp[-2].minor.yy639, SYNTAQLITE_NULL_NODE);
+    yymsp[-4].minor.yy573 = synq_parse_create_table_stmt(pCtx,
+        SYNQ_NO_SPAN, SYNQ_NO_SPAN, SYNTAQLITE_TEMPORARY_QUALIFIER_NONE, SYNTAQLITE_BOOL_FALSE,
+        (SyntaqliteCreateTableStmtFlags){.raw = (uint8_t)(yymsp[0].minor.yy50 & 0xFF)}, yymsp[-3].minor.yy573, yymsp[-2].minor.yy573, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 60: /* create_table_args ::= AS select */
 {
-    yymsp[-1].minor.yy639 = synq_parse_create_table_stmt(pCtx,
-        SYNQ_NO_SPAN, SYNQ_NO_SPAN, SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
-        (SyntaqliteCreateTableStmtFlags){.raw = 0}, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy639);
+    yymsp[-1].minor.yy573 = synq_parse_create_table_stmt(pCtx,
+        SYNQ_NO_SPAN, SYNQ_NO_SPAN, SYNTAQLITE_TEMPORARY_QUALIFIER_NONE, SYNTAQLITE_BOOL_FALSE,
+        (SyntaqliteCreateTableStmtFlags){.raw = 0}, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
 }
         break;
       case 61: /* table_option_set ::= */
       case 88: /* autoinc ::= */ yytestcase(yyruleno==88);
-      case 103: /* init_deferred_pred_opt ::= */ yytestcase(yyruleno==103);
-      case 117: /* defer_subclause_opt ::= */ yytestcase(yyruleno==117);
       case 135: /* collate ::= */ yytestcase(yyruleno==135);
       case 226: /* ifexists ::= */ yytestcase(yyruleno==226);
       case 236: /* kwcolumn_opt ::= */ yytestcase(yyruleno==236);
-      case 246: /* trans_opt ::= */ yytestcase(yyruleno==246);
       case 250: /* savepoint_opt ::= */ yytestcase(yyruleno==250);
+      case 310: /* foreach_clause ::= */ yytestcase(yyruleno==310);
+      case 347: /* database_kw_opt ::= */ yytestcase(yyruleno==347);
       case 359: /* uniqueflag ::= */ yytestcase(yyruleno==359);
       case 360: /* ifnotexists ::= */ yytestcase(yyruleno==360);
-      case 365: /* temp ::= */ yytestcase(yyruleno==365);
 {
-    yymsp[1].minor.yy390 = 0;
+    yymsp[1].minor.yy50 = 0;
 }
         break;
       case 62: /* table_option_set ::= table_option */
@@ -15251,17 +16421,18 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 63: /* table_option_set ::= table_option_set COMMA table_option */
 {
-    yylhsminor.yy390 = yymsp[-2].minor.yy390 | yymsp[0].minor.yy390;
+    yylhsminor.yy50 = yymsp[-2].minor.yy50 | yymsp[0].minor.yy50;
 }
-  yymsp[-2].minor.yy390 = yylhsminor.yy390;
+  yymsp[-2].minor.yy50 = yylhsminor.yy50;
         break;
       case 64: /* table_option ::= WITHOUT nm */
 {
     // WITHOUT ROWID = bit 0
     if (yymsp[0].minor.yy0.n == 5 && SYNQ_STRNCASECMP(yymsp[0].minor.yy0.z, "rowid", 5) == 0) {
-        yymsp[-1].minor.yy390 = 1;
+        yymsp[-1].minor.yy50 = 1;
     } else {
-        yymsp[-1].minor.yy390 = 0;
+        yymsp[-1].minor.yy50 = 0;
+        pCtx->error = 1;
     }
 }
         break;
@@ -15269,258 +16440,236 @@ static YYACTIONTYPE yy_reduce(
 {
     // STRICT = bit 1
     if (yymsp[0].minor.yy0.n == 6 && SYNQ_STRNCASECMP(yymsp[0].minor.yy0.z, "strict", 6) == 0) {
-        yylhsminor.yy390 = 2;
+        yylhsminor.yy50 = 2;
     } else {
-        yylhsminor.yy390 = 0;
+        yylhsminor.yy50 = 0;
+        pCtx->error = 1;
     }
 }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+  yymsp[0].minor.yy50 = yylhsminor.yy50;
         break;
       case 66: /* columnlist ::= columnlist COMMA columnname carglist */
 {
-    uint32_t col = synq_parse_column_def(pCtx, yymsp[-1].minor.yy358.name, yymsp[-1].minor.yy358.typetoken, yymsp[0].minor.yy688.list);
-    yylhsminor.yy639 = synq_parse_column_def_list(pCtx, yymsp[-3].minor.yy639, col);
+    uint32_t col = synq_parse_column_def(pCtx, yymsp[-1].minor.yy626.name, yymsp[-1].minor.yy626.typetoken, yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_column_def_list(pCtx, yymsp[-3].minor.yy573, col);
 }
-  yymsp[-3].minor.yy639 = yylhsminor.yy639;
+  yymsp[-3].minor.yy573 = yylhsminor.yy573;
         break;
       case 67: /* columnlist ::= columnname carglist */
 {
-    uint32_t col = synq_parse_column_def(pCtx, yymsp[-1].minor.yy358.name, yymsp[-1].minor.yy358.typetoken, yymsp[0].minor.yy688.list);
-    yylhsminor.yy639 = synq_parse_column_def_list(pCtx, SYNTAQLITE_NULL_NODE, col);
+    uint32_t col = synq_parse_column_def(pCtx, yymsp[-1].minor.yy626.name, yymsp[-1].minor.yy626.typetoken, yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_column_def_list(pCtx, SYNTAQLITE_NULL_NODE, col);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 68: /* carglist ::= carglist ccons */
 {
-    if (yymsp[0].minor.yy344.node != SYNTAQLITE_NULL_NODE) {
-        // Apply pending constraint name from the list to this node
-        SyntaqliteNode *node = AST_NODE(&pCtx->ast, yymsp[0].minor.yy344.node);
-        node->column_constraint.constraint_name = yymsp[-1].minor.yy688.pending_name;
-        if (yymsp[-1].minor.yy688.list == SYNTAQLITE_NULL_NODE) {
-            yylhsminor.yy688.list = synq_parse_column_constraint_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy344.node);
-        } else {
-            yylhsminor.yy688.list = synq_parse_column_constraint_list(pCtx, yymsp[-1].minor.yy688.list, yymsp[0].minor.yy344.node);
-        }
-        yylhsminor.yy688.pending_name = SYNQ_NO_SPAN;
-    } else if (yymsp[0].minor.yy344.pending_name.length > 0) {
-        // CONSTRAINT nm — store pending name for next constraint
-        yylhsminor.yy688.list = yymsp[-1].minor.yy688.list;
-        yylhsminor.yy688.pending_name = yymsp[0].minor.yy344.pending_name;
-    } else {
-        yylhsminor.yy688 = yymsp[-1].minor.yy688;
-    }
+    yylhsminor.yy573 = synq_parse_column_constraint_list(pCtx, yymsp[-1].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-1].minor.yy688 = yylhsminor.yy688;
-        break;
-      case 69: /* carglist ::= */
-{
-    yymsp[1].minor.yy688.list = SYNTAQLITE_NULL_NODE;
-    yymsp[1].minor.yy688.pending_name = SYNQ_NO_SPAN;
-}
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 70: /* ccons ::= CONSTRAINT nm */
-      case 112: /* tcons ::= CONSTRAINT nm */ yytestcase(yyruleno==112);
 {
-    yymsp[-1].minor.yy344.node = SYNTAQLITE_NULL_NODE;
-    yymsp[-1].minor.yy344.pending_name = synq_span(pCtx, yymsp[0].minor.yy0);
+    SyntaqliteTextSpan name = synq_span(pCtx, yymsp[0].minor.yy0);
+    yymsp[-1].minor.yy573 = synq_parse_constraint_name_declaration(pCtx, name);
 }
         break;
       case 71: /* ccons ::= DEFAULT scantok term */
 {
-    yymsp[-2].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-2].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_DEFAULT,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
-        yymsp[0].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-2].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
+        yymsp[0].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 72: /* ccons ::= DEFAULT LP expr RP */
 {
-    yymsp[-3].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-3].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_DEFAULT,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
-        yymsp[-1].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-3].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_TRUE, SYNTAQLITE_BOOL_FALSE,
+        yymsp[-1].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 73: /* ccons ::= DEFAULT PLUS scantok term */
 {
-    yymsp[-3].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    uint32_t pos = synq_parse_unary_expr(pCtx, SYNTAQLITE_UNARY_OP_PLUS, yymsp[0].minor.yy573);
+    yymsp[-3].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_DEFAULT,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
-        yymsp[0].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-3].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
+        pos, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 74: /* ccons ::= DEFAULT MINUS scantok term */
 {
     // Create a unary minus wrapping the term
-    uint32_t neg = synq_parse_unary_expr(pCtx, SYNTAQLITE_UNARY_OP_MINUS, yymsp[0].minor.yy639);
-    yymsp[-3].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    uint32_t neg = synq_parse_unary_expr(pCtx, SYNTAQLITE_UNARY_OP_MINUS, yymsp[0].minor.yy573);
+    yymsp[-3].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_DEFAULT,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         neg, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-3].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 75: /* ccons ::= DEFAULT scantok ID|INDEXED */
 {
-    uint32_t ref = synq_parse_column_ref(pCtx,
-        synq_span(pCtx, yymsp[0].minor.yy0), SYNQ_NO_SPAN, SYNQ_NO_SPAN);
-    yymsp[-2].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    // `DEFAULT foo` is a string literal upstream (tokenExpr TK_STRING), not
+    // a column reference: as an expression it would not be constant.
+    uint32_t ref = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_STRING,
+                                      synq_span(pCtx, yymsp[0].minor.yy0));
+    yymsp[-2].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_DEFAULT,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         ref, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-2].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 76: /* ccons ::= NULL onconf */
 {
-    yymsp[-1].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_NULL,
+        (SyntaqliteConflictAction)yymsp[0].minor.yy50, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        (SyntaqliteConflictAction)yymsp[0].minor.yy390, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-1].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 77: /* ccons ::= NOT NULL onconf */
 {
-    yymsp[-2].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-2].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_NOT_NULL,
+        (SyntaqliteConflictAction)yymsp[0].minor.yy50, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        (SyntaqliteConflictAction)yymsp[0].minor.yy390, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-2].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 78: /* ccons ::= PRIMARY KEY sortorder onconf autoinc */
 {
-    yymsp[-4].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-4].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_PRIMARY_KEY,
+        (SyntaqliteConflictAction)yymsp[-1].minor.yy50, (SyntaqliteSortOrder)yymsp[-2].minor.yy573, (SyntaqliteBool)yymsp[0].minor.yy50,
         SYNQ_NO_SPAN,
-        (SyntaqliteConflictAction)yymsp[-1].minor.yy390, (SyntaqliteSortOrder)yymsp[-2].minor.yy639, (SyntaqliteBool)yymsp[0].minor.yy390,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-4].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 79: /* ccons ::= UNIQUE onconf */
 {
-    yymsp[-1].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_UNIQUE,
+        (SyntaqliteConflictAction)yymsp[0].minor.yy50, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        (SyntaqliteConflictAction)yymsp[0].minor.yy390, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-1].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 80: /* ccons ::= CHECK LP expr RP */
 {
-    yymsp[-3].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-3].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_CHECK,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
-        SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-3].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 81: /* ccons ::= REFERENCES nm eidlist_opt refargs */
 {
-    // Decode refargs: low byte = on_delete, next byte = on_update
-    SyntaqliteForeignKeyAction on_del = (SyntaqliteForeignKeyAction)(yymsp[0].minor.yy390 & 0xff);
-    SyntaqliteForeignKeyAction on_upd = (SyntaqliteForeignKeyAction)((yymsp[0].minor.yy390 >> 8) & 0xff);
     uint32_t fk = synq_parse_foreign_key_clause(pCtx,
-        synq_span(pCtx, yymsp[-2].minor.yy0), yymsp[-1].minor.yy639, on_del, on_upd, SYNTAQLITE_BOOL_FALSE);
-    yymsp[-3].minor.yy344.node = synq_parse_column_constraint(pCtx,
+        synq_span(pCtx, yymsp[-2].minor.yy0), yymsp[-1].minor.yy573, yymsp[0].minor.yy573,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET);
+    yymsp[-3].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_REFERENCES,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, fk);
-    yymsp[-3].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 82: /* ccons ::= defer_subclause */
 {
-    // Create a minimal constraint that just marks deferral.
-    // In practice, this follows a REFERENCES ccons. We'll handle it
-    // by updating the last constraint in the list if possible.
-    // For simplicity, we create a separate REFERENCES constraint with just deferral info.
-    // The printer will show it as a separate constraint entry.
-    uint32_t fk = synq_parse_foreign_key_clause(pCtx,
-        SYNQ_NO_SPAN, SYNTAQLITE_NULL_NODE,
-        SYNTAQLITE_FOREIGN_KEY_ACTION_NO_ACTION,
-        SYNTAQLITE_FOREIGN_KEY_ACTION_NO_ACTION,
-        (SyntaqliteBool)yymsp[0].minor.yy390);
-    yylhsminor.yy344.node = synq_parse_column_constraint(pCtx,
-        SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_REFERENCES,
+    yylhsminor.yy573 = synq_parse_column_constraint(pCtx,
+        SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_DEFERRABLE,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, fk);
-    yylhsminor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        yymsp[0].minor.yy531.deferrable, yymsp[0].minor.yy531.initial,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE,
+        SYNTAQLITE_NULL_NODE);
 }
-  yymsp[0].minor.yy344 = yylhsminor.yy344;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 83: /* ccons ::= COLLATE ID|STRING */
 {
-    yymsp[-1].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_COLLATE,
-        SYNQ_NO_SPAN,
         0, 0, 0,
         synq_span(pCtx, yymsp[0].minor.yy0),
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-1].minor.yy344.pending_name = SYNQ_NO_SPAN;
 }
         break;
       case 84: /* ccons ::= GENERATED ALWAYS AS generated */
 {
-    yymsp[-3].minor.yy344 = yymsp[0].minor.yy344;
+    yymsp[-3].minor.yy573 = yymsp[0].minor.yy573;
+    if (yymsp[-3].minor.yy573 != SYNTAQLITE_NULL_NODE) {
+        SyntaqliteNode *node = AST_NODE(&pCtx->ast, yymsp[-3].minor.yy573);
+        node->column_constraint.generated_always = SYNTAQLITE_BOOL_TRUE;
+    }
 }
         break;
       case 85: /* ccons ::= AS generated */
 {
-    yymsp[-1].minor.yy344 = yymsp[0].minor.yy344;
+    yymsp[-1].minor.yy573 = yymsp[0].minor.yy573;
+    if (yymsp[-1].minor.yy573 != SYNTAQLITE_NULL_NODE && pCtx->generated_always) {
+        SyntaqliteNode *node = AST_NODE(&pCtx->ast, yymsp[-1].minor.yy573);
+        node->column_constraint.generated_always = SYNTAQLITE_BOOL_TRUE;
+    }
 }
         break;
       case 86: /* generated ::= LP expr RP */
 {
-    yymsp[-2].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-2].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_GENERATED,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy639, SYNTAQLITE_NULL_NODE);
-    yymsp[-2].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_GENERATED_COLUMN_STORAGE_NONE,
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy573, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 87: /* generated ::= LP expr RP ID */
@@ -15528,209 +16677,198 @@ static YYACTIONTYPE yy_reduce(
     SyntaqliteGeneratedColumnStorage storage = SYNTAQLITE_GENERATED_COLUMN_STORAGE_VIRTUAL;
     if (yymsp[0].minor.yy0.n == 6 && SYNQ_STRNCASECMP(yymsp[0].minor.yy0.z, "stored", 6) == 0) {
         storage = SYNTAQLITE_GENERATED_COLUMN_STORAGE_STORED;
+    } else if (!(yymsp[0].minor.yy0.n == 7 && SYNQ_STRNCASECMP(yymsp[0].minor.yy0.z, "virtual", 7) == 0)) {
+        // Quoted spellings land here too, and upstream rejects those as well.
+        pCtx->error = 1;
     }
-    yymsp[-3].minor.yy344.node = synq_parse_column_constraint(pCtx,
+    yymsp[-3].minor.yy573 = synq_parse_column_constraint(pCtx,
         SYNTAQLITE_COLUMN_CONSTRAINT_TYPE_GENERATED,
-        SYNQ_NO_SPAN,
-        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_ASC, SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_SORT_ORDER_NONE, SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN,
         storage,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[-2].minor.yy639, SYNTAQLITE_NULL_NODE);
-    yymsp[-3].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_DEFERRABLE_UNSET, SYNTAQLITE_INITIAL_DEFER_MODE_UNSET,
+        SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[-2].minor.yy573, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 89: /* autoinc ::= AUTOINCR */
       case 237: /* kwcolumn_opt ::= COLUMNKW */ yytestcase(yyruleno==237);
+      case 249: /* savepoint_opt ::= SAVEPOINT */ yytestcase(yyruleno==249);
+      case 346: /* database_kw_opt ::= DATABASE */ yytestcase(yyruleno==346);
       case 358: /* uniqueflag ::= UNIQUE */ yytestcase(yyruleno==358);
-      case 364: /* temp ::= TEMP */ yytestcase(yyruleno==364);
 {
-    yymsp[0].minor.yy390 = 1;
-}
-        break;
-      case 90: /* refargs ::= */
-{
-    yymsp[1].minor.yy390 = 0; // NO_ACTION for both
+    yymsp[0].minor.yy50 = 1;
 }
         break;
       case 91: /* refargs ::= refargs refarg */
 {
-    // refarg encodes: low byte = value, byte 1 = shift amount (0 or 8)
-    int val = yymsp[0].minor.yy390 & 0xff;
-    int shift = (yymsp[0].minor.yy390 >> 8) & 0xff;
-    // Clear the target byte in yymsp[-1].minor.yy390 and set new value
-    yymsp[-1].minor.yy390 = (yymsp[-1].minor.yy390 & ~(0xff << shift)) | (val << shift);
+    yymsp[-1].minor.yy573 = synq_parse_foreign_key_option_list(pCtx, yymsp[-1].minor.yy573, yymsp[0].minor.yy573);
 }
         break;
       case 92: /* refarg ::= MATCH nm */
 {
-    yymsp[-1].minor.yy390 = 0; // MATCH is ignored
+    yymsp[-1].minor.yy573 = synq_parse_foreign_key_option(pCtx, SYNTAQLITE_FOREIGN_KEY_OPTION_KIND_MATCH,
+        SYNTAQLITE_FOREIGN_KEY_ACTION_UNSET, synq_span(pCtx, yymsp[0].minor.yy0));
 }
         break;
       case 93: /* refarg ::= ON INSERT refact */
 {
-    yymsp[-2].minor.yy390 = 0; // ON INSERT is ignored
+    yymsp[-2].minor.yy573 = synq_parse_foreign_key_option(pCtx, SYNTAQLITE_FOREIGN_KEY_OPTION_KIND_ON_INSERT,
+        (SyntaqliteForeignKeyAction)yymsp[0].minor.yy50, SYNQ_NO_SPAN);
 }
         break;
       case 94: /* refarg ::= ON DELETE refact */
 {
-    yymsp[-2].minor.yy390 = yymsp[0].minor.yy390; // shift=0 for DELETE
+    yymsp[-2].minor.yy573 = synq_parse_foreign_key_option(pCtx, SYNTAQLITE_FOREIGN_KEY_OPTION_KIND_ON_DELETE,
+        (SyntaqliteForeignKeyAction)yymsp[0].minor.yy50, SYNQ_NO_SPAN);
 }
         break;
       case 95: /* refarg ::= ON UPDATE refact */
 {
-    yymsp[-2].minor.yy390 = yymsp[0].minor.yy390 | (8 << 8); // shift=8 for UPDATE
+    yymsp[-2].minor.yy573 = synq_parse_foreign_key_option(pCtx, SYNTAQLITE_FOREIGN_KEY_OPTION_KIND_ON_UPDATE,
+        (SyntaqliteForeignKeyAction)yymsp[0].minor.yy50, SYNQ_NO_SPAN);
 }
         break;
       case 96: /* refact ::= SET NULL */
 {
-    yymsp[-1].minor.yy390 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_SET_NULL;
+    yymsp[-1].minor.yy50 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_SET_NULL;
 }
         break;
       case 97: /* refact ::= SET DEFAULT */
 {
-    yymsp[-1].minor.yy390 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_SET_DEFAULT;
+    yymsp[-1].minor.yy50 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_SET_DEFAULT;
 }
         break;
       case 98: /* refact ::= CASCADE */
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_CASCADE;
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_CASCADE;
 }
         break;
       case 99: /* refact ::= RESTRICT */
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_RESTRICT;
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_RESTRICT;
 }
         break;
       case 100: /* refact ::= NO ACTION */
 {
-    yymsp[-1].minor.yy390 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_NO_ACTION;
+    yymsp[-1].minor.yy50 = (int)SYNTAQLITE_FOREIGN_KEY_ACTION_NO_ACTION;
 }
         break;
       case 101: /* defer_subclause ::= NOT DEFERRABLE init_deferred_pred_opt */
 {
-    yymsp[-2].minor.yy390 = 0;
+    yymsp[-2].minor.yy531.deferrable = SYNTAQLITE_DEFERRABLE_NOT_DEFERRABLE;
+    yymsp[-2].minor.yy531.initial = (SyntaqliteInitialDeferMode)yymsp[0].minor.yy50;
 }
         break;
       case 102: /* defer_subclause ::= DEFERRABLE init_deferred_pred_opt */
-      case 144: /* insert_cmd ::= INSERT orconf */ yytestcase(yyruleno==144);
-      case 147: /* orconf ::= OR resolvetype */ yytestcase(yyruleno==147);
-      case 404: /* frame_exclude_opt ::= EXCLUDE frame_exclude */ yytestcase(yyruleno==404);
 {
-    yymsp[-1].minor.yy390 = yymsp[0].minor.yy390;
+    yymsp[-1].minor.yy531.deferrable = SYNTAQLITE_DEFERRABLE_DEFERRABLE;
+    yymsp[-1].minor.yy531.initial = (SyntaqliteInitialDeferMode)yymsp[0].minor.yy50;
+}
+        break;
+      case 103: /* init_deferred_pred_opt ::= */
+{
+    yymsp[1].minor.yy50 = (int)SYNTAQLITE_INITIAL_DEFER_MODE_UNSET;
 }
         break;
       case 104: /* init_deferred_pred_opt ::= INITIALLY DEFERRED */
-      case 136: /* collate ::= COLLATE ID|STRING */ yytestcase(yyruleno==136);
-      case 225: /* ifexists ::= IF EXISTS */ yytestcase(yyruleno==225);
 {
-    yymsp[-1].minor.yy390 = 1;
+    yymsp[-1].minor.yy50 = (int)SYNTAQLITE_INITIAL_DEFER_MODE_DEFERRED;
 }
         break;
       case 105: /* init_deferred_pred_opt ::= INITIALLY IMMEDIATE */
-      case 248: /* trans_opt ::= TRANSACTION nm */ yytestcase(yyruleno==248);
 {
-    yymsp[-1].minor.yy390 = 0;
+    yymsp[-1].minor.yy50 = (int)SYNTAQLITE_INITIAL_DEFER_MODE_IMMEDIATE;
 }
         break;
       case 107: /* conslist_opt ::= COMMA conslist */
 {
-    yymsp[-1].minor.yy639 = yymsp[0].minor.yy688.list;
+    yymsp[-1].minor.yy573 = synq_parse_table_constraint_list(pCtx, yymsp[0].minor.yy21.list, yymsp[0].minor.yy21.group);
 }
         break;
       case 108: /* conslist ::= conslist tconscomma tcons */
 {
-    // If comma separator was present, clear pending constraint name
-    SyntaqliteTextSpan pending = yymsp[-1].minor.yy390 ? SYNQ_NO_SPAN : yymsp[-2].minor.yy688.pending_name;
-    if (yymsp[0].minor.yy344.node != SYNTAQLITE_NULL_NODE) {
-        SyntaqliteNode *node = AST_NODE(&pCtx->ast, yymsp[0].minor.yy344.node);
-        node->table_constraint.constraint_name = pending;
-        if (yymsp[-2].minor.yy688.list == SYNTAQLITE_NULL_NODE) {
-            yylhsminor.yy688.list = synq_parse_table_constraint_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy344.node);
-        } else {
-            yylhsminor.yy688.list = synq_parse_table_constraint_list(pCtx, yymsp[-2].minor.yy688.list, yymsp[0].minor.yy344.node);
-        }
-        yylhsminor.yy688.pending_name = SYNQ_NO_SPAN;
-    } else if (yymsp[0].minor.yy344.pending_name.length > 0) {
-        yylhsminor.yy688.list = yymsp[-2].minor.yy688.list;
-        yylhsminor.yy688.pending_name = yymsp[0].minor.yy344.pending_name;
-    } else {
-        yylhsminor.yy688 = yymsp[-2].minor.yy688;
+    yylhsminor.yy21.list = yymsp[-2].minor.yy21.list;
+    uint32_t group = yymsp[-2].minor.yy21.group;
+    if (yymsp[-1].minor.yy50) {
+        yylhsminor.yy21.list = synq_parse_table_constraint_list(pCtx, yymsp[-2].minor.yy21.list, yymsp[-2].minor.yy21.group);
+        group = SYNTAQLITE_NULL_NODE;
     }
+    yylhsminor.yy21.group = synq_parse_list_append_from_children(pCtx,
+        SYNTAQLITE_NODE_TABLE_CONSTRAINT_GROUP, group, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy688 = yylhsminor.yy688;
+  yymsp[-2].minor.yy21 = yylhsminor.yy21;
         break;
       case 109: /* conslist ::= tcons */
 {
-    if (yymsp[0].minor.yy344.node != SYNTAQLITE_NULL_NODE) {
-        yylhsminor.yy688.list = synq_parse_table_constraint_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy344.node);
-        yylhsminor.yy688.pending_name = SYNQ_NO_SPAN;
-    } else {
-        yylhsminor.yy688.list = SYNTAQLITE_NULL_NODE;
-        yylhsminor.yy688.pending_name = yymsp[0].minor.yy344.pending_name;
-    }
+    yylhsminor.yy21.list = SYNTAQLITE_NULL_NODE;
+    yylhsminor.yy21.group = synq_parse_list_append_from_children(pCtx,
+        SYNTAQLITE_NODE_TABLE_CONSTRAINT_GROUP, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
 }
-  yymsp[0].minor.yy688 = yylhsminor.yy688;
+  yymsp[0].minor.yy21 = yylhsminor.yy21;
         break;
       case 110: /* tconscomma ::= COMMA */
-{ yymsp[0].minor.yy390 = 1; }
+{ yymsp[0].minor.yy50 = 1; }
         break;
       case 111: /* tconscomma ::= */
       case 415: /* perfetto_or_replace ::= */ yytestcase(yyruleno==415);
-{ yymsp[1].minor.yy390 = 0; }
+{ yymsp[1].minor.yy50 = 0; }
+        break;
+      case 112: /* tcons ::= CONSTRAINT nm */
+{
+    yymsp[-1].minor.yy573 = synq_parse_constraint_name_declaration(pCtx, synq_span(pCtx, yymsp[0].minor.yy0));
+}
         break;
       case 113: /* tcons ::= PRIMARY KEY LP sortlist autoinc RP onconf */
 {
-    yymsp[-6].minor.yy344.node = synq_parse_table_constraint(pCtx,
+    yymsp[-6].minor.yy573 = synq_parse_table_constraint(pCtx,
         SYNTAQLITE_TABLE_CONSTRAINT_TYPE_PRIMARY_KEY,
-        SYNQ_NO_SPAN,
-        (SyntaqliteConflictAction)yymsp[0].minor.yy390, (SyntaqliteBool)yymsp[-2].minor.yy390,
-        yymsp[-3].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-6].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        (SyntaqliteConflictAction)yymsp[0].minor.yy50, (SyntaqliteBool)yymsp[-2].minor.yy50,
+        yymsp[-3].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 114: /* tcons ::= UNIQUE LP sortlist RP onconf */
 {
-    yymsp[-4].minor.yy344.node = synq_parse_table_constraint(pCtx,
+    yymsp[-4].minor.yy573 = synq_parse_table_constraint(pCtx,
         SYNTAQLITE_TABLE_CONSTRAINT_TYPE_UNIQUE,
-        SYNQ_NO_SPAN,
-        (SyntaqliteConflictAction)yymsp[0].minor.yy390, SYNTAQLITE_BOOL_FALSE,
-        yymsp[-2].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-4].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        (SyntaqliteConflictAction)yymsp[0].minor.yy50, SYNTAQLITE_BOOL_FALSE,
+        yymsp[-2].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 115: /* tcons ::= CHECK LP expr RP onconf */
 {
-    yymsp[-4].minor.yy344.node = synq_parse_table_constraint(pCtx,
+    yymsp[-4].minor.yy573 = synq_parse_table_constraint(pCtx,
         SYNTAQLITE_TABLE_CONSTRAINT_TYPE_CHECK,
-        SYNQ_NO_SPAN,
-        (SyntaqliteConflictAction)yymsp[0].minor.yy390, SYNTAQLITE_BOOL_FALSE,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[-2].minor.yy639, SYNTAQLITE_NULL_NODE);
-    yymsp[-4].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        (SyntaqliteConflictAction)yymsp[0].minor.yy50, SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[-2].minor.yy573, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 116: /* tcons ::= FOREIGN KEY LP eidlist RP REFERENCES nm eidlist_opt refargs defer_subclause_opt */
 {
-    SyntaqliteForeignKeyAction on_del = (SyntaqliteForeignKeyAction)(yymsp[-1].minor.yy390 & 0xff);
-    SyntaqliteForeignKeyAction on_upd = (SyntaqliteForeignKeyAction)((yymsp[-1].minor.yy390 >> 8) & 0xff);
     uint32_t fk = synq_parse_foreign_key_clause(pCtx,
-        synq_span(pCtx, yymsp[-3].minor.yy0), yymsp[-2].minor.yy639, on_del, on_upd, (SyntaqliteBool)yymsp[0].minor.yy390);
-    yymsp[-9].minor.yy344.node = synq_parse_table_constraint(pCtx,
+        synq_span(pCtx, yymsp[-3].minor.yy0), yymsp[-2].minor.yy573, yymsp[-1].minor.yy573,
+        yymsp[0].minor.yy531.deferrable, yymsp[0].minor.yy531.initial);
+    yymsp[-9].minor.yy573 = synq_parse_table_constraint(pCtx,
         SYNTAQLITE_TABLE_CONSTRAINT_TYPE_FOREIGN_KEY,
-        SYNQ_NO_SPAN,
         SYNTAQLITE_CONFLICT_ACTION_DEFAULT, SYNTAQLITE_BOOL_FALSE,
-        SYNTAQLITE_NULL_NODE, yymsp[-6].minor.yy639, SYNTAQLITE_NULL_NODE, fk);
-    yymsp[-9].minor.yy344.pending_name = SYNQ_NO_SPAN;
+        SYNTAQLITE_NULL_NODE, yymsp[-6].minor.yy573, SYNTAQLITE_NULL_NODE, fk);
+}
+        break;
+      case 117: /* defer_subclause_opt ::= */
+{
+    yymsp[1].minor.yy531.deferrable = SYNTAQLITE_DEFERRABLE_UNSET;
+    yymsp[1].minor.yy531.initial = SYNTAQLITE_INITIAL_DEFER_MODE_UNSET;
 }
         break;
       case 119: /* onconf ::= */
       case 146: /* orconf ::= */ yytestcase(yyruleno==146);
 {
-    yymsp[1].minor.yy390 = (int)SYNTAQLITE_CONFLICT_ACTION_DEFAULT;
+    yymsp[1].minor.yy50 = (int)SYNTAQLITE_CONFLICT_ACTION_DEFAULT;
 }
         break;
       case 120: /* onconf ::= ON CONFLICT resolvetype */
 {
-    yymsp[-2].minor.yy390 = yymsp[0].minor.yy390;
+    yymsp[-2].minor.yy50 = yymsp[0].minor.yy50;
 }
         break;
       case 121: /* scantok ::= */
@@ -15742,29 +16880,29 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 122: /* select ::= WITH wqlist selectnowith */
 {
-    yymsp[-2].minor.yy639 = synq_parse_with_clause(pCtx, 0, yymsp[-1].minor.yy639, yymsp[0].minor.yy639);
+    yymsp[-2].minor.yy573 = synq_parse_with_clause(pCtx, 0, yymsp[-1].minor.yy573, yymsp[0].minor.yy573);
 }
         break;
       case 123: /* select ::= WITH RECURSIVE wqlist selectnowith */
 {
-    yymsp[-3].minor.yy639 = synq_parse_with_clause(pCtx, 1, yymsp[-1].minor.yy639, yymsp[0].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_with_clause(pCtx, 1, yymsp[-1].minor.yy573, yymsp[0].minor.yy573);
 }
         break;
       case 124: /* wqitem ::= withnm eidlist_opt wqas LP select RP */
 {
-    yylhsminor.yy639 = synq_parse_cte_definition(pCtx, synq_span_dequote(pCtx, yymsp[-5].minor.yy0), (SyntaqliteMaterialized)yymsp[-3].minor.yy390, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
+    yylhsminor.yy573 = synq_parse_cte_definition(pCtx, synq_span_dequote(pCtx, yymsp[-5].minor.yy0), (SyntaqliteMaterialized)yymsp[-3].minor.yy50, yymsp[-4].minor.yy573, yymsp[-1].minor.yy573);
 }
-  yymsp[-5].minor.yy639 = yylhsminor.yy639;
+  yymsp[-5].minor.yy573 = yylhsminor.yy573;
         break;
       case 125: /* wqlist ::= wqitem */
 {
-    yylhsminor.yy639 = synq_parse_cte_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_cte_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 126: /* wqlist ::= wqlist COMMA wqitem */
 {
-    yymsp[-2].minor.yy639 = synq_parse_cte_list(pCtx, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yymsp[-2].minor.yy573 = synq_parse_cte_list(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
         break;
       case 127: /* withnm ::= nm */
@@ -15774,68 +16912,78 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 128: /* wqas ::= AS */
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_MATERIALIZED_DEFAULT;
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_MATERIALIZED_DEFAULT;
 }
         break;
       case 129: /* wqas ::= AS MATERIALIZED */
 {
-    yymsp[-1].minor.yy390 = (int)SYNTAQLITE_MATERIALIZED_MATERIALIZED;
+    yymsp[-1].minor.yy50 = (int)SYNTAQLITE_MATERIALIZED_MATERIALIZED;
 }
         break;
       case 130: /* wqas ::= AS NOT MATERIALIZED */
 {
-    yymsp[-2].minor.yy390 = (int)SYNTAQLITE_MATERIALIZED_NOT_MATERIALIZED;
+    yymsp[-2].minor.yy50 = (int)SYNTAQLITE_MATERIALIZED_NOT_MATERIALIZED;
 }
         break;
       case 132: /* eidlist_opt ::= LP eidlist RP */
       case 166: /* idlist_opt ::= LP idlist RP */ yytestcase(yyruleno==166);
       case 324: /* trigger_cmd ::= scanpt select scanpt */ yytestcase(yyruleno==324);
 {
-    yymsp[-2].minor.yy639 = synq_pass(pCtx, yymsp[-1].minor.yy639);
+    yymsp[-2].minor.yy573 = synq_pass(pCtx, yymsp[-1].minor.yy573);
 }
         break;
       case 133: /* eidlist ::= nm collate sortorder */
 {
-    (void)yymsp[-1].minor.yy390; (void)yymsp[0].minor.yy639;
+    if (yymsp[-1].minor.yy50 || yymsp[0].minor.yy573 != SYNQ_SORTORDER_NONE) {
+        pCtx->error = 1;
+    }
     uint32_t col = synq_parse_column_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[-2].minor.yy0),
         SYNQ_NO_SPAN,
         SYNQ_NO_SPAN);
-    yylhsminor.yy639 = synq_parse_expr_list(pCtx, SYNTAQLITE_NULL_NODE, col);
+    yylhsminor.yy573 = synq_parse_expr_list(pCtx, SYNTAQLITE_NULL_NODE, col);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 134: /* eidlist ::= eidlist COMMA nm collate sortorder */
 {
-    (void)yymsp[-1].minor.yy390; (void)yymsp[0].minor.yy639;
+    if (yymsp[-1].minor.yy50 || yymsp[0].minor.yy573 != SYNQ_SORTORDER_NONE) {
+        pCtx->error = 1;
+    }
     uint32_t col = synq_parse_column_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[-2].minor.yy0),
         SYNQ_NO_SPAN,
         SYNQ_NO_SPAN);
-    yymsp[-4].minor.yy639 = synq_parse_expr_list(pCtx, yymsp[-4].minor.yy639, col);
+    yymsp[-4].minor.yy573 = synq_parse_expr_list(pCtx, yymsp[-4].minor.yy573, col);
+}
+        break;
+      case 136: /* collate ::= COLLATE ID|STRING */
+      case 225: /* ifexists ::= IF EXISTS */ yytestcase(yyruleno==225);
+{
+    yymsp[-1].minor.yy50 = 1;
 }
         break;
       case 137: /* with ::= */
 {
-    yymsp[1].minor.yy425.cte_list = SYNTAQLITE_NULL_NODE;
-    yymsp[1].minor.yy425.is_recursive = 0;
+    yymsp[1].minor.yy671.cte_list = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy671.is_recursive = 0;
 }
         break;
       case 138: /* with ::= WITH wqlist */
 {
-    yymsp[-1].minor.yy425.cte_list = yymsp[0].minor.yy639;
-    yymsp[-1].minor.yy425.is_recursive = 0;
+    yymsp[-1].minor.yy671.cte_list = yymsp[0].minor.yy573;
+    yymsp[-1].minor.yy671.is_recursive = 0;
 }
         break;
       case 139: /* with ::= WITH RECURSIVE wqlist */
 {
-    yymsp[-2].minor.yy425.cte_list = yymsp[0].minor.yy639;
-    yymsp[-2].minor.yy425.is_recursive = 1;
+    yymsp[-2].minor.yy671.cte_list = yymsp[0].minor.yy573;
+    yymsp[-2].minor.yy671.is_recursive = 1;
 }
         break;
       case 140: /* cmd ::= with DELETE FROM xfullname indexed_opt where_opt_ret orderby_opt limit_opt */
 {
-    if (yymsp[-1].minor.yy639 != SYNTAQLITE_NULL_NODE || yymsp[0].minor.yy639 != SYNTAQLITE_NULL_NODE) {
+    if (yymsp[-1].minor.yy573 != SYNTAQLITE_NULL_NODE || yymsp[0].minor.yy573 != SYNTAQLITE_NULL_NODE) {
         pCtx->saw_update_delete_limit = 1;
         if (!SYNQ_HAS_CFLAG(pCtx->env, SYNQ_CFLAG_IDX_ENABLE_UPDATE_DELETE_LIMIT)) {
             pCtx->error = 1;
@@ -15844,16 +16992,16 @@ static YYACTIONTYPE yy_reduce(
     SyntaqliteIndexHint ih = (yymsp[-3].minor.yy0.z != NULL) ? SYNTAQLITE_INDEX_HINT_INDEXED
                            : (yymsp[-3].minor.yy0.n == 1)    ? SYNTAQLITE_INDEX_HINT_NOT_INDEXED
                            :                 SYNTAQLITE_INDEX_HINT_DEFAULT;
-    yylhsminor.yy639 = synq_parse_delete_stmt(pCtx,
-        yymsp[-7].minor.yy425.cte_list,
-        yymsp[-7].minor.yy425.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        yymsp[-4].minor.yy639, ih, synq_span(pCtx, yymsp[-3].minor.yy0), yymsp[-2].minor.yy673.where_expr, yymsp[-1].minor.yy639, yymsp[0].minor.yy639, yymsp[-2].minor.yy673.returning);
+    yylhsminor.yy573 = synq_parse_delete_stmt(pCtx,
+        yymsp[-7].minor.yy671.cte_list,
+        yymsp[-7].minor.yy671.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-4].minor.yy573, ih, synq_span(pCtx, yymsp[-3].minor.yy0), yymsp[-2].minor.yy561.where_expr, yymsp[-1].minor.yy573, yymsp[0].minor.yy573, yymsp[-2].minor.yy561.returning);
 }
-  yymsp[-7].minor.yy639 = yylhsminor.yy639;
+  yymsp[-7].minor.yy573 = yylhsminor.yy573;
         break;
       case 141: /* cmd ::= with UPDATE orconf xfullname indexed_opt SET setlist from where_opt_ret orderby_opt limit_opt */
 {
-    if (yymsp[-1].minor.yy639 != SYNTAQLITE_NULL_NODE || yymsp[0].minor.yy639 != SYNTAQLITE_NULL_NODE) {
+    if (yymsp[-1].minor.yy573 != SYNTAQLITE_NULL_NODE || yymsp[0].minor.yy573 != SYNTAQLITE_NULL_NODE) {
         pCtx->saw_update_delete_limit = 1;
         if (!SYNQ_HAS_CFLAG(pCtx->env, SYNQ_CFLAG_IDX_ENABLE_UPDATE_DELETE_LIMIT)) {
             pCtx->error = 1;
@@ -15862,87 +17010,108 @@ static YYACTIONTYPE yy_reduce(
     SyntaqliteIndexHint ih = (yymsp[-6].minor.yy0.z != NULL) ? SYNTAQLITE_INDEX_HINT_INDEXED
                            : (yymsp[-6].minor.yy0.n == 1)    ? SYNTAQLITE_INDEX_HINT_NOT_INDEXED
                            :                 SYNTAQLITE_INDEX_HINT_DEFAULT;
-    yylhsminor.yy639 = synq_parse_update_stmt(pCtx,
-        yymsp[-10].minor.yy425.cte_list,
-        yymsp[-10].minor.yy425.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        (SyntaqliteConflictAction)yymsp[-8].minor.yy390, yymsp[-7].minor.yy639, ih, synq_span(pCtx, yymsp[-6].minor.yy0), yymsp[-4].minor.yy639, yymsp[-3].minor.yy639, yymsp[-2].minor.yy673.where_expr, yymsp[-1].minor.yy639, yymsp[0].minor.yy639, yymsp[-2].minor.yy673.returning);
+    yylhsminor.yy573 = synq_parse_update_stmt(pCtx,
+        yymsp[-10].minor.yy671.cte_list,
+        yymsp[-10].minor.yy671.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        (SyntaqliteConflictAction)yymsp[-8].minor.yy50, yymsp[-7].minor.yy573, ih, synq_span(pCtx, yymsp[-6].minor.yy0), yymsp[-4].minor.yy573, yymsp[-3].minor.yy573, yymsp[-2].minor.yy561.where_expr, yymsp[-1].minor.yy573, yymsp[0].minor.yy573, yymsp[-2].minor.yy561.returning);
 }
-  yymsp[-10].minor.yy639 = yylhsminor.yy639;
+  yymsp[-10].minor.yy573 = yylhsminor.yy573;
         break;
       case 142: /* cmd ::= with insert_cmd INTO xfullname idlist_opt select upsert */
 {
-    yylhsminor.yy639 = synq_parse_insert_stmt(pCtx,
-        yymsp[-6].minor.yy425.cte_list,
-        yymsp[-6].minor.yy425.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        (SyntaqliteConflictAction)yymsp[-5].minor.yy390, yymsp[-3].minor.yy639, yymsp[-2].minor.yy639, yymsp[-1].minor.yy639, yymsp[0].minor.yy668.clauses, yymsp[0].minor.yy668.returning);
+    yylhsminor.yy573 = synq_parse_insert_stmt(pCtx,
+        yymsp[-6].minor.yy671.cte_list,
+        yymsp[-6].minor.yy671.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-5].minor.yy484.keyword, yymsp[-5].minor.yy484.conflict_action, yymsp[-3].minor.yy573, yymsp[-2].minor.yy573, yymsp[-1].minor.yy573, yymsp[0].minor.yy372.clauses, yymsp[0].minor.yy372.returning);
 }
-  yymsp[-6].minor.yy639 = yylhsminor.yy639;
+  yymsp[-6].minor.yy573 = yylhsminor.yy573;
         break;
       case 143: /* cmd ::= with insert_cmd INTO xfullname idlist_opt DEFAULT VALUES returning */
 {
-    yylhsminor.yy639 = synq_parse_insert_stmt(pCtx,
-        yymsp[-7].minor.yy425.cte_list,
-        yymsp[-7].minor.yy425.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        (SyntaqliteConflictAction)yymsp[-6].minor.yy390, yymsp[-4].minor.yy639, yymsp[-3].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_insert_stmt(pCtx,
+        yymsp[-7].minor.yy671.cte_list,
+        yymsp[-7].minor.yy671.is_recursive ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-6].minor.yy484.keyword, yymsp[-6].minor.yy484.conflict_action, yymsp[-4].minor.yy573, yymsp[-3].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
 }
-  yymsp[-7].minor.yy639 = yylhsminor.yy639;
+  yymsp[-7].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 144: /* insert_cmd ::= INSERT orconf */
+{
+    yymsp[-1].minor.yy484.keyword = SYNTAQLITE_INSERT_KEYWORD_INSERT;
+    yymsp[-1].minor.yy484.conflict_action = (SyntaqliteConflictAction)yymsp[0].minor.yy50;
+}
         break;
       case 145: /* insert_cmd ::= REPLACE */
-      case 150: /* resolvetype ::= REPLACE */ yytestcase(yyruleno==150);
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_CONFLICT_ACTION_REPLACE;
+    yymsp[0].minor.yy484.keyword = SYNTAQLITE_INSERT_KEYWORD_REPLACE;
+    yymsp[0].minor.yy484.conflict_action = SYNTAQLITE_CONFLICT_ACTION_REPLACE;
+}
+        break;
+      case 147: /* orconf ::= OR resolvetype */
+      case 404: /* frame_exclude_opt ::= EXCLUDE frame_exclude */ yytestcase(yyruleno==404);
+{
+    yymsp[-1].minor.yy50 = yymsp[0].minor.yy50;
 }
         break;
       case 148: /* resolvetype ::= raisetype */
 {
     // raisetype: ROLLBACK=1, ABORT=2, FAIL=3 (SynqRaiseType enum values)
     // ConflictAction: ROLLBACK=1, ABORT=2, FAIL=3 (same values, direct passthrough)
-    yylhsminor.yy390 = yymsp[0].minor.yy390;
+    yylhsminor.yy50 = yymsp[0].minor.yy50;
 }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+  yymsp[0].minor.yy50 = yylhsminor.yy50;
         break;
       case 149: /* resolvetype ::= IGNORE */
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_CONFLICT_ACTION_IGNORE;
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_CONFLICT_ACTION_IGNORE;
+}
+        break;
+      case 150: /* resolvetype ::= REPLACE */
+{
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_CONFLICT_ACTION_REPLACE;
 }
         break;
       case 151: /* xfullname ::= nm */
 {
-    yylhsminor.yy639 = synq_parse_table_ref(pCtx,
+    yylhsminor.yy573 = synq_parse_table_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[0].minor.yy0), SYNQ_NO_SPAN,
         SYNTAQLITE_BOOL_FALSE,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 152: /* xfullname ::= nm DOT nm */
 {
-    yylhsminor.yy639 = synq_parse_table_ref(pCtx,
+    yylhsminor.yy573 = synq_parse_table_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[0].minor.yy0), synq_span_dequote(pCtx, yymsp[-2].minor.yy0),
         SYNTAQLITE_BOOL_FALSE,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 153: /* xfullname ::= nm DOT nm AS nm */
 {
     uint32_t alias = synq_parse_ident_name(pCtx, synq_span_dequote(pCtx, yymsp[0].minor.yy0));
-    yylhsminor.yy639 = synq_parse_table_ref(pCtx,
+    yylhsminor.yy573 = synq_parse_table_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[-2].minor.yy0), synq_span_dequote(pCtx, yymsp[-4].minor.yy0),
         SYNTAQLITE_BOOL_FALSE,
-        alias, SYNTAQLITE_NULL_NODE);
+        alias, SYNTAQLITE_BOOL_TRUE, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 154: /* xfullname ::= nm AS nm */
 {
     uint32_t alias = synq_parse_ident_name(pCtx, synq_span_dequote(pCtx, yymsp[0].minor.yy0));
-    yylhsminor.yy639 = synq_parse_table_ref(pCtx,
+    yylhsminor.yy573 = synq_parse_table_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[-2].minor.yy0), SYNQ_NO_SPAN,
         SYNTAQLITE_BOOL_FALSE,
-        alias, SYNTAQLITE_NULL_NODE);
+        alias, SYNTAQLITE_BOOL_TRUE, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 156: /* indexed_opt ::= indexed_by */
       case 316: /* trnm ::= nm */ yytestcase(yyruleno==316);
@@ -15961,116 +17130,116 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 157: /* where_opt_ret ::= */
 {
-    yymsp[1].minor.yy673.where_expr = SYNTAQLITE_NULL_NODE;
-    yymsp[1].minor.yy673.returning = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy561.where_expr = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy561.returning = SYNTAQLITE_NULL_NODE;
 }
         break;
       case 158: /* where_opt_ret ::= WHERE expr */
 {
-    yymsp[-1].minor.yy673.where_expr = yymsp[0].minor.yy639;
-    yymsp[-1].minor.yy673.returning = SYNTAQLITE_NULL_NODE;
+    yymsp[-1].minor.yy561.where_expr = yymsp[0].minor.yy573;
+    yymsp[-1].minor.yy561.returning = SYNTAQLITE_NULL_NODE;
 }
         break;
       case 159: /* where_opt_ret ::= RETURNING selcollist */
 {
-    yymsp[-1].minor.yy673.where_expr = SYNTAQLITE_NULL_NODE;
-    yymsp[-1].minor.yy673.returning = yymsp[0].minor.yy639;
+    yymsp[-1].minor.yy561.where_expr = SYNTAQLITE_NULL_NODE;
+    yymsp[-1].minor.yy561.returning = yymsp[0].minor.yy573;
 }
         break;
       case 160: /* where_opt_ret ::= WHERE expr RETURNING selcollist */
 {
-    yymsp[-3].minor.yy673.where_expr = yymsp[-2].minor.yy639;
-    yymsp[-3].minor.yy673.returning = yymsp[0].minor.yy639;
+    yymsp[-3].minor.yy561.where_expr = yymsp[-2].minor.yy573;
+    yymsp[-3].minor.yy561.returning = yymsp[0].minor.yy573;
 }
         break;
       case 161: /* setlist ::= setlist COMMA nm EQ expr */
 {
     uint32_t clause = synq_parse_set_clause(pCtx,
-        synq_span(pCtx, yymsp[-2].minor.yy0), SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy639);
-    yylhsminor.yy639 = synq_parse_set_clause_list(pCtx, yymsp[-4].minor.yy639, clause);
+        synq_span(pCtx, yymsp[-2].minor.yy0), SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_set_clause_list(pCtx, yymsp[-4].minor.yy573, clause);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 162: /* setlist ::= setlist COMMA LP idlist RP EQ expr */
 {
     uint32_t clause = synq_parse_set_clause(pCtx,
-        SYNQ_NO_SPAN, yymsp[-3].minor.yy639, yymsp[0].minor.yy639);
-    yylhsminor.yy639 = synq_parse_set_clause_list(pCtx, yymsp[-6].minor.yy639, clause);
+        SYNQ_NO_SPAN, yymsp[-3].minor.yy573, yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_set_clause_list(pCtx, yymsp[-6].minor.yy573, clause);
 }
-  yymsp[-6].minor.yy639 = yylhsminor.yy639;
+  yymsp[-6].minor.yy573 = yylhsminor.yy573;
         break;
       case 163: /* setlist ::= nm EQ expr */
 {
     uint32_t clause = synq_parse_set_clause(pCtx,
-        synq_span(pCtx, yymsp[-2].minor.yy0), SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy639);
-    yylhsminor.yy639 = synq_parse_set_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
+        synq_span(pCtx, yymsp[-2].minor.yy0), SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_set_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 164: /* setlist ::= LP idlist RP EQ expr */
 {
     uint32_t clause = synq_parse_set_clause(pCtx,
-        SYNQ_NO_SPAN, yymsp[-3].minor.yy639, yymsp[0].minor.yy639);
-    yymsp[-4].minor.yy639 = synq_parse_set_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
+        SYNQ_NO_SPAN, yymsp[-3].minor.yy573, yymsp[0].minor.yy573);
+    yymsp[-4].minor.yy573 = synq_parse_set_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
 }
         break;
       case 167: /* upsert ::= */
 {
-    yymsp[1].minor.yy668.clauses = SYNTAQLITE_NULL_NODE;
-    yymsp[1].minor.yy668.returning = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy372.clauses = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy372.returning = SYNTAQLITE_NULL_NODE;
 }
         break;
       case 168: /* upsert ::= RETURNING selcollist */
 {
-    yymsp[-1].minor.yy668.clauses = SYNTAQLITE_NULL_NODE;
-    yymsp[-1].minor.yy668.returning = yymsp[0].minor.yy639;
+    yymsp[-1].minor.yy372.clauses = SYNTAQLITE_NULL_NODE;
+    yymsp[-1].minor.yy372.returning = yymsp[0].minor.yy573;
 }
         break;
       case 169: /* upsert ::= ON CONFLICT LP sortlist RP where_opt DO UPDATE SET setlist where_opt upsert */
 {
-    uint32_t clause = synq_parse_upsert_clause(pCtx, yymsp[-8].minor.yy639, yymsp[-6].minor.yy639, (SyntaqliteUpsertAction)SYNTAQLITE_UPSERT_ACTION_UPDATE, yymsp[-2].minor.yy639, yymsp[-1].minor.yy639);
-    yymsp[-11].minor.yy668.clauses = synq_parse_upsert_clause_list(pCtx, yymsp[0].minor.yy668.clauses, clause);
-    yymsp[-11].minor.yy668.returning = yymsp[0].minor.yy668.returning;
+    uint32_t clause = synq_parse_upsert_clause(pCtx, yymsp[-8].minor.yy573, yymsp[-6].minor.yy573, (SyntaqliteUpsertAction)SYNTAQLITE_UPSERT_ACTION_UPDATE, yymsp[-2].minor.yy573, yymsp[-1].minor.yy573);
+    yymsp[-11].minor.yy372.clauses = synq_parse_upsert_clause_list(pCtx, yymsp[0].minor.yy372.clauses, clause);
+    yymsp[-11].minor.yy372.returning = yymsp[0].minor.yy372.returning;
 }
         break;
       case 170: /* upsert ::= ON CONFLICT LP sortlist RP where_opt DO NOTHING upsert */
 {
-    uint32_t clause = synq_parse_upsert_clause(pCtx, yymsp[-5].minor.yy639, yymsp[-3].minor.yy639, (SyntaqliteUpsertAction)SYNTAQLITE_UPSERT_ACTION_NOTHING, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-8].minor.yy668.clauses = synq_parse_upsert_clause_list(pCtx, yymsp[0].minor.yy668.clauses, clause);
-    yymsp[-8].minor.yy668.returning = yymsp[0].minor.yy668.returning;
+    uint32_t clause = synq_parse_upsert_clause(pCtx, yymsp[-5].minor.yy573, yymsp[-3].minor.yy573, (SyntaqliteUpsertAction)SYNTAQLITE_UPSERT_ACTION_NOTHING, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+    yymsp[-8].minor.yy372.clauses = synq_parse_upsert_clause_list(pCtx, yymsp[0].minor.yy372.clauses, clause);
+    yymsp[-8].minor.yy372.returning = yymsp[0].minor.yy372.returning;
 }
         break;
       case 171: /* upsert ::= ON CONFLICT DO NOTHING returning */
 {
     uint32_t clause = synq_parse_upsert_clause(pCtx, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, (SyntaqliteUpsertAction)SYNTAQLITE_UPSERT_ACTION_NOTHING, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-4].minor.yy668.clauses = synq_parse_upsert_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
-    yymsp[-4].minor.yy668.returning = yymsp[0].minor.yy639;
+    yymsp[-4].minor.yy372.clauses = synq_parse_upsert_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
+    yymsp[-4].minor.yy372.returning = yymsp[0].minor.yy573;
 }
         break;
       case 172: /* upsert ::= ON CONFLICT DO UPDATE SET setlist where_opt returning */
 {
-    uint32_t clause = synq_parse_upsert_clause(pCtx, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, (SyntaqliteUpsertAction)SYNTAQLITE_UPSERT_ACTION_UPDATE, yymsp[-2].minor.yy639, yymsp[-1].minor.yy639);
-    yymsp[-7].minor.yy668.clauses = synq_parse_upsert_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
-    yymsp[-7].minor.yy668.returning = yymsp[0].minor.yy639;
+    uint32_t clause = synq_parse_upsert_clause(pCtx, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, (SyntaqliteUpsertAction)SYNTAQLITE_UPSERT_ACTION_UPDATE, yymsp[-2].minor.yy573, yymsp[-1].minor.yy573);
+    yymsp[-7].minor.yy372.clauses = synq_parse_upsert_clause_list(pCtx, SYNTAQLITE_NULL_NODE, clause);
+    yymsp[-7].minor.yy372.returning = yymsp[0].minor.yy573;
 }
         break;
       case 175: /* expr ::= error */
       case 202: /* nmorerr ::= error */ yytestcase(yyruleno==202);
 {
-    yymsp[0].minor.yy639 = synq_parse_error(pCtx, synq_error_span(pCtx));
+    yymsp[0].minor.yy573 = synq_parse_error(pCtx, synq_error_span(pCtx));
 }
         break;
       case 177: /* expr ::= LP expr RP */
 {
-    yymsp[-2].minor.yy639 = synq_parse_paren_expr(pCtx, yymsp[-1].minor.yy639);
+    yymsp[-2].minor.yy573 = synq_parse_paren_expr(pCtx, yymsp[-1].minor.yy573);
 }
         break;
       case 178: /* expr ::= expr PLUS|MINUS expr */
 {
     SyntaqliteBinaryOp op = (yymsp[-1].minor.yy0.type == SYNTAQLITE_TK_PLUS) ? SYNTAQLITE_BINARY_OP_PLUS : SYNTAQLITE_BINARY_OP_MINUS;
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 179: /* expr ::= expr STAR|SLASH|REM expr */
 {
@@ -16080,9 +17249,9 @@ static YYACTIONTYPE yy_reduce(
         case SYNTAQLITE_TK_SLASH: op = SYNTAQLITE_BINARY_OP_SLASH; break;
         default:       op = SYNTAQLITE_BINARY_OP_REM; break;
     }
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 180: /* expr ::= expr LT|GT|GE|LE expr */
 {
@@ -16093,28 +17262,36 @@ static YYACTIONTYPE yy_reduce(
         case SYNTAQLITE_TK_LE: op = SYNTAQLITE_BINARY_OP_LE; break;
         default:    op = SYNTAQLITE_BINARY_OP_GE; break;
     }
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 181: /* expr ::= expr EQ|NE expr */
 {
-    SyntaqliteBinaryOp op = (yymsp[-1].minor.yy0.type == SYNTAQLITE_TK_EQ) ? SYNTAQLITE_BINARY_OP_EQ : SYNTAQLITE_BINARY_OP_NE;
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    SyntaqliteBinaryOp op;
+    if (yymsp[-1].minor.yy0.type == SYNTAQLITE_TK_EQ) {
+        // `==` and `=` share one token type but are different text.
+        op = (yymsp[-1].minor.yy0.n == 2) ? SYNTAQLITE_BINARY_OP_EQ_DOUBLE : SYNTAQLITE_BINARY_OP_EQ;
+    } else {
+        // `<>` and `!=` share one token type but are different text.
+        op = (yymsp[-1].minor.yy0.n == 2 && yymsp[-1].minor.yy0.z[0] == '<') ? SYNTAQLITE_BINARY_OP_NE_ANGLE
+                                           : SYNTAQLITE_BINARY_OP_NE;
+    }
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 182: /* expr ::= expr AND expr */
 {
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, SYNTAQLITE_BINARY_OP_AND, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, SYNTAQLITE_BINARY_OP_AND, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 183: /* expr ::= expr OR expr */
 {
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, SYNTAQLITE_BINARY_OP_OR, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, SYNTAQLITE_BINARY_OP_OR, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 184: /* expr ::= expr BITAND|BITOR|LSHIFT|RSHIFT expr */
 {
@@ -16125,106 +17302,106 @@ static YYACTIONTYPE yy_reduce(
         case SYNTAQLITE_TK_LSHIFT: op = SYNTAQLITE_BINARY_OP_LSHIFT; break;
         default:        op = SYNTAQLITE_BINARY_OP_RSHIFT; break;
     }
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 185: /* expr ::= expr CONCAT expr */
 {
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, SYNTAQLITE_BINARY_OP_CONCAT, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, SYNTAQLITE_BINARY_OP_CONCAT, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 186: /* expr ::= expr PTR expr */
 {
     SyntaqliteBinaryOp op = (yymsp[-1].minor.yy0.n == 3) ? SYNTAQLITE_BINARY_OP_PTR2 : SYNTAQLITE_BINARY_OP_PTR;
-    yylhsminor.yy639 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_binary_expr(pCtx, op, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 187: /* expr ::= PLUS|MINUS expr */
 {
     SyntaqliteUnaryOp op = (yymsp[-1].minor.yy0.type == SYNTAQLITE_TK_MINUS) ? SYNTAQLITE_UNARY_OP_MINUS : SYNTAQLITE_UNARY_OP_PLUS;
-    yylhsminor.yy639 = synq_parse_unary_expr(pCtx, op, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_unary_expr(pCtx, op, yymsp[0].minor.yy573);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 188: /* expr ::= BITNOT expr */
 {
-    yymsp[-1].minor.yy639 = synq_parse_unary_expr(pCtx, SYNTAQLITE_UNARY_OP_BIT_NOT, yymsp[0].minor.yy639);
+    yymsp[-1].minor.yy573 = synq_parse_unary_expr(pCtx, SYNTAQLITE_UNARY_OP_BIT_NOT, yymsp[0].minor.yy573);
 }
         break;
       case 189: /* expr ::= NOT expr */
 {
-    yymsp[-1].minor.yy639 = synq_parse_unary_expr(pCtx, SYNTAQLITE_UNARY_OP_NOT, yymsp[0].minor.yy639);
+    yymsp[-1].minor.yy573 = synq_parse_unary_expr(pCtx, SYNTAQLITE_UNARY_OP_NOT, yymsp[0].minor.yy573);
 }
         break;
       case 192: /* nexprlist ::= nexprlist COMMA expr */
 {
-    yylhsminor.yy639 = synq_parse_expr_list(pCtx, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_expr_list(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 193: /* nexprlist ::= expr */
 {
-    yylhsminor.yy639 = synq_parse_expr_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_expr_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 194: /* expr ::= LP nexprlist COMMA expr RP */
 {
-    yymsp[-4].minor.yy639 = synq_parse_expr_list(pCtx, yymsp[-3].minor.yy639, yymsp[-1].minor.yy639);
+    yymsp[-4].minor.yy573 = synq_parse_row_value(pCtx, synq_parse_expr_list(pCtx, yymsp[-3].minor.yy573, yymsp[-1].minor.yy573));
 }
         break;
       case 195: /* expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP */
 {
     synq_mark_as_function(pCtx, yymsp[-4].minor.yy0);
-    yylhsminor.yy639 = synq_parse_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_function_call(pCtx,
         synq_span(pCtx, yymsp[-4].minor.yy0),
-        (SyntaqliteFunctionCallFlags){.raw = (uint8_t)(yymsp[-2].minor.yy639 & 0xFF)},
-        yymsp[-1].minor.yy639,
+        (SyntaqliteFunctionCallFlags){.raw = (uint8_t)(yymsp[-2].minor.yy573 & 0xFF)},
+        yymsp[-1].minor.yy573,
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 196: /* expr ::= ID|INDEXED|JOIN_KW LP STAR RP */
 {
     synq_mark_as_function(pCtx, yymsp[-3].minor.yy0);
-    yylhsminor.yy639 = synq_parse_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_function_call(pCtx,
         synq_span(pCtx, yymsp[-3].minor.yy0),
         (SyntaqliteFunctionCallFlags){.raw = 0x02},
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE);
 }
-  yymsp[-3].minor.yy639 = yylhsminor.yy639;
+  yymsp[-3].minor.yy573 = yylhsminor.yy573;
         break;
       case 197: /* expr ::= ID|INDEXED|JOIN_KW LP distinct exprlist RP filter_over */
 {
-    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy639);
+    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy573);
     synq_mark_as_function(pCtx, yymsp[-5].minor.yy0);
-    yylhsminor.yy639 = synq_parse_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_function_call(pCtx,
         synq_span(pCtx, yymsp[-5].minor.yy0),
-        (SyntaqliteFunctionCallFlags){.raw = (uint8_t)(yymsp[-3].minor.yy639 & 0xFF)},
-        yymsp[-2].minor.yy639,
+        (SyntaqliteFunctionCallFlags){.raw = (uint8_t)(yymsp[-3].minor.yy573 & 0xFF)},
+        yymsp[-2].minor.yy573,
         fo->filter_expr,
         fo->over_def);
 }
-  yymsp[-5].minor.yy639 = yylhsminor.yy639;
+  yymsp[-5].minor.yy573 = yylhsminor.yy573;
         break;
       case 198: /* expr ::= ID|INDEXED|JOIN_KW LP STAR RP filter_over */
 {
-    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy639);
+    SyntaqliteFilterOver *fo = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy573);
     synq_mark_as_function(pCtx, yymsp[-4].minor.yy0);
-    yylhsminor.yy639 = synq_parse_function_call(pCtx,
+    yylhsminor.yy573 = synq_parse_function_call(pCtx,
         synq_span(pCtx, yymsp[-4].minor.yy0),
         (SyntaqliteFunctionCallFlags){.raw = 0x02},
         SYNTAQLITE_NULL_NODE,
         fo->filter_expr,
         fo->over_def);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 199: /* nm ::= ID|INDEXED|JOIN_KW */
       case 200: /* nm ::= STRING */ yytestcase(yyruleno==200);
@@ -16235,23 +17412,22 @@ static YYACTIONTYPE yy_reduce(
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
       case 201: /* nmorerr ::= nm */
-      case 265: /* as ::= ID|STRING */ yytestcase(yyruleno==265);
 {
-    yylhsminor.yy639 = synq_parse_ident_name(pCtx, synq_span_dequote(pCtx, yymsp[0].minor.yy0));
+    yylhsminor.yy573 = synq_parse_ident_name(pCtx, synq_span_dequote(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 203: /* term ::= INTEGER */
 {
-    yylhsminor.yy639 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_INTEGER, synq_span(pCtx, yymsp[0].minor.yy0));
+    yylhsminor.yy573 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_INTEGER, synq_span(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 204: /* term ::= STRING */
 {
-    yylhsminor.yy639 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_STRING, synq_span(pCtx, yymsp[0].minor.yy0));
+    yylhsminor.yy573 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_STRING, synq_span(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 205: /* term ::= NULL|FLOAT|BLOB */
 {
@@ -16262,281 +17438,361 @@ static YYACTIONTYPE yy_reduce(
         case SYNTAQLITE_TK_BLOB:  lit_type = SYNTAQLITE_LITERAL_TYPE_BLOB; break;
         default:       lit_type = SYNTAQLITE_LITERAL_TYPE_NULL; break;
     }
-    yylhsminor.yy639 = synq_parse_literal(pCtx, lit_type, synq_span(pCtx, yymsp[0].minor.yy0));
+    yylhsminor.yy573 = synq_parse_literal(pCtx, lit_type, synq_span(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 206: /* term ::= QNUMBER */
 {
-    yylhsminor.yy639 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_QNUMBER, synq_span(pCtx, yymsp[0].minor.yy0));
+    if (!synq_qnumber_is_valid(yymsp[0].minor.yy0.z, yymsp[0].minor.yy0.n)) {
+        pCtx->error = 1;
+    }
+    yylhsminor.yy573 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_QNUMBER, synq_span(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 207: /* term ::= CTIME_KW */
 {
-    yylhsminor.yy639 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_CURRENT, synq_span(pCtx, yymsp[0].minor.yy0));
+    yylhsminor.yy573 = synq_parse_literal(pCtx, SYNTAQLITE_LITERAL_TYPE_CURRENT, synq_span(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 208: /* expr ::= VARIABLE */
 {
-    yylhsminor.yy639 = synq_parse_variable(pCtx, synq_span(pCtx, yymsp[0].minor.yy0));
+    // `#N` names a VM register and is only legal in a nested parse, which we
+    // never do.
+    if (yymsp[0].minor.yy0.n >= 2 && yymsp[0].minor.yy0.z[0] == '#' && yymsp[0].minor.yy0.z[1] >= '0' && yymsp[0].minor.yy0.z[1] <= '9') {
+        pCtx->error = 1;
+    }
+    yylhsminor.yy573 = synq_parse_variable(pCtx, synq_span(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 209: /* expr ::= expr COLLATE ID|STRING */
 {
-    yylhsminor.yy639 = synq_parse_collate_expr(pCtx, yymsp[-2].minor.yy639, synq_span(pCtx, yymsp[0].minor.yy0));
+    yylhsminor.yy573 = synq_parse_collate_expr(pCtx, yymsp[-2].minor.yy573, synq_span(pCtx, yymsp[0].minor.yy0));
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 210: /* sortlist ::= sortlist COMMA expr sortorder nulls */
 {
-    uint32_t term = synq_parse_ordering_term(pCtx, yymsp[-2].minor.yy639, (SyntaqliteSortOrder)yymsp[-1].minor.yy639, (SyntaqliteNullsOrder)yymsp[0].minor.yy639);
-    yylhsminor.yy639 = synq_parse_order_by_list(pCtx, yymsp[-4].minor.yy639, term);
+    uint32_t term = synq_parse_ordering_term(pCtx, yymsp[-2].minor.yy573, (SyntaqliteSortOrder)yymsp[-1].minor.yy573, (SyntaqliteNullsOrder)yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_order_by_list(pCtx, yymsp[-4].minor.yy573, term);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 211: /* sortlist ::= expr sortorder nulls */
 {
-    uint32_t term = synq_parse_ordering_term(pCtx, yymsp[-2].minor.yy639, (SyntaqliteSortOrder)yymsp[-1].minor.yy639, (SyntaqliteNullsOrder)yymsp[0].minor.yy639);
-    yylhsminor.yy639 = synq_parse_order_by_list(pCtx, SYNTAQLITE_NULL_NODE, term);
+    uint32_t term = synq_parse_ordering_term(pCtx, yymsp[-2].minor.yy573, (SyntaqliteSortOrder)yymsp[-1].minor.yy573, (SyntaqliteNullsOrder)yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_order_by_list(pCtx, SYNTAQLITE_NULL_NODE, term);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
-      case 213: /* sortorder ::= DESC */
+      case 212: /* sortorder ::= ASC */
       case 267: /* distinct ::= DISTINCT */ yytestcase(yyruleno==267);
 {
-    yymsp[0].minor.yy639 = 1;
+    yymsp[0].minor.yy573 = 1;
+}
+        break;
+      case 213: /* sortorder ::= DESC */
+{
+    yymsp[0].minor.yy573 = 2;
 }
         break;
       case 214: /* sortorder ::= */
-      case 217: /* nulls ::= */ yytestcase(yyruleno==217);
-      case 269: /* distinct ::= */ yytestcase(yyruleno==269);
 {
-    yymsp[1].minor.yy639 = 0;
+    yymsp[1].minor.yy573 = SYNQ_SORTORDER_NONE;
 }
         break;
       case 216: /* nulls ::= NULLS LAST */
 {
-    yymsp[-1].minor.yy639 = 2;
+    yymsp[-1].minor.yy573 = 2;
+}
+        break;
+      case 217: /* nulls ::= */
+      case 269: /* distinct ::= */ yytestcase(yyruleno==269);
+{
+    yymsp[1].minor.yy573 = 0;
 }
         break;
       case 218: /* expr ::= RAISE LP IGNORE RP */
 {
-    yymsp[-3].minor.yy639 = synq_parse_raise_expr(pCtx, SYNTAQLITE_RAISE_TYPE_IGNORE, SYNTAQLITE_NULL_NODE);
+    yymsp[-3].minor.yy573 = synq_parse_raise_expr(pCtx, SYNTAQLITE_RAISE_TYPE_IGNORE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 219: /* expr ::= RAISE LP raisetype COMMA expr RP */
 {
-    yymsp[-5].minor.yy639 = synq_parse_raise_expr(pCtx, (SyntaqliteRaiseType)yymsp[-3].minor.yy390, yymsp[-1].minor.yy639);
+    yymsp[-5].minor.yy573 = synq_parse_raise_expr(pCtx, (SyntaqliteRaiseType)yymsp[-3].minor.yy50, yymsp[-1].minor.yy573);
 }
         break;
       case 220: /* raisetype ::= ROLLBACK */
-{ yymsp[0].minor.yy390 = SYNTAQLITE_RAISE_TYPE_ROLLBACK; }
+{ yymsp[0].minor.yy50 = SYNTAQLITE_RAISE_TYPE_ROLLBACK; }
         break;
       case 221: /* raisetype ::= ABORT */
-{ yymsp[0].minor.yy390 = SYNTAQLITE_RAISE_TYPE_ABORT; }
+{ yymsp[0].minor.yy50 = SYNTAQLITE_RAISE_TYPE_ABORT; }
         break;
       case 222: /* raisetype ::= FAIL */
-{ yymsp[0].minor.yy390 = SYNTAQLITE_RAISE_TYPE_FAIL; }
+{ yymsp[0].minor.yy50 = SYNTAQLITE_RAISE_TYPE_FAIL; }
         break;
       case 223: /* fullname ::= nmorerr */
 {
-    yylhsminor.yy639 = synq_parse_qualified_name(pCtx,
-        yymsp[0].minor.yy639,
+    yylhsminor.yy573 = synq_parse_qualified_name(pCtx,
+        yymsp[0].minor.yy573,
         SYNTAQLITE_NULL_NODE);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 224: /* fullname ::= nmorerr DOT nmorerr */
 {
-    yylhsminor.yy639 = synq_parse_qualified_name(pCtx,
-        yymsp[0].minor.yy639,
-        yymsp[-2].minor.yy639);
+    yylhsminor.yy573 = synq_parse_qualified_name(pCtx,
+        yymsp[0].minor.yy573,
+        yymsp[-2].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 227: /* cmd ::= DROP TABLE ifexists fullname */
 {
-    yymsp[-3].minor.yy639 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_TABLE, (SyntaqliteBool)yymsp[-1].minor.yy390, yymsp[0].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_TABLE, (SyntaqliteBool)yymsp[-1].minor.yy50, yymsp[0].minor.yy573);
 }
         break;
       case 228: /* cmd ::= DROP VIEW ifexists fullname */
 {
-    yymsp[-3].minor.yy639 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_VIEW, (SyntaqliteBool)yymsp[-1].minor.yy390, yymsp[0].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_VIEW, (SyntaqliteBool)yymsp[-1].minor.yy50, yymsp[0].minor.yy573);
 }
         break;
       case 229: /* cmd ::= DROP INDEX ifexists fullname */
 {
-    yymsp[-3].minor.yy639 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_INDEX, (SyntaqliteBool)yymsp[-1].minor.yy390, yymsp[0].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_INDEX, (SyntaqliteBool)yymsp[-1].minor.yy50, yymsp[0].minor.yy573);
 }
         break;
       case 230: /* cmd ::= DROP TRIGGER ifexists fullname */
 {
-    yymsp[-3].minor.yy639 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_TRIGGER, (SyntaqliteBool)yymsp[-1].minor.yy390, yymsp[0].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_drop_stmt(pCtx, SYNTAQLITE_DROP_OBJECT_TYPE_TRIGGER, (SyntaqliteBool)yymsp[-1].minor.yy50, yymsp[0].minor.yy573);
 }
         break;
       case 231: /* cmd ::= ALTER TABLE fullname RENAME TO nmorerr */
 {
-    yymsp[-5].minor.yy639 = synq_parse_alter_table_stmt(pCtx,
-        SYNTAQLITE_ALTER_OP_RENAME_TABLE, yymsp[-3].minor.yy639,
-        yymsp[0].minor.yy639,
+    yymsp[-5].minor.yy573 = synq_parse_alter_table_stmt(pCtx,
+        SYNTAQLITE_ALTER_OP_RENAME_TABLE, SYNTAQLITE_BOOL_FALSE, yymsp[-3].minor.yy573,
+        yymsp[0].minor.yy573,
+        SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE);
 }
         break;
       case 232: /* cmd ::= ALTER TABLE fullname RENAME kwcolumn_opt nmorerr TO nmorerr */
 {
-    yymsp[-7].minor.yy639 = synq_parse_alter_table_stmt(pCtx,
-        SYNTAQLITE_ALTER_OP_RENAME_COLUMN, yymsp[-5].minor.yy639,
-        yymsp[0].minor.yy639,
-        yymsp[-2].minor.yy639);
+    yymsp[-7].minor.yy573 = synq_parse_alter_table_stmt(pCtx,
+        SYNTAQLITE_ALTER_OP_RENAME_COLUMN,
+        yymsp[-3].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE, yymsp[-5].minor.yy573,
+        yymsp[0].minor.yy573,
+        yymsp[-2].minor.yy573,
+        SYNTAQLITE_NULL_NODE);
 }
         break;
       case 233: /* cmd ::= ALTER TABLE fullname DROP kwcolumn_opt nmorerr */
 {
-    yymsp[-5].minor.yy639 = synq_parse_alter_table_stmt(pCtx,
-        SYNTAQLITE_ALTER_OP_DROP_COLUMN, yymsp[-3].minor.yy639,
+    yymsp[-5].minor.yy573 = synq_parse_alter_table_stmt(pCtx,
+        SYNTAQLITE_ALTER_OP_DROP_COLUMN,
+        yymsp[-1].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE, yymsp[-3].minor.yy573,
         SYNTAQLITE_NULL_NODE,
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573,
+        SYNTAQLITE_NULL_NODE);
 }
         break;
       case 234: /* cmd ::= ALTER TABLE add_column_fullname ADD kwcolumn_opt columnname carglist */
 {
-    yymsp[-6].minor.yy639 = synq_parse_alter_table_stmt(pCtx,
-        SYNTAQLITE_ALTER_OP_ADD_COLUMN, yymsp[-4].minor.yy639,
+    uint32_t col = synq_parse_column_def(pCtx, yymsp[-1].minor.yy626.name, yymsp[-1].minor.yy626.typetoken, yymsp[0].minor.yy573);
+    yymsp[-6].minor.yy573 = synq_parse_alter_table_stmt(pCtx,
+        SYNTAQLITE_ALTER_OP_ADD_COLUMN,
+        yymsp[-2].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE, yymsp[-4].minor.yy573,
         SYNTAQLITE_NULL_NODE,
-        yymsp[-1].minor.yy358.name);
+        SYNTAQLITE_NULL_NODE,
+        col);
 }
         break;
       case 238: /* columnname ::= nmorerr typetoken */
 {
-    yylhsminor.yy358.name = yymsp[-1].minor.yy639;
-    yylhsminor.yy358.typetoken = yymsp[0].minor.yy0.z ? synq_span(pCtx, yymsp[0].minor.yy0) : SYNQ_NO_SPAN;
+    yylhsminor.yy626.name = yymsp[-1].minor.yy573;
+    pCtx->generated_always = synq_trim_generated_always(&yymsp[0].minor.yy0);
+    yylhsminor.yy626.typetoken = (yymsp[0].minor.yy0.z && yymsp[0].minor.yy0.n) ? synq_span(pCtx, yymsp[0].minor.yy0) : SYNQ_NO_SPAN;
 }
-  yymsp[-1].minor.yy358 = yylhsminor.yy358;
+  yymsp[-1].minor.yy626 = yylhsminor.yy626;
         break;
       case 239: /* cmd ::= BEGIN transtype trans_opt */
 {
-    yymsp[-2].minor.yy639 = synq_parse_transaction_stmt(pCtx,
+    yymsp[-2].minor.yy573 = synq_parse_transaction_stmt(pCtx,
         SYNTAQLITE_TRANSACTION_OP_BEGIN,
-        (SyntaqliteTransactionType)yymsp[-1].minor.yy390);
+        (SyntaqliteTransactionType)yymsp[-1].minor.yy50,
+        yymsp[0].minor.yy320.has_transaction ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[0].minor.yy320.name.z ? synq_span(pCtx, yymsp[0].minor.yy320.name) : SYNQ_NO_SPAN);
 }
         break;
       case 240: /* cmd ::= COMMIT|END trans_opt */
 {
-    yymsp[-1].minor.yy639 = synq_parse_transaction_stmt(pCtx,
-        SYNTAQLITE_TRANSACTION_OP_COMMIT,
-        SYNTAQLITE_TRANSACTION_TYPE_DEFERRED);
+    // END and COMMIT mean the same thing to SQLite but are different text.
+    yylhsminor.yy573 = synq_parse_transaction_stmt(pCtx,
+        yymsp[-1].minor.yy0.type == SYNTAQLITE_TK_END ? SYNTAQLITE_TRANSACTION_OP_END
+                                    : SYNTAQLITE_TRANSACTION_OP_COMMIT,
+        SYNTAQLITE_TRANSACTION_TYPE_NONE,
+        yymsp[0].minor.yy320.has_transaction ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[0].minor.yy320.name.z ? synq_span(pCtx, yymsp[0].minor.yy320.name) : SYNQ_NO_SPAN);
 }
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 241: /* cmd ::= ROLLBACK trans_opt */
 {
-    yymsp[-1].minor.yy639 = synq_parse_transaction_stmt(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_transaction_stmt(pCtx,
         SYNTAQLITE_TRANSACTION_OP_ROLLBACK,
-        SYNTAQLITE_TRANSACTION_TYPE_DEFERRED);
+        SYNTAQLITE_TRANSACTION_TYPE_NONE,
+        yymsp[0].minor.yy320.has_transaction ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[0].minor.yy320.name.z ? synq_span(pCtx, yymsp[0].minor.yy320.name) : SYNQ_NO_SPAN);
 }
         break;
       case 242: /* transtype ::= */
 {
-    yymsp[1].minor.yy390 = (int)SYNTAQLITE_TRANSACTION_TYPE_DEFERRED;
+    yymsp[1].minor.yy50 = (int)SYNTAQLITE_TRANSACTION_TYPE_NONE;
 }
         break;
       case 243: /* transtype ::= DEFERRED */
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_TRANSACTION_TYPE_DEFERRED;
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_TRANSACTION_TYPE_DEFERRED;
 }
         break;
       case 244: /* transtype ::= IMMEDIATE */
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_TRANSACTION_TYPE_IMMEDIATE;
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_TRANSACTION_TYPE_IMMEDIATE;
 }
         break;
       case 245: /* transtype ::= EXCLUSIVE */
 {
-    yymsp[0].minor.yy390 = (int)SYNTAQLITE_TRANSACTION_TYPE_EXCLUSIVE;
+    yymsp[0].minor.yy50 = (int)SYNTAQLITE_TRANSACTION_TYPE_EXCLUSIVE;
+}
+        break;
+      case 246: /* trans_opt ::= */
+{
+    yymsp[1].minor.yy320.has_transaction = 0;
+    yymsp[1].minor.yy320.name.z = NULL; yymsp[1].minor.yy320.name.n = 0;
 }
         break;
       case 247: /* trans_opt ::= TRANSACTION */
-      case 249: /* savepoint_opt ::= SAVEPOINT */ yytestcase(yyruleno==249);
 {
-    yymsp[0].minor.yy390 = 0;
+    yymsp[0].minor.yy320.has_transaction = 1;
+    yymsp[0].minor.yy320.name.z = NULL; yymsp[0].minor.yy320.name.n = 0;
+}
+        break;
+      case 248: /* trans_opt ::= TRANSACTION nm */
+{
+    yymsp[-1].minor.yy320.has_transaction = 1;
+    yymsp[-1].minor.yy320.name = yymsp[0].minor.yy0;
 }
         break;
       case 251: /* cmd ::= SAVEPOINT nmorerr */
 {
-    yymsp[-1].minor.yy639 = synq_parse_savepoint_stmt(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_savepoint_stmt(pCtx,
         SYNTAQLITE_SAVEPOINT_OP_SAVEPOINT,
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573, SYNTAQLITE_BOOL_TRUE, SYNTAQLITE_BOOL_FALSE, SYNQ_NO_SPAN);
 }
         break;
       case 252: /* cmd ::= RELEASE savepoint_opt nmorerr */
 {
-    yymsp[-2].minor.yy639 = synq_parse_savepoint_stmt(pCtx,
+    yymsp[-2].minor.yy573 = synq_parse_savepoint_stmt(pCtx,
         SYNTAQLITE_SAVEPOINT_OP_RELEASE,
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573, yymsp[-1].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_BOOL_FALSE, SYNQ_NO_SPAN);
 }
         break;
       case 253: /* cmd ::= ROLLBACK trans_opt TO savepoint_opt nmorerr */
 {
-    yymsp[-4].minor.yy639 = synq_parse_savepoint_stmt(pCtx,
+    yymsp[-4].minor.yy573 = synq_parse_savepoint_stmt(pCtx,
         SYNTAQLITE_SAVEPOINT_OP_ROLLBACK_TO,
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573, yymsp[-1].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-3].minor.yy320.has_transaction ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-3].minor.yy320.name.z ? synq_span(pCtx, yymsp[-3].minor.yy320.name) : SYNQ_NO_SPAN);
 }
         break;
       case 257: /* oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt orderby_opt limit_opt */
 {
-    yymsp[-8].minor.yy639 = synq_parse_select_stmt(pCtx, (SyntaqliteSelectStmtFlags){.raw = (uint8_t)(yymsp[-7].minor.yy639 & 0xFF)}, yymsp[-6].minor.yy639, yymsp[-5].minor.yy639, yymsp[-4].minor.yy639, yymsp[-3].minor.yy639, yymsp[-2].minor.yy639, yymsp[-1].minor.yy639, yymsp[0].minor.yy639, SYNTAQLITE_NULL_NODE);
+    yymsp[-8].minor.yy573 = synq_parse_select_stmt(pCtx, (SyntaqliteSelectStmtFlags){.raw = (uint8_t)(yymsp[-7].minor.yy573 & 0xFF)}, yymsp[-6].minor.yy573, yymsp[-5].minor.yy573, yymsp[-4].minor.yy573, yymsp[-3].minor.yy573, yymsp[-2].minor.yy573, yymsp[-1].minor.yy573, yymsp[0].minor.yy573, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 258: /* oneselect ::= SELECT distinct selcollist from where_opt groupby_opt having_opt window_clause orderby_opt limit_opt */
 {
-    yymsp[-9].minor.yy639 = synq_parse_select_stmt(pCtx, (SyntaqliteSelectStmtFlags){.raw = (uint8_t)(yymsp[-8].minor.yy639 & 0xFF)}, yymsp[-7].minor.yy639, yymsp[-6].minor.yy639, yymsp[-5].minor.yy639, yymsp[-4].minor.yy639, yymsp[-3].minor.yy639, yymsp[-1].minor.yy639, yymsp[0].minor.yy639, yymsp[-2].minor.yy639);
+    yymsp[-9].minor.yy573 = synq_parse_select_stmt(pCtx, (SyntaqliteSelectStmtFlags){.raw = (uint8_t)(yymsp[-8].minor.yy573 & 0xFF)}, yymsp[-7].minor.yy573, yymsp[-6].minor.yy573, yymsp[-5].minor.yy573, yymsp[-4].minor.yy573, yymsp[-3].minor.yy573, yymsp[-1].minor.yy573, yymsp[0].minor.yy573, yymsp[-2].minor.yy573);
 }
         break;
       case 259: /* selcollist ::= sclp scanpt expr scanpt as */
 {
-    uint32_t col = synq_parse_result_column(pCtx, (SyntaqliteResultColumnFlags){0}, yymsp[0].minor.yy639, yymsp[-2].minor.yy639);
-    yylhsminor.yy639 = synq_parse_result_column_list(pCtx, yymsp[-4].minor.yy639, col);
+    uint32_t col = synq_parse_result_column(pCtx, (SyntaqliteResultColumnFlags){0}, yymsp[0].minor.yy455.name, yymsp[0].minor.yy455.has_as, yymsp[-2].minor.yy573);
+    yylhsminor.yy573 = synq_parse_result_column_list(pCtx, yymsp[-4].minor.yy573, col);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 260: /* selcollist ::= sclp scanpt STAR */
 {
-    uint32_t col = synq_parse_result_column(pCtx, (SyntaqliteResultColumnFlags){.raw = 0x01}, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yylhsminor.yy639 = synq_parse_result_column_list(pCtx, yymsp[-2].minor.yy639, col);
+    uint32_t col = synq_parse_result_column(pCtx, (SyntaqliteResultColumnFlags){.raw = 0x01},
+                                           SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
+                                           SYNTAQLITE_NULL_NODE);
+    yylhsminor.yy573 = synq_parse_result_column_list(pCtx, yymsp[-2].minor.yy573, col);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 264: /* as ::= AS nmorerr */
+{
+    yymsp[-1].minor.yy455.name = synq_pass(pCtx, yymsp[0].minor.yy573);
+    yymsp[-1].minor.yy455.has_as = 1;
+}
+        break;
+      case 265: /* as ::= ID|STRING */
+{
+    yylhsminor.yy455.name = synq_parse_ident_name(pCtx, synq_span_dequote(pCtx, yymsp[0].minor.yy0));
+    yylhsminor.yy455.has_as = 0;
+}
+  yymsp[0].minor.yy455 = yylhsminor.yy455;
+        break;
+      case 266: /* as ::= */
+{
+    yymsp[1].minor.yy455.name = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy455.has_as = 0;
+}
+        break;
+      case 268: /* distinct ::= ALL */
+{
+    // Bit 2 is STAR in FunctionCallFlags, so ALL takes bit 4 in every set
+    // that this value is cast into.
+    yymsp[0].minor.yy573 = 4;
+}
         break;
       case 275: /* groupby_opt ::= GROUP BY nexprlist */
       case 279: /* orderby_opt ::= ORDER BY sortlist */ yytestcase(yyruleno==279);
 {
-    yymsp[-2].minor.yy639 = synq_pass(pCtx, yymsp[0].minor.yy639);
+    yymsp[-2].minor.yy573 = synq_pass(pCtx, yymsp[0].minor.yy573);
 }
         break;
       case 281: /* limit_opt ::= LIMIT expr */
 {
-    yymsp[-1].minor.yy639 = synq_parse_limit_clause(pCtx, yymsp[0].minor.yy639, SYNTAQLITE_NULL_NODE);
+    yymsp[-1].minor.yy573 = synq_parse_limit_clause(pCtx, yymsp[0].minor.yy573, SYNTAQLITE_NULL_NODE,
+                                SYNTAQLITE_BOOL_FALSE);
 }
         break;
       case 282: /* limit_opt ::= LIMIT expr OFFSET expr */
 {
-    yymsp[-3].minor.yy639 = synq_parse_limit_clause(pCtx, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_limit_clause(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573, SYNTAQLITE_BOOL_FALSE);
 }
         break;
       case 283: /* limit_opt ::= LIMIT expr COMMA expr */
 {
-    yymsp[-3].minor.yy639 = synq_parse_limit_clause(pCtx, yymsp[0].minor.yy639, yymsp[-2].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_limit_clause(pCtx, yymsp[0].minor.yy573, yymsp[-2].minor.yy573, SYNTAQLITE_BOOL_TRUE);
 }
         break;
       case 284: /* stl_prefix ::= seltablist joinop */
 {
-    yymsp[-1].minor.yy639 = synq_parse_join_prefix(pCtx, yymsp[-1].minor.yy639, (SyntaqliteJoinType)yymsp[0].minor.yy390);
+    yymsp[-1].minor.yy573 = synq_parse_join_prefix(pCtx, yymsp[-1].minor.yy573, yymsp[0].minor.yy108.join_type, yymsp[0].minor.yy108.modifiers);
 }
         break;
       case 286: /* seltablist ::= stl_prefix nm dbnm as on_using */
 {
-    uint32_t alias = yymsp[-1].minor.yy639;
+    uint32_t alias = yymsp[-1].minor.yy455.name;
+    SyntaqliteBool alias_as = yymsp[-1].minor.yy455.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE;
     SyntaqliteTextSpan table_name;
     SyntaqliteTextSpan schema;
     if (yymsp[-2].minor.yy0.z != NULL) {
@@ -16548,22 +17804,25 @@ static YYACTIONTYPE yy_reduce(
     }
     uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
                                          SYNTAQLITE_BOOL_FALSE,
-                                         alias, SYNTAQLITE_NULL_NODE);
-    if (yymsp[-4].minor.yy639 == SYNTAQLITE_NULL_NODE) {
-        yymsp[-4].minor.yy639 = tref;
+                                         alias, alias_as, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
+    if (yymsp[-4].minor.yy573 == SYNTAQLITE_NULL_NODE) {
+        synq_reject_dangling_on_using(pCtx, yymsp[0].minor.yy708);
+        yymsp[-4].minor.yy573 = tref;
     } else {
-        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-4].minor.yy639);
-        yymsp[-4].minor.yy639 = synq_parse_join_clause(pCtx,
+        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-4].minor.yy573);
+        yymsp[-4].minor.yy573 = synq_parse_join_clause(pCtx,
             pfx->join_prefix.join_type,
+            pfx->join_prefix.modifiers,
             pfx->join_prefix.source,
-            tref, yymsp[0].minor.yy638.on_expr, yymsp[0].minor.yy638.using_cols);
+            tref, yymsp[0].minor.yy708.on_expr, yymsp[0].minor.yy708.using_cols);
     }
 }
         break;
       case 287: /* seltablist ::= stl_prefix nm dbnm as indexed_by on_using */
 {
-    (void)yymsp[-1].minor.yy0;
-    uint32_t alias = yymsp[-2].minor.yy639;
+    uint32_t alias = yymsp[-2].minor.yy455.name;
+    SyntaqliteBool alias_as = yymsp[-2].minor.yy455.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE;
     SyntaqliteTextSpan table_name;
     SyntaqliteTextSpan schema;
     if (yymsp[-3].minor.yy0.z != NULL) {
@@ -16573,23 +17832,30 @@ static YYACTIONTYPE yy_reduce(
         table_name = synq_span_dequote(pCtx, yymsp[-4].minor.yy0);
         schema = SYNQ_NO_SPAN;
     }
+    SyntaqliteIndexHint ih = (yymsp[-1].minor.yy0.z != NULL) ? SYNTAQLITE_INDEX_HINT_INDEXED
+                           : (yymsp[-1].minor.yy0.n == 1)    ? SYNTAQLITE_INDEX_HINT_NOT_INDEXED
+                           :                 SYNTAQLITE_INDEX_HINT_DEFAULT;
     uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
                                          SYNTAQLITE_BOOL_FALSE,
-                                         alias, SYNTAQLITE_NULL_NODE);
-    if (yymsp[-5].minor.yy639 == SYNTAQLITE_NULL_NODE) {
-        yymsp[-5].minor.yy639 = tref;
+                                         alias, alias_as, SYNTAQLITE_NULL_NODE,
+                                         ih, synq_span(pCtx, yymsp[-1].minor.yy0));
+    if (yymsp[-5].minor.yy573 == SYNTAQLITE_NULL_NODE) {
+        synq_reject_dangling_on_using(pCtx, yymsp[0].minor.yy708);
+        yymsp[-5].minor.yy573 = tref;
     } else {
-        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-5].minor.yy639);
-        yymsp[-5].minor.yy639 = synq_parse_join_clause(pCtx,
+        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-5].minor.yy573);
+        yymsp[-5].minor.yy573 = synq_parse_join_clause(pCtx,
             pfx->join_prefix.join_type,
+            pfx->join_prefix.modifiers,
             pfx->join_prefix.source,
-            tref, yymsp[0].minor.yy638.on_expr, yymsp[0].minor.yy638.using_cols);
+            tref, yymsp[0].minor.yy708.on_expr, yymsp[0].minor.yy708.using_cols);
     }
 }
         break;
       case 288: /* seltablist ::= stl_prefix nm dbnm LP exprlist RP as on_using */
 {
-    uint32_t alias = yymsp[-1].minor.yy639;
+    uint32_t alias = yymsp[-1].minor.yy455.name;
+    SyntaqliteBool alias_as = yymsp[-1].minor.yy455.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE;
     SyntaqliteTextSpan table_name;
     SyntaqliteTextSpan schema;
     if (yymsp[-5].minor.yy0.z != NULL) {
@@ -16601,152 +17867,101 @@ static YYACTIONTYPE yy_reduce(
     }
     uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
                                          SYNTAQLITE_BOOL_TRUE,
-                                         alias, yymsp[-3].minor.yy639);
-    if (yymsp[-7].minor.yy639 == SYNTAQLITE_NULL_NODE) {
-        yymsp[-7].minor.yy639 = tref;
+                                         alias, alias_as, yymsp[-3].minor.yy573,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
+    if (yymsp[-7].minor.yy573 == SYNTAQLITE_NULL_NODE) {
+        synq_reject_dangling_on_using(pCtx, yymsp[0].minor.yy708);
+        yymsp[-7].minor.yy573 = tref;
     } else {
-        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-7].minor.yy639);
-        yymsp[-7].minor.yy639 = synq_parse_join_clause(pCtx,
+        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-7].minor.yy573);
+        yymsp[-7].minor.yy573 = synq_parse_join_clause(pCtx,
             pfx->join_prefix.join_type,
+            pfx->join_prefix.modifiers,
             pfx->join_prefix.source,
-            tref, yymsp[0].minor.yy638.on_expr, yymsp[0].minor.yy638.using_cols);
+            tref, yymsp[0].minor.yy708.on_expr, yymsp[0].minor.yy708.using_cols);
     }
 }
         break;
       case 289: /* seltablist ::= stl_prefix LP select RP as on_using */
 {
     pCtx->saw_subquery = 1;
-    uint32_t alias = yymsp[-1].minor.yy639;
-    uint32_t sub = synq_parse_subquery_table_source(pCtx, yymsp[-3].minor.yy639, alias);
-    if (yymsp[-5].minor.yy639 == SYNTAQLITE_NULL_NODE) {
-        yymsp[-5].minor.yy639 = sub;
+    uint32_t alias = yymsp[-1].minor.yy455.name;
+    SyntaqliteBool alias_as = yymsp[-1].minor.yy455.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE;
+    uint32_t sub = synq_parse_subquery_table_source(pCtx, yymsp[-3].minor.yy573, alias, alias_as);
+    if (yymsp[-5].minor.yy573 == SYNTAQLITE_NULL_NODE) {
+        synq_reject_dangling_on_using(pCtx, yymsp[0].minor.yy708);
+        yymsp[-5].minor.yy573 = sub;
     } else {
-        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-5].minor.yy639);
-        yymsp[-5].minor.yy639 = synq_parse_join_clause(pCtx,
+        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-5].minor.yy573);
+        yymsp[-5].minor.yy573 = synq_parse_join_clause(pCtx,
             pfx->join_prefix.join_type,
+            pfx->join_prefix.modifiers,
             pfx->join_prefix.source,
-            sub, yymsp[0].minor.yy638.on_expr, yymsp[0].minor.yy638.using_cols);
+            sub, yymsp[0].minor.yy708.on_expr, yymsp[0].minor.yy708.using_cols);
     }
 }
         break;
       case 290: /* seltablist ::= stl_prefix LP seltablist RP as on_using */
 {
-    (void)yymsp[-1].minor.yy639; (void)yymsp[0].minor.yy638;
-    if (yymsp[-5].minor.yy639 == SYNTAQLITE_NULL_NODE) {
-        yymsp[-5].minor.yy639 = synq_pass(pCtx, yymsp[-3].minor.yy639);
+    uint32_t paren = synq_parse_paren_table_source(
+        pCtx, yymsp[-3].minor.yy573, yymsp[-1].minor.yy455.name,
+        yymsp[-1].minor.yy455.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+    if (yymsp[-5].minor.yy573 == SYNTAQLITE_NULL_NODE) {
+        synq_reject_dangling_on_using(pCtx, yymsp[0].minor.yy708);
+        yymsp[-5].minor.yy573 = paren;
     } else {
-        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-5].minor.yy639);
-        yymsp[-5].minor.yy639 = synq_parse_join_clause(pCtx,
+        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, yymsp[-5].minor.yy573);
+        yymsp[-5].minor.yy573 = synq_parse_join_clause(pCtx,
             pfx->join_prefix.join_type,
+            pfx->join_prefix.modifiers,
             pfx->join_prefix.source,
-            yymsp[-3].minor.yy639, yymsp[0].minor.yy638.on_expr, yymsp[0].minor.yy638.using_cols);
+            paren, yymsp[0].minor.yy708.on_expr, yymsp[0].minor.yy708.using_cols);
     }
 }
         break;
       case 291: /* joinop ::= COMMA|JOIN */
 {
-    yylhsminor.yy390 = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_COMMA)
-        ? (int)SYNTAQLITE_JOIN_TYPE_COMMA
-        : (int)SYNTAQLITE_JOIN_TYPE_INNER;
+    yylhsminor.yy108.join_type = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_COMMA)
+        ? SYNTAQLITE_JOIN_TYPE_COMMA
+        : SYNTAQLITE_JOIN_TYPE_INNER;
+    yylhsminor.yy108.modifiers = SYNTAQLITE_NULL_NODE;
 }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+  yymsp[0].minor.yy108 = yylhsminor.yy108;
         break;
       case 292: /* joinop ::= JOIN_KW JOIN */
 {
-    // Single keyword: LEFT, RIGHT, INNER, OUTER, CROSS, NATURAL, FULL
-    if (yymsp[-1].minor.yy0.n == 4 && (yymsp[-1].minor.yy0.z[0] == 'L' || yymsp[-1].minor.yy0.z[0] == 'l')) {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_LEFT;
-    } else if (yymsp[-1].minor.yy0.n == 5 && (yymsp[-1].minor.yy0.z[0] == 'R' || yymsp[-1].minor.yy0.z[0] == 'r')) {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_RIGHT;
-    } else if (yymsp[-1].minor.yy0.n == 5 && (yymsp[-1].minor.yy0.z[0] == 'I' || yymsp[-1].minor.yy0.z[0] == 'i')) {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_INNER;
-    } else if (yymsp[-1].minor.yy0.n == 5 && (yymsp[-1].minor.yy0.z[0] == 'O' || yymsp[-1].minor.yy0.z[0] == 'o')) {
-        // OUTER alone is not valid but treat as INNER
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_INNER;
-    } else if (yymsp[-1].minor.yy0.n == 5 && (yymsp[-1].minor.yy0.z[0] == 'C' || yymsp[-1].minor.yy0.z[0] == 'c')) {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_CROSS;
-    } else if (yymsp[-1].minor.yy0.n == 7 && (yymsp[-1].minor.yy0.z[0] == 'N' || yymsp[-1].minor.yy0.z[0] == 'n')) {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_INNER;
-    } else if (yymsp[-1].minor.yy0.n == 4 && (yymsp[-1].minor.yy0.z[0] == 'F' || yymsp[-1].minor.yy0.z[0] == 'f')) {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_FULL;
-    } else {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_INNER;
-    }
+    yylhsminor.yy108 = synq_join_operator(pCtx, &yymsp[-1].minor.yy0, NULL, NULL);
 }
-  yymsp[-1].minor.yy390 = yylhsminor.yy390;
+  yymsp[-1].minor.yy108 = yylhsminor.yy108;
         break;
       case 293: /* joinop ::= JOIN_KW nm JOIN */
 {
-    // Two keywords: LEFT OUTER, NATURAL LEFT, NATURAL RIGHT, etc.
-    (void)yymsp[-1].minor.yy0;
-    if (yymsp[-2].minor.yy0.n == 7 && (yymsp[-2].minor.yy0.z[0] == 'N' || yymsp[-2].minor.yy0.z[0] == 'n')) {
-        // NATURAL + something
-        if (yymsp[-1].minor.yy0.n == 4 && (yymsp[-1].minor.yy0.z[0] == 'L' || yymsp[-1].minor.yy0.z[0] == 'l')) {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_LEFT;
-        } else if (yymsp[-1].minor.yy0.n == 5 && (yymsp[-1].minor.yy0.z[0] == 'R' || yymsp[-1].minor.yy0.z[0] == 'r')) {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_RIGHT;
-        } else if (yymsp[-1].minor.yy0.n == 5 && (yymsp[-1].minor.yy0.z[0] == 'I' || yymsp[-1].minor.yy0.z[0] == 'i')) {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_INNER;
-        } else if (yymsp[-1].minor.yy0.n == 4 && (yymsp[-1].minor.yy0.z[0] == 'F' || yymsp[-1].minor.yy0.z[0] == 'f')) {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_FULL;
-        } else if (yymsp[-1].minor.yy0.n == 5 && (yymsp[-1].minor.yy0.z[0] == 'C' || yymsp[-1].minor.yy0.z[0] == 'c')) {
-            // NATURAL CROSS -> just CROSS
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_CROSS;
-        } else {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_INNER;
-        }
-    } else if (yymsp[-2].minor.yy0.n == 4 && (yymsp[-2].minor.yy0.z[0] == 'L' || yymsp[-2].minor.yy0.z[0] == 'l')) {
-        // LEFT OUTER
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_LEFT;
-    } else if (yymsp[-2].minor.yy0.n == 5 && (yymsp[-2].minor.yy0.z[0] == 'R' || yymsp[-2].minor.yy0.z[0] == 'r')) {
-        // RIGHT OUTER
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_RIGHT;
-    } else if (yymsp[-2].minor.yy0.n == 4 && (yymsp[-2].minor.yy0.z[0] == 'F' || yymsp[-2].minor.yy0.z[0] == 'f')) {
-        // FULL OUTER
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_FULL;
-    } else {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_INNER;
-    }
+    yylhsminor.yy108 = synq_join_operator(pCtx, &yymsp[-2].minor.yy0, &yymsp[-1].minor.yy0, NULL);
 }
-  yymsp[-2].minor.yy390 = yylhsminor.yy390;
+  yymsp[-2].minor.yy108 = yylhsminor.yy108;
         break;
       case 294: /* joinop ::= JOIN_KW nm nm JOIN */
 {
-    // Three keywords: NATURAL LEFT OUTER, NATURAL RIGHT OUTER, etc.
-    (void)yymsp[-2].minor.yy0; (void)yymsp[-1].minor.yy0;
-    if (yymsp[-3].minor.yy0.n == 7 && (yymsp[-3].minor.yy0.z[0] == 'N' || yymsp[-3].minor.yy0.z[0] == 'n')) {
-        // NATURAL yylhsminor.yy390 OUTER
-        if (yymsp[-2].minor.yy0.n == 4 && (yymsp[-2].minor.yy0.z[0] == 'L' || yymsp[-2].minor.yy0.z[0] == 'l')) {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_LEFT;
-        } else if (yymsp[-2].minor.yy0.n == 5 && (yymsp[-2].minor.yy0.z[0] == 'R' || yymsp[-2].minor.yy0.z[0] == 'r')) {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_RIGHT;
-        } else if (yymsp[-2].minor.yy0.n == 4 && (yymsp[-2].minor.yy0.z[0] == 'F' || yymsp[-2].minor.yy0.z[0] == 'f')) {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_FULL;
-        } else {
-            yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_NATURAL_INNER;
-        }
-    } else {
-        yylhsminor.yy390 = (int)SYNTAQLITE_JOIN_TYPE_INNER;
-    }
+    yylhsminor.yy108 = synq_join_operator(pCtx, &yymsp[-3].minor.yy0, &yymsp[-2].minor.yy0, &yymsp[-1].minor.yy0);
 }
-  yymsp[-3].minor.yy390 = yylhsminor.yy390;
+  yymsp[-3].minor.yy108 = yylhsminor.yy108;
         break;
       case 295: /* on_using ::= ON expr */
 {
-    yymsp[-1].minor.yy638.on_expr = yymsp[0].minor.yy639;
-    yymsp[-1].minor.yy638.using_cols = SYNTAQLITE_NULL_NODE;
+    yymsp[-1].minor.yy708.on_expr = yymsp[0].minor.yy573;
+    yymsp[-1].minor.yy708.using_cols = SYNTAQLITE_NULL_NODE;
 }
         break;
       case 296: /* on_using ::= USING LP idlist RP */
 {
-    yymsp[-3].minor.yy638.on_expr = SYNTAQLITE_NULL_NODE;
-    yymsp[-3].minor.yy638.using_cols = yymsp[-1].minor.yy639;
+    yymsp[-3].minor.yy708.on_expr = SYNTAQLITE_NULL_NODE;
+    yymsp[-3].minor.yy708.using_cols = yymsp[-1].minor.yy573;
 }
         break;
       case 297: /* on_using ::= */
 {
-    yymsp[1].minor.yy638.on_expr = SYNTAQLITE_NULL_NODE;
-    yymsp[1].minor.yy638.using_cols = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy708.on_expr = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy708.using_cols = SYNTAQLITE_NULL_NODE;
 }
         break;
       case 298: /* indexed_by ::= INDEXED BY nm */
@@ -16763,57 +17978,62 @@ static YYACTIONTYPE yy_reduce(
 {
     uint32_t col = synq_parse_column_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[0].minor.yy0), SYNQ_NO_SPAN, SYNQ_NO_SPAN);
-    yymsp[-2].minor.yy639 = synq_parse_expr_list(pCtx, yymsp[-2].minor.yy639, col);
+    yymsp[-2].minor.yy573 = synq_parse_expr_list(pCtx, yymsp[-2].minor.yy573, col);
 }
         break;
       case 301: /* idlist ::= nm */
 {
     uint32_t col = synq_parse_column_ref(pCtx,
         synq_span_dequote(pCtx, yymsp[0].minor.yy0), SYNQ_NO_SPAN, SYNQ_NO_SPAN);
-    yylhsminor.yy639 = synq_parse_expr_list(pCtx, SYNTAQLITE_NULL_NODE, col);
+    yylhsminor.yy573 = synq_parse_expr_list(pCtx, SYNTAQLITE_NULL_NODE, col);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 302: /* cmd ::= createkw trigger_decl BEGIN trigger_cmd_list END */
 {
-    // yymsp[-3].minor.yy639 is a partially-built CreateTriggerStmt, fill in the body
-    SyntaqliteNode *trig = AST_NODE(&pCtx->ast, yymsp[-3].minor.yy639);
-    trig->create_trigger_stmt.body = yymsp[-1].minor.yy639;
-    yymsp[-4].minor.yy639 = synq_pass(pCtx, yymsp[-3].minor.yy639);
+    // yymsp[-3].minor.yy573 is a partially-built CreateTriggerStmt, fill in the body
+    SyntaqliteNode *trig = AST_NODE(&pCtx->ast, yymsp[-3].minor.yy573);
+    trig->create_trigger_stmt.body = yymsp[-1].minor.yy573;
+    yymsp[-4].minor.yy573 = synq_pass(pCtx, yymsp[-3].minor.yy573);
 }
         break;
       case 303: /* trigger_decl ::= temp TRIGGER ifnotexists nm dbnm trigger_time trigger_event ON fullname foreach_clause when_clause */
 {
     SyntaqliteTextSpan trig_name = yymsp[-6].minor.yy0.z ? synq_span(pCtx, yymsp[-6].minor.yy0) : synq_span(pCtx, yymsp[-7].minor.yy0);
     SyntaqliteTextSpan trig_schema = yymsp[-6].minor.yy0.z ? synq_span(pCtx, yymsp[-7].minor.yy0) : SYNQ_NO_SPAN;
-    yylhsminor.yy639 = synq_parse_create_trigger_stmt(pCtx,
+    // yylhsminor.yy573 TEMP trigger always lives in the temp schema, so it cannot be qualified.
+    if (yymsp[-10].minor.yy560 != SYNTAQLITE_TEMPORARY_QUALIFIER_NONE && yymsp[-6].minor.yy0.z) {
+        pCtx->error = 1;
+    }
+    yylhsminor.yy573 = synq_parse_create_trigger_stmt(pCtx,
         trig_name,
         trig_schema,
-        (SyntaqliteBool)yymsp[-10].minor.yy390,
-        (SyntaqliteBool)yymsp[-8].minor.yy390,
-        (SyntaqliteTriggerTiming)yymsp[-5].minor.yy390,
-        yymsp[-4].minor.yy639,
-        yymsp[-2].minor.yy639,
-        yymsp[0].minor.yy639,
+        yymsp[-10].minor.yy560,
+        (SyntaqliteBool)yymsp[-8].minor.yy50,
+        (SyntaqliteTriggerTiming)yymsp[-5].minor.yy50,
+        yymsp[-1].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-4].minor.yy573,
+        yymsp[-2].minor.yy573,
+        yymsp[0].minor.yy573,
         SYNTAQLITE_NULL_NODE);  // body filled in by cmd rule
 }
-  yymsp[-10].minor.yy639 = yylhsminor.yy639;
+  yymsp[-10].minor.yy573 = yylhsminor.yy573;
         break;
       case 304: /* trigger_time ::= BEFORE|AFTER */
 {
-    yylhsminor.yy390 = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_BEFORE) ? (int)SYNTAQLITE_TRIGGER_TIMING_BEFORE
+    yylhsminor.yy50 = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_BEFORE) ? (int)SYNTAQLITE_TRIGGER_TIMING_BEFORE
                                : (int)SYNTAQLITE_TRIGGER_TIMING_AFTER;
 }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+  yymsp[0].minor.yy50 = yylhsminor.yy50;
         break;
       case 305: /* trigger_time ::= INSTEAD OF */
 {
-    yymsp[-1].minor.yy390 = (int)SYNTAQLITE_TRIGGER_TIMING_INSTEAD_OF;
+    yymsp[-1].minor.yy50 = (int)SYNTAQLITE_TRIGGER_TIMING_INSTEAD_OF;
 }
         break;
       case 306: /* trigger_time ::= */
 {
-    yymsp[1].minor.yy390 = (int)SYNTAQLITE_TRIGGER_TIMING_BEFORE;
+    yymsp[1].minor.yy50 = (int)SYNTAQLITE_TRIGGER_TIMING_NONE;
 }
         break;
       case 307: /* trigger_event ::= DELETE|INSERT */
@@ -16821,65 +18041,57 @@ static YYACTIONTYPE yy_reduce(
     SyntaqliteTriggerEventType evt = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_DELETE)
         ? SYNTAQLITE_TRIGGER_EVENT_TYPE_DELETE
         : SYNTAQLITE_TRIGGER_EVENT_TYPE_INSERT;
-    yylhsminor.yy639 = synq_parse_trigger_event(pCtx, evt, SYNTAQLITE_NULL_NODE);
+    yylhsminor.yy573 = synq_parse_trigger_event(pCtx, evt, SYNTAQLITE_NULL_NODE);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 308: /* trigger_event ::= UPDATE */
 {
-    yymsp[0].minor.yy639 = synq_parse_trigger_event(pCtx,
+    yymsp[0].minor.yy573 = synq_parse_trigger_event(pCtx,
         SYNTAQLITE_TRIGGER_EVENT_TYPE_UPDATE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 309: /* trigger_event ::= UPDATE OF idlist */
 {
-    yymsp[-2].minor.yy639 = synq_parse_trigger_event(pCtx,
-        SYNTAQLITE_TRIGGER_EVENT_TYPE_UPDATE, yymsp[0].minor.yy639);
+    yymsp[-2].minor.yy573 = synq_parse_trigger_event(pCtx,
+        SYNTAQLITE_TRIGGER_EVENT_TYPE_UPDATE, yymsp[0].minor.yy573);
 }
         break;
-      case 310: /* foreach_clause ::= */
-      case 318: /* tridxby ::= */ yytestcase(yyruleno==318);
+      case 311: /* foreach_clause ::= FOR EACH ROW */
+      case 361: /* ifnotexists ::= IF NOT EXISTS */ yytestcase(yyruleno==361);
+{
+    yymsp[-2].minor.yy50 = 1;
+}
+        break;
+      case 314: /* trigger_cmd_list ::= trigger_cmd_list trigger_cmd SEMI */
+{
+    yylhsminor.yy573 = synq_parse_trigger_cmd_list(pCtx, yymsp[-2].minor.yy573, yymsp[-1].minor.yy573);
+}
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 315: /* trigger_cmd_list ::= trigger_cmd SEMI */
+{
+    yylhsminor.yy573 = synq_parse_trigger_cmd_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy573);
+}
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 317: /* trnm ::= nm DOT nm */
+{
+    yymsp[-2].minor.yy0 = yymsp[0].minor.yy0;
+    pCtx->error = 1;
+}
+        break;
+      case 318: /* tridxby ::= */
       case 376: /* vtabarg ::= */ yytestcase(yyruleno==376);
       case 381: /* anylist ::= */ yytestcase(yyruleno==381);
 {
     // empty
 }
         break;
-      case 311: /* foreach_clause ::= FOR EACH ROW */
-      case 374: /* vtabarglist ::= vtabarg */ yytestcase(yyruleno==374);
-      case 375: /* vtabarglist ::= vtabarglist COMMA vtabarg */ yytestcase(yyruleno==375);
-      case 377: /* vtabarg ::= vtabarg vtabargtoken */ yytestcase(yyruleno==377);
-      case 378: /* vtabargtoken ::= ANY */ yytestcase(yyruleno==378);
-      case 379: /* vtabargtoken ::= lp anylist RP */ yytestcase(yyruleno==379);
-      case 380: /* lp ::= LP */ yytestcase(yyruleno==380);
-      case 382: /* anylist ::= anylist LP anylist RP */ yytestcase(yyruleno==382);
-      case 383: /* anylist ::= anylist ANY */ yytestcase(yyruleno==383);
-{
-    // consumed
-}
-        break;
-      case 314: /* trigger_cmd_list ::= trigger_cmd_list trigger_cmd SEMI */
-{
-    yylhsminor.yy639 = synq_parse_trigger_cmd_list(pCtx, yymsp[-2].minor.yy639, yymsp[-1].minor.yy639);
-}
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
-        break;
-      case 315: /* trigger_cmd_list ::= trigger_cmd SEMI */
-{
-    yylhsminor.yy639 = synq_parse_trigger_cmd_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy639);
-}
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
-        break;
-      case 317: /* trnm ::= nm DOT nm */
-{
-    yymsp[-2].minor.yy0 = yymsp[0].minor.yy0;
-    // Qualified names not allowed in triggers, but grammar accepts them
-}
-        break;
       case 319: /* tridxby ::= INDEXED BY nm */
       case 320: /* tridxby ::= NOT INDEXED */ yytestcase(yyruleno==320);
 {
-    // Not allowed in triggers, but grammar accepts
+    pCtx->error = 1;
 }
         break;
       case 321: /* trigger_cmd ::= UPDATE orconf trnm tridxby SET setlist from where_opt scanpt */
@@ -16887,12 +18099,13 @@ static YYACTIONTYPE yy_reduce(
     uint32_t tbl = synq_parse_table_ref(pCtx,
         synq_span(pCtx, yymsp[-6].minor.yy0), SYNQ_NO_SPAN,
         SYNTAQLITE_BOOL_FALSE,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-8].minor.yy639 = synq_parse_update_stmt(pCtx,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
+    yymsp[-8].minor.yy573 = synq_parse_update_stmt(pCtx,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
-        (SyntaqliteConflictAction)yymsp[-7].minor.yy390, tbl,
+        (SyntaqliteConflictAction)yymsp[-7].minor.yy50, tbl,
         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN,
-        yymsp[-3].minor.yy639, yymsp[-2].minor.yy639, yymsp[-1].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        yymsp[-3].minor.yy573, yymsp[-2].minor.yy573, yymsp[-1].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 322: /* trigger_cmd ::= scanpt insert_cmd INTO trnm idlist_opt select upsert scanpt */
@@ -16900,11 +18113,15 @@ static YYACTIONTYPE yy_reduce(
     uint32_t tbl = synq_parse_table_ref(pCtx,
         synq_span(pCtx, yymsp[-4].minor.yy0), SYNQ_NO_SPAN,
         SYNTAQLITE_BOOL_FALSE,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-7].minor.yy639 = synq_parse_insert_stmt(pCtx,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
+    if (yymsp[-1].minor.yy372.returning != SYNTAQLITE_NULL_NODE) {
+        pCtx->error = 1;
+    }
+    yymsp[-7].minor.yy573 = synq_parse_insert_stmt(pCtx,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
-        (SyntaqliteConflictAction)yymsp[-6].minor.yy390, tbl, yymsp[-3].minor.yy639, yymsp[-2].minor.yy639,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        yymsp[-6].minor.yy484.keyword, yymsp[-6].minor.yy484.conflict_action, tbl, yymsp[-3].minor.yy573, yymsp[-2].minor.yy573,
+        yymsp[-1].minor.yy372.clauses, yymsp[-1].minor.yy372.returning);
 }
         break;
       case 323: /* trigger_cmd ::= DELETE FROM trnm tridxby where_opt scanpt */
@@ -16912,19 +18129,20 @@ static YYACTIONTYPE yy_reduce(
     uint32_t tbl = synq_parse_table_ref(pCtx,
         synq_span(pCtx, yymsp[-3].minor.yy0), SYNQ_NO_SPAN,
         SYNTAQLITE_BOOL_FALSE,
-        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
-    yymsp[-5].minor.yy639 = synq_parse_delete_stmt(pCtx,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE, SYNTAQLITE_NULL_NODE,
+                                         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN);
+    yymsp[-5].minor.yy573 = synq_parse_delete_stmt(pCtx,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
         tbl,
         SYNTAQLITE_INDEX_HINT_DEFAULT, SYNQ_NO_SPAN,
-        yymsp[-1].minor.yy639, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        yymsp[-1].minor.yy573, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
         break;
       case 325: /* cmd ::= PRAGMA nm dbnm */
 {
     SyntaqliteTextSpan name_span = yymsp[0].minor.yy0.z ? synq_span(pCtx, yymsp[0].minor.yy0) : synq_span(pCtx, yymsp[-1].minor.yy0);
     SyntaqliteTextSpan schema_span = yymsp[0].minor.yy0.z ? synq_span(pCtx, yymsp[-1].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-2].minor.yy639 = synq_parse_pragma_stmt(pCtx, name_span, schema_span, SYNQ_NO_SPAN, SYNTAQLITE_PRAGMA_FORM_BARE);
+    yymsp[-2].minor.yy573 = synq_parse_pragma_stmt(pCtx, name_span, schema_span, SYNQ_NO_SPAN, SYNTAQLITE_PRAGMA_FORM_BARE);
 }
         break;
       case 326: /* cmd ::= PRAGMA nm dbnm EQ nmnum */
@@ -16932,7 +18150,7 @@ static YYACTIONTYPE yy_reduce(
 {
     SyntaqliteTextSpan name_span = yymsp[-2].minor.yy0.z ? synq_span(pCtx, yymsp[-2].minor.yy0) : synq_span(pCtx, yymsp[-3].minor.yy0);
     SyntaqliteTextSpan schema_span = yymsp[-2].minor.yy0.z ? synq_span(pCtx, yymsp[-3].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-4].minor.yy639 = synq_parse_pragma_stmt(pCtx, name_span, schema_span, synq_span(pCtx, yymsp[0].minor.yy0), SYNTAQLITE_PRAGMA_FORM_EQ);
+    yymsp[-4].minor.yy573 = synq_parse_pragma_stmt(pCtx, name_span, schema_span, synq_span(pCtx, yymsp[0].minor.yy0), SYNTAQLITE_PRAGMA_FORM_EQ);
 }
         break;
       case 327: /* cmd ::= PRAGMA nm dbnm LP nmnum RP */
@@ -16940,7 +18158,7 @@ static YYACTIONTYPE yy_reduce(
 {
     SyntaqliteTextSpan name_span = yymsp[-3].minor.yy0.z ? synq_span(pCtx, yymsp[-3].minor.yy0) : synq_span(pCtx, yymsp[-4].minor.yy0);
     SyntaqliteTextSpan schema_span = yymsp[-3].minor.yy0.z ? synq_span(pCtx, yymsp[-4].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-5].minor.yy639 = synq_parse_pragma_stmt(pCtx, name_span, schema_span, synq_span(pCtx, yymsp[-1].minor.yy0), SYNTAQLITE_PRAGMA_FORM_CALL);
+    yymsp[-5].minor.yy573 = synq_parse_pragma_stmt(pCtx, name_span, schema_span, synq_span(pCtx, yymsp[-1].minor.yy0), SYNTAQLITE_PRAGMA_FORM_CALL);
 }
         break;
       case 335: /* plus_num ::= PLUS INTEGER|FLOAT */
@@ -16960,7 +18178,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 340: /* cmd ::= ANALYZE */
 {
-    yymsp[0].minor.yy639 = synq_parse_analyze_or_reindex_stmt(pCtx,
+    yymsp[0].minor.yy573 = synq_parse_analyze_or_reindex_stmt(pCtx,
         SYNQ_NO_SPAN,
         SYNQ_NO_SPAN,
         SYNTAQLITE_ANALYZE_OR_REINDEX_OP_ANALYZE);
@@ -16970,12 +18188,12 @@ static YYACTIONTYPE yy_reduce(
 {
     SyntaqliteTextSpan name_span = yymsp[0].minor.yy0.z ? synq_span(pCtx, yymsp[0].minor.yy0) : synq_span(pCtx, yymsp[-1].minor.yy0);
     SyntaqliteTextSpan schema_span = yymsp[0].minor.yy0.z ? synq_span(pCtx, yymsp[-1].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-2].minor.yy639 = synq_parse_analyze_or_reindex_stmt(pCtx, name_span, schema_span, SYNTAQLITE_ANALYZE_OR_REINDEX_OP_ANALYZE);
+    yymsp[-2].minor.yy573 = synq_parse_analyze_or_reindex_stmt(pCtx, name_span, schema_span, SYNTAQLITE_ANALYZE_OR_REINDEX_OP_ANALYZE);
 }
         break;
       case 342: /* cmd ::= REINDEX */
 {
-    yymsp[0].minor.yy639 = synq_parse_analyze_or_reindex_stmt(pCtx,
+    yymsp[0].minor.yy573 = synq_parse_analyze_or_reindex_stmt(pCtx,
         SYNQ_NO_SPAN,
         SYNQ_NO_SPAN,
         SYNTAQLITE_ANALYZE_OR_REINDEX_OP_REINDEX);
@@ -16985,59 +18203,51 @@ static YYACTIONTYPE yy_reduce(
 {
     SyntaqliteTextSpan name_span = yymsp[0].minor.yy0.z ? synq_span(pCtx, yymsp[0].minor.yy0) : synq_span(pCtx, yymsp[-1].minor.yy0);
     SyntaqliteTextSpan schema_span = yymsp[0].minor.yy0.z ? synq_span(pCtx, yymsp[-1].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-2].minor.yy639 = synq_parse_analyze_or_reindex_stmt(pCtx, name_span, schema_span, 1);
+    yymsp[-2].minor.yy573 = synq_parse_analyze_or_reindex_stmt(pCtx, name_span, schema_span, 1);
 }
         break;
       case 344: /* cmd ::= ATTACH database_kw_opt expr AS expr key_opt */
 {
-    yymsp[-5].minor.yy639 = synq_parse_attach_stmt(pCtx, yymsp[-3].minor.yy639, yymsp[-1].minor.yy639, yymsp[0].minor.yy639);
+    yymsp[-5].minor.yy573 = synq_parse_attach_stmt(pCtx,
+        yymsp[-4].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE, yymsp[-3].minor.yy573, yymsp[-1].minor.yy573, yymsp[0].minor.yy573);
 }
         break;
       case 345: /* cmd ::= DETACH database_kw_opt expr */
 {
-    yymsp[-2].minor.yy639 = synq_parse_detach_stmt(pCtx, yymsp[0].minor.yy639);
-}
-        break;
-      case 346: /* database_kw_opt ::= DATABASE */
-{
-    // Keyword consumed, no value needed
-}
-        break;
-      case 347: /* database_kw_opt ::= */
-{
-    // Empty
+    yymsp[-2].minor.yy573 = synq_parse_detach_stmt(pCtx,
+        yymsp[-1].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE, yymsp[0].minor.yy573);
 }
         break;
       case 350: /* cmd ::= VACUUM vinto */
 {
-    yymsp[-1].minor.yy639 = synq_parse_vacuum_stmt(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_vacuum_stmt(pCtx,
         SYNQ_NO_SPAN,
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573);
 }
         break;
       case 351: /* cmd ::= VACUUM nm vinto */
 {
-    yymsp[-2].minor.yy639 = synq_parse_vacuum_stmt(pCtx,
+    yymsp[-2].minor.yy573 = synq_parse_vacuum_stmt(pCtx,
         synq_span(pCtx, yymsp[-1].minor.yy0),
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573);
 }
         break;
       case 354: /* ecmd ::= explain cmdx SEMI */
 {
-    (void)yymsp[-2].minor.yy390;
-    yylhsminor.yy639 = synq_pass(pCtx, yymsp[-1].minor.yy639);
+    (void)yymsp[-2].minor.yy50;
+    yylhsminor.yy573 = synq_pass(pCtx, yymsp[-1].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 355: /* explain ::= EXPLAIN */
 {
-    yymsp[0].minor.yy390 = 1;
+    yymsp[0].minor.yy50 = 1;
     pCtx->pending_explain_mode = 1;
 }
         break;
       case 356: /* explain ::= EXPLAIN QUERY PLAN */
 {
-    yymsp[-2].minor.yy390 = 2;
+    yymsp[-2].minor.yy50 = 2;
     pCtx->pending_explain_mode = 2;
 }
         break;
@@ -17045,51 +18255,59 @@ static YYACTIONTYPE yy_reduce(
 {
     SyntaqliteTextSpan idx_name = yymsp[-6].minor.yy0.z ? synq_span(pCtx, yymsp[-6].minor.yy0) : synq_span(pCtx, yymsp[-7].minor.yy0);
     SyntaqliteTextSpan idx_schema = yymsp[-6].minor.yy0.z ? synq_span(pCtx, yymsp[-7].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-11].minor.yy639 = synq_parse_create_index_stmt(pCtx,
+    yymsp[-11].minor.yy573 = synq_parse_create_index_stmt(pCtx,
         idx_name,
         idx_schema,
         synq_span(pCtx, yymsp[-4].minor.yy0),
-        (SyntaqliteBool)yymsp[-10].minor.yy390,
-        (SyntaqliteBool)yymsp[-8].minor.yy390,
-        yymsp[-2].minor.yy639,
-        yymsp[0].minor.yy639);
-}
-        break;
-      case 361: /* ifnotexists ::= IF NOT EXISTS */
-{
-    yymsp[-2].minor.yy390 = 1;
+        (SyntaqliteBool)yymsp[-10].minor.yy50,
+        (SyntaqliteBool)yymsp[-8].minor.yy50,
+        yymsp[-2].minor.yy573,
+        yymsp[0].minor.yy573);
 }
         break;
       case 362: /* cmd ::= createkw temp VIEW ifnotexists nm dbnm eidlist_opt AS select */
 {
     SyntaqliteTextSpan view_name = yymsp[-3].minor.yy0.z ? synq_span(pCtx, yymsp[-3].minor.yy0) : synq_span(pCtx, yymsp[-4].minor.yy0);
     SyntaqliteTextSpan view_schema = yymsp[-3].minor.yy0.z ? synq_span(pCtx, yymsp[-4].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-8].minor.yy639 = synq_parse_create_view_stmt(pCtx,
+    yymsp[-8].minor.yy573 = synq_parse_create_view_stmt(pCtx,
         view_name,
         view_schema,
-        (SyntaqliteBool)yymsp[-7].minor.yy390,
-        (SyntaqliteBool)yymsp[-5].minor.yy390,
-        yymsp[-2].minor.yy639,
-        yymsp[0].minor.yy639);
+        yymsp[-7].minor.yy560,
+        (SyntaqliteBool)yymsp[-5].minor.yy50,
+        yymsp[-2].minor.yy573,
+        yymsp[0].minor.yy573);
+}
+        break;
+      case 364: /* temp ::= TEMP */
+{
+    // SQLite maps both spellings to TEMP; retain the authored choice here.
+    yylhsminor.yy560 = yymsp[0].minor.yy0.n == 4 ? SYNTAQLITE_TEMPORARY_QUALIFIER_TEMP
+                 : SYNTAQLITE_TEMPORARY_QUALIFIER_TEMPORARY;
+}
+  yymsp[0].minor.yy560 = yylhsminor.yy560;
+        break;
+      case 365: /* temp ::= */
+{
+    yymsp[1].minor.yy560 = SYNTAQLITE_TEMPORARY_QUALIFIER_NONE;
 }
         break;
       case 366: /* values ::= VALUES LP nexprlist RP */
 {
-    yymsp[-3].minor.yy639 = synq_parse_values_row_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy639);
+    yymsp[-3].minor.yy573 = synq_parse_values_row_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[-1].minor.yy573);
 }
         break;
       case 367: /* mvalues ::= values COMMA LP nexprlist RP */
       case 368: /* mvalues ::= mvalues COMMA LP nexprlist RP */ yytestcase(yyruleno==368);
 {
-    yymsp[-4].minor.yy639 = synq_parse_values_row_list(pCtx, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
+    yymsp[-4].minor.yy573 = synq_parse_values_row_list(pCtx, yymsp[-4].minor.yy573, yymsp[-1].minor.yy573);
 }
         break;
       case 369: /* oneselect ::= values */
       case 370: /* oneselect ::= mvalues */ yytestcase(yyruleno==370);
 {
-    yylhsminor.yy639 = synq_parse_values_clause(pCtx, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_values_clause(pCtx, yymsp[0].minor.yy573);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 372: /* cmd ::= create_vtab LP vtabarglist RP */
 {
@@ -17097,153 +18315,171 @@ static YYACTIONTYPE yy_reduce(
     // Use token offsets/layer_id so this works correctly when the statement
     // is produced by a macro expansion; LP and RP share a layer within the
     // same reduction.
-    SyntaqliteNode *vtab = AST_NODE(&pCtx->ast, yymsp[-3].minor.yy639);
+    SyntaqliteNode *vtab = AST_NODE(&pCtx->ast, yymsp[-3].minor.yy573);
     uint32_t args_start = yymsp[-2].minor.yy0.offset + yymsp[-2].minor.yy0.n;
     uint32_t args_end = yymsp[0].minor.yy0.offset;
+    vtab->create_virtual_table_stmt.has_module_args = SYNTAQLITE_BOOL_TRUE;
     vtab->create_virtual_table_stmt.module_args = (SyntaqliteTextSpan){
         .offset = args_start,
         .length = args_end - args_start,
         .flags = 0,
         ._layer_id = yymsp[-2].minor.yy0.layer_id,
     };
-    yylhsminor.yy639 = synq_pass(pCtx, yymsp[-3].minor.yy639);
+    yylhsminor.yy573 = synq_pass(pCtx, yymsp[-3].minor.yy573);
 }
-  yymsp[-3].minor.yy639 = yylhsminor.yy639;
+  yymsp[-3].minor.yy573 = yylhsminor.yy573;
         break;
       case 373: /* create_vtab ::= createkw VIRTUAL TABLE ifnotexists nm dbnm USING nm */
 {
     SyntaqliteTextSpan tbl_name = yymsp[-2].minor.yy0.z ? synq_span(pCtx, yymsp[-2].minor.yy0) : synq_span(pCtx, yymsp[-3].minor.yy0);
     SyntaqliteTextSpan tbl_schema = yymsp[-2].minor.yy0.z ? synq_span(pCtx, yymsp[-3].minor.yy0) : SYNQ_NO_SPAN;
-    yymsp[-7].minor.yy639 = synq_parse_create_virtual_table_stmt(pCtx,
+    yymsp[-7].minor.yy573 = synq_parse_create_virtual_table_stmt(pCtx,
         tbl_name,
         tbl_schema,
         synq_span(pCtx, yymsp[0].minor.yy0),
-        (SyntaqliteBool)yymsp[-4].minor.yy390,
+        (SyntaqliteBool)yymsp[-4].minor.yy50,
+        SYNTAQLITE_BOOL_FALSE,
         SYNQ_NO_SPAN);  // module_args = none by default
+}
+        break;
+      case 374: /* vtabarglist ::= vtabarg */
+      case 375: /* vtabarglist ::= vtabarglist COMMA vtabarg */ yytestcase(yyruleno==375);
+      case 377: /* vtabarg ::= vtabarg vtabargtoken */ yytestcase(yyruleno==377);
+      case 378: /* vtabargtoken ::= ANY */ yytestcase(yyruleno==378);
+      case 379: /* vtabargtoken ::= lp anylist RP */ yytestcase(yyruleno==379);
+      case 380: /* lp ::= LP */ yytestcase(yyruleno==380);
+      case 382: /* anylist ::= anylist LP anylist RP */ yytestcase(yyruleno==382);
+      case 383: /* anylist ::= anylist ANY */ yytestcase(yyruleno==383);
+{
+    // consumed
 }
         break;
       case 384: /* windowdefn_list ::= windowdefn */
 {
-    yylhsminor.yy639 = synq_parse_named_window_def_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_named_window_def_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 385: /* windowdefn_list ::= windowdefn_list COMMA windowdefn */
 {
-    yylhsminor.yy639 = synq_parse_named_window_def_list(pCtx, yymsp[-2].minor.yy639, yymsp[0].minor.yy639);
+    yylhsminor.yy573 = synq_parse_named_window_def_list(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 386: /* windowdefn ::= nm AS LP window RP */
 {
-    yylhsminor.yy639 = synq_parse_named_window_def(pCtx,
+    yylhsminor.yy573 = synq_parse_named_window_def(pCtx,
         synq_span(pCtx, yymsp[-4].minor.yy0),
-        yymsp[-1].minor.yy639);
+        yymsp[-1].minor.yy573);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 387: /* window ::= PARTITION BY nexprlist orderby_opt frame_opt */
 {
-    yymsp[-4].minor.yy639 = synq_parse_window_def(pCtx,
+    yymsp[-4].minor.yy573 = synq_parse_window_def(pCtx,
         SYNQ_NO_SPAN,
-        yymsp[-2].minor.yy639,
-        yymsp[-1].minor.yy639,
-        yymsp[0].minor.yy639);
+        SYNQ_NO_SPAN,
+        yymsp[-2].minor.yy573,
+        yymsp[-1].minor.yy573,
+        yymsp[0].minor.yy573);
 }
         break;
       case 388: /* window ::= nm PARTITION BY nexprlist orderby_opt frame_opt */
 {
-    yylhsminor.yy639 = synq_parse_window_def(pCtx,
+    yylhsminor.yy573 = synq_parse_window_def(pCtx,
+        SYNQ_NO_SPAN,
         synq_span(pCtx, yymsp[-5].minor.yy0),
-        yymsp[-2].minor.yy639,
-        yymsp[-1].minor.yy639,
-        yymsp[0].minor.yy639);
+        yymsp[-2].minor.yy573,
+        yymsp[-1].minor.yy573,
+        yymsp[0].minor.yy573);
 }
-  yymsp[-5].minor.yy639 = yylhsminor.yy639;
+  yymsp[-5].minor.yy573 = yylhsminor.yy573;
         break;
       case 389: /* window ::= ORDER BY sortlist frame_opt */
 {
-    yymsp[-3].minor.yy639 = synq_parse_window_def(pCtx,
+    yymsp[-3].minor.yy573 = synq_parse_window_def(pCtx,
+        SYNQ_NO_SPAN,
         SYNQ_NO_SPAN,
         SYNTAQLITE_NULL_NODE,
-        yymsp[-1].minor.yy639,
-        yymsp[0].minor.yy639);
+        yymsp[-1].minor.yy573,
+        yymsp[0].minor.yy573);
 }
         break;
       case 390: /* window ::= nm ORDER BY sortlist frame_opt */
 {
-    yylhsminor.yy639 = synq_parse_window_def(pCtx,
+    yylhsminor.yy573 = synq_parse_window_def(pCtx,
+        SYNQ_NO_SPAN,
         synq_span(pCtx, yymsp[-4].minor.yy0),
         SYNTAQLITE_NULL_NODE,
-        yymsp[-1].minor.yy639,
-        yymsp[0].minor.yy639);
+        yymsp[-1].minor.yy573,
+        yymsp[0].minor.yy573);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 391: /* window ::= frame_opt */
 {
-    yylhsminor.yy639 = synq_parse_window_def(pCtx,
+    yylhsminor.yy573 = synq_parse_window_def(pCtx,
+        SYNQ_NO_SPAN,
         SYNQ_NO_SPAN,
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE,
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 392: /* window ::= nm frame_opt */
 {
-    yylhsminor.yy639 = synq_parse_window_def(pCtx,
+    yylhsminor.yy573 = synq_parse_window_def(pCtx,
+        SYNQ_NO_SPAN,
         synq_span(pCtx, yymsp[-1].minor.yy0),
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE,
-        yymsp[0].minor.yy639);
+        yymsp[0].minor.yy573);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 394: /* frame_opt ::= range_or_rows frame_bound_s frame_exclude_opt */
 {
-    // Single bound: start=yymsp[-1].minor.yy639, end=CURRENT ROW (implicit)
-    uint32_t end_bound = synq_parse_frame_bound(pCtx,
-        SYNTAQLITE_FRAME_BOUND_TYPE_CURRENT_ROW,
+    // Preserve shorthand: the semantic end is CURRENT ROW, but no end-bound
+    // syntax was authored, so do not manufacture a node for it.
+    yylhsminor.yy573 = synq_parse_frame_spec(pCtx,
+        (SyntaqliteFrameType)yymsp[-2].minor.yy50,
+        (SyntaqliteFrameExclude)yymsp[0].minor.yy50,
+        yymsp[-1].minor.yy573,
         SYNTAQLITE_NULL_NODE);
-    yylhsminor.yy639 = synq_parse_frame_spec(pCtx,
-        (SyntaqliteFrameType)yymsp[-2].minor.yy390,
-        (SyntaqliteFrameExclude)yymsp[0].minor.yy390,
-        yymsp[-1].minor.yy639,
-        end_bound);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 395: /* frame_opt ::= range_or_rows BETWEEN frame_bound_s AND frame_bound_e frame_exclude_opt */
 {
-    yylhsminor.yy639 = synq_parse_frame_spec(pCtx,
-        (SyntaqliteFrameType)yymsp[-5].minor.yy390,
-        (SyntaqliteFrameExclude)yymsp[0].minor.yy390,
-        yymsp[-3].minor.yy639,
-        yymsp[-1].minor.yy639);
+    yylhsminor.yy573 = synq_parse_frame_spec(pCtx,
+        (SyntaqliteFrameType)yymsp[-5].minor.yy50,
+        (SyntaqliteFrameExclude)yymsp[0].minor.yy50,
+        yymsp[-3].minor.yy573,
+        yymsp[-1].minor.yy573);
 }
-  yymsp[-5].minor.yy639 = yylhsminor.yy639;
+  yymsp[-5].minor.yy573 = yylhsminor.yy573;
         break;
       case 396: /* range_or_rows ::= RANGE|ROWS|GROUPS */
 {
     switch (yymsp[0].minor.yy0.type) {
-        case SYNTAQLITE_TK_RANGE:  yylhsminor.yy390 = SYNTAQLITE_FRAME_TYPE_RANGE; break;
-        case SYNTAQLITE_TK_ROWS:   yylhsminor.yy390 = SYNTAQLITE_FRAME_TYPE_ROWS; break;
-        default:        yylhsminor.yy390 = SYNTAQLITE_FRAME_TYPE_GROUPS; break;
+        case SYNTAQLITE_TK_RANGE:  yylhsminor.yy50 = SYNTAQLITE_FRAME_TYPE_RANGE; break;
+        case SYNTAQLITE_TK_ROWS:   yylhsminor.yy50 = SYNTAQLITE_FRAME_TYPE_ROWS; break;
+        default:        yylhsminor.yy50 = SYNTAQLITE_FRAME_TYPE_GROUPS; break;
     }
 }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+  yymsp[0].minor.yy50 = yylhsminor.yy50;
         break;
       case 398: /* frame_bound_s ::= UNBOUNDED PRECEDING */
 {
-    yymsp[-1].minor.yy639 = synq_parse_frame_bound(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_frame_bound(pCtx,
         SYNTAQLITE_FRAME_BOUND_TYPE_UNBOUNDED_PRECEDING,
         SYNTAQLITE_NULL_NODE);
 }
         break;
       case 400: /* frame_bound_e ::= UNBOUNDED FOLLOWING */
 {
-    yymsp[-1].minor.yy639 = synq_parse_frame_bound(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_frame_bound(pCtx,
         SYNTAQLITE_FRAME_BOUND_TYPE_UNBOUNDED_FOLLOWING,
         SYNTAQLITE_NULL_NODE);
 }
@@ -17253,77 +18489,77 @@ static YYACTIONTYPE yy_reduce(
     SyntaqliteFrameBoundType bt = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_PRECEDING)
         ? SYNTAQLITE_FRAME_BOUND_TYPE_EXPR_PRECEDING
         : SYNTAQLITE_FRAME_BOUND_TYPE_EXPR_FOLLOWING;
-    yylhsminor.yy639 = synq_parse_frame_bound(pCtx, bt, yymsp[-1].minor.yy639);
+    yylhsminor.yy573 = synq_parse_frame_bound(pCtx, bt, yymsp[-1].minor.yy573);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 402: /* frame_bound ::= CURRENT ROW */
 {
-    yymsp[-1].minor.yy639 = synq_parse_frame_bound(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_frame_bound(pCtx,
         SYNTAQLITE_FRAME_BOUND_TYPE_CURRENT_ROW,
         SYNTAQLITE_NULL_NODE);
 }
         break;
       case 403: /* frame_exclude_opt ::= */
 {
-    yymsp[1].minor.yy390 = SYNTAQLITE_FRAME_EXCLUDE_NONE;
+    yymsp[1].minor.yy50 = SYNTAQLITE_FRAME_EXCLUDE_NONE;
 }
         break;
       case 405: /* frame_exclude ::= NO OTHERS */
 {
-    yymsp[-1].minor.yy390 = SYNTAQLITE_FRAME_EXCLUDE_NO_OTHERS;
+    yymsp[-1].minor.yy50 = SYNTAQLITE_FRAME_EXCLUDE_NO_OTHERS;
 }
         break;
       case 406: /* frame_exclude ::= CURRENT ROW */
 {
-    yymsp[-1].minor.yy390 = SYNTAQLITE_FRAME_EXCLUDE_CURRENT_ROW;
+    yymsp[-1].minor.yy50 = SYNTAQLITE_FRAME_EXCLUDE_CURRENT_ROW;
 }
         break;
       case 407: /* frame_exclude ::= GROUP|TIES */
 {
-    yylhsminor.yy390 = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_GROUP)
+    yylhsminor.yy50 = (yymsp[0].minor.yy0.type == SYNTAQLITE_TK_GROUP)
         ? SYNTAQLITE_FRAME_EXCLUDE_GROUP
         : SYNTAQLITE_FRAME_EXCLUDE_TIES;
 }
-  yymsp[0].minor.yy390 = yylhsminor.yy390;
+  yymsp[0].minor.yy50 = yylhsminor.yy50;
         break;
       case 409: /* filter_over ::= filter_clause over_clause */
 {
     // Unpack the over_clause FilterOver to combine with filter expr
-    SyntaqliteFilterOver *fo_over = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy639);
-    yylhsminor.yy639 = synq_parse_filter_over(pCtx,
-        yymsp[-1].minor.yy639,
+    SyntaqliteFilterOver *fo_over = AST_NODE_AS(SyntaqliteFilterOver, &pCtx->ast, yymsp[0].minor.yy573);
+    yylhsminor.yy573 = synq_parse_filter_over(pCtx,
+        yymsp[-1].minor.yy573,
         fo_over->over_def,
         SYNQ_NO_SPAN);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 411: /* filter_over ::= filter_clause */
 {
-    yylhsminor.yy639 = synq_parse_filter_over(pCtx,
-        yymsp[0].minor.yy639,
+    yylhsminor.yy573 = synq_parse_filter_over(pCtx,
+        yymsp[0].minor.yy573,
         SYNTAQLITE_NULL_NODE,
         SYNQ_NO_SPAN);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 412: /* over_clause ::= OVER LP window RP */
 {
-    yymsp[-3].minor.yy639 = synq_parse_filter_over(pCtx,
+    yymsp[-3].minor.yy573 = synq_parse_filter_over(pCtx,
         SYNTAQLITE_NULL_NODE,
-        yymsp[-1].minor.yy639,
+        yymsp[-1].minor.yy573,
         SYNQ_NO_SPAN);
 }
         break;
       case 413: /* over_clause ::= OVER nm */
 {
-    // Create a WindowDef with just base_window_name to represent a named window ref
     uint32_t wdef = synq_parse_window_def(pCtx,
         synq_span(pCtx, yymsp[0].minor.yy0),
+        SYNQ_NO_SPAN,
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE,
         SYNTAQLITE_NULL_NODE);
-    yymsp[-1].minor.yy639 = synq_parse_filter_over(pCtx,
+    yymsp[-1].minor.yy573 = synq_parse_filter_over(pCtx,
         SYNTAQLITE_NULL_NODE,
         wdef,
         SYNQ_NO_SPAN);
@@ -17331,7 +18567,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 414: /* filter_clause ::= FILTER LP WHERE expr RP */
 {
-    yymsp[-4].minor.yy639 = synq_pass(pCtx, yymsp[-1].minor.yy639);
+    yymsp[-4].minor.yy573 = synq_pass(pCtx, yymsp[-1].minor.yy573);
 }
         break;
       case 418: /* perfetto_arg_type ::= ID LP ID DOT ID RP */
@@ -17352,109 +18588,111 @@ static YYACTIONTYPE yy_reduce(
       case 425: /* perfetto_table_schema ::= */ yytestcase(yyruleno==425);
       case 427: /* perfetto_table_impl ::= */ yytestcase(yyruleno==427);
       case 433: /* perfetto_macro_arg_list ::= */ yytestcase(yyruleno==433);
-{ yymsp[1].minor.yy639 = SYNTAQLITE_NULL_NODE; }
+      case 450: /* perfetto_pipe_stage_list ::= */ yytestcase(yyruleno==450);
+{ yymsp[1].minor.yy573 = SYNTAQLITE_NULL_NODE; }
         break;
       case 420: /* perfetto_arg_def_list ::= perfetto_arg_def_list_ne */
       case 434: /* perfetto_macro_arg_list ::= perfetto_macro_arg_list_ne */ yytestcase(yyruleno==434);
-{ yylhsminor.yy639 = yymsp[0].minor.yy639; }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+      case 453: /* cmd ::= perfetto_pipeline */ yytestcase(yyruleno==453);
+{ yylhsminor.yy573 = yymsp[0].minor.yy573; }
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 421: /* perfetto_arg_def_list_ne ::= ID perfetto_arg_type */
 {
     uint32_t arg = synq_parse_perfetto_arg_def(pCtx,
         synq_parse_ident_name(pCtx, synq_span(pCtx, yymsp[-1].minor.yy0)), synq_span(pCtx, yymsp[0].minor.yy0),
         SYNTAQLITE_BOOL_FALSE);
-    yylhsminor.yy639 = synq_parse_perfetto_arg_def_list(pCtx, SYNTAQLITE_NULL_NODE, arg);
+    yylhsminor.yy573 = synq_parse_perfetto_arg_def_list(pCtx, SYNTAQLITE_NULL_NODE, arg);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 422: /* perfetto_arg_def_list_ne ::= perfetto_arg_def_list_ne COMMA ID perfetto_arg_type */
 {
     uint32_t arg = synq_parse_perfetto_arg_def(pCtx,
         synq_parse_ident_name(pCtx, synq_span(pCtx, yymsp[-1].minor.yy0)), synq_span(pCtx, yymsp[0].minor.yy0),
         SYNTAQLITE_BOOL_FALSE);
-    yylhsminor.yy639 = synq_parse_perfetto_arg_def_list(pCtx, yymsp[-3].minor.yy639, arg);
+    yylhsminor.yy573 = synq_parse_perfetto_arg_def_list(pCtx, yymsp[-3].minor.yy573, arg);
 }
-  yymsp[-3].minor.yy639 = yylhsminor.yy639;
+  yymsp[-3].minor.yy573 = yylhsminor.yy573;
         break;
       case 423: /* perfetto_arg_def_list_ne ::= ID perfetto_arg_type DOT DOT DOT */
 {
     uint32_t arg = synq_parse_perfetto_arg_def(pCtx,
         synq_parse_ident_name(pCtx, synq_span(pCtx, yymsp[-4].minor.yy0)), synq_span(pCtx, yymsp[-3].minor.yy0),
         SYNTAQLITE_BOOL_TRUE);
-    yylhsminor.yy639 = synq_parse_perfetto_arg_def_list(pCtx, SYNTAQLITE_NULL_NODE, arg);
+    yylhsminor.yy573 = synq_parse_perfetto_arg_def_list(pCtx, SYNTAQLITE_NULL_NODE, arg);
 }
-  yymsp[-4].minor.yy639 = yylhsminor.yy639;
+  yymsp[-4].minor.yy573 = yylhsminor.yy573;
         break;
       case 424: /* perfetto_arg_def_list_ne ::= perfetto_arg_def_list_ne COMMA ID perfetto_arg_type DOT DOT DOT */
 {
     uint32_t arg = synq_parse_perfetto_arg_def(pCtx,
         synq_parse_ident_name(pCtx, synq_span(pCtx, yymsp[-4].minor.yy0)), synq_span(pCtx, yymsp[-3].minor.yy0),
         SYNTAQLITE_BOOL_TRUE);
-    yylhsminor.yy639 = synq_parse_perfetto_arg_def_list(pCtx, yymsp[-6].minor.yy639, arg);
+    yylhsminor.yy573 = synq_parse_perfetto_arg_def_list(pCtx, yymsp[-6].minor.yy573, arg);
 }
-  yymsp[-6].minor.yy639 = yylhsminor.yy639;
+  yymsp[-6].minor.yy573 = yylhsminor.yy573;
         break;
       case 426: /* perfetto_table_schema ::= LP perfetto_arg_def_list_ne RP */
-{ yymsp[-2].minor.yy639 = yymsp[-1].minor.yy639; }
+{ yymsp[-2].minor.yy573 = yymsp[-1].minor.yy573; }
         break;
       case 428: /* perfetto_table_impl ::= USING ID */
 {
-    yymsp[-1].minor.yy639 = synq_parse_perfetto_table_impl(pCtx, synq_span(pCtx, yymsp[0].minor.yy0));
+    yymsp[-1].minor.yy573 = synq_parse_perfetto_table_impl(pCtx, synq_span(pCtx, yymsp[0].minor.yy0));
 }
         break;
       case 429: /* perfetto_return_type ::= ID */
 {
     synq_mark_as_type(pCtx, yymsp[0].minor.yy0);
-    yylhsminor.yy639 = synq_parse_perfetto_return_type(pCtx,
+    yylhsminor.yy573 = synq_parse_perfetto_return_type(pCtx,
         SYNTAQLITE_PERFETTO_RETURN_KIND_SCALAR,
         synq_span(pCtx, yymsp[0].minor.yy0),
         SYNTAQLITE_NULL_NODE);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 430: /* perfetto_return_type ::= TABLE LP perfetto_arg_def_list_ne RP */
 {
-    yymsp[-3].minor.yy639 = synq_parse_perfetto_return_type(pCtx,
+    yymsp[-3].minor.yy573 = synq_parse_perfetto_return_type(pCtx,
         SYNTAQLITE_PERFETTO_RETURN_KIND_TABLE,
         SYNQ_NO_SPAN,
-        yymsp[-1].minor.yy639);
+        yymsp[-1].minor.yy573);
 }
         break;
       case 431: /* perfetto_indexed_col_list ::= ID */
 {
     uint32_t col = synq_parse_perfetto_indexed_column(pCtx, synq_span(pCtx, yymsp[0].minor.yy0));
-    yylhsminor.yy639 = synq_parse_perfetto_indexed_column_list(pCtx, SYNTAQLITE_NULL_NODE, col);
+    yylhsminor.yy573 = synq_parse_perfetto_indexed_column_list(pCtx, SYNTAQLITE_NULL_NODE, col);
 }
-  yymsp[0].minor.yy639 = yylhsminor.yy639;
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
         break;
       case 432: /* perfetto_indexed_col_list ::= perfetto_indexed_col_list COMMA ID */
 {
     uint32_t col = synq_parse_perfetto_indexed_column(pCtx, synq_span(pCtx, yymsp[0].minor.yy0));
-    yylhsminor.yy639 = synq_parse_perfetto_indexed_column_list(pCtx, yymsp[-2].minor.yy639, col);
+    yylhsminor.yy573 = synq_parse_perfetto_indexed_column_list(pCtx, yymsp[-2].minor.yy573, col);
 }
-  yymsp[-2].minor.yy639 = yylhsminor.yy639;
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
         break;
       case 435: /* perfetto_macro_arg_list_ne ::= ID ID */
 {
     synq_mark_as_type(pCtx, yymsp[0].minor.yy0);
     uint32_t arg = synq_parse_perfetto_macro_arg(pCtx,
         synq_span(pCtx, yymsp[-1].minor.yy0), synq_span(pCtx, yymsp[0].minor.yy0));
-    yylhsminor.yy639 = synq_parse_perfetto_macro_arg_list(pCtx, SYNTAQLITE_NULL_NODE, arg);
+    yylhsminor.yy573 = synq_parse_perfetto_macro_arg_list(pCtx, SYNTAQLITE_NULL_NODE, arg);
 }
-  yymsp[-1].minor.yy639 = yylhsminor.yy639;
+  yymsp[-1].minor.yy573 = yylhsminor.yy573;
         break;
       case 436: /* perfetto_macro_arg_list_ne ::= perfetto_macro_arg_list_ne COMMA ID ID */
 {
     synq_mark_as_type(pCtx, yymsp[0].minor.yy0);
     uint32_t arg = synq_parse_perfetto_macro_arg(pCtx,
         synq_span(pCtx, yymsp[-1].minor.yy0), synq_span(pCtx, yymsp[0].minor.yy0));
-    yylhsminor.yy639 = synq_parse_perfetto_macro_arg_list(pCtx, yymsp[-3].minor.yy639, arg);
+    yylhsminor.yy573 = synq_parse_perfetto_macro_arg_list(pCtx, yymsp[-3].minor.yy573, arg);
 }
-  yymsp[-3].minor.yy639 = yylhsminor.yy639;
+  yymsp[-3].minor.yy573 = yylhsminor.yy573;
         break;
       case 437: /* perfetto_module_name ::= ID|STAR|INTERSECT */
-      case 447: /* perfetto_macro_body ::= ANY */ yytestcase(yyruleno==447);
+      case 462: /* perfetto_macro_body ::= ANY */ yytestcase(yyruleno==462);
 { yylhsminor.yy0 = yymsp[0].minor.yy0; }
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
@@ -17472,71 +18710,158 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-2].minor.yy0 = yylhsminor.yy0;
         break;
       case 439: /* select_body_start ::= */
-{ yymsp[1].minor.yy639 = pCtx->cur_shift_start; }
+{ yymsp[1].minor.yy573 = pCtx->cur_shift_start; }
         break;
       case 440: /* select_body_end ::= */
-{ yymsp[1].minor.yy639 = pCtx->last_shifted_end; }
+{ yymsp[1].minor.yy573 = pCtx->last_shifted_end; }
         break;
-      case 441: /* cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end */
+      case 441: /* perfetto_pipe ::= BITOR GT */
+{
+    if (yymsp[-1].minor.yy0.layer_id != yymsp[0].minor.yy0.layer_id || yymsp[-1].minor.yy0.offset + yymsp[-1].minor.yy0.n != yymsp[0].minor.yy0.offset) {
+        pCtx->error = 1;
+    }
+    yylhsminor.yy50 = 0;
+}
+  yymsp[-1].minor.yy50 = yylhsminor.yy50;
+        break;
+      case 442: /* perfetto_pipe_source ::= nm dbnm as */
+{
+    SyntaqliteTextSpan table_name;
+    SyntaqliteTextSpan schema;
+    if (yymsp[-1].minor.yy0.z != NULL) {
+        table_name = synq_span_dequote(pCtx, yymsp[-1].minor.yy0);
+        schema = synq_span_dequote(pCtx, yymsp[-2].minor.yy0);
+    } else {
+        table_name = synq_span_dequote(pCtx, yymsp[-2].minor.yy0);
+        schema = SYNQ_NO_SPAN;
+    }
+    yylhsminor.yy573 = synq_parse_perfetto_pipe_source(pCtx, table_name, schema,
+        SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy455.name,
+        yymsp[0].minor.yy455.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+}
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 443: /* perfetto_pipe_source ::= LP select RP as */
+{
+    yymsp[-3].minor.yy573 = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
+        yymsp[-2].minor.yy573, yymsp[0].minor.yy455.name, yymsp[0].minor.yy455.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+}
+        break;
+      case 444: /* perfetto_tree_direction ::= UP */
+{ yymsp[0].minor.yy50 = SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP; }
+        break;
+      case 445: /* perfetto_tree_direction ::= DOWN */
+{ yymsp[0].minor.yy50 = SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN; }
+        break;
+      case 446: /* perfetto_tree_aggregate ::= expr AS nm */
+{
+    yylhsminor.yy573 = synq_parse_perfetto_tree_aggregate(pCtx, yymsp[-2].minor.yy573,
+        synq_span_dequote(pCtx, yymsp[0].minor.yy0));
+}
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 447: /* perfetto_tree_aggregate_list ::= perfetto_tree_aggregate */
+{
+    yylhsminor.yy573 = synq_parse_perfetto_tree_aggregate_list(pCtx, SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy573);
+}
+  yymsp[0].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 448: /* perfetto_tree_aggregate_list ::= perfetto_tree_aggregate_list COMMA perfetto_tree_aggregate */
+{
+    yylhsminor.yy573 = synq_parse_perfetto_tree_aggregate_list(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
+}
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 449: /* perfetto_pipe_stage ::= TREE ACCUMULATE perfetto_tree_direction perfetto_tree_aggregate_list */
+{
+    yymsp[-3].minor.yy573 = synq_parse_perfetto_tree_accumulate(pCtx,
+        (SyntaqlitePerfettoTreeDirection)yymsp[-1].minor.yy50, yymsp[0].minor.yy573);
+}
+        break;
+      case 451: /* perfetto_pipe_stage_list ::= perfetto_pipe_stage_list perfetto_pipe perfetto_pipe_stage */
+{
+    yylhsminor.yy573 = synq_parse_perfetto_pipe_stage_list(pCtx, yymsp[-2].minor.yy573, yymsp[0].minor.yy573);
+}
+  yymsp[-2].minor.yy573 = yylhsminor.yy573;
+        break;
+      case 452: /* perfetto_pipeline ::= FROM perfetto_pipe_source perfetto_pipe_stage_list */
+{
+    yymsp[-2].minor.yy573 = synq_parse_perfetto_pipeline(pCtx, yymsp[-1].minor.yy573, yymsp[0].minor.yy573);
+}
+        break;
+      case 454: /* cmd ::= PERFETTO PRAGMA nm EQ expr */
+{
+    yymsp[-4].minor.yy573 = synq_parse_perfetto_pragma_stmt(pCtx, synq_span_dequote(pCtx, yymsp[-2].minor.yy0), yymsp[0].minor.yy573);
+}
+        break;
+      case 455: /* cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS select_body_start select select_body_end */
 {
     SyntaqliteTextSpan select_span = {
-        .offset = yymsp[-2].minor.yy639,
-        .length = yymsp[0].minor.yy639 - yymsp[-2].minor.yy639,
+        .offset = yymsp[-2].minor.yy573,
+        .length = yymsp[0].minor.yy573 - yymsp[-2].minor.yy573,
     };
-    yymsp[-10].minor.yy639 = synq_parse_create_perfetto_table_stmt(pCtx,
+    yymsp[-10].minor.yy573 = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, yymsp[-6].minor.yy0),
-        yymsp[-9].minor.yy390 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        yymsp[-5].minor.yy639, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639, select_span);
+        yymsp[-9].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-5].minor.yy573, yymsp[-4].minor.yy573, yymsp[-1].minor.yy573, select_span, SYNTAQLITE_NULL_NODE);
 }
         break;
-      case 442: /* cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end */
+      case 456: /* cmd ::= CREATE perfetto_or_replace PERFETTO TABLE nm perfetto_table_impl perfetto_table_schema AS perfetto_pipeline */
+{
+    yymsp[-8].minor.yy573 = synq_parse_create_perfetto_table_stmt(pCtx,
+        synq_span(pCtx, yymsp[-4].minor.yy0),
+        yymsp[-7].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-3].minor.yy573, yymsp[-2].minor.yy573, SYNTAQLITE_NULL_NODE, SYNQ_NO_SPAN, yymsp[0].minor.yy573);
+}
+        break;
+      case 457: /* cmd ::= CREATE perfetto_or_replace PERFETTO VIEW nm perfetto_table_schema AS select_body_start select select_body_end */
 {
     SyntaqliteTextSpan select_span = {
-        .offset = yymsp[-2].minor.yy639,
-        .length = yymsp[0].minor.yy639 - yymsp[-2].minor.yy639,
+        .offset = yymsp[-2].minor.yy573,
+        .length = yymsp[0].minor.yy573 - yymsp[-2].minor.yy573,
     };
-    yymsp[-9].minor.yy639 = synq_parse_create_perfetto_view_stmt(pCtx,
+    yymsp[-9].minor.yy573 = synq_parse_create_perfetto_view_stmt(pCtx,
         synq_span(pCtx, yymsp[-5].minor.yy0),
-        yymsp[-8].minor.yy390 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        yymsp[-4].minor.yy639, yymsp[-1].minor.yy639, select_span);
+        yymsp[-8].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-4].minor.yy573, yymsp[-1].minor.yy573, select_span);
 }
         break;
-      case 443: /* cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end */
+      case 458: /* cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type AS select_body_start select select_body_end */
 {
     SyntaqliteTextSpan select_span = {
-        .offset = yymsp[-2].minor.yy639,
-        .length = yymsp[0].minor.yy639 - yymsp[-2].minor.yy639,
+        .offset = yymsp[-2].minor.yy573,
+        .length = yymsp[0].minor.yy573 - yymsp[-2].minor.yy573,
     };
-    yymsp[-13].minor.yy639 = synq_parse_create_perfetto_function_stmt(pCtx,
+    yymsp[-13].minor.yy573 = synq_parse_create_perfetto_function_stmt(pCtx,
         synq_span(pCtx, yymsp[-9].minor.yy0),
-        yymsp[-12].minor.yy390 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        yymsp[-7].minor.yy639, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639, select_span);
+        yymsp[-12].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-7].minor.yy573, yymsp[-4].minor.yy573, yymsp[-1].minor.yy573, select_span);
 }
         break;
-      case 444: /* cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID */
+      case 459: /* cmd ::= CREATE perfetto_or_replace PERFETTO FUNCTION nm LP perfetto_arg_def_list RP RETURNS perfetto_return_type DELEGATES TO ID */
 {
-    yymsp[-12].minor.yy639 = synq_parse_create_perfetto_delegating_function_stmt(pCtx,
+    yymsp[-12].minor.yy573 = synq_parse_create_perfetto_delegating_function_stmt(pCtx,
         synq_span(pCtx, yymsp[-8].minor.yy0),
-        yymsp[-11].minor.yy390 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        yymsp[-6].minor.yy639, yymsp[-3].minor.yy639, synq_span(pCtx, yymsp[0].minor.yy0));
+        yymsp[-11].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-6].minor.yy573, yymsp[-3].minor.yy573, synq_span(pCtx, yymsp[0].minor.yy0));
 }
         break;
-      case 445: /* cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP */
+      case 460: /* cmd ::= CREATE perfetto_or_replace PERFETTO INDEX nm ON nm LP perfetto_indexed_col_list RP */
 {
-    yymsp[-9].minor.yy639 = synq_parse_create_perfetto_index_stmt(pCtx,
+    yymsp[-9].minor.yy573 = synq_parse_create_perfetto_index_stmt(pCtx,
         synq_span(pCtx, yymsp[-5].minor.yy0),
-        yymsp[-8].minor.yy390 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-8].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
         synq_span(pCtx, yymsp[-3].minor.yy0),
-        yymsp[-1].minor.yy639);
+        yymsp[-1].minor.yy573);
 }
         break;
-      case 446: /* before_macro_body ::= */
+      case 461: /* before_macro_body ::= */
 {
     pCtx->in_macro_def_body++;
-    yymsp[1].minor.yy390 = 0;
+    yymsp[1].minor.yy50 = 0;
 }
         break;
-      case 448: /* perfetto_macro_body ::= perfetto_macro_body ANY */
+      case 463: /* perfetto_macro_body ::= perfetto_macro_body ANY */
 {
     yylhsminor.yy0 = (SynqParseToken){
         .z = yymsp[-1].minor.yy0.z,
@@ -17549,27 +18874,27 @@ static YYACTIONTYPE yy_reduce(
 }
   yymsp[-1].minor.yy0 = yylhsminor.yy0;
         break;
-      case 449: /* cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body */
+      case 464: /* cmd ::= CREATE perfetto_or_replace PERFETTO MACRO nm LP perfetto_macro_arg_list RP RETURNS ID before_macro_body AS perfetto_macro_body */
 {
     synq_mark_as_type(pCtx, yymsp[-3].minor.yy0);
     if (pCtx->in_macro_def_body > 0) pCtx->in_macro_def_body--;
-    yymsp[-12].minor.yy639 = synq_parse_create_perfetto_macro_stmt(pCtx,
+    yymsp[-12].minor.yy573 = synq_parse_create_perfetto_macro_stmt(pCtx,
         synq_span(pCtx, yymsp[-8].minor.yy0),
-        yymsp[-11].minor.yy390 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        yymsp[-11].minor.yy50 ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
         synq_span(pCtx, yymsp[-3].minor.yy0),
         synq_span(pCtx, yymsp[0].minor.yy0),
-        yymsp[-6].minor.yy639);
+        yymsp[-6].minor.yy573);
 }
         break;
-      case 450: /* cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name */
+      case 465: /* cmd ::= INCLUDE PERFETTO MODULE perfetto_module_name */
 {
-    yymsp[-3].minor.yy639 = synq_parse_include_perfetto_module_stmt(pCtx,
+    yymsp[-3].minor.yy573 = synq_parse_include_perfetto_module_stmt(pCtx,
         synq_span(pCtx, yymsp[0].minor.yy0));
 }
         break;
-      case 451: /* cmd ::= DROP PERFETTO INDEX nm ON nm */
+      case 466: /* cmd ::= DROP PERFETTO INDEX nm ON nm */
 {
-    yymsp[-5].minor.yy639 = synq_parse_drop_perfetto_index_stmt(pCtx,
+    yymsp[-5].minor.yy573 = synq_parse_drop_perfetto_index_stmt(pCtx,
         synq_span(pCtx, yymsp[-2].minor.yy0),
         synq_span(pCtx, yymsp[0].minor.yy0));
 }
@@ -18012,158 +19337,166 @@ return n;
 }
 
 /* syntaqlite extension: non-terminal IDs for completion context. */
-#define SYNQ_NT_INPUT 195
-#define SYNQ_NT_CMDLIST 196
-#define SYNQ_NT_ECMD 197
-#define SYNQ_NT_CMDX 198
-#define SYNQ_NT_ERROR 199
-#define SYNQ_NT_CMD 200
-#define SYNQ_NT_EXPR 201
-#define SYNQ_NT_DISTINCT 202
-#define SYNQ_NT_EXPRLIST 203
-#define SYNQ_NT_SORTLIST 204
-#define SYNQ_NT_FILTER_OVER 205
-#define SYNQ_NT_TYPETOKEN 206
-#define SYNQ_NT_TYPENAME 207
-#define SYNQ_NT_SIGNED 208
-#define SYNQ_NT_SELCOLLIST 209
-#define SYNQ_NT_SCLP 210
-#define SYNQ_NT_SCANPT 211
-#define SYNQ_NT_NM 212
-#define SYNQ_NT_MULTISELECT_OP 213
-#define SYNQ_NT_IN_OP 214
-#define SYNQ_NT_DBNM 215
-#define SYNQ_NT_SELECTNOWITH 216
-#define SYNQ_NT_ONESELECT 217
-#define SYNQ_NT_SELECT 218
-#define SYNQ_NT_PAREN_EXPRLIST 219
-#define SYNQ_NT_LIKEOP 220
-#define SYNQ_NT_BETWEEN_OP 221
-#define SYNQ_NT_CASE_OPERAND 222
-#define SYNQ_NT_CASE_EXPRLIST 223
-#define SYNQ_NT_CASE_ELSE 224
-#define SYNQ_NT_SCANTOK 225
-#define SYNQ_NT_AUTOINC 226
-#define SYNQ_NT_REFARGS 227
-#define SYNQ_NT_REFARG 228
-#define SYNQ_NT_REFACT 229
-#define SYNQ_NT_DEFER_SUBCLAUSE 230
-#define SYNQ_NT_INIT_DEFERRED_PRED_OPT 231
-#define SYNQ_NT_DEFER_SUBCLAUSE_OPT 232
-#define SYNQ_NT_TABLE_OPTION_SET 233
-#define SYNQ_NT_TABLE_OPTION 234
-#define SYNQ_NT_TCONSCOMMA 235
-#define SYNQ_NT_ONCONF 236
-#define SYNQ_NT_CCONS 237
-#define SYNQ_NT_CARGLIST 238
-#define SYNQ_NT_TCONS 239
-#define SYNQ_NT_CONSLIST 240
-#define SYNQ_NT_GENERATED 241
-#define SYNQ_NT_CREATE_TABLE 242
-#define SYNQ_NT_CREATE_TABLE_ARGS 243
-#define SYNQ_NT_CREATEKW 244
-#define SYNQ_NT_TEMP 245
-#define SYNQ_NT_IFNOTEXISTS 246
-#define SYNQ_NT_COLUMNLIST 247
-#define SYNQ_NT_CONSLIST_OPT 248
-#define SYNQ_NT_COLUMNNAME 249
-#define SYNQ_NT_TERM 250
-#define SYNQ_NT_SORTORDER 251
-#define SYNQ_NT_EIDLIST_OPT 252
-#define SYNQ_NT_EIDLIST 253
-#define SYNQ_NT_RESOLVETYPE 254
-#define SYNQ_NT_WITHNM 255
-#define SYNQ_NT_WQAS 256
-#define SYNQ_NT_COLLATE 257
-#define SYNQ_NT_WQLIST 258
-#define SYNQ_NT_WQITEM 259
-#define SYNQ_NT_WITH 260
-#define SYNQ_NT_INSERT_CMD 261
-#define SYNQ_NT_ORCONF 262
-#define SYNQ_NT_INDEXED_OPT 263
-#define SYNQ_NT_WHERE_OPT_RET 264
-#define SYNQ_NT_UPSERT 265
-#define SYNQ_NT_RETURNING 266
-#define SYNQ_NT_XFULLNAME 267
-#define SYNQ_NT_ORDERBY_OPT 268
-#define SYNQ_NT_LIMIT_OPT 269
-#define SYNQ_NT_SETLIST 270
-#define SYNQ_NT_FROM 271
-#define SYNQ_NT_IDLIST_OPT 272
-#define SYNQ_NT_RAISETYPE 273
-#define SYNQ_NT_INDEXED_BY 274
-#define SYNQ_NT_IDLIST 275
-#define SYNQ_NT_WHERE_OPT 276
-#define SYNQ_NT_NEXPRLIST 277
-#define SYNQ_NT_NMORERR 278
-#define SYNQ_NT_NULLS 279
-#define SYNQ_NT_IFEXISTS 280
-#define SYNQ_NT_TRANSTYPE 281
-#define SYNQ_NT_TRANS_OPT 282
-#define SYNQ_NT_SAVEPOINT_OPT 283
-#define SYNQ_NT_KWCOLUMN_OPT 284
-#define SYNQ_NT_FULLNAME 285
-#define SYNQ_NT_ADD_COLUMN_FULLNAME 286
-#define SYNQ_NT_AS 287
-#define SYNQ_NT_GROUPBY_OPT 288
-#define SYNQ_NT_HAVING_OPT 289
-#define SYNQ_NT_WINDOW_CLAUSE 290
-#define SYNQ_NT_SELTABLIST 291
-#define SYNQ_NT_ON_USING 292
-#define SYNQ_NT_JOINOP 293
-#define SYNQ_NT_STL_PREFIX 294
-#define SYNQ_NT_TRIGGER_TIME 295
-#define SYNQ_NT_TRNM 296
-#define SYNQ_NT_TRIGGER_DECL 297
-#define SYNQ_NT_TRIGGER_CMD_LIST 298
-#define SYNQ_NT_TRIGGER_EVENT 299
+#define SYNQ_NT_INPUT 199
+#define SYNQ_NT_CMDLIST 200
+#define SYNQ_NT_ECMD 201
+#define SYNQ_NT_CMDX 202
+#define SYNQ_NT_ERROR 203
+#define SYNQ_NT_CMD 204
+#define SYNQ_NT_EXPR 205
+#define SYNQ_NT_DISTINCT 206
+#define SYNQ_NT_EXPRLIST 207
+#define SYNQ_NT_SORTLIST 208
+#define SYNQ_NT_FILTER_OVER 209
+#define SYNQ_NT_TYPETOKEN 210
+#define SYNQ_NT_TYPENAME 211
+#define SYNQ_NT_SIGNED 212
+#define SYNQ_NT_SELCOLLIST 213
+#define SYNQ_NT_SCLP 214
+#define SYNQ_NT_SCANPT 215
+#define SYNQ_NT_NM 216
+#define SYNQ_NT_MULTISELECT_OP 217
+#define SYNQ_NT_IN_OP 218
+#define SYNQ_NT_DBNM 219
+#define SYNQ_NT_SELECTNOWITH 220
+#define SYNQ_NT_ONESELECT 221
+#define SYNQ_NT_SELECT 222
+#define SYNQ_NT_PAREN_EXPRLIST 223
+#define SYNQ_NT_LIKEOP 224
+#define SYNQ_NT_BETWEEN_OP 225
+#define SYNQ_NT_CASE_OPERAND 226
+#define SYNQ_NT_CASE_EXPRLIST 227
+#define SYNQ_NT_CASE_ELSE 228
+#define SYNQ_NT_SCANTOK 229
+#define SYNQ_NT_AUTOINC 230
+#define SYNQ_NT_REFARGS 231
+#define SYNQ_NT_REFARG 232
+#define SYNQ_NT_REFACT 233
+#define SYNQ_NT_DEFER_SUBCLAUSE 234
+#define SYNQ_NT_INIT_DEFERRED_PRED_OPT 235
+#define SYNQ_NT_DEFER_SUBCLAUSE_OPT 236
+#define SYNQ_NT_TABLE_OPTION_SET 237
+#define SYNQ_NT_TABLE_OPTION 238
+#define SYNQ_NT_ONCONF 239
+#define SYNQ_NT_CCONS 240
+#define SYNQ_NT_CARGLIST 241
+#define SYNQ_NT_TCONS 242
+#define SYNQ_NT_CONSLIST 243
+#define SYNQ_NT_TCONSCOMMA 244
+#define SYNQ_NT_GENERATED 245
+#define SYNQ_NT_CREATE_TABLE 246
+#define SYNQ_NT_CREATE_TABLE_ARGS 247
+#define SYNQ_NT_CREATEKW 248
+#define SYNQ_NT_TEMP 249
+#define SYNQ_NT_IFNOTEXISTS 250
+#define SYNQ_NT_COLUMNLIST 251
+#define SYNQ_NT_CONSLIST_OPT 252
+#define SYNQ_NT_COLUMNNAME 253
+#define SYNQ_NT_TERM 254
+#define SYNQ_NT_SORTORDER 255
+#define SYNQ_NT_EIDLIST_OPT 256
+#define SYNQ_NT_EIDLIST 257
+#define SYNQ_NT_RESOLVETYPE 258
+#define SYNQ_NT_WITHNM 259
+#define SYNQ_NT_WQAS 260
+#define SYNQ_NT_COLLATE 261
+#define SYNQ_NT_WQLIST 262
+#define SYNQ_NT_WQITEM 263
+#define SYNQ_NT_WITH 264
+#define SYNQ_NT_INSERT_CMD 265
+#define SYNQ_NT_ORCONF 266
+#define SYNQ_NT_INDEXED_OPT 267
+#define SYNQ_NT_WHERE_OPT_RET 268
+#define SYNQ_NT_UPSERT 269
+#define SYNQ_NT_RETURNING 270
+#define SYNQ_NT_XFULLNAME 271
+#define SYNQ_NT_ORDERBY_OPT 272
+#define SYNQ_NT_LIMIT_OPT 273
+#define SYNQ_NT_SETLIST 274
+#define SYNQ_NT_FROM 275
+#define SYNQ_NT_IDLIST_OPT 276
+#define SYNQ_NT_RAISETYPE 277
+#define SYNQ_NT_INDEXED_BY 278
+#define SYNQ_NT_IDLIST 279
+#define SYNQ_NT_WHERE_OPT 280
+#define SYNQ_NT_NEXPRLIST 281
+#define SYNQ_NT_NMORERR 282
+#define SYNQ_NT_NULLS 283
+#define SYNQ_NT_IFEXISTS 284
+#define SYNQ_NT_TRANSTYPE 285
+#define SYNQ_NT_TRANS_OPT 286
+#define SYNQ_NT_SAVEPOINT_OPT 287
+#define SYNQ_NT_KWCOLUMN_OPT 288
+#define SYNQ_NT_FULLNAME 289
+#define SYNQ_NT_ADD_COLUMN_FULLNAME 290
+#define SYNQ_NT_AS 291
+#define SYNQ_NT_GROUPBY_OPT 292
+#define SYNQ_NT_HAVING_OPT 293
+#define SYNQ_NT_WINDOW_CLAUSE 294
+#define SYNQ_NT_SELTABLIST 295
+#define SYNQ_NT_ON_USING 296
+#define SYNQ_NT_JOINOP 297
+#define SYNQ_NT_STL_PREFIX 298
+#define SYNQ_NT_TRIGGER_TIME 299
 #define SYNQ_NT_FOREACH_CLAUSE 300
-#define SYNQ_NT_WHEN_CLAUSE 301
-#define SYNQ_NT_TRIGGER_CMD 302
-#define SYNQ_NT_TRIDXBY 303
-#define SYNQ_NT_PLUS_NUM 304
-#define SYNQ_NT_MINUS_NUM 305
-#define SYNQ_NT_NMNUM 306
-#define SYNQ_NT_UNIQUEFLAG 307
-#define SYNQ_NT_EXPLAIN 308
-#define SYNQ_NT_DATABASE_KW_OPT 309
-#define SYNQ_NT_KEY_OPT 310
-#define SYNQ_NT_VINTO 311
-#define SYNQ_NT_VALUES 312
-#define SYNQ_NT_MVALUES 313
-#define SYNQ_NT_CREATE_VTAB 314
-#define SYNQ_NT_VTABARGLIST 315
-#define SYNQ_NT_VTABARG 316
-#define SYNQ_NT_VTABARGTOKEN 317
-#define SYNQ_NT_LP 318
-#define SYNQ_NT_ANYLIST 319
-#define SYNQ_NT_RANGE_OR_ROWS 320
-#define SYNQ_NT_FRAME_EXCLUDE_OPT 321
-#define SYNQ_NT_FRAME_EXCLUDE 322
-#define SYNQ_NT_WINDOWDEFN_LIST 323
-#define SYNQ_NT_WINDOWDEFN 324
-#define SYNQ_NT_WINDOW 325
-#define SYNQ_NT_FRAME_OPT 326
-#define SYNQ_NT_FRAME_BOUND_S 327
-#define SYNQ_NT_FRAME_BOUND_E 328
-#define SYNQ_NT_FRAME_BOUND 329
-#define SYNQ_NT_FILTER_CLAUSE 330
-#define SYNQ_NT_OVER_CLAUSE 331
-#define SYNQ_NT_PERFETTO_OR_REPLACE 332
-#define SYNQ_NT_PERFETTO_ARG_TYPE 333
-#define SYNQ_NT_PERFETTO_ARG_DEF_LIST 334
-#define SYNQ_NT_PERFETTO_ARG_DEF_LIST_NE 335
-#define SYNQ_NT_PERFETTO_TABLE_SCHEMA 336
-#define SYNQ_NT_PERFETTO_TABLE_IMPL 337
-#define SYNQ_NT_PERFETTO_RETURN_TYPE 338
-#define SYNQ_NT_PERFETTO_INDEXED_COL_LIST 339
-#define SYNQ_NT_PERFETTO_MACRO_ARG_LIST 340
-#define SYNQ_NT_PERFETTO_MACRO_ARG_LIST_NE 341
-#define SYNQ_NT_PERFETTO_MODULE_NAME 342
-#define SYNQ_NT_SELECT_BODY_START 343
-#define SYNQ_NT_SELECT_BODY_END 344
-#define SYNQ_NT_BEFORE_MACRO_BODY 345
-#define SYNQ_NT_PERFETTO_MACRO_BODY 346
+#define SYNQ_NT_TRNM 301
+#define SYNQ_NT_TRIGGER_DECL 302
+#define SYNQ_NT_TRIGGER_CMD_LIST 303
+#define SYNQ_NT_TRIGGER_EVENT 304
+#define SYNQ_NT_WHEN_CLAUSE 305
+#define SYNQ_NT_TRIGGER_CMD 306
+#define SYNQ_NT_TRIDXBY 307
+#define SYNQ_NT_DATABASE_KW_OPT 308
+#define SYNQ_NT_PLUS_NUM 309
+#define SYNQ_NT_MINUS_NUM 310
+#define SYNQ_NT_NMNUM 311
+#define SYNQ_NT_UNIQUEFLAG 312
+#define SYNQ_NT_EXPLAIN 313
+#define SYNQ_NT_KEY_OPT 314
+#define SYNQ_NT_VINTO 315
+#define SYNQ_NT_VALUES 316
+#define SYNQ_NT_MVALUES 317
+#define SYNQ_NT_CREATE_VTAB 318
+#define SYNQ_NT_VTABARGLIST 319
+#define SYNQ_NT_VTABARG 320
+#define SYNQ_NT_VTABARGTOKEN 321
+#define SYNQ_NT_LP 322
+#define SYNQ_NT_ANYLIST 323
+#define SYNQ_NT_RANGE_OR_ROWS 324
+#define SYNQ_NT_FRAME_EXCLUDE_OPT 325
+#define SYNQ_NT_FRAME_EXCLUDE 326
+#define SYNQ_NT_WINDOWDEFN_LIST 327
+#define SYNQ_NT_WINDOWDEFN 328
+#define SYNQ_NT_WINDOW 329
+#define SYNQ_NT_FRAME_OPT 330
+#define SYNQ_NT_FRAME_BOUND_S 331
+#define SYNQ_NT_FRAME_BOUND_E 332
+#define SYNQ_NT_FRAME_BOUND 333
+#define SYNQ_NT_FILTER_CLAUSE 334
+#define SYNQ_NT_OVER_CLAUSE 335
+#define SYNQ_NT_PERFETTO_OR_REPLACE 336
+#define SYNQ_NT_PERFETTO_ARG_TYPE 337
+#define SYNQ_NT_PERFETTO_ARG_DEF_LIST 338
+#define SYNQ_NT_PERFETTO_ARG_DEF_LIST_NE 339
+#define SYNQ_NT_PERFETTO_TABLE_SCHEMA 340
+#define SYNQ_NT_PERFETTO_TABLE_IMPL 341
+#define SYNQ_NT_PERFETTO_RETURN_TYPE 342
+#define SYNQ_NT_PERFETTO_INDEXED_COL_LIST 343
+#define SYNQ_NT_PERFETTO_MACRO_ARG_LIST 344
+#define SYNQ_NT_PERFETTO_MACRO_ARG_LIST_NE 345
+#define SYNQ_NT_PERFETTO_MODULE_NAME 346
+#define SYNQ_NT_SELECT_BODY_START 347
+#define SYNQ_NT_SELECT_BODY_END 348
+#define SYNQ_NT_PERFETTO_PIPE 349
+#define SYNQ_NT_PERFETTO_PIPE_SOURCE 350
+#define SYNQ_NT_PERFETTO_TREE_DIRECTION 351
+#define SYNQ_NT_PERFETTO_TREE_AGGREGATE 352
+#define SYNQ_NT_PERFETTO_TREE_AGGREGATE_LIST 353
+#define SYNQ_NT_PERFETTO_PIPE_STAGE 354
+#define SYNQ_NT_PERFETTO_PIPE_STAGE_LIST 355
+#define SYNQ_NT_PERFETTO_PIPELINE 356
+#define SYNQ_NT_BEFORE_MACRO_BODY 357
+#define SYNQ_NT_PERFETTO_MACRO_BODY 358
 
 /* syntaqlite extension: probe the goto table to check if a state has
 ** an explicit goto entry for non-terminal `nt`. */

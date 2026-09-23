@@ -11,6 +11,7 @@ perfetto_android_library("perfetto_trace_lib") {
     "dev/perfetto/sdk/PerfettoTrack.java",
     "dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
     "dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+    "dev/perfetto/sdk/TracingPolicy.java",
   ]
   deps = [
     "../../../../gn:error_prone_annotations",

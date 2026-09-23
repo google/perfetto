@@ -158,17 +158,11 @@ Result Accumulate(const std::vector<int64_t>& parent,
                   bool already_ordered = false) {
   RowSource source(parent, value, chunk_rows, std::move(order));
   // Ids become node numbers before anything else sees them.
-  std::vector<std::unique_ptr<Operator>> numbering;
-  numbering.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  Pipeline numbered(source, std::move(numbering));
-
-  std::unique_ptr<TreeChildFirst> child_first;
-  const Source* input = &numbered;
   std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   if (!already_ordered) {
     if (up) {
-      child_first = std::make_unique<TreeChildFirst>(numbered, 3, 4);
-      input = child_first.get();
+      ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
     } else {
       ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
     }
@@ -179,7 +173,7 @@ Result Accumulate(const std::vector<int64_t>& parent,
   } else {
     ops.push_back(std::make_unique<TreeAccumulateDown>(spec));
   }
-  Pipeline pipeline(*input, std::move(ops));
+  Pipeline pipeline(source, std::move(ops));
 
   std::unique_ptr<OperatorState> state = pipeline.MakeState();
   RowBatch batch;
@@ -372,14 +366,12 @@ TEST(TreeAccumulateTest, TheChunkSizeDoesNotChangeTheAnswer) {
 // plan is run again.
 TEST(TreeAccumulateTest, RunningAgainStartsOver) {
   RowSource source(Parents(), Values(), 2);
-  std::vector<std::unique_ptr<Operator>> numbering;
-  numbering.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  Pipeline numbered(source, std::move(numbering));
-  TreeChildFirst order(numbered, 3, 4);
   TreeAccumulateSpec spec{3, 4, 2};
   std::vector<std::unique_ptr<Operator>> ops;
+  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
+  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
   ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
-  Pipeline pipeline(order, std::move(ops));
+  Pipeline pipeline(source, std::move(ops));
 
   std::unique_ptr<OperatorState> state = pipeline.MakeState();
   RowBatch batch;

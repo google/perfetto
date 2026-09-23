@@ -80,6 +80,7 @@ node CreatePerfettoTableStmt {
   schema: index PerfettoArgDefList
   select: index Select
   select_span: inline SyntaqliteTextSpan
+  pipeline: index PerfettoPipeline
 
   semantic { define_table(name: table_name, columns: schema, select: select) }
 
@@ -101,8 +102,10 @@ node CreatePerfettoTableStmt {
         softline ")"
       }
       if_set(select) { line "AS" }
+      if_set(pipeline) { line "AS" }
     }
     if_set(select) { hardline child(select) }
+    if_set(pipeline) { hardline child(pipeline) }
   }
 }
 
@@ -259,5 +262,86 @@ node DropPerfettoIndexStmt {
 
   fmt {
     "DROP" "PERFETTO" "INDEX" space span(index_name) space "ON" space span(table_name)
+  }
+}
+
+// `PERFETTO PRAGMA name = value`: a setting of the engine.
+node PerfettoPragmaStmt {
+  name: inline SyntaqliteTextSpan
+  value: index Expr
+
+  fmt { "PERFETTO" "PRAGMA" space span(name) space "=" space child(value) }
+}
+
+// ---------- Pipelines ----------
+
+// What a pipeline starts from: a table, or a subquery in parentheses.
+node PerfettoPipeSource {
+  table_name: inline SyntaqliteTextSpan
+  schema: inline SyntaqliteTextSpan
+  select: index Select
+  alias: index Name
+  alias_as: inline Bool
+
+  fmt {
+    if_set(select) {
+      group { "(" nest { softline child(select) } softline ")" }
+    } else {
+      if_span(schema) { span(schema) "." }
+      span(table_name)
+    }
+    if_set(alias) {
+      if_flag(alias_as) { space "AS" space child(alias) } else { space child(alias) }
+    }
+  }
+}
+
+enum PerfettoTreeDirection { UP DOWN }
+
+// One aggregate of a TREE ACCUMULATE stage: `SUM(col) AS name`. Any expression
+// parses; the compiler rejects the ones it cannot run.
+node PerfettoTreeAggregate {
+  expr: index Expr
+  name: inline SyntaqliteTextSpan
+
+  fmt { child(expr) space "AS" space span(name) }
+}
+
+list PerfettoTreeAggregateList {
+  PerfettoTreeAggregate
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `TREE ACCUMULATE UP | DOWN agg AS name, ...`
+node PerfettoTreeAccumulate {
+  direction: inline PerfettoTreeDirection
+  aggregates: index PerfettoTreeAggregateList
+
+  fmt {
+    group {
+      "TREE" "ACCUMULATE" space
+      enum_display(direction, { UP="UP" DOWN="DOWN" })
+      nest { line child(aggregates) }
+    }
+  }
+}
+
+abstract PerfettoPipeStage {
+  PerfettoTreeAccumulate
+}
+
+list PerfettoPipeStageList {
+  PerfettoPipeStage
+  fmt { for_each(sep: hardline "|>" space) { child(_item) } }
+}
+
+// A pipeline: FROM followed by `|>` stages.
+node PerfettoPipeline {
+  from: index PerfettoPipeSource
+  stages: index PerfettoPipeStageList
+
+  fmt {
+    "FROM" space child(from)
+    if_set(stages) { hardline "|>" space child(stages) }
   }
 }

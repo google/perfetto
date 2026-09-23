@@ -99,7 +99,7 @@ How to use it:
   clicks faster than queries run. Use an `AsyncMemo` (declare a key compared by
   value, call `.use()` each render, render stale data with `retainOn`), or load inside
   `TrackEventDetailsPanel.load()`, which auto-cancels obsolete loads. Guard
-  concurrency with `AsyncLimiter.isRunning` rather than a bespoke flag.
+  concurrency with `AsyncLimiter` rather than a bespoke flag.
   Disposing `AsyncMemo` instances in `onremove()` is optional (useful to cancel
   in-flight tasks or clean up disposable resources early).
   *(#4464, #4582, #4737, #5436, #4192)*
@@ -207,7 +207,7 @@ How to use it:
 > and theme variables." This is the single most common reuse note.
 
 - **Use the existing widget instead of raw HTML or hand-rolled markup:**
-  `Button`/`SegmentedButton` (not `<button>` or CSS-styled buttons — set
+  `Button`/`RadioGroup` (not `<button>` or CSS-styled buttons — set
   `variant`/`intent` for emphasis), `Select` (not `<select>`), `Anchor` (not
   `<a>`; use `Icons.ExternalLink` for external), `DetailsShell` for details
   panels, `Tabs` (not `TabStrip` or bespoke tabs — it retains each tab's
@@ -218,8 +218,8 @@ How to use it:
 - **❌ Re-implementing a behaviour the widget already provides → ✅ use its prop.**
   `fillHeight` (on `Editor`, `NodeGraph`, …) instead of `height: 100%` CSS;
   `closeOnOutsideClick`/`closeOnEscape` or explicit open-state instead of popups
-  that dismiss each other; mount overlays to an `OverlayContext` in the scrolling
-  container instead of hand-rolling anchor/visibility logic. *(#4993, #4027, #3124, #3711)*
+  that dismiss each other; mount overlays to an `OverlayContainer` in the
+  scrolling container instead of hand-rolling anchor/visibility logic. *(#4993, #4027, #3124, #3711)*
 
 - **❌ Overriding a widget's internal classes / re-implementing its spacing from
   outside → ✅ wrap your content in a container you control, or use a `Stack`.**
@@ -385,7 +385,7 @@ How to use it:
   defensive `if (!blob) continue` for an impossible state. *(#4994, #4761, #2580, #1302)*
 
 - **❌ Network fetches with no timeout / blocking core flows → ✅ `fetchWithTimeout`
-  / `orTimeout` and surface a soft error.** Don't rely on the browser's ~5-min
+  and surface a soft error.** Don't rely on the browser's ~5-min
   default; fine-grained deferred fetches on core paths risk "the UI silently stops
   working mid-flow". (And don't set timeouts *too* aggressively — 10s+, people
   tether.) *(#4192)*

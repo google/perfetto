@@ -233,7 +233,7 @@ PACKAGE_LIST_TABLE = Table(
         ),
         C(
             'version_code',
-            CppInt64(),
+            CppOptional(CppInt64()),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),

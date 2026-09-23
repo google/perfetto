@@ -18,6 +18,8 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("engine") {
   sources = [
+    "connection_catalog.cc",
+    "connection_catalog.h",
     "created_function.cc",
     "created_function.h",
     "dataframe_module.cc",
@@ -26,6 +28,8 @@ source_set("engine") {
     "perfetto_sql_connection.h",
     "perfetto_sql_database.cc",
     "perfetto_sql_database.h",
+    "pipeline_module.cc",
+    "pipeline_module.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
     "sqlite_dataframe_builder.cc",
@@ -36,17 +40,25 @@ source_set("engine") {
   deps = [
     "../..:metatrace",
     "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
+    "../../../perfetto_sql/analysis",
     "../../containers",
+    "../../core/common",
     "../../core/dataframe",
+    "../../core/exec",
     "../../core/plugin",
+    "../../core/util",
     "../../types",
     "../../util:owned_sql_value",
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
+    "../pipeline:logical",
+    "../pipeline:plan",
+    "../schema",
     "../tokenizer",
   ]
 
@@ -56,7 +68,10 @@ source_set("engine") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "perfetto_sql_connection_unittest.cc" ]
+  sources = [
+    "connection_catalog_unittest.cc",
+    "perfetto_sql_connection_unittest.cc",
+  ]
   deps = [
     ":engine",
     "../../../../gn:default_deps",
@@ -64,11 +79,15 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:sqlite",
     "../../../base",
     "../../../base:test_support",
+    "../../../perfetto_sql/analysis",
+    "../../../perfetto_sql/syntaqlite",
     "../..//tables:tables_python",
     "../../containers",
+    "../../core/common",
     "../../core/plugin",
     "../../sqlite",
     "../../util:stdlib",
+    "../schema",
   ]
 }
 

@@ -19,15 +19,10 @@ module(
     version = "0.0.0",
 )
 
-bazel_dep(name = "abseil-cpp", version = "20250127.0", repo_name = "com_google_absl")
-git_override(
-    module_name = "abseil-cpp",
-    commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
-    remote = "https://github.com/abseil/abseil-cpp.git",
-)
+bazel_dep(name = "abseil-cpp", version = "20250512.1", repo_name = "com_google_absl")
 
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
-bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "bazel_skylib", version = "1.8.0")
+bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")
 bazel_dep(name = "re2", version = "2024-07-02.bcr.1")
 bazel_dep(name = "rules_python", version = "1.0.0")
@@ -35,15 +30,21 @@ bazel_dep(name = "rules_android", version = "0.6.6")
 bazel_dep(name = "rules_cc", version = "0.2.19")
 bazel_dep(name = "zstd", version = "1.5.7.bcr.1")
 
+# The Android SDK/NDK repositories, their toolchains and the Maven deps are
+# dev dependencies: they are only set up when Perfetto is the root module.
+# Modules depending on Perfetto can build the C++ targets without an Android
+# SDK/NDK installation, but cannot build the Android (Java SDK) targets.
 remote_android_extensions = use_extension(
     "@rules_android//bzlmod_extensions:android_extensions.bzl",
     "remote_android_tools_extensions",
+    dev_dependency = True,
 )
 use_repo(remote_android_extensions, "android_tools")
 
 android_sdk_repository_extension = use_extension(
     "@rules_android//rules/android_sdk_repository:rule.bzl",
     "android_sdk_repository_extension",
+    dev_dependency = True,
 )
 
 # When built using 'tools/bazel', 'ANDROID_HOME' environment variable points
@@ -55,14 +56,19 @@ android_sdk_repository_extension.configure(
 )
 use_repo(android_sdk_repository_extension, "androidsdk")
 
-register_toolchains("@androidsdk//:sdk-toolchain", "@androidsdk//:all")
+register_toolchains(
+    "@androidsdk//:sdk-toolchain",
+    "@androidsdk//:all",
+    dev_dependency = True,
+)
 
-bazel_dep(name = "rules_jvm_external", version = "6.9")
-bazel_dep(name = "rules_android_ndk", version = "0.1.3")
+bazel_dep(name = "rules_jvm_external", version = "6.9", dev_dependency = True)
+bazel_dep(name = "rules_android_ndk", version = "0.1.3", dev_dependency = True)
 
 android_ndk_repository_extension = use_extension(
     "@rules_android_ndk//:extension.bzl",
     "android_ndk_repository_extension",
+    dev_dependency = True,
 )
 
 # When built using 'tools/bazel', 'ANDROID_NDK_HOME' environment variable points
@@ -73,7 +79,10 @@ android_ndk_repository_extension.configure(
 )
 use_repo(android_ndk_repository_extension, "androidndk")
 
-register_toolchains("@androidndk//:all")
+register_toolchains(
+    "@androidndk//:all",
+    dev_dependency = True,
+)
 
 # Perfetto configuration repository extension.
 # This creates @perfetto_cfg which provides PERFETTO_CONFIG struct.
@@ -105,6 +114,7 @@ use_repo(
 maven = use_extension(
     "@rules_jvm_external//:extensions.bzl",
     "maven",
+    dev_dependency = True,
 )
 maven.install(
     name = "perfetto_maven",

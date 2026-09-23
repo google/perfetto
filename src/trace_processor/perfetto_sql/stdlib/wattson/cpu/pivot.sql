@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
+INCLUDE PERFETTO MODULE wattson.cpu.freq;
+
 INCLUDE PERFETTO MODULE wattson.cpu.freq_idle;
 
 INCLUDE PERFETTO MODULE wattson.cpu.hotplug;
@@ -27,234 +29,270 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
--- Helper macro to do pivot function
-CREATE PERFETTO MACRO _cpu_stats_subquery(
-  cpu Expr,
-  curve_col ColumnName,
-  static_col ColumnName,
-  freq_col ColumnName,
-  idle_col ColumnName
-)
-RETURNS TableOrSubquery
-AS (
-  SELECT
-    t1.ts,
-    t1.dur,
-    t1.curve_value AS $curve_col,
-    iif($cpu IN _device_policies, coalesce(t1.static, 0), 0) AS $static_col,
-    coalesce(t1.freq, 0) AS $freq_col,
-    coalesce(t1.idle, deepest.idle) AS $idle_col
-  FROM _idle_freq_materialized AS t1
-  CROSS JOIN _deepest_idle AS deepest
-  WHERE
-    cpu = $cpu
-  UNION ALL
-  SELECT
-    trace_start(),
-    trace_dur(),
-    0,
-    0,
-    0,
-    idle
-  FROM _deepest_idle()
-  WHERE
-    NOT EXISTS(
-      SELECT
-        1
-      FROM _dev_cpu_policy_map
-      WHERE
-        cpu = $cpu
-    )
-);
-
 CREATE PERFETTO TABLE _stats_cpu0 AS
-SELECT * FROM _cpu_stats_subquery!(0, cpu0_curve, cpu0_static, freq_0, idle_0);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 0;
 
 CREATE PERFETTO TABLE _stats_cpu1 AS
-SELECT * FROM _cpu_stats_subquery!(1, cpu1_curve, cpu1_static, freq_1, idle_1);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 1;
 
 CREATE PERFETTO TABLE _stats_cpu2 AS
-SELECT * FROM _cpu_stats_subquery!(2, cpu2_curve, cpu2_static, freq_2, idle_2);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 2;
 
 CREATE PERFETTO TABLE _stats_cpu3 AS
-SELECT * FROM _cpu_stats_subquery!(3, cpu3_curve, cpu3_static, freq_3, idle_3);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 3;
 
 CREATE PERFETTO TABLE _stats_cpu4 AS
-SELECT * FROM _cpu_stats_subquery!(4, cpu4_curve, cpu4_static, freq_4, idle_4);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 4;
 
 CREATE PERFETTO TABLE _stats_cpu5 AS
-SELECT * FROM _cpu_stats_subquery!(5, cpu5_curve, cpu5_static, freq_5, idle_5);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 5;
 
 CREATE PERFETTO TABLE _stats_cpu6 AS
-SELECT * FROM _cpu_stats_subquery!(6, cpu6_curve, cpu6_static, freq_6, idle_6);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 6;
 
 CREATE PERFETTO TABLE _stats_cpu7 AS
-SELECT * FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7);
+SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 7;
 
-CREATE PERFETTO TABLE _all_stats AS
+-- Per-interval CPU data, and the last generic table before going to device
+-- specific table calcs.
+--
+-- Because `_stats_cpu0..7` pass `state_id` as their `id`, `_wattson_dsu_frequency`
+-- passes `dsu_freq` as its `id`, and `_gapless_suspend_slices` passes
+-- `suspended` as its `id`, `interval_intersect` directly outputs those values
+-- in `base.id_0..10`. This eliminates 10 out of 11 table joins across 434K
+-- intervals.
+CREATE PERFETTO TABLE _w_cpu_slices AS
 SELECT
   base.ts,
   base.dur,
-  cast_int!(l3_hit_rate * base.dur) AS l3_hit_count,
-  cast_int!(l3_miss_rate * base.dur) AS l3_miss_count,
-  freq_0,
-  idle_0,
-  freq_1,
-  idle_1,
-  freq_2,
-  idle_2,
-  freq_3,
-  idle_3,
-  freq_4,
-  idle_4,
-  freq_5,
-  idle_5,
-  freq_6,
-  idle_6,
-  freq_7,
-  idle_7,
-  _stats_cpu0.cpu0_curve,
-  _stats_cpu1.cpu1_curve,
-  _stats_cpu2.cpu2_curve,
-  _stats_cpu3.cpu3_curve,
-  _stats_cpu4.cpu4_curve,
-  _stats_cpu5.cpu5_curve,
-  _stats_cpu6.cpu6_curve,
-  _stats_cpu7.cpu7_curve,
-  _stats_cpu0.cpu0_static,
-  _stats_cpu1.cpu1_static,
-  _stats_cpu2.cpu2_static,
-  _stats_cpu3.cpu3_static,
-  _stats_cpu4.cpu4_static,
-  _stats_cpu5.cpu5_static,
-  _stats_cpu6.cpu6_static,
-  _stats_cpu7.cpu7_static,
-  suspend.suspended,
-  _wattson_dsu_frequency.dsu_freq,
-  CAST(_bitmask8!(
-    idle_0 != deepest.idle,
-    idle_1 != deepest.idle,
-    idle_2 != deepest.idle,
-    idle_3 != deepest.idle,
-    idle_4 != deepest.idle,
-    idle_5 != deepest.idle,
-    idle_6 != deepest.idle,
-    idle_7 != deepest.idle
-  ) AS INTEGER) AS cpus_on_mask
+  cast_int!(l3.l3_hit_rate * base.dur) AS l3_hit_count,
+  cast_int!(l3.l3_miss_rate * base.dur) AS l3_miss_count,
+  base.id_10 AS suspended,
+  base.id_8 AS dsu_freq,
+  hash(
+    base.id_0,
+    base.id_1,
+    base.id_2,
+    base.id_3,
+    base.id_4,
+    base.id_5,
+    base.id_6,
+    base.id_7,
+    base.id_8,
+    base.id_10
+  ) AS config_hash,
+  base.id_0 AS state_id_0,
+  base.id_1 AS state_id_1,
+  base.id_2 AS state_id_2,
+  base.id_3 AS state_id_3,
+  base.id_4 AS state_id_4,
+  base.id_5 AS state_id_5,
+  base.id_6 AS state_id_6,
+  base.id_7 AS state_id_7
 FROM _interval_intersect!(
   (
-    _ii_subquery!(_stats_cpu0),
-    _ii_subquery!(_stats_cpu1),
-    _ii_subquery!(_stats_cpu2),
-    _ii_subquery!(_stats_cpu3),
-    _ii_subquery!(_stats_cpu4),
-    _ii_subquery!(_stats_cpu5),
-    _ii_subquery!(_stats_cpu6),
-    _ii_subquery!(_stats_cpu7),
-    _ii_subquery!(_wattson_dsu_frequency),
+    _stats_cpu0,
+    _stats_cpu1,
+    _stats_cpu2,
+    _stats_cpu3,
+    _stats_cpu4,
+    _stats_cpu5,
+    _stats_cpu6,
+    _stats_cpu7,
+    (SELECT dsu_freq AS id, ts, dur FROM _wattson_dsu_frequency),
     _ii_subquery!(_arm_l3_rates),
-    _ii_subquery!(_gapless_suspend_slices)
+    (SELECT suspended AS id, ts, dur FROM _gapless_suspend_slices)
   ),
   ()
 ) AS base
-JOIN _stats_cpu0
-  ON _stats_cpu0._auto_id = base.id_0
-JOIN _stats_cpu1
-  ON _stats_cpu1._auto_id = base.id_1
-JOIN _stats_cpu2
-  ON _stats_cpu2._auto_id = base.id_2
-JOIN _stats_cpu3
-  ON _stats_cpu3._auto_id = base.id_3
-JOIN _stats_cpu4
-  ON _stats_cpu4._auto_id = base.id_4
-JOIN _stats_cpu5
-  ON _stats_cpu5._auto_id = base.id_5
-JOIN _stats_cpu6
-  ON _stats_cpu6._auto_id = base.id_6
-JOIN _stats_cpu7
-  ON _stats_cpu7._auto_id = base.id_7
-JOIN _wattson_dsu_frequency
-  ON _wattson_dsu_frequency._auto_id = base.id_8
-JOIN _arm_l3_rates
-  ON _arm_l3_rates._auto_id = base.id_9
-JOIN _gapless_suspend_slices AS suspend
-  ON suspend._auto_id = base.id_10
-CROSS JOIN _deepest_idle AS deepest;
+JOIN _arm_l3_rates AS l3
+  ON l3._auto_id = base.id_9;
 
--- Does calculations for CPUs that are independent of other CPUs or frequencies
--- This is the last generic table before going to device specific table calcs
-CREATE PERFETTO TABLE _w_independent_cpus_calc AS
+-- Tiny (~400 row) L1/L2-cached lookup table decoding state_id into
+-- (freq, idle, curve_value, static) built directly from _adjusted_cpu_freq.
+CREATE PERFETTO TABLE _cpu_state_lut AS
+WITH
+  cpu_freqs AS (
+    SELECT DISTINCT cpu, coalesce(freq, 0) AS freq FROM _adjusted_cpu_freq
+    UNION
+    SELECT 0 AS cpu, 0 AS freq
+    UNION
+    SELECT 1, 0
+    UNION
+    SELECT 2, 0
+    UNION
+    SELECT 3, 0
+    UNION
+    SELECT 4, 0
+    UNION
+    SELECT 5, 0
+    UNION
+    SELECT 6, 0
+    UNION
+    SELECT 7, 0
+  ),
+  idles AS (
+    SELECT _encode_idle!(-1) AS idle_id, -1 AS idle
+    UNION
+    SELECT _encode_idle!(0), 0
+    UNION
+    SELECT _deepest_idle_id!(), idle FROM _deepest_idle
+    UNION
+    SELECT _offline_idle_id!(), NULL
+    UNION
+    SELECT _null_idle_id!(), NULL
+  )
 SELECT
-  ts,
-  dur,
-  l3_hit_count,
-  l3_miss_count,
-  hash(
-    freq_0,
-    idle_0,
-    freq_1,
-    idle_1,
-    freq_2,
-    idle_2,
-    freq_3,
-    idle_3,
-    freq_4,
-    idle_4,
-    freq_5,
-    idle_5,
-    freq_6,
-    idle_6,
-    freq_7,
-    idle_7,
-    dsu_freq,
-    suspended
-  ) AS config_hash,
-  freq_0,
-  idle_0,
-  freq_1,
-  idle_1,
-  freq_2,
-  idle_2,
-  freq_3,
-  idle_3,
-  freq_4,
-  idle_4,
-  freq_5,
-  idle_5,
-  freq_6,
-  idle_6,
-  freq_7,
-  idle_7,
-  cpu0_curve,
-  cpu1_curve,
-  cpu2_curve,
-  cpu3_curve,
-  cpu4_curve,
-  cpu5_curve,
-  cpu6_curve,
-  cpu7_curve,
-  suspended,
-  dsu_freq,
+  _pack_cpu_state!(cf.cpu, cf.freq, i.idle_id) AS state_id,
+  cf.freq,
+  coalesce(i.idle, deepest.idle) AS idle,
+  iif(i.idle_id = _offline_idle_id!(), 0, lut.curve_value) AS curve_value,
+  iif(cf.cpu IN _device_policies, coalesce(lut.static, 0), 0) AS static
+FROM _deepest_idle AS deepest
+CROSS JOIN cpu_freqs AS cf
+CROSS JOIN idles AS i
+LEFT JOIN _dev_cpu_policy_map AS m
+  ON m.cpu = cf.cpu
+LEFT JOIN _filtered_curves_1d AS lut
+  ON lut.policy = m.policy
+  AND lut.freq_khz = cf.freq
+  AND lut.idle = i.idle;
+
+CREATE PERFETTO INDEX _cpu_state_lut_idx ON _cpu_state_lut(state_id);
+
+-- All UNIQUE configs of independent CPU data.
+CREATE PERFETTO TABLE _w_unique_configs AS
+SELECT
+  reps.config_hash,
+  d0.freq AS freq_0,
+  d0.idle AS idle_0,
+  d1.freq AS freq_1,
+  d1.idle AS idle_1,
+  d2.freq AS freq_2,
+  d2.idle AS idle_2,
+  d3.freq AS freq_3,
+  d3.idle AS idle_3,
+  d4.freq AS freq_4,
+  d4.idle AS idle_4,
+  d5.freq AS freq_5,
+  d5.idle AS idle_5,
+  d6.freq AS freq_6,
+  d6.idle AS idle_6,
+  d7.freq AS freq_7,
+  d7.idle AS idle_7,
+  d0.curve_value AS cpu0_curve,
+  d1.curve_value AS cpu1_curve,
+  d2.curve_value AS cpu2_curve,
+  d3.curve_value AS cpu3_curve,
+  d4.curve_value AS cpu4_curve,
+  d5.curve_value AS cpu5_curve,
+  d6.curve_value AS cpu6_curve,
+  d7.curve_value AS cpu7_curve,
+  reps.dsu_freq,
   CAST(_bitmask8!(
-    cpus_on_mask & m0,
-    cpus_on_mask & m1,
-    cpus_on_mask & m2,
-    cpus_on_mask & m3,
-    cpus_on_mask & m4,
-    cpus_on_mask & m5,
-    cpus_on_mask & m6,
-    cpus_on_mask & m7
+    reps.cpus_on_mask & pm.m0,
+    reps.cpus_on_mask & pm.m1,
+    reps.cpus_on_mask & pm.m2,
+    reps.cpus_on_mask & pm.m3,
+    reps.cpus_on_mask & pm.m4,
+    reps.cpus_on_mask & pm.m5,
+    reps.cpus_on_mask & pm.m6,
+    reps.cpus_on_mask & pm.m7
   ) AS INTEGER) AS policy_cpus_on_mask,
-  iif(cpus_on_mask & m0, cpu0_static, 0)
-  + iif(cpus_on_mask & m1, cpu1_static, 0)
-  + iif(cpus_on_mask & m2, cpu2_static, 0)
-  + iif(cpus_on_mask & m3, cpu3_static, 0)
-  + iif(cpus_on_mask & m4, cpu4_static, 0)
-  + iif(cpus_on_mask & m5, cpu5_static, 0)
-  + iif(cpus_on_mask & m6, cpu6_static, 0)
-  + iif(cpus_on_mask & m7, cpu7_static, 0) AS static_1d
-FROM _all_stats
-CROSS JOIN _policy_masks;
+  iif(reps.cpus_on_mask & pm.m0, d0.static, 0)
+  + iif(reps.cpus_on_mask & pm.m1, d1.static, 0)
+  + iif(reps.cpus_on_mask & pm.m2, d2.static, 0)
+  + iif(reps.cpus_on_mask & pm.m3, d3.static, 0)
+  + iif(reps.cpus_on_mask & pm.m4, d4.static, 0)
+  + iif(reps.cpus_on_mask & pm.m5, d5.static, 0)
+  + iif(reps.cpus_on_mask & pm.m6, d6.static, 0)
+  + iif(reps.cpus_on_mask & pm.m7, d7.static, 0) AS static_1d,
+  reps.suspended
+FROM _policy_masks AS pm
+CROSS JOIN (
+  SELECT
+    config_hash,
+    dsu_freq,
+    suspended,
+    state_id_0,
+    state_id_1,
+    state_id_2,
+    state_id_3,
+    state_id_4,
+    state_id_5,
+    state_id_6,
+    state_id_7,
+    CAST(_bitmask8!(
+      _is_cpu_active!(state_id_0),
+      _is_cpu_active!(state_id_1),
+      _is_cpu_active!(state_id_2),
+      _is_cpu_active!(state_id_3),
+      _is_cpu_active!(state_id_4),
+      _is_cpu_active!(state_id_5),
+      _is_cpu_active!(state_id_6),
+      _is_cpu_active!(state_id_7)
+    ) AS INTEGER) AS cpus_on_mask
+  FROM _w_cpu_slices
+  GROUP BY
+    config_hash
+) AS reps
+CROSS JOIN _cpu_state_lut AS d0
+  ON d0.state_id = reps.state_id_0
+CROSS JOIN _cpu_state_lut AS d1
+  ON d1.state_id = reps.state_id_1
+CROSS JOIN _cpu_state_lut AS d2
+  ON d2.state_id = reps.state_id_2
+CROSS JOIN _cpu_state_lut AS d3
+  ON d3.state_id = reps.state_id_3
+CROSS JOIN _cpu_state_lut AS d4
+  ON d4.state_id = reps.state_id_4
+CROSS JOIN _cpu_state_lut AS d5
+  ON d5.state_id = reps.state_id_5
+CROSS JOIN _cpu_state_lut AS d6
+  ON d6.state_id = reps.state_id_6
+CROSS JOIN _cpu_state_lut AS d7
+  ON d7.state_id = reps.state_id_7;
+
+-- Per-interval CPU data with the configuration columns attached. Consumers
+-- that only need the per-interval columns should read `_w_cpu_slices`
+-- directly, since this view has to join every interval back to its config.
+CREATE PERFETTO VIEW _w_independent_cpus_calc AS
+SELECT
+  slices.ts,
+  slices.dur,
+  slices.l3_hit_count,
+  slices.l3_miss_count,
+  slices.config_hash,
+  cfg.freq_0,
+  cfg.idle_0,
+  cfg.freq_1,
+  cfg.idle_1,
+  cfg.freq_2,
+  cfg.idle_2,
+  cfg.freq_3,
+  cfg.idle_3,
+  cfg.freq_4,
+  cfg.idle_4,
+  cfg.freq_5,
+  cfg.idle_5,
+  cfg.freq_6,
+  cfg.idle_6,
+  cfg.freq_7,
+  cfg.idle_7,
+  cfg.cpu0_curve,
+  cfg.cpu1_curve,
+  cfg.cpu2_curve,
+  cfg.cpu3_curve,
+  cfg.cpu4_curve,
+  cfg.cpu5_curve,
+  cfg.cpu6_curve,
+  cfg.cpu7_curve,
+  slices.suspended,
+  slices.dsu_freq,
+  cfg.policy_cpus_on_mask,
+  cfg.static_1d
+FROM _w_cpu_slices AS slices
+JOIN _w_unique_configs AS cfg USING (config_hash);
 
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
 CREATE PERFETTO VIEW _w_dependent_cpus_unique AS
@@ -272,41 +310,6 @@ WITH
       max(cpu = 6) AS dsu_6,
       max(cpu = 7) AS dsu_7
     FROM _cpu_w_dsu_dependency
-  ),
-  _w_unique_configs AS (
-    SELECT
-      config_hash,
-      freq_0,
-      idle_0,
-      freq_1,
-      idle_1,
-      freq_2,
-      idle_2,
-      freq_3,
-      idle_3,
-      freq_4,
-      idle_4,
-      freq_5,
-      idle_5,
-      freq_6,
-      idle_6,
-      freq_7,
-      idle_7,
-      cpu0_curve,
-      cpu1_curve,
-      cpu2_curve,
-      cpu3_curve,
-      cpu4_curve,
-      cpu5_curve,
-      cpu6_curve,
-      cpu7_curve,
-      dsu_freq,
-      static_1d,
-      policy_cpus_on_mask,
-      suspended
-    FROM _w_independent_cpus_calc
-    GROUP BY
-      config_hash
   ),
   -- Only unpivot the necessary columns for dependency calculation.
   -- Additionally, only unpivot the necessary rows for dependency calculation

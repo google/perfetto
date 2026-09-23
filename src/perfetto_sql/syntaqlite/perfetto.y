@@ -21,7 +21,8 @@
 // `tools/gen_syntaqlite_parser` after editing this file.
 
 // Allow extension keywords to be used as regular identifiers.
-%fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE.
+%fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
+          TREE ACCUMULATE UP DOWN.
 
 // ---------- Helper nonterminals ----------
 
@@ -163,6 +164,92 @@ select_body_start(A) ::= . { A = pCtx->cur_shift_start; }
 %type select_body_end {uint32_t}
 select_body_end(A) ::= . { A = pCtx->last_shifted_end; }
 
+// ---------- Pipelines ----------
+
+// `|>` is not a token the SQLite tokenizer knows, so a pipe is `|` directly
+// followed by `>`. No valid SQL expression contains those two in a row, but
+// an expression can end in `|`, so nothing that ends in a bare expression may
+// precede a pipe: see perfetto_pipe_source.
+%type perfetto_pipe {int}
+perfetto_pipe(A) ::= BITOR(B) GT(G). {
+    if (B.layer_id != G.layer_id || B.offset + B.n != G.offset) {
+        pCtx->error = 1;
+    }
+    A = 0;
+}
+
+// What a pipeline may start from: a table or a parenthesised subquery. A join
+// is not allowed here since its ON clause is an expression, whose trailing `|`
+// would be ambiguous with the pipe; wrap it in a subquery instead.
+%type perfetto_pipe_source {uint32_t}
+perfetto_pipe_source(A) ::= nm(N) dbnm(D) as(Z). {
+    SyntaqliteTextSpan table_name;
+    SyntaqliteTextSpan schema;
+    if (D.z != NULL) {
+        table_name = synq_span_dequote(pCtx, D);
+        schema = synq_span_dequote(pCtx, N);
+    } else {
+        table_name = synq_span_dequote(pCtx, N);
+        schema = SYNQ_NO_SPAN;
+    }
+    A = synq_parse_perfetto_pipe_source(pCtx, table_name, schema,
+        SYNTAQLITE_NULL_NODE, Z.name,
+        Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+}
+perfetto_pipe_source(A) ::= LP select(S) RP as(Z). {
+    A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
+        S, Z.name, Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+}
+
+%type perfetto_tree_direction {int}
+perfetto_tree_direction(A) ::= UP.   { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP; }
+perfetto_tree_direction(A) ::= DOWN. { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN; }
+
+%type perfetto_tree_aggregate {uint32_t}
+perfetto_tree_aggregate(A) ::= expr(E) AS nm(N). {
+    A = synq_parse_perfetto_tree_aggregate(pCtx, E,
+        synq_span_dequote(pCtx, N));
+}
+
+%type perfetto_tree_aggregate_list {uint32_t}
+perfetto_tree_aggregate_list(A) ::= perfetto_tree_aggregate(X). {
+    A = synq_parse_perfetto_tree_aggregate_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_tree_aggregate_list(A) ::= perfetto_tree_aggregate_list(L) COMMA
+                                    perfetto_tree_aggregate(X). {
+    A = synq_parse_perfetto_tree_aggregate_list(pCtx, L, X);
+}
+
+%type perfetto_pipe_stage {uint32_t}
+perfetto_pipe_stage(A) ::= TREE ACCUMULATE perfetto_tree_direction(D)
+                           perfetto_tree_aggregate_list(L). {
+    A = synq_parse_perfetto_tree_accumulate(pCtx,
+        (SyntaqlitePerfettoTreeDirection)D, L);
+}
+
+%type perfetto_pipe_stage_list {uint32_t}
+perfetto_pipe_stage_list(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_pipe_stage_list(A) ::= perfetto_pipe_stage_list(L) perfetto_pipe
+                                perfetto_pipe_stage(S). {
+    A = synq_parse_perfetto_pipe_stage_list(pCtx, L, S);
+}
+
+%type perfetto_pipeline {uint32_t}
+perfetto_pipeline(A) ::= FROM perfetto_pipe_source(F)
+                         perfetto_pipe_stage_list(S). {
+    A = synq_parse_perfetto_pipeline(pCtx, F, S);
+}
+
+cmd(A) ::= perfetto_pipeline(P). { A = P; }
+
+// ---------- PERFETTO PRAGMA ----------
+
+// A setting of the engine, rather than of SQLite. Any expression parses;
+// the engine takes the ones it can read.
+cmd(A) ::= PERFETTO PRAGMA nm(N) EQ expr(V). {
+    A = synq_parse_perfetto_pragma_stmt(pCtx, synq_span_dequote(pCtx, N), V);
+}
+
 // ---------- CREATE PERFETTO TABLE ----------
 
 cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
@@ -175,7 +262,16 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
         R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        I, S, E, select_span);
+        I, S, E, select_span, SYNTAQLITE_NULL_NODE);
+}
+
+cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
+           perfetto_table_impl(I) perfetto_table_schema(S)
+           AS perfetto_pipeline(P). {
+    A = synq_parse_create_perfetto_table_stmt(pCtx,
+        synq_span(pCtx, N),
+        R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
+        I, S, SYNTAQLITE_NULL_NODE, SYNQ_NO_SPAN, P);
 }
 
 // ---------- CREATE PERFETTO VIEW ----------

@@ -296,6 +296,25 @@ inline constexpr auto kPerfCpuCounterBlueprint = tracks::CounterBlueprint(
         tracks::kNameFromTraceDimensionBlueprint),
     tracks::DynamicNameBlueprint());
 
+inline constexpr auto kPerfThreadCounterBlueprint = tracks::CounterBlueprint(
+    "perf_thread_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kThreadDimensionBlueprint,
+        tracks::UintDimensionBlueprint("perf_session_id"),
+        tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
+
+inline constexpr auto kPerfThreadCpuCounterBlueprint = tracks::CounterBlueprint(
+    "perf_thread_cpu_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kThreadDimensionBlueprint,
+        tracks::kCpuDimensionBlueprint,
+        tracks::UintDimensionBlueprint("perf_session_id"),
+        tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
+
 inline constexpr auto kGlobalGpuMemoryBlueprint = tracks::CounterBlueprint(
     "gpu_memory",
     tracks::kBytesUnitBlueprint,

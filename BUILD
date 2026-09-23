@@ -411,12 +411,14 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -468,9 +470,13 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
+        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
+        ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -509,6 +515,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -727,12 +735,14 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -785,9 +795,13 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
+        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
+        ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -826,6 +840,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -1405,6 +1421,7 @@ perfetto_filegroup(
     name = "include_perfetto_ext_base_base",
     srcs = [
         "include/perfetto/ext/base/android_utils.h",
+        "include/perfetto/ext/base/atomic_file.h",
         "include/perfetto/ext/base/base64.h",
         "include/perfetto/ext/base/bits.h",
         "include/perfetto/ext/base/circular_queue.h",
@@ -1436,6 +1453,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/periodic_task.h",
         "include/perfetto/ext/base/pipe.h",
         "include/perfetto/ext/base/platform.h",
+        "include/perfetto/ext/base/progress_reporter.h",
         "include/perfetto/ext/base/rt_mutex.h",
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
@@ -1961,6 +1979,7 @@ perfetto_cc_library(
     srcs = [
         ":src_base_check_cpu_optimizations",
         "src/base/android_utils.cc",
+        "src/base/atomic_file.cc",
         "src/base/base64.cc",
         "src/base/cpu_info.cc",
         "src/base/crash_keys.cc",
@@ -1977,6 +1996,7 @@ perfetto_cc_library(
         "src/base/paged_memory.cc",
         "src/base/periodic_task.cc",
         "src/base/pipe.cc",
+        "src/base/progress_reporter.cc",
         "src/base/rt_mutex.cc",
         "src/base/scoped_mmap.cc",
         "src/base/scoped_sched_boost.cc",
@@ -2510,6 +2530,7 @@ perfetto_filegroup(
         "src/trace_processor/core/common/duplicate_types.h",
         "src/trace_processor/core/common/null_types.h",
         "src/trace_processor/core/common/op_types.h",
+        "src/trace_processor/core/common/schema.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
         "src/trace_processor/core/common/value_fetcher.h",
@@ -2543,6 +2564,41 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/typed_cursor.cc",
         "src/trace_processor/core/dataframe/typed_cursor.h",
         "src/trace_processor/core/dataframe/types.h",
+    ],
+)
+
+# GN target: //src/trace_processor/core/exec:exec
+perfetto_filegroup(
+    name = "src_trace_processor_core_exec_exec",
+    srcs = [
+        "src/trace_processor/core/exec/assert_type.cc",
+        "src/trace_processor/core/exec/assert_type.h",
+        "src/trace_processor/core/exec/breaker.cc",
+        "src/trace_processor/core/exec/breaker.h",
+        "src/trace_processor/core/exec/buffer_pool.h",
+        "src/trace_processor/core/exec/column_chunk.h",
+        "src/trace_processor/core/exec/column_view.cc",
+        "src/trace_processor/core/exec/column_view.h",
+        "src/trace_processor/core/exec/dataframe_scan.cc",
+        "src/trace_processor/core/exec/dataframe_scan.h",
+        "src/trace_processor/core/exec/operator.cc",
+        "src/trace_processor/core/exec/operator.h",
+        "src/trace_processor/core/exec/pipeline.cc",
+        "src/trace_processor/core/exec/pipeline.h",
+        "src/trace_processor/core/exec/row_batch.cc",
+        "src/trace_processor/core/exec/row_batch.h",
+        "src/trace_processor/core/exec/row_cursor.cc",
+        "src/trace_processor/core/exec/row_cursor.h",
+        "src/trace_processor/core/exec/row_selection.h",
+        "src/trace_processor/core/exec/row_store.cc",
+        "src/trace_processor/core/exec/row_store.h",
+        "src/trace_processor/core/exec/tree_accumulate.cc",
+        "src/trace_processor/core/exec/tree_accumulate.h",
+        "src/trace_processor/core/exec/tree_number_nodes.cc",
+        "src/trace_processor/core/exec/tree_number_nodes.h",
+        "src/trace_processor/core/exec/tree_order.cc",
+        "src/trace_processor/core/exec/tree_order.h",
+        "src/trace_processor/core/exec/variant.h",
     ],
 )
 
@@ -3743,6 +3799,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_engine_engine",
     srcs = [
+        "src/trace_processor/perfetto_sql/engine/connection_catalog.cc",
+        "src/trace_processor/perfetto_sql/engine/connection_catalog.h",
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/created_function.h",
         "src/trace_processor/perfetto_sql/engine/dataframe_module.cc",
@@ -3751,12 +3809,23 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h",
+        "src/trace_processor/perfetto_sql/engine/pipeline_module.cc",
+        "src/trace_processor/perfetto_sql/engine/pipeline_module.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
         "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.cc",
         "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
         "src/trace_processor/perfetto_sql/engine/static_table_function_module.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/exec:exec
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_exec_exec",
+    srcs = [
+        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
+        "src/trace_processor/perfetto_sql/exec/sql_scan.h",
     ],
 )
 
@@ -3796,6 +3865,37 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/pipeline:logical
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_pipeline_logical",
+    srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
+        "src/trace_processor/perfetto_sql/pipeline/catalog.h",
+        "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
+        "src/trace_processor/perfetto_sql/pipeline/compiler.h",
+        "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/pipeline:plan
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_pipeline_plan",
+    srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
+        "src/trace_processor/perfetto_sql/pipeline/physical_plan.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/schema:schema
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_schema_schema",
+    srcs = [
+        "src/trace_processor/perfetto_sql/schema/query_schema.cc",
+        "src/trace_processor/perfetto_sql/schema/query_schema.h",
+        "src/trace_processor/perfetto_sql/schema/type_mapping.h",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/auto:auto
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_auto_auto",
@@ -3818,6 +3918,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_type.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/cpu/cluster_utilization.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/cpu/cpu_per_uid.sql",
     ],
 )
@@ -3976,12 +4077,15 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/aflags.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/anrs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/app_process_starts.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/app_wakelocks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/audio.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder_breakdown.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/bitmaps.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/codec.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/critical_blocking_calls.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/desktop_mode.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/device.sql",
@@ -3995,6 +4099,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states_track_events.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/kernel_wakelocks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/keyvalue_lookup.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/lock_held.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/network_packets.sql",
@@ -4002,11 +4107,14 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/package_lookup.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/power_rails.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/process_metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/process_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/process_uid_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/render_thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screen_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screenshots.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/services.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/standby_bucket.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/statsd.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/surfaceflinger.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/suspend.sql",
@@ -4272,6 +4380,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/std/stack_sample:stack_sample
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_std_stack_sample_stack_sample",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/std/stack_sample/flamechart.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/stack_sample/mapping.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/std/thread:thread
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_std_thread_thread",
@@ -4403,6 +4520,7 @@ perfetto_cpp_blob_header(
         ":src_trace_processor_perfetto_sql_stdlib_stacks_stacks",
         ":src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_std_metasql_metasql",
+        ":src_trace_processor_perfetto_sql_stdlib_std_stack_sample_stack_sample",
         ":src_trace_processor_perfetto_sql_stdlib_std_thread_thread",
         ":src_trace_processor_perfetto_sql_stdlib_std_traceinfo_traceinfo",
         ":src_trace_processor_perfetto_sql_stdlib_std_trees_trees",
@@ -4846,6 +4964,24 @@ perfetto_cc_tp_tables(
     ],
 )
 
+# GN target: //src/trace_processor/plugins/flamechart:flamechart
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamechart_flamechart",
+    srcs = [
+        "src/trace_processor/plugins/flamechart/flamechart.cc",
+        "src/trace_processor/plugins/flamechart/flamechart.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/flamechart:intrinsics
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_flamechart_intrinsics",
+    srcs = [
+        "src/trace_processor/plugins/flamechart/flamechart_function.cc",
+        "src/trace_processor/plugins/flamechart/flamechart_function.h",
+    ],
+)
+
 # GN target: //src/trace_processor/plugins/flamegraph:flamegraph
 perfetto_filegroup(
     name = "src_trace_processor_plugins_flamegraph_flamegraph",
@@ -5251,6 +5387,7 @@ perfetto_cpp_blob_header(
     name = "src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
     script = ":src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     deps = [
+        "src/trace_processor/plugins/wattson/data/MT6789/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/MT6858/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_1d.csv",
         "src/trace_processor/plugins/wattson/data/SM8750/cpu_1d.csv",
@@ -5279,6 +5416,7 @@ perfetto_cpp_blob_header(
     name = "src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
     script = ":src_trace_processor_plugins_wattson_gen_wattson_curves_py",
     deps = [
+        "src/trace_processor/plugins/wattson/data/MT6789/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/MT6858/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/MT6897/cpu_2d.csv",
         "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_2d.csv",
@@ -5942,6 +6080,7 @@ perfetto_cc_library(
     srcs = [
         "src/trace_processor/util/symbolizer/breakpad_parser.cc",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer.cc",
+        "src/trace_processor/util/symbolizer/debuginfod.cc",
         "src/trace_processor/util/symbolizer/filesystem_posix.cc",
         "src/trace_processor/util/symbolizer/filesystem_windows.cc",
         "src/trace_processor/util/symbolizer/local_symbolizer.cc",
@@ -5956,6 +6095,7 @@ perfetto_cc_library(
         ":include_perfetto_public_base",
         "src/trace_processor/util/symbolizer/breakpad_parser.h",
         "src/trace_processor/util/symbolizer/breakpad_symbolizer.h",
+        "src/trace_processor/util/symbolizer/debuginfod.h",
         "src/trace_processor/util/symbolizer/elf.h",
         "src/trace_processor/util/symbolizer/filesystem.h",
         "src/trace_processor/util/symbolizer/local_symbolizer.h",
@@ -6978,6 +7118,7 @@ perfetto_android_library(
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/TracingPolicy.java",
     ],
     manifest = "src/android_sdk/java/main/AndroidManifest.xml",
     deps = [
@@ -11647,11 +11788,13 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -11703,9 +11846,13 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
+        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
+        ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -11744,6 +11891,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
@@ -11994,12 +12143,14 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_util",
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
+        ":src_perfetto_sql_analysis_analysis",
         ":src_perfetto_sql_intrinsic_macro_expansion",
         ":src_perfetto_sql_syntaqlite_syntaqlite",
         ":src_protozero_proto_ring_buffer",
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
@@ -12051,9 +12202,13 @@ perfetto_cc_binary(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
+        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
+        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_plan",
+        ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -12092,6 +12247,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_experimental_flat_slice_tables",
         ":src_trace_processor_plugins_experimental_slice_layout_experimental_slice_layout",
         ":src_trace_processor_plugins_experimental_slice_layout_tables",
+        ":src_trace_processor_plugins_flamechart_flamechart",
+        ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
         ":src_trace_processor_plugins_graph_scan_graph_scan",

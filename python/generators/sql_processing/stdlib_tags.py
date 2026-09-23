@@ -81,6 +81,7 @@ MODULE_TAGS = {
 
     # Android - CPU
     'android.cpu.cluster_type': ['android', 'cpu'],
+    'android.cpu.cluster_utilization': ['android', 'cpu'],
     'android.cpu.cpu_per_uid': ['android', 'cpu'],
     'android.dvfs': ['android', 'cpu', 'power'],
 

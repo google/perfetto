@@ -60,7 +60,7 @@ source_set("shell") {
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../base:version",
-    "../../protozero/text_to_proto:text_to_proto",
+    "../../protozero/text_to_proto",
     "../../traceconv:gen_cc_android_extension_descriptor",
     "../../traceconv:gen_cc_trace_descriptor",
     "../../traceconv:lib",
@@ -91,7 +91,7 @@ source_set("shell") {
       "../rpc:unixd",
     ]
   }
-  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
+  public_deps = [ "../../../include/perfetto/trace_processor" ]
 }
 
 source_set("subcommands") {
@@ -143,6 +143,7 @@ if (enable_perfetto_integration_tests) {
       "../../../protos/perfetto/trace/ftrace:cpp",
       "../../../protos/perfetto/trace/interned_data:cpp",
       "../../../protos/perfetto/trace/profiling:cpp",
+      "../../../test:test_helper",
       "../../base:test_support",
     ]
   }

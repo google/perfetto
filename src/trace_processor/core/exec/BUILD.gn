@@ -21,6 +21,7 @@ source_set("exec") {
     "assert_type.h",
     "breaker.cc",
     "breaker.h",
+    "buffer_pool.h",
     "column_chunk.h",
     "column_view.cc",
     "column_view.h",
@@ -62,6 +63,7 @@ source_set("test_utils") {
     ":exec",
     "../../../base",
     "../common",
+    "../util",
   ]
 }
 
@@ -71,6 +73,7 @@ perfetto_unittest_source_set("unittests") {
     "assert_type_unittest.cc",
     "breaker_unittest.cc",
     "dataframe_scan_unittest.cc",
+    "executor_contract_unittest.cc",
     "operator_unittest.cc",
     "row_batch_unittest.cc",
     "row_store_unittest.cc",

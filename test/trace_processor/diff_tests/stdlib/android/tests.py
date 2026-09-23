@@ -1494,15 +1494,16 @@ class AndroidStdlib(TestSuite):
         process_name,
         event_type,
         event_action,
-        event_time
+        event_time,
+        frame_event_time
         FROM android_input_events
         WHERE end_to_end_latency_dur IS NOT NULL
         ORDER BY dispatch_ts
       """,
         out=Csv("""
-        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","upid","pid","process_name","event_type","event_action","event_time"
-        3422992,2937418,363000,51007097,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION","HOVER_MOVE",12394215174000
-        2139405,1956366,81387,50642855,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION","SCROLL",12394215174000
+        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","upid","pid","process_name","event_type","event_action","event_time","frame_event_time"
+        3422992,2937418,363000,51007097,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION","HOVER_MOVE","[NULL]",12394215174000
+        2139405,1956366,81387,50642855,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION","SCROLL","[NULL]",12394215174000
       """))
 
   def test_job_scheduler_events(self):
@@ -2498,4 +2499,62 @@ class AndroidStdlib(TestSuite):
         out=Csv("""
         "matching","system_pkg","no_package"
         "com.fake.package","AID_SYSTEM_USER","uid=12345"
+        """))
+
+  def test_android_process_state_intervals(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/android_process_state.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration,
+          state_rank,
+          reason
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts, state_rank;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","reason"
+        2000,2000,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,0,200,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,2000,200,"IMPORTANT_FOREGROUND","TOP",0,6,"OOM_ADJ_REASON_START_RECEIVER"
+        4000,0,200,"CACHED_ACTIVITY","IMPORTANT_FOREGROUND",2000,16,"OOM_ADJ_REASON_BIND_SERVICE"
+        2000,2000,300,"PERSISTENT","[NULL]","[NULL]",0,"[NULL]"
+        2000,2000,400,"FOREGROUND_SERVICE","[NULL]","[NULL]",4,"[NULL]"
+        2000,0,500,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,0,500,"BOUND_FOREGROUND_SERVICE","TOP",0,5,"OOM_ADJ_REASON_START_RECEIVER"
+        2000,2000,500,"IMPORTANT_FOREGROUND","BOUND_FOREGROUND_SERVICE",0,6,"OOM_ADJ_REASON_BIND_SERVICE"
+        """))
+
+  def test_android_process_state_concurrency(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/android_process_state.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          state,
+          state_rank,
+          concurrency
+        FROM _android_process_state_concurrency
+        ORDER BY state_rank, ts;
+        """,
+        out=Csv("""
+        "ts","dur","state","state_rank","concurrency"
+        2000,2000,"PERSISTENT",0,1
+        4000,0,"PERSISTENT",0,0
+        2000,2000,"TOP",2,1
+        4000,0,"TOP",2,0
+        2000,2000,"FOREGROUND_SERVICE",4,1
+        4000,0,"FOREGROUND_SERVICE",4,0
+        2000,2000,"BOUND_FOREGROUND_SERVICE",5,0
+        2000,2000,"IMPORTANT_FOREGROUND",6,2
+        4000,0,"IMPORTANT_FOREGROUND",6,0
+        4000,0,"CACHED_ACTIVITY",16,0
         """))

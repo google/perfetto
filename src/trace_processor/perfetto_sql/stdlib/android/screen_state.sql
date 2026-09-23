@@ -37,13 +37,15 @@ AS
 WITH
   screen_state_span AS (
     SELECT *
-    FROM counter_leading_intervals!((
+    FROM counter_leading_intervals!(
+      (
         SELECT counter.id, ts, counter.track_id, value
         FROM counter
         JOIN counter_track ON counter_track.id = counter.track_id
         WHERE
           name = 'ScreenState'
-      ))
+      )
+    )
   ),
   mapped_names AS (
     SELECT
@@ -108,6 +110,8 @@ SELECT
   COALESCE(simple_screen_state, 'unknown') AS simple_screen_state,
   COALESCE(short_screen_state, 'unknown') AS short_screen_state,
   COALESCE(screen_state, 'Unknown') AS screen_state
-FROM _intervals_fill_gaps!((machine_id), (simple_screen_state,
-  short_screen_state,
-  screen_state), mapped_names);
+FROM _intervals_fill_gaps!(
+  (machine_id),
+  (simple_screen_state, short_screen_state, screen_state),
+  mapped_names
+);

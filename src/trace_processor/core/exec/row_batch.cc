@@ -24,20 +24,6 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-bool RowBatch::AdoptPhysicalRows(Span<const uint32_t> rows) {
-  auto count = static_cast<uint32_t>(rows.size());
-  if (count == 0) {
-    cardinality_ = 0;
-    return false;
-  }
-  PERFETTO_DCHECK(count <= cardinality_);
-  for (ColumnView& column : columns_) {
-    column.SetBorrowedRows(rows);
-  }
-  cardinality_ = count;
-  return true;
-}
-
 void RowBatch::Compose(RowSelection selection, uint32_t count) {
   // Columns filled by one source share a selection, and composing one is a
   // gather over the whole batch. Do it once per distinct selection and let the
@@ -60,19 +46,18 @@ void RowBatch::Compose(RowSelection selection, uint32_t count) {
 }
 
 bool RowBatch::Slice(RowSelection selection, uint32_t count) {
-  PERFETTO_DCHECK(count <= cardinality_);
+  PERFETTO_DCHECK(count <= kMaxBatchRows);
 #if PERFETTO_DCHECK_IS_ON()
   for (uint32_t row = 0; row < count; ++row) {
     PERFETTO_DCHECK(selection.GetIndex(row) < cardinality_);
-    PERFETTO_DCHECK(row == 0 ||
-                    selection.GetIndex(row - 1) < selection.GetIndex(row));
   }
 #endif
   if (count == 0) {
     cardinality_ = 0;
     return false;
   }
-  if (count == cardinality_) {
+  if (count == cardinality_ && selection.is_range() &&
+      selection.offset() == 0) {
     return true;
   }
   Compose(selection, count);

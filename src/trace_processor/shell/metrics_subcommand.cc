@@ -87,7 +87,8 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
 
   // Pre-metrics query.
   if (!pre_path_.empty()) {
-    RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), pre_path_, false));
+    RETURN_IF_ERROR(
+        RunQueriesFromFile(tp.get(), pre_path_, false, ctx.global->quiet));
   }
 
   // Load and run metrics.
@@ -106,7 +107,8 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
 
   // Post-query.
   if (!post_query_path_.empty()) {
-    RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), post_query_path_, true));
+    RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), post_query_path_, true,
+                                       ctx.global->quiet));
   }
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
@@ -117,7 +119,7 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
   if (interactive_) {
     RETURN_IF_ERROR(StartInteractiveShell(
         tp.get(), InteractiveOptions{20u, format, ctx.global->metric_extensions,
-                                     metrics, &pool}));
+                                     metrics, &pool, ctx.global->quiet}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));

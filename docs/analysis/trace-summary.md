@@ -307,11 +307,12 @@ metric_template_spec {
   value_columns: "avg_duration_ns"
   query: {
     table: {
-      // The module name is the directory path relative to the package root,
-      // with the .sql extension removed.
+      // The module name is the package name (the package directory's name)
+      // followed by the path relative to the package root, with the .sql
+      // extension removed.
       table_name: "game_frame_stats"
     }
-    referenced_modules: "my_game.metrics"
+    referenced_modules: "my_sql_modules.my_game.metrics"
   }
 }
 ```
@@ -432,11 +433,11 @@ process.
 query: {
   interval_intersect: {
      base: {
-       // The base data is CPU time per thread.
+       // The base data is the CPU scheduling slices of each thread.
        table: {
-         table_name: "thread_slice_cpu_time"
+         table_name: "sched_with_thread_process"
        }
-       referenced_modules: "slices.cpu_time"
+       referenced_modules: "sched.with_context"
        filters: {
          column_name: "thread_name"
          op: EQUAL
@@ -454,7 +455,7 @@ query: {
   group_by: {
     // We sum the CPU time from the intersected intervals.
     aggregates: {
-      column_name: "cpu_time"
+      column_name: "dur"
       op: SUM
       result_column_name: "total_cpu_time"
     }

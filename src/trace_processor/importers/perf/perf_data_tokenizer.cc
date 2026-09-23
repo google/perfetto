@@ -105,6 +105,10 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
   if (record.header.type != PERF_RECORD_SAMPLE) {
     std::optional<size_t> offset = record.attr->time_offset_from_end();
     if (!offset.has_value()) {
+      if (record.header.type == PERF_RECORD_FORK ||
+          record.header.type == PERF_RECORD_EXIT) {
+        return reader.Skip(4 * sizeof(uint32_t)) && reader.ReadOptional(time);
+      }
       time = std::nullopt;
       return true;
     }
@@ -316,6 +320,9 @@ base::Status PerfDataTokenizer::ProcessRecord(Record record) {
     case PERF_RECORD_AUXTRACE_INFO:
       return ProcessAuxtraceInfoRecord(std::move(record));
 
+    case PERF_RECORD_ID_INDEX:
+      return ProcessIdIndexRecord(std::move(record));
+
     case PERF_RECORD_AUX:
       return ProcessAuxRecord(std::move(record));
 
@@ -517,6 +524,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       perf_invocation_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
+      perf_invocation_->SetSimpleperfCounterScope(meta_info.entries);
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
         perf_invocation_->SetEventName(it.key().type, it.key().config,
                                        it.value());
@@ -539,6 +547,28 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           stats::perf_features_skipped, feature_id);
   }
 
+  return base::OkStatus();
+}
+
+base::Status PerfDataTokenizer::ProcessIdIndexRecord(Record record) {
+  struct IdIndexEntry {
+    uint64_t id;
+    uint64_t idx;
+    int64_t cpu;
+    int64_t tid;
+  };
+  Reader reader(std::move(record.payload));
+  uint64_t nr = 0;
+  if (!reader.Read(nr)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX");
+  }
+  for (uint64_t i = 0; i < nr; ++i) {
+    IdIndexEntry entry;
+    if (!reader.Read(entry)) {
+      return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX entry");
+    }
+    perf_invocation_->SetEventIdBinding(entry.id, entry.cpu, entry.tid);
+  }
   return base::OkStatus();
 }
 

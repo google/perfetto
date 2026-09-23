@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/shell/common_flags.h"
-#include "src/traceconv/utils.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -33,6 +32,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -123,6 +123,32 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(BoolFlag("help", 'h', "Prints this guide.", &opts->help));
   flags.push_back(
       BoolFlag("version", 'v', "Prints the version.", &opts->version));
+  flags.push_back(BoolFlag("no-progress", '\0', "Disables live progress.",
+                           &opts->no_progress));
+  flags.push_back(BoolFlag("quiet", '\0',
+                           "Suppresses progress and routine status output.",
+                           &opts->quiet));
+  flags.push_back(BoolFlag(
+      "debuginfod", '\0',
+      "Download missing native debug files by build ID (requires curl).",
+      &opts->debuginfod_options.enabled));
+  flags.push_back(
+      {"debuginfod-urls", '\0', true, "URLS",
+       "Space-separated server URLs; overrides DEBUGINFOD_URLS.",
+       [opts](const char* value) { opts->debuginfod_options.urls = value; }});
+  flags.push_back({"debuginfod-cache-path", '\0', true, "PATH",
+                   "Cache directory; overrides DEBUGINFOD_CACHE_PATH.",
+                   [opts](const char* value) {
+                     opts->debuginfod_options.cache_path = value;
+                   }});
+  flags.push_back(
+      StringFlag("debuginfod-connect-timeout", '\0', "SECONDS",
+                 "Connection timeout in positive whole seconds (default: 5).",
+                 &opts->debuginfod_options.connect_timeout));
+  flags.push_back(StringFlag(
+      "debuginfod-stall-timeout", '\0', "SECONDS",
+      "Abort transfers below 1 byte/second for this long (default: 10).",
+      &opts->debuginfod_options.stall_timeout));
   flags.push_back(BoolFlag("full-sort", '\0',
                            "Forces full sort ignoring windowing.",
                            &opts->force_full_sort));
@@ -432,18 +458,20 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
 base::StatusOr<base::TimeNanos> LoadTraceFile(
     TraceProcessor* tp,
     TraceProcessorShell_PlatformInterface* platform,
-    const std::string& trace_file) {
+    const std::string& trace_file,
+    bool quiet,
+    const profiling::DebuginfodConfig& debuginfod) {
   base::TimeNanos t_load_start = base::GetWallTimeNs();
   double size_mb = 0;
+  auto& progress = base::ProgressReporter::GetInstance();
 
-  base::Status load_status =
-      platform->LoadTrace(tp, trace_file, [&size_mb](size_t parsed_size) {
+  base::Status load_status = platform->LoadTrace(
+      tp, trace_file, [&size_mb, &progress](size_t parsed_size) {
         size_mb = static_cast<double>(parsed_size) / 1E6;
-        fprintf(stderr, "\rLoading trace: %.2f MB\r", size_mb);
+        base::StackString<128> msg("Loading trace: %.2f MB", size_mb);
+        progress.Update(msg.ToStdStringView());
       });
-  // Terminate the in-place progress line so errors/logs below start on a
-  // fresh line.
-  trace_to_text::EndProgressLine();
+  progress.Clear();
   if (!load_status.ok()) {
     return base::ErrStatus("failed to read trace file (path: %s): %s",
                            trace_file.c_str(), load_status.c_message());
@@ -463,6 +491,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   }
 
   profiling::SymbolizerConfig sym_config;
+  sym_config.debuginfod = debuginfod;
   const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
   std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
   if (mode && std::string_view(mode) == "find") {
@@ -471,11 +500,11 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     sym_config.index_symbol_paths = std::move(paths);
   }
   if (!sym_config.index_symbol_paths.empty() ||
-      !sym_config.find_symbol_paths.empty()) {
+      !sym_config.find_symbol_paths.empty() || !debuginfod.urls.empty()) {
     if (is_proto_trace) {
       tp->Flush();
-      auto sym_result =
-          profiling::SymbolizeDatabaseAndLog(tp, sym_config, /*verbose=*/false);
+      auto sym_result = profiling::SymbolizeDatabaseAndLog(
+          tp, sym_config, /*verbose=*/false, quiet);
       if (sym_result.error == profiling::SymbolizerError::kOk &&
           !sym_result.symbols.empty()) {
         std::unique_ptr<uint8_t[]> buf(new uint8_t[sym_result.symbols.size()]);
@@ -521,8 +550,10 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
 
   base::TimeNanos t_load = base::GetWallTimeNs() - t_load_start;
   double t_load_s = static_cast<double>(t_load.count()) / 1E9;
-  PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb, t_load_s,
-                size_mb / t_load_s);
+  if (!quiet) {
+    PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb,
+                  t_load_s, size_mb / t_load_s);
+  }
 
   auto stats_status = PrintStats(tp);
   if (!stats_status.ok()) {
@@ -561,6 +592,7 @@ static base::Status CheckRemoteFlagCompatibility(const GlobalOptions& opts) {
     bool is_set;
     const char* flag;
   } incompatible[] = {
+      {!opts.debuginfod.urls.empty(), "--debuginfod"},
       {opts.force_full_sort, "--full-sort"},
       {opts.no_ftrace_raw, "--no-ftrace-raw"},
       {opts.analyze_trace_proto_content, "--analyze-trace-proto-content"},
@@ -616,7 +648,8 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> CreateTraceProcessor(
   ASSIGN_OR_RETURN(Config config, BuildConfig(opts, platform));
   ASSIGN_OR_RETURN(auto tp, SetupTraceProcessor(opts, config, platform));
   ASSIGN_OR_RETURN(base::TimeNanos t_load,
-                   LoadTraceFile(tp.get(), platform, trace_file));
+                   LoadTraceFile(tp.get(), platform, trace_file, opts.quiet,
+                                 opts.debuginfod));
   if (t_load_out)
     *t_load_out = t_load;
   return std::move(tp);

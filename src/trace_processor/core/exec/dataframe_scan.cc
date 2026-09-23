@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -45,12 +46,9 @@ class DataframeScan::Expander {
  public:
   virtual ~Expander();
 
-  // Lays rows [from, from + count) out densely from zero and points `view` at
-  // them. Called with successive ranges starting at row zero.
-  virtual void Expand(uint32_t from, uint32_t count, ColumnView* view) = 0;
-
-  // Keeps the values alive for as long as a batch holds them.
-  virtual std::shared_ptr<const void> owner() const = 0;
+  // Appends an owned column containing rows [from, from + count), laid out
+  // densely from zero. Called with successive ranges starting at row zero.
+  virtual void Expand(uint32_t from, uint32_t count, RowBatch& out) = 0;
 
   virtual void Rewind() = 0;
 };
@@ -63,36 +61,35 @@ template <typename T>
 class ExpanderImpl final : public DataframeScan::Expander {
  public:
   ExpanderImpl(StorageType type, const T* packed, const BitVector* bits)
-      : type_(type), packed_(packed), bits_(bits) {
-    buffer_->values = FlexVector<T>::CreateWithSize(kMaxBatchRows);
-    buffer_->validity = BitVector::CreateWithSize(kMaxBatchRows);
-  }
+      : type_(type), packed_(packed), bits_(bits) {}
 
-  void Expand(uint32_t from, uint32_t count, ColumnView* view) override {
+  void Expand(uint32_t from, uint32_t count, RowBatch& out) override {
     PERFETTO_DCHECK(from == next_);
-    buffer_->validity.ClearAllBits();
+    auto buffer = buffers_.Acquire();
+    buffer->values.resize(kMaxBatchRows);
+    buffer->validity.resize(kMaxBatchRows);
+    buffer->validity.ClearAllBits();
     for (uint32_t row = 0; row < count; ++row) {
       if (bits_->is_set(from + row)) {
         if constexpr (std::is_same_v<T, uint32_t>) {
-          buffer_->values[row] =
+          buffer->values[row] =
               packed_ ? packed_[consumed_] : static_cast<uint32_t>(consumed_);
         } else {
           PERFETTO_DCHECK(packed_);
-          buffer_->values[row] = packed_[consumed_];
+          buffer->values[row] = packed_[consumed_];
         }
         ++consumed_;
-        buffer_->validity.set(row);
+        buffer->validity.set(row);
       } else {
         // Written even for a null row, so the storage is readable everywhere.
-        buffer_->values[row] = T{};
+        buffer->values[row] = T{};
       }
     }
     next_ = from + count;
-    *view = ColumnView::Reference(type_, buffer_->values.data(),
-                                  &buffer_->validity);
+    auto view =
+        ColumnView::Reference(type_, buffer->values.data(), &buffer->validity);
+    out.AddColumn(std::move(view), std::move(buffer));
   }
-
-  std::shared_ptr<const void> owner() const override { return buffer_; }
 
   void Rewind() override {
     consumed_ = 0;
@@ -108,7 +105,7 @@ class ExpanderImpl final : public DataframeScan::Expander {
   StorageType type_;
   const T* packed_;
   const BitVector* bits_;
-  std::shared_ptr<Buffer> buffer_ = std::make_shared<Buffer>();
+  BufferPool<Buffer> buffers_;
   // How many of the packed values have been read, which is how many rows
   // before `next_` hold one.
   uint32_t consumed_ = 0;
@@ -121,7 +118,6 @@ template <typename T>
 void BuildColumn(const dataframe::Column& column,
                  StorageType type,
                  ColumnView* view,
-                 std::shared_ptr<const void>* owner,
                  std::unique_ptr<DataframeScan::Expander>* expander) {
   const T* data =
       column.storage
@@ -137,18 +133,15 @@ void BuildColumn(const dataframe::Column& column,
     *view = ColumnView::Reference(type, data, &bits);
     return;
   }
-  auto impl = std::make_unique<ExpanderImpl<T>>(type, data, &bits);
-  *owner = impl->owner();
-  *expander = std::move(impl);
+  *expander = std::make_unique<ExpanderImpl<T>>(type, data, &bits);
 }
 
 }  // namespace
 
-DataframeScan::DataframeScan(const dataframe::Dataframe& dataframe,
-                             std::vector<uint32_t> columns)
-    : dataframe_(&dataframe), columns_(std::move(columns)) {
-  PERFETTO_CHECK(dataframe.finalized());
-}
+DataframeScan::DataframeScan(
+    std::vector<std::shared_ptr<const dataframe::Column>> columns,
+    uint32_t row_count)
+    : columns_(std::move(columns)), row_count_(row_count) {}
 
 DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;
@@ -156,42 +149,38 @@ DataframeScan::State::~State() = default;
 std::unique_ptr<OperatorState> DataframeScan::MakeState() const {
   auto state = std::make_unique<State>();
   state->columns.resize(columns_.size());
-  state->owners.resize(columns_.size());
   state->expanders.resize(columns_.size());
   for (uint32_t i = 0; i < columns_.size(); ++i) {
-    uint32_t index = columns_[i];
-    StorageType type = dataframe_->column_type(index);
+    const dataframe::Column& column = *columns_[i];
+    StorageType type = column.storage.type();
     if (type.Is<Id>()) {
-      const auto& nulls = dataframe_->column(index).null_storage;
+      const auto& nulls = column.null_storage;
       if (nulls.nullability().Is<NonNull>()) {
         state->columns[i] = ColumnView::Reference(type, nullptr, nullptr);
       } else if (nulls.nullability().Is<DenseNull>()) {
         state->columns[i] =
             ColumnView::Reference(type, nullptr, &nulls.GetNullBitVector());
       } else {
-        auto impl = std::make_unique<ExpanderImpl<uint32_t>>(
+        state->expanders[i] = std::make_unique<ExpanderImpl<uint32_t>>(
             StorageType{Uint32{}}, nullptr, &nulls.GetNullBitVector());
-        state->owners[i] = impl->owner();
-        state->expanders[i] = std::move(impl);
       }
       continue;
     }
-    const dataframe::Column& column = dataframe_->column(index);
     if (type.Is<Uint32>()) {
-      BuildColumn<uint32_t>(column, type, &state->columns[i], &state->owners[i],
+      BuildColumn<uint32_t>(column, type, &state->columns[i],
                             &state->expanders[i]);
     } else if (type.Is<Int32>()) {
-      BuildColumn<int32_t>(column, type, &state->columns[i], &state->owners[i],
+      BuildColumn<int32_t>(column, type, &state->columns[i],
                            &state->expanders[i]);
     } else if (type.Is<Int64>()) {
-      BuildColumn<int64_t>(column, type, &state->columns[i], &state->owners[i],
+      BuildColumn<int64_t>(column, type, &state->columns[i],
                            &state->expanders[i]);
     } else if (type.Is<Double>()) {
-      BuildColumn<double>(column, type, &state->columns[i], &state->owners[i],
+      BuildColumn<double>(column, type, &state->columns[i],
                           &state->expanders[i]);
     } else {
       BuildColumn<StringPool::Id>(column, type, &state->columns[i],
-                                  &state->owners[i], &state->expanders[i]);
+                                  &state->expanders[i]);
     }
   }
   return state;
@@ -209,7 +198,7 @@ void DataframeScan::Rewind(OperatorState& state) const {
 
 bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
-  uint32_t rows = dataframe_->row_count();
+  uint32_t rows = row_count_;
   if (s.emitted == rows) {
     return false;
   }
@@ -220,11 +209,11 @@ bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
     if (s.expanders[i]) {
       // Expanded values are laid out from zero, so the column sits in its own
       // index space rather than the dataframe's.
-      s.expanders[i]->Expand(s.emitted, count, &view);
+      s.expanders[i]->Expand(s.emitted, count, out);
     } else {
       view.SetRange(s.emitted);
+      out.AddColumn(std::move(view), columns_[i]);
     }
-    out.AddColumn(view, s.owners[i]);
   }
   out.SetCardinality(count);
   s.emitted += count;

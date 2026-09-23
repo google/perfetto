@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.estimates;
+
 INCLUDE PERFETTO MODULE wattson.gpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.gpu_tasks;
@@ -32,47 +34,25 @@ INCLUDE PERFETTO MODULE wattson.utils;
 -- Attribute GPU power to each UID based on its active task count.
 -- Formula: attributed_mw = total_gpu_mw / active_tasks
 CREATE PERFETTO TABLE _gpu_tasks_attribution AS
-WITH
-  -- First align tasks with total active task count
-  tasks_with_total AS (
-    SELECT
-      row_number() OVER (ORDER BY ii.ts) AS id,
-      ii.ts,
-      ii.dur,
-      t.uid,
-      t.gpu_id,
-      tot.active_tasks
-    FROM _interval_intersect!(
-      (
-        _ii_subquery!(_gpu_tasks),
-        _ii_subquery!(_gpu_active_task_count)
-      ),
-      ()
-    ) AS ii
-    JOIN _gpu_tasks AS t
-      ON t._auto_id = id_0
-    JOIN _gpu_active_task_count AS tot
-      ON tot._auto_id = id_1
-  )
--- Then align with Wattson's power estimates
 SELECT
   ii.ts,
   ii.dur,
-  ta.uid,
-  ta.gpu_id,
+  t.uid,
+  t.gpu_id,
   -- Calculate attributed power (mW) proportionally shared
-  iif(ta.active_tasks > 0, p.gpu_mw / ta.active_tasks, 0.0) AS estimated_mw
+  iif(ii.id_1 > 0, p.gpu_mw / ii.id_1, 0.0) AS estimated_mw
 FROM _interval_intersect!(
   (
-    tasks_with_total,
+    _ii_subquery!(_gpu_tasks),
+    (SELECT active_tasks AS id, ts, dur FROM _gpu_active_task_count),
     _ii_subquery!(_gpu_estimates_mw)
   ),
   ()
 ) AS ii
-JOIN tasks_with_total AS ta
-  ON ta.id = id_0
+JOIN _gpu_tasks AS t
+  ON t._auto_id = ii.id_0
 JOIN _gpu_estimates_mw AS p
-  ON p._auto_id = id_1;
+  ON p._auto_id = ii.id_2;
 
 CREATE PERFETTO TABLE _unioned_wattson_estimates_mw AS
 SELECT ts, dur, 0 AS cpu, cpu0_mw AS estimated_mw
@@ -113,25 +93,14 @@ UNION ALL
 SELECT ts, dur, 7 AS cpu, cpu7_mw AS estimated_mw
 FROM _system_state_cpu7_mw
 WHERE
-  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu)
-UNION ALL
-SELECT ts, dur, -1 AS cpu, dsu_scu_mw AS estimated_mw
-FROM _system_state_dsu_scu_mw;
+  EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu);
 
+-- Power estimates split by the task that was running.
+--
+-- Only utid is carried here; descriptive metadata lives in _wattson_task_metadata
+-- and is joined once after aggregation.
 CREATE PERFETTO TABLE _estimates_w_tasks_attribution AS
-SELECT
-  ii.ts,
-  ii.dur,
-  ii.cpu,
-  uw.estimated_mw,
-  s.thread_name,
-  s.process_name,
-  s.package_name,
-  s.tid,
-  s.pid,
-  s.uid,
-  s.utid,
-  s.upid
+SELECT ii.ts, ii.dur, ii.cpu, uw.estimated_mw, s.utid
 FROM _interval_intersect!(
   (
     _ii_subquery!(_unioned_wattson_estimates_mw),
@@ -171,4 +140,7 @@ LEFT JOIN _unique_packages AS pkg
 
 -- List of all physical CPUs that have Wattson estimates
 CREATE PERFETTO TABLE _wattson_cpus AS
-SELECT DISTINCT cpu FROM _unioned_wattson_estimates_mw WHERE cpu >= 0;
+SELECT DISTINCT cpu
+FROM _dev_cpu_policy_map
+WHERE
+  EXISTS (SELECT 1 FROM _system_state_mw);

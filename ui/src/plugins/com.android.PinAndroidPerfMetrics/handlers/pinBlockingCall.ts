@@ -38,7 +38,7 @@ class BlockingCallMetricHandler implements MetricHandler {
    */
   public match(metricKey: string): BlockingCallMetricData | undefined {
     const matcher =
-      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>([^\-]*))-(?<aggregation>.*)/;
+      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>.*)-(?<aggregation>(?:(?:total|max|min|avg|mean)_(?:dur|cnt)(?:_per_frame)?(?:_ms|_ns)?|cnt)(?:-[^-]+)?)$/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;
@@ -64,8 +64,7 @@ class BlockingCallMetricHandler implements MetricHandler {
     const config = this.blockingCallTrackConfig(metricData);
     addDebugSliceTrack({trace: ctx, ...config});
     // Only trigger adding track for frame when the aggregation is for max duration per frame.
-    const MAX_DUR_PER_FRAME_NS_MEAN = 'max_dur_per_frame_ns-mean';
-    if (metricData.aggregation === MAX_DUR_PER_FRAME_NS_MEAN) {
+    if (metricData.aggregation.startsWith('max_dur_per_frame_')) {
       const frameConfigArgs = await this.frameWithMaxDurBlockingCallTrackConfig(
         ctx,
         metricData,

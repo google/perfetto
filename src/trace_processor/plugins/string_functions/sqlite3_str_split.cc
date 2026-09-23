@@ -31,9 +31,7 @@ constexpr char kSplitFieldIndexError[] =
     "str_split: field number must be a non-negative integer";
 }  // namespace
 
-void StrSplit::Step(sqlite3_context* context,
-                    int argc,
-                    sqlite3_value** argv) {
+void StrSplit::Step(sqlite3_context* context, int argc, sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 3);
   if (sqlite3_value_type(argv[1]) != SQLITE_TEXT) {
     sqlite::result::Error(context, kDelimiterError);

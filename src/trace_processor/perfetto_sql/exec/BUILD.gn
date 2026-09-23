@@ -23,14 +23,11 @@ source_set("exec") {
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
     "../../../base",
-    "../../../perfetto_sql/analysis",
-    "../../../perfetto_sql/syntaqlite",
     "../../containers",
     "../../core/common",
     "../../core/exec",
     "../../core/util",
     "../../sqlite",
-    "../lineage:connection_catalog",
   ]
 }
 
@@ -49,6 +46,6 @@ perfetto_unittest_source_set("unittests") {
     "../../core/exec:test_utils",
     "../../core/util",
     "../../sqlite",
-    "../lineage:connection_catalog",
+    "../schema",
   ]
 }

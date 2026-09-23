@@ -25,10 +25,15 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_test_utils.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "test/gtest_and_gmock.h"
 
@@ -43,14 +48,29 @@ using CreateView = PerfettoSqlParser::CreateView;
 using Include = PerfettoSqlParser::Include;
 using CreateMacro = PerfettoSqlParser::CreateMacro;
 using CreateIndex = PerfettoSqlParser::CreateIndex;
+using Pipeline = PerfettoSqlParser::Pipeline;
+using testing::HasSubstr;
 
 namespace {
 
 class PerfettoSqlParserTest : public ::testing::Test {
  protected:
+  PerfettoSqlParserTest()
+      : connection_(SqliteConnection::CreateConnectionToNewDatabase()),
+        catalog_(&pool_, connection_.get()) {
+    catalog_.AddTable("slice", {"id", "parent_id", "dur", "self", "depth"},
+                      {{0, std::nullopt, 10, 10, 0}, {1, 0, 5, 5, 1}});
+    auto stmt = connection_->PrepareStatement(SqlSource::FromExecuteQuery(
+        "CREATE TABLE tree(id INTEGER, parent_id INTEGER, self INTEGER)"));
+    while (stmt.Step()) {
+    }
+    PERFETTO_CHECK(stmt.status().ok());
+  }
+
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
       SqlSource sql) {
-    PerfettoSqlParser parser(macros_);
+    PerfettoSqlParser parser(macros_, catalog_,
+                             /*pipelines_allowed=*/true);
     parser.Reset(std::move(sql));
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
@@ -80,7 +100,8 @@ class PerfettoSqlParserTest : public ::testing::Test {
   // The caller is responsible for asserting `sql` is syntactically well-formed
   // and produces exactly one statement; failures abort the test.
   SqlSource ParseOne(SqlSource sql) {
-    PerfettoSqlParser parser(macros_);
+    PerfettoSqlParser parser(macros_, catalog_,
+                             /*pipelines_allowed=*/false);
     parser.Reset(std::move(sql));
     PERFETTO_CHECK(parser.Next());
     PERFETTO_CHECK(parser.status().ok());
@@ -89,7 +110,19 @@ class PerfettoSqlParserTest : public ::testing::Test {
     return out;
   }
 
+  // Parses a single pipeline statement and returns its plan as text.
+  base::StatusOr<std::string> ParsePipeline(const std::string& sql) {
+    ASSIGN_OR_RETURN(auto parsed, Parse(SqlSource::FromExecuteQuery(sql)));
+    PERFETTO_CHECK(parsed.size() == 1);
+    const auto* pipeline = std::get_if<Pipeline>(&parsed[0]);
+    PERFETTO_CHECK(pipeline);
+    return pipeline::LogicalPlanToString(pipeline->plan);
+  }
+
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
+  StringPool pool_;
+  std::unique_ptr<SqliteConnection> connection_;
+  pipeline::TestCatalog catalog_;
 };
 
 TEST_F(PerfettoSqlParserTest, Empty) {
@@ -98,7 +131,8 @@ TEST_F(PerfettoSqlParserTest, Empty) {
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   SqlSource res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -108,7 +142,8 @@ TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
 TEST_F(PerfettoSqlParserTest, ExplainKeepsPrefix) {
   SqlSource res =
       SqlSource::FromExecuteQuery("EXPLAIN QUERY PLAN SELECT * FROM slice;");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -129,7 +164,8 @@ TEST_F(PerfettoSqlParserTest, ExplainWithMacro) {
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -143,7 +179,8 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -246,7 +283,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1; select foo()");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   CreateFn fn{
@@ -396,7 +434,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo(a1 Expr, b1 TableOrSubquery,c3_d "
       "TableOrSubquery2 ) returns TableOrSubquery3 as random sql snippet");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -417,7 +456,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create or replace perfetto macro foo() returns Expr as 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{true,
@@ -432,7 +472,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo() returns sql1 as random sql snippet; "
       "select 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{
@@ -451,7 +492,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
@@ -466,7 +508,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
@@ -481,7 +524,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
@@ -496,7 +540,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
@@ -511,7 +556,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo USING DATAFRAME AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
@@ -520,10 +566,274 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
   ASSERT_FALSE(parser.Next());
 }
 
+// Columns of the test `slice` table. The builder narrows the types.
+constexpr char kSliceColumns[] =
+    "#0:id AS id, #1:uint32 AS parent_id, #2:uint32 AS dur, "
+    "#3:uint32 AS self, #4:id AS depth";
+
+TEST_F(PerfettoSqlParserTest, Pipeline) {
+  auto res = SqlSource::FromExecuteQuery(
+      "FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total; SELECT 1");
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
+  parser.Reset(res);
+  ASSERT_TRUE(parser.Next());
+  const auto* pipeline = std::get_if<Pipeline>(&parser.statement());
+  ASSERT_NE(pipeline, nullptr);
+  EXPECT_EQ(
+      parser.statement_sql(),
+      FindSubstr(res, "FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total"));
+  EXPECT_EQ(pipeline::LogicalPlanToString(pipeline->plan),
+            std::string("Scan(table slice) [") + kSliceColumns + "]\n" +
+                "TreeAccumulate(up, node=#0, parent=#1, SUM(#2) -> #5:int64)\n"
+                "Output(#0 AS id, #1 AS parent_id, #2 AS dur, #3 AS self, "
+                "#4 AS depth, #5 AS total)\n");
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
+  ASSERT_FALSE(parser.Next());
+  ASSERT_TRUE(parser.status().ok());
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineExpandsMacros) {
+  RegisterMacro("stacks", {}, "(SELECT * FROM tree)");
+  auto res = SqlSource::FromExecuteQuery(
+      "FROM stacks!() |> TREE ACCUMULATE UP SUM(self) AS total");
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
+  parser.Reset(res);
+  ASSERT_TRUE(parser.Next()) << parser.status().message();
+  const auto* pipeline = std::get_if<Pipeline>(&parser.statement());
+  ASSERT_NE(pipeline, nullptr);
+  EXPECT_EQ(parser.statement_sql().sql(),
+            "FROM (SELECT * FROM tree) |> TREE ACCUMULATE UP SUM(self) AS "
+            "total");
+  EXPECT_THAT(pipeline::LogicalPlanToString(pipeline->plan),
+              HasSubstr("Scan(sql SELECT * FROM (SELECT * FROM tree))"));
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAsPipeline) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo AS FROM slice |> TREE ACCUMULATE UP "
+      "SUM(dur) AS total");
+  auto parsed = Parse(res);
+  ASSERT_TRUE(parsed.ok()) << parsed.status().message();
+  ASSERT_EQ(parsed->size(), 1u);
+  const auto* table = std::get_if<CreateTable>(&(*parsed)[0]);
+  ASSERT_NE(table, nullptr);
+  EXPECT_EQ(table->name, "foo");
+  const auto* plan = std::get_if<pipeline::LogicalPlan>(&table->body);
+  ASSERT_NE(plan, nullptr);
+  EXPECT_EQ(plan->ops.size(), 2u);
+}
+
+// `|>` must be `|` immediately followed by `>`.
+TEST_F(PerfettoSqlParserTest, PipelineSyntaxErrors) {
+  EXPECT_THAT(ParsePipeline("FROM slice | > TREE ACCUMULATE UP SUM(a) AS b")
+                  .status()
+                  .message(),
+              HasSubstr("syntax error"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> WHERE dur > 0").status().message(),
+              HasSubstr("syntax error near 'WHERE'"));
+  EXPECT_THAT(ParsePipeline("FROM a JOIN b ON a.x = b.y |> TREE ACCUMULATE "
+                            "UP SUM(a) AS b")
+                  .status()
+                  .message(),
+              HasSubstr("syntax error near 'JOIN'"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE SUM(a) AS b")
+                  .status()
+                  .message(),
+              HasSubstr("syntax error near 'SUM'"));
+  EXPECT_FALSE(ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(a)").ok());
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineCompileErrors) {
+  EXPECT_THAT(ParsePipeline("FROM nope").status().message(),
+              HasSubstr("no such table: nope"));
+  EXPECT_THAT(ParsePipeline("FROM (SELECT id, self FROM tree) |> TREE "
+                            "ACCUMULATE UP SUM(self) AS total")
+                  .status()
+                  .message(),
+              HasSubstr("TREE ACCUMULATE: no such column: 'parent_id'"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(nope) AS t")
+                  .status()
+                  .message(),
+              HasSubstr("TREE ACCUMULATE: no such column: 'nope'"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP MAX(self) AS t")
+                  .status()
+                  .message(),
+              HasSubstr("aggregate MAX is not supported yet"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP COUNT(*) AS n")
+                  .status()
+                  .message(),
+              HasSubstr("aggregate COUNT is not supported yet"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(*) AS n")
+                  .status()
+                  .message(),
+              HasSubstr("expected a column name, not *"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP self AS n")
+                  .status()
+                  .message(),
+              HasSubstr("expected an aggregate like SUM(column)"));
+  EXPECT_THAT(
+      ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self, id) AS n")
+          .status()
+          .message(),
+      HasSubstr("expected exactly one argument"));
+  EXPECT_THAT(
+      ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(DISTINCT self) AS n")
+          .status()
+          .message(),
+      HasSubstr("DISTINCT is not supported yet"));
+  EXPECT_THAT(
+      ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self + 1) AS n")
+          .status()
+          .message(),
+      HasSubstr("expected a column name"));
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineQualifiedColumns) {
+  // A qualifier picks the source's column over a later one of the same name.
+  auto plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS SELF "
+      "|> TREE ACCUMULATE UP SUM(Slice.self) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("SUM(#3) -> #6:int64"));
+
+  // An alias renames the qualifier without taking the table off the direct
+  // dataframe read.
+  plan =
+      ParsePipeline("FROM slice AS s |> TREE ACCUMULATE UP SUM(s.self) AS n");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr(std::string("Scan(table slice) [") +
+                               kSliceColumns + "]"));
+  EXPECT_THAT(ParsePipeline(
+                  "FROM slice AS s |> TREE ACCUMULATE UP SUM(slice.self) AS n")
+                  .status()
+                  .message(),
+              HasSubstr("no such column: 'slice.self'"));
+
+  EXPECT_TRUE(
+      ParsePipeline("FROM tree AS t |> TREE ACCUMULATE UP SUM(t.self) AS n")
+          .ok());
+  EXPECT_THAT(
+      ParsePipeline("FROM tree AS t |> TREE ACCUMULATE UP SUM(tree.self) AS n")
+          .status()
+          .message(),
+      HasSubstr("no such column: 'tree.self'"));
+  EXPECT_THAT(ParsePipeline("FROM (SELECT * FROM tree) |> TREE ACCUMULATE UP "
+                            "SUM(tree.self) AS n")
+                  .status()
+                  .message(),
+              HasSubstr("no such column: 'tree.self'"));
+  EXPECT_THAT(ParsePipeline(
+                  "FROM slice |> TREE ACCUMULATE UP SUM(main.slice.self) AS n")
+                  .status()
+                  .message(),
+              HasSubstr("a schema-qualified column is not supported yet"));
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineDuplicateNamesAreAmbiguousOnReference) {
+  EXPECT_TRUE(
+      ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS SELF").ok());
+  EXPECT_TRUE(ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS a, "
+                            "SUM(self) AS A")
+                  .ok());
+  EXPECT_THAT(
+      ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS SELF "
+                    "|> TREE ACCUMULATE UP SUM(self) AS total")
+          .status()
+          .message(),
+      HasSubstr("column 'self' is ambiguous: it could be `slice.self` or "
+                "`TREE ACCUMULATE SUM(self) AS SELF`"));
+  EXPECT_THAT(
+      ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS a, "
+                    "SUM(self) AS A |> TREE ACCUMULATE UP SUM(a) AS total")
+          .status()
+          .message(),
+      HasSubstr("column 'a' is ambiguous: it could be "
+                "`TREE ACCUMULATE SUM(self) AS a` or "
+                "`TREE ACCUMULATE SUM(self) AS A`"));
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineErrorsCarryATraceback) {
+  auto plan = ParsePipeline("FROM slice |> TREE ACCUMULATE SIDEWAYS SUM(a)");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(), HasSubstr("^"));
+
+  plan = ParsePipeline("FROM slice\n|> TREE ACCUMULATE UP SUM(nope) AS t");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(), HasSubstr("SUM(nope) AS t\n"));
+  EXPECT_THAT(plan.status().message(), HasSubstr("^"));
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineAggregatesReadOnlyTheirInput) {
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS a, "
+                            "SUM(a) AS b")
+                  .status()
+                  .message(),
+              HasSubstr("no such column: 'a'"));
+  EXPECT_TRUE(ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS a "
+                            "|> TREE ACCUMULATE UP SUM(a) AS b")
+                  .ok());
+}
+
+TEST_F(PerfettoSqlParserTest, TakePipelineStatement) {
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice; SELECT 1"));
+  ASSERT_TRUE(parser.Next());
+  auto statement = parser.TakeStatement();
+  EXPECT_EQ(parser.statement_sql().sql(), "FROM slice");
+  EXPECT_GT(parser.statement_end_offset(), 0u);
+  ASSERT_TRUE(parser.Next());
+  EXPECT_TRUE(std::holds_alternative<SqliteSql>(parser.statement()));
+  const auto& plan = std::get<Pipeline>(statement).plan;
+  EXPECT_THAT(pipeline::LogicalPlanToString(plan),
+              HasSubstr("Scan(table slice)"));
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineNeedsToBeAllowed) {
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_FALSE(parser.Next());
+  EXPECT_THAT(parser.status().message(),
+              HasSubstr("Pipelines are not enabled"));
+}
+
+// One parser serves sources which differ in whether they may use a pipeline,
+// so the permission has to follow the source rather than the parser.
+TEST_F(PerfettoSqlParserTest, PipelinePermissionChangesWithTheSource) {
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_FALSE(parser.Next());
+
+  parser.SetPipelinesAllowed(true);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_TRUE(parser.Next()) << parser.status().message();
+
+  parser.SetPipelinesAllowed(false);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_FALSE(parser.Next());
+}
+
+// The new keywords are not reserved and `|` `>` in an expression is still
+// bitwise OR then a comparison.
+TEST_F(PerfettoSqlParserTest, PipelineSyntaxDoesNotLeakIntoSql) {
+  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
+                "SELECT tree, accumulate, up, down FROM t")),
+            std::vector<Statement>{Statement(SqliteSql{})});
+  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
+                "SELECT * FROM a JOIN b ON a.x | b.y > 3")),
+            std::vector<Statement>{Statement(SqliteSql{})});
+}
+
 TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -541,7 +851,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -559,7 +870,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoViewAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -581,7 +893,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo(foo STRING, bar INT) AS SELECT 'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
@@ -604,7 +917,8 @@ TEST_F(PerfettoSqlParserTest, ParseComplexArgumentType) {
       "CREATE PERFETTO VIEW foo(foo JOINID(foo.bar), bar LONG) AS SELECT "
       "'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),

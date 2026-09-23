@@ -33,7 +33,7 @@ source_set("video_frame_importer") {
     ":tables",
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",

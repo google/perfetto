@@ -18,7 +18,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "src/traceconv/android_extension.descriptor.h"
 #include "src/traceconv/trace.descriptor.h"
@@ -135,7 +137,7 @@ void OnlineTraceToText::EndWrite(size_t size_written) {
   pending_write_.EndWrite(size_written);
   while (true) {
     auto token = ring_buffer_.ReadMessage();
-    if (token.fatal_framing_error) {
+    if (token.fatal_framing_error()) {
       error_ = "failed to tokenize trace packet (corrupt or truncated)";
       ok_ = false;
       return;
@@ -146,14 +148,16 @@ void OnlineTraceToText::EndWrite(size_t size_written) {
       break;
     }
 
-    if (token.field_id != protos::pbzero::Trace::kPacketFieldNumber) {
+    if (token.field_id() != protos::pbzero::Trace::kPacketFieldNumber) {
       PERFETTO_ELOG("Skipping invalid field");
       continue;
     }
-    protos::pbzero::TracePacket::Decoder decoder(token.start, token.len);
-    bytes_processed_ += token.len;
+    protos::pbzero::TracePacket::Decoder decoder(token.data(), token.size());
+    bytes_processed_ += token.size();
     if ((packet_++ & 0x3f) == 0) {
-      ProgressLine("Processing trace: %8zu KB", bytes_processed_ / 1024);
+      base::StackString<128> msg("Processing trace: %8zu KB",
+                                 bytes_processed_ / 1024);
+      base::ProgressReporter::GetInstance().Update(msg.ToStdStringView());
     }
     if (decoder.has_compressed_packets()) {
       PrintCompressedPackets(decoder.compressed_packets(),
@@ -163,7 +167,7 @@ void OnlineTraceToText::EndWrite(size_t size_written) {
                              util::CompressionType::kZstd);
     } else {
       WriteToOutput(output_, "packet {\n");
-      protozero::ConstBytes packet = {token.start, token.len};
+      protozero::ConstBytes packet = {token.data(), token.size()};
       std::string text = TracePacketToText(packet, 1 /* indent_depth */);
       output_->write(text.data(), std::streamsize(text.size()));
       WriteToOutput(output_, "\n}\n");
@@ -209,6 +213,7 @@ base::Status TraceToText(std::istream* input,
   uint32_t buffer_len = 0;
 
   InputReader input_reader(input);
+  auto& progress = base::ProgressReporter::GetInstance();
   OnlineTraceToText online_trace_to_text(output, options);
 
   // Sniff the first chunk inside the tokenizer's own buffer, so a proto trace
@@ -252,13 +257,13 @@ base::Status TraceToText(std::istream* input,
             online_trace_to_text.BeginWrite(kExtractSize), kExtractSize);
         if (res.ret == ResultCode::kError) {
           online_trace_to_text.AbortWrite();
-          EndProgressLine();
+          progress.Clear();
           return base::ErrStatus(
               "failed to decompress, trace is likely corrupt");
         }
         online_trace_to_text.EndWrite(res.bytes_written);
         if (!online_trace_to_text.ok()) {
-          EndProgressLine();
+          progress.Clear();
           return base::ErrStatus("failed to convert trace to text: %s",
                                  online_trace_to_text.error().c_str());
         }
@@ -281,33 +286,38 @@ base::Status TraceToText(std::istream* input,
              buffer_len > 0);
 
     if (code != ResultCode::kEof) {
-      EndProgressLine();
+      progress.Clear();
       return base::ErrStatus(
           "compressed stream incomplete, trace is likely corrupt");
     }
     if (!input_reader.ok()) {
-      EndProgressLine();
+      progress.Clear();
       return base::ErrStatus("failed to read trace: %s",
                              input_reader.error().c_str());
     }
-    EndProgressLine();
+    progress.Clear();
     return base::OkStatus();
   } else if (type == trace_processor::CompressedTraceType::kProto) {
-    do {
+    for (;;) {
       online_trace_to_text.EndWrite(buffer_len);
       if (!online_trace_to_text.ok()) {
-        EndProgressLine();
+        progress.Clear();
         return base::ErrStatus("failed to convert trace to text: %s",
                                online_trace_to_text.error().c_str());
       }
-    } while (input_reader.Read(online_trace_to_text.BeginWrite(kReadSize),
-                               &buffer_len, kReadSize));
+      uint8_t* next = online_trace_to_text.BeginWrite(kReadSize);
+      if (!input_reader.Read(next, &buffer_len, kReadSize)) {
+        // Nothing was read (EOF or a read error): release the reservation.
+        online_trace_to_text.AbortWrite();
+        break;
+      }
+    }
     if (!input_reader.ok()) {
-      EndProgressLine();
+      progress.Clear();
       return base::ErrStatus("failed to read trace: %s",
                              input_reader.error().c_str());
     }
-    EndProgressLine();
+    progress.Clear();
     return base::OkStatus();
   } else {
     return base::ErrStatus(

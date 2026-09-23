@@ -44,6 +44,7 @@ import * as queries from '../queries';
 import type {HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 export interface ObjectParams {
   readonly id: number;
@@ -524,72 +525,56 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
 }
 
 export function ObjectView(): m.Component<ObjectViewAttrs> {
-  let detail: InstanceDetail | null | 'loading' = 'loading';
-  let prevId: number | undefined;
-  let alive = true;
-  let fetchSeq = 0;
+  const dataMemo = new AsyncMemo<InstanceDetail | undefined>();
 
-  function fetchData(attrs: ObjectViewAttrs) {
-    detail = 'loading';
-    prevId = attrs.params.id;
-    const seq = ++fetchSeq;
-    queries
-      .getInstance(attrs.engine, attrs.activeDump, attrs.params.id)
-      .then((d) => {
-        if (!alive || seq !== fetchSeq) return;
-        detail = d;
-        m.redraw();
-        if (d) {
-          // Enrich all sections with reachable sizes asynchronously.
-          const enrichTasks: Promise<void>[] = [
-            queries.enrichWithReachable(attrs.engine, [d.row]),
-            queries.enrichWithReachable(attrs.engine, d.reverseRefs),
-            queries.enrichWithReachable(attrs.engine, d.dominated),
-          ];
-          if (d.isClassObj) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.staticFields),
-            );
-          }
-          if (d.isClassInstance && d.instanceFields.length > 0) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.instanceFields),
-            );
-          }
-          if (d.isArrayInstance) {
-            enrichTasks.push(
-              queries.enrichArrayElemsWithReachable(attrs.engine, d.arrayElems),
-            );
-          }
-          Promise.all(enrichTasks).then(() => {
-            if (alive && seq === fetchSeq) m.redraw();
-          });
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        if (!alive || seq !== fetchSeq) return;
-        detail = null;
-        m.redraw();
-      });
+  async function enrichDetail(engine: Engine, d: InstanceDetail) {
+    // Enrich all sections with reachable sizes asynchronously.
+    const enrichTasks: Promise<void>[] = [
+      queries.enrichWithReachable(engine, [d.row]),
+      queries.enrichWithReachable(engine, d.reverseRefs),
+      queries.enrichWithReachable(engine, d.dominated),
+    ];
+    if (d.isClassObj) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.staticFields),
+      );
+    }
+    if (d.isClassInstance && d.instanceFields.length > 0) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.instanceFields),
+      );
+    }
+    if (d.isArrayInstance) {
+      enrichTasks.push(
+        queries.enrichArrayElemsWithReachable(engine, d.arrayElems),
+      );
+    }
+
+    await Promise.all(enrichTasks);
   }
 
   return {
-    oninit(vnode) {
-      fetchData(vnode.attrs);
-    },
-    onupdate(vnode) {
-      if (vnode.attrs.params.id !== prevId) {
-        fetchData(vnode.attrs);
-      }
-    },
     onremove() {
-      alive = false;
+      dataMemo.dispose();
     },
     view(vnode) {
       const {navigate, params} = vnode.attrs;
 
-      if (detail === 'loading') {
+      const {isPending, data: detail} = dataMemo.use({
+        key: params.id,
+        compute: async () => {
+          const detail = await queries.getInstance(
+            vnode.attrs.engine,
+            vnode.attrs.activeDump,
+            params.id,
+          );
+          // TODO: Show intermediate state using multiple asynmemos
+          if (detail) await enrichDetail(vnode.attrs.engine, detail);
+          return detail;
+        },
+      });
+
+      if (isPending) {
         return m(
           DetailsShell,
           {
@@ -600,6 +585,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
           m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
         );
       }
+
       if (!detail) {
         return m(
           DetailsShell,
@@ -674,13 +660,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                     {
                       class: 'pf-hde-download-link',
                       onclick: () => {
-                        if (
-                          detail === null ||
-                          detail === 'loading' ||
-                          detail.bitmap === null
-                        ) {
-                          return;
-                        }
+                        if (detail.bitmap === null) return;
                         const ext = detail.bitmap.format;
                         downloadBlob(
                           `bitmap-${fmtHex(row.id)}.${ext}`,

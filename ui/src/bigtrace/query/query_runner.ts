@@ -127,6 +127,7 @@ export class QueryRunner {
       traceOrderBy,
       traceLimit: tab.traceLimit,
       experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
+      tableTtlDays: tab.materialize ? tab.tableTtlDays : undefined,
     };
 
     const wallStartMs = performance.now();
@@ -228,6 +229,7 @@ export class QueryRunner {
             queryClient,
             () => tab.execution?.processedRows ?? 0,
             tab.lifecycle.signal,
+            () => tab.execution?.schema,
           )
         : new InMemoryDataSource([]);
     }
@@ -250,6 +252,12 @@ export class QueryRunner {
 
     if (!tab.execution) return;
     const exec = tab.execution;
+    if (details.schema !== undefined) {
+      exec.schema = details.schema;
+    }
+    if (details.tableName !== undefined) {
+      exec.tableName = details.tableName;
+    }
     exec.status = details.status ?? 'N/A';
     exec.processedRows = details.processedRows ?? 0;
     exec.processedTraces = details.processedTraces ?? 0;
@@ -379,9 +387,13 @@ export class QueryRunner {
         tab.lifecycle.signal,
       );
       const serverStartMs = isoToEpochMs(details?.startTime);
-      if (serverStartMs !== undefined) {
-        queryStore.update(tab.queryUuid, {startTime: serverStartMs});
-      }
+      queryStore.update(tab.queryUuid, {
+        ...(serverStartMs !== undefined ? {startTime: serverStartMs} : {}),
+        ...(details?.schema !== undefined ? {schema: details.schema} : {}),
+        ...(details?.tableName !== undefined
+          ? {tableName: details.tableName}
+          : {}),
+      });
     } catch (e) {
       console.error('Failed to fetch query details after executeAsync:', e);
     }
@@ -392,6 +404,7 @@ export class QueryRunner {
       client,
       () => tab.execution?.processedRows ?? 0,
       tab.lifecycle.signal,
+      () => tab.execution?.schema,
     );
     tab.queryResult = makeQueryResponse(query, {
       durationMs: performance.now() - wallStartMs,
@@ -424,6 +437,7 @@ export class QueryRunner {
     tab.queryResult = makeQueryResponse(query, {
       rows: [...result.rows],
       columns: [...result.columns],
+      schema: result.schema,
       totalRowCount: result.rows.length,
       durationMs: performance.now() - wallStartMs,
       statementWithOutputCount: 1,

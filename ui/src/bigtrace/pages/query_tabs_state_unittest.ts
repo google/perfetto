@@ -23,6 +23,7 @@ import {
   setTraceUuidsActive,
   TRACE_UUIDS_SETTING_ID,
   traceUuidsActive,
+  DEFAULT_TABLE_TTL_DAYS,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
   MODE_DEFAULTS,
@@ -56,6 +57,7 @@ function fakeTab(over: Partial<BigTraceEditorTab>): BigTraceEditorTab {
   return {
     limit: MODE_DEFAULTS.ephemeral.rowLimit,
     traceLimit: MODE_DEFAULTS.ephemeral.traceLimit,
+    tableTtlDays: DEFAULT_TABLE_TTL_DAYS,
     materialize: false,
     querySettings: [],
     traceFilters: [],
@@ -241,7 +243,7 @@ describe('per-mode row and trace limits', () => {
     expect(tab.traceLimit).toBe(MODE_DEFAULTS.persistent.traceLimit);
   });
 
-  test('the trace cap round-trips through storage', () => {
+  test('the trace cap and the table lifetime round-trip through storage', () => {
     const tabs = new QueryTabsState();
     const tab = tabs.addNewTab(
       undefined,
@@ -251,11 +253,24 @@ describe('per-mode row and trace limits', () => {
       true,
     );
     tab.traceLimit = 123;
+    tab.tableTtlDays = 45;
     (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
     const restored = new QueryTabsState().tabs.find(
       (t) => t.editorText === 'select 1',
     )!;
     expect(restored.traceLimit).toBe(123);
+    expect(restored.tableTtlDays).toBe(45);
+  });
+});
+
+describe('table lifetime (TTL)', () => {
+  test('switching mode leaves the lifetime alone', () => {
+    const tab = fakeTab({materialize: false});
+    tab.tableTtlDays = 7;
+    applyModeDefaults(tab, true);
+    expect(tab.tableTtlDays).toBe(7);
+    applyModeDefaults(tab, false);
+    expect(tab.tableTtlDays).toBe(7);
   });
 });
 
@@ -369,6 +384,7 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
       editorText: 'select 1',
       materialize: true,
       limit: 500,
+      tableTtlDays: 45,
       traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
       traceMetadataColumns: ['device_name'],
       traceOrderBy: 'size_bytes desc',
@@ -403,6 +419,7 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     tab.traceOrderBy = '';
     tab.limit = 10;
     tab.traceLimit = 11;
+    tab.tableTtlDays = 12;
     tab.materialize = false;
     tab.experimentFilter = {
       experimentId: 999,
@@ -425,6 +442,9 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     edit(tab);
     closeSettings(tab, {keep: false});
     expect(snapshotTabConfig(tab)).toEqual(before);
+    // Read off the tab: comparing two snapshots cannot see a field the
+    // snapshot itself stopped carrying.
+    expect(tab.tableTtlDays).toBe(45);
     expect(tab.settingsSession).toBeUndefined();
     expect(tab.configured).toBe(true);
   });
@@ -438,6 +458,7 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     expect(tab.traceFilters).toEqual([]);
     expect(tab.limit).toBe(10);
     expect(tab.traceLimit).toBe(11);
+    expect(tab.tableTtlDays).toBe(12);
     expect(tab.settingsSession).toBeUndefined();
     expect(tab.configured).toBe(true);
   });

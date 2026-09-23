@@ -19,6 +19,7 @@ source_set("common") {
     "duplicate_types.h",
     "null_types.h",
     "op_types.h",
+    "schema.h",
     "sort_types.h",
     "storage_types.h",
     "value_fetcher.h",

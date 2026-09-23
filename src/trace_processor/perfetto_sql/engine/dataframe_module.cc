@@ -299,7 +299,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           cols_used_it >>= 1;
         }
         // SQLite's DISTINCT handling for virtual tables changed between 3.50.3
-        // (previously bundled) and 3.53.2 (current). Newer SQLite trusts
+        // and 3.53. Newer SQLite trusts
         // orderByConsumed and, for a plain DISTINCT, performs only an
         // adjacent-row dedup (WHERE_DISTINCT_ORDERED) assuming we grouped equal
         // rows; deduping over colUsed alone does not do that, so we must sort

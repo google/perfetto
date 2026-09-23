@@ -36,6 +36,9 @@
 #include "src/perfetto_sql/intrinsic_macro_expansion.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -353,9 +356,38 @@ uint32_t CurrentStatementDocOffset(SyntaqliteParser* p) {
   return doc_offset;
 }
 
+base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
+    SyntaqliteParser* p,
+    const MacroRewriteBuilder& rb,
+    const pipeline::Catalog* catalog,
+    uint32_t pipeline_id) {
+  if (!catalog) {
+    return base::ErrStatus(
+        "%sPipelines are not enabled; set `PERFETTO PRAGMA pipelines = 1`",
+        NodeSource(rb, pipeline_id).AsTraceback(0).c_str());
+  }
+  return pipeline::Compile(
+      p, pipeline_id, [&rb](uint32_t node) { return NodeSource(rb, node); },
+      *catalog);
+}
+
+base::StatusOr<PerfettoSqlParser::CreateTable::Body> ParseCreateTableBody(
+    SyntaqliteParser* p,
+    const MacroRewriteBuilder& rb,
+    const pipeline::Catalog* catalog,
+    const SyntaqliteCreatePerfettoTableStmt& n) {
+  using Body = PerfettoSqlParser::CreateTable::Body;
+  if (!syntaqlite_node_is_present(n.pipeline)) {
+    return Body(NodeSource(rb, n.select));
+  }
+  ASSIGN_OR_RETURN(auto plan, CompilePipeline(p, rb, catalog, n.pipeline));
+  return Body(std::move(plan));
+}
+
 base::StatusOr<Statement> ParseCreateTable(
     SyntaqliteParser* p,
     const MacroRewriteBuilder& rb,
+    const pipeline::Catalog* catalog,
     const SyntaqliteCreatePerfettoTableStmt& n) {
   if (syntaqlite_node_is_present(n.table_impl)) {
     const auto* impl_node = static_cast<const SyntaqlitePerfettoTableImpl*>(
@@ -366,11 +398,12 @@ base::StatusOr<Statement> ParseCreateTable(
                              impl_name.c_str());
   }
   ASSIGN_OR_RETURN(auto schema, BuildArgDefs(p, n.schema));
+  ASSIGN_OR_RETURN(auto body, ParseCreateTableBody(p, rb, catalog, n));
   return Statement(PerfettoSqlParser::CreateTable{
       n.or_replace == SYNTAQLITE_BOOL_TRUE,
       SpanText(p, n.table_name),
       std::move(schema),
-      NodeSource(rb, n.select),
+      std::move(body),
   });
 }
 
@@ -435,6 +468,26 @@ base::StatusOr<Statement> ParseCreateDelegatingFunction(
   });
 }
 
+base::StatusOr<Statement> ParsePragma(SyntaqliteParser* p,
+                                      const SyntaqlitePerfettoPragmaStmt& n) {
+  std::string name = SpanText(p, n.name);
+  const auto* value =
+      static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(p, n.value));
+  if (value->tag != SYNTAQLITE_NODE_LITERAL ||
+      value->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_INTEGER) {
+    return base::ErrStatus("PERFETTO PRAGMA %s: expected a whole number",
+                           name.c_str());
+  }
+  std::optional<int64_t> parsed =
+      base::StringToInt64(SpanText(p, value->literal.source));
+  if (!parsed) {
+    return base::ErrStatus("PERFETTO PRAGMA %s: '%s' does not fit a number",
+                           name.c_str(),
+                           SpanText(p, value->literal.source).c_str());
+  }
+  return Statement(PerfettoSqlParser::Pragma{std::move(name), *parsed});
+}
+
 Statement ParseCreateIndex(SyntaqliteParser* p,
                            const SyntaqliteCreatePerfettoIndexStmt& n) {
   std::vector<std::string> col_names;
@@ -497,13 +550,15 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
                                          const MacroRewriteBuilder& rb,
                                          const SqlSource& stmt,
                                          uint32_t stmt_doc_offset,
+                                         const pipeline::Catalog* catalog,
+                                         uint32_t root,
                                          const SyntaqliteNode* node) {
   // Cast to int to suppress -Wswitch-enum: we intentionally handle only
   // Perfetto-dialect node types; all SQLite statement types fall through to
   // the default case and are returned as SqliteSql{}.
   switch (static_cast<int>(node->tag)) {
     case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT:
-      return ParseCreateTable(p, rb, node->create_perfetto_table_stmt);
+      return ParseCreateTable(p, rb, catalog, node->create_perfetto_table_stmt);
     case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT:
       return ParseCreateView(p, rb, node->create_perfetto_view_stmt);
     case SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT:
@@ -520,6 +575,13 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
       return Statement(PerfettoSqlParser::Include{
           SpanText(p, node->include_perfetto_module_stmt.module_name),
       });
+    case SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT:
+      return ParsePragma(p, node->perfetto_pragma_stmt);
+    case SYNTAQLITE_NODE_PERFETTO_PIPELINE: {
+      ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
+                       CompilePipeline(p, rb, catalog, root));
+      return Statement(PerfettoSqlParser::Pipeline{std::move(plan)});
+    }
     case SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT:
       return Statement(PerfettoSqlParser::DropIndex{
           SpanText(p, node->drop_perfetto_index_stmt.index_name),
@@ -541,8 +603,13 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 // (preprocessor-compat shims) and the engine-owned user macro registry.
 
 struct PerfettoSqlParser::Impl {
-  explicit Impl(const base::FlatHashMap<std::string, Macro>& m)
-      : source(SqlSource::FromTraceProcessorImplementation("")), macros(m) {
+  Impl(const base::FlatHashMap<std::string, Macro>& m,
+       const pipeline::Catalog& c,
+       bool allowed)
+      : source(SqlSource::FromTraceProcessorImplementation("")),
+        macros(m),
+        catalog(&c),
+        pipelines_allowed(allowed) {
     synq = syntaqlite_parser_create_perfetto(nullptr);
     PERFETTO_CHECK(synq != nullptr);
     PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
@@ -619,6 +686,10 @@ struct PerfettoSqlParser::Impl {
   SyntaqliteParser* synq;
   SqlSource source;
   const base::FlatHashMap<std::string, Macro>& macros;
+  const pipeline::Catalog* catalog;
+  // Whether the SQL being read may use a pipeline. Set per source, so one
+  // parser serves both the standard library and user SQL.
+  bool pipelines_allowed;
   base::Status status;
   std::optional<Statement> current_statement;
   ::perfetto::perfetto_sql::IntrinsicMacroExpander intrinsic_expander;
@@ -669,7 +740,9 @@ bool PerfettoSqlParser::Impl::Next(
 
   const auto* node =
       static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(synq, root));
-  auto result = ParseStatement(synq, rb, stmt, stmt_doc_offset, node);
+  auto result =
+      ParseStatement(synq, rb, stmt, stmt_doc_offset,
+                     pipelines_allowed ? catalog : nullptr, root, node);
   if (!result.ok()) {
     status = result.status();
     return false;
@@ -679,12 +752,18 @@ bool PerfettoSqlParser::Impl::Next(
 }
 
 PerfettoSqlParser::PerfettoSqlParser(
-    const base::FlatHashMap<std::string, Macro>& macros)
-    : impl_(std::make_unique<Impl>(macros)) {}
+    const base::FlatHashMap<std::string, Macro>& macros,
+    const pipeline::Catalog& catalog,
+    bool pipelines_allowed)
+    : impl_(std::make_unique<Impl>(macros, catalog, pipelines_allowed)) {}
 
 void PerfettoSqlParser::Reset(SqlSource source) {
   statement_sql_.reset();
   impl_->Bind(std::move(source));
+}
+
+void PerfettoSqlParser::SetPipelinesAllowed(bool allowed) {
+  impl_->pipelines_allowed = allowed;
 }
 
 PerfettoSqlParser::~PerfettoSqlParser() = default;
@@ -696,6 +775,11 @@ bool PerfettoSqlParser::Next() {
 const PerfettoSqlParser::Statement& PerfettoSqlParser::statement() const {
   PERFETTO_DCHECK(impl_->current_statement.has_value());
   return *impl_->current_statement;
+}
+
+PerfettoSqlParser::Statement PerfettoSqlParser::TakeStatement() {
+  PERFETTO_DCHECK(impl_->current_statement.has_value());
+  return std::move(*impl_->current_statement);
 }
 
 uint32_t PerfettoSqlParser::statement_end_offset() const {

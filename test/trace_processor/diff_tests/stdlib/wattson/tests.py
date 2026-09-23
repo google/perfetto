@@ -390,12 +390,12 @@ class WattsonStdlib(TestSuite):
               ss.power_state = 'suspended' AS suspended
             FROM _interval_intersect!(
               (
-                _ii_subquery!(_w_independent_cpus_calc),
+                _ii_subquery!(_w_cpu_slices),
                 _ii_subquery!(android_suspend_state)
               ),
               ()
             ) AS ii
-            JOIN _w_independent_cpus_calc AS stats
+            JOIN _w_cpu_slices AS stats
               ON stats._auto_id = id_0
             JOIN android_suspend_state AS ss
               ON ss._auto_id = id_1
@@ -575,6 +575,7 @@ class WattsonStdlib(TestSuite):
           SUM(dur) AS dur,
           thread_name
         FROM _wattson_task_slices
+        JOIN _wattson_task_metadata USING (utid)
         GROUP BY thread_name
         ORDER BY dur DESC
         LIMIT 10
