@@ -131,6 +131,13 @@ class PerfettoSqlParser {
     SqlSource sql;
   };
 
+  // Indicates that the specified SQL was a PERFETTO PRAGMA statement with
+  // the following parameters.
+  struct Pragma {
+    std::string name;
+    int64_t value;
+  };
+
   using Statement = std::variant<CreateFunction,
                                  CreateIndex,
                                  CreateMacro,
@@ -139,6 +146,7 @@ class PerfettoSqlParser {
                                  DropIndex,
                                  Include,
                                  Pipeline,
+                                 Pragma,
                                  SqliteSql>;
 
   // Reset(SqlSource) must be called before iterating. The underlying
