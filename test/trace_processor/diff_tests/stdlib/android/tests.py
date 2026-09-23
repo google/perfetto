@@ -2520,15 +2520,15 @@ class AndroidStdlib(TestSuite):
         """,
         out=Csv("""
         "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","reason"
-        2000,2000,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,-1,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
         2000,0,200,"TOP","[NULL]","[NULL]",2,"[NULL]"
         2000,2000,200,"IMPORTANT_FOREGROUND","TOP",0,6,"OOM_ADJ_REASON_START_RECEIVER"
-        4000,0,200,"CACHED_ACTIVITY","IMPORTANT_FOREGROUND",2000,16,"OOM_ADJ_REASON_BIND_SERVICE"
-        2000,2000,300,"PERSISTENT","[NULL]","[NULL]",0,"[NULL]"
-        2000,2000,400,"FOREGROUND_SERVICE","[NULL]","[NULL]",4,"[NULL]"
+        4000,-1,200,"CACHED_ACTIVITY","IMPORTANT_FOREGROUND",2000,16,"OOM_ADJ_REASON_BIND_SERVICE"
+        2000,-1,300,"PERSISTENT","[NULL]","[NULL]",0,"[NULL]"
+        2000,-1,400,"FOREGROUND_SERVICE","[NULL]","[NULL]",4,"[NULL]"
         2000,0,500,"TOP","[NULL]","[NULL]",2,"[NULL]"
         2000,0,500,"BOUND_FOREGROUND_SERVICE","TOP",0,5,"OOM_ADJ_REASON_START_RECEIVER"
-        2000,2000,500,"IMPORTANT_FOREGROUND","BOUND_FOREGROUND_SERVICE",0,6,"OOM_ADJ_REASON_BIND_SERVICE"
+        2000,-1,500,"IMPORTANT_FOREGROUND","BOUND_FOREGROUND_SERVICE",0,6,"OOM_ADJ_REASON_BIND_SERVICE"
         """))
 
   def test_android_process_state_concurrency(self):
@@ -2548,13 +2548,126 @@ class AndroidStdlib(TestSuite):
         out=Csv("""
         "ts","dur","state","state_rank","concurrency"
         2000,2000,"PERSISTENT",0,1
-        4000,0,"PERSISTENT",0,0
         2000,2000,"TOP",2,1
-        4000,0,"TOP",2,0
         2000,2000,"FOREGROUND_SERVICE",4,1
-        4000,0,"FOREGROUND_SERVICE",4,0
         2000,2000,"BOUND_FOREGROUND_SERVICE",5,0
         2000,2000,"IMPORTANT_FOREGROUND",6,2
-        4000,0,"IMPORTANT_FOREGROUND",6,0
-        4000,0,"CACHED_ACTIVITY",16,0
+        4000,0,"IMPORTANT_FOREGROUND",6,1
+        4000,0,"CACHED_ACTIVITY",16,1
+        """))
+
+  def test_android_process_state_birth_death(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 200
+              tid: 200
+              thread_name: "main"
+            }
+          }
+        }
+        packet {
+          timestamp: 500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "trace_begin"
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+              package_uid: 10002
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_NONEXISTENT
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_CACHED_EMPTY
+              cur_proc_state: PROCESS_STATE_RECEIVER
+              reason: 4
+              seq_id: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              uid: 10002
+              pid: 200
+              process_name: "com.example.app"
+            }
+          }
+        }
+        packet {
+          timestamp: 10000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "end"
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration,
+          state_rank,
+          reason
+        FROM _android_process_state_intervals
+        ORDER BY ts, state_rank;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","reason"
+        1000,1000,200,"NONEXISTENT","[NULL]","[NULL]",20,"[NULL]"
+        2000,1000,200,"CACHED_EMPTY","NONEXISTENT",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
+        3000,2000,200,"RECEIVER","CACHED_EMPTY",1000,11,"OOM_ADJ_REASON_BIND_SERVICE"
+        5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))

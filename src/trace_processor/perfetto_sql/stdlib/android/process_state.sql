@@ -59,9 +59,13 @@ WITH
         18
       ), ('PROCESS_STATE_CACHED_EMPTY', 19), ('PROCESS_STATE_NONEXISTENT', 20),
       (
-        'PROCESS_STATE_UNSPECIFIED',
-        997
-      ), ('PROCESS_STATE_UNKNOWN_TO_PROTO', 998), ('PROCESS_STATE_UNKNOWN', 999)
+        'EXITED',
+        21
+      ), ('PROCESS_STATE_UNSPECIFIED', 997),
+      (
+        'PROCESS_STATE_UNKNOWN_TO_PROTO',
+        998
+      ), ('PROCESS_STATE_UNKNOWN', 999)
   )
 SELECT replace(state, 'PROCESS_STATE_', '') AS state, rank FROM r;
 
@@ -72,37 +76,60 @@ WITH
   process_lifetimes AS (
     SELECT
       p.upid,
+      -- AndroidProcessStartEvent only sets fw_start_ts; process.start_ts comes
+      -- from ftrace forks.
       coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS start_ts,
-      coalesce(fw.fw_end_ts, p.end_ts, trace_end()) AS end_ts
-    FROM process AS p
+      p.end_ts AS death_ts
+    FROM (SELECT DISTINCT upid FROM __intrinsic_android_process_state)
+    JOIN process AS p USING (upid)
     LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
   ),
-  raw_changes AS (
+  all_events AS (
     SELECT
       coalesce(s.ts, p.start_ts) AS ts,
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
-      lag(replace(s.proc_state, 'PROCESS_STATE_', '')) OVER (
-        PARTITION BY
-          s.upid
-        ORDER BY coalesce(s.ts, p.start_ts), s.is_initial DESC
-      ) AS prev_state,
-      s.reason AS cur_reason,
-      p.end_ts
+      s.reason AS cur_reason
     FROM __intrinsic_android_process_state AS s
     JOIN process_lifetimes AS p USING (upid)
+    UNION ALL
+    -- Death is never reported by the state stream, so synthesize it. Left open
+    -- ended (dur = -1), as the process never comes back.
+    SELECT
+      p.death_ts AS ts,
+      0 AS is_initial,
+      p.upid,
+      'EXITED' AS cur_state,
+      NULL AS cur_reason
+    FROM process_lifetimes AS p
+    WHERE
+      p.death_ts IS NOT NULL
+  ),
+  raw_changes AS (
+    SELECT
+      e.ts,
+      e.is_initial,
+      e.upid,
+      e.cur_state,
+      lag(e.cur_state) OVER (
+        PARTITION BY
+          e.upid
+        ORDER BY e.ts, e.is_initial DESC
+      ) AS prev_state,
+      e.cur_reason
+    FROM all_events AS e
   ),
   state_changes AS (
     SELECT
       c.ts,
-      max(
-        coalesce(
-          lead(c.ts) OVER (PARTITION BY c.upid ORDER BY c.ts, c.is_initial DESC),
-          c.end_ts
-        )
-        - c.ts,
-        0
+      coalesce(
+        max(
+          lead(c.ts) OVER (PARTITION BY c.upid ORDER BY c.ts, c.is_initial DESC)
+          - c.ts,
+          0
+        ),
+        -1
       ) AS dur,
       c.upid,
       c.cur_state AS state,
@@ -136,9 +163,7 @@ FROM state_changes AS c
 JOIN process AS p USING (upid)
 LEFT JOIN android_process_metadata AS m USING (upid)
 LEFT JOIN _android_process_state_rank AS r
-  ON r.state = c.state
-WHERE
-  c.state != 'NONEXISTENT';
+  ON r.state = c.state;
 
 -- Number of processes concurrently in each framework process state over time.
 CREATE PERFETTO TABLE _android_process_state_concurrency AS
