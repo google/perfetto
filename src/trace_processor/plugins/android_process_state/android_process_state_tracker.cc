@@ -117,6 +117,9 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
                             ".com.android.internal.OomChangeReasonEnum",
                             static_cast<int32_t>(p.reason()));
   }
+  if (p.has_seq_id()) {
+    row.seq_id = p.seq_id();
+  }
   process_state_table_->Insert(row);
 }
 
