@@ -184,7 +184,8 @@ class Parser : public TrackEventExtensionParser {
     // The pid may already have been recycled by the time this death is
     // reported, in which case it no longer resolves to the process that died.
     // The event names the incarnation via its start seq id, so prefer that.
-    if (evt.has_start_seq_id()) {
+    if (android_process_tracker_->FrameworkIsProcessAuthority() &&
+        evt.has_start_seq_id()) {
       if (auto upid = android_process_tracker_->FindProcess(evt.pid(),
                                                             evt.start_seq_id());
           upid) {
