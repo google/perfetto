@@ -47,7 +47,7 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
         await this.prepare(engine, area, duration, probeResult);
         const table = await createPerfettoTable({
           engine,
-          as: this.getDataQuery(area, duration, probeResult),
+          as: this.getDataQuery(duration),
         });
         return createAggregationData(table);
       },
@@ -66,11 +66,7 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
   ): Promise<void> {}
 
   // Derived classes implement this to provide the final SQL query.
-  protected abstract getDataQuery(
-    area: AreaSelection,
-    duration: bigint,
-    probeResult: unknown,
-  ): string;
+  protected abstract getDataQuery(duration: bigint): string;
 
   abstract getTabName(): string;
 
@@ -180,11 +176,7 @@ export class WattsonCpuPackageSelectionAggregator extends WattsonBasePackageSele
     await this.taskSummary.build(area, selection);
   }
 
-  protected getDataQuery(
-    _area: AreaSelection,
-    _duration: bigint,
-    _probeResult: unknown,
-  ): string {
+  protected getDataQuery(): string {
     return `
       -- Grouped by UID and made CPU agnostic
       WITH base AS (
@@ -244,11 +236,7 @@ export class WattsonGpuPackageSelectionAggregator extends WattsonBasePackageSele
     `);
   }
 
-  protected getDataQuery(
-    _area: AreaSelection,
-    duration: bigint,
-    _probeResult: unknown,
-  ): string {
+  protected getDataQuery(duration: bigint): string {
     return `
       -- Grouped by UID specifically for GPU data
       WITH base AS (
