@@ -539,8 +539,6 @@ class RedactCommValuesTest : public testing::Test {
         ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
     context_.timeline->Append(
         ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
-    context_.timeline->Append(
-        ProcessThreadTimeline::Event::Open(kTimeA, 0, kNoParent, kUidA));
     context_.timeline->Sort();
 
     redact_.emplace_filter<ConnectedToPackage>();
@@ -555,6 +553,7 @@ class RedactCommValuesTest : public testing::Test {
     rename_->set_newcomm(std::string(kCommB));
     rename_->set_oldcomm(std::string(kCommA));
     rename_->set_oom_score_adj(0);
+    rename_->set_pid(kPidA);
   }
 
   protos::gen::TracePacket packet_;
@@ -589,7 +588,7 @@ TEST_F(RedactCommValuesTest, KeepCommInsideOfPackage) {
   const auto& task_rename = event.task_rename();
 
   ASSERT_TRUE(task_rename.has_pid());
-  ASSERT_EQ(task_rename.pid(), 0);
+  ASSERT_EQ(task_rename.pid(), kPidA);
   ASSERT_TRUE(task_rename.has_oldcomm());
   ASSERT_TRUE(task_rename.has_newcomm());
 
@@ -648,6 +647,7 @@ class RedactRenameTest : public testing::Test {
     rename->set_newcomm(std::string(kCommB));
     rename->set_oldcomm(std::string(kCommA));
     rename->set_oom_score_adj(0);
+    rename->set_pid(kPidA);
   }
 
   protos::gen::TracePacket packet_;
