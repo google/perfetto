@@ -722,9 +722,9 @@ bool PerfettoSqlParser::Impl::Next(
 
   const auto* node =
       static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(synq, root));
-  auto result = ParseStatement(synq, rb, stmt, stmt_doc_offset,
-                               pipelines_allowed ? catalog : nullptr, root,
-                               node);
+  auto result =
+      ParseStatement(synq, rb, stmt, stmt_doc_offset,
+                     pipelines_allowed ? catalog : nullptr, root, node);
   if (!result.ok()) {
     status = result.status();
     return false;
