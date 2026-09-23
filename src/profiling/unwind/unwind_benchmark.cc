@@ -255,9 +255,7 @@ void BM_Unwind_Dwarf(benchmark::State& state, const UnwindArgs& args) {
         std::unique_ptr<unwindstack::Regs>(fixture.sample().regs->Clone());
     unwindstack::Unwinder unwinder(kMaxFrames, &fixture.metadata()->fd_maps,
                                    regs_copy.get(), fixture.overlay_memory());
-    if (args.resolve_names) {
-      unwinder.SetResolveNames(true);
-    }
+    unwinder.SetResolveNames(args.resolve_names);
     unwinder.Unwind();
 
     std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
