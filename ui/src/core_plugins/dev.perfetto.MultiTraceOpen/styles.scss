@@ -15,19 +15,9 @@
 @use "../../assets/theme.scss" as *;
 
 .pf-multi-trace-modal {
-  &__description-panel {
-    margin-bottom: 0px;
-    padding-bottom: 0px;
-  }
-
-  &__tabs {
-    > .pf-tabs__tabs {
-      margin-bottom: 16px;
-    }
-  }
-
   &__description-content {
     border-bottom: 1px solid var(--pf-color-border);
+    margin-top: 12px;
     padding: 0 8px;
     width: 550px;
     box-sizing: border-box;
@@ -42,12 +32,12 @@
   }
 
   &__list-panel {
-    border: none;
     overflow-y: auto;
     width: 550px;
     max-height: 700px;
     padding-top: 8px;
     padding-bottom: 8px;
+    padding-inline: 8px;
   }
 
   &__card {
@@ -109,18 +99,17 @@
 
   &__add-card {
     border: 1px dashed var(--pf-color-border);
-    background-color: var(--pf-color-background-secondary);
+    background-color: transparent;
+    box-shadow: none;
     cursor: pointer;
-    padding: 8px;
-    color: var(--pf-color-text-secondary);
-    font-family: var(--pf-font);
-    font-size: 0.9em;
-    font-weight: bold;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    flex-shrink: 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
 
     &:hover {
-      background: color_hover(var(--pf-color-background-secondary));
+      background: color_hover(transparent);
     }
   }
 
@@ -141,13 +130,9 @@
     font-size: 0.85em;
   }
 
-  &__help {
-    display: inline-flex;
-    align-items: center;
-    line-height: 1;
-    color: var(--pf-color-text-secondary);
+  &__help-icon {
+    color: var(--pf-color-text-muted);
     cursor: help;
-    font-size: 1.1em;
   }
 
   // pf-stack defaults to baseline, which drops the help icon low.
@@ -196,21 +181,10 @@
     border-top: 1px solid var(--pf-color-border);
     padding-top: 8px;
     margin-top: 0px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
 
   &__footer-error {
-    flex: 0 0 auto;
-    font-family: var(--pf-font);
-    word-wrap: break-word;
-    white-space: normal;
     max-width: 450px;
-  }
-
-  &__footer-spacer {
-    flex: 1;
   }
 }
 

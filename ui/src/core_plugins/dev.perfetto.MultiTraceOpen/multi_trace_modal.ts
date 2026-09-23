@@ -19,14 +19,14 @@ import {download} from '../../base/download_utils';
 import {tarFileListToBlob} from '../../core/trace_stream';
 import {Anchor} from '../../widgets/anchor';
 import {Button, ButtonVariant} from '../../widgets/button';
-import {CardStack} from '../../widgets/card';
+import {Card, CardStack} from '../../widgets/card';
 import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
 import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Spinner} from '../../widgets/spinner';
-import {Stack} from '../../widgets/stack';
+import {HStack, Stack, StackAuto} from '../../widgets/stack';
 import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tooltip} from '../../widgets/tooltip';
@@ -39,25 +39,41 @@ import {WasmTraceAnalyzer} from './trace_analyzer';
 
 const MODAL_KEY = 'multi-trace-modal';
 
-function renderHelp(text: string) {
-  return m(
-    Tooltip,
-    {
-      trigger: m(Icon, {
-        className: 'pf-multi-trace-modal__help',
-        icon: 'help_outline',
-      }),
-    },
-    text,
-  );
-}
+const Help: m.Component = {
+  view({children}) {
+    return m(
+      Tooltip,
+      {
+        trigger: m(Icon, {
+          className: 'pf-multi-trace-modal__help-icon',
+          icon: 'help_outline',
+        }),
+      },
+      children,
+    );
+  },
+};
+
+const Footer: m.Component = {
+  view({children}) {
+    return m(HStack, {className: 'pf-multi-trace-modal__footer'}, children);
+  },
+};
+
+const ProcessingCallout: m.Component = {
+  view({children}) {
+    return m(Callout, {intent: Intent.None}, [
+      m(HStack, {spacing: 'small'}, m(Spinner), children),
+    ]);
+  },
+};
 
 // =============================================================================
 // Shell Component
 // =============================================================================
 
 interface MultiTraceModalAttrs {
-  initialFiles: ReadonlyArray<File>;
+  readonly initialFiles: readonly File[];
 }
 
 class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
@@ -71,30 +87,92 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
   }
 
   view() {
-    return m(
-      Stack,
-      {className: 'pf-multi-trace-modal', orientation: 'vertical'},
-      this.renderDescription(),
+    return m(Stack, {className: 'pf-multi-trace-modal'}, [
+      m(Tabs, {
+        variant: 'underline',
+        activeTabKey: this.currentTab,
+        onTabChange: (key: string) => {
+          this.currentTab = key;
+        },
+        tabs: [
+          {
+            key: 'merge',
+            title: 'At the same time',
+            content: this.renderMergeMode(),
+          },
+          {
+            key: 'comparison',
+            title: 'Trace Comparison',
+            content: this.renderComparisonMode(),
+          },
+        ],
+      }),
+    ]);
+  }
+
+  private renderMergeMode() {
+    return m(Stack, [
       m(
-        Stack,
-        {className: 'pf-multi-trace-modal__footer', orientation: 'horizontal'},
-        this.renderActions(),
+        '.pf-multi-trace-modal__description-content',
+        m(TextParagraph, {
+          text:
+            'Combine traces that were captured at the same time ' +
+            '(on one device or across several) onto a single shared ' +
+            'timeline. Each file is placed automatically where its ' +
+            'clocks line up; where they cannot, you can tell ' +
+            'Perfetto how, per file.',
+        }),
       ),
-    );
+      m(MergeConfigurator, {controller: this.controller}),
+      m('.pf-multi-trace-modal__status-panel', this.renderMergeStatusPanel()),
+      m(Footer, this.renderMergeActions()),
+    ]);
   }
 
-  // A single, always-present status line for the whole merge: processing, a
-  // blocking error, the latest (auto-run) alignment verdict, or all-clear.
-  // Lives outside the scrollable list, with reserved height, so it is always
-  // visible and the layout doesn't jump as the state changes.
-  private renderStatus() {
-    return m('.pf-multi-trace-modal__status-panel', this.statusContent());
+  private renderComparisonMode() {
+    return [
+      m('.pf-multi-trace-modal__description-content', [
+        m(TextParagraph, {
+          text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
+        }),
+      ]),
+      m(Footer, [
+        m(
+          Callout,
+          {
+            className: 'pf-multi-trace-modal__footer-error',
+            intent: Intent.Danger,
+            icon: 'error_outline',
+          },
+          [
+            'This feature is not yet supported. Please +1 ',
+            m(
+              Anchor,
+              {
+                href: 'https://github.com/google/perfetto/issues/2780',
+                target: '_blank',
+              },
+              'this GitHub issue',
+            ),
+            ' to prioritize development, or select "At the same time" to ' +
+              'continue.',
+          ],
+        ),
+        m(StackAuto),
+        m(Button, {
+          label: 'Open Traces',
+          intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
+          disabled: true,
+        }),
+      ]),
+    ];
   }
 
-  private statusContent() {
+  private renderMergeStatusPanel() {
     const controller = this.controller;
     if (controller.isAnalyzing()) {
-      return this.processingCallout('Analyzing traces...');
+      return m(ProcessingCallout, 'Analyzing traces...');
     }
     switch (controller.getLoadingError()) {
       case 'NO_TRACES':
@@ -125,17 +203,9 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     if (verdict !== undefined) {
       return this.renderVerdict(verdict);
     }
-    return this.processingCallout(
+    return m(ProcessingCallout, [
       'Checking if the traces line up on the timeline...',
-    );
-  }
-
-  private processingCallout(text: string) {
-    return m(
-      Callout,
-      {intent: Intent.None},
-      m(Stack, {orientation: 'horizontal', spacing: 'small'}, m(Spinner), text),
-    );
+    ]);
   }
 
   private renderVerdict(verdict: AlignmentVerdict) {
@@ -147,107 +217,20 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       );
     }
     if (!verdict.ok) {
-      return m(
-        Callout,
-        {intent: Intent.Warning, icon: 'warning'},
+      return m(Callout, {intent: Intent.Warning, icon: 'warning'}, [
         `${verdict.droppedEvents.toLocaleString()} events would be dropped: ` +
           'they cannot be placed on the shared timeline, either because ' +
           'their trace shares no clock with it or because an offset moves ' +
           'them before its start. Adjust the alignment, or check the ' +
           'manifest.',
-      );
+      ]);
     }
-    return m(
-      Callout,
-      {intent: Intent.Success, icon: 'check_circle'},
+    return m(Callout, {intent: Intent.Success, icon: 'check_circle'}, [
       'All traces line up on the shared timeline.',
-    );
+    ]);
   }
 
-  private renderDescription() {
-    return m(
-      Stack,
-      {
-        className: 'pf-multi-trace-modal__description-panel',
-        orientation: 'vertical',
-      },
-      m(Tabs, {
-        className: 'pf-multi-trace-modal__tabs',
-        variant: 'underline',
-        activeTabKey: this.currentTab,
-        onTabChange: (key: string) => {
-          this.currentTab = key;
-          redrawModal();
-        },
-        tabs: [
-          {
-            key: 'merge',
-            title: 'At the same time',
-            content: [
-              m(
-                '.pf-multi-trace-modal__description-content',
-                m(TextParagraph, {
-                  text:
-                    'Combine traces that were captured at the same time ' +
-                    '(on one device or across several) onto a single shared ' +
-                    'timeline. Each file is placed automatically where its ' +
-                    'clocks line up; where they cannot, you can tell ' +
-                    'Perfetto how, per file.',
-                }),
-              ),
-              m(MergeConfigurator, {controller: this.controller}),
-              this.renderStatus(),
-            ],
-          },
-          {
-            key: 'comparison',
-            title: 'Trace Comparison',
-            content: m(
-              '.pf-multi-trace-modal__description-content',
-              m(TextParagraph, {
-                text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
-              }),
-            ),
-          },
-        ],
-      }),
-    );
-  }
-
-  private renderActions() {
-    if (this.currentTab === 'comparison') {
-      return [
-        m(
-          Callout,
-          {
-            className: 'pf-multi-trace-modal__footer-error',
-            intent: Intent.Danger,
-            icon: 'error_outline',
-          },
-          [
-            'This feature is not yet supported. Please +1 ',
-            m(
-              Anchor,
-              {
-                href: 'https://github.com/google/perfetto/issues/2780',
-                target: '_blank',
-              },
-              'this GitHub issue',
-            ),
-            ' to prioritize development, or select "At the same time" to ' +
-              'continue.',
-          ],
-        ),
-        m('.pf-multi-trace-modal__footer-spacer'),
-        m(Button, {
-          label: 'Open Traces',
-          intent: Intent.Primary,
-          variant: ButtonVariant.Filled,
-          disabled: true,
-        }),
-      ];
-    }
-
+  private renderMergeActions() {
     const disabled = this.controller.getLoadingError() !== undefined;
     // A config error (e.g. an offset sharing a machine with the baseline) is not
     // openable, but the manifest is still copyable/downloadable for debugging.
@@ -256,7 +239,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     // Alignment runs automatically (debounced) and its result shows in the
     // status callout above; the footer is just the output actions.
     return [
-      m('.pf-multi-trace-modal__footer-spacer'),
+      m(StackAuto),
       m(Button, {
         label: 'Copy manifest',
         icon: 'content_copy',
@@ -311,7 +294,7 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
 // =============================================================================
 
 interface MergeConfiguratorAttrs {
-  controller: MultiTraceController;
+  readonly controller: MultiTraceController;
 }
 
 class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
@@ -323,18 +306,22 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     const {controller} = attrs;
     return m(
       Stack,
-      {className: 'pf-multi-trace-modal__list-panel', orientation: 'vertical'},
-      this.renderReference(controller),
-      controller.traces.map((trace) => this.renderTraceItem(trace, controller)),
-      m(
-        CardStack,
-        {
-          className: 'pf-multi-trace-modal__add-card',
-          onclick: () => addTraces(controller),
-        },
-        m(Icon, {icon: 'add'}),
-        'Add more traces',
-      ),
+      {className: 'pf-multi-trace-modal__list-panel', spacing: 'large'},
+      [
+        this.renderReference(controller),
+        controller.traces.map((trace) =>
+          this.renderTraceItem(trace, controller),
+        ),
+        m(
+          Card,
+          {
+            className: 'pf-multi-trace-modal__add-card',
+            onclick: () => addTraces(controller),
+          },
+          m(Icon, {icon: 'add'}),
+          'Add more traces',
+        ),
+      ],
     );
   }
 
@@ -402,15 +389,14 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
 
   private renderReferenceRow(control: m.Children, help: string) {
     return m(
-      Stack,
+      HStack,
       {
         className: 'pf-multi-trace-modal__reference-row',
-        orientation: 'horizontal',
         spacing: 'small',
       },
       m('strong', 'Align to:'),
       control,
-      renderHelp(help),
+      m(Help, help),
     );
   }
 
@@ -423,8 +409,8 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         key: trace.uuid,
       },
       m(
-        Stack,
-        {orientation: 'horizontal', className: 'pf-multi-trace-modal__row-top'},
+        HStack,
+        {className: 'pf-multi-trace-modal__row-top'},
         this.renderTraceInfo(trace),
         this.renderCardActions(trace, controller),
       ),
@@ -438,33 +424,24 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       {
         className: 'pf-multi-trace-modal__info',
         spacing: 'large',
-        orientation: 'vertical',
       },
       m('.pf-multi-trace-modal__name', trace.file.name),
-      m(
-        Stack,
-        {orientation: 'horizontal', spacing: 'large'},
-        m(
-          Stack,
-          {
-            className: 'pf-multi-trace-modal__size',
-            orientation: 'horizontal',
-          },
+      m(HStack, {spacing: 'large'}, [
+        m(HStack, {className: 'pf-multi-trace-modal__size'}, [
           m('strong', 'Size:'),
           m('span', `${(trace.file.size / (1024 * 1024)).toFixed(1)} MB`),
-        ),
+        ]),
         trace.status === 'analyzed'
           ? m(
-              Stack,
+              HStack,
               {
                 className: 'pf-multi-trace-modal__format',
-                orientation: 'horizontal',
               },
               m('strong', 'Format:'),
               m('span', trace.analysis.format),
             )
           : this.renderTraceStatus(trace),
-      ),
+      ]),
     );
   }
 
@@ -522,7 +499,6 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       Stack,
       {
         className: 'pf-multi-trace-modal__config',
-        orientation: 'vertical',
         spacing: 'small',
       },
       children,
@@ -564,7 +540,8 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
       }
     };
 
-    const help = renderHelp(
+    const help = m(
+      Help,
       'A machine is one device or host: a phone, a server, a VM. Keep ' +
         '"Default" to merge this trace onto the shared timeline, or assign ' +
         "it to its own machine so the merged trace keeps each device's CPUs, " +
@@ -577,10 +554,9 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     // permanent box morphing next to the picker.
     if (selectedId !== undefined && this.editingMachine === trace.uuid) {
       return m(
-        Stack,
+        HStack,
         {
           className: 'pf-multi-trace-modal__control-row',
-          orientation: 'horizontal',
           spacing: 'small',
         },
         m('strong', 'Machine:'),
@@ -612,10 +588,9 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     }
 
     return m(
-      Stack,
+      HStack,
       {
         className: 'pf-multi-trace-modal__control-row',
-        orientation: 'horizontal',
         spacing: 'small',
       },
       m('strong', 'Machine:'),
@@ -643,25 +618,20 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     controller: MultiTraceController,
   ) {
     const machines = controller.getConfig(trace.uuid).machines ?? [];
-    return m(
-      Stack,
-      {orientation: 'vertical', spacing: 'small'},
-      m(
-        Stack,
-        {orientation: 'horizontal', spacing: 'small'},
+    return m(Stack, {spacing: 'small'}, [
+      m(HStack, {spacing: 'small'}, [
         m('strong', `Machines (${machines.length}):`),
-        renderHelp(
+        m(
+          Help,
           'A machine is one device or host (a phone, a server, a VM). This ' +
             'trace was itself recorded across several of them, each tagged ' +
             'with only a numeric id. Give every id a readable name to label ' +
             'it in the merged trace. The names take effect only once all ids ' +
             'are named.',
         ),
-      ),
+      ]),
       machines.map((mm) =>
-        m(
-          Stack,
-          {orientation: 'horizontal', spacing: 'small', key: mm.id},
+        m(HStack, {spacing: 'small', key: mm.id}, [
           m('span', `id ${mm.id} →`),
           m(TextInput, {
             placeholder: 'machine name',
@@ -673,9 +643,9 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
               controller.updateConfig(trace.uuid, {machines: next});
             },
           }),
-        ),
+        ]),
       ),
-    );
+    ]);
   }
 
   // One sentence on a single line: "Align: [automatically] " or
@@ -686,33 +656,33 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
   ) {
     const config = controller.getConfig(trace.uuid);
     return m(
-      Stack,
+      HStack,
       {
         className: 'pf-multi-trace-modal__align-row',
-        orientation: 'horizontal',
         spacing: 'small',
       },
-      m('strong', 'Align:'),
-      this.renderDropdown(
-        config.alignMode,
-        [
-          {value: 'auto', label: 'automatically'},
-          {value: 'manual', label: 'by a fixed offset'},
-        ],
-        (value) =>
-          controller.updateConfig(trace.uuid, {
-            alignMode: value === 'manual' ? 'manual' : 'auto',
-          }),
-      ),
-      ...(config.alignMode === 'manual'
-        ? this.manualFieldChildren(trace, controller)
-        : []),
-      renderHelp(
-        'Where this trace sits on the shared timeline. Automatically lines ' +
-          'it up using its own clocks. By a fixed offset moves it by a set ' +
-          'number of nanoseconds relative to the baseline trace; a positive ' +
-          'value moves it later.',
-      ),
+      [
+        m('strong', 'Align:'),
+        this.renderDropdown(
+          config.alignMode,
+          [
+            {value: 'auto', label: 'automatically'},
+            {value: 'manual', label: 'by a fixed offset'},
+          ],
+          (value) =>
+            controller.updateConfig(trace.uuid, {
+              alignMode: value === 'manual' ? 'manual' : 'auto',
+            }),
+        ),
+        config.alignMode === 'manual' &&
+          this.manualFieldChildren(trace, controller),
+        m(Help, [
+          'Where this trace sits on the shared timeline. Automatically lines ' +
+            'it up using its own clocks. By a fixed offset moves it by a set ' +
+            'number of nanoseconds relative to the baseline trace; a positive ' +
+            'value moves it later.',
+        ]),
+      ],
     );
   }
 
@@ -765,9 +735,8 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         ? ` (${(trace.progress * 100).toFixed(0)}%)`
         : '';
     return m(
-      Stack,
+      HStack,
       {
-        orientation: 'horizontal',
         className: 'pf-multi-trace-modal__status-wrapper',
         spacing: 'small',
       },

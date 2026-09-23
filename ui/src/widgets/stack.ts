@@ -76,3 +76,9 @@ export class StackFixed implements m.ClassComponent<HTMLAttrs> {
     return m('.pf-stack-fixed', attrs, children);
   }
 }
+
+export const HStack: m.Component<Omit<StackAttrs, 'orientation'>> = {
+  view({attrs, children}: m.CVnode<Omit<StackAttrs, 'orientation'>>) {
+    return m(Stack, {...attrs, orientation: 'horizontal'}, children);
+  },
+};
