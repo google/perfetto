@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Button} from '../../widgets/button';
+import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {QueryHistoryComponent} from '../query/query_history';
@@ -59,7 +60,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       key: tab.id,
       title: tab.title,
       // Spinner on in-flight tabs so switching away doesn't hide the run.
-      leftIcon: tab.isLoading ? 'progress_activity' : 'code',
+      leftIcon: tab.isLoading ? m(Spinner) : 'code',
       closeButton: this.tabsState.tabs.length > 1,
       content: m(EditorTabView, {
         tab,
