@@ -15,14 +15,16 @@
 import {test, expect} from '@playwright/test';
 
 /**
- * DO NOT SUBMIT. Scratch test that always fails, used to exercise the
- * "Comment PR with UI test report link" step in .github/workflows/ui-tests.yml.
+ * DO NOT SUBMIT. Scratch test used to exercise the "Comment PR with UI test
+ * report link" step in .github/workflows/ui-tests.yml.
  *
- * It fails via an assertion rather than a crash, so that Playwright still
- * writes out its HTML report (which is the artifact the comment links to).
- * It does not load a trace or the Perfetto UI, so it is fast even with the
- * two retries that CI applies.
+ * This now passes, to confirm that a green Playwright run adds no test entry
+ * to the PR comment.
+ *
+ * NOTE: this file must not simply be deleted to end the experiment. If the
+ * diff contains only .github/ paths, analyze.yml sets TRIVIAL_CHANGE=1 and
+ * skips the ui job altogether, so no comment would be posted at all.
  */
-test('deliberate failure to exercise the CI report link', async () => {
-  expect(1).toBe(2);
+test('scratch test for the CI report link', async () => {
+  expect(1).toBe(1);
 });
