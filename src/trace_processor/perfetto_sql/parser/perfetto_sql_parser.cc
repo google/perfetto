@@ -364,7 +364,7 @@ base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
   if (!catalog) {
     return base::ErrStatus(
         "%sPipelines are not enabled; set `PERFETTO PRAGMA pipelines = 1`",
-                           NodeSource(rb, pipeline_id).AsTraceback(0).c_str());
+        NodeSource(rb, pipeline_id).AsTraceback(0).c_str());
   }
   return pipeline::Compile(
       p, pipeline_id, [&rb](uint32_t node) { return NodeSource(rb, node); },

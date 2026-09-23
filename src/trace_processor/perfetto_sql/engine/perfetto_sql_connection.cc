@@ -680,7 +680,14 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
   // In stop-after-statement mode, an engaged |current| means the frame's
   // single statement already executed (it pushed child frames and we are
   // resuming after they completed): skip straight to frame completion.
-  while (!(stop_after_statement && current) && parser->Next()) {
+  const bool builtin = execution_stack_[frame_idx].aux &&
+                       execution_stack_[frame_idx].aux->builtin;
+  while (!(stop_after_statement && current)) {
+    // A pragma may change the setting in this frame or in an included module.
+    parser->SetPipelinesAllowed(builtin || pipelines_enabled_);
+    if (!parser->Next()) {
+      break;
+    }
     const auto& stmt = parser->statement();
 
     // Vanilla SQLite is inlined; PerfettoSQL extensions detour through
@@ -1330,6 +1337,7 @@ void PerfettoSqlConnection::PushIncludeFrame(
     bool builtin) {
   auto aux = std::make_unique<ExecutionFrameAux>();
   aux->include_key = key;
+  aux->builtin = builtin;
   aux->traceback_sql = std::move(traceback_sql);
   aux->include_claim = std::move(claim);
   auto inc_parser = AcquireParser(builtin || pipelines_enabled_);

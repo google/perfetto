@@ -390,6 +390,7 @@ class PerfettoSqlConnection {
   // ReleasePoisoned on error so subsequent attempts short-circuit.
   struct ExecutionFrameAux {
     std::string include_key;
+    bool builtin = false;
     std::optional<SqlSource> traceback_sql;
     PerfettoSqlDatabase::IncludeClaim include_claim;
 
