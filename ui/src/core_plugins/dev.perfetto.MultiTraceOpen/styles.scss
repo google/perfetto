@@ -17,6 +17,10 @@
 $padding-inline: 4px;
 
 .pf-multi-trace-modal {
+  .pf-text-paragraph {
+    margin-block: 8px;
+  }
+
   &__description {
     border-bottom: 1px solid var(--pf-color-border);
     padding: 0 $padding-inline;

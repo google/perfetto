@@ -24,7 +24,7 @@ import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
 import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
+import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {Inline, Stack, StackAuto} from '../../widgets/stack';
 import {Tabs} from '../../widgets/tabs';
@@ -316,48 +316,29 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     );
   }
 
-  // Themed dropdown, in place of a native <select>.
-  private renderDropdown(
-    value: string,
-    options: ReadonlyArray<{value: string; label: string}>,
-    onSelect: (value: string) => void,
-  ) {
-    const current = options.find((o) => o.value === value);
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          label: current?.label ?? value,
-          rightIcon: 'arrow_drop_down',
-        }),
-      },
-      options.map((o) =>
-        m(MenuItem, {
-          label: o.label,
-          rightIcon: o.value === value ? 'check' : undefined,
-          onclick: () => onSelect(o.value),
-        }),
-      ),
-    );
-  }
-
   // The single reference everything aligns to: a clock when there are multiple
   // real clocks to choose between, otherwise the baseline trace (clockless
   // sets). Hidden when there is no meaningful choice.
   private renderReference(controller: MultiTraceController) {
     const clocks = controller.availableTraceTimeOptions();
     if (clocks.length > 0) {
+      const clock = controller.traceTime.clock ?? 'auto';
       return this.renderReferenceRow(
-        this.renderDropdown(
-          controller.traceTime.clock ?? 'auto',
+        m(
+          Select,
+          {
+            value: clock,
+            onchange: (e: Event) => {
+              const value = (e.target as HTMLSelectElement).value;
+              controller.setTraceTimeClock(
+                value === 'auto' ? undefined : (value as ClockName),
+              );
+            },
+          },
           [
-            {value: 'auto', label: 'Automatic (recommended)'},
-            ...clocks.map((c) => ({value: c, label: c})),
+            m('option', {value: 'auto'}, 'Automatic (recommended)'),
+            ...clocks.map((c) => m('option', {value: c}, c)),
           ],
-          (value) =>
-            controller.setTraceTimeClock(
-              value === 'auto' ? undefined : (value as ClockName),
-            ),
         ),
         'The clock the merged traces share. Automatic lets Perfetto choose; ' +
           'picking one projects every trace onto that clock.',
@@ -366,10 +347,18 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     const reference = controller.referenceTraceUuid();
     if (reference !== undefined) {
       return this.renderReferenceRow(
-        this.renderDropdown(
-          reference,
-          controller.traces.map((t) => ({value: t.uuid, label: t.file.name})),
-          (uuid) => controller.setAnchor(uuid),
+        m(
+          Select,
+          {
+            value: reference,
+            onchange: (e: Event) => {
+              const uuid = (e.target as HTMLSelectElement).value;
+              controller.setAnchor(uuid);
+            },
+          },
+          controller.traces.map((t) =>
+            m('option', {value: t.uuid}, t.file.name),
+          ),
         ),
         'The baseline trace, kept at its own timestamps. Every other trace is ' +
           'positioned relative to it.',
@@ -573,10 +562,15 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         spacing: 'small',
       },
       m('strong', 'Machine:'),
-      this.renderDropdown(
-        selectedId !== undefined ? `m:${selectedId}` : 'default',
-        options,
-        onSelect,
+      m(
+        Select,
+        {
+          value: selectedId !== undefined ? `m:${selectedId}` : 'default',
+          onchange: (e: Event) => {
+            onSelect((e.target as HTMLSelectElement).value);
+          },
+        },
+        options.map((o) => m('option', {value: o.value}, o.label)),
       ),
       // Rename the selected machine (a real machine, not the default).
       selectedId !== undefined &&
@@ -636,16 +630,21 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     const config = controller.getConfig(trace.uuid);
     return m(Inline, {spacing: 'small', wrap: true}, [
       m('strong', 'Align:'),
-      this.renderDropdown(
-        config.alignMode,
+      m(
+        Select,
+        {
+          value: config.alignMode,
+          onchange: (e: Event) => {
+            const value = (e.target as HTMLSelectElement).value;
+            controller.updateConfig(trace.uuid, {
+              alignMode: value === 'manual' ? 'manual' : 'auto',
+            });
+          },
+        },
         [
-          {value: 'auto', label: 'automatically'},
-          {value: 'manual', label: 'by a fixed offset'},
+          m('option', {value: 'auto'}, 'automatically'),
+          m('option', {value: 'manual'}, 'by a fixed offset'),
         ],
-        (value) =>
-          controller.updateConfig(trace.uuid, {
-            alignMode: value === 'manual' ? 'manual' : 'auto',
-          }),
       ),
       config.alignMode === 'manual' &&
         this.manualFieldChildren(trace, controller),
