@@ -58,6 +58,18 @@ Web UI. See the [UI Development](/docs/contributing/ui-getting-started.md) secti
 be built using a system Rust toolchain (1.85+) via Cargo without this
 flag.
 
+If you have more than one Perfetto checkout on the same machine (e.g.
+separate clones or `git worktree`s), `install-build-deps` reuses deps which
+another checkout already installed instead of downloading them again. It
+finds them via `git worktree list` and via an index in
+`~/.cache/perfetto-build-deps` which only records where each dep is installed:
+it does not hold any deps itself, so deleting a checkout gives back its disk
+space. Reused deps are cloned copy-on-write where the filesystem supports it
+(APFS, btrfs, XFS) and hardlinked otherwise (e.g. ext4). Files in reused deps
+are read-only, so a stray write fails rather than changing other checkouts.
+Pass `--share=copy` to always make full copies, or `--share=off` to always
+download.
+
 WARNING: Note that if you're using an M1 or any later ARM Mac, your Python
 version should be at least 3.9.1 to work around
 [this Python Bug](https://bugs.python.org/issue42704).

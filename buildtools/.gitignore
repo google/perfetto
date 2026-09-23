@@ -54,3 +54,4 @@
 /zlib/
 /zstd/
 buildtools_hash_revision_for_cache_on_ci.txt
+/.install-build-deps/

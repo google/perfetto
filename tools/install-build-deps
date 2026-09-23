@@ -15,6 +15,7 @@
 
 import argparse
 import dataclasses as dc
+import errno
 import hashlib
 import logging
 import os
@@ -626,6 +627,25 @@ RUSTUP_INIT_FILE = os.path.join(RUSTUP_HOME, 'rustup-init.sh')
 CARGO_HOME = os.path.join(ROOT_DIR, '.cargo')
 RUSTUP_FILE = os.path.join(CARGO_HOME, 'bin/rustup')
 
+# Holds the lock serializing installs in this checkout and the staging dirs
+# deps are assembled in before being atomically moved into place.
+INSTALL_STATE_DIR = os.path.join(ROOT_DIR, 'buildtools', '.install-build-deps')
+
+# Build deps are shared between Perfetto checkouts (clones and worktrees) on the
+# same machine. This index only records where each dep is installed, keyed by
+# its checksum: it never owns any files, so deleting a checkout gives back its
+# disk space. It is only about building Perfetto and is unrelated to the
+# prebuilts downloaded when running Perfetto tools
+# (~/.local/share/perfetto/prebuilts).
+SHARED_DEPS_INDEX_DIR = os.path.join(
+    os.environ.get('XDG_CACHE_HOME') or
+    os.path.join(os.path.expanduser('~'), '.cache'), 'perfetto-build-deps')
+
+# See https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/clonefile.2.html
+CLONE_NOFOLLOW = 0x0001
+# See linux/fs.h.
+FICLONE = 0x40049409
+
 
 def CheckCallRetry(*args, **kwargs):
   """ Like subprocess.check_call, with retries up to 5 times. """
@@ -661,17 +681,6 @@ def ReadFile(path):
     return None
   with open(path) as f:
     return f.read().strip()
-
-
-def MkdirRecursive(path):
-  # Works with both relative and absolute paths
-  cwd = '/' if path.startswith('/') else ROOT_DIR
-  for part in path.split('/'):
-    cwd = os.path.join(cwd, part)
-    if not os.path.exists(cwd):
-      os.makedirs(cwd)
-    else:
-      assert (os.path.isdir(cwd))
 
 
 def HashLocalFile(path):
@@ -739,24 +748,349 @@ def RmtreeIfExists(path):
     os.remove(path)
 
 
-def CheckoutGitRepo(path, git_url, revision, check_only):
-  if IsGitRepoCheckoutOutAtRevision(path, revision):
-    return False
-  if check_only:
-    return True
-  path = path.replace('/', os.sep)
-  RmtreeIfExists(path)
-  MkdirRecursive(path)
-  logging.info('Fetching %s @ %s into %s', git_url, revision, path)
-  subprocess.check_call(['git', 'init', path], cwd=path)
+def FetchGitRepo(path, git_url, revision):
+  os.makedirs(path)
+  logging.info('Fetching %s @ %s', git_url, revision)
+  subprocess.check_call(['git', 'init', '--quiet', path], cwd=path)
   CheckCallRetry(['git', 'fetch', '--quiet', '--depth', '1', git_url, revision],
                  cwd=path)
   subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
   CheckCallRetry(
       ['git', 'submodule', 'update', '--init', '--recursive', '--quiet'],
       cwd=path)
-  assert (IsGitRepoCheckoutOutAtRevision(path, revision))
+
+
+def IsGitDep(dep):
+  return dep.source_url.endswith('.git')
+
+
+def IsArchiveDep(dep):
+  return any(
+      dep.target_folder.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2'])
+
+
+def DepInstallPath(dep):
+  """Returns where |dep| lives once installed: archives are extracted into a
+  directory named after the archive, without its extension."""
+  path = os.path.join(ROOT_DIR, dep.target_folder.replace('/', os.sep))
+  return os.path.splitext(path)[0] if IsArchiveDep(dep) else path
+
+
+def IsDepInstalledAt(dep, path):
+  if IsGitDep(dep):
+    return IsGitRepoCheckoutOutAtRevision(path, dep.checksum)
+  if IsArchiveDep(dep):
+    return ReadFile(os.path.join(path, '.stamp')) == dep.checksum
+  return HashLocalFile(path) == dep.checksum
+
+
+def MakeReadOnly(path):
+  """Removes write permissions from all files under |path|, leaving directories
+  writable. Shared deps can be hardlinked between checkouts: this makes an
+  in-place write to them fail rather than silently changing other checkouts."""
+  if sys.platform == 'win32':
+    return
+
+  def make_file_read_only(file_path):
+    mode = os.lstat(file_path).st_mode
+    if stat.S_ISREG(mode) and mode & 0o222:
+      os.chmod(file_path, stat.S_IMODE(mode) & ~0o222)
+
+  if not os.path.isdir(path):
+    make_file_read_only(path)
+    return
+  for root, _, files in os.walk(path):
+    for f in files:
+      make_file_read_only(os.path.join(root, f))
+
+
+def CloneFile(src, dst):
+  """Makes a copy-on-write clone of |src| at |dst|. On macOS |src| can also be
+  a directory, which is cloned recursively. Raises OSError if the filesystem
+  does not support it."""
+  if sys.platform == 'darwin':
+    import ctypes
+    import ctypes.util
+    libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
+    if libc.clonefile(os.fsencode(src), os.fsencode(dst), CLONE_NOFOLLOW) != 0:
+      err = ctypes.get_errno()
+      raise OSError(err, os.strerror(err), src)
+    return
+  if sys.platform.startswith('linux'):
+    import fcntl
+    try:
+      with open(src, 'rb') as s, open(dst, 'wb') as d:
+        fcntl.ioctl(d.fileno(), FICLONE, s.fileno())
+    except OSError:
+      if os.path.exists(dst):
+        os.remove(dst)
+      raise
+    shutil.copymode(src, dst)
+    return
+  raise OSError(errno.ENOTSUP, 'Cloning is not supported', src)
+
+
+# Errors meaning that a way of sharing files is not possible between two paths
+# (e.g. different filesystems) as opposed to the copy itself failing.
+SHARING_UNSUPPORTED_ERRNOS = {
+    errno.EXDEV, errno.ENOTSUP, errno.EOPNOTSUPP, errno.EINVAL, errno.ENOTTY,
+    errno.ENOSYS, errno.EPERM, errno.EMLINK
+}
+
+
+class DepCopier:
+  """Copies deps between checkouts sharing as much disk as possible.
+
+  Each file is, in order of preference: cloned copy-on-write, hardlinked (only
+  if read-only, see MakeReadOnly()) or copied. Deleting either copy frees the
+  disk space not used by the other.
+  """
+
+  def __init__(self, mode):
+    self.clone = mode == 'auto'
+    self.link = mode in ('auto', 'hardlink')
+    self.used = set()
+
+  def CopyFile(self, src, dst):
+    if self.clone:
+      try:
+        CloneFile(src, dst)
+        self.used.add('cloned')
+        return
+      except OSError as e:
+        if e.errno not in SHARING_UNSUPPORTED_ERRNOS:
+          raise
+        self.clone = False
+    if self.link and not os.lstat(src).st_mode & 0o222:
+      try:
+        os.link(src, dst)
+        self.used.add('hardlinked')
+        return
+      except OSError as e:
+        if e.errno not in SHARING_UNSUPPORTED_ERRNOS:
+          raise
+        self.link = False
+    shutil.copy2(src, dst)
+    self.used.add('copied')
+
+  def CopyTree(self, src, dst):
+    if self.clone and sys.platform == 'darwin':
+      try:
+        CloneFile(src, dst)
+        self.used.add('cloned')
+        return
+      except OSError as e:
+        if e.errno not in SHARING_UNSUPPORTED_ERRNOS:
+          raise
+        self.clone = False
+        if os.path.lexists(dst):
+          shutil.rmtree(dst)
+    os.mkdir(dst)
+    shutil.copymode(src, dst)
+    for entry in os.scandir(src):
+      dst_path = os.path.join(dst, entry.name)
+      if entry.is_symlink():
+        os.symlink(os.readlink(entry.path), dst_path)
+      elif entry.is_dir():
+        self.CopyTree(entry.path, dst_path)
+      else:
+        self.CopyFile(entry.path, dst_path)
+
+
+def SharedDepIndexEntry(dep, path):
+  name = hashlib.sha256(path.encode()).hexdigest()[:16]
+  return os.path.join(SHARED_DEPS_INDEX_DIR, dep.checksum, name)
+
+
+def RegisterSharedDep(dep, path):
+  """Records that |dep| is installed at |path|, for other checkouts to share."""
+  entry = SharedDepIndexEntry(dep, path)
+  if ReadFile(entry) == path:
+    return
+  try:
+    os.makedirs(os.path.dirname(entry), exist_ok=True)
+    tmp_entry = '%s.%d.tmp' % (entry, os.getpid())
+    with open(tmp_entry, 'w') as f:
+      f.write(path)
+    os.replace(tmp_entry, entry)
+  except OSError as e:
+    logging.debug('Could not register %s in the shared deps index: %s', path, e)
+
+
+def OtherWorktrees():
+  """Returns the other worktrees of the git repo this checkout belongs to."""
+  try:
+    out = subprocess.check_output(['git', 'worktree', 'list', '--porcelain'],
+                                  cwd=ROOT_DIR,
+                                  stderr=subprocess.DEVNULL).decode()
+  except (OSError, subprocess.CalledProcessError):
+    return []
+  prefix = 'worktree '
+  paths = [l[len(prefix):] for l in out.splitlines() if l.startswith(prefix)]
+  root = os.path.realpath(ROOT_DIR)
+  return [p for p in paths if os.path.realpath(p) != root]
+
+
+def SharedDepSources(dep, install_path):
+  """Yields paths in other checkouts where |dep| is fully installed.
+
+  Candidates come from the shared deps index and from the other worktrees of
+  this repo (which may not have registered in the index yet). Index entries
+  which no longer point to an installed copy of |dep| are removed.
+  """
+  candidates = []
+  index_dir = os.path.join(SHARED_DEPS_INDEX_DIR, dep.checksum)
+  if os.path.isdir(index_dir):
+    for name in sorted(os.listdir(index_dir)):
+      if not name.endswith('.tmp'):
+        entry = os.path.join(index_dir, name)
+        candidates.append((ReadFile(entry), entry))
+  rel_path = os.path.relpath(install_path, ROOT_DIR)
+  for worktree in OtherWorktrees():
+    candidates.append((os.path.join(worktree, rel_path), None))
+
+  seen = {os.path.realpath(install_path)}
+  for path, entry in candidates:
+    real_path = os.path.realpath(path) if path else None
+    if real_path in seen:
+      continue
+    seen.add(real_path)
+    if path and IsDepInstalledAt(dep, path):
+      yield path
+    elif entry:
+      try:
+        os.remove(entry)
+      except OSError:
+        pass
+
+
+def RemovePath(path):
+  if os.path.isdir(path) and not os.path.islink(path):
+    shutil.rmtree(path)
+  elif os.path.lexists(path):
+    os.remove(path)
+
+
+def CopySharedDep(dep, install_path, staged_path, share_mode):
+  """Copies |dep| from another checkout into |staged_path|. Returns True on
+  success, False if no other checkout has it installed."""
+  for src in SharedDepSources(dep, install_path):
+    src_inode = os.stat(src).st_ino
+    copier = DepCopier(share_mode)
+    try:
+      if os.path.isdir(src):
+        copier.CopyTree(src, staged_path)
+      else:
+        copier.CopyFile(src, staged_path)
+    except OSError as e:
+      logging.warning('Failed to copy %s: %s', src, e)
+      RemovePath(staged_path)
+      continue
+    # The source may have been atomically replaced by a concurrent install in
+    # its own checkout while we were copying.
+    if (not os.path.exists(src) or os.stat(src).st_ino != src_inode or
+        not IsDepInstalledAt(dep, staged_path)):
+      RemovePath(staged_path)
+      continue
+    logging.info('Reused %s from %s (%s)', dep.target_folder, src,
+                 ', '.join(sorted(copier.used)) or 'empty')
+    return True
+  return False
+
+
+def FetchDep(dep, staged_path, staging_dir):
+  """Downloads |dep| from its source into |staged_path|. Returns True on
+  success."""
+  if IsGitDep(dep):
+    FetchGitRepo(staged_path, dep.source_url, dep.checksum)
+    return True
+
+  download_path = os.path.join(staging_dir, os.path.basename(dep.target_folder))
+  logging.info('Downloading %s from %s', dep.target_folder, dep.source_url)
+  DownloadURL(dep.source_url, download_path)
+  os.chmod(download_path, 0o755)
+  actual_checksum = HashLocalFile(download_path)
+  if actual_checksum != dep.checksum:
+    logging.fatal('SHA-256 mismatch for {} expected {} was {}'.format(
+        dep.source_url, dep.checksum, actual_checksum))
+    return False
+
+  if not IsArchiveDep(dep):
+    os.rename(download_path, staged_path)
+    return True
+
+  logging.info('Extracting %s', dep.target_folder)
+  os.makedirs(staged_path)
+  if download_path.endswith('.tgz'):
+    subprocess.check_call(['tar', '-oxf', download_path], cwd=staged_path)
+  elif download_path.endswith('.zip'):
+    with zipfile.ZipFile(download_path, 'r') as zf:
+      for info in zf.infolist():
+        ExtractZipfilePreservePermissions(zf, info, staged_path)
+  elif download_path.endswith('.tbz2'):
+    tar_path = '{}.tar.tmp'.format(download_path)
+    with open(tar_path, 'wb') as f:
+      with bz2.open(download_path, 'r') as bf:
+        f.write(bf.read())
+    subprocess.check_call(['tar', '-oxf', tar_path], cwd=staged_path)
+
+  # If the archive contains one root folder, rebase one level up moving all
+  # its sub files and folders inside |staged_path|.
+  subdir = os.listdir(staged_path)
+  if len(subdir) == 1:
+    subdir = os.path.join(staged_path, subdir[0])
+    if os.path.isdir(subdir):
+      for subf in os.listdir(subdir):
+        shutil.move(os.path.join(subdir, subf), staged_path)
+      os.rmdir(subdir)
+
+  with open(os.path.join(staged_path, '.stamp'), 'w') as stamp_file:
+    stamp_file.write(dep.checksum)
   return True
+
+
+def InstallDep(dep, share_mode):
+  """Installs |dep|, reusing it from another checkout if possible. Returns True
+  on success.
+
+  The dep is assembled in a staging dir and then moved into place, so other
+  checkouts copying from this one never see a partially installed dep.
+  """
+  install_path = DepInstallPath(dep)
+  staging_dir = tempfile.mkdtemp(dir=INSTALL_STATE_DIR)
+  try:
+    staged_path = os.path.join(staging_dir, 'dep')
+    if share_mode == 'off' or not CopySharedDep(dep, install_path, staged_path,
+                                                share_mode):
+      if not FetchDep(dep, staged_path, staging_dir):
+        return False
+    assert IsDepInstalledAt(dep, staged_path)
+    MakeReadOnly(staged_path)
+    os.makedirs(os.path.dirname(install_path), exist_ok=True)
+    if os.path.lexists(install_path):
+      os.rename(install_path, os.path.join(staging_dir, 'old'))
+    os.rename(staged_path, install_path)
+    return True
+  finally:
+    shutil.rmtree(staging_dir)
+
+
+def AcquireInstallLock():
+  """Serializes installs in this checkout, then clears staging dirs left by
+  interrupted installs. Returns the lock, held until it is closed."""
+  os.makedirs(INSTALL_STATE_DIR, exist_ok=True)
+  lock = open(os.path.join(INSTALL_STATE_DIR, 'lock'), 'w')
+  if sys.platform != 'win32':
+    import fcntl
+    try:
+      fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+      logging.info('Waiting for another install-build-deps in this checkout')
+      fcntl.flock(lock, fcntl.LOCK_EX)
+  for name in os.listdir(INSTALL_STATE_DIR):
+    if name != 'lock':
+      shutil.rmtree(os.path.join(INSTALL_STATE_DIR, name))
+  return lock
 
 
 def InstallNodeModules(force_clean=False):
@@ -982,6 +1316,14 @@ def Main():
       '--java-sdk',
       action='store_true',
       help='Maven jars used to build/test the perfetto Java SDK on host')
+  parser.add_argument(
+      '--share',
+      default='auto' if sys.platform != 'win32' else 'off',
+      choices=['auto', 'hardlink', 'copy', 'off'],
+      help='How to reuse deps already installed by other Perfetto checkouts ' +
+      'on this machine instead of downloading them. auto: copy-on-write ' +
+      'clones, falling back to hardlinks then copies. hardlink: hardlinks, ' +
+      'falling back to copies. copy: plain copies. off: always download')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -1022,6 +1364,9 @@ def Main():
   nodejs_updated = False
   rustup_updated = False
 
+  # Held until Main() returns.
+  install_lock = None if args.check_only else AcquireInstallLock()
+
   for old_dir in CLEANUP_OLD_DIRS:
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
 
@@ -1033,83 +1378,19 @@ def Main():
       continue
     if args.filter and not any(f in dep.target_folder for f in args.filter):
       continue
-    local_path = os.path.join(ROOT_DIR, dep.target_folder)
-    if dep.source_url.endswith('.git'):
-      deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
-                                      args.check_only)
-      continue
-    is_compressed = any(
-        [local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
-    compressed_target_dir = os.path.splitext(
-        local_path)[0] if is_compressed else None
-    compressed_dir_stamp = os.path.join(compressed_target_dir,
-                                        '.stamp') if is_compressed else None
-
-    if ((not is_compressed and HashLocalFile(local_path) == dep.checksum) or
-        (is_compressed and ReadFile(compressed_dir_stamp) == dep.checksum)):
-      continue
-    deps_updated = True
-    if args.check_only:
-      continue
-    MkdirRecursive(os.path.dirname(dep.target_folder))
-    if HashLocalFile(local_path) != dep.checksum:
-      download_path = local_path + '.tmp'
-      logging.info('Downloading %s from %s', local_path, dep.source_url)
-      DownloadURL(dep.source_url, download_path)
-      os.chmod(download_path, 0o755)
-      actual_checksum = HashLocalFile(download_path)
-      if (actual_checksum != dep.checksum):
-        os.remove(download_path)
-        logging.fatal('SHA-256 mismatch for {} expected {} was {}'.format(
-            download_path, dep.checksum, actual_checksum))
+    install_path = DepInstallPath(dep)
+    if not IsDepInstalledAt(dep, install_path):
+      deps_updated = True
+      if args.check_only:
+        continue
+      if not InstallDep(dep, args.share):
         return 1
-      shutil.move(download_path, local_path)
       if 'nodejs' in dep.target_folder:
         nodejs_updated = True
       if 'rustup' in dep.target_folder:
         rustup_updated = True
-
-    assert (HashLocalFile(local_path) == dep.checksum)
-
-    if is_compressed:
-      logging.info('Extracting %s into %s' %
-                   (local_path, compressed_target_dir))
-      assert (os.path.commonprefix(
-          (ROOT_DIR, compressed_target_dir)) == ROOT_DIR)
-      RmtreeIfExists(compressed_target_dir)
-
-      # Decompress the archive.
-      if local_path.endswith('.tgz'):
-        MkdirRecursive(compressed_target_dir)
-        subprocess.check_call(['tar', '-oxf', local_path],
-                              cwd=compressed_target_dir)
-      elif local_path.endswith('.zip'):
-        with zipfile.ZipFile(local_path, 'r') as zf:
-          for info in zf.infolist():
-            ExtractZipfilePreservePermissions(zf, info, compressed_target_dir)
-      elif local_path.endswith('.tbz2'):
-        tar_path = '{}.tar.tmp'.format(local_path)
-        with open(tar_path, 'w') as f:
-          with bz2.open(local_path, 'r') as bf:
-            f.write(bf.read())
-        MkdirRecursive(compressed_target_dir)
-        subprocess.check_call(['tar', '-oxf', tar_path],
-                              cwd=compressed_target_dir)
-
-      # If the zip contains one root folder, rebase one level up moving all
-      # its sub files and folders inside |target_dir|.
-      subdir = os.listdir(compressed_target_dir)
-      if len(subdir) == 1:
-        subdir = os.path.join(compressed_target_dir, subdir[0])
-        if os.path.isdir(subdir):
-          for subf in os.listdir(subdir):
-            shutil.move(os.path.join(subdir, subf), compressed_target_dir)
-          os.rmdir(subdir)
-
-      # Create stamp and remove the archive.
-      with open(compressed_dir_stamp, 'w') as stamp_file:
-        stamp_file.write(dep.checksum)
-      os.remove(local_path)
+    if not args.check_only and args.share != 'off':
+      RegisterSharedDep(dep, os.path.realpath(install_path))
 
   if args.ui:
     # Needs to happen after nodejs is installed above.
