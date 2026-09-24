@@ -26,7 +26,9 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/bits.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -58,6 +60,13 @@ namespace perfetto::tracing_v2 {
 
 // Chunks must hold several small fragments to amortize their header overhead.
 constexpr uint32_t kMinChunkSize = 256;
+
+// Maximum chunk size, including the chunk header.
+//
+// - The service copies each chunk, without its header, into one TBChunk.
+// - The header includes at least the 4-byte state word. Removing it leaves
+//   room within TBChunk's 64 KiB - 1 byte limit.
+constexpr uint32_t kMaxChunkSize = 64 * 1024;
 
 // Each chunk's atomic<uint32_t> requires four-byte alignment.
 constexpr uint32_t kChunkAlignmentBytes = 4;
@@ -155,35 +164,37 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
 
-// True if |chunk_size| is at least kMinChunkSize and a multiple of
+// True if |chunk_size| is in [kMinChunkSize, kMaxChunkSize] and a multiple of
 // kChunkAlignmentBytes.
 constexpr bool IsValidChunkSize(uint32_t chunk_size) {
-  return chunk_size >= kMinChunkSize && chunk_size % kChunkAlignmentBytes == 0;
+  return chunk_size >= kMinChunkSize && chunk_size <= kMaxChunkSize &&
+         chunk_size % kChunkAlignmentBytes == 0;
 }
 
 // Validates the layout of an untrusted ring buffer and returns its chunk
-// count. Returns nullopt, and does not crash, if |start| is null or
-// misaligned, or if |size| and |chunk_size| do not form a valid layout.
+// count, or an error describing why the layout is invalid.
 //
 // - Any thread can call it. It reads no shared bytes.
 // - The transport limits the mapping size separately.
-// - The SharedRingBuffer constructor CHECKs the same rules.
-inline std::optional<uint32_t> NumChunksForRingBufferLayout(
+// - The SharedRingBuffer constructor treats validation errors as fatal.
+inline base::StatusOr<uint32_t> NumChunksForRingBufferLayout(
     const void* start,
     size_t size,
     uint32_t chunk_size) {
   if (!start ||
       reinterpret_cast<uintptr_t>(start) % alignof(RingBufferHeader) != 0) {
-    return std::nullopt;
+    return base::ErrStatus("ring buffer start is null or misaligned");
   }
   if (!IsValidChunkSize(chunk_size))
-    return std::nullopt;
+    return base::ErrStatus("invalid chunk size %u", chunk_size);
   // Subtract the header after this check to avoid overflow on 32-bit builds.
   if (size < sizeof(RingBufferHeader))
-    return std::nullopt;
+    return base::ErrStatus("ring buffer size %zu is below the header", size);
   const size_t chunks_size = size - sizeof(RingBufferHeader);
-  if (chunks_size % chunk_size != 0)
-    return std::nullopt;
+  if (chunks_size % chunk_size != 0) {
+    return base::ErrStatus("ring buffer size %zu is not header + N * %u", size,
+                           chunk_size);
+  }
   const size_t count = chunks_size / chunk_size;
   // Two chunks form the minimum useful configuration. One chunk satisfies
   // the ABI: write_pos - read_pos is 0 when empty and 1 when full.
@@ -194,7 +205,7 @@ inline std::optional<uint32_t> NumChunksForRingBufferLayout(
   // subtraction.
   if (count < kMinChunksPerRing || count > kMaxChunksPerRing ||
       !base::IsPowerOfTwo(count)) {
-    return std::nullopt;
+    return base::ErrStatus("invalid chunk count %zu", count);
   }
   return static_cast<uint32_t>(count);
 }

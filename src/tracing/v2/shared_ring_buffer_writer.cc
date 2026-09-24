@@ -48,6 +48,19 @@ constexpr uint32_t kMaxFallbackSleepUs = 100000;
 //   with NotifyReader(kWriterStalled).
 constexpr uint32_t kMaxWaitMs = kMaxFallbackSleepUs / 1000;
 
+// Percentage of ring positions that must be outstanding before a publication
+// requests a drain. This includes positions reserved by writers whose chunks
+// are not yet published for the reader to copy.
+// TODO(sashwinbalaji): Expose this via TraceConfig.
+constexpr uint32_t kDrainThresholdPercent = 25;
+
+uint32_t ComputeDrainThresholdPositions(uint32_t num_chunks) {
+  const uint64_t threshold_positions =
+      uint64_t(num_chunks) * kDrainThresholdPercent / 100;
+  // For small rings, integer division can round the threshold down to zero.
+  return std::max(1u, static_cast<uint32_t>(threshold_positions));
+}
+
 }  // namespace
 
 SharedRingBufferWriter::Delegate::~Delegate() = default;
@@ -64,7 +77,9 @@ SharedRingBufferWriter::SharedRingBufferWriter(
       target_buffer_(target_buffer),
       buffer_exhausted_policy_(buffer_exhausted_policy),
       chunk_size_(ring->chunk_size()),
-      max_fragment_size_(MaxFragmentSizeForEmptyChunk(chunk_size_)) {
+      max_fragment_size_(MaxFragmentSizeForEmptyChunk(chunk_size_)),
+      drain_threshold_positions_(
+          ComputeDrainThresholdPositions(ring->num_chunks())) {
   PERFETTO_CHECK(delegate_);
   // The WriterID must remain assigned to this writer until the reader consumes
   // all positions reserved under it.
@@ -404,14 +419,14 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
           chunk_size_ - payload_end_ - size_directory_bytes_ <= 1) {
         ResetCurrentChunk();
       }
-      // Ask the reader to drain this publication.
-      //
-      // TODO(sashwinbalaji): Notify on ring buffer occupancy, not on each
-      // publication. For example, notify when half of the chunks are
-      // outstanding, and on flush and stall.
-      // - The cost today: a drain can reclaim the Complete chunk that this
-      //   writer caches. Its next fragment then needs a new chunk.
-      delegate_->NotifyReader(Delegate::NotifyReason::kPositionsReady);
+
+      // Batch drain requests until occupancy reaches the threshold:
+      // - This reduces task and IPC traffic when packets arrive separately.
+      // - It lets the writer reuse its cached Complete chunk for longer.
+      //   Once drained, that chunk must be replaced on the next fragment.
+      if (ring_->LoadNumOutstandingPositionsRelaxed() >=
+          drain_threshold_positions_)
+        delegate_->NotifyReader(Delegate::NotifyReason::kPositionsReady);
       return EndFragmentResult::kSuccess;
     }
 
