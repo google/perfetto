@@ -59,6 +59,10 @@ html {
   }
 }
 
+html {
+  overscroll-behavior: contain;
+}
+
 html,
 body,
 body > main {
@@ -66,8 +70,6 @@ body > main {
   width: 100%;
   padding: 0;
   margin: 0;
-  // Prevent overscroll gestures (e.g. back/forward navigation, pull-to-refresh)
-  overscroll-behavior: contain;
   overflow: hidden;
 }
 
