@@ -976,10 +976,12 @@ class SharedLibDataSourceTest : public testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_IPC) &&       \
     (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
      PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
-// Runs the C SDK against two backends:
+// Runs the C SDK against two backends. Both can give an instance a tracing
+// v2 writer:
 // - true: the system backend, with a traced service in this process. The
-//   producer connects over IPC, so an instance can get a tracing v2 writer.
-// - false: the in-process backend, which always uses v1 writers.
+//   producer connects over IPC.
+// - false: the in-process backend. The service shares the producer's ring
+//   buffer mapping.
 class SharedLibV2Test : public SharedLibDataSourceTest,
                         public testing::WithParamInterface<bool> {
  protected:
@@ -1060,9 +1062,7 @@ TEST_P(SharedLibV2Test, NestedPacketAndFlush) {
     wrote = true;
     PerfettoDsRootTracePacket packet;
     PerfettoDsTracerPacketBegin(&ctx, &packet);
-    EXPECT_EQ(packet.msg.msg.encoding,
-              GetParam() ? PERFETTO_PB_MSG_ENCODING_PROTO_GROUP
-                         : PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED);
+    EXPECT_EQ(packet.msg.msg.encoding, PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
     perfetto_protos_TestEvent event;
     perfetto_protos_TracePacket_begin_for_testing(&packet.msg, &event);
     perfetto_protos_TestEvent_TestPayload nested;
