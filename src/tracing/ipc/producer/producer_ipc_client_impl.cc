@@ -30,6 +30,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -343,16 +344,16 @@ void ProducerIPCClientImpl::OnServiceRequest(
       return;
     }
 
-    ipc_shared_memory =
-        PosixSharedMemory::AttachToFd(std::move(shmem_fd),
-                                      /*require_seals_if_supported=*/false);
+    ipc_shared_memory = PosixSharedMemory::AttachToFd(
+        std::move(shmem_fd),
+        /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
 #else
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     if (shmem_fd) {
       // TODO(primiano): handle mmap failure in case of OOM.
-      ipc_shared_memory =
-          PosixSharedMemory::AttachToFd(std::move(shmem_fd),
-                                        /*require_seals_if_supported=*/false);
+      ipc_shared_memory = PosixSharedMemory::AttachToFd(
+          std::move(shmem_fd),
+          /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
     }
 #endif
     if (use_shmem_emulation_) {
