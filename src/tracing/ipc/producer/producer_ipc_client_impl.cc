@@ -34,6 +34,8 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/ipc/memfd.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -157,6 +159,10 @@ void ProducerIPCClientImpl::Disconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!producer_port_)
     return;
+  // The port reset below runs pending callbacks. Clear these first, so that
+  // those callbacks do not use the port.
+  connected_ = false;
+  supports_tracing_v2_ = false;
   // Reset the producer port so that no further IPCs are received and IPC
   // callbacks are no longer executed. Also reset the IPC channel so that the
   // service is notified of the disconnection.
@@ -181,9 +187,15 @@ void ProducerIPCClientImpl::OnConnect() {
             resp.success(),
             resp.success() ? resp->using_shmem_provided_by_producer() : false,
             resp.success() ? resp->direct_smb_patching_supported() : false,
-            resp.success() ? resp->use_shmem_emulation() : false);
+            resp.success() ? resp->use_shmem_emulation() : false,
+            resp.success() ? resp->ring_buffer_abi_version() : 0);
       });
   protos::gen::InitializeConnectionRequest req;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (HasMemfdSupport())
+    req.set_ring_buffer_abi_version(tracing_v2::kRingBufferAbiVersion);
+#endif
   req.set_producer_name(name_);
   req.set_shared_memory_size_hint_bytes(
       static_cast<uint32_t>(shared_memory_size_hint_bytes_));
@@ -239,6 +251,7 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
+  supports_tracing_v2_ = false;
   data_sources_setup_.clear();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
@@ -248,16 +261,26 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
   // an IPC call, so the connection drop must take place over two phases.
 
   // First, synchronously drop the |producer_port_| so that no more IPC
-  // messages are handled.
+  // messages are handled. Until the task below runs, the other methods see a
+  // disconnected endpoint and do not use the port.
   producer_port_.reset();
+  connected_ = false;
+  supports_tracing_v2_ = false;
 
   // Then schedule an async task for performing the remainder of the
-  // disconnection operations outside the context of the IPC method handler.
+  // disconnection operations outside the context of the IPC method handler:
+  // close the channel and tell the producer.
+  //
+  // The task does not call Disconnect(). Disconnect() returns early once
+  // |producer_port_| is null, so the producer never got OnDisconnect() and
+  // stayed half connected. A null |ipc_channel_| means that a disconnect
+  // already ran.
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this]() {
-    if (weak_this) {
-      weak_this->Disconnect();
-    }
+    if (!weak_this || !weak_this->ipc_channel_)
+      return;
+    weak_this->ipc_channel_.reset();
+    weak_this->OnDisconnect();  // Note: may delete |this|.
   });
 }
 
@@ -265,12 +288,15 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
     bool connection_succeeded,
     bool using_shmem_provided_by_producer,
     bool direct_smb_patching_supported,
-    bool use_shmem_emulation) {
+    bool use_shmem_emulation,
+    uint32_t ring_buffer_abi_version) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // If connection_succeeded == false, the OnDisconnect() call will follow next
   // and there we'll notify the |producer_|. TODO: add a test for this.
   if (!connection_succeeded)
     return;
+  supports_tracing_v2_ =
+      ring_buffer_abi_version == tracing_v2::kRingBufferAbiVersion;
   is_shmem_provided_by_producer_ = using_shmem_provided_by_producer;
   direct_smb_patching_supported_ = direct_smb_patching_supported;
   // The tracing service may reject using shared memory and tell the client to
@@ -346,13 +372,20 @@ void ProducerIPCClientImpl::OnServiceRequest(
     ipc_shared_memory =
         PosixSharedMemory::AttachToFd(std::move(shmem_fd),
                                       /*require_seals_if_supported=*/false);
+    if (!ipc_shared_memory) {
+      ScheduleDisconnect();
+      return;
+    }
 #else
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     if (shmem_fd) {
-      // TODO(primiano): handle mmap failure in case of OOM.
       ipc_shared_memory =
           PosixSharedMemory::AttachToFd(std::move(shmem_fd),
                                         /*require_seals_if_supported=*/false);
+      if (!ipc_shared_memory) {
+        ScheduleDisconnect();
+        return;
+      }
     }
 #endif
     if (use_shmem_emulation_) {
@@ -524,6 +557,36 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
         });
   }
   producer_port_->CommitData(req, std::move(async_response));
+}
+
+void ProducerIPCClientImpl::ShareRingBuffer(
+    int fd,
+    uint32_t chunk_size_bytes,
+    std::function<void(bool)> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // ConnectionSupportsTracingV2() is false on platforms without memfd.
+  if (!ConnectionSupportsTracingV2() || !producer_port_ || fd < 0) {
+    callback(false);
+    return;
+  }
+  protos::gen::ShareRingBufferRequest req;
+  req.set_chunk_size_bytes(chunk_size_bytes);
+  ipc::Deferred<protos::gen::ShareRingBufferResponse> reply;
+  reply.Bind(
+      [callback = std::move(callback)](
+          ipc::AsyncResult<protos::gen::ShareRingBufferResponse> result) {
+        callback(result && result->accepted());
+      });
+  producer_port_->ShareRingBuffer(req, std::move(reply), fd);
+}
+
+void ProducerIPCClientImpl::DrainRingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!ConnectionSupportsTracingV2() || !producer_port_)
+    return;
+  producer_port_->DrainRingBuffer(
+      protos::gen::DrainRingBufferRequest(),
+      ipc::Deferred<protos::gen::DrainRingBufferResponse>());
 }
 
 void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {

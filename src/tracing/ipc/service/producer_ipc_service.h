@@ -70,6 +70,10 @@ class ProducerIPCService : public protos::gen::ProducerPort {
   void GetAsyncCommand(const protos::gen::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;
   void Sync(const protos::gen::SyncRequest&, DeferredSyncResponse) override;
+  void ShareRingBuffer(const protos::gen::ShareRingBufferRequest&,
+                       DeferredShareRingBufferResponse) override;
+  void DrainRingBuffer(const protos::gen::DrainRingBufferRequest&,
+                       DeferredDrainRingBufferResponse) override;
   void OnClientDisconnected() override;
 
  private:

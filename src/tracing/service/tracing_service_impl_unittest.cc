@@ -62,12 +62,14 @@
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
 #include "src/tracing/test/mock_producer.h"
 #include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/semantic_type.gen.h"
@@ -383,6 +385,84 @@ class TracingServiceImplTest : public testing::Test {
   base::TestTaskRunner task_runner;
   std::unique_ptr<TracingService> svc;
 };
+
+TEST_F(TracingServiceImplTest, RingBufferCapabilityIsOptIn) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto legacy =
+      svc->ConnectProducer(&producer, ClientIdentity(42, 1025), "legacy");
+  EXPECT_FALSE(legacy->ConnectionSupportsTracingV2());
+  auto capable = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "ring_buffer",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, /*supports_tracing_v2=*/true);
+  EXPECT_TRUE(capable->ConnectionSupportsTracingV2());
+}
+
+TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "ring_buffer",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, /*supports_tracing_v2=*/true);
+  auto attach = [&](size_t size) {
+    std::optional<bool> accepted;
+    endpoint->AttachRingBuffer(std::make_unique<InProcessSharedMemory>(size),
+                               /*chunk_size_bytes=*/256,
+                               [&](bool result) { accepted = result; });
+    // The endpoint replies inline.
+    EXPECT_TRUE(accepted.has_value());
+    return accepted.value_or(false);
+  };
+
+  // 4096 bytes minus the header is not a whole number of 256-byte chunks.
+  EXPECT_FALSE(attach(4096));
+  // The rejection kept nothing, so a valid layout is accepted.
+  EXPECT_TRUE(attach(sizeof(tracing_v2::RingBufferHeader) + 4 * 256));
+  // One ring buffer per producer.
+  EXPECT_FALSE(attach(sizeof(tracing_v2::RingBufferHeader) + 4 * 256));
+  task_runner.RunUntilIdle();
+}
+
+// The consumer cannot set supports_tracing_v2. The service overwrites the
+// field, also for a producer without tracing v2.
+TEST_F(TracingServiceImplTest, ServiceOverwritesSupportsTracingV2) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_supports_tracing_v2(true);
+
+  DataSourceConfig setup_config;
+  auto on_setup = task_runner.CreateCheckpoint("on_setup");
+  EXPECT_CALL(*producer, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID, const DataSourceConfig& cfg) {
+        setup_config = cfg;
+        on_setup();
+      });
+  EXPECT_CALL(*producer, StartDataSource(_, _));
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  task_runner.RunUntilCheckpoint("on_setup");
+
+  EXPECT_TRUE(setup_config.has_supports_tracing_v2());
+  EXPECT_FALSE(setup_config.supports_tracing_v2());
+
+  consumer->DisableTracing();
+  EXPECT_CALL(*producer, StopDataSource(_));
+  consumer->WaitForTracingDisabled();
+}
 
 TEST_F(TracingServiceImplTest, AtMostOneConfig) {
   std::unique_ptr<MockConsumer> consumer_a = CreateMockConsumer();
