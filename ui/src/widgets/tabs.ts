@@ -14,7 +14,6 @@
 
 import './tabs.scss';
 import m from 'mithril';
-import {classNames} from '../base/classnames';
 import {Gate, isEmptyVnodes} from '../base/mithril_utils';
 import {Button} from './button';
 import {Icons} from '../base/semantic_icons';
@@ -85,14 +84,6 @@ export interface TabsAttrs {
 export class Tabs implements m.ClassComponent<TabsAttrs> {
   // Current active tab key (for uncontrolled mode).
   private internalActiveTab?: string;
-  // Drag state for reordering.
-  private draggedKey?: string;
-  private dropTargetKey?: string;
-  private dropPosition?: 'before' | 'after';
-  // Rename state.
-  private renamingTabKey?: string;
-  private renameInputValue = '';
-  private renameCancelled = false;
   // Keys of the tabs that have been active at least once. Content of lazy
   // tabs is only rendered after their key lands here.
   private activatedKeys = new Set<string>();
@@ -126,143 +117,38 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       {className},
       m(
         TabStrip,
-        {variant},
-        tabs.map((tab, index) => {
-          const isDragTarget = this.dropTargetKey === tab.key;
-          const showDropBefore =
-            isDragTarget &&
-            this.dropPosition === 'before' &&
-            this.draggedKey !== tab.key;
-          const showDropAfter =
-            isDragTarget &&
-            this.dropPosition === 'after' &&
-            this.draggedKey !== tab.key;
-          // Also show drop-after on the previous tab if we're dropping before
-          const prevTab = maybeUndefined(tabs[index - 1]);
-          const showDropAfterFromNext =
-            prevTab &&
-            this.dropTargetKey === tabs[index]?.key &&
-            this.dropPosition === 'before' &&
-            this.draggedKey !== prevTab.key &&
-            this.draggedKey !== tab.key;
-
-          return m(
-            '.pf-tabs__tab-wrapper',
+        {
+          variant,
+          reorderable,
+          onReorder: (from: number, to: number) => {
+            const draggedKey = tabs[from].key;
+            // `to` is the dragged tab's final index, so the tab it ends up
+            // before is at `to` in the list with the dragged tab removed.
+            const rest = tabs.filter((_, i) => i !== from);
+            onTabReorder?.(draggedKey, maybeUndefined(rest[to])?.key);
+          },
+        },
+        tabs.map((tab) =>
+          m(
+            TabStrip.Tab,
             {
               key: tab.key,
-              className: classNames(
-                showDropBefore && 'pf-tabs__tab-wrapper--drop-before',
-                (showDropAfter || showDropAfterFromNext) &&
-                  'pf-tabs__tab-wrapper--drop-after',
-                this.draggedKey === tab.key && 'pf-tabs__tab-wrapper--dragging',
-              ),
-            },
-            m(
-              TabStrip.Tab,
-              {
-                active: tab.key === activeKey,
-                closeButton: tab.closeButton,
-                leftIcon: tab.leftIcon,
-                menuItems: tab.menuItems,
-                draggable: reorderable,
-                onpointerdown: () => {
-                  this.internalActiveTab = tab.key;
-                  onTabChange?.(tab.key);
-                },
-                ondblclick: onTabRename
-                  ? () => {
-                      if (typeof tab.title === 'string') {
-                        this.renameInputValue = tab.title;
-                        this.renamingTabKey = tab.key;
-                        this.renameCancelled = false;
-                      }
-                    }
-                  : undefined,
-                ...(this.renamingTabKey === tab.key && {
-                  renaming: true,
-                  renameValue: this.renameInputValue,
-                  onRenameInput: (value: string) => {
-                    this.renameInputValue = value;
-                  },
-                  onRenameCommit: () => {
-                    if (this.renameCancelled) return;
-                    const newName = this.renameInputValue.trim();
-                    if (newName) {
-                      onTabRename?.(tab.key, newName);
-                    }
-                    this.renamingTabKey = undefined;
-                  },
-                  onRenameCancel: () => {
-                    this.renameCancelled = true;
-                    this.renamingTabKey = undefined;
-                  },
-                }),
-                onClose: () => onTabClose?.(tab.key),
-                ondragstart: reorderable
-                  ? (e: DragEvent) => {
-                      e.dataTransfer?.setData('text/plain', tab.key);
-                      this.draggedKey = tab.key;
-                    }
-                  : undefined,
-                ondragend: reorderable
-                  ? () => {
-                      this.draggedKey = undefined;
-                      this.dropTargetKey = undefined;
-                      this.dropPosition = undefined;
-                    }
-                  : undefined,
-                ondragover: reorderable
-                  ? (e: DragEvent) => {
-                      e.preventDefault();
-                      const target = e.currentTarget as HTMLElement;
-                      const rect = target.getBoundingClientRect();
-                      const midpoint = rect.left + rect.width / 2;
-                      this.dropTargetKey = tab.key;
-                      this.dropPosition =
-                        e.clientX < midpoint ? 'before' : 'after';
-                    }
-                  : undefined,
-                ondragleave: reorderable
-                  ? (e: DragEvent) => {
-                      const target = e.currentTarget as HTMLElement;
-                      const related = e.relatedTarget as HTMLElement | null;
-                      if (related && !target.contains(related)) {
-                        this.dropTargetKey = undefined;
-                        this.dropPosition = undefined;
-                      }
-                    }
-                  : undefined,
-                ondrop: reorderable
-                  ? (e: DragEvent) => {
-                      e.preventDefault();
-                      if (
-                        this.draggedKey &&
-                        this.draggedKey !== tab.key &&
-                        onTabReorder
-                      ) {
-                        // Find the key of the tab to insert before
-                        const targetIndex = tabs.findIndex(
-                          (t) => t.key === tab.key,
-                        );
-                        let beforeKey: string | undefined;
-                        if (this.dropPosition === 'before') {
-                          beforeKey = tab.key;
-                        } else {
-                          // 'after' - insert before the next tab
-                          beforeKey = tabs[targetIndex + 1]?.key;
-                        }
-                        onTabReorder(this.draggedKey, beforeKey);
-                      }
-                      this.draggedKey = undefined;
-                      this.dropTargetKey = undefined;
-                      this.dropPosition = undefined;
-                    }
-                  : undefined,
+              active: tab.key === activeKey,
+              closeButton: tab.closeButton,
+              leftIcon: tab.leftIcon,
+              menuItems: tab.menuItems,
+              onpointerdown: () => {
+                this.internalActiveTab = tab.key;
+                onTabChange?.(tab.key);
               },
-              tab.title,
-            ),
-          );
-        }),
+              onRename: onTabRename
+                ? (newName: string) => onTabRename(tab.key, newName)
+                : undefined,
+              onClose: () => onTabClose?.(tab.key),
+            },
+            tab.title,
+          ),
+        ),
         newTabContent ??
           (onNewTab &&
             m(Button, {

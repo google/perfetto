@@ -30,18 +30,22 @@ export interface TabStripAttrs {
   // boxed tab handles on a secondary-background bar; 'underline' renders
   // flat text tabs with a primary underline on the active tab.
   readonly variant?: 'card' | 'underline';
+  // Whether the tabs can be reordered by dragging them.
+  readonly reorderable?: boolean;
+  // Called when a tab is dragged to a new position (only when `reorderable`).
+  // `from` is the index of the dragged tab and `to` is the index it should end
+  // up at, i.e. remove the tab at `from` then insert it at `to`. Indices only
+  // count `TabStrip.Tab` children. Not called if the tab is dropped in place.
+  readonly onReorder?: (from: number, to: number) => void;
 }
 
-export interface TabStripTabAttrs extends HTMLAttrs {
+export interface TabStripTabAttrs {
   // Style this tab as the active tab.
   readonly active?: boolean;
-
   // Style this tab as a disabled tab and prevent interaction.
   readonly disabled?: boolean;
-
   // If provided, the tab will be rendered as a link with this href.
   readonly href?: string;
-
   // Additional class name for the tab.
   readonly className?: string;
   // Icon to display on the left side of the tab title.
@@ -55,51 +59,31 @@ export interface TabStripTabAttrs extends HTMLAttrs {
   // Optional menu items to show in a dropdown menu on the tab.
   // When provided, a menu button appears on hover.
   readonly menuItems?: m.Children;
-  // Whether the tab title is currently being edited via inline renaming.
-  readonly renaming?: boolean;
-  // The current value of the rename input.
-  readonly renameValue?: string;
-  // Called as the user types in the rename input.
-  readonly onRenameInput?: (value: string) => void;
-  // Called when the rename is committed (Enter or blur).
-  readonly onRenameCommit?: () => void;
-  // Called when the rename is cancelled (Escape).
-  readonly onRenameCancel?: () => void;
-  // Whether the tab can be dragged (e.g. for reordering).
-  readonly draggable?: boolean;
-  readonly ondragstart?: (e: DragEvent) => void;
-  readonly ondragend?: (e: DragEvent) => void;
-  readonly ondragover?: (e: DragEvent) => void;
-  readonly ondragleave?: (e: DragEvent) => void;
-  readonly ondrop?: (e: DragEvent) => void;
+  // If provided, the tab can be renamed inline by double-clicking it. Called
+  // with the new (trimmed, non-empty) name when the rename is committed
+  // (Enter or blur). Pressing Escape cancels without calling this.
+  readonly onRename?: (newName: string) => void;
+  readonly onClick?: () => void;
 }
 
 class Tab implements m.ClassComponent<TabStripTabAttrs> {
+  // Inline rename state. `renameValue` is only meaningful while `renaming`.
+  private renaming = false;
+  private renameValue = '';
+
   view({attrs, children}: m.CVnode<TabStripTabAttrs>): m.Children {
     const {
       active,
-      onpointerdown,
-      ondblclick,
       className,
       leftIcon,
       rightIcon,
       closeButton,
       onClose,
       menuItems,
-      renaming,
-      renameValue,
-      onRenameInput,
-      onRenameCommit,
-      onRenameCancel,
-      draggable,
-      ondragstart,
-      ondragend,
-      ondragover,
-      ondragleave,
-      ondrop,
+      onRename,
       disabled,
       href,
-      ...htmlAttrs
+      onClick,
     } = attrs;
 
     const renderIcon = (
@@ -117,26 +101,51 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
 
     const tag = href ? 'a' : 'button';
 
+    const commitRename = () => {
+      if (!this.renaming) return;
+      this.renaming = false;
+      const newName = this.renameValue.trim();
+      if (newName) {
+        onRename?.(newName);
+      }
+    };
+
+    const cancelRename = () => {
+      this.renaming = false;
+    };
+
     return m(
       tag + '.pf-tab-strip__tab',
       {
-        tabIndex: disabled ? undefined : 0,
-        className: classNames(className, active && 'pf-tab-strip__tab--active'),
-        ondblclick,
-        onauxclick: () => onClose?.(),
-        draggable,
-        ondragstart,
-        ondragend,
-        ondragover,
-        ondragleave,
-        ondrop,
-        ...htmlAttrs,
+        'tabIndex': disabled ? -1 : 0,
+        'className': classNames(
+          className,
+          active && 'pf-tab-strip__tab--active',
+          disabled && 'pf-tab-strip__tab--disabled',
+        ),
+        'ondblclick': (e: PointerEvent) => {
+          if (onRename && !this.renaming) {
+            // Seed the input with the currently rendered title text.
+            const titleEl = (e.currentTarget as HTMLElement).querySelector(
+              '.pf-tab-strip__tab-title',
+            );
+            this.renameValue = titleEl?.textContent ?? '';
+            this.renaming = true;
+          }
+        },
+        'onauxclick': onClose,
+        'onclick': onClick,
+        // A disabled link drops its href so it can't be followed, and a
+        // disabled button uses the native disabled attribute.
+        'href': disabled ? undefined : href,
+        'disabled': tag === 'button' ? disabled : undefined,
+        'aria-disabled': disabled ? 'true' : undefined,
       },
       [
         renderIcon(leftIcon, 'pf-tab-strip__tab-icon--left'),
-        renaming
+        this.renaming
           ? m('input.pf-tab-strip__tab-rename-input', {
-              value: renameValue,
+              value: this.renameValue,
               oncreate: (vnode: m.VnodeDOM) => {
                 const el = vnode.dom as HTMLInputElement;
                 el.focus();
@@ -144,19 +153,19 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
               },
               oninput: (e: InputEvent) => {
                 const target = e.target as HTMLInputElement;
-                onRenameInput?.(target.value);
+                this.renameValue = target.value;
               },
               onkeydown: (e: KeyboardEvent) => {
                 if (e.key === 'Enter') {
-                  onRenameCommit?.();
+                  commitRename();
                   e.preventDefault();
                 } else if (e.key === 'Escape') {
-                  onRenameCancel?.();
+                  cancelRename();
                   e.preventDefault();
                 }
                 e.stopPropagation();
               },
-              onblur: () => onRenameCommit?.(),
+              onblur: commitRename,
               onclick: (e: Event) => e.stopPropagation(),
             })
           : m('span.pf-tab-strip__tab-title', children),
@@ -166,9 +175,9 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
             PopupMenu,
             {
               trigger: m(Button, {
-                compact: true,
+                rounded: true,
                 icon: Icons.ContextMenuAlt,
-                className: 'pf-tab-strip__tab-menu-btn',
+                className: 'pf-tab-strip__tab-btn pf-tab-strip__tab-menu-btn',
               }),
               position: PopupPosition.Bottom,
             },
@@ -176,8 +185,9 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
           ),
         closeButton &&
           m(Button, {
-            compact: true,
+            rounded: true,
             icon: Icons.Close,
+            className: 'pf-tab-strip__tab-btn',
             onclick: (e: Event) => {
               e.stopPropagation();
               onClose?.();
@@ -203,14 +213,113 @@ class Tab implements m.ClassComponent<TabStripTabAttrs> {
 export class TabStrip implements m.ClassComponent<TabStripAttrs> {
   static readonly Tab = Tab;
 
+  // Drag state for reordering. Indices count TabStrip.Tab children only.
+  private dragIndex?: number;
+  private dropIndex?: number;
+  private dropPosition?: 'before' | 'after';
+
   view({attrs, children}: m.CVnode<TabStripAttrs>): m.Children {
-    const {className, variant = 'card'} = attrs;
+    const {className, variant = 'card', reorderable, onReorder} = attrs;
+    const tabs = reorderable
+      ? this.withReorderAttrs(children, {index: 0}, onReorder)
+      : children;
     return m(
       '.pf-tab-strip',
       {
         className: classNames(className, variantToClassName(variant)),
       },
-      m('.pf-tab-strip__tabs', children),
+      m('.pf-tab-strip__tabs', tabs),
+    );
+  }
+
+  private resetDrag() {
+    this.dragIndex = undefined;
+    this.dropIndex = undefined;
+    this.dropPosition = undefined;
+  }
+
+  // Walks the children, preserving their (possibly nested) structure, and
+  // re-creates each TabStrip.Tab vnode with drag handlers and drop-indicator
+  // classes attached. Other children are passed through untouched.
+  private withReorderAttrs(
+    children: m.Children,
+    counter: {index: number},
+    onReorder: TabStripAttrs['onReorder'],
+  ): m.Children {
+    if (Array.isArray(children)) {
+      return children.map((child) =>
+        this.withReorderAttrs(child, counter, onReorder),
+      );
+    }
+    if (
+      children === null ||
+      typeof children !== 'object' ||
+      (children as m.Vnode).tag !== Tab
+    ) {
+      return children;
+    }
+
+    const vnode = children as m.Vnode<TabStripTabAttrs>;
+    const index = counter.index++;
+    const isDragging = this.dragIndex === index;
+    const isDropTarget =
+      this.dropIndex === index && this.dragIndex !== undefined && !isDragging;
+
+    return m(
+      Tab,
+      {
+        ...vnode.attrs,
+        key: vnode.key,
+        className: classNames(
+          vnode.attrs.className,
+          isDragging && 'pf-tab-strip__tab--dragging',
+          isDropTarget &&
+            this.dropPosition === 'before' &&
+            'pf-tab-strip__tab--drop-before',
+          isDropTarget &&
+            this.dropPosition === 'after' &&
+            'pf-tab-strip__tab--drop-after',
+        ),
+        draggable: true,
+        ondragstart: (e: DragEvent) => {
+          // Some browsers won't start a drag without data set.
+          e.dataTransfer?.setData('text/plain', String(index));
+          this.dragIndex = index;
+        },
+        ondragover: (e: DragEvent) => {
+          // Ignore drags that didn't start from this strip.
+          if (this.dragIndex === undefined) return;
+          e.preventDefault();
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          this.dropIndex = index;
+          this.dropPosition =
+            e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+        },
+        ondragleave: (e: DragEvent) => {
+          const target = e.currentTarget as HTMLElement;
+          const related = e.relatedTarget as Node | null;
+          if (related === null || !target.contains(related)) {
+            this.dropIndex = undefined;
+            this.dropPosition = undefined;
+          }
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          const from = this.dragIndex;
+          if (from !== undefined) {
+            const insertBefore =
+              this.dropPosition === 'before' ? index : index + 1;
+            // Account for the dragged tab being removed before re-insertion.
+            const to = insertBefore > from ? insertBefore - 1 : insertBefore;
+            if (to !== from) {
+              onReorder?.(from, to);
+            }
+          }
+          this.resetDrag();
+        },
+        ondragend: () => this.resetDrag(),
+      },
+      vnode.children as m.Children,
     );
   }
 }

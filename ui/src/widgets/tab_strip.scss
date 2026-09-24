@@ -43,6 +43,15 @@
     border-color: transparent;
     border-width: 1px 1px 0 1px;
     color: var(--pf-color-text-muted);
+    // Tabs with an href render as <a>; drop the default link underline.
+    text-decoration: none;
+
+    // Keyboard focus ring, matching the theme's `focus` mixin. Inset so it
+    // isn't clipped by the tab bar's `overflow: hidden`.
+    &:focus-visible {
+      outline: 2px solid var(--pf-color-accent);
+      outline-offset: -2px;
+    }
 
     &:hover {
       background: color_hover(transparent);
@@ -62,23 +71,34 @@
       }
     }
 
-    // Indicator shown on a tab that is the current drop target while
-    // dragging another tab.
-    &--drag-over {
+    // Drag-to-reorder indicators. The drop indicators are inset because the
+    // tab has `overflow: hidden`.
+    &--dragging {
+      opacity: 0.5;
+    }
+
+    &--drop-before {
       box-shadow: inset 2px 0 0 var(--pf-color-primary);
     }
-  }
 
-  &__tab-menu-btn {
-    visibility: hidden;
+    &--drop-after {
+      box-shadow: inset -2px 0 0 var(--pf-color-primary);
+    }
 
-    &.pf-active {
-      visibility: visible;
+    // Disabled tabs are dimmed and ignore all pointer interaction
+    // (clicks, hover, drag, and the menu/close buttons inside the tab).
+    &--disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
   }
 
-  &__tab:hover &__tab-menu-btn {
-    visibility: visible;
+  // Small round icon buttons (menu, close) inside a tab. The negative
+  // vertical margin stops them from increasing the height of the tab. The
+  // extra `.pf-button` beats the default `.pf-button.pf-icon-only` padding.
+  .pf-tab-strip__tab-btn.pf-button {
+    padding: 2px;
+    margin-block: -2px;
   }
 
   &__tab-title {
@@ -102,11 +122,11 @@
     align-self: center;
 
     &--left {
-      margin-right: 4px;
+      align-self: center;
     }
 
     &--right {
-      margin-left: 4px;
+      align-self: center;
     }
   }
 

@@ -19,25 +19,6 @@
   flex-direction: column;
   height: 100%;
 
-  // Drop/drag indicators for reorderable tabs. The indicators are applied to
-  // the wrapper around each TabStrip.Tab (the tab itself has
-  // `overflow: hidden`).
-  &__tab-wrapper {
-    display: contents;
-
-    &--dragging > .pf-tab-strip__tab {
-      opacity: 0.5;
-    }
-
-    &--drop-before > .pf-tab-strip__tab {
-      box-shadow: -2px 0 0 0 var(--pf-color-primary);
-    }
-
-    &--drop-after > .pf-tab-strip__tab {
-      box-shadow: 2px 0 0 0 var(--pf-color-primary);
-    }
-  }
-
   &__new-tab-btn {
     margin-left: 2px;
   }

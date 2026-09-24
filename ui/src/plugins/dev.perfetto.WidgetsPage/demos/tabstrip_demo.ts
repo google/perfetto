@@ -20,54 +20,21 @@ import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 
 interface DemoTab {
   readonly id: string;
-  title: string;
+  readonly title: string;
 }
 
-const state = {
-  tabs: [
-    {id: 'foo', title: 'Foo'},
-    {id: 'bar', title: 'Bar'},
-    {id: 'baz', title: 'Baz'},
-  ] as DemoTab[],
-  currentTab: 'foo',
-  renamingTab: undefined as string | undefined,
-  renameValue: '',
-  dragFrom: undefined as number | undefined,
-  dragOver: undefined as number | undefined,
-};
+const TABS: ReadonlyArray<DemoTab> = [
+  {id: 'foo', title: 'Foo'},
+  {id: 'bar', title: 'Bar'},
+  {id: 'baz', title: 'Baz'},
+];
+const ACTIVE_TAB = 'foo';
 
-function closeTab(id: string) {
-  state.tabs = state.tabs.filter((tab) => tab.id !== id);
-  if (state.currentTab === id) {
-    state.currentTab = state.tabs[0]?.id ?? '';
-  }
-  if (state.renamingTab === id) {
-    state.renamingTab = undefined;
-  }
-}
+const callbackLog: string[] = [];
 
-function commitRename() {
-  const tab = state.tabs.find((t) => t.id === state.renamingTab);
-  if (tab && state.renameValue.trim() !== '') {
-    tab.title = state.renameValue;
-  }
-  state.renamingTab = undefined;
-}
-
-function cancelRename() {
-  state.renamingTab = undefined;
-}
-
-function startRename(tab: DemoTab) {
-  state.renamingTab = tab.id;
-  state.renameValue = tab.title;
-}
-
-function moveDraggedTab(to: number) {
-  const from = state.dragFrom;
-  if (from === undefined || from === to) return;
-  const [moved] = state.tabs.splice(from, 1);
-  state.tabs.splice(to, 0, moved);
+function logCallback(msg: string) {
+  const time = new Date().toLocaleTimeString();
+  callbackLog.push(`[${time}] ${msg}`);
 }
 
 export function renderTabStrip(): m.Children {
@@ -82,78 +49,78 @@ export function renderTabStrip(): m.Children {
     ),
     renderWidgetShowcase({
       renderWidget: (opts) => {
-        const tabs = state.tabs.map((tab, i) =>
+        const tabs = TABS.map((tab) =>
           m(
             TabStrip.Tab,
             {
               key: tab.id,
-              active: state.currentTab === tab.id,
+              active: ACTIVE_TAB === tab.id,
               disabled: opts.disabledTab && tab.id === 'bar',
-              onclick: () => (state.currentTab = tab.id),
-              ondblclick: opts.renamable ? () => startRename(tab) : undefined,
-              leftIcon: opts.icons ? Icons.Search : undefined,
-              rightIcon: opts.icons ? Icons.ContextMenuAlt : undefined,
+              href: opts.links ? `https://example.com/${tab.id}` : undefined,
+              onclick: (e: PointerEvent) => {
+                // Don't actually follow the bogus link.
+                e.preventDefault();
+                logCallback(`onclick: ${tab.id}`);
+              },
+              leftIcon: opts.leftIcon ? Icons.Search : undefined,
+              rightIcon: opts.rightIcon ? Icons.Info : undefined,
               closeButton: opts.closeButtons,
-              onClose: () => closeTab(tab.id),
+              onClose: () => logCallback(`onClose: ${tab.id}`),
               menuItems: opts.menus
                 ? [
-                    m(MenuItem, {
-                      label: 'Rename',
-                      onclick: () => startRename(tab),
-                    }),
+                    m(MenuItem, {label: 'Menu item 1'}),
+                    m(MenuItem, {label: 'Menu item 2'}),
                     m(MenuDivider),
-                    m(MenuItem, {
-                      label: 'Close',
-                      onclick: () => closeTab(tab.id),
-                    }),
+                    m(MenuItem, {label: 'Menu item 3'}),
                   ]
                 : undefined,
-              renaming: state.renamingTab === tab.id,
-              renameValue: state.renameValue,
-              onRenameInput: (value: string) => (state.renameValue = value),
-              onRenameCommit: commitRename,
-              onRenameCancel: cancelRename,
-              draggable: opts.draggable,
-              ondragstart: (e: DragEvent) => {
-                state.dragFrom = i;
-                e.dataTransfer?.setData('text/plain', tab.id);
-              },
-              ondragover: (e: DragEvent) => {
-                e.preventDefault();
-                state.dragOver = i;
-              },
-              ondragleave: () => {
-                if (state.dragOver === i) state.dragOver = undefined;
-              },
-              ondrop: (e: DragEvent) => {
-                e.preventDefault();
-                moveDraggedTab(i);
-                state.dragFrom = undefined;
-                state.dragOver = undefined;
-              },
-              ondragend: () => {
-                state.dragFrom = undefined;
-                state.dragOver = undefined;
-              },
-              className:
-                state.dragOver === i
-                  ? 'pf-tab-strip__tab--drag-over'
-                  : undefined,
+              onRename: opts.renamable
+                ? (newName: string) =>
+                    logCallback(`onRename: ${tab.id} -> ${newName}`)
+                : undefined,
             },
             tab.title,
           ),
         );
-        return m(TabStrip, {variant: opts.variant}, tabs);
+        return m(
+          TabStrip,
+          {
+            variant: opts.variant,
+            reorderable: opts.reorderable,
+            onReorder: (from: number, to: number) =>
+              logCallback(`onReorder: ${from} -> ${to}`),
+          },
+          tabs,
+        );
       },
       initialOpts: {
         variant: new EnumOption('card', ['card', 'underline'] as const),
-        icons: true,
-        closeButtons: true,
-        menus: true,
-        renamable: true,
+        leftIcon: false,
+        rightIcon: false,
+        closeButtons: false,
+        menus: false,
+        renamable: false,
         disabledTab: false,
-        draggable: true,
+        reorderable: false,
+        links: false,
       },
     }),
+    m(
+      'pre',
+      {
+        style: {
+          height: '150px',
+          overflowY: 'auto',
+          margin: '0',
+        },
+        onupdate: (vnode: m.VnodeDOM) => {
+          const el = vnode.dom as HTMLElement;
+          el.scrollTop = el.scrollHeight;
+        },
+      },
+      callbackLog.length === 0
+        ? 'Callbacks will appear here'
+        : callbackLog.join('\n'),
+    ),
   ];
 }
