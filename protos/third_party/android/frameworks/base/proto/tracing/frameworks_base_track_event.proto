@@ -1120,7 +1120,7 @@ message AndroidProcStateUpdateEvent {
 
 message AndroidSelfBroadcastEvent {
   // Sender/Receiver PID (since it's self-broadcast, they are the same)
-  optional int32 pid = 1;
+  optional int32 pid = 1 [(perfetto.protos.is_pid) = true];
 
   // Sender/Receiver UID
   optional int32 uid = 2;
