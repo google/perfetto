@@ -2399,8 +2399,8 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
         startup_buffer_reservation);
   }
   // A data source that supports proto group encoding gets a writer for its
-  // instance. The endpoint picks the transport of that instance: a tracing v2
-  // ring buffer writer or a v1 SMB writer. The checks above apply to both.
+  // instance. The endpoint uses v2 if selected, or v1 if it is in the common
+  // set. With no permitted transport, it returns a NullTraceWriter.
   if (data_source->supports_proto_group_encoding) {
     return service->CreateTraceWriter(data_source->buffer_id,
                                       buffer_exhausted_policy,
