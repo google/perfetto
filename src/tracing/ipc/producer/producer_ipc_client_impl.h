@@ -39,6 +39,10 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
+namespace test {
+class ProducerIPCClientTestPeer;
+}  // namespace test
+
 class Producer;
 class SharedMemoryArbiter;
 
@@ -96,6 +100,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
+  // Defined in tracing_integration_test.cc.
+  friend class test::ProducerIPCClientTestPeer;
+
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();
