@@ -24,7 +24,7 @@ import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
 import {closeModal, redrawModal, showModal} from '../../widgets/modal';
 import {Callout} from '../../widgets/callout';
-import {Select} from '../../widgets/select';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Spinner} from '../../widgets/spinner';
 import {Inline, Stack, StackAuto} from '../../widgets/stack';
 import {Tabs} from '../../widgets/tabs';
@@ -131,11 +131,13 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
         m(TextParagraph, {
           text: '📊 Compare traces from different time periods to identify performance regressions or improvements.',
         }),
+      ]),
+      m('.pf-multi-trace-modal__status-panel', [
         m(
           Callout,
           {
             intent: Intent.Danger,
-            icon: 'error',
+            icon: Icons.Error,
           },
           [
             'This feature is not yet supported. Please +1 ',
@@ -171,13 +173,17 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     }
     switch (controller.getLoadingError()) {
       case 'NO_TRACES':
-        return m(Callout, {icon: 'info'}, 'Add at least one trace to open.');
+        return m(
+          Callout,
+          {icon: Icons.Info},
+          'Add at least one trace to open.',
+        );
       case 'DUPLICATE_NAMES':
-        return m(Callout, {intent: Intent.Danger, icon: 'error_outline'}, [
+        return m(Callout, {intent: Intent.Danger, icon: Icons.Error}, [
           'Two traces share the same file name. Remove or rename one.',
         ]);
       case 'TRACE_ERROR':
-        return m(Callout, {intent: Intent.Danger, icon: 'error_outline'}, [
+        return m(Callout, {intent: Intent.Danger, icon: Icons.Error}, [
           'Remove the traces that failed to load before opening.',
         ]);
       default:
@@ -187,7 +193,11 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     // baseline) takes priority over the verdict, and blocks opening.
     const configError = controller.configError();
     if (configError !== undefined) {
-      return m(Callout, {intent: Intent.Warning, icon: 'warning'}, configError);
+      return m(
+        Callout,
+        {intent: Intent.Warning, icon: Icons.Warning},
+        configError,
+      );
     }
     // A verdict means a check finished; otherwise one is running or queued.
     const verdict = controller.alignmentVerdict;
@@ -203,12 +213,12 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
     if (verdict.validationError !== undefined) {
       return m(
         Callout,
-        {intent: Intent.Danger, icon: 'error_outline'},
+        {intent: Intent.Danger, icon: Icons.Error},
         `Manifest error: ${verdict.validationError}`,
       );
     }
     if (!verdict.ok) {
-      return m(Callout, {intent: Intent.Warning, icon: 'warning'}, [
+      return m(Callout, {intent: Intent.Warning, icon: Icons.Warning}, [
         `${verdict.droppedEvents.toLocaleString()} events would be dropped: ` +
           'they cannot be placed on the shared timeline, either because ' +
           'their trace shares no clock with it or because an offset moves ' +
@@ -233,13 +243,13 @@ class MultiTraceModalShell implements m.ClassComponent<MultiTraceModalAttrs> {
       m(StackAuto),
       m(Button, {
         label: 'Copy manifest',
-        icon: 'content_copy',
+        icon: Icons.Copy,
         disabled,
         onclick: () => this.copyManifest(),
       }),
       m(Button, {
         label: 'Download .tar',
-        icon: 'download',
+        icon: Icons.Download,
         disabled,
         onclick: () => this.downloadTar(),
       }),
@@ -304,15 +314,37 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
           this.renderTraceCard(trace, controller),
         ),
         m(
-          Card,
-          {
-            className: 'pf-multi-trace-modal__add-card',
-            onclick: () => addTraces(controller),
-          },
+          'button.pf-multi-trace-modal__add-card',
+          {onclick: () => addTraces(controller)},
           m(Icon, {icon: Icons.Add}),
           'Add more traces',
         ),
       ],
+    );
+  }
+
+  // Themed dropdown, in place of a native <select>.
+  private renderDropdown(
+    value: string,
+    options: ReadonlyArray<{value: string; label: string}>,
+    onSelect: (value: string) => void,
+  ) {
+    const current = options.find((o) => o.value === value);
+    return m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          label: current?.label ?? value,
+          rightIcon: Icons.ContextMenu,
+        }),
+      },
+      options.map((o) =>
+        m(MenuItem, {
+          label: o.label,
+          rightIcon: o.value === value ? Icons.Check : undefined,
+          onclick: () => onSelect(o.value),
+        }),
+      ),
     );
   }
 
@@ -322,23 +354,17 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
   private renderReference(controller: MultiTraceController) {
     const clocks = controller.availableTraceTimeOptions();
     if (clocks.length > 0) {
-      const clock = controller.traceTime.clock ?? 'auto';
       return this.renderReferenceRow(
-        m(
-          Select,
-          {
-            value: clock,
-            onchange: (e: Event) => {
-              const value = (e.target as HTMLSelectElement).value;
-              controller.setTraceTimeClock(
-                value === 'auto' ? undefined : (value as ClockName),
-              );
-            },
-          },
+        this.renderDropdown(
+          controller.traceTime.clock ?? 'auto',
           [
-            m('option', {value: 'auto'}, 'Automatic (recommended)'),
-            ...clocks.map((c) => m('option', {value: c}, c)),
+            {value: 'auto', label: 'Automatic (recommended)'},
+            ...clocks.map((c) => ({value: c, label: c})),
           ],
+          (value) =>
+            controller.setTraceTimeClock(
+              value === 'auto' ? undefined : (value as ClockName),
+            ),
         ),
         'The clock the merged traces share. Automatic lets Perfetto choose; ' +
           'picking one projects every trace onto that clock.',
@@ -347,18 +373,10 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     const reference = controller.referenceTraceUuid();
     if (reference !== undefined) {
       return this.renderReferenceRow(
-        m(
-          Select,
-          {
-            value: reference,
-            onchange: (e: Event) => {
-              const uuid = (e.target as HTMLSelectElement).value;
-              controller.setAnchor(uuid);
-            },
-          },
-          controller.traces.map((t) =>
-            m('option', {value: t.uuid}, t.file.name),
-          ),
+        this.renderDropdown(
+          reference,
+          controller.traces.map((t) => ({value: t.uuid, label: t.file.name})),
+          (uuid) => controller.setAnchor(uuid),
         ),
         'The baseline trace, kept at its own timestamps. Every other trace is ' +
           'positioned relative to it.',
@@ -399,16 +417,16 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
           m('strong', 'Size:'),
           m('span', `${(trace.file.size / (1024 * 1024)).toFixed(1)} MB`),
         ]),
-        trace.status === 'analyzed'
-          ? m(
-              Inline,
-              {
-                className: 'pf-multi-trace-modal__format',
-              },
-              m('strong', 'Format:'),
-              m('span', trace.analysis.format),
-            )
-          : this.renderTraceStatus(trace),
+        trace.status === 'analyzed' &&
+          m(
+            Inline,
+            {
+              className: 'pf-multi-trace-modal__format',
+            },
+            m('strong', 'Format:'),
+            m('span', trace.analysis.format),
+          ),
+        this.renderTraceStatus(trace),
       ]),
     );
   }
@@ -421,7 +439,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     if (trace.status === 'error') {
       return m(
         '.pf-multi-trace-modal__config',
-        m(Callout, {intent: Intent.Danger, icon: 'error_outline'}, trace.error),
+        m(Callout, {intent: Intent.Danger, icon: Icons.Error}, trace.error),
       );
     }
     if (trace.status !== 'analyzed') {
@@ -546,7 +564,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
           },
         }),
         m(Button, {
-          icon: 'check',
+          icon: Icons.Check,
           onclick: () => {
             this.editingMachine = undefined;
           },
@@ -562,20 +580,15 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         spacing: 'small',
       },
       m('strong', 'Machine:'),
-      m(
-        Select,
-        {
-          value: selectedId !== undefined ? `m:${selectedId}` : 'default',
-          onchange: (e: Event) => {
-            onSelect((e.target as HTMLSelectElement).value);
-          },
-        },
-        options.map((o) => m('option', {value: o.value}, o.label)),
+      this.renderDropdown(
+        selectedId !== undefined ? `m:${selectedId}` : 'default',
+        options,
+        onSelect,
       ),
       // Rename the selected machine (a real machine, not the default).
       selectedId !== undefined &&
         m(Button, {
-          icon: 'edit',
+          icon: Icons.Edit,
           onclick: () => {
             this.editingMachine = trace.uuid;
           },
@@ -630,21 +643,16 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     const config = controller.getConfig(trace.uuid);
     return m(Inline, {spacing: 'small', wrap: true}, [
       m('strong', 'Align:'),
-      m(
-        Select,
-        {
-          value: config.alignMode,
-          onchange: (e: Event) => {
-            const value = (e.target as HTMLSelectElement).value;
-            controller.updateConfig(trace.uuid, {
-              alignMode: value === 'manual' ? 'manual' : 'auto',
-            });
-          },
-        },
+      this.renderDropdown(
+        config.alignMode,
         [
-          m('option', {value: 'auto'}, 'automatically'),
-          m('option', {value: 'manual'}, 'by a fixed offset'),
+          {value: 'auto', label: 'automatically'},
+          {value: 'manual', label: 'by a fixed offset'},
         ],
+        (value) =>
+          controller.updateConfig(trace.uuid, {
+            alignMode: value === 'manual' ? 'manual' : 'auto',
+          }),
       ),
       config.alignMode === 'manual' &&
         this.manualFieldChildren(trace, controller),
@@ -692,7 +700,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
     return m(
       '.pf-multi-trace-modal__actions',
       m(Button, {
-        icon: 'delete',
+        icon: Icons.Delete,
         onclick: () => controller.removeTrace(trace.uuid),
         disabled: controller.isAnalyzing(),
       }),
