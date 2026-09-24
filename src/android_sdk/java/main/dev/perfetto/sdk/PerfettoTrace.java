@@ -106,7 +106,10 @@ public final class PerfettoTrace {
     /** Create the native category object and register it. */
     public synchronized Category register() {
       if (!sIsRegistered) {
-        return this;
+        if (!TracingPolicy.allowSystemBackend()) {
+          return this;
+        }
+        sIsRegistered = true;
       }
       if (mPtr == 0) {
         long ptr = native_init(mName, mTags.toArray(new String[0]));

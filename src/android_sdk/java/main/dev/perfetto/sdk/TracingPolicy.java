@@ -17,6 +17,7 @@
 package dev.perfetto.sdk;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,7 +31,8 @@ import java.nio.file.Paths;
  *
  * <ul>
  *   <li>libcore ({@code dalvik.system.}) and framework ({@code com.android.internal.}) allow
- *       {@link #ALLOWLIST}, a comma-separated sysprop allowlist, or an "enable all" override;
+ *       {@link #ALLOWLIST}, a comma-separated sysprop allowlist, an "enable all" override, or
+ *       instrumented test applications;
  *   <li>the default (host / tests) is unrestricted.
  * </ul>
  *
@@ -64,9 +66,31 @@ final class TracingPolicy {
     String className = TracingPolicy.class.getName();
     if (className.startsWith(LIBCORE_PREFIX) || className.startsWith(FRAMEWORK_PREFIX)) {
       String processName = currentProcessName();
-      return matches(processName, ALLOWLIST) || syspropAllows(processName);
+      return matches(processName, ALLOWLIST)
+          || syspropAllows(processName)
+          || isInstrumentedApp();
     }
     return true; // Default (host / tests): unrestricted.
+  }
+
+  /**
+   * Returns true if the current process is running under instrumentation (where {@code
+   * ActivityThread.prepareInstrumentation} sets {@code mInstrumentationPackageName} before calling
+   * {@code Trace.registerWithPerfetto()}).
+   */
+  private static boolean isInstrumentedApp() {
+    try {
+      Class<?> activityThread = Class.forName("android.app.ActivityThread");
+      Object currentThread = activityThread.getMethod("currentActivityThread").invoke(null);
+      if (currentThread == null) {
+        return false;
+      }
+      Field f = activityThread.getDeclaredField("mInstrumentationPackageName");
+      f.setAccessible(true);
+      return f.get(currentThread) != null;
+    } catch (ReflectiveOperationException | SecurityException e) {
+      return false;
+    }
   }
 
   private static boolean matches(String processName, String[] allowlist) {
