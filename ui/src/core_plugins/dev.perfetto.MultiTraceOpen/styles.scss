@@ -14,67 +14,32 @@
 
 @use "../../assets/theme.scss" as *;
 
+$padding-inline: 4px;
+
 .pf-multi-trace-modal {
-  &__description-panel {
+  .pf-text-paragraph {
+    padding-block: 8px;
+  }
+
+  &__description {
     border-bottom: 1px solid var(--pf-color-border);
-    margin-bottom: 0px;
-    padding-bottom: 0px;
-  }
-
-  &__tabs {
-    margin-bottom: 16px;
-  }
-
-  &__description-content {
-    padding: 0 8px;
-    width: 550px;
-    box-sizing: border-box;
-
-    .pf-text-paragraph {
-      padding-top: 0;
-      padding-bottom: 16px;
-      font-size: 0.9em;
-      color: var(--pf-color-text-secondary);
-      line-height: 1.4;
-    }
+    padding: 0 $padding-inline;
+    font-size: var(--pf-font-size-s);
   }
 
   &__list-panel {
-    border: none;
     overflow-y: auto;
-    width: 550px;
     max-height: 700px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-
-  &__card {
-    padding: 16px;
-    align-items: stretch;
-    // Keep full size so the list scrolls instead of squishing cards.
-    flex-shrink: 0;
+    padding-block: 8px;
+    padding-inline: $padding-inline;
   }
 
   &__name {
-    color: var(--pf-color-text);
-    font-size: 0.95em;
     font-weight: 600;
   }
 
-  &__size,
-  &__status,
-  &__format {
-    color: var(--pf-color-text-secondary);
-    font-size: 0.9em;
-  }
-
-  &__size strong,
-  &__format strong {
-    font-weight: 600;
-  }
-
-  &__actions {
-    min-width: 50px;
+  &__meta {
+    font-size: var(--pf-font-size-s);
   }
 
   &__status {
@@ -107,114 +72,73 @@
 
   &__add-card {
     border: 1px dashed var(--pf-color-border);
-    background-color: var(--pf-color-background-secondary);
-    cursor: pointer;
-    padding: 8px;
-    color: var(--pf-color-text-secondary);
-    font-family: var(--pf-font);
-    font-size: 0.9em;
-    font-weight: bold;
+    border-radius: $border-radius-medium;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    flex-shrink: 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
 
     &:hover {
-      background: color_hover(var(--pf-color-background-secondary));
+      background: color_hover(transparent);
     }
-  }
 
-  &__reference-row {
-    align-items: center;
-    padding: 8px 0;
-    font-size: 0.9em;
+    &:focus-visible {
+      @include focus;
+    }
+
+    .pf-icon {
+      font-size: var(--pf-font-size-l);
+    }
   }
 
   // Invalid free-text offset: flag it instead of silently dropping the value.
   &__offset--invalid {
     outline: 1px solid var(--pf-color-danger);
-    border-radius: 2px;
   }
 
   &__hint {
     color: var(--pf-color-danger);
-    font-size: 0.85em;
+    font-size: var(--pf-font-size-xs);
   }
 
-  &__help {
-    display: inline-flex;
-    align-items: center;
-    line-height: 1;
-    color: var(--pf-color-text-secondary);
+  &__help-icon {
+    color: var(--pf-color-text-muted);
     cursor: help;
-    font-size: 1.1em;
-  }
-
-  // pf-stack defaults to baseline, which drops the help icon low.
-  &__control-row {
-    align-items: center;
-  }
-
-  // The whole align sentence on one line; wrap at word boundaries if long.
-  &__align-row {
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  &__row-top {
-    align-items: flex-start;
-    justify-content: space-between;
-    width: 100%;
+    align-self: center;
   }
 
   // Stacked vertically: each control (Machine, Align, ...) on its own line.
   &__config {
-    align-items: flex-start;
     padding-top: 8px;
     margin-top: 8px;
     border-top: 1px solid var(--pf-color-border);
-    font-size: 0.9em;
-    color: var(--pf-color-text-secondary);
+    font-size: var(--pf-font-size-s);
   }
 
   &__note {
     font-style: italic;
-    color: var(--pf-color-text-secondary);
   }
 
   // Reserved status line: min-height keeps the layout stable as the state
-  // cycles through processing / verdict / ready. Same width as the list
-  // panel so a long verdict wraps instead of stretching the modal.
+  // cycles through processing / verdict / ready.
   &__status-panel {
-    padding: 12px 0 4px;
+    padding-block: 12px 4px;
+    padding-inline: $padding-inline;
     min-height: 60px;
-    width: 550px;
-    box-sizing: border-box;
   }
 
   &__footer {
     border-top: 1px solid var(--pf-color-border);
     padding-top: 8px;
-    margin-top: 0px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  &__footer-error {
-    flex: 0 0 auto;
-    font-family: var(--pf-font);
-    word-wrap: break-word;
-    white-space: normal;
-    max-width: 450px;
-  }
-
-  &__footer-spacer {
-    flex: 1;
   }
 }
 
 .pf-multi-trace-modal-override {
   main {
     margin-top: 16px;
+    max-width: 550px;
   }
   padding: 16px;
   // Both axes: overflow-y:hidden alone computes overflow-x to auto, adding a
