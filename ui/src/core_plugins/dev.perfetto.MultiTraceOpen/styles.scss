@@ -84,6 +84,10 @@ $padding-inline: 4px;
       background: color_hover(transparent);
     }
 
+    &:focus-visible {
+      @include focus;
+    }
+
     .pf-icon {
       font-size: var(--pf-font-size-l);
     }
@@ -96,7 +100,7 @@ $padding-inline: 4px;
 
   &__hint {
     color: var(--pf-color-danger);
-    font-size: 0.85em;
+    font-size: var(--pf-font-size-xs);
   }
 
   &__help-icon {
@@ -118,8 +122,7 @@ $padding-inline: 4px;
   }
 
   // Reserved status line: min-height keeps the layout stable as the state
-  // cycles through processing / verdict / ready. Same width as the list
-  // panel so a long verdict wraps instead of stretching the modal.
+  // cycles through processing / verdict / ready.
   &__status-panel {
     padding-block: 12px 4px;
     padding-inline: $padding-inline;
