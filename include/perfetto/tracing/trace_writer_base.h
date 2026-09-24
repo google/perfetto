@@ -18,6 +18,9 @@
 #define INCLUDE_PERFETTO_TRACING_TRACE_WRITER_BASE_H_
 
 #include <cstdint>
+#include <functional>
+#include <type_traits>
+
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message_handle.h"
 
@@ -28,6 +31,17 @@ namespace pbzero {
 class TracePacket;
 }  // namespace pbzero
 }  // namespace protos
+}  // namespace perfetto
+
+namespace protozero {
+// Trace writers allocate packets as RootMessage<TracePacket>, so handles must
+// call RootMessage::Finalize(). Include this header wherever
+// MessageHandle<TracePacket> is used.
+template <>
+struct IsRootMessage<perfetto::protos::pbzero::TracePacket> : std::true_type {};
+}  // namespace protozero
+
+namespace perfetto {
 
 // This is a single-thread write interface that allows to write protobufs
 // directly into the tracing shared buffer without making any copies.
@@ -61,6 +75,9 @@ class PERFETTO_EXPORT_COMPONENT TraceWriterBase {
   // details on buffer size choices: https://perfetto.dev/docs/concepts/buffers.
   virtual protozero::MessageHandle<protos::pbzero::TracePacket>
   NewTracePacket() = 0;
+  static_assert(
+      protozero::MessageHandle<protos::pbzero::TracePacket>::kIsRootMessage,
+      "TracePacket handles must be root handles");
 
   // Tells the TraceWriterBase that the previous packet started with
   // NewTracePacket() is finished.

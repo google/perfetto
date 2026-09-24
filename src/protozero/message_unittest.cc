@@ -25,7 +25,6 @@
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/root_message.h"
-#include "src/base/test/utils.h"
 #include "src/protozero/test/fake_scattered_buffer.h"
 #include "test/gtest_and_gmock.h"
 
@@ -71,8 +70,6 @@ class MessageTest : public ::testing::Test {
     stream_writer_.reset();
     buffer_.reset();
   }
-
-  void ResetMessage(FakeRootMessage* msg) { msg->Reset(stream_writer_.get()); }
 
   void SetChunkSize(size_t size) {
     buffer_.reset(new FakeScatteredBuffer(size));
@@ -341,14 +338,6 @@ TEST_F(MessageTest, DeeplyNestedEmptyMessages) {
   EXPECT_EQ(0x9371fe8eu, buf_hash);
 }
 
-TEST_F(MessageTest, DestructInvalidMessageHandle) {
-  FakeRootMessage* msg = NewMessage();
-  EXPECT_DCHECK_DEATH({
-    MessageHandle<FakeRootMessage> handle(msg);
-    ResetMessage(msg);
-  });
-}
-
 TEST_F(MessageTest, MessageHandle) {
   FakeRootMessage* msg3 = NewMessageWithSizeField();
   FakeRootMessage* msg2 = NewMessageWithSizeField();
@@ -396,15 +385,14 @@ TEST_F(MessageTest, MessageHandle) {
   handle_swp = std::move(another_handle);
   ASSERT_EQ(0x90u, msg3_size[0]);  // |msg3| should be finalized at this point.
 
-#if PERFETTO_DCHECK_IS_ON()
-  // In developer builds w/ PERFETTO_DCHECK on a finalized message should
-  // invalidate the handle, in order to early catch bugs in the client code.
-  FakeRootMessage* msg4 = NewMessage();
-  MessageHandle<FakeRootMessage> handle4(msg4);
-  ASSERT_EQ(msg4, &*handle4);
-  msg4->Finalize();
-  ASSERT_THAT(handle4.get(), testing::IsNull());
-#endif
+  // Finalizing the message directly doesn't invalidate the handle. Destroying
+  // the handle afterwards is harmless, as Finalize() is idempotent.
+  {
+    FakeRootMessage* msg4 = NewMessage();
+    MessageHandle<FakeRootMessage> handle4(msg4);
+    msg4->Finalize();
+    ASSERT_EQ(msg4, handle4.get());
+  }
 
   // Test also the behavior of handle with non-root (nested) messages.
 
