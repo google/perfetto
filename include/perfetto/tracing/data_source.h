@@ -524,6 +524,9 @@ class DataSource : public DataSourceBase {
         DerivedDataSource::GetDefaultBufferExhaustedPolicy();
     params.buffer_exhausted_policy_configurable =
         DerivedDataSource::kBufferExhaustedPolicyConfigurable;
+    // C++ data sources write through protozero messages. A nested message
+    // takes the encoding of its packet, so any writer works.
+    params.supports_proto_group_encoding = true;
     return Helper::type().Register(
         descriptor, factory, params, no_flush,
         GetCreateTlsFn(

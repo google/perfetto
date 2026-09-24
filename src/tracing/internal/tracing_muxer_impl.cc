@@ -1389,6 +1389,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->interceptor = nullptr;
     internal_state->interceptor_id = 0;
     internal_state->will_notify_on_stop = rds.descriptor.will_notify_on_stop();
+    internal_state->supports_proto_group_encoding =
+        rds.params.supports_proto_group_encoding;
 
     if (cfg.has_interceptor_config()) {
       for (size_t j = 0; j < interceptors_.size(); j++) {
@@ -2395,6 +2397,14 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
   if (startup_buffer_reservation) {
     return service->MaybeSharedMemoryArbiter()->CreateStartupTraceWriter(
         startup_buffer_reservation);
+  }
+  // A data source that supports proto group encoding gets a writer for its
+  // instance. The endpoint picks the transport of that instance: a tracing v2
+  // ring buffer writer or a v1 SMB writer. The checks above apply to both.
+  if (data_source->supports_proto_group_encoding) {
+    return service->CreateTraceWriter(data_source->buffer_id,
+                                      buffer_exhausted_policy,
+                                      data_source->data_source_instance_id);
   }
   return service->CreateTraceWriter(data_source->buffer_id,
                                     buffer_exhausted_policy);

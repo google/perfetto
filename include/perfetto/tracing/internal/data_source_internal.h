@@ -123,6 +123,11 @@ struct DataSourceState {
   // this data source.
   std::atomic<uint32_t> incremental_state_generation{0};
 
+  // Copied from DataSourceParams at setup. If true, the muxer asks the
+  // endpoint for a writer of this instance, and the endpoint picks the
+  // transport. See TracingMuxerImpl::CreateTraceWriter().
+  bool supports_proto_group_encoding = false;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder
