@@ -23,6 +23,7 @@
 #include <atomic>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/futex.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 namespace perfetto::tracing_v2 {
@@ -231,7 +232,7 @@ class SharedRingBuffer {
   };
 
   // Whether WaitForReadPosChange() is implemented on this platform.
-  static bool SupportsWriterWait();
+  static constexpr bool SupportsWriterWait() { return base::HasFutexSupport(); }
 
   // Blocks until read_pos differs from |read_pos_for_wait| or |timeout_ms|
   // elapses. |read_pos_for_wait| comes from the last Reservation, whether it
