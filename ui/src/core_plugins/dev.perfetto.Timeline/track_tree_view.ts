@@ -49,6 +49,7 @@ import type {TrackNode} from '../../public/workspace';
 import type {SnapPoint} from '../../public/track';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {
+  CHART_COLORS,
   COLOR_ACCENT,
   COLOR_BACKGROUND,
   COLOR_BACKGROUND_SECONDARY,
@@ -463,6 +464,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       COLOR_TEXT,
       COLOR_TEXT_MUTED,
       COLOR_TIMELINE_OVERLAY,
+      CHART_COLORS,
     };
 
     // Render all track content (WebGL rectangles + Canvas 2D text)

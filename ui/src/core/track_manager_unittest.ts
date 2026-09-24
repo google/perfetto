@@ -84,6 +84,7 @@ const dummyCtx: TrackRenderContext = {
     COLOR_TEXT_MUTED: 'hotpink',
     COLOR_NEUTRAL: 'hotpink',
     COLOR_TIMELINE_OVERLAY: 'hotpink',
+    CHART_COLORS: ['hotpink'],
   },
   renderer: makeMockRenderer(),
 };

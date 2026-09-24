@@ -34,6 +34,9 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
   private handleElement?: HTMLElement;
   private previousY: number | undefined;
   private previousX: number | undefined;
+  // Deltas are measured in client space: when the handle resizes one of its
+  // own ancestors, offsetParent moves with the drag and cancels it out.
+  private previousClient: number | undefined;
 
   oncreate(vnode: m.VnodeDOM<ResizeHandleAttrs, this>) {
     this.handleElement = vnode.dom as HTMLElement;
@@ -43,6 +46,7 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
     if (this.previousY !== undefined || this.previousX !== undefined) {
       this.previousY = undefined;
       this.previousX = undefined;
+      this.previousClient = undefined;
       this.handleElement!.releasePointerCapture(pointerId);
       attrs.onResizeEnd?.();
     }
@@ -80,6 +84,7 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
           this.previousY = mouseOffsetY;
         }
 
+        this.previousClient = isHorizontal ? e.clientX : e.clientY;
         this.handleElement!.setPointerCapture(e.pointerId);
         attrs.onResizeStart?.();
 
@@ -96,12 +101,14 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
         // already ensures we only receive move events during an active drag.
         // The previousX/previousY check is sufficient to determine drag state.
 
+        const client = isHorizontal ? e.clientX : e.clientY;
+
         if (isHorizontal) {
           const offsetLeft = offsetParent?.getBoundingClientRect().left ?? 0;
           const mouseOffsetX = e.clientX - offsetLeft;
 
           if (this.previousX !== undefined) {
-            attrs.onResize?.(mouseOffsetX - this.previousX);
+            attrs.onResize?.(client - (this.previousClient ?? client));
             attrs.onResizeAbsolute?.(mouseOffsetX);
             this.previousX = mouseOffsetX;
           }
@@ -110,11 +117,12 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
           const mouseOffsetY = e.clientY - offsetTop;
 
           if (this.previousY !== undefined) {
-            attrs.onResize?.(mouseOffsetY - this.previousY);
+            attrs.onResize?.(client - (this.previousClient ?? client));
             attrs.onResizeAbsolute?.(mouseOffsetY);
             this.previousY = mouseOffsetY;
           }
         }
+        this.previousClient = client;
       },
       onpointerup: (e: PointerEvent) => {
         this.endDrag(attrs, e.pointerId);

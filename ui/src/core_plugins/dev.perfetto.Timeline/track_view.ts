@@ -211,6 +211,18 @@ export class TrackView {
         onCollapsedChanged: () => {
           node.hasChildren && node.toggleCollapsed();
         },
+        onResize:
+          renderer?.track.setHeight === undefined ||
+          (node.isSummary && node.expanded)
+            ? undefined
+            : (deltaPx: number) => {
+                // The live height, as pointer moves can outpace redraws.
+                const track = renderer.track;
+                track.setHeight?.(
+                  (track.getHeight?.() ?? this.height) + deltaPx,
+                );
+                raf.scheduleFullRedraw();
+              },
         onTrackContentMouseMove: (pos, bounds) => {
           const timescale = this.getTimescaleForBounds(bounds);
           renderer?.track.onMouseMove?.({
@@ -244,6 +256,18 @@ export class TrackView {
               timescale,
             }) ?? false
           );
+        },
+        onTrackContentWheel: (pos, bounds, e) => {
+          const handled =
+            renderer?.track.onMouseWheel?.({
+              ...pos,
+              timescale: this.getTimescaleForBounds(bounds),
+              deltaX: e.deltaX,
+              deltaY: e.deltaY,
+              shiftKey: e.shiftKey,
+            }) ?? false;
+          if (handled) raf.scheduleCanvasRedraw();
+          return handled;
         },
         onMoveBefore: (nodeId: string) => {
           // We are the reference node (the one to be moved relative to), nodeId
@@ -731,6 +755,7 @@ const TrackPopupMenu = {
         },
       }),
       ...renderTrackSettings(attrs.descriptor),
+      attrs.descriptor?.renderer.getTrackMenuItems?.(),
     ];
   },
 };

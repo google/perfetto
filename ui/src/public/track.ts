@@ -175,6 +175,12 @@ export interface TrackMouseEvent {
   readonly timescale: TimeScale;
 }
 
+export interface TrackMouseWheelEvent extends TrackMouseEvent {
+  readonly deltaX: number;
+  readonly deltaY: number;
+  readonly shiftKey: boolean;
+}
+
 /**
  * A descriptor for a track setting, which describes the setting's metadata and
  * how to render a control for it. This is separate from the track setting
@@ -253,11 +259,30 @@ export interface TrackRenderer {
    */
   getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
   getHeight?(): number;
+
+  /**
+   * Optional: set the track's height in pixels. Implementing this lets the
+   * user resize the track by dragging its bottom edge.
+   */
+  setHeight?(heightPx: number): void;
+
+  /**
+   * Optional: items appended to the track's menu, for controls that don't fit
+   * the TrackSetting model.
+   */
+  getTrackMenuItems?(): m.Children;
+
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
   onMouseDoubleClick?(event: TrackMouseEvent): boolean;
   onMouseOut?(): void;
+
+  /**
+   * Optional: handle a wheel event over the track. Returns true if handled, in
+   * which case the timeline doesn't pan or zoom.
+   */
+  onMouseWheel?(event: TrackMouseWheelEvent): boolean;
 
   /**
    * Optional: Returns a dataset that represents the events displayed on this

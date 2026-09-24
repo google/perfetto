@@ -22,6 +22,7 @@ import {hasChildren, type MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {Button, ButtonBar, ButtonVariant} from './button';
 import {Chip} from './chip';
+import {ResizeHandle} from './resize_handle';
 import {type HTMLAttrs, Intent} from './common';
 import {Popup} from './popup';
 import {Stack} from './stack';
@@ -125,6 +126,15 @@ export interface TrackShellAttrs extends HTMLAttrs {
     pos: Point2D,
     contentSize: Bounds2D,
   ) => boolean;
+  readonly onTrackContentWheel?: (
+    pos: Point2D,
+    contentSize: Bounds2D,
+    e: WheelEvent,
+  ) => boolean;
+
+  // Called while the user drags the track's bottom edge, with the change in
+  // height. The edge is only draggable when this is given.
+  readonly onResize?: (deltaPx: number) => void;
 
   // If reorderable, these functions will be called when track shells are
   // dragged and dropped.
@@ -179,6 +189,15 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         this.renderShell(attrs),
         !lite && this.renderContent(attrs),
       ),
+      attrs.onResize !== undefined &&
+        !lite &&
+        m(
+          '.pf-track__resize',
+          m(ResizeHandle, {
+            title: 'Drag to resize this track',
+            onResize: attrs.onResize,
+          }),
+        ),
       hasChildren(vnode) && m('.pf-track__children', vnode.children),
     );
   }
@@ -378,6 +397,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       onTrackContentMouseOut,
       onTrackContentClick,
       onTrackContentDoubleClick,
+      onTrackContentWheel,
       error,
     } = attrs;
 
@@ -434,6 +454,20 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             )
           ) {
             e.preventDefault();
+          }
+        },
+        onwheel: (e: MithrilEvent<WheelEvent>) => {
+          e.redraw = false;
+          if (
+            onTrackContentWheel?.(
+              currentTargetOffset(e),
+              getTargetContainerSize(e),
+              e,
+            )
+          ) {
+            // Handled by the track, so the timeline mustn't pan or zoom too.
+            e.preventDefault();
+            e.stopPropagation();
           }
         },
       },

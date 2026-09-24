@@ -135,6 +135,25 @@
     margin-left: 2px;
   }
 
+  // Overlays the bottom of the shell without adding to the track's height,
+  // clear of the pinned area's splitter on the edge itself.
+  &__resize {
+    position: relative;
+    height: 0;
+    z-index: 11;
+
+    > .pf-resize-handle {
+      position: absolute;
+      bottom: 3px;
+      width: var(--track-shell-width);
+      background-color: transparent;
+    }
+  }
+
+  &__header:hover + &__resize > .pf-resize-handle {
+    background-color: var(--pf-color-border);
+  }
+
   &__canvas {
     grid-area: canvas;
     overflow: hidden; // Keeps subtitle width contained

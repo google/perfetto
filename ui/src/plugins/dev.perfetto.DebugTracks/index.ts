@@ -16,6 +16,12 @@ import {
   addDebugCounterTrack,
   addDebugSliceTrack,
 } from '../../components/tracks/debug_tracks';
+import {
+  addTimeseriesTrack,
+  listCounters,
+  selectedCounterIds,
+  showTimeseriesTrackDialog,
+} from '../../components/tracks/timeseries_track';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {exists} from '../../base/utils';
@@ -65,6 +71,26 @@ export default class implements PerfettoPlugin {
           },
           title,
         });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddTimeseriesTrack',
+      name: 'Add timeseries track',
+      callback: () => showTimeseriesTrackDialog(ctx, selectedCounterIds(ctx)),
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddTimeseriesTrackFromSelection',
+      name: 'Add timeseries track from selected counter tracks',
+      callback: async () => {
+        const ids = new Set(selectedCounterIds(ctx));
+        const counters = (await listCounters(ctx)).filter((c) => ids.has(c.id));
+        if (counters.length === 0) {
+          ctx.omnibox.showStatusMessage('No counter tracks are selected');
+          return;
+        }
+        addTimeseriesTrack(ctx, counters);
       },
     });
 

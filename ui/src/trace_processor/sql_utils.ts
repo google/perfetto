@@ -132,7 +132,7 @@ export function sqlValueToSqliteString(
   return `${val}`;
 }
 
-function makeTempName(): string {
+export function makeTempName(): string {
   // Generate a temporary name for a sql entity, which is guaranteed to be unique
   // within the current trace.
   return `__temp_${Math.random().toString(36).substring(2, 15)}`;

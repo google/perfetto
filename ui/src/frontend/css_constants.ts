@@ -30,6 +30,7 @@ export let COLOR_TEXT_MUTED = 'hotpink';
 export let COLOR_NEUTRAL = 'hotpink';
 export let COLOR_HIGHLIGHT = 'hotpink';
 export let COLOR_TIMELINE_OVERLAY = 'hotpink';
+export let CHART_COLORS: ReadonlyArray<string> = ['hotpink'];
 
 export function setTrackShellWidth(width: number) {
   TRACK_SHELL_WIDTH = Math.round(width);
@@ -76,4 +77,7 @@ export function initCssConstants(element?: Element) {
   COLOR_HIGHLIGHT = getCssStr('--pf-color-highlight') ?? COLOR_HIGHLIGHT;
   COLOR_TIMELINE_OVERLAY =
     getCssStr('--pf-color-timeline-overlay') ?? COLOR_TIMELINE_OVERLAY;
+  CHART_COLORS = [1, 2, 3, 4, 5, 6, 7, 8].map(
+    (i) => getCssStr(`--pf-chart-color-${i}`) ?? CHART_COLORS[0],
+  );
 }
