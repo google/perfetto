@@ -1235,23 +1235,12 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
   void* const kIncrPtr = &ignored;
   WaitableEvent clear_notification;
 
-  // Create tracing session with periodic incremental state clearing
-  TracingSession tracing_session = TracingSession::Builder()
-                                       .set_data_source_name(kDataSourceName2)
-                                       .set_clear_period_ms(10)
-                                       .Build();
-
   EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillOnce(Return(kIncrPtr));
 
-  // Get incremental state - this should create it
-  void* tls_state = nullptr;
-  PERFETTO_DS_TRACE(data_source_2, ctx) {
-    tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
-  }
-  EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr);
-
   // Set up expectation that clear will be called and will return true.
-  // It may be called multiple times since clear_period_ms keeps firing.
+  // It may be called multiple times since clear_period_ms keeps firing
+  // (including potentially during the very first trace point if the periodic
+  // timer fires between PopulateTlsInst and PerfettoDsGetIncrementalState).
   EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr, _))
       .WillRepeatedly([&clear_notification](void*, void*) {
         clear_notification.Notify();
@@ -1260,6 +1249,19 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
 
   // OnDeleteIncr should NOT be called because clear succeeded
   EXPECT_CALL(ds2_callbacks_, OnDeleteIncr).Times(0);
+
+  // Create tracing session with periodic incremental state clearing
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name(kDataSourceName2)
+                                       .set_clear_period_ms(10)
+                                       .Build();
+
+  // Get incremental state - this should create it
+  void* tls_state = nullptr;
+  PERFETTO_DS_TRACE(data_source_2, ctx) {
+    tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
+  }
+  EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr);
 
   // Wait for at least one clear period to elapse, then access the incremental
   // state which will trigger the clear callback.
@@ -1301,6 +1303,33 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
   void* const kIncrPtr1 = &ignored1;
   void* const kIncrPtr2 = &ignored2;
   WaitableEvent clear_notification;
+  bool should_fail_clear = false;
+
+  // First creation returns kIncrPtr1; subsequent recreations after failed clear
+  // return kIncrPtr2.
+  EXPECT_CALL(ds2_callbacks_, OnCreateIncr)
+      .WillOnce(Return(kIncrPtr1))
+      .WillRepeatedly(Return(kIncrPtr2));
+
+  // If a clear happens during the initial trace point (before should_fail_clear
+  // is set), succeed so the initial pointer remains kIncrPtr1. Once
+  // should_fail_clear is true, return false to trigger destruction and
+  // recreation with kIncrPtr2.
+  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr1, _))
+      .WillRepeatedly([&clear_notification, &should_fail_clear](void*, void*) {
+        if (!should_fail_clear) {
+          return true;
+        }
+        clear_notification.Notify();
+        return false;  // Clear failed
+      });
+
+  // OnDeleteIncr SHOULD be called once for kIncrPtr1 when clear returns false
+  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr(kIncrPtr1));
+
+  // OnClearIncr may be called again with the new pointer
+  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr2, _))
+      .WillRepeatedly(Return(true));
 
   // Create tracing session with periodic incremental state clearing
   TracingSession tracing_session = TracingSession::Builder()
@@ -1308,35 +1337,13 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
                                        .set_clear_period_ms(10)
                                        .Build();
 
-  EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillOnce(Return(kIncrPtr1));
-
   // Get incremental state - this should create it
   void* tls_state = nullptr;
   PERFETTO_DS_TRACE(data_source_2, ctx) {
     tls_state = PerfettoDsGetIncrementalState(&data_source_2, &ctx);
   }
   EXPECT_EQ(Ds2ActualCustomState(tls_state), kIncrPtr1);
-
-  // Set up expectation that clear will be called but will return false.
-  // After the first call returns false, subsequent calls should recreate with
-  // a new pointer. We use WillOnce to return false once, then WillRepeatedly
-  // for subsequent attempts which should get the new pointer.
-  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr1, _))
-      .WillOnce([&clear_notification](void*, void*) {
-        clear_notification.Notify();
-        return false;  // Clear failed
-      });
-
-  // OnDeleteIncr SHOULD be called because clear returned false
-  EXPECT_CALL(ds2_callbacks_, OnDeleteIncr(kIncrPtr1));
-
-  // OnCreateIncr should be called again to recreate the state. It may be
-  // called multiple times if clear keeps firing.
-  EXPECT_CALL(ds2_callbacks_, OnCreateIncr).WillRepeatedly(Return(kIncrPtr2));
-
-  // OnClearIncr may be called again with the new pointer
-  EXPECT_CALL(ds2_callbacks_, OnClearIncr(kIncrPtr2, _))
-      .WillRepeatedly(Return(true));
+  should_fail_clear = true;
 
   // Wait for at least one clear period to elapse, then access the incremental
   // state which will trigger the clear callback.
