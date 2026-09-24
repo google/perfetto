@@ -62,7 +62,6 @@ export function wheelNavigationInteraction(
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         const tDelta = timescale.pxToDuration(e.deltaX);
         trace.timeline.pan(tDelta);
-        return true;
       } else {
         if (e.ctrlKey) {
           const sign = e.deltaY < 0 ? -1 : 1;
@@ -72,7 +71,6 @@ export function wheelNavigationInteraction(
           trace.timeline.zoom(1 - deltaY * WHEEL_ZOOM_SPEED, centerPoint);
         }
       }
-      return false;
     },
   };
 }
