@@ -16,7 +16,11 @@
 
 #include "src/tools/tracing_proto_extensions.h"
 
+#include <map>
+#include <string>
+
 #include "perfetto/base/status.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/base/test/utils.h"
@@ -597,6 +601,99 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsExcludesCoreProtos) {
                   "protos/perfetto/trace/track_event/track_event.proto")));
   EXPECT_THAT(files, testing::Not(testing::Contains(
                          "protos/perfetto/trace/track_event/leaf.proto")));
+}
+
+TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsKeepsFieldOptions) {
+  // Both builtin (packed) and custom (is_pid) field options on extension
+  // payloads must survive into the output: trace_processor relies on the
+  // custom ones to annotate args.
+  base::TmpDirTree tmp;
+  tmp.AddDir("google");
+  tmp.AddDir("google/protobuf");
+  tmp.AddDir("protos");
+  tmp.AddDir("protos/perfetto");
+  tmp.AddDir("protos/perfetto/trace");
+  tmp.AddDir("protos/perfetto/trace/track_event");
+  tmp.AddDir("ext");
+  // Just enough of descriptor.proto for protoc to resolve both options.
+  tmp.AddFile("google/protobuf/descriptor.proto", R"(
+    syntax = "proto2";
+    package google.protobuf;
+    message FieldOptions {
+      optional bool packed = 2;
+      extensions 1000 to max;
+    }
+  )");
+  tmp.AddFile("protos/perfetto/trace/field_options.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    import "google/protobuf/descriptor.proto";
+    extend google.protobuf.FieldOptions { optional bool is_pid = 73922; }
+  )");
+  tmp.AddFile("protos/perfetto/trace/track_event/track_event.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    message TrackEvent { extensions 9900 to 9999; }
+  )");
+  tmp.AddFile("ext/my_ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "protos/perfetto/trace/field_options.proto";
+    import "protos/perfetto/trace/track_event/track_event.proto";
+    message MyPayload {
+      optional int32 pid = 1 [(perfetto.protos.is_pid) = true];
+      repeated int32 values = 2 [packed = true];
+    }
+    message MyExt {
+      extend perfetto.protos.TrackEvent {
+        optional MyPayload my_payload = 9900;
+      }
+    }
+  )");
+  tmp.AddFile("registry.json", R"({
+    "extensions": [
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [9900, 9999],
+        "allocations": [
+          {"name": "ext", "range": [9900, 9999], "proto": "ext/my_ext.proto"}
+        ]
+      }
+    ]
+  })");
+
+  auto result = GenerateExtensionDescriptors(tmp.AbsolutePath("registry.json"),
+                                             {tmp.path()}, tmp.path());
+  ASSERT_TRUE(result.ok()) << result.status().message();
+
+  // Maps each MyPayload field name to its serialized FieldOptions.
+  std::map<std::string, std::string> options_by_field;
+  protos::pbzero::FileDescriptorSet::Decoder fds(result->data(),
+                                                 result->size());
+  for (auto file_it = fds.file(); file_it; ++file_it) {
+    protos::pbzero::FileDescriptorProto::Decoder file(*file_it);
+    for (auto msg_it = file.message_type(); msg_it; ++msg_it) {
+      protos::pbzero::DescriptorProto::Decoder msg(*msg_it);
+      if (msg.name().ToStdString() != "MyPayload")
+        continue;
+      for (auto field_it = msg.field(); field_it; ++field_it) {
+        protos::pbzero::FieldDescriptorProto::Decoder field(*field_it);
+        options_by_field[field.name().ToStdString()] =
+            field.options().ToStdString();
+      }
+    }
+  }
+  ASSERT_EQ(options_by_field.size(), 2u);
+
+  protozero::ProtoDecoder pid_options(options_by_field["pid"]);
+  protozero::Field is_pid = pid_options.FindField(73922);
+  ASSERT_TRUE(is_pid.valid());
+  EXPECT_TRUE(is_pid.as_bool());
+
+  protos::pbzero::FieldOptions::Decoder values_options(
+      options_by_field["values"]);
+  ASSERT_TRUE(values_options.has_packed());
+  EXPECT_TRUE(values_options.packed());
 }
 
 }  // namespace
