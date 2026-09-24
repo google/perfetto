@@ -65,7 +65,7 @@ export default class implements PerfettoPlugin {
       left join grouped_packages p using (uid)
       left join gpu g on g.id = t.ugpu
       left join machine m on m.id = t.machine_id
-      order by t.gpu_id, lower(packageName)
+      order by t.gpu_id, lower(packageName), t.id
     `);
 
     const it = result.iter({
@@ -88,9 +88,13 @@ export default class implements PerfettoPlugin {
 
     // Cache the work-period group(s) by name so each is created only once.
     const groupsByName = new Map<string, TrackNode>();
+    const seenUris = new Set<string>();
     for (; it.valid(); it.next()) {
       const {trackId, gpuId, uid, packageName} = it;
-      const uri = `/gpu_work_period_${gpuId}_${uid}`;
+      const baseUri = `/gpu_work_period_${gpuId}_${uid}`;
+      const uri = seenUris.has(baseUri) ? `${baseUri}_${trackId}` : baseUri;
+      seenUris.add(baseUri);
+      seenUris.add(uri);
       const track = await SliceTrack.createMaterialized({
         trace: ctx,
         uri,
