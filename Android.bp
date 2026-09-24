@@ -1504,7 +1504,7 @@ cc_library_static {
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
     ],
-    shared_libs: [
+    static_libs: [
         "libperfetto_c",
     ],
     host_supported: true,

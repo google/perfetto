@@ -33,8 +33,29 @@ void register_perfetto(bool backend_in_process) {
   static std::once_flag registration;
   std::call_once(registration, [backend_in_process]() {
     struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
+#ifdef PERFETTO_JNI_ART_STATIC_INTEGRATION
+    // libcore links the SDK statically into libjavacore.so, which ships inside
+    // the com.android.art APEX, and only ever registers the system backend.
+    //
+    // PerfettoProducerInit() is a static inline that branches on `backends`,
+    // so a runtime-variable backend keeps a reference to
+    // PerfettoProducerInProcessInit() alive in this translation unit. That
+    // single reference anchors the whole in-process tracing service
+    // (TracingServiceImpl, the trace buffer manager, the IPC layer and the
+    // protovm interpreter), which --gc-sections is then unable to drop.
+    // Measured cost when it is retained: ~840KB of unreachable code across
+    // both architectures.
+    //
+    // Pinning the backend to a compile-time constant lets the compiler fold
+    // the in-process branch away entirely. `backend_in_process` is
+    // deliberately ignored rather than asserted on, because libcore is the
+    // only caller in this configuration and always passes false.
+    (void)backend_in_process;
+    args.backends = PERFETTO_BACKEND_SYSTEM;
+#else
     args.backends = backend_in_process ? PERFETTO_BACKEND_IN_PROCESS
                                        : PERFETTO_BACKEND_SYSTEM;
+#endif
     args.shmem_size_hint_kb = 1024;
     PerfettoProducerInit(args);
     PerfettoTeInit();
@@ -300,9 +321,18 @@ void ProtoFieldNested::delete_field(ProtoFieldNested* ptr) {
 }
 
 Session::Session(bool is_backend_in_process, void* buf, size_t len) {
+#ifdef PERFETTO_JNI_ART_STATIC_INTEGRATION
+  // See register_perfetto(): PerfettoTracingSessionCreate() is likewise a
+  // static inline branching on the backend, so pinning it here keeps
+  // PerfettoTracingSessionInProcessCreate() -- and the in-process tracing
+  // service it anchors -- out of the statically linked build.
+  (void)is_backend_in_process;
+  session_ = PerfettoTracingSessionCreate(PERFETTO_BACKEND_SYSTEM);
+#else
   session_ = PerfettoTracingSessionCreate(is_backend_in_process
                                               ? PERFETTO_BACKEND_IN_PROCESS
                                               : PERFETTO_BACKEND_SYSTEM);
+#endif
 
   PerfettoTracingSessionSetup(session_, buf, len);
 
