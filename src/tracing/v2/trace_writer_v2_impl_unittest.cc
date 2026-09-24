@@ -15,7 +15,7 @@
  */
 
 // Tests TraceWriterV2Impl and ProducerRingBufferEndpoint together.
-// - A mock endpoint plays the service. Its DrainRingBuffer() reads the ring
+// - A mock endpoint plays the service. Its DrainV2RingBuffer() reads the ring
 //   buffer into a TraceBufferV2, as the service does.
 // - Packets are read back from TBv2 and parsed as ordinary TracePackets.
 
@@ -57,7 +57,7 @@ class ProducerRingBufferEndpointTestPeer {
   // Acts like a writer that set the merge flag in PostDrainTask() but did
   // not post its drain task yet.
   static void SetDrainTaskPending(ProducerRingBufferEndpoint* endpoint) {
-    endpoint->drain_task_pending_.store(true);
+    endpoint->drain_task_pending_.store(1);
   }
 };
 
@@ -91,9 +91,11 @@ class TraceWriterV2ImplTest : public ::testing::Test,
           if (callback)
             callback();
         });
-    ON_CALL(endpoint_, DrainRingBuffer()).WillByDefault([this] {
+    // Like the service, drain only after the reader is attached.
+    ON_CALL(endpoint_, DrainV2RingBuffer()).WillByDefault([this] {
       ++num_drain_requests_;
-      Drain();
+      if (service_reader_attached_)
+        Drain();
     });
     smb_arbiter_ = SharedMemoryArbiter::CreateInstance(
         &smb_, kSmbPageSize, SharedMemoryABI::ShmemMode::kDefault, &endpoint_,
@@ -130,9 +132,13 @@ class TraceWriterV2ImplTest : public ::testing::Test,
 
   void CreateRingBufferEndpointWithReader(uint32_t num_chunks) {
     CreateRingBufferEndpoint(num_chunks);
+    AttachReader();
+  }
+
+  // Acts like the service accepting the ring buffer.
+  void AttachReader() {
+    service_reader_attached_ = true;
     ring_buffer_endpoint_->OnReaderAttached();
-    task_runner_.RunUntilIdle();
-    num_drain_requests_ = 0;
   }
 
   std::unique_ptr<TraceWriter> CreateWriter(
@@ -183,14 +189,14 @@ class TraceWriterV2ImplTest : public ::testing::Test,
     const TraceBuffer::PacketSequenceProperties sequence{
         kProducerId, ClientIdentity(/*uid=*/0, /*pid=*/0), chunk.writer_id};
     EXPECT_EQ(chunk.target_buffer, kTargetBuffer);
-    trace_buffer_->AppendProtoGroupFragments(
+    trace_buffer_->CopyChunkV2Untrusted(
         sequence, fragments.data(), fragments.size(),
         chunk.payload_flags & kFlagContinuesFromPrevChunk,
         chunk.payload_flags & kFlagContinuesOnNextChunk);
   }
 
   void OnDataLoss(WriterID writer_id) override {
-    trace_buffer_->RecordProtoGroupLoss(kProducerId, writer_id);
+    trace_buffer_->RecordChunkV2DataLoss(kProducerId, writer_id);
   }
 
   base::TestTaskRunner task_runner_;
@@ -203,6 +209,7 @@ class TraceWriterV2ImplTest : public ::testing::Test,
   std::unique_ptr<SharedRingBuffer> reader_ring_buffer_;
   std::unique_ptr<SharedRingBufferReader> reader_;
 
+  bool service_reader_attached_ = false;
   uint32_t num_drain_requests_ = 0;
 };
 
@@ -319,9 +326,10 @@ TEST_F(TraceWriterV2ImplTest, DestructionPublishesThenReleasesWriterId) {
   writer.reset();
   EXPECT_TRUE(smb_arbiter_->TryShutdown());
 
-  // The destructor published the packet before it released the ID.
-  ring_buffer_endpoint_->OnReaderAttached();
-  task_runner_.RunUntilIdle();
+  // Attach a reader and drain to check that the destructor published the
+  // packet before releasing the ID.
+  AttachReader();
+  Drain();
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 1u);
   EXPECT_EQ(packets[0].packet.for_testing().str(), "last");
@@ -329,13 +337,23 @@ TEST_F(TraceWriterV2ImplTest, DestructionPublishesThenReleasesWriterId) {
 
 // --- Reader notifications and flush ---
 
-TEST_F(TraceWriterV2ImplTest, NotificationsAreCoalesced) {
+// Publications below the threshold stay buffered. Once it is reached,
+// further notifications share the pending drain task.
+TEST_F(TraceWriterV2ImplTest, DrainRequestsAreCoalescedAtOccupancyThreshold) {
   CreateRingBufferEndpointWithReader(/*num_chunks=*/8);
   auto writer = CreateWriter();
-  for (int i = 0; i < 5; ++i)
-    WritePacket(writer.get(), "p");
+  // Two of these packets do not fit one 256-byte chunk.
+  const std::string large(200, 'x');
+
+  WritePacket(writer.get(), large);
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 0u);  // 1 of 8 positions waits.
+
+  WritePacket(writer.get(), large);  // 2 of 8: asks for a drain.
+  WritePacket(writer.get(), large);  // Merged into the pending task.
   task_runner_.RunUntilIdle();
   EXPECT_EQ(num_drain_requests_, 1u);
+  EXPECT_EQ(ReadPackets().size(), 3u);
 }
 
 TEST_F(TraceWriterV2ImplTest, FlushRunsCallbackAfterDrainRequest) {
@@ -376,24 +394,27 @@ TEST_F(TraceWriterV2ImplTest, FlushDrainsWhileAnotherDrainIsNotPosted) {
   EXPECT_EQ(packets_at_callback[0].packet.for_testing().str(), "flushed");
 }
 
-TEST_F(TraceWriterV2ImplTest, FlushBeforeReaderAttachedRunsWithoutDrain) {
-  CreateRingBufferEndpoint(/*num_chunks=*/4);
+// Drain requests do not depend on the reader state. Before the reader
+// attaches, the service ignores them. The data stays in the ring buffer.
+TEST_F(TraceWriterV2ImplTest, FlushBeforeReaderAttachedKeepsData) {
+  // With 8 chunks, one packet does not reach the drain threshold.
+  CreateRingBufferEndpoint(/*num_chunks=*/8);
   auto writer = CreateWriter();
   WritePacket(writer.get(), "p");
   bool flushed = false;
   writer->Flush([&] { flushed = true; });
   task_runner_.RunUntilIdle();
   EXPECT_TRUE(flushed);
-  EXPECT_EQ(num_drain_requests_, 0u);
-
-  // The reader drains the data when it attaches.
-  ring_buffer_endpoint_->OnReaderAttached();
-  task_runner_.RunUntilIdle();
   EXPECT_EQ(num_drain_requests_, 1u);
+  EXPECT_EQ(ReadPackets().size(), 0u);
+
+  AttachReader();
+  writer->Flush();
+  task_runner_.RunUntilIdle();
   EXPECT_EQ(ReadPackets().size(), 1u);
 }
 
-TEST_F(TraceWriterV2ImplTest, FlushAfterDisconnectRunsWithoutDrain) {
+TEST_F(TraceWriterV2ImplTest, FlushAfterDisconnectRunsCallback) {
   CreateRingBufferEndpoint(/*num_chunks=*/4);
   auto writer = CreateWriter();
   ring_buffer_endpoint_->Disconnect();
@@ -401,7 +422,6 @@ TEST_F(TraceWriterV2ImplTest, FlushAfterDisconnectRunsWithoutDrain) {
   writer->Flush([&] { flushed = true; });
   task_runner_.RunUntilIdle();
   EXPECT_TRUE(flushed);
-  EXPECT_EQ(num_drain_requests_, 0u);
 }
 
 TEST_F(TraceWriterV2ImplTest, FlushRunsIfEndpointIsDestroyedFirst) {

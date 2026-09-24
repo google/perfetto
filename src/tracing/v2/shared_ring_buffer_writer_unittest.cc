@@ -238,8 +238,9 @@ TEST(SharedRingBufferWriterTest, MaxFragmentsPerChunk) {
 }
 
 TEST(SharedRingBufferWriterTest, LargeFragment) {
-  // A large chunk holds a fragment longer than 65535 bytes.
-  constexpr uint32_t kBigChunk = 128 * 1024;
+  // The largest chunk holds one fragment with a three-byte size varint:
+  // 6 header bytes + 65527 payload bytes + 3 varint bytes = 65536.
+  constexpr uint32_t kBigChunk = kMaxChunkSize;
   constexpr uint32_t kLargest = kBigChunk - 9;
   test::SharedRingBufferForTesting ring(2, kBigChunk);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);

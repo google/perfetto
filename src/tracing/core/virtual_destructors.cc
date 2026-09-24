@@ -43,6 +43,6 @@ SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 void Consumer::OnSessionCloned(const OnSessionClonedArgs&) {}
 
 // Endpoints without tracing v2 support ignore drain requests.
-void ProducerEndpoint::DrainRingBuffer() {}
+void ProducerEndpoint::DrainV2RingBuffer() {}
 
 }  // namespace perfetto
