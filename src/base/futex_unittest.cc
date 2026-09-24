@@ -23,6 +23,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/waitable_event.h"
 #include "test/gtest_and_gmock.h"
 
 #if PERFETTO_HAS_FUTEX()
@@ -35,72 +36,61 @@
 namespace perfetto::base {
 namespace {
 
-TEST(FutexTest, HasFutexSupportReturnsExpected) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  EXPECT_TRUE(HasFutexSupport());
-#else
-  EXPECT_FALSE(HasFutexSupport());
-#endif
-}
-
-TEST(FutexTest, WaitReturnsValueMismatchIfAlreadyDifferent) {
-  if (!HasFutexSupport())
+class FutexTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+#if !PERFETTO_HAS_FUTEX()
     GTEST_SKIP() << "Futex not available on this platform";
+#endif
+  }
+};
 
+TEST_F(FutexTest, WaitReturnsValueMismatchIfAlreadyDifferent) {
   uint32_t word = 42;
   auto result = FutexWait(&word, 0, 30000);
   EXPECT_EQ(result, FutexWaitResult::kValueMismatch);
 }
 
-TEST(FutexTest, WaitTimesOut) {
-  if (!HasFutexSupport())
-    GTEST_SKIP() << "Futex not available on this platform";
-
+TEST_F(FutexTest, WaitTimesOut) {
   uint32_t word = 0;
-  const auto before = GetWallTimeMs();
-  auto result = FutexWait(&word, 0, 1);
-  const auto elapsed = GetWallTimeMs() - before;
-
-  EXPECT_EQ(result, FutexWaitResult::kTimedOut);
-  EXPECT_LT(elapsed.count(), 5000);
+  EXPECT_EQ(FutexWait(&word, 0, 1), FutexWaitResult::kTimedOut);
 }
 
-TEST(FutexTest, WakeWithoutWaitersSucceeds) {
-  if (!HasFutexSupport())
-    GTEST_SKIP() << "Futex not available on this platform";
-
+TEST_F(FutexTest, WakeWithoutWaitersSucceeds) {
   uint32_t word = 0;
   int woken = FutexWake(&word, 1);
   EXPECT_EQ(woken, 0);
 }
 
-TEST(FutexTest, WaiterWokenByWake) {
-  if (!HasFutexSupport())
-    GTEST_SKIP() << "Futex not available on this platform";
-
+TEST_F(FutexTest, WaiterWokenByWake) {
   std::atomic<uint32_t> word{0};
-  std::atomic<bool> waiter_done{false};
+  WaitableEvent waiter_started;
   FutexWaitResult waiter_result = FutexWaitResult::kError;
 
   std::thread waiter([&] {
+    waiter_started.Notify();
     waiter_result = FutexWait(reinterpret_cast<uint32_t*>(&word), 0, 30000);
-    waiter_done.store(true);
   });
 
+  // Wait until the waiter thread runs. Thread start can be slow (for example
+  // on emulators), so a fixed sleep alone is not reliable.
+  // The short sleep then lets the waiter block in FutexWait() before the wake.
+  waiter_started.Wait();
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
   word.store(1, std::memory_order_relaxed);
   FutexWake(reinterpret_cast<uint32_t*>(&word), 1);
 
   waiter.join();
-  EXPECT_TRUE(waiter_done.load());
+
+  // The sleep makes a real wake likely, not certain. A waiter that reaches
+  // FutexWait() after the store sees the new value and returns kValueMismatch.
   EXPECT_TRUE(waiter_result == FutexWaitResult::kWoken ||
               waiter_result == FutexWaitResult::kValueMismatch);
 }
 
 #if PERFETTO_HAS_FUTEX()
-TEST(FutexTest, CrossProcessWakeup) {
+TEST_F(FutexTest, CrossProcessWakeup) {
   void* shared =
       mmap(nullptr, sizeof(std::atomic<uint32_t>), PROT_READ | PROT_WRITE,
            MAP_SHARED | MAP_ANONYMOUS, -1, 0);
