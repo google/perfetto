@@ -178,4 +178,55 @@ TEST_F(CollectTimelineEventsTest, ProcFreeEndsThread) {
   ASSERT_FALSE(after);
 }
 
+TEST_F(CollectTimelineEventsTest, StoresFullUidWithoutReduction) {
+  constexpr uint64_t kWorkProfileUid = 1010234;
+  constexpr int32_t kWorkProfilePid = 2000;
+
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(kTimeA);
+
+  auto* process_tree = packet.mutable_process_tree();
+  auto* process = process_tree->add_processes();
+  process->set_pid(kWorkProfilePid);
+  process->set_ppid(1);
+  process->set_uid(kWorkProfileUid);
+
+  auto buffer = packet.SerializeAsString();
+  protos::pbzero::TracePacket::Decoder decoder(buffer);
+
+  ASSERT_OK(collector_.Collect(decoder, &context_));
+  ASSERT_OK(collector_.End(&context_));
+
+  const auto* event =
+      context_.timeline->GetOpeningEvent(kTimeA, kWorkProfilePid);
+  ASSERT_TRUE(event);
+  ASSERT_TRUE(event->valid());
+  ASSERT_EQ(event->uid, kWorkProfileUid);
+}
+
+TEST_F(CollectTimelineEventsTest, ProcessWithoutUidDefaultsToUnknownUid) {
+  constexpr int32_t kUnlabelledPid = 3000;
+
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(kTimeA);
+
+  auto* process_tree = packet.mutable_process_tree();
+  auto* process = process_tree->add_processes();
+  process->set_pid(kUnlabelledPid);
+  process->set_ppid(1);
+  // Do not set process->uid
+
+  auto buffer = packet.SerializeAsString();
+  protos::pbzero::TracePacket::Decoder decoder(buffer);
+
+  ASSERT_OK(collector_.Collect(decoder, &context_));
+  ASSERT_OK(collector_.End(&context_));
+
+  const auto* event =
+      context_.timeline->GetOpeningEvent(kTimeA, kUnlabelledPid);
+  ASSERT_TRUE(event);
+  ASSERT_TRUE(event->valid());
+  ASSERT_EQ(event->uid, ProcessThreadTimeline::Event::kUnknownUid);
+}
+
 }  // namespace perfetto::trace_redaction

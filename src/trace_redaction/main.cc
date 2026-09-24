@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
+#include <limits>
+#include <optional>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "src/trace_redaction/verify_integrity.h"
@@ -31,7 +35,8 @@ namespace perfetto::trace_redaction {
 // Builds and runs a trace redactor.
 static base::Status Main(std::string_view input,
                          std::string_view output,
-                         std::string_view package_name) {
+                         std::string_view package_name,
+                         std::optional<uint64_t> target_uid) {
   // Redaction is a low priority task as users are asynchronously informed
   // when redaction finishes so we can keep it as a lower priority for now, if
   // this requirement ever changes, then consider modifying redactor to let
@@ -47,6 +52,9 @@ static base::Status Main(std::string_view input,
 
   Context context;
   context.package_name = package_name;
+  if (target_uid.has_value()) {
+    context.package_uid = *target_uid;
+  }
 
   return redactor->Redact(input, output, &context);
 }
@@ -58,14 +66,34 @@ int main(int argc, char** argv) {
   constexpr int kFailure = 1;
   constexpr int kInvalidArgs = 2;
 
-  if (argc != 4) {
+  if (argc != 4 && argc != 5) {
     PERFETTO_ELOG(
-        "Invalid arguments: %s <input file> <output file> <package name>",
+        "Usage: %s <input file> <output file> <package name> [target uid]",
         argv[0]);
     return kInvalidArgs;
   }
 
-  auto result = perfetto::trace_redaction::Main(argv[1], argv[2], argv[3]);
+  std::optional<uint64_t> target_uid;
+  if (argc == 5) {
+    const char* uid_str = argv[4];
+    if (uid_str[0] == '-' || uid_str[0] == '\0') {
+      PERFETTO_ELOG("Invalid target uid (cannot be negative or empty): %s",
+                    uid_str);
+      return kInvalidArgs;
+    }
+    auto parsed = perfetto::base::CStringToUInt64(uid_str);
+    if (!parsed.has_value() ||
+        *parsed == perfetto::trace_redaction::ProcessThreadTimeline::Event::
+                       kUnknownUid ||
+        *parsed > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+      PERFETTO_ELOG("Invalid target uid: %s", uid_str);
+      return kInvalidArgs;
+    }
+    target_uid = *parsed;
+  }
+
+  auto result =
+      perfetto::trace_redaction::Main(argv[1], argv[2], argv[3], target_uid);
 
   if (result.ok()) {
     return kSuccess;

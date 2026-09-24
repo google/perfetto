@@ -72,15 +72,14 @@ void PrunePackageList::OnPackageList(
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
     if (field.id() == protos::pbzero::PackagesList::kPackagesFieldNumber) {
-      // The package uid should already be normalized (see
-      // find_package_info.cc).
-      //
-      // If there are more than one package entry (see
-      // trace_redaction_framework.h for more details), we need to match all
-      // instances here because retained processes will reference them.
+      // On Android, packages.list records base application IDs (User 0 UID).
+      // Secondary user UIDs never appear in packages.list.
+      // Matching by ToAppId ensures that secondary profile traces still
+      // preserve the package manifest entry in the redacted trace.
       protos::pbzero::PackagesList::PackageInfo::Decoder info(field.as_bytes());
 
-      if (info.has_uid() && NormalizeUid(info.uid()) == context.package_uid) {
+      if (info.has_uid() &&
+          ToAppId(info.uid()) == ToAppId(*context.package_uid)) {
         proto_util::AppendField(field, message);
       }
     } else {

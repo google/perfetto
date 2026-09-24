@@ -28,17 +28,15 @@ base::Status FindPackageUid::Begin(Context* context) const {
     return base::ErrStatus("FindPackageUid: missing package name.");
   }
 
-  if (context->package_uid.has_value()) {
-    return base::ErrStatus("FindPackageUid: package uid already found.");
-  }
-
+  // Allow context->package_uid to already be populated (e.g. passed via CLI).
   return base::OkStatus();
 }
 
 base::Status FindPackageUid::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
     Context* context) const {
-  // If a package has been found in a previous iteration, stop.
+  // If a package has been found in a previous iteration or passed via CLI,
+  // stop.
   if (context->package_uid.has_value()) {
     return base::OkStatus();
   }
@@ -64,8 +62,8 @@ base::Status FindPackageUid::Collect(
       continue;
     }
 
-    // See "trace_redaction_framework.cc" for info.uid() must be normalized.
-    context->package_uid = NormalizeUid(info.uid());
+    // Fallback: store raw info.uid()
+    context->package_uid = info.uid();
     return base::OkStatus();
   }
 
