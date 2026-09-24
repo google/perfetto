@@ -58,6 +58,7 @@ import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
 import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/profiling/perf_event_config.proto";
+import "protos/perfetto/config/profiling/smaps_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
@@ -69,7 +70,7 @@ import "protos/perfetto/config/linux/journald_config.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 146
+// Next id: 147
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -327,6 +328,9 @@ message DataSourceConfig {
   // Data source name: android.process_state
   optional AndroidProcessStateConfig android_process_state_config = 145
       [lazy = true];
+
+  // Data source name: linux.smaps
+  optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
