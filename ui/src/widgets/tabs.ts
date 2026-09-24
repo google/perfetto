@@ -137,7 +137,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
               closeButton: tab.closeButton,
               leftIcon: tab.leftIcon,
               menuItems: tab.menuItems,
-              onpointerdown: () => {
+              onClick: () => {
                 this.internalActiveTab = tab.key;
                 onTabChange?.(tab.key);
               },

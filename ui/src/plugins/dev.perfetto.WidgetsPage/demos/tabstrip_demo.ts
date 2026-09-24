@@ -57,7 +57,7 @@ export function renderTabStrip(): m.Children {
               active: ACTIVE_TAB === tab.id,
               disabled: opts.disabledTab && tab.id === 'bar',
               href: opts.links ? `https://example.com/${tab.id}` : undefined,
-              onclick: (e: PointerEvent) => {
+              onClick: (e: MouseEvent) => {
                 // Don't actually follow the bogus link.
                 e.preventDefault();
                 logCallback(`onclick: ${tab.id}`);

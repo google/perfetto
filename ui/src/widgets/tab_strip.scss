@@ -71,26 +71,25 @@
       }
     }
 
-    // Drag-to-reorder indicators. The drop indicators are inset because the
-    // tab has `overflow: hidden`.
-    &--dragging {
-      opacity: 0.5;
-    }
-
-    &--drop-before {
-      box-shadow: inset 2px 0 0 var(--pf-color-primary);
-    }
-
-    &--drop-after {
-      box-shadow: inset -2px 0 0 var(--pf-color-primary);
-    }
-
     // Disabled tabs are dimmed and ignore all pointer interaction
     // (clicks, hover, drag, and the menu/close buttons inside the tab).
     &--disabled {
       opacity: 0.5;
       pointer-events: none;
     }
+  }
+
+  // Drag-to-reorder: while a drag is in progress the tabs slide into their new
+  // slots. The dragged tab opts out with an inline `transition: none` so that
+  // it tracks the pointer exactly. Keep the duration in sync with
+  // SETTLE_DURATION_MS in tab_strip.ts.
+  &__tabs--reordering &__tab {
+    transition: transform 150ms ease;
+  }
+
+  // Horizontal touch drags on a reorderable tab move it instead of panning.
+  &--reorderable &__tab {
+    touch-action: pan-y;
   }
 
   // Small round icon buttons (menu, close) inside a tab. The negative
