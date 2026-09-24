@@ -57,6 +57,8 @@ class FramePointerUnwinder {
   unwindstack::ErrorCode LastErrorCode() const { return last_error_.code; }
   uint64_t warnings() const { return warnings_; }
 
+  size_t NumFrames() const { return frames_.size(); }
+
   std::vector<unwindstack::FrameData> ConsumeFrames() {
     std::vector<unwindstack::FrameData> frames = std::move(frames_);
     frames_.clear();
