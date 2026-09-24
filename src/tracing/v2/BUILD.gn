@@ -14,12 +14,15 @@
 
 import("../../../gn/test.gni")
 
-# The tracing v2 producer-local shared ring buffer: its ABI, writer and reader.
-# It does not interpret fragment payloads. Protocol and alternatives: RFC 0046,
+# The tracing v2 producer-local shared ring buffer: its ABI, writer and reader,
+# and the TraceWriter and producer endpoint that serialize packets into it.
+# It does not interpret fragment payloads.
+# Protocol and alternatives: RFC 0046,
 # https://github.com/google/perfetto/discussions/7120.
 # Parent design: RFC 0014, https://github.com/google/perfetto/discussions/4508.
 source_set("v2") {
   public_deps = [
+    ":abi",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/ext/tracing/core",
     "../../../include/perfetto/protozero",
@@ -27,22 +30,49 @@ source_set("v2") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/trace:zero",
     "../../base",
+    "../core",
   ]
   sources = [
+    "producer_ring_buffer_endpoint.cc",
+    "producer_ring_buffer_endpoint.h",
     "shared_ring_buffer.cc",
     "shared_ring_buffer.h",
-    "shared_ring_buffer_abi.h",
     "shared_ring_buffer_reader.cc",
     "shared_ring_buffer_reader.h",
     "shared_ring_buffer_writer.cc",
     "shared_ring_buffer_writer.h",
+    "trace_writer_v2_impl.cc",
+    "trace_writer_v2_impl.h",
   ]
+}
+
+# The shared memory layout of the ring buffer. It has no code. Code that needs
+# only the layout, such as the IPC transport, depends on this target and not
+# on the writer or the reader.
+source_set("abi") {
+  public_deps = [
+    "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/ext/tracing/core",
+    "../../../include/perfetto/protozero",
+  ]
+  sources = [ "shared_ring_buffer_abi.h" ]
+}
+
+# Helpers that tests in other directories use to write and inspect a ring
+# buffer. It has no tests.
+source_set("test_support") {
+  testonly = true
+  public_deps = [ ":v2" ]
+  deps = [ "../../../gn:default_deps" ]
+  sources = [ "shared_ring_buffer_test_utils.h" ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":test_support",
     ":v2",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
@@ -50,14 +80,23 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../base",
+    "../../base:test_support",
     "../../protozero",
+    "../core",
+    "../service",
+    "../test:test_support",
   ]
   sources = [
     "shared_ring_buffer_abi_unittest.cc",
     "shared_ring_buffer_concurrency_unittest.cc",
     "shared_ring_buffer_reader_unittest.cc",
-    "shared_ring_buffer_test_utils.h",
     "shared_ring_buffer_unittest.cc",
     "shared_ring_buffer_writer_unittest.cc",
   ]
+
+  # The test uses TestTaskRunner and MockProducerEndpoint, which Windows and
+  # NaCl do not build.
+  if (!is_win && !is_nacl) {
+    sources += [ "trace_writer_v2_impl_unittest.cc" ]
+  }
 }

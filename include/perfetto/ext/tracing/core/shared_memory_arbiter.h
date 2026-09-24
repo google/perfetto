@@ -180,6 +180,22 @@ class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
   // true.
   virtual bool TryShutdown() = 0;
 
+  // WriterIDs for tracing v2 ring buffer writers. Any thread can call these.
+  //
+  // Why v2 writers take their ID from this arbiter:
+  // - The service keys each sequence by (producer, WriterID). v1 and v2
+  //   writers of one producer share that key space, so they share one pool.
+  // - A live ID makes TryShutdown() fail. This keeps the endpoint and the
+  //   ring buffer alive until the last v2 writer is destroyed.
+  //
+  // Unlike CreateTraceWriter(), these do not register the writer with the
+  // service. Each ring buffer chunk carries its own target buffer.
+  //
+  // Returns zero after shutdown or when all IDs are in use.
+  virtual WriterID AllocateTracingV2WriterID() = 0;
+  // Call after the writer published its final data.
+  virtual void ReleaseTracingV2WriterID(WriterID) = 0;
+
   // Create a bound arbiter instance. Args:
   // |SharedMemory|: the shared memory buffer to use.
   // |page_size|: a multiple of 4KB that defines the granularity of tracing

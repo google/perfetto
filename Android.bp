@@ -23310,6 +23310,16 @@ filegroup {
     ],
 }
 
+// GN: //src/tracing/v2:abi
+filegroup {
+    name: "perfetto_src_tracing_v2_abi",
+}
+
+// GN: //src/tracing/v2:test_support
+filegroup {
+    name: "perfetto_src_tracing_v2_test_support",
+}
+
 // GN: //src/tracing/v2:unittests
 filegroup {
     name: "perfetto_src_tracing_v2_unittests",
@@ -23319,6 +23329,7 @@ filegroup {
         "src/tracing/v2/shared_ring_buffer_reader_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_writer_unittest.cc",
+        "src/tracing/v2/trace_writer_v2_impl_unittest.cc",
     ],
 }
 
@@ -23326,9 +23337,11 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_v2",
     srcs: [
+        "src/tracing/v2/producer_ring_buffer_endpoint.cc",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
         "src/tracing/v2/shared_ring_buffer_writer.cc",
+        "src/tracing/v2/trace_writer_v2_impl.cc",
     ],
 }
 
@@ -24771,6 +24784,8 @@ cc_test {
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_unittests",
+        ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_test_support",
         ":perfetto_src_tracing_v2_unittests",
         ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_sanitizers_unittests",
