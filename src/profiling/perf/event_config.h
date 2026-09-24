@@ -148,6 +148,10 @@ class EventConfig {
   }
   // clang-format on
 
+  // Public for testing.
+  static std::optional<uint64_t> ParseEventConfigValue(
+      const std::string& content);
+
  private:
   static bool IsUserFramesEnabled(
       const protos::gen::PerfEventConfig::UnwindMode& unwind_mode);
