@@ -342,27 +342,15 @@ void ProducerIPCClientImpl::OnServiceRequest(
     // FD, which is provided to this code via a blocking callback.
     PERFETTO_CHECK(receive_shmem_fd_cb_fuchsia_);
 
-    base::ScopedFile shmem_fd(receive_shmem_fd_cb_fuchsia_());
-    if (!shmem_fd) {
-      // Failure to get a shared memory buffer is a protocol violation and
-      // therefore we should drop the Protocol connection.
-      PERFETTO_ELOG("Could not get shared memory FD from embedder.");
-      ScheduleDisconnect();
-      return;
-    }
-
     ipc_shared_memory = PosixSharedMemory::AttachToFd(
-        std::move(shmem_fd),
+        base::ScopedFile(receive_shmem_fd_cb_fuchsia_()),
         /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
 #else
-    base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
-    if (shmem_fd) {
-      // TODO(primiano): handle mmap failure in case of OOM.
-      ipc_shared_memory = PosixSharedMemory::AttachToFd(
-          std::move(shmem_fd),
-          /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
-    }
+    ipc_shared_memory = PosixSharedMemory::AttachToFd(
+        ipc_channel_->TakeReceivedFD(),
+        /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
 #endif
+
     if (use_shmem_emulation_) {
       PERFETTO_CHECK(!ipc_shared_memory);
       // Need to create an emulated shmem buffer when the transport doesn't
@@ -370,6 +358,16 @@ void ProducerIPCClientImpl::OnServiceRequest(
       ipc_shared_memory = InProcessSharedMemory::Create(
           /*size=*/InProcessSharedMemory::kShmemEmulationSize);
     }
+
+    // No SMB from the service (none sent, or it failed to map), and none
+    // provided by the producer. The producer cannot trace without one.
+    // Drop the connection: the producer gets OnDisconnect() and can reconnect.
+    if (!ipc_shared_memory && !is_shmem_provided_by_producer_) {
+      PERFETTO_ELOG("No usable shared memory from the service, disconnecting.");
+      ScheduleDisconnect();
+      return;
+    }
+
     if (ipc_shared_memory) {
       auto shmem_mode = use_shmem_emulation_
                             ? SharedMemoryABI::ShmemMode::kShmemEmulation
