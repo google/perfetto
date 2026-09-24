@@ -15,13 +15,23 @@
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
+-- Macro defining the filtering conditions for a jank CUJ slice.
+CREATE PERFETTO MACRO _is_jank_cuj_slice(slice TableOrSubquery)
+RETURNS Expr
+AS $slice.name GLOB 'J<*>';
+
+-- Macro defining the filtering conditions for a jank or latency CUJ slice.
+CREATE PERFETTO MACRO _is_cuj_slice(slice TableOrSubquery)
+RETURNS Expr
+AS _is_jank_cuj_slice!($slice) OR $slice.name GLOB 'L<*>';
+
 -- Macro defining the filtering conditions for a jank or latency CUJ slice in relevant processes.
 CREATE PERFETTO MACRO _is_jank_slice(
   slice TableOrSubquery,
   process TableOrSubquery
 )
 RETURNS Expr
-AS $slice.name GLOB 'J<*>'
+AS _is_jank_cuj_slice!($slice)
 AND (
   $process.name GLOB 'com.google.android*' OR $process.name GLOB 'com.android.*'
 );
