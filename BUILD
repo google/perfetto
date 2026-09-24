@@ -183,6 +183,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_packet_compressor_common",
+        ":src_tracing_service_proto_rewriter",
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
@@ -1251,6 +1252,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_packet_compressor_common",
+        ":src_tracing_service_proto_rewriter",
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
@@ -6994,6 +6996,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/tracing/service:proto_rewriter
+perfetto_filegroup(
+    name = "src_tracing_service_proto_rewriter",
+    srcs = [
+        "src/tracing/service/proto_rewriter.cc",
+        "src/tracing/service/proto_rewriter.h",
+    ],
+)
+
 # GN target: //src/tracing/service:service
 perfetto_filegroup(
     name = "src_tracing_service_service",
@@ -11573,6 +11584,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_packet_compressor_common",
+        ":src_tracing_service_proto_rewriter",
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",

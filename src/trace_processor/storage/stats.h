@@ -266,6 +266,10 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
                                           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_oversized_packets_dropped, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+      "TraceBufferV2 only. Num. proto-group packets dropped at read time "     \
+      "because length-delimited protobuf cannot encode them: a nested "        \
+      "message larger than 256 MiB or a packet larger than 4 GiB."),           \
   F(traced_buf_padding_bytes_cleared,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_padding_bytes_written,     kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_patches_failed,            kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
