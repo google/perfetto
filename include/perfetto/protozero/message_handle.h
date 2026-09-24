@@ -22,6 +22,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
+#include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace protozero {
@@ -57,6 +58,8 @@ template <typename T, bool kIsRoot = IsRootMessage<T>::value>
 class MessageHandle {
  public:
   static constexpr bool kIsRootMessage = kIsRoot;
+  // Makes handle->Finalize() select root finalization for root handles.
+  using MessageType = std::conditional_t<kIsRootMessage, RootMessage<T>, T>;
 
   MessageHandle() : MessageHandle(nullptr) {}
 
@@ -89,9 +92,9 @@ class MessageHandle {
 
   explicit operator bool() const { return !!message_; }
 
-  T& operator*() const { return *get(); }
-  T* operator->() const { return get(); }
-  T* get() const { return static_cast<T*>(message_); }
+  MessageType& operator*() const { return *get(); }
+  MessageType* operator->() const { return get(); }
+  MessageType* get() const { return static_cast<MessageType*>(message_); }
 
   void set_finalization_listener(MessageFinalizationListener* listener) {
     listener_ = listener;
@@ -114,7 +117,11 @@ class MessageHandle {
   }
 
   void FinalizeMessage() {
-    message_->Finalize();
+    if constexpr (kIsRoot) {
+      message_->FinalizeRoot();
+    } else {
+      message_->Finalize();
+    }
     if (listener_)
       listener_->OnMessageFinalized(message_);
   }

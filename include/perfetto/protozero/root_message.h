@@ -39,10 +39,33 @@ class RootMessage : public T {
   RootMessage(RootMessage&&) = delete;
   RootMessage& operator=(RootMessage&&) = delete;
 
+  // Resets the root and its arena for standard protobuf output to |writer|.
+  // Each child reserves a length field that Finalize() fills.
+  //
+  // TODO(sashwinbalaji): Rename to ResetToLengthDelimited(), next to
+  // ResetToProtoGroup(). Not done yet because Chromium still calls Reset(),
+  // for example in:
+  // https://crsrc.org/c/services/tracing/public/cpp/perfetto/traced_value_proto_writer.cc
   void Reset(ScatteredStreamWriter* writer) {
     root_arena_.Reset();
     Message::Reset(writer, &root_arena_);
   }
+
+  // Resets the root and its arena for append-only proto group output to
+  // |writer|. Each child uses a start tag and a closing byte instead of a
+  // length field. See proto_utils::kProtoGroupEndByte for the format.
+  void ResetToProtoGroup(ScatteredStreamWriter* writer) {
+    root_arena_.Reset();
+    Message::ResetWithEncoding(writer, &root_arena_,
+                               Message::Encoding::kProtoGroup);
+  }
+
+  // Finalizes all open children, seals the root, and returns its encoded size.
+  // In proto group mode, only children receive a closing byte.
+  // Repeated calls return the same size without further writes.
+  //
+  // Hides the non-virtual Message::Finalize() to select root behavior.
+  uint32_t Finalize() { return Message::FinalizeRoot(); }
 
  private:
   MessageArena root_arena_;
