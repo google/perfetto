@@ -18,7 +18,7 @@ $padding-inline: 4px;
 
 .pf-multi-trace-modal {
   .pf-text-paragraph {
-    margin-block: 8px;
+    padding-block: 8px;
   }
 
   &__description {
@@ -38,15 +38,8 @@ $padding-inline: 4px;
     font-weight: 600;
   }
 
-  &__size,
-  &__status,
-  &__format {
+  &__meta {
     font-size: var(--pf-font-size-s);
-  }
-
-  &__size strong,
-  &__format strong {
-    font-weight: 600;
   }
 
   &__status {
@@ -100,7 +93,6 @@ $padding-inline: 4px;
   // Invalid free-text offset: flag it instead of silently dropping the value.
   &__offset--invalid {
     outline: 1px solid var(--pf-color-danger);
-    border-radius: 2px;
   }
 
   &__hint {
@@ -130,7 +122,7 @@ $padding-inline: 4px;
   // cycles through processing / verdict / ready. Same width as the list
   // panel so a long verdict wraps instead of stretching the modal.
   &__status-panel {
-    padding: 12px 0 4px;
+    padding-block: 12px 4px;
     padding-inline: $padding-inline;
     min-height: 60px;
   }
@@ -138,7 +130,6 @@ $padding-inline: 4px;
   &__footer {
     border-top: 1px solid var(--pf-color-border);
     padding-top: 8px;
-    margin-top: 0px;
   }
 }
 

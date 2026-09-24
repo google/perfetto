@@ -394,7 +394,7 @@ class MergeConfigurator implements m.ClassComponent<MergeConfiguratorAttrs> {
         spacing: 'large',
       },
       m('.pf-multi-trace-modal__name', trace.file.name),
-      m(Inline, {spacing: 'large'}, [
+      m(Inline, {className: 'pf-multi-trace-modal__meta', spacing: 'large'}, [
         m(Inline, {className: 'pf-multi-trace-modal__size'}, [
           m('strong', 'Size:'),
           m('span', `${(trace.file.size / (1024 * 1024)).toFixed(1)} MB`),

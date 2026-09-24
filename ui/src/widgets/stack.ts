@@ -25,6 +25,12 @@ export interface StackAttrs extends HTMLAttrs {
   readonly inline?: boolean;
 }
 
+/**
+ * Stack lays children out in a column (or a row with
+ * `orientation: 'horizontal'`) with a consistent gap. Use it as the
+ * general-purpose layout container for stacking blocks of content. For
+ * line-like rows of labels and controls, prefer Inline.
+ */
 export const Stack: m.Component<StackAttrs> = {
   view({attrs, children}) {
     const {
@@ -59,6 +65,15 @@ export interface InlineAttrs extends HTMLAttrs {
   readonly wrap?: boolean;
   readonly inline?: boolean;
 }
+
+/**
+ * Inline lays children out in a horizontal row, aligned on their text
+ * baseline. Use it for line-like content such as a label, control and help
+ * icon, or a row of buttons. Unlike Stack it is always horizontal.
+ *
+ * Use StackAuto to push trailing children to the end of the row. Non-text
+ * children (icons, spinners) may need `align-self: center`.
+ */
 export const Inline: m.Component<InlineAttrs> = {
   view({attrs, children}) {
     const {spacing = 'medium', className, wrap, inline, ...htmlAttrs} = attrs;
@@ -66,7 +81,6 @@ export const Inline: m.Component<InlineAttrs> = {
       '.pf-inline',
       {
         className: classNames(
-          'pf-stack--horiz',
           classForSpacing(spacing),
           wrap && 'pf-inline--wrap',
           inline && 'pf-inline--inline',
