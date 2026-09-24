@@ -68,7 +68,7 @@ std::optional<SmapsDataSource::Config> SmapsDataSource::Config::Create(
     config.read_period_ms = std::clamp(smaps_cfg_pb.read_period_ms(),
                                        kMinReadPeriodMs, kMaxReadPeriodMs);
     if (config.read_period_ms != smaps_cfg_pb.read_period_ms()) {
-      PERFETTO_ELOG("Clamped linux.smaps read_period_ms from %" PRIu32
+      PERFETTO_ILOG("Clamped linux.smaps read_period_ms from %" PRIu32
                     " to %" PRIu32,
                     smaps_cfg_pb.read_period_ms(), config.read_period_ms);
     }
