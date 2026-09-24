@@ -51,7 +51,6 @@ public final class PerfettoTrace {
       new PerfettoNativeMemoryCleaner();
 
   private static final AtomicBoolean sAttemptedSystemRegistration = new AtomicBoolean(false);
-  private static volatile boolean sIsRegistered = false;
 
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
@@ -105,9 +104,6 @@ public final class PerfettoTrace {
 
     /** Create the native category object and register it. */
     public synchronized Category register() {
-      if (!sIsRegistered) {
-        return this;
-      }
       if (mPtr == 0) {
         long ptr = native_init(mName, mTags.toArray(new String[0]));
         sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
@@ -338,32 +334,18 @@ public final class PerfettoTrace {
     native_activate_trigger(triggerName, ttlMs);
   }
 
-  /**
-   * Registers the process with Perfetto.
-   *
-   * <p>The in-process backend is always registered. The system backend is registered only if
-   * {@link TracingPolicy} allows this process; otherwise this is a no-op and Perfetto is left
-   * uninitialized. Callers must not register categories or emit events when this returns {@code
-   * false}.
-   *
-   * @return whether the process is registered with the requested backend
-   */
-  public static boolean register(boolean isBackendInProcess) {
+  /** Registers the process with Perfetto. */
+  public static void register(boolean isBackendInProcess) {
     if (!isBackendInProcess) {
-      if (!TracingPolicy.allowSystemBackend()) {
-        return false;
-      }
-      sAttemptedSystemRegistration.set(true);
+        sAttemptedSystemRegistration.set(true);
     }
     native_register(isBackendInProcess);
-    sIsRegistered = true;
-    return true;
   }
 
-  /** Registers the process with Perfetto and enables additional debug checks on the Java side. */
-  public static boolean registerWithDebugChecks(boolean isBackendInProcess) {
+  /** Registers the process with Perfetto and enable additional debug checks on the Java side. */
+  public static void registerWithDebugChecks(boolean isBackendInProcess) {
     sIsDebug = true;
-    return register(isBackendInProcess);
+    register(isBackendInProcess);
   }
 
   /**

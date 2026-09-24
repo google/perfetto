@@ -23677,7 +23677,6 @@ java_defaults {
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
-        "src/android_sdk/java/main/dev/perfetto/sdk/TracingPolicy.java",
     ],
     libs: [
         "error_prone_annotations",
@@ -23703,7 +23702,6 @@ filegroup {
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
-        "src/android_sdk/java/main/dev/perfetto/sdk/TracingPolicy.java",
     ],
     visibility: [
         "//libcore:__subpackages__",
