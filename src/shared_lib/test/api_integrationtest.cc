@@ -802,29 +802,111 @@ TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupCloseAtChunkBoundary) {
   EXPECT_EQ(expected, GetData());
 }
 
-TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalStringAborts) {
+// On a proto group stream, an incremental string is staged. Its tag, length
+// and bytes reach the stream only when the field closes.
+TEST_F(SharedLibProtozeroSerializationTest,
+       ProtoGroupIncrementalStringIsStaged) {
   protozero_test_protos_EveryField root;
   PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
                                 PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
   protozero_test_protos_EveryField_set_cstr_field_string(&root, "a");
   PerfettoPbMsg payload;
-  // abort() prints no message, so the matcher is empty.
-  EXPECT_DEATH_IF_SUPPORTED(
-      protozero_test_protos_EveryField_begin_field_string(&root, &payload), "");
-  PerfettoPbMsgFinalize(&root.msg);
+  protozero_test_protos_EveryField_begin_field_string(&root, &payload);
+  const uint8_t b = 'b';
+  PerfettoPbMsgAppendBytes(&payload, &b, 1);
   EXPECT_EQ(GetData(), (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a'}));
+
+  protozero_test_protos_EveryField_end_field_string(&root, &payload);
+  PerfettoPbMsgFinalize(&root.msg);
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a', 0xa2, 0x1f, 1, 'b'}));
 }
 
-TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalPackedAborts) {
+// On a proto group stream, a packed field is staged in the storage of its
+// PerfettoPbPackedMsg type.
+TEST_F(SharedLibProtozeroSerializationTest,
+       ProtoGroupIncrementalPackedIsStaged) {
   protozero_test_protos_PackedRepeatedFields root;
   PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
                                 PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
   PerfettoPbPackedMsgInt32 payload;
-  // abort() prints no message, so the matcher is empty.
-  EXPECT_DEATH_IF_SUPPORTED(
-      protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
-                                                                   &payload),
-      "");
+  protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root, &payload);
+  PerfettoPbPackedMsgInt32Append(&payload, 1);
+  PerfettoPbPackedMsgInt32Append(&payload, 2);
+  PerfettoPbPackedMsgInt32Append(&payload, 300);
+  EXPECT_TRUE(GetData().empty());
+
+  protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &payload);
+  PerfettoPbMsgFinalize(&root.msg);
+  // Field 1, length 4, then the varints 1, 2 and 300.
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0x0a, 4, 1, 2, 0xac, 0x02}));
+}
+
+// A staged value larger than the inline buffer moves to heap storage. The
+// output does not change.
+TEST_F(SharedLibProtozeroSerializationTest,
+       ProtoGroupStagedStringSpillsToHeap) {
+  protozero_test_protos_EveryField root;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  // 5000 bytes: more than the inline buffer and more than one heap slice.
+  const std::vector<uint8_t> value(5000, 'x');
+  PerfettoPbMsg payload;
+  protozero_test_protos_EveryField_begin_field_string(&root, &payload);
+  // The first append fits inline. The second one moves the value to the heap.
+  PerfettoPbMsgAppendBytes(&payload, value.data(), 10);
+  PerfettoPbMsgAppendBytes(&payload, value.data() + 10, value.size() - 10);
+  protozero_test_protos_EveryField_end_field_string(&root, &payload);
+  PerfettoPbMsgFinalize(&root.msg);
+
+  // Field 500, then the length 5000 as a varint.
+  std::vector<uint8_t> expected{0xa2, 0x1f, 0x88, 0x27};
+  expected.insert(expected.end(), value.begin(), value.end());
+  EXPECT_EQ(GetData(), expected);
+}
+
+TEST_F(SharedLibProtozeroSerializationTest,
+       ProtoGroupStagedPackedSpillsToHeap) {
+  protozero_test_protos_PackedRepeatedFields root;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbPackedMsgInt32 payload;
+  protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root, &payload);
+  // 100 values of two bytes each: more than the 64-byte inline buffer.
+  for (int i = 0; i < 100; i++)
+    PerfettoPbPackedMsgInt32Append(&payload, 300);
+  protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &payload);
+  PerfettoPbMsgFinalize(&root.msg);
+
+  // Field 1, then the length 200 as a varint.
+  std::vector<uint8_t> expected{0x0a, 0xc8, 0x01};
+  for (int i = 0; i < 100; i++) {
+    expected.push_back(0xac);
+    expected.push_back(0x02);
+  }
+  EXPECT_EQ(GetData(), expected);
+}
+
+// A staged bytes value can hold a serialized message. The nested message
+// inside it uses length-delimited encoding.
+TEST_F(SharedLibProtozeroSerializationTest,
+       ProtoGroupStagedBytesWithNestedMessage) {
+  protozero_test_protos_EveryField root;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbMsg payload;
+  protozero_test_protos_EveryField_begin_field_bytes(&root, &payload);
+  PerfettoPbMsg child;
+  PerfettoPbMsgBeginNested(&payload, &child, 7);
+  PerfettoPbMsgAppendType0Field(&child, 1, 5);
+  PerfettoPbMsgEndNested(&payload);
+  protozero_test_protos_EveryField_end_field_bytes(&root, &payload);
+  PerfettoPbMsgFinalize(&root.msg);
+
+  // Field 505 with length 7. Inside: field 7 with a 4-byte redundant length
+  // of 2, then field 1 with the value 5.
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0xca, 0x1f, 7, 0x3a, 0x82, 0x80,
+                                             0x80, 0x00, 0x08, 0x05}));
 }
 
 class SharedLibDataSourceTest : public testing::Test {
