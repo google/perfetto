@@ -36,11 +36,13 @@
 
 namespace perfetto::trace_redaction {
 
-// Multiple packages can share the same name. This is common when a device has
-// multiple users. When this happens, each instance shares the 5 least
-// significant digits.
-constexpr uint64_t NormalizeUid(uint64_t uid) {
-  return uid % 1000000;
+// The App ID is the per-application component of a Linux UID that remains
+// constant across multi-user profiles (uid % 100,000). Used for package list
+// metadata mapping and UID normalization when an explicit target UID is not
+// provided.
+constexpr uint64_t kAndroidPerUserRange = 100000;
+constexpr uint64_t ToAppId(uint64_t uid) {
+  return uid % kAndroidPerUserRange;
 }
 
 class SystemInfo {
@@ -195,38 +197,36 @@ class Context {
   // The logic from before still hold, however, if the traced process was pid
   // 21388, it will be merged with the other threads.
   //
-  // To avoid this problem from happening, we normalize the uids and treat
-  // both instances as a single process:
+  // Processes reference their package using their per-user uid:
   //
   //    processes {
   //      pid: 18176
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 10113
+  //      uid: 10113 (User 0)
   //    }
   //    processes {
   //      pid: 21388
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  // -    uid: 1010113
-  // +    uid: 10113
+  //      uid: 1010113 (User 10)
   //    }
   //
-  // It sounds like there would be a privacy concern, but because both processes
-  // are from the same app and are being collected from the same user, there
-  // are no new privacy issues by doing this.
-  //
-  // But where should the uids be normalized? The dividing line is the timeline
-  // interface, specifically, should the timeline know anything about uids
-  // (other than "it's a number").
-  //
-  // To avoid expanding the timeline's scope, the uid normalizations is done
-  // outside of the timeline. When a uid is passed into the timeline, it should
-  // be normalized (i.e. 5 != 100005). When the timeline is queried, the uid
-  // should be normalized. This increases the risk for error, but there are only
-  // two places where uids are set, writing the uid to the context and writing
-  // the uid to the timeline.
+  // When an explicit target UID is provided (e.g. via CLI), full 64-bit UIDs
+  // are preserved in the timeline so that processes from different users are
+  // strictly isolated. When no target UID is provided and `normalize_uid` is
+  // true, UIDs are normalized via `ToAppId` so secondary profile (e.g. Work
+  // Profile) processes still match the package's base App ID in
+  // `packages.list`.
   std::optional<uint64_t> package_uid;
+
+  // When true (no explicit target UID was provided), process UIDs in the
+  // timeline are normalized to their base App ID via `ToAppId` so secondary
+  // user / Work Profile processes match the package's base App ID from
+  // `packages.list`. When false (an explicit `--uid` was provided), full
+  // per-user UIDs are preserved in the timeline for strict multi-user
+  // isolation.
+  bool normalize_uid = false;
 
   // The timestamp when tracing started, collected from TracingServiceEvent.
   // This is used to avoid merging events across the start of tracing, which

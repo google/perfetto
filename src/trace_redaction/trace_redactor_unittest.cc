@@ -20,7 +20,17 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "protos/perfetto/trace/android/packages_list.gen.h"
+#include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
+#include "protos/perfetto/trace/ftrace/task.gen.h"
+#include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.gen.h"
+#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -401,6 +411,917 @@ TEST(TraceRedactorTest, MAYBE_ThreePassPipelineExecution) {
   EXPECT_EQ(timestamps[1], 100u);
   EXPECT_EQ(timestamps[2], 200u);
   EXPECT_EQ(timestamps[3], 300u);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_RedactTrace_IsolatesMultiUserInstances \
+  DISABLED_RedactTrace_IsolatesMultiUserInstances
+#else
+#define MAYBE_RedactTrace_IsolatesMultiUserInstances \
+  RedactTrace_IsolatesMultiUserInstances
+#endif
+TEST(TraceRedactorTest, MAYBE_RedactTrace_IsolatesMultiUserInstances) {
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
+
+  constexpr uint64_t kUser0Uid = 10234;
+  constexpr uint64_t kUser10Uid = 1010234;
+  constexpr int32_t kUser0Pid = 100;
+  constexpr int32_t kUser10Pid = 200;
+
+  protos::gen::Trace trace;
+
+  // Packet 1: PackagesList containing the package with base UID (10234)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    packet->set_trusted_uid(9999);
+    auto* packages = packet->mutable_packages_list();
+    auto* pkg = packages->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(kUser0Uid);
+  }
+
+  // Packet 2: ProcessTree containing Process A (User 0) and Process B (User 10)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(20);
+    auto* pt = packet->mutable_process_tree();
+
+    auto* pA = pt->add_processes();
+    pA->set_pid(kUser0Pid);
+    pA->set_ppid(1);
+    pA->set_uid(static_cast<uint32_t>(kUser0Uid));
+
+    auto* pB = pt->add_processes();
+    pB->set_pid(kUser10Pid);
+    pB->set_ppid(1);
+    pB->set_uid(static_cast<uint32_t>(kUser10Uid));
+  }
+
+  // Packet 3: FtraceEvents with task_rename and sched_switch for both processes
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(30);
+    auto* bundle = packet->mutable_ftrace_events();
+    bundle->set_cpu(0);
+
+    // Event 1: User 0 task_rename
+    auto* e1 = bundle->add_event();
+    e1->set_timestamp(30);
+    e1->set_pid(kUser0Pid);
+    auto* rename0 = e1->mutable_task_rename();
+    rename0->set_pid(kUser0Pid);
+    rename0->set_newcomm("User0App");
+    rename0->set_oldcomm("User0App");
+    rename0->set_oom_score_adj(0);
+
+    // Event 2: User 0 sched_switch
+    auto* e2 = bundle->add_event();
+    e2->set_timestamp(31);
+    e2->set_pid(kUser0Pid);
+    auto* switch0 = e2->mutable_sched_switch();
+    switch0->set_prev_pid(kUser0Pid);
+    switch0->set_prev_comm("User0App");
+    switch0->set_prev_prio(120);
+    switch0->set_prev_state(0);
+    switch0->set_next_pid(1);
+    switch0->set_next_comm("init");
+    switch0->set_next_prio(120);
+
+    // Event 3: User 10 task_rename
+    auto* e3 = bundle->add_event();
+    e3->set_timestamp(32);
+    e3->set_pid(kUser10Pid);
+    auto* rename10 = e3->mutable_task_rename();
+    rename10->set_pid(kUser10Pid);
+    rename10->set_newcomm("User10App");
+    rename10->set_oldcomm("User10App");
+    rename10->set_oom_score_adj(0);
+
+    // Event 4: User 10 sched_switch
+    auto* e4 = bundle->add_event();
+    e4->set_timestamp(33);
+    e4->set_pid(kUser10Pid);
+    auto* switch10 = e4->mutable_sched_switch();
+    switch10->set_prev_pid(kUser10Pid);
+    switch10->set_prev_comm("User10App");
+    switch10->set_prev_prio(120);
+    switch10->set_prev_state(0);
+    switch10->set_next_pid(1);
+    switch10->set_next_comm("init");
+    switch10->set_next_prio(120);
+  }
+
+  std::string serialized = trace.SerializeAsString();
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
+
+  TraceRedactor::Config config;
+  config.verify = false;
+  auto redactor = TraceRedactor::CreateInstance(config);
+
+  Context context;
+  context.package_name = "com.example.app";
+  // Target User 10 explicitly
+  context.package_uid = kUser10Uid;
+
+  ASSERT_OK(redactor->Redact(input_file.path(), output_file.path(), &context));
+
+  std::string output_content;
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
+
+  protos::pbzero::Trace::Decoder output_trace(output_content);
+
+  bool found_packages_list = false;
+  bool found_user10_rename = false;
+  bool found_user10_switch = false;
+  bool found_user0_comm = false;
+
+  for (auto it = output_trace.packet(); it; ++it) {
+    protos::pbzero::TracePacket::Decoder p(it->as_bytes());
+
+    if (p.has_packages_list()) {
+      protos::pbzero::PackagesList::Decoder pl(p.packages_list());
+      for (auto pkg_it = pl.packages(); pkg_it; ++pkg_it) {
+        protos::pbzero::PackagesList::PackageInfo::Decoder pkg(
+            pkg_it->as_bytes());
+        if (pkg.name().ToStdString() == "com.example.app") {
+          found_packages_list = true;
+        }
+      }
+    }
+
+    if (p.has_ftrace_events()) {
+      protos::pbzero::FtraceEventBundle::Decoder bundle(p.ftrace_events());
+      for (auto e_it = bundle.event(); e_it; ++e_it) {
+        protos::pbzero::FtraceEvent::Decoder e(e_it->as_bytes());
+
+        if (e.has_task_rename()) {
+          protos::pbzero::TaskRenameFtraceEvent::Decoder tr(e.task_rename());
+          if (tr.newcomm().ToStdString() == "User10App") {
+            found_user10_rename = true;
+          }
+          if (tr.newcomm().ToStdString() == "User0App") {
+            found_user0_comm = true;
+          }
+        }
+
+        if (e.has_sched_switch()) {
+          protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(e.sched_switch());
+          if (ss.prev_comm().ToStdString() == "User10App") {
+            found_user10_switch = true;
+          }
+          if (ss.prev_comm().ToStdString() == "User0App") {
+            found_user0_comm = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Verify: PackagesList entry was preserved via ToAppId
+  EXPECT_TRUE(found_packages_list);
+
+  // Verify: User 10 (target) events survive intact
+  EXPECT_TRUE(found_user10_rename);
+  EXPECT_TRUE(found_user10_switch);
+
+  // Verify: User 0 comm was scrubbed / redacted
+  EXPECT_FALSE(found_user0_comm);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_RedactTrace_IsolatesMultiUserInstances_User0Target \
+  DISABLED_RedactTrace_IsolatesMultiUserInstances_User0Target
+#else
+#define MAYBE_RedactTrace_IsolatesMultiUserInstances_User0Target \
+  RedactTrace_IsolatesMultiUserInstances_User0Target
+#endif
+TEST(TraceRedactorTest,
+     MAYBE_RedactTrace_IsolatesMultiUserInstances_User0Target) {
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
+
+  constexpr uint64_t kUser0Uid = 10234;
+  constexpr uint64_t kUser10Uid = 1010234;
+  constexpr int32_t kUser0Pid = 100;
+  constexpr int32_t kUser10Pid = 200;
+
+  protos::gen::Trace trace;
+
+  // Packet 1: PackagesList containing the package with base UID (10234)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    packet->set_trusted_uid(9999);
+    auto* packages = packet->mutable_packages_list();
+    auto* pkg = packages->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(kUser0Uid);
+  }
+
+  // Packet 2: ProcessTree containing Process A (User 0) and Process B (User 10)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(20);
+    auto* pt = packet->mutable_process_tree();
+
+    auto* pA = pt->add_processes();
+    pA->set_pid(kUser0Pid);
+    pA->set_ppid(1);
+    pA->set_uid(static_cast<uint32_t>(kUser0Uid));
+
+    auto* pB = pt->add_processes();
+    pB->set_pid(kUser10Pid);
+    pB->set_ppid(1);
+    pB->set_uid(static_cast<uint32_t>(kUser10Uid));
+  }
+
+  // Packet 3: FtraceEvents with task_rename and sched_switch for both processes
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(30);
+    auto* bundle = packet->mutable_ftrace_events();
+    bundle->set_cpu(0);
+
+    // Event 1: User 0 task_rename
+    auto* e1 = bundle->add_event();
+    e1->set_timestamp(30);
+    e1->set_pid(kUser0Pid);
+    auto* rename0 = e1->mutable_task_rename();
+    rename0->set_pid(kUser0Pid);
+    rename0->set_newcomm("User0App");
+    rename0->set_oldcomm("User0App");
+    rename0->set_oom_score_adj(0);
+
+    // Event 2: User 0 sched_switch
+    auto* e2 = bundle->add_event();
+    e2->set_timestamp(31);
+    e2->set_pid(kUser0Pid);
+    auto* switch0 = e2->mutable_sched_switch();
+    switch0->set_prev_pid(kUser0Pid);
+    switch0->set_prev_comm("User0App");
+    switch0->set_prev_prio(120);
+    switch0->set_prev_state(0);
+    switch0->set_next_pid(1);
+    switch0->set_next_comm("init");
+    switch0->set_next_prio(120);
+
+    // Event 3: User 10 task_rename
+    auto* e3 = bundle->add_event();
+    e3->set_timestamp(32);
+    e3->set_pid(kUser10Pid);
+    auto* rename10 = e3->mutable_task_rename();
+    rename10->set_pid(kUser10Pid);
+    rename10->set_newcomm("User10App");
+    rename10->set_oldcomm("User10App");
+    rename10->set_oom_score_adj(0);
+
+    // Event 4: User 10 sched_switch
+    auto* e4 = bundle->add_event();
+    e4->set_timestamp(33);
+    e4->set_pid(kUser10Pid);
+    auto* switch10 = e4->mutable_sched_switch();
+    switch10->set_prev_pid(kUser10Pid);
+    switch10->set_prev_comm("User10App");
+    switch10->set_prev_prio(120);
+    switch10->set_prev_state(0);
+    switch10->set_next_pid(1);
+    switch10->set_next_comm("init");
+    switch10->set_next_prio(120);
+  }
+
+  std::string serialized = trace.SerializeAsString();
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
+
+  TraceRedactor::Config config;
+  config.verify = false;
+  auto redactor = TraceRedactor::CreateInstance(config);
+
+  Context context;
+  context.package_name = "com.example.app";
+  // Target User 0 explicitly
+  context.package_uid = kUser0Uid;
+
+  ASSERT_OK(redactor->Redact(input_file.path(), output_file.path(), &context));
+
+  std::string output_content;
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
+
+  protos::pbzero::Trace::Decoder output_trace(output_content);
+
+  bool found_packages_list = false;
+  bool found_user0_rename = false;
+  bool found_user0_switch = false;
+  bool found_user10_comm = false;
+
+  for (auto it = output_trace.packet(); it; ++it) {
+    protos::pbzero::TracePacket::Decoder p(it->as_bytes());
+
+    if (p.has_packages_list()) {
+      protos::pbzero::PackagesList::Decoder pl(p.packages_list());
+      for (auto pkg_it = pl.packages(); pkg_it; ++pkg_it) {
+        protos::pbzero::PackagesList::PackageInfo::Decoder pkg(
+            pkg_it->as_bytes());
+        if (pkg.name().ToStdString() == "com.example.app") {
+          found_packages_list = true;
+        }
+      }
+    }
+
+    if (p.has_ftrace_events()) {
+      protos::pbzero::FtraceEventBundle::Decoder bundle(p.ftrace_events());
+      for (auto e_it = bundle.event(); e_it; ++e_it) {
+        protos::pbzero::FtraceEvent::Decoder e(e_it->as_bytes());
+
+        if (e.has_task_rename()) {
+          protos::pbzero::TaskRenameFtraceEvent::Decoder tr(e.task_rename());
+          if (tr.newcomm().ToStdString() == "User0App") {
+            found_user0_rename = true;
+          }
+          if (tr.newcomm().ToStdString() == "User10App") {
+            found_user10_comm = true;
+          }
+        }
+
+        if (e.has_sched_switch()) {
+          protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(e.sched_switch());
+          if (ss.prev_comm().ToStdString() == "User0App") {
+            found_user0_switch = true;
+          }
+          if (ss.prev_comm().ToStdString() == "User10App") {
+            found_user10_comm = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Verify: PackagesList entry was preserved via ToAppId
+  EXPECT_TRUE(found_packages_list);
+
+  // Verify: User 0 (target) events survive intact
+  EXPECT_TRUE(found_user0_rename);
+  EXPECT_TRUE(found_user0_switch);
+
+  // Verify: User 10 comm was scrubbed / redacted
+  EXPECT_FALSE(found_user10_comm);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_RedactTrace_SecondaryUserAboveTen \
+  DISABLED_RedactTrace_SecondaryUserAboveTen
+#else
+#define MAYBE_RedactTrace_SecondaryUserAboveTen \
+  RedactTrace_SecondaryUserAboveTen
+#endif
+TEST(TraceRedactorTest, MAYBE_RedactTrace_SecondaryUserAboveTen) {
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
+
+  constexpr uint64_t kUser0Uid = 10234;
+  constexpr uint64_t kUser11Uid = 1110234;
+  constexpr uint64_t kUser12Uid = 1210234;
+  constexpr int32_t kUser11Pid = 300;
+  constexpr int32_t kUser12Pid = 400;
+
+  protos::gen::Trace trace;
+
+  // Packet 1: PackagesList containing the package with base UID (10234)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    packet->set_trusted_uid(9999);
+    auto* packages = packet->mutable_packages_list();
+    auto* pkg = packages->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(kUser0Uid);
+  }
+
+  // Packet 2: ProcessTree containing Process C (User 11) and Process D (User
+  // 12)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(20);
+    auto* pt = packet->mutable_process_tree();
+
+    auto* pC = pt->add_processes();
+    pC->set_pid(kUser11Pid);
+    pC->set_ppid(1);
+    pC->set_uid(static_cast<uint32_t>(kUser11Uid));
+
+    auto* pD = pt->add_processes();
+    pD->set_pid(kUser12Pid);
+    pD->set_ppid(1);
+    pD->set_uid(static_cast<uint32_t>(kUser12Uid));
+  }
+
+  // Packet 3: FtraceEvents with task_rename and sched_switch
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(30);
+    auto* bundle = packet->mutable_ftrace_events();
+    bundle->set_cpu(0);
+
+    // Event 1: User 11 task_rename
+    auto* e1 = bundle->add_event();
+    e1->set_timestamp(30);
+    e1->set_pid(kUser11Pid);
+    auto* rename11 = e1->mutable_task_rename();
+    rename11->set_pid(kUser11Pid);
+    rename11->set_newcomm("User11App");
+    rename11->set_oldcomm("User11App");
+    rename11->set_oom_score_adj(0);
+
+    // Event 2: User 11 sched_switch
+    auto* e2 = bundle->add_event();
+    e2->set_timestamp(31);
+    e2->set_pid(kUser11Pid);
+    auto* switch11 = e2->mutable_sched_switch();
+    switch11->set_prev_pid(kUser11Pid);
+    switch11->set_prev_comm("User11App");
+    switch11->set_prev_prio(120);
+    switch11->set_prev_state(0);
+    switch11->set_next_pid(1);
+    switch11->set_next_comm("init");
+    switch11->set_next_prio(120);
+
+    // Event 3: User 12 task_rename
+    auto* e3 = bundle->add_event();
+    e3->set_timestamp(32);
+    e3->set_pid(kUser12Pid);
+    auto* rename12 = e3->mutable_task_rename();
+    rename12->set_pid(kUser12Pid);
+    rename12->set_newcomm("User12App");
+    rename12->set_oldcomm("User12App");
+    rename12->set_oom_score_adj(0);
+
+    // Event 4: User 12 sched_switch
+    auto* e4 = bundle->add_event();
+    e4->set_timestamp(33);
+    e4->set_pid(kUser12Pid);
+    auto* switch12 = e4->mutable_sched_switch();
+    switch12->set_prev_pid(kUser12Pid);
+    switch12->set_prev_comm("User12App");
+    switch12->set_prev_prio(120);
+    switch12->set_prev_state(0);
+    switch12->set_next_pid(1);
+    switch12->set_next_comm("init");
+    switch12->set_next_prio(120);
+  }
+
+  std::string serialized = trace.SerializeAsString();
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
+
+  TraceRedactor::Config config;
+  config.verify = false;
+  auto redactor = TraceRedactor::CreateInstance(config);
+
+  Context context;
+  context.package_name = "com.example.app";
+  // Target User 11 explicitly
+  context.package_uid = kUser11Uid;
+
+  ASSERT_OK(redactor->Redact(input_file.path(), output_file.path(), &context));
+
+  std::string output_content;
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
+
+  protos::pbzero::Trace::Decoder output_trace(output_content);
+
+  bool found_packages_list = false;
+  bool found_user11_rename = false;
+  bool found_user11_switch = false;
+  bool found_user12_comm = false;
+
+  for (auto it = output_trace.packet(); it; ++it) {
+    protos::pbzero::TracePacket::Decoder p(it->as_bytes());
+
+    if (p.has_packages_list()) {
+      protos::pbzero::PackagesList::Decoder pl(p.packages_list());
+      for (auto pkg_it = pl.packages(); pkg_it; ++pkg_it) {
+        protos::pbzero::PackagesList::PackageInfo::Decoder pkg(
+            pkg_it->as_bytes());
+        if (pkg.name().ToStdString() == "com.example.app") {
+          found_packages_list = true;
+        }
+      }
+    }
+
+    if (p.has_ftrace_events()) {
+      protos::pbzero::FtraceEventBundle::Decoder bundle(p.ftrace_events());
+      for (auto e_it = bundle.event(); e_it; ++e_it) {
+        protos::pbzero::FtraceEvent::Decoder e(e_it->as_bytes());
+
+        if (e.has_task_rename()) {
+          protos::pbzero::TaskRenameFtraceEvent::Decoder tr(e.task_rename());
+          if (tr.newcomm().ToStdString() == "User11App") {
+            found_user11_rename = true;
+          }
+          if (tr.newcomm().ToStdString() == "User12App") {
+            found_user12_comm = true;
+          }
+        }
+
+        if (e.has_sched_switch()) {
+          protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(e.sched_switch());
+          if (ss.prev_comm().ToStdString() == "User11App") {
+            found_user11_switch = true;
+          }
+          if (ss.prev_comm().ToStdString() == "User12App") {
+            found_user12_comm = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Verify: PackagesList entry was preserved via ToAppId
+  EXPECT_TRUE(found_packages_list);
+
+  // Verify: User 11 (target) events survive intact
+  EXPECT_TRUE(found_user11_rename);
+  EXPECT_TRUE(found_user11_switch);
+
+  // Verify: User 12 comm was scrubbed / redacted
+  EXPECT_FALSE(found_user12_comm);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_RedactTrace_FallbackWithoutTargetUid_RetainsMultiUserInstances \
+  DISABLED_RedactTrace_FallbackWithoutTargetUid_RetainsMultiUserInstances
+#else
+#define MAYBE_RedactTrace_FallbackWithoutTargetUid_RetainsMultiUserInstances \
+  RedactTrace_FallbackWithoutTargetUid_RetainsMultiUserInstances
+#endif
+TEST(TraceRedactorTest,
+     MAYBE_RedactTrace_FallbackWithoutTargetUid_RetainsMultiUserInstances) {
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
+
+  constexpr uint64_t kUser0Uid = 10336;
+  constexpr uint64_t kUser10Uid = 1010336;
+  constexpr uint64_t kOtherAppUid = 10999;
+  constexpr int32_t kUser0Pid = 100;
+  constexpr int32_t kUser10Pid = 200;
+  constexpr int32_t kOtherAppPid = 300;
+
+  protos::gen::Trace trace;
+
+  // Packet 1: PackagesList containing the package with base UID (10336) and
+  // an unrelated package (10999).
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    packet->set_trusted_uid(9999);
+    auto* packages = packet->mutable_packages_list();
+
+    auto* pkg = packages->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(kUser0Uid);
+
+    auto* other_pkg = packages->add_packages();
+    other_pkg->set_name("com.other.app");
+    other_pkg->set_uid(kOtherAppUid);
+  }
+
+  // Packet 2: ProcessTree containing User 0, User 10 (Work Profile), and
+  // unrelated app processes.
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(20);
+    auto* pt = packet->mutable_process_tree();
+
+    auto* pA = pt->add_processes();
+    pA->set_pid(kUser0Pid);
+    pA->set_ppid(1);
+    pA->set_uid(static_cast<uint32_t>(kUser0Uid));
+
+    auto* pB = pt->add_processes();
+    pB->set_pid(kUser10Pid);
+    pB->set_ppid(1);
+    pB->set_uid(static_cast<uint32_t>(kUser10Uid));
+
+    auto* pC = pt->add_processes();
+    pC->set_pid(kOtherAppPid);
+    pC->set_ppid(1);
+    pC->set_uid(static_cast<uint32_t>(kOtherAppUid));
+  }
+
+  // Packet 3: FtraceEvents with task_rename and sched_switch for all three
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(30);
+    auto* bundle = packet->mutable_ftrace_events();
+    bundle->set_cpu(0);
+
+    auto* e1 = bundle->add_event();
+    e1->set_timestamp(30);
+    e1->set_pid(kUser0Pid);
+    auto* rename0 = e1->mutable_task_rename();
+    rename0->set_pid(kUser0Pid);
+    rename0->set_newcomm("ProfileWork_uid_10336");
+    rename0->set_oldcomm("ProfileWork_uid_10336");
+    rename0->set_oom_score_adj(0);
+
+    auto* e2 = bundle->add_event();
+    e2->set_timestamp(31);
+    e2->set_pid(kUser0Pid);
+    auto* switch0 = e2->mutable_sched_switch();
+    switch0->set_prev_pid(kUser0Pid);
+    switch0->set_prev_comm("ProfileWork_uid_10336");
+    switch0->set_prev_prio(120);
+    switch0->set_prev_state(0);
+    switch0->set_next_pid(1);
+    switch0->set_next_comm("init");
+    switch0->set_next_prio(120);
+
+    auto* e3 = bundle->add_event();
+    e3->set_timestamp(32);
+    e3->set_pid(kUser10Pid);
+    auto* rename10 = e3->mutable_task_rename();
+    rename10->set_pid(kUser10Pid);
+    rename10->set_newcomm("ProfileWork_uid_1010336");
+    rename10->set_oldcomm("ProfileWork_uid_1010336");
+    rename10->set_oom_score_adj(0);
+
+    auto* e4 = bundle->add_event();
+    e4->set_timestamp(33);
+    e4->set_pid(kUser10Pid);
+    auto* switch10 = e4->mutable_sched_switch();
+    switch10->set_prev_pid(kUser10Pid);
+    switch10->set_prev_comm("ProfileWork_uid_1010336");
+    switch10->set_prev_prio(120);
+    switch10->set_prev_state(0);
+    switch10->set_next_pid(1);
+    switch10->set_next_comm("init");
+    switch10->set_next_prio(120);
+
+    auto* e5 = bundle->add_event();
+    e5->set_timestamp(34);
+    e5->set_pid(kOtherAppPid);
+    auto* rename_other = e5->mutable_task_rename();
+    rename_other->set_pid(kOtherAppPid);
+    rename_other->set_newcomm("OtherApp");
+    rename_other->set_oldcomm("OtherApp");
+    rename_other->set_oom_score_adj(0);
+
+    auto* e6 = bundle->add_event();
+    e6->set_timestamp(35);
+    e6->set_pid(kOtherAppPid);
+    auto* switch_other = e6->mutable_sched_switch();
+    switch_other->set_prev_pid(kOtherAppPid);
+    switch_other->set_prev_comm("OtherApp");
+    switch_other->set_prev_prio(120);
+    switch_other->set_prev_state(0);
+    switch_other->set_next_pid(1);
+    switch_other->set_next_comm("init");
+    switch_other->set_next_prio(120);
+  }
+
+  std::string serialized = trace.SerializeAsString();
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
+
+  TraceRedactor::Config config;
+  config.verify = false;
+  auto redactor = TraceRedactor::CreateInstance(config);
+
+  Context context;
+  context.package_name = "com.example.app";
+  // Do NOT set context.package_uid: simulate 4-arg CLI invocation when the
+  // calling UID flag is disabled.
+
+  ASSERT_OK(redactor->Redact(input_file.path(), output_file.path(), &context));
+  EXPECT_TRUE(context.normalize_uid);
+
+  std::string output_content;
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
+
+  protos::pbzero::Trace::Decoder output_trace(output_content);
+
+  bool found_packages_list = false;
+  bool found_user0_process = false;
+  bool found_user10_process = false;
+  bool found_other_process = false;
+  bool found_user0_rename = false;
+  bool found_user0_switch = false;
+  bool found_user10_rename = false;
+  bool found_user10_switch = false;
+  bool found_other_comm = false;
+
+  for (auto it = output_trace.packet(); it; ++it) {
+    protos::pbzero::TracePacket::Decoder p(it->as_bytes());
+
+    if (p.has_packages_list()) {
+      protos::pbzero::PackagesList::Decoder pl(p.packages_list());
+      for (auto pkg_it = pl.packages(); pkg_it; ++pkg_it) {
+        protos::pbzero::PackagesList::PackageInfo::Decoder pkg(
+            pkg_it->as_bytes());
+        if (pkg.name().ToStdString() == "com.example.app") {
+          found_packages_list = true;
+        }
+      }
+    }
+
+    if (p.has_process_tree()) {
+      protos::pbzero::ProcessTree::Decoder pt(p.process_tree());
+      for (auto proc_it = pt.processes(); proc_it; ++proc_it) {
+        protos::pbzero::ProcessTree::Process::Decoder proc(proc_it->as_bytes());
+        if (proc.pid() == kUser0Pid) {
+          found_user0_process = true;
+        }
+        if (proc.pid() == kUser10Pid) {
+          found_user10_process = true;
+        }
+        if (proc.pid() == kOtherAppPid) {
+          found_other_process = true;
+        }
+      }
+    }
+
+    if (p.has_ftrace_events()) {
+      protos::pbzero::FtraceEventBundle::Decoder bundle(p.ftrace_events());
+      for (auto e_it = bundle.event(); e_it; ++e_it) {
+        protos::pbzero::FtraceEvent::Decoder e(e_it->as_bytes());
+
+        if (e.has_task_rename()) {
+          protos::pbzero::TaskRenameFtraceEvent::Decoder tr(e.task_rename());
+          if (tr.newcomm().ToStdString() == "ProfileWork_uid_10336") {
+            found_user0_rename = true;
+          }
+          if (tr.newcomm().ToStdString() == "ProfileWork_uid_1010336") {
+            found_user10_rename = true;
+          }
+          if (tr.newcomm().ToStdString() == "OtherApp") {
+            found_other_comm = true;
+          }
+        }
+
+        if (e.has_sched_switch()) {
+          protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(e.sched_switch());
+          if (ss.prev_comm().ToStdString() == "ProfileWork_uid_10336") {
+            found_user0_switch = true;
+          }
+          if (ss.prev_comm().ToStdString() == "ProfileWork_uid_1010336") {
+            found_user10_switch = true;
+          }
+          if (ss.prev_comm().ToStdString() == "OtherApp") {
+            found_other_comm = true;
+          }
+        }
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_packages_list);
+  // Both User 0 and User 10 (Work Profile) processes and events are retained
+  // via fallback normalization when no explicit target_uid is provided.
+  EXPECT_TRUE(found_user0_process);
+  EXPECT_TRUE(found_user10_process);
+  EXPECT_FALSE(found_other_process);
+  EXPECT_TRUE(found_user0_rename);
+  EXPECT_TRUE(found_user0_switch);
+  EXPECT_TRUE(found_user10_rename);
+  EXPECT_TRUE(found_user10_switch);
+  // Unrelated package events are still redacted.
+  EXPECT_FALSE(found_other_comm);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_RedactTrace_FallbackWithoutTargetUid_ProcessTreeBeforeAndAfterPackagesList \
+  DISABLED_RedactTrace_FallbackWithoutTargetUid_ProcessTreeBeforeAndAfterPackagesList
+#else
+#define MAYBE_RedactTrace_FallbackWithoutTargetUid_ProcessTreeBeforeAndAfterPackagesList \
+  RedactTrace_FallbackWithoutTargetUid_ProcessTreeBeforeAndAfterPackagesList
+#endif
+TEST(
+    TraceRedactorTest,
+    MAYBE_RedactTrace_FallbackWithoutTargetUid_ProcessTreeBeforeAndAfterPackagesList) {
+  auto input_file = base::TempFile::Create();
+  auto output_file = base::TempFile::Create();
+
+  constexpr uint64_t kUser0Uid = 10336;
+  constexpr uint64_t kUser10Uid = 1010336;
+  constexpr uint64_t kUser11Uid = 1110336;
+  constexpr int32_t kUser10Pid = 200;
+  constexpr int32_t kUser11Pid = 250;
+
+  protos::gen::Trace trace;
+
+  // Packet 1: ProcessTree BEFORE PackagesList (User 10 Work Profile)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    auto* pt = packet->mutable_process_tree();
+
+    auto* pB = pt->add_processes();
+    pB->set_pid(kUser10Pid);
+    pB->set_ppid(1);
+    pB->set_uid(static_cast<uint32_t>(kUser10Uid));
+  }
+
+  // Packet 2: PackagesList containing the package with base UID (10336)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(20);
+    packet->set_trusted_uid(9999);
+    auto* packages = packet->mutable_packages_list();
+
+    auto* pkg = packages->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(kUser0Uid);
+  }
+
+  // Packet 3: ProcessTree AFTER PackagesList (User 11 profile)
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(25);
+    auto* pt = packet->mutable_process_tree();
+
+    auto* pC = pt->add_processes();
+    pC->set_pid(kUser11Pid);
+    pC->set_ppid(1);
+    pC->set_uid(static_cast<uint32_t>(kUser11Uid));
+  }
+
+  // Packet 4: FtraceEvents for User 10 and User 11
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(30);
+    auto* bundle = packet->mutable_ftrace_events();
+    bundle->set_cpu(0);
+
+    auto* e1 = bundle->add_event();
+    e1->set_timestamp(30);
+    e1->set_pid(kUser10Pid);
+    auto* rename10 = e1->mutable_task_rename();
+    rename10->set_pid(kUser10Pid);
+    rename10->set_newcomm("User10BeforePkgList");
+    rename10->set_oldcomm("User10BeforePkgList");
+    rename10->set_oom_score_adj(0);
+
+    auto* e2 = bundle->add_event();
+    e2->set_timestamp(31);
+    e2->set_pid(kUser11Pid);
+    auto* rename11 = e2->mutable_task_rename();
+    rename11->set_pid(kUser11Pid);
+    rename11->set_newcomm("User11AfterPkgList");
+    rename11->set_oldcomm("User11AfterPkgList");
+    rename11->set_oom_score_adj(0);
+  }
+
+  std::string serialized = trace.SerializeAsString();
+  ASSERT_EQ(
+      base::WriteAll(input_file.fd(), serialized.data(), serialized.size()),
+      static_cast<ssize_t>(serialized.size()));
+
+  TraceRedactor::Config config;
+  config.verify = false;
+  auto redactor = TraceRedactor::CreateInstance(config);
+
+  Context context;
+  context.package_name = "com.example.app";
+
+  ASSERT_OK(redactor->Redact(input_file.path(), output_file.path(), &context));
+  EXPECT_TRUE(context.normalize_uid);
+
+  std::string output_content;
+  ASSERT_TRUE(base::ReadFile(output_file.path(), &output_content));
+
+  protos::pbzero::Trace::Decoder output_trace(output_content);
+
+  bool found_user10_rename = false;
+  bool found_user11_rename = false;
+
+  for (auto it = output_trace.packet(); it; ++it) {
+    protos::pbzero::TracePacket::Decoder p(it->as_bytes());
+    if (p.has_ftrace_events()) {
+      protos::pbzero::FtraceEventBundle::Decoder bundle(p.ftrace_events());
+      for (auto e_it = bundle.event(); e_it; ++e_it) {
+        protos::pbzero::FtraceEvent::Decoder e(e_it->as_bytes());
+        if (e.has_task_rename()) {
+          protos::pbzero::TaskRenameFtraceEvent::Decoder tr(e.task_rename());
+          if (tr.newcomm().ToStdString() == "User10BeforePkgList") {
+            found_user10_rename = true;
+          }
+          if (tr.newcomm().ToStdString() == "User11AfterPkgList") {
+            found_user11_rename = true;
+          }
+        }
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_user10_rename);
+  EXPECT_TRUE(found_user11_rename);
 }
 
 }  // namespace perfetto::trace_redaction
