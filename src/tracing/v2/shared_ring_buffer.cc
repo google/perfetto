@@ -328,7 +328,7 @@ SharedRingBuffer::WriterWaitResult SharedRingBuffer::WaitForReadPosChange(
     uint32_t read_pos_for_wait,
     uint32_t timeout_ms) {
   PERFETTO_DCHECK(timeout_ms > 0);
-  if (!base::HasFutexSupport())
+  if (!SupportsWriterWait())
     return WriterWaitResult::kUnavailable;
 
   RingBufferHeader* ring_header = header();
@@ -402,7 +402,7 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
       rw_positions, ReplaceReadPos(rw_positions, read_pos))) {
   }
 
-  if (!base::HasFutexSupport())
+  if (!SupportsWriterWait())
     return;
 
   // See the missed-wake schedule in WaitForReadPosChange(). The fence

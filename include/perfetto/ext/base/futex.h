@@ -21,8 +21,9 @@
 
 #include "perfetto/base/build_config.h"
 
-// Whether this build implements FutexWait() and FutexWake(). Use this macro in
-// preprocessor conditions and HasFutexSupport() in C++ code.
+// Whether this build implements FutexWait() and FutexWake(). It does not check
+// runtime restrictions, such as a sandbox that blocks the system call.
+// TODO(rsavitski): Add support for other platforms.
 #define PERFETTO_HAS_FUTEX()                            \
   (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
@@ -41,19 +42,12 @@ namespace perfetto::base {
 // To avoid lost wakeups, update the word before calling FutexWake().
 // Wakeups are not remembered for subsequent waits.
 //
-// Implemented on Linux and Android. Use HasFutexSupport() to select a fallback
-// on other platforms.
-
-// Returns whether this build implements FutexWait() and FutexWake(). Does not
-// check runtime restrictions, such as a sandbox that blocks the system call.
-constexpr bool HasFutexSupport() {
-  // TODO(rsavitski): Add support for other platforms.
-  return PERFETTO_HAS_FUTEX();
-}
+// Implemented on Linux and Android. Use PERFETTO_HAS_FUTEX() to select a
+// fallback on other platforms.
 
 enum class FutexWaitResult {
-  // The wait returned after a wake, which may be spurious. The word need not
-  // have changed.
+  // The wait returned after a wake. The wake can be spurious, so the word can
+  // still hold the expected value.
   kWoken,
   // The word did not match the expected value when checked before sleeping.
   kValueMismatch,

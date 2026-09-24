@@ -232,7 +232,7 @@ class SharedRingBuffer {
   };
 
   // Whether WaitForReadPosChange() is implemented on this platform.
-  static constexpr bool SupportsWriterWait() { return base::HasFutexSupport(); }
+  static constexpr bool SupportsWriterWait() { return PERFETTO_HAS_FUTEX(); }
 
   // Blocks until read_pos differs from |read_pos_for_wait| or |timeout_ms|
   // elapses. |read_pos_for_wait| comes from the last Reservation, whether it
