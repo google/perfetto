@@ -69,12 +69,17 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "..:client_api_without_backends",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
+      "../../../protos/perfetto/config/protovm:cpp",
       "../../base",
       "../../base:test_support",
+      "../ipc:common",
       "../ipc/consumer",
       "../ipc/producer",
+      "../ipc/producer:test_support",
       "../ipc/service",
       "../service",
+      "../v2",
+      "../v2:test_support",
     ]
     sources = [ "tracing_integration_test.cc" ]
 

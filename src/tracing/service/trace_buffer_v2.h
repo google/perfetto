@@ -538,6 +538,11 @@ class TraceBufferV2 : public TraceBuffer {
   //   candidate buffer. Buffers the writer never used are not changed.
   void RecordProtoGroupLoss(ProducerID, WriterID);
 
+  // Increments abi_violations for a violation that the caller found outside
+  // this buffer. Example: the service stops reading a producer's ring buffer
+  // after a protocol error.
+  void RecordAbiViolation();
+
   void MaybeSetUpProtoVm(const std::string& data_source_name,
                          const std::string& program_bytes,
                          uint32_t memory_limit_kb,

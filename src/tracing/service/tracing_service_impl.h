@@ -50,6 +50,8 @@ class MessageFilter;
 
 namespace perfetto {
 
+class TraceBufferV2;
+
 namespace protos {
 namespace gen {
 enum TraceStats_FinalFlushOutcome : int;
@@ -173,7 +175,18 @@ class TracingServiceImpl : public TracingService {
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
-      const std::string& machine_name = {}) override;
+      const std::string& machine_name = {},
+      bool supports_tracing_v2 = false) override;
+
+  // Returns the buffer with this ID if it is a TBv2 buffer, or nullptr.
+  // The ring buffer endpoint calls this on the service sequence after its
+  // permission check. buffers_ owns the result. The caller borrows it for the
+  // current call only.
+  TraceBufferV2* GetTraceBufferV2(BufferID);
+
+  // The endpoint reports discarded ring buffer chunks on the service
+  // sequence. Adds them to chunks_discarded.
+  void OnRingBufferChunksDiscarded(uint64_t count);
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,

@@ -97,6 +97,33 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
 
   virtual SharedMemory* shared_memory() const = 0;
 
+  // Returns true if the producer and the service agreed on the tracing v2
+  // ring buffer ABI version during connection setup.
+  // - Both peers must send the same version. Only that match matters later,
+  //   so the agreed version itself is not kept.
+  // - The value does not change for the life of the connection.
+  // - Both sides call this on their own endpoint sequence.
+  virtual bool ConnectionSupportsTracingV2() const;
+
+  // Service side only. Attaches a producer's tracing v2 ring buffer and
+  // installs a reader for it.
+  // - ProducerIPCService calls this when a ShareRingBuffer IPC arrives. It
+  //   passes its own mapping of the producer's memfd.
+  // - The producer never calls this. It calls ShareRingBuffer() on its
+  //   ProducerIPCClientImpl, which sends the IPC.
+  // - The ring buffer must be new: the reader starts at position 0. A ring
+  //   buffer that another reader drained fails on the first drain.
+  //
+  // Results:
+  // - Accepted: the layout is valid and the reader exists. Data that the
+  //   producer published before the call is kept. The endpoint keeps the
+  //   mapping until it is destroyed.
+  // - Rejected: the endpoint keeps nothing. A later call can succeed.
+  // - |callback| runs on the endpoint sequence, possibly inline.
+  virtual void AttachRingBuffer(std::unique_ptr<SharedMemory> memory,
+                                uint32_t chunk_size_bytes,
+                                std::function<void(bool)> callback);
+
   // Requests a drain of the tracing v2 ring buffer. The producer calls this on
   // the endpoint sequence. The call has no reply.
   // - Without an accepted ring buffer, the call does nothing.
@@ -435,6 +462,10 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   // Producer::StartDataSource(). The |shm| will also be rejected when
   // connecting to a service that is too old (pre Android-11).
   //
+  // |supports_tracing_v2| is true if the transport agreed on the tracing v2
+  // ring buffer ABI with the producer. See
+  // ProducerEndpoint::ConnectionSupportsTracingV2.
+  //
   // Can return null in the unlikely event that service has too many producers
   // connected.
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
@@ -448,7 +479,8 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
-      const std::string& machine_name = {}) = 0;
+      const std::string& machine_name = {},
+      bool supports_tracing_v2 = false) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.

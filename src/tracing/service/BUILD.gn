@@ -21,6 +21,7 @@ source_set("service") {
     "..:common",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/ext/tracing/core",
+    "../v2",
   ]
   deps = [
     ":proto_rewriter",
@@ -54,6 +55,8 @@ source_set("service") {
     "packet_stream_validator.h",
     "random.cc",
     "random.h",
+    "service_ring_buffer_endpoint.cc",
+    "service_ring_buffer_endpoint.h",
     "trace_buffer.h",
     "trace_buffer_v1.cc",
     "trace_buffer_v1.h",
@@ -173,6 +176,8 @@ perfetto_unittest_source_set("unittests") {
     "../../protozero",
     "../core",
     "../test:test_support",
+    "../v2",
+    "../v2:test_support",
   ]
 
   if (enable_perfetto_zlib) {
@@ -193,6 +198,7 @@ perfetto_unittest_source_set("unittests") {
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
     "proto_rewriter_unittest.cc",
+    "service_ring_buffer_endpoint_unittest.cc",
     "trace_buffer_v1_unittest.cc",
     "trace_buffer_v2_unittest.cc",
   ]

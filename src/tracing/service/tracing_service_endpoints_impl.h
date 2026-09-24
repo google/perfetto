@@ -36,6 +36,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "src/tracing/service/service_ring_buffer_endpoint.h"
 
 // This header contains the declarations for the 3 abtract classes
 // (ProducerEndpointImpl, ConsumerEndpointImpl, RelayEndpointImpl).
@@ -55,7 +56,9 @@ struct TracingSession;
 struct TriggerInfo;
 
 // The implementation behind the service endpoint exposed to each producer.
-class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
+class ProducerEndpointImpl
+    : public TracingService::ProducerEndpoint,
+      public tracing_v2::ServiceRingBufferEndpoint::Delegate {
  public:
   ProducerEndpointImpl(ProducerID,
                        const ClientIdentity& client_identity,
@@ -66,7 +69,8 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
                        const std::string& machine_name,
                        const std::string& sdk_version,
                        bool in_process,
-                       bool smb_scraping_enabled);
+                       bool smb_scraping_enabled,
+                       bool supports_tracing_v2);
   ~ProducerEndpointImpl() override;
 
   // TracingService::ProducerEndpoint implementation.
@@ -115,6 +119,38 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
     return std::nullopt;
   }
 
+  // The transport queries the capability on the service sequence.
+  bool ConnectionSupportsTracingV2() const override {
+    return supports_tracing_v2_;
+  }
+  // The transport passes the mapping on the service sequence. See the
+  // ProducerEndpoint contract for acceptance, lifetime, and callback rules.
+  void AttachRingBuffer(std::unique_ptr<SharedMemory>,
+                        uint32_t chunk_size_bytes,
+                        std::function<void(bool)>) override;
+  // The transport or service requests a drain on the service sequence.
+  // The call transfers no ownership and has no reply.
+  void DrainRingBuffer() override;
+
+  // The service queries its memory guardrail on the service sequence.
+  // Returns zero without an accepted ring buffer. The endpoint keeps ownership.
+  size_t ring_buffer_size_bytes() const {
+    return ring_buffer_endpoint_ ? ring_buffer_endpoint_->size_bytes() : 0;
+  }
+
+  // tracing_v2::ServiceRingBufferEndpoint::Delegate:
+  // The ring buffer endpoint calls these on the service sequence.
+
+  // Returns the buffer if this producer may write to it and it is a TBv2
+  // buffer. The caller borrows it for the current callback only.
+  TraceBufferV2* GetRingBufferDestination(BufferID) override;
+  // Calls |callback| inline for each buffer that GetRingBufferDestination()
+  // would return.
+  void ForEachRingBufferDestination(
+      const std::function<void(TraceBufferV2&)>& callback) override;
+  // Adds discarded ring buffer chunks to the service statistics.
+  void OnRingBufferChunksDiscarded(uint64_t count) override;
+
   bool IsShmemEmulated() { return shmem_abi_.use_shmem_emulation(); }
 
   bool IsAndroidProcessFrozen();
@@ -162,6 +198,11 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   // SharedMemoryArbiterImpl methods themselves are thread-safe.
   std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
 
+  // Immutable capability supplied by the transport at connection setup.
+  const bool supports_tracing_v2_;
+  // Owns the accepted ring buffer mapping and reader on the service sequence.
+  // Destruction precedes the endpoint state that the delegate methods use.
+  std::unique_ptr<tracing_v2::ServiceRingBufferEndpoint> ring_buffer_endpoint_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;
 };

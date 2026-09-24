@@ -358,6 +358,17 @@ SharedMemoryABI::ShmemMode GetShmemMode(const ClientIdentity& client_identity,
              : SharedMemoryABI::ShmemMode::kShmemEmulation;
 }
 
+// True if |producer| can write into one of the buffers of |session|.
+// A ring buffer drain covers all sessions of the producer. Flush and stop use
+// this check to skip producers that cannot have data for the session.
+bool IsProducerInSession(const TracingSession& session,
+                         const ProducerEndpointImpl& producer) {
+  const auto& buffers = session.buffers_index;
+  return std::any_of(buffers.begin(), buffers.end(), [&](BufferID id) {
+    return producer.is_allowed_target_buffer(id);
+  });
+}
+
 }  // namespace
 
 TracingServiceImpl::TracingServiceImpl(
@@ -389,7 +400,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     size_t shared_memory_page_size_hint_bytes,
                                     std::unique_ptr<SharedMemory> shm,
                                     const std::string& sdk_version,
-                                    const std::string& machine_name) {
+                                    const std::string& machine_name,
+                                    bool supports_tracing_v2) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   auto uid = client_identity.uid();
@@ -421,7 +433,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, client_identity, this, weak_runner_.task_runner(), producer,
       producer_name, machine_name, sdk_version, in_process,
-      smb_scraping_enabled));
+      smb_scraping_enabled, supports_tracing_v2));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
 
@@ -481,7 +493,8 @@ void TracingServiceImpl::DisconnectProducer(ProducerID id) {
   PERFETTO_DCHECK(producers_.count(id));
 
   if (auto* producer = GetProducer(id)) {
-    // Scrape remaining chunks for this producer to ensure we don't lose data.
+    // Collect SMB chunks and published ring buffer data before disconnection.
+    producer->DrainRingBuffer();
     for (auto& session_id_and_session : tracing_sessions_) {
       ScrapeSharedMemoryBuffers(&session_id_and_session.second, producer);
     }
@@ -2090,9 +2103,13 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
   }
   SetSessionState(tracing_session, TracingSession::DISABLED);
 
-  // Scrape any remaining chunks that weren't flushed by the producers.
-  for (auto& producer_id_and_producer : producers_)
-    ScrapeSharedMemoryBuffers(tracing_session, producer_id_and_producer.second);
+  // Collect published ring buffer data and SMB chunks before tracing stops.
+  for (auto& producer_id_and_producer : producers_) {
+    ProducerEndpointImpl* producer = producer_id_and_producer.second;
+    if (IsProducerInSession(*tracing_session, *producer))
+      producer->DrainRingBuffer();
+    ScrapeSharedMemoryBuffers(tracing_session, producer);
+  }
 
   SnapshotLifecycleEvent(
       tracing_session,
@@ -2306,10 +2323,14 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
     return;
   }
   // Producers may not have been able to flush all their data, even if they
-  // indicated flush completion. If possible, also collect uncommitted chunks
-  // to make sure we have everything they wrote so far.
+  // indicated flush completion. If possible, also collect published ring
+  // buffer data and uncommitted chunks to make sure we have everything they
+  // wrote so far.
   for (auto& producer_id_and_producer : producers_) {
-    ScrapeSharedMemoryBuffers(tracing_session, producer_id_and_producer.second);
+    ProducerEndpointImpl* producer = producer_id_and_producer.second;
+    if (IsProducerInSession(*tracing_session, *producer))
+      producer->DrainRingBuffer();
+    ScrapeSharedMemoryBuffers(tracing_session, producer);
   }
   SnapshotLifecycleEvent(
       tracing_session,
@@ -2336,14 +2357,9 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
   // session, there's no need to scrape its chunks right now. We can tell if a
   // producer participates in the session by checking if the producer is allowed
   // to write into the session's log buffers.
-  const auto& session_buffers = tracing_session->buffers_index;
-  bool producer_in_session =
-      std::any_of(session_buffers.begin(), session_buffers.end(),
-                  [producer](BufferID buffer_id) {
-                    return producer->allowed_target_buffers_.count(buffer_id);
-                  });
-  if (!producer_in_session)
+  if (!IsProducerInSession(*tracing_session, *producer))
     return;
+  const auto& session_buffers = tracing_session->buffers_index;
 
   PERFETTO_DLOG("Scraping SMB for producer %" PRIu16, producer->id_);
 
@@ -3522,6 +3538,13 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   PERFETTO_DCHECK(global_id);
   ds_config.set_target_buffer(global_id);
 
+  // Write the field only when it is true, as for
+  // prefer_suspend_clock_for_duration above. Also overwrite a consumer value.
+  const bool supports_tracing_v2 =
+      producer->ConnectionSupportsTracingV2() && GetTraceBufferV2(global_id);
+  if (supports_tracing_v2 || ds_config.has_supports_tracing_v2())
+    ds_config.set_supports_tracing_v2(supports_tracing_v2);
+
   MaybeSetUpProtoVm(ds_config, data_source, global_id);
 
   PERFETTO_DLOG("Setting up data source %s with target buffer %" PRIu16,
@@ -3766,6 +3789,24 @@ ProducerID TracingServiceImpl::GetNextProducerID() {
   return last_producer_id_;
 }
 
+TraceBufferV2* TracingServiceImpl::GetTraceBufferV2(BufferID id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto it = buffers_.find(id);
+  // A ring buffer chunk names its target buffer in producer memory. The
+  // producer can name one of its v1 buffers, so check the type before the
+  // cast.
+  if (it == buffers_.end() ||
+      it->second->buf_type() != TraceBuffer::BufType::kV2) {
+    return nullptr;
+  }
+  return static_cast<TraceBufferV2*>(it->second.get());
+}
+
+void TracingServiceImpl::OnRingBufferChunksDiscarded(uint64_t count) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  chunks_discarded_ += count;
+}
+
 TraceBuffer* TracingServiceImpl::GetBufferByID(BufferID buffer_id) {
   auto buf_iter = buffers_.find(buffer_id);
   if (buf_iter == buffers_.end())
@@ -3805,6 +3846,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   for (const auto& id_to_producer : producers_) {
     if (id_to_producer.second->shared_memory())
       total_buffer_bytes += id_to_producer.second->shared_memory()->size();
+    total_buffer_bytes += id_to_producer.second->ring_buffer_size_bytes();
   }
 
   // Sum up all the trace buffers.

@@ -69,7 +69,7 @@ import "protos/perfetto/config/linux/journald_config.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 146
+// Next id: 147
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -327,6 +327,19 @@ message DataSourceConfig {
   // Data source name: android.process_state
   optional AndroidProcessStateConfig android_process_state_config = 145
       [lazy = true];
+
+  // Set by the service to indicate that this data source can write to its
+  // target buffer through the tracing v2 ring buffer. True only if:
+  // - the producer connection agreed on the ring buffer ABI, and
+  // - the target buffer is a TraceBufferV2.
+  // Absent means false. True allows v2 but does not select it: the producer
+  // can still use v1 writers.
+  //
+  // Not supported: a ProtoVM data source on the same buffer. The service does
+  // not check this. The buffer drops the ring buffer data of a producer with
+  // a ProtoVM on it and counts it in chunks_discarded.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool supports_tracing_v2 = 146;
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

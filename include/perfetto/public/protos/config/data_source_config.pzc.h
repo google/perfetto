@@ -381,6 +381,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   android_process_state_config,
                   145);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  VARINT,
+                  bool,
+                  supports_tracing_v2,
+                  146);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_QnxConfig,
                   qnx_config,

@@ -155,6 +155,11 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
 
+// The version of the layout in this file. The IPC peers exchange it during
+// connection setup. They use tracing v2 only if both send the same value.
+// Increment it for any change that an older peer cannot read.
+constexpr uint32_t kRingBufferAbiVersion = 1;
+
 // True if |chunk_size| is at least kMinChunkSize and a multiple of
 // kChunkAlignmentBytes.
 constexpr bool IsValidChunkSize(uint32_t chunk_size) {

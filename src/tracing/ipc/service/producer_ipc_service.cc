@@ -27,6 +27,8 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "src/tracing/ipc/memfd.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -101,8 +103,9 @@ void ProducerIPCService::InitializeConnection(
     base::ScopedFile shmem_fd = ipc::Service::TakeReceivedFD();
 
     if (shmem_fd) {
-      shmem = PosixSharedMemory::AttachToFd(
-          std::move(shmem_fd), /*require_seals_if_supported=*/true);
+      shmem = PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                            /*require_seals_if_supported=*/true,
+                                            TracingService::kMaxShmSize);
       if (!shmem) {
         PERFETTO_ELOG(
             "Couldn't map producer-provided SMB, falling back to "
@@ -120,12 +123,19 @@ void ProducerIPCService::InitializeConnection(
   ClientIdentity client_identity(client_info.uid(), client_info.pid(),
                                  client_info.machine_id());
   // ConnectProducer will call OnConnect() on the next task.
+  bool supports_tracing_v2 = false;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  supports_tracing_v2 =
+      HasMemfdSupport() && !ipc::Service::use_shmem_emulation() &&
+      req.ring_buffer_abi_version() == tracing_v2::kRingBufferAbiVersion;
+#endif
   producer->service_endpoint = core_service_->ConnectProducer(
       producer.get(), client_identity, req.producer_name(),
       req.shared_memory_size_hint_bytes(),
       /*in_process=*/false, smb_scraping_mode,
       req.shared_memory_page_size_hint_bytes(), std::move(shmem),
-      req.sdk_version(), client_info.machine_name());
+      req.sdk_version(), client_info.machine_name(), supports_tracing_v2);
 
   // Could happen if the service has too many producers connected.
   if (!producer->service_endpoint) {
@@ -138,6 +148,11 @@ void ProducerIPCService::InitializeConnection(
       !use_shmem_emulation &&
       producer->service_endpoint->IsShmemProvidedByProducer();
 
+  const uint32_t ring_buffer_abi_version =
+      producer->service_endpoint->ConnectionSupportsTracingV2()
+          ? tracing_v2::kRingBufferAbiVersion
+          : 0;
+
   producers_.emplace(ipc_client_id, std::move(producer));
   // Because of the std::move() |producer| is invalid after this point.
 
@@ -146,6 +161,7 @@ void ProducerIPCService::InitializeConnection(
   async_res->set_using_shmem_provided_by_producer(using_producer_shmem);
   async_res->set_direct_smb_patching_supported(true);
   async_res->set_use_shmem_emulation(use_shmem_emulation);
+  async_res->set_ring_buffer_abi_version(ring_buffer_abi_version);
   response.Resolve(std::move(async_res));
 }
 
@@ -386,6 +402,52 @@ void ProducerIPCService::GetAsyncCommand(
   // we should forward it to the producer now.
   if (producer->send_setup_tracing_on_async_commands_bound)
     producer->SendSetupTracing();
+}
+
+void ProducerIPCService::ShareRingBuffer(
+    const protos::gen::ShareRingBufferRequest& req,
+    DeferredShareRingBufferResponse resp) {
+  // Take the descriptor first. It is closed on every rejection path.
+  auto fd = ipc::Service::TakeReceivedFD();
+  auto* producer = GetProducerForCurrentRequest();
+  if (!producer || !producer->service_endpoint->ConnectionSupportsTracingV2()) {
+    PERFETTO_DLOG("ShareRingBuffer() rejected: no tracing v2 connection");
+    resp.Resolve(
+        ipc::AsyncResult<protos::gen::ShareRingBufferResponse>::Create());
+    return;
+  }
+  std::unique_ptr<SharedMemory> memory;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  memory = PosixSharedMemory::AttachToFd(std::move(fd),
+                                         /*require_seals_if_supported=*/true,
+                                         TracingService::kMaxShmSize);
+#endif
+  if (!memory) {
+    PERFETTO_DLOG("ShareRingBuffer() rejected: could not map the memfd");
+    resp.Resolve(
+        ipc::AsyncResult<protos::gen::ShareRingBufferResponse>::Create());
+    return;
+  }
+  // std::function needs a copyable callback. The shared pointer keeps the
+  // response until the endpoint replies.
+  auto pending =
+      std::make_shared<DeferredShareRingBufferResponse>(std::move(resp));
+  producer->service_endpoint->AttachRingBuffer(
+      std::move(memory), req.chunk_size_bytes(), [pending](bool accepted) {
+        auto reply =
+            ipc::AsyncResult<protos::gen::ShareRingBufferResponse>::Create();
+        reply->set_accepted(accepted);
+        pending->Resolve(std::move(reply));
+      });
+}
+
+void ProducerIPCService::DrainRingBuffer(
+    const protos::gen::DrainRingBufferRequest&,
+    DeferredDrainRingBufferResponse) {
+  auto* producer = GetProducerForCurrentRequest();
+  if (producer)
+    producer->service_endpoint->DrainRingBuffer();
 }
 
 void ProducerIPCService::Sync(const protos::gen::SyncRequest&,
