@@ -36,12 +36,21 @@ source_set("producer") {
     "../../../base",
     "../../../base:version",
     "../../core",
+    "../../v2:abi",
   ]
   if (perfetto_component_type == "static_library") {
     deps += [ "../../../ipc:perfetto_ipc" ]
   } else {
     deps += [ "../../../ipc:client" ]
   }
+}
+
+# Gives tests access to private ProducerIPCClientImpl methods.
+source_set("test_support") {
+  testonly = true
+  public_deps = [ ":producer" ]
+  deps = [ "../../../../gn:default_deps" ]
+  sources = [ "producer_ipc_client_impl_for_testing.h" ]
 }
 
 # Relay port client implementation, used by the relay service.

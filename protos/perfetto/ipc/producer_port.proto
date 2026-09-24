@@ -103,6 +103,66 @@ service ProducerPort {
   // The data_source_descriptor.name cannot be changed.
   rpc UpdateDataSource(UpdateDataSourceRequest)
       returns (UpdateDataSourceResponse) {}
+
+  // Tracing v2 ring buffer protocol. Time goes down.
+  // - "--->" is an IPC message.
+  // - "***>" is a change in shared memory, with no message.
+  //
+  //   producer (ProducerIPCClientImpl)           service (ProducerIPCService)
+  //      |                                                  |
+  //   1. | InitializeConnection                             |
+  //      |   ring_buffer_abi_version = N ------------------>| checks N, memfd
+  //      |                                                  | and emulation
+  //      |<------------------ ring_buffer_abi_version = N   |
+  //      |                    (0: the connection uses v1)   |
+  //      |                                                  |
+  //   2. |<------------- SetupDataSource (GetAsyncCommand)  |
+  //      |   DataSourceConfig.supports_tracing_v2 = true    |
+  //      |   (only if the target is a TBv2 buffer)          |
+  //      |                                                  |
+  //   3. | ShareRingBuffer                                  |
+  //      |   chunk_size_bytes, sealed memfd --------------->| maps, checks,
+  //      |                                                  | attaches, drains
+  //      |<------------------------------ accepted = true   |
+  //      |                                                  |
+  //   4. | writers publish chunks                           |
+  //      |*********************** ring buffer *************>|
+  //      | DrainRingBuffer (no reply) --------------------->| copies chunks
+  //      |                                                  | to trace buffers
+  //      |                                                  |
+  //   5. | CommitData (flush ack) ------------------------->| handled after
+  //      | NotifyDataSourceStopped ------------------------>| the drain above
+  //
+  // Notes:
+  // - 1: an old peer sends no version. Both sides then use v1 only.
+  // - 2: without the field, the data source uses v1 writers.
+  // - 3: one ring buffer serves all sessions of the producer. The service
+  //   rejects it if:
+  //   a. the connection did not agree on tracing v2,
+  //   b. the memfd is missing, unsealed, empty or larger than kMaxShmSize,
+  //   c. the size and chunk_size_bytes give no valid layout, or
+  //   d. the producer already has an attached ring buffer.
+  //   A rejection keeps the connection. The service keeps nothing, so a
+  //   later ShareRingBuffer can succeed.
+  // - 4: the service also drains when a flush completes, when tracing stops
+  //   and on disconnect. Writers send no message for each chunk.
+  // - 5: the service handles requests from one producer in order.
+  //
+  // The producer shares its tracing v2 ring buffer. The request carries the
+  // layout. A sealed memfd travels out of band.
+  // - The service maps the memfd, attaches it and installs a reader.
+  // - The reply tells if the service accepted the ring buffer.
+  // - Each peer owns its own mapping and descriptor.
+  // Introduced in v59.
+  rpc ShareRingBuffer(ShareRingBufferRequest)
+      returns (ShareRingBufferResponse) {}
+
+  // The producer asks the service to drain its tracing v2 ring buffer.
+  // - The service copies the published data. It sends no reply.
+  // - No descriptor or mapping is transferred.
+  // Introduced in v59.
+  rpc DrainRingBuffer(DrainRingBufferRequest)
+      returns (DrainRingBufferResponse) {}
 }
 
 // Arguments for rpc InitializeConnection().
@@ -173,6 +233,13 @@ message InitializeConnectionRequest {
   // SHM region and passes the name (an unguessable token) back to the service.
   // Introduced in v13.
   optional string shm_key_windows = 7;
+
+  // The version of the shared memory layout in shared_ring_buffer_abi.h.
+  // - Zero or absent: the producer does not support tracing v2.
+  // - Tracing v2 is enabled only if both peers send the same nonzero value.
+  //   Otherwise the connection uses v1.
+  // Introduced in v59.
+  optional uint32 ring_buffer_abi_version = 9;
 }
 
 message InitializeConnectionResponse {
@@ -190,7 +257,35 @@ message InitializeConnectionResponse {
   // connection, and request the client to send chunk data over the socket e.g.
   // for remote connection from a VM guest.
   optional bool use_shmem_emulation = 3;
+
+  // The version of the shared memory layout in shared_ring_buffer_abi.h.
+  // - Zero or absent: the service does not support tracing v2 for this
+  //   connection.
+  // - Tracing v2 is enabled only if both peers send the same nonzero value.
+  //   Otherwise the connection uses v1.
+  // Introduced in v59.
+  optional uint32 ring_buffer_abi_version = 4;
 }
+
+// Arguments for rpc ShareRingBuffer().
+message ShareRingBufferRequest {
+  // Bytes per chunk in the shared memory. The service rejects the ring buffer
+  // if the size and this value give no valid layout.
+  optional uint32 chunk_size_bytes = 1;
+}
+
+message ShareRingBufferResponse {
+  // True if the service attached the ring buffer and installed a reader.
+  // False keeps the connection. See the rejection cases above
+  // rpc ShareRingBuffer.
+  optional bool accepted = 1;
+}
+
+// Arguments for rpc DrainRingBuffer().
+message DrainRingBufferRequest {}
+
+// The IPC schema requires a response type. The service never sends it.
+message DrainRingBufferResponse {}
 
 // Arguments for rpc RegisterDataSource().
 

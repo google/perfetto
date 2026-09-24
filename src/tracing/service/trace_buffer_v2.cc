@@ -1231,6 +1231,11 @@ void TraceBufferV2::RecordProtoGroupLoss(ProducerID producer_id,
     seq_it->second.pending_proto_group_loss = true;
 }
 
+void TraceBufferV2::RecordAbiViolation() {
+  PERFETTO_CHECK(!read_only_);
+  stats_.set_abi_violations(stats_.abi_violations() + 1);
+}
+
 TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   DcheckIsAlignedAndWithinBounds(off);
   size_t end = off + TBChunk::OuterSize(size);
