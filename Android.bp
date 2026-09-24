@@ -124,6 +124,7 @@ cc_binary {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/profiling/memory/main.cc",
     ],
     shared_libs: [
@@ -433,6 +434,7 @@ cc_library_shared {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
     ],
     shared_libs: [
         "liblog",
@@ -1647,6 +1649,7 @@ cc_binary {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/perfetto_cmd/main.cc",
     ],
     shared_libs: [
@@ -27332,6 +27335,7 @@ cc_binary {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/perfetto_cmd/trigger_perfetto_main.cc",
     ],
     shared_libs: [

@@ -4836,7 +4836,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 147
+// Next id: 148
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5107,6 +5107,29 @@ message DataSourceConfig {
   // a ProtoVM on it and counts it in chunks_discarded.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional bool supports_tracing_v2 = 146;
+
+  // Experimental. Selects the tracing v2 ring buffer for a data source
+  // instance.
+  // - The producer samples once per instance, at setup. Only an instance
+  //   with supports_tracing_v2 can be selected. Other instances use v1.
+  // - The producer shares one ring buffer per connection, once. If the
+  //   allocation fails or the service rejects the ring buffer, the writers of
+  //   a selected instance drop their data. There is no v1 fallback.
+  // - The service passes these settings to the producer unchanged.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2. Range [0, 100], default 0. The
+    // service rejects a larger value.
+    optional uint32 use_v2_probability_percent = 1;
+    // Chunk size of the ring buffer in bytes, default 256. It must be at least
+    // 256 and a multiple of 4. Otherwise the producer creates no ring buffer.
+    // The first selected instance fixes it for the connection. The values of
+    // later instances are ignored.
+    // TODO(sashwinbalaji): the ring buffer is per connection, but this value
+    // is per instance. Move it to the producer level, or make the service
+    // reject a mismatch.
+    optional uint32 chunk_size_bytes = 2;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 147;
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

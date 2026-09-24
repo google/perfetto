@@ -151,6 +151,15 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy) = 0;
 
+  // Creates a writer for the data source instance |id|, with the transport of
+  // that instance: a tracing v2 ring buffer writer or a v1 SMB writer.
+  // - Any thread can call it.
+  // - It never returns null. The writer can be a NullTraceWriter.
+  // - The default ignores |id| and calls the overload above.
+  virtual std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                         BufferExhaustedPolicy,
+                                                         DataSourceInstanceID);
+
   // TODO(eseckler): Also expose CreateStartupTraceWriter() ?
 
   // In some cases you can access the producer's SharedMemoryArbiter (for

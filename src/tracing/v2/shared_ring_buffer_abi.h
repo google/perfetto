@@ -166,6 +166,19 @@ constexpr bool IsValidChunkSize(uint32_t chunk_size) {
   return chunk_size >= kMinChunkSize && chunk_size % kChunkAlignmentBytes == 0;
 }
 
+// True if a ring buffer can have |count| chunks:
+// - At least kMinChunksPerRing. Two chunks form the minimum useful
+//   configuration. One chunk satisfies the ABI: write_pos - read_pos is 0
+//   when empty and 1 when full. The Free wrap count distinguishes successive
+//   uses of that chunk.
+// - At most kMaxChunksPerRing. This keeps outstanding positions below 2^31
+//   for unambiguous unsigned subtraction.
+// - A power of two, so that a mask indexes the chunks.
+constexpr bool IsValidChunkCount(size_t count) {
+  return count >= kMinChunksPerRing && count <= kMaxChunksPerRing &&
+         base::IsPowerOfTwo(count);
+}
+
 // Validates the layout of an untrusted ring buffer and returns its chunk
 // count. Returns nullopt, and does not crash, if |start| is null or
 // misaligned, or if |size| and |chunk_size| do not form a valid layout.
@@ -190,18 +203,29 @@ inline std::optional<uint32_t> NumChunksForRingBufferLayout(
   if (chunks_size % chunk_size != 0)
     return std::nullopt;
   const size_t count = chunks_size / chunk_size;
-  // Two chunks form the minimum useful configuration. One chunk satisfies
-  // the ABI: write_pos - read_pos is 0 when empty and 1 when full.
-  // The Free wrap count distinguishes successive uses of that chunk.
-  //
-  // The power-of-two rule permits chunk indexing with a mask. The maximum
-  // keeps outstanding positions below 2^31 for unambiguous unsigned
-  // subtraction.
-  if (count < kMinChunksPerRing || count > kMaxChunksPerRing ||
-      !base::IsPowerOfTwo(count)) {
+  if (!IsValidChunkCount(count))
     return std::nullopt;
-  }
   return static_cast<uint32_t>(count);
+}
+
+// Returns the largest valid ring buffer size, header included, that fits in
+// |budget| bytes. Returns nullopt if no valid layout fits.
+// It reads no shared memory, so any thread can call it.
+inline std::optional<size_t> RingBufferSizeForBudget(size_t budget,
+                                                     uint32_t chunk_size) {
+  if (!IsValidChunkSize(chunk_size))
+    return std::nullopt;
+  // Subtract the header after this check to avoid overflow on 32-bit builds.
+  if (budget < sizeof(RingBufferHeader))
+    return std::nullopt;
+  const size_t max_count = (budget - sizeof(RingBufferHeader)) / chunk_size;
+  // Take the largest power of two that fits, then check it like any layout.
+  size_t count = kMaxChunksPerRing;
+  while (count > max_count)
+    count /= 2;
+  if (!IsValidChunkCount(count))
+    return std::nullopt;
+  return sizeof(RingBufferHeader) + count * chunk_size;
 }
 
 constexpr uint64_t PackRwPositions(uint32_t write_pos, uint32_t read_pos) {

@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include <map>
+#include <mutex>
 #include <set>
 #include <vector>
 
@@ -45,6 +47,9 @@ class ProducerIPCClientTestPeer;
 
 class Producer;
 class SharedMemoryArbiter;
+namespace tracing_v2 {
+class ProducerRingBufferEndpoint;
+}  // namespace tracing_v2
 
 // Exposes a Service endpoint to Producer(s), proxying all requests through a
 // IPC channel to the remote Service. This class is the glue layer between the
@@ -52,6 +57,13 @@ class SharedMemoryArbiter;
 // actual IPC transport.
 // If create_socket_async is set, it will be called to create and connect to a
 // socket to the service. If unset, the producer will create and connect itself.
+//
+// Tracing v2: this endpoint owns the SMB arbiter and the ring buffer
+// endpoint. The ring buffer endpoint owns the ring buffer mapping. Ring
+// buffer writers borrow both.
+// - Their WriterIDs come from the SMB arbiter. The arbiter's TryShutdown()
+//   fails while one exists, so this endpoint outlives those writers.
+// - After a rejection, the ring buffer stays allocated for its writers.
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
@@ -89,6 +101,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -118,6 +133,17 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void ShareRingBuffer(int fd,
                        uint32_t chunk_size_bytes,
                        std::function<void(bool)> callback);
+
+  // Runs on the endpoint sequence, at data source setup.
+  // - Decides once per instance if the instance writes to the ring buffer.
+  // - For the first instance that does, creates the ring buffer and its
+  //   ProducerRingBufferEndpoint, and shares the ring buffer with the
+  //   service.
+  //
+  // TODO(sashwinbalaji): the selection, the size budget and the instance map
+  // are transport policy, not IPC. Move them to a class in src/tracing/v2
+  // before in-process producers get tracing v2, so that both use one copy.
+  void SetupRingBuffer(DataSourceInstanceID, const DataSourceConfig&);
 
   // Invoked soon after having established the connection with the service.
   void OnConnectionInitialized(bool connection_succeeded,
@@ -168,6 +194,23 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool direct_smb_patching_supported_ = false;
   bool use_shmem_emulation_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
+
+  // CreateTraceWriter() runs on any thread and reads the two members below.
+  // The endpoint sequence writes them. This mutex guards both.
+  // - |ring_buffer_endpoint_| is set once and never reset or replaced, also
+  //   after a rejection. So a caller can use the pointer after it unlocks.
+  // - |instance_uses_ring_buffer_| holds the decision of each running
+  //   instance. Stopped instances are erased.
+  // The endpoint sequence can read both without the lock, because only that
+  // sequence writes them.
+  std::mutex ring_buffer_mutex_;
+  std::unique_ptr<tracing_v2::ProducerRingBufferEndpoint> ring_buffer_endpoint_;
+  std::map<DataSourceInstanceID, bool> instance_uses_ring_buffer_;
+
+  // Endpoint sequence only. Set by the first instance that uses the ring
+  // buffer, also if the allocation fails. So the endpoint shares at most one
+  // ring buffer.
+  bool ring_buffer_allocation_attempted_ = false;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

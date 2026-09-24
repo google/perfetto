@@ -824,6 +824,10 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
+    if (ds_config.experimental_tracing_v2().use_v2_probability_percent() > 100)
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.use_v2_probability_percent must be at most "
+          "100");
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
     size_t target_buffer = ds_config.target_buffer();
