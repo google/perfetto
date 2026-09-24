@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {EmptyState} from '../../widgets/empty_state';
 import {linkify} from '../../widgets/anchor';
 import {Spinner} from '../../widgets/spinner';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
@@ -54,15 +53,10 @@ export function renderResultsGrid(
     tab.queryUuid !== '' &&
     (tab.execution === undefined || tab.execution.status === 'UNKNOWN');
   if (isInitialLoad) {
-    return m(
-      EmptyState,
-      {
-        title: 'Loading query status...',
-        icon: 'hourglass_empty',
-        fillHeight: true,
-      },
-      m(Spinner),
-    );
+    return m('.pf-empty-state.pf-empty-state--fill-height', [
+      m('.pf-empty-state__title', 'Loading query status...'),
+      m('.pf-empty-state__content', m(Spinner)),
+    ]);
   }
 
   const isTerminal =
@@ -103,15 +97,10 @@ export function renderResultsGrid(
   if (columns.length === 0) {
     dataSource.useRows({mode: 'flat', columns: []});
     tableContent.push(
-      m(
-        EmptyState,
-        {
-          title: 'Loading schema...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        },
-        m(Spinner),
-      ),
+      m('.pf-empty-state.pf-empty-state--fill-height', [
+        m('.pf-empty-state__title', 'Loading schema...'),
+        m('.pf-empty-state__content', m(Spinner)),
+      ]),
     );
     return tableContent;
   }
@@ -204,7 +193,7 @@ function renderDataGrid(
     className: 'pf-bt-query-page__results',
     data: dataSource,
     fillHeight: true,
-    showExportButton: true,
+    showExportButton: !isAsync,
     emptyStateMessage:
       isAsync && visible.length >= defaultVisible.length
         ? 'Query returned no rows'
@@ -228,9 +217,5 @@ function renderResultsSummary(
       ? tab.dataSource
       : undefined;
   const count = asyncDs?.filteredTotalRows ?? tab.execution?.processedRows ?? 0;
-  const isTerminal =
-    tab.execution?.status !== undefined &&
-    TERMINAL_STATUSES.has(tab.execution.status);
-  const text = `${count.toLocaleString()} rows`;
-  return isTerminal ? text : `${text} · running…`;
+  return `Showing ${Number(count).toLocaleString()} rows`;
 }

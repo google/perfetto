@@ -165,22 +165,7 @@ const void* AssertType::Data(const ColumnChunk& chunk) const {
 }
 
 std::unique_ptr<OperatorState> AssertType::MakeState() const {
-  auto state = std::make_unique<State>();
-  switch (target_.index()) {
-    case AssertTypeTarget::GetTypeIndex<Int64>():
-      state->chunk.Values<int64_t>();
-      break;
-    case AssertTypeTarget::GetTypeIndex<Double>():
-      state->chunk.Values<double>();
-      break;
-    case AssertTypeTarget::GetTypeIndex<String>():
-      state->chunk.Values<StringPool::Id>();
-      break;
-    default:
-      PERFETTO_FATAL("Unreachable");
-  }
-  state->chunk.validity = BitVector::CreateWithSize(kMaxBatchRows);
-  return state;
+  return std::make_unique<State>();
 }
 
 base::Status AssertType::status(const OperatorState& state) const {
@@ -193,8 +178,8 @@ void AssertType::Rewind(OperatorState& state) const {
 
 bool AssertType::Widen(const ColumnView& column,
                        uint32_t count,
+                       ColumnChunk& chunk,
                        State& state) const {
-  ColumnChunk& chunk = state.chunk;
   StorageType from = column.type();
   if (type_.Is<Int64>()) {
     PERFETTO_DCHECK((from.IsAnyOf<base::TypeSet<Id, Uint32, Int32>>()));
@@ -232,11 +217,13 @@ OpResult AssertType::Execute(const RowBatch& in,
   State& s = state.Cast<State>();
   out.CopyFrom(in);
   const ColumnView& column = in.column(column_);
-  ColumnChunk& chunk = s.chunk;
+  if (column.kind() != ColumnView::Kind::kVariant && column.type() == type_) {
+    return OpResult::kNeedMoreInput;
+  }
+  auto buffer = s.buffers.Acquire();
+  ColumnChunk& chunk = *buffer;
+  chunk.validity.resize(kMaxBatchRows);
   if (column.kind() != ColumnView::Kind::kVariant) {
-    if (column.type() == type_) {
-      return OpResult::kNeedMoreInput;
-    }
     bool widen = column.type().IsAnyOf<IntegerType>() &&
                  (type_.Is<Int64>() || type_.Is<Double>());
     if (!widen) {
@@ -244,12 +231,13 @@ OpResult AssertType::Execute(const RowBatch& in,
                                  Name(column.type()), Name(type_));
       return OpResult::kError;
     }
-    if (!Widen(column, in.size(), s)) {
+    if (!Widen(column, in.size(), chunk, s)) {
       return OpResult::kError;
     }
     // A column without validity has no nulls to remap, so stays non-null.
     const BitVector* validity = column.validity() ? &chunk.validity : nullptr;
-    out.SetColumn(column_, ColumnView::Reference(type_, Data(chunk), validity));
+    out.SetColumn(column_, ColumnView::Reference(type_, Data(chunk), validity),
+                  std::move(buffer));
     return OpResult::kNeedMoreInput;
   }
 
@@ -311,7 +299,8 @@ OpResult AssertType::Execute(const RowBatch& in,
     return OpResult::kError;
   }
   out.SetColumn(column_,
-                ColumnView::Reference(type_, Data(chunk), &chunk.validity));
+                ColumnView::Reference(type_, Data(chunk), &chunk.validity),
+                std::move(buffer));
   return OpResult::kNeedMoreInput;
 }
 

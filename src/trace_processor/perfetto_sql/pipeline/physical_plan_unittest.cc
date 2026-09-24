@@ -111,7 +111,8 @@ class PhysicalPlanTest : public ::testing::Test {
   }
 
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
-    PerfettoSqlParser parser(macros_, &catalog_);
+    PerfettoSqlParser parser(macros_, catalog_,
+                             /*pipelines_allowed=*/true);
     parser.Reset(SqlSource::FromExecuteQuery(sql));
     if (!parser.Next()) {
       return parser.status();
@@ -247,7 +248,8 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
 
 TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
   CreateTree();
-  PerfettoSqlParser parser(macros_, &catalog_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
   parser.Reset(SqlSource::FromExecuteQuery(
       "FROM tree |> TREE ACCUMULATE DOWN SUM(self) AS path "
       "|> TREE ACCUMULATE UP SUM(path) AS total"));
@@ -295,7 +297,8 @@ TEST_F(PhysicalPlanTest, APlanOutlivesTheTableItReads) {
 
 TEST_F(PhysicalPlanTest, LogicalPlanRetainsColumnsBeforeLowering) {
   CreateDataframeTree();
-  PerfettoSqlParser parser(macros_, &catalog_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
   parser.Reset(SqlSource::FromExecuteQuery(
       "FROM df |> TREE ACCUMULATE UP SUM(self) AS total"));
   ASSERT_TRUE(parser.Next());
@@ -320,7 +323,8 @@ TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
 TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   CreateTree();
   Exec("INSERT INTO tree VALUES (4, 0, 'many')");
-  PerfettoSqlParser parser(macros_, &catalog_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
   parser.Reset(SqlSource::FromExecuteQuery(
       "FROM tree |> TREE ACCUMULATE UP SUM(self) AS total"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();

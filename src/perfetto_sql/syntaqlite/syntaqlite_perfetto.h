@@ -2300,12 +2300,13 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT = 101,
     SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT = 102,
     SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT = 103,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE = 104,
-    SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE = 105,
-    SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE_LIST = 106,
-    SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE = 107,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 108,
-    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 109,
+    SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT = 104,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE = 105,
+    SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE = 106,
+    SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE_LIST = 107,
+    SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE = 108,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 109,
+    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 110,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -3110,6 +3111,12 @@ typedef struct SyntaqliteDropPerfettoIndexStmt {
     SyntaqliteTextSpan table_name;
 } SyntaqliteDropPerfettoIndexStmt;
 
+typedef struct SyntaqlitePerfettoPragmaStmt {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan name;
+    uint32_t value;
+} SyntaqlitePerfettoPragmaStmt;
+
 typedef struct SyntaqlitePerfettoPipeSource {
     SyntaqliteNodeTag tag;
     SyntaqliteTextSpan table_name;
@@ -3258,6 +3265,7 @@ typedef union SyntaqliteNode {
     SyntaqliteCreatePerfettoMacroStmt create_perfetto_macro_stmt;
     SyntaqliteIncludePerfettoModuleStmt include_perfetto_module_stmt;
     SyntaqliteDropPerfettoIndexStmt drop_perfetto_index_stmt;
+    SyntaqlitePerfettoPragmaStmt perfetto_pragma_stmt;
     SyntaqlitePerfettoPipeSource perfetto_pipe_source;
     SyntaqlitePerfettoTreeAggregate perfetto_tree_aggregate;
     SyntaqlitePerfettoTreeAggregateList perfetto_tree_aggregate_list;
@@ -4191,6 +4199,10 @@ template <> struct NodeTag<SyntaqliteIncludePerfettoModuleStmt> {
 template <> struct NodeTag<SyntaqliteDropPerfettoIndexStmt> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPragmaStmt> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT;
 };
 template <> struct NodeTag<SyntaqlitePerfettoPipeSource> {
   static constexpr bool kHasTag = true;

@@ -131,6 +131,13 @@ class PerfettoSqlParser {
     SqlSource sql;
   };
 
+  // Indicates that the specified SQL was a PERFETTO PRAGMA statement with
+  // the following parameters.
+  struct Pragma {
+    std::string name;
+    int64_t value;
+  };
+
   using Statement = std::variant<CreateFunction,
                                  CreateIndex,
                                  CreateMacro,
@@ -139,19 +146,27 @@ class PerfettoSqlParser {
                                  DropIndex,
                                  Include,
                                  Pipeline,
+                                 Pragma,
                                  SqliteSql>;
 
   // Reset(SqlSource) must be called before iterating. The underlying
   // syntaqlite parser is created once and reused across Reset() calls.
   //
-  // Pipelines are compiled against |catalog| during parsing. If null,
-  // pipelines are rejected.
+  // Pipelines are compiled against `catalog`. `pipelines_allowed` says whether
+  // the SQL read may use one at all; it is asked for separately because it
+  // varies between sources sharing one parser, not between catalogs.
   explicit PerfettoSqlParser(
       const base::FlatHashMap<std::string, Macro>& macros,
-      const pipeline::Catalog* catalog = nullptr);
+      const pipeline::Catalog& catalog,
+      bool pipelines_allowed);
 
   // Rebinds to a fresh source; keeps the syntaqlite parser instance.
   void Reset(SqlSource);
+
+  // Whether the SQL read from here on may use a pipeline. Independent of the
+  // syntaqlite parser, so one instance serves sources which differ in whether
+  // they are allowed one.
+  void SetPipelinesAllowed(bool allowed);
 
   ~PerfettoSqlParser();
 

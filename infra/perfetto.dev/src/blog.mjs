@@ -36,10 +36,20 @@ const pjoin = path.join;
 const POST_DIR_RE = /^(\d{4})-(\d{2})-(\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 
 // Front matter is a `---` delimited block of flat `key: value` pairs. It is
-// deliberately not YAML: three keys do not justify a YAML parser in a
+// deliberately not YAML: four keys do not justify a YAML parser in a
 // package.json that hasn't got one. Values run to end of line, so a colon or a
 // '#' inside a summary is safe.
 const REQUIRED = ["title", "author", "summary"];
+// Unknown keys are rejected rather than ignored: a misspelt `cover` would
+// otherwise silently fall back to the generated artwork.
+const OPTIONAL = ["cover"];
+const KNOWN = new Set([...REQUIRED, ...OPTIONAL]);
+
+// A PNG sitting next to post.md. The cover doubles as the og:image link
+// preview, and X, LinkedIn, Slack etc. do not render SVG. PNG only, rather than
+// every format crawlers accept, keeps one obvious answer for authors, and is
+// what the generated covers are too.
+const COVER_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*\.png$/;
 
 export function parseFrontMatter(raw, srcForErrors) {
   const where = srcForErrors ? ` in ${srcForErrors}` : "";
@@ -59,6 +69,12 @@ export function parseFrontMatter(raw, srcForErrors) {
       throw new Error(
         `Bad front matter line${where}: ${JSON.stringify(lines[i])}. ` +
           `Expected \`key: value\`.`,
+      );
+    }
+    if (!KNOWN.has(m[1])) {
+      throw new Error(
+        `Unknown front matter key '${m[1]}'${where}. ` +
+          `Expected one of: ${[...KNOWN].join(", ")}.`,
       );
     }
     if (m[1] in fields) {
@@ -86,25 +102,23 @@ export function parseFrontMatter(raw, srcForErrors) {
     }
   }
   fields.authors = authors.map((a) => a.slice(1));
+  if ("cover" in fields && !COVER_RE.test(fields.cover)) {
+    throw new Error(
+      `Bad cover${where}: ${JSON.stringify(fields.cover)}. Expected the ` +
+        `filename of a PNG next to post.md, e.g. 'cover: cover.png'. It is ` +
+        `also the link preview image, and crawlers do not render SVG.`,
+    );
+  }
   return { fields, body: lines.slice(i + 1).join("\n") };
 }
 
-// The card image: the first image the body references, else a cover generated
-// from the title. Pure -- it touches no disk and cannot fail.
-export function coverFor(slug, body) {
-  // Videos are written with image syntax (see renderImage), but a card is an
-  // <img> -- picking one would render nothing and push a multi-megabyte file
-  // onto the index. Take the first still image instead.
-  const re = /!\[[^\]]*\]\(\s*([^)\s]+)/g;
-  let m;
-  while ((m = re.exec(body)) !== null) {
-    const file = m[1];
-    if (/^(https?:)|^\//.test(file)) continue;
-    if (/\.(mp4|webm)$/i.test(file)) continue;
-    // renderImage() already records anything the body references.
-    return { sitePath: `blog/media/${slug}/${file}`, generated: false };
-  }
-  return { sitePath: `blog/media/${slug}/cover.svg`, generated: true };
+// The card image: the file named by the optional `cover` front matter key,
+// else artwork generated from the title. Images in the body are deliberately
+// not considered: the first screenshot in a post is rarely a good card, so a
+// real image has to be opted into. Pure -- it touches no disk and cannot fail.
+export function coverFor(slug, file) {
+  if (file) return { sitePath: `blog/media/${slug}/${file}`, generated: false };
+  return { sitePath: `blog/media/${slug}/cover.png`, generated: true };
 }
 
 // Author avatars are committed as authors/<handle>.png in the blog branch (see
@@ -172,7 +186,22 @@ export function collectPosts(blogDir) {
 
     const raw = fs.readFileSync(mdPath, "utf8");
     const { fields, body } = parseFrontMatter(raw, mdPath);
-    const cover = coverFor(slug, body);
+    if (fields.cover && !fs.existsSync(pjoin(dir, fields.cover))) {
+      throw new Error(
+        `${mdPath} sets 'cover: ${fields.cover}', but there is no such file ` +
+          `next to it.`,
+      );
+    }
+    // The generated artwork is published as cover.png in the post's media
+    // directory, where it would silently replace a body image of that name.
+    if (!fields.cover && fs.existsSync(pjoin(dir, "cover.png"))) {
+      throw new Error(
+        `${dir} has a cover.png but no 'cover' key, so the generated cover ` +
+          `would overwrite it. Add 'cover: cover.png' to use it as the ` +
+          `cover, or rename it.`,
+      );
+    }
+    const cover = coverFor(slug, fields.cover);
     const thumb = thumbnailFor(cover);
     posts.push({
       dir,
@@ -191,8 +220,7 @@ export function collectPosts(blogDir) {
       isoDate: `${y}-${mo}-${d}`,
       sortKey: date.getTime(),
       cover,
-      // Where a thumbnail would go, or null if this cover cannot have one.
-      // addBlogThumbnails() decides whether one was actually produced and
+      // Where a thumbnail would go. addBlogThumbnails() decides whether one was actually produced and
       // upgrades cardUrl; until then the card points at the full image, so a
       // cover that turns out to be untouchable degrades rather than 404s.
       thumbSitePath: thumb,
@@ -210,16 +238,15 @@ export function collectPosts(blogDir) {
 // is half a megabyte on its own. Downscaling them for the index turns ~1MB of
 // cover art into ~100KB, which matters on a page that shows every post.
 //
-// Only PNG is handled, which is what GitHub release screenshots are. Anything
-// else (or anything pngjs cannot decode) falls back to the full-size image, so
-// an unusual cover degrades to a slower card rather than a broken build.
+// Generated covers are drawn at thumbnail size directly rather than downscaled.
+// A committed cover pngjs cannot decode falls back to the full-size image, so
+// an unusual PNG degrades to a slower card rather than a broken build.
 // ---------------------------------------------------------------------------
 
 // 2x the 320px card, so the thumbnail still looks right on a HiDPI screen.
-const THUMB_WIDTH = 640;
+export const THUMB_WIDTH = 640;
 
 export function thumbnailFor(cover) {
-  if (!/\.png$/i.test(cover.sitePath)) return null;
   const name = cover.sitePath.slice(cover.sitePath.lastIndexOf("/") + 1);
   const slug = cover.sitePath.split("/")[2];
   return `blog/media/thumbnails/${slug}-${name}`;
@@ -274,7 +301,10 @@ export function makeThumbnail(srcAbsPath) {
 // Atom feed.
 // ---------------------------------------------------------------------------
 
-const SITE = "https://perfetto.dev";
+// Atom <id>s are permanent identifiers, not locations: they stay on
+// perfetto.dev whatever --site-url a build uses, so a staging feed does not
+// look like a different set of entries. Only the links follow siteUrl.
+const ID_BASE = "https://perfetto.dev";
 
 const xml = (s) =>
   String(s)
@@ -283,7 +313,7 @@ const xml = (s) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-export function atomFeed(posts) {
+export function atomFeed(posts, siteUrl = ID_BASE) {
   // <updated> is the newest post's date, never a build timestamp: otherwise
   // every build would emit a different file and churn the deploy.
   const updated = posts.length
@@ -293,8 +323,8 @@ export function atomFeed(posts) {
     .map(
       (p) => `  <entry>
     <title>${xml(p.title)}</title>
-    <link href="${SITE}/blog/${p.slug}"/>
-    <id>${SITE}/blog/${p.slug}</id>
+    <link href="${siteUrl}/blog/${p.slug}"/>
+    <id>${ID_BASE}/blog/${p.slug}</id>
     <updated>${p.isoDate}T00:00:00Z</updated>
     <published>${p.isoDate}T00:00:00Z</published>
 ${p.authors
@@ -311,12 +341,12 @@ ${p.authors
     .join("\n");
 
   return `<?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom" xml:base="${SITE}/">
+<feed xmlns="http://www.w3.org/2005/Atom" xml:base="${siteUrl}/">
   <title>Perfetto Blog</title>
   <subtitle>Release notes, performance investigations and deep dives from the people who build Perfetto.</subtitle>
-  <link rel="self" href="${SITE}/blog/atom.xml"/>
-  <link rel="alternate" type="text/html" href="${SITE}/blog/"/>
-  <id>${SITE}/blog/</id>
+  <link rel="self" href="${siteUrl}/blog/atom.xml"/>
+  <link rel="alternate" type="text/html" href="${siteUrl}/blog/"/>
+  <id>${ID_BASE}/blog/</id>
   <updated>${updated}</updated>
 ${entries}
 </feed>
@@ -339,6 +369,12 @@ ${entries}
 //
 // Flat, text-free, same visual language as the hand-drawn illustrations in
 // src/assets/. No text is ever drawn into the image.
+//
+// Motifs are laid out on a 320x180 canvas as a list of shapes, which
+// rasterizeShapes() draws straight into a PNG at whatever width is asked for:
+// full size for the cover and link preview, 640px for the index card. Drawing
+// it here rather than going through SVG keeps covers PNG, which link previews
+// need, without an SVG renderer dependency.
 // ---------------------------------------------------------------------------
 
 const W = 320,
@@ -380,18 +416,18 @@ function rng(seed) {
   };
 }
 
+// Shapes, in 320x180 canvas units. A zero-width rect draws nothing.
 const rect = (x, y, w, h, fill, rx) =>
   w <= 0
-    ? ""
-    : `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" ` +
-      `height="${h.toFixed(1)}" rx="${rx === undefined ? 2.5 : rx}" fill="${fill}"/>`;
+    ? []
+    : [{ kind: "rect", x, y, w, h, rx: rx === undefined ? 2.5 : rx, fill }];
 
 // Each motif is drawn from something Perfetto actually shows you. `c.a` and
 // `c.b` are the two brightness ramps, darkest first.
 const MOTIFS = {
   // Nested slice track: the shape of a TrackEvent trace.
   slices(rnd, c) {
-    let s = "";
+    const s = [];
     const pad = 26,
       top = 30,
       rowH = 20,
@@ -404,7 +440,7 @@ const MOTIFS = {
       while (x < end - 8) {
         let w = Math.max(10, (end - x) * (0.22 + rnd() * 0.55));
         if (x + w > end) w = end - x;
-        s += rect(x, y, w, rowH, ramp[row === 0 ? 0 : rnd() > 0.55 ? 1 : 2]);
+        s.push(...rect(x, y, w, rowH, ramp[row === 0 ? 0 : rnd() > 0.55 ? 1 : 2]));
         x += w + 4;
       }
     }
@@ -413,7 +449,7 @@ const MOTIFS = {
 
   // Flame graph: the shape of a profile.
   flame(rnd, c) {
-    let s = "";
+    const s = [];
     const pad = 24,
       rowH = 18,
       step = 24;
@@ -426,13 +462,13 @@ const MOTIFS = {
         const x = seg[0],
           w = seg[1];
         if (w < 14) continue;
-        s += rect(
+        s.push(...rect(
           x,
           y,
           w,
           rowH,
           ramp[Math.min(3, (row >> 1) + (rnd() > 0.6 ? 1 : 0))],
-        );
+        ));
         const n = 1 + ((rnd() * 2.4) | 0);
         let cx = x;
         const avail = w * (0.55 + rnd() * 0.4);
@@ -449,7 +485,7 @@ const MOTIFS = {
 
   // Scheduler lanes: threads running, blocked, preempted.
   sched(rnd, c) {
-    let s = "";
+    const s = [];
     const pad = 24,
       top = 26,
       laneH = 16,
@@ -457,13 +493,13 @@ const MOTIFS = {
     for (let l = 0; l < 6; l++) {
       const y = top + l * step;
       if (y + laneH > H - 4) break;
-      s += rect(pad, y + laneH / 2 - 1, W - pad * 2, 2, RULE, 1);
+      s.push(...rect(pad, y + laneH / 2 - 1, W - pad * 2, 2, RULE, 1));
       let x = pad + rnd() * 16;
       const ramp = l % 2 ? c.b : c.a;
       while (x < W - pad - 10) {
         let w = 8 + rnd() * 46;
         if (x + w > W - pad) w = W - pad - x;
-        s += rect(x, y, w, laneH, ramp[rnd() > 0.45 ? 1 : 2]);
+        s.push(...rect(x, y, w, laneH, ramp[rnd() > 0.45 ? 1 : 2]));
         x += w + 6 + rnd() * 26;
       }
     }
@@ -472,7 +508,7 @@ const MOTIFS = {
 
   // Async flows: work crossing threads, processes or machines.
   flows(rnd, c) {
-    let s = "";
+    const s = [];
     const pad = 26,
       barH = 18;
     const rows = [46, 92, 138];
@@ -484,7 +520,7 @@ const MOTIFS = {
       while (x < W - pad - 20) {
         let w = 26 + rnd() * 54;
         if (x + w > W - pad) w = W - pad - x;
-        s += rect(x, y, w, barH, ramp[i === 1 ? 2 : 1]);
+        s.push(...rect(x, y, w, barH, ramp[i === 1 ? 2 : 1]));
         row.push([x, x + w]);
         x += w + 14 + rnd() * 30;
       }
@@ -498,11 +534,13 @@ const MOTIFS = {
           y1 = rows[i] + barH;
         const x2 = b[j][0] + 6,
           y2 = rows[i + 1];
-        s +=
-          `<path d="M${x1.toFixed(1)},${y1} C${x1.toFixed(1)},${y1 + 16} ` +
-          `${x2.toFixed(1)},${y2 - 16} ${x2.toFixed(1)},${y2}" fill="none" ` +
-          `stroke="${c.a[2]}" stroke-width="2"/>`;
-        s += `<circle cx="${x2.toFixed(1)}" cy="${y2}" r="3" fill="${c.a[1]}"/>`;
+        s.push({
+          kind: "curve",
+          pts: [x1, y1, x1, y1 + 16, x2, y2 - 16, x2, y2],
+          width: 2,
+          fill: c.a[2],
+        });
+        s.push({ kind: "circle", cx: x2, cy: y2, r: 3, fill: c.a[1] });
       }
     }
     return s;
@@ -515,7 +553,7 @@ const MOTIFS = {
       n = 16,
       gap = 4;
     const bw = (W - pad * 2 - gap * (n - 1)) / n;
-    let s = rect(pad, baseline, W - pad * 2, 3, RULE, 1.5);
+    const s = rect(pad, baseline, W - pad * 2, 3, RULE, 1.5);
     for (let i = 0; i < n; i++) {
       const x = pad + i * (bw + gap);
       let y = baseline;
@@ -525,7 +563,7 @@ const MOTIFS = {
         if (y - h < 24) break;
         y -= h;
         const ramp = k % 2 ? c.b : c.a;
-        s += rect(x, y, bw, h - 2, ramp[k === 0 ? 1 : 2], 2);
+        s.push(...rect(x, y, bw, h - 2, ramp[k === 0 ? 1 : 2], 2));
       }
     }
     return s;
@@ -533,8 +571,9 @@ const MOTIFS = {
 };
 const MOTIF_NAMES = Object.keys(MOTIFS);
 
-// Returns {svg, motif, hues} for a post title.
-export function generateCover(title) {
+// Returns {shapes, motif, hues} for a post title. Pure: same title, same
+// shapes.
+export function coverShapes(title) {
   const h = fnv(title);
   const rnd = rng(h);
   const motif = MOTIF_NAMES[h % MOTIF_NAMES.length];
@@ -542,11 +581,149 @@ export function generateCover(title) {
   const others = SECONDARY.filter((n) => n !== aName);
   const bName = others[(h >>> 16) % others.length];
   const colors = { a: RAMPS[aName], b: RAMPS[bName] };
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" ` +
-    `width="${W}" height="${H}" role="img" aria-hidden="true">` +
-    `<rect width="${W}" height="${H}" fill="${GROUND}"/>` +
-    MOTIFS[motif](rnd, colors) +
-    `</svg>\n`;
-  return { svg, motif, hues: [aName, bName] };
+  const shapes = MOTIFS[motif](rnd, colors);
+  return { shapes, motif, hues: [aName, bName] };
+}
+
+// 1200px is the width X's large link-preview cards are designed for.
+const COVER_WIDTH = 1200;
+
+// The cover for a post title as PNG bytes, `width` pixels wide at 16:9.
+export function generateCover(title, width = COVER_WIDTH) {
+  return rasterizeShapes(coverShapes(title).shapes, width);
+}
+
+// ---------------------------------------------------------------------------
+// Rasterizer.
+//
+// Just enough to draw the motifs: rounded rects, circles and stroked cubic
+// curves, flat-filled over a solid ground. Each shape is a signed distance
+// function, and a pixel's coverage is how far inside the edge its centre is,
+// clamped to one pixel: cheap, and anti-aliased well enough for flat art.
+// ---------------------------------------------------------------------------
+
+const hexRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
+// Signed distance from (px, py) to a rounded box; negative inside.
+function sdRoundRect(px, py, b) {
+  const r = Math.min(b.rx, b.w / 2, b.h / 2);
+  const qx = Math.abs(px - (b.x + b.w / 2)) - b.w / 2 + r;
+  const qy = Math.abs(py - (b.y + b.h / 2)) - b.h / 2 + r;
+  return (
+    Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) +
+    Math.min(Math.max(qx, qy), 0) -
+    r
+  );
+}
+
+// Flattens a cubic bezier into a polyline, fine enough at any scale we draw.
+function flattenCubic([x0, y0, x1, y1, x2, y2, x3, y3], n = 48) {
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n,
+      u = 1 - t;
+    const a = u * u * u,
+      b = 3 * u * u * t,
+      c = 3 * u * t * t,
+      d = t * t * t;
+    out.push([
+      a * x0 + b * x1 + c * x2 + d * x3,
+      a * y0 + b * y1 + c * y2 + d * y3,
+    ]);
+  }
+  return out;
+}
+
+function distToPolyline(px, py, pts) {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1];
+    const dx = pts[i][0] - ax,
+      dy = pts[i][1] - ay;
+    const len2 = dx * dx + dy * dy;
+    const t =
+      len2 === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+    best = Math.min(best, Math.hypot(px - (ax + t * dx), py - (ay + t * dy)));
+  }
+  return best;
+}
+
+// Returns {sdf, box} for a shape, in output pixels (canvas units * scale).
+function prepareShape(s, scale) {
+  if (s.kind === "rect") {
+    const b = {
+      x: s.x * scale,
+      y: s.y * scale,
+      w: s.w * scale,
+      h: s.h * scale,
+      rx: s.rx * scale,
+    };
+    return {
+      sdf: (x, y) => sdRoundRect(x, y, b),
+      box: [b.x, b.y, b.x + b.w, b.y + b.h],
+    };
+  }
+  if (s.kind === "circle") {
+    const cx = s.cx * scale,
+      cy = s.cy * scale,
+      r = s.r * scale;
+    return {
+      sdf: (x, y) => Math.hypot(x - cx, y - cy) - r,
+      box: [cx - r, cy - r, cx + r, cy + r],
+    };
+  }
+  // "curve": a stroked cubic bezier.
+  const pts = flattenCubic(s.pts.map((v) => v * scale));
+  const half = (s.width * scale) / 2;
+  const xs = pts.map((p) => p[0]),
+    ys = pts.map((p) => p[1]);
+  return {
+    sdf: (x, y) => distToPolyline(x, y, pts) - half,
+    box: [
+      Math.min(...xs) - half,
+      Math.min(...ys) - half,
+      Math.max(...xs) + half,
+      Math.max(...ys) + half,
+    ],
+  };
+}
+
+export function rasterizeShapes(shapes, width) {
+  const scale = width / W;
+  const height = Math.round(H * scale);
+  const png = new PNG({ width, height });
+  const px = png.data;
+  const [gr, gg, gb] = hexRgb(GROUND);
+  for (let i = 0; i < px.length; i += 4) {
+    px[i] = gr;
+    px[i + 1] = gg;
+    px[i + 2] = gb;
+    px[i + 3] = 255;
+  }
+  for (const s of shapes) {
+    const { sdf, box } = prepareShape(s, scale);
+    const [r, g, b] = hexRgb(s.fill);
+    const xa = Math.max(0, Math.floor(box[0]) - 1);
+    const xb = Math.min(width, Math.ceil(box[2]) + 1);
+    const ya = Math.max(0, Math.floor(box[1]) - 1);
+    const yb = Math.min(height, Math.ceil(box[3]) + 1);
+    for (let y = ya; y < yb; y++) {
+      for (let x = xa; x < xb; x++) {
+        const cov = Math.max(0, Math.min(1, 0.5 - sdf(x + 0.5, y + 0.5)));
+        if (cov === 0) continue;
+        const o = (width * y + x) << 2;
+        px[o] += (r - px[o]) * cov;
+        px[o + 1] += (g - px[o + 1]) * cov;
+        px[o + 2] += (b - px[o + 2]) * cov;
+      }
+    }
+  }
+  // Opaque RGB: the ground covers everything, so alpha would be dead weight.
+  return PNG.sync.write(png, {
+    colorType: 2,
+    inputHasAlpha: true,
+    deflateLevel: 9,
+  });
 }

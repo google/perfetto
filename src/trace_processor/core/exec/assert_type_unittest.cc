@@ -132,9 +132,7 @@ TEST(AssertTypeTest, KeepsStrings) {
 TEST(AssertTypeTest, FollowsTheRowsTheBatchPicksOut) {
   Asserted run({Variant::Int64(10), Variant::Int64(11), Variant::Int64(12)},
                AssertTypeTarget{Int64{}});
-  std::vector<uint32_t> rows = {2, 0};
-  run.batch.mutable_column(0).SetBorrowedRows(
-      Span<const uint32_t>(rows.data(), rows.data() + 2));
+  run.batch.mutable_column(0).SetOwnedRows(test::OwnedRows({2, 0}), 2);
   run.batch.SetCardinality(2);
 
   ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
@@ -264,6 +262,23 @@ TEST(AssertTypeTest, NarrowIntegerErrorsNameAnInteger) {
   ASSERT_EQ(op.Execute(batch, out, *state), OpResult::kError);
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("an integer"));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("a string"));
+}
+
+TEST(AssertTypeTest, RetainedOutputSurvivesConversionAndRewind) {
+  Asserted run({Variant::Int64(7), Variant::Null()}, AssertTypeTarget{Int64{}});
+  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  RowBatch retained;
+  retained.CopyFrom(run.out);
+  run.values[0] = Variant::Int64(99);
+  run.values[1] = Variant::Int64(100);
+  run.op.Rewind(*run.state);
+  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
+              ElementsAre(Optional(7), Eq(std::nullopt)));
+  run.out.Reset();
+  run.state.reset();
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
+              ElementsAre(Optional(7), Eq(std::nullopt)));
 }
 
 }  // namespace

@@ -763,10 +763,62 @@ TEST_F(PerfettoSqlConnectionTest, NextStatement_TrailingDummyStatement) {
   ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 2);
 }
 
+TEST_F(PerfettoSqlConnectionTest, PipelinePragmaEnableInBatch) {
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "PERFETTO PRAGMA pipelines = 1; FROM (SELECT 1 AS x)"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+}
+
+TEST_F(PerfettoSqlConnectionTest, PipelinePragmaDisableInBatch) {
+  ASSERT_TRUE(connection_
+                  ->Execute(SqlSource::FromExecuteQuery(
+                      "PERFETTO PRAGMA pipelines = 1"))
+                  .ok());
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "PERFETTO PRAGMA pipelines = 0; FROM (SELECT 1 AS x)"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              testing::HasSubstr("Pipelines are not enabled"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, PipelinePragmaIncludeChangesCaller) {
+  ASSERT_OK(connection_->RegisterPackage(
+      "foo", CreateTestPackage(
+                 {{"foo.enable",
+                   "PERFETTO PRAGMA pipelines = 1; "
+                   "CREATE PERFETTO TABLE enabled AS FROM (SELECT 1 AS x)"},
+                  {"foo.disable", "PERFETTO PRAGMA pipelines = 0"}})));
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "INCLUDE PERFETTO MODULE foo.enable; FROM (SELECT 1 AS x)"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "INCLUDE PERFETTO MODULE foo.disable; FROM (SELECT 1 AS x)"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              testing::HasSubstr("Pipelines are not enabled"));
+}
+
+TEST_F(PerfettoSqlConnectionTest, PipelinePragmaBuiltinExemption) {
+  auto package = CreateTestPackage(
+      {{"foo.pipeline",
+        "PERFETTO PRAGMA pipelines = 0; "
+        "CREATE PERFETTO TABLE builtin AS FROM (SELECT 1 AS x)"}});
+  package.builtin = true;
+  ASSERT_OK(connection_->RegisterPackage("foo", std::move(package)));
+  auto res = connection_->Execute(SqlSource::FromExecuteQuery(
+      "INCLUDE PERFETTO MODULE foo.*; FROM (SELECT 1 AS x)"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_TRUE(
+      connection_->database_for_testing()->IsModuleIncluded("foo.pipeline"));
+  EXPECT_THAT(res.status().message(),
+              testing::HasSubstr("Pipelines are not enabled"));
+}
+
 class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
  protected:
   void SetUp() override {
     auto res = connection_->Execute(SqlSource::FromExecuteQuery(R"(
+      PERFETTO PRAGMA pipelines = 1;
       CREATE TABLE tree(id INTEGER, parent_id INTEGER, self INTEGER,
                         name TEXT);
       INSERT INTO tree VALUES

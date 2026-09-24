@@ -69,7 +69,8 @@ class PerfettoSqlParserTest : public ::testing::Test {
 
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
       SqlSource sql) {
-    PerfettoSqlParser parser(macros_, &catalog_);
+    PerfettoSqlParser parser(macros_, catalog_,
+                             /*pipelines_allowed=*/true);
     parser.Reset(std::move(sql));
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
@@ -99,7 +100,8 @@ class PerfettoSqlParserTest : public ::testing::Test {
   // The caller is responsible for asserting `sql` is syntactically well-formed
   // and produces exactly one statement; failures abort the test.
   SqlSource ParseOne(SqlSource sql) {
-    PerfettoSqlParser parser(macros_);
+    PerfettoSqlParser parser(macros_, catalog_,
+                             /*pipelines_allowed=*/false);
     parser.Reset(std::move(sql));
     PERFETTO_CHECK(parser.Next());
     PERFETTO_CHECK(parser.status().ok());
@@ -129,7 +131,8 @@ TEST_F(PerfettoSqlParserTest, Empty) {
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   SqlSource res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -139,7 +142,8 @@ TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
 TEST_F(PerfettoSqlParserTest, ExplainKeepsPrefix) {
   SqlSource res =
       SqlSource::FromExecuteQuery("EXPLAIN QUERY PLAN SELECT * FROM slice;");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -160,7 +164,8 @@ TEST_F(PerfettoSqlParserTest, ExplainWithMacro) {
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -174,7 +179,8 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
@@ -277,7 +283,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1; select foo()");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   CreateFn fn{
@@ -427,7 +434,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo(a1 Expr, b1 TableOrSubquery,c3_d "
       "TableOrSubquery2 ) returns TableOrSubquery3 as random sql snippet");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -448,7 +456,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoMacro) {
   auto res = SqlSource::FromExecuteQuery(
       "create or replace perfetto macro foo() returns Expr as 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{true,
@@ -463,7 +472,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo() returns sql1 as random sql snippet; "
       "select 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateMacro{
@@ -482,7 +492,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
@@ -497,7 +508,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO TABLE foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
@@ -512,7 +524,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(CreateTable{
@@ -527,7 +540,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
@@ -542,7 +556,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithDataframe) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo USING DATAFRAME AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
@@ -559,7 +574,8 @@ constexpr char kSliceColumns[] =
 TEST_F(PerfettoSqlParserTest, Pipeline) {
   auto res = SqlSource::FromExecuteQuery(
       "FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total; SELECT 1");
-  PerfettoSqlParser parser(macros_, &catalog_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   const auto* pipeline = std::get_if<Pipeline>(&parser.statement());
@@ -582,7 +598,8 @@ TEST_F(PerfettoSqlParserTest, PipelineExpandsMacros) {
   RegisterMacro("stacks", {}, "(SELECT * FROM tree)");
   auto res = SqlSource::FromExecuteQuery(
       "FROM stacks!() |> TREE ACCUMULATE UP SUM(self) AS total");
-  PerfettoSqlParser parser(macros_, &catalog_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   const auto* pipeline = std::get_if<Pipeline>(&parser.statement());
@@ -761,7 +778,8 @@ TEST_F(PerfettoSqlParserTest, PipelineAggregatesReadOnlyTheirInput) {
 }
 
 TEST_F(PerfettoSqlParserTest, TakePipelineStatement) {
-  PerfettoSqlParser parser(macros_, &catalog_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/true);
   parser.Reset(SqlSource::FromExecuteQuery("FROM slice; SELECT 1"));
   ASSERT_TRUE(parser.Next());
   auto statement = parser.TakeStatement();
@@ -774,12 +792,30 @@ TEST_F(PerfettoSqlParserTest, TakePipelineStatement) {
               HasSubstr("Scan(table slice)"));
 }
 
-TEST_F(PerfettoSqlParserTest, PipelineNeedsACatalog) {
-  PerfettoSqlParser parser(macros_);
+TEST_F(PerfettoSqlParserTest, PipelineNeedsToBeAllowed) {
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
   ASSERT_FALSE(parser.Next());
   EXPECT_THAT(parser.status().message(),
-              HasSubstr("Pipelines cannot be used here"));
+              HasSubstr("Pipelines are not enabled"));
+}
+
+// One parser serves sources which differ in whether they may use a pipeline,
+// so the permission has to follow the source rather than the parser.
+TEST_F(PerfettoSqlParserTest, PipelinePermissionChangesWithTheSource) {
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_FALSE(parser.Next());
+
+  parser.SetPipelinesAllowed(true);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_TRUE(parser.Next()) << parser.status().message();
+
+  parser.SetPipelinesAllowed(false);
+  parser.Reset(SqlSource::FromExecuteQuery("FROM slice"));
+  ASSERT_FALSE(parser.Next());
 }
 
 // The new keywords are not reserved and `|` `>` in an expression is still
@@ -796,7 +832,8 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxDoesNotLeakIntoSql) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -814,7 +851,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO VIEW foo AS SELECT 42 AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -832,7 +870,8 @@ TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoViewAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar; select 1");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(
@@ -854,7 +893,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
   auto res = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo(foo STRING, bar INT) AS SELECT 'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),
@@ -877,7 +917,8 @@ TEST_F(PerfettoSqlParserTest, ParseComplexArgumentType) {
       "CREATE PERFETTO VIEW foo(foo JOINID(foo.bar), bar LONG) AS SELECT "
       "'a' as foo, 42 "
       "AS bar");
-  PerfettoSqlParser parser(macros_);
+  PerfettoSqlParser parser(macros_, catalog_,
+                           /*pipelines_allowed=*/false);
   parser.Reset(res);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(),

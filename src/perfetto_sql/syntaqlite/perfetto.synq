@@ -265,6 +265,14 @@ node DropPerfettoIndexStmt {
   }
 }
 
+// `PERFETTO PRAGMA name = value`: a setting of the engine.
+node PerfettoPragmaStmt {
+  name: inline SyntaqliteTextSpan
+  value: index Expr
+
+  fmt { "PERFETTO" "PRAGMA" space span(name) space "=" space child(value) }
+}
+
 // ---------- Pipelines ----------
 
 // What a pipeline starts from: a table, or a subquery in parentheses.

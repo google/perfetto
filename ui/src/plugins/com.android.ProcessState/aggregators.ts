@@ -18,14 +18,13 @@ import {
   type AggregatorGridConfig,
   createAggregationData,
 } from '../../components/aggregation_adapter';
-import {
-  formatDurationValue,
-  formatPercentValue,
-} from '../../components/aggregation_panel';
+import {formatPercentValue} from '../../components/aggregation_panel';
 import {titleWithHelp} from '../../components/distribution_panel';
+import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
+import type {CellRenderer} from '../../components/widgets/datagrid/datagrid_schema';
 import {Icons} from '../../base/semantic_icons';
-import {Time} from '../../base/time';
+import {Duration, Time} from '../../base/time';
 import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
@@ -86,17 +85,31 @@ function scopedIntervals(scope: Scope, area: AreaSelection): string {
   return `
     SELECT
       *,
-      min(ts + dur, ${area.end}) - max(ts, ${area.start}) AS clipped_dur
+      min(iif(dur < 0, ${area.end}, ts + dur), ${area.end}) - max(ts, ${area.start}) AS clipped_dur
     FROM _android_process_state_intervals
     WHERE (${terms.join(' OR ')})
       AND ts < ${area.end}
-      AND ts + dur > ${area.start}
+      AND (dur < 0 OR ts + dur > ${area.start})
   `;
+}
+
+// Durations follow the user's time format and precision settings.
+function durationCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    // Averaging aggregates come back as floats.
+    const dur = typeof value === 'number' ? BigInt(Math.round(value)) : value;
+    if (typeof dur !== 'bigint') {
+      return 'N/A';
+    }
+    return m(DurationWidget, {trace, dur: Duration.fromRaw(dur)});
+  };
 }
 
 /** How long each process spent in each proc state over the selection. */
 export class ProcessStateResidencyAggregator implements Aggregator {
   readonly id = 'android_process_state_residency';
+
+  constructor(private readonly trace: Trace) {}
 
   probe(area: AreaSelection) {
     const scope = probeScope(area);
@@ -137,7 +150,7 @@ export class ProcessStateResidencyAggregator implements Aggregator {
         total_dur: {
           title: 'Time in state',
           columnType: 'quantitative',
-          cellRenderer: formatDurationValue,
+          cellRenderer: durationCellRenderer(this.trace),
         },
         occupancy: {
           title: '% of selection',
@@ -197,7 +210,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
               coalesce(prev_state, 'N/A') AS prev_state,
               prev_state_duration AS prev_dur,
               state AS cur_state,
-              dur AS cur_dur,
+              CASE WHEN dur >= 0 THEN dur END AS cur_dur,
               coalesce(reason, 'N/A') AS reason
             FROM _android_process_state_intervals
             WHERE (${terms.join(' OR ')})
@@ -267,10 +280,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
           ),
           titleString: 'Time in previous state',
           columnType: 'quantitative',
-          cellRenderer: (val) =>
-            val !== null && val !== undefined
-              ? formatDurationValue(val)
-              : 'N/A',
+          cellRenderer: durationCellRenderer(this.trace),
         },
         cur_state: {title: 'Current state', columnType: 'text'},
         cur_dur: {
@@ -280,7 +290,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
           ),
           titleString: 'Time in current state',
           columnType: 'quantitative',
-          cellRenderer: formatDurationValue,
+          cellRenderer: durationCellRenderer(this.trace),
         },
         reason: {title: 'State change reason', columnType: 'text'},
       },

@@ -30,6 +30,11 @@ export interface TabsTab {
   readonly title: m.Children;
   // Content to display when this tab is active.
   readonly content: m.Children;
+  // When set, the content is not rendered until the tab is first activated.
+  // Useful for expensive views that should not be built eagerly. Once
+  // activated, the tab behaves like a regular tab: the content stays mounted
+  // (and keeps its state) when the tab is deactivated.
+  readonly lazy?: boolean;
   // Whether to show a close button on the tab.
   readonly closeButton?: boolean;
   // Icon to display on the left side of the tab title.
@@ -70,6 +75,11 @@ export interface TabsAttrs {
   readonly newTabContent?: m.Children;
   // Content to render on the right side of the tab bar.
   readonly rightContent?: m.Children;
+  // Visual style of the tab bar. 'card' (the default) renders classic
+  // boxed tab handles on a secondary-background bar; 'underline' renders
+  // flat text tabs with a primary underline on the active tab, matching the
+  // look of the (deprecated) TabStrip component.
+  readonly variant?: 'card' | 'underline';
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -241,6 +251,9 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
   private renamingTabKey?: string;
   private renameInputValue = '';
   private renameCancelled = false;
+  // Keys of the tabs that have been active at least once. Content of lazy
+  // tabs is only rendered after their key lands here.
+  private activatedKeys = new Set<string>();
 
   view({attrs}: m.CVnode<TabsAttrs>): m.Children {
     const {
@@ -254,15 +267,26 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       onNewTab,
       newTabContent,
       rightContent,
+      variant = 'card',
       className,
     } = attrs;
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = activeTabKey ?? this.internalActiveTab ?? tabs[0]?.key;
+    // The active tab counts as activated, so a lazy tab renders its content
+    // on the same render in which it becomes active.
+    if (activeKey !== undefined) {
+      this.activatedKeys.add(activeKey);
+    }
 
     return m(
       '.pf-tabs',
-      {className},
+      {
+        className: classNames(
+          className,
+          variant === 'underline' && 'pf-tabs--underline',
+        ),
+      },
       m(
         '.pf-tabs__tabs',
         tabs.map((tab, index) => {
@@ -394,7 +418,14 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       m(
         '.pf-tabs__content',
         tabs.map((tab) =>
-          m(Gate, {key: tab.key, open: tab.key === activeKey}, tab.content),
+          m(
+            Gate,
+            {key: tab.key, open: tab.key === activeKey},
+            // Lazy tabs render no content until they are first activated.
+            tab.lazy && !this.activatedKeys.has(tab.key)
+              ? undefined
+              : tab.content,
+          ),
         ),
       ),
     );
