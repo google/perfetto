@@ -178,34 +178,40 @@ CREATE PERFETTO TABLE android_sysui_latency_cujs(
 )
 AS
 SELECT
-  cuj.cuj_id,
-  cuj.upid,
-  cuj.process_name,
-  cuj.cuj_slice_name,
+  row_number() OVER (ORDER BY ts, slice.id) AS cuj_id,
+  process.upid AS upid,
+  process.name AS process_name,
+  slice.name AS cuj_slice_name,
   -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
-  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
-  cuj.slice_id,
-  cuj.ts,
-  cuj.ts_end,
-  cuj.dur,
+  _extract_cuj_name_from_slice(slice.name) AS cuj_name,
+  slice.id AS slice_id,
+  ts,
+  ts + dur AS ts_end,
+  dur,
   CASE
     WHEN EXISTS (
       SELECT 1
       FROM _latency_cuj_markers AS m
       WHERE
-        m.cuj_slice_id = cuj.slice_id
+        m.cuj_slice_id = slice.id
         AND m.marker_type = 'cancel'
     ) THEN 'canceled'
     WHEN EXISTS (
       SELECT 1
       FROM _latency_cuj_markers AS m
       WHERE
-        m.cuj_slice_id = cuj.slice_id
+        m.cuj_slice_id = slice.id
         AND m.marker_type = 'timeout'
     ) THEN 'timeout'
     ELSE 'completed'
   END AS state
-FROM _latency_cujs_slices AS cuj;
+FROM slice
+JOIN process_track
+  ON slice.track_id = process_track.id
+JOIN process USING (upid)
+WHERE
+  slice.name GLOB 'L<*>'
+  AND dur > 0;
 
 -- Table tracking all jank/latency CUJs information.
 CREATE PERFETTO TABLE android_jank_latency_cujs(

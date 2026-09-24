@@ -209,14 +209,14 @@ const BLOCKING_CALLS_PRECONDITIONS = `
 
 const BLOCKING_CALLS_PROCESSES_QUERY = `
     INCLUDE PERFETTO MODULE android.cujs.base;
-    SELECT DISTINCT process_name
-    FROM (
-      SELECT process_name FROM _jank_cujs_slices
-      UNION ALL
-      SELECT process_name FROM _latency_cujs_slices
-    )
-    WHERE process_name IS NOT NULL
-    ORDER BY process_name
+    SELECT DISTINCT process.name AS process_name
+    FROM process_track
+    JOIN slice ON slice.track_id = process_track.id
+    JOIN process USING (upid)
+    WHERE _is_cuj_slice!(slice)
+      AND slice.dur > 0
+      AND process.name IS NOT NULL
+    ORDER BY process.name
 `;
 
 function blockingCallNamesForProcessQuery(processName: string): string {
