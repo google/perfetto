@@ -15,18 +15,15 @@
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
--- Macro defining the filtering conditions for a jank or latency CUJ slice in relevant processes.
+-- Macro defining the filtering conditions for a jank CUJ slice.
 CREATE PERFETTO MACRO _is_jank_slice(
   slice TableOrSubquery,
   process TableOrSubquery
 )
 RETURNS Expr
-AS $slice.name GLOB 'J<*>'
-AND (
-  $process.name GLOB 'com.google.android*' OR $process.name GLOB 'com.android.*'
-);
+AS $slice.name GLOB 'J<*>';
 
--- List of CUJ slices emitted. Note that this is not the final list of CUJs with the correct
+-- List of jank CUJ slices emitted. Note that this is not the final list of CUJs with the correct
 -- boundary information. The proper CUJs and their boundaries are computed after taking into
 -- account instant events and frame boundaries in the following tables.
 CREATE PERFETTO TABLE _jank_cujs_slices AS
@@ -45,6 +42,25 @@ JOIN process_track
 JOIN process USING (upid)
 WHERE
   _is_jank_slice!(slice, process)
+  AND dur > 0;
+
+-- List of latency CUJ slices emitted.
+CREATE PERFETTO TABLE _latency_cujs_slices AS
+SELECT
+  row_number() OVER (ORDER BY ts, slice.id) AS cuj_id,
+  process.upid AS upid,
+  process.name AS process_name,
+  slice.id AS slice_id,
+  slice.name AS cuj_slice_name,
+  ts,
+  dur,
+  ts + dur AS ts_end
+FROM slice
+JOIN process_track
+  ON slice.track_id = process_track.id
+JOIN process USING (upid)
+WHERE
+  slice.name GLOB 'L<*>'
   AND dur > 0;
 
 -- Slices logged from FrameTracker#markEvent that describe when
