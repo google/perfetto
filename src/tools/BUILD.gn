@@ -108,6 +108,7 @@ perfetto_unittest_source_set("tracing_proto_extensions_unittests") {
     "../../protos/perfetto/common:zero",
     "../base",
     "../base:test_support",
+    "../protozero",
   ]
   sources = [ "tracing_proto_extensions_unittest.cc" ]
 }
