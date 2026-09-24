@@ -86,6 +86,46 @@ inline uint32_t BE32ToHost(uint32_t x) {
 inline uint64_t BE64ToHost(uint64_t x) {
   return ByteSwap64(x);
 }
+inline float HostToLEFloat(float x) {
+  return x;
+}
+inline double HostToLEDouble(double x) {
+  return x;
+}
+inline float LEFloatToHost(float x) {
+  return x;
+}
+inline double LEDoubleToHost(double x) {
+  return x;
+}
+inline float HostToBEFloat(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = ByteSwap32(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double HostToBEDouble(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = ByteSwap64(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline float BEFloatToHost(float x) {
+  uint32_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = ByteSwap32(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline double BEDoubleToHost(double x) {
+  uint64_t u;
+  memcpy(&u, &x, sizeof(u));
+  u = ByteSwap64(u);
+  memcpy(&x, &u, sizeof(u));
+  return x;
+}
 #else
 inline uint16_t HostToLE16(uint16_t x) {
   return ByteSwap16(x);
@@ -123,64 +163,47 @@ inline uint32_t BE32ToHost(uint32_t x) {
 inline uint64_t BE64ToHost(uint64_t x) {
   return x;
 }
-#endif
-
 inline float HostToLEFloat(float x) {
   uint32_t u;
   memcpy(&u, &x, sizeof(u));
-  u = HostToLE32(u);
+  u = ByteSwap32(u);
   memcpy(&x, &u, sizeof(u));
   return x;
 }
 inline double HostToLEDouble(double x) {
   uint64_t u;
   memcpy(&u, &x, sizeof(u));
-  u = HostToLE64(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline float HostToBEFloat(float x) {
-  uint32_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = HostToBE32(u);
-  memcpy(&x, &u, sizeof(u));
-  return x;
-}
-inline double HostToBEDouble(double x) {
-  uint64_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = HostToBE64(u);
+  u = ByteSwap64(u);
   memcpy(&x, &u, sizeof(u));
   return x;
 }
 inline float LEFloatToHost(float x) {
   uint32_t u;
   memcpy(&u, &x, sizeof(u));
-  u = LE32ToHost(u);
+  u = ByteSwap32(u);
   memcpy(&x, &u, sizeof(u));
   return x;
 }
 inline double LEDoubleToHost(double x) {
   uint64_t u;
   memcpy(&u, &x, sizeof(u));
-  u = LE64ToHost(u);
+  u = ByteSwap64(u);
   memcpy(&x, &u, sizeof(u));
+  return x;
+}
+inline float HostToBEFloat(float x) {
+  return x;
+}
+inline double HostToBEDouble(double x) {
   return x;
 }
 inline float BEFloatToHost(float x) {
-  uint32_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = BE32ToHost(u);
-  memcpy(&x, &u, sizeof(u));
   return x;
 }
 inline double BEDoubleToHost(double x) {
-  uint64_t u;
-  memcpy(&u, &x, sizeof(u));
-  u = BE64ToHost(u);
-  memcpy(&x, &u, sizeof(u));
   return x;
 }
+#endif
 
 inline uint32_t HostToLE(uint32_t x) {
   return HostToLE32(x);
