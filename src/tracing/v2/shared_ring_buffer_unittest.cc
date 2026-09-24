@@ -106,7 +106,7 @@ size_t RingSizeFor(uint32_t num_chunks, uint32_t chunk_size) {
 }
 
 // An invalid ring buffer layout is a configuration error, so the constructor
-// CHECKs. It only does arithmetic on |size|, which is why an impossibly large
+// crashes. It only does arithmetic on |size|, which is why an impossibly large
 // region can be described by a small mapping.
 TEST(SharedRingBufferTest, InvalidLayout) {
   base::PagedMemory memory = base::PagedMemory::Allocate(64 * 1024);
@@ -116,44 +116,51 @@ TEST(SharedRingBufferTest, InvalidLayout) {
   // must divide into a power-of-two number of chunks, from 2 to 2^30.
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, sizeof(RingBufferHeader), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(1, kChunkSize), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(3, kChunkSize), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(6, kChunkSize), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       {
         SharedRingBuffer ring(start, RingSizeFor(4, kChunkSize) + 1,
                               kChunkSize);
       },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   if (sizeof(size_t) >= 8) {
     EXPECT_DEATH_IF_SUPPORTED(
         {
           SharedRingBuffer ring(start, RingSizeFor(1u << 31, kChunkSize),
                                 kChunkSize);
         },
-        "PERFETTO_CHECK");
+        "tracing v2: ");
   }
 
   // chunk_size must be at least 256 and keep the state word aligned.
   EXPECT_DEATH_IF_SUPPORTED(
-      { SharedRingBuffer ring(start, RingSizeFor(4, 0), 0); },
-      "PERFETTO_CHECK");
+      { SharedRingBuffer ring(start, RingSizeFor(4, 0), 0); }, "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(4, 128), 128); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(4, 255), 255); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(4, 258), 258); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
+
+  // chunk_size must be at most kMaxChunkSize, so a chunk fits one TBChunk.
+  EXPECT_DEATH_IF_SUPPORTED(
+      {
+        SharedRingBuffer ring(start, RingSizeFor(4, kMaxChunkSize + 4),
+                              kMaxChunkSize + 4);
+      },
+      "invalid chunk size");
 
   // An empty region is rejected before the constructor subtracts the header
   // size from it. This chunk size is the one whose sum with the 64-byte header
@@ -161,8 +168,7 @@ TEST(SharedRingBufferTest, InvalidLayout) {
   // sum, and the region fails the header-size check first.
   constexpr uint32_t kWrappingChunkSize = UINT32_MAX - 63u;
   EXPECT_DEATH_IF_SUPPORTED(
-      { SharedRingBuffer ring(start, 0, kWrappingChunkSize); },
-      "PERFETTO_CHECK");
+      { SharedRingBuffer ring(start, 0, kWrappingChunkSize); }, "tracing v2: ");
 
   if (sizeof(size_t) >= 8) {
     // Doubling this chunk size as a uint32_t would overflow. One chunk must
@@ -172,7 +178,7 @@ TEST(SharedRingBufferTest, InvalidLayout) {
           SharedRingBuffer ring(start, RingSizeFor(1, kWrappingChunkSize),
                                 kWrappingChunkSize);
         },
-        "PERFETTO_CHECK");
+        "tracing v2: ");
   }
 
   // The header must be present and aligned for its atomics.
@@ -181,12 +187,12 @@ TEST(SharedRingBufferTest, InvalidLayout) {
         SharedRingBuffer ring(start + 4, RingSizeFor(4, kChunkSize),
                               kChunkSize);
       },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       {
         SharedRingBuffer ring(nullptr, RingSizeFor(4, kChunkSize), kChunkSize);
       },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
 }
 
 TEST(SharedRingBufferTest, ValidLayout) {

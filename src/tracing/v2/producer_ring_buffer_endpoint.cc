@@ -31,12 +31,21 @@ std::unique_ptr<ProducerRingBufferEndpoint> ProducerRingBufferEndpoint::Create(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
     SharedMemoryArbiter* shared_memory_arbiter,
-    std::unique_ptr<SharedMemory> ring_buffer_memory,
+    std::shared_ptr<SharedMemory> ring_buffer_memory,
     uint32_t chunk_size) {
-  if (!ring_buffer_memory ||
-      ring_buffer_memory->size() > TracingService::kMaxShmSize ||
-      !NumChunksForRingBufferLayout(ring_buffer_memory->start(),
-                                    ring_buffer_memory->size(), chunk_size)) {
+  if (!ring_buffer_memory) {
+    PERFETTO_ELOG("tracing v2: no ring buffer memory");
+    return nullptr;
+  }
+  if (ring_buffer_memory->size() > TracingService::kMaxShmSize) {
+    PERFETTO_ELOG("tracing v2: ring buffer size %zu is above the limit %zu",
+                  ring_buffer_memory->size(), TracingService::kMaxShmSize);
+    return nullptr;
+  }
+  base::StatusOr<uint32_t> num_chunks = NumChunksForRingBufferLayout(
+      ring_buffer_memory->start(), ring_buffer_memory->size(), chunk_size);
+  if (!num_chunks.ok()) {
+    PERFETTO_ELOG("tracing v2: %s", num_chunks.status().c_message());
     return nullptr;
   }
   return std::unique_ptr<ProducerRingBufferEndpoint>(
@@ -49,7 +58,7 @@ ProducerRingBufferEndpoint::ProducerRingBufferEndpoint(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
     SharedMemoryArbiter* shared_memory_arbiter,
-    std::unique_ptr<SharedMemory> ring_buffer_memory,
+    std::shared_ptr<SharedMemory> ring_buffer_memory,
     uint32_t chunk_size)
     : task_runner_(task_runner),
       endpoint_(endpoint),
@@ -70,9 +79,6 @@ void ProducerRingBufferEndpoint::OnReaderAttached() {
   if (reader_state_.load() == ReaderState::kDetached)
     return;
   SetReaderState(ReaderState::kAttached);
-  // In kPending, writers published without drain requests. One drain covers
-  // all data published so far.
-  endpoint_->DrainRingBuffer();
 }
 
 void ProducerRingBufferEndpoint::Disconnect() {
@@ -83,29 +89,25 @@ void ProducerRingBufferEndpoint::Disconnect() {
 std::unique_ptr<TraceWriter> ProducerRingBufferEndpoint::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy policy) {
-  if (reader_state_.load() == ReaderState::kDetached)
+  if (PERFETTO_UNLIKELY(reader_state_.load() == ReaderState::kDetached))
     return std::make_unique<NullTraceWriter>();
   const WriterID writer_id =
       shared_memory_arbiter_->AllocateTracingV2WriterID();
-  if (!writer_id)
+  if (PERFETTO_UNLIKELY(!writer_id))
     return std::make_unique<NullTraceWriter>();
-  return std::make_unique<TraceWriterV2Impl>(this, ring_buffer_.get(),
-                                             writer_id, target_buffer, policy);
+  return std::make_unique<TraceWriterV2Impl>(this, writer_id, target_buffer,
+                                             policy);
 }
 
 void ProducerRingBufferEndpoint::Flush(std::function<void()> callback) {
-  if (!callback) {
-    PostDrainTask();
-    return;
-  }
-  // Send the drain request in the same task as the callback. The pending
-  // drain task can come later than the callback. See PostDrainTask().
-  auto weak = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak, callback = std::move(callback)] {
-    if (weak)
-      weak->SendDrainRequest();
-    callback();
-  });
+  // Post the callback only after a drain task.
+  // - Use force=true. Without it, this call can merge into another
+  //   writer's pending drain task.
+  // - That task can run late: its writer can be suspended between setting
+  //   the flag and calling PostTask(). The callback would then run first.
+  PostDrainTask(/*force=*/true);
+  if (callback)
+    task_runner_->PostTask(std::move(callback));
 }
 
 void ProducerRingBufferEndpoint::OnWriterDestroyed(WriterID id) {
@@ -125,12 +127,11 @@ void ProducerRingBufferEndpoint::NotifyReader(NotifyReason reason) {
   // A posted task cannot run while a writer on the endpoint thread is
   // stalled. So send the request directly.
   if (reason == NotifyReason::kWriterStalled &&
-      task_runner_->RunsTasksOnCurrentThread() &&
-      reader_state_.load() == ReaderState::kAttached) {
-    endpoint_->DrainRingBuffer();
+      task_runner_->RunsTasksOnCurrentThread()) {
+    endpoint_->DrainV2RingBuffer();
     return;
   }
-  PostDrainTask();
+  PostDrainTask(/*force=*/false);
 }
 
 bool ProducerRingBufferEndpoint::IsReaderAttached() const {
@@ -146,49 +147,37 @@ void ProducerRingBufferEndpoint::SetReaderState(ReaderState next) {
   reader_state_.store(next);
 }
 
-void ProducerRingBufferEndpoint::PostDrainTask() {
-  // All writers share one pending drain task.
+void ProducerRingBufferEndpoint::PostDrainTask(bool force) {
+  // Writers share one pending drain task.
   //
-  // |drain_task_pending_| is true from the moment a writer claims the task
+  // |drain_task_pending_| is set from the moment a writer claims the task
   // until the task runs. Other writers then post nothing. The pending task
   // still drains their chunks:
   //
   //   writer thread               endpoint thread (the pending task)
   //   -------------               ----------------------------------
   //   W1. publish the chunk       E1. clear the flag
-  //   W2. read the flag           E2. send DrainRingBuffer
-  //       - set: post nothing
-  //       - clear: post a task
+  //   W2. set the flag            E2. send DrainV2RingBuffer
+  //       - was set: post nothing
+  //       - was clear: post a task
   //
   // If W2 sees the flag set, E1 did not run yet. So E2 runs after W1, and
   // the service reads the chunk.
   //
-  // The pending task can run late:
-  // - A writer sets the flag first. It posts the task after that.
-  // - Between these two steps, the task is not in the queue yet.
-  // - A task that another caller posts at that time runs first.
-  // So Flush() does not wait for the pending task. It sends its own drain.
-  //
-  // |reader_state_| works the same way. A writer that sees kPending posts
-  // nothing. OnReaderAttached() drains its chunk later.
-  if (drain_task_pending_.load() ||
-      reader_state_.load() != ReaderState::kAttached ||
-      drain_task_pending_.exchange(true)) {
+  // Flush() uses force=true. See Flush() for why.
+  if (!force && drain_task_pending_.fetch_or(1))
     return;
-  }
-  auto weak = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak] {
-    if (weak)
-      weak->SendDrainRequest();
+  task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr()] {
+    if (weak_this)
+      weak_this->SendDrainRequest();
   });
 }
 
 void ProducerRingBufferEndpoint::SendDrainRequest() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // Clear the flag before the drain request.
-  drain_task_pending_.store(false);
-  if (reader_state_.load() == ReaderState::kAttached)
-    endpoint_->DrainRingBuffer();
+  drain_task_pending_.store(0);
+  endpoint_->DrainV2RingBuffer();
 }
 
 }  // namespace perfetto::tracing_v2

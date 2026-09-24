@@ -65,7 +65,7 @@ class SharedRingBuffer {
   //
   // - sizeof(RingBufferHeader) is 64 bytes. |start| must be 64-byte aligned.
   // - num_chunks must be a power of two, from 2 to 2^30.
-  // - |chunk_size| must be at least 256 bytes and a multiple of four.
+  // - |chunk_size| must be in [256 B, 64 KiB] and a multiple of four.
   //   It does not need to be a power of two.
   // - |size| must match the equation exactly, with no trailing bytes.
   //   It does not need to be a power of two.
@@ -181,6 +181,11 @@ class SharedRingBuffer {
   // - An older position can shorten a drain pass. A later pass can consume
   //   the remaining reservations.
   uint32_t LoadWritePosRelaxed() const;
+
+  // Returns write_pos - read_pos: the positions that writers reserved and the
+  // reader did not consume yet. Writers use it to decide when to ask for a
+  // drain. The value can be stale.
+  uint32_t LoadNumOutstandingPositionsRelaxed() const;
 
   // BeingWritten(N) -> RewriteRequested(N), with all other fields unchanged.
   // |*expected| must be the word the reader used to copy the fragments.

@@ -48,6 +48,10 @@ constexpr uint32_t kMaxFallbackSleepUs = 100000;
 //   with NotifyReader(kWriterStalled).
 constexpr uint32_t kMaxWaitMs = kMaxFallbackSleepUs / 1000;
 
+// A publication asks for a drain once num_chunks / 4 positions (25%) wait for
+// the reader.
+constexpr uint32_t kDrainThresholdDivisor = 4;
+
 }  // namespace
 
 SharedRingBufferWriter::Delegate::~Delegate() = default;
@@ -64,7 +68,9 @@ SharedRingBufferWriter::SharedRingBufferWriter(
       target_buffer_(target_buffer),
       buffer_exhausted_policy_(buffer_exhausted_policy),
       chunk_size_(ring->chunk_size()),
-      max_fragment_size_(MaxFragmentSizeForEmptyChunk(chunk_size_)) {
+      max_fragment_size_(MaxFragmentSizeForEmptyChunk(chunk_size_)),
+      drain_threshold_(
+          std::max(1u, ring->num_chunks() / kDrainThresholdDivisor)) {
   PERFETTO_CHECK(delegate_);
   // The WriterID must remain assigned to this writer until the reader consumes
   // all positions reserved under it.
@@ -404,14 +410,12 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
           chunk_size_ - payload_end_ - size_directory_bytes_ <= 1) {
         ResetCurrentChunk();
       }
-      // Ask the reader to drain this publication.
-      //
-      // TODO(sashwinbalaji): Notify on ring buffer occupancy, not on each
-      // publication. For example, notify when half of the chunks are
-      // outstanding, and on flush and stall.
-      // - The cost today: a drain can reclaim the Complete chunk that this
-      //   writer caches. Its next fragment then needs a new chunk.
-      delegate_->NotifyReader(Delegate::NotifyReason::kPositionsReady);
+      // Ask for a drain only when a quarter of the ring buffer waits for the
+      // reader. A drain on each publication costs one task and one IPC per
+      // packet. It can also reclaim the Complete chunk that this writer
+      // caches, so the next fragment needs a new chunk.
+      if (ring_->LoadNumOutstandingPositionsRelaxed() >= drain_threshold_)
+        delegate_->NotifyReader(Delegate::NotifyReason::kPositionsReady);
       return EndFragmentResult::kSuccess;
     }
 

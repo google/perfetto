@@ -46,7 +46,7 @@ class ProducerRingBufferEndpointTestPeer;
 // side, which reads the ring buffer.
 //
 // It is not the buffer: SharedMemory holds the bytes, and SharedRingBuffer is
-// the view of them. This class owns both on the producer side.
+// the view of them. This class owns the view and shares the mapping.
 //
 // The producer's ProducerEndpoint (for example ProducerIPCClientImpl) creates
 // one for each ring buffer that it shares with the service. In this file,
@@ -62,7 +62,8 @@ class ProducerRingBufferEndpointTestPeer;
 //   Job                             Why a writer cannot do it
 //   ------------------------------  -------------------------------------
 //   Ask the service to read the     Only the endpoint thread sends IPC.
-//   ring buffer (DrainRingBuffer).  Writers run on any thread.
+//   ring buffer                     Writers run on any thread.
+//   (DrainV2RingBuffer).
 //
 //   Merge drain requests.           Each writer sees only its own data.
 //                                   One shared flag merges the requests
@@ -71,7 +72,7 @@ class ProducerRingBufferEndpointTestPeer;
 //   Track the service reader        The service accepts or rejects the
 //   (see ReaderState).              ring buffer once, for all writers.
 //
-//   Own the ring buffer mapping.    Writers only borrow the memory.
+//   Keep the ring buffer mapping.   Writers only borrow the memory.
 //
 //   Give out WriterIDs.             IDs come from the pool of the SMB
 //                                   arbiter, shared with v1 writers.
@@ -83,22 +84,26 @@ class ProducerRingBufferEndpointTestPeer;
 // requests. A writer call that needs the endpoint thread posts a task to it.
 //
 // The diagrams below show each flow. Time goes down.
-// - "--->" is a posted task or an IPC request.
+// - "--->" is a direct call on the writer thread.
+// - "===>" is a posted task or an IPC request.
 // - "***>" is a change in shared memory, with no message.
 //
-// 1. After each publication, the writer asks for a drain:
+// 1. After a publication, if a quarter of the ring buffer waits for the
+//    reader, the writer asks for a drain:
 //
 //     writer                 endpoint                 service
 //        |                       |                       |
 //        | NotifyReader(         |                       |
 //        |   kPositionsReady)    |                       |
-//        |------ post task ----->|                       |
+//        |---------------------->| posts a task          |
+//        |                       |                       |
 //        |                       | SendDrainRequest()    |
-//        |                       |--- DrainRingBuffer -->| copies published
+//        |                       |== DrainV2RingBuffer =>| copies published
 //        |                       |                       | chunks
 //
-//    - If a task is already pending, the writer does not post another.
-//    - Before kAttached, NotifyReader() does nothing.
+//    - If a drain task is already pending, NotifyReader() posts nothing.
+//    - Before kAttached, the request reaches the service after the attach
+//      request. The service handles them in order.
 //
 // 2. If the ring buffer is full, the writer asks for a drain, then waits:
 //
@@ -106,14 +111,15 @@ class ProducerRingBufferEndpointTestPeer;
 //        |                       |                       |
 //        | NotifyReader(         |                       |
 //        |   kWriterStalled)     |                       |
-//        |------ post task ----->|                       |
+//        |---------------------->| posts a task          |
+//        |                       |                       |
 //        |                       | SendDrainRequest()    |
-//        |                       |--- DrainRingBuffer -->| copies chunks
+//        |                       |== DrainV2RingBuffer =>| copies chunks
 //        | waits for space       |                       |
 //        |<*************** read_pos moves ***************|
 //
 //    - The writer repeats the request before each wait.
-//    - On the endpoint thread, this class sends DrainRingBuffer at once, in
+//    - On the endpoint thread, this class sends DrainV2RingBuffer at once, in
 //      the writer's call. A posted task could not run while the writer
 //      waits on that thread.
 //    - Before kAttached, the writer drops the packet and does not wait.
@@ -123,20 +129,19 @@ class ProducerRingBufferEndpointTestPeer;
 //     writer                 endpoint                 service
 //        |                       |                       |
 //        | Flush(callback)       |                       |
-//        |------ post task ----->|                       |
-//        |                       |--- DrainRingBuffer -->| copies chunks
+//        |---------------------->| posts a drain task,   |
+//        |                       | then |callback|       |
+//        |                       |                       |
+//        |                       | SendDrainRequest()    |
+//        |                       |== DrainV2RingBuffer =>| copies chunks
 //        |                       | callback()            |
 //
-//    - Flush() posts its own task. The task sends the drain request, then
-//      runs the callback.
-//    - Flush() does not use the drain task that writers share. That task
-//      can come late. See PostDrainTask() in the .cc file.
-//    - Without a callback, Flush() only asks for a drain, like a writer
-//      after a publication.
+//    - Flush() always posts its own drain task. See PostDrainTask() in the
+//      .cc file.
 //    - The callback does not wait for the service. There is no ack.
 //    - A message that the callback sends reaches the service after the
 //      drain request. The service handles them in order.
-//    - Before kAttached, there is no drain. The callback still runs.
+//    - The callback runs also if this object is destroyed first.
 //
 // 4. When a writer is destroyed, it calls OnWriterDestroyed() on its own
 //    thread. This releases its WriterID in the SMB arbiter. No task is
@@ -144,12 +149,12 @@ class ProducerRingBufferEndpointTestPeer;
 //
 // Ownership:
 //
-// "owns" is a unique_ptr. "uses" is a raw pointer.
+// "owns" is a unique_ptr. "shares" is a shared_ptr. "uses" is a raw pointer.
 //
 //   endpoint (for example ProducerIPCClientImpl)
 //     |-- owns --> SharedMemoryArbiterImpl: the WriterID pool
 //     |-- owns --> ProducerRingBufferEndpoint (this class)
-//                    |-- owns --> SharedMemory: the ring buffer mapping
+//                    |-- shares -> SharedMemory: the ring buffer mapping
 //                    |-- owns --> SharedRingBuffer: the view
 //                    |-- uses --> endpoint, SharedMemoryArbiterImpl
 //
@@ -170,6 +175,9 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
   // Tells if a service reader drains the ring buffer. Only the endpoint
   // thread changes the state. Writers read it from any thread.
   //
+  // Drain requests do not depend on the state. Without a reader, the service
+  // ignores them.
+  //
   //     Create()             OnReaderAttached()
   //   ----------> [ kPending ] ------------------> [ kAttached ]
   //                    |                                |
@@ -183,26 +191,24 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
     // service reply.
     // - Writers can already publish.
     // - The service can still reject the ring buffer.
-    // - No drain requests go to the service.
     // - A writer does not wait for space in a full ring buffer. It drops the
     //   packet instead, also under kStall.
     kPending,
 
     // The service accepted the ring buffer. Its reader drains it.
-    // - Drain requests start.
     // - A writer can wait for space in a full ring buffer.
     kAttached,
 
     // Terminal. No reader now or later. Entered after rejection, disconnect
     // or destruction of this class.
-    // - New writers are NullTraceWriters. Drain requests stop.
+    // - New writers are NullTraceWriters.
     // - Existing writers keep the mapping. They drop packets when the ring
     //   buffer is full.
     kDetached,
   };
 
-  // Takes ownership of the producer's ring buffer mapping. The endpoint calls
-  // this on its thread, then shares the mapping with the service.
+  // Shares the producer's ring buffer mapping. The endpoint calls this on its
+  // thread, then attaches the same mapping to the service.
   // - Returns null if the mapping is null, misaligned or larger than
   //   kMaxShmSize, or if |chunk_size| gives no valid layout.
   // - The other arguments are borrowed and must outlive this object.
@@ -210,7 +216,7 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
       base::TaskRunner*,
       ProducerEndpoint*,
       SharedMemoryArbiter*,
-      std::unique_ptr<SharedMemory> ring_buffer_memory,
+      std::shared_ptr<SharedMemory> ring_buffer_memory,
       uint32_t chunk_size);
 
   // The endpoint destroys this on its thread after all writers release their
@@ -225,8 +231,8 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
   // Endpoint thread:
 
   // The endpoint calls this on its thread when the service accepts the ring
-  // buffer. Requests a drain. Ignored after
-  // Disconnect(), because the accept reply can arrive after it.
+  // buffer. Ignored after Disconnect(), because the accept reply can arrive
+  // after it.
   void OnReaderAttached();
 
   // The endpoint calls this on its thread after rejection or disconnect.
@@ -251,8 +257,8 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
   // a drain, then runs |callback| on the endpoint thread.
   // - |callback| does not wait for a service ack. It runs after the drain
   //   request is sent.
-  // - Without a reader, there is no drain. |callback| still runs, also if
-  //   this object is destroyed first.
+  // - |callback| runs also if this object is destroyed first. Then no drain
+  //   request is sent.
   void Flush(std::function<void()>);
 
   // The writer calls this on its thread after its final publication.
@@ -265,12 +271,14 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
 
   // Merges requests from all writer threads into one pending drain task.
   // For kWriterStalled on the endpoint thread, sends the drain request at
-  // once instead. Does nothing outside kAttached. Never runs application
-  // callbacks.
+  // once instead. Never runs application callbacks.
   void NotifyReader(NotifyReason) override;
 
   // True in kAttached only.
   bool IsReaderAttached() const override;
+
+  // The view that writers borrow. Fixed for the life of this object.
+  SharedRingBuffer* ring_buffer() const { return ring_buffer_.get(); }
 
  private:
   friend class test::ProducerRingBufferEndpointTestPeer;
@@ -278,16 +286,16 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
   ProducerRingBufferEndpoint(base::TaskRunner*,
                              ProducerEndpoint*,
                              SharedMemoryArbiter*,
-                             std::unique_ptr<SharedMemory> ring_buffer_memory,
+                             std::shared_ptr<SharedMemory> ring_buffer_memory,
                              uint32_t chunk_size);
 
   // Runs on the endpoint thread. CHECKs that the transition is valid.
   void SetReaderState(ReaderState);
-  // Any thread. Posts SendDrainRequest(), unless a drain task is already
-  // pending.
-  void PostDrainTask();
+  // Any thread. Posts SendDrainRequest(). Unless |force|, posts nothing if a
+  // drain task is already pending.
+  void PostDrainTask(bool force);
   // Runs on the endpoint thread. Clears the pending flag, then sends
-  // DrainRingBuffer.
+  // DrainV2RingBuffer.
   void SendDrainRequest();
 
   // --- Borrowed. They must outlive this object. ---
@@ -295,16 +303,23 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
   // Runs tasks on the endpoint thread. Writers post drain and flush
   // requests here.
   base::TaskRunner* const task_runner_;
-  // Sends DrainRingBuffer to the service. Endpoint thread only.
+  // Sends DrainV2RingBuffer to the service. Endpoint thread only.
   ProducerEndpoint* const endpoint_;
   // The SMB arbiter. Any thread reserves and releases WriterIDs here.
   SharedMemoryArbiter* const shared_memory_arbiter_;
 
   // --- Owned ring buffer. Fixed after construction. ---
 
-  // Keeps the writers' mapping alive until this object is destroyed.
-  // Declared before |ring_buffer_|, which points into it.
-  const std::unique_ptr<SharedMemory> memory_;
+  // The shared memory that holds the ring buffer. Declared before
+  // |ring_buffer_|, which points into it.
+  //
+  // A shared_ptr, because the service can hold the same mapping:
+  // - In-process, the producer passes this pointer to the service. Both
+  //   sides use one mapping.
+  // - Over IPC, the service maps the fd itself. Only this side holds it.
+  // Whichever side goes first, the other can still use the mapping. It is
+  // unmapped only when the last side releases it.
+  const std::shared_ptr<SharedMemory> memory_;
   // The view that writers borrow.
   const std::unique_ptr<SharedRingBuffer> ring_buffer_;
 
@@ -312,8 +327,8 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
 
   // Writers read it from any thread. Only SetReaderState() writes it.
   std::atomic<ReaderState> reader_state_{ReaderState::kPending};
-  // True while a drain task is pending. Merges writer requests.
-  std::atomic<bool> drain_task_pending_{false};
+  // Nonzero while a drain task is pending. Merges writer requests.
+  std::atomic<uint32_t> drain_task_pending_{0};
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 

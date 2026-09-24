@@ -33,7 +33,6 @@
 
 namespace perfetto::tracing_v2 {
 
-class SharedRingBuffer;
 class ProducerRingBufferEndpoint;
 
 // TraceWriter implementation backed by a tracing v2 shared ring buffer.
@@ -59,7 +58,7 @@ class ProducerRingBufferEndpoint;
 //     ^                                 ^
 //     | copies the listed chunks        | copies all published chunks
 //     |                                 |
-//   service <-- CommitData IPC        service <-- DrainRingBuffer IPC
+//   service <-- CommitData IPC        service <-- DrainV2RingBuffer IPC
 //               from the arbiter:                 from
 //                                                 ProducerRingBufferEndpoint:
 //               "chunks N, M are                  "read what is
@@ -93,17 +92,15 @@ class TraceWriterV2Impl : public TraceWriter,
   //     |ring_buffer_writer_|. See SharedRingBufferWriter::Delegate.
   //   - Flush(): it asks for a drain, then runs the callback.
   //   - OnWriterDestroyed(): the destructor releases |id| through it.
-  // - |ring_buffer|: the shared memory that receives the packets. Owned by
-  //   |ring_buffer_endpoint|.
+  //   Its ring buffer receives the packets.
   // - |id|: the sequence ID of this writer. Reserved by
   //   |ring_buffer_endpoint|. While this writer holds it,
-  //   |ring_buffer_endpoint| and |ring_buffer| stay alive.
+  //   |ring_buffer_endpoint| and its ring buffer stay alive.
   // - |target_buffer|: the service buffer for the packets. Stored in each
   //   chunk header.
   // - |policy|: what the writer does when the ring buffer is full. See
   //   BufferExhaustedPolicy.
   TraceWriterV2Impl(ProducerRingBufferEndpoint* ring_buffer_endpoint,
-                    SharedRingBuffer* ring_buffer,
                     WriterID id,
                     BufferID target_buffer,
                     BufferExhaustedPolicy policy);
@@ -165,6 +162,10 @@ class TraceWriterV2Impl : public TraceWriter,
 
   // Kept behind a pointer to avoid including the generated TracePacket header.
   // The same root message is reset and reused for every packet.
+  //
+  // TODO(sashwinbalaji): Could this be a
+  // std::optional<RootMessage<TracePacket>> to avoid the heap allocation? It
+  // trades the include of the generated header for one allocation per writer.
   std::unique_ptr<protozero::RootMessage<protos::pbzero::TracePacket>>
       cur_packet_;
 

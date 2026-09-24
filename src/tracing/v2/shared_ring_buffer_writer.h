@@ -88,16 +88,21 @@ class SharedRingBufferWriter {
 
   // Connects the writer to the reader. The reader runs in the service,
   // usually in another process, so the writer cannot reach it directly:
-  // - Only the delegate can ask the reader to drain.
+  // - Only the delegate can ask the reader to drain. Over IPC, the drain
+  //   request is an IPC to the service. In-process, it is a direct call.
   // - Only the delegate knows if a reader exists yet.
   //
   // ProducerRingBufferEndpoint implements it. It must outlive the writer.
   //
   // The writer calls it on two events:
   //
-  // 1. The writer publishes a fragment:
+  // 1. The writer publishes a fragment, and at least a quarter of the ring
+  //    buffer positions wait for the reader:
   //
   //      NotifyReader(kPositionsReady)
+  //
+  //    Below that, the data waits for the next flush or stall, like a partial
+  //    chunk in v1.
   //
   // 2. The writer needs a new chunk and cannot get one. The ring buffer is
   //    full, or the chunks at its reserved positions are still in use:
@@ -266,6 +271,9 @@ class SharedRingBufferWriter {
   const uint32_t chunk_size_;
   // MaxFragmentSizeForEmptyChunk(chunk_size_), computed once.
   const uint32_t max_fragment_size_;
+  // A publication asks for a drain when at least this many positions wait
+  // for the reader. At least 1.
+  const uint32_t drain_threshold_;
 
   // State cached for the chunk this writer currently owns.
   uint8_t* cur_chunk_ = nullptr;

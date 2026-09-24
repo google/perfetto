@@ -39,12 +39,11 @@ constexpr uint32_t kMinFragmentPayloadSize =
 
 TraceWriterV2Impl::TraceWriterV2Impl(
     ProducerRingBufferEndpoint* ring_buffer_endpoint,
-    SharedRingBuffer* ring_buffer,
     WriterID id,
     BufferID target_buffer,
     BufferExhaustedPolicy policy)
     : ring_buffer_endpoint_(ring_buffer_endpoint),
-      ring_buffer_writer_(ring_buffer,
+      ring_buffer_writer_(ring_buffer_endpoint->ring_buffer(),
                           id,
                           target_buffer,
                           policy,
@@ -82,7 +81,8 @@ TraceWriter::TracePacketHandle TraceWriterV2Impl::NewTracePacket() {
     stream_writer_.Reset(EnterDropMode());
   }
 
-  cur_packet_->ResetToProtoGroup(&stream_writer_);
+  cur_packet_->Reset(&stream_writer_,
+                     protozero::Message::Encoding::kProtoGroup);
   packet_open_ = true;
   if (PERFETTO_UNLIKELY(first_packet_on_sequence_)) {
     cur_packet_->set_first_packet_on_sequence(true);
