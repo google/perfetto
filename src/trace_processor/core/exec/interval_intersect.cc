@@ -233,7 +233,7 @@ base::Status Collect(const IntervalIntersectOperand& operand,
     for (size_t i = 1; i < group.intervals.size() && group.nonoverlapping;
          ++i) {
       group.nonoverlapping =
-          group.intervals[i - 1].end <= group.intervals[i].start;
+          !IsOverlapping(group.intervals[i - 1], group.intervals[i]);
     }
   }
   return base::OkStatus();
