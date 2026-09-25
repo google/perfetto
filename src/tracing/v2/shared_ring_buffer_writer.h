@@ -97,7 +97,7 @@ class SharedRingBufferWriter {
   // The writer calls it on two events:
   //
   // 1. The writer publishes a fragment and the number of outstanding positions
-  //    reaches |drain_threshold_positions_|:
+  //    reaches |drain_threshold|. By default, a quarter of the ring buffer:
   //
   //      NotifyReader(kPositionsReady)
   //
@@ -153,10 +153,25 @@ class SharedRingBufferWriter {
     virtual bool IsReaderAttached() const = 0;
   };
 
+  // Values of ExperimentalTracingV2Config.drain_occupancy_percent.
+  // 1 to 100 is the percent of positions that wait for the reader.
+  static constexpr int32_t kDefaultDrainOccupancyPercent = 0;  // 25%.
+  static constexpr int32_t kDrainOnEveryPublication = -1;
+
+  // Returns the drain threshold in positions for a ring buffer of
+  // |num_chunks| chunks. |percent| must be -1 to 100. The result is at least
+  // 1, which means a drain after every publication.
+  static uint32_t DrainThresholdForPercent(uint32_t num_chunks,
+                                           int32_t percent);
+
+  // |drain_threshold|: after a publication, the writer asks for a drain if at
+  // least this many positions wait for the reader. At least 1. See
+  // DrainThresholdForPercent().
   SharedRingBufferWriter(SharedRingBuffer* ring,
                          WriterID writer_id,
                          BufferID target_buffer,
                          BufferExhaustedPolicy buffer_exhausted_policy,
+                         uint32_t drain_threshold,
                          Delegate* delegate);
   ~SharedRingBufferWriter();
 
@@ -272,6 +287,7 @@ class SharedRingBufferWriter {
   // MaxFragmentSizeForEmptyChunk(chunk_size_), computed once.
   const uint32_t max_fragment_size_;
   // Minimum outstanding positions needed to request a drain on publication.
+  // See the constructor. At least 1.
   const uint32_t drain_threshold_positions_;
 
   // State cached for the chunk this writer currently owns.

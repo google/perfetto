@@ -22,8 +22,8 @@
 
 #include <atomic>
 #include <functional>
+#include <map>
 #include <memory>
-#include <set>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/task_runner.h"
@@ -123,7 +123,8 @@ class ProducerRingBufferArbiterTestPeer;
 //      instance that uses v2 tries again.
 //
 // 2. After a publication, the writer asks for a drain if the ring buffer's
-//    outstanding positions reach the drain threshold:
+//    outstanding positions reach the drain threshold. The default is a
+//    quarter of the ring buffer:
 //
 //     writer                  arbiter                 service
 //        |                       |                       |
@@ -408,8 +409,9 @@ class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
   // - Writers can be created on real-time threads, so this is a MaybeRtMutex,
   //   as in SharedMemoryArbiterImpl.
   base::MaybeRtMutex mutex_;
-  // The running instances that use the ring buffer. The others use v1.
-  std::set<DataSourceInstanceID> ring_buffer_instances_;
+  // The running v2 instances, with their drain_occupancy_percent. Other
+  // instances can use v1 only if it is in the connection's common set.
+  std::map<DataSourceInstanceID, int32_t> ring_buffer_instances_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 

@@ -278,6 +278,31 @@ TEST_F(ProducerRingBufferArbiterTest,
   EXPECT_EQ(ReadPackets().size(), 3u);
 }
 
+TEST_F(ProducerRingBufferArbiterTest, DrainOccupancyPercentIsPerInstance) {
+  constexpr DataSourceInstanceID kOtherInstance = 2;
+  auto config = V2Config();
+  config.mutable_experimental_tracing_v2()->set_drain_occupancy_percent(-1);
+  SetupInstance(kInstance, config, /*num_chunks=*/8);
+  AcceptAttach();
+
+  config.mutable_experimental_tracing_v2()->set_drain_occupancy_percent(100);
+  SetupInstance(kOtherInstance, config, /*num_chunks=*/8);
+  auto every_publication = CreateWriter();
+  auto when_full = CreateWriter(BufferExhaustedPolicy::kDrop, kOtherInstance);
+
+  WritePacket(every_publication.get(), "p");
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 1u);
+  EXPECT_EQ(ReadPackets().size(), 1u);
+
+  // The other instance shares the ring buffer, but waits for all positions.
+  num_drain_requests_ = 0;
+  for (int i = 0; i < 3; ++i)
+    WritePacket(when_full.get(), std::string(200, 'x'));
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 0u);
+}
+
 TEST_F(ProducerRingBufferArbiterTest, FlushRunsCallbackAfterDrainRequest) {
   SetupV2InstanceWithReader(/*num_chunks=*/4);
   auto writer = CreateWriter();

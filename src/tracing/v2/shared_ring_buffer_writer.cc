@@ -48,28 +48,36 @@ constexpr uint32_t kMaxFallbackSleepUs = 100000;
 //   with NotifyReader(kWriterStalled).
 constexpr uint32_t kMaxWaitMs = kMaxFallbackSleepUs / 1000;
 
-// Percentage of ring positions that must be outstanding before a publication
-// requests a drain. This includes positions reserved by writers whose chunks
-// are not yet published for the reader to copy.
-// TODO(sashwinbalaji): Expose this via TraceConfig.
-constexpr uint32_t kDrainThresholdPercent = 25;
-
-uint32_t ComputeDrainThresholdPositions(uint32_t num_chunks) {
-  const uint64_t threshold_positions =
-      uint64_t(num_chunks) * kDrainThresholdPercent / 100;
-  // For small rings, integer division can round the threshold down to zero.
-  return std::max(1u, static_cast<uint32_t>(threshold_positions));
-}
+// The default percentage of ring positions that must be outstanding before a
+// publication requests a drain. This includes positions reserved by writers
+// whose chunks are not yet published for the reader to copy.
+constexpr uint32_t kDefaultDrainPercent = 25;
 
 }  // namespace
 
 SharedRingBufferWriter::Delegate::~Delegate() = default;
+
+// static
+uint32_t SharedRingBufferWriter::DrainThresholdForPercent(uint32_t num_chunks,
+                                                          int32_t percent) {
+  PERFETTO_DCHECK(percent >= kDrainOnEveryPublication && percent <= 100);
+  if (percent == kDrainOnEveryPublication)
+    return 1;
+  const uint64_t used_percent = percent == kDefaultDrainOccupancyPercent
+                                    ? kDefaultDrainPercent
+                                    : static_cast<uint64_t>(percent);
+  // 64-bit, so that num_chunks * 100 cannot overflow. For small rings,
+  // integer division can round the threshold down to zero.
+  return std::max(
+      1u, static_cast<uint32_t>(uint64_t{num_chunks} * used_percent / 100));
+}
 
 SharedRingBufferWriter::SharedRingBufferWriter(
     SharedRingBuffer* ring,
     WriterID writer_id,
     BufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy,
+    uint32_t drain_threshold,
     Delegate* delegate)
     : ring_(ring),
       delegate_(delegate),
@@ -78,9 +86,9 @@ SharedRingBufferWriter::SharedRingBufferWriter(
       buffer_exhausted_policy_(buffer_exhausted_policy),
       chunk_size_(ring->chunk_size()),
       max_fragment_size_(MaxFragmentSizeForEmptyChunk(chunk_size_)),
-      drain_threshold_positions_(
-          ComputeDrainThresholdPositions(ring->num_chunks())) {
+      drain_threshold_positions_(drain_threshold) {
   PERFETTO_CHECK(delegate_);
+  PERFETTO_DCHECK(drain_threshold_positions_ >= 1);
   // The WriterID must remain assigned to this writer until the reader consumes
   // all positions reserved under it.
   PERFETTO_DCHECK(writer_id_ != 0 && writer_id_ <= kMaxWriterID);

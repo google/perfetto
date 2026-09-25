@@ -34,6 +34,7 @@ namespace {
 using Internals = test::SharedRingBufferInternalsForTest;
 using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
 using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
+using test::DefaultDrainThreshold;
 using test::MakeWriter;
 using test::WriteFragment;
 
@@ -235,6 +236,22 @@ TEST(SharedRingBufferWriterTest, MaxFragmentsPerChunk) {
   const DecodedChunk second = Decode(ring.get(), ChunkIndex::FromIndex(1));
   ASSERT_EQ(second.fragments.size(), 1u);
   EXPECT_EQ(second.fragments[0], "x");
+}
+
+// drain_occupancy_percent to positions: 0 is 25%, -1 is every publication,
+// and the result is at least 1.
+TEST(SharedRingBufferWriterTest, DrainThresholdForPercent) {
+  EXPECT_EQ(SharedRingBufferWriter::DrainThresholdForPercent(256, 0), 64u);
+  EXPECT_EQ(SharedRingBufferWriter::DrainThresholdForPercent(256, 25), 64u);
+  EXPECT_EQ(SharedRingBufferWriter::DrainThresholdForPercent(256, 100), 256u);
+  EXPECT_EQ(SharedRingBufferWriter::DrainThresholdForPercent(256, 1), 2u);
+  EXPECT_EQ(SharedRingBufferWriter::DrainThresholdForPercent(256, -1), 1u);
+  EXPECT_EQ(SharedRingBufferWriter::DrainThresholdForPercent(8, 1), 1u);
+  EXPECT_EQ(SharedRingBufferWriter::DrainThresholdForPercent(2, 0), 1u);
+  // The largest ring: num_chunks * 100 needs 64 bits.
+  EXPECT_EQ(
+      SharedRingBufferWriter::DrainThresholdForPercent(kMaxChunksPerRing, 100),
+      kMaxChunksPerRing);
 }
 
 TEST(SharedRingBufferWriterTest, LargeFragment) {
@@ -494,7 +511,8 @@ TEST(SharedRingBufferWriterTest, NotifiesReaderBeforeWaiting) {
 
   ReleasingSharedRingBufferWriterDelegate delegate(ring.get());
   SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer,
-                                BufferExhaustedPolicy::kStall, &delegate);
+                                BufferExhaustedPolicy::kStall,
+                                DefaultDrainThreshold(ring.get()), &delegate);
   EXPECT_EQ(second.BeginFragment(1, false).result,
             BeginFragmentResult::kSuccess);
   EXPECT_EQ(delegate.num_full_calls, 1u);
@@ -515,7 +533,7 @@ TEST(SharedRingBufferWriterTest, SleepFallbackRetriesUntilSpaceIsAvailable) {
     // releases space, so recovery depends on retrying after the sleep.
     ReleasingSharedRingBufferWriterDelegate delegate(ring.get(), 3);
     SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer, policy,
-                                  &delegate);
+                                  DefaultDrainThreshold(ring.get()), &delegate);
     Internals::DisableWriterFutex(&second);
     ASSERT_TRUE(WriteFragment(&second, "recovered"));
     EXPECT_EQ(delegate.num_full_calls, 3u);
@@ -542,7 +560,7 @@ TEST(SharedRingBufferWriterTest, StallThenDropEpisode) {
   ReleasingSharedRingBufferWriterDelegate delegate(ring.get());
   SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer,
                                 BufferExhaustedPolicy::kStallThenDrop,
-                                &delegate);
+                                DefaultDrainThreshold(ring.get()), &delegate);
 
   // RecordDataLoss() starts a drop episode. Further attempts use kDrop until
   // the loss is reported, avoiding a timeout for every dropped packet.
@@ -591,7 +609,8 @@ TEST(SharedRingBufferWriterTest, PinnedChunks) {
 
   CountingSharedRingBufferWriterDelegate delegate;
   SharedRingBufferWriter writer(ring.get(), kWriterA, kBuffer,
-                                BufferExhaustedPolicy::kDrop, &delegate);
+                                BufferExhaustedPolicy::kDrop,
+                                DefaultDrainThreshold(ring.get()), &delegate);
   EXPECT_EQ(writer.BeginFragment(1, false).result,
             BeginFragmentResult::kNoChunkAvailable);
   EXPECT_EQ(writer.GetStats().failed_claims, ring->num_chunks());
@@ -637,7 +656,8 @@ TEST(SharedRingBufferWriterTest, PinnedChunksGetFullRoundAfterEachWait) {
 
   SkippingDelegate delegate(ring.get());
   SharedRingBufferWriter writer(ring.get(), kWriterA, kBuffer,
-                                BufferExhaustedPolicy::kStall, &delegate);
+                                BufferExhaustedPolicy::kStall,
+                                DefaultDrainThreshold(ring.get()), &delegate);
   Internals::DisableWriterFutex(&writer);
   EXPECT_EQ(writer.BeginFragment(1, false).result,
             BeginFragmentResult::kNoChunkAvailable);
@@ -772,7 +792,7 @@ TEST(SharedRingBufferWriterTest, StallThenDropWithRelocatedLossFlag) {
   ReleasingSharedRingBufferWriterDelegate delegate(ring.get());
   SharedRingBufferWriter writer(ring.get(), kWriterA, kBuffer,
                                 BufferExhaustedPolicy::kStallThenDrop,
-                                &delegate);
+                                DefaultDrainThreshold(ring.get()), &delegate);
 
   // The loss goes into chunk 0's flags when the writer claims it.
   writer.RecordDataLoss();

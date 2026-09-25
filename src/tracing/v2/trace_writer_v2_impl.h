@@ -98,10 +98,12 @@ class TraceWriterV2Impl : public TraceWriter,
   //   chunk header.
   // - |policy|: what the writer does when the ring buffer is full. See
   //   BufferExhaustedPolicy.
+  // - |drain_threshold|: see SharedRingBufferWriter's constructor.
   TraceWriterV2Impl(ProducerRingBufferArbiter* ring_buffer_arbiter,
                     WriterID id,
                     BufferID target_buffer,
-                    BufferExhaustedPolicy policy);
+                    BufferExhaustedPolicy policy,
+                    uint32_t drain_threshold);
   ~TraceWriterV2Impl() override;
 
   TraceWriterV2Impl(const TraceWriterV2Impl&) = delete;

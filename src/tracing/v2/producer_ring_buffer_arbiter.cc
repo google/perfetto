@@ -57,7 +57,7 @@ void ProducerRingBufferArbiter::SetupInstance(
   PERFETTO_CHECK(arbiter);
 
   // Decide once per instance, at setup. The service already rejects a
-  // probability above 100.
+  // probability above 100, and a drain percent outside [-1, 100].
   const auto& experiment = config.experimental_tracing_v2();
   const uint32_t probability = experiment.use_v2_probability_percent();
   const bool use_ring_buffer =
@@ -76,7 +76,7 @@ void ProducerRingBufferArbiter::SetupInstance(
   }
   {
     std::lock_guard<base::MaybeRtMutex> lock(mutex_);
-    ring_buffer_instances_.insert(id);
+    ring_buffer_instances_[id] = experiment.drain_occupancy_percent();
   }
 
   // Later instances reuse the ring buffer. After a failed allocation, try
@@ -173,10 +173,13 @@ std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::MaybeCreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy policy,
     DataSourceInstanceID id) {
+  int32_t drain_occupancy_percent;
   {
     std::lock_guard<base::MaybeRtMutex> lock(mutex_);
-    if (!ring_buffer_instances_.count(id))
+    auto it = ring_buffer_instances_.find(id);
+    if (it == ring_buffer_instances_.end())
       return nullptr;
+    drain_occupancy_percent = it->second;
   }
 
   // No v1 fallback for a v2 instance.
@@ -191,8 +194,10 @@ std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::MaybeCreateTraceWriter(
   if (PERFETTO_UNLIKELY(!writer_id))
     return std::make_unique<NullTraceWriter>();
 
-  return std::make_unique<TraceWriterV2Impl>(this, writer_id, target_buffer,
-                                             policy);
+  return std::make_unique<TraceWriterV2Impl>(
+      this, writer_id, target_buffer, policy,
+      SharedRingBufferWriter::DrainThresholdForPercent(
+          ring_buffer_->num_chunks(), drain_occupancy_percent));
 }
 
 void ProducerRingBufferArbiter::Flush(std::function<void()> callback) {
