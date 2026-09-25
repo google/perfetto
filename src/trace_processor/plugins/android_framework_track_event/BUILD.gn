@@ -40,5 +40,6 @@ source_set("android_framework_track_event") {
     "../../tables",
     "../../types",
     "../../util:descriptors",
+    "../android_process_state",
   ]
 }

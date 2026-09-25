@@ -32,6 +32,8 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
+#include "src/trace_processor/plugins/android_process_state/android_process_state.h"
+#include "src/trace_processor/plugins/android_process_state/android_process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -52,10 +54,12 @@ class Parser : public TrackEventExtensionParser {
  public:
   Parser(TrackEventExtensionParserContext* extension_parser_context,
          TraceProcessorContext* context,
-         AndroidTrackEventProcessTable* table)
+         AndroidTrackEventProcessTable* table,
+         AndroidProcessTracker* android_process_tracker)
       : TrackEventExtensionParser(extension_parser_context),
         trace_context_(context),
-        table_(table) {
+        table_(table),
+        android_process_tracker_(android_process_tracker) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
   }
@@ -110,12 +114,30 @@ class Parser : public TrackEventExtensionParser {
     if (!evt.has_pid()) {
       return;
     }
-    UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(evt.pid()));
+    auto* process_tracker = trace_context_->process_tracker.get();
+    UniquePid upid;
+    if (android_process_tracker_->FrameworkIsProcessAuthority()) {
+      StringId name_id =
+          evt.has_process_name()
+              ? trace_context_->storage->InternString(evt.process_name())
+              : kNullStringId;
+      std::optional<int64_t> seq_id =
+          evt.has_start_seq_id() ? std::make_optional(evt.start_seq_id())
+                                 : std::nullopt;
+      upid = android_process_tracker_->GetOrStartProcess(ts, evt.pid(), seq_id,
+                                                         name_id);
+    } else {
+      upid =
+          process_tracker->GetOrCreateProcess(static_cast<uint32_t>(evt.pid()));
+    }
     SetProcessMetadata(upid, data);
 
     auto row = GetOrInsertRow(upid);
     if (evt.has_start_seq_id()) {
+      // Only recorded on the plugin table here. AndroidProcessTracker's copy
+      // is owned by GetOrStartProcess(), which runs only under framework
+      // authority; setting it in kernel-authority mode would attach a seq id to
+      // a upid that still spans both incarnations of a reused pid.
       row.set_start_seq_id(evt.start_seq_id());
     }
     if (evt.has_package_uid()) {
@@ -157,10 +179,27 @@ class Parser : public TrackEventExtensionParser {
     if (!evt.has_pid()) {
       return;
     }
+    auto* process_tracker = trace_context_->process_tracker.get();
 
-    std::optional<UniqueTid> utid =
-        trace_context_->process_tracker->GetThreadOrNull(
-            static_cast<uint32_t>(evt.pid()));
+    // The pid may already have been recycled by the time this death is
+    // reported, in which case it no longer resolves to the process that died.
+    // The event names the incarnation via its start seq id, so prefer that.
+    if (android_process_tracker_->FrameworkIsProcessAuthority() &&
+        evt.has_start_seq_id()) {
+      if (auto upid = android_process_tracker_->FindProcess(evt.pid(),
+                                                            evt.start_seq_id());
+          upid) {
+        // This may be an incarnation which no longer owns the pid, so end it
+        // by upid rather than going through the pid.
+        GetOrInsertRow(*upid).set_fw_end_ts(ts);
+        android_process_tracker_->EndProcess(ts, *upid);
+        return;
+      }
+    }
+
+    // No seq id to go on: end whoever owns the pid now. This is the path every
+    // trace without framework process authority takes.
+    std::optional<UniqueTid> utid = process_tracker->GetThreadOrNull(evt.pid());
     if (!utid) {
       return;
     }
@@ -170,8 +209,7 @@ class Parser : public TrackEventExtensionParser {
       return;
     }
     GetOrInsertRow(*upid).set_fw_end_ts(ts);
-    trace_context_->process_tracker->EndThread(
-        ts, static_cast<uint32_t>(evt.pid()));
+    process_tracker->EndThread(ts, evt.pid());
   }
 
   StringId InternEnum(DescriptorPool::CachedDescriptor& cache,
@@ -187,11 +225,15 @@ class Parser : public TrackEventExtensionParser {
   DescriptorPool::CachedDescriptor trigger_type_cache_;
   DescriptorPool::CachedDescriptor hosting_type_cache_;
   AndroidTrackEventProcessTable* table_;
+  AndroidProcessTracker* android_process_tracker_;
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
 };
 
+// Depends on the android_process_state plugin for AndroidProcessTracker: both
+// plugins must agree on which upid a (pid, start_seq_id) pair refers to.
 class AndroidFrameworkTrackEventPlugin
-    : public Plugin<AndroidFrameworkTrackEventPlugin> {
+    : public Plugin<AndroidFrameworkTrackEventPlugin,
+                    android_process_state::AndroidProcessState> {
  public:
   ~AndroidFrameworkTrackEventPlugin() override;
 
@@ -205,8 +247,10 @@ class AndroidFrameworkTrackEventPlugin
       TrackEventExtensionParserContext* ctx,
       TraceProcessorContext* trace_context) override {
     EnsureTable();
-    ctx->parsers.emplace_back(
-        std::make_unique<Parser>(ctx, trace_context, table_.get()));
+    ctx->parsers.emplace_back(std::make_unique<Parser>(
+        ctx, trace_context, table_.get(),
+        android_process_state::EnsureAndroidProcessTracker(resolved_deps_[0],
+                                                           trace_context)));
   }
 
  private:

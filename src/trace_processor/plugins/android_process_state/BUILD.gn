@@ -30,6 +30,8 @@ source_set("android_process_state") {
     "android_process_state_module.h",
     "android_process_state_tracker.cc",
     "android_process_state_tracker.h",
+    "android_process_tracker.cc",
+    "android_process_tracker.h",
   ]
   public_deps = [ ":tables" ]
   deps = [

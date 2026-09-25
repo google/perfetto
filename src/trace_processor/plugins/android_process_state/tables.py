@@ -39,7 +39,9 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('oom_score', CppOptional(CppInt32())),
         C('capability_flags', CppOptional(CppInt32())),
         C('reason', CppOptional(CppString())),
+        C('seq_id', CppOptional(CppInt64())),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
+        C('start_seq_id', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='Per-process state events from snapshots and track events.',
@@ -57,8 +59,16 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'Capability flags.',
             'reason':
                 'Reason for state change (if from track event).',
+            'seq_id':
+                'OOM adjuster sequence ID (if from track event).',
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
+            'start_seq_id':
+                '''
+                Android start sequence id of the process, monotonic per app
+                start. Distinguishes incarnations of a recycled pid. Only
+                populated on the initial (is_initial = 1) row.
+                ''',
         },
     ),
 )

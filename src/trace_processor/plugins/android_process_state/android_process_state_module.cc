@@ -43,6 +43,16 @@ AndroidProcessStateModule::AndroidProcessStateModule(
 
 AndroidProcessStateModule::~AndroidProcessStateModule() = default;
 
+ModuleResult AndroidProcessStateModule::TokenizePacket(
+    const TokenizePacketArgs& args) {
+  if (args.field.id() ==
+      fb::FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber) {
+    tracker_->TokenizeProcessStateDump(
+        args.field.Cast<fb::FrameworksBaseTracePacket::kAndroidProcessState>());
+  }
+  return ModuleResult::Ignored();
+}
+
 void AndroidProcessStateModule::ParseField(const ParseFieldArgs& args) {
   switch (args.field.id()) {
     case fb::FrameworksBaseTracePacket::kAndroidProcessStateFieldNumber:
@@ -50,11 +60,13 @@ void AndroidProcessStateModule::ParseField(const ParseFieldArgs& args) {
           args.field
               .Cast<fb::FrameworksBaseTracePacket::kAndroidProcessState>());
       break;
-    case fb::FrameworksBaseTracePacket::kAndroidFreezerStateFieldNumber:
-      tracker_->ParseFreezerDump(
+    case fb::FrameworksBaseTracePacket::kAndroidFreezerStateFieldNumber: {
+      protozero::ConstBytes bytes =
           args.field
-              .Cast<fb::FrameworksBaseTracePacket::kAndroidFreezerState>());
+              .Cast<fb::FrameworksBaseTracePacket::kAndroidFreezerState>();
+      tracker_->SaveFreezerDump(args.data.packet.slice(bytes.data, bytes.size));
       break;
+    }
     default:
       break;
   }

@@ -25,12 +25,12 @@
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_process_state/android_process_state_module.h"
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
+#include "src/trace_processor/plugins/android_process_state/android_process_tracker.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::android_process_state {
-namespace {
 
 using tables::AndroidFreezerStateTable;
 using tables::AndroidProcessStateTable;
@@ -67,6 +67,14 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
             context, trace_context, EnsureTracker(trace_context)));
   }
 
+  AndroidProcessTracker* EnsureAndroidProcessTracker(
+      TraceProcessorContext* ctx) {
+    if (!android_process_tracker_) {
+      android_process_tracker_ = std::make_unique<AndroidProcessTracker>(ctx);
+    }
+    return android_process_tracker_.get();
+  }
+
  private:
   void EnsureTables() {
     if (!process_state_table_) {
@@ -83,19 +91,26 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
     EnsureTables();
     if (!tracker_) {
       tracker_ = std::make_unique<AndroidProcessStateTracker>(
-          ctx, process_state_table_.get(), freezer_state_table_.get());
+          ctx, EnsureAndroidProcessTracker(ctx), process_state_table_.get(),
+          freezer_state_table_.get());
     }
     return tracker_.get();
   }
 
   std::unique_ptr<AndroidProcessStateTable> process_state_table_;
   std::unique_ptr<AndroidFreezerStateTable> freezer_state_table_;
+  std::unique_ptr<AndroidProcessTracker> android_process_tracker_;
   std::unique_ptr<AndroidProcessStateTracker> tracker_;
 };
 
 AndroidProcessState::~AndroidProcessState() = default;
 
-}  // namespace
+AndroidProcessTracker* EnsureAndroidProcessTracker(
+    PluginBase* plugin,
+    TraceProcessorContext* trace_context) {
+  return static_cast<AndroidProcessState*>(plugin)->EnsureAndroidProcessTracker(
+      trace_context);
+}
 
 void RegisterPlugin() {
   PERFETTO_TP_REGISTER_PLUGIN(AndroidProcessState);

@@ -378,22 +378,23 @@ class AndroidParser(TestSuite):
           t.oom_score,
           t.capability_flags,
           t.reason,
+          t.seq_id,
           t.is_initial
         FROM __intrinsic_android_process_state t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts, t.reason;
         """,
         out=Csv("""
-          "ts","pid","proc_state","oom_score","capability_flags","reason","is_initial"
-          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"[NULL]",1
-          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"[NULL]",1
-          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",0
-          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"OOM_ADJ_REASON_BIND_SERVICE",0
-          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]",1
-          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]",1
-          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"[NULL]",1
-          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"OOM_ADJ_REASON_BIND_SERVICE",0
-          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"OOM_ADJ_REASON_START_RECEIVER",0
+          "ts","pid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",10,0
+          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"OOM_ADJ_REASON_BIND_SERVICE",11,0
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]","[NULL]",1
+          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"OOM_ADJ_REASON_BIND_SERVICE",21,0
+          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"OOM_ADJ_REASON_START_RECEIVER",20,0
         """))
 
   def test_android_freezer_state(self):
@@ -417,4 +418,57 @@ class AndroidParser(TestSuite):
           3000,200,100,300,"UFR_BIND_SERVICE",0
           "[NULL]",600,"[NULL]","[NULL]","UFR_PING",1
           "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
+        """))
+
+  def test_android_framework_binder_died_recycled(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_binder_died_recycled.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          s.start_seq_id,
+          p.start_ts,
+          p.end_ts
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process s
+          ON s.upid = p.upid
+        WHERE p.pid > 0
+        ORDER BY p.pid, p.start_ts;
+        """,
+        out=Csv("""
+          "pid","name","start_seq_id","start_ts","end_ts"
+          100,"com.example.appa",1,1000000000,6000000000
+          100,"com.example.appb",2,5000000000,7000000000
+        """))
+
+  def test_android_process_state_metadata(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          p.uid,
+          p.android_user_id,
+          -- Neither plugin table alone covers every process: the state table
+          -- misses processes that died before the trace-stop dump, and the
+          -- track event table misses processes never seen by AMS.
+          COALESCE(s.start_seq_id, t.start_seq_id) AS start_seq_id,
+          p.start_ts,
+          p.end_ts
+        FROM process p
+        LEFT JOIN __intrinsic_android_process_state s
+          ON s.upid = p.upid AND s.is_initial = 1
+        LEFT JOIN __intrinsic_android_track_event_process t
+          ON t.upid = p.upid
+        WHERE p.pid > 0
+        ORDER BY p.pid, p.start_ts;
+        """,
+        out=Csv("""
+          "pid","name","uid","android_user_id","start_seq_id","start_ts","end_ts"
+          100,"com.example.appa",10001,0,1,1000000000,"[NULL]"
+          100,"com.example.appb",10002,0,2,5000000000,"[NULL]"
+          200,"com.example.dump_only",20001,0,10,"[NULL]","[NULL]"
+          300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]"
         """))

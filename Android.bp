@@ -19743,6 +19743,7 @@ filegroup {
         "src/trace_processor/plugins/android_process_state/android_process_state.cc",
         "src/trace_processor/plugins/android_process_state/android_process_state_module.cc",
         "src/trace_processor/plugins/android_process_state/android_process_state_tracker.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_tracker.cc",
     ],
 }
 

@@ -4621,6 +4621,8 @@ perfetto_filegroup(
         "src/trace_processor/plugins/android_process_state/android_process_state_module.h",
         "src/trace_processor/plugins/android_process_state/android_process_state_tracker.cc",
         "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h",
+        "src/trace_processor/plugins/android_process_state/android_process_tracker.cc",
+        "src/trace_processor/plugins/android_process_state/android_process_tracker.h",
     ],
 )
 

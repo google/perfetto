@@ -21,13 +21,16 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
+class AndroidProcessTracker;
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
 
@@ -45,16 +48,23 @@ class AndroidProcessStateTracker {
  public:
   AndroidProcessStateTracker(
       TraceProcessorContext* context,
+      AndroidProcessTracker* android_process_tracker,
       tables::AndroidProcessStateTable* process_state_table,
       tables::AndroidFreezerStateTable* freezer_state_table);
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
+  // Pre-sort pass on an AndroidProcessState dump TracePacket to detect
+  // dump_process_metadata (process_name) before sorted events are parsed.
+  void TokenizeProcessStateDump(protozero::ConstBytes bytes);
   // An AndroidProcessState dump TracePacket.
   void ParseProcessStateDump(protozero::ConstBytes bytes);
 
   // An AndroidFreezerEvent TrackEvent extension at |ts|.
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
+  // Buffers an AndroidFreezerState dump slice to be parsed in Finalize() after
+  // all AndroidProcessState dumps have been processed.
+  void SaveFreezerDump(TraceBlobView blob);
   // An AndroidFreezerState dump TracePacket.
   void ParseFreezerDump(protozero::ConstBytes bytes);
 
@@ -102,6 +112,7 @@ class AndroidProcessStateTracker {
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
   TraceProcessorContext* const context_;
+  AndroidProcessTracker* const android_process_tracker_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
 
@@ -115,6 +126,7 @@ class AndroidProcessStateTracker {
   std::map<UniquePid, ProcessStateValues> process_dump_;
   // Map of upid -> final freezer state from the trace-stop dump snapshot.
   std::map<UniquePid, FreezerStateValues> freezer_dump_;
+  std::vector<TraceBlobView> pending_freezer_dumps_;
 };
 
 }  // namespace perfetto::trace_processor::android_process_state

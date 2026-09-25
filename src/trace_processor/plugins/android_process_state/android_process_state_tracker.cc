@@ -20,6 +20,7 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/plugins/android_process_state/android_process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -44,9 +45,11 @@ StringId InternEnum(TraceProcessorContext* context,
 
 AndroidProcessStateTracker::AndroidProcessStateTracker(
     TraceProcessorContext* context,
+    AndroidProcessTracker* android_process_tracker,
     tables::AndroidProcessStateTable* process_state_table,
     tables::AndroidFreezerStateTable* freezer_state_table)
     : context_(context),
+      android_process_tracker_(android_process_tracker),
       process_state_table_(process_state_table),
       freezer_state_table_(freezer_state_table) {}
 
@@ -113,7 +116,22 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
                             ".com.android.internal.OomChangeReasonEnum",
                             static_cast<int32_t>(p.reason()));
   }
+  if (p.has_seq_id()) {
+    row.seq_id = p.seq_id();
+  }
   process_state_table_->Insert(row);
+}
+
+void AndroidProcessStateTracker::TokenizeProcessStateDump(
+    protozero::ConstBytes blob) {
+  fb::AndroidProcessStateSnapshot::Decoder dump(blob);
+  for (auto it = dump.record(); it; ++it) {
+    fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
+    if (rec.has_process_name()) {
+      android_process_tracker_->SetFrameworkIsProcessAuthority(true);
+      return;
+    }
+  }
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
@@ -124,9 +142,27 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
     if (!rec.has_pid()) {
       continue;
     }
-    std::optional<UniquePid> opt_upid =
-        context_->process_tracker->GetProcessOrNull(
-            static_cast<uint32_t>(rec.pid()));
+    std::optional<UniquePid> opt_upid;
+    if (android_process_tracker_->FrameworkIsProcessAuthority()) {
+      StringId name_id = rec.has_process_name()
+                             ? context_->storage->InternString(
+                                   base::StringView(rec.process_name()))
+                             : kNullStringId;
+      std::optional<int64_t> start_seq_id =
+          rec.has_start_seq_id() ? std::make_optional(rec.start_seq_id())
+                                 : std::nullopt;
+      UniquePid upid = android_process_tracker_->GetOrStartProcess(
+          /*start_ts=*/std::nullopt, static_cast<uint32_t>(rec.pid()),
+          start_seq_id, name_id);
+      if (rec.has_uid()) {
+        context_->process_tracker->SetProcessUid(
+            upid, static_cast<uint32_t>(rec.uid()));
+      }
+      opt_upid = upid;
+    } else {
+      opt_upid = context_->process_tracker->GetProcessOrNull(
+          static_cast<uint32_t>(rec.pid()));
+    }
     if (!opt_upid) {
       continue;
     }
@@ -136,9 +172,6 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields in the dump snapshot
     // represent 0.
-    //
-    // TODO: Consider setting process_name and uid on the core `process` table
-    // from dump records in a future update.
     v.proc_state = rec.has_proc_state()
                        ? static_cast<int32_t>(rec.proc_state())
                        : static_cast<int32_t>(
@@ -180,6 +213,10 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   }
   row.is_initial = 0;
   freezer_state_table_->Insert(row);
+}
+
+void AndroidProcessStateTracker::SaveFreezerDump(TraceBlobView blob) {
+  pending_freezer_dumps_.push_back(std::move(blob));
 }
 
 void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
@@ -235,6 +272,10 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
 }
 
 void AndroidProcessStateTracker::Finalize() {
+  for (const TraceBlobView& dump : pending_freezer_dumps_) {
+    ParseFreezerDump(protozero::ConstBytes{dump.data(), dump.length()});
+  }
+  pending_freezer_dumps_.clear();
   for (const auto& [upid, v] : ComputeInitialProcessStates()) {
     EmitInitialProcessStateRow(v);
   }
@@ -249,6 +290,9 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
   row.upid = v.upid;
   row.ts = std::nullopt;
   row.is_initial = 1;
+  // AndroidProcessTracker only keeps the seq id while parsing, so copy it
+  // here to keep it queryable.
+  row.start_seq_id = android_process_tracker_->GetStartSeqId(v.upid);
   if (v.proc_state.has_value()) {
     row.proc_state =
         InternEnum(context_, proc_state_cache_,
