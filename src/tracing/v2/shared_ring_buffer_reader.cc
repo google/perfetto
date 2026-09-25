@@ -301,7 +301,7 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
       return CopiedChunkStatus::kMalformed;
     }
     total += *fragment_size;
-    copied_fragments_.push_back(Fragment{nullptr, *fragment_size});
+    copied_fragments_.push_back(protozero::ConstBytes{nullptr, *fragment_size});
   }
 
   // The sizes are valid varints. Their payloads may still overlap the
@@ -318,9 +318,9 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
   // Copy the published payload out of shared memory.
   copied_payload_.assign(payload_begin, payload_begin + total);
 
-  // Point each Fragment at its copy and collect the chunk metadata.
-  uint32_t offset = 0;
-  for (Fragment& fragment : copied_fragments_) {
+  // Point each fragment at its copy and collect the chunk metadata.
+  size_t offset = 0;
+  for (protozero::ConstBytes& fragment : copied_fragments_) {
     fragment.data = copied_payload_.data() + offset;
     offset += fragment.size;
   }
