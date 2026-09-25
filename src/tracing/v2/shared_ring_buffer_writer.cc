@@ -40,6 +40,14 @@ constexpr uint32_t kStallTimeoutMs = 30000;
 // The 100 ms sleep limit matches SharedMemoryArbiterImpl::GetNewChunk().
 constexpr uint32_t kMaxFallbackSleepUs = 100000;
 
+// Longest single wait for space. Only the reader wakes a waiting writer, when
+// read_pos moves. The limit makes the writer recheck on its own:
+// - If the reader detached during the wait, the writer drops the data. It
+//   does not wait until the stall deadline and crash.
+// - If the last drain did not free space, the writer asks for another one
+//   with NotifyReader(kWriterStalled).
+constexpr uint32_t kMaxWaitMs = kMaxFallbackSleepUs / 1000;
+
 }  // namespace
 
 SharedRingBufferWriter::Delegate::~Delegate() = default;
@@ -268,24 +276,26 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
     // - TryAcquireChunkForWriting() failed num_chunks times in this round.
     //   Earlier failures took continue above to try another reservation.
     //   The last failure reached the attempt limit.
-    //
-    // Notify the reader before a wait so it can make space. Failed claims also
-    // require notification under kDrop: the reader must consume those unclaimed
-    // positions, even if the ring buffer became full before the attempt limit.
-    if (num_failed_claims != 0 || policy != BufferExhaustedPolicy::kDrop) {
-      delegate_->NotifyReader();
-      num_failed_claims = 0;
-    }
 
-    // Report kNoChunkAvailable if any claim failed during this acquisition,
-    // even if a later reservation found the ring buffer full. The reader
-    // notification resets the attempt count but must not erase that failure
-    // from the result.
+    // The result tells why no chunk was found:
+    // - kNoChunkAvailable: a claim failed at least once in this call, even if
+    //   a later reservation found the ring buffer full.
+    // - kFull: every reservation found the ring buffer full.
+    // |num_failed_claims| resets before each wait, so use
+    // |saw_unclaimable_chunk| here.
     const BeginFragmentResult exhausted_result =
         saw_unclaimable_chunk ? BeginFragmentResult::kNoChunkAvailable
                               : BeginFragmentResult::kFull;
 
-    if (policy == BufferExhaustedPolicy::kDrop) {
+    // Do not wait:
+    // - kDrop never waits.
+    // - Without a reader, nothing frees space.
+    if (policy == BufferExhaustedPolicy::kDrop ||
+        !delegate_->IsReaderAttached()) {
+      // Failed claims left reserved positions that only the reader can
+      // consume. Ask for a drain, so they do not block later writers.
+      if (num_failed_claims != 0)
+        delegate_->NotifyReader(Delegate::NotifyReason::kPositionsReady);
       PERFETTO_DLOG("tracing v2: writer %u: %s: returning without a chunk",
                     writer_id_,
                     saw_unclaimable_chunk ? "no chunk could be claimed"
@@ -311,13 +321,22 @@ SharedRingBufferWriter::AcquireNewChunk(uint32_t continuation_flags) {
       return exhausted_result;
     }
 
-    const uint32_t timeout_ms =
-        static_cast<uint32_t>((*stall_deadline - now).count());
+    // Make the reader run before the wait.
+    // - Its drain frees space, and consumes the positions of failed claims.
+    // - The next round then gets num_chunks claim attempts again.
+    delegate_->NotifyReader(Delegate::NotifyReason::kWriterStalled);
+    num_failed_claims = 0;
+
+    // Wait at most kMaxWaitMs, so that the next round asks the reader again.
+    // Never wait past the stall deadline.
+    const uint32_t timeout_ms = std::min(
+        kMaxWaitMs, static_cast<uint32_t>((*stall_deadline - now).count()));
 
     if (!use_futex_) {
-      // Use v1's backoff: 0, 8, 72, ... microseconds, up to 100 ms per sleep.
-      // Limit each sleep to the time left before the deadline. Both stall
-      // policies retain their timeout behavior without futex support.
+      // No futex. Sleep with v1's backoff: 0, 8, 72, ... microseconds, up to
+      // kMaxFallbackSleepUs.
+      // - No sleep is longer than |timeout_ms|.
+      // - The stall deadline still applies to both stall policies.
       base::SleepMicroseconds(std::min(fallback_sleep_us, timeout_ms * 1000));
       fallback_sleep_us =
           std::min(kMaxFallbackSleepUs, (fallback_sleep_us + 1) * 8);
@@ -385,6 +404,14 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
           chunk_size_ - payload_end_ - size_directory_bytes_ <= 1) {
         ResetCurrentChunk();
       }
+      // Ask the reader to drain this publication.
+      //
+      // TODO(sashwinbalaji): Notify on ring buffer occupancy, not on each
+      // publication. For example, notify when half of the chunks are
+      // outstanding, and on flush and stall.
+      // - The cost today: a drain can reclaim the Complete chunk that this
+      //   writer caches. Its next fragment then needs a new chunk.
+      delegate_->NotifyReader(Delegate::NotifyReason::kPositionsReady);
       return EndFragmentResult::kSuccess;
     }
 
