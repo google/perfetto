@@ -355,5 +355,6 @@ export interface Overlay {
     size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
     theme: CanvasColors,
+    rootNode: TrackNode,
   ): void;
 }
