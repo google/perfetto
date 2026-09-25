@@ -521,9 +521,14 @@ TEST_F(TracingServiceImplTest, InProcessInstanceWriterUsesV2) {
   buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
   auto* source = config.add_data_sources()->mutable_config();
   source->set_name(descriptor.name());
-  source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
-      100);
-  source->mutable_experimental_tracing_v2()->set_chunk_size_bytes(256);
+  auto* experiment = source->mutable_experimental_tracing_v2();
+  experiment->set_use_v2_probability_percent(100);
+  // Weight 0 is never picked, so the producer picks 512.
+  auto* option = experiment->add_chunk_size_options();
+  option->set_size_bytes(512);
+  option = experiment->add_chunk_size_options();
+  option->set_size_bytes(1024);
+  option->set_weight(0);
   DataSourceInstanceID instance = 0;
   BufferID target_buffer = 0;
   auto started = task_runner.CreateCheckpoint("instance_started");
@@ -573,6 +578,14 @@ TEST_F(TracingServiceImplTest, InProcessInstanceWriterUsesV2) {
     EXPECT_EQ(packet.for_testing().str(), payload);
   }
   EXPECT_EQ(packet_count, 1u);
+
+  // TraceStats records the chunk size that the producer picked.
+  consumer->GetTraceStats();
+  const TraceStats stats = consumer->WaitForTraceStats(true);
+  ASSERT_EQ(stats.tracing_v2_producer_stats_size(), 1);
+  EXPECT_EQ(stats.tracing_v2_producer_stats()[0].chunk_size_bytes(), 512u);
+  EXPECT_GT(stats.tracing_v2_producer_stats()[0].num_chunks(), 0u);
+
   writer.reset();
   EXPECT_CALL(producer, StopDataSource(instance));
   consumer->DisableTracing();
@@ -682,34 +695,44 @@ TEST_F(TracingServiceImplTest, RejectsProtoVmAndTracingV2OnOneBuffer) {
 }
 
 // The service rejects experimental_tracing_v2 settings that the producer
-// cannot use, so that no producer latches a bad config.
+// cannot use, so that no producer latches a bad config. For chunk sizes, see
+// RejectsInvalidChunkSizeOptions.
 TEST_F(TracingServiceImplTest, RejectsInvalidTracingV2Settings) {
-  auto make_config = [](uint32_t probability, uint32_t chunk_size) {
+  auto make_config = [](uint32_t probability) {
     TraceConfig config;
     config.add_buffers()->set_size_kb(64);
     auto* source = config.add_data_sources()->mutable_config();
     source->set_name("v2_source");
-    auto* tracing_v2 = source->mutable_experimental_tracing_v2();
-    tracing_v2->set_use_v2_probability_percent(probability);
-    tracing_v2->set_chunk_size_bytes(chunk_size);
+    source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+        probability);
     return config;
   };
 
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
-  consumer->EnableTracing(make_config(/*probability=*/101, /*chunk_size=*/256));
+  consumer->EnableTracing(make_config(/*probability=*/101));
   consumer->WaitForTracingDisabledWithError(
       HasSubstr("use_v2_probability_percent"));
 
-  // Below the minimum, not a multiple of 4, and above the maximum.
-  for (uint32_t chunk_size : {128u, 302u, 65540u}) {
-    consumer->EnableTracing(make_config(/*probability=*/100, chunk_size));
-    consumer->WaitForTracingDisabledWithError(HasSubstr("chunk_size_bytes"));
-  }
-
-  consumer->EnableTracing(make_config(/*probability=*/100, /*chunk_size=*/256));
+  consumer->EnableTracing(make_config(/*probability=*/100));
   consumer->DisableTracing();
   consumer->WaitForTracingDisabledWithError(IsEmpty());
+}
+
+TEST_F(TracingServiceImplTest, RejectsInvalidChunkSizeOptions) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  for (uint32_t size : {0u, 255u, 258u, 65540u}) {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* ds_config = config.add_data_sources()->mutable_config();
+    ds_config->set_name("data_source");
+    ds_config->mutable_experimental_tracing_v2()
+        ->add_chunk_size_options()
+        ->set_size_bytes(size);
+    consumer->EnableTracing(config);
+    consumer->WaitForTracingDisabledWithError(HasSubstr("chunk_size_options"));
+  }
 }
 
 TEST_F(TracingServiceImplTest, RejectsInvalidDrainOccupancyPercent) {

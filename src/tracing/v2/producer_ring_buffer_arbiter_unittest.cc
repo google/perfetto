@@ -16,7 +16,9 @@
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
+#include <initializer_list>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "src/tracing/v2/producer_ring_buffer_test_fixture.h"
@@ -55,6 +57,52 @@ class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
            packets[0].packet.for_testing().str() == "probe";
   }
 };
+
+// Builds options from {size, weight} pairs. A negative weight leaves the
+// field absent.
+std::vector<ChunkSizeOption> Options(
+    std::initializer_list<std::pair<uint32_t, int>> values) {
+  std::vector<ChunkSizeOption> options;
+  for (const auto& [size, weight] : values) {
+    ChunkSizeOption option;
+    option.set_size_bytes(size);
+    if (weight >= 0)
+      option.set_weight(static_cast<uint32_t>(weight));
+    options.push_back(std::move(option));
+  }
+  return options;
+}
+
+TEST(PickChunkSizeTest, NoOptionPicksTheDefault) {
+  EXPECT_EQ(PickChunkSize({}, 12345), 256u);
+  EXPECT_EQ(PickChunkSize(Options({{512, 0}, {1024, 0}}), 12345), 256u);
+}
+
+// An absent weight counts as 1, so both options are equally likely.
+TEST(PickChunkSizeTest, AbsentWeightsAreEqual) {
+  const auto options = Options({{512, -1}, {1024, -1}});
+  EXPECT_EQ(PickChunkSize(options, 0), 512u);
+  EXPECT_EQ(PickChunkSize(options, 1), 1024u);
+  EXPECT_EQ(PickChunkSize(options, 2), 512u);
+}
+
+// Weights 1 and 3: the random point modulo 4 picks 512 for 0 and 1024 for
+// 1, 2 and 3.
+TEST(PickChunkSizeTest, WeightsSetTheShares) {
+  const auto options = Options({{512, 1}, {1024, 3}});
+  EXPECT_EQ(PickChunkSize(options, 0), 512u);
+  for (uint64_t random : {1u, 2u, 3u})
+    EXPECT_EQ(PickChunkSize(options, random), 1024u);
+  EXPECT_EQ(PickChunkSize(options, 4), 512u);
+}
+
+// An invalid size is never picked. The service rejects it, but an older
+// service does not.
+TEST(PickChunkSizeTest, InvalidSizesAreSkipped) {
+  const auto options = Options({{100, 5}, {258, 5}, {2048, 1}});
+  for (uint64_t random = 0; random < 16; ++random)
+    EXPECT_EQ(PickChunkSize(options, random), 2048u);
+}
 
 // --- Choice of v1 or v2 per instance ---
 

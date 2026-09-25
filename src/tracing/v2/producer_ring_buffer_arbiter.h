@@ -24,6 +24,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/task_runner.h"
@@ -35,6 +36,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_writer.h"
@@ -42,6 +44,16 @@
 namespace perfetto {
 class SharedMemoryArbiter;
 namespace tracing_v2 {
+
+using ChunkSizeOption =
+    protos::gen::DataSourceConfig_ExperimentalTracingV2Config_ChunkSizeOption;
+
+// Picks a chunk size from |options| by weight. |random| is a uniform random
+// number. An absent weight counts as 1. Options with an invalid size are
+// skipped: the service rejects them, but an older service does not. Returns
+// 256 if no option can be picked.
+uint32_t PickChunkSize(const std::vector<ChunkSizeOption>& options,
+                       uint64_t random);
 
 namespace test {
 class ProducerRingBufferArbiterTestPeer;
