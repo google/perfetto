@@ -17,8 +17,8 @@
 #include "perfetto/protozero/field.h"
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/endian.h"
 
 namespace protozero {
 

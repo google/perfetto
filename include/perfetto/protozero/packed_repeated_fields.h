@@ -23,8 +23,8 @@
 #include <memory>
 #include <type_traits>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/endian.h"  // no-include-violation-check
 #include "perfetto/protozero/proto_utils.h"
 
 namespace protozero {

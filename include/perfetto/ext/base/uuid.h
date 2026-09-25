@@ -22,8 +22,8 @@
 #include <cstdint>
 #include <string>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/export.h"
-#include "perfetto/ext/base/endian.h"
 
 namespace perfetto {
 namespace base {

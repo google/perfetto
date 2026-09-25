@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_ENDIAN_H_
-#define INCLUDE_PERFETTO_EXT_BASE_ENDIAN_H_
+#ifndef INCLUDE_PERFETTO_BASE_ENDIAN_H_
+#define INCLUDE_PERFETTO_BASE_ENDIAN_H_
 
 #include <stdint.h>
 #include <stdlib.h>  // For MSVC
@@ -246,4 +246,4 @@ inline double LEToHost(double x) {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_ENDIAN_H_
+#endif  // INCLUDE_PERFETTO_BASE_ENDIAN_H_

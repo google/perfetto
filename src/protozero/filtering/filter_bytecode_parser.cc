@@ -22,8 +22,8 @@
 #include <limits>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
