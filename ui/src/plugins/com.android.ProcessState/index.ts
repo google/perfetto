@@ -20,12 +20,14 @@ import {
   makeColorScheme,
 } from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
+import {SliceTrackDetailsPanel} from '../../components/tracks/slice_track_details_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
   LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -40,7 +42,7 @@ import {
 } from './aggregators';
 import {ProcessStateCountTrack} from './state_count_track';
 
-const PROCESS_STATE_SCHEMA = {
+const BASE_SCHEMA = {
   id: NUM,
   ts: LONG,
   dur: LONG,
@@ -55,6 +57,23 @@ const PROCESS_STATE_SCHEMA = {
   state: STR,
   reason: STR_NULL,
 } as const;
+
+const NONEXISTENT_SCHEMA = {
+  ...BASE_SCHEMA,
+  hosting_type: STR_NULL,
+  hosting_name: STR_NULL,
+  trigger_type: STR_NULL,
+  bind_application_delay_ms: LONG_NULL,
+  process_start_delay_ms: LONG_NULL,
+} as const;
+
+const EXITED_SCHEMA = {
+  ...BASE_SCHEMA,
+  exit_reason: STR_NULL,
+  exit_subreason: STR_NULL,
+} as const;
+
+const PROCESS_STATE_SCHEMA = {...NONEXISTENT_SCHEMA, ...EXITED_SCHEMA} as const;
 
 const SLATE = makeColorScheme(new HSLColor([210, 18, 48]));
 
@@ -185,6 +204,23 @@ export default class ProcessState implements PerfettoPlugin {
             if (row.state === 'NONEXISTENT') return SLATE;
             if (row.state === 'EXITED') return GRAY;
             return getColorForSlice(row.state);
+          },
+          detailsPanel: (row) => {
+            const schema =
+              row.state === 'NONEXISTENT'
+                ? NONEXISTENT_SCHEMA
+                : row.state === 'EXITED'
+                  ? EXITED_SCHEMA
+                  : BASE_SCHEMA;
+            return new SliceTrackDetailsPanel(
+              ctx,
+              new SourceDataset({
+                schema,
+                src: '_android_process_state_intervals',
+                filter: {col: 'upid', eq: upid},
+              }),
+              row,
+            );
           },
           rootTableName: '_android_process_state_intervals',
         }),

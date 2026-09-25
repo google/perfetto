@@ -141,6 +141,17 @@ WITH
     WHERE
       c.prev_state IS NULL
       OR c.prev_state != c.cur_state
+  ),
+  died AS (
+    SELECT
+      extract_arg(arg_set_id, 'process_died_event.upid') AS upid,
+      extract_arg(arg_set_id, 'process_died_event.reason') AS exit_reason,
+      extract_arg(arg_set_id, 'process_died_event.sub_reason') AS exit_subreason
+    FROM slice
+    WHERE
+      name = 'process_died'
+    GROUP BY
+      upid
   )
 SELECT
   row_number() OVER (ORDER BY c.ts, c.upid) AS id,
@@ -158,12 +169,21 @@ SELECT
   c.prev_state,
   c.prev_state_duration,
   coalesce(r.rank, 1000) AS state_rank,
-  c.reason
+  c.reason,
+  iif(c.state = 'NONEXISTENT', fw.hosting_type, NULL) AS hosting_type,
+  iif(c.state = 'NONEXISTENT', trim(fw.hosting_name, '{}'), NULL) AS hosting_name,
+  iif(c.state = 'NONEXISTENT', fw.trigger_type, NULL) AS trigger_type,
+  iif(c.state = 'NONEXISTENT', fw.bind_application_delay_ms, NULL) AS bind_application_delay_ms,
+  iif(c.state = 'NONEXISTENT', fw.process_start_delay_ms, NULL) AS process_start_delay_ms,
+  iif(c.state = 'EXITED', d.exit_reason, NULL) AS exit_reason,
+  iif(c.state = 'EXITED', d.exit_subreason, NULL) AS exit_subreason
 FROM state_changes AS c
 JOIN process AS p USING (upid)
 LEFT JOIN android_process_metadata AS m USING (upid)
 LEFT JOIN _android_process_state_rank AS r
-  ON r.state = c.state;
+  ON r.state = c.state
+LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
+LEFT JOIN died AS d USING (upid);
 
 -- Number of processes concurrently in each framework process state over time.
 CREATE PERFETTO TABLE _android_process_state_concurrency AS
