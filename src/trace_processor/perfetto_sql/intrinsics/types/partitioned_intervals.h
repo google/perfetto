@@ -36,8 +36,6 @@ struct Partition {
   std::vector<Interval> intervals;
   std::vector<SqlValue> sql_values;
   bool is_nonoverlapping = true;
-
-  uint64_t last_interval = 0;
 };
 
 using Partitions =
