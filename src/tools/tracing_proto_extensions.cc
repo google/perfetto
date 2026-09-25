@@ -106,9 +106,9 @@ void ConvertFieldDescriptor(const google::protobuf::FieldDescriptorProto& src,
     dst->set_default_value(src.default_value());
   if (src.has_oneof_index())
     dst->set_oneof_index(src.oneof_index());
-  if (src.has_options() && src.options().has_packed()) {
-    auto* opts = dst->set_options();
-    opts->set_packed(src.options().packed());
+  if (src.has_options()) {
+    std::string options = src.options().SerializeAsString();
+    dst->set_options()->AppendRawProtoBytes(options.data(), options.size());
   }
 }
 

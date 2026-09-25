@@ -203,13 +203,20 @@ const LATENCY_COLUMNS = ['name', 'dur_ms', 'ts', 'dur', 'track_id', 'slice_id'];
 
 const ALL_BLOCKING_CALLS_OPTION = 'all blocking calls';
 
+const BLOCKING_CALLS_PRECONDITIONS = `
+  INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+`;
+
 const BLOCKING_CALLS_PROCESSES_QUERY = `
-    SELECT DISTINCT bc.process_name
-    FROM android_cuj_blocking_calls bc
-    JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
-    WHERE bc.utid = cuj.ui_thread
-      AND bc.process_name IS NOT NULL
-    ORDER BY bc.process_name
+    INCLUDE PERFETTO MODULE android.cujs.base;
+    SELECT DISTINCT process.name AS process_name
+    FROM process_track
+    JOIN slice ON slice.track_id = process_track.id
+    JOIN process USING (upid)
+    WHERE _is_cuj_slice!(slice)
+      AND slice.dur > 0
+      AND process.name IS NOT NULL
+    ORDER BY process.name
 `;
 
 function blockingCallNamesForProcessQuery(processName: string): string {
@@ -364,7 +371,6 @@ export default class implements PerfettoPlugin {
   }
 
   async pinBlockingCalls(ctx: Trace) {
-    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
     const result = await ctx.engine.query(BLOCKING_CALLS_PROCESSES_QUERY);
     const processes: string[] = [];
     const iter = result.iter({process_name: STR});
@@ -376,6 +382,9 @@ export default class implements PerfettoPlugin {
       return;
     }
 
+    // Preload stdlib tables in the background while the user picks a process.
+    const preloadPromise = ctx.engine.query(BLOCKING_CALLS_PRECONDITIONS);
+
     const selectedProcess = await ctx.omnibox.prompt(
       'Choose a process...',
       processes,
@@ -384,14 +393,25 @@ export default class implements PerfettoPlugin {
       return;
     }
 
+    await preloadPromise;
     const namesResult = await ctx.engine.query(
       blockingCallNamesForProcessQuery(selectedProcess),
     );
-    const blockingCallOptions: string[] = [ALL_BLOCKING_CALLS_OPTION];
+    const blockingCallNames: string[] = [];
     const namesIter = namesResult.iter({name: STR});
     for (; namesIter.valid(); namesIter.next()) {
-      blockingCallOptions.push(namesIter.name);
+      blockingCallNames.push(namesIter.name);
     }
+    if (blockingCallNames.length === 0) {
+      ctx.omnibox.showStatusMessage(
+        `No blocking calls during CUJs found for ${selectedProcess}`,
+      );
+      return;
+    }
+    const blockingCallOptions: string[] = [
+      ALL_BLOCKING_CALLS_OPTION,
+      ...blockingCallNames,
+    ];
 
     const selectedBlockingCall = await ctx.omnibox.prompt(
       'Choose a blocking call...',
