@@ -5,8 +5,6 @@ summary: A heap dump with 61,752 strings turned out to hold about 48,000 copies 
 cover: cover.png
 ---
 
-Why repetitive string allocations hide in everyday profiling workflows, and how to surface them with PerfettoSQL.
-
 ## Hiding in Plain Sight
 
 If you've ever taken a heap dump of an Android app, you've almost certainly seen `java.lang.String` near the top: tens of thousands of instances, often more than any other class in your app.
@@ -60,8 +58,6 @@ ORDER BY instances DESC
 LIMIT 20;
 ```
 
-&nbsp;
-
 Filtering by reachable ensures we only count strings that the application is actively holding alive.
 
 Paste it into the **Query (SQL)** tab and hit run. The top of the result is four rows:
@@ -69,8 +65,6 @@ Paste it into the **Query (SQL)** tab and hit run. The top of the result is four
 ![Four values account for roughly 48,000 objects](figure1.png)
 
 *Figure 1: Four values account for roughly 48,000 objects.*
-
-&nbsp;
 
 That answers the question: roughly 48,000 of the 61,752 strings are copies of just four values. Every one is a separate allocation, and all were reachable when the dump was taken.
 
@@ -81,8 +75,6 @@ The next step is to add `SUM(self_size)`. But every row comes back at exactly 16
 > **Fun runtime detail:** In device memory, ART actually stores characters **inline** directly inside the `java.lang.String` allocation. If you inspect `s.charAt(i)` compiled with Android's dex2oat in [Compiler Explorer](https://godbolt.org/), the compiled ARM64 code reads directly from `[String_ptr + 16]` with zero pointer indirection. However, because the legacy JVM HPROF format cannot represent variable-length class instances, ART fabricates a synthetic `byte[]` or `char[]` primitive array when generating a heap dump so standard profiling tools can read it.
 
 To count the characters in Perfetto, we follow that synthetic reference. It takes three more joins:
-
-&nbsp;
 
 ```sql
 SELECT
@@ -105,20 +97,11 @@ GROUP BY od.value_string
 ORDER BY instances DESC
 LIMIT 20;
 ```
-
-&nbsp;
-
-&nbsp;
-
 Run it. The same four values, now with their character data:
-
-&nbsp;
 
 ![The same grouping, extended to follow each String to its character array](figure2.png)
 
 *Figure 2: The same grouping, extended to follow each String to its character array.*
-
-&nbsp;
 
 Now `total_bytes` shows the full cost: **2.3 MiB for four values**, just over three times the 750 KiB from the objects alone.&nbsp;
 
@@ -130,23 +113,14 @@ None of this was hidden. All 48,000 objects were in the dump all along, thousand
 
 You don't have to write that SQL every time. Once a dump is loaded, click **Heapdump Explorer** in the sidebar. Its **Overview** tab groups duplicate strings by value for you.
 
-&nbsp;
-
-&nbsp;
 
 ![Heapdump Explorer Overview shows duplicate Strings](figure3.png)
 
 *Figure 3: Heapdump Explorer Overview shows duplicate Strings*
 
-&nbsp;
-
 The same four values, the same counts, in one click. The character arrays are here too, in a table of their own: **Duplicate Strings** counts the String objects, **Duplicate Primitive Arrays** counts the text. Nothing is missing. It is just split in two.
 
-&nbsp;
-
 That split is why the query still earns its place. The arrays table labels each group with a content hash, so you cannot tell which string a given byte\[\] or char\[\] belongs to. Only the query puts a value and its full cost on the same line.
-
-&nbsp;
 
 So where do 48,000 duplicate strings come from in an app that shows a hundred rows of weather?
 
@@ -182,8 +156,6 @@ GROUP BY owner_class, field, value
 ORDER BY instances DESC;
 ```
 
-&nbsp;
-
 ![Grouping the duplicate strings by their owning class and field](figure4.png)
 *Figure 4: Grouping the duplicate strings by their owning class and field.*
 
@@ -213,8 +185,6 @@ data class HourlyForecast(
 )
 ```
 
-&nbsp;
-
 ```json
 [
   {
@@ -227,8 +197,6 @@ data class HourlyForecast(
   }
 ]
 ```
-
-&nbsp;
 
 When you write `"Partly Cloudy"` as a literal in Kotlin code, the compiler places it into the DEX string pool. At runtime, ART interns it and every reference in your code shares that single heap instance.
 
@@ -247,7 +215,6 @@ Because the JSON schema is flat, every hourly record carries the same `timezone`
 
 Together, those 5 fields account for 60,000 of the 61,752 String instances in the dump.
 
-&nbsp;
 
 This **`N objects × M repeated fields`** multiplier often shows up in production apps. It comes not from memory leaks, but from legitimate data held in memory:
 
