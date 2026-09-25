@@ -17,6 +17,7 @@
 #include "src/protozero/filtering/message_filter.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/endian.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/protozero/filtering/string_filter.h"
 

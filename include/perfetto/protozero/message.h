@@ -26,6 +26,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/endian.h"  // no-include-violation-check
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_stream_writer.h"

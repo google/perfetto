@@ -44,8 +44,7 @@ declare_args() {
     android_abi_target = "aarch64-linux-android"
     android_llvm_arch = "aarch64"
   } else {
-    assert(target_os != "android",
-           "Need android libgcc support for this arch.")
+    assert(target_os != "android", "Need android libgcc support for this arch.")
     android_abi_target = ""
     android_llvm_arch = ""
   }

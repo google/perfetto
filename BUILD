@@ -147,6 +147,7 @@ perfetto_cc_library(
     ],
     hdrs = [
         ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
@@ -1141,6 +1142,7 @@ perfetto_cc_binary(
     name = "client_api_example",
     srcs = [
         ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
@@ -2482,6 +2484,7 @@ perfetto_cc_library(
     ],
     hdrs = [
         ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",

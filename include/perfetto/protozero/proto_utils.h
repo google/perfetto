@@ -18,14 +18,12 @@
 #define INCLUDE_PERFETTO_PROTOZERO_PROTO_UTILS_H_
 
 #include <stddef.h>
-#include <string.h>
 
 #include <cinttypes>
 #include <type_traits>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/endian.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_utils.h"
 
