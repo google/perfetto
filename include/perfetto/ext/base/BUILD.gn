@@ -28,7 +28,6 @@ source_set("base") {
     "crash_keys.h",
     "ctrl_c_handler.h",
     "dynamic_string_writer.h",
-    "endian.h",
     "event_fd.h",
     "file_utils.h",
     "flags.h",

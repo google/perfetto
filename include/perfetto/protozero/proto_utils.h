@@ -22,6 +22,7 @@
 #include <cinttypes>
 #include <type_traits>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_utils.h"
