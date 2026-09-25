@@ -25,7 +25,14 @@ The heap dump has everything we need to find out. We just have to group the stri
 
 ### Getting a heap dump you can query
 
-Nothing exotic is required here: a standard `.hprof` from a debuggable build. From the command line, dump and then pull:
+There are two main ways to capture the ART/Java heap on Android:
+
+1. **`am dumpheap`**, which writes a full `.hprof` heap dump.
+2. **Perfetto's Java heap profiler** (see [Analyzing the Java Heap](https://perfetto.dev/docs/case-studies/memory#java-hprof)).
+
+`am dumpheap` is slower and more expensive, but it captures the entire heap, including the contents of every field: string values, primitive arrays, and so on. Perfetto's heap profiler is faster and more lightweight, but it records only the shape of the heap graph (object sizes and retaining references), not the contents of the objects.
+
+Perfetto's tools can open both. Finding duplicate strings means comparing their values, so we need option 1. All you need is a debuggable build. From the command line, dump and then pull:
 
 ```
 adb shell am dumpheap <package-name> /data/local/tmp/dump.hprof
@@ -34,7 +41,7 @@ adb pull /data/local/tmp/dump.hprof
 
 If you prefer your IDE's memory profiler, export the heap dump from there instead. Any `.hprof` works.
 
-Then open [Perfetto](https://ui.perfetto.dev/) and drag the file in.
+Then open the [Perfetto UI](https://ui.perfetto.dev/) and drag the file in.
 
 Perfetto is probably familiar as a systrace viewer, but its trace processor also ingests ART heap dumps directly, and exposes them as SQL tables you can query in the browser. The whole thing runs client-side in WebAssembly, so the dump never leaves your machine.
 
