@@ -94,7 +94,7 @@ function scopedIntervals(scope: Scope, area: AreaSelection): string {
 }
 
 // Durations follow the user's time format and precision settings.
-function durationCellRenderer(trace: Trace): CellRenderer {
+export function durationCellRenderer(trace: Trace): CellRenderer {
   return (value) => {
     // Averaging aggregates come back as floats.
     const dur = typeof value === 'number' ? BigInt(Math.round(value)) : value;
@@ -210,7 +210,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
               coalesce(prev_state, 'N/A') AS prev_state,
               prev_state_duration AS prev_dur,
               state AS cur_state,
-              CASE WHEN dur >= 0 THEN dur END AS cur_dur,
+              iif(dur < 0, trace_end() - ts, dur) AS cur_dur,
               coalesce(reason, 'N/A') AS reason
             FROM _android_process_state_intervals
             WHERE (${terms.join(' OR ')})
