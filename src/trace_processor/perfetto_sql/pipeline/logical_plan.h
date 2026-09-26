@@ -25,6 +25,8 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/type_set.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/schema.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -43,6 +45,17 @@ struct NamedColumn {
   ColumnId id;
 };
 
+namespace internal {
+// The std::variant holding one value of each type in a TypeSet, in the same
+// order, so a switch over the TypeSet's indices can dispatch on the variant.
+template <typename>
+struct VariantOf;
+template <typename... Ts>
+struct VariantOf<base::TypeSet<Ts...>> {
+  using type = std::variant<Ts...>;
+};
+}  // namespace internal
+
 namespace op {
 
 // A dataframe read directly. Defined outside Scan because GCC only treats a
@@ -57,8 +70,9 @@ struct ScanDataframe {
 // Reads all rows of a source. Always the first op.
 struct Scan {
   using Dataframe = ScanDataframe;
-  // A direct dataframe scan or `SELECT * FROM <clause>` executed by SQLite.
-  std::variant<Dataframe, SqlSource> source;
+  // Where a scan reads from: a dataframe directly, or a query run by SQLite.
+  using SourceKind = base::TypeSet<Dataframe, SqlSource>;
+  internal::VariantOf<SourceKind>::type source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;
 };
@@ -103,7 +117,13 @@ struct IntervalIntersect {
 
 }  // namespace op
 
-using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
+// The kinds of operator a plan node can hold. Passes switch on a node's
+// kind() with one case per operator, using OpKind::GetTypeIndex<T>().
+using OpKind =
+    base::TypeSet<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
+
+// An operator, as one of the types in OpKind.
+using Op = internal::VariantOf<OpKind>::type;
 
 // Stable within a plan.
 using PlanNodeId = uint32_t;
@@ -113,10 +133,30 @@ using PlanNodeId = uint32_t;
 struct PlanNode {
   Op op;
   std::vector<PlanNodeId> children;
+
+  // The index in OpKind of the operator this node holds.
+  uint32_t kind() const { return static_cast<uint32_t>(op.index()); }
+
+  template <typename T>
+  bool Is() const {
+    return kind() == OpKind::GetTypeIndex<T>();
+  }
+
+  // Returns the operator as a T. The node must hold one.
+  template <typename T>
+  T& Cast() {
+    return base::unchecked_get<T>(op);
+  }
+  template <typename T>
+  const T& Cast() const {
+    return base::unchecked_get<T>(op);
+  }
 };
 
 // A tree of operators. Column types are stored once, indexed by ID; operators
 // name the values they consume and produce, independently of layout.
+//
+// The root is the last stage of the pipeline and the leaves are its sources.
 struct LogicalPlan {
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
