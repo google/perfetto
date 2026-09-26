@@ -273,6 +273,32 @@ def extract_referenced_entities(sql_file: str) -> Set[str]:
         ) != 'PARTITIONED':
           references.add(entity)
 
+    # Handle INTERVAL INTERSECTION OF (rel AS a, rel AS b, ...): a relation
+    # named directly as an operand is a table reference. Operands which are
+    # subqueries are covered by the FROM and JOIN patterns below.
+    isect_pattern = r'\bINTERVAL\s+INTERSECTION\s+OF\s*\('
+    for match in re.finditer(isect_pattern, content, re.IGNORECASE):
+      # Keep only the operator's own level, so a comma or AS inside a
+      # subquery operand is not read as naming an operand.
+      depth = 1
+      pos = match.end()
+      operands = ''
+      while pos < len(content):
+        char = content[pos]
+        pos += 1
+        if char == '(':
+          depth += 1
+        elif char == ')':
+          depth -= 1
+          if depth == 0:
+            break
+        elif depth == 1:
+          operands += char
+      operand_pattern = (r'(?:^|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s+'
+                         r'[a-zA-Z_][a-zA-Z0-9_]*\s*(?=,|$)')
+      for operand in re.finditer(operand_pattern, operands, re.IGNORECASE):
+        references.add(operand.group(1))
+
     # Other patterns
     patterns = [
         r'\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',

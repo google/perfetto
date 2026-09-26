@@ -51,7 +51,8 @@ struct IntervalIntersectOperand {
 // A duration below zero is refused rather than read as a span, and so is a
 // timestamp below zero, which is what the intrinsic this replaces does. A row
 // of no width is a point: it meets an interval holding the instant it sits at
-// and another point at the same instant.
+// and another point at the same instant. A row holding no timestamp or no
+// duration has no bounds to meet anything over, so it covers nothing.
 class IntervalIntersect : public Source {
  public:
   // Every operand's source must outlive this. Two are the fewest which can
