@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -523,7 +524,9 @@ base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
           compiler.CompileStage(syntaqlite_list_child_id(stages, i)));
     }
   }
-  return compiler.Finish();
+  LogicalPlan plan = compiler.Finish();
+  PruneColumns(plan);
+  return plan;
 }
 
 }  // namespace perfetto::trace_processor::pipeline
