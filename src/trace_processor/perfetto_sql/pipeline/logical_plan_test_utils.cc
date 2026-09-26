@@ -98,6 +98,11 @@ std::string NodeString(const LogicalPlan& plan, const PlanNode& node) {
         for (ColumnId key : operand.keys) {
           out += ", key=#" + std::to_string(key);
         }
+        out += ", carries=[";
+        for (uint32_t c = 0; c < operand.carried.size(); c++) {
+          out += (c ? ", #" : "#") + std::to_string(operand.carried[c]);
+        }
+        out += "]";
         out +=
             ")\n    " + (*this)(std::get<op::Scan>(plan.nodes[children[i]].op));
       }

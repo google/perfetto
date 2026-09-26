@@ -91,6 +91,9 @@ struct IntervalIntersect {
     ColumnId dur = 0;
     // One per PER column, in the order they were written.
     std::vector<ColumnId> keys;
+    // The columns passed on to the rows out, in the operand's order. The
+    // rest are read only to find the regions.
+    std::vector<ColumnId> carried;
   };
   std::vector<Operand> operands;
   // The region's own bounds, which no operand owns.
