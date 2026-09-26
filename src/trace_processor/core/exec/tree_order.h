@@ -90,11 +90,11 @@ class TreeChildFirst : public Breaker {
 //
 // Not a breaker: a row can go out as soon as its parent has. Rows whose
 // parent is already out stream straight through as views of their batch.
-// Only a row arriving before its parent is held: copied aside and let go the
+// Only a row arriving before its parent is held: retained and let go the
 // moment the parent arrives, together with whatever is held under it. So the
 // cost is proportional to how far out of order the input is, nothing for
 // ordered input and everything for reversed input, and the planner never
-// needs to know which. Rows once held stay copied until the next rewind.
+// needs to know which. Rows once held stay retained until the next rewind.
 //
 // The order is parent first and nothing more: not a pre-order, so a fold
 // down keeps a value per node rather than a path. The input columns are node

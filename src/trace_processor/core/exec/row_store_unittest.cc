@@ -17,9 +17,11 @@
 #include "src/trace_processor/core/exec/row_store.h"
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -163,11 +165,11 @@ TEST(RowStoreTest, KeepsWhichRowsHeldNothing) {
   EXPECT_TRUE(kept->is_set(2));
 }
 
-TEST(RowStoreTest, BackfillsEarlierChunksWhenNullabilityAppears) {
-  std::vector<int64_t> values(RowStore::kChunkRows, 1);
+TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
+  std::vector<int64_t> values(kMaxBatchRows, 1);
   RowStore store;
   RowBatch batch;
-  Fill(&batch, values, 0, RowStore::kChunkRows);
+  Fill(&batch, values, 0, kMaxBatchRows);
   ASSERT_TRUE(store.Append(batch).ok());
 
   BitVector validity = BitVector::CreateWithSize(1);
@@ -179,17 +181,14 @@ TEST(RowStoreTest, BackfillsEarlierChunksWhenNullabilityAppears) {
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
-  ASSERT_EQ(store.View(&out, 0, RowStore::kChunkRows), RowStore::kChunkRows);
-  ASSERT_NE(out.column(0).validity(), nullptr);
-  EXPECT_EQ(out.column(0).validity()->CountSetBits(), RowStore::kChunkRows);
-  ASSERT_EQ(store.View(&out, RowStore::kChunkRows, 1), 1u);
+  ASSERT_EQ(store.View(&out, 0, kMaxBatchRows), kMaxBatchRows);
+  EXPECT_EQ(test::ReadNullableColumn<int64_t>(out, 0),
+            std::vector<std::optional<int64_t>>(kMaxBatchRows, 1));
+  ASSERT_EQ(store.View(&out, kMaxBatchRows, 1), 1u);
   EXPECT_FALSE(out.column(0).validity()->is_set(0));
 }
 
-// When nullability appears, only the rows a chunk actually holds are valid:
-// the unwritten tail of the last chunk must stay clear, or a null landing
-// there cannot turn its bit off (the validity copy only ever sets bits).
-TEST(RowStoreTest, ANullLandingInAPartlyFilledChunkStaysNull) {
+TEST(RowStoreTest, GatheringAcrossBatchesKeepsNulls) {
   std::vector<int64_t> values = {10, 11, 12};
   RowStore store;
   RowBatch batch;
@@ -207,9 +206,12 @@ TEST(RowStoreTest, ANullLandingInAPartlyFilledChunkStaysNull) {
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
-  ASSERT_EQ(store.View(&out, 0, 5), 5u);
+  std::vector<uint32_t> order = {0, 3, 1, 4, 2};
+  ASSERT_EQ(
+      store.View(&out, Span<const uint32_t>(order.data(), order.data() + 5)),
+      5u);
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 0),
-              ElementsAre(10, 11, 12, 20, std::nullopt));
+              ElementsAre(10, 20, 11, std::nullopt, 12));
 }
 
 TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
@@ -249,14 +251,16 @@ TEST(RowStoreTest, AZeroColumnBatchFixesTheSchema) {
   Fill(&with_column, values, 0, 1);
   EXPECT_FALSE(store.Append(with_column).ok());
   EXPECT_EQ(store.size(), 2u);
-  EXPECT_EQ(store.column_count(), 0u);
+  RowBatch out;
+  ASSERT_EQ(store.View(&out, 0, 2), 2u);
+  EXPECT_EQ(out.column_count(), 0u);
 }
 
 TEST(RowStoreTest, ViewingAnEmptySuffixReturnsAnEmptyBatch) {
-  std::vector<int64_t> values(RowStore::kChunkRows);
+  std::vector<int64_t> values(kMaxBatchRows);
   RowStore store;
   RowBatch batch;
-  Fill(&batch, values, 0, RowStore::kChunkRows);
+  Fill(&batch, values, 0, kMaxBatchRows);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
@@ -299,7 +303,7 @@ TEST(RowStoreTest, ABatchOfADifferentShapeIsReported) {
 // Rows already appended are never copied again: each chunk is allocated once
 // and stays where it is, so the run a given row sits in keeps its address
 // however many batches arrive after it.
-TEST(RowStoreTest, FillingAChunkAtATimeDoesNotRecopyTheColumn) {
+TEST(RowStoreTest, AppendingDoesNotMoveRetainedStorage) {
   const uint32_t kRows = 200000, kChunk = 2048;
   std::vector<int64_t> values(kChunk);
   RowStore store;
@@ -319,30 +323,28 @@ TEST(RowStoreTest, FillingAChunkAtATimeDoesNotRecopyTheColumn) {
 
 // A run never spans two chunks, so a caller asking for more than the rest of
 // one gets the rest of it and comes back for the next.
-TEST(RowStoreTest, ARunStopsAtTheEndOfAChunk) {
-  std::vector<int64_t> values(RowStore::kChunkRows);
+TEST(RowStoreTest, ARunStopsAtTheEndOfAnInputBatch) {
+  std::vector<int64_t> values(kMaxBatchRows);
   RowStore store;
   RowBatch batch;
-  Fill(&batch, values, 0, RowStore::kChunkRows);
+  Fill(&batch, values, 0, kMaxBatchRows);
   ASSERT_TRUE(store.Append(batch).ok());
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
-  EXPECT_EQ(store.View(&out, 1, store.size() - 1), RowStore::kChunkRows - 1);
-  EXPECT_EQ(store.View(&out, RowStore::kChunkRows,
-                       store.size() - RowStore::kChunkRows),
-            RowStore::kChunkRows);
+  EXPECT_EQ(store.View(&out, 1, store.size() - 1), kMaxBatchRows - 1);
+  EXPECT_EQ(store.View(&out, kMaxBatchRows, store.size() - kMaxBatchRows),
+            kMaxBatchRows);
 }
 
-// A batch which does not divide into the chunk size straddles a boundary, so
-// the copy has to split. Every batch size lands differently against it.
-TEST(RowStoreTest, BatchesWhichStraddleAChunkBoundary) {
-  const uint32_t kRows = RowStore::kChunkRows * 2 + 37;
-  std::vector<int64_t> values(RowStore::kChunkRows);
+// Input batch boundaries do not change the logical sequence of stored rows.
+TEST(RowStoreTest, InputBatchSizesDoNotChangeTheRows) {
+  const uint32_t kRows = kMaxBatchRows * 2 + 37;
+  std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < values.size(); ++i) {
     values[i] = 1000 + i;
   }
-  for (uint32_t batch_rows : {1u, 7u, 700u, RowStore::kChunkRows}) {
+  for (uint32_t batch_rows : {1u, 7u, 700u, kMaxBatchRows}) {
     RowStore store;
     RowBatch batch;
     std::vector<int64_t> expected;
@@ -360,10 +362,10 @@ TEST(RowStoreTest, BatchesWhichStraddleAChunkBoundary) {
   }
 }
 
-// A gather can name rows from any chunk, which no single view can span.
-TEST(RowStoreTest, GathersRowsFromSeveralChunks) {
-  const uint32_t kRows = RowStore::kChunkRows * 2 + 5;
-  std::vector<int64_t> values(RowStore::kChunkRows);
+// A gather can name rows from any input batch.
+TEST(RowStoreTest, GathersRowsFromSeveralInputBatches) {
+  const uint32_t kRows = kMaxBatchRows * 2 + 5;
+  std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < values.size(); ++i) {
     values[i] = static_cast<int64_t>(i);
   }
@@ -371,14 +373,14 @@ TEST(RowStoreTest, GathersRowsFromSeveralChunks) {
   RowBatch batch;
   std::vector<int64_t> all;
   for (uint32_t done = 0; done < kRows;) {
-    uint32_t n = std::min(RowStore::kChunkRows, kRows - done);
+    uint32_t n = std::min(kMaxBatchRows, kRows - done);
     Fill(&batch, values, 0, n);
     ASSERT_TRUE(store.Append(batch).ok());
     all.insert(all.end(), values.begin(), values.begin() + n);
     done += n;
   }
-  std::vector<uint32_t> order = {kRows - 1, 0, RowStore::kChunkRows,
-                                 RowStore::kChunkRows - 1, 3};
+  std::vector<uint32_t> order = {kRows - 1, 0, kMaxBatchRows, kMaxBatchRows - 1,
+                                 3};
   RowBatch out;
   store.View(&out,
              Span<const uint32_t>(order.data(), order.data() + order.size()));
@@ -387,6 +389,39 @@ TEST(RowStoreTest, GathersRowsFromSeveralChunks) {
     expected.push_back(all[row]);
   }
   EXPECT_EQ(test::ReadColumn<int64_t>(out, 0), expected);
+}
+
+TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
+  RowBatch range, gathered;
+  {
+    RowStore store;
+    RowBatch input, later;
+    auto values = std::make_shared<std::vector<int64_t>>(
+        std::initializer_list<int64_t>{10, 20, 30});
+    input.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values->data()),
+                    values);
+    input.SetCardinality(3);
+    ASSERT_TRUE(store.Append(input).ok());
+    ASSERT_EQ(store.View(&range, 0, 3), 3u);
+    EXPECT_EQ(range.column(0).data(), values->data());
+    std::vector<uint32_t> rows = {2, 0, 2};
+    store.View(&gathered, Span<const uint32_t>(rows.data(), rows.data() + 3));
+    EXPECT_NE(gathered.column(0).data(), values->data());
+    EXPECT_TRUE(gathered.column(0).selection().is_range());
+    rows = {1, 1, 0};
+    store.View(&later, Span<const uint32_t>(rows.data(), rows.data() + 3));
+    store.Clear();
+    input.Reset();
+    auto replacement = std::make_shared<std::vector<int64_t>>(
+        std::initializer_list<int64_t>{40, 50, 60});
+    input.AddColumn(
+        ColumnView::Reference(StorageType{Int64{}}, replacement->data()),
+        replacement);
+    input.SetCardinality(3);
+    ASSERT_TRUE(store.Append(input).ok());
+  }
+  EXPECT_THAT(test::ReadColumn<int64_t>(range, 0), ElementsAre(10, 20, 30));
+  EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(30, 10, 30));
 }
 
 TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
@@ -401,15 +436,41 @@ TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
 
   RowStore store;
   ASSERT_TRUE(store.Append(batch).ok());
-  ASSERT_TRUE(store.is_variant(0));
 
   RowBatch out;
   ASSERT_EQ(store.View(&out, 0, 4), 4u);
+  ASSERT_EQ(out.column(0).kind(), ColumnView::Kind::kVariant);
   const auto* kept = static_cast<const Variant*>(out.column(0).data());
   EXPECT_EQ(kept[0].AsInt64(), 7);
   EXPECT_EQ(kept[1].type, Variant::Type::kNull);
   EXPECT_EQ(kept[2].AsDouble(), 1.5);
   EXPECT_EQ(pool.Get(kept[3].AsString()).ToStdString(), "hi");
+}
+
+// A gather turns an implicit id into a stored one, so a stream can carry both.
+TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
+  auto stored =
+      std::make_shared<std::vector<uint32_t>>(std::vector<uint32_t>{40, 41});
+  RowStore store;
+  RowBatch batch;
+  batch.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr), stored);
+  batch.Compose(RowSelection::Range(5), 2);
+  batch.SetCardinality(2);
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  batch.Reset();
+  batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, stored->data()),
+                  stored);
+  batch.SetCardinality(2);
+  base::Status status = store.Append(batch);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  std::vector<uint32_t> rows = {3, 0, 2, 1};
+  RowBatch out;
+  ASSERT_EQ(store.View(&out, Span<const uint32_t>(rows.data(),
+                                                  rows.data() + rows.size())),
+            4u);
+  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 0), ElementsAre(41, 5, 40, 6));
 }
 
 }  // namespace

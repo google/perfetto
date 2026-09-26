@@ -22,10 +22,14 @@
 #include <optional>
 #include <random>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -591,6 +595,49 @@ TEST(TreeParentFirstTest, AShuffledTreeComesOutParentFirst) {
   for (size_t i = 0; i < payload.size(); ++i) {
     ASSERT_EQ(payload[i], static_cast<int64_t>(i));
   }
+}
+
+inline constexpr auto kIdTree = dataframe::CreateTypedDataframeSpec(
+    {"id", "parent_id", "payload"},
+    dataframe::CreateTypedColumnSpec(Id{},
+                                     NonNull{},
+                                     IdSorted{},
+                                     NoDuplicates{}),
+    dataframe::CreateTypedColumnSpec(Uint32{}, DenseNull{}, Unsorted{}),
+    dataframe::CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}));
+
+// Passing rows keep an implicit id while released rows carry a gathered one,
+// so a consumer retaining both sees the id column change representation.
+TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
+  StringPool pool;
+  dataframe::Dataframe df =
+      dataframe::Dataframe::CreateFromTypedSpec(kIdTree, &pool);
+  df.InsertUnchecked(kIdTree, std::monostate{}, std::optional<uint32_t>(1),
+                     int64_t{100});
+  df.InsertUnchecked(kIdTree, std::monostate{}, std::optional<uint32_t>(),
+                     int64_t{101});
+  df.InsertUnchecked(kIdTree, std::monostate{}, std::optional<uint32_t>(1),
+                     int64_t{102});
+  df.Finalize();
+
+  DataframeScan scan(
+      {df.shared_column(0), df.shared_column(1), df.shared_column(2)},
+      df.row_count());
+  auto ops = Number();
+  ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
+  Pipeline pipeline(scan, std::move(ops));
+
+  Execution run(pipeline);
+  std::vector<uint32_t> ids;
+  while (RowBatch* batch = run.Next()) {
+    std::vector<uint32_t> batch_ids = test::ReadColumn<uint32_t>(*batch, 0);
+    ids.insert(ids.end(), batch_ids.begin(), batch_ids.end());
+  }
+  ASSERT_TRUE(run.status().ok()) << run.status().message();
+  ASSERT_EQ(ids.size(), 3u);
+  EXPECT_EQ(ids.back(), 1u);
+  EXPECT_THAT(ids, testing::UnorderedElementsAre(0u, 1u, 2u));
 }
 
 }  // namespace

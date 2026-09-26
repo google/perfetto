@@ -20,24 +20,24 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
-
-#include <utility>
-#include "src/trace_processor/core/exec/buffer_pool.h"
-#include "src/trace_processor/core/exec/pipeline.h"
-#include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/tree_accumulate.h"
-#include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -213,6 +213,97 @@ TEST(ExecutorContractTest, PoolReusesOnlyReleasedBuffers) {
     auto reusable = pool.Acquire();
   }
   EXPECT_EQ(CountedBuffer::allocations, allocations);
+}
+
+TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
+  const uint64_t bits[] = {0x8000000000000000ull, 0x7ff8000000000123ull,
+                           0x7ff0000000000000ull, 0xfff0000000000000ull};
+  std::vector<double> values(4);
+  std::memcpy(values.data(), bits, sizeof(bits));
+  std::vector<uint32_t> rows{1, 0, 1, 3};
+  auto view = ColumnView::Reference(StorageType{Double{}}, values.data());
+  view.SetOwnedRows(test::OwnedRows(rows), 4);
+  RowBatch input, output;
+  input.AddColumn(view);
+  input.SetCardinality(4);
+  RowStore store;
+  ASSERT_TRUE(store.Append(input).ok());
+  ASSERT_EQ(store.View(&output, 0, 4), 4u);
+  for (uint32_t i = 0; i < 4; ++i) {
+    double value = output.column(0).Value<double>(i);
+    uint64_t actual;
+    std::memcpy(&actual, &value, sizeof(actual));
+    EXPECT_EQ(actual, bits[rows[i]]);
+  }
+}
+
+TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
+  RowStore store;
+  auto stable = std::make_shared<std::vector<int64_t>>(test::Sequence(256));
+  for (uint32_t batch = 0; batch < 2; ++batch) {
+    RowBatch in;
+    auto original = ColumnView::Reference(StorageType{Int64{}}, stable->data());
+    original.SetRange(batch * 128);
+    in.AddColumn(original, stable);
+    in.AddColumn(original, stable);
+    auto local = std::make_shared<ColumnChunk>();
+    local->validity = BitVector::CreateWithSize(129);
+    for (uint32_t r = 0; r < 129; ++r) {
+      local->Values<int64_t>()[r] = batch * 1000 + r;
+      if (r % 3)
+        local->validity.set(r);
+    }
+    // One column mixes nullable and non-null batches; the next is always
+    // nullable and uses a different physical row space.
+    in.AddColumn(ColumnView::Reference(StorageType{Int64{}},
+                                       local->Values<int64_t>().data(),
+                                       batch ? nullptr : &local->validity),
+                 local);
+    auto shifted = ColumnView::Reference(StorageType{Int64{}},
+                                         local->Values<int64_t>().data(),
+                                         &local->validity);
+    shifted.SetRange(1);
+    in.AddColumn(shifted, local);
+    in.SetCardinality(128);
+    ASSERT_TRUE(store.Append(in).ok());
+  }
+  RowBatch retained;
+  for (uint32_t count : {63u, 64u, 65u, kMaxBatchRows}) {
+    SCOPED_TRACE(count);
+    std::vector<uint32_t> order;
+    std::vector<int64_t> expected_stable;
+    std::vector<std::optional<int64_t>> expected_mixed, expected_shifted;
+    for (uint32_t r = 0; r < count; ++r) {
+      uint32_t batch = r % 2, row = r * 7 % 128;
+      order.push_back(batch * 128 + row);
+      expected_stable.push_back(batch * 128 + row);
+      expected_mixed.emplace_back(
+          batch || row % 3 ? std::optional<int64_t>(batch * 1000 + row)
+                           : std::nullopt);
+      expected_shifted.emplace_back(
+          (row + 1) % 3 ? std::optional<int64_t>(batch * 1000 + row + 1)
+                        : std::nullopt);
+    }
+    RowBatch out;
+    ASSERT_EQ(store.View(&out, Span<const uint32_t>(order.data(),
+                                                    order.data() + count)),
+              count);
+    EXPECT_NE(out.column(0).data(), stable->data());
+    EXPECT_TRUE(out.column(0).selection().is_range());
+    EXPECT_EQ(out.column(0).selection().data(),
+              out.column(1).selection().data());
+    EXPECT_EQ(test::ReadColumn<int64_t>(out, 0), expected_stable);
+    EXPECT_EQ(test::ReadColumn<int64_t>(out, 1), expected_stable);
+    EXPECT_EQ(test::ReadNullableColumn<int64_t>(out, 2), expected_mixed);
+    EXPECT_EQ(test::ReadNullableColumn<int64_t>(out, 3), expected_shifted);
+    if (count == 63)
+      retained.CopyFrom(out);
+  }
+  store.Clear();
+  // Later gathers and destruction of the input batches cannot change output.
+  EXPECT_EQ(retained.size(), 63u);
+  EXPECT_EQ(retained.column(2).Value<int64_t>(1), 1007);
+  EXPECT_FALSE(retained.column(2).validity()->is_set(0));
 }
 
 }  // namespace

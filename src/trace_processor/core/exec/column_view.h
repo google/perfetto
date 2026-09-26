@@ -131,6 +131,20 @@ class ColumnView {
   const BitVector* validity_ = nullptr;
 };
 
+// Whether two batches' views of a column can be combined. An implicit Id and
+// a stored Uint32 hold the same values: gathering turns one into the other.
+inline bool SameLogicalType(const ColumnView& a, const ColumnView& b) {
+  auto is_uint32 = [](const ColumnView& view) {
+    return view.kind() != ColumnView::Kind::kVariant &&
+           (view.type().Is<Id>() || view.type().Is<Uint32>());
+  };
+  if (is_uint32(a) && is_uint32(b)) {
+    return true;
+  }
+  return a.kind() == b.kind() &&
+         (a.kind() == ColumnView::Kind::kVariant || a.type() == b.type());
+}
+
 }  // namespace perfetto::trace_processor::core::exec
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_

@@ -18,7 +18,9 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_SELECTION_H_
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
+#include <type_traits>
 #include <vector>
 #include "src/trace_processor/core/exec/buffer_pool.h"
 
@@ -48,6 +50,20 @@ class RowSelection {
   bool is_range() const { return rows_ == nullptr; }
   const uint32_t* data() const { return rows_; }
   uint32_t offset() const { return offset_; }
+
+  // Copies the values of the first `count` selected rows of `src` to `dst`.
+  // A range copies as one contiguous block.
+  template <typename T>
+  void Gather(const T* src, uint32_t count, T* dst) const {
+    static_assert(std::is_trivially_copyable_v<T>);
+    if (is_range()) {
+      memcpy(dst, src + offset_, count * sizeof(T));
+      return;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+      dst[i] = src[rows_[i]];
+    }
+  }
 
  private:
   RowSelection(const uint32_t* rows, uint32_t offset)
