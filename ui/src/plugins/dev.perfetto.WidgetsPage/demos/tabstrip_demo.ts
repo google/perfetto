@@ -13,13 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Anchor} from '../../../widgets/anchor';
-import {Callout} from '../../../widgets/callout';
-import {Intent} from '../../../widgets/common';
 import {TabStrip} from '../../../widgets/tab_strip';
-import {renderWidgetShowcase} from '../widgets_page_utils';
+import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {Icons} from '../../../base/semantic_icons';
+import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 
-let currentTab: string = 'foo';
+interface DemoTab {
+  readonly id: string;
+  readonly title: string;
+}
+
+const TABS: ReadonlyArray<DemoTab> = [
+  {id: 'foo', title: 'Foo'},
+  {id: 'bar', title: 'Bar'},
+  {id: 'baz', title: 'Baz'},
+];
+const ACTIVE_TAB = 'foo';
+
+const callbackLog: string[] = [];
+
+function logCallback(msg: string) {
+  const time = new Date().toLocaleTimeString();
+  callbackLog.push(`[${time}] ${msg}`);
+}
 
 export function renderTabStrip(): m.Children {
   return [
@@ -30,29 +46,81 @@ export function renderTabStrip(): m.Children {
         'p',
         'A horizontal tab navigation component for switching between different views or sections.',
       ),
-      m(
-        Callout,
-        {intent: Intent.Warning, icon: 'warning'},
-        'Deprecated: use the ',
-        m(Anchor, {href: '#!/widgets/tabs'}, 'Tabs'),
-        ' widget instead, which supports close buttons, renaming, reordering, and a new tab button.',
-      ),
     ),
     renderWidgetShowcase({
-      renderWidget: () => {
-        return m(TabStrip, {
-          tabs: [
-            {key: 'foo', title: 'Foo'},
-            {key: 'bar', title: 'Bar'},
-            {key: 'baz', title: 'Baz'},
-          ],
-          currentTabKey: currentTab,
-          onTabChange: (key) => {
-            currentTab = key;
+      renderWidget: (opts) => {
+        const tabs = TABS.map((tab) =>
+          m(
+            TabStrip.Tab,
+            {
+              key: tab.id,
+              active: ACTIVE_TAB === tab.id,
+              disabled: opts.disabledTab && tab.id === 'bar',
+              href: opts.links ? `https://example.com/${tab.id}` : undefined,
+              onClick: (e: MouseEvent) => {
+                // Don't actually follow the bogus link.
+                e.preventDefault();
+                logCallback(`onclick: ${tab.id}`);
+              },
+              leftIcon: opts.leftIcon ? Icons.Search : undefined,
+              rightIcon: opts.rightIcon ? Icons.Info : undefined,
+              closeButton: opts.closeButtons,
+              onClose: () => logCallback(`onClose: ${tab.id}`),
+              menuItems: opts.menus
+                ? [
+                    m(MenuItem, {label: 'Menu item 1'}),
+                    m(MenuItem, {label: 'Menu item 2'}),
+                    m(MenuDivider),
+                    m(MenuItem, {label: 'Menu item 3'}),
+                  ]
+                : undefined,
+              onRename: opts.renamable
+                ? (newName: string) =>
+                    logCallback(`onRename: ${tab.id} -> ${newName}`)
+                : undefined,
+            },
+            tab.title,
+          ),
+        );
+        return m(
+          TabStrip,
+          {
+            variant: opts.variant,
+            reorderable: opts.reorderable,
+            onReorder: (from: number, to: number) =>
+              logCallback(`onReorder: ${from} -> ${to}`),
           },
-        });
+          tabs,
+        );
       },
-      initialOpts: {},
+      initialOpts: {
+        variant: new EnumOption('card', ['card', 'underline'] as const),
+        leftIcon: false,
+        rightIcon: false,
+        closeButtons: false,
+        menus: false,
+        renamable: false,
+        disabledTab: false,
+        reorderable: false,
+        links: false,
+      },
     }),
+    m(
+      'pre',
+      {
+        style: {
+          height: '150px',
+          overflowY: 'auto',
+          margin: '0',
+        },
+        onupdate: (vnode: m.VnodeDOM) => {
+          const el = vnode.dom as HTMLElement;
+          el.scrollTop = el.scrollHeight;
+        },
+      },
+      callbackLog.length === 0
+        ? 'Callbacks will appear here'
+        : callbackLog.join('\n'),
+    ),
   ];
 }

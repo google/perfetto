@@ -70,14 +70,13 @@ function renderTabs() {
       }),
     );
 
-  // Activates a tab by pointerdown on its handle, as the Tabs component
-  // listens for pointerdown (not click) to switch tabs.
+  // Activates a tab by clicking its handle.
   const activate = (title: string) => {
     const handle = Array.from(
-      container.querySelectorAll<HTMLElement>('.pf-tabs__tab'),
+      container.querySelectorAll<HTMLElement>('.pf-tab-strip__tab'),
     ).find((el) => el.textContent?.trim() === title);
     expect(handle, dumpDom()).toBeTruthy();
-    handle!.dispatchEvent(new Event('pointerdown', {bubbles: true}));
+    handle!.dispatchEvent(new MouseEvent('click', {bubbles: true}));
     rerender();
   };
 

@@ -20,50 +20,146 @@
     display: flex;
     overflow: hidden;
     flex: 1;
+    background-color: var(--pf-color-background-secondary);
+    box-shadow: inset 0 -1px 0 var(--pf-color-border);
+    padding-inline: 3px;
+    align-items: baseline;
   }
 
   &__tab {
-    color: var(--pf-color-text-muted);
-    padding: 4px;
-    margin-top: 3px;
-    align-items: center;
-    cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     display: flex;
     align-items: baseline;
     gap: 2px;
+    font-family: var(--pf-font-compact);
+    padding: 5px 7px;
+    margin-top: 2px;
+    cursor: pointer;
+
+    border-radius: 3px 3px 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-style: solid;
+    border-color: transparent;
+    border-width: 1px 1px 0 1px;
+    color: var(--pf-color-text-muted);
+    // Tabs with an href render as <a>; drop the default link underline.
+    text-decoration: none;
+
+    // Keyboard focus ring, matching the theme's `focus` mixin. Inset so it
+    // isn't clipped by the tab bar's `overflow: hidden`.
+    &:focus-visible {
+      outline: 2px solid var(--pf-color-accent);
+      outline-offset: -2px;
+    }
 
     &:hover {
-      background-color: color_hover(transparent);
+      background: color_hover(transparent);
+      color: var(--pf-color-text);
     }
 
-    &[active] {
-      color: var(--pf-color-primary);
-      border-bottom: solid 2px var(--pf-color-primary);
+    &--active {
       cursor: default;
+      background-color: var(--pf-color-background);
+      border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
+      z-index: 1;
+
+      // Don't change background on hover for active tab
+      &:hover {
+        background-color: var(--pf-color-background);
+      }
     }
 
-    &:nth-child(1) {
-      margin-left: 3px;
+    // Disabled tabs are dimmed and ignore all pointer interaction
+    // (clicks, hover, drag, and the menu/close buttons inside the tab).
+    &--disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
+  }
+
+  // Drag-to-reorder: while a drag is in progress the tabs slide into their new
+  // slots. The dragged tab opts out with an inline `transition: none` so that
+  // it tracks the pointer exactly. Keep the duration in sync with
+  // SETTLE_DURATION_MS in tab_strip.ts.
+  &__tabs--reordering &__tab {
+    transition: transform 150ms ease;
+  }
+
+  // Horizontal touch drags on a reorderable tab move it instead of panning.
+  &--reorderable &__tab {
+    touch-action: pan-y;
+  }
+
+  // Small round icon buttons (menu, close) inside a tab. The negative
+  // vertical margin stops them from increasing the height of the tab. The
+  // extra `.pf-button` beats the default `.pf-button.pf-icon-only` padding.
+  .pf-tab-strip__tab-btn.pf-button {
+    padding: 2px;
+    margin-block: -2px;
   }
 
   &__tab-title {
     margin: 0px 4px;
     overflow: hidden;
+    user-select: none;
+  }
+
+  &__tab-rename-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    margin: 0 4px;
+    width: 100%;
   }
 
   &__tab-icon {
+    align-self: center;
+
     &--left {
-      margin-right: 4px;
       align-self: center;
     }
 
     &--right {
-      margin-left: 4px;
       align-self: center;
+    }
+  }
+
+  // The 'underline' variant: flat text tabs on a transparent bar with a
+  // primary underline on the active tab, matching the 'underline' variant of
+  // the Tabs component.
+  &--underline {
+    .pf-tab-strip__tabs {
+      background-color: transparent;
+      border-bottom: none;
+      padding-inline: 0;
+    }
+
+    .pf-tab-strip__tab {
+      margin-top: 0;
+      // A bit more padding than the card variant's 5px 7px: without the box
+      // border to delineate the handle, the tabs need more breathing room
+      // (and a bigger click target).
+      padding: 5px 10px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+
+      &--active {
+        background-color: transparent;
+        border-bottom-color: var(--pf-color-primary);
+        color: var(--pf-color-primary);
+
+        // The boxed variant suppresses the hover background on the active
+        // tab; the flat one keeps it.
+        &:hover {
+          background-color: color_hover(transparent);
+        }
+      }
     }
   }
 }

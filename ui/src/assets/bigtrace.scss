@@ -222,12 +222,12 @@
   }
 }
 
-.pf-bt-query-page__editor-tabs > .pf-tabs__tabs {
+.pf-bt-query-page__editor-tabs .pf-tab-strip__tabs {
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--pf-color-border-secondary) transparent;
 
-  > .pf-tabs__tab {
+  .pf-tab-strip__tab {
     max-width: 220px;
   }
 }
