@@ -246,6 +246,36 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
                                  Pair(3, 110)));
 }
 
+// An intersection needs its operands' bounds and PER columns, but only passes
+// on the columns something after it reads: it neither buffers nor gathers
+// the rest.
+TEST_F(PhysicalPlanTest, IntersectionCarriesOnlyColumnsUsedAfterIt) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, cpu INTEGER, x INTEGER)");
+  Exec("INSERT INTO a VALUES (0, 10, 1, 7)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, cpu INTEGER, y INTEGER)");
+  Exec("INSERT INTO b VALUES (5, 10, 1, 8)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF (a AS p, b AS q) PER cpu "
+      "|> SELECT ts, dur, q.y");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  const core::exec::Source& source = (*plan)->source();
+  auto state = source.MakeState();
+  core::exec::RowBatch batch;
+  ASSERT_TRUE(source.GetData(batch, *state));
+  // The region's ts and dur, and q.y.
+  EXPECT_EQ(batch.column_count(), 3u);
+
+  RowCursor cursor(source);
+  ASSERT_TRUE(cursor.Open());
+  std::vector<std::optional<int64_t>> row;
+  for (const PhysicalPlan::Column& column : (*plan)->columns()) {
+    row.push_back(IntAt(cursor, column.index));
+  }
+  EXPECT_THAT(row, ElementsAre(5, 5, 8));
+  EXPECT_FALSE(cursor.Next());
+}
+
 TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
   CreateTree();
   PerfettoSqlParser parser(macros_, catalog_,
