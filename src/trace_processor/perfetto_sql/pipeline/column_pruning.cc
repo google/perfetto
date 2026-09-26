@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -85,54 +86,68 @@ void PruneScan(op::Scan& scan, const Needed& needed) {
   }
   scan.columns = std::move(columns);
 
-  if (auto* dataframe = std::get_if<op::Scan::Dataframe>(&scan.source)) {
-    std::vector<std::shared_ptr<const dataframe::Column>> kept;
-    for (uint32_t i : keep) {
-      kept.push_back(std::move(dataframe->columns[i]));
+  using Kind = op::Scan::SourceKind;
+  switch (scan.source.index()) {
+    case Kind::GetTypeIndex<op::Scan::Dataframe>(): {
+      auto& dataframe = base::unchecked_get<op::Scan::Dataframe>(scan.source);
+      std::vector<std::shared_ptr<const dataframe::Column>> kept;
+      for (uint32_t i : keep) {
+        kept.push_back(std::move(dataframe.columns[i]));
+      }
+      dataframe.columns = std::move(kept);
+      return;
     }
-    dataframe->columns = std::move(kept);
-    return;
+    case Kind::GetTypeIndex<SqlSource>(): {
+      auto& sql = base::unchecked_get<SqlSource>(scan.source);
+      sql = SelectPositions(sql, count, keep, scan.columns);
+      return;
+    }
+    default:
+      PERFETTO_FATAL("Unknown scan source");
   }
-  auto& sql = base::unchecked_get<SqlSource>(scan.source);
-  sql = SelectPositions(sql, count, keep, scan.columns);
 }
 
 // Prunes the subtree at `id` and returns the node which should now stand in
 // its place: usually `id` itself, but an operator whose work nobody uses is
 // replaced by its input.
-PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
+PlanNodeId PruneNode(LogicalPlan&, PlanNodeId, Needed&);
+
+PlanNodeId PruneTreeAccumulate(LogicalPlan& plan,
+                               PlanNodeId id,
+                               Needed& needed) {
   PlanNode& node = plan.nodes[id];
-  if (auto* scan = std::get_if<op::Scan>(&node.op)) {
-    PruneScan(*scan, needed);
-    return id;
-  }
-  if (auto* acc = std::get_if<op::TreeAccumulate>(&node.op)) {
-    auto& aggregates = acc->aggregates;
-    aggregates.erase(
-        std::remove_if(aggregates.begin(), aggregates.end(),
-                       [&](const op::TreeAccumulate::Aggregate& agg) {
-                         return !needed[agg.output];
-                       }),
-        aggregates.end());
+  auto& aggregates = node.Cast<op::TreeAccumulate>().aggregates;
+  aggregates.erase(
+      std::remove_if(aggregates.begin(), aggregates.end(),
+                     [&](const op::TreeAccumulate::Aggregate& agg) {
+                       return !needed[agg.output];
+                     }),
+      aggregates.end());
 
-    // A fold with nothing left to compute can go entirely. Checking that the
-    // input is a valid tree is not something a fold promises on its own.
-    if (aggregates.empty()) {
-      return PruneNode(plan, node.children[0], needed);
-    }
-
-    // Otherwise it needs the tree's structure and the columns it aggregates.
-    needed[acc->node_column] = true;
-    needed[acc->parent_column] = true;
-    for (const op::TreeAccumulate::Aggregate& agg : aggregates) {
-      needed[agg.column] = true;
-    }
-    node.children[0] = PruneNode(plan, node.children[0], needed);
-    return id;
+  // A fold with nothing left to compute can go entirely. Checking that the
+  // input is a valid tree is not something a fold promises on its own.
+  if (aggregates.empty()) {
+    return PruneNode(plan, node.children[0], needed);
   }
+
+  // Otherwise it needs the tree's structure and the columns it aggregates.
+  const auto& acc = node.Cast<op::TreeAccumulate>();
+  needed[acc.node_column] = true;
+  needed[acc.parent_column] = true;
+  for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
+    needed[agg.column] = true;
+  }
+  node.children[0] = PruneNode(plan, node.children[0], needed);
+  return id;
+}
+
+PlanNodeId PruneIntervalIntersect(LogicalPlan& plan,
+                                  PlanNodeId id,
+                                  Needed& needed) {
+  PlanNode& node = plan.nodes[id];
   // An intersection passes on only the operand columns used after it, but
   // reads each operand's bounds and partition columns to find the regions.
-  auto& isect = base::unchecked_get<op::IntervalIntersect>(node.op);
+  auto& isect = node.Cast<op::IntervalIntersect>();
   for (op::IntervalIntersect::Operand& operand : isect.operands) {
     auto& carried = operand.carried;
     carried.erase(std::remove_if(carried.begin(), carried.end(),
@@ -150,6 +165,21 @@ PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
     child = PruneNode(plan, child, needed);
   }
   return id;
+}
+
+PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
+  PlanNode& node = plan.nodes[id];
+  switch (node.kind()) {
+    case OpKind::GetTypeIndex<op::Scan>():
+      PruneScan(node.Cast<op::Scan>(), needed);
+      return id;
+    case OpKind::GetTypeIndex<op::TreeAccumulate>():
+      return PruneTreeAccumulate(plan, id, needed);
+    case OpKind::GetTypeIndex<op::IntervalIntersect>():
+      return PruneIntervalIntersect(plan, id, needed);
+    default:
+      PERFETTO_FATAL("Unknown operator");
+  }
 }
 
 }  // namespace

@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
@@ -104,34 +105,46 @@ class Lowering {
 
 void Lowering::LowerNode(PlanNodeId id) {
   const PlanNode& node = plan_.nodes[id];
-  // An intersection reads each operand through a pipeline of its own, so it
-  // lowers its own children rather than having them join this pipeline.
-  if (const auto* isect = std::get_if<op::IntervalIntersect>(&node.op)) {
-    LowerIntervalIntersect(*isect, node.children);
-    return;
-  }
-  for (PlanNodeId child : node.children) {
-    LowerNode(child);
-  }
-  if (const auto* scan = std::get_if<op::Scan>(&node.op)) {
-    LowerScan(*scan);
-  } else {
-    LowerTreeAccumulate(std::get<op::TreeAccumulate>(node.op));
+  switch (node.kind()) {
+    case OpKind::GetTypeIndex<op::Scan>():
+      LowerScan(node.Cast<op::Scan>());
+      return;
+    case OpKind::GetTypeIndex<op::TreeAccumulate>():
+      LowerNode(node.children[0]);
+      LowerTreeAccumulate(node.Cast<op::TreeAccumulate>());
+      return;
+    case OpKind::GetTypeIndex<op::IntervalIntersect>():
+      // Each operand runs as its own pipeline, so the intersection lowers
+      // its children itself.
+      LowerIntervalIntersect(node.Cast<op::IntervalIntersect>(), node.children);
+      return;
+    default:
+      PERFETTO_FATAL("Unknown operator");
   }
 }
 
 std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
-  if (const auto* sql = std::get_if<SqlSource>(&scan.source)) {
-    Schema columns;
-    columns.reserve(scan.columns.size());
-    for (const NamedColumn& column : scan.columns) {
-      columns.push_back({column.name, plan_.columns[column.id].type});
+  using Kind = op::Scan::SourceKind;
+  switch (scan.source.index()) {
+    case Kind::GetTypeIndex<op::Scan::Dataframe>(): {
+      const auto& source =
+          base::unchecked_get<op::Scan::Dataframe>(scan.source);
+      return std::make_unique<ex::DataframeScan>(source.columns,
+                                                 source.row_count);
     }
-    return std::make_unique<exec::SqlScan>(env_.connection, *sql,
-                                           std::move(columns), env_.pool);
+    case Kind::GetTypeIndex<SqlSource>(): {
+      Schema columns;
+      columns.reserve(scan.columns.size());
+      for (const NamedColumn& column : scan.columns) {
+        columns.push_back({column.name, plan_.columns[column.id].type});
+      }
+      return std::make_unique<exec::SqlScan>(
+          env_.connection, base::unchecked_get<SqlSource>(scan.source),
+          std::move(columns), env_.pool);
+    }
+    default:
+      PERFETTO_FATAL("Unknown scan source");
   }
-  const auto& source = std::get<op::Scan::Dataframe>(scan.source);
-  return std::make_unique<ex::DataframeScan>(source.columns, source.row_count);
 }
 
 void Lowering::LowerScan(const op::Scan& scan) {
@@ -156,9 +169,9 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     const op::IntervalIntersect::Operand& operand = isect.operands[i];
     // A node may read any child, but an operand is read as a scan of its own,
     // which is what lets it become a pipeline separate from this one.
-    PERFETTO_DCHECK(
-        std::holds_alternative<op::Scan>(plan_.nodes[children[i]].op));
-    const auto& scan = std::get<op::Scan>(plan_.nodes[children[i]].op);
+    const PlanNode& child = plan_.nodes[children[i]];
+    PERFETTO_DCHECK(child.Is<op::Scan>());
+    const auto& scan = child.Cast<op::Scan>();
     // Roles are named by plan-wide ID, while the operator reads batch
     // positions, so each is resolved against the operand's own column order.
     auto position = [&](ColumnId id) {
