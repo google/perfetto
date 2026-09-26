@@ -23,16 +23,20 @@
 
 namespace perfetto::trace_processor::core::exec {
 base::Status RowStore::Append(const RowBatch& in) {
-  if (!in.size())
+  if (!in.size()) {
     return base::OkStatus();
-  if (in.size() > std::numeric_limits<uint32_t>::max() - size_)
+  }
+  if (in.size() > std::numeric_limits<uint32_t>::max() - size_) {
     return base::ErrStatus("row store: too many rows");
+  }
   if (size_) {
-    if (columns_.size() != in.column_count())
+    if (columns_.size() != in.column_count()) {
       return base::ErrStatus("row store: column count changed");
+    }
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      if (!SameLogicalType(columns_[c].batches.front().view, in.column(c)))
+      if (!SameLogicalType(columns_[c].batches.front().view, in.column(c))) {
         return base::ErrStatus("row store: column representation changed");
+      }
     }
   }
   columns_.resize(in.column_count());
@@ -76,8 +80,9 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
   uint32_t start = index ? ends_[index - 1] : 0;
   count = std::min(count, ends_[index] - offset);
   out->Reset();
-  for (const auto& column : columns_)
+  for (const auto& column : columns_) {
     out->AddColumn(column.batches[index].view, column.batches[index].owner);
+  }
   out->SetCardinality(ends_[index] - start);
   out->Slice(RowSelection::Range(offset - start), count);
   return count;
@@ -86,8 +91,9 @@ uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
   out->Reset();
   uint32_t count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
-  if (!count)
+  if (!count) {
     return 0;
+  }
   struct Location {
     uint32_t batch;
     uint32_t row;
@@ -122,24 +128,26 @@ uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
         const auto& loc = locations[r];
         auto* data =
             static_cast<const T*>(column.batches[loc.batch].view.data());
-        if constexpr (std::is_same_v<T, uint32_t>)
+        if constexpr (std::is_same_v<T, uint32_t>) {
           dest[r] = data ? data[physical[r]] : physical[r];
-        else
+        } else {
           dest[r] = data[physical[r]];
+        }
       }
     };
-    if (view.kind() == ColumnView::Kind::kVariant)
+    if (view.kind() == ColumnView::Kind::kVariant) {
       gather(Variant{});
-    else if (view.type().Is<Id>() || view.type().Is<Uint32>())
+    } else if (view.type().Is<Id>() || view.type().Is<Uint32>()) {
       gather(uint32_t{});
-    else if (view.type().Is<Int32>())
+    } else if (view.type().Is<Int32>()) {
       gather(int32_t{});
-    else if (view.type().Is<Int64>())
+    } else if (view.type().Is<Int64>()) {
       gather(int64_t{});
-    else if (view.type().Is<Double>())
+    } else if (view.type().Is<Double>()) {
       gather(double{});
-    else
+    } else {
       gather(StringPool::Id{});
+    }
     if (column.nullable) {
       packed->validity.clear();
       for (uint32_t begin = 0; begin < count; begin += 64) {

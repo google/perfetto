@@ -16,7 +16,11 @@
 
 #include "src/trace_processor/core/exec/column_chunk.h"
 
+#include <cstdint>
+#include <type_traits>
+
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/row_selection.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -27,8 +31,17 @@ void CopyValues(const ColumnView& view,
                 uint32_t offset,
                 ColumnChunk& chunk) {
   auto* dest = chunk.Values<T>().data() + offset;
-  for (uint32_t i = 0; i < count; ++i)
-    dest[i] = view.Value<T>(i);
+  RowSelection selection = view.selection();
+  if constexpr (std::is_arithmetic_v<T>) {
+    // A sequence column has no storage: each value is the row it sits at.
+    if (view.kind() == ColumnView::Kind::kSequence) {
+      for (uint32_t i = 0; i < count; ++i) {
+        dest[i] = static_cast<T>(selection.GetIndex(i));
+      }
+      return;
+    }
+  }
+  selection.Gather(static_cast<const T*>(view.data()), count, dest);
 }
 }  // namespace
 
@@ -51,28 +64,31 @@ void ColumnChunk::CopyFrom(const ColumnView& view,
   validity.resize(kMaxBatchRows);
   for (uint32_t i = 0; i < count; ++i) {
     if (!view.validity() ||
-        view.validity()->is_set(view.selection().GetIndex(i)))
+        view.validity()->is_set(view.selection().GetIndex(i))) {
       validity.set(offset + i);
-    else
+    } else {
       validity.clear(offset + i);
+    }
   }
 }
 
 ColumnView ColumnChunk::View(const ColumnView& source, bool nullable) const {
-  if (source.kind() == ColumnView::Kind::kVariant)
+  if (source.kind() == ColumnView::Kind::kVariant) {
     return ColumnView::Variants(Values<Variant>().data());
+  }
   auto type = source.type().Is<Id>() ? StorageType{Uint32{}} : source.type();
   const void* data;
-  if (type.Is<Uint32>())
+  if (type.Is<Uint32>()) {
     data = Values<uint32_t>().data();
-  else if (type.Is<Int32>())
+  } else if (type.Is<Int32>()) {
     data = Values<int32_t>().data();
-  else if (type.Is<Int64>())
+  } else if (type.Is<Int64>()) {
     data = Values<int64_t>().data();
-  else if (type.Is<Double>())
+  } else if (type.Is<Double>()) {
     data = Values<double>().data();
-  else
+  } else {
     data = Values<StringPool::Id>().data();
+  }
   return ColumnView::Reference(type, data, nullable ? &validity : nullptr);
 }
 }  // namespace perfetto::trace_processor::core::exec
