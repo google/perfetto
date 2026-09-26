@@ -48,6 +48,8 @@ class TableSource final : public Source {
                                : static_cast<uint32_t>(rows_.front().size())),
         chunk_rows_(chunk_rows) {}
 
+  uint32_t columns() const { return columns_; }
+
   std::unique_ptr<OperatorState> MakeState() const override {
     return std::make_unique<State>();
   }
@@ -94,14 +96,17 @@ class TableSource final : public Source {
 TableSource::State::~State() = default;
 
 // An operand whose ts and dur are its first two columns, the rest being
-// whatever the table carries along.
-IntervalIntersectOperand Operand(const Source& source,
+// whatever the table carries along. Every column is retained.
+IntervalIntersectOperand Operand(const TableSource& source,
                                  std::vector<uint32_t> keys = {}) {
   IntervalIntersectOperand operand;
   operand.source = &source;
   operand.ts_column = 0;
   operand.dur_column = 1;
   operand.key_columns = std::move(keys);
+  for (uint32_t c = 0; c < source.columns(); ++c) {
+    operand.retained_columns.push_back(c);
+  }
   return operand;
 }
 
@@ -147,6 +152,18 @@ TEST(IntervalIntersectTest, TwoOperandsMeetOverTheirSharedSpan) {
   EXPECT_THAT(Intersect({Operand(a), Operand(b)}),
               ElementsAre(Row{10, 10, 0, 30, 0, 10, 10, 0},
                           Row{40, 5, 40, 10, 1, 35, 10, 1}));
+}
+
+TEST(IntervalIntersectTest, OutputsOnlyRetainedColumns) {
+  // Keyed on column 2, but keeping only a's column 3 and nothing of b.
+  TableSource a({{0, 30, 1, 7}}, 8);
+  TableSource b({{10, 10, 1, 8}}, 8);
+  IntervalIntersectOperand keep_a = Operand(a, {2});
+  keep_a.retained_columns = {3};
+  IntervalIntersectOperand keep_b = Operand(b, {2});
+  keep_b.retained_columns = {};
+
+  EXPECT_THAT(Intersect({keep_a, keep_b}), ElementsAre(Row{10, 10, 7}));
 }
 
 TEST(IntervalIntersectTest, TouchingEndToStartIsNoMeeting) {
