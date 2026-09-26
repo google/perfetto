@@ -51,7 +51,7 @@ class Lowering {
         positions_(plan.columns.size(), std::numeric_limits<uint32_t>::max()),
         int64_columns_(plan.columns.size(), false) {}
 
-  void Lower(const Op&);
+  void LowerNode(PlanNodeId);
   std::unique_ptr<PhysicalPlan> Finish();
 
  private:
@@ -93,11 +93,15 @@ class Lowering {
   std::optional<op::TreeDirection> tree_order_;
 };
 
-void Lowering::Lower(const Op& op) {
-  if (const auto* scan = std::get_if<op::Scan>(&op)) {
+void Lowering::LowerNode(PlanNodeId id) {
+  const PlanNode& node = plan_.nodes[id];
+  for (PlanNodeId child : node.children) {
+    LowerNode(child);
+  }
+  if (const auto* scan = std::get_if<op::Scan>(&node.op)) {
     LowerScan(*scan);
   } else {
-    LowerTreeAccumulate(std::get<op::TreeAccumulate>(op));
+    LowerTreeAccumulate(std::get<op::TreeAccumulate>(node.op));
   }
 }
 
@@ -190,9 +194,7 @@ PhysicalPlan::~PhysicalPlan() = default;
 std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan,
                                     const LowerEnvironment& env) {
   Lowering lowering(plan, env);
-  for (const Op& op : plan.ops) {
-    lowering.Lower(op);
-  }
+  lowering.LowerNode(plan.root);
   return lowering.Finish();
 }
 

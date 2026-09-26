@@ -91,13 +91,20 @@ std::string OpString(const LogicalPlan& plan, const Op& op) {
   return std::visit(Visitor{plan}, op);
 }
 
+// Nodes deepest first, so a chain reads in execution order.
+std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
+  const PlanNode& node = plan.nodes[id];
+  std::string out;
+  for (PlanNodeId child : node.children) {
+    out += SubtreeString(plan, child);
+  }
+  return out + OpString(plan, node.op) + "\n";
+}
+
 }  // namespace
 
 std::string LogicalPlanToString(const LogicalPlan& plan) {
-  std::string out;
-  for (const Op& op : plan.ops) {
-    out += OpString(plan, op) + "\n";
-  }
+  std::string out = SubtreeString(plan, plan.root);
   out += "Output(";
   for (size_t i = 0; i < plan.output.size(); ++i) {
     if (i)

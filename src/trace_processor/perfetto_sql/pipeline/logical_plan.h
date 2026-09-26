@@ -85,19 +85,40 @@ struct TreeAccumulate {
 
 using Op = std::variant<op::Scan, op::TreeAccumulate>;
 
-// A flat chain of operators. Column types are stored once, indexed by ID;
-// operators name the values they consume and produce, independently of layout.
+// Stable within a plan.
+using PlanNodeId = uint32_t;
+
+// An operator together with the relations it reads. A Scan reads none, a
+// single-input stage reads one, and an operator can read several.
+struct PlanNode {
+  Op op;
+  std::vector<PlanNodeId> children;
+};
+
+// A tree of operators. Column types are stored once, indexed by ID; operators
+// name the values they consume and produce, independently of layout.
 struct LogicalPlan {
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
   std::vector<ColumnSchema> columns;
-  std::vector<Op> ops;
+  std::vector<PlanNode> nodes;
+  // The node whose rows are the plan's rows. Every other node reaches it.
+  PlanNodeId root = 0;
   // Visible result columns, in order. Internal columns have no binding here.
   std::vector<NamedColumn> output;
 
   ColumnId AddColumn(std::string name, std::optional<core::StorageType> type) {
     auto id = static_cast<ColumnId>(columns.size());
     columns.push_back({std::move(name), type});
+    return id;
+  }
+
+  // Adds a node reading `children` and makes it the root, which holds while a
+  // plan is built bottom up: each node added is the topmost one so far.
+  PlanNodeId AddNode(Op op, std::vector<PlanNodeId> children = {}) {
+    auto id = static_cast<PlanNodeId>(nodes.size());
+    nodes.push_back({std::move(op), std::move(children)});
+    root = id;
     return id;
   }
 };
