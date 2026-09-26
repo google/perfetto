@@ -16,11 +16,14 @@
 
 #include "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler_tracker.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -152,12 +155,13 @@ TrackEventExtensionParser::Result AndroidJobSchedulerTracker::OnTrackEventField(
                  ProtoJob::BACKOFF_POLICY_UNKNOWN),
   });
 
+  auto rr = row_id.row_reference;
+
   if (job.has_job_state_flags()) {
     // The bit layout of job_state_flags matches the constraints defined in
     // frameworks/base/services/core/java/com/android/server/job/controllers/JobStatus.java
     // and documented in frameworks_base_track_event.proto.
     uint64_t flags = static_cast<uint64_t>(job.job_state_flags());
-    auto rr = row_id.row_reference;
     rr.set_has_charging_constraint(
         (flags & ProtoJob::JOB_STATE_FLAG_HAS_CHARGING_CONSTRAINT) ? 1u : 0u);
     rr.set_has_battery_not_low_constraint(
@@ -204,6 +208,31 @@ TrackEventExtensionParser::Result AndroidJobSchedulerTracker::OnTrackEventField(
         (flags & ProtoJob::JOB_STATE_FLAG_CAN_APPLY_TRANSPORT_AFFINITIES) ? 1u
                                                                           : 0u);
   }
+
+  const bool is_pending_exit_state =
+      job.has_state() && (job.state() == ProtoJob::JOB_STATE_STARTED ||
+                          job.state() == ProtoJob::JOB_STATE_CANCELLED);
+
+  if (is_pending_exit_state) {
+    auto* pending_table =
+        trace_context_->storage
+            ->mutable_android_job_scheduler_pending_reasons_track_event_table();
+    auto r_it = job.pending_reasons();
+    auto d_it = job.pending_durations_ms();
+    for (int32_t idx = 0; r_it; ++r_it, ++idx) {
+      int64_t dur_ms = 0;
+      if (d_it) {
+        dur_ms = d_it->as_int64();
+        ++d_it;
+      }
+      StringId reason_id = InternEnum(
+          pending_reason_cache_,
+          ".com.android.internal.AndroidJobSchedulerJob.PendingJobReason",
+          r_it->as_int32(), ProtoJob::PENDING_JOB_REASON_UNDEFINED);
+      pending_table->Insert({slice_id, idx, reason_id, dur_ms});
+    }
+  }
+
   // Return kIgnored so that the core parser still populates the generic args
   // table for this extension. This is required to keep legacy queries
   // working, as they extract arguments from the args table.
@@ -212,16 +241,24 @@ TrackEventExtensionParser::Result AndroidJobSchedulerTracker::OnTrackEventField(
   return Result::kIgnored;
 }
 
-StringId AndroidJobSchedulerTracker::InternEnum(
-    DescriptorPool::CachedDescriptor& cache,
-    const char* enum_name,
-    std::optional<int32_t> value,
-    int32_t default_value) {
+StringId AndroidJobSchedulerTracker::InternEnum(EnumCache& cache,
+                                                const char* enum_name,
+                                                std::optional<int32_t> value,
+                                                int32_t default_value) {
   int32_t val = value.value_or(default_value);
-  auto name =
-      trace_context_->descriptor_pool_->FindEnumString(cache, enum_name, val);
-  return trace_context_->storage->InternString(
-      base::StringView(name ? *name : std::to_string(val)));
+  if (StringId* cached_id = cache.string_ids.Find(val)) {
+    return *cached_id;
+  }
+  StringId id;
+  if (auto name = trace_context_->descriptor_pool_->FindEnumString(
+          cache.descriptor, enum_name, val)) {
+    id = trace_context_->storage->InternString(base::StringView(*name));
+  } else {
+    base::StackString<32> fallback("%" PRId32, val);
+    id = trace_context_->storage->InternString(fallback.string_view());
+  }
+  cache.string_ids.Insert(val, id);
+  return id;
 }
 
 }  // namespace trace_processor

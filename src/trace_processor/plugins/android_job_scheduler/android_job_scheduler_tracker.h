@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -46,20 +47,40 @@ class AndroidJobSchedulerTracker : public TrackEventExtensionParser {
                            const TrackEventFieldContext& event) override;
 
  private:
-  StringId InternEnum(DescriptorPool::CachedDescriptor& cache,
+  // Caches both the protobuf descriptor and the resolved StringId per integer
+  // enum value.
+  //
+  // In steady-state trace processing, each JobScheduler event queries ~10+
+  // enums (state, priorities, bucket, stop reasons, pending reasons). Without
+  // this cache, every event would:
+  //   1) Incur heap allocation from DescriptorPool::FindEnumString returning
+  //      std::optional<std::string> by value.
+  //   2) Incur a second heap copy via the ternary (*name vs fallback).
+  //   3) Compute MurmurHash64 and probe the StringPool hash table.
+  //
+  // Since enums have a tiny domain of values (~5-25 per enum), caching
+  // int32_t -> StringId turns steady-state lookups into allocation-free,
+  // string-hash-free O(1) integer table lookups.
+  struct EnumCache {
+    DescriptorPool::CachedDescriptor descriptor;
+    base::FlatHashMap<int32_t, StringId> string_ids;
+  };
+
+  StringId InternEnum(EnumCache& cache,
                       const char* enum_name,
                       std::optional<int32_t> value,
                       int32_t default_value);
 
   TraceProcessorContext* const trace_context_;
-  DescriptorPool::CachedDescriptor state_cache_;
-  DescriptorPool::CachedDescriptor standby_bucket_cache_;
-  DescriptorPool::CachedDescriptor requested_priority_cache_;
-  DescriptorPool::CachedDescriptor effective_priority_cache_;
-  DescriptorPool::CachedDescriptor proc_state_cache_;
-  DescriptorPool::CachedDescriptor internal_stop_reason_cache_;
-  DescriptorPool::CachedDescriptor public_stop_reason_cache_;
-  DescriptorPool::CachedDescriptor backoff_policy_cache_;
+  EnumCache state_cache_;
+  EnumCache standby_bucket_cache_;
+  EnumCache requested_priority_cache_;
+  EnumCache effective_priority_cache_;
+  EnumCache proc_state_cache_;
+  EnumCache internal_stop_reason_cache_;
+  EnumCache public_stop_reason_cache_;
+  EnumCache backoff_policy_cache_;
+  EnumCache pending_reason_cache_;
 };
 
 }  // namespace trace_processor

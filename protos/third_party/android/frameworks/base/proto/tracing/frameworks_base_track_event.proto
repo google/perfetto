@@ -165,6 +165,50 @@ message AndroidJobSchedulerJob {
   //     /apex/jobscheduler/service/java/com/android/server/job/JobPerfettoTracer.java:BackoffPolicyMapping
   // )
 
+  // LINT.IfChange(PendingJobReason)
+  // Mapping to Java (JobScheduler):
+  // - PENDING_JOB_REASON_UNDEFINED (0) maps to
+  // JobScheduler.PENDING_JOB_REASON_UNDEFINED (0) and
+  //   unrecognized values.
+  // - PENDING_JOB_REASON_APP..
+  //   PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY_METERED_RESTRICTED (1..20)
+  //   match JobScheduler.PENDING_JOB_REASON_* (1..20) 1:1.
+  // - PENDING_JOB_REASON_EXECUTING (100) maps to
+  //   JobScheduler.PENDING_JOB_REASON_EXECUTING (-1).
+  // - PENDING_JOB_REASON_INVALID_JOB_ID (101) maps to
+  //   JobScheduler.PENDING_JOB_REASON_INVALID_JOB_ID (-2).
+  enum PendingJobReason {
+    PENDING_JOB_REASON_UNDEFINED = 0;
+    PENDING_JOB_REASON_APP = 1;
+    PENDING_JOB_REASON_APP_STANDBY = 2;
+    PENDING_JOB_REASON_BACKGROUND_RESTRICTION = 3;
+    PENDING_JOB_REASON_CONSTRAINT_BATTERY_NOT_LOW = 4;
+    PENDING_JOB_REASON_CONSTRAINT_CHARGING = 5;
+    PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY = 6;
+    PENDING_JOB_REASON_CONSTRAINT_CONTENT_TRIGGER = 7;
+    PENDING_JOB_REASON_CONSTRAINT_DEVICE_IDLE = 8;
+    PENDING_JOB_REASON_CONSTRAINT_MINIMUM_LATENCY = 9;
+    PENDING_JOB_REASON_CONSTRAINT_PREFETCH = 10;
+    PENDING_JOB_REASON_CONSTRAINT_STORAGE_NOT_LOW = 11;
+    PENDING_JOB_REASON_DEVICE_STATE = 12;
+    PENDING_JOB_REASON_JOB_SCHEDULER_OPTIMIZATION = 13;
+    PENDING_JOB_REASON_QUOTA = 14;
+    PENDING_JOB_REASON_USER = 15;
+    PENDING_JOB_REASON_CONSTRAINT_DEADLINE = 16;
+    PENDING_JOB_REASON_DEVICE_STATE_THERMAL = 17;
+    PENDING_JOB_REASON_DEVICE_STATE_BATTERY_SAVER = 18;
+    PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY_NETWORK_UNAVAILABLE = 19;
+    PENDING_JOB_REASON_CONSTRAINT_CONNECTIVITY_METERED_RESTRICTED = 20;
+    // Displaced negative sentinel values (-1, -2) separated from 0..20 to allow
+    // future positive constants (21+) to map 1:1.
+    PENDING_JOB_REASON_EXECUTING = 100;
+    PENDING_JOB_REASON_INVALID_JOB_ID = 101;
+  }
+  // LINT.ThenChange(
+  //     /apex/jobscheduler/framework/java/android/app/job/JobScheduler.java:PendingJobReason,
+  //     /apex/jobscheduler/service/java/com/android/server/job/JobPerfettoTracer.java:PendingJobReasonMapping
+  // )
+
   // LINT.IfChange(JobStateFlags)
   // Matches JobStatus.JOB_STATE_FLAG_* bitmask constants.
   enum JobStateFlags {
@@ -262,7 +306,7 @@ message AndroidJobSchedulerJob {
   // Interned Job name.
   optional uint64 job_name_iid = 21;
   // Aggregated pending reasons until the job was started.
-  repeated int32 pending_reasons = 22;
+  repeated PendingJobReason pending_reasons = 22;
   // Cumulative duration (in milliseconds) spent in each corresponding pending
   // reason.
   repeated int64 pending_durations_ms = 23;
