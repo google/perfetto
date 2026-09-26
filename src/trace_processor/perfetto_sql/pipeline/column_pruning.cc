@@ -23,6 +23,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -93,33 +94,35 @@ void PruneScan(op::Scan& scan, const Needed& needed) {
   sql = SelectPositions(sql, count, keep);
 }
 
-void PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
-  PlanNode& node = plan.nodes[id];
-  if (auto* scan = std::get_if<op::Scan>(&node.op)) {
-    PruneScan(*scan, needed);
-    return;
+void PruneNode(LogicalPlan&, PlanNodeId, Needed&);
+
+void PruneTreeAccumulate(LogicalPlan& plan,
+                         const PlanNode& node,
+                         Needed& needed) {
+  // Passes every input column through and adds its aggregates, which need
+  // the tree's shape and the columns they sum.
+  //
+  // TODO(lalitm): drop the aggregates whose output nothing reads, and the
+  // fold itself when that is all of them. Not done yet because lowering also
+  // validates the tree and reorders its rows as part of the fold, so removing
+  // it would change errors and row order, not just columns. Splitting
+  // validation out into an operator of its own lets the fold be pruned like
+  // any other computed column.
+  const auto& acc = node.Cast<op::TreeAccumulate>();
+  needed[acc.node_column] = true;
+  needed[acc.parent_column] = true;
+  for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
+    needed[agg.column] = true;
   }
-  if (const auto* acc = std::get_if<op::TreeAccumulate>(&node.op)) {
-    // Passes every input column through and adds its aggregates, which need
-    // the tree's shape and the columns they sum.
-    //
-    // TODO(lalitm): drop the aggregates whose output nothing reads, and the
-    // fold itself when that is all of them. Not done yet because lowering
-    // also validates the tree and reorders its rows as part of the fold, so
-    // removing it would change errors and row order, not just columns.
-    // Splitting validation out into an operator of its own lets the fold be
-    // pruned like any other computed column.
-    needed[acc->node_column] = true;
-    needed[acc->parent_column] = true;
-    for (const op::TreeAccumulate::Aggregate& agg : acc->aggregates) {
-      needed[agg.column] = true;
-    }
-    PruneNode(plan, node.children[0], needed);
-    return;
-  }
+  PruneNode(plan, node.children[0], needed);
+}
+
+void PruneIntervalIntersect(LogicalPlan& plan,
+                            const PlanNode& node,
+                            Needed& needed) {
   // Passes every operand column through and adds the region's bounds, which
   // need each operand's own bounds and the columns keying them.
-  const auto& isect = std::get<op::IntervalIntersect>(node.op);
+  const auto& isect = node.Cast<op::IntervalIntersect>();
   for (const op::IntervalIntersect::Operand& operand : isect.operands) {
     needed[operand.ts] = true;
     needed[operand.dur] = true;
@@ -130,6 +133,22 @@ void PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
   for (PlanNodeId child : node.children) {
     PruneNode(plan, child, needed);
   }
+}
+
+void PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
+  PlanNode& node = plan.nodes[id];
+  switch (node.kind()) {
+    case OpKind::kScan:
+      PruneScan(node.Cast<op::Scan>(), needed);
+      return;
+    case OpKind::kTreeAccumulate:
+      PruneTreeAccumulate(plan, node, needed);
+      return;
+    case OpKind::kIntervalIntersect:
+      PruneIntervalIntersect(plan, node, needed);
+      return;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace

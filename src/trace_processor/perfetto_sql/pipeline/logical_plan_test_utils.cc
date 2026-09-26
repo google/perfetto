@@ -55,69 +55,71 @@ std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   return out;
 }
 
-std::string NodeString(const LogicalPlan& plan, const PlanNode& node) {
-  struct Visitor {
-    const LogicalPlan& plan;
-    const std::vector<PlanNodeId>& children;
-    std::string operator()(const op::Scan& scan) const {
-      std::string out = "Scan(";
-      if (const auto* dataframe =
-              std::get_if<op::Scan::Dataframe>(&scan.source)) {
-        out += "table " + dataframe->name;
-      } else {
-        out += "sql " + std::get<SqlSource>(scan.source).sql();
-      }
-      out += ") [";
-      for (size_t i = 0; i < scan.columns.size(); ++i) {
-        if (i)
-          out += ", ";
-        out += ColumnString(plan, scan.columns[i].id) + " AS " +
-               scan.columns[i].name;
-      }
-      return out + "]";
+std::string ScanString(const LogicalPlan& plan, const op::Scan& scan) {
+  std::string out = "Scan(";
+  if (const auto* dataframe = std::get_if<op::Scan::Dataframe>(&scan.source)) {
+    out += "table " + dataframe->name;
+  } else {
+    out += "sql " + std::get<SqlSource>(scan.source).sql();
+  }
+  out += ") [";
+  for (size_t i = 0; i < scan.columns.size(); ++i) {
+    if (i) {
+      out += ", ";
     }
-    std::string operator()(const op::TreeAccumulate& acc) const {
-      std::string out = "TreeAccumulate(";
-      out += acc.direction == op::TreeDirection::kUp ? "up" : "down";
-      out += ", node=#" + std::to_string(acc.node_column);
-      out += ", parent=#" + std::to_string(acc.parent_column);
-      for (const auto& agg : acc.aggregates) {
-        PERFETTO_DCHECK(agg.function == op::TreeAccumulate::Function::kSum);
-        out += ", SUM(#" + std::to_string(agg.column) + ") -> " +
-               ColumnString(plan, agg.output);
-      }
-      return out + ")";
-    }
-    std::string operator()(const op::IntervalIntersect& ii) const {
-      std::string out = "IntervalIntersect(ts=#" + std::to_string(ii.ts) +
-                        ", dur=#" + std::to_string(ii.dur) + ")";
-      for (uint32_t i = 0; i < ii.operands.size(); i++) {
-        const op::IntervalIntersect::Operand& operand = ii.operands[i];
-        out += "\n  operand(ts=#" + std::to_string(operand.ts) + ", dur=#" +
-               std::to_string(operand.dur);
-        for (ColumnId key : operand.keys) {
-          out += ", key=#" + std::to_string(key);
-        }
-        out +=
-            ")\n    " + (*this)(std::get<op::Scan>(plan.nodes[children[i]].op));
-      }
-      return out;
-    }
-  };
-  return std::visit(Visitor{plan, node.children}, node.op);
+    out +=
+        ColumnString(plan, scan.columns[i].id) + " AS " + scan.columns[i].name;
+  }
+  return out + "]";
 }
 
-// Nodes deepest first, so a chain reads in execution order. An intersection
-// prints its operands inline, so they are not also listed on their own.
+std::string TreeAccumulateString(const LogicalPlan& plan,
+                                 const op::TreeAccumulate& acc) {
+  std::string out = "TreeAccumulate(";
+  out += acc.direction == op::TreeDirection::kUp ? "up" : "down";
+  out += ", node=#" + std::to_string(acc.node_column);
+  out += ", parent=#" + std::to_string(acc.parent_column);
+  for (const auto& agg : acc.aggregates) {
+    PERFETTO_DCHECK(agg.function == op::TreeAccumulate::Function::kSum);
+    out += ", SUM(#" + std::to_string(agg.column) + ") -> " +
+           ColumnString(plan, agg.output);
+  }
+  return out + ")";
+}
+
+std::string IntervalIntersectString(const LogicalPlan& plan,
+                                    const PlanNode& node) {
+  const auto& ii = node.Cast<op::IntervalIntersect>();
+  std::string out = "IntervalIntersect(ts=#" + std::to_string(ii.ts) +
+                    ", dur=#" + std::to_string(ii.dur) + ")";
+  for (uint32_t i = 0; i < ii.operands.size(); i++) {
+    const op::IntervalIntersect::Operand& operand = ii.operands[i];
+    out += "\n  operand(ts=#" + std::to_string(operand.ts) + ", dur=#" +
+           std::to_string(operand.dur);
+    for (ColumnId key : operand.keys) {
+      out += ", key=#" + std::to_string(key);
+    }
+    out += ")\n    " +
+           ScanString(plan, plan.nodes[node.children[i]].Cast<op::Scan>());
+  }
+  return out;
+}
+
+// Sources first and the last stage last, so a chain reads in execution
+// order. An intersection prints its operands inline, so they are not also
+// listed on their own.
 std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
   const PlanNode& node = plan.nodes[id];
-  std::string out;
-  if (!std::holds_alternative<op::IntervalIntersect>(node.op)) {
-    for (PlanNodeId child : node.children) {
-      out += SubtreeString(plan, child);
-    }
+  switch (node.kind()) {
+    case OpKind::kScan:
+      return ScanString(plan, node.Cast<op::Scan>()) + "\n";
+    case OpKind::kTreeAccumulate:
+      return SubtreeString(plan, node.children[0]) +
+             TreeAccumulateString(plan, node.Cast<op::TreeAccumulate>()) + "\n";
+    case OpKind::kIntervalIntersect:
+      return IntervalIntersectString(plan, node) + "\n";
   }
-  return out + NodeString(plan, node) + "\n";
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace
@@ -126,8 +128,9 @@ std::string LogicalPlanToString(const LogicalPlan& plan) {
   std::string out = SubtreeString(plan, plan.root);
   out += "Output(";
   for (size_t i = 0; i < plan.output.size(); ++i) {
-    if (i)
+    if (i) {
       out += ", ";
+    }
     out +=
         "#" + std::to_string(plan.output[i].id) + " AS " + plan.output[i].name;
   }
