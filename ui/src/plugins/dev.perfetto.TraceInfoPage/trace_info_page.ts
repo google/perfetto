@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import type {Trace} from '../../public/trace';
-import {TabStrip, type TabOption} from '../../widgets/tab_strip';
 import {EmptyState} from '../../widgets/empty_state';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';
 import {OverviewTab} from './tabs/overview';
@@ -114,85 +114,16 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
             'High-level summary of trace health, metrics, and system information',
           ),
         ),
-        m(TabStrip, {
-          tabs: this.getTabs(),
-          currentTabKey: this.currentTab,
+        m(Tabs, {
+          variant: 'underline',
+          activeTabKey: this.currentTab,
           onTabChange: (key: string) => {
             this.currentTab = isValidTabKey(key) ? key : 'overview';
           },
+          tabs: this.getTabs(attrs.trace),
         }),
-        this.renderCurrentTab(attrs.trace, this.currentTab),
       ),
     );
-  }
-
-  private renderCurrentTab(trace: Trace, currentTab: TabKey): m.Children {
-    if (!this.tabData) {
-      return m(EmptyState, {
-        icon: 'hourglass_empty',
-        title: 'Loading trace info...',
-      });
-    }
-    switch (currentTab) {
-      case 'overview':
-        return m(OverviewTab, {
-          trace,
-          data: this.tabData.overview,
-          diagnostics: this.tabData.diagnostics,
-          onTabChange: (key: TabKey) => {
-            this.currentTab = key;
-          },
-        });
-      case 'trace_doctor':
-        return m(TraceDoctorTab, {
-          diagnostics: this.tabData.diagnostics,
-          isMultiTrace: this.tabData.overview.traceCount > 1,
-        });
-      case 'config':
-        return m(ConfigTab, {
-          data: this.tabData.config,
-        });
-      case 'android':
-        return m(AndroidTab, {
-          data: this.tabData.android,
-        });
-      case 'traces':
-        return m(TracesTab, {
-          data: this.tabData.traces,
-        });
-      case 'machines':
-        return m(MachinesTab, {
-          data: this.tabData.machines,
-        });
-      case 'metadata':
-        return m(MetadataTab, {
-          data: this.tabData.metadata,
-        });
-      case 'import_errors':
-        return m(ImportErrorsTab, {
-          data: this.tabData.importErrors,
-        });
-      case 'trace_errors':
-        return m(TraceErrorsTab, {
-          data: this.tabData.traceErrors,
-        });
-      case 'data_losses':
-        return m(DataLossesTab, {
-          data: this.tabData.dataLosses,
-        });
-      case 'notices':
-        return m(NoticesTab, {
-          data: this.tabData.notices,
-        });
-      case 'ui_loading_errors':
-        return m(UiLoadingErrorsTab, {
-          data: this.tabData.uiLoadingErrors,
-        });
-      case 'stats':
-        return m(StatsTab, {
-          data: this.tabData.stats,
-        });
-    }
   }
 
   private async loadAllData(trace: Trace): Promise<void> {
@@ -215,42 +146,124 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     m.redraw();
   }
 
-  private getTabs(): TabOption[] {
-    const tabs: TabOption[] = [{key: 'overview', title: 'Overview'}];
-    if ((this.tabData?.config?.configs?.length ?? 0) > 0) {
-      tabs.push({key: 'config', title: 'Trace Config'});
+  // The page's tabs: a tab exists only while its data does, except overview
+  // and statistics, which are always present. Each tab's content lives next
+  // to its metadata.
+  private getTabs(trace: Trace): TabsTab[] {
+    const data = this.tabData;
+    if (data === undefined) {
+      // Still loading: show the two unconditional tabs with a loading state.
+      // A fresh vnode per tab, as the same vnode cannot be rendered in two
+      // places.
+      const renderLoading = () =>
+        m(EmptyState, {
+          icon: 'hourglass_empty',
+          title: 'Loading trace info...',
+        });
+      return [
+        {key: 'overview', title: 'Overview', content: renderLoading()},
+        {key: 'stats', title: 'Statistics', content: renderLoading()},
+      ];
     }
-    if ((this.tabData?.overview?.importErrors ?? 0) > 0) {
-      tabs.push({key: 'import_errors', title: 'Import Errors'});
+    const tabs: TabsTab[] = [
+      {
+        key: 'overview',
+        title: 'Overview',
+        content: m(OverviewTab, {
+          trace,
+          data: data.overview,
+          diagnostics: data.diagnostics,
+          onTabChange: (key: TabKey) => {
+            this.currentTab = key;
+          },
+        }),
+      },
+    ];
+    if (data.config.configs.length > 0) {
+      tabs.push({
+        key: 'config',
+        title: 'Trace Config',
+        content: m(ConfigTab, {data: data.config}),
+      });
     }
-    if ((this.tabData?.traceErrors?.errors?.length ?? 0) > 0) {
-      tabs.push({key: 'trace_errors', title: 'Trace Errors'});
+    if (data.overview.importErrors > 0) {
+      tabs.push({
+        key: 'import_errors',
+        title: 'Import Errors',
+        content: m(ImportErrorsTab, {data: data.importErrors}),
+      });
     }
-    if ((this.tabData?.diagnostics?.length ?? 0) > 0) {
-      tabs.push({key: 'trace_doctor', title: 'Trace Doctor'});
+    if (data.traceErrors.errors.length > 0) {
+      tabs.push({
+        key: 'trace_errors',
+        title: 'Trace Errors',
+        content: m(TraceErrorsTab, {data: data.traceErrors}),
+      });
     }
-    if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
-      tabs.push({key: 'data_losses', title: 'Data Losses'});
+    if (data.diagnostics.length > 0) {
+      tabs.push({
+        key: 'trace_doctor',
+        title: 'Trace Doctor',
+        content: m(TraceDoctorTab, {
+          diagnostics: data.diagnostics,
+          isMultiTrace: data.overview.traceCount > 1,
+        }),
+      });
     }
-    if ((this.tabData?.notices?.categories?.length ?? 0) > 0) {
-      tabs.push({key: 'notices', title: 'Notices'});
+    if (data.overview.dataLosses > 0) {
+      tabs.push({
+        key: 'data_losses',
+        title: 'Data Losses',
+        content: m(DataLossesTab, {data: data.dataLosses}),
+      });
     }
-    if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
-      tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
+    if (data.notices.categories.length > 0) {
+      tabs.push({
+        key: 'notices',
+        title: 'Notices',
+        content: m(NoticesTab, {data: data.notices}),
+      });
     }
-    if (hasAndroidData(this.tabData?.android)) {
-      tabs.push({key: 'android', title: 'Android'});
+    if (data.overview.uiLoadingErrorCount > 0) {
+      tabs.push({
+        key: 'ui_loading_errors',
+        title: 'UI Loading Errors',
+        content: m(UiLoadingErrorsTab, {data: data.uiLoadingErrors}),
+      });
     }
-    if ((this.tabData?.overview?.traceCount ?? 0) > 1) {
-      tabs.push({key: 'traces', title: 'Traces'});
+    if (hasAndroidData(data.android)) {
+      tabs.push({
+        key: 'android',
+        title: 'Android',
+        content: m(AndroidTab, {data: data.android}),
+      });
     }
-    if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
-      tabs.push({key: 'machines', title: 'Machines'});
+    if (data.overview.traceCount > 1) {
+      tabs.push({
+        key: 'traces',
+        title: 'Traces',
+        content: m(TracesTab, {data: data.traces}),
+      });
     }
-    if (hasMetadataData(this.tabData?.metadata)) {
-      tabs.push({key: 'metadata', title: 'Metadata'});
+    if (data.machines.machineCount > 1) {
+      tabs.push({
+        key: 'machines',
+        title: 'Machines',
+        content: m(MachinesTab, {data: data.machines}),
+      });
     }
-    tabs.push({key: 'stats', title: 'Statistics'});
+    if (hasMetadataData(data.metadata)) {
+      tabs.push({
+        key: 'metadata',
+        title: 'Metadata',
+        content: m(MetadataTab, {data: data.metadata}),
+      });
+    }
+    tabs.push({
+      key: 'stats',
+      title: 'Statistics',
+      content: m(StatsTab, {data: data.stats}),
+    });
     return tabs;
   }
 }
