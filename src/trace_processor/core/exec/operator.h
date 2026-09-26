@@ -50,6 +50,8 @@ class OperatorState {
   }
 };
 
+enum class BatchPreference : uint8_t { kLatency, kThroughput };
+
 enum class OpResult : uint8_t {
   // `out` holds all the output for this input. An empty `out` means the input
   // produced no rows.
@@ -76,6 +78,12 @@ class Operator {
 
   virtual std::unique_ptr<OperatorState> MakeState() const {
     return std::make_unique<OperatorState>();
+  }
+
+  // A preference, never permission to change row order. Downstream finite
+  // demand overrides throughput batching. Blocking remains intrinsic to an op.
+  virtual BatchPreference batch_preference() const {
+    return BatchPreference::kLatency;
   }
 
   virtual OpResult Execute(const RowBatch& in,
@@ -116,7 +124,9 @@ class Source {
   virtual std::unique_ptr<OperatorState> MakeState() const = 0;
 
   // Fills `out` and returns true, or returns false when no batches are left.
-  // The values in `out` stay valid until the next call.
+  // Owned columns remain valid while retained by a RowBatch. Unowned columns
+  // are borrowed until the next call; retaining consumers must materialize
+  // them. A successful empty batch is not exhaustion.
   virtual bool GetData(RowBatch& out, OperatorState& state) const = 0;
 
   // Restarts from the first batch.

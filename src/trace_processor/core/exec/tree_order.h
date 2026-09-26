@@ -49,6 +49,9 @@ class TreeChildFirst : public Breaker {
  public:
   TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
+  BatchPreference batch_preference() const override {
+    return BatchPreference::kThroughput;
+  }
 
  private:
   struct State : Breaker::State {
