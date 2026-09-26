@@ -104,20 +104,21 @@ class Lowering {
 
 void Lowering::LowerNode(PlanNodeId id) {
   const PlanNode& node = plan_.nodes[id];
-  // An intersection reads each operand through a pipeline of its own, so it
-  // lowers its own children rather than having them join this pipeline.
-  if (const auto* isect = std::get_if<op::IntervalIntersect>(&node.op)) {
-    LowerIntervalIntersect(*isect, node.children);
-    return;
+  switch (node.kind()) {
+    case OpKind::kScan:
+      LowerScan(node.Cast<op::Scan>());
+      return;
+    case OpKind::kTreeAccumulate:
+      LowerNode(node.children[0]);
+      LowerTreeAccumulate(node.Cast<op::TreeAccumulate>());
+      return;
+    case OpKind::kIntervalIntersect:
+      // Reads each operand through a pipeline of its own, so it lowers its
+      // own children rather than having them join this pipeline.
+      LowerIntervalIntersect(node.Cast<op::IntervalIntersect>(), node.children);
+      return;
   }
-  for (PlanNodeId child : node.children) {
-    LowerNode(child);
-  }
-  if (const auto* scan = std::get_if<op::Scan>(&node.op)) {
-    LowerScan(*scan);
-  } else {
-    LowerTreeAccumulate(std::get<op::TreeAccumulate>(node.op));
-  }
+  PERFETTO_FATAL("For GCC");
 }
 
 std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
@@ -155,9 +156,9 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     const op::IntervalIntersect::Operand& operand = isect.operands[i];
     // A node may read any child, but an operand is read as a scan of its own,
     // which is what lets it become a pipeline separate from this one.
-    PERFETTO_DCHECK(
-        std::holds_alternative<op::Scan>(plan_.nodes[children[i]].op));
-    const auto& scan = std::get<op::Scan>(plan_.nodes[children[i]].op);
+    const PlanNode& child = plan_.nodes[children[i]];
+    PERFETTO_DCHECK(child.kind() == OpKind::kScan);
+    const auto& scan = child.Cast<op::Scan>();
     // Roles are named by plan-wide ID, while the operator reads batch
     // positions, so each is resolved against the operand's own column order.
     auto position = [&](ColumnId id) {

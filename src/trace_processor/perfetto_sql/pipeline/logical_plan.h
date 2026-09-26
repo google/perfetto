@@ -17,10 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -102,6 +104,24 @@ struct IntervalIntersect {
 
 using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
 
+// Which operator a node holds, in the order of Op's alternatives. A pass over
+// the plan switches on this with no default case, so an operator added to Op
+// fails to compile until every pass decides what to do with it.
+enum class OpKind : uint8_t {
+  kScan,
+  kTreeAccumulate,
+  kIntervalIntersect,
+};
+static_assert(std::variant_size_v<Op> == 3,
+              "An operator added to Op must be added to OpKind too");
+template <OpKind kind, typename T>
+inline constexpr bool kOpKindIs =
+    std::is_same_v<std::variant_alternative_t<static_cast<size_t>(kind), Op>,
+                   T>;
+static_assert(kOpKindIs<OpKind::kScan, op::Scan>);
+static_assert(kOpKindIs<OpKind::kTreeAccumulate, op::TreeAccumulate>);
+static_assert(kOpKindIs<OpKind::kIntervalIntersect, op::IntervalIntersect>);
+
 // Stable within a plan.
 using PlanNodeId = uint32_t;
 
@@ -110,10 +130,26 @@ using PlanNodeId = uint32_t;
 struct PlanNode {
   Op op;
   std::vector<PlanNodeId> children;
+
+  OpKind kind() const { return static_cast<OpKind>(op.index()); }
+
+  // The operator, which must be a T.
+  template <typename T>
+  T& Cast() {
+    return std::get<T>(op);
+  }
+  template <typename T>
+  const T& Cast() const {
+    return std::get<T>(op);
+  }
 };
 
 // A tree of operators. Column types are stored once, indexed by ID; operators
 // name the values they consume and produce, independently of layout.
+//
+// The root is the last stage of the pipeline and the leaves are its sources,
+// so the tree reads the other way up from the SQL: `FROM t |> A |> B` is B at
+// the root, reading A, reading a Scan of t.
 struct LogicalPlan {
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
