@@ -182,6 +182,7 @@ base::Status Collect(const IntervalIntersectOperand& operand,
                      RowStore& store,
                      base::FlatHashMap<std::string, Group>& groups) {
   RowBatch batch;
+  RowBatch retained;
   std::string key(operand.key_columns.size() * kKeyColumnBytes, '\0');
   while (operand.source->GetData(batch, state)) {
     RETURN_IF_ERROR(ValidateOperand(batch, operand, which));
@@ -215,7 +216,12 @@ base::Status Collect(const IntervalIntersectOperand& operand,
                                  static_cast<Ts>(start + length),
                                  store.size() + row});
     }
-    RETURN_IF_ERROR(store.Append(batch));
+    retained.Reset();
+    for (uint32_t column : operand.retained_columns) {
+      retained.AddColumn(batch.column(column), batch.owner(column));
+    }
+    retained.SetCardinality(batch.size());
+    RETURN_IF_ERROR(store.Append(retained));
   }
   RETURN_IF_ERROR(operand.source->status(state));
 

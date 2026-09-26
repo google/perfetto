@@ -388,3 +388,36 @@ class PerfettoPipeline(TestSuite):
         "rows","mismatches"
         45728,0
         """))
+
+  # A SQL source asked for fewer columns still runs, whether it is read by a
+  # tree fold or an intersection.
+  def test_pruned_sql_sources_run(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE folded AS
+        FROM (
+          SELECT 0 AS id, NULL AS parent_id, 5 AS self, 'root' AS name
+          UNION ALL SELECT 1, 0, 7, 'a'
+        ) AS t
+        |> TREE ACCUMULATE UP SUM(self) AS total
+        |> SELECT id, total;
+
+        CREATE PERFETTO TABLE regions AS
+        INTERVAL INTERSECTION OF (
+          (SELECT 0 AS ts, 30 AS dur, 7 AS freq, 'x' AS unused) AS a,
+          (SELECT 10 AS ts, 100 AS dur, 1 AS state) AS b
+        )
+        |> SELECT ts, dur, a.freq;
+
+        SELECT
+          (SELECT group_concat(id || ':' || total) FROM (SELECT * FROM folded ORDER BY id))
+            AS folded,
+          (SELECT group_concat(ts || ':' || dur || ':' || freq) FROM regions)
+            AS regions;
+        """,
+        out=Csv("""
+        "folded","regions"
+        "0:12,1:7","10:20:7"
+        """))

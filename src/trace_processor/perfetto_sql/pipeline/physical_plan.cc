@@ -146,7 +146,8 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
                                       const std::vector<PlanNodeId>& children) {
   PERFETTO_DCHECK(!out_->input_);
   PERFETTO_DCHECK(isect.operands.size() == children.size());
-  // The region's bounds come first, then each operand's columns in turn.
+  // The region's bounds come first, then each operand's carried columns in
+  // turn.
   Define(isect.ts);
   Define(isect.dur);
 
@@ -176,6 +177,9 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     for (ColumnId key : operand.keys) {
       lowered.key_columns.push_back(position(key));
     }
+    for (ColumnId id : operand.carried) {
+      lowered.retained_columns.push_back(position(id));
+    }
     RequireInt64(operand.ts, lowered.ts_column, widen);
     RequireInt64(operand.dur, lowered.dur_column, widen);
     for (uint32_t k = 0; k < operand.keys.size(); k++) {
@@ -187,8 +191,8 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     lowered.source = out_->operand_pipelines_.back().get();
     operands.push_back(std::move(lowered));
 
-    for (const NamedColumn& column : scan.columns) {
-      Define(column.id);
+    for (ColumnId id : operand.carried) {
+      Define(id);
     }
   }
   out_->input_ = std::make_unique<ex::IntervalIntersect>(std::move(operands));
