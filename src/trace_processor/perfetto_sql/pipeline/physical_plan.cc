@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
@@ -56,12 +57,20 @@ class Lowering {
 
  private:
   void LowerScan(const op::Scan&);
+  void LowerIntervalIntersect(const op::IntervalIntersect&,
+                              const std::vector<PlanNodeId>& children);
+
+  std::unique_ptr<ex::Source> MakeSource(const op::Scan&) const;
   void LowerTreeAccumulate(const op::TreeAccumulate&);
 
   // Establishes the physical layout and ordering needed by a tree fold.
   void PrepareTree(const op::TreeAccumulate&);
-  // Inserts an AssertType if `column` is not already flat Int64.
-  void RequireInt64(ColumnId column);
+  // Appends to `into` an AssertType on the column at `position` if `column`
+  // is not already flat Int64. The position is the column's in the pipeline
+  // `into` belongs to, which is not this one for an intersection's operand.
+  void RequireInt64(ColumnId column,
+                    uint32_t position,
+                    std::vector<std::unique_ptr<ex::Operator>>& into);
 
   // Map logical IDs to physical batch columns.
   uint32_t Position(ColumnId id) const {
@@ -95,6 +104,12 @@ class Lowering {
 
 void Lowering::LowerNode(PlanNodeId id) {
   const PlanNode& node = plan_.nodes[id];
+  // An intersection reads each operand through a pipeline of its own, so it
+  // lowers its own children rather than having them join this pipeline.
+  if (const auto* isect = std::get_if<op::IntervalIntersect>(&node.op)) {
+    LowerIntervalIntersect(*isect, node.children);
+    return;
+  }
   for (PlanNodeId child : node.children) {
     LowerNode(child);
   }
@@ -105,27 +120,83 @@ void Lowering::LowerNode(PlanNodeId id) {
   }
 }
 
-void Lowering::LowerScan(const op::Scan& scan) {
-  PERFETTO_DCHECK(!out_->input_);
-  for (const NamedColumn& column : scan.columns) {
-    Define(column.id);
-  }
+std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
   if (const auto* sql = std::get_if<SqlSource>(&scan.source)) {
     Schema columns;
     columns.reserve(scan.columns.size());
     for (const NamedColumn& column : scan.columns) {
       columns.push_back({column.name, plan_.columns[column.id].type});
     }
-    out_->input_ = std::make_unique<exec::SqlScan>(
-        env_.connection, *sql, std::move(columns), env_.pool);
-    return;
+    return std::make_unique<exec::SqlScan>(env_.connection, *sql,
+                                           std::move(columns), env_.pool);
   }
   const auto& source = std::get<op::Scan::Dataframe>(scan.source);
-  out_->input_ =
-      std::make_unique<ex::DataframeScan>(source.columns, source.row_count);
+  return std::make_unique<ex::DataframeScan>(source.columns, source.row_count);
 }
 
-void Lowering::RequireInt64(ColumnId column) {
+void Lowering::LowerScan(const op::Scan& scan) {
+  PERFETTO_DCHECK(!out_->input_);
+  for (const NamedColumn& column : scan.columns) {
+    Define(column.id);
+  }
+  out_->input_ = MakeSource(scan);
+}
+
+void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
+                                      const std::vector<PlanNodeId>& children) {
+  PERFETTO_DCHECK(!out_->input_);
+  PERFETTO_DCHECK(isect.operands.size() == children.size());
+  // The region's bounds come first, then each operand's columns in turn.
+  Define(isect.ts);
+  Define(isect.dur);
+
+  std::vector<ex::IntervalIntersectOperand> operands;
+  for (uint32_t i = 0; i < isect.operands.size(); i++) {
+    const op::IntervalIntersect::Operand& operand = isect.operands[i];
+    // A node may read any child, but an operand is read as a scan of its own,
+    // which is what lets it become a pipeline separate from this one.
+    PERFETTO_DCHECK(
+        std::holds_alternative<op::Scan>(plan_.nodes[children[i]].op));
+    const auto& scan = std::get<op::Scan>(plan_.nodes[children[i]].op);
+    // Roles are named by plan-wide ID, while the operator reads batch
+    // positions, so each is resolved against the operand's own column order.
+    auto position = [&](ColumnId id) {
+      uint32_t at = 0;
+      while (scan.columns[at].id != id) {
+        ++at;
+      }
+      return at;
+    };
+    // An operand is read through a pipeline of its own, which widens the
+    // columns the intersection reads to Int64 where they are not already.
+    std::vector<std::unique_ptr<ex::Operator>> widen;
+    ex::IntervalIntersectOperand lowered;
+    lowered.ts_column = position(operand.ts);
+    lowered.dur_column = position(operand.dur);
+    for (ColumnId key : operand.keys) {
+      lowered.key_columns.push_back(position(key));
+    }
+    RequireInt64(operand.ts, lowered.ts_column, widen);
+    RequireInt64(operand.dur, lowered.dur_column, widen);
+    for (uint32_t k = 0; k < operand.keys.size(); k++) {
+      RequireInt64(operand.keys[k], lowered.key_columns[k], widen);
+    }
+    out_->operand_inputs_.push_back(MakeSource(scan));
+    out_->operand_pipelines_.push_back(std::make_unique<ex::Pipeline>(
+        *out_->operand_inputs_.back(), std::move(widen)));
+    lowered.source = out_->operand_pipelines_.back().get();
+    operands.push_back(std::move(lowered));
+
+    for (const NamedColumn& column : scan.columns) {
+      Define(column.id);
+    }
+  }
+  out_->input_ = std::make_unique<ex::IntervalIntersect>(std::move(operands));
+}
+
+void Lowering::RequireInt64(ColumnId column,
+                            uint32_t position,
+                            std::vector<std::unique_ptr<ex::Operator>>& into) {
   // TODO(lalitm): Replace this with numeric normalization and support Double
   // totals in tree accumulation. For dynamically typed inputs, a Double in a
   // later batch may require promoting earlier Int64 values too. Choosing one
@@ -136,8 +207,8 @@ void Lowering::RequireInt64(ColumnId column) {
   if ((type && type->Is<core::Int64>()) || int64_columns_[column]) {
     return;
   }
-  operators_.push_back(std::make_unique<ex::AssertType>(
-      Position(column), ex::AssertTypeTarget{core::Int64{}},
+  into.push_back(std::make_unique<ex::AssertType>(
+      position, ex::AssertTypeTarget{core::Int64{}},
       plan_.columns[column].name));
   int64_columns_[column] = true;
 }
@@ -165,7 +236,7 @@ void Lowering::LowerTreeAccumulate(const op::TreeAccumulate& acc) {
   PrepareTree(acc);
   for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
     PERFETTO_DCHECK(agg.function == op::TreeAccumulate::Function::kSum);
-    RequireInt64(agg.column);
+    RequireInt64(agg.column, Position(agg.column), operators_);
   }
   for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
     ex::TreeAccumulateSpec spec{tree_columns_->node, tree_columns_->parent,
