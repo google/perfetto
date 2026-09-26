@@ -818,6 +818,32 @@ TEST_F(PerfettoSqlParserTest, PipelineReadsOnlyTheColumnsItNeeds) {
                                kSliceColumns + "]"));
 }
 
+TEST_F(PerfettoSqlParserTest, PipelineSkipsUnusedTreeAggregates) {
+  // Aggregates nobody uses are not computed, nor are their inputs read.
+  auto plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS a, SUM(dur) AS b "
+      "|> SELECT a");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("TreeAccumulate(up, node=#0, parent=#1, "
+                               "SUM(#3) -> #5:int64)\n"));
+  EXPECT_THAT(*plan, HasSubstr("Scan(table slice) [#0:id AS id, "
+                               "#1:uint32 AS parent_id, #3:uint32 AS self]"));
+
+  // A fold with no aggregates left is skipped entirely.
+  plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(*plan, "Scan(table slice) [#0:id AS id]\nOutput(#0 AS id)\n");
+
+  // A fold whose result feeds a later one is kept.
+  plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS a "
+      "|> TREE ACCUMULATE DOWN SUM(a) AS b |> SELECT b");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("SUM(#3) -> #5:int64"));
+  EXPECT_THAT(*plan, HasSubstr("SUM(#5) -> #6:int64"));
+}
+
 TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
   // SQL sources only ask SQLite for the columns that are used.
   auto plan = ParsePipeline(

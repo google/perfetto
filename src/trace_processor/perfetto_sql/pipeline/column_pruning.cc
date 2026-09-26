@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -106,28 +107,44 @@ void PruneScan(op::Scan& scan, const Needed& needed) {
   }
 }
 
-void PruneNode(LogicalPlan&, PlanNodeId, Needed&);
+// Prunes the subtree at `id` and returns the node which should now stand in
+// its place: usually `id` itself, but an operator whose work nobody uses is
+// replaced by its input.
+PlanNodeId PruneNode(LogicalPlan&, PlanNodeId, Needed&);
 
-void PruneTreeAccumulate(LogicalPlan& plan,
-                         const PlanNode& node,
-                         Needed& needed) {
-  // A tree fold needs the tree's structure and the columns it aggregates.
-  //
-  // TODO(lalitm): also drop aggregates nobody uses. This first needs tree
-  // validation split out of the fold, as removing a fold today would also
-  // remove its checks.
+PlanNodeId PruneTreeAccumulate(LogicalPlan& plan,
+                               PlanNodeId id,
+                               Needed& needed) {
+  PlanNode& node = plan.nodes[id];
+  auto& aggregates = node.Cast<op::TreeAccumulate>().aggregates;
+  aggregates.erase(
+      std::remove_if(aggregates.begin(), aggregates.end(),
+                     [&](const op::TreeAccumulate::Aggregate& agg) {
+                       return !needed[agg.output];
+                     }),
+      aggregates.end());
+
+  // A fold with nothing left to compute can go entirely. Checking that the
+  // input is a valid tree is not something a fold promises on its own.
+  if (aggregates.empty()) {
+    return PruneNode(plan, node.children[0], needed);
+  }
+
+  // Otherwise it needs the tree's structure and the columns it aggregates.
   const auto& acc = node.Cast<op::TreeAccumulate>();
   needed[acc.node_column] = true;
   needed[acc.parent_column] = true;
   for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
     needed[agg.column] = true;
   }
-  PruneNode(plan, node.children[0], needed);
+  node.children[0] = PruneNode(plan, node.children[0], needed);
+  return id;
 }
 
-void PruneIntervalIntersect(LogicalPlan& plan,
-                            const PlanNode& node,
-                            Needed& needed) {
+PlanNodeId PruneIntervalIntersect(LogicalPlan& plan,
+                                  PlanNodeId id,
+                                  Needed& needed) {
+  PlanNode& node = plan.nodes[id];
   // An intersection needs each operand's bounds and partition columns.
   const auto& isect = node.Cast<op::IntervalIntersect>();
   for (const op::IntervalIntersect::Operand& operand : isect.operands) {
@@ -137,23 +154,22 @@ void PruneIntervalIntersect(LogicalPlan& plan,
       needed[key] = true;
     }
   }
-  for (PlanNodeId child : node.children) {
-    PruneNode(plan, child, needed);
+  for (PlanNodeId& child : node.children) {
+    child = PruneNode(plan, child, needed);
   }
+  return id;
 }
 
-void PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
+PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
   PlanNode& node = plan.nodes[id];
   switch (node.kind()) {
     case OpKind::GetTypeIndex<op::Scan>():
       PruneScan(node.Cast<op::Scan>(), needed);
-      return;
+      return id;
     case OpKind::GetTypeIndex<op::TreeAccumulate>():
-      PruneTreeAccumulate(plan, node, needed);
-      return;
+      return PruneTreeAccumulate(plan, id, needed);
     case OpKind::GetTypeIndex<op::IntervalIntersect>():
-      PruneIntervalIntersect(plan, node, needed);
-      return;
+      return PruneIntervalIntersect(plan, id, needed);
     default:
       PERFETTO_FATAL("Unknown operator");
   }
@@ -169,7 +185,7 @@ void PruneColumns(LogicalPlan& plan) {
   for (const NamedColumn& column : plan.output) {
     needed[column.id] = true;
   }
-  PruneNode(plan, plan.root, needed);
+  plan.root = PruneNode(plan, plan.root, needed);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

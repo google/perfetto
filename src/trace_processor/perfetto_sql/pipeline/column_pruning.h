@@ -22,10 +22,10 @@
 namespace perfetto::trace_processor::pipeline {
 
 // Drops columns that nothing in the plan ends up using, so sources read less
-// data. For SQL sources, the query itself is narrowed so SQLite can skip
-// computing them too.
+// data and operators skip work whose results nobody reads. For SQL sources,
+// the query itself is narrowed so SQLite can skip computing them too.
 //
-// This only ever removes columns: the rows a plan produces are unchanged.
+// The rows a plan produces are unchanged, though their order may differ.
 void PruneColumns(LogicalPlan& plan);
 
 }  // namespace perfetto::trace_processor::pipeline
