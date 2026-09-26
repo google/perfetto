@@ -325,12 +325,16 @@ export class TreeExplorerFilterBar implements m.ClassComponent<TreeExplorerFilte
   }
 
   private renderHighlightSearch(attrs: TreeExplorerFilterBarAttrs) {
-    const {highlightPattern, highlightRegex} = attrs;
+    const {highlightPattern, highlightRegex, data} = attrs;
     const matchCount =
       highlightRegex === undefined
         ? 0
-        : (attrs.data?.nodes.filter((node) => highlightRegex.test(node.name))
-            .length ?? 0);
+        : (data?.nodes.filter(
+            (node) =>
+              // Diff nodes which take no space are hidden.
+              (data.diff === undefined || node.xEnd > node.xStart) &&
+              highlightRegex.test(node.name),
+          ).length ?? 0);
     return m(
       '.pf-tree-explorer-highlight-search',
       m(TextInput, {

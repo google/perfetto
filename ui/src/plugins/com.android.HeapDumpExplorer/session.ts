@@ -31,20 +31,16 @@ import {
   subpageToState,
 } from './nav_state';
 import type {OverviewData} from './types';
-import type {TreeExplorerState} from '../../widgets/tree_explorer';
+import {
+  DEFAULT_TREE_EXPLORER_COMPARISON,
+  type TreeExplorerState,
+} from '../../widgets/tree_explorer';
 import type {HdeState} from './persisted_state';
 import {
+  type FlamegraphObjectsSelection,
   METRIC_DOMINATED_OBJECT_SIZE,
   METRIC_OBJECT_SIZE,
 } from './views/flamegraph_view';
-import type {time} from '../../base/time';
-
-interface FlamegraphSelection {
-  readonly pathHashes: string;
-  readonly isDominator: boolean;
-  readonly upid: number;
-  readonly ts: time;
-}
 
 // A flamegraph drill-down tab: identity plus the title's object count (null
 // until fetched).
@@ -108,6 +104,32 @@ export class HeapDumpExplorerSession {
     );
   }
 
+  // The dump the Flamegraph tab compares the active dump against, if any.
+  get baselineDump(): queries.HeapDump | undefined {
+    const ref = this.store.state.baselineDump;
+    if (ref === undefined) return undefined;
+    const dump = this._dumps.find(
+      (d) => d.upid === ref.upid && d.ts === BigInt(ref.ts),
+    );
+    return dump === this.activeDump ? undefined : dump;
+  }
+
+  setBaselineDump(d: queries.HeapDump | undefined): void {
+    const panelState = this.flamegraphPanelState;
+    this.store.edit((s) => {
+      s.baselineDump =
+        d === undefined ? undefined : {upid: d.upid, ts: d.ts.toString()};
+      // Choosing a baseline asks for the diff against it.
+      if (d !== undefined && panelState?.comparison !== undefined) {
+        s.flamegraphPanelState = {
+          ...panelState,
+          comparison: {...panelState.comparison, show: 'DIFF'},
+        };
+      }
+    });
+    m.redraw();
+  }
+
   // Loads the dumps and reconciles them with the stored active dump. Returns
   // true if a valid permalink was restored, otherwise resets to the first dump.
   async loadDumps(): Promise<boolean> {
@@ -127,6 +149,7 @@ export class HeapDumpExplorerSession {
           first === undefined
             ? undefined
             : {upid: first.upid, ts: first.ts.toString()};
+        s.baselineDump = undefined;
         s.nav = undefined;
         s.flamegraphTabs = undefined;
         s.instanceTabs = undefined;
@@ -150,8 +173,13 @@ export class HeapDumpExplorerSession {
   private switchToDump(d: queries.HeapDump): void {
     this._overview = null;
     this._counts.clear();
+    const keepBaseline = this.baselineDump !== d;
     this.store.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
+      // A dump is not compared against itself.
+      if (!keepBaseline) {
+        s.baselineDump = undefined;
+      }
       s.flamegraphTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
@@ -251,7 +279,7 @@ export class HeapDumpExplorerSession {
     };
   }
 
-  openFlamegraph(sel: FlamegraphSelection): void {
+  openFlamegraph(sel: FlamegraphObjectsSelection): void {
     const target = this._dumps.find(
       (d) => d.upid === sel.upid && d.ts === sel.ts,
     );
@@ -406,6 +434,13 @@ export class HeapDumpExplorerSession {
         kind: 'PIVOT',
         pivot: `/^${pathHash}$/`,
         displayLabel: `${label} (this instance)`,
+      },
+      // Path hashes are specific to a dump, so the pivot finds nothing in a
+      // baseline dump: show the active dump alone.
+      comparison: {
+        ...(this.flamegraphPanelState?.comparison ??
+          DEFAULT_TREE_EXPLORER_COMPARISON),
+        show: 'CURRENT',
       },
     });
     this.navigate('flamegraph');

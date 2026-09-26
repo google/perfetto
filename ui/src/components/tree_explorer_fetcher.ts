@@ -52,6 +52,12 @@ export interface TreeExplorerQueryColumn {
   // Function that determines whether the property should be displayed for a
   // given node.
   readonly isVisible?: (value: string) => boolean;
+
+  // Whether the values of the column only have meaning within the tree they
+  // were read from (e.g. ids, or hashes of them), so that they never match
+  // between two trees: diffs then pair nodes ignoring the column. Only
+  // meaningful for unaggregatable properties.
+  readonly profileSpecific?: boolean;
 }
 
 export interface AggTreeExplorerQueryColumn extends TreeExplorerQueryColumn {
@@ -394,6 +400,7 @@ async function computeTree(
           value,
           isVisible: a.isVisible ? a.isVisible(value) : true,
           isAggregatable: false,
+          profileSpecific: a.profileSpecific,
         });
       }
     }
