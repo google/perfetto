@@ -21,6 +21,8 @@ source_set("logical") {
   sources = [
     "catalog.cc",
     "catalog.h",
+    "column_pruning.cc",
+    "column_pruning.h",
     "compiler.cc",
     "compiler.h",
     "logical_plan.h",
