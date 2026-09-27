@@ -181,10 +181,17 @@ class ProtoImporterModule {
 //
 // Used to store per-trace state in a place where everyone can access it.
 struct ProtoImporterModuleContext {
+  // Push kernel events (ftrace and ETW) to the sorter. Events are dropped if
+  // another trace provides kernel data for this machine at |ts|: see
+  // MachineDataClaimTracker.
   void PushFtraceEvent(uint32_t cpu, int64_t ts, FtraceData data);
   void PushEtwEvent(uint32_t cpu, int64_t ts, TracePacketData data);
   void PushInlineSchedSwitch(uint32_t cpu, int64_t ts, InlineSchedSwitch data);
   void PushInlineSchedWaking(uint32_t cpu, int64_t ts, InlineSchedWaking data);
+
+  // The (machine, trace) context events are tokenized for. May be null in
+  // tests, in which case events are never dropped.
+  TraceProcessorContext* context = nullptr;
 
   // The module at the index N is registered to handle field id N in
   // TracePacket.

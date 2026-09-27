@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -94,6 +95,10 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   for (const protozero::Field& f : packet_fields.unknown_fields()) {
     if (f.id() >= modules.size() || modules[f.id()].empty())
       continue;
+    std::optional<TrackTracker::ScopedMachineData> machine_data;
+    if (auto kind = MachineDataClaimTracker::KindForTracePacketField(f.id())) {
+      machine_data.emplace(context_, *kind);
+    }
     for (ProtoImporterModule* module : modules[f.id()])
       module->ParseField({packet_fields, ts, data, TracePacketField(f)});
     return;
@@ -140,6 +145,8 @@ void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
                                          int64_t ts,
                                          TracePacketData data) {
   PERFETTO_DCHECK(module_context_->etw_module);
+  TrackTracker::ScopedMachineData machine_data(
+      context_, MachineDataClaimTracker::Kind::kKernel);
   module_context_->etw_module->ParseEtwEventData(cpu, ts, data);
 }
 
@@ -147,6 +154,8 @@ void ProtoTraceParserImpl::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
                                             FtraceData data) {
   PERFETTO_DCHECK(module_context_->ftrace_module);
+  TrackTracker::ScopedMachineData machine_data(
+      context_, MachineDataClaimTracker::Kind::kKernel);
   module_context_->ftrace_module->ParseFtraceEventData(cpu, ts, data);
 }
 
@@ -154,6 +163,8 @@ void ProtoTraceParserImpl::ParseInlineSchedSwitch(uint32_t cpu,
                                                   int64_t ts,
                                                   InlineSchedSwitch data) {
   PERFETTO_DCHECK(module_context_->ftrace_module);
+  TrackTracker::ScopedMachineData machine_data(
+      context_, MachineDataClaimTracker::Kind::kKernel);
   module_context_->ftrace_module->ParseInlineSchedSwitch(cpu, ts, data);
 }
 
@@ -161,6 +172,8 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
                                                   int64_t ts,
                                                   InlineSchedWaking data) {
   PERFETTO_DCHECK(module_context_->ftrace_module);
+  TrackTracker::ScopedMachineData machine_data(
+      context_, MachineDataClaimTracker::Kind::kKernel);
   module_context_->ftrace_module->ParseInlineSchedWaking(cpu, ts, data);
 }
 

@@ -44,6 +44,7 @@
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -264,6 +265,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
     context_.gpu_tracker.reset(new GpuTracker(&context_));
+    context_.machine_data_claim_tracker.reset(
+        new MachineDataClaimTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);

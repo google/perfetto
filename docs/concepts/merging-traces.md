@@ -126,6 +126,53 @@ NOTE: `machine.id` (the table row id) is not stable across Perfetto
 versions. Use `machine.raw_id` or `machine.name` to identify machines in
 queries.
 
+## Machine-wide data from several traces
+
+Some data describes state which exists once per machine: the kernel
+scheduler, per-CPU and per-GPU frequency and idle state, system-wide
+counters, battery and power rails. When several merged traces were recorded
+on the same machine, they describe the same physical entities, so Trace
+Processor makes sure that two traces never provide the same kind of such
+data for the same stretch of time. For each machine and kind of data:
+
+- Each trace contributes a single contiguous time window, and the windows
+  of different traces never overlap. The first trace in processing order
+  keeps all its data; a later trace keeps only its data outside the windows
+  of the traces before it. The common case, traces recorded one after
+  another (e.g. several field traces from one device), loses nothing.
+- Data which overlaps another trace's window is dropped. Drops are counted
+  in the `machine_data_claimed_by_other_trace` stat and explained once per
+  trace and kind in the trace import logs, with the conflicting trace.
+- Machine-wide tracks (those not about a thread or a process, e.g.
+  `cpu_frequency` for a CPU) are shared by all the traces, so each CPU still
+  has one frequency track, one scheduling timeline and so on.
+- Scheduling slices, thread states and slices on shared tracks still open at
+  the end of a trace's window are closed at the end of that window, rather
+  than extending over the next trace's data. Their real end is not known, so
+  their duration is a lower bound; they are counted in the
+  `machine_data_closed_at_trace_boundary` stat of their trace.
+
+The kinds of data are arbitrated independently and are split by data source:
+kernel data (ftrace, including systrace text, ETW and generic kernel events),
+`linux.sys_stats`, Android power data (battery counters, power rails, energy
+estimation and entity state residency) and Android per-UID CPU time. So
+merging different data sources recorded at the same time, e.g. a system
+trace with an app's SDK trace, or a trace with ftrace and another with only
+sys_stats, is unaffected. Per-UID CPU time is cumulative over a trace and
+cannot be stitched across traces, so it is always taken from the first trace
+which has it.
+
+Gaps between windows are not filled in: as within a single trace, a counter
+keeps its last value until its next sample, even if that sample comes from
+another trace.
+
+This relies on the traces sharing a boot: traces attributed to one machine
+are aligned by assuming their boot clocks are the same (see
+[Clock synchronization](/docs/concepts/clock-sync.md)). Traces from
+different boots of a device, or from different devices which would
+otherwise merge onto the same machine, must be attributed to different
+machines with a [manifest](/docs/reference/perfetto-manifest.md).
+
 ## Relationship to live multi-machine recording
 
 Merging is one of three ways to get a trace spanning several machines; the
