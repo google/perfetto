@@ -43,7 +43,7 @@ namespace perfetto::trace_processor::pipeline {
 
 // Catalog over dataframes built by the test. SQLite does not know about them.
 // Anything else is described via `connection` (if given) and is untyped.
-class TestCatalog : public Catalog, public perfetto_sql::analysis::Catalog {
+class TestCatalog : public Catalog {
  public:
   explicit TestCatalog(StringPool* pool, SqliteConnection* connection = nullptr)
       : pool_(pool), connection_(connection) {}
