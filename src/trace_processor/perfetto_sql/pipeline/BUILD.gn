@@ -26,6 +26,8 @@ source_set("logical") {
     "compiler.cc",
     "compiler.h",
     "logical_plan.h",
+    "pipeline_sql.cc",
+    "pipeline_sql.h",
     "plan_serialization.cc",
     "plan_serialization.h",
   ]

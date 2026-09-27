@@ -39,6 +39,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -114,33 +115,28 @@ base::StatusOr<PerfettoSqlParser::CreateFunction::Returns> BuildReturnType(
 }
 
 // ---------------------------------------------------------------------------
-// Macro rewrite tree -> SqlSource
+// Rewrite tree -> SqlSource
 // ---------------------------------------------------------------------------
 
-// Walks the flat list of macro rewrites produced by syntaqlite and, for a
-// given AST node, builds a SqlSource whose `Rewriter` structure mirrors the
-// nesting of macro calls. This lets SQLite-side error tracebacks resolve
-// through macro expansions back to the authored call site.
+// The rewrites syntaqlite recorded for a statement, as a tree, and the
+// SqlSource of any AST node with them applied. Each rewrite replaces a range
+// of its parent's text: a macro call with its expansion, or a pipeline with
+// SQL reading it. The SqlSources nest the same way, so SQLite errors trace
+// back through every rewrite to where the user wrote the text.
 //
-// The flat list has O(N) entries reported in insertion order (outer macros
-// before their nested calls). Rather than re-scanning the list for each
-// rewrite we materialize a parent -> children adjacency once in the
-// constructor, so every subsequent lookup descends the tree in O(subtree).
-class MacroRewriteBuilder {
+// A snapshot of the rewrites recorded when it is constructed.
+class RewriteTree {
  public:
-  // `stmt_doc_offset` is the byte offset of the current statement within
-  // `stmt`.  Syntaqlite v0.5 reports every layer-0 offset (node extents,
-  // spans, macro call offsets) statement-relative, so call sites that
-  // slice `stmt` add this offset to translate into document coordinates.
-  MacroRewriteBuilder(SyntaqliteParser* p,
-                      const SqlSource& stmt,
-                      uint32_t stmt_doc_offset,
-                      const base::FlatHashMap<std::string, Macro>& macros)
+  // `stmt_doc_offset` is where the current statement starts in `stmt`:
+  // syntaqlite reports offsets in the statement's own text relative to it.
+  RewriteTree(SyntaqliteParser* p,
+              const SqlSource& stmt,
+              uint32_t stmt_doc_offset,
+              const base::FlatHashMap<std::string, Macro>& macros)
       : p_(p), stmt_(stmt), stmt_doc_offset_(stmt_doc_offset), macros_(macros) {
-    uint32_t total = syntaqlite_result_rewrite_count(p_);
-    no_macros_ = (total == 0);
-    children_.resize(total);
-    for (uint32_t i = 0; i < total; i++) {
+    uint32_t count = syntaqlite_result_rewrite_count(p_);
+    children_.resize(count);
+    for (uint32_t i = 0; i < count; i++) {
       auto r = syntaqlite_result_rewrite_at(p_, i);
       if (r.parent_idx == SYNTAQLITE_REWRITE_PARENT_SOURCE) {
         source_rooted_.push_back(i);
@@ -148,23 +144,37 @@ class MacroRewriteBuilder {
         children_[r.parent_idx].push_back(i);
       }
     }
+    // A pipeline's rewrite is recorded after the macro calls written inside
+    // it, so siblings are not always in the order they were written in.
+    auto written_first = [this](uint32_t a, uint32_t b) {
+      auto ra = syntaqlite_result_rewrite_at(p_, a);
+      auto rb = syntaqlite_result_rewrite_at(p_, b);
+      if (ra.call_offset == rb.call_offset &&
+          ra.call_length == rb.call_length) {
+        return a > b;
+      }
+      return StartsFirst(ra.call_offset, ra.call_offset + ra.call_length,
+                         rb.call_offset, rb.call_offset + rb.call_length);
+    };
+    std::sort(source_rooted_.begin(), source_rooted_.end(), written_first);
+    for (auto& children : children_) {
+      std::sort(children.begin(), children.end(), written_first);
+    }
   }
 
   // Returns a SqlSource for the AST subtree rooted at `node_id`, with any
-  // macro rewrites that fall within its range applied. Returns std::nullopt
-  // if the node has no recorded extent.
+  // rewrites that fall within its range applied. Returns std::nullopt if the
+  // node has no recorded extent.
   std::optional<SqlSource> NodeSource(uint32_t node_id) const {
     uint32_t len = 0;
     uint32_t stmt_off = 0;
     if (syntaqlite_parser_node_text(p_, node_id, &len, &stmt_off) == nullptr)
       return std::nullopt;
-    SqlSource base = stmt_.Substr(stmt_off + stmt_doc_offset_, len);
-    // No-macros parses can skip the per-node macro-free check.
-    if (no_macros_)
-      return base;
-    if (syntaqlite_node_is_macro_free(p_, node_id))
-      return base;
-    return ApplyChildrenInRange(std::move(base), source_rooted_, stmt_off, len);
+    if (children_.empty())
+      return stmt_.Substr(stmt_off + stmt_doc_offset_, len);
+    SyntaqliteNodeSite site;
+    PERFETTO_CHECK(syntaqlite_parser_node_site(p_, node_id, &site));
+    return SiteSource(site);
   }
 
  private:
@@ -174,19 +184,66 @@ class MacroRewriteBuilder {
     SqlSource replacement;
   };
 
-  // Returns `base` with every rewrite in `children` whose call site lies
-  // inside [range_offset, range_offset + range_length) applied to it
-  // (translated into base-local coordinates).  Shared by every caller that
-  // works in `call_offset`-based coordinates: the authored source range,
-  // an intrinsic's expansion buffer, and a $param arg's expansion range.
-  //
-  // Relies on syntaqlite's guarantee that siblings in the rewrite tree are
-  // reported in source order, so the filtered items end up pre-sorted by
-  // `call_offset` and can be fed straight to the Rewriter.
-  SqlSource ApplyChildrenInRange(SqlSource base,
-                                 const std::vector<uint32_t>& children,
-                                 uint32_t range_offset,
-                                 uint32_t range_length) const {
+  // The order rewrites are applied in: by where they start and, of two
+  // starting together, the one containing the other first.
+  static bool StartsFirst(uint32_t a_start,
+                          uint32_t a_end,
+                          uint32_t b_start,
+                          uint32_t b_end) {
+    return a_start < b_start || (a_start == b_start && a_end > b_end);
+  }
+
+  // Drops every item inside an earlier one: a pipeline's replacement stands
+  // in for the macro calls written inside it. Items must be in StartsFirst
+  // order.
+  static std::vector<RewriteItem> KeepOutermost(
+      std::vector<RewriteItem> items) {
+    std::vector<RewriteItem> out;
+    for (RewriteItem& item : items) {
+      if (out.empty() || item.start >= out.back().end) {
+        out.push_back(std::move(item));
+      }
+    }
+    return out;
+  }
+
+  // The text at `site`, as reached from the statement. Inside a rewrite it is
+  // a slice of the rewrite's expansion, which traces back through the call.
+  SqlSource SiteSource(const SyntaqliteNodeSite& site) const {
+    if (site.parent_idx == SYNTAQLITE_REWRITE_PARENT_SOURCE) {
+      return ApplyChildrenInRange(
+          stmt_.Substr(site.offset + stmt_doc_offset_, site.length),
+          source_rooted_, site.offset, site.length);
+    }
+    auto r = syntaqlite_result_rewrite_at(p_, site.parent_idx);
+    SqlSource expansion =
+        SiteSource({r.parent_idx, r.call_offset, r.call_length});
+    std::vector<RewriteItem> inside =
+        ChildItems(children_[site.parent_idx], 0, r.expansion_len);
+    uint32_t start = ExpandedOffset(inside, site.offset);
+    uint32_t end = ExpandedOffset(inside, site.offset + site.length);
+    return expansion.Substr(start, end - start);
+  }
+
+  // Where `offset` in a text lands once `items` are applied to it.
+  static uint32_t ExpandedOffset(const std::vector<RewriteItem>& items,
+                                 uint32_t offset) {
+    int64_t shift = 0;
+    for (const RewriteItem& item : items) {
+      if (item.end > offset) {
+        break;
+      }
+      shift += static_cast<int64_t>(item.replacement.sql().size()) -
+               (item.end - item.start);
+    }
+    return static_cast<uint32_t>(offset + shift);
+  }
+
+  // The rewrites in `children` whose call sites lie inside
+  // [range_offset, range_offset + range_length), in range-local coordinates.
+  std::vector<RewriteItem> ChildItems(const std::vector<uint32_t>& children,
+                                      uint32_t range_offset,
+                                      uint32_t range_length) const {
     std::vector<RewriteItem> items;
     for (uint32_t idx : children) {
       auto c = syntaqlite_result_rewrite_at(p_, idx);
@@ -197,7 +254,20 @@ class MacroRewriteBuilder {
       uint32_t local = c.call_offset - range_offset;
       items.push_back({local, local + c.call_length, BuildForRewrite(idx)});
     }
-    return ApplyRewrites(std::move(base), std::move(items));
+    return KeepOutermost(std::move(items));
+  }
+
+  // Returns `base` with the rewrites in `children` whose call site lies
+  // inside [range_offset, range_offset + range_length) applied to it. Shared
+  // by every caller that works in `call_offset`-based coordinates: the
+  // authored source range, an intrinsic's expansion buffer, and a $param
+  // arg's expansion range.
+  SqlSource ApplyChildrenInRange(SqlSource base,
+                                 const std::vector<uint32_t>& children,
+                                 uint32_t range_offset,
+                                 uint32_t range_length) const {
+    return ApplyRewrites(std::move(base),
+                         ChildItems(children, range_offset, range_length));
   }
 
   // Recursive case: the expansion of a single macro rewrite.
@@ -251,14 +321,13 @@ class MacroRewriteBuilder {
       items.push_back({seg.body_offset, seg.body_offset + seg.body_length,
                        BuildForArg(idx, seg)});
     }
-    // This is the only ApplyRewrites caller whose items aren't already in
-    // `start` order: we concatenated literal body calls and $param segments,
-    // each internally sorted but interleaved relative to each other.
+    // Literal body calls and $param segments are each in order, but not
+    // relative to each other.
     std::sort(items.begin(), items.end(),
               [](const RewriteItem& a, const RewriteItem& b) {
-                return a.start < b.start;
+                return StartsFirst(a.start, a.end, b.start, b.end);
               });
-    return ApplyRewrites(m.sql, std::move(items));
+    return ApplyRewrites(m.sql, KeepOutermost(std::move(items)));
   }
 
   // The SqlSource for one `$param` substitution: the arg's authored text,
@@ -304,18 +373,17 @@ class MacroRewriteBuilder {
         std::string(r.name, r.name_len));
   }
 
-  // Applies `items` on top of `base`.  Items must already be sorted by
-  // `start` and non-overlapping; the sort lives at the (single) call site
-  // that can produce unsorted input.
+  // Applies `items` on top of `base`. Items must be in order and must not
+  // overlap.
   static SqlSource ApplyRewrites(SqlSource base,
                                  std::vector<RewriteItem> items) {
     if (items.empty())
       return base;
     PERFETTO_DCHECK(
-        std::is_sorted(items.begin(), items.end(),
-                       [](const RewriteItem& a, const RewriteItem& b) {
-                         return a.start < b.start;
-                       }));
+        std::adjacent_find(items.begin(), items.end(),
+                           [](const RewriteItem& a, const RewriteItem& b) {
+                             return b.start < a.end;
+                           }) == items.end());
     SqlSource::Rewriter rw(std::move(base));
     for (auto& it : items) {
       rw.Rewrite(it.start, it.end, std::move(it.replacement));
@@ -327,15 +395,14 @@ class MacroRewriteBuilder {
   const SqlSource& stmt_;
   uint32_t stmt_doc_offset_;
   const base::FlatHashMap<std::string, Macro>& macros_;
-  // Zero macros in the whole parse — lets NodeSource fast-path.
-  bool no_macros_ = true;
-  // children_[parent_idx] = rewrite indices whose `parent_idx` equals that.
+  // children_[parent_idx] = rewrite indices whose `parent_idx` equals that,
+  // in the order they were written in.
   std::vector<std::vector<uint32_t>> children_;
-  // Rewrites whose parent is SYNTAQLITE_REWRITE_PARENT_SOURCE.
+  // Rewrites whose parent is SYNTAQLITE_REWRITE_PARENT_SOURCE, likewise.
   std::vector<uint32_t> source_rooted_;
 };
 
-SqlSource NodeSource(const MacroRewriteBuilder& rb, uint32_t node_id) {
+SqlSource NodeSource(const RewriteTree& rb, uint32_t node_id) {
   auto s = rb.NodeSource(node_id);
   PERFETTO_CHECK(s.has_value());
   return std::move(*s);
@@ -358,7 +425,7 @@ uint32_t CurrentStatementDocOffset(SyntaqliteParser* p) {
 
 base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
     SyntaqliteParser* p,
-    const MacroRewriteBuilder& rb,
+    const RewriteTree& rb,
     const pipeline::Catalog* catalog,
     uint32_t pipeline_id) {
   if (!catalog) {
@@ -371,9 +438,26 @@ base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
       *catalog);
 }
 
+// SQL reading the pipeline at `pipeline_id`, which a pipeline written where
+// SQL is expected is replaced with.
+base::StatusOr<std::string> PipelineSql(SyntaqliteParser* p,
+                                        const RewriteTree& rb,
+                                        const pipeline::Catalog* catalog,
+                                        uint32_t pipeline_id) {
+  ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
+                   CompilePipeline(p, rb, catalog, pipeline_id));
+  base::StatusOr<std::string> sql = pipeline::SelectPipelineSql(plan);
+  if (!sql.ok()) {
+    return base::ErrStatus("%s%s",
+                           NodeSource(rb, pipeline_id).AsTraceback(0).c_str(),
+                           sql.status().c_message());
+  }
+  return sql;
+}
+
 base::StatusOr<PerfettoSqlParser::CreateTable::Body> ParseCreateTableBody(
     SyntaqliteParser* p,
-    const MacroRewriteBuilder& rb,
+    const RewriteTree& rb,
     const pipeline::Catalog* catalog,
     const SyntaqliteCreatePerfettoTableStmt& n) {
   using Body = PerfettoSqlParser::CreateTable::Body;
@@ -386,7 +470,7 @@ base::StatusOr<PerfettoSqlParser::CreateTable::Body> ParseCreateTableBody(
 
 base::StatusOr<Statement> ParseCreateTable(
     SyntaqliteParser* p,
-    const MacroRewriteBuilder& rb,
+    const RewriteTree& rb,
     const pipeline::Catalog* catalog,
     const SyntaqliteCreatePerfettoTableStmt& n) {
   if (syntaqlite_node_is_present(n.table_impl)) {
@@ -409,7 +493,7 @@ base::StatusOr<Statement> ParseCreateTable(
 
 base::StatusOr<Statement> ParseCreateView(
     SyntaqliteParser* p,
-    const MacroRewriteBuilder& rb,
+    const RewriteTree& rb,
     const SyntaqliteCreatePerfettoViewStmt& n) {
   ASSIGN_OR_RETURN(auto schema, BuildArgDefs(p, n.schema));
   std::string name = SpanText(p, n.view_name);
@@ -427,7 +511,7 @@ base::StatusOr<Statement> ParseCreateView(
 
 base::StatusOr<Statement> ParseCreateFunction(
     SyntaqliteParser* p,
-    const MacroRewriteBuilder& rb,
+    const RewriteTree& rb,
     const SyntaqliteCreatePerfettoFunctionStmt& n) {
   ASSIGN_OR_RETURN(auto args, BuildArgDefs(p, n.args));
   for (const auto& arg : args) {
@@ -547,7 +631,7 @@ Statement ParseCreateMacro(SyntaqliteParser* p,
 }
 
 base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
-                                         const MacroRewriteBuilder& rb,
+                                         const RewriteTree& rb,
                                          const SqlSource& stmt,
                                          uint32_t stmt_doc_offset,
                                          const pipeline::Catalog* catalog,
@@ -614,6 +698,7 @@ struct PerfettoSqlParser::Impl {
     PERFETTO_CHECK(synq != nullptr);
     PERFETTO_CHECK(syntaqlite_parser_set_collect_node_extents(synq, 1) == 0);
     syntaqlite_parser_set_macro_lookup(synq, &Impl::LookupMacro, this);
+    syntaqlite_parser_set_node_expander(synq, &Impl::ExpandNode, this);
   }
 
   void Bind(SqlSource src) {
@@ -683,6 +768,27 @@ struct PerfettoSqlParser::Impl {
     return rc == 0 ? 0 : -2;
   }
 
+  // The grammar hands over a pipeline in parentheses once it is parsed.
+  static int ExpandNode(void* user_data,
+                        SyntaqliteParser* parser,
+                        uint32_t node) {
+    return static_cast<Impl*>(user_data)->ExpandPipeline(parser, node);
+  }
+
+  // Replaces the pipeline at `node` with SQL reading it.
+  int ExpandPipeline(SyntaqliteParser* parser, uint32_t node) {
+    RewriteTree rb(parser, source, CurrentStatementDocOffset(parser), macros);
+    base::StatusOr<std::string> sql =
+        PipelineSql(parser, rb, pipelines_allowed ? catalog : nullptr, node);
+    if (!sql.ok()) {
+      expansion_error = sql.status();
+      return SYNTAQLITE_NODE_EXPAND_ERROR;
+    }
+    syntaqlite_node_expansion_set_result(parser, sql->data(),
+                                         static_cast<uint32_t>(sql->size()));
+    return SYNTAQLITE_NODE_EXPAND_OK;
+  }
+
   SyntaqliteParser* synq;
   SqlSource source;
   const base::FlatHashMap<std::string, Macro>& macros;
@@ -691,6 +797,9 @@ struct PerfettoSqlParser::Impl {
   // parser serves both the standard library and user SQL.
   bool pipelines_allowed;
   base::Status status;
+  // Why expanding a pipeline failed the statement, if it did. It says more
+  // than syntaqlite's parse error, so is reported instead.
+  base::Status expansion_error;
   std::optional<Statement> current_statement;
   ::perfetto::perfetto_sql::IntrinsicMacroExpander intrinsic_expander;
   // Scratch buffers for LookupMacro, reused across user-macro lookups.
@@ -711,6 +820,10 @@ bool PerfettoSqlParser::Impl::Next(
     int32_t rc = syntaqlite_parser_next(synq);
     if (rc == SYNTAQLITE_PARSE_DONE)
       return false;
+    if (rc == SYNTAQLITE_PARSE_ERROR && !expansion_error.ok()) {
+      status = std::exchange(expansion_error, base::OkStatus());
+      return false;
+    }
     if (rc == SYNTAQLITE_PARSE_ERROR) {
       // error_offset is statement-relative; shift by the statement's
       // position within the source to get a document offset.
@@ -734,7 +847,7 @@ bool PerfettoSqlParser::Impl::Next(
   // source; callers that slice `stmt` add it back on.
   uint32_t stmt_doc_offset = CurrentStatementDocOffset(synq);
 
-  MacroRewriteBuilder rb(synq, stmt, stmt_doc_offset, macros);
+  RewriteTree rb(synq, stmt, stmt_doc_offset, macros);
   auto root_src = rb.NodeSource(root);
   out_statement_sql = root_src.has_value() ? *std::move(root_src) : stmt;
 

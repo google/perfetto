@@ -26,8 +26,9 @@
 namespace perfetto::trace_processor::sql_schema {
 
 // SQLite supplies result names; semantic analysis supplies types where known.
-// Fails if SQLite cannot prepare the query. Unknown types remain per-row
-// variants.
+// Fails if SQLite cannot prepare the query, or if it reads a parameter: the
+// query is run on its own, where nothing binds one. Unknown types remain
+// per-row variants.
 base::StatusOr<core::Schema> DescribeQuery(
     SqliteConnection*,
     const SqlSource&,

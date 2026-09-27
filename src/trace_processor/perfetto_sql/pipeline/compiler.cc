@@ -80,6 +80,8 @@ class Compiler {
   base::Status CompileSource(uint32_t from);
   base::Status CompileIntersection(uint32_t node);
   base::Status CompileStage(uint32_t stage);
+  // Compiles the pipeline at `pipeline`: its source and each of its stages.
+  base::Status CompilePipeline(uint32_t pipeline);
   LogicalPlan Finish();
 
  private:
@@ -100,6 +102,21 @@ class Compiler {
     std::vector<RowColumn> columns;
   };
 
+  // What names mean while one pipeline is compiled. A pipeline read by
+  // another is compiled in a scope of its own, as a subquery would be.
+  struct Scope {
+    // The operator being compiled, which prefixes every error.
+    const char* op = "FROM";
+    // The row as of the stage being compiled, and the table aliases in scope.
+    std::vector<RowColumn> row;
+    std::vector<Alias> aliases;
+  };
+  // A relation a source reads: the plan node producing it and its columns.
+  struct Relation {
+    PlanNodeId node = 0;
+    std::vector<NamedColumn> columns;
+  };
+
   base::Status CompileSelect(uint32_t stage);
   base::Status CompileExtend(uint32_t stage);
   base::Status CompileDrop(uint32_t stage);
@@ -113,7 +130,7 @@ class Compiler {
 
   // Appends a column to the row.
   void Append(NamedColumn column, uint32_t node, bool qualified_only = false) {
-    row_.push_back({std::move(column), op_, node, qualified_only});
+    scope_.row.push_back({std::move(column), scope_.op, node, qualified_only});
   }
   const Alias* FindAlias(const std::string& name) const;
   // Forgets the table alias `name`, if there is one.
@@ -132,10 +149,15 @@ class Compiler {
   // The name a source's columns can be qualified with, if it has one.
   std::optional<std::string> SourceQualifier(
       const SyntaqlitePerfettoPipeSource&) const;
-  // Fails unless every column of a source has a name a pipeline can use.
-  // Crossing from SQL into a pipeline needs proper names, as creating a
+  // Compiles what a source reads: a dataframe, SQL, or a pipeline.
+  base::StatusOr<Relation> CompileRelation(uint32_t source);
+  // Compiles a pipeline read by this one into the same plan.
+  base::StatusOr<Relation> CompileNestedPipeline(uint32_t pipeline);
+  // Fails unless every column of a source has a distinct name a pipeline can
+  // use. Crossing from SQL into a pipeline needs proper names, as creating a
   // PERFETTO TABLE does.
-  base::Status CheckSourceNames(const op::Scan&, uint32_t at) const;
+  base::Status CheckSourceNames(const std::vector<NamedColumn>&,
+                                uint32_t at) const;
   op::Scan CompileDataframeSource(const dataframe::Dataframe&,
                                   std::string name);
   base::StatusOr<op::Scan> CompileSqlSource(uint32_t from);
@@ -180,17 +202,13 @@ class Compiler {
   const NodeSourceFn& source_;
   const Catalog& catalog_;
   LogicalPlan plan_;
-  // The operator being compiled, which prefixes every error.
-  const char* op_ = "FROM";
-  // The row as of the stage being compiled, and the table aliases in scope.
-  std::vector<RowColumn> row_;
-  std::vector<Alias> aliases_;
+  Scope scope_;
 };
 
-// The column of `scan` named `name`, or nothing when it has none.
-std::optional<ColumnId> FindScanColumn(const op::Scan& scan,
-                                       const std::string& name) {
-  for (const NamedColumn& column : scan.columns) {
+// The column of a relation named `name`, or nothing when it has none.
+std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
+                                   const std::string& name) {
+  for (const NamedColumn& column : columns) {
     if (base::CaseInsensitiveEqual(column.name, name)) {
       return column.id;
     }
@@ -199,7 +217,7 @@ std::optional<ColumnId> FindScanColumn(const op::Scan& scan,
 }
 
 base::Status Compiler::CompileIntersection(uint32_t node) {
-  op_ = "INTERVAL INTERSECTION";
+  scope_.op = "INTERVAL INTERSECTION";
   const auto* n = Node<SyntaqlitePerfettoIntervalIntersection>(p_, node);
   const auto* list = Node<SyntaqlitePerfettoPipeSourceList>(p_, n->operands);
   uint32_t count = syntaqlite_list_count(list);
@@ -232,16 +250,9 @@ base::Status Compiler::CompileIntersection(uint32_t node) {
     if (FindAlias(*alias)) {
       return Expected(source_id, "a different alias for each relation");
     }
-    op::Scan scan;
-    if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*source)) {
-      scan =
-          CompileDataframeSource(*dataframe, SpanText(p_, source->table_name));
-    } else {
-      ASSIGN_OR_RETURN(scan, CompileSqlSource(source_id));
-    }
-    RETURN_IF_ERROR(CheckSourceNames(scan, source_id));
-    std::optional<ColumnId> ts = FindScanColumn(scan, "ts");
-    std::optional<ColumnId> dur = FindScanColumn(scan, "dur");
+    ASSIGN_OR_RETURN(Relation relation, CompileRelation(source_id));
+    std::optional<ColumnId> ts = FindColumn(relation.columns, "ts");
+    std::optional<ColumnId> dur = FindColumn(relation.columns, "dur");
     if (!ts || !dur) {
       return Expected(source_id,
                       *alias + " to have a " + (ts ? "dur" : "ts") + " column");
@@ -253,7 +264,7 @@ base::Status Compiler::CompileIntersection(uint32_t node) {
       uint32_t col_id = syntaqlite_list_child_id(per, k);
       const auto* col = Node<SyntaqlitePerfettoPerColumn>(p_, col_id);
       std::string name = SpanText(p_, col->name);
-      std::optional<ColumnId> key = FindScanColumn(scan, name);
+      std::optional<ColumnId> key = FindColumn(relation.columns, name);
       if (!key) {
         return Expected(col_id, *alias + " to have a " + name + " column");
       }
@@ -263,15 +274,15 @@ base::Status Compiler::CompileIntersection(uint32_t node) {
     // A PER column holds the same value in every operand, so the first
     // operand's is also the one a bare name finds.
     Alias operand_alias{*alias, {}};
-    for (const NamedColumn& column : scan.columns) {
+    for (const NamedColumn& column : relation.columns) {
       bool is_key = std::find(operand.keys.begin(), operand.keys.end(),
                               column.id) != operand.keys.end();
       Append(column, source_id, /*qualified_only=*/!(is_key && i == 0));
-      operand_alias.columns.push_back(row_.back());
+      operand_alias.columns.push_back(scope_.row.back());
       operand.carried.push_back(column.id);
     }
-    aliases_.push_back(std::move(operand_alias));
-    children.push_back(plan_.AddNode(std::move(scan)));
+    scope_.aliases.push_back(std::move(operand_alias));
+    children.push_back(relation.node);
     isect.operands.push_back(std::move(operand));
   }
   plan_.AddNode(std::move(isect), std::move(children));
@@ -280,21 +291,49 @@ base::Status Compiler::CompileIntersection(uint32_t node) {
 
 base::Status Compiler::CompileSource(uint32_t from) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, from);
-  op::Scan scan;
-  if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
-    scan = CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
-  } else {
-    ASSIGN_OR_RETURN(scan, CompileSqlSource(from));
-  }
-  RETURN_IF_ERROR(CheckSourceNames(scan, from));
-  for (const NamedColumn& column : scan.columns) {
-    Append(column, from);
+  ASSIGN_OR_RETURN(Relation relation, CompileRelation(from));
+  for (NamedColumn& column : relation.columns) {
+    Append(std::move(column), from);
   }
   if (std::optional<std::string> qualifier = SourceQualifier(*n)) {
-    aliases_.push_back({std::move(*qualifier), row_});
+    scope_.aliases.push_back({std::move(*qualifier), scope_.row});
   }
-  plan_.AddNode(std::move(scan));
   return base::OkStatus();
+}
+
+base::StatusOr<Compiler::Relation> Compiler::CompileRelation(uint32_t source) {
+  const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, source);
+  Relation relation;
+  if (syntaqlite_node_is_present(n->select) &&
+      Node<SyntaqliteNode>(p_, n->select)->tag ==
+          SYNTAQLITE_NODE_PERFETTO_PIPELINE) {
+    ASSIGN_OR_RETURN(relation, CompileNestedPipeline(n->select));
+  } else {
+    op::Scan scan;
+    if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
+      scan = CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
+    } else {
+      ASSIGN_OR_RETURN(scan, CompileSqlSource(source));
+    }
+    relation.columns = scan.columns;
+    relation.node = plan_.AddNode(std::move(scan));
+  }
+  RETURN_IF_ERROR(CheckSourceNames(relation.columns, source));
+  return relation;
+}
+
+base::StatusOr<Compiler::Relation> Compiler::CompileNestedPipeline(
+    uint32_t pipeline) {
+  Scope outer = std::exchange(scope_, Scope());
+  base::Status status = CompilePipeline(pipeline);
+  Scope inner = std::exchange(scope_, std::move(outer));
+  RETURN_IF_ERROR(status);
+  Relation relation;
+  relation.node = plan_.root;
+  for (RowColumn& column : inner.row) {
+    relation.columns.push_back(std::move(column.column));
+  }
+  return relation;
 }
 
 const dataframe::Dataframe* Compiler::FindDirectDataframe(
@@ -325,19 +364,27 @@ std::optional<std::string> Compiler::SourceQualifier(
   return std::nullopt;
 }
 
-base::Status Compiler::CheckSourceNames(const op::Scan& scan,
+base::Status Compiler::CheckSourceNames(const std::vector<NamedColumn>& columns,
                                         uint32_t at) const {
+  for (size_t i = 0; i < columns.size(); ++i) {
+    for (size_t j = 0; j < i; ++j) {
+      if (base::CaseInsensitiveEqual(columns[j].name, columns[i].name)) {
+        return Expected(at, "distinct column names, but there are two named '" +
+                                columns[j].name + "'");
+      }
+    }
+  }
   // SQLite renames the second of two columns sharing a name `x` to `x:1`.
   // Say so, rather than only that `x:1` is not a valid name.
-  for (size_t i = 0; i < scan.columns.size(); ++i) {
-    const std::string& name = scan.columns[i].name;
+  for (size_t i = 0; i < columns.size(); ++i) {
+    const std::string& name = columns[i].name;
     size_t colon = name.rfind(':');
     if (colon == std::string::npos || colon + 1 == name.size() ||
         name.find_first_not_of("0123456789", colon + 1) != std::string::npos) {
       continue;
     }
     for (size_t j = 0; j < i; ++j) {
-      const std::string& first = scan.columns[j].name;
+      const std::string& first = columns[j].name;
       if (base::CaseInsensitiveEqual(first, name.substr(0, colon))) {
         return Expected(at, "distinct column names, but there are two named '" +
                                 first + "', which SQLite renamed to '" + first +
@@ -345,7 +392,7 @@ base::Status Compiler::CheckSourceNames(const op::Scan& scan,
       }
     }
   }
-  for (const NamedColumn& column : scan.columns) {
+  for (const NamedColumn& column : columns) {
     if (!sql_argument::IsValidColumnName(base::StringView(column.name))) {
       return Expected(at, "every column to have a valid name, but '" +
                               column.name +
@@ -435,7 +482,7 @@ base::Status Compiler::Err(uint32_t at,
       {"no such table alias: '", "'"},
   };
   const Shape& shape = kShapes[static_cast<size_t>(error)];
-  return base::ErrStatus("%s%s: %s%.*s%s%s", Traceback(at).c_str(), op_,
+  return base::ErrStatus("%s%s: %s%.*s%s%s", Traceback(at).c_str(), scope_.op,
                          shape.prefix, static_cast<int>(what.size()),
                          what.data(), shape.suffix, detail.c_str());
 }
@@ -443,7 +490,7 @@ base::Status Compiler::Err(uint32_t at,
 std::string Compiler::Origin(const RowColumn& column) const {
   // A qualified name is something the user can write to pick this candidate.
   const std::string& name = column.column.name;
-  for (const Alias& alias : aliases_) {
+  for (const Alias& alias : scope_.aliases) {
     for (const RowColumn& aliased : alias.columns) {
       if (aliased.column.id == column.column.id &&
           base::CaseInsensitiveEqual(aliased.column.name, name)) {
@@ -471,7 +518,7 @@ std::string Compiler::AmbiguousCandidates(
 }
 
 const Compiler::Alias* Compiler::FindAlias(const std::string& name) const {
-  for (const Alias& alias : aliases_) {
+  for (const Alias& alias : scope_.aliases) {
     if (base::CaseInsensitiveEqual(alias.name, name)) {
       return &alias;
     }
@@ -480,12 +527,12 @@ const Compiler::Alias* Compiler::FindAlias(const std::string& name) const {
 }
 
 void Compiler::RemoveAlias(const std::string& name) {
-  aliases_.erase(std::remove_if(aliases_.begin(), aliases_.end(),
-                                [&](const Alias& alias) {
-                                  return base::CaseInsensitiveEqual(alias.name,
-                                                                    name);
-                                }),
-                 aliases_.end());
+  scope_.aliases.erase(
+      std::remove_if(scope_.aliases.begin(), scope_.aliases.end(),
+                     [&](const Alias& alias) {
+                       return base::CaseInsensitiveEqual(alias.name, name);
+                     }),
+      scope_.aliases.end());
 }
 
 base::Status Compiler::NoSuchColumn(const std::string& name,
@@ -500,10 +547,10 @@ base::StatusOr<size_t> Compiler::FindInRow(const std::string& name,
                                            uint32_t at) const {
   std::vector<const RowColumn*> matches;
   size_t found = 0;
-  for (size_t i = 0; i < row_.size(); ++i) {
-    if (!row_[i].qualified_only &&
-        base::CaseInsensitiveEqual(row_[i].column.name, name)) {
-      matches.push_back(&row_[i]);
+  for (size_t i = 0; i < scope_.row.size(); ++i) {
+    if (!scope_.row[i].qualified_only &&
+        base::CaseInsensitiveEqual(scope_.row[i].column.name, name)) {
+      matches.push_back(&scope_.row[i]);
       found = i;
     }
   }
@@ -533,7 +580,7 @@ base::StatusOr<ColumnId> Compiler::Resolve(const std::string& qualifier,
                                            uint32_t at) const {
   if (qualifier.empty()) {
     ASSIGN_OR_RETURN(size_t i, FindInRow(name, at));
-    return row_[i].column.id;
+    return scope_.row[i].column.id;
   }
   std::string full_name = qualifier + "." + name;
   const Alias* alias = FindAlias(qualifier);
@@ -606,7 +653,7 @@ base::StatusOr<ColumnId> Compiler::CompileSum(uint32_t agg_id, uint32_t expr) {
 }
 
 base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {
-  op_ = "TREE ACCUMULATE";
+  scope_.op = "TREE ACCUMULATE";
   const auto* n = Node<SyntaqlitePerfettoTreeAccumulate>(p_, stage);
 
   op::TreeAccumulate acc;
@@ -655,10 +702,10 @@ base::StatusOr<std::vector<Compiler::RowColumn>> Compiler::ExpandStar(
     columns = alias->columns;
   } else {
     // EXTEND only takes `alias.*`: a bare star would repeat the whole row.
-    if (std::string_view(op_) == "EXTEND") {
+    if (std::string_view(scope_.op) == "EXTEND") {
       return Expected(star_id, "a table alias before the star, as in `t.*`");
     }
-    columns = row_;
+    columns = scope_.row;
   }
 
   if (syntaqlite_node_is_present(star->except)) {
@@ -710,7 +757,7 @@ base::StatusOr<std::vector<Compiler::RowColumn>> Compiler::ExpandStar(
           IsPresent(item->qualifier) ? SpanText(p_, item->qualifier) : "";
       ASSIGN_OR_RETURN(ColumnId value,
                        Resolve(qualifier, SpanText(p_, item->name), item_id));
-      *matches.front() = {{std::move(target), value}, op_, item_id};
+      *matches.front() = {{std::move(target), value}, scope_.op, item_id};
     }
   }
 
@@ -741,34 +788,34 @@ base::StatusOr<std::vector<Compiler::RowColumn>> Compiler::CompileItems(
     if (IsPresent(item->alias)) {
       name = SpanText(p_, item->alias);
     }
-    columns.push_back({{std::move(name), id}, op_, item_id});
+    columns.push_back({{std::move(name), id}, scope_.op, item_id});
   }
   return columns;
 }
 
 // Replaces the row. What it leaves is a new table: no alias reaches into it.
 base::Status Compiler::CompileSelect(uint32_t stage) {
-  op_ = "SELECT";
+  scope_.op = "SELECT";
   const auto* n = Node<SyntaqlitePerfettoPipeSelect>(p_, stage);
-  ASSIGN_OR_RETURN(row_, CompileItems(n->columns));
-  aliases_.clear();
+  ASSIGN_OR_RETURN(scope_.row, CompileItems(n->columns));
+  scope_.aliases.clear();
   return base::OkStatus();
 }
 
 // Adds columns to the row. Items see only the row before the stage, not each
 // other.
 base::Status Compiler::CompileExtend(uint32_t stage) {
-  op_ = "EXTEND";
+  scope_.op = "EXTEND";
   const auto* n = Node<SyntaqlitePerfettoPipeExtend>(p_, stage);
   ASSIGN_OR_RETURN(std::vector<RowColumn> columns, CompileItems(n->columns));
-  row_.insert(row_.end(), columns.begin(), columns.end());
+  scope_.row.insert(scope_.row.end(), columns.begin(), columns.end());
   return base::OkStatus();
 }
 
 // Removes every column of each name. Aliases still reach the dropped columns,
 // except an alias of the same name, which the name now hides.
 base::Status Compiler::CompileDrop(uint32_t stage) {
-  op_ = "DROP";
+  scope_.op = "DROP";
   const auto* n = Node<SyntaqlitePerfettoPipeDrop>(p_, stage);
   const auto* list = Node<SyntaqlitePerfettoPipeNameList>(p_, n->columns);
   std::vector<std::string> names;
@@ -777,25 +824,26 @@ base::Status Compiler::CompileDrop(uint32_t stage) {
     std::string name =
         SpanText(p_, Node<SyntaqlitePerfettoPipeName>(p_, item_id)->name);
     RETURN_IF_ERROR(CheckListedOnce(names, name, item_id));
-    bool found = std::any_of(row_.begin(), row_.end(), [&](const auto& c) {
-      return !c.qualified_only &&
-             base::CaseInsensitiveEqual(c.column.name, name);
-    });
+    bool found =
+        std::any_of(scope_.row.begin(), scope_.row.end(), [&](const auto& c) {
+          return !c.qualified_only &&
+                 base::CaseInsensitiveEqual(c.column.name, name);
+        });
     if (!found) {
       return NoSuchColumn(name, item_id);
     }
   }
   for (const std::string& name : names) {
-    row_.erase(std::remove_if(row_.begin(), row_.end(),
-                              [&](const RowColumn& c) {
-                                return !c.qualified_only &&
-                                       base::CaseInsensitiveEqual(c.column.name,
-                                                                  name);
-                              }),
-               row_.end());
+    scope_.row.erase(std::remove_if(scope_.row.begin(), scope_.row.end(),
+                                    [&](const RowColumn& c) {
+                                      return !c.qualified_only &&
+                                             base::CaseInsensitiveEqual(
+                                                 c.column.name, name);
+                                    }),
+                     scope_.row.end());
     RemoveAlias(name);
   }
-  if (row_.empty()) {
+  if (scope_.row.empty()) {
     return Expected(stage, "a column to be left after DROP");
   }
   return base::OkStatus();
@@ -805,7 +853,7 @@ base::Status Compiler::CompileDrop(uint32_t stage) {
 // renames happen at once, so two columns can swap names. Aliases still reach
 // the columns under their old names.
 base::Status Compiler::CompileRename(uint32_t stage) {
-  op_ = "RENAME";
+  scope_.op = "RENAME";
   const auto* n = Node<SyntaqlitePerfettoPipeRename>(p_, stage);
   const auto* list = Node<SyntaqlitePerfettoPipeColumnList>(p_, n->columns);
   std::vector<std::string> seen;
@@ -820,9 +868,9 @@ base::Status Compiler::CompileRename(uint32_t stage) {
   }
   for (const auto& [at, item_id] : renames) {
     const auto* item = Node<SyntaqlitePerfettoPipeColumn>(p_, item_id);
-    row_[at].column.name = SpanText(p_, item->alias);
-    row_[at].op = op_;
-    row_[at].node = item_id;
+    scope_.row[at].column.name = SpanText(p_, item->alias);
+    scope_.row[at].op = scope_.op;
+    scope_.row[at].node = item_id;
   }
   return base::OkStatus();
 }
@@ -832,7 +880,7 @@ base::Status Compiler::CompileRename(uint32_t stage) {
 // still reach the old values, except an alias of the same name, which the
 // name now hides.
 base::Status Compiler::CompileSet(uint32_t stage) {
-  op_ = "SET";
+  scope_.op = "SET";
   const auto* n = Node<SyntaqlitePerfettoPipeSet>(p_, stage);
   const auto* list = Node<SyntaqlitePerfettoPipeSetItemList>(p_, n->items);
   std::vector<std::string> seen;
@@ -856,9 +904,9 @@ base::Status Compiler::CompileSet(uint32_t stage) {
     assignments.push_back({at, id, item_id});
   }
   for (const Assignment& assignment : assignments) {
-    RowColumn& column = row_[assignment.at];
+    RowColumn& column = scope_.row[assignment.at];
     column.column.id = assignment.value;
-    column.op = op_;
+    column.op = scope_.op;
     column.node = assignment.node;
     RemoveAlias(column.column.name);
   }
@@ -867,16 +915,34 @@ base::Status Compiler::CompileSet(uint32_t stage) {
 
 // Replaces every alias with one covering the whole row as it is now.
 base::Status Compiler::CompileAs(uint32_t stage) {
-  op_ = "AS";
+  scope_.op = "AS";
   const auto* n = Node<SyntaqlitePerfettoPipeAs>(p_, stage);
-  aliases_.clear();
-  aliases_.push_back({SpanText(p_, n->alias), row_});
+  scope_.aliases.clear();
+  scope_.aliases.push_back({SpanText(p_, n->alias), scope_.row});
+  return base::OkStatus();
+}
+
+base::Status Compiler::CompilePipeline(uint32_t pipeline) {
+  const auto& n = Node<SyntaqliteNode>(p_, pipeline)->perfetto_pipeline;
+  if (syntaqlite_node_is_present(n.intersection)) {
+    RETURN_IF_ERROR(CompileIntersection(n.intersection));
+  } else {
+    RETURN_IF_ERROR(CompileSource(n.from));
+  }
+  if (!syntaqlite_node_is_present(n.stages)) {
+    return base::OkStatus();
+  }
+  const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p_, n.stages);
+  uint32_t count = syntaqlite_list_count(stages);
+  for (uint32_t i = 0; i < count; i++) {
+    RETURN_IF_ERROR(CompileStage(syntaqlite_list_child_id(stages, i)));
+  }
   return base::OkStatus();
 }
 
 LogicalPlan Compiler::Finish() {
   plan_.output.clear();
-  for (const RowColumn& column : row_) {
+  for (const RowColumn& column : scope_.row) {
     plan_.output.push_back(column.column);
   }
   return std::move(plan_);
@@ -888,21 +954,8 @@ base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
                                     uint32_t pipeline,
                                     const NodeSourceFn& source,
                                     const Catalog& catalog) {
-  const auto& n = Node<SyntaqliteNode>(p, pipeline)->perfetto_pipeline;
   Compiler compiler(p, source, catalog);
-  if (syntaqlite_node_is_present(n.intersection)) {
-    RETURN_IF_ERROR(compiler.CompileIntersection(n.intersection));
-  } else {
-    RETURN_IF_ERROR(compiler.CompileSource(n.from));
-  }
-  if (syntaqlite_node_is_present(n.stages)) {
-    const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p, n.stages);
-    uint32_t count = syntaqlite_list_count(stages);
-    for (uint32_t i = 0; i < count; i++) {
-      RETURN_IF_ERROR(
-          compiler.CompileStage(syntaqlite_list_child_id(stages, i)));
-    }
-  }
+  RETURN_IF_ERROR(compiler.CompilePipeline(pipeline));
   LogicalPlan plan = compiler.Finish();
   PruneColumns(plan);
   return plan;

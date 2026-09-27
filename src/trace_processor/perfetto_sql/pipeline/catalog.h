@@ -36,7 +36,8 @@ class Catalog {
       std::string_view name) const = 0;
 
   // Columns of the query `sql`, typed where they trace back to a dataframe
-  // column. Fails if SQLite cannot prepare the query.
+  // column. Fails if SQLite cannot prepare the query, or if it reads a
+  // parameter, which nothing binds when a pipeline runs it.
   virtual base::StatusOr<Schema> DescribeQuery(const SqlSource& sql) const = 0;
 };
 

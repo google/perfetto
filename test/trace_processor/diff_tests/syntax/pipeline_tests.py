@@ -492,3 +492,60 @@ class PerfettoPipeline(TestSuite):
         "start","dur","x_start","state"
         10,20,0,1
         """))
+
+  # A pipeline in parentheses reads like any other subquery.
+  def test_pipeline_subqueries(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE tree AS
+        SELECT 0 AS id, NULL AS parent_id, 10 AS self
+        UNION ALL SELECT 1, 0, 20
+        UNION ALL SELECT 2, 0, 30;
+
+        WITH totals AS (FROM tree |> TREE ACCUMULATE UP SUM(self) AS total)
+        SELECT t.id, t.self, totals.total, p.total AS again
+        FROM tree t
+        JOIN totals USING (id)
+        JOIN (FROM tree |> TREE ACCUMULATE UP SUM(self) AS total) p USING (id)
+        ORDER BY t.id;
+        """,
+        out=Csv("""
+        "id","self","total","again"
+        0,10,60,60
+        1,20,20,20
+        2,30,30,30
+        """))
+
+  # SQL reads a pipeline which reads SQL which reads a pipeline, and a view
+  # holding that runs against the tables as they are when it is read.
+  def test_pipelines_and_sql_nest(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 100 AS dur, 1 AS cpu
+        UNION ALL SELECT 200, 50, 1;
+        CREATE PERFETTO TABLE b AS SELECT 20 AS ts, 300 AS dur, 1 AS cpu;
+
+        CREATE PERFETTO VIEW overlap AS
+        SELECT cpu, sum(dur) AS total FROM (
+          INTERVAL INTERSECTION OF (
+            (SELECT ts, dur, cpu FROM (
+              INTERVAL INTERSECTION OF (a AS x, b AS y) PER cpu
+              |> SELECT ts, dur, x.cpu
+            )) AS inner_overlap,
+            b AS z
+          ) PER cpu
+          |> SELECT ts, dur, z.cpu
+        )
+        GROUP BY cpu;
+
+        SELECT * FROM overlap;
+        """,
+        out=Csv("""
+        "cpu","total"
+        1,130
+        """))

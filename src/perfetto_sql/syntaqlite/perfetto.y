@@ -200,6 +200,12 @@ perfetto_pipe_source(A) ::= LP select(S) RP as(Z). {
     A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
         S, Z.name, Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
 }
+// A pipeline read by a pipeline is compiled into the same plan, so it is left
+// as it is written rather than expanded into SQL.
+perfetto_pipe_source(A) ::= LP perfetto_pipeline(P) RP as(Z). {
+    A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
+        P, Z.name, Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+}
 
 %type perfetto_tree_direction {int}
 perfetto_tree_direction(A) ::= UP.   { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP; }
@@ -423,6 +429,39 @@ perfetto_pipeline(A) ::= INTERVAL INTERSECTION OF LP
 }
 
 cmd(A) ::= perfetto_pipeline(P). { A = P; }
+
+// A pipeline in parentheses reads like any other subquery, in a FROM clause or
+// as a CTE. Once parsed, it is handed to the engine, which replaces it with
+// SQL reading it.
+%type perfetto_subquery_pipeline {uint32_t}
+perfetto_subquery_pipeline(A) ::= perfetto_pipeline(P). {
+    A = P;
+    synq_parser_expand_node(pCtx, P, "pipeline", 8);
+}
+
+seltablist(A) ::= stl_prefix(A) LP perfetto_subquery_pipeline(P) RP as(Z)
+                  on_using(N). {
+    pCtx->saw_subquery = 1;
+    uint32_t sub = synq_parse_subquery_table_source(
+        pCtx, P, Z.name,
+        Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+    if (A == SYNTAQLITE_NULL_NODE) {
+        synq_reject_dangling_on_using(pCtx, N);
+        A = sub;
+    } else {
+        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, A);
+        A = synq_parse_join_clause(pCtx,
+            pfx->join_prefix.join_type,
+            pfx->join_prefix.modifiers,
+            pfx->join_prefix.source,
+            sub, N.on_expr, N.using_cols);
+    }
+}
+wqitem(A) ::= withnm(X) eidlist_opt(Y) wqas(M) LP perfetto_subquery_pipeline(P)
+              RP. {
+    A = synq_parse_cte_definition(pCtx, synq_span_dequote(pCtx, X),
+                                  (SyntaqliteMaterialized)M, Y, P);
+}
 
 // ---------- PERFETTO PRAGMA ----------
 

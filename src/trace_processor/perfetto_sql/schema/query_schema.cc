@@ -23,6 +23,7 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
@@ -89,6 +90,13 @@ base::StatusOr<core::Schema> DescribeQuery(SqliteConnection* connection,
   RETURN_IF_ERROR(statement.status());
 
   sqlite3_stmt* stmt = statement.sqlite_stmt();
+  // Such as a function's argument, when the query is in a function's body.
+  if (sqlite3_bind_parameter_count(stmt) > 0) {
+    const char* name = sqlite3_bind_parameter_name(stmt, 1);
+    return base::ErrStatus(
+        "Cannot read `%s`: a pipeline cannot read function arguments yet",
+        name ? name : "?");
+  }
   uint32_t count = sqlite::column::Count(stmt);
   std::vector<std::optional<StorageType>> types =
       ResolveTypes(sql, count, catalog);
