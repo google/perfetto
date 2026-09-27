@@ -26,6 +26,8 @@ source_set("logical") {
     "compiler.cc",
     "compiler.h",
     "logical_plan.h",
+    "plan_serialization.cc",
+    "plan_serialization.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -87,11 +89,15 @@ source_set("test_utils") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "physical_plan_unittest.cc" ]
+  sources = [
+    "physical_plan_unittest.cc",
+    "plan_serialization_unittest.cc",
+  ]
   deps = [
     ":logical",
     ":plan",
     ":test_catalog",
+    ":test_utils",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",

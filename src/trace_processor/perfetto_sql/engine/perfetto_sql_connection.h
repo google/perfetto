@@ -174,6 +174,10 @@ class PerfettoSqlConnection {
   base::StatusOr<SqliteConnection::PreparedStatement> PrepareSqliteStatement(
       SqlSource sql);
 
+  // Loads a plan written by pipeline::SerializePlan, ready to run.
+  base::StatusOr<std::unique_ptr<pipeline::PhysicalPlan>> LoadPipeline(
+      std::string_view serialized);
+
   // Registers a virtual table module with the given name.
   //
   // |name|: name of the module in SQL.
@@ -466,7 +470,7 @@ class PerfettoSqlConnection {
   base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
 
   base::StatusOr<SqliteConnection::PreparedStatement> PreparePipeline(
-      pipeline::LogicalPlan,
+      const pipeline::LogicalPlan&,
       const SqlSource&);
 
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
@@ -591,7 +595,6 @@ class PerfettoSqlConnection {
   // context class of the module inherits from ModuleStateManagerBase.
   std::vector<sqlite::ModuleStateManagerBase*> virtual_module_state_managers_;
 
-  PipelineModule::Context* pipeline_context_ = nullptr;
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
