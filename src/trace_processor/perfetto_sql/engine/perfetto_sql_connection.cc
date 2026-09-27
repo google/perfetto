@@ -57,6 +57,7 @@
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -359,7 +360,7 @@ PerfettoSqlConnection::PerfettoSqlConnection(
   {
     auto ctx = std::make_unique<PipelineModule::Context>();
     ctx->pool = pool_;
-    pipeline_context_ = ctx.get();
+    ctx->connection = this;
     RegisterVirtualTableModule<PipelineModule>(PipelineModule::kName,
                                                std::move(ctx));
   }
@@ -701,9 +702,8 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
             std::holds_alternative<PerfettoSqlParser::SqliteSql>(stmt))) {
       source_to_prepare = parser->TakeStatementSql();
     } else if (std::holds_alternative<PerfettoSqlParser::Pipeline>(stmt)) {
-      auto pipeline =
-          std::get<PerfettoSqlParser::Pipeline>(parser->TakeStatement());
-      pipeline_plan = std::move(pipeline.plan);
+      pipeline_plan = std::move(
+          std::get<PerfettoSqlParser::Pipeline>(parser->TakeStatement()).plan);
       source_to_prepare = parser->TakeStatementSql();
     } else {
       is_dummy = true;
@@ -714,8 +714,8 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
     {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "QUERY_PREPARE");
       if (pipeline_plan) {
-        ASSIGN_OR_RETURN(next_stmt, PreparePipeline(std::move(*pipeline_plan),
-                                                    *source_to_prepare));
+        ASSIGN_OR_RETURN(next_stmt,
+                         PreparePipeline(*pipeline_plan, *source_to_prepare));
       } else {
         auto stmt_result =
             connection_->PrepareStatement(std::move(*source_to_prepare));
@@ -979,9 +979,9 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-  auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
+  const auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
   base::StatusOr<SqliteConnection::PreparedStatement> stmt_or =
-      logical ? PreparePipeline(std::move(*logical), statement_sql)
+      logical ? PreparePipeline(*logical, statement_sql)
               : connection_->PrepareStatement(
                     std::move(std::get<SqlSource>(create_table.body)));
   ASSIGN_OR_RETURN(auto stmt, std::move(stmt_or));
@@ -1049,14 +1049,26 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 }
 
 base::StatusOr<SqliteConnection::PreparedStatement>
-PerfettoSqlConnection::PreparePipeline(pipeline::LogicalPlan logical,
+PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_PLAN");
+  auto sql = PipelineModule::SelectFrom(plan);
+  if (!sql.ok()) {
+    return base::ErrStatus("%s%s", source.AsTraceback(0).c_str(),
+                           sql.status().c_message());
+  }
+  return connection_->PrepareStatement(source.RewriteAllIgnoreExisting(
+      SqlSource::FromTraceProcessorImplementation(std::move(*sql))));
+}
+
+base::StatusOr<std::unique_ptr<pipeline::PhysicalPlan>>
+PerfettoSqlConnection::LoadPipeline(std::string_view serialized) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_LOAD");
+  ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
+                   pipeline::DeserializePlan(serialized, *catalog_));
   pipeline::LowerEnvironment env;
   env.connection = connection_.get();
   env.pool = pool_;
-  return PipelineModule::Prepare(connection_.get(), pipeline_context_,
-                                 pipeline::Lower(logical, env), source);
+  return pipeline::Lower(plan, env);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(
