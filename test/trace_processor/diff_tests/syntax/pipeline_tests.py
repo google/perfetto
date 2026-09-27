@@ -421,3 +421,53 @@ class PerfettoPipeline(TestSuite):
         "folded","regions"
         "0:12,1:7","10:20:7"
         """))
+
+  # The select-like stages only change which columns the row has and what
+  # they are called; the values follow the columns they name.
+  def test_select_like_stages(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE tree AS
+        SELECT 0 AS id, NULL AS parent_id, 'root' AS name, 10 AS self
+        UNION ALL SELECT 1, 0, 'a', 20
+        UNION ALL SELECT 2, 0, 'b', 30;
+
+        CREATE PERFETTO TABLE shaped AS
+        FROM tree AS t
+        |> TREE ACCUMULATE UP SUM(self) AS total
+        |> DROP self
+        |> RENAME total AS subtree
+        |> EXTEND t.self AS own
+        |> SET name = t.name
+        |> AS s
+        |> SELECT s.* EXCEPT (parent_id) REPLACE (own AS id);
+
+        SELECT * FROM shaped ORDER BY name;
+        """,
+        out=Csv("""
+        "id","name","subtree","own"
+        20,"a",20,20
+        30,"b",30,30
+        10,"root",60,10
+        """))
+
+  # Stages naming bare columns see the region's ts and dur, not an operand's.
+  def test_select_like_stages_after_intersection(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> RENAME ts AS start
+        |> EXTEND x.ts AS x_start
+        |> SELECT start, dur, x_start, y.state;
+        """,
+        out=Csv("""
+        "start","dur","x_start","state"
+        10,20,0,1
+        """))
