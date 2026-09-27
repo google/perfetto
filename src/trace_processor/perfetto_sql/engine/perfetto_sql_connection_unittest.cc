@@ -962,10 +962,13 @@ TEST_F(PerfettoSqlConnectionPipelineTest, DuplicateOutputNames) {
       testing::HasSubstr("column 'self' is ambiguous"));
 }
 
+// A source's columns need valid names, but a pipeline can give its own
+// columns any name, which must reach SQLite intact.
 TEST_F(PerfettoSqlConnectionPipelineTest, OutputNamesAreQuoted) {
-  EXPECT_THAT(ColumnNames(R"(FROM (SELECT 1 AS "", 2 AS "a""b"))"),
-              testing::ElementsAre("", "a\"b"));
-  auto rows = Rows(R"(FROM (SELECT 1 AS "", 2 AS "a""b"))");
+  const char* kSql =
+      R"(FROM (SELECT 1 AS x, 2 AS y) |> SELECT x AS "", y AS "a""b")";
+  EXPECT_THAT(ColumnNames(kSql), testing::ElementsAre("", "a\"b"));
+  auto rows = Rows(kSql);
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, testing::ElementsAre("1,2"));
 }
