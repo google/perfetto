@@ -152,8 +152,12 @@ class RelationAnalyzer::Impl {
     views_.clear();
   }
 
-  base::StatusOr<std::vector<ColumnLineage>> Relation(std::string_view name,
-                                                      int depth);
+  // The columns of the relation `name`. Its hidden columns, if any, are added
+  // to `hidden`.
+  base::StatusOr<std::vector<ColumnLineage>> Relation(
+      std::string_view name,
+      int depth,
+      std::vector<std::string_view>& hidden);
   base::StatusOr<std::vector<ColumnLineage>> Select(SyntaqliteParser* p,
                                                     uint32_t id,
                                                     int depth);
@@ -167,6 +171,8 @@ class RelationAnalyzer::Impl {
     std::optional<std::vector<ColumnLineage>> columns;
     // Columns coalesced with a column to their left by USING or NATURAL JOIN.
     std::vector<std::string_view> hidden_from_star;
+    // Hidden columns, left out of both `*` and `table.*`.
+    std::vector<std::string_view> hidden;
   };
   using Scope = std::vector<ScopeRelation>;
 
@@ -284,13 +290,14 @@ base::Status RelationAnalyzer::Impl::Sources(SyntaqliteParser* p,
       if (const SyntaqliteNode* a = Node(p, node->table_ref.alias)) {
         alias = Text(p, a->ident_name.source);
       }
+      std::vector<std::string_view> hidden;
       base::StatusOr<std::vector<ColumnLineage>> columns =
-          Relation(name, depth);
+          Relation(name, depth, hidden);
       if (!columns.ok()) {
-        scope->push_back({alias, std::nullopt, {}});
+        scope->push_back({alias, std::nullopt, {}, {}});
         return base::OkStatus();
       }
-      scope->push_back({alias, std::move(*columns), {}});
+      scope->push_back({alias, std::move(*columns), {}, std::move(hidden)});
       return base::OkStatus();
     }
     case SYNTAQLITE_NODE_SUBQUERY_TABLE_SOURCE: {
@@ -302,15 +309,15 @@ base::Status RelationAnalyzer::Impl::Sources(SyntaqliteParser* p,
       base::StatusOr<std::vector<ColumnLineage>> columns =
           Select(p, node->subquery_table_source.select, depth);
       if (!columns.ok()) {
-        scope->push_back({alias, std::nullopt, {}});
+        scope->push_back({alias, std::nullopt, {}, {}});
         return base::OkStatus();
       }
-      scope->push_back({alias, std::move(*columns), {}});
+      scope->push_back({alias, std::move(*columns), {}, {}});
       return base::OkStatus();
     }
     default:
       preserves_rows_ = false;
-      scope->push_back({{}, std::nullopt, {}});
+      scope->push_back({{}, std::nullopt, {}, {}});
       return base::OkStatus();
   }
 }
@@ -364,8 +371,9 @@ base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::SelectStmt(
               "relation analysis: '*' over a relation of unknown shape");
         }
         for (const ColumnLineage& c : *relation.columns) {
-          if (table.empty() &&
-              ContainsName(relation.hidden_from_star, c.output_name)) {
+          if (ContainsName(relation.hidden, c.output_name) ||
+              (table.empty() &&
+               ContainsName(relation.hidden_from_star, c.output_name))) {
             continue;
           }
           out.push_back(c);
@@ -435,13 +443,17 @@ RelationAnalyzer::Impl::Select(SyntaqliteParser* p, uint32_t id, int depth) {
 
 base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::Relation(
     std::string_view name,
-    int depth) {
+    int depth,
+    std::vector<std::string_view>& hidden) {
   if (std::optional<LeafRelation> relation = catalog_.FindLeafRelation(name)) {
     std::vector<ColumnLineage> out;
     out.reserve(relation->columns.size());
     for (const LeafColumn& column : relation->columns) {
       out.push_back(
           {column.name, {{relation->name, column.name, column.type}}});
+      if (column.hidden) {
+        hidden.push_back(column.name);
+      }
     }
     return out;
   }
@@ -557,7 +569,9 @@ base::StatusOr<RelationLineage> RelationAnalyzer::AnalyzeQuery(SqlNode query) {
 base::StatusOr<RelationLineage> RelationAnalyzer::AnalyzeRelation(
     std::string_view name) {
   impl_->Begin();
-  ASSIGN_OR_RETURN(auto columns, impl_->Relation(name, 0));
+  // Hidden columns are still columns of the relation itself.
+  std::vector<std::string_view> hidden;
+  ASSIGN_OR_RETURN(auto columns, impl_->Relation(name, 0, hidden));
   return RelationLineage(std::make_unique<RelationLineage::Storage>(
       std::move(columns), impl_->preserves_rows()));
 }

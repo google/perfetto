@@ -222,7 +222,7 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
   // are no other id columns. Skipped when callers opt out (e.g. consumers
   // that supply their own primary key).
   if (emit_auto_id_) {
-    column_names_.emplace_back("_auto_id");
+    column_names_.emplace_back(kAutoIdColumnName);
     columns.emplace_back(std::make_shared<Column>(
         Column{Storage{Storage::Id{static_cast<uint32_t>(row_count)}},
                NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
