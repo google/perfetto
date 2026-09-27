@@ -100,18 +100,11 @@ WHERE
 -- Only utid is carried here; descriptive metadata lives in _wattson_task_metadata
 -- and is joined once after aggregation.
 CREATE PERFETTO TABLE _estimates_w_tasks_attribution AS
-SELECT ii.ts, ii.dur, ii.cpu, uw.estimated_mw, s.utid
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_unioned_wattson_estimates_mw),
-    _ii_subquery!(_wattson_task_slices)
-  ),
-  (cpu)
-) AS ii
-JOIN _unioned_wattson_estimates_mw AS uw
-  ON uw._auto_id = id_0
-JOIN _wattson_task_slices AS s
-  ON s._auto_id = id_1;
+INTERVAL INTERSECTION OF (
+  _unioned_wattson_estimates_mw AS estimate,
+  _wattson_task_slices AS task
+) PER cpu
+|> SELECT ts, dur, cpu, estimate.estimated_mw, task.utid;
 
 -- Standalone GPU attribution table
 CREATE PERFETTO TABLE _gpu_estimates_w_tasks_attribution AS

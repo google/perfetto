@@ -247,6 +247,27 @@ class PerfettoPipeline(TestSuite):
         10,10,"[NULL]","two"
         """))
 
+  # A row with no duration has no bounds, so it covers nothing; the last row
+  # of a table built with `lead(ts) - ts` is usually one of these.
+  def test_interval_intersection_skips_a_row_without_bounds(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 10 AS dur, 1 AS n
+        UNION ALL SELECT 10, NULL, 2
+        UNION ALL SELECT NULL, 10, 3;
+
+        CREATE PERFETTO TABLE b AS SELECT 0 AS ts, 100 AS dur;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT ts, dur, x.n;
+        """,
+        out=Csv("""
+        "ts","dur","n"
+        0,10,1
+        """))
+
   # Two intervals meet over the instants they share, so touching end to start
   # is no meeting at all.
   def test_interval_intersection_touching_is_no_meeting(self):
