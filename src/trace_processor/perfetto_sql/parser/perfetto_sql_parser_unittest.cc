@@ -871,6 +871,213 @@ TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
   EXPECT_THAT(*plan, HasSubstr("Scan(sql SELECT * FROM tree)"));
 }
 
+// The relational operators which reshape a pipeline's row: EXTEND, DROP,
+// RENAME, SET, AS and the forms of SELECT. The expected results were checked
+// against GoogleSQL's analyzer tests (googlesql/analyzer/testdata/
+// pipe_{select,extend,drop,rename,set,as}.test) and BigQuery.
+//
+// A case expects either the plan's output, whose column ids show which value
+// each name refers to, or a substring of the error.
+struct SelectLikeCase {
+  const char* sql;
+  const char* expected;
+};
+
+class PerfettoSqlParserSelectLikeTest : public PerfettoSqlParserTest {
+ protected:
+  // The plan's output line, or the error.
+  std::string Outcome(const std::string& sql) {
+    auto plan = ParsePipeline(sql);
+    if (!plan.ok()) {
+      return "ERROR: " + plan.status().message();
+    }
+    return plan->substr(plan->find("Output("));
+  }
+
+  void Check(const std::vector<SelectLikeCase>& cases) {
+    for (const SelectLikeCase& c : cases) {
+      EXPECT_THAT(Outcome(c.sql), HasSubstr(c.expected)) << c.sql;
+    }
+  }
+};
+
+// x is #0 and y is #1.
+#define T "FROM (SELECT 1 AS x, 'a' AS y) AS t "
+// Two columns called x, #0 and #1, with y, #1, between them. SQLite would
+// rename a second x in a subquery, so the duplicate is made here instead.
+#define D T "|> EXTEND y AS x "
+// An alias with the same name as a column.
+#define K "FROM (SELECT 1 AS key, 2 AS v) AS key "
+
+TEST_F(PerfettoSqlParserSelectLikeTest, Drop) {
+  Check({
+      {T "|> DROP x", "Output(#1 AS y)"},
+      {T "|> DROP X", "Output(#1 AS y)"},
+      {D "|> DROP x", "Output(#1 AS y)"},
+      // An alias still reaches a dropped column.
+      {T "|> DROP x |> SELECT t.x, y", "Output(#0 AS x, #1 AS y)"},
+      {T "|> DROP x |> SELECT t.*", "Output(#0 AS x, #1 AS y)"},
+      {T "|> DROP x |> SELECT *", "Output(#1 AS y)"},
+      {T "|> DROP x |> SELECT x", "no such column: 'x'"},
+      {T "|> DROP t", "expected a column, but 't' is a table alias"},
+      {T "|> DROP z", "no such column: 'z'"},
+      {T "|> DROP x, x", "expected 'x' to be listed only once"},
+      {T "|> DROP x, y", "expected a column to be left after DROP"},
+      // Dropping a column hides an alias of the same name.
+      {K "|> DROP key |> SELECT key.v", "no such column: 'key.v'"},
+      {T "|> DROP t.x", "ERROR"},
+  });
+}
+
+TEST_F(PerfettoSqlParserSelectLikeTest, Rename) {
+  Check({
+      {T "|> RENAME x AS z", "Output(#0 AS z, #1 AS y)"},
+      {T "|> RENAME x z", "Output(#0 AS z, #1 AS y)"},
+      // Renames happen at once, so columns can swap names.
+      {T "|> RENAME x AS y, y AS x", "Output(#0 AS y, #1 AS x)"},
+      // An alias still reaches a column under its old name.
+      {T "|> RENAME x AS z |> SELECT z, t.x", "Output(#0 AS z, #0 AS x)"},
+      {T "|> RENAME x AS z |> SELECT t.*", "Output(#0 AS x, #1 AS y)"},
+      {T "|> RENAME x AS z |> SELECT t.z", "no such column: 't.z'"},
+      {T "|> RENAME x AS z |> SELECT x", "no such column: 'x'"},
+      // Renaming onto an existing name leaves two columns of that name.
+      {T "|> RENAME x AS y", "Output(#0 AS y, #1 AS y)"},
+      {T "|> RENAME x AS y |> SELECT y", "column 'y' is ambiguous"},
+      {D "|> RENAME x AS z", "column 'x' is ambiguous"},
+      {T "|> RENAME t AS z", "expected a column, but 't' is a table alias"},
+      {T "|> RENAME z AS w", "no such column: 'z'"},
+      {T "|> RENAME x AS a, x AS b", "expected 'x' to be listed only once"},
+      {T "|> RENAME t.x AS z", "ERROR"},
+  });
+}
+
+TEST_F(PerfettoSqlParserSelectLikeTest, Set) {
+  Check({
+      {T "|> SET x = y", "Output(#1 AS x, #1 AS y)"},
+      {T "|> SET x = t.y", "Output(#1 AS x, #1 AS y)"},
+      // Every value is read from the row before the stage.
+      {T "|> SET x = y, y = x", "Output(#1 AS x, #0 AS y)"},
+      // An alias still reaches the old value.
+      {T "|> SET x = y |> SELECT x, t.x", "Output(#1 AS x, #0 AS x)"},
+      {T "|> SET x = y |> SELECT t.*", "Output(#0 AS x, #1 AS y)"},
+      {D "|> SET x = y", "column 'x' is ambiguous"},
+      {T "|> SET t = x", "expected a column, but 't' is a table alias"},
+      {T "|> SET z = x", "no such column: 'z'"},
+      {T "|> SET x = y, x = y", "expected 'x' to be listed only once"},
+      // Setting a column hides an alias of the same name.
+      {K "|> SET key = v |> SELECT key.v", "no such column: 'key.v'"},
+      {T "|> SET t.x = y", "ERROR"},
+  });
+}
+
+TEST_F(PerfettoSqlParserSelectLikeTest, Extend) {
+  Check({
+      {T "|> EXTEND x AS z", "Output(#0 AS x, #1 AS y, #0 AS z)"},
+      {T "|> EXTEND x z", "Output(#0 AS x, #1 AS y, #0 AS z)"},
+      {T "|> EXTEND t.y AS z", "Output(#0 AS x, #1 AS y, #1 AS z)"},
+      // Without a new name, the column is repeated under its own.
+      {T "|> EXTEND x", "Output(#0 AS x, #1 AS y, #0 AS x)"},
+      {T "|> EXTEND x |> SELECT x", "column 'x' is ambiguous"},
+      {T "|> AS u |> EXTEND u.*", "Output(#0 AS x, #1 AS y, #0 AS x, #1 AS y)"},
+      // A new column is not under an existing alias.
+      {T "|> EXTEND x AS z |> SELECT t.*", "Output(#0 AS x, #1 AS y)"},
+      {T "|> EXTEND x AS z |> SELECT t.z", "no such column: 't.z'"},
+      // Items see the row before the stage, not each other.
+      {T "|> EXTEND x AS a, a AS b", "no such column: 'a'"},
+      {T "|> EXTEND *", "expected a table alias before the star"},
+  });
+}
+
+TEST_F(PerfettoSqlParserSelectLikeTest, As) {
+  Check({
+      {T "|> AS u |> SELECT u.x, x", "Output(#0 AS x, #0 AS x)"},
+      {T "|> AS u |> SELECT t.x", "no such column: 't.x'"},
+      // The new alias covers the row as it is now.
+      {T "|> EXTEND x AS z |> AS u |> SELECT u.*",
+       "Output(#0 AS x, #1 AS y, #0 AS z)"},
+      {T "|> DROP x |> AS u |> SELECT u.*", "Output(#1 AS y)"},
+      {T "|> DROP x |> AS u |> SELECT u.x", "no such column: 'u.x'"},
+      {D "|> AS u |> SELECT u.x", "column 'u.x' is ambiguous"},
+  });
+}
+
+TEST_F(PerfettoSqlParserSelectLikeTest, SelectStar) {
+  Check({
+      {T "|> SELECT *", "Output(#0 AS x, #1 AS y)"},
+      {T "|> SELECT *, *", "Output(#0 AS x, #1 AS y, #0 AS x, #1 AS y)"},
+      {T "|> SELECT *, x AS z", "Output(#0 AS x, #1 AS y, #0 AS z)"},
+      {T "|> SELECT x z", "Output(#0 AS z)"},
+      {T "|> SELECT * EXCEPT (x)", "Output(#1 AS y)"},
+      {T "|> SELECT t.* EXCEPT (x)", "Output(#1 AS y)"},
+      // EXCEPT drops every column of the name.
+      {D "|> SELECT * EXCEPT (x)", "Output(#1 AS y)"},
+      // REPLACE keeps the column's place and name.
+      {T "|> SELECT * REPLACE (y AS x)", "Output(#1 AS x, #1 AS y)"},
+      {T "|> SELECT * REPLACE (t.y AS x)", "Output(#1 AS x, #1 AS y)"},
+      {T "|> SELECT * EXCEPT (y) REPLACE (y AS x)", "Output(#1 AS x)"},
+      {T "|> SELECT * EXCEPT (z)", "no such column: 'z'"},
+      {T "|> SELECT * EXCEPT (x, x)", "expected 'x' to be listed only once"},
+      {T "|> SELECT * EXCEPT (x, y)",
+       "expected a column to be left after EXCEPT"},
+      {T "|> SELECT * REPLACE (y AS z)", "no such column: 'z'"},
+      {T "|> SELECT * REPLACE (y AS x, y AS x)",
+       "expected 'x' to be listed only once"},
+      {D "|> SELECT * REPLACE (y AS x)", "column 'x' is ambiguous"},
+      {T "|> SELECT q.*", "no such table alias: 'q'"},
+      // What a SELECT leaves is a new table: no alias reaches into it.
+      {T "|> SELECT x, y |> SELECT t.x", "no such column: 't.x'"},
+      {T "|> SELECT x, y AS x", "Output(#0 AS x, #1 AS x)"},
+      {T "|> SELECT x, y AS x |> SELECT x", "column 'x' is ambiguous"},
+      {T "|> SELECT * REPLACE (y x)", "ERROR"},
+      {T "|> SELECT * EXCEPT (t.x)", "ERROR"},
+      {T "|> SELECT * REPLACE (x AS x) EXCEPT (y)", "ERROR"},
+  });
+}
+
+// An intersection carries every operand's columns: a star lists them all,
+// while the stages taking bare names only see the columns a bare name finds.
+// A quoted name means exactly what it spells: it can be empty, and a doubled
+// quote inside it is one quote.
+TEST_F(PerfettoSqlParserSelectLikeTest, QuotedNames) {
+  Check({
+      {T "|> SELECT x AS \"\"", "Output(#0 AS )"},
+      {T "|> RENAME x AS \"\"", "Output(#0 AS , #1 AS y)"},
+      {T "|> SELECT x AS \"a\"\"b\"", "Output(#0 AS a\"b)"},
+      {T "|> SELECT x AS `a``b`", "Output(#0 AS a`b)"},
+      {T "|> SELECT x AS [a\"b]", "Output(#0 AS a\"b)"},
+      // The unescaped name is the one later stages see.
+      {T "|> RENAME x AS \"a\"\"b\" |> SELECT `a\"b`", "Output(#0 AS a\"b)"},
+  });
+}
+
+TEST_F(PerfettoSqlParserSelectLikeTest, AfterIntersection) {
+  // The region's ts and dur are #0 and #1; a's columns are #2 to #4 and b's
+  // #5 to #7.
+  const std::string isect =
+      "INTERVAL INTERSECTION OF ("
+      "(SELECT 0 AS ts, 10 AS dur, 1 AS cpu) AS a, "
+      "(SELECT 5 AS ts, 10 AS dur, 1 AS cpu) AS b) PER cpu ";
+  Check({
+      {(isect + "|> SELECT *").c_str(),
+       "Output(#0 AS ts, #1 AS dur, #2 AS ts, #3 AS dur, #4 AS cpu, "
+       "#5 AS ts, #6 AS dur, #7 AS cpu)"},
+      {(isect + "|> RENAME ts AS start |> SELECT start").c_str(),
+       "Output(#0 AS start)"},
+      {(isect + "|> DROP cpu |> SELECT a.cpu, b.cpu").c_str(),
+       "Output(#4 AS cpu, #7 AS cpu)"},
+      {(isect + "|> AS u |> SELECT u.ts").c_str(),
+       "column 'u.ts' is ambiguous"},
+  });
+  EXPECT_THAT(Outcome("INTERVAL INTERSECTION OF ("
+                      "(SELECT 0 AS ts, 10 AS dur) AS a, "
+                      "(SELECT 5 AS ts, 10 AS dur) AS a)"),
+              HasSubstr("expected a different alias for each relation"));
+}
+
+#undef T
+#undef D
+#undef K
+
 TEST_F(PerfettoSqlParserTest, TakePipelineStatement) {
   PerfettoSqlParser parser(macros_, catalog_,
                            /*pipelines_allowed=*/true);
