@@ -39,6 +39,7 @@
 #include "src/trace_processor/core/exec/tree_order.h"
 #include "src/trace_processor/perfetto_sql/exec/sql_scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
@@ -61,7 +62,7 @@ class Lowering {
   void LowerIntervalIntersect(const op::IntervalIntersect&,
                               const std::vector<PlanNodeId>& children);
 
-  std::unique_ptr<ex::Source> MakeSource(const op::Scan&) const;
+  std::unique_ptr<ex::Source> MakeSource(const op::Scan&);
   void LowerTreeAccumulate(const op::TreeAccumulate&);
 
   // Establishes the physical layout and ordering needed by a tree fold.
@@ -123,7 +124,7 @@ void Lowering::LowerNode(PlanNodeId id) {
   }
 }
 
-std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
+std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) {
   using Kind = op::Scan::SourceKind;
   switch (scan.source.index()) {
     case Kind::GetTypeIndex<op::Scan::Dataframe>(): {
@@ -138,9 +139,15 @@ std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
       for (const NamedColumn& column : scan.columns) {
         columns.push_back({column.name, plan_.columns[column.id].type});
       }
+      std::vector<exec::SqlScan::Input> inputs;
+      for (uint32_t i = 0; i < scan.inputs.size(); ++i) {
+        out_->sql_inputs_.push_back(Lower(*scan.inputs[i], env_));
+        inputs.push_back({InputParameter(i), out_->sql_inputs_.back().get(),
+                          kPhysicalPlanPointerType});
+      }
       return std::make_unique<exec::SqlScan>(
           env_.connection, base::unchecked_get<SqlSource>(scan.source),
-          std::move(columns), env_.pool);
+          std::move(columns), std::move(inputs), env_.pool);
     }
     default:
       PERFETTO_FATAL("Unknown scan source");

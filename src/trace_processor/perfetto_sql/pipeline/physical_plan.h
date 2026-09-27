@@ -40,6 +40,8 @@ struct LowerEnvironment {
   StringPool* pool = nullptr;
 };
 
+inline constexpr char kPhysicalPlanPointerType[] = "perfetto_pipeline_plan";
+
 // A pipeline ready to run: the executor nodes plus which batch columns are
 // the output. Const once built, so it can be run any number of times with one
 // state per run.
@@ -62,7 +64,9 @@ class PhysicalPlan {
  private:
   friend class Lowering;
 
-  // Declared first so the input outlives the pipeline that reads it, as an
+  // Read by SQL sources, so declared first to outlive them.
+  std::vector<std::unique_ptr<PhysicalPlan>> sql_inputs_;
+  // Declared before the pipeline so the input outlives it, as an
   // intersection's operands outlive the intersection.
   std::vector<std::unique_ptr<core::exec::Source>> operand_inputs_;
   std::vector<std::unique_ptr<core::exec::Pipeline>> operand_pipelines_;

@@ -16,7 +16,10 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
+#include <sqlite3.h>
+
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
@@ -1131,6 +1134,188 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
     ++rows;
   EXPECT_EQ(rows, 4u);
   EXPECT_TRUE(first->stmt.status().ok());
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesAsSubqueries) {
+  auto rows = Rows(
+      "SELECT t.id, p.total * 2 FROM tree t "
+      "JOIN (FROM tree |> TREE ACCUMULATE UP SUM(self) AS total) p USING (id)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,200", "1,120", "2,60", "3,80"));
+
+  rows = Rows(
+      "WITH totals AS (FROM tree |> TREE ACCUMULATE UP SUM(self) AS total) "
+      "SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesInViewsAndFunctions) {
+  ASSERT_TRUE(Rows("CREATE PERFETTO VIEW totals AS SELECT id, total FROM "
+                   "(FROM tree |> TREE ACCUMULATE UP SUM(self) AS total)")
+                  .ok());
+  ASSERT_TRUE(Rows("CREATE PERFETTO FUNCTION subtree(root LONG) "
+                   "RETURNS TABLE(total LONG) AS SELECT total FROM "
+                   "(FROM tree |> TREE ACCUMULATE UP SUM(self) AS total) "
+                   "WHERE id = $root")
+                  .ok());
+  auto rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+  rows = Rows("SELECT total FROM subtree(1)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("60"));
+
+  // Both read the table as it is when they run.
+  ASSERT_TRUE(Rows("DELETE FROM tree WHERE id = 3").ok());
+  rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,60", "1,20", "2,30"));
+  rows = Rows("SELECT total FROM subtree(1)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("20"));
+}
+
+// A pipeline runs its SQL sources itself, so nothing binds a function's
+// arguments there: reading one is refused, not silently NULL.
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSourcesCannotReadArguments) {
+  auto res = Rows(
+      "CREATE PERFETTO FUNCTION scaled(k LONG) RETURNS TABLE(total LONG) AS "
+      "SELECT total FROM (FROM (SELECT id, parent_id, self * $k AS self "
+      "FROM tree) |> TREE ACCUMULATE UP SUM(self) AS total)");
+  EXPECT_THAT(res.status().message(), testing::HasSubstr("cannot read `$k`"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSubqueriesNeedPipelines) {
+  ASSERT_TRUE(Rows("PERFETTO PRAGMA pipelines = 0").ok());
+  EXPECT_THAT(Rows("SELECT * FROM (FROM tree)").status().message(),
+              testing::HasSubstr("Pipelines are not enabled"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesInMacrosAreRefused) {
+  ASSERT_TRUE(Rows("CREATE PERFETTO MACRO totals() RETURNS TableOrSubquery "
+                   "AS (FROM tree |> TREE ACCUMULATE UP SUM(self) AS total)")
+                  .ok());
+  EXPECT_THAT(Rows("SELECT * FROM totals!()").status().message(),
+              testing::HasSubstr("cannot be written inside a macro"));
+}
+
+// SQL -> pipeline -> SQL -> pipeline -> SQL -> pipeline, SQLite and the
+// executor taking turns at every level.
+class PipelineNestingTest : public PerfettoSqlConnectionPipelineTest {
+ protected:
+  // A binary tree: node i's parent is (i - 1) / 2.
+  static constexpr uint32_t kNodes = 5000;
+
+  // Each node's subtree size, tripled, summed over its subtree, plus one.
+  static constexpr char kThreeLevels[] =
+      "SELECT id, total + 1 AS z FROM ("
+      "  FROM (SELECT id, parent_id, total * 3 AS y FROM ("
+      "    FROM big |> TREE ACCUMULATE UP SUM(x) AS total))"
+      "  |> TREE ACCUMULATE UP SUM(y) AS total)";
+
+  void SetUp() override {
+    PerfettoSqlConnectionPipelineTest::SetUp();
+    ASSERT_TRUE(Rows("CREATE TABLE big AS WITH RECURSIVE n(i) AS "
+                     "(SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < " +
+                     std::to_string(kNodes - 1) +
+                     ") SELECT i AS id, CASE WHEN i = 0 THEN NULL "
+                     "ELSE (i - 1) / 2 END AS parent_id, 1 AS x FROM n")
+                    .ok());
+  }
+
+  static std::vector<int64_t> Expected() {
+    std::vector<int64_t> size(kNodes, 0);
+    std::vector<int64_t> total(kNodes, 0);
+    for (uint32_t i = kNodes; i-- > 0;) {
+      size[i] += 1;
+      total[i] += 3 * size[i];
+      if (i != 0) {
+        size[(i - 1) / 2] += size[i];
+        total[(i - 1) / 2] += total[i];
+      }
+    }
+    for (int64_t& t : total) {
+      t += 1;
+    }
+    return total;
+  }
+
+  // Checks each row of `stmt` against Expected(), returning how many there
+  // were.
+  static uint32_t CheckRows(SqliteConnection::PreparedStatement& stmt) {
+    std::vector<int64_t> expected = Expected();
+    uint32_t rows = 0;
+    for (bool more = !stmt.IsDone(); more; more = stmt.Step()) {
+      auto id =
+          static_cast<uint32_t>(sqlite3_column_int64(stmt.sqlite_stmt(), 0));
+      EXPECT_EQ(sqlite3_column_int64(stmt.sqlite_stmt(), 1), expected[id]);
+      ++rows;
+    }
+    EXPECT_TRUE(stmt.status().ok()) << stmt.status().message();
+    return rows;
+  }
+};
+
+TEST_F(PipelineNestingTest, EveryLevelStreams) {
+  auto res = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery(kThreeLevels));
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_EQ(CheckRows(res->stmt), kNodes);
+}
+
+TEST_F(PipelineNestingTest, ReadingAgainRunsEveryLevelAgain) {
+  ASSERT_TRUE(Rows("CREATE TABLE picks(k); "
+                   "INSERT INTO picks VALUES (0), (1), (4999)")
+                  .ok());
+  auto res = connection_->ExecuteUntilLastStatement(SqlSource::FromExecuteQuery(
+      std::string("SELECT p.id, p.z FROM picks CROSS JOIN (") + kThreeLevels +
+      ") p WHERE p.id = picks.k"));
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  EXPECT_EQ(CheckRows(res->stmt), 3u);
+}
+
+TEST_F(PipelineNestingTest, ErrorsSurfaceThroughEveryLevel) {
+  ASSERT_TRUE(Rows("UPDATE big SET x = 'bad' WHERE id = 4000").ok());
+  EXPECT_THAT(Rows(kThreeLevels).status().message(),
+              testing::HasSubstr("column 'x' holds a string"));
+}
+
+TEST_F(PipelineNestingTest, StoppingEarlyReleasesEveryLevel) {
+  auto res = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery(kThreeLevels));
+  ASSERT_TRUE(res.ok()) << res.status().message();
+  for (uint32_t i = 0; i < 10; ++i) {
+    ASSERT_TRUE(res->stmt.Step()) << res->stmt.status().message();
+  }
+}
+
+TEST_F(PipelineNestingTest, InterleavedRuns) {
+  auto a = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery(kThreeLevels));
+  auto b = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery(kThreeLevels));
+  ASSERT_TRUE(a.ok()) << a.status().message();
+  ASSERT_TRUE(b.ok()) << b.status().message();
+  std::vector<int64_t> expected = Expected();
+  uint32_t rows = 1;
+  for (;;) {
+    for (auto* res : {&*a, &*b}) {
+      sqlite3_stmt* stmt = res->stmt.sqlite_stmt();
+      auto id = static_cast<uint32_t>(sqlite3_column_int64(stmt, 0));
+      EXPECT_EQ(sqlite3_column_int64(stmt, 1), expected[id]);
+    }
+    bool more_a = a->stmt.Step();
+    bool more_b = b->stmt.Step();
+    ASSERT_EQ(more_a, more_b);
+    if (!more_a) {
+      break;
+    }
+    ++rows;
+  }
+  EXPECT_TRUE(a->stmt.status().ok()) << a->stmt.status().message();
+  EXPECT_TRUE(b->stmt.status().ok()) << b->stmt.status().message();
+  EXPECT_EQ(rows, kNodes);
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, ColumnReadersRefreshAcrossBatches) {

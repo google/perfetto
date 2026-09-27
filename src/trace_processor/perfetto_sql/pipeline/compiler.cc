@@ -74,8 +74,8 @@ const T* Node(SyntaqliteParser* p, uint32_t id) {
 
 class Compiler {
  public:
-  Compiler(SyntaqliteParser* p, const NodeSourceFn& source, const Catalog& c)
-      : p_(p), source_(source), catalog_(c) {}
+  Compiler(SyntaqliteParser* p, const NodeSources& sources, const Catalog& c)
+      : p_(p), sources_(sources), catalog_(c) {}
 
   base::Status CompileSource(uint32_t from);
   base::Status CompileIntersection(uint32_t node);
@@ -173,11 +173,11 @@ class Compiler {
   std::string AmbiguousCandidates(
       const std::vector<const RowColumn*>& matches) const;
   std::string Traceback(uint32_t node) const {
-    return source_(node).AsTraceback(0);
+    return sources_.Text(node).AsTraceback(0);
   }
 
   SyntaqliteParser* p_;
-  const NodeSourceFn& source_;
+  const NodeSources& sources_;
   const Catalog& catalog_;
   LogicalPlan plan_;
   // The operator being compiled, which prefixes every error.
@@ -375,7 +375,8 @@ op::Scan Compiler::CompileDataframeSource(const dataframe::Dataframe& dataframe,
 }
 
 base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
-  SqlSource sql = source_(from);
+  op::Scan scan;
+  ASSIGN_OR_RETURN(SqlSource sql, sources_.Sql(from, scan.inputs));
   sql =
       sql.RewriteAllIgnoreExisting(SqlSource::FromTraceProcessorImplementation(
           "SELECT * FROM " + sql.sql()));
@@ -384,7 +385,6 @@ base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
     return base::ErrStatus("%s%s", Traceback(from).c_str(),
                            described.status().c_message());
   }
-  op::Scan scan;
   scan.source = std::move(sql);
   for (ColumnSchema& column : *described) {
     AddScanColumn(scan, std::move(column));
@@ -452,7 +452,7 @@ std::string Compiler::Origin(const RowColumn& column) const {
     }
   }
   constexpr size_t kMaxLen = 48;
-  std::string text = source_(column.node).sql();
+  std::string text = sources_.Text(column.node).sql();
   size_t len = std::min(text.find('\n'), kMaxLen);
   if (len < text.size()) {
     text = text.substr(0, len) + "...";
@@ -884,12 +884,14 @@ LogicalPlan Compiler::Finish() {
 
 }  // namespace
 
+NodeSources::~NodeSources() = default;
+
 base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
                                     uint32_t pipeline,
-                                    const NodeSourceFn& source,
+                                    const NodeSources& sources,
                                     const Catalog& catalog) {
   const auto& n = Node<SyntaqliteNode>(p, pipeline)->perfetto_pipeline;
-  Compiler compiler(p, source, catalog);
+  Compiler compiler(p, sources, catalog);
   if (syntaqlite_node_is_present(n.intersection)) {
     RETURN_IF_ERROR(compiler.CompileIntersection(n.intersection));
   } else {

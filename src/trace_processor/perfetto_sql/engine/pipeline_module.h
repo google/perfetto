@@ -50,9 +50,6 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
   static constexpr auto kType = kEponymousOnly;
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
-  static constexpr char kName[] = "__intrinsic_pipeline";
-  // The most columns a pipeline can output.
-  static constexpr uint32_t kMaxColumns = 256;
 
   struct Context {
     StringPool* pool;
@@ -71,9 +68,11 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
       const core::exec::ColumnView* view;
       ResultFn result;
     };
-    // The serialized plan `plan` was loaded from.
+    // Either `owned_plan`, loaded from `serialized`, or one handed over by
+    // the executor.
+    const pipeline::PhysicalPlan* plan = nullptr;
     std::string serialized;
-    std::unique_ptr<pipeline::PhysicalPlan> plan;
+    std::unique_ptr<pipeline::PhysicalPlan> owned_plan;
     StringPool* pool = nullptr;
     std::unique_ptr<core::exec::RowCursor> rows;
     std::vector<ColumnReader> columns;
@@ -82,9 +81,6 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     // An output rowid lookup, applied after every tree fold.
     std::optional<int64_t> target_rowid;
   };
-
-  // SQL reading `plan`'s output under its own column names.
-  static base::StatusOr<std::string> SelectFrom(const pipeline::LogicalPlan&);
 
   static int Connect(sqlite3*,
                      void*,

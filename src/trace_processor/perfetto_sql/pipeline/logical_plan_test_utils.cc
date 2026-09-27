@@ -18,10 +18,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <variant>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
 
@@ -78,7 +80,13 @@ std::string ScanString(const LogicalPlan& plan, const op::Scan& scan) {
     out +=
         ColumnString(plan, scan.columns[i].id) + " AS " + scan.columns[i].name;
   }
-  return out + "]";
+  out += "]";
+  for (uint32_t i = 0; i < scan.inputs.size(); ++i) {
+    out +=
+        "\n  input " + std::to_string(i) + ":\n    " +
+        base::ReplaceAll(LogicalPlanToString(*scan.inputs[i]), "\n", "\n    ");
+  }
+  return out;
 }
 
 std::string TreeAccumulateString(const LogicalPlan& plan,

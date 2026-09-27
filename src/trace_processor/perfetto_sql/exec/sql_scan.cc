@@ -61,10 +61,12 @@ using core::exec::Variant;
 SqlScan::SqlScan(SqliteConnection* connection,
                  SqlSource sql,
                  core::Schema columns,
+                 std::vector<Input> inputs,
                  StringPool* pool)
     : connection_(connection),
       sql_(std::move(sql)),
       columns_(std::move(columns)),
+      inputs_(std::move(inputs)),
       pool_(pool) {}
 
 SqlScan::~SqlScan() = default;
@@ -123,6 +125,15 @@ void SqlScan::Prepare(State& state) const {
     return;
   }
   sqlite3_stmt* stmt = state.statement->sqlite_stmt();
+  for (const Input& input : inputs_) {
+    int at = sqlite3_bind_parameter_index(stmt, input.parameter.c_str());
+    if (at == 0 || sqlite3_bind_pointer(stmt, at, input.pointer, input.type,
+                                        nullptr) != SQLITE_OK) {
+      state.status = base::ErrStatus("SQL source: could not bind %s",
+                                     input.parameter.c_str());
+      return;
+    }
+  }
   uint32_t count = sqlite::column::Count(stmt);
   if (count != columns_.size()) {
     state.status =

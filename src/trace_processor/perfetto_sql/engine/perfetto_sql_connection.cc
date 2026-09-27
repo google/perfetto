@@ -361,7 +361,7 @@ PerfettoSqlConnection::PerfettoSqlConnection(
     auto ctx = std::make_unique<PipelineModule::Context>();
     ctx->pool = pool_;
     ctx->connection = this;
-    RegisterVirtualTableModule<PipelineModule>(PipelineModule::kName,
+    RegisterVirtualTableModule<PipelineModule>(pipeline::kPipelineFunction,
                                                std::move(ctx));
   }
   database_->InitializeSharedSchema(connection_.get());
@@ -1051,7 +1051,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
-  auto sql = PipelineModule::SelectFrom(plan);
+  auto sql = pipeline::SelectPipeline(plan, pipeline::PlanLiteral(plan));
   if (!sql.ok()) {
     return base::ErrStatus("%s%s", source.AsTraceback(0).c_str(),
                            sql.status().c_message());

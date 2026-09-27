@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_SERIALIZATION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_SERIALIZATION_H_
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -25,6 +26,21 @@
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
 namespace perfetto::trace_processor::pipeline {
+
+// The table function which runs a plan, and the most columns it can output.
+inline constexpr char kPipelineFunction[] = "__intrinsic_pipeline";
+inline constexpr uint32_t kMaxPipelineColumns = 256;
+
+// SQL reading `plan`'s output under its own column names, from `argument`:
+// the plan serialized as a literal, or a parameter bound to it.
+base::StatusOr<std::string> SelectPipeline(const LogicalPlan& plan,
+                                           const std::string& argument);
+
+// `plan` serialized as a blob literal.
+std::string PlanLiteral(const LogicalPlan& plan);
+
+// The parameter a SQL source's `index`th input is bound to.
+std::string InputParameter(uint32_t index);
 
 // Writes an optimized plan as bytes, so that SQL can carry it and run it later
 // without compiling the pipeline again.

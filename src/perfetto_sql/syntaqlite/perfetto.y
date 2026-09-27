@@ -424,6 +424,31 @@ perfetto_pipeline(A) ::= INTERVAL INTERSECTION OF LP
 
 cmd(A) ::= perfetto_pipeline(P). { A = P; }
 
+// A pipeline in parentheses reads like any other subquery: in a FROM clause
+// or as a CTE. It fills the place a SELECT would.
+seltablist(A) ::= stl_prefix(A) LP perfetto_pipeline(P) RP as(Z)
+                  on_using(N). {
+    pCtx->saw_subquery = 1;
+    uint32_t sub = synq_parse_subquery_table_source(
+        pCtx, P, Z.name,
+        Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+    if (A == SYNTAQLITE_NULL_NODE) {
+        synq_reject_dangling_on_using(pCtx, N);
+        A = sub;
+    } else {
+        SyntaqliteNode *pfx = AST_NODE(&pCtx->ast, A);
+        A = synq_parse_join_clause(pCtx,
+            pfx->join_prefix.join_type,
+            pfx->join_prefix.modifiers,
+            pfx->join_prefix.source,
+            sub, N.on_expr, N.using_cols);
+    }
+}
+wqitem(A) ::= withnm(X) eidlist_opt(Y) wqas(M) LP perfetto_pipeline(P) RP. {
+    A = synq_parse_cte_definition(pCtx, synq_span_dequote(pCtx, X),
+                                  (SyntaqliteMaterialized)M, Y, P);
+}
+
 // ---------- PERFETTO PRAGMA ----------
 
 // A setting of the engine, rather than of SQLite. Any expression parses;

@@ -148,6 +148,43 @@ TEST_F(PlanSerializationTest, CorruptPlansAreRefusedOrRun) {
   }
 }
 
+// A SQL source reading pipelines carries their plans with it.
+TEST_F(PlanSerializationTest, InputsRoundTrip) {
+  const char* reader = "FROM (SELECT ts, dur, cpu FROM spans)";
+  LogicalPlan plan = Compile(reader);
+  plan.nodes[0].Cast<op::Scan>().inputs.push_back(
+      std::make_shared<LogicalPlan>(Compile(kPipelines[0])));
+  auto read = RoundTrip(plan);
+  ASSERT_TRUE(read.ok()) << read.status().message();
+  EXPECT_EQ(LogicalPlanToString(*read), LogicalPlanToString(plan));
+  EXPECT_THAT(LogicalPlanToString(*read), HasSubstr("input 0:"));
+
+  // An input's tables are looked up again too.
+  std::string bytes = SerializePlan(plan);
+  catalog_.RemoveTable("df");
+  EXPECT_THAT(DeserializePlan(bytes, catalog_).status().message(),
+              HasSubstr("'df' no longer exists"));
+}
+
+TEST_F(PlanSerializationTest, DeepNestingIsRefused) {
+  const char* reader = "FROM (SELECT ts, dur, cpu FROM spans)";
+  LogicalPlan plan = Compile(reader);
+  for (uint32_t depth = 1; depth <= 40; ++depth) {
+    LogicalPlan outer = Compile(reader);
+    outer.nodes[0].Cast<op::Scan>().inputs.push_back(
+        std::make_shared<LogicalPlan>(std::move(plan)));
+    plan = std::move(outer);
+    EXPECT_EQ(RoundTrip(plan).ok(), depth <= 32) << depth;
+  }
+}
+
+TEST_F(PlanSerializationTest, OnlySqlSourcesHaveInputs) {
+  LogicalPlan plan = Compile(kPipelines[0]);
+  plan.nodes[0].Cast<op::Scan>().inputs.push_back(
+      std::make_shared<LogicalPlan>(Compile(kPipelines[0])));
+  EXPECT_FALSE(RoundTrip(plan).ok());
+}
+
 TEST_F(PlanSerializationTest, PlansLoweringCannotRunAreRefused) {
   LogicalPlan plan = Compile(
       "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");

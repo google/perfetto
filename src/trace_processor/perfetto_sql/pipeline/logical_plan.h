@@ -56,6 +56,8 @@ struct VariantOf<base::TypeSet<Ts...>> {
 };
 }  // namespace internal
 
+struct LogicalPlan;
+
 namespace op {
 
 // A dataframe read directly. Defined outside Scan because GCC only treats a
@@ -75,6 +77,9 @@ struct Scan {
   internal::VariantOf<SourceKind>::type source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;
+  // Pipelines a SQL source reads, each through the parameter InputParameter()
+  // names.
+  std::vector<std::shared_ptr<LogicalPlan>> inputs;
 };
 
 enum class TreeDirection : uint8_t { kUp, kDown };
