@@ -34,6 +34,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/memoize.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -159,6 +160,14 @@ void CacheColumnReaders(PipelineModule::Cursor* c) {
   }
 }
 
+// Drops the plan the cursor is running and everything reading it.
+void ResetPlan(PipelineModule::Cursor* c) {
+  c->rows.reset();
+  c->memoize.reset();
+  c->plan.reset();
+  c->serialized.clear();
+}
+
 // Surfaces the executor's error, if any, once rows stop.
 int CheckStatus(PipelineModule::Cursor* cursor) {
   // status() walks every node so only check it once rows stop.
@@ -245,20 +254,26 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
   std::string_view serialized(
       static_cast<const char*>(sqlite3_value_blob(argv[0])),
       static_cast<size_t>(sqlite3_value_bytes(argv[0])));
-  // A cursor filtered again, as the inner side of a join is, runs the same
-  // pipeline each time.
   if (!c->plan || c->serialized != serialized) {
     Context* context = GetVtab(cursor->pVtab)->context;
     auto plan = context->connection->LoadPipeline(serialized);
     if (!plan.ok()) {
       return sqlite::utils::SetError(cursor->pVtab, plan.status());
     }
-    c->rows.reset();
+    ResetPlan(c);
     c->plan = std::move(*plan);
     c->serialized = serialized;
     c->pool = context->pool;
   }
-  c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
+  // SQLite reads the inner side of a join again for each outer row. The
+  // second read of a plan keeps what it produces, and later reads replay it.
+  if (!c->rows) {
+    c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
+  } else if (!c->memoize) {
+    c->rows.reset();
+    c->memoize = std::make_unique<core::exec::Memoize>(c->plan->source());
+    c->rows = std::make_unique<core::exec::RowCursor>(*c->memoize);
+  }
   c->rowid = 0;
   c->target_rowid.reset();
   if (idx_num && sqlite3_value_type(argv[1]) == SQLITE_INTEGER) {

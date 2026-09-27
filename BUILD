@@ -2584,6 +2584,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/dataframe_scan.h",
         "src/trace_processor/core/exec/interval_intersect.cc",
         "src/trace_processor/core/exec/interval_intersect.h",
+        "src/trace_processor/core/exec/memoize.cc",
+        "src/trace_processor/core/exec/memoize.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
         "src/trace_processor/core/exec/pipeline.cc",

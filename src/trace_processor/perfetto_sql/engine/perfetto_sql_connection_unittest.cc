@@ -1239,6 +1239,22 @@ TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesAsIntersectionOperands) {
   EXPECT_THAT(*rows, testing::ElementsAre("12,3", "20,2"));
 }
 
+// SQLite reads the inner side of a join once per outer row. A pipeline read
+// again with the same plan is not run again each time: `random()` in its
+// source would otherwise give each read different rows.
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesReadAgainAreNotRunAgain) {
+  ASSERT_TRUE(Rows("CREATE TABLE picks(k); "
+                   "INSERT INTO picks VALUES (1), (2), (3), (4), (5)")
+                  .ok());
+  auto rows = Rows(
+      "SELECT count(DISTINCT p.r) FROM picks CROSS JOIN "
+      "(FROM (SELECT 1 AS one, random() AS r)) p");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  // The second read runs the pipeline once more to keep its rows; every read
+  // after replays them.
+  EXPECT_THAT(*rows, testing::ElementsAre("2"));
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSubqueriesNeedPipelines) {
   ASSERT_TRUE(Rows("PERFETTO PRAGMA pipelines = 0").ok());
   EXPECT_THAT(Rows("SELECT * FROM (FROM tree)").status().message(),

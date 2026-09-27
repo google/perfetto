@@ -27,6 +27,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/exec/memoize.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -71,6 +72,8 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     // The serialized plan `plan` was loaded from.
     std::string serialized;
     std::unique_ptr<pipeline::PhysicalPlan> plan;
+    // Keeps what `plan` produced once the cursor is read again.
+    std::unique_ptr<core::exec::Memoize> memoize;
     StringPool* pool = nullptr;
     std::unique_ptr<core::exec::RowCursor> rows;
     std::vector<ColumnReader> columns;
