@@ -103,7 +103,8 @@ class Compiler {
     std::string name;
     std::vector<RowColumn> columns;
   };
-  // What names mean while a pipeline is compiled.
+  // What names mean while one pipeline is compiled. A pipeline read by
+  // another is compiled in a scope of its own, as a subquery would be.
   struct Scope {
     // The operator being compiled, which prefixes every error.
     const char* op = "FROM";
@@ -152,10 +153,12 @@ class Compiler {
   // The name a source's columns can be qualified with, if it has one.
   std::optional<std::string> SourceQualifier(
       const SyntaqlitePerfettoPipeSource&) const;
-  // Compiles what a source reads: a dataframe or SQL.
+  // Compiles what a source reads: a dataframe, SQL, or a pipeline.
   base::StatusOr<Relation> CompileRelation(uint32_t source);
-  // Fails unless every column of a source has a name a pipeline can use.
-  // Crossing from SQL into a pipeline needs proper names, as creating a
+  // Compiles a pipeline read by this one into the same plan.
+  base::StatusOr<Relation> CompileNestedPipeline(uint32_t pipeline);
+  // Fails unless every column of a source has a distinct name a pipeline can
+  // use. Crossing from SQL into a pipeline needs proper names, as creating a
   // PERFETTO TABLE does.
   base::Status CheckSourceNames(const std::vector<NamedColumn>&,
                                 uint32_t at) const;
@@ -304,16 +307,36 @@ base::Status Compiler::CompileSource(uint32_t from) {
 
 base::StatusOr<Compiler::Relation> Compiler::CompileRelation(uint32_t source) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, source);
-  op::Scan scan;
-  if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
-    scan = CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
-  } else {
-    ASSIGN_OR_RETURN(scan, CompileSqlSource(source));
-  }
-  RETURN_IF_ERROR(CheckSourceNames(scan.columns, source));
   Relation relation;
-  relation.columns = scan.columns;
-  relation.node = plan_.AddNode(std::move(scan));
+  if (syntaqlite_node_is_present(n->select) &&
+      Node<SyntaqliteNode>(p_, n->select)->tag ==
+          SYNTAQLITE_NODE_PERFETTO_PIPELINE) {
+    ASSIGN_OR_RETURN(relation, CompileNestedPipeline(n->select));
+  } else {
+    op::Scan scan;
+    if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
+      scan = CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
+    } else {
+      ASSIGN_OR_RETURN(scan, CompileSqlSource(source));
+    }
+    relation.columns = scan.columns;
+    relation.node = plan_.AddNode(std::move(scan));
+  }
+  RETURN_IF_ERROR(CheckSourceNames(relation.columns, source));
+  return relation;
+}
+
+base::StatusOr<Compiler::Relation> Compiler::CompileNestedPipeline(
+    uint32_t pipeline) {
+  Scope outer = std::exchange(scope_, Scope());
+  base::Status status = CompilePipeline(pipeline);
+  Scope inner = std::exchange(scope_, std::move(outer));
+  RETURN_IF_ERROR(status);
+  Relation relation;
+  relation.node = plan_.root;
+  for (RowColumn& column : inner.row) {
+    relation.columns.push_back(std::move(column.column));
+  }
   return relation;
 }
 

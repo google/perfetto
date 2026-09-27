@@ -822,6 +822,21 @@ TEST_F(PerfettoSqlParserTest, PipelineReadsOnlyTheColumnsItNeeds) {
                                kSliceColumns + "]"));
 }
 
+// A pipeline read by a pipeline is compiled into the same plan: nothing goes
+// through SQLite between them.
+TEST_F(PerfettoSqlParserTest, PipelineSourcesAreCompiledInline) {
+  auto plan = ParsePipeline("FROM (FROM slice |> SELECT id, dur) |> SELECT id");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("Scan(table slice)"));
+  EXPECT_THAT(*plan, testing::Not(HasSubstr("sql")));
+
+  EXPECT_THAT(
+      ParsePipeline("FROM (FROM slice |> SELECT id, dur AS id) |> SELECT id")
+          .status()
+          .message(),
+      HasSubstr("two named 'id'"));
+}
+
 TEST_F(PerfettoSqlParserTest, PipelineSkipsUnusedTreeAggregates) {
   // Aggregates nobody uses are not computed, nor are their inputs read.
   auto plan = ParsePipeline(

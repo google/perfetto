@@ -29,10 +29,12 @@ source_set("parser") {
     "../../../../gn:sqlite",
     "../../../base",
     "../../../perfetto_sql:intrinsic_macro_expansion",
+    "../../../perfetto_sql/analysis",
     "../../../perfetto_sql/syntaqlite",
     "../../sqlite",
     "../../util:sql_argument",
     "../pipeline:logical",
+    "../schema",
   ]
   cflags = [
     "-Wno-old-style-cast",

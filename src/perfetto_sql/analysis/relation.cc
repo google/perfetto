@@ -705,8 +705,15 @@ RelationAnalyzer::Impl::Select(SyntaqliteParser* p, uint32_t id, int depth) {
       }
       return std::move(*left);
     }
-    default:
-      return base::ErrStatus("relation analysis: not a select");
+    default: {
+      std::optional<LeafRelation> found = catalog_.FindNodeRelation({p, id});
+      if (!found) {
+        return base::ErrStatus("relation analysis: not a select");
+      }
+      preserves_rows_ = false;
+      std::vector<std::string_view> hidden;
+      return LeafColumns(std::move(*found), hidden);
+    }
   }
 }
 

@@ -71,6 +71,11 @@ class Catalog {
       std::string_view name) const = 0;
   virtual std::optional<std::string> FindViewSql(
       std::string_view name) const = 0;
+  // The relation a dialect-specific node, such as a pipeline subquery,
+  // produces, if the host knows it.
+  virtual std::optional<LeafRelation> FindNodeRelation(SqlNode) const {
+    return std::nullopt;
+  }
 };
 
 struct ColumnOrigin {
