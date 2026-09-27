@@ -34,6 +34,7 @@ source_set("logical") {
     "../../core/common",
     "../../core/dataframe",
     "../../sqlite",
+    "../../util:sql_argument",
   ]
 }
 
