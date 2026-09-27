@@ -31,7 +31,7 @@ struct SyntaqliteParser;
 
 namespace perfetto::perfetto_sql::analysis {
 
-// A node in a caller-owned Syntaqlite parse tree.
+// A node of the statement a caller-owned Syntaqlite parser last parsed.
 struct SqlNode {
   SyntaqliteParser* parser;
   uint32_t id;
@@ -133,8 +133,13 @@ class RelationAnalyzer {
   RelationAnalyzer(const RelationAnalyzer&) = delete;
   RelationAnalyzer& operator=(const RelationAnalyzer&) = delete;
 
-  base::StatusOr<RelationLineage> AnalyzeQuery(SqlNode);
-  base::StatusOr<RelationLineage> AnalyzeRelation(std::string_view name);
+  // The lineage of `query`, read where it is in its statement: it sees the
+  // CTEs in scope there.
+  base::StatusOr<RelationLineage> AnalyzeQuery(SqlNode query);
+  // The lineage of the relation `name`, read at the node `at`: a CTE in scope
+  // there hides any relation of the same name.
+  base::StatusOr<RelationLineage> AnalyzeRelation(SqlNode at,
+                                                  std::string_view name);
 
  private:
   class Impl;

@@ -903,6 +903,19 @@ TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromAnySql) {
                                           "2,0,60,60", "3,1,80,80"));
 }
 
+TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromSqlWithCtes) {
+  auto rows = Rows(R"(
+    FROM (
+      WITH nodes AS (SELECT id, parent_id, self FROM tree)
+      SELECT * FROM nodes
+    )
+    |> TREE ACCUMULATE UP SUM(self) AS total
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,10,100", "1,0,20,60",
+                                          "2,0,30,30", "3,1,40,40"));
+}
+
 // Perfetto tables are dataframes and are scanned directly.
 TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromAPerfettoTable) {
   auto rows = Rows(R"(

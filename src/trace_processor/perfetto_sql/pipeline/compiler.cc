@@ -399,7 +399,7 @@ base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
   base::StatusOr<analysis::RelationLineage> lineage =
       syntaqlite_node_is_present(n->select)
           ? analyzer.AnalyzeQuery({p_, n->select})
-          : analyzer.AnalyzeRelation(SpanText(p_, n->table_name));
+          : analyzer.AnalyzeRelation({p_, from}, SpanText(p_, n->table_name));
   if (!lineage.ok() || IsPresent(n->schema)) {
     std::string reason =
         lineage.ok() ? "a schema-qualified table" : lineage.status().message();

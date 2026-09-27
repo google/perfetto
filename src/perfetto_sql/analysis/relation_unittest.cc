@@ -134,6 +134,45 @@ class RelationAnalyzerTest : public ::testing::Test {
     return result.ok() ? Show(*result) : std::vector<std::string>{};
   }
 
+  // Analyzes `name`, or with `name` empty the query itself, as read at the
+  // select in `sql` whose text is `at`. An error is shown as "!<message>".
+  std::vector<std::string> ReadAt(const std::string& sql,
+                                  const std::string& at,
+                                  const std::string& name) {
+    ScopedParser parser(syntaqlite_parser_create_perfetto(nullptr));
+    syntaqlite_parser_set_collect_node_extents(parser.get(), 1);
+    syntaqlite_parser_reset(parser.get(), sql.data(),
+                            static_cast<uint32_t>(sql.size()));
+    if (syntaqlite_parser_next(parser.get()) != SYNTAQLITE_PARSE_OK) {
+      return {"!could not parse test query"};
+    }
+    std::optional<uint32_t> found;
+    for (uint32_t id = 0; id < syntaqlite_parser_node_count(parser.get());
+         ++id) {
+      const auto* node = static_cast<const SyntaqliteNode*>(
+          syntaqlite_parser_node(parser.get(), id));
+      SyntaqliteLength len = 0;
+      SyntaqliteStmtOffset offset = 0;
+      const char* text =
+          syntaqlite_parser_node_text(parser.get(), id, &len, &offset);
+      if (node && node->tag == SYNTAQLITE_NODE_SELECT_STMT && text &&
+          std::string_view(text, len) == at) {
+        found = id;
+      }
+    }
+    if (!found) {
+      return {"!no select '" + at + "'"};
+    }
+    RelationAnalyzer analyzer(catalog_);
+    auto result = name.empty()
+                      ? analyzer.AnalyzeQuery({parser.get(), *found})
+                      : analyzer.AnalyzeRelation({parser.get(), *found}, name);
+    if (!result.ok()) {
+      return {"!" + result.status().message()};
+    }
+    return Show(*result);
+  }
+
   TestCatalog catalog_;
 };
 
@@ -201,6 +240,93 @@ TEST_F(RelationAnalyzerTest, FollowsAliasesSubqueriesAndViews) {
               testing::ElementsAre("renamed=slice.id"));
 }
 
+// CTEs are in scope for the rest of their WITH clause and its query, hiding
+// relations of the same name there, as in SQLite.
+TEST_F(RelationAnalyzerTest, Ctes) {
+  // Each sees those before it, and is renamed by its list of names.
+  EXPECT_THAT(Select(R"(
+                WITH
+                  a(x) AS (SELECT id FROM slice),
+                  b AS (SELECT x AS y, name FROM a, slice)
+                SELECT * FROM (SELECT * FROM b)
+              )"),
+              testing::ElementsAre("y=slice.id", "name=slice.name"));
+  // A CTE hides a table of the same name in its query, but not in its own
+  // definition, outside the query, or in a view the query reads.
+  catalog_.AddView("v", "CREATE VIEW v AS SELECT * FROM thread");
+  EXPECT_THAT(Select(R"(
+                SELECT *
+                FROM (
+                  WITH thread AS (SELECT id FROM thread, slice)
+                  SELECT * FROM thread, v
+                ),
+                thread
+              )"),
+              testing::ElementsAre("id=slice.id", "utid=thread.utid",
+                                   "name=thread.name", "utid=thread.utid",
+                                   "name=thread.name"));
+  // A recursive CTE reads itself before its columns are known.
+  EXPECT_THAT(Select(R"(
+                WITH RECURSIVE n(i) AS (
+                  SELECT id FROM slice
+                  UNION ALL
+                  SELECT i + 1 FROM n WHERE i < 3
+                )
+                SELECT * FROM n
+              )"),
+              testing::ElementsAre("i="));
+  // A CTE can filter its rows, so what reads one has no row origin.
+  auto result =
+      Analyze("WITH t AS (SELECT id FROM slice WHERE ts > 5) SELECT id FROM t");
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(result->row_origin(), std::nullopt);
+}
+
+// What is read at a node of a statement sees the CTEs in scope there, and only
+// those.
+TEST_F(RelationAnalyzerTest, ReadsSeeTheCtesInScope) {
+  const std::string kHere = "SELECT 1 AS here";
+  // Through statements, compound selects and joins; the innermost CTE of a
+  // name hides the others.
+  const std::string kNested = R"(
+    CREATE VIEW v AS
+    WITH t AS (SELECT utid FROM thread)
+    SELECT 1, 2, 3
+    UNION ALL
+    SELECT * FROM thread JOIN (
+      WITH t AS (SELECT id FROM slice)
+      SELECT * FROM (SELECT 1 AS here)
+    )
+  )";
+  EXPECT_THAT(ReadAt(kNested, kHere, "t"), testing::ElementsAre("id=slice.id"));
+  // A query read there.
+  EXPECT_THAT(ReadAt(R"(
+                WITH t AS (SELECT id FROM slice)
+                SELECT * FROM (SELECT * FROM t)
+              )",
+                     "SELECT * FROM t", ""),
+              testing::ElementsAre("id=slice.id"));
+  // Inside a CTE's definition, only the CTEs before it, and none of another
+  // subquery's.
+  const std::string kDefinition = R"(
+    SELECT *
+    FROM (WITH s AS (SELECT id FROM slice) SELECT * FROM s),
+    (
+      WITH
+        a AS (SELECT id FROM slice),
+        b AS (SELECT * FROM (SELECT 1 AS here)),
+        c AS (SELECT utid FROM thread)
+      SELECT * FROM b
+    )
+  )";
+  EXPECT_THAT(ReadAt(kDefinition, kHere, "a"),
+              testing::ElementsAre("id=slice.id"));
+  EXPECT_THAT(ReadAt(kDefinition, kHere, "c"),
+              testing::ElementsAre("!relation analysis: 'c' is not known"));
+  EXPECT_THAT(ReadAt(kDefinition, kHere, "s"),
+              testing::ElementsAre("!relation analysis: 's' is not known"));
+}
+
 TEST_F(RelationAnalyzerTest, KeepsEveryOriginOfAmbiguousJoinColumn) {
   EXPECT_THAT(Select("SELECT name FROM slice, thread"),
               testing::ElementsAre("name=slice.name,thread.name"));
@@ -237,8 +363,7 @@ TEST_F(RelationAnalyzerTest, IdentifiesRowOrigin) {
 TEST_F(RelationAnalyzerTest, DetectsRowPreservingViewChains) {
   catalog_.AddView("v1", "CREATE VIEW v1 AS SELECT id, name FROM slice");
   catalog_.AddView("v2", "CREATE VIEW v2 AS SELECT id AS a, name AS b FROM v1");
-  RelationAnalyzer analyzer(catalog_);
-  auto result = analyzer.AnalyzeRelation("v2");
+  auto result = Analyze("SELECT * FROM v2");
   ASSERT_TRUE(result.ok());
   EXPECT_EQ(result->row_origin(),
             std::make_optional<std::string_view>("slice"));
@@ -246,8 +371,7 @@ TEST_F(RelationAnalyzerTest, DetectsRowPreservingViewChains) {
 
 TEST_F(RelationAnalyzerTest, RejectsFilteredViewAsRowOrigin) {
   catalog_.AddView("v", "CREATE VIEW v AS SELECT id FROM slice WHERE ts > 5");
-  RelationAnalyzer analyzer(catalog_);
-  auto result = analyzer.AnalyzeRelation("v");
+  auto result = Analyze("SELECT * FROM v");
   ASSERT_TRUE(result.ok());
   EXPECT_EQ(result->row_origin(), std::nullopt);
 }
@@ -255,8 +379,7 @@ TEST_F(RelationAnalyzerTest, RejectsFilteredViewAsRowOrigin) {
 TEST_F(RelationAnalyzerTest, RejectsOrderedViewAsRowOrigin) {
   catalog_.AddView("v",
                    "CREATE VIEW v AS SELECT id FROM slice ORDER BY ts DESC");
-  RelationAnalyzer analyzer(catalog_);
-  auto result = analyzer.AnalyzeRelation("v");
+  auto result = Analyze("SELECT * FROM v");
   ASSERT_TRUE(result.ok());
   EXPECT_EQ(result->row_origin(), std::nullopt);
 }
