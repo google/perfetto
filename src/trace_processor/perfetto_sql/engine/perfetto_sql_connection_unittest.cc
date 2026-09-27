@@ -849,6 +849,19 @@ class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
     return rows;
   }
 
+  // The SQL a pipeline statement is prepared as.
+  std::string PipelineSql(const std::string& pipeline) {
+    auto res = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(pipeline));
+    PERFETTO_CHECK(res.ok());
+    return res->stmt.sql();
+  }
+
+  // The FROM clause of `sql`, from its leading space.
+  static std::string From(const std::string& sql) {
+    return sql.substr(sql.find(" FROM "));
+  }
+
   std::vector<std::string> ColumnNames(const std::string& sql) {
     auto res = connection_->ExecuteUntilLastStatement(
         SqlSource::FromExecuteQuery(sql));
@@ -1011,21 +1024,6 @@ TEST_F(PerfettoSqlConnectionPipelineTest, AReadTableCanBeReplaced) {
   EXPECT_EQ(rows, 4u);
 }
 
-// Finalization retires the TEMP table; the next execution drops it safely.
-TEST_F(PerfettoSqlConnectionPipelineTest, CompletedPipelineTablesAreDropped) {
-  ASSERT_TRUE(Rows("FROM tree").ok());
-  auto tables = Rows(
-      "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
-      "'__intrinsic_pipeline_*'");
-  ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
-  auto modules = Rows(
-      "SELECT name FROM pragma_module_list WHERE name GLOB "
-      "'__intrinsic_pipeline*'");
-  ASSERT_TRUE(modules.ok()) << modules.status().message();
-  EXPECT_THAT(*modules, testing::ElementsAre("__intrinsic_pipeline"));
-}
-
 TEST_F(PerfettoSqlConnectionPipelineTest,
        DifferentSchemasAndConcurrentStatements) {
   auto first =
@@ -1048,7 +1046,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
   EXPECT_EQ(rows, 4u);
   EXPECT_TRUE(second->stmt.status().ok());
   // The schema changed after preparing the first statement. Resetting and
-  // rerunning it must retain the bound plan through SQLite's reprepare path.
+  // rerunning it loads the pipeline again from its plan.
   ASSERT_EQ(sqlite3_reset(first->stmt.sqlite_stmt()), SQLITE_OK);
   rows = 0;
   while (first->stmt.Step())
@@ -1057,54 +1055,32 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
   EXPECT_TRUE(first->stmt.status().ok());
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       CleanupRetriesWhileAnotherStatementIsActive) {
-  {
-    auto active = connection_->ExecuteUntilLastStatement(
-        SqlSource::FromExecuteQuery("FROM tree"));
-    ASSERT_TRUE(active.ok()) << active.status().message();
-    ASSERT_TRUE(Rows("FROM (SELECT 123 AS value)").ok());
-    // The finished pipeline can be retired even though the active statement
-    // prevents schema changes. Retrying cleanup must not interrupt either.
-    ASSERT_TRUE(Rows("SELECT 1").ok());
-    while (active->stmt.Step()) {
-    }
-    EXPECT_TRUE(active->stmt.status().ok());
-  }
-  auto tables = Rows(
-      "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
-      "'__intrinsic_pipeline_*'");
-  ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
+// SQL holding a pipeline's plan can be stored and run later, against the
+// tables as they are by then.
+TEST_F(PerfettoSqlConnectionPipelineTest, StoredPipelinesRunLater) {
+  std::string sql = PipelineSql(
+      "FROM tree |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");
+  ASSERT_TRUE(Rows("CREATE VIEW totals AS " + sql).ok());
+  auto rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+
+  ASSERT_TRUE(Rows("DELETE FROM tree WHERE id = 3").ok());
+  rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,60", "1,20", "2,30"));
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       CleanupAcrossRollbackAndExecutionFailure) {
-  ASSERT_TRUE(Rows("FROM tree").ok());
-  ASSERT_TRUE(Rows("BEGIN; FROM tree").ok());
-  ASSERT_TRUE(Rows("ROLLBACK").ok());
-  EXPECT_FALSE(Rows("FROM (SELECT 0 AS id, NULL AS parent_id, 'bad' AS value) "
-                    "|> TREE ACCUMULATE UP SUM(value) AS total")
-                   .ok());
-  auto tables = Rows(
-      "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
-      "'__intrinsic_pipeline_*'");
-  ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
+TEST_F(PerfettoSqlConnectionPipelineTest, BadPlans) {
+  auto rows = Rows("SELECT c0 FROM __intrinsic_pipeline('FROM tree')");
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("expected a plan"));
+  rows = Rows("SELECT c0 FROM __intrinsic_pipeline(X'00')");
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("malformed plan"));
+  rows = Rows("SELECT c1" + From(PipelineSql("FROM (SELECT 1 AS x)")));
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("no column c1"));
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       FailedCreateDoesNotRetireAnExistingTable) {
-  ASSERT_TRUE(Rows("CREATE TEMP TABLE __intrinsic_pipeline_0(value); "
-                   "INSERT INTO __intrinsic_pipeline_0 VALUES(123)")
-                  .ok());
-  EXPECT_FALSE(Rows("FROM tree").ok());
-  auto existing = Rows("SELECT value FROM temp.__intrinsic_pipeline_0");
-  ASSERT_TRUE(existing.ok()) << existing.status().message();
-  EXPECT_THAT(*existing, testing::ElementsAre("123"));
-}
-
-TEST_F(PerfettoSqlConnectionPipelineTest, TemporaryTablesAreConnectionLocal) {
+TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
   auto fork = connection_->Fork();
   auto first = connection_->ExecuteUntilLastStatement(
       SqlSource::FromExecuteQuery("FROM (SELECT 123 AS value)"));
@@ -1120,52 +1096,16 @@ TEST_F(PerfettoSqlConnectionPipelineTest, TemporaryTablesAreConnectionLocal) {
 
 TEST_F(PerfettoSqlConnectionPipelineTest,
        OutputConstraintsApplyAfterAccumulation) {
-  auto context = std::make_unique<PipelineModule::Context>();
-  context->pool = &pool_;
-  auto* ctx = context.get();
-  connection_->RegisterVirtualTableModule<PipelineModule>("test_pipeline",
-                                                          std::move(context));
-  ASSERT_TRUE(
-      Rows("CREATE VIRTUAL TABLE temp.test_output USING test_pipeline(4)")
-          .ok());
-
-  pipeline::LogicalPlan logical;
-  for (const char* name : {"id", "parent_id", "self"}) {
-    auto id = logical.AddColumn(name, core::Int64{});
-    logical.output.push_back({name, id});
-  }
-  pipeline::PlanNodeId scan = logical.AddNode(pipeline::op::Scan{
-      SqlSource::FromExecuteQuery("SELECT id, parent_id, self FROM tree"),
-      logical.output});
-  auto total = logical.AddColumn("total", core::Int64{});
-  pipeline::op::TreeAccumulate fold;
-  fold.direction = pipeline::op::TreeDirection::kUp;
-  fold.node_column = 0;
-  fold.parent_column = 1;
-  fold.aggregates.push_back(
-      {pipeline::op::TreeAccumulate::Function::kSum, 2, total});
-  logical.AddNode(std::move(fold), {scan});
-  logical.output.push_back({"total", total});
-  pipeline::LowerEnvironment env{connection_->sqlite_connection(), &pool_};
+  std::string from =
+      From(PipelineSql("FROM (SELECT id, parent_id, self FROM tree) "
+                       "|> TREE ACCUMULATE UP SUM(self) AS total"));
   // The root is last in child-first output. Filtering by its output rowid
   // must retain all descendants while calculating its total.
   for (const char* rhs : {"3", "3.0", "'3'"}) {
-    auto stmt = connection_->sqlite_connection()->PrepareStatement(
-        SqlSource::FromExecuteQuery(
-            "SELECT c3 FROM temp.test_output(?) WHERE rowid = " +
-            std::string(rhs) + " AND c3 > 50"));
-    ASSERT_TRUE(stmt.status().ok()) << stmt.status().message();
-    PipelineModule::Invocation invocation{ctx, "unused",
-                                          pipeline::Lower(logical, env)};
-    ASSERT_EQ(sqlite3_bind_pointer(stmt.sqlite_stmt(), 1, &invocation,
-                                   PipelineModule::kPlanPointerType, nullptr),
-              SQLITE_OK);
-    ASSERT_TRUE(stmt.Step()) << stmt.status().message();
-    EXPECT_EQ(sqlite3_column_int64(stmt.sqlite_stmt(), 0), 100);
-    EXPECT_FALSE(stmt.Step());
-    EXPECT_TRUE(stmt.status().ok());
-    // Explicitly close cursors before the borrowed plan goes out of scope.
-    sqlite3_reset(stmt.sqlite_stmt());
+    auto rows = Rows("SELECT c3" + from + " WHERE rowid = " + std::string(rhs) +
+                     " AND c3 > 50");
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows, testing::ElementsAre("100"));
   }
 }
 
