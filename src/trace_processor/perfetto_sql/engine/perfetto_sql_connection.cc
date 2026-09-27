@@ -1051,7 +1051,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
-  auto sql = pipeline::SelectPipeline(plan, pipeline::PlanLiteral(plan));
+  auto sql = pipeline::SelectPipeline(plan);
   if (!sql.ok()) {
     return base::ErrStatus("%s%s", source.AsTraceback(0).c_str(),
                            sql.status().c_message());

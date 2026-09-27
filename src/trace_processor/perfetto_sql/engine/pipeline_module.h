@@ -68,11 +68,9 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
       const core::exec::ColumnView* view;
       ResultFn result;
     };
-    // Either `owned_plan`, loaded from `serialized`, or one handed over by
-    // the executor.
-    const pipeline::PhysicalPlan* plan = nullptr;
+    // The serialized plan `plan` was loaded from.
     std::string serialized;
-    std::unique_ptr<pipeline::PhysicalPlan> owned_plan;
+    std::unique_ptr<pipeline::PhysicalPlan> plan;
     StringPool* pool = nullptr;
     std::unique_ptr<core::exec::RowCursor> rows;
     std::vector<ColumnReader> columns;

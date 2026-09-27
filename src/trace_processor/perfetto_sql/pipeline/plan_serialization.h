@@ -31,16 +31,9 @@ namespace perfetto::trace_processor::pipeline {
 inline constexpr char kPipelineFunction[] = "__intrinsic_pipeline";
 inline constexpr uint32_t kMaxPipelineColumns = 256;
 
-// SQL reading `plan`'s output under its own column names, from `argument`:
-// the plan serialized as a literal, or a parameter bound to it.
-base::StatusOr<std::string> SelectPipeline(const LogicalPlan& plan,
-                                           const std::string& argument);
-
-// `plan` serialized as a blob literal.
-std::string PlanLiteral(const LogicalPlan& plan);
-
-// The parameter a SQL source's `index`th input is bound to.
-std::string InputParameter(uint32_t index);
+// SQL reading `plan`'s output under its own column names, with the plan
+// serialized into it.
+base::StatusOr<std::string> SelectPipeline(const LogicalPlan& plan);
 
 // Writes an optimized plan as bytes, so that SQL can carry it and run it later
 // without compiling the pipeline again.

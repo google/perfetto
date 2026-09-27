@@ -61,12 +61,10 @@ using core::exec::Variant;
 SqlScan::SqlScan(SqliteConnection* connection,
                  SqlSource sql,
                  core::Schema columns,
-                 std::vector<Input> inputs,
                  StringPool* pool)
     : connection_(connection),
       sql_(std::move(sql)),
       columns_(std::move(columns)),
-      inputs_(std::move(inputs)),
       pool_(pool) {}
 
 SqlScan::~SqlScan() = default;
@@ -125,14 +123,15 @@ void SqlScan::Prepare(State& state) const {
     return;
   }
   sqlite3_stmt* stmt = state.statement->sqlite_stmt();
-  for (const Input& input : inputs_) {
-    int at = sqlite3_bind_parameter_index(stmt, input.parameter.c_str());
-    if (at == 0 || sqlite3_bind_pointer(stmt, at, input.pointer, input.type,
-                                        nullptr) != SQLITE_OK) {
-      state.status = base::ErrStatus("SQL source: could not bind %s",
-                                     input.parameter.c_str());
-      return;
-    }
+  // A pipeline runs its SQL sources itself, where nothing binds the arguments
+  // of a function the pipeline is written in.
+  if (sqlite3_bind_parameter_count(stmt) > 0) {
+    const char* name = sqlite3_bind_parameter_name(stmt, 1);
+    state.status = base::ErrStatus(
+        "SQL source: cannot read `%s`: a pipeline cannot read function "
+        "arguments yet",
+        name ? name : "?");
+    return;
   }
   uint32_t count = sqlite::column::Count(stmt);
   if (count != columns_.size()) {

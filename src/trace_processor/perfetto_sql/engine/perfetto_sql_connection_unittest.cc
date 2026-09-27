@@ -1179,11 +1179,50 @@ TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesInViewsAndFunctions) {
 // A pipeline runs its SQL sources itself, so nothing binds a function's
 // arguments there: reading one is refused, not silently NULL.
 TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSourcesCannotReadArguments) {
-  auto res = Rows(
-      "CREATE PERFETTO FUNCTION scaled(k LONG) RETURNS TABLE(total LONG) AS "
-      "SELECT total FROM (FROM (SELECT id, parent_id, self * $k AS self "
-      "FROM tree) |> TREE ACCUMULATE UP SUM(self) AS total)");
-  EXPECT_THAT(res.status().message(), testing::HasSubstr("cannot read `$k`"));
+  ASSERT_TRUE(
+      Rows("CREATE PERFETTO FUNCTION scaled(k LONG) RETURNS TABLE(total LONG) "
+           "AS SELECT total FROM (FROM (SELECT id, parent_id, self * $k AS "
+           "self FROM tree) |> TREE ACCUMULATE UP SUM(self) AS total)")
+          .ok());
+  EXPECT_THAT(Rows("SELECT * FROM scaled(2)").status().message(),
+              testing::HasSubstr("cannot read `$k`"));
+}
+
+// Macros and pipelines nest inside each other in every way: pipelines in
+// macros, macros in those pipelines' sources and stages, and macro arguments
+// which are themselves macros expanding to pipelines.
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesAndMacrosNest) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO MACRO own() RETURNS ColumnName AS self;
+    CREATE PERFETTO MACRO src() RETURNS TableOrSubquery
+    AS (SELECT id, parent_id, self FROM tree);
+    CREATE PERFETTO MACRO piped_src() RETURNS TableOrSubquery
+    AS (FROM src!() |> SELECT id, parent_id, own!());
+    CREATE PERFETTO MACRO fold(t TableOrSubquery) RETURNS TableOrSubquery
+    AS (FROM (SELECT * FROM $t) |> TREE ACCUMULATE UP SUM(own!()) AS total);
+  )")
+                  .ok());
+
+  auto rows = Rows("SELECT id, total FROM fold!(piped_src!())");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+
+  // Again, read by a pipeline through SQL, and passed to a macro as a
+  // pipeline written out in the call.
+  rows = Rows(
+      "SELECT id, total FROM (FROM (SELECT id, parent_id, total AS self FROM "
+      "fold!((FROM piped_src!() |> SELECT id, parent_id, self))) "
+      "|> TREE ACCUMULATE UP SUM(self) AS total)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,230", "1,100", "2,30", "3,40"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesAsPipelineSources) {
+  auto rows = Rows(
+      "FROM (FROM tree |> TREE ACCUMULATE UP SUM(self) AS total) AS t "
+      "|> TREE ACCUMULATE UP SUM(total) AS again |> SELECT t.id, again");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,230", "1,100", "2,30", "3,40"));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSubqueriesNeedPipelines) {
@@ -1192,12 +1231,28 @@ TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSubqueriesNeedPipelines) {
               testing::HasSubstr("Pipelines are not enabled"));
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesInMacrosAreRefused) {
-  ASSERT_TRUE(Rows("CREATE PERFETTO MACRO totals() RETURNS TableOrSubquery "
-                   "AS (FROM tree |> TREE ACCUMULATE UP SUM(self) AS total)")
+// A pipeline is replaced where it was written, so one in a macro works as
+// one written out.
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesInMacros) {
+  ASSERT_TRUE(Rows("CREATE PERFETTO MACRO totals(t TableOrSubquery) "
+                   "RETURNS TableOrSubquery "
+                   "AS (FROM $t |> TREE ACCUMULATE UP SUM(self) AS total)")
                   .ok());
-  EXPECT_THAT(Rows("SELECT * FROM totals!()").status().message(),
-              testing::HasSubstr("cannot be written inside a macro"));
+  auto rows = Rows("SELECT id, total FROM totals!(tree)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+
+  // In a macro which a pipeline's SQL source calls, with another macro
+  // called inside it.
+  ASSERT_TRUE(Rows("CREATE PERFETTO MACRO just_tree() RETURNS TableOrSubquery "
+                   "AS tree")
+                  .ok());
+  rows = Rows(
+      "SELECT id, total FROM (FROM (SELECT id, parent_id, total AS self "
+      "FROM totals!(just_tree!())) "
+      "|> TREE ACCUMULATE UP SUM(self) AS total)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,230", "1,100", "2,30", "3,40"));
 }
 
 // SQL -> pipeline -> SQL -> pipeline -> SQL -> pipeline, SQLite and the

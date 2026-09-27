@@ -200,6 +200,10 @@ perfetto_pipe_source(A) ::= LP select(S) RP as(Z). {
     A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
         S, Z.name, Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
 }
+perfetto_pipe_source(A) ::= LP perfetto_subquery_pipeline(P) RP as(Z). {
+    A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
+        P, Z.name, Z.has_as ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE);
+}
 
 %type perfetto_tree_direction {int}
 perfetto_tree_direction(A) ::= UP.   { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP; }
@@ -424,9 +428,16 @@ perfetto_pipeline(A) ::= INTERVAL INTERSECTION OF LP
 
 cmd(A) ::= perfetto_pipeline(P). { A = P; }
 
-// A pipeline in parentheses reads like any other subquery: in a FROM clause
-// or as a CTE. It fills the place a SELECT would.
-seltablist(A) ::= stl_prefix(A) LP perfetto_pipeline(P) RP as(Z)
+// A pipeline in parentheses reads like any other subquery: in a FROM clause,
+// as a CTE, or as another pipeline's source. It fills the place a SELECT
+// would, and the engine expands it into SQL reading it, as it would a macro.
+%type perfetto_subquery_pipeline {uint32_t}
+perfetto_subquery_pipeline(A) ::= perfetto_pipeline(P). {
+    A = P;
+    synq_parser_expand_node(pCtx, P, "pipeline", 8);
+}
+
+seltablist(A) ::= stl_prefix(A) LP perfetto_subquery_pipeline(P) RP as(Z)
                   on_using(N). {
     pCtx->saw_subquery = 1;
     uint32_t sub = synq_parse_subquery_table_source(
@@ -444,7 +455,8 @@ seltablist(A) ::= stl_prefix(A) LP perfetto_pipeline(P) RP as(Z)
             sub, N.on_expr, N.using_cols);
     }
 }
-wqitem(A) ::= withnm(X) eidlist_opt(Y) wqas(M) LP perfetto_pipeline(P) RP. {
+wqitem(A) ::= withnm(X) eidlist_opt(Y) wqas(M) LP perfetto_subquery_pipeline(P)
+              RP. {
     A = synq_parse_cte_definition(pCtx, synq_span_dequote(pCtx, X),
                                   (SyntaqliteMaterialized)M, Y, P);
 }

@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -45,9 +44,6 @@ namespace {
 // Bumped whenever the layout changes. Plans never leave the process which
 // wrote them, so there is nothing to stay compatible with.
 constexpr uint32_t kVersion = 1;
-
-// How deeply pipelines may read pipelines through SQL.
-constexpr uint32_t kMaxDepth = 32;
 
 class Writer {
  public:
@@ -137,8 +133,6 @@ class Reader {
 
 // ---------------------------------------------------------------- writing
 
-void WritePlan(Writer&, const LogicalPlan&);
-
 void WriteScan(Writer& w, const op::Scan& scan) {
   using Kind = op::Scan::SourceKind;
   w.U8(static_cast<uint8_t>(scan.source.index()));
@@ -157,10 +151,6 @@ void WriteScan(Writer& w, const op::Scan& scan) {
   for (const NamedColumn& column : scan.columns) {
     w.Str(column.name);
     w.U32(column.id);
-  }
-  w.Size(scan.inputs.size());
-  for (const std::shared_ptr<LogicalPlan>& input : scan.inputs) {
-    WritePlan(w, *input);
   }
 }
 
@@ -215,9 +205,7 @@ std::optional<core::StorageType> ReadType(Reader& r) {
   }
 }
 
-LogicalPlan ReadPlan(Reader&, uint32_t depth);
-
-op::Scan ReadScan(Reader& r, uint32_t depth) {
+op::Scan ReadScan(Reader& r) {
   using Kind = op::Scan::SourceKind;
   op::Scan scan;
   switch (r.U8()) {
@@ -238,15 +226,6 @@ op::Scan ReadScan(Reader& r, uint32_t depth) {
   for (NamedColumn& column : scan.columns) {
     column.name = r.Str();
     column.id = r.U32();
-  }
-  scan.inputs.resize(r.Count());
-  for (std::shared_ptr<LogicalPlan>& input : scan.inputs) {
-    // Each level of nesting is a level of recursion here.
-    if (depth >= kMaxDepth) {
-      r.Fail();
-      break;
-    }
-    input = std::make_shared<LogicalPlan>(ReadPlan(r, depth + 1));
   }
   return scan;
 }
@@ -285,7 +264,7 @@ op::IntervalIntersect ReadIntervalIntersect(Reader& r) {
   return isect;
 }
 
-PlanNode ReadNode(Reader& r, uint32_t depth) {
+PlanNode ReadNode(Reader& r) {
   PlanNode node;
   uint8_t kind = r.U8();
   node.children.resize(r.Count());
@@ -294,7 +273,7 @@ PlanNode ReadNode(Reader& r, uint32_t depth) {
   }
   switch (kind) {
     case OpKind::GetTypeIndex<op::Scan>():
-      node.op = ReadScan(r, depth);
+      node.op = ReadScan(r);
       break;
     case OpKind::GetTypeIndex<op::TreeAccumulate>():
       node.op = ReadTreeAccumulate(r);
@@ -307,61 +286,6 @@ PlanNode ReadNode(Reader& r, uint32_t depth) {
       break;
   }
   return node;
-}
-
-void WritePlan(Writer& w, const LogicalPlan& plan) {
-  w.Size(plan.columns.size());
-  for (const ColumnSchema& column : plan.columns) {
-    w.Str(column.name);
-    w.U8(column.type ? static_cast<uint8_t>(column.type->index() + 1) : 0);
-  }
-  w.Size(plan.nodes.size());
-  for (const PlanNode& node : plan.nodes) {
-    w.U8(static_cast<uint8_t>(node.kind()));
-    w.Size(node.children.size());
-    for (PlanNodeId child : node.children) {
-      w.U32(child);
-    }
-    switch (node.kind()) {
-      case OpKind::GetTypeIndex<op::Scan>():
-        WriteScan(w, node.Cast<op::Scan>());
-        break;
-      case OpKind::GetTypeIndex<op::TreeAccumulate>():
-        WriteTreeAccumulate(w, node.Cast<op::TreeAccumulate>());
-        break;
-      case OpKind::GetTypeIndex<op::IntervalIntersect>():
-        WriteIntervalIntersect(w, node.Cast<op::IntervalIntersect>());
-        break;
-      default:
-        PERFETTO_FATAL("Unknown operator");
-    }
-  }
-  w.U32(plan.root);
-  w.Size(plan.output.size());
-  for (const NamedColumn& column : plan.output) {
-    w.Str(column.name);
-    w.U32(column.id);
-  }
-}
-
-LogicalPlan ReadPlan(Reader& r, uint32_t depth) {
-  LogicalPlan plan;
-  plan.columns.resize(r.Count());
-  for (ColumnSchema& column : plan.columns) {
-    column.name = r.Str();
-    column.type = ReadType(r);
-  }
-  plan.nodes.resize(r.Count());
-  for (PlanNode& node : plan.nodes) {
-    node = ReadNode(r, depth);
-  }
-  plan.root = r.U32();
-  plan.output.resize(r.Count());
-  for (NamedColumn& column : plan.output) {
-    column.name = r.Str();
-    column.id = r.U32();
-  }
-  return plan;
 }
 
 // ---------------------------------------------------------------- checking
@@ -435,14 +359,6 @@ class PlanChecker {
     // Dataframe columns are checked against the dataframe once it is found.
     // SQLite has no Ids: a query's integers are only ever read as integers.
     bool from_sql = std::holds_alternative<SqlSource>(scan.source);
-    if (!from_sql && !scan.inputs.empty()) {
-      return false;
-    }
-    for (const std::shared_ptr<LogicalPlan>& input : scan.inputs) {
-      if (!PlanChecker(*input).Check()) {
-        return false;
-      }
-    }
     for (const NamedColumn& column : scan.columns) {
       if (!Produce(i, column.id) ||
           (from_sql && Is<core::Id>(plan_.columns[column.id].type))) {
@@ -545,9 +461,6 @@ base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
       continue;
     }
     auto& scan = node.Cast<op::Scan>();
-    for (const std::shared_ptr<LogicalPlan>& input : scan.inputs) {
-      RETURN_IF_ERROR(ResolveDataframes(*input, catalog));
-    }
     auto* source = std::get_if<op::Scan::Dataframe>(&scan.source);
     if (!source) {
       continue;
@@ -580,8 +493,7 @@ base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
 
 }  // namespace
 
-base::StatusOr<std::string> SelectPipeline(const LogicalPlan& plan,
-                                           const std::string& argument) {
+base::StatusOr<std::string> SelectPipeline(const LogicalPlan& plan) {
   if (plan.output.size() > kMaxPipelineColumns) {
     return base::ErrStatus("A pipeline can output at most %u columns, not %zu",
                            kMaxPipelineColumns, plan.output.size());
@@ -593,21 +505,44 @@ base::StatusOr<std::string> SelectPipeline(const LogicalPlan& plan,
                       "\"");
   }
   return "SELECT " + base::Join(columns, ", ") + " FROM " + kPipelineFunction +
-         "(" + argument + ")";
-}
-
-std::string PlanLiteral(const LogicalPlan& plan) {
-  return "X'" + base::ToHex(SerializePlan(plan)) + "'";
-}
-
-std::string InputParameter(uint32_t index) {
-  return ":__intrinsic_pipeline_input_" + std::to_string(index);
+         "(X'" + base::ToHex(SerializePlan(plan)) + "')";
 }
 
 std::string SerializePlan(const LogicalPlan& plan) {
   Writer w;
   w.U32(kVersion);
-  WritePlan(w, plan);
+  w.Size(plan.columns.size());
+  for (const ColumnSchema& column : plan.columns) {
+    w.Str(column.name);
+    w.U8(column.type ? static_cast<uint8_t>(column.type->index() + 1) : 0);
+  }
+  w.Size(plan.nodes.size());
+  for (const PlanNode& node : plan.nodes) {
+    w.U8(static_cast<uint8_t>(node.kind()));
+    w.Size(node.children.size());
+    for (PlanNodeId child : node.children) {
+      w.U32(child);
+    }
+    switch (node.kind()) {
+      case OpKind::GetTypeIndex<op::Scan>():
+        WriteScan(w, node.Cast<op::Scan>());
+        break;
+      case OpKind::GetTypeIndex<op::TreeAccumulate>():
+        WriteTreeAccumulate(w, node.Cast<op::TreeAccumulate>());
+        break;
+      case OpKind::GetTypeIndex<op::IntervalIntersect>():
+        WriteIntervalIntersect(w, node.Cast<op::IntervalIntersect>());
+        break;
+      default:
+        PERFETTO_FATAL("Unknown operator");
+    }
+  }
+  w.U32(plan.root);
+  w.Size(plan.output.size());
+  for (const NamedColumn& column : plan.output) {
+    w.Str(column.name);
+    w.U32(column.id);
+  }
   return w.Take();
 }
 
@@ -617,8 +552,26 @@ base::StatusOr<LogicalPlan> DeserializePlan(std::string_view bytes,
   if (r.U32() != kVersion) {
     return Malformed();
   }
-  LogicalPlan plan = ReadPlan(r, 0);
-  if (!r.done() || !PlanChecker(plan).Check()) {
+  LogicalPlan plan;
+  plan.columns.resize(r.Count());
+  for (ColumnSchema& column : plan.columns) {
+    column.name = r.Str();
+    column.type = ReadType(r);
+  }
+  plan.nodes.resize(r.Count());
+  for (PlanNode& node : plan.nodes) {
+    node = ReadNode(r);
+  }
+  plan.root = r.U32();
+  plan.output.resize(r.Count());
+  for (NamedColumn& column : plan.output) {
+    column.name = r.Str();
+    column.id = r.U32();
+  }
+  if (!r.done()) {
+    return Malformed();
+  }
+  if (!PlanChecker(plan).Check()) {
     return Malformed();
   }
   RETURN_IF_ERROR(ResolveDataframes(plan, catalog));

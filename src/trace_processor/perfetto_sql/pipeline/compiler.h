@@ -18,8 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_COMPILER_H_
 
 #include <cstdint>
-#include <memory>
-#include <vector>
+#include <functional>
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
@@ -30,21 +29,8 @@ struct SyntaqliteParser;
 
 namespace perfetto::trace_processor::pipeline {
 
-// What the compiler reads from the parse it compiles, beyond the tree.
-class NodeSources {
- public:
-  virtual ~NodeSources();
-
-  // A node's text, for error tracebacks.
-  virtual SqlSource Text(uint32_t node) const = 0;
-
-  // The SQL SQLite runs for the query at `node`. Each pipeline written in it
-  // is compiled, appended to `inputs` and read from the parameter named by
-  // InputParameter().
-  virtual base::StatusOr<SqlSource> Sql(
-      uint32_t node,
-      std::vector<std::shared_ptr<LogicalPlan>>& inputs) const = 0;
-};
+// Source text of a parse tree node, for error tracebacks.
+using NodeSourceFn = std::function<SqlSource(uint32_t node)>;
 
 // Compiles a parsed pipeline into a logical plan, resolving the source and
 // column names against `catalog` and checking types where known. Runs while
@@ -53,7 +39,7 @@ class NodeSources {
 // `pipeline` is the SYNTAQLITE_NODE_PERFETTO_PIPELINE node.
 base::StatusOr<LogicalPlan> Compile(SyntaqliteParser*,
                                     uint32_t pipeline,
-                                    const NodeSources&,
+                                    const NodeSourceFn&,
                                     const Catalog&);
 
 }  // namespace perfetto::trace_processor::pipeline

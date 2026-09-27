@@ -49,20 +49,8 @@ namespace perfetto::trace_processor::exec {
 // puts text in it.
 class SqlScan : public core::exec::Source {
  public:
-  // A pipeline the query reads, bound as a pointer. Must outlive the scan.
-  struct Input {
-    std::string parameter;
-    void* pointer;
-    const char* type;
-  };
-
-  // A scan over `sql` with its previously resolved result columns, and
-  // `inputs` bound to the parameters they name.
-  SqlScan(SqliteConnection*,
-          SqlSource,
-          core::Schema,
-          std::vector<Input> inputs,
-          StringPool*);
+  // A scan over `sql` with its previously resolved result columns.
+  SqlScan(SqliteConnection*, SqlSource, core::Schema, StringPool*);
   ~SqlScan() override;
 
   // The query's columns, in the order a batch carries them.
@@ -106,7 +94,6 @@ class SqlScan : public core::exec::Source {
   SqliteConnection* connection_;
   SqlSource sql_;
   core::Schema columns_;
-  std::vector<Input> inputs_;
   StringPool* pool_;
 };
 

@@ -1133,6 +1133,12 @@ typedef struct SyntaqliteMacroRewrite {
   // also a useful tell (0 for fallback), but this flag is the
   // authoritative signal.
   uint32_t is_fallback;
+  // 1 if this is a node's expansion (see `syntaqlite_parser_set_node_expander`)
+  // rather than a macro call: the call is the node's text, and its expansion
+  // the host's replacement for it.  Macro calls inside the node are still
+  // recorded; applied around the node, the outermost rewrite stands in for
+  // them.
+  uint32_t is_node_expansion;
 } SyntaqliteMacroRewrite;
 
 // Number of macro rewrites recorded for the current statement.
@@ -1402,6 +1408,30 @@ static inline int syntaqlite_span_is_macro_free(
 //
 // Requires `syntaqlite_parser_set_collect_node_extents(p, 1)` before the
 // first `reset()`.
+// Where a node was written: the layer holding it, and its range there.
+//
+// A node's layer is the innermost one holding both its first and last
+// tokens.  Tokens it takes from macro calls inside that layer are covered
+// by those calls' sites, so the range is always a run of that layer's text.
+typedef struct SyntaqliteNodeSite {
+  // The rewrite whose expansion holds the node, or
+  // SYNTAQLITE_MACRO_PARENT_SOURCE for the statement's own text.
+  uint32_t parent_idx;
+  // In the coordinates a rewrite's `call_offset` uses for the same parent:
+  // statement-relative for the source, else the parent's expansion.
+  SyntaqliteLayerOffset offset;
+  SyntaqliteLength length;
+} SyntaqliteNodeSite;
+
+// Writes where `node_id` was written to `*out`.  Returns 1 on success, 0
+// when node extents are not collected or the node holds no tokens.
+//
+// Requires `syntaqlite_parser_set_collect_node_extents(p, 1)` before the
+// first `reset()`.
+SYNTAQLITE_API int syntaqlite_parser_node_site(SyntaqliteParser* p,
+                                               uint32_t node_id,
+                                               SyntaqliteNodeSite* out);
+
 SYNTAQLITE_API int syntaqlite_node_is_macro_free(SyntaqliteParser* p,
                                                  uint32_t node_id);
 
@@ -1726,6 +1756,43 @@ SYNTAQLITE_API int32_t
 syntaqlite_parser_set_macro_lookup(SyntaqliteParser* p,
                                    SyntaqliteMacroLookupFn fn,
                                    void* user_data);
+
+// ---------------------------------------------------------------------------
+// Node expansion
+// ---------------------------------------------------------------------------
+//
+// Where a macro is text replaced before parsing, some dialect syntax is
+// parsed first and then compiled by the host into SQL.  The grammar marks
+// such a node, and once it is parsed the host's expander replaces it.  The
+// replacement is recorded as a rewrite of the node's text, in the layer the
+// node was written in, alongside macro calls (see
+// `syntaqlite_result_macro_rewrite_at`), so it applies inside macro bodies
+// and arguments as they do.  It is not parsed: the tree keeps the node.
+
+// Return codes for SyntaqliteNodeExpandFn callbacks.
+#define SYNTAQLITE_NODE_EXPAND_OK 0
+#define SYNTAQLITE_NODE_EXPAND_ERROR (-1)
+
+// Expands `node_id`: calls `syntaqlite_node_expansion_set_result` and returns
+// SYNTAQLITE_NODE_EXPAND_OK, or returns SYNTAQLITE_NODE_EXPAND_ERROR to fail
+// the parse.  Called while the statement is still being parsed, once the
+// node and everything in it is.
+typedef int (*SyntaqliteNodeExpandFn)(void* user_data,
+                                      SyntaqliteParser* parser,
+                                      uint32_t node_id);
+
+// Returns SYNTAQLITE_OK on success, SYNTAQLITE_ERR_OMITTED if macros (which
+// node expansion shares its rewrites with) are compiled out.
+SYNTAQLITE_API int32_t
+syntaqlite_parser_set_node_expander(SyntaqliteParser* p,
+                                    SyntaqliteNodeExpandFn fn,
+                                    void* user_data);
+
+// Sets the text the node being expanded is replaced with.  Only valid inside
+// the expander.
+SYNTAQLITE_API void syntaqlite_node_expansion_set_result(SyntaqliteParser* p,
+                                                         const char* text,
+                                                         SyntaqliteLength len);
 
 // ---------------------------------------------------------------------------
 // Macro expansion result (called from inside the lookup callback)

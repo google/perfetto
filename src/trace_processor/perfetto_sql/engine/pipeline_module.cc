@@ -238,34 +238,25 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
                            sqlite3_value** argv) {
   Cursor* c = GetCursor(cursor);
   PERFETTO_DCHECK(argc == (idx_num ? 2 : 1));
-  Context* context = GetVtab(cursor->pVtab)->context;
-  c->pool = context->pool;
-  // Handed over by the executor, which keeps it alive.
-  if (const auto* bound = static_cast<const pipeline::PhysicalPlan*>(
-          sqlite3_value_pointer(argv[0], pipeline::kPhysicalPlanPointerType))) {
-    c->rows.reset();
-    c->owned_plan.reset();
-    c->serialized.clear();
-    c->plan = bound;
-  } else if (sqlite3_value_type(argv[0]) == SQLITE_BLOB) {
-    std::string_view serialized(
-        static_cast<const char*>(sqlite3_value_blob(argv[0])),
-        static_cast<size_t>(sqlite3_value_bytes(argv[0])));
-    // A cursor filtered again, as the inner side of a join is, runs the same
-    // pipeline each time.
-    if (!c->owned_plan || c->serialized != serialized) {
-      auto plan = context->connection->LoadPipeline(serialized);
-      if (!plan.ok()) {
-        return sqlite::utils::SetError(cursor->pVtab, plan.status());
-      }
-      c->rows.reset();
-      c->owned_plan = std::move(*plan);
-      c->plan = c->owned_plan.get();
-      c->serialized = serialized;
-    }
-  } else {
+  if (sqlite3_value_type(argv[0]) != SQLITE_BLOB) {
     return sqlite::utils::SetError(cursor->pVtab,
                                    "__intrinsic_pipeline: expected a plan");
+  }
+  std::string_view serialized(
+      static_cast<const char*>(sqlite3_value_blob(argv[0])),
+      static_cast<size_t>(sqlite3_value_bytes(argv[0])));
+  // A cursor filtered again, as the inner side of a join is, runs the same
+  // pipeline each time.
+  if (!c->plan || c->serialized != serialized) {
+    Context* context = GetVtab(cursor->pVtab)->context;
+    auto plan = context->connection->LoadPipeline(serialized);
+    if (!plan.ok()) {
+      return sqlite::utils::SetError(cursor->pVtab, plan.status());
+    }
+    c->rows.reset();
+    c->plan = std::move(*plan);
+    c->serialized = serialized;
+    c->pool = context->pool;
   }
   c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
   c->rowid = 0;

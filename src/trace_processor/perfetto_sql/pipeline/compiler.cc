@@ -74,12 +74,14 @@ const T* Node(SyntaqliteParser* p, uint32_t id) {
 
 class Compiler {
  public:
-  Compiler(SyntaqliteParser* p, const NodeSources& sources, const Catalog& c)
-      : p_(p), sources_(sources), catalog_(c) {}
+  Compiler(SyntaqliteParser* p, const NodeSourceFn& source, const Catalog& c)
+      : p_(p), source_(source), catalog_(c) {}
 
   base::Status CompileSource(uint32_t from);
   base::Status CompileIntersection(uint32_t node);
   base::Status CompileStage(uint32_t stage);
+  // Compiles the pipeline at `pipeline`: its source and each of its stages.
+  base::Status CompilePipeline(uint32_t pipeline);
   LogicalPlan Finish();
 
  private:
@@ -173,11 +175,11 @@ class Compiler {
   std::string AmbiguousCandidates(
       const std::vector<const RowColumn*>& matches) const;
   std::string Traceback(uint32_t node) const {
-    return sources_.Text(node).AsTraceback(0);
+    return source_(node).AsTraceback(0);
   }
 
   SyntaqliteParser* p_;
-  const NodeSources& sources_;
+  const NodeSourceFn& source_;
   const Catalog& catalog_;
   LogicalPlan plan_;
   // The operator being compiled, which prefixes every error.
@@ -280,6 +282,34 @@ base::Status Compiler::CompileIntersection(uint32_t node) {
 
 base::Status Compiler::CompileSource(uint32_t from) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, from);
+  // A pipeline read by a pipeline is compiled into the same plan, with no SQL
+  // between them. Like a subquery, only the names it outputs can be read
+  // after it.
+  if (syntaqlite_node_is_present(n->select) &&
+      Node<SyntaqliteNode>(p_, n->select)->tag ==
+          SYNTAQLITE_NODE_PERFETTO_PIPELINE) {
+    RETURN_IF_ERROR(CompilePipeline(n->select));
+    std::vector<RowColumn> row = std::move(row_);
+    row_.clear();
+    aliases_.clear();
+    op_ = "FROM";
+    for (RowColumn& column : row) {
+      for (const RowColumn& earlier : row_) {
+        if (base::CaseInsensitiveEqual(earlier.column.name,
+                                       column.column.name)) {
+          return Expected(from,
+                          "distinct column names, but there are two "
+                          "named '" +
+                              column.column.name + "'");
+        }
+      }
+      Append(std::move(column.column), from);
+    }
+    if (std::optional<std::string> qualifier = SourceQualifier(*n)) {
+      aliases_.push_back({std::move(*qualifier), row_});
+    }
+    return base::OkStatus();
+  }
   op::Scan scan;
   if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
     scan = CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
@@ -375,8 +405,7 @@ op::Scan Compiler::CompileDataframeSource(const dataframe::Dataframe& dataframe,
 }
 
 base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
-  op::Scan scan;
-  ASSIGN_OR_RETURN(SqlSource sql, sources_.Sql(from, scan.inputs));
+  SqlSource sql = source_(from);
   sql =
       sql.RewriteAllIgnoreExisting(SqlSource::FromTraceProcessorImplementation(
           "SELECT * FROM " + sql.sql()));
@@ -385,6 +414,7 @@ base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
     return base::ErrStatus("%s%s", Traceback(from).c_str(),
                            described.status().c_message());
   }
+  op::Scan scan;
   scan.source = std::move(sql);
   for (ColumnSchema& column : *described) {
     AddScanColumn(scan, std::move(column));
@@ -452,7 +482,7 @@ std::string Compiler::Origin(const RowColumn& column) const {
     }
   }
   constexpr size_t kMaxLen = 48;
-  std::string text = sources_.Text(column.node).sql();
+  std::string text = source_(column.node).sql();
   size_t len = std::min(text.find('\n'), kMaxLen);
   if (len < text.size()) {
     text = text.substr(0, len) + "...";
@@ -874,6 +904,24 @@ base::Status Compiler::CompileAs(uint32_t stage) {
   return base::OkStatus();
 }
 
+base::Status Compiler::CompilePipeline(uint32_t pipeline) {
+  const auto& n = Node<SyntaqliteNode>(p_, pipeline)->perfetto_pipeline;
+  if (syntaqlite_node_is_present(n.intersection)) {
+    RETURN_IF_ERROR(CompileIntersection(n.intersection));
+  } else {
+    RETURN_IF_ERROR(CompileSource(n.from));
+  }
+  if (!syntaqlite_node_is_present(n.stages)) {
+    return base::OkStatus();
+  }
+  const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p_, n.stages);
+  uint32_t count = syntaqlite_list_count(stages);
+  for (uint32_t i = 0; i < count; i++) {
+    RETURN_IF_ERROR(CompileStage(syntaqlite_list_child_id(stages, i)));
+  }
+  return base::OkStatus();
+}
+
 LogicalPlan Compiler::Finish() {
   plan_.output.clear();
   for (const RowColumn& column : row_) {
@@ -884,27 +932,12 @@ LogicalPlan Compiler::Finish() {
 
 }  // namespace
 
-NodeSources::~NodeSources() = default;
-
 base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
                                     uint32_t pipeline,
-                                    const NodeSources& sources,
+                                    const NodeSourceFn& source,
                                     const Catalog& catalog) {
-  const auto& n = Node<SyntaqliteNode>(p, pipeline)->perfetto_pipeline;
-  Compiler compiler(p, sources, catalog);
-  if (syntaqlite_node_is_present(n.intersection)) {
-    RETURN_IF_ERROR(compiler.CompileIntersection(n.intersection));
-  } else {
-    RETURN_IF_ERROR(compiler.CompileSource(n.from));
-  }
-  if (syntaqlite_node_is_present(n.stages)) {
-    const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p, n.stages);
-    uint32_t count = syntaqlite_list_count(stages);
-    for (uint32_t i = 0; i < count; i++) {
-      RETURN_IF_ERROR(
-          compiler.CompileStage(syntaqlite_list_child_id(stages, i)));
-    }
-  }
+  Compiler compiler(p, source, catalog);
+  RETURN_IF_ERROR(compiler.CompilePipeline(pipeline));
   LogicalPlan plan = compiler.Finish();
   PruneColumns(plan);
   return plan;

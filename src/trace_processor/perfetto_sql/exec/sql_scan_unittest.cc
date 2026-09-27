@@ -149,8 +149,7 @@ class SqlScanTest : public ::testing::Test {
     ASSIGN_OR_RETURN(auto columns, sql_schema::DescribeQuery(connection_.get(),
                                                              source, catalog));
     return std::make_unique<SqlScan>(connection_.get(), std::move(source),
-                                     std::move(columns),
-                                     std::vector<SqlScan::Input>{}, &pool_);
+                                     std::move(columns), &pool_);
   }
 
   // An empty catalog traces nothing, so every column is a variant.
