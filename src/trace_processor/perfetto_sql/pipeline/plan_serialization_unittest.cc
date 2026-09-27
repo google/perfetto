@@ -32,6 +32,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan_test_utils.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -47,8 +48,6 @@ class PlanSerializationTest : public ::testing::Test {
   PlanSerializationTest()
       : connection_(SqliteConnection::CreateConnectionToNewDatabase()),
         catalog_(&pool_, connection_.get()) {
-    env_.connection = connection_.get();
-    env_.pool = &pool_;
     //   0 (10) -> 1 (20) -> 3 (40)
     //          -> 2 (30)
     catalog_.AddTable(
@@ -66,12 +65,18 @@ class PlanSerializationTest : public ::testing::Test {
     ASSERT_TRUE(statement.status().ok()) << statement.status().c_message();
   }
 
+  // The plan as it is written into SQL, reading its SQL sources as dataframe
+  // arguments, whose dataframes are built into `dataframes_`.
   LogicalPlan Compile(const std::string& sql) {
     PerfettoSqlParser parser(macros_, catalog_, /*pipelines_allowed=*/true);
     parser.Reset(SqlSource::FromExecuteQuery(sql));
     PERFETTO_CHECK(parser.Next());
-    return std::move(
+    LogicalPlan plan = std::move(
         std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+    auto dataframes = BuildSqlSources(connection_.get(), &pool_, plan);
+    PERFETTO_CHECK(dataframes.ok());
+    dataframes_ = std::move(*dataframes);
+    return MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
   }
 
   base::StatusOr<LogicalPlan> RoundTrip(const LogicalPlan& plan) {
@@ -81,7 +86,7 @@ class PlanSerializationTest : public ::testing::Test {
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
-  LowerEnvironment env_;
+  std::vector<std::unique_ptr<dataframe::Dataframe>> dataframes_;
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
@@ -130,7 +135,11 @@ TEST_F(PlanSerializationTest, MalformedPlansAreRefusedOrRun) {
         if (!read.ok()) {
           continue;
         }
-        auto physical = Lower(*read, env_);
+        if (!BindDataframeArgs(*read, DataframeArgs(dataframes_), &pool_)
+                 .ok()) {
+          continue;
+        }
+        auto physical = Lower(*read);
         core::exec::RowCursor cursor(physical->source());
         for (bool row = cursor.Open(); row; row = cursor.Next()) {
         }

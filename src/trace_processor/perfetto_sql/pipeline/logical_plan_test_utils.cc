@@ -67,6 +67,12 @@ std::string ScanString(const LogicalPlan& plan, const op::Scan& scan) {
     case Kind::GetTypeIndex<SqlSource>():
       out += "sql " + base::unchecked_get<SqlSource>(scan.source).sql();
       break;
+    case Kind::GetTypeIndex<op::Scan::DataframeArg>():
+      out +=
+          "argument " +
+          std::to_string(
+              base::unchecked_get<op::Scan::DataframeArg>(scan.source).index);
+      break;
     default:
       PERFETTO_FATAL("Unknown scan source");
   }

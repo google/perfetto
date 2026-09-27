@@ -18,6 +18,8 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -28,17 +30,22 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -47,14 +54,29 @@ namespace {
 using core::exec::ColumnView;
 using core::exec::Variant;
 
-// The plan comes before the outputs: SQLite only says which of a table's
-// first 63 columns a query reads, and those are best spent on the outputs.
+// The pointer type a dataframe is passed to SQL under, as every table function
+// passing one does.
+constexpr char kDataframePointerType[] = "TABLE";
+
+// The table function's arguments: the plan, then its dataframe arguments. They
+// come before the outputs: SQLite only says which of a table's first 63
+// columns a query reads, and those are best spent on the outputs.
 constexpr int kPlanColumn = 0;
-constexpr int kFirstOutputColumn = 1;
+constexpr int kFirstArgColumn = 1;
+constexpr int kFirstOutputColumn =
+    kFirstArgColumn + static_cast<int>(pipeline::kMaxDataframeArgs);
+
+// idxNum: whether an output rowid is looked up, and how many dataframe
+// arguments are given.
+constexpr int kRowidLookup = 1;
+constexpr int kArgCountShift = 1;
 
 std::string Schema() {
   // Public names (which may repeat) are applied by the outer SELECT.
   std::vector<std::string> columns{"pipeline HIDDEN"};
+  for (uint32_t i = 0; i < pipeline::kMaxDataframeArgs; ++i) {
+    columns.push_back("df" + std::to_string(i) + " HIDDEN");
+  }
   for (uint32_t i = 0; i < pipeline::kMaxPipelineColumns; ++i) {
     columns.push_back("c" + std::to_string(i));
   }
@@ -156,6 +178,24 @@ void CacheColumnReaders(PipelineModule::Cursor* c) {
   }
 }
 
+// The dataframes passed as the plan's arguments: null for a relation with no
+// rows. Fails on anything else.
+base::StatusOr<std::vector<const dataframe::Dataframe*>> DataframeArgs(
+    sqlite3_value** values,
+    int count) {
+  std::vector<const dataframe::Dataframe*> args;
+  for (int i = 0; i < count; ++i) {
+    // A pointer reads as NULL, so only a NULL without one is no rows.
+    const auto* arg = sqlite::value::Pointer<dataframe::Dataframe>(
+        values[i], kDataframePointerType);
+    if (!arg && !sqlite::value::IsNull(values[i])) {
+      return base::ErrStatus("__intrinsic_pipeline: expected a dataframe");
+    }
+    args.push_back(arg);
+  }
+  return args;
+}
+
 // Surfaces the executor's error, if any, once rows stop.
 int CheckStatus(PipelineModule::Cursor* cursor) {
   // status() walks every node so only check it once rows stop.
@@ -165,6 +205,47 @@ int CheckStatus(PipelineModule::Cursor* cursor) {
 }
 
 }  // namespace
+
+void DataframeAgg::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc < 1) {
+    return sqlite::utils::SetError(
+        ctx, base::ErrStatus("%s: expected column names", kName));
+  }
+  AggCtx& agg = AggCtx::GetOrCreateContextForStep(ctx);
+  auto count = static_cast<uint32_t>(argc - 1);
+  if (!agg.builder) {
+    const char* text = sqlite::value::Text(argv[0]);
+    std::vector<std::string> names = base::SplitString(text ? text : "", ",");
+    if (names.size() != count) {
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("%s: expected %zu values, not %u", kName,
+                               names.size(), count));
+    }
+    dataframe::RuntimeDataframeBuilder::Options options;
+    options.emit_auto_id = false;
+    options.analyze = false;
+    agg.builder.emplace(std::move(names), GetUserData(ctx), options);
+  }
+  base::Status status = AddSqliteValuesRow(*agg.builder, argv + 1, count);
+  if (!status.ok()) {
+    return sqlite::utils::SetError(ctx, kName, status);
+  }
+}
+
+void DataframeAgg::Final(sqlite3_context* ctx) {
+  auto agg = AggCtx::GetContextOrNullForFinal(ctx);
+  if (!agg.get() || !agg.get()->builder) {
+    return sqlite::result::Null(ctx);
+  }
+  base::StatusOr<dataframe::Dataframe> dataframe =
+      std::move(*agg.get()->builder).Build();
+  if (!dataframe.ok()) {
+    return sqlite::result::Error(ctx, dataframe.status().c_message());
+  }
+  return sqlite::result::UniquePointer(
+      ctx, std::make_unique<dataframe::Dataframe>(std::move(*dataframe)),
+      kDataframePointerType);
+}
 
 int PipelineModule::Connect(sqlite3* db,
                             void* raw_ctx,
@@ -190,17 +271,30 @@ int PipelineModule::Disconnect(sqlite3_vtab* vtab) {
 int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
   int plan = -1;
   int rowid = -1;
+  // The constraint giving each dataframe argument, by position.
+  std::array<int, pipeline::kMaxDataframeArgs> args;
+  args.fill(-1);
+  int arg_count = 0;
   for (int i = 0; i < info->nConstraint; ++i) {
     const auto& constraint = info->aConstraint[i];
     if (constraint.op != SQLITE_INDEX_CONSTRAINT_EQ) {
       continue;
     }
+    // Without the plan and its arguments there is nothing to run.
     if (constraint.iColumn == kPlanColumn) {
-      // Without the plan there is nothing to run.
       if (!constraint.usable) {
         return SQLITE_CONSTRAINT;
       }
       plan = i;
+    }
+    if (constraint.iColumn >= kFirstArgColumn &&
+        constraint.iColumn < kFirstOutputColumn) {
+      if (!constraint.usable) {
+        return SQLITE_CONSTRAINT;
+      }
+      int position = constraint.iColumn - kFirstArgColumn;
+      args[static_cast<size_t>(position)] = i;
+      arg_count = std::max(arg_count, position + 1);
     }
     if (constraint.iColumn == -1 && constraint.usable) {
       rowid = i;
@@ -211,10 +305,20 @@ int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
   }
   info->aConstraintUsage[plan].argvIndex = 1;
   info->aConstraintUsage[plan].omit = true;
+  for (int position = 0; position < arg_count; ++position) {
+    int i = args[static_cast<size_t>(position)];
+    // Arguments are given in order, so none can be missing before the last.
+    if (i == -1) {
+      return SQLITE_CONSTRAINT;
+    }
+    info->aConstraintUsage[i].argvIndex = 2 + position;
+    info->aConstraintUsage[i].omit = true;
+  }
+  info->idxNum = arg_count << kArgCountShift;
   if (rowid != -1) {
-    info->aConstraintUsage[rowid].argvIndex = 2;
+    info->aConstraintUsage[rowid].argvIndex = 2 + arg_count;
     // SQLite rechecks comparisons, including non-integer RHS values.
-    info->idxNum = 1;
+    info->idxNum |= kRowidLookup;
     info->estimatedRows = 1;
   }
   // Output rowid constraints run after the fold. General predicates remain
@@ -239,7 +343,9 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
                            int argc,
                            sqlite3_value** argv) {
   Cursor* c = GetCursor(cursor);
-  PERFETTO_DCHECK(argc == (idx_num ? 2 : 1));
+  int arg_count = idx_num >> kArgCountShift;
+  bool rowid_lookup = idx_num & kRowidLookup;
+  PERFETTO_DCHECK(argc == 1 + arg_count + (rowid_lookup ? 1 : 0));
   if (sqlite3_value_type(argv[0]) != SQLITE_BLOB) {
     return sqlite::utils::SetError(cursor->pVtab,
                                    "__intrinsic_pipeline: expected a plan");
@@ -247,11 +353,16 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
   std::string_view serialized(
       static_cast<const char*>(sqlite3_value_blob(argv[0])),
       static_cast<size_t>(sqlite3_value_bytes(argv[0])));
+  base::StatusOr<std::vector<const dataframe::Dataframe*>> args =
+      DataframeArgs(argv + 1, arg_count);
+  if (!args.ok()) {
+    return sqlite::utils::SetError(cursor->pVtab, args.status());
+  }
   // A cursor filtered again with the same plan, as the inner side of a join
-  // is, keeps it loaded.
-  if (!c->plan || c->serialized != serialized) {
+  // is, keeps it loaded, unless it is passed dataframes, which may differ.
+  if (!c->plan || c->serialized != serialized || !args->empty()) {
     Context* context = GetVtab(cursor->pVtab)->context;
-    auto plan = context->connection->LoadPipeline(serialized);
+    auto plan = context->connection->LoadPipeline(serialized, *args);
     if (!plan.ok()) {
       return sqlite::utils::SetError(cursor->pVtab, plan.status());
     }
@@ -264,8 +375,9 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
   c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
   c->rowid = 0;
   c->target_rowid.reset();
-  if (idx_num && sqlite3_value_type(argv[1]) == SQLITE_INTEGER) {
-    c->target_rowid = sqlite3_value_int64(argv[1]);
+  if (rowid_lookup &&
+      sqlite3_value_type(argv[1 + arg_count]) == SQLITE_INTEGER) {
+    c->target_rowid = sqlite3_value_int64(argv[1 + arg_count]);
     if (*c->target_rowid < 0) {
       c->eof = true;
       return SQLITE_OK;

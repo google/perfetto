@@ -37,7 +37,6 @@
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
-#include "src/trace_processor/perfetto_sql/exec/sql_scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -46,9 +45,8 @@ namespace ex = core::exec;
 // Builds one pipeline of operators, including any blocking ordering stages.
 class Lowering {
  public:
-  explicit Lowering(const LogicalPlan& plan, const LowerEnvironment& env)
+  explicit Lowering(const LogicalPlan& plan)
       : plan_(plan),
-        env_(env),
         out_(std::make_unique<PhysicalPlan>()),
         positions_(plan.columns.size(), std::numeric_limits<uint32_t>::max()),
         int64_columns_(plan.columns.size(), false) {}
@@ -80,9 +78,8 @@ class Lowering {
   }
   void Define(ColumnId id) { positions_[id] = column_count_++; }
 
-  // Inputs, borrowed for the duration of lowering.
+  // Borrowed for the duration of lowering.
   const LogicalPlan& plan_;
-  const LowerEnvironment& env_;
 
   // Execution graph under construction.
   std::unique_ptr<PhysicalPlan> out_;
@@ -132,17 +129,9 @@ std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
       return std::make_unique<ex::DataframeScan>(source.columns,
                                                  source.row_count);
     }
-    case Kind::GetTypeIndex<SqlSource>(): {
-      Schema columns;
-      columns.reserve(scan.columns.size());
-      for (const NamedColumn& column : scan.columns) {
-        columns.push_back({column.name, plan_.columns[column.id].type});
-      }
-      return std::make_unique<exec::SqlScan>(
-          env_.connection, base::unchecked_get<SqlSource>(scan.source),
-          std::move(columns), env_.pool);
-    }
     default:
+      // SQL is moved out into dataframe arguments, and those are bound to
+      // dataframes, before a plan is run.
       PERFETTO_FATAL("Unknown scan source");
   }
 }
@@ -279,9 +268,8 @@ std::unique_ptr<PhysicalPlan> Lowering::Finish() {
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
-std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan,
-                                    const LowerEnvironment& env) {
-  Lowering lowering(plan, env);
+std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan) {
+  Lowering lowering(plan);
   lowering.LowerNode(plan.root);
   return lowering.Finish();
 }

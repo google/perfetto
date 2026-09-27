@@ -117,6 +117,12 @@ struct AdhocDataframeBuilderOptions {
   // resulting dataframe is consumed somewhere that supplies its own primary
   // key (e.g. `StaticTableFunctionModule` adds a HIDDEN `_auto_id`).
   bool emit_auto_id = true;
+
+  // If false, `Build()` keeps columns as they were collected: integers stay
+  // Int64, nothing is marked sorted or free of duplicates, and the dataframe
+  // is not finalized, so it has no statistics for query planning. Cheaper,
+  // for a dataframe which is only ever scanned.
+  bool analyze = true;
 };
 
 class AdhocDataframeBuilder {
@@ -474,6 +480,7 @@ class AdhocDataframeBuilder {
   std::vector<ColumnState> column_states_;
   bool did_declare_types_ = false;
   bool emit_auto_id_ = true;
+  bool analyze_ = true;
   base::Status current_status_ = base::OkStatus();
   core::BitVector duplicate_bit_vector_;
 };

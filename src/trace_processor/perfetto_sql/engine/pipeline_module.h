@@ -26,18 +26,42 @@
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
 
 class PerfettoSqlConnection;
 
+// `__intrinsic_dataframe_agg('a,b', a, b)`: builds a dataframe of a relation,
+// as a PERFETTO TABLE is built, for a pipeline to read. Gives NULL for a
+// relation with no rows, as the aggregate then never sees its column names.
+struct DataframeAgg : sqlite::AggregateFunction<DataframeAgg> {
+  static constexpr const char* kName = pipeline::kDataframeAggFunction;
+  static constexpr int kArgCount = -1;
+  using UserData = StringPool;
+
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
+    std::optional<dataframe::RuntimeDataframeBuilder> builder;
+  };
+
+  static void Step(sqlite3_context*, int argc, sqlite3_value** argv);
+  static void Final(sqlite3_context*);
+};
+
 // Runs a pipeline from its plan, serialized into the SQL which reads it:
 // `__intrinsic_pipeline(X'...')`. The plan is all a pipeline needs, so the SQL
 // can be stored, in a view say, and run later. Pipelines output into fixed
 // columns `c0`, `c1`, ..., which the SQL reading them renames.
+//
+// Each relation a pipeline reads from SQL is passed as a dataframe after the
+// plan: `__intrinsic_pipeline(X'...', (SELECT __intrinsic_dataframe_agg(...)
+// FROM ...), ...)`.
 struct PipelineModule : sqlite::Module<PipelineModule> {
   static constexpr auto kType = kEponymousOnly;
   static constexpr bool kSupportsWrites = false;

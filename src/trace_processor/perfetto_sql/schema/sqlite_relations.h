@@ -14,25 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_QUERY_SCHEMA_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_QUERY_SCHEMA_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_SQLITE_RELATIONS_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_SQLITE_RELATIONS_H_
 
-#include "perfetto/ext/base/status_or.h"
+#include <optional>
+#include <string_view>
+
 #include "src/perfetto_sql/analysis/relation.h"
-#include "src/trace_processor/core/common/schema.h"
-#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto::trace_processor::sql_schema {
 
-// SQLite supplies result names; semantic analysis supplies types where known.
-// Fails if SQLite cannot prepare the query. Unknown types remain per-row
-// variants.
-base::StatusOr<core::Schema> DescribeQuery(
+// The columns of the table, virtual table or table function SQLite knows as
+// `name`, or nothing when it knows none. They are untyped: SQLite's declared
+// types establish nothing, as an INTEGER column holds text if something puts
+// text in it.
+std::optional<perfetto_sql::analysis::LeafRelation> FindSqliteRelation(
     SqliteConnection*,
-    const SqlSource&,
-    const perfetto_sql::analysis::Catalog&);
+    std::string_view name);
 
 }  // namespace perfetto::trace_processor::sql_schema
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_QUERY_SCHEMA_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_SCHEMA_SQLITE_RELATIONS_H_

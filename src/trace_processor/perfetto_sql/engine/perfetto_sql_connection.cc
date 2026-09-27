@@ -364,6 +364,8 @@ PerfettoSqlConnection::PerfettoSqlConnection(
     ctx->connection = this;
     RegisterVirtualTableModule<PipelineModule>(pipeline::kPipelineFunction,
                                                std::move(ctx));
+    base::Status status = RegisterAggregateFunction<DataframeAgg>(pool_);
+    PERFETTO_CHECK(status.ok());
   }
   database_->InitializeSharedSchema(connection_.get());
 
@@ -1057,19 +1059,22 @@ PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
     return base::ErrStatus("%s%s", source.AsTraceback(0).c_str(),
                            sql.status().c_message());
   }
-  return connection_->PrepareStatement(source.RewriteAllIgnoreExisting(
-      SqlSource::FromTraceProcessorImplementation(std::move(*sql))));
+  SqliteConnection::PreparedStatement stmt =
+      connection_->PrepareStatement(source.RewriteAllIgnoreExisting(
+          SqlSource::FromTraceProcessorImplementation(std::move(*sql))));
+  RETURN_IF_ERROR(stmt.status());
+  return std::move(stmt);
 }
 
 base::StatusOr<std::unique_ptr<pipeline::PhysicalPlan>>
-PerfettoSqlConnection::LoadPipeline(std::string_view serialized) {
+PerfettoSqlConnection::LoadPipeline(
+    std::string_view serialized,
+    const std::vector<const dataframe::Dataframe*>& args) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_LOAD");
   ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
                    pipeline::DeserializePlan(serialized, *catalog_));
-  pipeline::LowerEnvironment env;
-  env.connection = connection_.get();
-  env.pool = pool_;
-  return pipeline::Lower(plan, env);
+  RETURN_IF_ERROR(pipeline::BindDataframeArgs(plan, args, pool_));
+  return pipeline::Lower(plan);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(

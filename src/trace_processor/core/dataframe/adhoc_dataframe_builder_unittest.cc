@@ -76,6 +76,27 @@ TEST_F(AdhocDataframeBuilderTest, StringColumnWithNullId) {
           ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
 
+// Without analysis, columns are kept as collected: integers stay Int64 and
+// nothing is claimed about their order or duplicates.
+TEST_F(AdhocDataframeBuilderTest, WithoutAnalysisColumnsStayAsCollected) {
+  AdhocDataframeBuilder::Options options;
+  options.emit_auto_id = false;
+  options.analyze = false;
+  AdhocDataframeBuilder builder({"id", "value"}, &pool_, options);
+  for (int64_t i = 0; i < 3; ++i) {
+    builder.PushNonNull(0, i);
+    builder.PushNonNull(1, 2.5);
+  }
+  base::StatusOr<Dataframe> df = std::move(builder).Build();
+  ASSERT_OK(df.status());
+  EXPECT_EQ(df->row_count(), 3u);
+  EXPECT_THAT(
+      df->CreateSpec().column_specs,
+      ElementsAre(
+          ColumnSpec{Int64{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+          ColumnSpec{Double{}, NonNull{}, Unsorted{}, HasDuplicates{}}));
+}
+
 // Callback for reading cell values in tests.
 struct TestCellCallback : CellCallback {
   void OnCell(int64_t v) {
