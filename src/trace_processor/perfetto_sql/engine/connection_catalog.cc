@@ -22,17 +22,15 @@
 #include <string_view>
 #include <vector>
 
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/perfetto_sql/schema/query_schema.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -77,7 +75,19 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
     std::string_view name) const {
   const dataframe::Dataframe* dataframe = connection_->GetDataframeOrNull(name);
   if (!dataframe) {
-    return std::nullopt;
+    // A view is expanded instead, so its columns are traced through it.
+    if (FindViewSql(name)) {
+      return std::nullopt;
+    }
+    analysis::LeafRelation relation{std::string(name), {}};
+    for (const auto& column : sqlite::utils::GetColumns(
+             connection_->sqlite_connection()->db(), relation.name)) {
+      relation.columns.push_back({column.name, std::nullopt, column.hidden});
+    }
+    if (relation.columns.empty()) {
+      return std::nullopt;
+    }
+    return relation;
   }
   analysis::LeafRelation relation;
   relation.name = name;
@@ -107,12 +117,6 @@ std::optional<std::string> ConnectionCatalog::FindViewSql(
 const dataframe::Dataframe* ConnectionCatalog::FindDataframe(
     std::string_view name) const {
   return connection_->GetDataframeOrNull(name);
-}
-
-base::StatusOr<pipeline::Schema> ConnectionCatalog::DescribeQuery(
-    const SqlSource& sql) const {
-  return sql_schema::DescribeQuery(connection_->sqlite_connection(), sql,
-                                   *this);
 }
 
 }  // namespace perfetto::trace_processor

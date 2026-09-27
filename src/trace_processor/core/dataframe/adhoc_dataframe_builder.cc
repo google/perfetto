@@ -42,13 +42,31 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::dataframe {
+namespace {
+
+// The number of values collected in `storage`.
+size_t CollectedSize(const Storage& storage) {
+  switch (storage.type().index()) {
+    case StorageType::GetTypeIndex<Int64>():
+      return storage.unchecked_get<Int64>().size();
+    case StorageType::GetTypeIndex<Double>():
+      return storage.unchecked_get<Double>().size();
+    case StorageType::GetTypeIndex<String>():
+      return storage.unchecked_get<String>().size();
+    default:
+      PERFETTO_FATAL("Unexpected storage type");
+  }
+}
+
+}  // namespace
 
 AdhocDataframeBuilder::AdhocDataframeBuilder(std::vector<std::string> names,
                                              StringPool* pool,
                                              const Options& options)
     : string_pool_(pool),
       did_declare_types_(!options.types.empty()),
-      emit_auto_id_(options.emit_auto_id) {
+      emit_auto_id_(options.emit_auto_id),
+      analyze_(options.analyze) {
   PERFETTO_DCHECK(options.types.empty() ||
                   options.types.size() == names.size());
   for (uint32_t i = 0; i < names.size(); ++i) {
@@ -120,6 +138,15 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
       non_null_row_count = 0;
       columns.emplace_back(std::make_shared<Column>(Column{
           Storage{core::FlexVector<uint32_t>()},
+          CreateNullStorageFromBitvector(std::move(state.null_overlay),
+                                         state.nullability_type),
+          Unsorted{},
+          HasDuplicates{},
+      }));
+    } else if (!analyze_) {
+      non_null_row_count = CollectedSize(*state.storage);
+      columns.emplace_back(std::make_shared<Column>(Column{
+          std::move(*state.storage),
           CreateNullStorageFromBitvector(std::move(state.null_overlay),
                                          state.nullability_type),
           Unsorted{},
@@ -227,8 +254,12 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
         Column{Storage{Storage::Id{static_cast<uint32_t>(row_count)}},
                NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
   }
-  return Dataframe(true, std::move(column_names_), std::move(columns),
-                   static_cast<uint32_t>(row_count), string_pool_);
+  Dataframe dataframe(analyze_, std::move(column_names_), std::move(columns),
+                      static_cast<uint32_t>(row_count), string_pool_);
+  if (!analyze_) {
+    dataframe.FinalizeWithoutStatistics();
+  }
+  return dataframe;
 }
 
 Storage AdhocDataframeBuilder::CreateIntegerStorage(

@@ -264,6 +264,11 @@ class Dataframe {
   // If the dataframe is already finalized, this function does nothing.
   void Finalize();
 
+  // As Finalize, but without estimating how many distinct values each column
+  // holds, which only query planning uses. Cheaper, for a dataframe which is
+  // only ever scanned.
+  void FinalizeWithoutStatistics();
+
   // Makes a copy of the dataframe which has been finalized. Unfinalized
   // dataframes *cannot* be copied, so this function will assert if not
   // finalized.
@@ -752,6 +757,9 @@ class Dataframe {
   uint32_t non_column_mutations_ = 0;
 
   // Whether the dataframe is "finalized". See `Finalize()`.
+  // Finalize, estimating distinct counts only if `estimate_distinct`.
+  void FinalizeColumns(bool estimate_distinct);
+
   bool finalized_ = false;
 };
 

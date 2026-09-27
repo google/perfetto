@@ -96,82 +96,28 @@ base::StatusOr<SqlValue> ExtractArgument(size_t argc,
 }
 }  // namespace internal
 
-base::Status GetColumnsForTable(
-    sqlite3* db,
-    const std::string& raw_table_name,
-    std::vector<std::pair<SqlValue::Type, std::string>>& columns) {
-  PERFETTO_DCHECK(columns.empty());
-  char sql[1024];
-  const char kRawSql[] = "SELECT name, type from pragma_table_info(\"%s\")";
-
-  // Support names which are table valued functions with arguments.
-  std::string table_name = raw_table_name.substr(0, raw_table_name.find('('));
-  size_t n = base::SprintfTrunc(sql, sizeof(sql), kRawSql, table_name.c_str());
-  PERFETTO_DCHECK(n > 0);
-
+std::vector<SqliteColumn> GetColumns(sqlite3* db, const std::string& name) {
   sqlite3_stmt* raw_stmt = nullptr;
-  int err =
-      sqlite3_prepare_v2(db, sql, static_cast<int>(n), &raw_stmt, nullptr);
-  if (err != SQLITE_OK) {
-    return base::ErrStatus("Preparing database failed");
+  if (sqlite3_prepare_v2(db,
+                         "SELECT name, type, hidden FROM pragma_table_xinfo(?)",
+                         -1, &raw_stmt, nullptr) != SQLITE_OK) {
+    return {};
   }
   ScopedStmt stmt(raw_stmt);
-  PERFETTO_DCHECK(sqlite3_column_count(*stmt) == 2);
-
-  for (;;) {
-    err = sqlite3_step(raw_stmt);
-    if (err == SQLITE_DONE)
-      break;
-    if (err != SQLITE_ROW) {
-      return base::ErrStatus("Querying schema of table %s failed",
-                             raw_table_name.c_str());
-    }
-
-    const char* name =
+  sqlite3_bind_text(*stmt, 1, name.c_str(), static_cast<int>(name.size()),
+                    kSqliteStatic);
+  std::vector<SqliteColumn> columns;
+  int rc;
+  while ((rc = sqlite3_step(*stmt)) == SQLITE_ROW) {
+    const auto* column =
         reinterpret_cast<const char*>(sqlite3_column_text(*stmt, 0));
-    const char* raw_type =
+    const auto* type =
         reinterpret_cast<const char*>(sqlite3_column_text(*stmt, 1));
-    if (!name || !raw_type || !*name) {
-      return base::ErrStatus("Schema for %s has invalid column values",
-                             raw_table_name.c_str());
-    }
-
-    SqlValue::Type type;
-    if (base::CaseInsensitiveEqual(raw_type, "STRING") ||
-        base::CaseInsensitiveEqual(raw_type, "TEXT")) {
-      type = SqlValue::Type::kString;
-    } else if (base::CaseInsensitiveEqual(raw_type, "DOUBLE")) {
-      type = SqlValue::Type::kDouble;
-    } else if (base::CaseInsensitiveEqual(raw_type, "BIG INT") ||
-               base::CaseInsensitiveEqual(raw_type, "BIGINT") ||
-               base::CaseInsensitiveEqual(raw_type, "UNSIGNED INT") ||
-               base::CaseInsensitiveEqual(raw_type, "INT") ||
-               base::CaseInsensitiveEqual(raw_type, "BOOLEAN") ||
-               base::CaseInsensitiveEqual(raw_type, "INTEGER")) {
-      type = SqlValue::Type::kLong;
-    } else if (base::CaseInsensitiveEqual(raw_type, "BLOB")) {
-      type = SqlValue::Type::kBytes;
-    } else if (!*raw_type) {
-      PERFETTO_DLOG("Unknown column type for %s %s", raw_table_name.c_str(),
-                    name);
-      type = SqlValue::Type::kNull;
-    } else {
-      return base::ErrStatus("Unknown column type '%s' on table %s", raw_type,
-                             raw_table_name.c_str());
-    }
-    columns.emplace_back(type, name);
+    // 1 is a hidden column; 2 and 3 are generated ones, which `*` includes.
+    columns.push_back({column ? column : "", type ? type : "",
+                       sqlite3_column_int(*stmt, 2) == 1});
   }
-
-  // Catch mis-spelt table names.
-  //
-  // A SELECT on pragma_table_info() returns no rows if the
-  // table that was queried is not present.
-  if (columns.empty()) {
-    return base::ErrStatus("Unknown table or view name '%s'",
-                           raw_table_name.c_str());
-  }
-
-  return base::OkStatus();
+  return rc == SQLITE_DONE ? columns : std::vector<SqliteColumn>();
 }
 
 const char* SqliteTypeToFriendlyString(SqlValue::Type type) {

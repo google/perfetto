@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -28,11 +29,30 @@ namespace perfetto::trace_processor::pipeline {
 // The table function which runs a serialized plan.
 inline constexpr char kPipelineFunction[] = "__intrinsic_pipeline";
 
+// The aggregate which builds a dataframe of a relation's rows, for a pipeline
+// to read: `__intrinsic_dataframe_agg('a,b', a, b)`.
+inline constexpr char kDataframeAggFunction[] = "__intrinsic_dataframe_agg";
+
+// The function which gathers the dataframes a pipeline reads into the one
+// argument the table function takes them in:
+// `__intrinsic_dataframes((SELECT ...), (SELECT ...))`.
+inline constexpr char kDataframesFunction[] = "__intrinsic_dataframes";
+
 // The most columns the table function can output.
 inline constexpr uint32_t kMaxPipelineColumns = 256;
 
+// A plan whose SQL sources have been moved out into dataframe arguments: the
+// plan reads its i-th SQL source as dataframe argument i, and `args[i]` is the
+// SQL building it.
+struct PlanWithDataframeArgs {
+  LogicalPlan plan;
+  std::vector<std::string> args;
+};
+PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan);
+
 // SQL reading `plan`'s output under its own column names. The plan is
-// serialized into the SQL, so the SQL needs nothing else to run.
+// serialized into the SQL, and each relation it reads from SQL is built into a
+// dataframe where that SQL runs, so it sees whatever is in scope there.
 base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan);
 
 }  // namespace perfetto::trace_processor::pipeline
