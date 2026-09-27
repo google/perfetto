@@ -103,6 +103,22 @@ bool IsNatural(SyntaqliteJoinType type) {
          type == SYNTAQLITE_JOIN_TYPE_NATURAL_FULL;
 }
 
+// The CTE definitions of `with`, in order.
+std::vector<const SyntaqliteCteDefinition*> CteDefinitions(
+    SyntaqliteParser* p,
+    const SyntaqliteWithClause& with) {
+  std::vector<const SyntaqliteCteDefinition*> out;
+  const void* list = syntaqlite_parser_node(p, with.ctes);
+  uint32_t count = list ? syntaqlite_list_count(list) : 0;
+  for (uint32_t i = 0; i < count; ++i) {
+    const SyntaqliteNode* node = Node(p, syntaqlite_list_child_id(list, i));
+    if (node && node->tag == SYNTAQLITE_NODE_CTE_DEFINITION) {
+      out.push_back(&node->cte_definition);
+    }
+  }
+  return out;
+}
+
 bool ContainsName(const std::vector<std::string_view>& names,
                   std::string_view name) {
   return std::any_of(names.begin(), names.end(), [&](std::string_view n) {
@@ -157,6 +173,7 @@ class RelationAnalyzer::Impl {
     preserves_rows_ = true;
     views_.clear();
     leaves_.clear();
+    ctes_.clear();
   }
 
   // The columns of the relation `name`. Its hidden columns, if any, are added
@@ -165,9 +182,20 @@ class RelationAnalyzer::Impl {
       std::string_view name,
       int depth,
       std::vector<std::string_view>& hidden);
+  // The columns of `name` as a query reads it: the innermost CTE of that name
+  // in scope, or else the relation `name`.
+  base::StatusOr<std::vector<ColumnLineage>>
+  Read(std::string_view name, int depth, std::vector<std::string_view>& hidden);
   base::StatusOr<std::vector<ColumnLineage>> Select(SyntaqliteParser* p,
                                                     uint32_t id,
                                                     int depth);
+  // Brings into scope the CTEs visible at `at`. None are visible where no
+  // query can be read.
+  void EnterScope(SqlNode at) {
+    Within(at.parser, syntaqlite_result_root(at.parser), at.id);
+    // Defining the CTEs says nothing about the rows of what is read at `at`.
+    preserves_rows_ = true;
+  }
 
   bool preserves_rows() const { return preserves_rows_; }
 
@@ -182,6 +210,12 @@ class RelationAnalyzer::Impl {
     std::vector<std::string_view> hidden;
   };
   using Scope = std::vector<ScopeRelation>;
+  // A common table expression in scope. No columns means they could not be
+  // worked out, as for a recursive one while it is still being defined.
+  struct Cte {
+    std::string_view name;
+    std::optional<std::vector<ColumnLineage>> columns;
+  };
 
   base::Status Sources(SyntaqliteParser* p,
                        uint32_t id,
@@ -192,6 +226,25 @@ class RelationAnalyzer::Impl {
   static ColumnLineage Lookup(const Scope&,
                               std::string_view table,
                               std::string_view column);
+  // Brings one CTE into scope.
+  void DefineCte(SyntaqliteParser* p,
+                 const SyntaqliteCteDefinition& cte,
+                 bool recursive,
+                 int depth);
+  // Brings into scope the CTEs defined on the way from `id` down to `at`,
+  // through the places a query can be read: statements, WITH clauses,
+  // compound selects, FROM clauses and pipeline sources. Returns whether `at`
+  // was reached; if not, the CTEs in scope are unchanged.
+  bool Within(SyntaqliteParser* p, uint32_t id, uint32_t at);
+  bool WithinSources(SyntaqliteParser* p, uint32_t id, uint32_t at);
+  // The innermost CTE in scope named `name`, if any.
+  const Cte* FindCte(std::string_view name) const;
+  // Renames `columns` to the names listed at `names`, if there is a list, as
+  // `CREATE VIEW v(a, b)` and `WITH t(a, b)` do.
+  static base::Status NameColumns(SyntaqliteParser* p,
+                                  uint32_t names,
+                                  std::string_view relation,
+                                  std::vector<ColumnLineage>& columns);
   // The columns of a leaf relation, kept for the rest of the analysis. Its
   // hidden columns are added to `hidden`.
   std::vector<ColumnLineage> LeafColumns(LeafRelation,
@@ -205,8 +258,180 @@ class RelationAnalyzer::Impl {
   // Lineage string_views point into each leaf relation's strings, so they are
   // kept at stable addresses for the same reason.
   std::vector<std::unique_ptr<LeafRelation>> leaves_;
+  // The CTEs in scope of what is being analyzed, innermost last.
+  std::vector<Cte> ctes_;
   bool preserves_rows_ = true;
 };
+
+void RelationAnalyzer::Impl::DefineCte(SyntaqliteParser* p,
+                                       const SyntaqliteCteDefinition& cte,
+                                       bool recursive,
+                                       int depth) {
+  std::string_view name = Text(p, cte.cte_name);
+  // A recursive CTE may read itself, before its columns are known.
+  if (recursive) {
+    ctes_.push_back({name, std::nullopt});
+  }
+  std::optional<std::vector<ColumnLineage>> known;
+  base::StatusOr<std::vector<ColumnLineage>> columns =
+      Select(p, cte.select, depth);
+  if (columns.ok() && NameColumns(p, cte.columns, name, *columns).ok()) {
+    known = std::move(*columns);
+  }
+  if (recursive) {
+    ctes_.pop_back();
+  }
+  ctes_.push_back({name, std::move(known)});
+}
+
+bool RelationAnalyzer::Impl::Within(SyntaqliteParser* p,
+                                    uint32_t id,
+                                    uint32_t at) {
+  if (id == at) {
+    return true;
+  }
+  const SyntaqliteNode* node = Node(p, id);
+  if (!node) {
+    return false;
+  }
+  switch (static_cast<int>(node->tag)) {
+    case SYNTAQLITE_NODE_CREATE_VIEW_STMT:
+      return Within(p, node->create_view_stmt.select, at);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT:
+      return Within(p, node->create_perfetto_view_stmt.select, at);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT:
+      return Within(p, node->create_perfetto_table_stmt.select, at) ||
+             Within(p, node->create_perfetto_table_stmt.pipeline, at);
+    case SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT:
+      return Within(p, node->create_perfetto_function_stmt.select, at);
+    case SYNTAQLITE_NODE_CREATE_TABLE_STMT:
+      return Within(p, node->create_table_stmt.as_select, at);
+    case SYNTAQLITE_NODE_SELECT_STMT:
+      return WithinSources(p, node->select_stmt.from_clause, at);
+    case SYNTAQLITE_NODE_COMPOUND_SELECT:
+      return Within(p, node->compound_select.left, at) ||
+             Within(p, node->compound_select.right, at);
+    case SYNTAQLITE_NODE_PERFETTO_PIPELINE:
+      return Within(p, node->perfetto_pipeline.from, at) ||
+             Within(p, node->perfetto_pipeline.intersection, at);
+    case SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION: {
+      const void* list = syntaqlite_parser_node(
+          p, node->perfetto_interval_intersection.operands);
+      uint32_t count = list ? syntaqlite_list_count(list) : 0;
+      for (uint32_t i = 0; i < count; ++i) {
+        if (Within(p, syntaqlite_list_child_id(list, i), at)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE:
+      return Within(p, node->perfetto_pipe_source.select, at);
+    case SYNTAQLITE_NODE_WITH_CLAUSE: {
+      const SyntaqliteWithClause& with = node->with_clause;
+      size_t outer = ctes_.size();
+      for (const SyntaqliteCteDefinition* cte : CteDefinitions(p, with)) {
+        // Its own definition sees the CTEs before it, and itself if it is
+        // recursive.
+        if (with.recursive) {
+          ctes_.push_back({Text(p, cte->cte_name), std::nullopt});
+        }
+        if (Within(p, cte->select, at)) {
+          return true;
+        }
+        if (with.recursive) {
+          ctes_.pop_back();
+        }
+        DefineCte(p, *cte, with.recursive, 0);
+      }
+      if (Within(p, with.select, at)) {
+        return true;
+      }
+      ctes_.resize(outer);
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+bool RelationAnalyzer::Impl::WithinSources(SyntaqliteParser* p,
+                                           uint32_t id,
+                                           uint32_t at) {
+  if (id == at) {
+    return true;
+  }
+  const SyntaqliteNode* node = Node(p, id);
+  if (!node) {
+    return false;
+  }
+  switch (static_cast<int>(node->tag)) {
+    case SYNTAQLITE_NODE_JOIN_CLAUSE:
+      return WithinSources(p, node->join_clause.left, at) ||
+             WithinSources(p, node->join_clause.right, at);
+    case SYNTAQLITE_NODE_JOIN_PREFIX:
+      return WithinSources(p, node->join_prefix.source, at);
+    case SYNTAQLITE_NODE_SUBQUERY_TABLE_SOURCE:
+      return Within(p, node->subquery_table_source.select, at);
+    default:
+      return false;
+  }
+}
+
+base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::Read(
+    std::string_view name,
+    int depth,
+    std::vector<std::string_view>& hidden) {
+  const Cte* cte = FindCte(name);
+  if (!cte) {
+    return Relation(name, depth, hidden);
+  }
+  // A CTE can filter or reorder its rows.
+  preserves_rows_ = false;
+  if (!cte->columns) {
+    return base::ErrStatus("relation analysis: CTE '%.*s' has unknown shape",
+                           static_cast<int>(name.size()), name.data());
+  }
+  return *cte->columns;
+}
+
+const RelationAnalyzer::Impl::Cte* RelationAnalyzer::Impl::FindCte(
+    std::string_view name) const {
+  for (auto it = ctes_.rbegin(); it != ctes_.rend(); ++it) {
+    if (base::CaseInsensitiveEqual(it->name, name)) {
+      return &*it;
+    }
+  }
+  return nullptr;
+}
+
+base::Status RelationAnalyzer::Impl::NameColumns(
+    SyntaqliteParser* p,
+    uint32_t names,
+    std::string_view relation,
+    std::vector<ColumnLineage>& columns) {
+  if (!syntaqlite_node_is_present(names)) {
+    return base::OkStatus();
+  }
+  const void* list = syntaqlite_parser_node(p, names);
+  uint32_t count = syntaqlite_list_count(list);
+  if (count != columns.size()) {
+    return base::ErrStatus(
+        "relation analysis: '%.*s' names %u columns for %u results",
+        static_cast<int>(relation.size()), relation.data(), count,
+        static_cast<uint32_t>(columns.size()));
+  }
+  for (uint32_t i = 0; i < count; ++i) {
+    const SyntaqliteNode* column = Node(p, syntaqlite_list_child_id(list, i));
+    if (!column || column->tag != SYNTAQLITE_NODE_COLUMN_REF) {
+      return base::ErrStatus("relation analysis: invalid column name in '%.*s'",
+                             static_cast<int>(relation.size()),
+                             relation.data());
+    }
+    columns[i].output_name = Text(p, column->column_ref.column);
+  }
+  return base::OkStatus();
+}
 
 std::vector<ColumnLineage> RelationAnalyzer::Impl::LeafColumns(
     LeafRelation found,
@@ -320,9 +545,13 @@ base::Status RelationAnalyzer::Impl::Sources(SyntaqliteParser* p,
       if (const SyntaqliteNode* a = Node(p, node->table_ref.alias)) {
         alias = Text(p, a->ident_name.source);
       }
+      // A CTE hides any relation of the same name. It is never qualified by
+      // a schema.
       std::vector<std::string_view> hidden;
       base::StatusOr<std::vector<ColumnLineage>> columns =
-          Relation(name, depth, hidden);
+          Text(p, node->table_ref.schema).empty()
+              ? Read(name, depth, hidden)
+              : Relation(name, depth, hidden);
       if (!columns.ok()) {
         scope->push_back({alias, std::nullopt, {}, {}});
         return base::OkStatus();
@@ -441,9 +670,19 @@ RelationAnalyzer::Impl::Select(SyntaqliteParser* p, uint32_t id, int depth) {
   switch (static_cast<int>(node->tag)) {
     case SYNTAQLITE_NODE_SELECT_STMT:
       return SelectStmt(p, node->select_stmt, depth);
-    case SYNTAQLITE_NODE_WITH_CLAUSE:
+    case SYNTAQLITE_NODE_WITH_CLAUSE: {
       preserves_rows_ = false;
-      return Select(p, node->with_clause.select, depth);
+      // Each CTE sees those before it.
+      size_t outer = ctes_.size();
+      for (const SyntaqliteCteDefinition* cte :
+           CteDefinitions(p, node->with_clause)) {
+        DefineCte(p, *cte, node->with_clause.recursive, depth);
+      }
+      base::StatusOr<std::vector<ColumnLineage>> columns =
+          Select(p, node->with_clause.select, depth);
+      ctes_.resize(outer);
+      return columns;
+    }
     case SYNTAQLITE_NODE_COMPOUND_SELECT: {
       preserves_rows_ = false;
       base::StatusOr<std::vector<ColumnLineage>> left =
@@ -521,28 +760,13 @@ base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::Relation(
     return base::ErrStatus("relation analysis: '%.*s' is not a view",
                            static_cast<int>(name.size()), name.data());
   }
+  // A view sees none of the CTEs of the query reading it.
+  std::vector<Cte> outer = std::exchange(ctes_, {});
   base::StatusOr<std::vector<ColumnLineage>> columns =
       Select(p, select, depth + 1);
+  ctes_ = std::move(outer);
   RETURN_IF_ERROR(columns.status());
-  if (syntaqlite_node_is_present(column_names)) {
-    const void* list = syntaqlite_parser_node(p, column_names);
-    uint32_t count = syntaqlite_list_count(list);
-    if (count != columns->size()) {
-      return base::ErrStatus(
-          "relation analysis: view '%.*s' names %u columns for %u results",
-          static_cast<int>(name.size()), name.data(), count,
-          static_cast<uint32_t>(columns->size()));
-    }
-    for (uint32_t i = 0; i < count; ++i) {
-      const SyntaqliteNode* column = Node(p, syntaqlite_list_child_id(list, i));
-      if (!column || column->tag != SYNTAQLITE_NODE_COLUMN_REF) {
-        return base::ErrStatus(
-            "relation analysis: invalid column name in '%.*s'",
-            static_cast<int>(name.size()), name.data());
-      }
-      (*columns)[i].output_name = Text(p, column->column_ref.column);
-    }
-  }
+  RETURN_IF_ERROR(NameColumns(p, column_names, name, *columns));
   return {columns};
 }
 
@@ -582,17 +806,20 @@ RelationAnalyzer::~RelationAnalyzer() = default;
 
 base::StatusOr<RelationLineage> RelationAnalyzer::AnalyzeQuery(SqlNode query) {
   impl_->Begin();
+  impl_->EnterScope(query);
   ASSIGN_OR_RETURN(auto columns, impl_->Select(query.parser, query.id, 0));
   return RelationLineage(std::make_unique<RelationLineage::Storage>(
       std::move(columns), impl_->preserves_rows()));
 }
 
 base::StatusOr<RelationLineage> RelationAnalyzer::AnalyzeRelation(
+    SqlNode at,
     std::string_view name) {
   impl_->Begin();
+  impl_->EnterScope(at);
   // Hidden columns are still columns of the relation itself.
   std::vector<std::string_view> hidden;
-  ASSIGN_OR_RETURN(auto columns, impl_->Relation(name, 0, hidden));
+  ASSIGN_OR_RETURN(auto columns, impl_->Read(name, 0, hidden));
   return RelationLineage(std::make_unique<RelationLineage::Storage>(
       std::move(columns), impl_->preserves_rows()));
 }
