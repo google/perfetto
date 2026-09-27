@@ -14,19 +14,21 @@
 
 import type {TreeExplorerQueryMetric} from '../../components/tree_explorer_fetcher';
 import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
+import type {TreeExplorerProfile} from '../../widgets/tree_explorer_merge';
 import {z} from 'zod';
 
 export const AGGREGATE_PROFILES_PAGE_STATE_SCHEMA = z.object({
+  // Also holds which profile is shown, or that all of them are merged (see
+  // TreeExplorerState.merge).
   flamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
-  selectedProfileId: z.string().optional(),
 });
 
 export type AggregateProfilesPageState = z.infer<
   typeof AGGREGATE_PROFILES_PAGE_STATE_SCHEMA
 >;
 
-export interface AggregateProfile {
-  readonly id: string;
-  readonly displayName: string;
+// One profile of the trace, e.g. one file of a pprof archive, keyed and
+// labeled by its scope.
+export interface AggregateProfile extends TreeExplorerProfile {
   readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
 }
