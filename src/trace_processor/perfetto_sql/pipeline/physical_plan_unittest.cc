@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -36,6 +37,7 @@
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -110,17 +112,22 @@ class PhysicalPlanTest : public ::testing::Test {
         {{3, 1, 40}, {1, 0, 20}, {2, 0, 30}, {0, std::nullopt, 10}});
   }
 
-  base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
+  base::StatusOr<LogicalPlan> Compile(const std::string& sql) {
     PerfettoSqlParser parser(macros_, catalog_,
                              /*pipelines_allowed=*/true);
     parser.Reset(SqlSource::FromExecuteQuery(sql));
     if (!parser.Next()) {
       return parser.status();
     }
-    const auto* pipeline =
-        std::get_if<PerfettoSqlParser::Pipeline>(&parser.statement());
-    PERFETTO_CHECK(pipeline);
-    return Lower(pipeline->plan, env_);
+    PERFETTO_CHECK(std::holds_alternative<PerfettoSqlParser::Pipeline>(
+        parser.statement()));
+    return std::move(
+        std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+  }
+
+  base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
+    ASSIGN_OR_RETURN(LogicalPlan plan, Compile(sql));
+    return Lower(plan, env_);
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -384,6 +391,34 @@ TEST_F(PhysicalPlanTest, APlanCanRunMoreThanOnce) {
   auto second = Run(**plan, "total");
   ASSERT_TRUE(first.ok() && second.ok());
   EXPECT_EQ(*first, *second);
+}
+
+TEST_F(PhysicalPlanTest, APlanReadBackFromItsBytesRuns) {
+  CreateDataframeTree();
+  auto plan = Compile("FROM df |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  auto read = DeserializePlan(SerializePlan(*plan), catalog_);
+  ASSERT_TRUE(read.ok()) << read.status().message();
+  auto rows = Run(*Lower(*read, env_), "total");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
+}
+
+// A table replaced by one of the same shape is read as it is now.
+TEST_F(PhysicalPlanTest, APlanReadBackReadsTablesAsTheyAreNow) {
+  CreateDataframeTree();
+  auto plan = Compile("FROM df |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  std::string bytes = SerializePlan(*plan);
+  catalog_.RemoveTable("df");
+  catalog_.AddTable("df", {"id", "parent_id", "self"},
+                    {{1, 0, 2}, {0, std::nullopt, 1}});
+  auto read = DeserializePlan(bytes, catalog_);
+  ASSERT_TRUE(read.ok()) << read.status().message();
+  auto rows = Run(*Lower(*read, env_), "total");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 3), Pair(1, 2)));
 }
 
 }  // namespace
